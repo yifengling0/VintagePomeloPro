@@ -501,9 +501,7 @@ export class WineEngineService {
     let backend = 'dxvk_legacy';
     if (mode === 'virgl') {
       backend = 'wined3d';
-    } else if (mode === 'dxvk_1_10') {
-      backend = 'dxvk_legacy';
-    } else if (this.gpuSupportsDxvk26()) {
+    } else if (mode === 'dxvk_2_6' && this.gpuSupportsDxvk26()) {
       backend = 'dxvk_modern_2_6';
     }
     AppStorage.setOrCreate<string>('winehua.render.resolved', backend);

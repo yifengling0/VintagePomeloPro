@@ -955,7 +955,7 @@ struct SystemSettingsPage {
   }
 
   /** 渲染模式: auto / dxvk_2_6 / dxvk_1_10 / virgl。
-   *  自动: DX11→DXVK 2.6 (GPU 不适配自动 1.10), D3D12→VKD3D。
+   *  自动: 默认 DXVK 1.10；D3D12 仍走 VKD3D。2.6 需手动选择。
    *  写入 Preferences 后再重启引擎，避免下次冷启动回退 auto。 */
   private updateRenderMode(mode: string): void {
     const selected = mode === 'dxvk_2_6' || mode === 'dxvk_1_10' || mode === 'virgl' ? mode : 'auto';
@@ -1919,15 +1919,13 @@ struct SystemSettingsPage {
             this.RenderModeChip('VirGL', 'virgl')
           }.width('100%')
           if (this.renderMode === 'auto') {
-            Text(this.gpuSupportDxvk26
-              ? `当前适配：DXVK 2.6 + VKD3D（${this.gpuName || '探测中'}）`
-              : `当前适配：DXVK 1.10（${this.gpuName || '探测中'} 不支持 2.6）`)
+            Text(`当前适配：DXVK 1.10 + VKD3D（${this.gpuName || '探测中'}）`)
               .fontSize(11).fontColor($r('app.color.accent')).width('100%')
           } else if (!this.gpuSupportDxvk26) {
             Text(`GPU (${this.gpuName}) 不支持 DXVK 2.6，已自动用 1.10。`)
               .fontSize(11).fontColor('#C47A20').width('100%')
           }
-          Text('自动按设备 GPU 选择 DXVK；920+ 用 2.6 + VKD3D，否则回退 1.10。')
+          Text('自动默认使用 DXVK 1.10；高端芯片可手动选择 DXVK 2.6 试用。')
             .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
