@@ -11,9 +11,9 @@
  *       spawn 点不要再写这两键。
  *   → AppendD3dBackendEnv (dxvk/vkd3d 受管 overlay, wine_env.cpp)
  *   → AppendCompatEnvLines (设置页兼容档位, 本文件)
- *   → AppendStableDesktopDxvkEnv (桌面会话稳定化 overlay, 本文件, 可选;
+ *   → AppendStableDxvkEnv (桌面会话稳定化 overlay, 本文件, 可选;
  *     含本仓 host-shadow / WINEHUA_PERF_PROFILE)
- *     融合目录启动必须 overlay=false, 否则全屏/适配会偏 (1.2.8 无此 overlay)。
+ *     桌面与程序直启均使用产品能力解析器，不在 ArkTS 维护平行默认值。
  *   → WINEHUA_DESKTOP=shell (可选)
  *   → extraEnv (per-run/per-app 覆盖, 优先级最高)
  *
@@ -40,7 +40,7 @@ void AppendCompatEnvLines(std::vector<std::string>& env,
 // -- 会话 DXVK 产品 capability --
 // probeBase: 产品路由或明确的 LAB `WINEHUA_GRAPHICS_PROFILE` 的探测基准。
 // 实现保证全部 probeBase 读取先于对 env 的写入, 允许调用方传同一 vector。
-void AppendStableDesktopDxvkEnv(std::vector<std::string>& env,
+void AppendStableDxvkEnv(std::vector<std::string>& env,
                                 const std::vector<std::string>& probeBase,
                                 const std::string& d3dBackend);
 
@@ -52,7 +52,7 @@ struct SessionEnvPolicy {
     std::string d3dBackend;
     std::string compatEnvStr;
     bool automationMode = false;
-    bool stableDesktopOverlay = false;
+    bool applyStableOverlay = false;
     bool desktopShellFlag = false;
     std::vector<std::string> extraEnv;
 };

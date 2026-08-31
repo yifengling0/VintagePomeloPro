@@ -54,7 +54,7 @@ static std::string FindEnvValue(const std::vector<std::string>& probeBase, const
     return {};
 }
 
-void AppendStableDesktopDxvkEnv(std::vector<std::string>& env,
+void AppendStableDxvkEnv(std::vector<std::string>& env,
                                 const std::vector<std::string>& probeBase,
                                 const std::string& d3dBackend)
 {
@@ -101,13 +101,13 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
 #ifdef __aarch64__
     AppendCompatEnvLines(env, p.compatEnvStr, p.automationMode);
 #endif
-    if (p.stableDesktopOverlay) {
+    if (p.applyStableOverlay) {
         // `extraEnv` wins in the final result, but a permitted LAB id must be
         // visible while the product graphics capability is resolved.
         std::vector<std::string> graphicsProbe = env;
         for (const std::string& line : p.extraEnv)
             UpsertEnvLine(graphicsProbe, line);
-        AppendStableDesktopDxvkEnv(env, graphicsProbe, p.d3dBackend);
+        AppendStableDxvkEnv(env, graphicsProbe, p.d3dBackend);
     }
     if (p.desktopShellFlag)
         UpsertEnvLine(env, "WINEHUA_DESKTOP=shell");

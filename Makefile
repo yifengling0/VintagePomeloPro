@@ -319,6 +319,18 @@ $(STAMPS)/box64-arm64-v8a: $(SCRIPTS)/build_box64.sh $(SCRIPTS)/env.sh FORCE | $
 .PHONY: native
 native: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/native)
 
+# Compile the application Native layer without repackaging the Wine payload.
+# Run inside the same SDK-equipped Docker container as `hap`.
+.PHONY: check-native
+check-native: native
+	@for arch in $(ARCHES); do \
+	    cmake -S $(ROOT)/entry/src/main/cpp -B $(BUILD_DIR)/native-check/$$arch -GNinja \
+	        -DCMAKE_TOOLCHAIN_FILE=$(OHOS_SDK)/native/build/cmake/ohos.toolchain.cmake \
+	        -DOHOS_ARCH=$$arch -DOHOS_PLATFORM=OHOS -DOHOS_STL=c++_shared \
+	        -DCMAKE_BUILD_TYPE=Debug && \
+	    cmake --build $(BUILD_DIR)/native-check/$$arch --parallel 4 || exit $$?; \
+	done
+
 NATIVE_SENTINEL_arm64_v8a := $(ROOT)/entry/libs/arm64-v8a/libvirglrenderer.so.1
 NATIVE_SENTINEL_x86_64    := $(ROOT)/entry/libs/x86_64/libvirglrenderer.so.1
 
@@ -480,6 +492,10 @@ test-performance-hud:
 	    -o $(HOST_TEST_DIR)/performance_monitor_test
 	$(HOST_TEST_DIR)/performance_monitor_test
 	node $(SCRIPTS)/test_performance_hud.cjs
+
+.PHONY: test-model
+test-model:
+	bash $(SCRIPTS)/run_model_unit_tests.sh
 
 .PHONY: test-bottom-navigation
 test-bottom-navigation:

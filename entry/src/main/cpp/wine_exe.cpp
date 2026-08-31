@@ -330,9 +330,9 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     policy.prefixDir = prefixDir;
     policy.d3dBackend = options.d3dBackend;
     /* Product DXVK capabilities must apply to every managed program, not
-     * only the desktop shell. This covers SmokeRunner and game windows
+     * only the desktop shell. This covers managed smoke and game windows
      * without relying on an A/B environment override. */
-    policy.stableDesktopOverlay = winehua::IsDxvkBackend(backend);
+    policy.applyStableOverlay = winehua::IsDxvkBackend(backend);
     policy.desktopShellFlag = WaylandServer::GetInstance()->IsDesktopMode();
     policy.extraEnv = options.environment;
     policy.extraEnv.push_back("WINEHUA_D3D_BACKEND=" + options.d3dBackend);
@@ -811,7 +811,7 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
     // Fusion games need the same managed DXVK/Venus/Box64 product capability
     // as the desktop shell. The final presenter policy remains per-surface.
     const bool desktopMode = WaylandServer::GetInstance()->IsDesktopMode();
-    policy.stableDesktopOverlay = winehua::IsDxvkBackend(
+    policy.applyStableOverlay = winehua::IsDxvkBackend(
         winehua::ParseD3dBackend(d3dBackend));
     policy.desktopShellFlag = desktopMode;
     if (workingDirectoryPath[0])

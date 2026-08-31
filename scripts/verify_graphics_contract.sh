@@ -149,8 +149,12 @@ require_literal "Product Host route follows selected Guest backend" \
     entry/src/main/ets/service/WineEngineService.ets
 require_literal "Program present route derives from D3D backend" \
     "UsesVenusPresent(backend)" entry/src/main/cpp/wine_exe.cpp
-require_literal "Smoke exposes only surface/offscreen intent" \
-    "presentToSurface" entry/src/main/ets/service/SmokeRunner.ets
+require_literal "Managed programs expose only surface/offscreen intent" \
+    "presentToSurface" entry/src/main/cpp/types/libentry/Index.d.ts
+[[ ! -f "$ROOT/entry/src/main/ets/service/SmokeRunner.ets" ]] || \
+    fail "obsolete SmokeRunner must not return to product startup"
+require_literal "Engine prepares managed payload independently of test orchestration" \
+    "from './ManagedSmokePayloadService'" entry/src/main/ets/service/WineEngineService.ets
 reject_literal "Removed public present backend profile" \
     "presentBackend" entry/src/main/cpp/wine_exe.h
 reject_literal "Removed unused present backend environment" \
@@ -184,11 +188,11 @@ require_literal "Guest environment serializer authority" \
     "BuildLabGuestGraphicsEnvironment" entry/src/main/cpp/graphics_profile.cpp
 require_literal "Explicit LAB Guest policy consumer" \
     "BuildLabGuestGraphicsEnvironment" entry/src/main/cpp/wine_env.cpp
-require_literal "Smoke Guest policy consumer" \
+require_literal "LAB Guest policy API remains available to isolated diagnostics" \
     "resolveGuestGraphicsEnvironmentForLab" \
-    entry/src/main/ets/service/SmokeRunner.ets
-reject_literal "Smoke experiment conditional tree" "this.graphicsExperiment ===" \
-    entry/src/main/ets/service/SmokeRunner.ets
+    entry/src/main/cpp/types/libentry/Index.d.ts
+reject_literal "Payload preparation must not launch Wine" "testNapi" \
+    entry/src/main/ets/service/ManagedSmokePayloadService.ets
 for policy_file in \
     entry/src/main/cpp/graphics_profile.cpp \
     entry/src/main/cpp/wine_child.cpp \
@@ -268,7 +272,7 @@ require_literal "Media probe packages the x64 PE" \
 require_literal "Media probe packages the x86 PE" \
     '"x86/winehua_media_smoke.exe"' scripts/assemble.sh
 require_literal_count "Media probe is required for both PE widths" \
-    "winehua_media_smoke.exe'" 2 entry/src/main/ets/service/SmokeRunner.ets
+    "winehua_media_smoke.exe'" 2 entry/src/main/ets/service/ManagedSmokePayloadService.ets
 require_literal "DXVK performance excludes startup from sample" \
     "Sampling starts from a clean log buffer" \
     automation/Measure-WineHuaDxvkPerformance.ps1

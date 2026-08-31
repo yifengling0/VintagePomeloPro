@@ -57,6 +57,7 @@ prebuilt/
 
 # Local signing material (never commit)
 /sign/
+/signs/
 
 # Python caches
 __pycache__/

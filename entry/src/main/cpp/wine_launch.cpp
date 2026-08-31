@@ -739,7 +739,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
          * 仅 Pad 桌面模式需要, Phone 模式走单窗口, 无需此逻辑. */
         snprintf(desktopSize, sizeof(desktopSize), "/desktop=shell,%dx%d", dw, dh);
         winehua::SessionEnvPolicy explorerPolicy = SessionPolicyFromLaunch(*p, audioBootstrapFd);
-        explorerPolicy.stableDesktopOverlay = true;
+        explorerPolicy.applyStableOverlay = true;
         std::vector<std::string> explorerEnv = winehua::BuildSessionEnv(explorerPolicy);
         winehua::SpawnRequest exReq{winehua::SpawnKind::DesktopShell};
         exReq.argv = {desktopSize, "winehua_keep.exe"};

@@ -23,6 +23,7 @@ import {
   resolveLaunchDisplayMode,
   resolveWinePresentationMode
 } from '../model/AppModels';
+import { isWineInfrastructurePath } from '../model/AppCatalogRules';
 import { WineEngineService } from './WineEngineService';
 import { WineWindowManager } from './WineWindowManager';
 import { InputOverlayWindowCoordinator } from './InputOverlayWindowCoordinator';
@@ -575,7 +576,7 @@ export class AppSessionService {
       }
     });
     this.getNativeProcesses().forEach((process: NativeProcessInfo) => {
-      if (process.state === 'running' && !process.path.startsWith('@engine/')) {
+      if (process.state === 'running' && !isWineInfrastructurePath(process.path)) {
         result.add(normalizeLaunchPath(process.path));
       }
     });

@@ -12,6 +12,14 @@ const models = require(path.resolve(outputDirectory, 'AppModels.js'));
 const rules = require(path.resolve(outputDirectory, 'AppCatalogRules.js'));
 
 assert.equal(rules.catalogFileName('D:/Games/Demo/Game.exe'), 'Game.exe');
+for (const name of ['wineboot', 'wineboot.exe', 'C:\\windows\\system32\\WINEBOOT.EXE',
+  '@engine/wineboot', '@engine/explorer', 'wineserver', 'winehua_keep.exe']) {
+  assert.equal(rules.isWineInfrastructurePath(name), true, name);
+}
+for (const name of ['Game.exe', 'C:\\games\\wineboot-game.exe', 'winecfg.exe', 'explorer.exe']) {
+  assert.equal(rules.isWineInfrastructurePath(name), false, name);
+}
+
 assert.equal(rules.catalogNameWithoutExtension('Game.EXE'), 'Game');
 assert.equal(
   rules.chooseExecutablePath('/games/Demo', [
@@ -95,13 +103,10 @@ assert.equal(
   models.resolveDisplayMode(null, models.DisplayMode.DESKTOP),
   models.DisplayMode.DESKTOP
 );
-assert.equal(
-  models.resolveDisplayMode(models.DisplayMode.SINGLE_APP, models.DisplayMode.DESKTOP),
-  models.DisplayMode.SINGLE_APP
-);
+assert.deepEqual(Object.values(models.DisplayMode), ['desktop']);
 assert.equal(
   models.resolveLaunchDisplayMode(
-    models.LaunchKind.WINE_DESKTOP, null, models.DisplayMode.SINGLE_APP),
+    models.LaunchKind.WINE_DESKTOP, null, 'single-app'),
   models.DisplayMode.DESKTOP
 );
 assert.equal(
@@ -131,8 +136,8 @@ assert.equal(
 );
 assert.equal(
   models.resolveWinePresentationMode(
-    models.LaunchKind.WINE_EXE, models.DisplayMode.SINGLE_APP, true),
-  models.WinePresentationMode.SINGLE_APP
+    models.LaunchKind.WINE_EXE, models.DisplayMode.DESKTOP, true, true),
+  models.WinePresentationMode.DESKTOP
 );
 assert.equal(
   models.canTransitionEngineState(models.EngineState.STOPPED, models.EngineState.PREPARING),
@@ -147,4 +152,4 @@ assert.equal(
   false
 );
 
-console.log('catalog/model unit tests: 34 passed');
+console.log('catalog/model unit tests: passed (including legacy display-mode migration and infrastructure filtering)');

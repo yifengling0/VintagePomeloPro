@@ -17,7 +17,7 @@ import {
   box64PresetEnvString
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
-import { syncManagedSmoke } from './SmokeRunner';
+import { syncManagedSmoke } from './ManagedSmokePayloadService';
 import { WineWindowManager } from './WineWindowManager';
 
 const DOMAIN = 0x0000;
