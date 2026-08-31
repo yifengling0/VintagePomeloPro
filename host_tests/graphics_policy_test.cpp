@@ -1,7 +1,7 @@
-#include "graphics_profile.h"
-#include "present_pacing.h"
-#include "present_policy.h"
-#include "virgl_host_config.h"
+#include "graphics/graphics_profile.h"
+#include "graphics/present_pacing.h"
+#include "graphics/present_policy.h"
+#include "graphics/virgl_host_config.h"
 
 #include <array>
 #include <cstdlib>

@@ -2,7 +2,7 @@
 // 测试 (make test)。不依赖 OHOS SDK, 用宿主 g++ 编译 (x86_64, __aarch64__
 // 未定义 — Box64 表为空、WINEDLLPATH 带 bundle libs 尾巴, 即 x86_64 形态)。
 // 基线收口前, 这些键在 wine_env.cpp / wine_child.cpp 两处各自手写维护。
-#include "wine_env_baseline.h"
+#include "wine/wine_env_baseline.h"
 
 #include <cstdio>
 #include <cstdlib>

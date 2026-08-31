@@ -1,10 +1,10 @@
-#include "compositor/desktop_compositor.h"
-#include "compositor/input_resolver.h"
-#include "compositor/toplevel_manager.h"
-#include "compositor/surface_data.h"
-#include "compositor/popup_manager.h"
-#include "graphics_broker.h"
-#include "plugin_manager.h"
+#include "compositor/toplevel/desktop_compositor.h"
+#include "compositor/input/input_resolver.h"
+#include "compositor/toplevel/toplevel_manager.h"
+#include "compositor/frame/surface_data.h"
+#include "compositor/toplevel/popup_manager.h"
+#include "graphics/graphics_broker.h"
+#include "bridge/plugin_manager.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>

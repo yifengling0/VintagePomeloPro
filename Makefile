@@ -437,26 +437,26 @@ test: graphics-contract-check
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/geometry_test \
 	    $(ROOT)/host_tests/geometry_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp
 	$(HOST_TEST_DIR)/geometry_test
 	g++ -std=c++17 -Wall -Wextra -Werror -DWINEHUA_DEBUG_ASSERT \
 	    -I $(ROOT)/host_tests/stubs -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/compositor_state_test \
 	    $(ROOT)/host_tests/compositor_state_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/desktop_compositor.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/frame_pipeline.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/frame_composer.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/zc_bridge.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/input_resolver.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/popup_manager.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/toplevel_manager.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/compositor_blit.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/toplevel/desktop_compositor.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/frame_pipeline.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/frame_composer.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/zc_bridge.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/input/input_resolver.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/toplevel/popup_manager.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/toplevel/toplevel_manager.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/compositor_blit.cpp
 	$(HOST_TEST_DIR)/compositor_state_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/blit_scaled_test \
 	    $(ROOT)/host_tests/blit_scaled_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/compositor_blit.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/compositor_blit.cpp
 	$(HOST_TEST_DIR)/blit_scaled_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/blit_clip_test \
@@ -465,7 +465,7 @@ test: graphics-contract-check
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/shm_frame_source_test \
 	    $(ROOT)/host_tests/shm_frame_source_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/shm_frame_source.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/shm_frame_source.cpp
 	$(HOST_TEST_DIR)/shm_frame_source_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/zorder_test \
@@ -474,7 +474,7 @@ test: graphics-contract-check
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/env_spec_test \
 	    $(ROOT)/host_tests/env_spec_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/env_spec.cpp
+	    $(ROOT)/entry/src/main/cpp/wine/env_spec.cpp
 	$(HOST_TEST_DIR)/env_spec_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/env_baseline_test \
@@ -483,8 +483,8 @@ test: graphics-contract-check
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/input_state_test \
 	    $(ROOT)/host_tests/input_state_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/input_state_tracker.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/input/input_state_tracker.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp
 	$(HOST_TEST_DIR)/input_state_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/toplevel_event_test \
@@ -493,13 +493,13 @@ test: graphics-contract-check
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/controller_merge_test \
 	    $(ROOT)/host_tests/controller_merge_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/controller/controller_hub.cpp
+	    $(ROOT)/entry/src/main/cpp/input/controller/controller_hub.cpp
 	$(HOST_TEST_DIR)/controller_merge_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/graphics_policy_test \
 	    $(ROOT)/host_tests/graphics_policy_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/graphics_profile.cpp \
-	    $(ROOT)/entry/src/main/cpp/virgl_host_config.cpp
+	    $(ROOT)/entry/src/main/cpp/graphics/graphics_profile.cpp \
+	    $(ROOT)/entry/src/main/cpp/graphics/virgl_host_config.cpp
 	$(HOST_TEST_DIR)/graphics_policy_test
 	g++ -std=c++17 -Wall -Wextra -Werror \
 	    -I $(ROOT)/thirdparty/dxvk-modern/src/dxvk \
@@ -515,7 +515,7 @@ test-gles-direct:
 test-performance-hud:
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
-	    $(ROOT)/host_tests/performance_monitor_test.cpp $(ROOT)/entry/src/main/cpp/performance_monitor.cpp \
+	    $(ROOT)/host_tests/performance_monitor_test.cpp $(ROOT)/entry/src/main/cpp/common/performance_monitor.cpp \
 	    -o $(HOST_TEST_DIR)/performance_monitor_test
 	$(HOST_TEST_DIR)/performance_monitor_test
 	node $(SCRIPTS)/test_performance_hud.cjs

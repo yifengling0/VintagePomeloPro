@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 LOCK="$ROOT/docs/graphics/graphics-stack.lock.yaml"
-PROTOCOL_HEADER="$ROOT/entry/src/main/cpp/virgl_ipc_protocol.h"
+PROTOCOL_HEADER="$ROOT/entry/src/main/cpp/graphics/virgl_ipc_protocol.h"
 
 fail() {
     printf 'graphics-contract: ERROR: %s\n' "$*" >&2
@@ -125,30 +125,30 @@ virgl_route="$(require_value defaults virgl_route)"
 vulkan_route="$(require_value defaults vulkan_route)"
 require_literal "VirGL product route" \
     "kProductVirglRoute = \"$virgl_route\";" \
-    entry/src/main/cpp/graphics_profile.h
+    entry/src/main/cpp/graphics/graphics_profile.h
 require_literal "Vulkan product route" \
     "kProductVulkanRoute = \"$vulkan_route\";" \
-    entry/src/main/cpp/graphics_profile.h
+    entry/src/main/cpp/graphics/graphics_profile.h
 require_literal "NAPI LAB experiment resolver" "ResolveLabGraphicsExperiment" \
-    entry/src/main/cpp/napi_init.cpp
+    entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "NAPI LAB experiment API" "setHostGraphicsExperimentForLab" \
-    entry/src/main/cpp/napi_init.cpp
+    entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "NAPI product route resolver" "ResolveProductGraphicsPolicy" \
-    entry/src/main/cpp/napi_init.cpp
+    entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Wine env product Guest resolver" \
     "BuildProductGuestGraphicsEnvironment" \
-    entry/src/main/cpp/wine_env.cpp
+    entry/src/main/cpp/wine/wine_env.cpp
 require_literal "Wine session product route resolver" \
     "ResolveProductGraphicsPolicy" \
-    entry/src/main/cpp/env_profiles.cpp
+    entry/src/main/cpp/wine/env_profiles.cpp
 require_literal "Wine session applies product DXVK capability" \
     "AppendProductDxvkEnv(env, d3dBackend, graphicsExperiment);" \
-    entry/src/main/cpp/env_profiles.cpp
+    entry/src/main/cpp/wine/env_profiles.cpp
 require_literal "Product Host route follows selected Guest backend" \
     "hostGraphicsBackendOverride : requestedD3DBackend" \
     entry/src/main/ets/service/WineEngineService.ets
 require_literal "Program present route derives from D3D backend" \
-    "UsesVenusPresent(backend)" entry/src/main/cpp/wine_exe.cpp
+    "UsesVenusPresent(backend)" entry/src/main/cpp/wine/wine_exe.cpp
 require_literal "Managed programs expose only surface/offscreen intent" \
     "presentToSurface" entry/src/main/cpp/types/libentry/Index.d.ts
 [[ ! -f "$ROOT/entry/src/main/ets/service/SmokeRunner.ets" ]] || \
@@ -156,56 +156,56 @@ require_literal "Managed programs expose only surface/offscreen intent" \
 require_literal "Engine prepares managed payload independently of test orchestration" \
     "from './ManagedSmokePayloadService'" entry/src/main/ets/service/WineEngineService.ets
 reject_literal "Removed public present backend profile" \
-    "presentBackend" entry/src/main/cpp/wine_exe.h
+    "presentBackend" entry/src/main/cpp/wine/wine_exe.h
 reject_literal "Removed unused present backend environment" \
-    "WINEHUA_PRESENT_BACKEND" entry/src/main/cpp/wine_exe.cpp
+    "WINEHUA_PRESENT_BACKEND" entry/src/main/cpp/wine/wine_exe.cpp
 require_literal "Wineboot waits for broker worker" \
-    "HasRunningWinebootWorker" entry/src/main/cpp/wine_launch.cpp
+    "HasRunningWinebootWorker" entry/src/main/cpp/wine/wine_launch.cpp
 require_literal "Prefix health checks a critical Wine COM registration" \
     "bcde0395-e52f-467c-8e3d-c4579291692e" \
-    entry/src/main/cpp/wine_launch.cpp
+    entry/src/main/cpp/wine/wine_launch.cpp
 require_literal "Incomplete prefix repair forces wine.inf registration" \
     'repairIncompletePrefix ? "--update" : "--init"' \
-    entry/src/main/cpp/wine_launch.cpp
+    entry/src/main/cpp/wine/wine_launch.cpp
 require_literal "Unchanged wine.inf avoids prefix reinstall" \
     "preserved unchanged wine.inf timestamp" \
     entry/src/main/ets/service/WineEngineService.ets
 require_literal "Runtime identity uses semantic content" \
     "runtime_content_sha" scripts/assemble.sh
 reject_literal "Removed product-to-LAB resolver" \
-    "ProductionHostProfileForBackend" entry/src/main/cpp/graphics_profile.h
+    "ProductionHostProfileForBackend" entry/src/main/cpp/graphics/graphics_profile.h
 require_literal "DXVK runtime resolver" "ResolveDxvkRuntimeProfile" \
-    entry/src/main/cpp/graphics_profile.cpp
+    entry/src/main/cpp/graphics/graphics_profile.cpp
 require_literal "Product-derived LAB experiment authority" \
-    "ResolveLabGraphicsExperiment" entry/src/main/cpp/graphics_profile.cpp
+    "ResolveLabGraphicsExperiment" entry/src/main/cpp/graphics/graphics_profile.cpp
 reject_literal "Removed Host-only LAB resolver wrapper" \
-    "ResolveLabHostGraphicsProfile" entry/src/main/cpp/graphics_profile.h
+    "ResolveLabHostGraphicsProfile" entry/src/main/cpp/graphics/graphics_profile.h
 reject_literal "Removed Guest-only LAB resolver wrapper" \
-    "ResolveLabGuestGraphicsPolicy" entry/src/main/cpp/graphics_profile.h
+    "ResolveLabGuestGraphicsPolicy" entry/src/main/cpp/graphics/graphics_profile.h
 reject_literal "Removed combinatorial LAB profile table" \
-    "std::array<HostGraphicsProfile" entry/src/main/cpp/graphics_profile.cpp
+    "std::array<HostGraphicsProfile" entry/src/main/cpp/graphics/graphics_profile.cpp
 require_literal "Guest environment serializer authority" \
-    "BuildLabGuestGraphicsEnvironment" entry/src/main/cpp/graphics_profile.cpp
+    "BuildLabGuestGraphicsEnvironment" entry/src/main/cpp/graphics/graphics_profile.cpp
 require_literal "Explicit LAB Guest policy consumer" \
-    "BuildLabGuestGraphicsEnvironment" entry/src/main/cpp/wine_env.cpp
+    "BuildLabGuestGraphicsEnvironment" entry/src/main/cpp/wine/wine_env.cpp
 require_literal "LAB Guest policy API remains available to isolated diagnostics" \
     "resolveGuestGraphicsEnvironmentForLab" \
     entry/src/main/cpp/types/libentry/Index.d.ts
 reject_literal "Payload preparation must not launch Wine" "testNapi" \
     entry/src/main/ets/service/ManagedSmokePayloadService.ets
 for policy_file in \
-    entry/src/main/cpp/graphics_profile.cpp \
-    entry/src/main/cpp/wine_child.cpp \
-    entry/src/main/cpp/wine_launch.cpp \
-    entry/src/main/cpp/wine_env.cpp; do
+    entry/src/main/cpp/graphics/graphics_profile.cpp \
+    entry/src/main/cpp/proc/wine_child.cpp \
+    entry/src/main/cpp/wine/wine_launch.cpp \
+    entry/src/main/cpp/wine/wine_env.cpp; do
     reject_literal "Removed duplicate Guest profile environment key" \
         "WINEHUA_PERF_PROFILE" "$policy_file"
 done
 reject_literal "Removed redundant single-ring LAB alias" \
-    "shadow-precise-single-ring" entry/src/main/cpp/graphics_profile.cpp
+    "shadow-precise-single-ring" entry/src/main/cpp/graphics/graphics_profile.cpp
 reject_literal "Removed historical combined LAB ids" \
     "shadow-precise-dirty-ring-frame-timeline" \
-    entry/src/main/cpp/graphics_profile.cpp
+    entry/src/main/cpp/graphics/graphics_profile.cpp
 for automation_script in \
     automation/Start-WineHuaGameTest.ps1 \
     automation/Measure-WineHuaFrameOrder.ps1 \
@@ -253,14 +253,14 @@ require_literal "Device automation keeps the display awake for long runs" \
     "power-shell timeout -o 2147483647" \
     automation/Start-WineHuaGameTest.ps1
 require_literal "Zero-copy keeps producer Vulkan classification per surface" \
-    "surface.vulkan))" entry/src/main/cpp/egl_renderer.cpp
+    "surface.vulkan))" entry/src/main/cpp/graphics/egl_renderer.cpp
 require_literal "Zero-copy stale binding tracks surface serial" \
-    "uint32_t zeroCopySurfaceSerial_" entry/src/main/cpp/egl_renderer.h
+    "uint32_t zeroCopySurfaceSerial_" entry/src/main/cpp/graphics/egl_renderer.h
 require_literal "Zero-copy promotion follows latest-present ordering" \
-    "candidate != currentSurface" entry/src/main/cpp/egl_renderer.cpp
+    "candidate != currentSurface" entry/src/main/cpp/graphics/egl_renderer.cpp
 require_literal "Zero-copy promotion is gated on no produced frame" \
     "const bool currentHasFrame = zeroCopyFrames_ != 0 || zeroCopyHasFrame_ ||" \
-    entry/src/main/cpp/egl_renderer.cpp
+    entry/src/main/cpp/graphics/egl_renderer.cpp
 require_literal "Media probe participates in assemble invalidation" \
     '$(ROOT)/smoke/winehua_media_smoke.cpp' Makefile
 require_literal "Media probe is self-contained on the Wine runtime" \
@@ -306,39 +306,39 @@ require_literal "Per-producer media presenter ownership is documented" \
 dxvk_shadow_selector="$(require_value defaults dxvk_shadow_selector)"
 require_literal "DXVK product Host policy" \
     "\"$dxvk_shadow_selector\"};" \
-    entry/src/main/cpp/graphics_profile.cpp
+    entry/src/main/cpp/graphics/graphics_profile.cpp
 vkd3d_shadow_mode="$(require_value defaults vkd3d_shadow_mode)"
 require_literal "VKD3D product Host policy" \
     "resolved.host = {resolved.route, \"$vkd3d_shadow_mode\", \"0\"};" \
-    entry/src/main/cpp/graphics_profile.cpp
+    entry/src/main/cpp/graphics/graphics_profile.cpp
 require_literal "Explicit Host summary control-plane bit" \
-    "WINEHUA_VIRGL_HOST_PERF_SUMMARY" entry/src/main/cpp/napi_init.cpp
+    "WINEHUA_VIRGL_HOST_PERF_SUMMARY" entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Broker consumes Host summary bit" \
-    "WINEHUA_VIRGL_HOST_PERF_SUMMARY" entry/src/main/cpp/graphics_broker.cpp
+    "WINEHUA_VIRGL_HOST_PERF_SUMMARY" entry/src/main/cpp/graphics/graphics_broker.cpp
 require_literal "WHIP field 8 carries Host summary" \
-    "std::string perfSummary;" entry/src/main/cpp/virgl_host_config.h
+    "std::string perfSummary;" entry/src/main/cpp/graphics/virgl_host_config.h
 require_literal "WHIP Host summary is binary" \
-    "IsBinaryFlag(config.perfSummary)" entry/src/main/cpp/virgl_host_config.cpp
+    "IsBinaryFlag(config.perfSummary)" entry/src/main/cpp/graphics/virgl_host_config.cpp
 require_literal "Host summary reaches presenter" \
     'AppendEnv(params, "WINEHUA_VTEST_PRESENT_PERF_SUMMARY",' \
-    entry/src/main/cpp/virgl_host_config.cpp
+    entry/src/main/cpp/graphics/virgl_host_config.cpp
 for retired_present_file in \
-    entry/src/main/cpp/napi_init.cpp \
-    entry/src/main/cpp/graphics_broker.cpp \
-    entry/src/main/cpp/virgl_child.cpp \
-    entry/src/main/cpp/virgl_host_config.cpp \
-    entry/src/main/cpp/present_policy.h; do
+    entry/src/main/cpp/bridge/napi_init.cpp \
+    entry/src/main/cpp/graphics/graphics_broker.cpp \
+    entry/src/main/cpp/graphics/virgl_child.cpp \
+    entry/src/main/cpp/graphics/virgl_host_config.cpp \
+    entry/src/main/cpp/graphics/present_policy.h; do
     reject_literal "Retired public present-mode key" \
         "WINEHUA_VENUS_PRESENT_MODE" "$retired_present_file"
     reject_literal "Retired Host present-mode key" \
         "WINEHUA_VIRGL_HOST_PRESENT_MODE" "$retired_present_file"
 done
 for fixed_present_file in \
-    entry/src/main/cpp/venus_surface_presenter.cpp \
-    entry/src/main/cpp/present_policy.h \
-    entry/src/main/cpp/virgl_host_config.cpp \
-    entry/src/main/cpp/graphics_broker.cpp \
-    entry/src/main/cpp/virgl_child.cpp; do
+    entry/src/main/cpp/graphics/venus_surface_presenter.cpp \
+    entry/src/main/cpp/graphics/present_policy.h \
+    entry/src/main/cpp/graphics/virgl_host_config.cpp \
+    entry/src/main/cpp/graphics/graphics_broker.cpp \
+    entry/src/main/cpp/graphics/virgl_child.cpp; do
     reject_literal "Retired mailbox control branch" "mailbox" "$fixed_present_file"
     reject_literal "Retired async present control branch" \
         "fifo-async" "$fixed_present_file"
@@ -347,63 +347,63 @@ for fixed_present_file in \
 done
 require_literal "Venus product queue fixed to FIFO" \
     "create.presentMode = VK_PRESENT_MODE_FIFO_KHR;" \
-    entry/src/main/cpp/venus_surface_presenter.cpp
+    entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "Vulkan Direct target is part of virgl child" \
     "native_window_vk_target.cpp" entry/src/main/cpp/CMakeLists.txt
 require_literal "Vulkan Direct target links NativeBuffer API" \
     "libnative_buffer.so" entry/src/main/cpp/CMakeLists.txt
 require_literal "Vulkan Direct imports OHOS NativeBuffer" \
     "vkGetNativeBufferPropertiesOHOS" \
-    entry/src/main/cpp/native_window_vk_target.cpp
+    entry/src/main/cpp/graphics/native_window_vk_target.cpp
 require_literal "Vulkan Direct imports acquire fence on GPU" \
-    "vkAcquireImageOHOS" entry/src/main/cpp/native_window_vk_target.cpp
+    "vkAcquireImageOHOS" entry/src/main/cpp/graphics/native_window_vk_target.cpp
 require_literal "Vulkan Direct exports GPU release fence" \
     "vkQueueSignalReleaseImageOHOS" \
-    entry/src/main/cpp/native_window_vk_target.cpp
+    entry/src/main/cpp/graphics/native_window_vk_target.cpp
 require_literal "Vulkan Direct flushes SurfaceQueue buffer" \
     "OH_NativeWindow_NativeWindowFlushBuffer" \
-    entry/src/main/cpp/native_window_vk_target.cpp
+    entry/src/main/cpp/graphics/native_window_vk_target.cpp
 require_literal "Vulkan Direct owner includes surface generation" \
     "slot.surfaceKey == surfaceKey_" \
-    entry/src/main/cpp/native_window_vk_target.cpp
+    entry/src/main/cpp/graphics/native_window_vk_target.cpp
 require_literal "Vulkan Direct owner includes device identity" \
     "slot.physicalDevice == physicalDevice_ && slot.device == device_" \
-    entry/src/main/cpp/native_window_vk_target.cpp
+    entry/src/main/cpp/graphics/native_window_vk_target.cpp
 require_literal "Vulkan Direct import cache has a fail-safe bound" \
     "kMaxImportedSlotsPerAttach = 64" \
-    entry/src/main/cpp/native_window_vk_target.h
+    entry/src/main/cpp/graphics/native_window_vk_target.h
 reject_literal "Vulkan Direct import cache never evicts a live slot" \
-    "DestroySlot(slots_[0])" entry/src/main/cpp/native_window_vk_target.cpp
+    "DestroySlot(slots_[0])" entry/src/main/cpp/graphics/native_window_vk_target.cpp
 reject_literal "Vulkan Direct target has no product runtime switch" \
-    "WINEHUA_DIRECT" entry/src/main/cpp/native_window_vk_target.cpp
+    "WINEHUA_DIRECT" entry/src/main/cpp/graphics/native_window_vk_target.cpp
 reject_literal "Venus Direct selection has no product runtime switch" \
-    "WINEHUA_DIRECT" entry/src/main/cpp/venus_surface_presenter.cpp
+    "WINEHUA_DIRECT" entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 reject_literal "Vulkan Direct target bypasses WSI acquire" \
-    "vkAcquireNextImageKHR" entry/src/main/cpp/native_window_vk_target.cpp
+    "vkAcquireNextImageKHR" entry/src/main/cpp/graphics/native_window_vk_target.cpp
 reject_literal "Vulkan Direct target bypasses WSI present" \
-    "vkQueuePresentKHR" entry/src/main/cpp/native_window_vk_target.cpp
+    "vkQueuePresentKHR" entry/src/main/cpp/graphics/native_window_vk_target.cpp
 require_literal "Venus Direct has latched WSI fallback" \
-    "transport fallback latched" entry/src/main/cpp/venus_surface_presenter.cpp
+    "transport fallback latched" entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "Venus Direct does not wait after successful present" \
-    "post_present_cpu_wait=0" entry/src/main/cpp/venus_surface_presenter.cpp
+    "post_present_cpu_wait=0" entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "Venus transports use common present copy recorder" \
-    "RecordPresentCopyLocked(" entry/src/main/cpp/venus_surface_presenter.cpp
+    "RecordPresentCopyLocked(" entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal_count "Venus has one Vulkan image-copy implementation" \
-    "vkCmdCopyImage(" 1 entry/src/main/cpp/venus_surface_presenter.cpp
+    "vkCmdCopyImage(" 1 entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal_count "Venus has one Vulkan image-blit implementation" \
-    "vkCmdBlitImage(" 1 entry/src/main/cpp/venus_surface_presenter.cpp
+    "vkCmdBlitImage(" 1 entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal_count "Venus has one checked frame-fence reset" \
-    "vkResetFences(" 1 entry/src/main/cpp/venus_surface_presenter.cpp
+    "vkResetFences(" 1 entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "Venus tracks actually submitted frame slots" \
-    "bool submitted = false;" entry/src/main/cpp/venus_surface_presenter.cpp
+    "bool submitted = false;" entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "Venus skips redundant waits for completed slots" \
-    "if (frame.submitted)" entry/src/main/cpp/venus_surface_presenter.cpp
+    "if (frame.submitted)" entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "Venus WSI rebuild waits only outstanding slots" \
     "WaitForOutstandingFramesLocked()" \
-    entry/src/main/cpp/venus_surface_presenter.cpp
+    entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal_count "Venus has one recoverable WSI target-loss policy" \
     "bool IsRecoverableWsiTargetLoss(" 1 \
-    entry/src/main/cpp/venus_surface_presenter.cpp
+    entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "Current Mesa private Present ordering is audited" \
     "vn_ring_wait_all(dev->primary_ring)" \
     docs/graphics/DIRECT_PRESENT_REFERENCE_AUDIT.md
@@ -411,8 +411,8 @@ require_literal "Current Host queue guard fallback is audited" \
     "vkr_winehua_release_queue(&queue_guard)" \
     docs/graphics/DIRECT_PRESENT_REFERENCE_AUDIT.md
 for presenter_file in \
-    entry/src/main/cpp/virgl_surface_presenter.cpp \
-    entry/src/main/cpp/venus_surface_presenter.cpp; do
+    entry/src/main/cpp/graphics/virgl_surface_presenter.cpp \
+    entry/src/main/cpp/graphics/venus_surface_presenter.cpp; do
     require_literal "Common presenter period normalization" \
         "NormalizePresentFramePeriodNs" "$presenter_file"
     require_literal "Common presenter pacing lead" \
@@ -431,29 +431,29 @@ require_literal "Applied Host experiment propagated per launch" \
     entry/src/main/ets/service/WineEngineService.ets
 require_literal "Direct Wine child forwards graphics experiment to session policy" \
     "policy.extraEnv = options.environment;" \
-    entry/src/main/cpp/wine_exe.cpp
+    entry/src/main/cpp/wine/wine_exe.cpp
 require_literal "Session environment extracts graphics experiment" \
     'FindEnvValue(probeBase, "WINEHUA_GRAPHICS_PROFILE")' \
-    entry/src/main/cpp/env_profiles.cpp
+    entry/src/main/cpp/wine/env_profiles.cpp
 require_literal "Session environment resolves Guest experiment" \
     "ResolveLabGraphicsExperiment" \
-    entry/src/main/cpp/env_profiles.cpp
+    entry/src/main/cpp/wine/env_profiles.cpp
 require_literal "Session environment applies resolved experiment" \
     "AppendProductDxvkEnv(env, d3dBackend, graphicsExperiment)" \
-    entry/src/main/cpp/env_profiles.cpp
+    entry/src/main/cpp/wine/env_profiles.cpp
 vkd3d_dxvk_companion="$(require_value defaults vkd3d_dxvk_companion)"
 require_literal "VKD3D DXVK companion" \
     "AppendD3dBackendEnv(env, \"dxvk_modern_2_6\", binDir);" \
-    entry/src/main/cpp/wine_env.cpp
+    entry/src/main/cpp/wine/wine_env.cpp
 require_literal "VKD3D companion directory" \
     "\"$vkd3d_dxvk_companion\", \"2.6.2\"," \
-    entry/src/main/cpp/graphics_profile.cpp
+    entry/src/main/cpp/graphics/graphics_profile.cpp
 require_literal "Modern mapped flush capability owner" \
-    "if (dxvkRuntime.batchMappedFlush)" entry/src/main/cpp/wine_env.cpp
+    "if (dxvkRuntime.batchMappedFlush)" entry/src/main/cpp/wine/wine_env.cpp
 require_literal "Legacy mapped flush defaults to the product high-performance path" \
-    "true,  // batchMappedFlush" entry/src/main/cpp/graphics_profile.cpp
+    "true,  // batchMappedFlush" entry/src/main/cpp/graphics/graphics_profile.cpp
 if ! sed -n '/^void AppendProductDxvkEnv(/,/^}/p' \
-        "$ROOT/entry/src/main/cpp/wine_env.cpp" | \
+        "$ROOT/entry/src/main/cpp/wine/wine_env.cpp" | \
         grep -Fq -- "ResolveDxvkRuntimeProfile(backend, &dxvkRuntime)"; then
     fail "Modern mapped flush runtime capability is not resolved in AppendProductDxvkEnv"
 fi

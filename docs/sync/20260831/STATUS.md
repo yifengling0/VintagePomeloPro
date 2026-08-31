@@ -22,7 +22,9 @@
 - T6 complete: SHM helpers and named CommittedSurface geometry, ToplevelManager commit policies, PopupManager, typed event bus, compositor/input dependency injection, shared DesktopSessionState and atomic frame serial adopted (13 source commits including code in cb88f42b).
 - T6 product adaptations: toplevel pixel copy remains unscaled; current root resize/output and engine retry/reset behavior remain unchanged. Created events retain sessionId/clientPid; product raise and IME surface teardown survive. No upstream engine-state side effects or alternate process registry introduced. Per-surface pointer liveness and relative-baseline callbacks receive explicit dependencies; GL geometry changes still invalidate the CPU base.
 - T6 gates: `make test` (48 compositor state checks, 39 SHM checks, 90 input-state checks, 66 event contract checks; popup window/pixel size separation, repeated commit, geometry move, unmap cleanup and dragged-window restore covered) and ARM64 `check-native` passed. No UI/gitlink changes.
-- T7 in progress; T8 pending. Intermediate commits are not release-qualified. No full integration or phone-regression completion claim.
+- T7 complete: 181 Native files moved using the reviewed path map; all upstream Native destination paths exist. Private GL targets/policy stay under graphics, controller under input/controller, telemetry core under common and NAPI under bridge. CMake, host doubles, Makefile and operational script references updated; protocol generation writes to protocols. Per-file audit confirms every moved implementation body is unchanged apart from include/path spelling; blit -O2 retained.
+- T7 gates: `make test`, ARM64 `check-native`, `test-gles-direct`, `test-performance-hud`, `test-bottom-navigation`, `test-model` and all 11 `test-ci-release` checks passed. `path-map.json` records the move and original file hashes.
+- T8 in progress. Intermediate commits are not release-qualified. No full integration or phone-regression completion claim.
 
 ## Resume
 

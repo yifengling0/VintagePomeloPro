@@ -9,7 +9,7 @@
 //
 // 构建: make test (host g++ 直连编译, 零 wayland/hilog 依赖 — 纯函数在头)。
 // ============================================================================
-#include "compositor/toplevel_event_bus.h"
+#include "compositor/toplevel/toplevel_event_bus.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
