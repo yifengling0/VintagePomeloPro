@@ -1,5 +1,6 @@
 #pragma once
 #include <wayland-server-core.h>
+#include <atomic>
 #include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
@@ -83,8 +84,9 @@ public:
         bool ShouldSkipCpu() const { return !visible || zcActive; }
     };
 
-    // 构造: 注入 ToplevelManager + 桌面合成配置 (由 WaylandServer 持有,
-    // policy 为引用 — SetDesktopMode 后随动)
+    // 构造: 注入 ToplevelManager + 桌面合成配置 (存储在 WaylandServer 的
+    // DesktopSessionState POD — 重构第 6B 步, 注入引用指向 session_ 字段;
+    // policy 随 SetDesktopMode 随动, rootId/output 随会话状态变化即见)
     DesktopCompositor(ToplevelManager& tmgr,
                       const DisplayPolicy& policy,
                       const uint32_t& desktopRootToplevelId,
@@ -120,7 +122,7 @@ public:
     // BuildLayerListLocked 对称但用窗口局部坐标:
     //   zIndex: Root(窗口帧) < Subsurface(窗口内局部坐标) < ZC 层(最顶)
     // 窗口间层序不在此管理 (系统合成器)。PC 模式 subsurface 全部转 popup
-    // 伪 toplevel (UpdatePopupOnCommit), 窗口内 subsurface 当前恒空 —
+    // 伪 toplevel (PopupManager::UpdatePopupOnCommit), 窗口内 subsurface 当前恒空 —
     // 层序结构为窗口内内容扩展预留; ZC 层 (zcActive) 在层序最顶, 合成跳过
     // (GPU 自绘覆盖, 与 desktop 模式同语义)。调用方须已持有 tmgr mutex。
     std::vector<CompositorLayer> BuildWindowLayerListLocked(uint32_t toplevelId,
@@ -158,12 +160,16 @@ public:
                               ZeroCopyLayerInfo& info) {
         return zc_.GetLayerInfo(surfaceKey, rendererToplevelId, fallbackWidth, fallbackHeight, info);
     }
-    void SetSurfaceZeroCopy(uint64_t surfaceKey, bool enabled) { zc_.SetEnabled(surfaceKey, enabled); }
     int GetZeroCopyOccluders(uint64_t surfaceKey, uint32_t rendererToplevelId,
                              ZeroCopyOccluderRect* out, int maxOut) {
         return zc_.GetOccluders(surfaceKey, rendererToplevelId, out, maxOut);
     }
-    // ZC 协议 owner 访问 (重构第 3C 步: WaylandServer 内联委托持 ZC 状态机动作)
+    // (SetSurfaceZeroCopy 入口已删: zero-copy 开关经 ZcBridge 状态机幂等动作
+    // Activate/Release — Activate 内部调 SetEnabled, 入口外部零调用方,
+    // 重构第 6A 步死转发清理)
+
+    // ZC 协议 owner 访问 (重构第 3C 步: 渲染器直调 ZC 状态机动作 — 6A 转
+    // 发删除后 EglRenderer 经注入的本类引用持 zc() 直连)
     ZcBridge& zc() { return zc_; }
     const ZcBridge& zc() const { return zc_; }
 
@@ -171,8 +177,17 @@ public:
     void ResolveSubsurfaceLayerPositionLocked(const SubsurfaceLayer& layer,
                                               int& x, int& y) const;
 
+    // -- 配置只读访问 (装配出口, 重构第 6A 步) --
+    // 本类经构造注入了 policy/rootId 的共享引用 (与 InputResolver 同源),
+    // 渲染器 (经 plugin_manager 注入本类引用) 经此读同值配置 — 替代
+    // WaylandServer::Policy()/GetDesktopRootToplevelId() 门面转发。
+    const DisplayPolicy& Policy() const { return policy_; }
+    uint32_t DesktopRootToplevelId() const { return desktopRootToplevelId_; }
+
     // -- 桌面 root dirty 标记 --
     void MarkDesktopRootDirtyLocked();
+    // Geometry-only ZC changes must invalidate the retained CPU base too.
+    void ForceToplevelRedraw(uint32_t id);
 
     // -- Subsurface layer 生命周期 (替代直接操作 subsurfaceLayers_) --
 
@@ -197,6 +212,8 @@ public:
     void RemoveZeroCopyKeyLocked(uint64_t surfaceKey) { zc_.RemoveKey(surfaceKey); }
 
     // Increment root frame serial (called from surface_commit when root commits)
+    // — 存储为 atomic (重构第 6B 步, 见成员处注释: 读写两侧均持 tmgr 锁,
+    // atomic 为防御性收口; 调用点/线程域不变)
     void IncrementDesktopRootFrameSerial() { ++desktopRootFrameSerial_; }
 
     // toplevel 是否有 zero-copy GL 层 (ZC 游戏判定: 全屏渲染/输入映射分流用,
@@ -242,7 +259,17 @@ private:
     uint64_t desktopCompositionSignature_ = 0;
     uint64_t desktopOutputRootFrameSerial_ = 0;
     bool desktopOutputInitialized_ = false;
-    uint64_t desktopRootFrameSerial_ = 0;
+    /* desktopRootFrameSerial_ — desktop root 全局帧序号 (重构第 6B 步原子化)。
+     * 语义: wl 线程在 root commit 时 ++ (IncrementDesktopRootFrameSerial,
+     * wl_core.cpp UpdateToplevelFrameOnCommit, tmgr 锁内), 渲染线程在
+     * FramePlanner 锁内段读 (rebuildBase 判定/CopyBaseToOutputLocked 回写
+     * desktopOutputRootFrameSerial_, frame_pipeline.cpp) — 读写两侧均持
+     * tmgr mutex, 无 data race; 原子化为防御性收口 (锁协议改变时防 TSan 类
+     * 隐性撕裂；锁纪律不变 — 不因 atomic 引入新无锁访问, 持锁访问保持锁内)。
+     * 核实结论 (PLAN §四阶段6): 与 ToplevelState::frameSerial_ (per-toplevel
+     * dirty 序号, 各层内容变化判定) 是不同概念, 不合一 — 前者是 root 帧
+     * 级"根帧又新了"的全局序号, 后者是 each-toplevel 内容版本号。 */
+    std::atomic<uint64_t> desktopRootFrameSerial_{0};
     // TakeToplevelFrame 快照缓冲池 (仅渲染线程访问): 跨帧复用容量,
     // 避免每帧新建多 MB vector 的分配+缺页开销 — 见 cpp 快照阶段注释
     std::vector<std::vector<uint8_t>> snapPool_;

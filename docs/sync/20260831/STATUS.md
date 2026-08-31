@@ -19,7 +19,10 @@
 - T5 complete: InputSpaceMapper, InputStateTracker, InputQueue and InputInjector own mapping, state, transport and Wayland injection respectively; upstream popup/scroll focus fixes adopted.
 - T5 product adaptations: queued relative motion retains its surface and checks liveness; geometry/display-fit/epoch changes reset the relative baseline; IME keyboard focus still reaches TextInputManager. Pointer protocol callbacks invalidate relative state through an injected sink instead of restoring a circular dependency. InputTarget retains dimensions used by the product baseline guard.
 - T5 gates: `make test` (including relative geometry/epoch/focus reset cases) and ARM64 `check-native` passed. Runtime dependencies are rebuilding in the isolated container; shader tools copied from the existing build container without modifying it.
-- T6 in progress; T7-T8 pending. Intermediate commits are not release-qualified. No full integration or phone-regression completion claim.
+- T6 complete: SHM helpers and named CommittedSurface geometry, ToplevelManager commit policies, PopupManager, typed event bus, compositor/input dependency injection, shared DesktopSessionState and atomic frame serial adopted (13 source commits including code in cb88f42b).
+- T6 product adaptations: toplevel pixel copy remains unscaled; current root resize/output and engine retry/reset behavior remain unchanged. Created events retain sessionId/clientPid; product raise and IME surface teardown survive. No upstream engine-state side effects or alternate process registry introduced. Per-surface pointer liveness and relative-baseline callbacks receive explicit dependencies; GL geometry changes still invalidate the CPU base.
+- T6 gates: `make test` (48 compositor state checks, 39 SHM checks, 90 input-state checks, 66 event contract checks; popup window/pixel size separation, repeated commit, geometry move, unmap cleanup and dragged-window restore covered) and ARM64 `check-native` passed. No UI/gitlink changes.
+- T7 in progress; T8 pending. Intermediate commits are not release-qualified. No full integration or phone-regression completion claim.
 
 ## Resume
 

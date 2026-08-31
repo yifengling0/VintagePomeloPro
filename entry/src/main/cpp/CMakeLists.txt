@@ -56,6 +56,7 @@ add_library(entry SHARED
     wl_core.cpp
     compositor/compositor_blit.cpp
     compositor/toplevel_manager.cpp
+    compositor/popup_manager.cpp
     compositor/move_grab.cpp
     compositor/compositor_utils.cpp
     compositor/geometry.cpp
@@ -63,12 +64,14 @@ add_library(entry SHARED
     compositor/zc_bridge.cpp
     compositor/frame_composer.cpp
     compositor/frame_pipeline.cpp
+    compositor/shm_frame_source.cpp
     compositor/input_resolver.cpp
     compositor/input_space_mapper.cpp
     compositor/input_queue.cpp
     compositor/input_state_tracker.cpp
     compositor/input_injector.cpp
     compositor/desktop_root_manager.cpp
+    compositor/toplevel_event_bus.cpp
     egl_renderer.cpp
     fs_utils.cpp
     plugin_manager.cpp

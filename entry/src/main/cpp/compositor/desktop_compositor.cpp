@@ -18,6 +18,11 @@
 #define LOG_DOMAIN 0x0000
 #define LOG_TAG "WL_Server"
 
+void DesktopCompositor::ForceToplevelRedraw(uint32_t id) {
+    auto lk = tmgr_.Lock();
+    if (auto* st = tmgr_.FindToplevelLocked(id)) st->MarkDirty();
+}
+
 DesktopCompositor::DesktopCompositor(ToplevelManager& tmgr,
                                      const DisplayPolicy& policy,
                                      const uint32_t& desktopRootToplevelId,
@@ -276,7 +281,7 @@ DesktopCompositor::BuildWindowLayerListLocked(uint32_t toplevelId, int winW, int
     }
 
     // 窗口内 subsurface 层 (窗口局部坐标)。PC 模式 subsurface 全部转 popup
-    // 伪 toplevel (UpdatePopupOnCommit), 这里当前恒空 — 层序结构为窗口内
+    // 伪 toplevel (PopupManager::UpdatePopupOnCommit), 这里当前恒空 — 层序结构为窗口内
     // 内容扩展预留; 若未来窗口内 layer 化, 按协议顺序 zIndex 递增。
     for (const auto& sl : subsurfaceLayers_) {
         if (sl.parentToplevel != toplevelId) continue;
@@ -319,8 +324,17 @@ DesktopCompositor::BuildWindowLayerListLocked(uint32_t toplevelId, int winW, int
             auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
             if (!parent || parent->toplevelId != toplevelId) continue;
             zcLayer.type = CompositorLayer::Type::Subsurface;
-            zcLayer.x = sd->subsurfaceX - parent->geoX;
-            zcLayer.y = sd->subsurfaceY - parent->geoY;
+            // 父几何读点 (重构第 5A2 步): 旧读 parent->geoX/geoY (即时窗口
+            // 几何值), 新读 parent->committed.contentRect.x/y — 同一写入点
+            // (xs_set_window_geometry 直写快照) 的同步表达式, 逐点等价。
+            // 偏移公式收口 (重构第 5B2 步): geometry.h ComputePopupOffset 单点
+            // (PLAN §2.3 4 份公式), 算法逐字 (offX = subX - parentContentX)
+            const auto [subOffX, subOffY] =
+                ComputePopupOffset(sd->subsurfaceX, sd->subsurfaceY,
+                                   parent->committed.contentRect.x,
+                                   parent->committed.contentRect.y);
+            zcLayer.x = subOffX;
+            zcLayer.y = subOffY;
             zcLayer.w = DisplaySizeAfterViewport(sd->vpDstW, sd->w);
             zcLayer.h = DisplaySizeAfterViewport(sd->vpDstH, sd->h);
         } else {

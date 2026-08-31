@@ -28,6 +28,9 @@
  *
  * 参照 weston pointer-constraints.c。
  */
+class ToplevelManager;  // 前向声明 (6A 装配注入引用, 见 BindWaylandRefs)
+class InputResolver;
+
 class PointerExtras {
 public:
     static PointerExtras* GetInstance();
@@ -75,6 +78,16 @@ public:
     // 装配和线程规则与 warp sink 相同；保留产品相对输入 epoch 失效通知。
     using RelativeBaselineSink = std::function<void(const char* reason)>;
     void SetRelativeBaselineSink(RelativeBaselineSink sink);
+
+    // -- 会话引用装配 (重构第 6A 步) --
+    // 注入 ToplevelManager (surface→toplevelId 反查) 与 desktop root id 的
+    // 共享引用 — 替代 WaselyServer::FindToplevelIdBySurface /
+    // GetDesktopRootToplevelId 两处转发。装配点 = wl_core.cpp
+    // RegisterWlCoreGlobals (Start 阶段, 事件循环启动前, 与 warpSink 同模式:
+    // 之后只读, 无锁); 引用与 WaylandServer 单例成员同生命周期。
+    void BindWaylandRefs(ToplevelManager* tmgr, const uint32_t* desktopRootToplevelId,
+                         InputResolver* resolver);
+
 
     // -- 协议接口实现 (public: wl 接口表在类外初始化, 与 wayland_server.h 同例) --
     // zwp_pointer_constraints_v1
@@ -141,4 +154,9 @@ private:
     // 之后只在 Wayland 线程读 → 无锁 (见头文件 Top 注释"warp 回调装配")。
     PointerWarpSink warpSink_;
     RelativeBaselineSink relativeBaselineSink_;
+    // 6A 会话引用装配 (BindWaylandRefs): 约束 surface→toplevel 反查与 root
+    // 身份判定 — 装配于事件循环启动前, 之后只在 Wayland 线程读 (无锁)。
+    ToplevelManager* tmgr_ = nullptr;           // FindToplevelBySurface
+    InputResolver* resolver_ = nullptr;        // product per-surface liveness guard
+    const uint32_t* desktopRootToplevelId_ = nullptr;  // isShell 判定 (共享 root 引用)
 };

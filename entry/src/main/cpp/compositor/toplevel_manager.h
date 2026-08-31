@@ -10,7 +10,8 @@
 #include <unordered_set>
 #include "compositor/zorder_policy.h"
 
-// WaylandServer 中 toplevel/popup 聚合状态的集中存储。
+// WaylandServer 中 toplevel 聚合状态的集中存储 (PC popup 的帧状态复用
+// ToplevelState — popup 登记表本身已迁至 PopupManager, 见 popup_manager.h)。
 // 所有字段由 mutex() 保护，调用方在访问任何成员前必须先加锁。
 //
 // 不变式 (违反即 bug):
@@ -18,8 +19,10 @@
 //   desktop root 可能因识别时序已在列 (先 AddToZOrder 后 CheckRoot),
 //   由 IsToplevelVisibleLocked 对 root 恒 false 兜底 — root 永不作为
 //   可见 toplevel 参与合成/命中 (桌面"仅剩背景"回归的根因, 见 cpp 注释)。
-// - minimized/fullscreen 的唯一权威字段在 ToplevelState; 变更只经
-//   WaylandServer::SetToplevel* (本类故意不提供 setter)。
+// - 窗口状态三元组 (minimized/fullscreen/maximized) 的唯一权威字段在
+//   ToplevelState (重构第 5C 步: maximized 自 SurfaceData 迁入, PLAN §2.4
+//   状态权威分裂修复 — 曾需 tl_set_fullscreen 手工清 sd->maximized);
+//   变更只经 WaylandServer::SetToplevel* (本类故意不提供状态 setter)。
 // - fullscreen toplevel 锚定 (0,0): SetToplevelFullscreen 维护,
 //   合成按保比例缩放铺满, 不使用浮动位置。
 
@@ -105,6 +108,14 @@ public:
         bool IsMinimized() const { return minimized_; }
         bool IsBackground() const { return isBackground_; }  // 被切换掉的旧 root
         bool IsFullscreen() const { return fullscreen_; }
+        // maximized 权威字段 (重构第 5C 步: 自 SurfaceData::maximized 迁入 —
+        // PLAN §2.4 窗口状态三元组分裂修复, 与 minimized/fullscreen 同权威)。
+        // 写点经 WaylandServer::SetToplevelMaximizedState (Ensure 建档);
+        // 裸状态写 (无 dirty/锚定等副作用) — dirty 由调用点随后的
+        // SetToplevelMaximized (锚定) / configure 路径负责, 与旧
+        // "sd->maximized = x 直接赋值" 语义等价。
+        bool IsMaximized() const { return maximized_; }
+        void SetMaximized(bool v) { maximized_ = v; }
         void SetMinimized(bool v) { minimized_ = v; }
         void SetBackground(bool v) { isBackground_ = v; }
         // 全屏状态转换: 置位/清除 + 锚定 (0,0) + 不变式断言。
@@ -142,19 +153,11 @@ public:
         int wineX_ = 0, wineY_ = 0;     // Wine 坐标系位置 (首帧写, SetWinePosition 跟随更新)
         int lastReportedW_ = 0, lastReportedH_ = 0;  // 尺寸上报去重
         bool minimized_ = false;        // 桌面合成时跳过最小化窗口
+        bool maximized_ = false;        // 窗口状态三元组之一 (见 IsMaximized 注释)
         bool isBackground_ = false;     // 渲染层, 不接收输入 (被切换掉的旧 root)
         bool fullscreen_ = false;
         uint64_t fsPriority_ = 0;       // 全屏优先级序号 (规则见 fsPriority 注释)
         WindowMask mask_;               // mask.w==0 = 从未生成
-    };
-
-    struct PopupRecord {
-        uint32_t popupId = 0;
-        uint32_t parentToplevel = 0;
-        wl_resource* surface = nullptr;  // popup 的 wl_surface (pointer enter 目标)
-        uint64_t surfaceKey = 0;
-        int32_t offX = 0, offY = 0;      // 相对父窗口内容原点
-        int w = 0, h = 0;
     };
 
     // -- 访问器 --
@@ -233,29 +236,13 @@ public:
     // 已建档、未标记 background (被切换掉的旧 root)、已有帧、未最小化。
     bool IsToplevelVisibleLocked(uint32_t id, uint32_t desktopRootId);
 
-    // popup 管理 (调用方须已持有 mutex, 除非另行说明)
-    uint32_t FindPopupBySurfaceKey(uint64_t key) {
-        auto it = popupBySurfaceKey_.find(key);
-        return it != popupBySurfaceKey_.end() ? it->second : 0;
-    }
-    PopupRecord* FindPopup(uint32_t popupId) {
-        auto it = popups_.find(popupId);
-        return it != popups_.end() ? &it->second : nullptr;
-    }
-    void RegisterPopup(uint32_t popupId, const PopupRecord& rec) {
-        popups_[popupId] = rec;
-        popupBySurfaceKey_[rec.surfaceKey] = popupId;
-    }
-    void RemovePopupDataLocked(uint32_t popupId);
-    uint32_t RemovePopupBySurfaceKeyLocked(uint64_t surfaceKey, uint32_t& outPopupId);
-    // 遍历 popup 找属于某 parent 的所有 popup (OnToplevelDestroyed 级联清理)
-    const std::unordered_map<uint32_t, PopupRecord>& popups() const { return popups_; }
-
-    // 状态查询 (内部加锁)。minimized/fullscreen 的唯一权威字段在 ToplevelState;
-    // 变更只经 WaylandServer::SetToplevel* (Ensure 建档 + dirty + 协议反应),
-    // 本类不提供 setter — 历史上这里有一套无调用方且语义不等价的 setter, 已删除。
+    // 状态查询 (内部加锁)。窗口状态三元组 (minimized/fullscreen/maximized)
+    // 的唯一权威字段在 ToplevelState; 变更只经 WaylandServer::SetToplevel*
+    // (Ensure 建档 + dirty + 协议反应), 本类不提供 setter — 历史上这里
+    // 有一套无调用方且语义不等价的 setter, 已删除。
     bool IsToplevelMinimized(uint32_t id);
     bool IsToplevelFullscreen(uint32_t id);
+    bool IsToplevelMaximized(uint32_t id);  // 重构第 5C 步: xdg configure 状态位/日志读点
 
     // resource 映射 (SendToplevelClose / xdg_toplevel 销毁)
     void RegisterToplevelResource(uint32_t id, wl_resource* tl);
@@ -293,6 +280,64 @@ public:
         return false;
     }
 
+    // -- commit 业务段语义收口 (重构第 5B1 步) --
+    //
+    // 本节五个语义方法把 wl_core.cpp UpdateToplevelFrameOnCommit 的窗口管理
+    // 决策收进本模块 — 消除"协议壳直接操作合成器内部状态、跨层知识倒挂"
+    // (PLAN §三/§四阶段5 第 2 条; 段→方法映射见 docs/COMPOSITOR_REFACTOR_STATUS.md
+    // §二 5B1)。调用方须已持有 toplevelMutex_ (Lock()); 算法/判定逐字取自旧
+    // wl_core 实现, 行为平价。补丁注释 (PLAN §2.5) 连同平移, 见各方法定义处。
+
+    // 自动恢复最小化窗口 (补丁: Wine 没有 unset_minimized 协议, 还原时直接
+    // commit 正常尺寸内容, 判定逻辑见 IsRestoreSizeCommit, compositor_utils.h)。
+    // 返回 true = 本次 commit 判定为还原帧 (justRestored): 还原帧的 geo 是
+    // Wine 记录的"原位" — 用户拖动过窗口 (move grab 只改 compositor 坐标,
+    // Wine 不知道) 时原位是旧的, 下方位置跟随必须跳过 — 调用方把该值传给
+    // SyncDesktopPositionLocked (wine geo sync 分支)。注意: 此处已持有
+    // toplevelMutex_, 不能调 WaylandServer::SetToplevelRestored (内部会重新
+    // 加锁, 非递归 std::mutex 同线程自死锁; 与 HandleCommittedSizeLocked 的
+    // ReassertFullscreen 同源约束 — 见 cpp 注释)。
+    bool TryAutoRestoreLocked(uint32_t id, int32_t contentW, int32_t contentH);
+
+    // ARGB 窗口位置同步 (PC 多窗口模式, Wine 位置为权威 — 桌面小部件由 Wine
+    // 决定屏幕位置; 普通 PC 窗口后续 commit 忽略 geo, OHOS 窗口管理器为权威,
+    // 由调用方守卫)。返回 true = 位置变化, 调用方据此锁内发 argb_move 事件
+    // (通知 ArkTS 移动子窗口); 返回 false = 无变化不发事件。
+    bool SyncArgbPositionLocked(uint32_t id, int32_t screenX, int32_t screenY);
+
+    // 桌面模式后续 commit 的位置同步: compositor 位置为权威 (move grab 后
+    // Wine 不知道新位置), 但 Wine 程序主动 SetWindowPos (geo ≠ 上次 Wine
+    // 快照) 必须跟随; 最小化坐标 (-32000,-32000) 只记快照不移动。判定用
+    // WineX/WineY 快照而非 X/Y: 快照只在首帧/wine geo 跟随更新, move grab
+    // 只改 X/Y → 拖动后不被旧 geo 弹回。判断/三分支/日志与旧 wl_core 逻辑
+    // 逐字, 完整补丁说明见 cpp 定义处。
+    void SyncDesktopPositionLocked(uint32_t id, int32_t screenX, int32_t screenY,
+                                   bool justRestored);
+
+    // ARGB 窗口剪影掩码生成 (补丁: 从 alpha 通道生成 0/1 掩码供 setWindowMask,
+    // 阈值 128 → 半透明抗锯齿边缘向内收半像素; FNV-1a 形状哈希不变不重建 —
+    // 时钟类静态形状零开销)。pixels = ToplevelState 帧数据 (w*h 像素 BGRA,
+    // 掩码按帧分辨率存 = Wine 逻辑像素, ArkTS 侧按 effectiveScale 最近邻放大)。
+    // 返回 true = 形状/尺寸更新发生, 调用方据此发 mask_dirty 事件。
+    bool UpdateArgbMaskLocked(uint32_t id, const std::vector<uint8_t>& pixels,
+                              int32_t w, int32_t h);
+
+    // 提交尺寸上报语义 (检测尺寸变化 → 通知 ArkTS 调窗; 含全屏尺寸漂移检测
+    // 补丁 — war3 D3D 模式切换画面缩左上, PLAN §2.5)。锁内调用 (判定读
+    // fullscreen/rootId/output 状态)。返回 ReassertFullscreen 时调用方必须
+    // 解锁后执行 NotifyToplevelResize — 该函数内部 IsToplevelFullscreen 会再取
+    // toplevelMutex_ (非递归 std::mutex), 持锁调用 = 同线程自死锁 (wayland
+    // 事件循环卡死, 输入/帧派发全停; 2026-08-15 war3 全屏黑屏整机卡死根因)。
+    // 完整补丁注释与自死锁修复记录见 cpp 定义处。
+    enum class SizeCommitEffect {
+        None,                // 尺寸未变化 (与上次上报相同): 无动作
+        ResizeEvent,         // 尺寸变化: 调用方锁内发 resize 事件 (json 原样)
+        ReassertFullscreen,  // 全屏尺寸漂移: 调用方锁外重发 configure
+    };
+    SizeCommitEffect HandleCommittedSizeLocked(uint32_t id, uint32_t rootId,
+                                               int32_t contentW, int32_t contentH,
+                                               int32_t outputW, int32_t outputH);
+
     // 坐标/尺寸查询
     int GetToplevelX(uint32_t id);
     int GetToplevelY(uint32_t id);
@@ -320,6 +365,4 @@ private:
     std::mutex toplevelSurfaceMutex_;
     std::unordered_map<uint32_t, wl_resource*> toplevelResources_;
     std::mutex toplevelResMutex_;
-    std::unordered_map<uint32_t, PopupRecord> popups_;
-    std::unordered_map<uint64_t, uint32_t> popupBySurfaceKey_;
 };

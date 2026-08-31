@@ -1122,7 +1122,8 @@ static napi_value SetToplevelVisible(napi_env env, napi_callback_info info) {
     // 恢复可见时立即重渲染并重新武装 vsync。
     PluginManager::GetInstance()->SetRendererPaused(tl, !visible);
     if (visible) {
-        WaylandServer::GetInstance()->NotifyWindowRestored(tl);
+        // 6A: 兼容别名 NotifyWindowRestored 已删, 直调语义方法 (同实现同值)
+        WaylandServer::GetInstance()->SetToplevelRestored(tl);
         PluginManager::GetInstance()->RefreshRenderer(tl);
     }
     return nullptr;
@@ -1187,7 +1188,7 @@ static napi_value KillProcess(napi_env env, napi_callback_info info) {
         if (entry.toplevelId > 0) {
             // 立即联动: 让 ArkTS 关闭该进程的窗口, 不等 Wayland 断连回调
             WaylandServer::GetInstance()->OnToplevelDestroyed(entry.toplevelId);
-            WaylandServer::GetInstance()->FireToplevelEvent(entry.toplevelId, "destroyed");
+            WaylandServer::GetInstance()->PostToplevelEvent(entry.toplevelId, ToplevelEventType::Destroyed);
         }
     }
 
@@ -1250,7 +1251,7 @@ static napi_value StopWineSession(napi_env env, napi_callback_info info) {
             // 立即通知 ArkTS 销毁窗口, 保证"关闭运行中的程序"与 Wine
             // 进程/窗口状态联动, 不依赖 Wayland 断连的异步时序。
             WaylandServer::GetInstance()->OnToplevelDestroyed(toplevelId);
-            WaylandServer::GetInstance()->FireToplevelEvent(toplevelId, "destroyed");
+            WaylandServer::GetInstance()->PostToplevelEvent(toplevelId, ToplevelEventType::Destroyed);
         }
     }
     napi_value result;

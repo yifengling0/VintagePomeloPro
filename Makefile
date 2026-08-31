@@ -448,6 +448,7 @@ test: graphics-contract-check
 	    $(ROOT)/entry/src/main/cpp/compositor/frame_composer.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/zc_bridge.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/input_resolver.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/popup_manager.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/toplevel_manager.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/compositor_blit.cpp
@@ -461,6 +462,11 @@ test: graphics-contract-check
 	    -o $(HOST_TEST_DIR)/blit_clip_test \
 	    $(ROOT)/host_tests/blit_clip_test.cpp
 	$(HOST_TEST_DIR)/blit_clip_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/shm_frame_source_test \
+	    $(ROOT)/host_tests/shm_frame_source_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/shm_frame_source.cpp
+	$(HOST_TEST_DIR)/shm_frame_source_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/zorder_test \
 	    $(ROOT)/host_tests/zorder_test.cpp
@@ -480,6 +486,10 @@ test: graphics-contract-check
 	    $(ROOT)/entry/src/main/cpp/compositor/input_state_tracker.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp
 	$(HOST_TEST_DIR)/input_state_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/toplevel_event_test \
+	    $(ROOT)/host_tests/toplevel_event_test.cpp
+	$(HOST_TEST_DIR)/toplevel_event_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/controller_merge_test \
 	    $(ROOT)/host_tests/controller_merge_test.cpp \
