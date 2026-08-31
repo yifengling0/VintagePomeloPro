@@ -160,7 +160,11 @@ reject_literal "Removed public present backend profile" \
 reject_literal "Removed unused present backend environment" \
     "WINEHUA_PRESENT_BACKEND" entry/src/main/cpp/wine/wine_exe.cpp
 require_literal "Wineboot waits for broker worker" \
-    "HasRunningWinebootWorker" entry/src/main/cpp/wine/wine_launch.cpp
+    "progress.workerRunning" entry/src/main/cpp/wine/wine_launch.cpp
+require_literal "Wineboot observes only the current spawn attempt" \
+    "const winehua::WinebootAttempt bootAttempt(GetProcessListSnapshot());" entry/src/main/cpp/wine/wine_launch.cpp
+require_literal "Wineboot rejects known child failure before desktop launch" \
+    "if (progress.failedPid > 0)" entry/src/main/cpp/wine/wine_launch.cpp
 require_literal "Prefix health checks a critical Wine COM registration" \
     "bcde0395-e52f-467c-8e3d-c4579291692e" \
     entry/src/main/cpp/wine/wine_launch.cpp

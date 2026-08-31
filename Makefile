@@ -425,12 +425,23 @@ HOST_TEST_DIR := $(BUILD_DIR)/host_tests
 test-text-input:
 	bash $(SCRIPTS)/run_text_input_unit_tests.sh
 
+PROCESS_TEST_SOURCE ?= $(ROOT)/entry/src/main/cpp/proc/wine_process.cpp
+.PHONY: test-process-lifecycle
+test-process-lifecycle:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -pthread \
+	    -I $(ROOT)/host_tests/process_stubs -I $(ROOT)/host_tests/stubs \
+	    -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/process_lifecycle_test \
+	    $(ROOT)/host_tests/process_lifecycle_test.cpp $(PROCESS_TEST_SOURCE)
+	$(HOST_TEST_DIR)/process_lifecycle_test
+
 .PHONY: graphics-contract-check
 graphics-contract-check:
 	bash $(SCRIPTS)/verify_graphics_contract.sh
 
 .PHONY: test
-test: graphics-contract-check test-text-input
+test: graphics-contract-check test-text-input test-process-lifecycle
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/gles_direct_policy_test $(ROOT)/host_tests/gles_direct_policy_test.cpp

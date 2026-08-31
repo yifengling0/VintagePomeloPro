@@ -1,4 +1,5 @@
 #include "wine/wine_launch.h"
+#include "wine/wineboot_wait.h"
 #include "proc/wine_process.h"
 #include "wine/wine_env.h"
 #include "wine/env_profiles.h"
@@ -139,19 +140,13 @@ static bool IsProcessAliveNotZombie(pid_t pid) {
 
 enum class WinebootWaitResult {
     Completed,
+    Failed,
     NoProgress,
     AbsoluteTimeout,
 };
 
 static bool IsWinebootWorker(const WineProcessEntry& entry) {
     return entry.running && !strcasecmp(entry.exeBasename.c_str(), "wineboot.exe");
-}
-
-static bool HasRunningWinebootWorker() {
-    for (const auto& entry : GetProcessListSnapshot()) {
-        if (IsWinebootWorker(entry)) return true;
-    }
-    return false;
 }
 
 static void StopWinebootAttempt(pid_t launcherPid) {
@@ -164,11 +159,13 @@ static void StopWinebootAttempt(pid_t launcherPid) {
 }
 
 static const char* WinebootFailureReason(WinebootWaitResult result) {
+    if (result == WinebootWaitResult::Failed) return "wineboot-failed";
     return result == WinebootWaitResult::AbsoluteTimeout
         ? "wineboot-cap" : "wineboot-no-progress";
 }
 
 static WinebootWaitResult WaitForWinebootCompletion(pid_t launcherPid,
+                                                     const winehua::WinebootAttempt& attempt,
                                                      const std::string& prefixDir,
                                                      int* waitedMsOut) {
     constexpr int kPollMs = 500;
@@ -197,9 +194,17 @@ static WinebootWaitResult WaitForWinebootCompletion(pid_t launcherPid,
     int64_t lastStamp = progressStamp();
     bool observedWorker = false;
     while (waitedMs < kAbsoluteCapMs) {
-        const bool launcherRunning = IsProcessAliveNotZombie(launcherPid);
-        const bool workerRunning = HasRunningWinebootWorker();
-        observedWorker = observedWorker || workerRunning;
+        const auto progress = attempt.Inspect(GetProcessListSnapshot(), launcherPid);
+        if (progress.failedPid > 0) {
+            OH_LOG_ERROR(LOG_APP,
+                         "[Launch-Async] wineboot failed pid=%{public}d exit=%{public}d; refusing desktop startup",
+                         progress.failedPid, progress.exitCode);
+            if (waitedMsOut) *waitedMsOut = waitedMs;
+            return WinebootWaitResult::Failed;
+        }
+        const bool launcherRunning = progress.launcherRunning || IsProcessAliveNotZombie(launcherPid);
+        const bool workerRunning = progress.workerRunning;
+        observedWorker = observedWorker || progress.workerObserved;
         if (!launcherRunning && !workerRunning &&
             (observedWorker || waitedMs >= kWorkerRegistrationGraceMs)) {
             if (waitedMsOut) *waitedMsOut = waitedMs;
@@ -612,6 +617,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
             winehua::AppendCompatEnvLines(wbReq.env, p->compatEnvStr, p->automationMode);
 #endif
             winehua::controller::AppendWineGamepadEnv(wbReq.env);
+            const winehua::WinebootAttempt bootAttempt(GetProcessListSnapshot());
             const pid_t childPid = winehua::Spawner::Spawn(wbReq);
             if (childPid <= 0) {
                 OH_LOG_ERROR(LOG_APP, "[Launch-Async] wineboot spawn FAILED (attempt %{public}d)",
@@ -632,7 +638,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
              * wineboot.exe。只等 launcher 会在 Windows worker 仍运行时提前
              * 启动 Explorer，导致所有客户端永久卡在 boot event。 */
             const WinebootWaitResult waitResult =
-                WaitForWinebootCompletion(childPid, p->prefixDir, &winebootWaitMs);
+                WaitForWinebootCompletion(childPid, bootAttempt, p->prefixDir, &winebootWaitMs);
             if (waitResult != WinebootWaitResult::Completed) {
                 StopWinebootAttempt(childPid);
                 OH_LOG_ERROR(LOG_APP,
@@ -690,6 +696,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
         winehua::AppendCompatEnvLines(wbReq.env, p->compatEnvStr, p->automationMode);
 #endif
         winehua::controller::AppendWineGamepadEnv(wbReq.env);
+        const winehua::WinebootAttempt bootAttempt(GetProcessListSnapshot());
         const pid_t childPid = winehua::Spawner::Spawn(wbReq);
         if (childPid <= 0) {
             OH_LOG_ERROR(LOG_APP, "[Launch-Async] wineboot --init spawn FAILED");
@@ -698,7 +705,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
             AddProcess(childPid, "@engine/wineboot", -1, "@engine/wineboot");
             int aliveMs = 0;
             const WinebootWaitResult waitResult =
-                WaitForWinebootCompletion(childPid, p->prefixDir, &aliveMs);
+                WaitForWinebootCompletion(childPid, bootAttempt, p->prefixDir, &aliveMs);
             if (waitResult != WinebootWaitResult::Completed) {
                 StopWinebootAttempt(childPid);
                 EmitEngineFail(WinebootFailureReason(waitResult));

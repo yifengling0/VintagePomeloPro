@@ -88,6 +88,17 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
     // 兼容 Windows 反斜杠路径 (C:\game\game.exe), 否则完整路径会显示为进程名
     auto slash = basename.find_last_of("/\\");
     if (slash != std::string::npos) basename = basename.substr(slash + 1);
+    // Broker registers the child before the launch worker labels it as an
+    // engine process. Relabeling must not erase an exit received in between.
+    if (exeFullPath.rfind("@engine/", 0) == 0) {
+        for (auto& entry : gProcRegistry) {
+            if (entry.pid != pid) continue;
+            entry.exeBasename = basename;
+            entry.exeFullPath = exeFullPath;
+            if (!requestedSessionId.empty()) entry.sessionId = requestedSessionId;
+            return &entry;
+        }
+    }
     gProcRegistry.erase(std::remove_if(gProcRegistry.begin(), gProcRegistry.end(),
         [pid](const WineProcessEntry& entry) { return entry.pid == pid; }), gProcRegistry.end());
     while (gProcRegistry.size() >= 128) {
@@ -211,11 +222,14 @@ void RemoveProcess(pid_t pid, int exitCode, const std::string& exitCodeSource) {
     std::lock_guard<std::mutex> lock(gProcMutex);
     for (auto& entry : gProcRegistry) {
         if (entry.pid == pid) {
+            // /proc polling and NCP notifications can arrive after waitpid.
+            // An observation without a status must not erase the real result.
+            if (!entry.running && entry.exitCode >= 0 && exitCode < 0) return;
             OH_LOG_INFO(LOG_APP,
                         "[ProcReg] complete pid=%{public}d name=%{public}s exit=%{public}d source=%{public}s",
                         pid, entry.exeBasename.c_str(), exitCode, exitCodeSource.c_str());
             entry.running = false;
-            entry.endTimestampMs = TimestampMs();
+            if (entry.endTimestampMs == 0) entry.endTimestampMs = TimestampMs();
             entry.exitCode = exitCode;
             entry.exitCodeSource = exitCodeSource;
             if (entry.stdoutFd >= 0) { close(entry.stdoutFd); entry.stdoutFd = -1; }
@@ -311,17 +325,21 @@ void CloseInheritedFds(std::initializer_list<int> keepFds) {
 
 // -- SIGCHLD handler: reap NCP child processes spawned by broker --
 void sigchld_handler(int) {
+    const int savedErrno = errno;
     int status;
     pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         LogProcessExit("broker-child", pid, status);
-        RemoveProcess(pid);
+        const int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) :
+            (WIFSIGNALED(status) ? 128 + WTERMSIG(status) : -1);
+        RemoveProcess(pid, exitCode, WIFSIGNALED(status) ? "signal" : "waitpid");
         if (gStateTsfn) {
             char msg[64];
             snprintf(msg, sizeof(msg), "%d:exited", pid);
             napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
         }
     }
+    errno = savedErrno;
 }
 
 // -- NCP 进程存活监控 --
@@ -456,11 +474,16 @@ void ReaderThread(int fd, pid_t pid, std::shared_ptr<std::atomic<bool>> active) 
     }
     close(fd);
 
-    int status;
-    waitpid(pid, &status, 0);
+    int status = 0;
+    pid_t waited;
+    do { waited = waitpid(pid, &status, 0); } while (waited < 0 && errno == EINTR);
+    // The SIGCHLD path may already own this child's status. Do not interpret
+    // an uninitialized/absent status as a successful exit or overwrite it.
+    if (waited != pid) return;
     LogProcessExit("wine", pid, status);
-    int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    RemoveProcess(pid, exitCode, "process");
+    int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) :
+        (WIFSIGNALED(status) ? 128 + WTERMSIG(status) : -1);
+    RemoveProcess(pid, exitCode, WIFSIGNALED(status) ? "signal" : "waitpid");
 
     if (gStateTsfn) {
         char msg[64];
