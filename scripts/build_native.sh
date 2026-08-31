@@ -56,7 +56,11 @@ build_libffi() {
     mkdir -p "$build"
     cd "$build"
 
-    "$src/autogen.sh" 2>/dev/null || true
+    # Git checkouts do not ship configure. autoreconf must run beside configure.ac;
+    # running autogen from the out-of-tree build directory silently did nothing.
+    if [ ! -x "$src/configure" ]; then
+        (cd "$src" && ./autogen.sh)
+    fi
     if [ "$HOST_OS" = "Darwin" ]; then
         CC="$OHOS_SDK/native/llvm/bin/clang" CCAS="$OHOS_SDK/native/llvm/bin/clang" \
         AR="$OHOS_SDK/native/llvm/bin/llvm-ar" \
