@@ -361,6 +361,28 @@ private:
                         uint32_t width, uint32_t height)
     {
         resetDeferred_ = false;
+        if (display_ == sourceDisplay && sourceContext_ == sourceContext &&
+            context_ != EGL_NO_CONTEXT && surface_ != EGL_NO_SURFACE &&
+            directDisabled_ && !glesDirect_.Ready() && !directFallbackPending_ &&
+            (width_ != width || height_ != height)) {
+            // A window-surface resize only changes subsequent buffer requests.
+            // Destroying EGL here disconnects/cleans the same producer queue
+            // while NativeImage may still own its previously acquired buffer.
+            // Keep the context, surface and consumer queue for geometry-only
+            // changes. Source-context/transport changes still use full reset.
+            const int32_t resized = OH_NativeWindow_NativeWindowHandleOpt(
+                windowLease_.Get(), SET_BUFFER_GEOMETRY,
+                static_cast<int32_t>(width), static_cast<int32_t>(height));
+            if (resized != 0) return false;
+            width_ = width;
+            height_ = height;
+            timing_.Reset();
+            OH_LOG_INFO(LOG_APP,
+                        "[VIRGL-ZC][NCP] window resized size=%{public}ux%{public}u "
+                        "surface_key=%{public}llu retained_egl=1",
+                        width, height, static_cast<unsigned long long>(surfaceKey_));
+            return true;
+        }
         if (display_ != EGL_NO_DISPLAY &&
             (display_ != sourceDisplay || sourceContext_ != sourceContext ||
              width_ != width || height_ != height || directFallbackPending_)) {
