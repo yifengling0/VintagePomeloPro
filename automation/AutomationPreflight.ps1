@@ -68,7 +68,7 @@ function Get-InstalledBundleVersion {
 }
 
 function Get-ReferenceHapMetadata {
-    param([string]$HapPath, [string]$ExpectedHapSha256, [string]$Bundle)
+    param([string]$HapPath, [string]$ExpectedHapSha256, [string]$Bundle, [switch]$AllowDualAbi)
     $file = Get-Item -LiteralPath $HapPath -ErrorAction Stop
     if ($file.PSIsContainer -or $file.Length -eq 0) { throw 'Reference HAP is empty or not a file' }
     $actualHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -85,12 +85,22 @@ function Get-ReferenceHapMetadata {
         }
         if ([int]$module.app.minAPIVersion % 1000 -lt 23 -or
             [int]$module.app.targetAPIVersion % 1000 -lt 23) { throw 'HAP requires API 23 or newer' }
-        if (@($zip.Entries | Where-Object { $_.FullName -match '^libs/(?!arm64-v8a/)[^/]+/' }).Count) {
+        $extraAbis = @($zip.Entries | Where-Object { $_.FullName -match '^libs/(?!arm64-v8a/)[^/]+/' })
+        if ($extraAbis.Count -and -not $AllowDualAbi) {
             throw 'This physical-device runner requires an ARM64-only HAP'
         }
-        foreach ($library in @('libentry.so', 'libwine_child.so', 'libwinehua_vtest_server.so',
-            'libvirglrenderer.so.1', 'libvirgl_child.so', 'box64.so')) {
-            $entry = $zip.GetEntry("libs/arm64-v8a/$library")
+        if (@($extraAbis | Where-Object { $_.FullName -notmatch '^libs/x86_64/' }).Count) {
+            throw 'Unsupported native ABI in HAP'
+        }
+        $abis = @('arm64-v8a')
+        if ($extraAbis.Count) { $abis += 'x86_64' }
+        foreach ($abi in $abis) {
+          $libraries = @('libentry.so', 'libwine_child.so', 'libwinehua_vtest_server.so',
+            'libvirglrenderer.so.1', 'libvirgl_child.so')
+          if ($abi -eq 'arm64-v8a') { $libraries += 'box64.so' }
+          $machine = if ($abi -eq 'arm64-v8a') { 183 } else { 62 }
+          foreach ($library in $libraries) {
+            $entry = $zip.GetEntry("libs/$abi/$library")
             if (-not $entry -or $entry.Length -lt 64) { throw "HAP missing native payload: $library" }
             $stream = $entry.Open()
             try {
@@ -103,8 +113,9 @@ function Get-ReferenceHapMetadata {
                 }
                 if ($header[0] -ne 0x7f -or $header[1] -ne 69 -or $header[2] -ne 76 -or
                     $header[3] -ne 70 -or $header[4] -ne 2 -or $header[5] -ne 1 -or
-                    $header[18] -ne 183 -or $header[19] -ne 0) { throw "Not an AArch64 ELF: $library" }
+                    $header[18] -ne $machine -or $header[19] -ne 0) { throw "Wrong ELF architecture for ${abi}: $library" }
             } finally { $stream.Dispose() }
+          }
         }
         $runtime = $zip.GetEntry('resources/rawfile/wine-data.zip')
         if (-not $runtime -or $runtime.Length -eq 0) { throw 'HAP guest runtime is missing' }
@@ -125,6 +136,7 @@ function Get-ReferenceHapMetadata {
             minAPIVersion = $module.app.minAPIVersion
             targetAPIVersion = $module.app.targetAPIVersion
             hostArchitecture = 'AArch64'
+            packagedAbis = $abis
             rawfileSha256 = $runtimeHash
             provenance = 'explicit-hash-pinned-reference'
             # A reference is previously qualified, not a new build of this checkout.
