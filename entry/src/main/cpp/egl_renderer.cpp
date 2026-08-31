@@ -633,6 +633,18 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
     return true;
 }
 
+FitRect EglRenderer::GetInputLetterbox() const {
+    // 输入逆映射锚 (PresentedFrame 契约, 重构第 2B 步): 用最近一帧契约的
+    // 逻辑内容尺寸 (contentW/H) 对当前 surface 保比例 fit。桌面合成/快进/
+    // 直传帧均锚桌面逻辑尺寸, PC 窗口帧锚窗口内容尺寸。与显示 letterbox
+    // (锚 buffer 尺寸 frame.w/h) 解耦: 直传游戏帧 buffer 是内容尺寸 (如
+    // 800x600), 输入锚仍是桌面逻辑尺寸 (如 1400x920) — 否则逆映射二次缩放
+    // (红警2 主菜单点击无效根因)。锚未就绪 (首帧前 contentW/H=0) 或 fit 失败
+    // 退回显示 letterbox (与旧 CoordTransform fallback 语义一致)。
+    std::lock_guard<std::mutex> lock(inputFitMutex_);
+    return inputFit_;
+}
+
 void EglRenderer::RenderLoop() {
     if (!eglMakeCurrent(display_, surface_, surface_, context_)) {
         OH_LOG_ERROR(LOG_APP, "[EGL] eglMakeCurrent failed: 0x%{public}x", eglGetError());
@@ -812,10 +824,20 @@ void EglRenderer::RenderLoop() {
         zeroCopyGeometryDirty_ = false;
         zeroCopyFrame = UpdateZeroCopyFrame(zeroCopyWidth, zeroCopyHeight);
         if (useToplevel != 0) {
-            cpuFrame = ws->TakeToplevelFrame(useToplevel, px, fw, fh);
+            // 帧交付契约 (presented_frame.h): TakeToplevelFrame 返回 PresentedFrame。
+            // fw/fh 从帧 buffer 尺寸 (frame.w/h) 取 — 直传帧是游戏内容尺寸
+            // (如 800x600), 合成/快进帧是桌面逻辑尺寸 (如 1400x920); 显示
+            // letterbox 用它们 (frameW_/frameH_)。alpha 语义取 frame.opaque —
+            // 产出侧 opaque = ShmFormat != 0, 故 !opaque == 旧 (ShmFormat==0) 等价。
+            // contentW/H (逻辑内容尺寸) 缓存供 GetInputLetterbox 输入逆映射锚。
+            PresentedFrame frame;
+            cpuFrame = ws->TakeToplevelFrame(useToplevel, px, frame);
             if (cpuFrame) {
-                // ARGB8888 帧 (layered/shaped 异型窗口) 透传 alpha; XRGB 强制不透明
-                frameArgb_ = (ws->GetToplevelShmFormat(useToplevel) == 0);
+                fw = frame.w;
+                fh = frame.h;
+                frameArgb_ = !frame.opaque;
+                contentW_ = frame.contentW;
+                contentH_ = frame.contentH;
             }
         }
         haveFrame = cpuFrame || zeroCopyFrame || zeroCopyGeometryFrame;
@@ -913,6 +935,16 @@ void EglRenderer::RenderLoop() {
             glViewport(0, 0, width_, height_);
         }
         static uint32_t sFitLogN = 0;
+        {
+            FitRect inputFit = letterbox_;
+            if (contentW_ > 0 && contentH_ > 0) {
+                FitRect logicalFit;
+                if (ComputeFitRect(width_, height_, contentW_, contentH_, logicalFit))
+                    inputFit = logicalFit;
+            }
+            std::lock_guard<std::mutex> lock(inputFitMutex_);
+            inputFit_ = inputFit;
+        }
         if (++sFitLogN % 60 == 1 || width_ == 0 || height_ == 0)
             OH_LOG_INFO(LOG_APP, "[DBG-FIT] tl=%{public}u surface=%{public}dx%{public}d frame=%{public}dx%{public}d lb=%{public}dx%{public}d+%{public}d,%{public}d zc=%{public}d/%{public}d/%{public}d",
                         useToplevel, width_, height_, frameW_, frameH_,

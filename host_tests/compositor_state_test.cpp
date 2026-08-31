@@ -20,6 +20,7 @@ struct Scene {
     wl_resource parent{&parentData}, child{&childData};
     std::vector<uint8_t> pixels;
     int width = 0, height = 0;
+    PresentedFrame frame;
 
     Scene(int w = 1416, int h = 640) : rw(w), rh(h),
         comp(tm, policy, root, rw, rh), input(tm, comp, root, rw, rh) {
@@ -71,7 +72,11 @@ struct Scene {
         comp.UpsertSubsurfaceLayer(std::move(s), std::move(p));
         comp.MarkDesktopRootDirtyLocked();
     }
-    bool take() { return comp.TakeToplevelFrame(root, pixels, width, height); }
+    bool take() {
+        const bool ready = comp.TakeToplevelFrame(root, pixels, frame);
+        if (ready) { width = frame.w; height = frame.h; }
+        return ready;
+    }
     uint32_t pixel(int x, int y) {
         uint32_t p = 0;
         if (x < width && y < height) std::memcpy(&p, pixels.data() + (size_t(y) * width + x) * 4, 4);
@@ -80,6 +85,23 @@ struct Scene {
 };
 
 int main() {
+    { // Direct buffer size must never replace desktop input coordinates.
+        Scene s(800, 600); s.setWindow(2, 400, 300, 0xff123456);
+        s.sub(0, 0, 400, 300, 0xff654321); s.fullscreen(true);
+        CHECK(s.take() && s.frame.kind == PresentedFrame::Kind::DirectPass,
+              "fullscreen SHM produces a direct frame");
+        CHECK(s.frame.w == 400 && s.frame.h == 300 &&
+              s.frame.contentW == 800 && s.frame.contentH == 600 &&
+              s.frame.baseSpace == PresentedFrame::BaseSpace::Desktop,
+              "direct buffer and input coordinate spaces remain distinct");
+        CHECK(s.frame.pixels == s.pixels.data() && s.frame.opaque,
+              "direct frame publishes caller-owned opaque pixels");
+        s.policy.desktop = false;
+        CHECK(s.comp.TakeToplevelFrame(2, s.pixels, s.frame) &&
+              s.frame.baseSpace == PresentedFrame::BaseSpace::Window &&
+              s.frame.contentW == 400 && s.frame.w == 400,
+              "window composer acquires its own lock and publishes local coordinates");
+    }
     { // War3: temporary window -> fullscreen -> real content -> GPU -> resize.
         Scene s;
         s.setWindow(2, 128, 128, 0xff000000); s.fullscreen(true); s.take();

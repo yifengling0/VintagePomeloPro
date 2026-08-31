@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <mutex>
 #include "compositor/geometry.h"
+#include "compositor/presented_frame.h"
 
 struct OH_NativeImage;
 
@@ -33,8 +34,13 @@ public:
     int GetHeight() const { return height_; }
     int GetFrameWidth() const { return frameW_; }
     int GetFrameHeight() const { return frameH_; }
-    // Letterbox 适配矩形 (保持 Wine 帧宽高比居中渲染的视口, 输入坐标换算用)
-    const FitRect& GetLetterbox() const { return letterbox_; }
+    // 输入逆映射锚 (PresentedFrame 契约, 重构第 2B 步): 帧坐标空间的逻辑
+    // 内容尺寸 (contentW/H) 到当前 surface 的保比例 fit — 桌面合成/快进帧
+    // 锚定 root 逻辑尺寸, SHM 直传帧同样锚定桌面尺寸 (与显示 letterbox 的
+    // buffer 尺寸锚解耦, 红警2 直传点击修复的契约化); PC 窗口帧锚定窗口
+    // 内容尺寸 (= 显示 letterbox, content == buffer)。锚未就绪 (首帧前)
+    // 或 fit 失败时退回显示 letterbox (与旧 CoordTransform fallback 一致)。
+    FitRect GetInputLetterbox() const;
 
 private:
     void RenderLoop();
@@ -122,7 +128,17 @@ private:
     int frameW_ = 0, frameH_ = 0;  // Wine 帧内容尺寸 (坐标转换)
     bool frameArgb_ = false;       // 当前帧是 ARGB8888 (layered/shaped 异型窗口, 透传 alpha)
     int texW_ = 0, texH_ = 0;      // 上次上传的纹理尺寸 (用于避免每帧 glTexImage2D)
-    FitRect letterbox_;  // Letterbox 适配矩形 (ComputeFitRect, 保持宽高比)
+    FitRect letterbox_;  // 显示 letterbox: buffer 尺寸 (frame.w/h) 到 surface 的保比例 fit
+    // 输入逆映射锚 (PresentedFrame 契约, 重构第 2B 步): 最近一帧契约的 contentW/H
+    // (逻辑内容尺寸)。桌面合成/快进/直传帧 = root 逻辑尺寸 (与 buffer 尺寸解耦,
+    // 直传游戏帧 buffer 800x600 但 content 仍是桌面 1400x920 — 红警2 修复点);
+    // PC 窗口帧 = 窗口内容尺寸 (content == buffer)。GetInputLetterbox 用它对当前
+    // surface 做保比例 fit; 无帧 (contentW/H=0) 或 fit 失败退回显示 letterbox_。
+    int contentW_ = 0, contentH_ = 0;
+    // Publish a whole fit to the UI input thread; content dimensions and the
+    // display letterbox remain owned by the render thread.
+    mutable std::mutex inputFitMutex_;
+    FitRect inputFit_;
     int bufW_ = 0, bufH_ = 0;  // 上次 SET_BUFFER_GEOMETRY 的值, 避免重复调用
     int lastLoggedW_ = 0, lastLoggedH_ = 0;  // 上次输出 resize 日志时的 surface 尺寸
     uint64_t skipFrames_ = 0;                // 诊断: 无新帧跳过 swap 计数

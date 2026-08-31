@@ -445,6 +445,7 @@ test: graphics-contract-check
 	    $(ROOT)/host_tests/compositor_state_test.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/desktop_compositor.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/frame_pipeline.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame_composer.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/input_resolver.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/toplevel_manager.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp \
