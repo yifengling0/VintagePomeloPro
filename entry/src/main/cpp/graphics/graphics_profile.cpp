@@ -141,7 +141,10 @@ bool ResolveDxvkRuntimeProfile(D3dBackendKind backend,
             true,  // commandQueryReset
             true,  // dynamicMappedFlush
             true,  // batchMappedFlush
-            false, // disableSemaphoreFeedback
+            // Product DXVK sessions also expose VKD3D-Proton's D3D12
+            // companion. Venus semaphore feedback can stall that vtest path
+            // even when legacy DXVK supplies d3d11/dxgi.
+            true,  // disableSemaphoreFeedback
         };
         return true;
     case D3dBackendKind::DxvkModern26:
