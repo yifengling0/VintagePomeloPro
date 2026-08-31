@@ -16,3 +16,4 @@ done
     --rootDir "$OUTPUT/ts" --outDir "$OUTPUT/js" "${inputs[@]}"
 "$NODE" "$ROOT/scripts/run_catalog_unit_tests.cjs" "$OUTPUT/js/model"
 "$NODE" "$ROOT/scripts/run_input_controls_unit_tests.cjs" "$OUTPUT/js"
+"$NODE" "$ROOT/scripts/run_app_session_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"

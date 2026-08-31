@@ -849,9 +849,17 @@ export class AppSessionService {
   }
 
   private reconcile(): void {
-    if (WineEngineService.getInstance().getState() === EngineState.READY &&
+    const engineState = WineEngineService.getInstance().getState();
+    if (engineState === EngineState.READY &&
       WineEngineService.getInstance().getPresentationMode() === WinePresentationMode.DESKTOP) {
       this.syncDesktopSessionFromNative();
+    }
+    // desktop_root can arrive before READY. Explorer belongs to @engine/explorer,
+    // so this UI session may legitimately have pid=0. Preserve it only while
+    // preparing and only when Native still reports this exact live root.
+    let preparingRootId = 0;
+    if (engineState === EngineState.PREPARING) {
+      try { preparingRootId = testNapi.getDesktopRootId() as number; } catch (_) {}
     }
     const processes = this.getNativeProcesses();
     const activePids: Set<number> = new Set<number>();
@@ -859,7 +867,9 @@ export class AppSessionService {
     const removed: string[] = [];
     this.sessions.forEach((session: RuntimeSession, id: string) => {
       if (session.pid > 0 && !activePids.has(session.pid)) removed.push(id);
-      if (session.pid === 0 && WineEngineService.getInstance().getState() !== EngineState.READY) removed.push(id);
+      const awaitingReadyWithRoot = id === DESKTOP_SESSION_ID && preparingRootId > 0 &&
+        session.toplevelId === preparingRootId;
+      if (session.pid === 0 && engineState !== EngineState.READY && !awaitingReadyWithRoot) removed.push(id);
     });
     removed.forEach((id: string) => {
       const stale = this.sessions.get(id);
