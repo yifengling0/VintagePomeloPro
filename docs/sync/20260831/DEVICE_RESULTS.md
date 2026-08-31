@@ -8,6 +8,7 @@
 - 基线签名 HAP：1.3.3 ARM64，SHA-256 `2bcc61e7124480810bdb03e4ce98321984e79972c856dfad6da84ab4e52a0bf2`。RC 源码 `358e3147` 与 main 只差 CI/docs，已核对运行时代码等价。
 - 初始候选源码：`d28d1a02c42f87f6cb7a37f130ad35fefb668205`；1.3.3 双 ABI，481284048 bytes；SHA-256 `8c3239aa2a4fcc73deec13a2ec5993ac3d5684dfc42fd7007049207c83129a61`。下方 1–13 项的候选设备证据来自此包。
 - 会话修复候选源码：`beb007114776644a47244565a44a83b0b4afa9c9`；1.3.3 双 ABI，481283693 bytes；SHA-256 `bb6e65b9718d9819e543505d1ddbb8504c38ba34b9cda7f3e21fc09956186fec`。ZIP CRC、API23、关键双 ABI ELF 与 SDK 签名验证 PASS。121 个 Native 库和 wine-data.zip 均与 d28d1a02 字节相同；ArkTS modules.abc 已改变。缺失的中间依赖缓存从已验证 d28 包重新暂存，保留旧目录备份，再经根 Makefile 的 HAP 编译/签名；未跳过应用编译或包校验。记录 `root-fix-{runtime-reuse,package-audit}.json`、`root-fix-signature.log`、`root-session-fix-hap.log`。
+- 最新 IME 修复源码：`edd6fc879a64efcf2f348b53cacbebc7dc22a1fb`；1.3.3 双 ABI，481302674 bytes；SHA-256 `4e8a710e6b41f8190d0e9c28b51bf7b9b4facca565e34656c699440698617d60`。第 18 项证据来自此包。ZIP CRC/API23/关键 ELF/SDK 签名均 PASS。与 beb 比较，仅 ARM64/x86_64 的 libentry.so 变化；其余 Native、modules.abc、wine-data.zip 逐字节相同。113 个已暂存依赖输入以及相关源码/pins 核对后，根 Makefile 复用 assemble 输出，实际重新编译两种 ABI 应用 Native 和 ArkTS，再打包签名。记录 `ime-lifecycle-{runtime-reuse,package-audit,device-identity}.json`、`ime-lifecycle-signature.log`、`ime-lifecycle-hap.log`。
 - 真机 ARM64、系统 API26；包 target/min API23。构建支持 x86_64 不等于在 x86_64 设备上验证。Windows guest x86/x64 与 HAP ABI 也不是同一概念。
 - 通过 `install -r` 保留用户数据；无卸载、无重置 prefix。运行锁保持亮屏。原屏幕超时 600000ms，测试完成后释放临时锁；原产品渲染模式 DXVK 2.6，自动化后需恢复。
 - 截图、完整日志、安装与签名验证输出放在忽略目录 `.hvigor/outputs/sync-master-20260831/`。不提交设备标识、证书或用户资料。
@@ -34,16 +35,24 @@
 16. beb 的 Legacy DXVK 独立冷启动，主进程 55651，日志确认 `backend=dxvk_legacy route=product-vulkan`、product batching。D3D11 cube 出图并持续转动；最大化、还原、Back→运行中→Wine 桌面返回后仍出图，frame 27639、regress 0。第一次 F1 未取得窗口焦点，没有发生切换；点击窗口再 F1 后 D3D9 初始化失败，HRESULT 0x8876086a、白屏。F2 回 D3D11 恢复。原版主进程 63216 同样操作复现相同错误/白屏；这是失败的 Legacy D3D9 门禁，详见 OPEN_ISSUES I7。还原动作后立即截图曾截到过渡白帧，稍后恢复截图有正确图像；不把即时白帧删掉。
 17. 最新 beb 候选重新覆盖安装（`root-fix-final-candidate-identity.json`）后，主进程 1524 使用产品 `dxvk_modern_2_6`。可见 D3D11、触摸窗口后 F1 的 D3D9、F2 的 D3D11 均实际出图，frame 2865→4716→6844，regress 0，未出现上述 init 错误；对应 `root-fix-modern-{ready,d3d9,d3d11-final}.jpeg` 与日志。包保留在手机，无卸载或 prefix 重置。
 
+18. `edd6fc87` TextInput 生命周期修复，ARM64 主进程始终为 18390，未 force-stop：
+    - 冷启动 02:35:26.858 注册；产品 notepad PID 19150 正文可见“移植冷启动中文”。
+    - 02:42:02.124 Shutdown(resources=2)，03.160 重新注册；LAB x86 GL 实际出图。初次截图被系统电源菜单遮挡，退出菜单后才取可见画面，不把遮挡截图算绘制结果。
+    - 02:43:07.054 Shutdown(resources=3)，07.496 重新注册；切回产品 notepad PID 25246，“引擎重启中文”实际写入 Wine。此路径在原版/先前候选失败，本次定向通过。
+    - 键盘开启状态下 02:44:31.589 Shutdown(resources=3)，32.002 重新注册；READY/root #11 建立，但首个 notepad PID 26937 在出窗口前退出。**这是失败样本**，有 mmap/dlopen SIGSEGV/异常恢复日志，详见 I4。一次独立的同引擎新启动 PID 29451 于 02:47:22 成功，没有第四次重建；“再次重建中文”上屏。Back→运行中→Wine 桌面保留原 notepad 正文，再次提交“恢复后中文”可见。不能用该成功重试声称首个启动成功，也不把无窗口启动失败记为中文 commit 丢失。
+    - 设置恢复 DXVK 2.6 后，产品维护动作于 02:51:39.102 执行第四次 Shutdown、39.627 注册，47.145 READY；桌面任务栏重新出图。测试输入仅涉及未命名测试记事本，无用户文档写入、无 prefix 重置。键盘/触摸板 OFF，常亮 override 保持，外接马达仍未检出、Hub seq=0。
+    - 图像：`ime-lifecycle-cold-chinese-result`、`restart-chinese-result`、`third-chinese-result`、`text-running`、`text-resume`、`resumed-chinese-result`（后续前缀同为 ime-lifecycle）；日志 `ime-lifecycle-device-final.log`、`ime-lifecycle-armed-current.log`、`ime-lifecycle-armed-wine-stderr.log`、`ime-lifecycle-same-engine-retry1.log`。启动异常不能据现有证据归因于 I2 修复或与旧 B3 认定同根因。
+
 音频 PASS 指 guest 提交、host 消费及非零 RMS；没有人耳确认时不声称可听性、音色或延迟通过。当前没有实体手柄输入/马达证据。
 
 ## 验收剩余项（不要重跑已完成的移植）
 
 - GL 的 x86/x64 时长、各五轮缩放、x64 五轮恢复、beb x86 五轮恢复以及三组交替采样已有上述证据。严格零告警仍失败（I1），第三组首次冷启动失败未定根因（I4）；不能用成功重试或描述性 FPS 覆盖这些失败。
 - Modern D3D9/D3D11 与 Legacy D3D11 有可见绘制证据；Legacy D3D9 两版均失败（I7）。不要把空循环 frame 增长当渲染成功。
-- 菜单/popup/滚动/拖动、多窗口、冷启动与同会话 IME、War3 地图动作已有证据；同进程引擎重建中文失效（I2）、War3 拖边/首次触摸表现（I5）已由原版对照复现，仍是缺陷。
+- 菜单/popup/滚动/拖动、多窗口、冷启动与同会话 IME、War3 地图动作已有证据；I2 的注册/中文路径已由 edd 定向修复并完成第 18 项真机验证，原失败证据保留。新一次启动无窗口退出另记 I4；War3 拖边/首次触摸（I5）仍未修复。
 - 实体手柄方向、断连释放、重连、游戏震动仍未覆盖。当前没有检测到外接马达，手机振动与模型测试不替代这个门禁；真实鼠标锁定/双指触摸板也没有完整动作证据。
 - RA2/PAL2/Heaven 等指定游戏在当前设备目录未找到，不以 War3 或 smoke 替代；x86_64 Harmony 硬件未提供。构建与 guest x86 测试不等于另一设备 ABI 实测。
-- 受影响主机门禁已在 beb 全套重跑通过，日志 `root-fix-final-host-tests.log`；来源/保护范围审计 PASS。当前仍不是全项无缺陷的发行验收。
+- 受影响主机门禁已在 edd 全套重跑通过，日志 `ime-lifecycle-all-host.log`；新增真实 Wayland 生命周期 91 checks，旧源码二次注册探针按预期失败（`ime-lifecycle-before.log`）。来源/保护范围与逐提交 Native 修复审计 PASS。当前仍不是全项无缺陷的发行验收。
 
 设备收尾检查：02:14 已关闭 cube；02:17 设置页明确选中 DXVK 2.6，Box64 默认档未变，Wine 手柄模式未变（seq=0、无外接马达）；触摸板/键盘 OFF。手机保留最新 beb 包和测试期间亮屏锁，尚未将设备门禁标完成，不清用户 prefix。测试 fixture 只在 Wine 临时目录生成且关闭未保存改动。
 

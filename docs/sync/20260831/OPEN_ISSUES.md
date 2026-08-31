@@ -16,9 +16,11 @@
 
 基线设备对照已补齐：主进程 19182 的 LAB GL/War3 会话，01:21:40 经无 LAB notepad Want 发生图形策略切换和引擎重建；notepad 新窗口可用，点击剪贴板候选“原版重启中文”后正文仍空，随后 `baseline-ascii` 正常上屏。force-stop 后主进程 23192 冷启动 notepad，“原版冷启动中文”真正上屏。`baseline-ime-restart.log`、`baseline-ime-restart-chinese-result.jpeg`、`baseline-ime-restart-ascii-result.jpeg`、`baseline-ime-cold-chinese-result.jpeg` 保留。因此重启后中文失效已经有基线运行证据，不能宣称本轮整体 IME 门禁无缺陷通过。
 
-定向任务建议：为 TextInputManager 设计显式 display 生命周期；在事件线程停止后的安全位置解除 pipe event source/FD，清理旧 resource/focus/pending op，并允许新 display 再注册。审查资源销毁回调与互斥锁的顺序；旧队列不能投递到新会话。测试至少覆盖 register→客户绑定→中文→stop→register→中文、重复 stop、挂起 commit、焦点 surface 销毁。不要只把 `global_=nullptr` 当作完整修复。
+修复 `edd6fc87` 已实现显式 display 生命周期：先停止并 join Wayland dispatch，再清理旧 TextInput resource/global、event source、FD、focus、armed 和 pending op；最后销毁 display 客户及 display。Register 分阶段创建、失败回滚，Shutdown 可重复调用。NAPI 的目标选择与入队使用一致的 state→queue 锁顺序，旧 resource 销毁时删除其排队输入；资源析构在锁外，防止回调重入死锁。
 
-本次无须改产品 UI。若纳入修复，必须是独立提交、双 ABI Native/HAP 重建和真机重启复测；现有搬移审计的固定检查点与新语义修复证据要分开，不能放宽断言掩盖变化。
+验证：真实固定版本 Wayland/协议/资源回调的主机测试 91 项通过，旧源码二次 global 注册探针按预期失败；全部 host/model/GLES/HUD/导航/CI 门禁通过。双 ABI 应用 Native/HAP 重建、包与 SDK 签名校验 PASS，未改 UI/ArkTS/guest 载荷。源审计分别证明 f05cb825 的 181 次机械搬移与 native-fixes.json 中逐提交、逐路径登记的后续语义修复，没有取消搬移断言。
+
+手机主进程 18390 冷启动中文通过；产品 notepad→LAB GL→产品 notepad 连续两次引擎重建，日志均有 Shutdown/重新 Register，“引擎重启中文”真正上屏。第三次在键盘开启时重建也重新注册，但第一次 notepad 在出窗口前退出；一次同引擎新启动后，“再次重建中文”和桌面卡恢复后的“恢复后中文”均上屏。**I2 注册/提交路径定向通过；第三次首次程序启动失败保留在 I4，不算无缺陷重启成功。** 证据和边界见 DEVICE_RESULTS 第 18 项。不要重做已经完成的生命周期修复，也不据此宣称所有 IME/实体键盘场景通过。
 
 ## I3：测试方法与硬件限制
 
@@ -34,6 +36,8 @@
 已保留 `candidate-b3-failed.json`、startup/stderr 日志和现场截图；未重置 prefix、未更改参数。一次单独编号的 force-stop 冷启动 `candidate-b3-retry1` 正常创建桌面并完成测量。后者不覆盖首次失败，不能用它计算“全部启动成功”。产品启动代码保留原有十分钟 root watchdog，性能工具的 180 秒 readiness 是更短的测试门禁。
 
 定向排查：先比较同包重复冷启动与基线的失败率、Explorer/loader 与 wineserver 生命周期、安装替换后的进程清退；保留 HAP 身份和失败样本。不要扩大重试次数、删 watchdog、跳过桌面根要求或重置用户数据来获得通过。
+
+新增独立样本（不能直接判定与 B3 同根因）：edd6fc87 主进程 18390 在 02:44:31 第三次同进程引擎重建后，root #11 与 taskbar #12 已提交，TextInput 也重新注册；02:44:40 启动 notepad PID 26937，43.729 创建其 text-input resource，46.739 资源销毁，46.742 broker 报退出 code=0，未创建 notepad toplevel，界面只见蓝色桌面。stderr 同段有 Explorer PID 26864 的 mmap 与 notepad PID 26937 的 dlopen SIGSEGV/异常恢复；原始完整日志留在 `ime-lifecycle-armed-wine-stderr.log`，不能只凭该信号就断言根因。一次独立编号的同引擎重试 PID 29451 于 02:47:22 成功，未 force-stop/重建，原失败保留。调查入口为 `ime-lifecycle-armed-current.log`、`ime-lifecycle-same-engine-retry1.log`；需对照实际 loader 返回值、exit 状态传播与新旧进程清理，勿将“没有新窗口”误判为 IME commit 丢失。
 
 ## I5：War3 共存全屏的右侧拖边与首次触摸高亮
 

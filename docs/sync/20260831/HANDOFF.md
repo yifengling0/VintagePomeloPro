@@ -85,7 +85,7 @@ T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.
 
 主机自动化现支持显式 HDC 路径和显式双 ABI 许可；原先 ARM64-only 默认仍保留。双 ABI 许可会额外验证 x86_64 必需库及 ELF 架构，不跳过包校验。UNC 脚本受本机执行策略限制时，可以复制审阅过的脚本到本地忽略目录运行，不修改全局执行策略。
 
-当前候选已推进到 `beb00711`：修复 PREPARING 下误删已经存活的 desktop root；实际服务源码的模型测试和五轮手机桌面卡恢复通过。新包与 d28 的 Native/guest 字节完全一致，因此不重复整个 Native 移植或全部依赖编译。其余真机失败/缺口必须读最新 DEVICE_RESULTS 与 OPEN_ISSUES，不能据本段推定全套验收通过。
+当前候选 `edd6fc87` 保留 `beb00711` 的 desktop root 修复，并补齐 TextInput display 生命周期。真实 Wayland 的 91 项检查、旧源码失败对照、全套 host 与双 ABI 包检查通过；手机冷启动、同进程引擎重建中文、桌面卡恢复后追加中文均有正文截图。键盘开启时重建的首次 notepad 无窗口退出另记 I4，重试成功不能覆盖它。源码搬移审计固定检查 T6→f05cb825 的 181 个文件，之后 Native 修改必须在 native-fixes.json 按完整提交与精确路径登记；不能为了允许后续修复而删除机械检查。其余失败/缺口以 DEVICE_RESULTS、OPEN_ISSUES 为准。
 
 ## Terra / Luna 的低上下文工作方式
 

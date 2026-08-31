@@ -1,0 +1,13 @@
+[
+  {
+    "commit": "edd6fc879a64efcf2f348b53cacbebc7dc22a1fb",
+    "reason": "I2: release TextInput global, queue, pipe and resources after Wayland dispatch joins so a new display can register; serialize NAPI target lookup/enqueue with teardown and discard retired-resource input.",
+    "native_paths": [
+      "entry/src/main/cpp/compositor/wayland_server.cpp",
+      "entry/src/main/cpp/input/text_input.cpp",
+      "entry/src/main/cpp/input/text_input.h"
+    ],
+    "host_evidence": "Real pinned Wayland lifecycle: 91 checks; previous source probe fails second global registration; full host/model/GLES/HUD/navigation/CI gates pass. Logs ime-lifecycle-host.log, ime-lifecycle-before.log, ime-lifecycle-all-host.log in ignored evidence directory.",
+    "device_status": "edd6fc87 dual-ABI HAP archive/API/ELF/signature PASS. ARM64 PID 18390: cold Chinese, LAB/product engine recreation Chinese and desktop-card resume/continued Chinese visibly PASS. Three shutdown/re-registration cycles in one app process. The armed-before-third-restart first notepad launch exited before a window; one same-engine retry rendered and accepted Chinese. Preserve that startup failure separately (I4); do not claim all restart launches pass. See DEVICE_RESULTS item 18 and ime-lifecycle-device-final.log."
+  }
+]
