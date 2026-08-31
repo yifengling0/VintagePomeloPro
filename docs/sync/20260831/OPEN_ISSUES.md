@@ -39,6 +39,10 @@
 
 新增独立样本（不能直接判定与 B3 同根因）：edd6fc87 主进程 18390 在 02:44:31 第三次同进程引擎重建后，root #11 与 taskbar #12 已提交，TextInput 也重新注册；02:44:40 启动 notepad PID 26937，43.729 创建其 text-input resource，46.739 资源销毁，46.742 broker 报退出 code=0，未创建 notepad toplevel，界面只见蓝色桌面。stderr 同段有 Explorer PID 26864 的 mmap 与 notepad PID 26937 的 dlopen SIGSEGV/异常恢复；原始完整日志留在 `ime-lifecycle-armed-wine-stderr.log`，不能只凭该信号就断言根因。一次独立编号的同引擎重试 PID 29451 于 02:47:22 成功，未 force-stop/重建，原失败保留。调查入口为 `ime-lifecycle-armed-current.log`、`ime-lifecycle-same-engine-retry1.log`；需对照实际 loader 返回值、exit 状态传播与新旧进程清理，勿将“没有新窗口”误判为 IME commit 丢失。
 
+已完成的有界排查：`proc/wine_child.cpp` 记录 Box64 的返回值但没有从 void 入口传播；`phone_adapter/phone_process.cpp::StartChildMain` 在入口返回后统一 `_exit(0)`。`proc/wine_process.cpp::sigchld_handler` 记录 wait status 后调用不带状态的 `RemoveProcess(pid)`，因此 registry 留下 -1/unknown。这解释诊断信息为何不足，不证明本次一定经过某个失败 return，也未修复启动根因。成功重试同样记录 libbsd/libvulkan 缺库告警，不能据此认定缺库为区别。旧 B3 的 PID 58408 与新样本报告相同 Native PC `0x5be06d5524`，但没有证实加载基址或具体函数；读取当前 guest `/proc/.../maps` 被系统拒绝，未绕过访问控制。
+
+最小接手材料已经提炼为忽略目录 `startup-i4-minimal.json`（约 7 KB，21 条 parent 事件、9 条 TextInput 事件、2 条 guest signal）；原始失败日志未删除。下一步若需要诊断构建，应只增加实际 loader/guest 退出信息与有限的模块/SEH 日志，预先固定少量失败/成功对照动作。不要通过改变 prefix、Box64 配置、UI、子模块 pins 或丢弃失败结果来制造成功样本。
+
 ## I5：War3 共存全屏的右侧拖边与首次触摸高亮
 
 候选在 x86 GL 窗口共存时启动 War3 1.24.4 OpenGL，全屏右侧延伸出拖边，退出后 GL 标题栏右端裁切，重新最大化/还原后恢复。部分菜单第一次 `uitest click` 只高亮，第二次才进入。候选仍能进入 Booty Bay、框选五个单位、发出巡逻命令并观察单位移动，F10/结束/退出有效。

@@ -41,7 +41,7 @@
     - 02:43:07.054 Shutdown(resources=3)，07.496 重新注册；切回产品 notepad PID 25246，“引擎重启中文”实际写入 Wine。此路径在原版/先前候选失败，本次定向通过。
     - 键盘开启状态下 02:44:31.589 Shutdown(resources=3)，32.002 重新注册；READY/root #11 建立，但首个 notepad PID 26937 在出窗口前退出。**这是失败样本**，有 mmap/dlopen SIGSEGV/异常恢复日志，详见 I4。一次独立的同引擎新启动 PID 29451 于 02:47:22 成功，没有第四次重建；“再次重建中文”上屏。Back→运行中→Wine 桌面保留原 notepad 正文，再次提交“恢复后中文”可见。不能用该成功重试声称首个启动成功，也不把无窗口启动失败记为中文 commit 丢失。
     - 设置恢复 DXVK 2.6 后，产品维护动作于 02:51:39.102 执行第四次 Shutdown、39.627 注册，47.145 READY；桌面任务栏重新出图。测试输入仅涉及未命名测试记事本，无用户文档写入、无 prefix 重置。键盘/触摸板 OFF，常亮 override 保持，外接马达仍未检出、Hub seq=0。
-    - 图像：`ime-lifecycle-cold-chinese-result`、`restart-chinese-result`、`third-chinese-result`、`text-running`、`text-resume`、`resumed-chinese-result`（后续前缀同为 ime-lifecycle）；日志 `ime-lifecycle-device-final.log`、`ime-lifecycle-armed-current.log`、`ime-lifecycle-armed-wine-stderr.log`、`ime-lifecycle-same-engine-retry1.log`。启动异常不能据现有证据归因于 I2 修复或与旧 B3 认定同根因。
+    - 图像：`ime-lifecycle-cold-chinese-result`、`restart-chinese-result`、`third-chinese-result`、`text-running`、`text-resume`、`resumed-chinese-result`（后续前缀同为 ime-lifecycle）；`ime-lifecycle-restored-launcher.jpeg` 实际为恢复后的设置页，已核对 DXVK 2.6 蓝色选中。日志 `ime-lifecycle-device-final.log`、`ime-lifecycle-final-restored.log`、`ime-lifecycle-registration-timeline.log`、`ime-lifecycle-armed-current.log`、`ime-lifecycle-armed-wine-stderr.log`、`ime-lifecycle-same-engine-retry1.log`；最小启动摘要 `startup-i4-minimal.json`。启动异常不能据现有证据归因于 I2 修复或与旧 B3 认定同根因。
 
 音频 PASS 指 guest 提交、host 消费及非零 RMS；没有人耳确认时不声称可听性、音色或延迟通过。当前没有实体手柄输入/马达证据。
 
