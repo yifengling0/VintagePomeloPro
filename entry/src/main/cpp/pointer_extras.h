@@ -37,10 +37,6 @@ public:
 
     enum class ConstraintType { None, Lock, Confine };
 
-    // 某 surface 当前生效的约束 (无 = None)。
-    // surface 已销毁的约束条目视为不存在 (惰性失效)
-    ConstraintType ConstraintFor(wl_resource* surface);
-
     // 只查询/发送给当前输入 surface 所属 Wayland client。多个 Wine 窗口可
     // 短暂并存 relative_pointer 对象，按全局“是否存在”判断会把旧窗口的
     // 相对模式误套到新窗口，造成光标漂移。
@@ -49,10 +45,17 @@ public:
     bool HasRelativePointer() const;
 
     // -- Host 光标锁定 (dinput 相对模式的系统侧配套) --
-    // wine 创建 zwp_relative_pointer_v1 = 真相对模式 (光标隐藏+约束+焦点一致)。
-    // Lock 约束本身 ≠ 相对模式 (红警2 主菜单可见光标也会挂 Lock)。
-    // host 侧: OH_WindowManager_LockCursor 冻结系统光标, tsfn 通知 ets
-    // pointer.setPointerVisible(false)。confine 不触发。
+    // wine 创建 relative_pointer 对象 = 游戏进入"隐藏光标无限移动"的相对
+    // 模式 (FPS 视角)。判据不是 Lock 约束: 光标可见的绝对模式游戏也会挂
+    // 约束 (红警2 主菜单), 只有 relative 对象创建 (wine 侧 needs_relative
+    // 判定: 光标隐藏 + 约束 + 焦点一致) 才是真相对模式 — 冻结挂在
+    // relmgr_get_relative_pointer, 不挂 constr_lock_pointer。
+    // host 侧同步两件事: OH_WindowManager_LockCursor 冻结系统光标 (不再跟随
+    // 物理移动, 杜绝边缘钳制喂死绝对通道 + 系统手势误触), tsfn 通知 ets
+    // pointer.setPointerVisible(false) 隐藏光标。解锁 (relative 对象全部
+    // 销毁/wine 退出断连) 时还原。confine (ClipCursor, 光标可见) 不触发 — host 钳制已由
+    // ClampToContent 承担, 且 wineserver 内 ClipCursor 同样生效。
+    // LockCursor 仅支持获焦窗口 (失焦系统自动解锁), 故逐个尝试已注册窗口。
     static void RegisterHostWindow(int32_t windowId);
     void SetPointerLockCallback(std::function<void(bool, uint32_t)> cb);
 

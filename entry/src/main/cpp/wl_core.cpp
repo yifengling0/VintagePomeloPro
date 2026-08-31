@@ -15,7 +15,9 @@
 #include "wine_process.h"
 #include "compositor/compositor_utils.h"
 #include "compositor/compositor_constants.h"
+#include "compositor/geometry.h"
 #include "include/viewporter-server-protocol.h"
+#include "perf_utils.h"
 #include <algorithm>
 #include <cstring>
 #include <ctime>
@@ -729,8 +731,7 @@ void WaylandServer::UpdateToplevelFrameOnCommit(SurfaceData* sd, wl_resource* su
     // 新 toplevel 加到 Z-order 顶层 (首次入列的全屏优先级取号在
     // AddToZOrder 内部完成, 见 ToplevelState::fsPriority 注释)
     if (Policy().RootCompositing() && sd->toplevelId != desktopRootToplevelId_) {
-        auto zit = std::find(toplevelMgr_.toplevelZOrder().begin(), toplevelMgr_.toplevelZOrder().end(), sd->toplevelId);
-        if (zit == toplevelMgr_.toplevelZOrder().end()) toplevelMgr_.AddToZOrder(sd->toplevelId);
+        toplevelMgr_.EnsureInZOrder(sd->toplevelId);
     }
     OH_LOG_INFO(LOG_APP, "[MW-COMMIT] toplevel #%{public}u frame %{public}dx%{public}d stride=%{public}d stored=%{public}zu",
                 sd->toplevelId, fi.contentW, fi.contentH, fi.stride, st.Pixels().size());
@@ -782,7 +783,7 @@ void WaylandServer::CheckDesktopRootOnCommit(SurfaceData* sd, ShmCommitInfo& fi,
     DesktopRootManager::CheckRootResult cr;
     {
         auto lk = toplevelMgr_.Lock();
-        cr = desktopRootMgr_.CheckRootLocked(sd, isFirstCommit, fi.contentW, fi.contentH);
+        cr = desktopRootMgr_.CheckRootLocked(sd, isFirstCommit);
         MarkDesktopRootDirtyLocked();
     }
     if (cr.moveRendererTo)
@@ -804,30 +805,9 @@ void WaylandServer::UpdateSubsurfaceOnCommit(SurfaceData* sd, wl_resource* surfR
     }
 }
 
-// ---- 最小化 subsurface offset 补偿 ----
-//
-// Windows 窗口管理器将最小化窗口移到 (-32000, -32000)，这是一个自 Win95 以来
-// 的既定行为——WS_MINIMIZE 是语义标记，(-32000,-32000) 是其副作用。
-// Wine 忠实地复现了这一行为；winewayland.drv 在计算 subsurface offset 时
-// 直接使用 window->rect，数学上并无错误：
-//
-//   wayland_surface.c: wayland_surface_reconfigure_client()
-//     client_x = client_rect->left + window->client_rect.left - window->rect.left
-//              = 正常屏幕坐标 - (-32000) = 正常坐标 + 32000
-//
-// 这不是 Wine 的 bug——Wine 的角色是忠实地表达 Windows 窗口系统的状态。
-// 若在 Wine 侧特判 window->minimized 排除 rect 偏移，等于在协议通道上掩盖
-// 正确的 Windows 行为，不利于其他 compositor 理解真实状态。
-//
-// 因此补偿放在 compositor 侧：检测 offset 超过阈值时减去 32000 还原。
-// 超过 16000 才算偏移是因为正常窗口坐标不会这么大（虚拟桌面极端值约 ±8000）。
-static void CompensateMinimizedSubsurfaceOffset(const ToplevelManager::ToplevelState* pst,
-                                                int32_t& sx, int32_t& sy) {
-    if (pst && pst->IsMinimized()) {
-        if (sx > compositor_consts::kMinimizedCoordThreshold) sx -= compositor_consts::kMinimizedCoordOffset;
-        if (sy > compositor_consts::kMinimizedCoordThreshold) sy -= compositor_consts::kMinimizedCoordOffset;
-    }
-}
+// ---- 最小化 subsurface offset 补偿: 共享实现已收口到 compositor_utils.h
+// (CompensateMinimizedSubsurfaceOffset), desktop_compositor 的 ZC protocolOnly
+// 路径共用同一实现 ----
 
 // Desktop 模式: 存 layer, 在 TakeToplevelFrame 中合成 (不进入 per-toplevel 帧缓冲)
 void WaylandServer::UpdateSubsurfaceLayerOnCommit(SurfaceData* sd, wl_resource* surfRes,
@@ -1073,8 +1053,12 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
     auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(surfRes));
     auto* self = GetInstance();  // static 回调无 this, 分段均为实例方法
     // WL-T 临时诊断: commit 在 wl 事件循环线程上的占用 — >2ms 打单行,
-    // 另按 5s 窗口汇总, 与 LAT-NAPI→LAT-INJ 的 8ms/86ms 对时
-    const auto wt0 = std::chrono::steady_clock::now();
+    // 另按 5s 窗口汇总, 与 LAT-NAPI→LAT-INJ 的 8ms/86ms 对时。
+    // 默认关闭 (WINEHUA_FRAME_TRACE=1 开启, 见 perf_utils.h FrameTraceEnabled);
+    // 关闭时跳过计时与累加, 零开销
+    const bool frameTrace = winehua::FrameTraceEnabled();
+    const auto wt0 = frameTrace ? std::chrono::steady_clock::now()
+                                : std::chrono::steady_clock::time_point();
     // NULL buffer → surface 无内容 (unmap)
     if (self->HandleNullBufferCommit(sd, surfRes)) return;
 
@@ -1089,7 +1073,6 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
         }
         sd->w = fi.contentW;
         sd->h = fi.contentH;
-        sd->dirty = true;
         fi.shmCommitSerial = sd->shmCommitSerial.fetch_add(1, std::memory_order_release) + 1;
         OH_LOG_INFO(LOG_APP, "[MW-COMMIT] surface w=%{public}d h=%{public}d stride=%{public}d stored=%{public}zu content=%{public}dx%{public}d geo=%{public}s",
                     fi.bufW, fi.bufH, fi.stride, sd->pixels.size(), fi.contentW, fi.contentH,
@@ -1104,20 +1087,22 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
 
     self->FinishCommit(sd, surfRes);
 
-    // WL-T 临时诊断 (接函数头): commit 占用统计
-    const long long wus = std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now() - wt0).count();
-    static uint64_t sWinN, sWinUs, sWinMax; static time_t sWinT = time(nullptr);
-    sWinN++; sWinUs += wus; if ((uint64_t)wus > sWinMax) sWinMax = wus;
-    if (wus > 2000)
-        OH_LOG_INFO(LOG_APP, "[WL-T] commit dur=%{public}lldus buf=%{public}dx%{public}d content=%{public}dx%{public}d sub=%{public}d",
-                    wus, fi.bufW, fi.bufH, fi.contentW, fi.contentH, sd->isSubsurface ? 1 : 0);
-    if (time(nullptr) - sWinT >= 5) {
-        OH_LOG_INFO(LOG_APP, "[WL-T] commit 5s: n=%{public}llu avg=%{public}lluus max=%{public}lluus",
-                    (unsigned long long)sWinN,
-                    sWinN ? (unsigned long long)(sWinUs / sWinN) : 0ull,
-                    (unsigned long long)sWinMax);
-        sWinN = sWinUs = sWinMax = 0; sWinT = time(nullptr);
+    // WL-T 临时诊断 (接函数头): commit 占用统计; frameTrace 关闭时整体跳过
+    if (frameTrace) {
+        const long long wus = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - wt0).count();
+        static uint64_t sWinN, sWinUs, sWinMax; static time_t sWinT = time(nullptr);
+        sWinN++; sWinUs += wus; if ((uint64_t)wus > sWinMax) sWinMax = wus;
+        if (wus > 2000)
+            OH_LOG_INFO(LOG_APP, "[WL-T] commit dur=%{public}lldus buf=%{public}dx%{public}d content=%{public}dx%{public}d sub=%{public}d",
+                        wus, fi.bufW, fi.bufH, fi.contentW, fi.contentH, sd->isSubsurface ? 1 : 0);
+        if (time(nullptr) - sWinT >= 5) {
+            OH_LOG_INFO(LOG_APP, "[WL-T] commit 5s: n=%{public}llu avg=%{public}lluus max=%{public}lluus",
+                        (unsigned long long)sWinN,
+                        sWinN ? (unsigned long long)(sWinUs / sWinN) : 0ull,
+                        (unsigned long long)sWinMax);
+            sWinN = sWinUs = sWinMax = 0; sWinT = time(nullptr);
+        }
     }
 }
 
@@ -1129,8 +1114,8 @@ extern "C" void RegisterWlCoreGlobals(wl_display* display) {
     wl_global_create(display, &wl_subcompositor_interface, 1, self, WaylandServer::subcompositor_bind);
     wl_global_create(display, &wp_viewporter_interface, 1, self, WaylandServer::viewporter_bind);
     wl_global_create(display, &wl_output_interface, 3, self, WaylandServer::output_bind);
-    // dinput 老游戏的指针扩展 (warp 回中/指针约束; relative 故意不注册,
-    // 见 pointer_extras.h 头注释)
+    // dinput 老游戏的指针扩展 (warp 回中/指针约束/relative pointer,
+    // 三者均在 PointerExtras::Register 注册, 见 pointer_extras.h 头注释)
     PointerExtras::GetInstance()->Register(display);
     TextInputManager::GetInstance()->Register(display);
 }

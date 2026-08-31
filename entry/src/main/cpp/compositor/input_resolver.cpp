@@ -137,8 +137,8 @@ bool InputResolver::FindInputTargetAt(int x, int y, InputTarget& out)
             if (fsOk && layer.toplevelId == fullscreenId) {
                 // 主全屏窗口的 subsurface 绘制在窗口内容之上, 先命中 (同一
                 // fit 变换, 与渲染 blitSubsurface 全屏分支同几何)
-                const int layerDispW = sl.vpDstW > 0 ? std::min(sl.vpDstW, sl.w) : sl.w;
-                const int layerDispH = sl.vpDstH > 0 ? std::min(sl.vpDstH, sl.h) : sl.h;
+                const int layerDispW = DisplaySizeAfterViewportClamped(sl.vpDstW, sl.w);
+                const int layerDispH = DisplaySizeAfterViewportClamped(sl.vpDstH, sl.h);
                 int layerScrX, layerScrY, layerScrW, layerScrH;
                 FitMapLayerRect(transform, layer.x - fsWinX, layer.y - fsWinY,
                                 layerDispW, layerDispH,
@@ -221,14 +221,6 @@ bool InputResolver::IsSurfaceAlive(wl_resource* surface)
     if (!surface) return false;
     auto lk = tmgr_.Lock();
     return tmgr_.ContainsSurfaceResource(surface);
-}
-
-bool InputResolver::IsZcGameSurface(wl_resource* surface)
-{
-    const uint32_t tl = tmgr_.FindToplevelBySurface(surface);
-    if (!tl) return false;
-    auto lk = tmgr_.Lock();
-    return compositor_.HasZeroCopyLayerForToplevelLocked(tl);
 }
 
 bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, double ly,

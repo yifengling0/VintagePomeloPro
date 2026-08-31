@@ -55,8 +55,6 @@ public:
     // ResetSessionState (幂等)。与上游 master 同构。
     void DestroyAllToplevels();
 
-    // EglRenderer 调用: 取最新一帧像素 (deprecated, 用 TakeToplevelFrame)
-    bool TakeFrame(std::vector<uint8_t>& outPixels, int& w, int& h);
     bool TakeToplevelFrame(uint32_t id, std::vector<uint8_t>& out, int& w, int& h) {
         return desktopCompositor_.TakeToplevelFrame(id, out, w, h);
     }
@@ -115,8 +113,7 @@ public:
         return inputResolver_.FindInputTargetAt(x, y, out);
     }
     bool IsSurfaceAlive(wl_resource* surface) { return inputResolver_.IsSurfaceAlive(surface); }
-    // warp 补偿门控/锚点换算 (wp_pointer_warp_v1 → InputManager::OnPointerWarp)
-    bool IsSurfaceFromZcGame(wl_resource* surface) { return inputResolver_.IsZcGameSurface(surface); }
+    // warp 锚点换算 (wp_pointer_warp_v1 → InputManager::OnPointerWarp)
     bool SurfaceLocalToDesktop(wl_resource* surface, double lx, double ly, double& dx, double& dy) {
         return inputResolver_.SurfaceLocalToDesktop(surface, lx, ly, dx, dy);
     }
@@ -131,6 +128,11 @@ public:
     int GetToplevelY(uint32_t id) { return toplevelMgr_.GetToplevelY(id); }
     int GetToplevelW(uint32_t id) { return toplevelMgr_.GetToplevelW(id); }
     int GetToplevelH(uint32_t id) { return toplevelMgr_.GetToplevelH(id); }
+    // 几何快照 (一次加锁): 替代"为取一对坐标连续加锁两次"的单字段调用
+    using ToplevelGeometrySnapshot = ToplevelManager::ToplevelGeometrySnapshot;
+    ToplevelGeometrySnapshot GetToplevelGeometrySnapshot(uint32_t id) {
+        return toplevelMgr_.GetToplevelGeometrySnapshot(id);
+    }
     // 状态查询 (minimized/fullscreen 权威字段在 ToplevelState, 见 surface_data.h 状态边界注释)
     bool IsToplevelMinimized(uint32_t id) { return toplevelMgr_.IsToplevelMinimized(id); }
     bool IsToplevelFullscreen(uint32_t id) { return toplevelMgr_.IsToplevelFullscreen(id); }
@@ -147,7 +149,6 @@ public:
     void SetDesktopMode(bool on) { policy_ = DisplayPolicy::FromDesktopMode(on); }
     bool IsDesktopMode() const { return policy_.desktop; }
     const DisplayPolicy& Policy() const { return policy_; }
-    void SetDesktopRootToplevelId(uint32_t id) { desktopRootToplevelId_ = id; }
     uint32_t GetDesktopRootToplevelId() const { return desktopRootToplevelId_; }
     // wl_surface → toplevelId 反查 (PointerExtras 判相对模式的约束 surface
     // 是否桌面 root 自身 — 区分"桌面 shell 启动瞬时藏光标"与"游戏真相对模式")
@@ -246,12 +247,6 @@ private:
     std::thread thread_;
     std::atomic<bool> running_{false};
 
-    // 全局帧缓冲 (deprecated, 保留兼容)
-    std::mutex mutex_;
-    std::vector<uint8_t> pixels_;
-    int width_ = 0, height_ = 0;
-    std::atomic<bool> dirty_{false};
-
     // toplevel 状态存储已移入 ToplevelManager (compositor/toplevel_manager.h)
     ToplevelManager toplevelMgr_;
 
@@ -273,7 +268,6 @@ private:
     DesktopRootManager desktopRootMgr_{toplevelMgr_, desktopRootToplevelId_,
                                         pendingDesktopRootToplevelId_,
                                         desktopRootRecognitionEnabled_,
-                                        outputW_, outputH_,
                                         [this](uint32_t id, const char* ev, const char* data) {
                                             FireToplevelEvent(id, ev, data);
                                         }};

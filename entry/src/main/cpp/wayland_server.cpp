@@ -2,6 +2,7 @@
 #include "seat.h"
 #include "input_manager.h"
 #include "xdg_shell.h"
+#include "xdg_configure.h"
 #include "fps_counter.h"
 #include "compositor/debug_assert.h"
 #include "include/xdg-shell-server-protocol.h"
@@ -160,22 +161,9 @@ void WaylandServer::EventLoop() {
 
 
 
-// -- 帧数据接口 --
-bool WaylandServer::TakeFrame(std::vector<uint8_t>& out, int& w, int& h) {
-    std::lock_guard<std::mutex> lk(mutex_);
-    if (!dirty_) return false;
-    out = pixels_;
-    w = width_;
-    h = height_;
-    dirty_ = false;
-    OH_LOG_INFO(LOG_APP, "[MW-TAKE] global frame %{public}dx%{public}d px=%{public}zu", w, h, out.size());
-    return true;
-}
-
 void WaylandServer::RaiseToplevel(uint32_t id, bool userInitiated) {
     auto lk = toplevelMgr_.Lock();
-    toplevelMgr_.RemoveFromZOrder(id);
-    toplevelMgr_.AddToZOrder(id);
+    toplevelMgr_.RaiseToplevel(id);
     // 全屏优先级: 仅"用户显式 raise (任务栏/窗口点击经 ArkTS 发起) 且目标
     // 当前已 fullscreen"时重新取号 — 两个全屏窗口互相切换靠它;
     // tl_set_fullscreen 批处理里的 raise 不重新取号 (显示模式切换会批量连带
@@ -189,17 +177,14 @@ void WaylandServer::RaiseToplevel(uint32_t id, bool userInitiated) {
             toplevelMgr_.BumpFsPriorityLocked(id);
     }
     // 任务栏始终在顶层 (app_id == "explorer.exe.taskbar");
-    // 全屏窗口例外 — 游戏全屏必须压过任务栏
-    bool raisedFullscreen = false;
-    if (const auto* rst = toplevelMgr_.FindToplevelLocked(id)) raisedFullscreen = rst->IsFullscreen();
-    if (taskbarId_ > 0 && taskbarId_ != id && !raisedFullscreen) {
-        toplevelMgr_.RemoveFromZOrder(taskbarId_);
-        toplevelMgr_.AddToZOrder(taskbarId_);
-    }
+    // 全屏窗口例外 — 游戏全屏必须压过任务栏 (规则实现收口在 ToplevelManager::PinToTop)
+    toplevelMgr_.PinToTop(taskbarId_, id);
     MarkDesktopRootDirtyLocked();
     // Managed-window 模式需要同步 Wine 与系统窗口的层序。全屏窗口由系统
     // 置顶，额外 raiseToAppTop 会改变窗口几何/安全区并污染输入坐标，因此
     // 只转发明确的非全屏、非 ArkTS 回环 raise。
+    const auto* raised = toplevelMgr_.FindToplevelLocked(id);
+    const bool raisedFullscreen = raised && raised->IsFullscreen();
     if (Policy().OhosWindowPerToplevel() && !userInitiated && !raisedFullscreen) {
         FireToplevelEvent(id, "raise");
     }
@@ -355,20 +340,10 @@ void WaylandServer::SetToplevelRestored(uint32_t id) {
     if (!td || !td->xdgSurface) return;
     auto* xdg = static_cast<XdgSurface*>(wl_resource_get_user_data(td->xdgSurface));
     if (!xdg || !xdg->wlSurface) return;
-    wl_array states;
-    wl_array_init(&states);
-    uint32_t* st = static_cast<uint32_t*>(wl_array_add(&states, sizeof(uint32_t)));
-    *st = XDG_TOPLEVEL_STATE_ACTIVATED;
+    std::vector<uint32_t> states = {XDG_TOPLEVEL_STATE_ACTIVATED};
     // 全屏窗口从最小化还原: 维持 FULLSCREEN 状态 (尺寸 0,0 = Wine 保持当前尺寸)
-    if (IsToplevelFullscreen(id)) {
-        st = static_cast<uint32_t*>(wl_array_add(&states, sizeof(uint32_t)));
-        *st = XDG_TOPLEVEL_STATE_FULLSCREEN;
-    }
-    xdg_toplevel_send_configure(tl, 0, 0, &states);
-    wl_array_release(&states);
-    wl_client* client = wl_resource_get_client(tl);
-    wl_display* dpy = wl_client_get_display(client);
-    xdg_surface_send_configure(xdg->xdgSurface, wl_display_next_serial(dpy));
+    if (IsToplevelFullscreen(id)) states.push_back(XDG_TOPLEVEL_STATE_FULLSCREEN);
+    XdgConfigureSend(tl, xdg->xdgSurface, 0, 0, states);
 }
 
 void WaylandServer::SetToplevelMaximized(uint32_t id) {
@@ -429,25 +404,11 @@ void WaylandServer::NotifyToplevelResize(uint32_t toplevelId, int32_t w, int32_t
                 IsDesktopMode() ? "no" : "yes",
                 (sd && sd->maximized) ? "yes" : "no");
 
-    wl_array states;
-    wl_array_init(&states);
-    uint32_t* st = static_cast<uint32_t*>(wl_array_add(&states, sizeof(uint32_t)));
-    *st = XDG_TOPLEVEL_STATE_ACTIVATED;
-    if (sd && sd->maximized) {
-        st = static_cast<uint32_t*>(wl_array_add(&states, sizeof(uint32_t)));
-        *st = XDG_TOPLEVEL_STATE_MAXIMIZED;
-    }
+    std::vector<uint32_t> states = {XDG_TOPLEVEL_STATE_ACTIVATED};
+    if (sd && sd->maximized) states.push_back(XDG_TOPLEVEL_STATE_MAXIMIZED);
     // 全屏窗口在 OHOS 侧尺寸变化时保持 FULLSCREEN 状态, 否则 Wine 会退出全屏。
-    if (IsToplevelFullscreen(toplevelId)) {
-        st = static_cast<uint32_t*>(wl_array_add(&states, sizeof(uint32_t)));
-        *st = XDG_TOPLEVEL_STATE_FULLSCREEN;
-    }
-    xdg_toplevel_send_configure(tl, w, h, &states);
-    wl_array_release(&states);
-
-    wl_client* client = wl_resource_get_client(tl);
-    wl_display* dpy = wl_client_get_display(client);
-    xdg_surface_send_configure(xdg->xdgSurface, wl_display_next_serial(dpy));
+    if (IsToplevelFullscreen(toplevelId)) states.push_back(XDG_TOPLEVEL_STATE_FULLSCREEN);
+    XdgConfigureSend(tl, xdg->xdgSurface, w, h, states);
 
     // 桌面 root 尺寸变化 → 同步更新 output 尺寸, 影响:
     //   - wl_output 上报的物理尺寸

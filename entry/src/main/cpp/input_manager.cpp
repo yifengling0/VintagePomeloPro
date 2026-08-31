@@ -72,8 +72,9 @@ static uint32_t NowMs() {
     return static_cast<uint32_t>(ms);
 }
 
-// 静止 tap 的最小按压时长: ≥2 个 PAL2 轮询帧 (~55ms/帧 @18fps),
-// 保证 down 落在与 up 不同的 GetDeviceState 轮询窗口 (见 ACT_RELEASE)
+// 静止 tap 的最小按压时长: 保证 down/up 落在不同的 GetDeviceState 轮询
+// 窗口 (PAL2 按帧轮询 dinput, ~55ms/帧 @18fps — 理论上 ≥1 个轮询帧 (55ms)
+// 即可分开 down/up, 取 100ms 再留帧耗时抖动的余量; 见 ACT_RELEASE 脉冲拉伸)
 static constexpr uint32_t kMinPressDurationMs = 100;
 
 // ========================================================================
@@ -167,9 +168,9 @@ void InputManager::ResetSessionState() {
 //  坐标转换
 // ========================================================================
 
-wl_fixed_t InputManager::CoordTransform(double px, double py, uint32_t tl,
-                                         wl_fixed_t* outX, wl_fixed_t* outY,
-                                         FitRect* outLb) {
+void InputManager::CoordTransform(double px, double py, uint32_t tl,
+                                   wl_fixed_t* outX, wl_fixed_t* outY,
+                                   FitRect* outLb) {
     auto* r = PluginManager::GetInstance()->GetRendererForToplevel(tl);
     // Desktop 模式 fallback: root 切换后可能用旧 ID 查 renderer
     if (!r && WaylandServer::GetInstance()->Policy().RootCompositing()) {
@@ -184,7 +185,7 @@ wl_fixed_t InputManager::CoordTransform(double px, double py, uint32_t tl,
     if (!r) {
         OH_LOG_WARN(LOG_APP, "[Input] CoordTransform: no renderer for tl=%{public}u", tl);
         *outX = 0; *outY = 0;
-        return wl_fixed_from_int(0);
+        return;
     }
     int surfW = r->GetWidth();
     int surfH = r->GetHeight();
@@ -212,7 +213,7 @@ wl_fixed_t InputManager::CoordTransform(double px, double py, uint32_t tl,
 
     if (surfW <= 0 || surfH <= 0 || lb.dstW <= 0 || lb.dstH <= 0) {
         *outX = 0; *outY = 0;
-        return wl_fixed_from_int(0);
+        return;
     }
 
     // Letterbox 逆映射 (geometry.h 统一实现): 物理像素 → 去黑边 → 按帧尺寸缩放
@@ -225,7 +226,6 @@ wl_fixed_t InputManager::CoordTransform(double px, double py, uint32_t tl,
                  " surf=%{public}dx%{public}d frame=%{public}dx%{public}d → wine=(%{public}.0f,%{public}.0f)",
                  px, py, lb.offX, lb.offY, lb.dstW, lb.dstH, surfW, surfH, lb.srcW, lb.srcH,
                  wl_fixed_to_double(wx), wl_fixed_to_double(wy));
-    return wx;
 }
 
 // ========================================================================
@@ -451,7 +451,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
             inputFit.offX = target.originX;
             inputFit.offY = target.originY;
             inputFit.scale = target.scale;
-            // 桌面坐标 → surface 局部坐标 (即 geometry.h 的 FitUnmapX/Y;
+            // 桌面坐标 → surface 局部坐标 (FitRect 正变换的逆映射;
             // target.origin/scale 由 InputResolver 的 ComputeFitRect 给出)。
             // target.scale > 1 表示全屏窗口保比例放大显示, 局部坐标需按同一缩放除回来
             double localX = (logicalX - target.originX) / target.scale;
@@ -462,8 +462,14 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
             wy = wl_fixed_from_double(localY);
         } else {
             // 目标 surface 不可用: 退回旧路径 (父窗口相对坐标)
-            wx = wl_fixed_from_double(logicalX - ws->GetToplevelX(tl));
-            wy = wl_fixed_from_double(logicalY - ws->GetToplevelY(tl));
+            const auto tlGeo = ws->GetToplevelGeometrySnapshot(tl);
+            wx = wl_fixed_from_double(logicalX - tlGeo.x);
+            wy = wl_fixed_from_double(logicalY - tlGeo.y);
+            // 目标 surface 不可用是异常路径 (正常应命中 root), WARN 全量
+            OH_LOG_WARN(LOG_APP, "[Input] TARGET-FALLBACK a=%{public}d px=(%{public}.0f,%{public}.0f) tl=%{public}u"
+                        " → local=(%{public}.1f,%{public}.1f) (no surf)",
+                        action, logicalX, logicalY, tl,
+                        logicalX - tlGeo.x, logicalY - tlGeo.y);
         }
     } else {
         FitRect lb{};
@@ -476,16 +482,17 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
             wy = wl_fixed_from_double(ClampToContent(wl_fixed_to_double(wy), lb.srcH));
         }
         // PC 空间全局指针位置 = 窗口局部坐标 + 窗口位置 (grab 偏移基准)
-        lastGlobalPtrX_.store(wl_fixed_from_double(wl_fixed_to_double(wx) + ws->GetToplevelX(tl)));
-        lastGlobalPtrY_.store(wl_fixed_from_double(wl_fixed_to_double(wy) + ws->GetToplevelY(tl)));
+        const auto tlGeo = ws->GetToplevelGeometrySnapshot(tl);
+        lastGlobalPtrX_.store(wl_fixed_from_double(wl_fixed_to_double(wx) + tlGeo.x));
+        lastGlobalPtrY_.store(wl_fixed_from_double(wl_fixed_to_double(wy) + tlGeo.y));
         // move grab 降级路径 (PC 模式 startMoving 失败时): wx 是窗口局部坐标,
         // 补上窗口位置还原为绝对坐标, 供 compositor 绝对定位 (不在此做
         // 局部→全局往返, 消费侧不再二次读 st->x, 避免双线程基准漂移)
         if (action == ACT_MOVE && ws->IsMoveGrabActive() &&
             ws->GetMoveGrabToplevelId() == tl) {
             Enqueue(InputEvent::PTR_MOTION, 0, nullptr,
-                    wl_fixed_from_double(wl_fixed_to_double(wx) + ws->GetToplevelX(tl)),
-                    wl_fixed_from_double(wl_fixed_to_double(wy) + ws->GetToplevelY(tl)),
+                    wl_fixed_from_double(wl_fixed_to_double(wx) + tlGeo.x),
+                    wl_fixed_from_double(wl_fixed_to_double(wy) + tlGeo.y),
                     0, 0);
             return;
         }

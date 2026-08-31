@@ -306,23 +306,6 @@ void PointerExtras::SendRelativeMotion(wl_resource* surface, double dx, double d
 }
 
 // ========================================================================
-//  查询接口
-// ========================================================================
-
-PointerExtras::ConstraintType PointerExtras::ConstraintFor(wl_resource* surface) {
-    if (!surface) return ConstraintType::None;
-    std::lock_guard<std::mutex> lk(mutex_);
-    for (const auto& c : constraints_) {
-        if (c.surface != surface) continue;
-        // 惰性失效: surface 已销毁的约束视为不存在
-        if (!WaylandServer::GetInstance()->IsSurfaceAlive(surface))
-            return ConstraintType::None;
-        return c.type;
-    }
-    return ConstraintType::None;
-}
-
-// ========================================================================
 //  Host 光标锁定 (OH_WindowManager_LockCursor + ets 隐藏光标)
 // ========================================================================
 

@@ -212,6 +212,21 @@ private:
                                         int fallbackWidth, int fallbackHeight,
                                         ZeroCopyLayerInfo& info);
     bool HasFullscreenZeroCopyContentLocked(uint32_t id);
+    // toplevel 的 zero-copy subsurface 层查找 (上面两个查询的单一实现,
+    // 同一遍历同一谓词; 返回首个匹配层, 调用方须已持有 tmgr mutex)
+    const SubsurfaceLayer* FindZeroCopyLayerForToplevelLocked(uint32_t id) const;
+
+    // -- TakeToplevelFrame 阶段拆分 (重构第 2A 步: 纯结构拆分, 行为平价) --
+    // 桌面合成管线在 frame_pipeline.{h,cpp}: FramePlanner (锁内规划) 产出
+    // FramePlan, FrameBlitter (锁外纯像素) 消费, TakeToplevelFrame 本体只剩
+    // 编排。Planner 经 friend 访问本类层容器/快照池/合成状态 — 状态仍由本类
+    // 持有, 读写线程域不变 (渲染线程 + tmgr 锁内); 锁边界与原单函数一致。
+    friend class FramePlanner;
+
+    // PC 模式单窗口分支 (锁内; 窗口内 subsurface 像素 blit 走
+    // FrameBlitter::BlitWindowSubsurface)
+    bool TakeWindowFrameLocked(uint32_t id, std::vector<uint8_t>& out, int& w, int& h,
+                               bool frameTrace);
 
     ToplevelManager& tmgr_;
     const DisplayPolicy& policy_;
@@ -221,7 +236,6 @@ private:
 
     std::vector<SubsurfaceLayer> subsurfaceLayers_;
     std::unordered_set<uint64_t> zeroCopySurfaceKeys_;
-    std::unordered_set<uint64_t> zeroCopyProtocolGeometryLogged_;
     uint64_t desktopCompositionSignature_ = 0;
     uint64_t desktopOutputRootFrameSerial_ = 0;
     bool desktopOutputInitialized_ = false;
