@@ -6,7 +6,7 @@
 
 - 主要来源：`7d5e7874c37bff5cdd781d90dbc750cb6a7a4de4`；最终对齐参考本轮 T2–T6 的产品适配，不直接 cherry-pick 旧路径整提交。
 - 目标：临时子窗口尺寸不能改变父窗口全屏映射；渲染、点击、relative pointer 使用一致几何；partial GPU layer 不覆盖 CPU 周边；direct/composed 切换和 damage 回放不残留旧像素。
-- 最小阅读范围：`compositor/frame` 的 planner/blitter/composers、`compositor/input/input_resolver.*`、`input/input_state_tracker.*`、geometry、graphics renderer 对 PresentedFrame 的消费，以及对应 state/geometry/input 测试。
+- 最小阅读范围：`compositor/frame` 的 planner/blitter/composers、`compositor/input/input_resolver.*`、`compositor/input/input_state_tracker.*`、geometry、graphics renderer 对 PresentedFrame 的消费，以及对应 state/geometry/input 测试。
 - 拆分原则：几何选择、输入空间失效、damage/cache 三个可独立解释的提交；若接口存在依赖，先提交接口与测试再提交消费者。
 - 验收：host 几何/输入/合成器测试；窗口与全屏的鼠标落点；War3 启动临时尺寸；菜单、子窗口和五轮 resize/background。主机测试不能替代设备落点验证。
 - 建议 Terra 实施语义适配，Luna 核对文件范围及收集固定检查输出。

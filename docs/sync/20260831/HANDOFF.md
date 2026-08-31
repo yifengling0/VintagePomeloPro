@@ -55,7 +55,7 @@ T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.
 
 ### T5：输入职责拆分，fe372d2b
 
-范围：`input/input_space_mapper.*`、`input_state_tracker.*`、`input_queue.*`、`input_injector.*`、PointerExtras 注入的 baseline sink。
+范围：`compositor/input/input_space_mapper.*`、同目录的 `input_state_tracker.*`、`input_queue.*`、`input_injector.*`、PointerExtras 注入的 baseline sink。
 
 决策：采用上游 `cee5b1a8` scroll/popup 修复；排队 relative motion 保留 surface 并验证存活。InputTarget 的内容尺寸不能因上游没有使用就删除，它是产品 geometry guard 的依赖。IME focus/reset 保留。
 
@@ -79,9 +79,13 @@ T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.
 
 ### T8：发行包与实机验收，继续项
 
+接手优先读 STATUS 的 `Current handoff`，再读 DEVICE_RESULTS 和 OPEN_ISSUES 中本次要处理的一个条目。后两份包含失败样本、原版对照与现场恢复，不能用下面的构建结论覆盖它们。T1–T7 不再重复移植。
+
 `d28d1a02` 修复了新 x86_64 libffi 构建从错误工作目录执行 autogen 的问题。双 ABI 签名 HAP 已产出，ZIP CRC、关键 ELF 架构、API23、包名版本与 SDK 签名验证通过。真机后续结果以 STATUS/设备报告为准；不能因这些构建检查通过就宣布全部回归完成。
 
 主机自动化现支持显式 HDC 路径和显式双 ABI 许可；原先 ARM64-only 默认仍保留。双 ABI 许可会额外验证 x86_64 必需库及 ELF 架构，不跳过包校验。UNC 脚本受本机执行策略限制时，可以复制审阅过的脚本到本地忽略目录运行，不修改全局执行策略。
+
+当前候选已推进到 `beb00711`：修复 PREPARING 下误删已经存活的 desktop root；实际服务源码的模型测试和五轮手机桌面卡恢复通过。新包与 d28 的 Native/guest 字节完全一致，因此不重复整个 Native 移植或全部依赖编译。其余真机失败/缺口必须读最新 DEVICE_RESULTS 与 OPEN_ISSUES，不能据本段推定全套验收通过。
 
 ## Terra / Luna 的低上下文工作方式
 

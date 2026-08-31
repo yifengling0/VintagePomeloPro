@@ -1,6 +1,19 @@
 # Integration status
 
-## Current
+## Current handoff
+
+- Branch `codex/sync-master-20260831`; integration T0–T7 complete. Product main `2c043636`, upstream interval through `74f2bfe1`, 69 dispositions recorded. Do not repeat the migration or move other branches.
+- Current runtime candidate `beb00711` fixes premature desktop-root reconciliation. Its dual-ABI HAP is signed and archive/API/ELF checked; all 121 Native libraries and wine-data.zip are byte-identical to the previous `d28d1a02` HAP. Only ArkTS changed. Full host/model/GLES/HUD/navigation/CI gates passed again at beb (`root-fix-final-host-tests.log`). Protected product UI, public controller interfaces and 24 gitlinks unchanged; source audit rerun PASS.
+- T8 device acceptance is **not complete**. Read DEVICE_RESULTS.md for actual evidence and OPEN_ISSUES.md for scoped diagnostics. Source audit PASS is not a device PASS.
+- Modern DXVK D3D9/D3D11, multiwindow/scroll/menu/popup/drag, cold and same-session Chinese commit, War3 map/unit commands have visible evidence. x64 GL ran over eleven minutes with five resize/launcher-resume cycles, but retained 0x505 warning failures.
+- Three alternating GL pairs collected; A1/B1 strict INCONCLUSIVE due to warnings; A2/B2/A3/B3-retry1 MEASURED, valid timing differences below 5%. Original B3 readiness failure remains recorded; no all-startups-pass claim.
+- Baseline now also reproduces same-process Wine restart Chinese failure (cold restart restores it), War3 right-edge smear and first-tap-only highlight. These are not silently reclassified as clean PASS.
+- Candidate d28 product-route x86 card resume stalled because root was removed before READY; baseline control did not lose root. `beb00711` now passes five individually verified desktop-card resumes on the same x86 GL PID/key. d28 x86 also completed over ten minutes of foreground rendering after diagnostic recovery and five resizes. Original failed background sample remains recorded.
+- Legacy DXVK D3D11 visibly renders, resizes and resumes on beb. D3D9 initialization failed with HRESULT 0x8876086a and a white client area; frozen baseline reproduces the same failure (I7). Modern D3D11→D3D9→D3D11 was separately revalidated with visible cubes on beb. Physical controller gates still lack hardware evidence.
+- Latest beb candidate remains installed. Original DXVK 2.6 global selection verified on settings page; cube closed, touchpad/keyboard OFF. Phone keeps its temporary awake lock while device acceptance remains unfinished; data/prefix preserved. No private branch push, no master/main merge, no release approval.
+- Next minimal entry: NEXT_TASK.md. Physical controller is still absent (Hub seq=0, no external motor); do not wait by rerunning completed source migration or invent a hardware PASS. Other open diagnostics retain their own bounded packets in OPEN_ISSUES.
+
+## Checkpoint history
 
 - T0: isolated branch created, source SHAs verified, 69 commits classified. Baseline host tests passed.
 - Phone connected, API26; temporary screen running lock verified, original timeout saved outside Git.
@@ -35,4 +48,4 @@
 
 ## Resume
 
-Read HANDOFF.md and this file, inspect current Git status before acting, then execute the next unfinished task. Use commits.json only for the relevant source/task slice. Preserve the full requested scope. UPSTREAM_PACKETS.md prepares later clean upstream contributions; nothing has been pushed.
+Read NEXT_TASK.md and this file, inspect current Git status before acting, then execute one unfinished task. HANDOFF.md retains integration decisions. Use commits.json only for the relevant source/task slice. Preserve the full requested scope. UPSTREAM_PACKETS.md prepares later clean upstream contributions; nothing has been pushed.
