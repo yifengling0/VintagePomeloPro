@@ -54,6 +54,15 @@
     - 收尾：03:37 正常关闭 cube，Wine 桌面/任务栏可见；03:39 设置截图 `gl-background-setting-scan-5.jpeg` 明确 DXVK 2.6（实验）为蓝色选中、Box64 默认档选中，无需再修改；scan-4 仍为 Wine 手柄模式、seq=0、无外接马达。触摸板/键盘 OFF，最新包留在手机，常亮 override 保留，无卸载、prefix 重置或保存用户文档。SDK `verify-app` 独立校验成功（`gl-background-signature.log`），并非仅凭构建签名输出判断。
     - 最小 I1 摘要 `gl-i1-minimal.json` 约 6 KB，原始日志 `gl-background-combined.log` 包含第一主进程的 GL/Modern 阶段，Venus 控制另存，保留全部错误；新启动摘要 `startup-i4-second-recreation.json` 约 4 KB。本轮定向结论是后台消费/恢复路径改善；I1 缩放/空通知与 I4 启动仍开放，不声明完整 GL 或整机验收通过。
 
+20. **I4 退出状态与 Wine 清理信号（2026-09-01 03:51–04:28）**：最终代码 `c5e00c9ac841eb00d262b2a80ff596f90551a7e8`，保留已完成的移植/机械重构与产品 UI；本轮没有更新任何 guest pin。
+    - 原 dc 主进程 62830：从 Modern 切 VirGL、准备启动记事本时，Explorer launcher 13143 / client 13151 只有 shell #4 元数据，至少 294 秒无首帧。记事本的 WINEDEBUG Want 只在 ensureReady 后生效，无法追到这个 Explorer。线程为 sleeping、WCHAN 屏蔽；processdump 权限被拒，未绕过。最小记录 `startup-i4-third-recreation.json`。
+    - 临时诊断只在 Explorer env 增加有限 WINEDEBUG / WAYLAND_DEBUG，没有改 UI、重试或时限。双 ABI 构建/包审计/签名通过，HAP SHA-256 `2ac1acd3e0b6ce21c0f03186d21b519cdd854737e9dd788fcef0b6943bef7d1f`；只用于诊断，不是产品候选。PID 17335 冷启的首个 Explorer 17929 在 dlopen 出错，内建第二次尝试后记事本可见；一次 VirGL 重建也可见。第二次 Modern 重建时 wineboot worker 20058 明确 exit=1，却被登记成 unknown 后误判初始化完成，Explorer 20112 卡在无 toplevel。`startup-i4-failed-boot-minimal.json` 保留关键证据；WINEDEBUG trace 有输出，未建立 WAYLAND_DEBUG wire trace。临时补丁已经撤掉，未提交到产品代码。
+    - `56345d67` 修复 waitpid 状态丢失、未知通知覆盖、重复等待返回值、引擎标记覆盖及历史失败污染新尝试；新增 `make test-process-lifecycle`。真实 fork/waitpid + 生产注册表 31 checks、全套 host/model/GLES/HUD/navigation/CI 通过；旧源码在退出码保存断言失败。不过它误把 SIGKILL 编为 137 参与失败判定，实机第一次重建被错误拒绝，因此这个中间 HAP **不接受**，错误截图/日志 `startup-exit-first-rebuild*` 和 `startup-exit-signal-false-failure.json` 保留。
+    - 563 的 x64 GL 是独立有限证据：PID 28043 / guest 28849，key=123905511522329，前台有旋转立方体；后台 04:14:20.192–04:16:35.268 共 135.076 秒消费 4018 帧（29.75 Hz），显示循环固定 9135，区间内生产/消费队列错误为零；桌面卡恢复后同 key 出图。初次 attach 有两次 RequestBuffer NO_BUFFER，不能记全程零告警。240 秒 smoke 在约 235 秒被明确切换引擎中断，不能计长时通过，也不是最终 c5 的性能资格。见 `startup-exit-x64-gl-summary.json`。
+    - `c5e00c9a` 纠正信号含义：Wine 的正常退出清理可最终发 SIGKILL，因此保留 source=signal/exitCode=-1，只有 WIFEXITED 才提供已知退出码。修正后的 31 checks 和完整主机门禁通过，日志 `startup-exit-signal-all-host.log`。两次正式构建均经既有 winehua-dev 的根 Makefile；复用前校验 113 个 staged dependency ELF 与 wine-data.zip。最终 HAP `VintagePomeloPro-sync-c5e00c9a-dual.hap`，481343036 bytes，SHA-256 `4fba7852a92273b15b77b976a6e0fefc2dd57c7264aa6a75b684a8bd995af8ee`。API 23/双 ABI/ZIP CRC/ELF 校验通过，SDK verify-app 在 04:21:20 独立通过。相对 dc 只有两份 libentry.so 变化，其余 119 Native 条目、ArkTS 与嵌套运行时字节不变。
+    - c5 实机主进程 36343：Modern 冷启 READY 04:22:17.982，记事本 PID 37114 窗口可见；第一次切 VirGL READY 04:23:28.189，PID 38464 窗口可见。该次 wineboot 38278/38362 的 signal 清理不再误判失败。没有改 Box64 档位、重试或 prefix。第二次切 Modern 在 04:24:16.642 进入 Explorer 阶段，launcher 39271 / client 39283、shell #7 元数据出现，但留证到 209 秒仍是 toplevels=1、mapped surfaces=0、renderers=0，180 秒门禁失败；**保留失败，不算三轮通过**。原始日志 `startup-exit-signal-complete.log`、stderr 与 deadline 截图保留。
+    - 范围限制：c5 的明确 exit=1 拒绝分支有真实 host 进程测试，本设备序列没有重新产生该明确退出码，不以 563 的错误 137 代替验证。冷启动备用 reaper 仍覆盖 NAPI handler 并丢状态，现有 handler 异步信号安全也未修；metadata-only 首帧挂起、void Main 丢返回码和 guest loader 问题仍开放。Wine 子模块没有变化，Box64 offset 无符号信息时没有猜偏移或改子模块。
+
 音频 PASS 指 guest 提交、host 消费及非零 RMS；没有人耳确认时不声称可听性、音色或延迟通过。当前没有实体手柄输入/马达证据。
 
 ## 验收剩余项（不要重跑已完成的移植）
@@ -65,6 +74,6 @@
 - RA2/PAL2/Heaven 等指定游戏在当前设备目录未找到，不以 War3 或 smoke 替代；x86_64 Harmony 硬件未提供。构建与 guest x86 测试不等于另一设备 ABI 实测。
 - 受影响主机门禁已在 edd 全套重跑通过，日志 `ime-lifecycle-all-host.log`；新增真实 Wayland 生命周期 91 checks，旧源码二次注册探针按预期失败（`ime-lifecycle-before.log`）。来源/保护范围与逐提交 Native 修复审计 PASS。当前仍不是全项无缺陷的发行验收。
 
-设备收尾检查：02:14 已关闭 cube；02:17 设置页明确选中 DXVK 2.6，Box64 默认档未变，Wine 手柄模式未变（seq=0、无外接马达）；触摸板/键盘 OFF。手机保留最新 beb 包和测试期间亮屏锁，尚未将设备门禁标完成，不清用户 prefix。测试 fixture 只在 Wine 临时目录生成且关闭未保存改动。
+设备收尾检查：04:27–04:28 已在超时证据保存后关闭失败的主进程 36343，再不带测试 Want 打开应用库，当前主进程 41532、无 Wine/test 进程；`startup-exit-signal-final-launcher.jpeg` 已目视确认。手机保留最新 c5e00c9a 包，常亮 override=2147483647ms，原 timeout=600000ms 留存。最后请求 Modern DXVK 2.6，本轮未改 Box64、手柄、键盘或触摸板设置，未重复核验设置页，不能把历史截图冒充当前截图。不卸载、不清用户 prefix；此收尾不是 Wine 重试或通过证据。
 
 最终验收应逐项更新本文件和 STATUS，并保留失败和限制，不抹去先前严格检查结果。下一轮最小范围见 NEXT_TASK.md。

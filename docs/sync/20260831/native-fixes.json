@@ -19,5 +19,25 @@
     ],
     "host_evidence": "Existing full host/model/GLES/HUD/navigation/CI suite PASS (gl-background-host.log); both ABI application Native and signed HAP PASS (gl-background-hap.log). Reuse audit verifies 113 staged dependency ELFs and unchanged wine-data.zip. Only two libentry.so files differ from edd; ArkTS and other 119 Native entries identical. No new host test of EGL execution; device transition evidence is required.",
     "device_status": "ARM64 PID 53844: two x86 GL hidden/resume intervals consumed 2000/1422 frames at about 30 Hz, stable display-loop count, same key and visible GL resumed. Paused teardown completed; Modern D3D9 hidden/resume consumed 2499 frames. Independent PID 62830 Venus/D3D11 hidden/resume consumed 2265 frames. All four hidden intervals had zero producer/consumer queue errors. Resize/API-switch GL drops and foreground consumer NO_BUFFER remain. A second engine recreation for x64 GL did not become desktop-ready in 180 seconds; retained as I4, not an x64 GL pass. SDK signature verification passed. See DEVICE_RESULTS item 19, gl-i1-minimal.json and startup-i4-second-recreation.json."
+  },
+  {
+    "commit": "56345d67f55ca2a140f1d2ecc1d88855f7d8303b",
+    "reason": "I4 observed wineboot worker exit=1 was discarded before startup declared boot complete. Preserve waitpid/signal status, avoid unknown-status and engine-relabel overwrites, validate ReaderThread waitpid, and reject failed launcher/worker in the current boot attempt. No retries, timeouts, UI, NAPI signatures or guest pins changed.",
+    "native_paths": [
+      "entry/src/main/cpp/proc/wine_process.cpp",
+      "entry/src/main/cpp/wine/wine_launch.cpp",
+      "entry/src/main/cpp/wine/wineboot_wait.h"
+    ],
+    "host_evidence": "31 real fork/waitpid + production registry checks and complete host/model/GLES/HUD/navigation/CI suite passed, but the original test incorrectly considered every host signal a known Windows failure; c5e00c9a corrects that assumption using the device control. Old pre-fix source fails retained exit-code assertion. Logs startup-exit-before-test.log, startup-exit-56345d67-host.log, startup-exit-56345d67-all-host.log.",
+    "device_status": "ARM64 main 28043 cold product x64 GL visibly rendered and resumed from the desktop card. First Modern rebuild was rejected after mapping SIGKILL to exit=137. Diagnostic dc control shows Wine can clean up successful boot workers with SIGKILL; therefore this intermediate HAP is NOT ACCEPTED. Corrected by c5e00c9a. Preserve startup-exit-signal-false-failure.json and startup-exit-first-rebuild.log. Cold launch still reports unknown exits because Phone InstallReaperOnce overwrites the NAPI reaper."
+  },
+  {
+    "commit": "c5e00c9ac841eb00d262b2a80ff596f90551a7e8",
+    "reason": "I4 device correction: Wine server uses a SIGKILL timer for process cleanup, including successful guest exits. Preserve host signal source separately with unknown Windows exitCode=-1; only WIFEXITED provides a known nonzero code for bootstrap rejection.",
+    "native_paths": [
+      "entry/src/main/cpp/proc/wine_process.cpp"
+    ],
+    "host_evidence": "Corrected 31 real fork/waitpid + production registry checks; complete host/model/GLES/HUD/navigation/CI suite PASS (startup-exit-signal-all-host.log). Includes prior-failure isolation, PID incarnation, failed launcher/worker, unknown signal, competing waitpid and relabel cases. SDK interfaces are stubbed; does not validate async-signal safety.",
+    "device_status": "HAP 481343036 bytes, SHA256 4fba7852a92273b15b77b976a6e0fefc2dd57c7264aa6a75b684a8bd995af8ee; API23/dual ABI/archive/signature PASS. Main 36343 cold Modern and first wined3d recreation visibly show notepad. Wineboot signal cleanup no longer causes false failure; real exited code=0 from other children retains source=waitpid. Second Modern recreation remains metadata-only #7/client39283 with no mapped surface/renderer after 180 seconds. No explicit nonzero boot exit was observed in this c5 device sequence; rejection branch is host-tested only. First-cold fallback reaper status loss, async-unsafe handler, underlying faults and missing hardware gates remain open. App stopped after evidence, library reopened without test launch; no successful retry claimed. See DEVICE_RESULTS 20 and startup-exit-signal-device-summary.json."
   }
 ]
