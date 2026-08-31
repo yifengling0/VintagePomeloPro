@@ -80,10 +80,10 @@ int main() {
     const pid_t signaled = ExitedChild(0, SIGTERM);
     sigchld_handler(SIGCHLD);
     entry = Snapshot(signaled);
-    Check(entry.exitCode == 128 + SIGTERM && entry.exitCodeSource == "signal",
-          "signal termination is a known failure");
-    Check(nextAttempt.Inspect(GetProcessListSnapshot(), signaled).failedPid == signaled,
-          "signaled boot also prevents completion");
+    Check(entry.exitCode == -1 && entry.exitCodeSource == "signal",
+          "host signal is not fabricated into a Windows exit code");
+    Check(nextAttempt.Inspect(GetProcessListSnapshot(), signaled).failedPid == 0,
+          "Wine cleanup signals alone do not establish boot failure");
 
     const winehua::WinebootAttempt successAttempt(GetProcessListSnapshot());
     const pid_t success = ExitedChild(0);

@@ -330,8 +330,9 @@ void sigchld_handler(int) {
     pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         LogProcessExit("broker-child", pid, status);
-        const int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) :
-            (WIFSIGNALED(status) ? 128 + WTERMSIG(status) : -1);
+        // Wine can use SIGKILL when retiring a successfully completed guest.
+        // The host signal alone does not carry the Windows process exit code.
+        const int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
         RemoveProcess(pid, exitCode, WIFSIGNALED(status) ? "signal" : "waitpid");
         if (gStateTsfn) {
             char msg[64];
@@ -481,8 +482,7 @@ void ReaderThread(int fd, pid_t pid, std::shared_ptr<std::atomic<bool>> active) 
     // an uninitialized/absent status as a successful exit or overwrite it.
     if (waited != pid) return;
     LogProcessExit("wine", pid, status);
-    int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) :
-        (WIFSIGNALED(status) ? 128 + WTERMSIG(status) : -1);
+    int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
     RemoveProcess(pid, exitCode, WIFSIGNALED(status) ? "signal" : "waitpid");
 
     if (gStateTsfn) {
