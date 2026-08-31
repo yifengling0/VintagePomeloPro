@@ -421,12 +421,16 @@ test-ci-release:
 # ============================================================
 HOST_TEST_DIR := $(BUILD_DIR)/host_tests
 
+.PHONY: test-text-input
+test-text-input:
+	bash $(SCRIPTS)/run_text_input_unit_tests.sh
+
 .PHONY: graphics-contract-check
 graphics-contract-check:
 	bash $(SCRIPTS)/verify_graphics_contract.sh
 
 .PHONY: test
-test: graphics-contract-check
+test: graphics-contract-check test-text-input
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/gles_direct_policy_test $(ROOT)/host_tests/gles_direct_policy_test.cpp

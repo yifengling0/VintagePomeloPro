@@ -19,20 +19,65 @@ TextInputManager* TextInputManager::GetInstance() {
 }
 
 void TextInputManager::Register(wl_display* display) {
+    std::lock_guard<std::mutex> stateLock(mutex_);
+    std::lock_guard<std::mutex> queueLock(opMutex_);
     if (global_) return;
-    display_ = display;
-    global_ = wl_global_create(display, &zwp_text_input_manager_v3_interface, 1,
-                               this, manager_bind);
+    if (!display) return;
     int fds[2];
-    if (pipe2(fds, O_NONBLOCK) == 0) {
-        pipeReadFd_ = fds[0];
-        pipeWriteFd_ = fds[1];
-        struct wl_event_loop* loop = wl_display_get_event_loop(display);
-        pipeSource_ = wl_event_loop_add_fd(loop, pipeReadFd_, WL_EVENT_READABLE,
-                                           OnPipeReadable, this);
+    if (pipe2(fds, O_NONBLOCK | O_CLOEXEC) != 0) {
+        OH_LOG_ERROR(LOG_APP, "[TextInput] pipe creation failed");
+        return;
     }
+    wl_event_source* source = wl_event_loop_add_fd(wl_display_get_event_loop(display),
+        fds[0], WL_EVENT_READABLE, OnPipeReadable, this);
+    wl_global* global = source ? wl_global_create(display,
+        &zwp_text_input_manager_v3_interface, 1, this, manager_bind) : nullptr;
+    if (!global) {
+        if (source) wl_event_source_remove(source);
+        close(fds[0]);
+        close(fds[1]);
+        OH_LOG_ERROR(LOG_APP, "[TextInput] registration failed");
+        return;
+    }
+    display_ = display;
+    global_ = global;
+    pipeSource_ = source;
+    pipeReadFd_ = fds[0];
+    pipeWriteFd_ = fds[1];
+    armed_ = false;
     OH_LOG_INFO(LOG_APP, "[TextInput] manager registered armed=%{public}d",
                 armed_ ? 1 : 0);
+}
+
+void TextInputManager::Shutdown() {
+    std::vector<Entry> retired;
+    wl_global* global = nullptr;
+    bool wasActivated = false;
+    {
+        std::lock_guard<std::mutex> stateLock(mutex_);
+        std::lock_guard<std::mutex> queueLock(opMutex_);
+        // Dispatch has stopped. Holding both locks also prevents a NAPI writer
+        // from targeting a retired resource or a closed/reused pipe descriptor.
+        if (pipeSource_) wl_event_source_remove(pipeSource_);
+        pipeSource_ = nullptr;
+        if (pipeReadFd_ >= 0) close(pipeReadFd_);
+        if (pipeWriteFd_ >= 0) close(pipeWriteFd_);
+        pipeReadFd_ = pipeWriteFd_ = -1;
+        opQueue_.clear();
+        retired.swap(entries_);
+        for (const Entry& entry : retired) wasActivated |= entry.activated;
+        global = global_;
+        global_ = nullptr;
+        display_ = nullptr;
+        focusedToplevel_ = 0;
+        focusedSurface_ = nullptr;
+        armed_ = false;
+    }
+    // Resource destructors re-enter mutex_; do not destroy under either lock.
+    for (const Entry& entry : retired) wl_resource_destroy(entry.res);
+    if (global) wl_global_destroy(global);
+    if (wasActivated) NotifyActivated(false);
+    OH_LOG_INFO(LOG_APP, "[TextInput] manager shutdown resources=%{public}zu", retired.size());
 }
 
 static const struct zwp_text_input_manager_v3_interface kManagerImpl = {
@@ -91,6 +136,11 @@ void TextInputManager::resource_destroyed(wl_resource* r) {
     std::lock_guard<std::mutex> lock(self->mutex_);
     self->entries_.erase(std::remove_if(self->entries_.begin(), self->entries_.end(),
         [&](const Entry& entry) { return entry.res == r; }), self->entries_.end());
+    {
+        std::lock_guard<std::mutex> queueLock(self->opMutex_);
+        self->opQueue_.erase(std::remove_if(self->opQueue_.begin(), self->opQueue_.end(),
+            [&](const Op& op) { return op.res == r; }), self->opQueue_.end());
+    }
     OH_LOG_INFO(LOG_APP, "[TextInput] object destroyed res=%{public}p entries=%{public}d",
                 r, (int)self->entries_.size());
 }
@@ -335,16 +385,21 @@ bool TextInputManager::IsEnabled() const {
     return false;
 }
 
-void TextInputManager::EnqueueOp(Op op) {
-    {
-        std::lock_guard<std::mutex> lock(opMutex_);
-        opQueue_.push_back(std::move(op));
+bool TextInputManager::EnqueueOpLocked(Op op, bool appendDone) {
+    std::lock_guard<std::mutex> lock(opMutex_);
+    if (pipeWriteFd_ < 0) return false;
+    wl_resource* res = op.res;
+    opQueue_.push_back(std::move(op));
+    if (appendDone) {
+        Op done;
+        done.type = OpType::Done;
+        done.res = res;
+        opQueue_.push_back(std::move(done));
     }
-    if (pipeWriteFd_ >= 0) {
-        char byte = 1;
-        ssize_t n = write(pipeWriteFd_, &byte, 1);
-        (void)n;
-    }
+    char byte = 1;
+    ssize_t n = write(pipeWriteFd_, &byte, 1);
+    (void)n; // EAGAIN means a wake byte is already pending on this live pipe.
+    return true;
 }
 
 int TextInputManager::OnPipeReadable(int fd, uint32_t, void* data) {
@@ -362,69 +417,47 @@ TextInputManager::Entry* TextInputManager::EnabledEntryLocked() {
 }
 
 bool TextInputManager::SendPreedit(const char* utf8, int32_t cursorBegin, int32_t cursorEnd) {
-    wl_resource* res = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        Entry* entry = EnabledEntryLocked();
-        if (!entry) return false;
-        res = entry->res;
-    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    Entry* entry = EnabledEntryLocked();
+    if (!entry) return false;
     Op op;
     op.type = OpType::Preedit;
-    op.res = res;
+    op.res = entry->res;
     op.text = utf8 ? utf8 : "";
     op.begin = cursorBegin;
     op.end = cursorEnd;
-    EnqueueOp(std::move(op));
-    Op done;
-    done.type = OpType::Done;
-    done.res = res;
-    EnqueueOp(std::move(done));
-    return true;
+    return EnqueueOpLocked(std::move(op), true);
 }
 
 bool TextInputManager::SendCommit(const char* utf8) {
-    wl_resource* res = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        Entry* entry = EnabledEntryLocked();
-        if (!entry) return false;
-        res = entry->res;
-    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    Entry* entry = EnabledEntryLocked();
+    if (!entry) return false;
     Op op;
     op.type = OpType::Commit;
-    op.res = res;
+    op.res = entry->res;
     op.text = utf8 ? utf8 : "";
-    EnqueueOp(std::move(op));
-    Op done;
-    done.type = OpType::Done;
-    done.res = res;
-    EnqueueOp(std::move(done));
-    return true;
+    return EnqueueOpLocked(std::move(op), true);
 }
 
 bool TextInputManager::SendDeleteSurrounding(uint32_t before, uint32_t after) {
-    wl_resource* res = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        Entry* entry = EnabledEntryLocked();
-        if (!entry) return false;
-        res = entry->res;
-    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    Entry* entry = EnabledEntryLocked();
+    if (!entry) return false;
     Op op;
     op.type = OpType::DeleteSurrounding;
-    op.res = res;
+    op.res = entry->res;
     op.begin = (int32_t)before;
     op.end = (int32_t)after;
-    EnqueueOp(std::move(op));
-    return true;
+    return EnqueueOpLocked(std::move(op));
 }
 
 void TextInputManager::SetArmed(bool armed) {
+    std::lock_guard<std::mutex> lock(mutex_);
     Op op;
     op.type = OpType::SetArmed;
     op.armed = armed;
-    EnqueueOp(std::move(op));
+    EnqueueOpLocked(std::move(op));
 }
 
 void TextInputManager::FlushOps() {

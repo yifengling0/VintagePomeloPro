@@ -1,6 +1,7 @@
 #include "compositor/wayland_server.h"
 #include "input/seat.h"
 #include "input/input_manager.h"
+#include "input/text_input.h"
 #include "compositor/xdg_shell.h"
 #include "compositor/xdg_configure.h"
 #include "common/fps_counter.h"
@@ -99,16 +100,20 @@ bool WaylandServer::Start(const std::string& socketPath) {
 void WaylandServer::Stop() {
     if (!running_) return;
     running_ = false;
+    // No protocol callbacks may race resource/pipe teardown. NAPI producers
+    // are stopped by each queue's shutdown lock after dispatch has joined.
+    if (display_) wl_display_terminate(display_);
+    if (thread_.joinable()) thread_.join();
     // stopAll 强杀 Wine 后 client 断开事件不会 dispatch → 显式收口全部 toplevel
     // (模拟 surface_destroy 清理 + 补发 destroyed 给 ArkTS), 避免同进程引擎
     // 重启后旧窗口画面共存、占 zOrder、任务栏/桌面残留。桌面 root 在内时
     // OnToplevelDestroyed 内部触发 ResetSessionState (幂等)。
     DestroyAllToplevels();
     InputManager::GetInstance()->Shutdown();
+    TextInputManager::GetInstance()->Shutdown();
     Seat::GetInstance()->Unregister();
-    if (display_) wl_display_terminate(display_);
-    if (thread_.joinable()) thread_.join();
     if (display_) {
+        wl_display_destroy_clients(display_);
         wl_display_destroy(display_);
         display_ = nullptr;
     }

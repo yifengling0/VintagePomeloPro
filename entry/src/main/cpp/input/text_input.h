@@ -2,6 +2,7 @@
 
 #include <wayland-server-core.h>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -30,7 +31,10 @@ public:
     using ActivateCb = std::function<void(bool active, int x, int y, int w, int h)>;
     void SetActivateCallback(ActivateCb cb);
 
+    // Register before dispatch starts; Shutdown after its thread has joined and
+    // before clients/display are destroyed. Both are idempotent.
     void Register(wl_display* display);
+    void Shutdown();
 
     // Wayland 线程: 键盘焦点跟随
     void OnKeyboardEnter(uint32_t toplevelId, wl_resource* surface);
@@ -83,7 +87,9 @@ private:
 
     TextInputManager() = default;
     static void resource_destroyed(wl_resource* r);
-    void EnqueueOp(Op op);
+    // mutex_ is held by the caller; lock order is mutex_ -> opMutex_. The target
+    // lookup and enqueue stay atomic with resource destruction and Shutdown.
+    bool EnqueueOpLocked(Op op, bool appendDone = false);
     static int OnPipeReadable(int fd, uint32_t mask, void* data);
     void FlushOps();
     Entry* EnabledEntryLocked();
