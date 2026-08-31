@@ -155,6 +155,6 @@ private:
     // 状态机直连目标 — 渲染线程唯一需要的外部 compositor 入口。
     DesktopCompositor& compositor_;
 public:
-    void SetRenderPaused(bool paused) { renderPaused_.store(paused, std::memory_order_release); }
+    void SetRenderPaused(bool paused);
     bool IsRenderPaused() const { return renderPaused_.load(std::memory_order_acquire); }
 };

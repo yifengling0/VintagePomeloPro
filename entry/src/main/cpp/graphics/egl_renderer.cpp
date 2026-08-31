@@ -1,5 +1,6 @@
 #include "graphics/egl_renderer.h"
 #include "graphics/graphics_broker.h"
+#include "graphics/present_pacing.h"
 #include "common/perf_utils.h"
 #include "graphics/shader_utils.h"
 #include "compositor/toplevel/desktop_compositor.h"  // DesktopCompositor (6A 构造注入: 取帧/ZC 直连)
@@ -64,8 +65,23 @@ void EglRenderer::OnZeroCopyFrameAvailable(void* data)
 {
     auto* renderer = static_cast<EglRenderer*>(data);
     if (!renderer) return;
-    renderer->zeroCopyFrameSignals_.fetch_add(1, std::memory_order_relaxed);
-    renderer->zeroCopyFrameAvailable_.store(true, std::memory_order_release);
+    {
+        // Use the wait mutex when publishing the predicate: a background
+        // consumer must not miss a frame between its check and CV wait.
+        std::lock_guard<std::mutex> lock(renderer->vsyncMutex_);
+        renderer->zeroCopyFrameSignals_.fetch_add(1, std::memory_order_relaxed);
+        renderer->zeroCopyFrameAvailable_.store(true, std::memory_order_release);
+    }
+    renderer->vsyncCv_.notify_one();
+}
+
+void EglRenderer::SetRenderPaused(bool paused)
+{
+    {
+        std::lock_guard<std::mutex> lock(vsyncMutex_);
+        renderPaused_.store(paused, std::memory_order_release);
+    }
+    vsyncCv_.notify_one();
 }
 
 EGLDisplay EglRenderer::GetSharedDisplay() {
@@ -681,6 +697,8 @@ void EglRenderer::RenderLoop() {
     long long loggedPeriodNs = 0;
     unsigned int vsyncFailures = 0;
     auto fallbackDeadline = PerfClock::now();
+    bool backgroundConsumer = false;
+    uint64_t backgroundFrames = 0;
 
     auto waitForFrameTick = [&]() -> bool {
         if (!running_) return false;
@@ -697,11 +715,13 @@ void EglRenderer::RenderLoop() {
             if (requestResult == 0) {
                 std::unique_lock<std::mutex> lock(vsyncMutex_);
                 const bool signaled = vsyncCv_.wait_for(lock, kVSyncTimeout, [&]() {
-                    return !running_ || vsyncSequence_ != requestedSequence;
+                    return !running_ || renderPaused_.load(std::memory_order_acquire) ||
+                        vsyncSequence_ != requestedSequence;
                 });
                 lock.unlock();
 
                 if (!running_) return false;
+                if (renderPaused_.load(std::memory_order_acquire)) return true;
                 if (signaled) {
                     long long period = 0;
                     if (OH_NativeVSync_GetPeriod(nativeVsync, &period) == 0 && period > 0) {
@@ -748,7 +768,10 @@ void EglRenderer::RenderLoop() {
         fallbackDeadline += period;
         if (fallbackDeadline <= now || fallbackDeadline - now > period * 2)
             fallbackDeadline = now + period;
-        std::this_thread::sleep_until(fallbackDeadline);
+        std::unique_lock<std::mutex> lock(vsyncMutex_);
+        vsyncCv_.wait_until(lock, fallbackDeadline, [&]() {
+            return !running_ || renderPaused_.load(std::memory_order_acquire);
+        });
         return running_;
     };
 
@@ -768,11 +791,51 @@ void EglRenderer::RenderLoop() {
                         renderPaused_.load(std::memory_order_acquire) ? "yes" : "no");
         }
         if (renderPaused_.load(std::memory_order_acquire)) {
-            // 后台/窗口不可见: 暂停 GPU 渲染与 vsync/eglSwapBuffers (surface 不可
-            // 呈现时 swap 可能阻塞, 是渲染线程长时间停摆的候选根因)。保持线程
-            // 存活与心跳; 前台恢复 (SetRenderPaused(false)) 后立即重新渲染。
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            if (!backgroundConsumer) {
+                backgroundConsumer = true;
+                backgroundFrames = zeroCopyFrames_;
+                // Keep the existing protocol and its supported 30 Hz lower
+                // rate bound. Do not let draining the queue run the hidden
+                // producer at the foreground display rate.
+                if (zeroCopySurfaceKey_)
+                    winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(
+                        zeroCopySurfaceKey_, winehua::kMaxPresentFramePeriodNs);
+                OH_LOG_INFO(LOG_APP,
+                            "[VIRGL-ZC][MAIN] background consume begin tl=%{public}u "
+                            "key=%{public}llu period_ns=%{public}llu",
+                            toplevelId_, static_cast<unsigned long long>(zeroCopySurfaceKey_),
+                            static_cast<unsigned long long>(winehua::kMaxPresentFramePeriodNs));
+            }
+            // Stop drawing/swapping the hidden XComponent, but still release
+            // queued NativeImage buffers on their owning EGL thread. Pausing
+            // this consumer fills its 3-buffer queue in two producer frames;
+            // the EGL driver then reports NO_BUFFER as GL_OUT_OF_MEMORY.
+            // SetDropBufferMode alone does not consume anything. Stay on the
+            // UpdateSurfaceImage API (never mix manual Acquire/Release with it).
+            int backgroundWidth = 0, backgroundHeight = 0;
+            if (UpdateZeroCopyFrame(backgroundWidth, backgroundHeight))
+                zeroCopyGeometryDirty_ = true; // redraw latest texture on resume
+            std::unique_lock<std::mutex> lock(vsyncMutex_);
+            vsyncCv_.wait_for(lock, kVSyncTimeout, [&]() {
+                return !running_ || !renderPaused_.load(std::memory_order_acquire) ||
+                    zeroCopyFrameAvailable_.load(std::memory_order_acquire);
+            });
             continue;
+        }
+        if (backgroundConsumer) {
+            // Restore the last measured foreground period even if the next
+            // VSync reports the same value (its delta check would skip it).
+            if (zeroCopySurfaceKey_)
+                winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(
+                    zeroCopySurfaceKey_, static_cast<uint64_t>(vsyncPeriodNs_.load()));
+            OH_LOG_INFO(LOG_APP,
+                        "[VIRGL-ZC][MAIN] background consume end tl=%{public}u "
+                        "key=%{public}llu frames=%{public}llu",
+                        toplevelId_, static_cast<unsigned long long>(zeroCopySurfaceKey_),
+                        static_cast<unsigned long long>(zeroCopyFrames_ >= backgroundFrames
+                            ? zeroCopyFrames_ - backgroundFrames : 0));
+            backgroundConsumer = false;
+            fallbackDeadline = PerfClock::now();
         }
 
         const uint64_t frameStartedUs = PerfNowUs();
@@ -1073,7 +1136,10 @@ void EglRenderer::RenderLoop() {
 }
 
 void EglRenderer::Shutdown() {
-    running_ = false;
+    {
+        std::lock_guard<std::mutex> lock(vsyncMutex_);
+        running_ = false;
+    }
     vsyncCv_.notify_all();
     if (thread_.joinable()) thread_.join();
     if (display_ != EGL_NO_DISPLAY) {
