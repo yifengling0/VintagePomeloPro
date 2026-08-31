@@ -14,6 +14,10 @@
 
 **I1 仍未全项通过**：同一候选在 03:23:28 最大化时，EGL window 重配后出现 `Flushed=3 Acquired=0`、RequestBuffer NO_BUFFER 和 `gl=0x505`；随后恢复出图。前台消费端也有 UpdateSurfaceImage NO_BUFFER（信号合并/通知时序尚未定论）。下一步 Terra 先读 `gl-i1-minimal.json`，只追缩放的队列/旧 buffer 生命周期与残留通知；需要时再看单个时间窗和 `egl_renderer.cpp`、`virgl_surface_presenter.cpp`。不能把队列耗尽当成成功、清掉错误检查、删除日志门禁或用成功重试覆盖失败。若需修改 guest，另开子模块任务，本轮 pins 保持不动。
 
+`42e9330a` 将几何变化收窄为 NativeWindow `SET_BUFFER_GEOMETRY`，保留同一 producer EGL context/window surface 与 NativeImage consumer queue；display/source-context 或 direct transport 变化仍执行原完整 reset。主机全套、双 ABI API23 包/ELF/签名和复用审计通过，包内相对 252 只有两种 ABI 的 `libvirgl_child.so` 变化。真机 main 4378/guest 5138 在同一 key `22067541966873` 完成五轮最大化/还原，十次均有 `retained_egl=1` 且截图内容/尺寸正确；两次隐藏分别消费 1179/1648 帧并可见恢复。候选区间没有旧 buffer cache miss。
+
+这仍不是 I1 PASS：完整日志有 20 次 producer `RequestBuffer 40601000`，其中一次发生在初始配置、其余出现在部分缩放后；另有一次前台 consumer `UpdateSurfaceImage 40601000`。每次都能自行恢复并继续出图，但严格零错误门禁仍失败。下一步保留 geometry-only EGL 复用，只用 bounded producer/consumer 时间窗判断是 resize 后生产突发、consumer 更新节奏还是通知合并导致；不要把回退到 destroy/recreate、延长成无界阻塞或隐藏错误当修复。最小入口为 `gl-resize-device-summary.json`，完整日志为 `gl-resize-complete.log`。
+
 ## I2：同进程 Wine 引擎重建后的 IME 注册
 
 实测候选：先通过 `observe-product-summary` 启动 GL，再用无 LAB 参数的正常 notepad Want；产品策略切换按既有设计重启了 Wine 引擎。新桌面/记事本能运行，英文按键输入有效，但中文 commit 未落入 Wine。完全 force-stop 应用再冷启动 notepad，启用宿主键盘后中文“冷启动中文”成功上屏。
@@ -38,6 +42,8 @@
 ## I4：引擎启动、首帧与退出状态
 
 当前运行时 `252176de` 已修复回收线程/早期登记，主进程 52298 的冷 Modern→VirGL→Modern→VirGL→Modern 五次首帧全部可见，每次 Explorer attempt=1/3；中文提交、root #13 卡片恢复和恢复后继续中文也通过。首次冷启即由 TID 52800 记录退出，已不再被备用 handler 覆盖。见 4.3 KB `reaper-device-summary.json` 与 DEVICE_RESULTS 21。**I4 的历史 metadata-only/零 toplevel/guest fault 仍待更广验证，不能由一次短序列断言根因相同或全部解决。**
+
+安装 42 候选前的独立 252 冷启动已明确反证“回收修复即完整启动修复”：main 60091 在 04:59:19.330 进入 Explorer desktop attempt 1/3，只有一个 metadata toplevel，此后 `surfaces=0 renderers=0` 持续到 05:03:44；197 秒门禁时 GL guest 尚未启动。回收 TID 64612 同期正常发布 signal 与 waitpid(code=0) 来源，说明备用 handler 覆盖已修好，但首帧故障仍存在。失败按原样保存于 `reaper-cold-first-frame-failure.json`，收证后才 force-stop，没有重试计成功。后续 I4 应从 Explorer/Wayland 首个 surface 前的 guest 生命周期继续，不再改回收器来解释此样本。
 
 历史 `c5e00c9a` 只修复明确退出状态的保存和当前 wineboot 尝试的失败判定。临时诊断包（dc + 未提交的 `startup-i4-diagnostic.patch`，已撤掉）抓到 PID 20058 的 wineboot.exe 以 code=1 退出，注册表却保存为 unknown，随后仍启动 Explorer 20112 并一直等待。最小证据 `startup-i4-failed-boot-minimal.json`。`56345d67` 增加真实 fork/waitpid 的 31 项测试及失败检查，但第一次实机重建暴露 SIGKILL→137 的误判；这个中间 HAP 不接受。成功的旧控制样本中 wineboot 18901/19009 同样被 SIGKILL 清理，Wine `server/process.c` 的退出清理定时器也说明不能从这个信号推导 Windows 错误码。`c5e00c9a` 保持 signal 来源、exitCode=-1，只对明确非零 WIFEXITED 状态判失败。不要恢复那个信号映射，也不要把 hilog 的 CRASH 标签当成根因。
 
