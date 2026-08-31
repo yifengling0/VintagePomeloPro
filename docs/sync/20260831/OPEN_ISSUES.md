@@ -37,11 +37,13 @@
 
 ## I4：引擎启动、首帧与退出状态
 
-当前运行时 `c5e00c9a` 只修复明确退出状态的保存和当前 wineboot 尝试的失败判定，**I4 仍开放**。临时诊断包（dc + 未提交的 `startup-i4-diagnostic.patch`，已撤掉）抓到 PID 20058 的 wineboot.exe 以 code=1 退出，注册表却保存为 unknown，随后仍启动 Explorer 20112 并一直等待。最小证据 `startup-i4-failed-boot-minimal.json`。`56345d67` 增加真实 fork/waitpid 的 31 项测试及失败检查，但第一次实机重建暴露 SIGKILL→137 的误判；这个中间 HAP 不接受。成功的旧控制样本中 wineboot 18901/19009 同样被 SIGKILL 清理，Wine `server/process.c` 的退出清理定时器也说明不能从这个信号推导 Windows 错误码。`c5e00c9a` 保持 signal 来源、exitCode=-1，只对明确非零 WIFEXITED 状态判失败。不要恢复那个信号映射，也不要把 hilog 的 CRASH 标签当成根因。
+当前运行时 `252176de` 已修复回收线程/早期登记，主进程 52298 的冷 Modern→VirGL→Modern→VirGL→Modern 五次首帧全部可见，每次 Explorer attempt=1/3；中文提交、root #13 卡片恢复和恢复后继续中文也通过。首次冷启即由 TID 52800 记录退出，已不再被备用 handler 覆盖。见 4.3 KB `reaper-device-summary.json` 与 DEVICE_RESULTS 21。**I4 的历史 metadata-only/零 toplevel/guest fault 仍待更广验证，不能由一次短序列断言根因相同或全部解决。**
+
+历史 `c5e00c9a` 只修复明确退出状态的保存和当前 wineboot 尝试的失败判定。临时诊断包（dc + 未提交的 `startup-i4-diagnostic.patch`，已撤掉）抓到 PID 20058 的 wineboot.exe 以 code=1 退出，注册表却保存为 unknown，随后仍启动 Explorer 20112 并一直等待。最小证据 `startup-i4-failed-boot-minimal.json`。`56345d67` 增加真实 fork/waitpid 的 31 项测试及失败检查，但第一次实机重建暴露 SIGKILL→137 的误判；这个中间 HAP 不接受。成功的旧控制样本中 wineboot 18901/19009 同样被 SIGKILL 清理，Wine `server/process.c` 的退出清理定时器也说明不能从这个信号推导 Windows 错误码。`c5e00c9a` 保持 signal 来源、exitCode=-1，只对明确非零 WIFEXITED 状态判失败。不要恢复那个信号映射，也不要把 hilog 的 CRASH 标签当成根因。
 
 纠正后的主机全套、双 ABI 编译、包校验和 SDK 签名通过。手机主进程 36343：Modern 冷启和第一次切 VirGL 均显示记事本；第一次重建明确记录 wineboot signal/exit=-1 并正常 READY。第二次切回 Modern 再现 shell #7 只有元数据、0 mapped surfaces/renderers，180 秒仍未就绪，因此不是全启动 PASS。此时 guest Explorer PID 39283，launcher 39271；有些其他进程的 code=0 已正确保存为 waitpid。新的成功/失败最小记录为 `startup-exit-signal-device-summary.json`，完整动作见 DEVICE_RESULTS 20。明确 exit=1 的拒绝分支目前由真实 host 进程测试覆盖，这个 c5 手机序列没有重新产生同样的 exit=1，不能以先前被否决的 137 样本冒充其设备验证。
 
-下一包先统一回收所有权：`bridge/napi_init.cpp` 安装主 SIGCHLD handler 后，手机 `InstallReaperOnce` 首次调用仍会覆盖它并无状态 reap；c5 冷启因而仍见 unknown。主 handler 又在信号上下文调用日志、mutex、分配和阻塞 NAPI，存在异步信号安全问题，但尚未证明它就是 metadata-only 首帧卡住的原因。应在普通线程处理退出并更新现有注册表，同时处理早于首次登记的退出、ReaderThread 竞争及 fd 所有权，不引入第二套进程管理。手机 void Main 丢失返回码和 guest loader 错误另有缺口。`make test-process-lifecycle` 的 SDK 边界是 stub，不是实机 NCP/异步信号安全证明。
+已完成的回收包不要重做：`252176de` 删除 NAPI 重装和手机吞状态的 handler，信号路径只写 nonblocking self-pipe；普通线程只 waitpid 本模块登记的 fork child，其他模块保留自己的 wait 状态。握手前登记、迟到 broker/app label、PID 新生命周期、EOF 与退出分离、实际 fd 号码复用/停止空闲 reader 均有真实进程检查。132 checks 与全套主机门禁通过，旧源码加 API 适配探针在早期退出发布处失败。测试会在 gProcMutex 持有时发送真实 SIGCHLD，并检查通知线程可重入注册表；SDK NAPI 仍为 stub，不声称实际 NCP 或整个 NAPI callback 生命周期都无竞争。手机 void Main 丢返回码和 guest loader 错误仍是独立缺口；后续遇到失败按 PID/时间单独归因，不新增第二套进程注册表或修改超时/重试。
 
 原 dc 主进程 62830 又复现一次 metadata-only 卡住，至少 294 秒未 ready，记录 `startup-i4-third-recreation.json`。HDC 的 processdump 被设备拒绝，未提权或绕过；线程只能看到 sleeping/WCHAN 屏蔽。旧 `startup-i4-second-recreation.json` 的共享 stderr 文件没有对应 62170 的 PID 标记，不能用其中旧进程的异常推导 62170 的故障。WL-STAT 的 surfaces 是已映射的 toplevel surfaces，不是协议 wl_surface 对象总数。
 

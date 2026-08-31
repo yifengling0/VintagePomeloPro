@@ -63,6 +63,15 @@
     - c5 实机主进程 36343：Modern 冷启 READY 04:22:17.982，记事本 PID 37114 窗口可见；第一次切 VirGL READY 04:23:28.189，PID 38464 窗口可见。该次 wineboot 38278/38362 的 signal 清理不再误判失败。没有改 Box64 档位、重试或 prefix。第二次切 Modern 在 04:24:16.642 进入 Explorer 阶段，launcher 39271 / client 39283、shell #7 元数据出现，但留证到 209 秒仍是 toplevels=1、mapped surfaces=0、renderers=0，180 秒门禁失败；**保留失败，不算三轮通过**。原始日志 `startup-exit-signal-complete.log`、stderr 与 deadline 截图保留。
     - 范围限制：c5 的明确 exit=1 拒绝分支有真实 host 进程测试，本设备序列没有重新产生该明确退出码，不以 563 的错误 137 代替验证。冷启动备用 reaper 仍覆盖 NAPI handler 并丢状态，现有 handler 异步信号安全也未修；metadata-only 首帧挂起、void Main 丢返回码和 guest loader 问题仍开放。Wine 子模块没有变化，Box64 offset 无符号信息时没有猜偏移或改子模块。
 
+21. **I4 手机进程统一回收（2026-09-01 04:35–04:52）**：运行时 `252176de96800577c7c87914a7d2fd418f0c9f35`，本轮五次首帧与会话动作定向通过，全量 T8 仍未完成。
+    - 修复范围为 `proc/wine_process.{cpp,h}`、`phone_adapter/phone_process.cpp`、`bridge/napi_init.cpp`。移除互相覆盖的两种 SIGCHLD 安装；信号中只写非阻塞 self-pipe，普通线程按现有注册表只 waitpid 本模块创建的 fork child，不夺走其他模块的状态。手机 fork 后立即登记、握手前便可保存早退；broker/app 标签保留同一生命周期，新 fork 显式重置复用的 PID。ReaderThread 不再 waitpid/阻塞等待进程，只读日志并独占关闭 fd；停止时用有限 poll 唤醒。公共 UI/NAPI JSON、重试和时限没有改动。
+    - 132 checks 使用真实 SIGCHLD/fork/waitpid 与生产注册表，覆盖持有注册表 mutex 时收到信号、可重入注册表的后台通知、退出早于登记、24 个连续短进程、其他模块的 wait 所有权、迟到标签、PID 生命周期、实际 fd 号码复用以及停止空闲 reader。旧源码仅加 API 适配后，在早期退出发布处失败（`reaper-before-test.log`），完整 host/model/GLES/HUD/navigation/CI 门禁 PASS（`reaper-all-host.log`）。SDK 调用边界仍为 stub，不把该测试泛化为所有 NAPI 生命周期竞争或实际 NCP 硬件证明。
+    - 构建仅经既有 winehua-dev 容器根 Makefile，先核验 113 个依赖 ELF 与 wine-data.zip 再复用；API23 双 ABI、ZIP CRC、ELF、SDK verify-app 独立校验通过。HAP `VintagePomeloPro-sync-252176de-dual.hap`，481350349 bytes，SHA-256 `057ce2f392ad0b37882ef674e43b44b9a907a43d0ca7a419026eb2f09a883654`。相对 dc 仅两份 libentry.so 改变，其他 119 Native 条目、ArkTS 和 guest payload 字节一致。产物审计/签名/安装见 `reaper-package-audit.json`、`reaper-signature.log`、`reaper-install.log`；24 个 gitlinks 与产品 UI 保护检查不变。
+    - 同一主进程 52298：冷 Modern 在 04:45:51.445 READY（notepad 53221）；第一次 VirGL 04:46:36.535（54109）；第二次 Modern 04:47:03.127（54724）；第三次 VirGL 04:47:58.953（55660）；第四次 Modern 04:48:28.083（56448）。五次均有独立截图目视确认记事本，Explorer 都是 attempt=1/3，没有以重试覆盖失败。所有记录到的退出发布均为后台 TID 52800，包括首次冷启动；明确 code=0 保留 waitpid 来源，Wine 正常 SIGKILL 清理仍是 signal/-1。
+    - 第四次重建后输入 `reaper-resume`，键盘剪贴板候选提交“回归测试”真正上屏；04:49:51.751 从桌面 root #13 返回应用库，04:50:12.332 点击 Wine 桌面卡恢复同一 root/主进程，文本保留，再提交“继续”上屏。`reaper-ime-committed.jpeg`、`reaper-card-{hidden,resume}`、`reaper-ime-after-resume.jpeg` 留证。这是记事本/SHM 会话测试，不能把 key=0、后台 frames=0 当成 GL 消费或性能结果。
+    - 正常点记事本关闭，再明确选择“不保存”自己的未命名测试文本；04:51:12.114 notepad 56448 退出（signal/-1），桌面和任务栏仍可见。随后关闭测试 app 进程并不带测试 Want 重开应用库，主进程 58852；最终截图 `reaper-final-launcher.jpeg` 已检查，常亮 override 保留、无卸载或 prefix 重置。
+    - 最小摘要 `reaper-device-summary.json` 为 4.3 KB，原始父进程日志/stderr 均在忽略目录。该短序列未再出现 c5 的第二次重建 metadata-only 卡住，但不能证明所有历史零 toplevel/loader 故障同因或都已修复；本包没有实机复现明确非零 wineboot 退出，拒绝该退出的分支仍以真实 host 进程测试为证。I1 严格 GL 告警、实体手柄、缺少游戏/设备资产等门禁继续保留。
+
 音频 PASS 指 guest 提交、host 消费及非零 RMS；没有人耳确认时不声称可听性、音色或延迟通过。当前没有实体手柄输入/马达证据。
 
 ## 验收剩余项（不要重跑已完成的移植）
@@ -72,8 +81,8 @@
 - 菜单/popup/滚动/拖动、多窗口、冷启动与同会话 IME、War3 地图动作已有证据；I2 的注册/中文路径已由 edd 定向修复并完成第 18 项真机验证，原失败证据保留。新一次启动无窗口退出另记 I4；War3 拖边/首次触摸（I5）仍未修复。
 - 实体手柄方向、断连释放、重连、游戏震动仍未覆盖。当前没有检测到外接马达，手机振动与模型测试不替代这个门禁；真实鼠标锁定/双指触摸板也没有完整动作证据。
 - RA2/PAL2/Heaven 等指定游戏在当前设备目录未找到，不以 War3 或 smoke 替代；x86_64 Harmony 硬件未提供。构建与 guest x86 测试不等于另一设备 ABI 实测。
-- 受影响主机门禁已在 edd 全套重跑通过，日志 `ime-lifecycle-all-host.log`；新增真实 Wayland 生命周期 91 checks，旧源码二次注册探针按预期失败（`ime-lifecycle-before.log`）。来源/保护范围与逐提交 Native 修复审计 PASS。当前仍不是全项无缺陷的发行验收。
+- 受影响主机门禁已在最新 252176de 全套重跑通过，日志 `reaper-all-host.log`（132 项真实进程检查）；其中保留 edd 的真实 Wayland 生命周期 91 checks，旧源码二次注册探针失败证据仍为 `ime-lifecycle-before.log`。来源/保护范围与逐提交 Native 修复审计 PASS。当前仍不是全项无缺陷的发行验收。
 
-设备收尾检查：04:27–04:28 已在超时证据保存后关闭失败的主进程 36343，再不带测试 Want 打开应用库，当前主进程 41532、无 Wine/test 进程；`startup-exit-signal-final-launcher.jpeg` 已目视确认。手机保留最新 c5e00c9a 包，常亮 override=2147483647ms，原 timeout=600000ms 留存。最后请求 Modern DXVK 2.6，本轮未改 Box64、手柄、键盘或触摸板设置，未重复核验设置页，不能把历史截图冒充当前截图。不卸载、不清用户 prefix；此收尾不是 Wine 重试或通过证据。
+设备收尾检查：04:51–04:52 已正常关闭自己的记事本测试文档并选择不保存，再关闭测试 app、无 Want 重开应用库，当前主进程 58852；`reaper-final-launcher.jpeg` 已目视确认。手机保留最新 252176de 包，常亮 override=2147483647ms，原 timeout=600000ms 留存。最后请求 Modern DXVK 2.6，键盘测试后关闭；本轮未改 Box64、手柄或触摸板设置，未重复核验设置页，不能把历史截图冒充当前截图。不卸载、不清用户 prefix；应用库收尾不算额外 Wine 启动通过。
 
 最终验收应逐项更新本文件和 STATUS，并保留失败和限制，不抹去先前严格检查结果。下一轮最小范围见 NEXT_TASK.md。
