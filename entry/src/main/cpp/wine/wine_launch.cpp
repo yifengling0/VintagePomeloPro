@@ -458,8 +458,10 @@ static winehua::SessionEnvPolicy SessionPolicyFromLaunch(const LaunchParams& p, 
     s.binDir = p.winehuaBin;
     s.homeDir = p.homeDir;
     s.prefixDir = p.prefixDir;
+    s.wineLang = p.wineLang;
     s.audioBootstrapFd = audioFd;
     s.d3dBackend = p.d3dBackend;
+    s.dxvkBackend = p.dxvkBackend;
     s.compatEnvStr = p.compatEnvStr;
     s.automationMode = p.automationMode;
     return s;

@@ -12,7 +12,7 @@ assemble_pad() {
 
     local wine_data="$STAGING_DIR/wine-data"
     local guest_arch="${GUEST_ARCH:-x86_64}"
-    local smoke_suite_version="phase2-vulkan-dxvk-legacy-v7-media"
+    local smoke_suite_version="phase2-vulkan-dxvk-v10-vkd3d-product-media"
     rm -rf "$STAGING_DIR"
     rm -rf "$wine_data"
     mkdir -p "$wine_data/bin/x86_64-windows"
@@ -353,6 +353,21 @@ PY
     i686-w64-mingw32-gcc -O2 -s -mwindows -o \
         "$smoke_dir/x86/winehua_d3d_switch_cube.exe" "$cube_source" \
         -ld3d9 -ld3d11 -ldxgi -ld3dcompiler -luuid -lshell32 -luser32 -lgdi32 -lm
+    # Keep WineHua master's capability probes in the managed payload. They
+    # exercise the same Wine PE Vulkan import libraries as real DXVK games.
+    local vulkan_import_x64="$BUILD_DIR/wine-ohos/dlls/vulkan-1/x86_64-windows/libvulkan-1.a"
+    local vulkan_import_x86="$BUILD_DIR/wine-ohos/dlls/vulkan-1/i386-windows/libvulkan-1.a"
+    [ -s "$vulkan_import_x64" ] || err "Wine x64 Vulkan import library missing: $vulkan_import_x64"
+    [ -s "$vulkan_import_x86" ] || err "Wine x86 Vulkan import library missing: $vulkan_import_x86"
+    local diagnostics_source="$WINEHUA/smoke/winehua_gpu_diagnostics.c"
+    x86_64-w64-mingw32-gcc -O2 -s -Wall -Wextra -Werror -mwindows -I"$DXVK_SRC/include" -o \
+        "$smoke_dir/x64/winehua_gpu_diagnostics.exe" "$diagnostics_source" \
+        "$vulkan_import_x64" \
+        -ld3d11 -ldxgi -lversion -luuid -lshell32 -luser32 -lgdi32
+    i686-w64-mingw32-gcc -O2 -s -Wall -Wextra -Werror -mwindows -I"$DXVK_SRC/include" -o \
+        "$smoke_dir/x86/winehua_gpu_diagnostics.exe" "$diagnostics_source" \
+        "$vulkan_import_x86" \
+        -ld3d11 -ldxgi -lversion -luuid -lshell32 -luser32 -lgdi32
     local d3d8_source="$WINEHUA/smoke/winehua_d3d8_smoke.c"
     x86_64-w64-mingw32-gcc -O2 -s -mwindows -o \
         "$smoke_dir/x64/winehua_d3d8_smoke.exe" "$d3d8_source" \
@@ -360,6 +375,13 @@ PY
     i686-w64-mingw32-gcc -O2 -s -mwindows -o \
         "$smoke_dir/x86/winehua_d3d8_smoke.exe" "$d3d8_source" \
         -luser32 -lgdi32
+    local dxvk26_requirements_source="$WINEHUA/smoke/winehua_dxvk26_requirements.c"
+    x86_64-w64-mingw32-gcc -O2 -s -Wall -Wextra -Werror -I"$DXVK_SRC/include" -o \
+        "$smoke_dir/x64/winehua_dxvk26_requirements.exe" "$dxvk26_requirements_source" \
+        "$vulkan_import_x64" -luser32 -lcomctl32 -lgdi32
+    i686-w64-mingw32-gcc -O2 -s -Wall -Wextra -Werror -I"$DXVK_SRC/include" -o \
+        "$smoke_dir/x86/winehua_dxvk26_requirements.exe" "$dxvk26_requirements_source" \
+        "$vulkan_import_x86" -luser32 -lcomctl32 -lgdi32
     # Deterministic DirectShow/GStreamer probe.  Build both PE widths so media
     # regressions can be separated from a game's own playback state machine.
     local media_source="$WINEHUA/smoke/winehua_media_smoke.cpp"
@@ -405,41 +427,37 @@ PY
     done
     # DXVK Modern 2.6 (dxvk_modern_2_6 后端): 独立版本化目录, 与 legacy 并列。
     local dxvk_modern_root="$DXVK_MODERN_BUILD_ROOT"
-    if [ -d "$dxvk_modern_root" ]; then
-        mkdir -p "$wine_data/dxvk/modern-2.6/x64" "$wine_data/dxvk/modern-2.6/x86"
-        for dxvk_arch in x64 x86; do
-            for dxvk_dll in d3d11.dll dxgi.dll; do
-                [ -f "$dxvk_modern_root/$dxvk_arch/bin/$dxvk_dll" ] || \
-                    err "DXVK Modern $dxvk_arch $dxvk_dll missing: $dxvk_modern_root/$dxvk_arch/bin/$dxvk_dll"
-                cp "$dxvk_modern_root/$dxvk_arch/bin/$dxvk_dll" \
-                    "$wine_data/dxvk/modern-2.6/$dxvk_arch/$dxvk_dll"
-            done
+    mkdir -p "$wine_data/dxvk/modern-2.6/x64" "$wine_data/dxvk/modern-2.6/x86"
+    for dxvk_arch in x64 x86; do
+        for dxvk_dll in d3d11.dll dxgi.dll; do
+            [ -f "$dxvk_modern_root/$dxvk_arch/bin/$dxvk_dll" ] || \
+                err "DXVK Modern $dxvk_arch $dxvk_dll missing: $dxvk_modern_root/$dxvk_arch/bin/$dxvk_dll"
+            cp "$dxvk_modern_root/$dxvk_arch/bin/$dxvk_dll" \
+                "$wine_data/dxvk/modern-2.6/$dxvk_arch/$dxvk_dll"
         done
-    else
-        log "warn: DXVK Modern 2.6 未构建, dxvk_modern_2_6 后端不可用"
-    fi
-    # VKD3D-Proton (D3D12): limited-500K profile
+    done
+    # VKD3D-Proton (D3D12): limited-500K profile and its common smoke assets.
     local vkd3d_root="$VKD3D_PROTON_BUILD_ROOT/limited-500k"
-    if [ -f "$vkd3d_root/x64/d3d12.dll" ]; then
-        mkdir -p "$wine_data/vkd3d/limited-500k/x64"
-        cp "$vkd3d_root/x64/d3d12.dll" "$wine_data/vkd3d/limited-500k/x64/d3d12.dll"
-        [ -f "$vkd3d_root/manifest.json" ] && \
-            cp "$vkd3d_root/manifest.json" "$wine_data/vkd3d/manifest.json"
-        log "    vkd3d-proton d3d12.dll → rawfile vkd3d/limited-500k/"
-        # VKD3D smoke 演示 (D3D12): 旋转方块 + 齿轮, 进内建程序可测
-        if [ -f "$vkd3d_root/x64/triangle.exe" ]; then
-            mkdir -p "$smoke_dir/x64"
-            cp "$vkd3d_root/x64/triangle.exe" "$smoke_dir/x64/triangle.exe"
-            log "    vkd3d triangle.exe → rawfile smoke/x64/"
-        fi
-        if [ -f "$vkd3d_root/x64/gears.exe" ]; then
-            mkdir -p "$smoke_dir/x64"
-            cp "$vkd3d_root/x64/gears.exe" "$smoke_dir/x64/gears.exe"
-            log "    vkd3d gears.exe → rawfile smoke/x64/"
-        fi
-    else
-        log "warn: VKD3D-Proton 未构建, vkd3d 后端不可用"
+    [ -f "$vkd3d_root/x64/d3d12.dll" ] || err "VKD3D-Proton x64 d3d12.dll missing: $vkd3d_root/x64/d3d12.dll"
+    [ -f "$vkd3d_root/x64/winehua-d3d12-smoke.exe" ] || \
+        err "VKD3D-Proton x64 graphics smoke missing: $vkd3d_root/x64/winehua-d3d12-smoke.exe"
+    [ -f "$vkd3d_root/manifest.json" ] || err "VKD3D-Proton manifest missing: $vkd3d_root/manifest.json"
+    local vkd3d_demo_triangle="$vkd3d_root/x64/triangle.exe"
+    local vkd3d_demo_gears="$vkd3d_root/x64/gears.exe"
+    if [ ! -f "$vkd3d_demo_triangle" ] || [ ! -f "$vkd3d_demo_gears" ]; then
+        local vkd3d_upstream_demos="$WINEHUA/.temp/vkd3d-upstream-demos-20260806-payload"
+        vkd3d_demo_triangle="$vkd3d_upstream_demos/triangle.exe"
+        vkd3d_demo_gears="$vkd3d_upstream_demos/gears.exe"
     fi
+    [ -f "$vkd3d_demo_triangle" ] || err "VKD3D-Proton triangle demo missing: $vkd3d_demo_triangle"
+    [ -f "$vkd3d_demo_gears" ] || err "VKD3D-Proton gears demo missing: $vkd3d_demo_gears"
+    cp "$vkd3d_demo_triangle" "$smoke_dir/x64/triangle.exe"
+    cp "$vkd3d_demo_gears" "$smoke_dir/x64/gears.exe"
+    mkdir -p "$wine_data/vkd3d/limited-500k/x64"
+    cp "$vkd3d_root/x64/d3d12.dll" "$wine_data/vkd3d/limited-500k/x64/d3d12.dll"
+    cp "$vkd3d_root/manifest.json" "$wine_data/vkd3d/manifest.json"
+    cp "$vkd3d_root/x64/winehua-d3d12-smoke.exe" \
+        "$smoke_dir/x64/winehua_d3d12_smoke.exe"
     # The DXVK binaries are runtime-owned overlays.  Do not place them next
     # to the smoke executables: that would make the test layout look like a
     # game distribution and would force real games to carry WineHua-specific
@@ -457,9 +475,10 @@ PY
         cp "$smoke64" "$smoke_dir/x64/$smoke_program.exe"
         cp "$smoke32" "$smoke_dir/x86/$smoke_program.exe"
     done
-    local audio64_sha graphics64_sha vulkan64_sha d3d1164_sha d3d864_sha cube64_sha media64_sha driver64_sha
-    local audio32_sha graphics32_sha vulkan32_sha d3d1132_sha d3d832_sha cube32_sha media32_sha driver32_sha
+    local audio64_sha graphics64_sha vulkan64_sha d3d1164_sha d3d864_sha cube64_sha media64_sha diagnostics64_sha driver64_sha requirements64_sha
+    local audio32_sha graphics32_sha vulkan32_sha d3d1132_sha d3d832_sha cube32_sha media32_sha diagnostics32_sha driver32_sha requirements32_sha
     local storage_write_sha storage_read_sha image_fetch_sha combined_sample_sha separated_sample_sha
+    local vkd3d64_d3d12_sha vkd3d64_smoke_sha vkd3d_triangle_sha vkd3d_gears_sha
     audio64_sha="$(sha256sum "$smoke_dir/x64/winehua_audio_smoke.exe" | awk '{print $1}')"
     graphics64_sha="$(sha256sum "$smoke_dir/x64/winehua_graphics_smoke.exe" | awk '{print $1}')"
     vulkan64_sha="$(sha256sum "$smoke_dir/x64/winehua_vulkan_smoke.exe" | awk '{print $1}')"
@@ -467,7 +486,9 @@ PY
     d3d864_sha="$(sha256sum "$smoke_dir/x64/winehua_d3d8_smoke.exe" | awk '{print $1}')"
     cube64_sha="$(sha256sum "$smoke_dir/x64/winehua_d3d_switch_cube.exe" | awk '{print $1}')"
     media64_sha="$(sha256sum "$smoke_dir/x64/winehua_media_smoke.exe" | awk '{print $1}')"
+    diagnostics64_sha="$(sha256sum "$smoke_dir/x64/winehua_gpu_diagnostics.exe" | awk '{print $1}')"
     driver64_sha="$(sha256sum "$smoke_dir/x64/winehua_win32_driver.exe" | awk '{print $1}')"
+    requirements64_sha="$(sha256sum "$smoke_dir/x64/winehua_dxvk26_requirements.exe" | awk '{print $1}')"
     audio32_sha="$(sha256sum "$smoke_dir/x86/winehua_audio_smoke.exe" | awk '{print $1}')"
     graphics32_sha="$(sha256sum "$smoke_dir/x86/winehua_graphics_smoke.exe" | awk '{print $1}')"
     vulkan32_sha="$(sha256sum "$smoke_dir/x86/winehua_vulkan_smoke.exe" | awk '{print $1}')"
@@ -475,18 +496,32 @@ PY
     d3d832_sha="$(sha256sum "$smoke_dir/x86/winehua_d3d8_smoke.exe" | awk '{print $1}')"
     cube32_sha="$(sha256sum "$smoke_dir/x86/winehua_d3d_switch_cube.exe" | awk '{print $1}')"
     media32_sha="$(sha256sum "$smoke_dir/x86/winehua_media_smoke.exe" | awk '{print $1}')"
+    diagnostics32_sha="$(sha256sum "$smoke_dir/x86/winehua_gpu_diagnostics.exe" | awk '{print $1}')"
     driver32_sha="$(sha256sum "$smoke_dir/x86/winehua_win32_driver.exe" | awk '{print $1}')"
+    requirements32_sha="$(sha256sum "$smoke_dir/x86/winehua_dxvk26_requirements.exe" | awk '{print $1}')"
+    vkd3d64_d3d12_sha="$(sha256sum "$wine_data/vkd3d/limited-500k/x64/d3d12.dll" | awk '{print $1}')"
+    vkd3d64_smoke_sha="$(sha256sum "$smoke_dir/x64/winehua_d3d12_smoke.exe" | awk '{print $1}')"
+    vkd3d_triangle_sha="$(sha256sum "$smoke_dir/x64/triangle.exe" | awk '{print $1}')"
+    vkd3d_gears_sha="$(sha256sum "$smoke_dir/x64/gears.exe" | awk '{print $1}')"
     storage_write_sha="$(sha256sum "$smoke_dir/assets/venus_storage_write.spv" | awk '{print $1}')"
     storage_read_sha="$(sha256sum "$smoke_dir/assets/venus_storage_read.spv" | awk '{print $1}')"
     image_fetch_sha="$(sha256sum "$smoke_dir/assets/venus_image_fetch.spv" | awk '{print $1}')"
     combined_sample_sha="$(sha256sum "$smoke_dir/assets/venus_combined_sample.spv" | awk '{print $1}')"
     separated_sample_sha="$(sha256sum "$smoke_dir/assets/venus_separated_sample.spv" | awk '{print $1}')"
-    local dxvk_commit
+    local dxvk_commit dxvk_modern_commit mesa_commit virglrenderer_commit
+    local guest_venus_icd_sha host_virglrenderer_sha venus_runtime_id
     dxvk_commit="$(git -c safe.directory="$DXVK_SRC" -C "$DXVK_SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+    dxvk_modern_commit="$(git -c safe.directory="$DXVK_MODERN_SRC" -C "$DXVK_MODERN_SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+    mesa_commit="$(git -c safe.directory="$ROOT/thirdparty/mesa" -C "$ROOT/thirdparty/mesa" rev-parse HEAD 2>/dev/null || echo unknown)"
+    virglrenderer_commit="$(git -c safe.directory="$ROOT/thirdparty/virglrenderer" -C "$ROOT/thirdparty/virglrenderer" rev-parse HEAD 2>/dev/null || echo unknown)"
+    guest_venus_icd_sha="$(sha256sum "$BUILD_DIR/guest_vulkan/$guest_arch/lib/libvulkan_virtio.so" | awk '{print $1}')"
+    host_virglrenderer_sha="$(sha256sum "$ROOT/entry/libs/$NATIVE_ARCH/libvirglrenderer.so.1" | awk '{print $1}')"
+    venus_runtime_id="venus-${guest_venus_icd_sha:0:12}-${host_virglrenderer_sha:0:12}"
     local dxvk64_d3d9_sha dxvk64_d3d10core_sha dxvk64_d3d10_sha dxvk64_d3d10_1_sha
     local dxvk64_d3d11_sha dxvk64_dxgi_sha
     local dxvk32_d3d9_sha dxvk32_d3d10core_sha dxvk32_d3d10_sha dxvk32_d3d10_1_sha
     local dxvk32_d3d11_sha dxvk32_dxgi_sha
+    local dxvkmodern64_d3d11_sha dxvkmodern64_dxgi_sha dxvkmodern32_d3d11_sha dxvkmodern32_dxgi_sha
     dxvk64_d3d9_sha="$(sha256sum "$wine_data/dxvk/legacy/x64/d3d9.dll" | awk '{print $1}')"
     dxvk64_d3d10core_sha="$(sha256sum "$wine_data/dxvk/legacy/x64/d3d10core.dll" | awk '{print $1}')"
     dxvk64_d3d10_sha="$(sha256sum "$wine_data/dxvk/legacy/x64/d3d10.dll" | awk '{print $1}')"
@@ -499,22 +534,48 @@ PY
     dxvk32_d3d10_1_sha="$(sha256sum "$wine_data/dxvk/legacy/x86/d3d10_1.dll" | awk '{print $1}')"
     dxvk32_d3d11_sha="$(sha256sum "$wine_data/dxvk/legacy/x86/d3d11.dll" | awk '{print $1}')"
     dxvk32_dxgi_sha="$(sha256sum "$wine_data/dxvk/legacy/x86/dxgi.dll" | awk '{print $1}')"
+    dxvkmodern64_d3d11_sha="$(sha256sum "$wine_data/dxvk/modern-2.6/x64/d3d11.dll" | awk '{print $1}')"
+    dxvkmodern64_dxgi_sha="$(sha256sum "$wine_data/dxvk/modern-2.6/x64/dxgi.dll" | awk '{print $1}')"
+    dxvkmodern32_d3d11_sha="$(sha256sum "$wine_data/dxvk/modern-2.6/x86/d3d11.dll" | awk '{print $1}')"
+    dxvkmodern32_dxgi_sha="$(sha256sum "$wine_data/dxvk/modern-2.6/x86/dxgi.dll" | awk '{print $1}')"
     cat > "$wine_data/dxvk/manifest.json" <<EOF
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "backend": "dxvk",
-  "profile": "legacy",
+  "defaultProfile": "legacy",
   "runtimeRoot": "dxvk",
-  "version": "1.10.3",
-  "commit": "$dxvk_commit",
-  "requiredCapabilities": {
-    "vulkanApi": "1.1",
-    "bcFormats": false,
-    "descriptorIndexing": false
+  "venusRuntime": {
+    "id": "$venus_runtime_id",
+    "guestMesaCommit": "$mesa_commit",
+    "guestIcdSha256": "$guest_venus_icd_sha",
+    "hostVirglrendererCommit": "$virglrenderer_commit",
+    "hostVirglrendererSha256": "$host_virglrenderer_sha",
+    "transportCapabilities": {
+      "remoteMemoryShadow": true,
+      "multiRing": false,
+      "fenceFeedback": false,
+      "queryFeedback": false,
+      "semaphoreFeedback": true,
+      "modernRequiresSynchronousTimelineQueries": true
+    }
   },
   "runtimes": {
-    "x64": {"d3d9.dll": "$dxvk64_d3d9_sha", "d3d10core.dll": "$dxvk64_d3d10core_sha", "d3d10.dll": "$dxvk64_d3d10_sha", "d3d10_1.dll": "$dxvk64_d3d10_1_sha", "d3d11.dll": "$dxvk64_d3d11_sha", "dxgi.dll": "$dxvk64_dxgi_sha"},
-    "x86": {"d3d9.dll": "$dxvk32_d3d9_sha", "d3d10core.dll": "$dxvk32_d3d10core_sha", "d3d10.dll": "$dxvk32_d3d10_sha", "d3d10_1.dll": "$dxvk32_d3d10_1_sha", "d3d11.dll": "$dxvk32_d3d11_sha", "dxgi.dll": "$dxvk32_dxgi_sha"}
+    "legacy": {
+      "version": "1.10.3",
+      "commit": "$dxvk_commit",
+      "state": "stable",
+      "requiredCapabilities": {"vulkanApi": "1.1", "bcFormats": false, "descriptorIndexing": false},
+      "x64": {"d3d9.dll": "$dxvk64_d3d9_sha", "d3d10core.dll": "$dxvk64_d3d10core_sha", "d3d10.dll": "$dxvk64_d3d10_sha", "d3d10_1.dll": "$dxvk64_d3d10_1_sha", "d3d11.dll": "$dxvk64_d3d11_sha", "dxgi.dll": "$dxvk64_dxgi_sha"},
+      "x86": {"d3d9.dll": "$dxvk32_d3d9_sha", "d3d10core.dll": "$dxvk32_d3d10core_sha", "d3d10.dll": "$dxvk32_d3d10_sha", "d3d10_1.dll": "$dxvk32_d3d10_1_sha", "d3d11.dll": "$dxvk32_d3d11_sha", "dxgi.dll": "$dxvk32_dxgi_sha"}
+    },
+    "modern-2.6": {
+      "version": "2.6.2",
+      "commit": "$dxvk_modern_commit",
+      "state": "adapted-game-validated-capability-gated",
+      "requiredCapabilities": {"vulkanApi": "1.3", "robustness2": true, "dynamicRendering": true, "maintenance4": true},
+      "x64": {"d3d11.dll": "$dxvkmodern64_d3d11_sha", "dxgi.dll": "$dxvkmodern64_dxgi_sha"},
+      "x86": {"d3d11.dll": "$dxvkmodern32_d3d11_sha", "dxgi.dll": "$dxvkmodern32_dxgi_sha"}
+    }
   }
 }
 EOF
@@ -522,7 +583,7 @@ EOF
 {
   "schemaVersion": 1,
   "suiteVersion": "$smoke_suite_version",
-  "enabledSuites": ["core", "audio", "opengl", "wine-vulkan", "d3d8", "d3d9", "dxvk"],
+  "enabledSuites": ["core", "audio", "opengl", "wine-vulkan", "d3d8", "d3d9", "dxvk", "dxvk-modern-baseline", "gpu-diagnostics", "dxvk26-requirements", "d3d12"],
   "managedRoot": "C:\\\\smoke",
   "files": {
     "x64/winehua_audio_smoke.exe": "$audio64_sha",
@@ -532,7 +593,12 @@ EOF
     "x64/winehua_d3d8_smoke.exe": "$d3d864_sha",
     "x64/winehua_d3d_switch_cube.exe": "$cube64_sha",
     "x64/winehua_media_smoke.exe": "$media64_sha",
+    "x64/winehua_gpu_diagnostics.exe": "$diagnostics64_sha",
     "x64/winehua_win32_driver.exe": "$driver64_sha",
+    "x64/winehua_dxvk26_requirements.exe": "$requirements64_sha",
+    "x64/winehua_d3d12_smoke.exe": "$vkd3d64_smoke_sha",
+    "x64/triangle.exe": "$vkd3d_triangle_sha",
+    "x64/gears.exe": "$vkd3d_gears_sha",
     "x86/winehua_audio_smoke.exe": "$audio32_sha",
     "x86/winehua_graphics_smoke.exe": "$graphics32_sha",
     "x86/winehua_vulkan_smoke.exe": "$vulkan32_sha",
@@ -540,7 +606,9 @@ EOF
     "x86/winehua_d3d8_smoke.exe": "$d3d832_sha",
     "x86/winehua_d3d_switch_cube.exe": "$cube32_sha",
     "x86/winehua_media_smoke.exe": "$media32_sha",
+    "x86/winehua_gpu_diagnostics.exe": "$diagnostics32_sha",
     "x86/winehua_win32_driver.exe": "$driver32_sha",
+    "x86/winehua_dxvk26_requirements.exe": "$requirements32_sha",
     "assets/venus_storage_write.spv": "$storage_write_sha",
     "assets/venus_storage_read.spv": "$storage_read_sha",
     "assets/venus_image_fetch.spv": "$image_fetch_sha",
@@ -549,7 +617,146 @@ EOF
   }
 }
 EOF
-    log "  managed smoke payload → smoke/{x64,x86}"
+    # Suite 编排定义: companion of manifest.json, consumed by SmokeRunner.ets.
+    # 每 suite: tests[] → testId/exe(相对 C:\smoke 根: x64/… 或 x86/…,
+    # 载荷打包成 smoke/{x64,x86}, 播种到 C:\smoke 后即根级子目录; 无
+    # smoke/ 前缀 — runner 拼 C:\smoke\ + exe)/env(测试专属
+    # 诊断键)/d3dBackend(回归固定后端)/mode(present|offscreen)/seconds/timeoutMs
+    # (-1=取请求 longSeconds)。产品语义 env (DXVK 稳定化 overlay/perf profile)
+    # 由 native BuildSessionEnv 收口, 不在此重复; argv 协议由 runner 生成。
+    cat > "$smoke_dir/suites.json" <<SMOKE_SUITES_EOF
+{
+  "schemaVersion": 1,
+  "suiteVersion": "$smoke_suite_version",
+  "suites": {
+    "core": {
+      "tests": [
+        {"testId": "opengl-x64", "exe": "x64/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
+        {"testId": "opengl-x86", "exe": "x86/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000}
+      ]
+    },
+    "opengl": {
+      "tests": [
+        {"testId": "opengl-x64", "exe": "x64/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
+        {"testId": "opengl-x86", "exe": "x86/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000}
+      ]
+    },
+    "audio": {
+      "tests": [
+        {"testId": "audio-x64", "exe": "x64/winehua_audio_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3, "timeoutMs": 45000},
+        {"testId": "audio-x86", "exe": "x86/winehua_audio_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3, "timeoutMs": 45000}
+      ]
+    },
+    "d3d8": {
+      "tests": [
+        {"testId": "d3d8-capability-x86", "exe": "x86/winehua_d3d8_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "d3d8-capability-x64", "exe": "x64/winehua_d3d8_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000}
+      ]
+    },
+    "d3d9": {
+      "tests": [
+        {"testId": "d3d9-cube-x86", "exe": "x86/winehua_d3d_switch_cube.exe", "env": {}, "d3dBackend": "wined3d", "extraArgs": ["--d3d9"], "seconds": 8, "timeoutMs": 180000},
+        {"testId": "d3d9-cube-x64", "exe": "x64/winehua_d3d_switch_cube.exe", "env": {}, "d3dBackend": "wined3d", "extraArgs": ["--d3d9"], "seconds": 8, "timeoutMs": 180000}
+      ]
+    },
+    "wine-vulkan": {
+      "tests": [
+        {"testId": "wine-vulkan-offscreen-x64", "exe": "x64/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "mode": "offscreen", "seconds": 0, "timeoutMs": 90000},
+        {"testId": "wine-vulkan-offscreen-x86", "exe": "x86/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "mode": "offscreen", "seconds": 0, "timeoutMs": 90000},
+        {"testId": "wine-vulkan-sampled-only-x64", "exe": "x64/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1", "WINEHUA_VULKAN_SAMPLED_ONLY": "1"}, "d3dBackend": "wined3d", "mode": "offscreen", "seconds": 0, "timeoutMs": 90000},
+        {"testId": "wine-vulkan-sampled-only-x86", "exe": "x86/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1", "WINEHUA_VULKAN_SAMPLED_ONLY": "1"}, "d3dBackend": "wined3d", "mode": "offscreen", "seconds": 0, "timeoutMs": 90000}
+      ]
+    },
+    "wine-vulkan-present": {
+      "tests": [
+        {"testId": "wine-vulkan-present-x64", "exe": "x64/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "wine-vulkan-present-x86", "exe": "x86/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000}
+      ]
+    },
+    "dxvk": {
+      "tests": [
+        {"testId": "dxvk-legacy-x86", "exe": "x86/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-legacy-x64", "exe": "x64/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-cube-x64", "exe": "x64/winehua_d3d_switch_cube.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 8, "timeoutMs": 180000}
+      ]
+    },
+    "dxvk-dynamic": {
+      "tests": [
+        {"testId": "dxvk-dynamic-cb-x86", "exe": "x86/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-dynamic-cb-x64", "exe": "x64/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 5, "timeoutMs": 180000}
+      ]
+    },
+    "dxvk-long": {
+      "tests": [
+        {"testId": "dxvk-long-x64", "exe": "x64/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": -1, "timeoutMs": -1}
+      ]
+    },
+    "dxvk-modern-baseline": {
+      "tests": [
+        {"testId": "dxvk-modern-baseline-x86", "exe": "x86/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module", "DXVK_WINEHUA_TRACE_SAMPLED": "0", "DXVK_WINEHUA_TRACE_FLOW": "0", "DXVK_WINEHUA_TRACE_API": "0"}, "d3dBackend": "dxvk_modern_2_6", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-modern-baseline-x64", "exe": "x64/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module", "DXVK_WINEHUA_TRACE_SAMPLED": "0", "DXVK_WINEHUA_TRACE_FLOW": "0", "DXVK_WINEHUA_TRACE_API": "0"}, "d3dBackend": "dxvk_modern_2_6", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-modern-cube-x64", "exe": "x64/winehua_d3d_switch_cube.exe", "env": {"WINEDEBUG": "+loaddll,+module", "DXVK_WINEHUA_TRACE_SAMPLED": "0", "DXVK_WINEHUA_TRACE_FLOW": "0", "DXVK_WINEHUA_TRACE_API": "0"}, "d3dBackend": "dxvk_modern_2_6", "seconds": 8, "timeoutMs": 180000}
+      ]
+    },
+    "dxvk-modern-long": {
+      "tests": [
+        {"testId": "dxvk-modern-long-x64", "exe": "x64/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module", "DXVK_WINEHUA_TRACE_SAMPLED": "0", "DXVK_WINEHUA_TRACE_FLOW": "0", "DXVK_WINEHUA_TRACE_API": "0"}, "d3dBackend": "dxvk_modern_2_6", "seconds": -1, "timeoutMs": -1}
+      ]
+    },
+    "gpu-diagnostics": {
+      "tests": [
+        {"testId": "gpu-diagnostics-x86", "exe": "x86/winehua_gpu_diagnostics.exe", "env": {}, "d3dBackend": "dxvk_legacy", "seconds": 0, "timeoutMs": 90000},
+        {"testId": "gpu-diagnostics-x64", "exe": "x64/winehua_gpu_diagnostics.exe", "env": {}, "d3dBackend": "dxvk_legacy", "seconds": 0, "timeoutMs": 90000}
+      ]
+    },
+    "dxvk26-requirements": {
+      "tests": [
+        {"testId": "dxvk26-requirements-x86", "exe": "x86/winehua_dxvk26_requirements.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 0, "timeoutMs": 90000},
+        {"testId": "dxvk26-requirements-x64", "exe": "x64/winehua_dxvk26_requirements.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 0, "timeoutMs": 90000}
+      ]
+    },
+    "d3d12": {
+      "tests": [
+        {"testId": "d3d12-1000f", "exe": "x64/winehua_d3d12_smoke.exe", "env": {}, "d3dBackend": "vkd3d_limited_500k", "argvMode": "raw",
+         "argv": ["--frames", "1000", "--result", "C:/smoke/results/<run-id>/<test-id>.json",
+                  "--checkpoint", "C:/smoke/results/<run-id>/<test-id>.ckpt"],
+         "seconds": 0, "timeoutMs": 180000}
+      ]
+    },
+    "all": {
+      "tests": [
+        {"testId": "audio-x64", "exe": "x64/winehua_audio_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3, "timeoutMs": 45000},
+        {"testId": "audio-x86", "exe": "x86/winehua_audio_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3, "timeoutMs": 45000},
+        {"testId": "opengl-x64", "exe": "x64/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
+        {"testId": "opengl-x86", "exe": "x86/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
+        {"testId": "d3d8-capability-x86", "exe": "x86/winehua_d3d8_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "d3d8-capability-x64", "exe": "x64/winehua_d3d8_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "d3d9-cube-x86", "exe": "x86/winehua_d3d_switch_cube.exe", "env": {}, "d3dBackend": "wined3d", "extraArgs": ["--d3d9"], "seconds": 8, "timeoutMs": 180000},
+        {"testId": "d3d9-cube-x64", "exe": "x64/winehua_d3d_switch_cube.exe", "env": {}, "d3dBackend": "wined3d", "extraArgs": ["--d3d9"], "seconds": 8, "timeoutMs": 180000},
+        {"testId": "wine-vulkan-offscreen-x64", "exe": "x64/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "mode": "offscreen", "seconds": 0, "timeoutMs": 90000},
+        {"testId": "wine-vulkan-offscreen-x86", "exe": "x86/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "mode": "offscreen", "seconds": 0, "timeoutMs": 90000},
+        {"testId": "wine-vulkan-present-x64", "exe": "x64/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "wine-vulkan-present-x86", "exe": "x86/winehua_vulkan_smoke.exe", "env": {"WINEHUA_SMOKE_ASSETS": "C:/smoke/assets", "WINEHUA_VULKAN_RUNTIME": "1"}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-legacy-x86", "exe": "x86/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-legacy-x64", "exe": "x64/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 5, "timeoutMs": 180000},
+        {"testId": "dxvk-cube-x64", "exe": "x64/winehua_d3d_switch_cube.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": 8, "timeoutMs": 180000}
+      ]
+    },
+    "long": {
+      "tests": [
+        {"testId": "audio-x64", "exe": "x64/winehua_audio_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3, "timeoutMs": 45000},
+        {"testId": "audio-x86", "exe": "x86/winehua_audio_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3, "timeoutMs": 45000},
+        {"testId": "opengl-x64", "exe": "x64/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3600, "timeoutMs": 3660000},
+        {"testId": "opengl-x86", "exe": "x86/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3600, "timeoutMs": 3660000},
+        {"testId": "dxvk-long-x64", "exe": "x64/winehua_d3d11_smoke.exe", "env": {"WINEDEBUG": "+loaddll,+module"}, "d3dBackend": "dxvk_legacy", "seconds": -1, "timeoutMs": -1}
+      ]
+    }
+  }
+}
+SMOKE_SUITES_EOF
+    log "  smoke suite definitions → smoke/suites.json ($smoke_suite_version)"
+    log "  VKD3D-Proton 2.6 limited-500K (default mixed D3D12 profile) → vkd3d/limited-500k/x64 (sha256=$vkd3d64_d3d12_sha)"
+    log "  product media/network smoke assets retained"
 
     # fonts
     cp "$WINE_SRC/fonts/"*.ttf "$wine_data/share/wine/fonts/"

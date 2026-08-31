@@ -29,8 +29,10 @@ for item in ledger["commits"]:
 
 protected = [
     "AppScope", ".gitmodules", "entry/src/main/module.json5", "entry/src/main/resources",
-    "entry/src/main/ets/components", "entry/src/main/ets/pages", "entry/src/main/ets/entryability",
-    "entry/src/main/ets/model/AppModels.ets", "entry/src/main/cpp/types",
+    "entry/src/main/ets/components", "entry/src/main/ets/pages",
+    "entry/src/main/ets/entryability/DesktopAbility.ets",
+    "entry/src/main/ets/entryability/WineWindowAbility.ets",
+    "entry/src/main/ets/model/AppModels.ets",
     *[f"entry/src/main/ets/service/{name}.ets" for name in (
         "GamepadManager", "InputDispatcher", "InputRouter")],
 ]
@@ -79,8 +81,35 @@ for fix in fixes:
     assert fix["reason"] and fix["host_evidence"] and fix["device_status"]
 assert not git("diff", "--name-only", "HEAD", "--", cpp), "Uncommitted Native edits need separate validation"
 assert not git("ls-files", "--others", "--exclude-standard", "--", cpp), "Untracked Native source needs review"
-upstream_native = git("ls-tree", "-r", "--name-only", tip, "--", cpp).splitlines()
-assert all((REPO / path).is_file() for path in upstream_native), "Missing upstream Native destination"
+upstream_native = set(git("ls-tree", "-r", "--name-only", tip, "--", cpp).splitlines())
+head_native = set(git("ls-tree", "-r", "--name-only", "HEAD", "--", cpp).splitlines())
+missing_native = sorted(upstream_native - head_native)
+assert not missing_native, f"Missing upstream Native destinations: {missing_native}"
+
+required_smoke = {
+    "automation/run_regression.py", "automation/validate_frame.py",
+    "entry/src/main/ets/common/SmokeTypes.ets",
+    "entry/src/main/ets/service/SmokeRunner.ets",
+    "smoke/winehua_gpu_diagnostics.c",
+}
+head_files = set(git("ls-tree", "-r", "--name-only", "HEAD").splitlines())
+assert required_smoke <= head_files, f"Missing smoke architecture: {sorted(required_smoke - head_files)}"
+
+contracts = {
+    "entry/src/main/cpp/wine/wine_exe.h": ["dxvkBackend", "presentBackend"],
+    "entry/src/main/cpp/wine/wine_launch.h": ["dxvkBackend", "wineLang"],
+    "entry/src/main/cpp/wine/env_profiles.h": ["SessionEnvPolicy", "dxvkBackend", "wineLang"],
+    "entry/src/main/cpp/bridge/napi_init.cpp": ["sixthType == napi_boolean", '"desktopShell"', "setHostShadowProfile", "gLegacyHostShadowProfile"],
+    "entry/src/main/cpp/wine/wine_env.cpp": ['"LC_ALL=" + locale + ".UTF-8"'],
+    "entry/src/main/ets/entryability/EntryAbility.ets": ["mode !== 'game' && mode !== 'smoke'", "ensureSmokeReady"],
+    "entry/src/main/ets/service/WineEngineService.ets": ["activePrefixMode", "restoreProductSession"],
+}
+for path, fragments in contracts.items():
+    body = git("show", f"HEAD:{path}")
+    for fragment in fragments:
+        assert fragment in body, f"Missing architecture contract {fragment!r} in {path}"
+index_page = git("show", "HEAD:entry/src/main/ets/pages/Index.ets")
+assert "SmokeRunner" not in index_page, "Upstream smoke UI leaked into product Index"
 
 print(json.dumps({
     "status": "PASS", "head": git("rev-parse", "HEAD"),
@@ -88,6 +117,10 @@ print(json.dumps({
     "protected_product_paths": "unchanged", "top_level_gitlinks": len(pins),
     "recursive_pins": "matched", "mechanical_native_moves": len(mapping),
     "mechanical_checkpoint": relocation_tip, "post_relocation_native_fixes": [fix["commit"] for fix in fixes],
+    "upstream_native_files": len(upstream_native),
     "upstream_native_destinations": "all present",
+    "product_native_extra_files": len(head_native - upstream_native),
+    "smoke_architecture": "adapted behind product UI",
+    "common_native_control_plane": "compatible superset",
     "limit": "Source boundaries only; use separate build and device evidence for behavior."
 }, indent=2))

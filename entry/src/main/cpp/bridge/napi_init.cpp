@@ -53,6 +53,9 @@
 // -- 全局状态 (NAPI 层, 被 wine_process / wine_launch 引用) --
 napi_threadsafe_function gStateTsfn = nullptr;
 std::string gSockPath;
+// Compatibility request from WineHua's legacy one-argument Host API. The
+// concrete policy is resolved from launchClient's D3D backend at session start.
+static std::string gLegacyHostShadowProfile;
 
 // -- State 回调 -> ArkTS --
 static void CallJsState(napi_env env, napi_value cb, void*, void* data) {
@@ -189,6 +192,37 @@ static bool ApplyHostGraphicsProfile(const winehua::HostGraphicsProfile& profile
     return true;
 }
 
+static napi_value SetHostShadowProfile(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {};
+    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok ||
+        argc < 1) {
+        return BooleanResult(env, false);
+    }
+    char profile[96] = {};
+    if (napi_get_value_string_utf8(env, args[0], profile,
+                                   sizeof(profile), nullptr) != napi_ok) {
+        return BooleanResult(env, false);
+    }
+    const std::string requested(profile);
+    const bool knownShape = requested == "baseline" ||
+        requested.rfind("shadow-", 0) == 0;
+    if (!knownShape || requested.find_first_not_of(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-") !=
+            std::string::npos) {
+        OH_LOG_ERROR(LOG_APP,
+                     "[NAPI] invalid legacy Host shadow profile=%{public}s",
+                     profile);
+        return BooleanResult(env, false);
+    }
+    gLegacyHostShadowProfile = requested;
+    OH_LOG_WARN(LOG_APP,
+                "[NAPI] legacy Host profile=%{public}s accepted; session launch "
+                "will resolve it through product graphics policy",
+                profile);
+    return BooleanResult(env, true);
+}
+
 static napi_value SetHostGraphicsExperimentForLab(napi_env env, napi_callback_info info) {
     size_t argc = 2;
     napi_value args[2] = {};
@@ -216,7 +250,9 @@ static napi_value SetHostGraphicsExperimentForLab(napi_env env, napi_callback_in
                      experimentId, backendName);
         return BooleanResult(env, false);
     }
-    return BooleanResult(env, ApplyHostGraphicsProfile(experiment.host));
+    const bool applied = ApplyHostGraphicsProfile(experiment.host);
+    if (applied) gLegacyHostShadowProfile.clear();
+    return BooleanResult(env, applied);
 }
 
 static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) {
@@ -236,7 +272,9 @@ static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) 
     OH_LOG_INFO(LOG_APP,
                 "[NAPI] graphics backend=%{public}s route=%{public}s",
                 backendName, policy.route.data());
-    return BooleanResult(env, ApplyHostGraphicsProfile(policy.host));
+    const bool applied = ApplyHostGraphicsProfile(policy.host);
+    if (applied) gLegacyHostShadowProfile.clear();
+    return BooleanResult(env, applied);
 }
 
 static napi_value NullResult(napi_env env) {
@@ -306,20 +344,29 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
         napi_get_value_string_utf8(env, args[4], buf, sizeof(buf), nullptr);
         p->homeDir = buf;
     }
-    if (argc >= 6) napi_get_value_bool(env, args[5], &p->automationMode);
     p->prefixDir = WINE_PREFIX;
-    if (argc >= 7) {
-        char prefixMode[32] = {};
-        napi_get_value_string_utf8(env, args[6], prefixMode, sizeof(prefixMode), nullptr);
-        if (!strcmp(prefixMode, "clean")) p->prefixDir = WINE_SMOKE_PREFIX;
+    // Keep both control-plane layouts during product convergence:
+    //   WineHua: home, d3d, dxvk, wineLang, compat
+    //   product: home, automation(bool), prefix, d3d, compat
+    // The sixth argument type is unambiguous and preserves old product calls
+    // while allowing upstream services to use their common Native contract.
+    bool productLayout = false;
+    if (argc >= 6) {
+        napi_valuetype sixthType = napi_undefined;
+        if (napi_typeof(env, args[5], &sixthType) == napi_ok &&
+            sixthType == napi_boolean) {
+            productLayout = true;
+            napi_get_value_bool(env, args[5], &p->automationMode);
+        }
     }
-    if (argc >= 8) {
+    const size_t d3dIndex = productLayout ? 7 : 5;
+    if (argc > d3dIndex) {
         char d3dBackend[64] = {};
-        napi_get_value_string_utf8(env, args[7], d3dBackend, sizeof(d3dBackend), nullptr);
+        napi_get_value_string_utf8(env, args[d3dIndex], d3dBackend,
+                                   sizeof(d3dBackend), nullptr);
         const winehua::D3dBackendKind backend =
             winehua::ParseD3dBackend(d3dBackend);
-        if (backend == winehua::D3dBackendKind::WineD3d ||
-            winehua::IsDxvkBackend(backend)) {
+        if (backend != winehua::D3dBackendKind::Unknown) {
             p->d3dBackend = d3dBackend;
         } else {
             OH_LOG_ERROR(LOG_APP,
@@ -329,6 +376,34 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
             napi_value result;
             napi_create_int32(env, -EINVAL, &result);
             return result;
+        }
+    }
+    p->dxvkBackend =
+        (p->d3dBackend == "dxvk_modern_2_6" ||
+         p->d3dBackend == "vkd3d_limited_500k")
+            ? "dxvk_modern_2_6" : "dxvk_legacy";
+    if (productLayout) {
+        if (argc >= 7) {
+            char prefixMode[32] = {};
+            napi_get_value_string_utf8(env, args[6], prefixMode,
+                                       sizeof(prefixMode), nullptr);
+            if (!strcmp(prefixMode, "clean")) p->prefixDir = WINE_SMOKE_PREFIX;
+        }
+    } else {
+        if (argc >= 7) {
+            char dxvkBackend[64] = {};
+            napi_get_value_string_utf8(env, args[6], dxvkBackend,
+                                       sizeof(dxvkBackend), nullptr);
+            if (!strcmp(dxvkBackend, "dxvk_legacy") ||
+                !strcmp(dxvkBackend, "dxvk_modern_2_6"))
+                p->dxvkBackend = dxvkBackend;
+        }
+        if (argc >= 8) {
+            char wineLang[16] = {};
+            napi_get_value_string_utf8(env, args[7], wineLang,
+                                       sizeof(wineLang), nullptr);
+            if (!strcmp(wineLang, "zh_CN") || !strcmp(wineLang, "en_US"))
+                p->wineLang = wineLang;
         }
     }
     if (argc >= 9) {
@@ -346,12 +421,39 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
         p->homeDir = "/storage/Users/currentUser/Download";
     }
 
+    if (!gLegacyHostShadowProfile.empty()) {
+        winehua::ProductGraphicsPolicy policy;
+        const winehua::D3dBackendKind backend =
+            winehua::ParseD3dBackend(p->d3dBackend);
+        const std::string requested = gLegacyHostShadowProfile;
+        gLegacyHostShadowProfile.clear();
+        if (!winehua::ResolveProductGraphicsPolicy(backend, &policy) ||
+            !ApplyHostGraphicsProfile(policy.host)) {
+            OH_LOG_ERROR(LOG_APP,
+                         "[Launch] legacy Host profile adaptation failed "
+                         "profile=%{public}s d3d=%{public}s",
+                         requested.c_str(), p->d3dBackend.c_str());
+            delete p;
+            napi_value result;
+            napi_create_int32(env, -1, &result);
+            return result;
+        }
+        OH_LOG_WARN(LOG_APP,
+                    "[Launch] legacy Host profile=%{public}s converged to "
+                    "product route=%{public}s for d3d=%{public}s",
+                    requested.c_str(), policy.route.data(),
+                    p->d3dBackend.c_str());
+    }
+
     OH_LOG_INFO(LOG_APP,
-                "[Launch] exe=%{public}s sock=%{public}s lib=%{public}s home=%{public}s prefix=%{public}s automation=%{public}s (async)",
+                "[Launch] exe=%{public}s sock=%{public}s lib=%{public}s home=%{public}s prefix=%{public}s automation=%{public}s layout=%{public}s (async)",
                 p->exePath.c_str(), p->sockPath.c_str(), p->libPath.c_str(), p->homeDir.c_str(),
-                p->prefixDir.c_str(), p->automationMode ? "true" : "false");
-    OH_LOG_INFO(LOG_APP, "[Launch] desktop D3D backend=%{public}s compat=%{public}s",
-                p->d3dBackend.c_str(), p->compatEnvStr.empty() ? "baseline" : "preset");
+                p->prefixDir.c_str(), p->automationMode ? "true" : "false",
+                productLayout ? "product" : "winehua");
+    OH_LOG_INFO(LOG_APP,
+                "[Launch] desktop D3D=%{public}s DXVK=%{public}s lang=%{public}s compat=%{public}s",
+                p->d3dBackend.c_str(), p->dxvkBackend.c_str(), p->wineLang.c_str(),
+                p->compatEnvStr.empty() ? "baseline" : "preset");
 
     // 保证可执行
     if (access(p->exePath.c_str(), X_OK) != 0) chmod(p->exePath.c_str(), 0755);
@@ -1141,13 +1243,16 @@ static napi_value GetProcessList(napi_env env, napi_callback_info info) {
         napi_value obj;
         napi_create_object(env, &obj);
 
-        napi_value pidVal, nameVal, pathVal, stateVal, sessionVal;
+        napi_value pidVal, nameVal, pathVal, stateVal, sessionVal, desktopShellVal;
         napi_create_int32(env, entry.pid, &pidVal);
         napi_create_string_utf8(env, entry.exeBasename.c_str(), NAPI_AUTO_LENGTH, &nameVal);
         napi_create_string_utf8(env, entry.exeFullPath.c_str(), NAPI_AUTO_LENGTH, &pathVal);
         napi_create_string_utf8(env, entry.running ? "running" : "exited",
                                 NAPI_AUTO_LENGTH, &stateVal);
         napi_create_string_utf8(env, entry.sessionId.c_str(), NAPI_AUTO_LENGTH, &sessionVal);
+        const bool desktopShell = entry.sessionId.rfind("@engine/", 0) == 0 ||
+            entry.exeFullPath.rfind("@engine/", 0) == 0;
+        napi_get_boolean(env, desktopShell, &desktopShellVal);
 
         napi_property_descriptor props[] = {
             {"pid",   nullptr, nullptr, nullptr, nullptr, pidVal,   napi_default, nullptr},
@@ -1155,6 +1260,7 @@ static napi_value GetProcessList(napi_env env, napi_callback_info info) {
             {"path",  nullptr, nullptr, nullptr, nullptr, pathVal,  napi_default, nullptr},
             {"state", nullptr, nullptr, nullptr, nullptr, stateVal, napi_default, nullptr},
             {"sessionId", nullptr, nullptr, nullptr, nullptr, sessionVal, napi_default, nullptr},
+            {"desktopShell", nullptr, nullptr, nullptr, nullptr, desktopShellVal, napi_default, nullptr},
         };
         napi_define_properties(env, obj, sizeof(props)/sizeof(props[0]), props);
         napi_set_element(env, arr, i, obj);
@@ -1274,6 +1380,7 @@ static napi_value Init(napi_env env, napi_value exports) {
 
     napi_property_descriptor desc[] = {
         {"startServer",    nullptr, StartServer,    nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setHostShadowProfile", nullptr, SetHostShadowProfile, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setHostGraphicsExperimentForLab", nullptr, SetHostGraphicsExperimentForLab, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setHostGraphicsBackend", nullptr, SetHostGraphicsBackend, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"resolveGuestGraphicsEnvironmentForLab", nullptr, ResolveGuestGraphicsEnvironmentForLab, nullptr, nullptr, nullptr, napi_default, nullptr},

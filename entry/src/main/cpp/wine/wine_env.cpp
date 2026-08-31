@@ -47,7 +47,8 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
                                       const std::string& binDir,
                                       int audioBootstrapFd,
                                       const std::string& homeDir,
-                                      const std::string& prefixDir) {
+                                      const std::string& prefixDir,
+                                      const std::string& wineLang) {
     std::string runtimeLibPath = binDir + ":" + binDir + "/x86_64-unix:" + binDir + "/../lib/x86_64";
     winehua::GraphicsBackendState graphicsState = winehua::GraphicsBroker::GetInstance().GetState();
     std::string guestReceiverLibDir;
@@ -80,7 +81,11 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     winehua::controller::EnsureBridgeForWineLaunch(prefix);
     winehua::controller::AppendWineGamepadEnv(env);
     env.push_back("WINEDEBUG=-all");
-    env.push_back("LANG=zh_CN.UTF-8");
+    const std::string locale = wineLang == "en_US" ? "en_US" : "zh_CN";
+    env.push_back("LANG=" + locale + ".UTF-8");
+    // OHOS musl has no locale database. Wine falls back through LC_ALL when
+    // setlocale returns C, so keep it paired with LANG as WineHua master does.
+    env.push_back("LC_ALL=" + locale + ".UTF-8");
     env.push_back("GST_PLUGIN_PATH=" + binDir + "/x86_64-unix/gstreamer-1.0");
     env.push_back("GST_PLUGIN_SYSTEM_PATH=" + binDir + "/x86_64-unix/gstreamer-1.0");
     winehua::AppendBox64PerfStrings(env);
@@ -248,6 +253,27 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
     }
     if (dxvkRuntime.commandQueryReset)
         UpsertEnvLine(env, "DXVK_WINEHUA_COMMAND_QUERY_RESET=1");
+}
+
+void AppendD3dBackendEnv(std::vector<std::string>& env,
+                         const std::string& d3dBackend,
+                         const std::string& dxvkBackend,
+                         const std::string& binDir)
+{
+    if (winehua::ParseD3dBackend(d3dBackend) ==
+        winehua::D3dBackendKind::Vkd3dLimited500k) {
+        // Product qualification binds VKD3D to the modern DXGI companion.
+        // Keep the upstream field visible in diagnostics while retaining that
+        // single Native policy instead of accepting an unqualified pairing.
+        if (!dxvkBackend.empty() && dxvkBackend != "dxvk_modern_2_6") {
+            OH_LOG_WARN(LOG_APP,
+                        "[D3D] product VKD3D overrides requested DXVK=%{public}s with modern-2.6",
+                        dxvkBackend.c_str());
+        }
+        AppendVkd3dDemoPresentEnv(env, d3dBackend, binDir);
+        return;
+    }
+    AppendD3dBackendEnv(env, d3dBackend, binDir);
 }
 
 bool IsVkd3dSmokeDemo(const std::string& exePath)

@@ -19,9 +19,9 @@
  *
  * spawn 点声明 SessionEnvPolicy 拿成品, 不再各自追加策略行。
  *
- * 本仓不引入上游 NAPI 的 dxvkBackend / wineLang; 桌面 DXVK 剖面从
- * d3dBackend + 宿主 getenv 在 native 内推导。Box64 档位 policy 仍在
- * ArkTS AppModels.resolveBox64PresetEnv; 此处只做前缀门。
+ * WineHua 的 dxvkBackend / wineLang 控制面字段保留在公共接口中；产品
+ * graphics resolver 仍以 d3dBackend 为最终策略来源。Box64 档位 policy
+ * 仍在 ArkTS AppModels.resolveBox64PresetEnv；此处只做前缀门。
  */
 
 #include <string>
@@ -47,9 +47,11 @@ void AppendStableDxvkEnv(std::vector<std::string>& env,
 // -- 会话/程序 env 管线 --
 struct SessionEnvPolicy {
     std::string sockDir, sockName, libPath, binDir, homeDir, prefixDir;
+    std::string wineLang = "zh_CN";
     int audioBootstrapFd = -1;
     // 空 = 不注入 D3D overlay (由 extraEnv 自带)
     std::string d3dBackend;
+    std::string dxvkBackend = "dxvk_legacy";
     std::string compatEnvStr;
     bool automationMode = false;
     bool applyStableOverlay = false;

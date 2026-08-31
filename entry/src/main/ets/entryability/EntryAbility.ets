@@ -9,6 +9,8 @@ import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { WineEngineService } from '../service/WineEngineService';
 import { AppSessionService } from '../service/AppSessionService';
+import { SmokeRunner } from '../service/SmokeRunner';
+import { SmokeRequest } from '../common/SmokeTypes';
 import { NativeLaunchResult, WinePresentationMode } from '../model/AppModels';
 import testNapi from 'libentry.so';
 
@@ -140,7 +142,7 @@ export default class EntryAbility extends UIAbility {
 
   private rememberAutomationWant(want: Want): void {
     const mode = String(want.parameters?.['winehua.mode'] ?? '');
-    if (mode !== 'game') return;
+    if (mode !== 'game' && mode !== 'smoke') return;
     this.pendingAutomationWant = want;
     hilog.info(DOMAIN, 'EntryAbility', 'automation Want accepted mode=%{public}s', mode);
   }
@@ -211,6 +213,10 @@ export default class EntryAbility extends UIAbility {
 
   private async runAutomationLaunch(want: Want): Promise<void> {
     const parameters = want.parameters ?? {};
+    if (String(parameters['winehua.mode'] ?? '') === 'smoke') {
+      await this.runSmokeLaunch(want);
+      return;
+    }
     const executable = String(parameters['winehua.game_path'] ?? '');
     if (!executable) throw new Error('winehua.game_path is empty');
 
@@ -253,6 +259,36 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'EntryAbility',
       'automation launched pid=%{public}d backend=%{public}s graphicsPolicy=%{public}s exe=%{public}s envCount=%{public}d',
       result.pid, backend, graphicsExperiment || '(product)', executable, environment.length);
+  }
+
+  /**
+   * WineHua smoke Want protocol adapted behind the product UI.  The runner is
+   * a service and uses the same Native runWineProgram policy as normal product
+   * launches; no upstream sidebar or page replaces the product launcher.
+   */
+  private async runSmokeLaunch(want: Want): Promise<void> {
+    const parameters = want.parameters ?? {};
+    const settingsStore = AppSettingsStore.getInstance();
+    await settingsStore.initialize(this.context);
+    const engine = WineEngineService.getInstance();
+    engine.initialize(this.context);
+    const settings = settingsStore.getGlobalSettings();
+    const homeDirectory = '/storage/Users/currentUser/Download/com.vintage.pomelopro';
+    const requestedSeconds = Number(parameters['winehua.long_seconds'] ?? 3600);
+    const request: SmokeRequest = {
+      suite: String(parameters['winehua.suite'] ?? 'core'),
+      runId: String(parameters['winehua.run_id'] ?? `manual-${Date.now()}`),
+      prefix: String(parameters['winehua.prefix'] ?? 'reuse') === 'clean' ? 'clean' : 'reuse',
+      longSeconds: Number.isFinite(requestedSeconds) && requestedSeconds > 0 ? requestedSeconds : 3600,
+      source: 'want'
+    };
+    const ready = await engine.ensureSmokeReady(settings.defaultDisplayMode,
+      WinePresentationMode.DESKTOP, homeDirectory, request.prefix || 'reuse');
+    if (!ready) throw new Error('Wine engine did not become ready for smoke');
+    SmokeRunner.getInstance().start(request);
+    hilog.info(DOMAIN, 'EntryAbility',
+      'smoke runner accepted suite=%{public}s runId=%{public}s prefix=%{public}s',
+      request.suite, request.runId, request.prefix || 'reuse');
   }
 
   private isPcWindowHost(): boolean {

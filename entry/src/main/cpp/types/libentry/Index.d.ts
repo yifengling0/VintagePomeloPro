@@ -1,4 +1,6 @@
 export const startServer: (sockPath: string) => boolean;
+/** WineHua compatibility entry; launch resolves the request through product policy. */
+export const setHostShadowProfile: (profile: string) => boolean;
 /** LAB-only profile override; product startup must use setHostGraphicsBackend. */
 export const setHostGraphicsExperimentForLab: (
   experimentId: string, backend: string) => boolean;
@@ -6,8 +8,11 @@ export const setHostGraphicsBackend: (backend: string) => boolean;
 /** LAB/smoke adapter backed by the same Native profile resolver as product startup. */
 export const resolveGuestGraphicsEnvironmentForLab: (
   profile: string, backend: string) => string[] | null;
+/** Supports both WineHua's common control-plane layout and the product's
+ * automation/prefix extension. The sixth argument type selects the layout. */
 export const launchClient: (exePath: string, argv: string[], sockPath: string, libPath: string,
-  homeDir: string, automationMode?: boolean, prefixMode?: string, d3dBackend?: string,
+  homeDir: string, d3dBackendOrAutomation?: string | boolean,
+  dxvkBackendOrPrefixMode?: string, wineLangOrD3dBackend?: string,
   compatEnvStr?: string) => number;
 export const stopClient: () => void;
 export const stopAll: () => void;
@@ -44,10 +49,14 @@ export interface WineProgramOptions {
   argv: string[];
   environment: Record<string, string>;
   workingDirectory: string;
-  prefixMode: string;
+  prefixMode?: string;
   d3dBackend: string;
-  presentToSurface: boolean;
-  automationMode: boolean;
+  /** WineHua master compatibility; Native remains the policy authority. */
+  dxvkBackend?: string;
+  /** Empty/omitted derives the presenter from d3dBackend. */
+  presentBackend?: string;
+  presentToSurface?: boolean;
+  automationMode?: boolean;
 }
 export interface WineProcessHandle {
   found: boolean;
@@ -126,6 +135,7 @@ export const getProcessList: () => Array<{
   path: string;
   state: string;
   sessionId: string;
+  desktopShell: boolean;
 }>;
 export const killProcess: (pid: number) => boolean;
 export const initGameController: () => number;

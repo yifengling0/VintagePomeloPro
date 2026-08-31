@@ -40,11 +40,13 @@ ELF 和内嵌 runtime 哈希；签名与 Guest 嵌套载荷完整性须已在该
 过滤其他应用和序列化启动环境。`batchMappedFlush` 使用产品开启策略，拒绝 off。
 主机汇总中的 `batchMappedFlush: null` 表示没有覆盖，而非关闭。
 
-当前仅迁移了 `core/audio/opengl` + `reuse`。旧 App `smoke` Want 已删除，
-其它 Suite、`clean` 和 `-Gate` 在构建/安装/连接设备前拒绝，不能继续使用历史示例。
-两代 DXVK 的短测使用 `Measure-WineHuaFrameOrder.ps1`，同样通过正常游戏入口。
-核心 probe 通过不等于视频、五次生命周期或十分钟稳定性全部验收。
-正常 launcher 负责产品环境，不恢复独立的 SmokeRunner 或 `.wine-smoke` 启动链。
+产品 PowerShell 入口继续通过正常游戏会话执行 `core/audio/opengl` 回归。与此同时，
+WineHua master 的数据驱动协议已作为后台服务接入：`automation/run_regression.py`
+发送 `winehua.mode=smoke` Want，设备端 `SmokeRunner.ets` 读取随包的
+`C:\smoke\suites.json` 并写 `suite-summary.json`。它复用产品 Native 图形策略和
+WineEngine 生命周期，不替换产品页面或侧边栏。`reuse` 使用正常前缀；`clean`
+使用隔离的 `.wine-smoke`，避免清空用户前缀。两套 host 入口可以并存，结果协议同源。
+核心 probe 通过仍不等于视频、五次生命周期或十分钟稳定性全部验收。
 
 主机测试（无需设备、Docker 或 HAP）：
 

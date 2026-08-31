@@ -16,6 +16,11 @@ struct ProgramOptions {
     std::string workingDirectory;
     std::string prefixMode = "reuse";
     std::string d3dBackend = "dxvk_legacy";
+    // WineHua master compatibility fields. Product policy still derives the
+    // concrete runtime and presenter in Native code, but keeping these fields
+    // lets upstream service callers use the common runWineProgram contract.
+    std::string dxvkBackend;
+    std::string presentBackend;
     // The graphics route is derived from d3dBackend.  Smoke tests only need
     // to say whether the selected route should publish to a surface.
     bool presentToSurface = true;

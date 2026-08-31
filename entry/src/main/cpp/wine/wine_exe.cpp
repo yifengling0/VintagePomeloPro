@@ -316,8 +316,14 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     if (!winehua::GraphicsBroker::GetInstance().EnsureStarted(prefixDir)) return -1;
     const winehua::D3dBackendKind backend =
         winehua::ParseD3dBackend(options.d3dBackend);
+    const std::string presentBackend = options.presentBackend.empty()
+        ? (winehua::UsesVenusPresent(backend) ? "venus_broker_present"
+                                             : "virgl_compositor")
+        : options.presentBackend;
     const bool publishVulkanSurface =
-        options.presentToSurface && winehua::UsesVenusPresent(backend);
+        options.presentToSurface &&
+        (presentBackend == "venus_broker_present" ||
+         presentBackend == "venus_direct_present");
     winehua::GraphicsBroker::GetInstance().SetVulkanPresentMode(
         publishVulkanSurface);
 
@@ -329,6 +335,7 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     policy.homeDir = homeDir;
     policy.prefixDir = prefixDir;
     policy.d3dBackend = options.d3dBackend;
+    policy.dxvkBackend = options.dxvkBackend;
     /* Product DXVK capabilities must apply to every managed program, not
      * only the desktop shell. This covers managed smoke and game windows
      * without relying on an A/B environment override. */
@@ -336,7 +343,9 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     policy.desktopShellFlag = WaylandServer::GetInstance()->IsDesktopMode();
     policy.extraEnv = options.environment;
     policy.extraEnv.push_back("WINEHUA_D3D_BACKEND=" + options.d3dBackend);
-    if (IsVkd3dSmokeDemo(options.windowsExePath))
+    policy.extraEnv.push_back("WINEHUA_PRESENT_BACKEND=" + presentBackend);
+    if (backend != winehua::D3dBackendKind::Vkd3dLimited500k &&
+        IsVkd3dSmokeDemo(options.windowsExePath))
         AppendVkd3dDemoPresentEnv(policy.extraEnv, options.d3dBackend, binDir);
     policy.extraEnv.push_back(std::string("WINEHUA_AUTOMATION=") +
                               (options.automationMode ? "1" : "0"));
@@ -364,11 +373,12 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     if (pid <= 0) return -1;
     AddProcess(pid, options.windowsExePath, -1);
     OH_LOG_INFO(LOG_APP,
-                "[WineProgram] pid=%{public}d exe=%{public}s prefix=%{public}s d3d=%{public}s route=%{public}s output=%{public}s automation=%{public}s",
+                "[WineProgram] pid=%{public}d exe=%{public}s prefix=%{public}s d3d=%{public}s route=%{public}s present=%{public}s output=%{public}s automation=%{public}s",
                 pid, exePath.c_str(), prefixDir.c_str(), options.d3dBackend.c_str(),
                 winehua::UsesVenusPresent(backend) ?
                     winehua::kProductVulkanRoute.data() :
                     winehua::kProductVirglRoute.data(),
+                presentBackend.c_str(),
                 options.presentToSurface ? "surface" : "offscreen",
                 options.automationMode ? "true" : "false");
     if (gStateTsfn)
@@ -532,22 +542,32 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
     options.workingDirectory = GetString(env, args[0], "workingDirectory");
     options.prefixMode = GetString(env, args[0], "prefixMode", "reuse");
     options.d3dBackend = GetString(env, args[0], "d3dBackend", "dxvk_legacy");
+    const std::string impliedDxvkBackend =
+        options.d3dBackend == "dxvk_modern_2_6" ||
+        options.d3dBackend == "vkd3d_limited_500k"
+            ? "dxvk_modern_2_6" : "dxvk_legacy";
+    options.dxvkBackend = GetString(env, args[0], "dxvkBackend", impliedDxvkBackend);
+    if (options.dxvkBackend != "dxvk_legacy" &&
+        options.dxvkBackend != "dxvk_modern_2_6")
+        options.dxvkBackend = impliedDxvkBackend;
+    options.presentBackend = GetString(env, args[0], "presentBackend");
     options.presentToSurface = GetBool(env, args[0], "presentToSurface", true);
     options.automationMode = GetBool(env, args[0], "automationMode", false);
     ReadStringArray(env, args[0], "argv", &options.argv);
     ReadEnvironment(env, args[0], &options.environment);
     const winehua::D3dBackendKind requestedBackend =
         winehua::ParseD3dBackend(options.d3dBackend);
-    if (requestedBackend == winehua::D3dBackendKind::Unknown ||
-        requestedBackend == winehua::D3dBackendKind::Vkd3dLimited500k) {
+    if (requestedBackend == winehua::D3dBackendKind::Unknown) {
         OH_LOG_ERROR(LOG_APP,
                      "[WineProgram] rejected unsupported d3d backend=%{public}s",
                      options.d3dBackend.c_str());
         return MakeProcessObject(env, nullptr, false);
     }
     OH_LOG_INFO(LOG_APP,
-                "[WineProgram] parsed options exe=%{public}s argc=%{public}zu env=%{public}zu",
-                options.windowsExePath.c_str(), options.argv.size(), options.environment.size());
+                "[WineProgram] parsed options exe=%{public}s argc=%{public}zu env=%{public}zu dxvk=%{public}s present=%{public}s",
+                options.windowsExePath.c_str(), options.argv.size(), options.environment.size(),
+                options.dxvkBackend.c_str(), options.presentBackend.empty() ? "derived" :
+                options.presentBackend.c_str());
 
     const pid_t pid = SpawnWineProgram(options);
     WineProcessEntry entry;
@@ -808,6 +828,10 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
     policy.binDir = binDir;
     policy.homeDir = homeDir;
     policy.d3dBackend = d3dBackend;
+    policy.dxvkBackend =
+        (d3dBackend == "dxvk_modern_2_6" ||
+         d3dBackend == "vkd3d_limited_500k")
+            ? "dxvk_modern_2_6" : "dxvk_legacy";
     // Fusion games need the same managed DXVK/Venus/Box64 product capability
     // as the desktop shell. The final presenter policy remains per-surface.
     const bool desktopMode = WaylandServer::GetInstance()->IsDesktopMode();
@@ -826,7 +850,9 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
         }
         policy.extraEnv.push_back(overrideLine);
     }
-    if (IsVkd3dSmokeDemo(exePath) || IsVkd3dSmokeDemo(wineExe))
+    if (winehua::ParseD3dBackend(d3dBackend) !=
+            winehua::D3dBackendKind::Vkd3dLimited500k &&
+        (IsVkd3dSmokeDemo(exePath) || IsVkd3dSmokeDemo(wineExe)))
         AppendVkd3dDemoPresentEnv(policy.extraEnv, d3dBackend, binDir);
     std::vector<std::string> wineEnv = winehua::BuildSessionEnv(policy);
     OH_LOG_INFO(LOG_APP,

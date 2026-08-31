@@ -133,6 +133,10 @@ require_literal "NAPI LAB experiment resolver" "ResolveLabGraphicsExperiment" \
     entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "NAPI LAB experiment API" "setHostGraphicsExperimentForLab" \
     entry/src/main/cpp/bridge/napi_init.cpp
+require_literal "WineHua legacy Host profile API remains callable" "setHostShadowProfile" \
+    entry/src/main/cpp/bridge/napi_init.cpp
+require_literal "Legacy Host profile converges through product policy" "gLegacyHostShadowProfile" \
+    entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "NAPI product route resolver" "ResolveProductGraphicsPolicy" \
     entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Wine env product Guest resolver" \
@@ -149,16 +153,40 @@ require_literal "Product Host route follows selected Guest backend" \
     entry/src/main/ets/service/WineEngineService.ets
 require_literal "Program present route derives from D3D backend" \
     "UsesVenusPresent(backend)" entry/src/main/cpp/wine/wine_exe.cpp
-require_literal "Managed programs expose only surface/offscreen intent" \
+require_literal "Managed programs expose surface/offscreen intent" \
     "presentToSurface" entry/src/main/cpp/types/libentry/Index.d.ts
-[[ ! -f "$ROOT/entry/src/main/ets/service/SmokeRunner.ets" ]] || \
-    fail "obsolete SmokeRunner must not return to product startup"
+require_literal "Smoke runner uses Native program policy" \
+    "testNapi.runWineProgram" entry/src/main/ets/service/SmokeRunner.ets
+require_literal "Smoke runner uses product engine lifecycle" \
+    "WineEngineService.getInstance().isReady()" entry/src/main/ets/service/SmokeRunner.ets
+require_literal "Clean smoke switches the broker-owned prefix lifecycle" \
+    "ensureSmokeReady" entry/src/main/ets/service/WineEngineService.ets
+require_literal "Clean smoke restores the product session" \
+    "restoreProductSession" entry/src/main/ets/service/SmokeRunner.ets
+require_literal "Smoke runner is data driven" \
+    "smoke/suites.json" entry/src/main/ets/service/SmokeRunner.ets
+reject_literal "Product Index does not import upstream smoke sidebar" \
+    "SmokeRunner" entry/src/main/ets/pages/Index.ets
 require_literal "Engine prepares managed payload independently of test orchestration" \
     "from './ManagedSmokePayloadService'" entry/src/main/ets/service/WineEngineService.ets
-reject_literal "Removed public present backend profile" \
+require_literal "WineHua program interface keeps present-backend compatibility" \
     "presentBackend" entry/src/main/cpp/wine/wine_exe.h
-reject_literal "Removed unused present backend environment" \
+require_literal "Native derives or honors the common present backend" \
     "WINEHUA_PRESENT_BACKEND" entry/src/main/cpp/wine/wine_exe.cpp
+require_literal "WineHua launch control plane keeps DXVK compatibility" \
+    "std::string dxvkBackend" entry/src/main/cpp/wine/wine_launch.h
+require_literal "Session environment consumes the common DXVK field" \
+    "p.d3dBackend, p.dxvkBackend, p.binDir" \
+    entry/src/main/cpp/wine/env_profiles.cpp
+require_literal "WineHua launch control plane keeps locale compatibility" \
+    "std::string wineLang" entry/src/main/cpp/wine/wine_launch.h
+require_literal "Launch NAPI accepts product and WineHua layouts" \
+    "sixthType == napi_boolean" entry/src/main/cpp/bridge/napi_init.cpp
+require_literal "Wine locale supplies musl fallback" \
+    'env.push_back("LC_ALL=" + locale + ".UTF-8");' \
+    entry/src/main/cpp/wine/wine_env.cpp
+require_literal "Process list keeps upstream desktop-shell field" \
+    '"desktopShell"' entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Wineboot waits for broker worker" \
     "progress.workerRunning" entry/src/main/cpp/wine/wine_launch.cpp
 require_literal "Wineboot observes only the current spawn attempt" \
@@ -230,8 +258,10 @@ require_literal "Normal launcher rejects disabled batching" \
     'Assert-GraphicsTestMappedFlush -Mode $BatchMappedFlushMode' automation/Start-WineHuaGameTest.ps1
 require_literal "Core regression uses normal game launch" \
     "Start-WineHuaGameTest.ps1" automation/NormalSmoke.ps1
-require_literal "Core regression rejects obsolete App smoke mode" \
+require_literal "Product core regression keeps normal game launch" \
     'Assert-NormalSmokeSuite $Suite $Prefix' automation/Invoke-WineHuaAutomation.ps1
+require_literal "Data-driven regression uses App smoke mode" \
+    '"winehua.mode", "smoke"' automation/run_regression.py
 require_literal "Automation omits batch override unless requested" \
     "ContainsKey('BatchMappedFlush')" automation/Invoke-WineHuaAutomation.ps1
 require_literal "DXVK performance product-equivalent observation" \
@@ -270,7 +300,7 @@ require_literal "Media probe participates in assemble invalidation" \
 require_literal "Media probe is self-contained on the Wine runtime" \
     "-static-libgcc -static-libstdc++" scripts/assemble.sh
 require_literal "Media probe has a versioned managed payload" \
-    "phase2-vulkan-dxvk-legacy-v7-media" scripts/assemble.sh
+    "phase2-vulkan-dxvk-v10-vkd3d-product-media" scripts/assemble.sh
 require_literal "Media probe packages the x64 PE" \
     '"x64/winehua_media_smoke.exe"' scripts/assemble.sh
 require_literal "Media probe packages the x86 PE" \

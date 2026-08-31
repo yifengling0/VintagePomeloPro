@@ -333,6 +333,9 @@ export class WineEngineService {
   private prefixRefreshRequired: boolean = false;
   private pendingPrefixVersion: Uint8Array = new Uint8Array(0);
   private d3dBackend: string = 'dxvk_legacy';
+  // Broker/Spawner prefix is session-scoped; smoke clean must switch the whole
+  // engine session rather than only overriding one child process environment.
+  private activePrefixMode: string = 'reuse';
   private hostGraphicsBackend: string = 'dxvk_legacy';
   // Product sessions derive Host and Guest from the same D3D backend. Only
   // the qualified VKD3D smoke path owns an explicit one-session override.
@@ -416,6 +419,12 @@ export class WineEngineService {
     return this.state === EngineState.READY;
   }
 
+  /** Native runWineProgram compatibility: expose the applied product backend
+   * without duplicating the backend-selection policy in smoke/UI callers. */
+  getD3dBackend(): string {
+    return this.d3dBackend;
+  }
+
   subscribe(listener: EngineStateListener): void {
     this.listeners.add(listener);
     listener(this.state, this.message);
@@ -432,13 +441,15 @@ export class WineEngineService {
    * 产品入口 ensureReady 转发到本方法，AppSessionService 无需改调用方。
    */
   async startSession(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string): Promise<boolean> {
+    homeDirectory: string, prefixMode: string = 'reuse'): Promise<boolean> {
     if (!this.context) return false;
+    const requestedPrefixMode = prefixMode === 'clean' ? 'clean' : 'reuse';
     const requestedD3DBackend = this.selectedD3DBackend();
     this.hostGraphicsBackend = this.hostGraphicsBackendOverride.length > 0 ?
       this.hostGraphicsBackendOverride : requestedD3DBackend;
     if (this.state === EngineState.READY && this.mode === mode &&
       this.presentationMode === presentationMode && this.d3dBackend === requestedD3DBackend &&
+      this.activePrefixMode === requestedPrefixMode &&
       this.appliedHostGraphicsBackend === this.hostGraphicsBackend &&
       this.appliedHostGraphicsLabExperiment === this.hostGraphicsLabExperiment) {
       this.syncManagedSmokePayload('ready-reuse');
@@ -447,6 +458,7 @@ export class WineEngineService {
     if (this.state === EngineState.PREPARING && this.mode === mode &&
       this.presentationMode === presentationMode &&
       this.d3dBackend === requestedD3DBackend &&
+      this.activePrefixMode === requestedPrefixMode &&
       this.appliedHostGraphicsBackend === this.hostGraphicsBackend &&
       this.appliedHostGraphicsLabExperiment === this.hostGraphicsLabExperiment) return this.waitForReady();
 
@@ -464,6 +476,7 @@ export class WineEngineService {
     if (this.state !== EngineState.STOPPED &&
       (this.mode !== mode || this.presentationMode !== presentationMode ||
        this.d3dBackend !== requestedD3DBackend ||
+       this.activePrefixMode !== requestedPrefixMode ||
        this.appliedHostGraphicsBackend !== this.hostGraphicsBackend ||
        this.appliedHostGraphicsLabExperiment !== this.hostGraphicsLabExperiment)) {
       const switchingHost = (this.appliedHostGraphicsBackend !== this.hostGraphicsBackend ||
@@ -479,6 +492,7 @@ export class WineEngineService {
     this.mode = mode;
     this.presentationMode = presentationMode;
     this.d3dBackend = requestedD3DBackend;
+    this.activePrefixMode = requestedPrefixMode;
     this.homeDirectory = homeDirectory;
     this.setState(EngineState.PREPARING, '正在准备 Wine 引擎');
 
@@ -530,7 +544,7 @@ export class WineEngineService {
       // Native runs wineboot --init only for a new prefix. Existing prefixes
       // are migrated above before any wineserver process starts.
       testNapi.launchClient(BOX64, [], SOCK, WINE_BIN + ':' + WINE_LIB,
-        homeDirectory, false, '', this.d3dBackend,
+        homeDirectory, requestedPrefixMode === 'clean', requestedPrefixMode, this.d3dBackend,
         box64PresetEnvString(AppSettingsStore.getInstance().getGlobalSettings().box64Preset));
       return this.waitForReady();
     } catch (error) {
@@ -543,7 +557,37 @@ export class WineEngineService {
 
   async ensureReady(mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string): Promise<boolean> {
-    return this.startSession(mode, presentationMode, homeDirectory);
+    return this.startSession(mode, presentationMode, homeDirectory, 'reuse');
+  }
+
+  /**
+   * Prepare the smoke session through the same engine owner. Reuse stays on
+   * the product prefix. Clean first completes any product runtime migration,
+   * then stops the broker and boots an isolated .wine-smoke session.
+   */
+  async ensureSmokeReady(mode: DisplayMode, presentationMode: WinePresentationMode,
+    homeDirectory: string, prefixMode: string): Promise<boolean> {
+    const productReady = await this.ensureReady(mode, presentationMode, homeDirectory);
+    if (!productReady || prefixMode !== 'clean') return productReady;
+    await this.stopSession();
+    let reset = false;
+    try { reset = testNapi.resetWinePrefix('clean') as boolean; } catch (_) {}
+    if (!reset) {
+      this.setState(EngineState.ERROR, '隔离 smoke 环境清理失败');
+      return false;
+    }
+    return this.startSession(mode, presentationMode, homeDirectory, 'clean');
+  }
+
+  /** Restore the normal product prefix after an isolated clean smoke run. */
+  async restoreProductSession(): Promise<boolean> {
+    if (this.activePrefixMode !== 'clean') return true;
+    const mode = this.mode;
+    const presentationMode = this.presentationMode;
+    const homeDirectory = this.homeDirectory;
+    if (mode === null || presentationMode === null || homeDirectory.length === 0) return false;
+    await this.stopSession();
+    return this.startSession(mode, presentationMode, homeDirectory, 'reuse');
   }
 
   launchExecutable(executable: string, argumentsValue: string[] = [],
@@ -685,6 +729,7 @@ export class WineEngineService {
     await this.waitForNativeShutdown();
     this.mode = null;
     this.presentationMode = null;
+    this.activePrefixMode = 'reuse';
     this.setState(EngineState.STOPPED, 'Wine 引擎已停止');
     // Leave a small socket-settle window after the process list becomes empty.
     // Restarting the Wayland server immediately can otherwise race the old
@@ -907,7 +952,7 @@ export class WineEngineService {
   }
 
   private syncManagedSmokePayload(trigger: string): boolean {
-    const ready = syncManagedSmoke('reuse');
+    const ready = syncManagedSmoke(this.activePrefixMode);
     if (ready) {
       hilog.info(DOMAIN, TAG, 'managed C:\\smoke ready trigger=%{public}s', trigger);
     } else {

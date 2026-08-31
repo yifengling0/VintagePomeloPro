@@ -95,9 +95,9 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
 {
     std::vector<std::string> env = BuildWineEnv(p.sockDir, p.sockName, p.libPath,
                                                 p.binDir, p.audioBootstrapFd, p.homeDir,
-                                                p.prefixDir);
+                                                p.prefixDir, p.wineLang);
     if (!p.d3dBackend.empty())
-        AppendD3dBackendEnv(env, p.d3dBackend, p.binDir);
+        AppendD3dBackendEnv(env, p.d3dBackend, p.dxvkBackend, p.binDir);
 #ifdef __aarch64__
     AppendCompatEnvLines(env, p.compatEnvStr, p.automationMode);
 #endif

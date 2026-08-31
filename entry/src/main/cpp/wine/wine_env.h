@@ -81,13 +81,21 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
                                       const std::string& binDir,
                                       int audioBootstrapFd,
                                       const std::string& homeDir,
-                                      const std::string& prefixDir = WINE_PREFIX);
+                                      const std::string& prefixDir = WINE_PREFIX,
+                                      const std::string& wineLang = "zh_CN");
 
 // Add the managed product D3D backend overlay to a process environment. The
 // caller selects the product backend once per Wine session; the default is
 // dxvk_legacy, while wined3d remains an explicit compatibility fallback.
 void AppendD3dBackendEnv(std::vector<std::string>& env,
                          const std::string& d3dBackend,
+                         const std::string& binDir);
+// WineHua common control-plane overload. The product resolver keeps the final
+// runtime choice authoritative and uses the explicit DXVK field for contract
+// compatibility, including the VKD3D companion path.
+void AppendD3dBackendEnv(std::vector<std::string>& env,
+                         const std::string& d3dBackend,
+                         const std::string& dxvkBackend,
                          const std::string& binDir);
 
 // C:\smoke gears/triangle only. Cube keeps the DXVK DIR0 overlay; these
