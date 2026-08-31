@@ -3,9 +3,9 @@
 ## Fixed inputs and completion
 
 - Product base: `2c0436360ad3f821afe3fd6ea29d76e89f3781e7` (verified remote main).
-- Upstream audited interval: `d256317e02c83ed81172938c31152ded16393a32..74f2bfe1aba89cbfbc729d1cf658b46f3aea6f80` (69 commits).
+- Upstream audited interval: `d256317e02c83ed81172938c31152ded16393a32..61cb4c6400a1c9a759fe2c511e6ef782d8586edb` (75 commits; original 69 plus the refreshed six-commit increment).
 - Branch: `codex/sync-master-20260831`. Do not move existing main/master or touch another worktree.
-- Complete the Native architecture migration, preserve product UI and recent graphics/controller behavior, then pass real phone actions. A build alone is not completion.
+- Complete the Native architecture migration while preserving product UI and recent graphics/controller behavior. Device evidence and unresolved limits must remain explicit; the user accepted the recorded limits for this product-main PR and deferred physical-controller testing.
 - Retain the complete original requested scope across sessions. `commits.json` is the source/disposition ledger, not proof of validation.
 
 ## Product contracts

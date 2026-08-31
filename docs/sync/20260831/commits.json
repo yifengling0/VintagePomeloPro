@@ -1,7 +1,7 @@
 {
   "product_base": "2c0436360ad3f821afe3fd6ea29d76e89f3781e7",
   "upstream_base": "d256317e02c83ed81172938c31152ded16393a32",
-  "upstream_tip": "74f2bfe1aba89cbfbc729d1cf658b46f3aea6f80",
+  "upstream_tip": "61cb4c6400a1c9a759fe2c511e6ef782d8586edb",
   "commits": [
     {
       "source": "c2f0f7add7127d7864a91705633e35a778836627",
@@ -1363,8 +1363,83 @@
       "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
       "checkpoint": "f05cb8256b02738a3c42b5cbb38bbcdd54e942a6",
       "disposition": "Deterministic mapping to final upstream layout plus private modules; path-map.json; all 181 bodies unchanged except include/path spelling."
+    },
+    {
+      "source": "a1c7da1877bdb38aa3753d1d17739ff0a4bc0689",
+      "subject": "docs(smoke): 一期重建设计 — 三层方案的落地规格 (Want 4键/数据驱动 suites/瘦解释器/脚本协议)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/SMOKE_REBUILD_20260831.md"
+      ],
+      "validation": [],
+      "disposition": "Upstream smoke-runner design reference. Product regression remains external-script driven and keeps its own UI/session APIs."
+    },
+    {
+      "source": "ff865647d923aabe49224a7d9d87380c6787e163",
+      "subject": "fix(env): vkd3d 档 VN_PERF 固定带 no_semaphore_feedback — 不再随 dxvk 档位派生, 修默认 vkd3d+dxvk_legacy 白屏",
+      "task": "T8",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/wine/wine_env.cpp"
+      ],
+      "validation": "focused graphics_policy_test PASS; device testing stopped at user request and is not claimed",
+      "checkpoint": "eb7802531738d420a6b3ff718996457bb48e0dd7",
+      "disposition": "Adapted into the product Native policy authority: legacy DXVK sessions also expose the VKD3D-Proton D3D12 companion, so their serialized VN_PERF always disables semaphore feedback. Product UI and backend selection remain unchanged."
+    },
+    {
+      "source": "488aa0026b225bae76c86bb01b5f140d5b6d3d11",
+      "subject": "feat(smoke): smoke 回归设施一期重建 — 外部脚本驱动的 PE 套件回归 + 侧边栏极简入口",
+      "task": "T1",
+      "status": "covered_by_product",
+      "paths": [
+        "automation/README.md",
+        "automation/run_regression.py",
+        "docs/SMOKE_REBUILD_20260831.md",
+        "entry/src/main/ets/common/SmokeTypes.ets",
+        "entry/src/main/ets/entryability/EntryAbility.ets",
+        "entry/src/main/ets/pages/Index.ets",
+        "entry/src/main/ets/service/SmokeRunner.ets",
+        "entry/src/main/ets/service/WineEnvService.ets",
+        "scripts/assemble.sh"
+      ],
+      "validation": "existing product automation, managed payload and protected UI audits retained",
+      "disposition": "Product already uses external regression scripts, normal game launch, managed payload sync and bounded LAB APIs. Do not import the upstream sidebar/SmokeRunner or replace the product UI/session architecture."
+    },
+    {
+      "source": "503d01cba6970c9ba8ff8ffea0ae61d4cc760aa4",
+      "subject": "fix(smoke): suites.json 的 exe 去掉 smoke/ 前缀 — 与载荷目录对齐",
+      "task": "T1",
+      "status": "not_applicable",
+      "paths": [
+        "scripts/assemble.sh"
+      ],
+      "validation": [],
+      "disposition": "Fixes the upstream suites.json format introduced by 488aa002; that runner and payload layout are not used by the product."
+    },
+    {
+      "source": "4479b46576d6de5a66151f9b0f6bd1f94f508215",
+      "subject": "fix(smoke): --result 用 Windows 盘符形式 — 无盘符反斜杠结果落错目录",
+      "task": "T1",
+      "status": "not_applicable",
+      "paths": [
+        "entry/src/main/ets/service/SmokeRunner.ets"
+      ],
+      "validation": [],
+      "disposition": "Fixes command construction in the unadopted upstream SmokeRunner. Product automation already owns its result paths externally."
+    },
+    {
+      "source": "61cb4c6400a1c9a759fe2c511e6ef782d8586edb",
+      "subject": "fix(smoke): resetSmokePrefix 延迟 startSession 前先清 opBusy",
+      "task": "T1",
+      "status": "not_applicable",
+      "paths": [
+        "entry/src/main/ets/service/SmokeRunner.ets"
+      ],
+      "validation": [],
+      "disposition": "Fixes state in the unadopted upstream SmokeRunner. Product reset/session ownership remains in WineEngineService and AppSessionService."
     }
   ],
-  "integration_status": "implementation_complete_device_validation_in_progress",
+  "integration_status": "implementation_complete_device_limits_accepted_for_main_pr",
   "merge_semantics": "selective adaptation; no full-tree merge/ours merge, no synthetic ancestry recorded"
 }

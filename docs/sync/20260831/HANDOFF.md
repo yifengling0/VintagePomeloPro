@@ -2,7 +2,7 @@
 
 ## 从这里继续
 
-本轮以产品 main `2c0436360ad3f821afe3fd6ea29d76e89f3781e7` 建立 `codex/sync-master-20260831`。上游范围固定为 `d256317e02c83ed81172938c31152ded16393a32..74f2bfe1aba89cbfbc729d1cf658b46f3aea6f80`，共 69 个提交。它们是**选择性功能移植**，不是普通 Git merge；不要补一个 `ours` merge 来伪造已合并历史。
+本轮以产品 main `2c0436360ad3f821afe3fd6ea29d76e89f3781e7` 建立 `codex/sync-master-20260831`。原冻结上游范围 `d256317e..74f2bfe1` 的 69 项已完成；创建 PR 前又刷新并处理 `74f2bfe1..61cb4c64` 六项，因此 ledger 当前覆盖 `d256317e02c83ed81172938c31152ded16393a32..61cb4c6400a1c9a759fe2c511e6ef782d8586edb` 共 75 个提交。它们是**选择性功能移植**，不是普通 Git merge；不要补一个 `ours` merge 来伪造已合并历史。
 
 T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.md](STATUS.md)，再读本文件对应任务，不要重新执行已经完成的补丁或搬目录脚本。全部来源、处置理由和检查点在 [commits.json](commits.json)，181 个 Native 路径映射在 [path-map.json](path-map.json)。总约束和验收范围见 [PLAN.md](PLAN.md)。
 
@@ -113,6 +113,6 @@ T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.
 
 ## 后续同步规则
 
-本分支覆盖范围的下一段从 `74f2bfe1` 之后开始，但发布基线仍要等本轮验收且产品 main 接受后再更新。重新 fetch 时记录新的不可变 SHA，勿移动当前冻结端点。新的增量继续分类为 adapted / covered_by_product / reference_only / not_applicable / superseded，并写理由。
+本分支覆盖范围的下一段从 `61cb4c64` 之后开始。重新 fetch 时记录新的不可变 SHA；新的增量继续分类为 adapted / covered_by_product / reference_only / not_applicable / superseded，并写理由。
 
 功能回推 master 从干净的上游分支提取，方案见 [UPSTREAM_PACKETS.md](UPSTREAM_PACKETS.md)。不要把此产品分支整体 merge 到 WineHua。

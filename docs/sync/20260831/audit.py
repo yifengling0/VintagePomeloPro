@@ -18,7 +18,7 @@ mapping = json.loads((HERE / "path-map.json").read_text())["paths"]
 base, start, tip = (ledger[k] for k in ("product_base", "upstream_base", "upstream_tip"))
 sources = git("rev-list", f"{start}..{tip}").splitlines()
 recorded = [c["source"] for c in ledger["commits"]]
-assert len(recorded) == len(set(recorded)) == 69
+assert len(recorded) == len(set(recorded)) == len(sources)
 assert set(recorded) == set(sources), "Source interval has missing/extra ledger entries"
 allowed = {"adapted", "covered_by_product", "reference_only", "not_applicable", "superseded"}
 for item in ledger["commits"]:

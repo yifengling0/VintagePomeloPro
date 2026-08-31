@@ -1,14 +1,14 @@
 # 下一轮最小入口
 
-当前代码：`codex/sync-master-20260831`，运行时提交 `42e9330a`；后续文档提交不改变二进制。原产品 main、其他工作树、所有子模块 pins 均未移动；没有 push。T1–T7 已完成，**不要重新移植 69 项或重搬 181 个 Native 文件**。
+当前代码：`codex/sync-master-20260831`。产品 main `2c043636` 与 WineHua master `61cb4c64` 已刷新核对；`d256317e..61cb4c64` 共 75 项全部有处置。原产品 main、其他工作树和所有子模块 pins 均未移动。T1–T7 与新增 master 增量已完成，**不要重新移植 75 项或重搬 181 个 Native 文件**。
 
-先执行 `git status --short`、`git log -1 --oneline`，读 STATUS 的 Current handoff。只选下面一个未完成项，再读 OPEN_ISSUES 中对应条目及 DEVICE_RESULTS 的对应证据。不要一次载入全部 Git 历史、完整 hilog 或所有截图。
+用户已接受现有设备结果并要求停止测试。当前任务是先创建产品 `main` PR，再从干净的 `61cb4c64` 上游分支启动 UPSTREAM_PACKETS 的反向贡献；不再安装候选或继续手机回归。PR 必须保留 OPEN_ISSUES/DEVICE_RESULTS 中的实际限制。
 
-## 当前优先任务：I1 前台 GL 告警；I4 保留观察
+## 当前优先任务：产品 main PR 与干净上游回推
 
-先读 `gl-resize-device-summary.json` 和 OPEN_ISSUES I1；需要旧对照时才读 `gl-i1-minimal.json`。`42e9330a` 已让几何缩放保留 EGL context/window surface 与 NativeImage consumer queue，五轮十次尺寸变化保持同一 key 且全部可见；不要撤回为每次 Destroy/recreate。完整 905 秒中 consumer 成功帧 98,280、通知 101,525、empty-update 35，说明 queue producer 持续领先 120 Hz consumer；producer 的 20 次 NO_BUFFER 都在最后一次缩放前。下一步 Terra 只验证 EGL queue transport 去掉 0.5 ms dispatch lead 后的通知/成功帧差与两类 NO_BUFFER；Vulkan/Direct 的 lead 不动。`dc287c9f` 的后台消费也不要重做；禁止混用 AcquireNativeWindowBuffer 与 UpdateSurfaceImage、增加无界阻塞、清错误统计或改 UI/pins 来取得通过。Luna 用同一 x64 GL 五轮缩放与 900 秒有界运行复核实际画面、PID、key、最终 counters 和错误区间；启动失败单独保留，不能以成功重试覆盖。
+当前源码含 `9bce0b9f` 的 EGL queue pacing 候选（完整 host 与双 ABI HAP 构建通过、未安装）以及 `eb780253` 对 master `ff865647` 的 VKD3D semaphore-feedback 适配（focused host PASS、未新建 HAP）。用户明确停止后续测试，因此两项都必须在 PR 中标明设备未复核；手机仍安装 `42e9330a`。先让 source audit PASS、推送产品分支并创建 base=`main` 的 PR。随后从 `61cb4c64` 新建干净上游分支，先做不依赖子模块的 P1/P2；P3/P4 必须按子模块先行，产品 UI/品牌/签名/设备记录不能进入上游。
 
-I4 回收包已经由 `252176de` 完成：SIGCHLD 只通知、普通线程只回收本模块登记的 fork child、握手前登记、晚到的 label 不复活退出进程、fd 由 reader 单独关闭。132 项真实信号/进程检查和完整主机门禁通过，旧源码在早期退出发布处失败。主进程 52298 的五步成功序列仍有效，但安装 42 前的 252 主进程 60091 又在冷 x64 GL 启动中保持 metadata-only/0 surfaces/0 renderers 197 秒，GL guest 根本未启动；回收线程仍在发布真实退出。先读小文件 `reaper-cold-first-frame-failure.json`，不要再次实现统一回收器，也不要把 c5 的“备用 handler 仍覆盖”描述当作当前代码或声称 I4 已解决。
+I1/I4、Legacy D3D9 和缺失资产的既有证据继续保留为已知限制，不在创建 PR 前继续追测。实体手柄按用户要求延期，不作为这次 main PR 阻塞条件，也不能改写成已通过。
 
 这项完成不能自动关闭全部历史 metadata-only/零 toplevel 故障、手机 void Main 丢返回码或 guest loader 错误。若再复现 I4，先对照本次五步成功摘要，再按 PID/时间读对应原日志；需要理解退出码时才读 `startup-i4-failed-boot-minimal.json` 与 `startup-exit-signal-false-failure.json`。`56345d67` 是被真机否决的中间包，禁止作为接受包使用。Wine 的 SIGKILL 清理不等于 Windows 失败，不能恢复 128+signal 映射。Box64 的 AGENTS 禁止 AI 代写其贡献；当前不改源码/pins、prefix、超时、重试或 UI 来制造通过。
 

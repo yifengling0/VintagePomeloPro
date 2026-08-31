@@ -60,5 +60,24 @@
     ],
     "host_evidence": "Full host/model/GLES/HUD/navigation/CI gates PASS (gl-resize-host.log). Dual-ABI API23 build, archive/ELF/package audit and SDK signature verification PASS. Reuse audit confirms staged dependencies and wine-data.zip unchanged; relative to 252176de only both ABI libvirgl_child.so entries changed. Host tests cannot exercise the device EGL/NativeWindow resize path.",
     "device_status": "ARM64 main 4378, guest 5138, producer 4718 and consumer 5103: cold x64 wined3d GL rendered for the requested 900 seconds, ten geometry changes across five maximize/restore pairs all logged retained_egl=1 with the same surface key 22067541966873 and visibly correct frames. Two hidden/resume intervals consumed 1179/1648 frames and visibly resumed the same key. No buffer-cache-miss line occurred, but 20 producer RequestBuffer 40601000 errors occurred before the last resize; at normal teardown consumer totals were 98280 successful frames, 101525 notifications and 35 empty UpdateSurfaceImage failures. I1 strict zero-error gate remains FAIL. HAP 481349410 bytes, SHA256 fa79d3bb7e74ed81861bbc0c0f76eb9b6c53909fa2fa309ef27faca1f537cf3c. See DEVICE_RESULTS 22 and gl-resize-device-summary.json."
+  },
+  {
+    "commit": "9bce0b9f82a46ab6aa01d77930d8f364b3ecc775",
+    "reason": "I1 follow-up: a NativeImage queue is consumed on display VSync, so its EGL producer now uses the full normalized display period instead of the 0.5 ms deadline lead. Direct and Venus transports keep their existing lead. Geometry retention, zero request timeout, bounded failure backoff and error accounting remain unchanged.",
+    "native_paths": [
+      "entry/src/main/cpp/graphics/present_pacing.h",
+      "entry/src/main/cpp/graphics/virgl_surface_presenter.cpp"
+    ],
+    "host_evidence": "Present-pacing assertions and full host/model/GLES/HUD/navigation/CI gates PASS. Dual-ABI API23 signed HAP build PASS after verifying 113 reused dependency ELFs and wine-data.zip; HAP 481348956 bytes, SHA256 f80d06a482f5869937fd26c7966f353fb7691fe21d3103017304fda5850d6a55.",
+    "device_status": "Not installed or device-tested: the user stopped further testing and accepted the recorded current limits. This candidate does not replace installed 42e9330a evidence and no zero-NO_BUFFER claim is made."
+  },
+  {
+    "commit": "eb7802531738d420a6b3ff718996457bb48e0dd7",
+    "reason": "Adapt current WineHua master ff865647 into the product Native graphics policy authority. Product legacy-DXVK sessions also expose VKD3D-Proton for D3D12, so their VN_PERF always includes no_semaphore_feedback instead of deriving it only from the selected DXVK generation.",
+    "native_paths": [
+      "entry/src/main/cpp/graphics/graphics_profile.cpp"
+    ],
+    "host_evidence": "Focused graphics_policy_test PASS, including legacy and modern serialized VN_PERF contracts. No UI, session API, runtime selection, guest pin or packaging input changed.",
+    "device_status": "Not device-tested at the user's request to stop testing. Upstream reports the default VKD3D plus legacy-DXVK white-screen path fixed; this product adaptation is recorded without claiming an additional local device pass."
   }
 ]
