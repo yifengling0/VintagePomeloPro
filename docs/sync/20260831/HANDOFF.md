@@ -6,7 +6,7 @@
 
 T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.md](STATUS.md)，再读本文件对应任务，不要重新执行已经完成的补丁或搬目录脚本。全部来源、处置理由和检查点在 [commits.json](commits.json)，181 个 Native 路径映射在 [path-map.json](path-map.json)。总约束和验收范围见 [PLAN.md](PLAN.md)。
 
-当前双 ABI 候选包的运行时代码检查点是 `42e9330a`（含 252 的 beb 根会话、edd IME、dc 后台消费、c5 退出码和统一回收线程，并增加几何缩放保留 EGL/consumer queue 的单文件修复）；后续文档提交不会自动改变已安装 HAP 的二进制来源。最终状态必须同时记录源码 SHA、HAP SHA-256、安装日志、设备结果，不能只记录版本号 1.3.3。最新状态/未通过项以 STATUS、NEXT_TASK 和 DEVICE_RESULTS 22 为准。五轮缩放和两次后台恢复可见通过，但 producer/consumer NO_BUFFER 仍使 I1 严格门禁失败；252 的一次新冷启动又在 197 秒内保持 metadata-only，I4 也未关闭。
+当前双 ABI 候选包的运行时代码检查点是 `42e9330a`（含 252 的 beb 根会话、edd IME、dc 后台消费、c5 退出码和统一回收线程，并增加几何缩放保留 EGL/consumer queue 的单文件修复）；后续文档提交不会自动改变已安装 HAP 的二进制来源。最终状态必须同时记录源码 SHA、HAP SHA-256、安装日志、设备结果，不能只记录版本号 1.3.3。最新状态/未通过项以 STATUS、NEXT_TASK 和 DEVICE_RESULTS 22 为准。五轮缩放、两次后台恢复与完整 905 秒运行可见通过，但 20 次 producer NO_BUFFER 和最终 35 次 consumer empty-update 仍使 I1 严格门禁失败；252 的一次新冷启动又在 197 秒内保持 metadata-only，I4 也未关闭。
 
 ## 不得改变的产品行为
 

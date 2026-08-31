@@ -76,7 +76,7 @@
     - 安装新包前先用已安装 252 冷启动产品路径 x64 wined3d GL。main 60091 于 04:59:19.330 进入“启动桌面”，Explorer attempt=1/3 已起，但只有 metadata toplevel；`surfaces=0 renderers=0` 一直持续到 05:03:44，197 秒时 GL guest 尚未启动，判 FAIL。TID 64612 同期正常发布 signal 与 waitpid(code=0) 退出，证明回收工作但不等于首帧根因解决。失败后才 force-stop；无重试计成功，最小证据 `reaper-cold-first-frame-failure.json`。
     - 新提交只改 `graphics/virgl_surface_presenter.cpp`：geometry-only resize 调 NativeWindow `SET_BUFFER_GEOMETRY` 并保留 EGL context/window surface、consumer queue；display/source-context/direct-transport 变化仍完整 reset。全套 host 门禁 PASS；双 ABI API23 构建、ZIP/ELF/包差异和 SDK signature PASS。HAP 481349410 bytes，SHA256 `fa79d3bb7e74ed81861bbc0c0f76eb9b6c53909fa2fa309ef27faca1f537cf3c`；相对 252 只有两个 ABI 的 `libvirgl_child.so` 改变，119 个其他 Native、ArkTS 与 wine-data 不变。
     - 安装后 main 4378 冷 x64 GL 于 05:05:22.258 desktop READY，guest 5138 于 05:05:23.321 启动，producer TID 4718、consumer EGL TID 5103、surface key `22067541966873`。五轮最大化 1408x593/还原 960x540 共十次都记录 `retained_egl=1`，key 不变；十张截图逐张目视为真实旋转方块/棋盘且尺寸正确。两次返回库再点 root 卡恢复，隐藏区间消费 1179/1648 帧，返回后同 key、同 PID 动态 GL 可见；截图 `gl-resize-{max,restore}-1..5.jpeg`、`gl-resize-card-resume{,-2}.jpeg`。
-    - 严格门禁仍 FAIL。完整区间 10 次 geometry change、20 次 producer `NativeWindowRequestBuffer 40601000`、一次前台 consumer `UpdateSurfaceImage 40601000`，没有 cache-miss 行；错误后均恢复继续出图。这说明保留 EGL 消除了本样本的重建/cache 失配，但没有解决 producer/consumer 瞬时队列耗尽。证据 `gl-resize-complete.log`、`gl-resize-device-summary.json`；不能写成 I1 通过或以可见恢复覆盖错误。
+    - guest 按请求运行 900 秒并于 05:20:28 正常离开测试窗口；最终 consumer 计数为 98,280 成功帧、101,525 通知、35 empty-update failures。合并中途与最终 ring 日志可确定 20 次 producer `NativeWindowRequestBuffer 40601000`，都在最后一次 resize 前；没有 cache-miss 行。错误后均恢复继续出图。这说明保留 EGL 消除了本样本的重建/cache 失配，但 producer 的 0.5 ms lead 持续跑在 120 Hz consumer 前面，前台空通知仍周期出现，严格门禁 FAIL。证据 `gl-resize-complete.log`、`gl-resize-end.log`、`gl-resize-device-summary.json`；不能写成 I1 通过或以可见恢复覆盖错误。
     - 本轮没有改 UI、ArkTS、协议、超时/50 ms 退避、GLES Direct 默认、guest 或 pins。手机继续保留常亮；当前包/数据/prefix 未卸载或重置。实体手柄、I4 首帧、I1 零错误和缺失资产门禁继续开放。
 
 音频 PASS 指 guest 提交、host 消费及非零 RMS；没有人耳确认时不声称可听性、音色或延迟通过。当前没有实体手柄输入/马达证据。
@@ -90,6 +90,6 @@
 - RA2/PAL2/Heaven 等指定游戏在当前设备目录未找到，不以 War3 或 smoke 替代；x86_64 Harmony 硬件未提供。构建与 guest x86 测试不等于另一设备 ABI 实测。
 - 受影响主机门禁已在最新 42e9330a 全套重跑通过，日志 `gl-resize-host.log`；其中保留 252 的 132 项真实进程检查及 edd 的真实 Wayland 生命周期 91 checks。双 ABI 包/签名、来源/保护范围与逐提交 Native 修复审计 PASS。当前仍不是全项无缺陷的发行验收。
 
-设备当前安装 42e9330a 包，main 4378 的 x64 GL 有界测试仍在运行且最近一次卡片恢复画面已目视确认；常亮 override=2147483647ms，原 timeout=600000ms 留存。本轮未改 Box64、手柄、触摸板、用户 prefix 或 UI。结束测试时只正常退出自带 smoke/回到应用库，不卸载、不清数据；应用库收尾不算额外 Wine 启动通过。
+设备当前安装 42e9330a 包；main 4378 保留，x64 GL guest 已按 900 秒参数正常结束，蓝色桌面仍在。常亮 override=2147483647ms，原 timeout=600000ms 留存。本轮未改 Box64、手柄、触摸板、用户 prefix 或 UI。后续安装候选前只关闭当前测试会话/回到应用库，不卸载、不清数据；应用库收尾不算额外 Wine 启动通过。
 
 最终验收应逐项更新本文件和 STATUS，并保留失败和限制，不抹去先前严格检查结果。下一轮最小范围见 NEXT_TASK.md。

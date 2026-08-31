@@ -16,7 +16,7 @@
 
 `42e9330a` 将几何变化收窄为 NativeWindow `SET_BUFFER_GEOMETRY`，保留同一 producer EGL context/window surface 与 NativeImage consumer queue；display/source-context 或 direct transport 变化仍执行原完整 reset。主机全套、双 ABI API23 包/ELF/签名和复用审计通过，包内相对 252 只有两种 ABI 的 `libvirgl_child.so` 变化。真机 main 4378/guest 5138 在同一 key `22067541966873` 完成五轮最大化/还原，十次均有 `retained_egl=1` 且截图内容/尺寸正确；两次隐藏分别消费 1179/1648 帧并可见恢复。候选区间没有旧 buffer cache miss。
 
-这仍不是 I1 PASS：完整日志有 20 次 producer `RequestBuffer 40601000`，其中一次发生在初始配置、其余出现在部分缩放后；另有一次前台 consumer `UpdateSurfaceImage 40601000`。每次都能自行恢复并继续出图，但严格零错误门禁仍失败。下一步保留 geometry-only EGL 复用，只用 bounded producer/consumer 时间窗判断是 resize 后生产突发、consumer 更新节奏还是通知合并导致；不要把回退到 destroy/recreate、延长成无界阻塞或隐藏错误当修复。最小入口为 `gl-resize-device-summary.json`，完整日志为 `gl-resize-complete.log`。
+这仍不是 I1 PASS：合并中途与最终日志可确定 20 次 producer `RequestBuffer 40601000`，其中一次发生在初始配置、其余出现在部分缩放后且最后一次 resize 后未再出现。完整 905 秒正常退出时 consumer 成功帧 98,280、通知 101,525、empty-update failure 35；这不是只有一次的缩放残留通知，而是 producer 的 0.5 ms dispatch lead 长期累积后周期性触发空消费。每次都能自行恢复并继续出图，但严格零错误门禁仍失败。下一步保留 geometry-only EGL 复用，只让 EGL queue transport 与 consumer 使用同一 display period，保留 Vulkan/Direct 的 lead；用同一 900 秒与五轮缩放核对通知/帧差和两类 NO_BUFFER。不要把回退到 destroy/recreate、延长成无界阻塞或隐藏错误当修复。最小入口为 `gl-resize-device-summary.json`，最终日志为 `gl-resize-end.log`。
 
 ## I2：同进程 Wine 引擎重建后的 IME 注册
 

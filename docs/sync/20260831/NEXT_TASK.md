@@ -6,7 +6,7 @@
 
 ## 当前优先任务：I1 前台 GL 告警；I4 保留观察
 
-先读 `gl-resize-device-summary.json` 和 OPEN_ISSUES I1；需要旧对照时才读 `gl-i1-minimal.json`。`42e9330a` 已让几何缩放保留 EGL context/window surface 与 NativeImage consumer queue，五轮十次尺寸变化保持同一 key 且全部可见；不要撤回为每次 Destroy/recreate。它没有关闭严格门禁：完整区间仍有 20 次 producer RequestBuffer 40601000 和一次前台 consumer UpdateSurfaceImage 40601000，后续 Terra 只追 producer/consumer 调度和 buffer ownership 的剩余窗口。`dc287c9f` 的后台消费也不要重做；禁止混用 AcquireNativeWindowBuffer 与 UpdateSurfaceImage、增加无界阻塞、清错误统计或改 UI/pins 来取得通过。Luna 用同一 x64 GL 五轮缩放与隐藏/恢复脚本复核实际画面、PID、key、错误区间；启动失败单独保留，不能以成功重试覆盖。
+先读 `gl-resize-device-summary.json` 和 OPEN_ISSUES I1；需要旧对照时才读 `gl-i1-minimal.json`。`42e9330a` 已让几何缩放保留 EGL context/window surface 与 NativeImage consumer queue，五轮十次尺寸变化保持同一 key 且全部可见；不要撤回为每次 Destroy/recreate。完整 905 秒中 consumer 成功帧 98,280、通知 101,525、empty-update 35，说明 queue producer 持续领先 120 Hz consumer；producer 的 20 次 NO_BUFFER 都在最后一次缩放前。下一步 Terra 只验证 EGL queue transport 去掉 0.5 ms dispatch lead 后的通知/成功帧差与两类 NO_BUFFER；Vulkan/Direct 的 lead 不动。`dc287c9f` 的后台消费也不要重做；禁止混用 AcquireNativeWindowBuffer 与 UpdateSurfaceImage、增加无界阻塞、清错误统计或改 UI/pins 来取得通过。Luna 用同一 x64 GL 五轮缩放与 900 秒有界运行复核实际画面、PID、key、最终 counters 和错误区间；启动失败单独保留，不能以成功重试覆盖。
 
 I4 回收包已经由 `252176de` 完成：SIGCHLD 只通知、普通线程只回收本模块登记的 fork child、握手前登记、晚到的 label 不复活退出进程、fd 由 reader 单独关闭。132 项真实信号/进程检查和完整主机门禁通过，旧源码在早期退出发布处失败。主进程 52298 的五步成功序列仍有效，但安装 42 前的 252 主进程 60091 又在冷 x64 GL 启动中保持 metadata-only/0 surfaces/0 renderers 197 秒，GL guest 根本未启动；回收线程仍在发布真实退出。先读小文件 `reaper-cold-first-frame-failure.json`，不要再次实现统一回收器，也不要把 c5 的“备用 handler 仍覆盖”描述当作当前代码或声称 I4 已解决。
 
