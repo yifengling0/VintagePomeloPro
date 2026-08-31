@@ -5,6 +5,9 @@
 #include "present_policy.h"
 #include "present_timing.h"
 #include "native_window_gles_target.h"
+#include "present_target.h"
+#include "presenter_common.h"
+#include "shader_utils.h"
 
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
@@ -27,21 +30,26 @@
 
 namespace {
 
-using SteadyClock = std::chrono::steady_clock;
+// 帧周期常量与工具函数收编于 presenter_common.h (行为平价 — 逻辑与返回值不变)
+using winehua::SteadyClock;
+using winehua::kDefaultFramePeriodNs;
+using winehua::NowUs;
+using winehua::NowNs;
+using winehua::PresentPerfSummaryEnabled;
+using winehua::PresentTarget;
+// 返回码命名化 (数值与旧实现逐点一致, 消费者 virgl_child.cpp 的
+// < -2 且 != -6 日志门控语义保留)
+using winehua::kPresentOk;
+using winehua::kPresentThrottled;
+using winehua::kPresentNoTarget;
+using winehua::kPresentSourceInvisible;
+using winehua::kPresentGlSetupFailed;
+using winehua::kPresentMakeCurrentFailed;
+using winehua::kPresentBlitFailed;
+using winehua::kPresentFenceSyncFailed;
+using winehua::kPresentInvalid;
 
 constexpr auto kVenusTargetAttachTimeout = std::chrono::milliseconds(2500);
-
-uint64_t NowUs()
-{
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
-        SteadyClock::now().time_since_epoch()).count());
-}
-
-uint64_t NowNs()
-{
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-        SteadyClock::now().time_since_epoch()).count());
-}
 
 GLuint CompilePresentShader(GLenum type, const char* source)
 {
@@ -59,10 +67,14 @@ GLuint CompilePresentShader(GLenum type, const char* source)
     return 0;
 }
 
-class SurfaceQueueTarget {
+// virgl 呈现目标 (GL blit)。实现 PresentTarget 接口 (见 present_target.h):
+// 支持 Present, 其 PresentVenus 为防御性死路径返回 kPresentInvalid。
+class SurfaceQueueTarget : public winehua::PresentTarget {
 public:
+    bool IsVulkan() const override { return false; }
+
     int Attach(uint64_t surfaceKey, uint64_t framePeriodNs,
-               OHNativeWindow* window, bool releaseWindowWithUnreference)
+               OHNativeWindow* window, bool releaseWindowWithUnreference) override
     {
         if (!surfaceKey || !window) return -1;
         std::lock_guard<std::mutex> lock(mutex_);
@@ -97,7 +109,7 @@ public:
         return 0;
     }
 
-    int SetFramePeriod(uint64_t framePeriodNs)
+    int SetFramePeriod(uint64_t framePeriodNs) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         const uint64_t displayPeriodNs =
@@ -114,7 +126,7 @@ public:
         return 0;
     }
 
-    int Detach(uint64_t surfaceKey)
+    int Detach(uint64_t surfaceKey) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (surfaceKey_ && surfaceKey && surfaceKey_ != surfaceKey) return -1;
@@ -126,7 +138,7 @@ public:
 
     int Present(GLuint texture, uint32_t width, uint32_t height,
                 uint64_t drawable, uint32_t serial,
-                uint64_t* nextPresentDeadlineNs)
+                uint64_t* nextPresentDeadlineNs) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (nextPresentDeadlineNs) *nextPresentDeadlineNs = 0;
@@ -139,8 +151,8 @@ public:
             glIsTexture(texture) == GL_TRUE;
         GLsync sourceReady = nullptr;
 
-        if (!windowLease_) return -2;
-        if (!sourceVisible) return -3;
+        if (!windowLease_) return kPresentNoTarget;
+        if (!sourceVisible) return kPresentSourceInvisible;
         const uint64_t nowNs = NowNs();
         const uint64_t startedUs = nowNs / 1000;
         if (const uint64_t retry = failureBackoff_.PendingDeadline(nowNs)) {
@@ -155,13 +167,13 @@ public:
             if (nextPresentDeadlineNs)
                 *nextPresentDeadlineNs = pacing.nextDeadlineNs;
             ++throttled_;
-            return 1;
+            return kPresentThrottled;
         }
         sourceReady = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         if (!sourceReady) {
             const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
             if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
-            return -7;
+            return kPresentFenceSyncFailed;
         }
         glFlush();
         if (!EnsureGlLocked(sourceDisplay, sourceContext, width, height))
@@ -176,7 +188,7 @@ public:
             ++failures_;
             const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
             if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
-            return -4;
+            return kPresentGlSetupFailed;
         }
         if (eglMakeCurrent(display_, surface_, surface_, context_) != EGL_TRUE)
         {
@@ -185,7 +197,7 @@ public:
             ++failures_;
             const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
             if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
-            return -5;
+            return kPresentMakeCurrentFailed;
         }
         glWaitSync(sourceReady, 0, GL_TIMEOUT_IGNORED);
         glDeleteSync(sourceReady);
@@ -254,7 +266,7 @@ public:
                             serial, glError, eglError, restored,
                             static_cast<unsigned long long>(failures_),
                             static_cast<unsigned long long>(retry));
-            return -6;
+            return kPresentBlitFailed;
         }
 
         lastPresentNs_ = frameTimestamp;
@@ -302,8 +314,24 @@ public:
                         static_cast<unsigned long long>(failures_),
                         static_cast<unsigned long long>(throttled_));
         }
-        return 0;
+        return kPresentOk;
     }
+
+    // PresentTarget 接口 (见 present_target.h): venus-only 方法与 GL 死路径。
+    int PresentVenus(uint32_t /*contextId*/, uintptr_t /*instance*/,
+                     uintptr_t /*physicalDevice*/, uintptr_t /*device*/,
+                     uintptr_t /*queue*/, uint64_t /*image*/,
+                     uint32_t /*queueFamily*/, uint32_t /*width*/,
+                     uint32_t /*height*/, uint32_t /*format*/, uint32_t /*layout*/,
+                     uint32_t /*serial*/,
+                     uint64_t* /*nextPresentDeadlineNs*/,
+                     void (*)(void*), void*) override
+    {
+        return kPresentInvalid;
+    }
+    bool HasVulkanDevice() override { return false; }
+    bool PrepareDeviceRelease(uint32_t, uintptr_t) override { return false; }
+    bool FinishDeviceRelease(uint32_t, uintptr_t, int32_t) override { return false; }
 
 private:
     bool RetryWithEgl(EGLDisplay display, EGLContext sourceContext,
@@ -416,23 +444,12 @@ private:
                 static_cast<unsigned long long>(generation_), width, height);
         }
 
-        static constexpr const char* vertexSource = R"(#version 300 es
-out vec2 vTexCoord;
-void main() {
-    vec2 positions[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
-    vec2 texcoords[3] = vec2[3](vec2(0.0, 0.0), vec2(2.0, 0.0), vec2(0.0, 2.0));
-    gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
-    vTexCoord = texcoords[gl_VertexID];
-})";
-        static constexpr const char* fragmentSource = R"(#version 300 es
-precision mediump float;
-uniform sampler2D uTexture;
-in vec2 vTexCoord;
-out vec4 outColor;
-void main() { outColor = texture(uTexture, vTexCoord); }
-)";
-        const GLuint vertex = CompilePresentShader(GL_VERTEX_SHADER, vertexSource);
-        const GLuint fragment = CompilePresentShader(GL_FRAGMENT_SHADER, fragmentSource);
+        // 全屏 quad GLSL 收编于 shader_utils (重构第 3 步, 行为平价 — 逐字搬移,
+        // 仅由内嵌字符串改为 shader_utils 命名常量统一存放)
+        const GLuint vertex = CompilePresentShader(
+            GL_VERTEX_SHADER, winehua::kPresentFullscreenQuadVS);
+        const GLuint fragment = CompilePresentShader(
+            GL_FRAGMENT_SHADER, winehua::kPresentFullscreenQuadFS);
         GLuint program = 0;
         if (vertex && fragment)
         {
@@ -579,7 +596,7 @@ public:
         // Stop admitting GL generations after a hung GPU has filled quarantine.
         // Active targets can still detach safely; never destroy their live writes.
         size_t liveGlTargets = retiredVirglTargets_.size();
-        for (const auto& item : surfaces_) if (item.second.virglTarget) ++liveGlTargets;
+        for (const auto& item : surfaces_) if (item.second.target && !item.second.target->IsVulkan()) ++liveGlTargets;
         if (!(flags & winehua::virgl_ipc::kSurfaceVulkan) &&
             winehua::kGlesDirectQualified &&
             liveGlTargets >= 2 * winehua::virgl_ipc::kMaxSurfaces) {
@@ -589,26 +606,24 @@ public:
         }
         auto& entry = surfaces_[surfaceKey];
         entry.missingTargetLogged = false;
-        RetireVirglTargetLocked(surfaceKey, entry.virglTarget);
+        RetireTargetLocked(surfaceKey, entry.target);
         entry.info.flags =
             (entry.info.flags & ~(winehua::virgl_ipc::kSurfaceVulkan |
                                   winehua::virgl_ipc::kSurfaceAttached)) |
             (flags & winehua::virgl_ipc::kSurfaceVulkan);
         int result;
-        if (entry.info.flags & winehua::virgl_ipc::kSurfaceVulkan)
+        const bool vulkan =
+            (entry.info.flags & winehua::virgl_ipc::kSurfaceVulkan) != 0;
+        if (vulkan)
         {
-            RetireVenusTargetLocked(surfaceKey, entry.venusTarget);
-            entry.venusTarget = std::make_unique<winehua::VenusSurfaceQueueTarget>();
-            result = entry.venusTarget->Attach(surfaceKey, framePeriodNs, window,
-                                                releaseWindowWithUnreference);
+            entry.target = std::make_unique<winehua::VenusSurfaceQueueTarget>();
         }
         else
         {
-            RetireVenusTargetLocked(surfaceKey, entry.venusTarget);
-            entry.virglTarget = std::make_unique<SurfaceQueueTarget>();
-            result = entry.virglTarget->Attach(surfaceKey, framePeriodNs, window,
-                                               releaseWindowWithUnreference);
+            entry.target = std::make_unique<SurfaceQueueTarget>();
         }
+        result = entry.target->Attach(surfaceKey, framePeriodNs, window,
+                                      releaseWindowWithUnreference);
         if (result == 0) {
             entry.info.flags |= winehua::virgl_ipc::kSurfaceAttached;
             targetCondition_.notify_all();
@@ -621,9 +636,8 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = surfaces_.find(surfaceKey);
         if (it == surfaces_.end()) return 0;
-        RetireVirglTargetLocked(surfaceKey, it->second.virglTarget);
+        RetireTargetLocked(surfaceKey, it->second.target);
         CollectRetiredVirglTargetsLocked();
-        RetireVenusTargetLocked(surfaceKey, it->second.venusTarget);
         ++surfaceGenerations_[surfaceKey];
         surfaces_.erase(it);
         targetCondition_.notify_all();
@@ -637,8 +651,7 @@ public:
         for (auto& [surfaceKey, entry] : surfaces_)
         {
             static_cast<void>(surfaceKey);
-            if (entry.venusTarget &&
-                entry.venusTarget->PrepareDeviceRelease(contextId, device))
+            if (entry.target && entry.target->PrepareDeviceRelease(contextId, device))
                 ++matches;
         }
         for (auto& target : retiredVenusTargets_)
@@ -660,7 +673,7 @@ public:
         for (auto& [surfaceKey, entry] : surfaces_)
         {
             static_cast<void>(surfaceKey);
-            if (entry.venusTarget && entry.venusTarget->FinishDeviceRelease(
+            if (entry.target && entry.target->FinishDeviceRelease(
                     contextId, device, waitResult))
                 ++matches;
         }
@@ -687,12 +700,11 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = surfaces_.find(surfaceKey);
-        if (it == surfaces_.end()) return -2;
-        if (it->second.info.flags & winehua::virgl_ipc::kSurfaceVulkan)
-            return it->second.venusTarget
-                ? it->second.venusTarget->SetFramePeriod(framePeriodNs) : -2;
-        return it->second.virglTarget
-            ? it->second.virglTarget->SetFramePeriod(framePeriodNs) : -2;
+        if (it == surfaces_.end()) return kPresentNoTarget;
+        // target 类型由 Attach 时的 flags 决定, 与 info.flags 的 kind 一致:
+        // 直接经接口调度, 不再按 flags 分流。
+        return it->second.target ? it->second.target->SetFramePeriod(framePeriodNs)
+                                 : kPresentNoTarget;
     }
 
     int Present(uint32_t clientPid, uint32_t surfaceId, GLuint texture,
@@ -700,13 +712,16 @@ public:
                 uint64_t drawable, uint32_t serial,
                 uint64_t* nextPresentDeadlineNs)
     {
-        if (!clientPid || !surfaceId) return -2;
+        if (!clientPid || !surfaceId) return kPresentNoTarget;
         const uint64_t surfaceKey =
             (static_cast<uint64_t>(clientPid) << 32) | surfaceId;
         std::lock_guard<std::mutex> lock(mutex_);
         CollectRetiredVirglTargetsLocked();
         auto& entry = surfaces_[surfaceKey];
-        if (entry.info.flags & winehua::virgl_ipc::kSurfaceVulkan) return -EINVAL;
+        // 防御: GL 帧送达 venus (vulkan) target — 错误通道。原按 info.flags
+        // 判断, 现改按 target 类型 (kind 一致)。无 target 时无法判断, 先
+        // 走 no-target 判定。
+        if (entry.target && entry.target->IsVulkan()) return kPresentInvalid;
         entry.info.surfaceKey = surfaceKey;
         entry.info.clientPid = clientPid;
         entry.info.surfaceId = surfaceId;
@@ -714,8 +729,8 @@ public:
         entry.info.height = height;
         entry.info.serial = serial;
         entry.lastPresentUs = NowUs();
-        if (!entry.virglTarget) return -2;
-        return entry.virglTarget->Present(
+        if (!entry.target) return kPresentNoTarget;
+        return entry.target->Present(
             texture, width, height, drawable, serial, nextPresentDeadlineNs);
     }
 
@@ -737,12 +752,13 @@ public:
                      void (*releaseQueue)(void*),
                      void* queueSyncData)
     {
-        if (!clientPid || !surfaceId) return -EINVAL;
+        if (!clientPid || !surfaceId) return kPresentInvalid;
         const uint64_t surfaceKey =
             (static_cast<uint64_t>(clientPid) << 32) | surfaceId;
         std::unique_lock<std::mutex> lock(mutex_);
         auto& entry = surfaces_[surfaceKey];
-        if (entry.virglTarget) return -EINVAL;
+        // 防御: Vulkan 帧送达 virgl (GL) target — 错误通道。
+        if (entry.target && !entry.target->IsVulkan()) return kPresentInvalid;
         entry.info.surfaceKey = surfaceKey;
         entry.info.clientPid = clientPid;
         entry.info.surfaceId = surfaceId;
@@ -753,7 +769,7 @@ public:
         entry.lastPresentUs = NowUs();
         const auto targetReady = [this, surfaceKey]() {
             const auto it = surfaces_.find(surfaceKey);
-            return it != surfaces_.end() && it->second.venusTarget &&
+            return it != surfaces_.end() && it->second.target && it->second.target->IsVulkan() &&
                    (it->second.info.flags &
                     winehua::virgl_ipc::kSurfaceAttached);
         };
@@ -794,9 +810,10 @@ public:
                         static_cast<unsigned long long>(waitedUs));
         }
         auto readyIt = surfaces_.find(surfaceKey);
-        if (readyIt == surfaces_.end() || !readyIt->second.venusTarget)
+        if (readyIt == surfaces_.end() || !readyIt->second.target ||
+            !readyIt->second.target->IsVulkan())
             return -EAGAIN;
-        return readyIt->second.venusTarget->Present(
+        return readyIt->second.target->PresentVenus(
             contextId, instance, physicalDevice, device, queue, image,
             queueFamily, width, height, format, layout, serial,
             nextPresentDeadlineNs, releaseQueue, queueSyncData);
@@ -846,8 +863,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         for (auto& [surfaceKey, entry] : surfaces_)
         {
-            RetireVirglTargetLocked(surfaceKey, entry.virglTarget);
-            RetireVenusTargetLocked(surfaceKey, entry.venusTarget);
+            RetireTargetLocked(surfaceKey, entry.target);
             ++surfaceGenerations_[surfaceKey];
         }
         surfaces_.clear();
@@ -856,16 +872,6 @@ public:
     }
 
 private:
-    void RetireVirglTargetLocked(uint64_t surfaceKey,
-                                 std::unique_ptr<SurfaceQueueTarget>& target)
-    {
-        if (!target) return;
-        if (target->Detach(surfaceKey) == -EAGAIN)
-            retiredVirglTargets_.push_back(std::move(target));
-        else
-            target.reset();
-    }
-
     void CollectRetiredVirglTargetsLocked()
     {
         // Each target polls its fences once, with zero timeout. The regular
@@ -876,12 +882,18 @@ private:
             retiredVirglTargets_.end());
     }
 
-    void RetireVenusTargetLocked(
-        uint64_t surfaceKey,
-        std::unique_ptr<winehua::VenusSurfaceQueueTarget>& target)
+    // Preserve deferred GL fence retirement as well as Vulkan device ownership.
+    void RetireTargetLocked(uint64_t surfaceKey, std::unique_ptr<PresentTarget>& target)
     {
         if (!target) return;
-        target->Detach(surfaceKey);
+        const int result = target->Detach(surfaceKey);
+        if (!target->IsVulkan()) {
+            if (result == -EAGAIN)
+                retiredVirglTargets_.push_back(std::move(target));
+            else
+                target.reset();
+            return;
+        }
         if (target->HasVulkanDevice())
             retiredVenusTargets_.push_back(std::move(target));
         else
@@ -890,8 +902,7 @@ private:
 
     struct Entry {
         winehua::virgl_ipc::SurfaceInfo info;
-        std::unique_ptr<SurfaceQueueTarget> virglTarget;
-        std::unique_ptr<winehua::VenusSurfaceQueueTarget> venusTarget;
+        std::unique_ptr<PresentTarget> target;
         uint64_t lastPresentUs = 0;
         bool missingTargetLogged = false;
     };
@@ -900,9 +911,8 @@ private:
     std::condition_variable targetCondition_;
     std::unordered_map<uint64_t, Entry> surfaces_;
     std::unordered_map<uint64_t, uint64_t> surfaceGenerations_;
-    std::vector<std::unique_ptr<SurfaceQueueTarget>> retiredVirglTargets_;
-    std::vector<std::unique_ptr<winehua::VenusSurfaceQueueTarget>>
-        retiredVenusTargets_;
+    std::vector<std::unique_ptr<PresentTarget>> retiredVirglTargets_;
+    std::vector<std::unique_ptr<PresentTarget>> retiredVenusTargets_;
 };
 
 SurfaceQueuePresenterManager g_presenters;

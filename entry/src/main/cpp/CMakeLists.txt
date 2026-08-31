@@ -60,6 +60,7 @@ add_library(entry SHARED
     compositor/compositor_utils.cpp
     compositor/geometry.cpp
     compositor/desktop_compositor.cpp
+    compositor/zc_bridge.cpp
     compositor/frame_composer.cpp
     compositor/frame_pipeline.cpp
     compositor/input_resolver.cpp
@@ -122,6 +123,7 @@ add_library(virgl_child SHARED
     venus_surface_presenter.cpp
     native_window_vk_target.cpp
     native_window_gles_target.cpp
+    shader_utils.cpp
     phone_adapter/phone_virgl_dispatch.cpp
 )
 target_link_libraries(virgl_child PUBLIC

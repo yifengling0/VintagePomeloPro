@@ -2,6 +2,8 @@
 #include "compositor/input_resolver.h"
 #include "compositor/toplevel_manager.h"
 #include "compositor/surface_data.h"
+#include "graphics_broker.h"
+#include "plugin_manager.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -85,6 +87,30 @@ struct Scene {
 };
 
 int main() {
+    { // Fallback keeps GPU ownership until a strictly newer SHM frame exists.
+        Scene s;
+        auto& zc = s.comp.zc();
+        zc.BindSurface(3, 10); zc.Activate(3, 1);
+        CHECK(zc.IsActive(3) && zc.IsReadyPublished(3) &&
+              winehua::GraphicsBroker::GetInstance().ready[3], "GPU activation publishes readiness");
+        zc.BeginFallback(3, 20, true, 1);
+        CHECK(zc.IsActive(3) && !zc.IsReadyPublished(3) &&
+              !winehua::GraphicsBroker::GetInstance().ready[3], "fallback revokes guest ready before CPU ownership");
+        CHECK(!zc.ConfirmFallback(3, 20) && zc.IsActive(3), "stale SHM cannot confirm fallback");
+        CHECK(zc.ConfirmFallback(3, 21) && !zc.IsActive(3), "fresh SHM restores CPU ownership");
+        zc.Activate(3, 1); zc.BeginFallback(3, 21, true, 1); zc.CancelFallback(3); zc.Activate(3, 1);
+        CHECK(zc.IsReadyPublished(3) && !zc.IsFallbackPending(3), "GPU recovery cancels pending fallback");
+        zc.Release(3, 1); zc.Release(3, 1);
+        CHECK(!zc.IsActive(3) && !zc.IsReadyPublished(3), "release is idempotent");
+    }
+    { // Missing renderer capabilities must choose composition, preserving pixels.
+        Scene s(800, 600); s.setWindow(2, 400, 300, 0xff123456);
+        s.sub(0, 0, 400, 300, 0xff654321); s.fullscreen(true);
+        PluginManager::GetInstance()->policy.bits = 0;
+        CHECK(s.take() && s.frame.kind == PresentedFrame::Kind::Composed && s.width == 800,
+              "insufficient direct-pass capabilities select composition");
+        PluginManager::GetInstance()->policy.bits = winehua::kDirectPassCapabilitiesAll;
+    }
     { // Direct buffer size must never replace desktop input coordinates.
         Scene s(800, 600); s.setWindow(2, 400, 300, 0xff123456);
         s.sub(0, 0, 400, 300, 0xff654321); s.fullscreen(true);
@@ -142,7 +168,7 @@ int main() {
         s.childData.vpDstW = 400; s.childData.vpDstH = 300;
         s.comp.SetSurfaceZeroCopy(3, true);
         ZeroCopyLayerInfo g;
-        CHECK(s.comp.GetZeroCopyLayerInfo(3, 1, 400, 300, g) && g.protocolOnly && g.width == 800,
+        CHECK(s.comp.GetZeroCopyLayerInfo(3, 1, 400, 300, g) && g.source == ZeroCopySource::ProtocolOnly && g.width == 800,
               "protocol-only Vulkan uses the same fit");
         CHECK(s.take() && s.width == 800 && s.pixel(20, 20) == 0xff000000,
               "protocol-only fullscreen GPU preserves the compositor base");

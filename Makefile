@@ -446,6 +446,7 @@ test: graphics-contract-check
 	    $(ROOT)/entry/src/main/cpp/compositor/desktop_compositor.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/frame_pipeline.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/frame_composer.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/zc_bridge.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/input_resolver.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/toplevel_manager.cpp \
 	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp \
@@ -460,6 +461,10 @@ test: graphics-contract-check
 	    -o $(HOST_TEST_DIR)/blit_clip_test \
 	    $(ROOT)/host_tests/blit_clip_test.cpp
 	$(HOST_TEST_DIR)/blit_clip_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/zorder_test \
+	    $(ROOT)/host_tests/zorder_test.cpp
+	$(HOST_TEST_DIR)/zorder_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/env_spec_test \
 	    $(ROOT)/host_tests/env_spec_test.cpp \

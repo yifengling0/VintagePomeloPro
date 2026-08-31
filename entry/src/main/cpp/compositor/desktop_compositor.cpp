@@ -3,12 +3,14 @@
 #include "frame_pipeline.h"
 #include "toplevel_manager.h"
 #include "compositor_utils.h"
+#include "compositor/zorder_policy.h"
 #include "geometry.h"
 #include "compositor/surface_data.h"
 #include "perf_utils.h"
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <unordered_map>
 #include <hilog/log.h>
 
 #undef LOG_DOMAIN
@@ -26,6 +28,7 @@ DesktopCompositor::DesktopCompositor(ToplevelManager& tmgr,
     , desktopRootToplevelId_(desktopRootToplevelId)
     , outputW_(outputW)
     , outputH_(outputH)
+    , zc_(*this)  // ZcBridge 绑定本类 (friend 访问层容器/tmgr/policy/root/dirty)
 {
 }
 
@@ -102,23 +105,21 @@ bool DesktopCompositor::ReorderSubsurfaceLayerBelow(wl_resource* child, wl_resou
     return true;
 }
 
-void DesktopCompositor::RemoveZeroCopyKeyLocked(uint64_t surfaceKey)
-{
-    zeroCopySurfaceKeys_.erase(surfaceKey);
-}
-
 const DesktopCompositor::SubsurfaceLayer*
 DesktopCompositor::FindZeroCopyLayerForToplevelLocked(uint32_t id) const
 {
+    // toplevel 的 zero-copy subsurface 层查找 — 层集合判定单一实现 (ZcBridge::
+    // HasLayerForToplevel / GetContentSize 共用, 同一遍历同一谓词); ZC key 权威
+    // 集合已迁至 zc_ (ZcBridge::activeKeys_)。
     for (const auto& layer : subsurfaceLayers_)
-        if (layer.parentToplevel == id && zeroCopySurfaceKeys_.count(layer.surfaceKey))
+        if (layer.parentToplevel == id && zc_.IsActive(layer.surfaceKey))
             return &layer;
     return nullptr;
 }
 
 bool DesktopCompositor::HasZeroCopyLayerForToplevelLocked(uint32_t id) const
 {
-    return FindZeroCopyLayerForToplevelLocked(id) != nullptr;
+    return zc_.HasLayerForToplevel(id);
 }
 
 std::vector<DesktopCompositor::CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, int rootH)
@@ -137,17 +138,24 @@ std::vector<DesktopCompositor::CompositorLayer> DesktopCompositor::BuildLayerLis
         layers.push_back(std::move(rootLayer));
     }
 
-    // subsurface 层填充块 (原两份逐字相同的填充体合并, 行为不变 — 仅两个
-    // 循环的过滤条件不同): 位置已 Resolve 为桌面坐标; zcActive 由
-    // zeroCopySurfaceKeys_ 派生 (合成/输入跳过, GPU 内容由 egl_renderer 绘制);
-    // zIndex 与调用点共享同一计数器, 分配顺序与合并前一致。
-    auto appendSubsurfaceLayer = [&](const SubsurfaceLayer& sl) {
+    // 层序显式化 (重构第 3B 步): 旧"嵌套循环隐式排布" (main 循环按 z-order
+    // 逐窗口块 + 尾部置顶循环) 替换为"排序键显式排布" — 每项先带 ZOrderSeq
+    // 排序键入 pending, std::sort 后按输出顺序分配 zIndex。输出序列与旧
+    // 实现逐元素一致 (行为平价): Root 恒首 → InZOrder 段 (z-order 升序,
+    // 父层 + 其非 external 子层成块, 块内父层恒首位) → TopAnchored 段
+    // (subsurfaceLayers_ 原顺序)。对账点见提交说明。
+
+    // subsurface 层字段填充块 (原两份逐字相同的填充体合并, 行为不变 — 仅
+    // 组归属/排序键不同): 位置已 Resolve 为桌面坐标; zcActive 由
+    // ZcBridge::IsActive (zc_) 派生 (合成/输入跳过, GPU 内容由 egl_renderer
+    // 绘制); zIndex 不再在此分配 — 由排序后的输出顺序统一分配 (输出循环),
+    // 编号与旧行为一致 (分配顺序=最终输出顺序)。
+    auto fillSubsurfaceLayer = [&](const SubsurfaceLayer& sl) -> CompositorLayer {
         CompositorLayer subLayer;
         subLayer.type = CompositorLayer::Type::Subsurface;
-        subLayer.zIndex = zIndex++;
         subLayer.visible = (sl.parentToplevel == rootId) ||
                            tmgr_.IsToplevelVisibleLocked(sl.parentToplevel, rootId);
-        subLayer.zcActive = zeroCopySurfaceKeys_.count(sl.surfaceKey) > 0;
+        subLayer.zcActive = zc_.IsActive(sl.surfaceKey);
         subLayer.toplevelId = sl.parentToplevel;
         int lx = 0, ly = 0;
         ResolveSubsurfaceLayerPositionLocked(sl, lx, ly);
@@ -156,21 +164,39 @@ std::vector<DesktopCompositor::CompositorLayer> DesktopCompositor::BuildLayerLis
         subLayer.w = sl.w;
         subLayer.h = sl.h;
         subLayer.sub = &sl;
-        layers.push_back(std::move(subLayer));
+        return subLayer;
     };
 
+    // 待排项: 排序键 + 排布后的层 (字段构建时即填全, 只差 zIndex)。
+    struct PendingLayer {
+        winehua::ZOrderSeq seq;
+        CompositorLayer layer;
+    };
+    std::vector<PendingLayer> pending;
+    pending.reserve(tmgr_.toplevelZOrder().size() + subsurfaceLayers_.size());
+
+    // --- Toplevel 待排项: 遍历 z-order (与旧 main 循环同序遍历) ---
     // toplevel 层 (z-order 升序) + 各窗口的 subsurface 层挂在其父窗口层内
     // (文档 §4.2): z-order 更高的 toplevel 自然盖住低窗口的 subsurface —
     // 修复"GL 画面 (subsurface) 永远置顶、无法被其它窗口遮挡"。
     // root 由 Root 层表示, 不在 z-order 里重复。
     // 可见性判定与原合成/输入循环同源 (IsToplevelVisibleLocked)。
+    // laneSeq = 该窗口在 z-order 的组内序号 (即已 emit 的窗口序号, 与旧 main
+    // 循环"循环到的顺序"一一对应 — 注意不是 toplevelZOrder_ 原始下标: root
+    // 可能占位在列, 原始下标会把整个 lane 序偏移, 破块序)。
+    std::unordered_map<uint32_t, int64_t> laneOf;  // 父窗口 id → laneSeq
+    laneOf.reserve(tmgr_.toplevelZOrder().size());
+    int64_t zi = 0;
     for (uint32_t childId : tmgr_.toplevelZOrder()) {
         if (childId == rootId) continue;
         const auto* cst = tmgr_.FindToplevelLocked(childId);
         if (!cst) continue;
-        CompositorLayer layer;
+        PendingLayer p;
+        p.seq.group = winehua::ZOrderGroup::InZOrder;
+        p.seq.laneSeq = zi;
+        p.seq.itemSeq = 0;  // 父层恒在同 lane 首位, 子层 (itemSeq=li+1) 其后
+        CompositorLayer& layer = p.layer;
         layer.type = CompositorLayer::Type::Toplevel;
-        layer.zIndex = zIndex++;
         layer.visible = tmgr_.IsToplevelVisibleLocked(childId, rootId);
         layer.toplevelId = childId;
         layer.x = cst->X();
@@ -178,28 +204,57 @@ std::vector<DesktopCompositor::CompositorLayer> DesktopCompositor::BuildLayerLis
         layer.w = cst->Width();
         layer.h = cst->Height();
         layer.fullscreen = cst->IsFullscreen();
-        layers.push_back(std::move(layer));
-
-        // 该窗口的 subsurface 层 (按 subsurfaceLayers_ 原顺序, zIndex 紧随
-        // 父窗口)。弹出式菜单 (isExternal, 跨窗口 offset) 不跟随父窗口 —
-        // 统一置顶, 见尾部追加循环。
-        for (const auto& sl : subsurfaceLayers_) {
-            if (sl.parentToplevel != childId || sl.isExternal) continue;
-            appendSubsurfaceLayer(sl);
-        }
+        laneOf.emplace(childId, zi);
+        pending.push_back(std::move(p));
+        ++zi;
     }
 
-    // 尾部置顶层: parent==root / 不在 z-order 的旧外部层 (任务栏等,
-    // 避免沉底回归) + 所有弹出式菜单 (isExternal)。
+    // --- Subsurface 待排项: 遍历 subsurfaceLayers_ 一次 (旧 main/尾部循环
+    // 各自遍历一次, 过滤条件由密钥生成收口为 ZOrderGroupFor, 行为平价) ---
+    // 弹出式菜单 (isExternal, 跨窗口 offset) 不跟随父窗口 — 统一置顶。
     // 菜单恒置顶语义: 菜单挂的父窗口可能是普通应用窗口 (任务栏按钮右键
     // 菜单 owner 是应用窗口), 若跟随父窗口 z-order, 会被置顶 pin 的任务栏
     // 挡住 — 所有菜单都应叠在任务栏上方 (Windows popup 语义, 2026-08 实测)。
     // 渲染与输入共用本列表 (单一数据源), 置顶后点击菜单的命中同步优先。
+    int64_t li = 0;
     for (const auto& sl : subsurfaceLayers_) {
-        if (sl.parentToplevel == rootId || sl.isExternal ||
-            !tmgr_.IsInZOrder(sl.parentToplevel)) {
-            appendSubsurfaceLayer(sl);
+        const winehua::ZOrderGroup grp = winehua::ZOrderGroupFor(
+            sl.parentToplevel == rootId, sl.isExternal,
+            tmgr_.IsInZOrder(sl.parentToplevel));
+        PendingLayer p;
+        p.seq.group = grp;
+        p.layer = fillSubsurfaceLayer(sl);
+        if (grp == winehua::ZOrderGroup::InZOrder) {
+            // 组归属保证父在 z-order 且非 root (ZOrderGroupFor 已把其余归
+            // TopAnchored), laneOf 必命中; 未命中 (仅 root/父缺失的假设
+            // 态, 与旧 main 循环"跳过缺失父整块"同丢弃)。
+            auto it = laneOf.find(sl.parentToplevel);
+            if (it == laneOf.end()) { ++li; continue; }
+            p.seq.laneSeq = it->second;
+            p.seq.itemSeq = li + 1;  // 子层恒在父层 (itemSeq=0) 之后, 同父
+                                     // 子层按 subsurfaceLayers_ 顺序 (li 递增)
+        } else {
+            // TopAnchored (parent==root / isExternal / 父不在 z-order:
+            // 任务栏等外部层, 避免沉底回归): 恒置顶段, 顺序 = subsurfaceLayers_
+            // 原顺序 (与旧尾部循环一致)。
+            p.seq.laneSeq = 0;
+            p.seq.itemSeq = li;
         }
+        pending.push_back(std::move(p));
+        ++li;
+    }
+
+    // --- 排序 (全序, 键无相等冲突: Toplevel (1,zi,0) 与子层 (1,zi,li+1)
+    // li+1>=1 不同; 同父子层 li 互异; Toplevel 项 zi 互异; TopAnchored
+    // (2,0,li) li 互异; 两段 group 不同) ---
+    std::sort(pending.begin(), pending.end(),
+              [](const PendingLayer& a, const PendingLayer& b) { return a.seq < b.seq; });
+
+    // --- 输出: zIndex 按输出顺序递增 (Root=0 → 后续 1..N) — 与旧行为一致
+    // (旧 zIndex 分配顺序 = 最终输出顺序) ---
+    for (auto& p : pending) {
+        p.layer.zIndex = zIndex++;
+        layers.push_back(std::move(p.layer));
     }
     return layers;
 }
@@ -230,7 +285,7 @@ DesktopCompositor::BuildWindowLayerListLocked(uint32_t toplevelId, int winW, int
         subLayer.type = CompositorLayer::Type::Subsurface;
         subLayer.zIndex = zIndex++;
         subLayer.visible = tmgr_.IsToplevelVisibleLocked(toplevelId, desktopRootToplevelId_);
-        subLayer.zcActive = zeroCopySurfaceKeys_.count(sl.surfaceKey) > 0;
+        subLayer.zcActive = zc_.IsActive(sl.surfaceKey);
         subLayer.toplevelId = toplevelId;
         subLayer.x = sl.localX;
         subLayer.y = sl.localY;
@@ -245,7 +300,7 @@ DesktopCompositor::BuildWindowLayerListLocked(uint32_t toplevelId, int winW, int
     // 与 GetZeroCopyLayerInfo PC 分支同规则)。合成跳过 (GPU 自绘覆盖,
     // 与 desktop 模式同语义: CPU 帧保留 SHM 内容, 不抠除 — GPU 帧不透明
     // 时覆盖等价, fallback 窗口期显示旧 SHM 内容比黑屏稳)。
-    for (uint64_t key : zeroCopySurfaceKeys_) {
+    for (uint64_t key : zc_.activeKeys()) {
         auto* wlRes = tmgr_.FindSurfaceResource(key);
         if (!wlRes) continue;
         auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(wlRes));
@@ -288,7 +343,8 @@ uint32_t DesktopCompositor::PickFullscreenToplevelLocked() const
         if (!tmgr_.IsToplevelVisibleLocked(id, desktopRootToplevelId_)) continue;
         const auto* cand = tmgr_.FindToplevelLocked(id);
         if (!cand || !cand->IsFullscreen()) continue;
-        if (!best || cand->FsPriority() > best->FsPriority()) {
+        if (winehua::ZOrderFullscreenCandidateBeats(cand->FsPriority(),
+                best ? best->FsPriority() : 0, best != nullptr)) {
             best = cand;
             picked = id;
         }
@@ -335,246 +391,8 @@ void DesktopCompositor::ResolveSubsurfaceLayerPositionLocked(
     }
 }
 
-bool DesktopCompositor::GetZeroCopyLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
-                                             int fallbackWidth, int fallbackHeight,
-                                             ZeroCopyLayerInfo& info)
-{
-    auto lk = tmgr_.Lock();
-    if (!ResolveZeroCopyLayerInfoLocked(surfaceKey, rendererToplevelId,
-                                        fallbackWidth, fallbackHeight, info)) return false;
-    if (info.desktopCoordinates && info.fullscreen) {
-        const auto* root = tmgr_.FindToplevelLocked(desktopRootToplevelId_);
-        const auto* parent = tmgr_.FindToplevelLocked(info.parentToplevel);
-        const int rw = root ? root->Width() : outputW_;
-        const int rh = root ? root->Height() : outputH_;
-        if (PickFullscreenToplevelLocked() != info.parentToplevel) return false;
-        FitRect fit;
-        if (!parent || !ComputeFullscreenFitLocked(info.parentToplevel, rw, rh, fit)) return false;
-        FitMapLayerRect(fit, info.x - parent->X(), info.y - parent->Y(),
-                        info.width, info.height, info.x, info.y, info.width, info.height);
-    }
-    return true;
-}
 
-bool DesktopCompositor::HasFullscreenZeroCopyContentLocked(uint32_t id)
-{
-    const auto* parent = tmgr_.FindToplevelLocked(id);
-    if (!parent || !parent->IsFullscreen()) return false;
-    for (uint64_t key : zeroCopySurfaceKeys_) {
-        ZeroCopyLayerInfo info;
-        if (ResolveZeroCopyLayerInfoLocked(key, desktopRootToplevelId_, 0, 0, info) &&
-            info.parentToplevel == id && info.x <= parent->X() && info.y <= parent->Y() &&
-            info.x + info.width >= parent->X() + parent->Width() &&
-            info.y + info.height >= parent->Y() + parent->Height()) return true;
-    }
-    return false;
-}
 
-bool DesktopCompositor::ResolveZeroCopyLayerInfoLocked(uint64_t surfaceKey,
-    uint32_t rendererToplevelId, int fallbackWidth, int fallbackHeight, ZeroCopyLayerInfo& info)
-{
-    auto* wlRes = tmgr_.FindSurfaceResource(surfaceKey);
-    if (!wlRes) return false;
-    auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(wlRes));
-    if (!sd) return false;
-
-    info = {};
-    info.surfaceKey = surfaceKey;
-    info.clientPid = sd->clientPid;
-    info.surfaceId = sd->protocolId;
-    if (sd->isSubsurface && sd->parentSurface)
-    {
-        auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
-        if (!parent || !parent->hasToplevel) return false;
-        info.parentToplevel = parent->toplevelId;
-        info.width = DisplaySizeAfterViewport(sd->vpDstW, sd->w);
-        info.height = DisplaySizeAfterViewport(sd->vpDstH, sd->h);
-        if (policy_.RootCompositing())
-        {
-            if (rendererToplevelId != desktopRootToplevelId_ ||
-                (info.parentToplevel != desktopRootToplevelId_ &&
-                 !tmgr_.IsToplevelVisibleLocked(info.parentToplevel, desktopRootToplevelId_)))
-                return false;
-            for (const auto& layer : subsurfaceLayers_)
-            {
-                if (layer.surface != wlRes) continue;
-                ResolveSubsurfaceLayerPositionLocked(layer, info.x, info.y);
-                // Viewport updates continue while SHM readback is suspended.
-                info.width = DisplaySizeAfterViewport(sd->vpDstW,
-                    fallbackWidth > 0 ? fallbackWidth : layer.w);
-                info.height = DisplaySizeAfterViewport(sd->vpDstH,
-                    fallbackHeight > 0 ? fallbackHeight : layer.h);
-                info.shmCommitSerial = layer.shmCommitSerial;
-                info.desktopCoordinates = true;
-                if (const auto* pst = tmgr_.FindToplevelLocked(layer.parentToplevel))
-                    info.fullscreen = pst->IsFullscreen();
-                info.protocolOnly = false;
-                return info.width > 0 && info.height > 0;
-            }
-
-            // Vulkan private-present surfaces may have no wl_shm commit. Wayland
-            // still supplies the parent/offset while the present protocol supplies
-            // the image dimensions.
-            int sx = sd->subsurfaceX;
-            int sy = sd->subsurfaceY;
-            const auto* parentState = tmgr_.FindToplevelLocked(info.parentToplevel);
-            CompensateMinimizedSubsurfaceOffset(parentState, sx, sy);
-            const int compX = parentState ? parentState->X() : 0;
-            const int compY = parentState ? parentState->Y() : 0;
-            const int wineX = parentState ? parentState->WineX() : 0;
-            const int wineY = parentState ? parentState->WineY() : 0;
-            const int compW = parentState ? parentState->Width() : 0;
-            const int compH = parentState ? parentState->Height() : 0;
-            const bool insideWin = sx >= 0 && sx < compW && sy >= 0 && sy < compH;
-            info.x = (insideWin ? compX : wineX) + sx;
-            info.y = (insideWin ? compY : wineY) + sy;
-            info.width = DisplaySizeAfterViewport(sd->vpDstW, sd->w);
-            info.height = DisplaySizeAfterViewport(sd->vpDstH, sd->h);
-            if (info.width <= 0) info.width = fallbackWidth;
-            if (info.height <= 0) info.height = fallbackHeight;
-            info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
-            info.desktopCoordinates = true;
-            info.protocolOnly = true;
-            if (parentState) info.fullscreen = parentState->IsFullscreen();
-            // 一次性日志去重 (每 key 只打一条): static 局部集合, 调用串行化
-            // 由函数入口的 tmgr_.Lock() 保证
-            static std::unordered_set<uint64_t> protocolGeometryLogged;
-            if (protocolGeometryLogged.insert(surfaceKey).second) {
-                OH_LOG_INFO(LOG_APP,
-                            "[MW-ZC] protocol-only geometry key=%{public}llu "
-                            "pid=%{public}u surface=%{public}u parent=%{public}u "
-                            "offset=%{public}d,%{public}d layer=%{public}dx%{public}d "
-                            "fallback=%{public}dx%{public}d",
-                            static_cast<unsigned long long>(surfaceKey), info.clientPid,
-                            info.surfaceId, info.parentToplevel, sx, sy, info.width,
-                            info.height, fallbackWidth, fallbackHeight);
-            }
-            return info.width > 0 && info.height > 0;
-        }
-
-        if (rendererToplevelId != info.parentToplevel) return false;
-        info.x = sd->subsurfaceX - parent->geoX;
-        info.y = sd->subsurfaceY - parent->geoY;
-        info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
-        return info.width > 0 && info.height > 0;
-    }
-
-    if (!sd->hasToplevel) return false;
-    info.parentToplevel = sd->toplevelId;
-    info.width = sd->w;
-    info.height = sd->h;
-    if (info.width <= 0) info.width = fallbackWidth;
-    if (info.height <= 0) info.height = fallbackHeight;
-    info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
-    if (policy_.RootCompositing())
-    {
-        if (rendererToplevelId != desktopRootToplevelId_ ||
-            (sd->toplevelId != desktopRootToplevelId_ && !tmgr_.IsToplevelVisibleLocked(sd->toplevelId, desktopRootToplevelId_)))
-            return false;
-        if (const auto* st = tmgr_.FindToplevelLocked(sd->toplevelId)) {
-            info.x = st->X();
-            info.y = st->Y();
-            info.fullscreen = st->IsFullscreen();
-        }
-        info.desktopCoordinates = true;
-        return info.width > 0 && info.height > 0;
-    }
-    return rendererToplevelId == sd->toplevelId && info.width > 0 && info.height > 0;
-}
-
-void DesktopCompositor::SetSurfaceZeroCopy(uint64_t surfaceKey, bool enabled)
-{
-    if (!surfaceKey) return;
-    auto lk = tmgr_.Lock();
-    if (enabled)
-        zeroCopySurfaceKeys_.insert(surfaceKey);
-    else
-        zeroCopySurfaceKeys_.erase(surfaceKey);
-    MarkDesktopRootDirtyLocked();
-    desktopCompositionSignature_ = 0;
-}
-
-int DesktopCompositor::GetZeroCopyOccluders(uint64_t surfaceKey, uint32_t rendererToplevelId,
-                                            ZeroCopyOccluderRect* out, int maxOut)
-{
-    if (!out || maxOut <= 0) return 0;
-    ZeroCopyLayerInfo info;
-    if (!GetZeroCopyLayerInfo(surfaceKey, rendererToplevelId, 0, 0, info) ||
-        !info.desktopCoordinates)
-        return 0;
-
-    auto lk = tmgr_.Lock();
-    const int layerL = info.x;
-    const int layerT = info.y;
-    const int layerR = info.x + info.width;
-    const int layerB = info.y + info.height;
-    const auto* rootSt = tmgr_.FindToplevelLocked(desktopRootToplevelId_);
-    if (!rootSt) return 0;
-    const int rootW = rootSt->Width();
-    const int rootH = rootSt->Height();
-    FitRect fullscreenFit;
-    const auto* gpuParent = tmgr_.FindToplevelLocked(info.parentToplevel);
-    const bool fitChildren = info.fullscreen && gpuParent &&
-        ComputeFullscreenFitLocked(info.parentToplevel, rootW, rootH, fullscreenFit);
-    int count = 0;
-    auto pushRect = [&](int x, int y, int w, int h) {
-        if (count >= maxOut || w <= 0 || h <= 0) return;
-        const int l = std::max({x, layerL, 0});
-        const int t = std::max({y, layerT, 0});
-        const int r = std::min({x + w, layerR, rootW});
-        const int b = std::min({y + h, layerB, rootH});
-        if (r <= l || b <= t) return;
-        out[count++] = {l, t, r - l, b - t};
-    };
-
-    auto zbegin = tmgr_.toplevelZOrder().begin();
-    auto zcIt = tmgr_.toplevelZOrder().end();
-    if (info.parentToplevel != desktopRootToplevelId_) {
-        zcIt = std::find(tmgr_.toplevelZOrder().begin(), tmgr_.toplevelZOrder().end(),
-                         info.parentToplevel);
-        if (zcIt != tmgr_.toplevelZOrder().end()) zbegin = std::next(zcIt);
-    }
-    for (auto zit = zbegin; zit != tmgr_.toplevelZOrder().end() && count < maxOut; ++zit) {
-        const uint32_t cid = *zit;
-        if (!tmgr_.IsToplevelVisibleLocked(cid, desktopRootToplevelId_)) continue;
-        const auto* cst = tmgr_.FindToplevelLocked(cid);
-        if (!cst) continue;
-        // Other fullscreen windows are excluded by the composition/input pick.
-        if (fitChildren && cst->IsFullscreen()) continue;
-        if (cst->IsFullscreen()) pushRect(0, 0, rootW, rootH);
-        else pushRect(cst->X(), cst->Y(), cst->Width(), cst->Height());
-    }
-
-    // 新层序 (subsurface 挂父窗口层内, 见 BuildLayerListLocked): 仅父窗口
-    // z-order 不低于 ZC 窗口的层遮挡 ZC (同窗口的菜单等仍在 ZC 层之上);
-    // parent==root / 不在 z-order 的层保持置顶语义, 仍遮挡。
-    for (const auto& layer : subsurfaceLayers_) {
-        if (count >= maxOut) break;
-        if (zeroCopySurfaceKeys_.count(layer.surfaceKey)) continue;
-        if (layer.parentToplevel != desktopRootToplevelId_ &&
-            !tmgr_.IsToplevelVisibleLocked(layer.parentToplevel, desktopRootToplevelId_)) continue;
-        if (layer.parentToplevel != info.parentToplevel &&
-            layer.parentToplevel != desktopRootToplevelId_) {
-            const auto pit = std::find(tmgr_.toplevelZOrder().begin(),
-                                       tmgr_.toplevelZOrder().end(),
-                                       layer.parentToplevel);
-            if (pit == tmgr_.toplevelZOrder().end() || pit < zcIt) continue;
-        }
-        int x = 0, y = 0;
-        ResolveSubsurfaceLayerPositionLocked(layer, x, y);
-        int w = DisplaySizeAfterViewport(layer.vpDstW, layer.w);
-        int h = DisplaySizeAfterViewport(layer.vpDstH, layer.h);
-        if (fitChildren && layer.parentToplevel == info.parentToplevel && !layer.isExternal) {
-            FitMapLayerRect(fullscreenFit, x - gpuParent->X(), y - gpuParent->Y(),
-                            w, h, x, y, w, h);
-        } else if (fitChildren) {
-            const auto* other = tmgr_.FindToplevelLocked(layer.parentToplevel);
-            if (other && other->IsFullscreen()) continue;
-        }
-        pushRect(x, y, w, h);
-    }
-    return count;
-}
 
 // ============================================================================
 // TakeToplevelFrame: 帧输出编排 (纯编排, 不持合成逻辑)

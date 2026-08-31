@@ -10,13 +10,14 @@
 #include <mutex>
 #include "compositor/geometry.h"
 #include "compositor/presented_frame.h"
+#include "compositor/direct_pass_policy.h"  // DirectPassPolicy (直传能力位接口, 任务 3)
 
 struct OH_NativeImage;
 
 // 最小 EGL 渲染器: 从 WaylandServer 取帧 -> GL 纹理 -> XComponent 上屏
 // 所有实例共享同一个 EGLDisplay (避免反复 init/terminate 导致 GPU 驱动竞争)
 // 每个实例拥有独立的 EGLContext + EGLSurface
-class EglRenderer {
+class EglRenderer : public winehua::DirectPassPolicy {
 public:
     // 获取/初始化共享的 EGLDisplay (首次调用时初始化, 线程安全)
     static EGLDisplay GetSharedDisplay();
@@ -41,6 +42,9 @@ public:
     // 内容尺寸 (= 显示 letterbox, content == buffer)。锚未就绪 (首帧前)
     // 或 fit 失败时退回显示 letterbox (与旧 CoordTransform fallback 一致)。
     FitRect GetInputLetterbox() const;
+    // 直传能力位 (DirectPassPolicy, 任务 3): 渲染器 GL 行为声明 —
+    // uForceOpaque/无 GL_BLEND/fit 同源/XRGB 不透明, 恒全备 (来源见 .cpp 实现)
+    uint32_t DirectPassCapabilities() const override;
 
 private:
     void RenderLoop();
@@ -51,19 +55,6 @@ private:
     bool UpdateZeroCopyFrame(int& width, int& height);
     void ReleaseZeroCopyBinding();
     void ShutdownZeroCopyConsumer();
-
-    // -- ZC 状态发布点收敛 (阶段 3) --
-    // 三处状态 (compositor zeroCopySurfaceKeys_ / broker ready marker /
-    // renderer 内部 zeroCopyReadyPublished_) 的全部更新收敛到这三个方法,
-    // 每个幂等 (发布过才撤销)。时序设计: 发布时先 compositor key 后 ready
-    // (先让合成跳过, 再通知 guest 走 ZC); fallback 分两步 — 先撤 ready
-    // (guest 立即切 SHM), 等 shmCommitSerial 越过基线 (新 SHM 帧已到) 再
-    // 撤 compositor key (恢复合成), 避免合成到 ZC 前的旧 SHM 帧。broker 的
-    // attached 集合 (IPC 簿记) 由 Attach/DetachZeroCopyTarget 独立维护,
-    // 不参与合成判定 (CompositorLayer::zcActive 是唯一消费字段)。
-    void PublishZeroCopyActive(uint32_t rendererToplevelId);
-    void UnpublishZeroCopyReady(uint32_t rendererToplevelId);
-    void ClearZeroCopyCompositorKey();
 
     OHNativeWindow* window_ = nullptr;
     EGLDisplay display_ = EGL_NO_DISPLAY;
@@ -87,7 +78,6 @@ private:
     uint64_t zeroCopyCoalescedSignals_ = 0;
     uint64_t zeroCopyDuplicateTimestamps_ = 0;
     uint64_t zeroCopyFailures_ = 0;
-    uint64_t zeroCopyFallbackShmSerial_ = 0;
     uint64_t zeroCopyTimestampRegressions_ = 0;
     int64_t zeroCopyLastTimestamp_ = 0;
     uint64_t zeroCopySurfaceKey_ = 0;
@@ -103,10 +93,8 @@ private:
     int zeroCopyLayerH_ = 0;
     bool zeroCopyRegistered_ = false;
     bool zeroCopyListenerSet_ = false;
-    bool zeroCopyReadyPublished_ = false;
     bool zeroCopyHasFrame_ = false;
     bool zeroCopyVulkanSource_ = false;
-    bool zeroCopyFallbackPending_ = false;
     bool zeroCopyGeometryDirty_ = false;
     bool zeroCopyFullscreen_ = false;  // 所属 toplevel 全屏: ZC 层保比例铺满显示区
     uint32_t zeroCopyConsecutiveFailures_ = 0;
