@@ -6,7 +6,13 @@
 
 候选与冻结基线的 x64 短探针均出图并完成四象限校验，但严格日志门禁因 `gl=0x505` 的 blit-drop 告警失败；首组稳定采样两边各一条相同告警。三组采样和长跑已在 DEVICE_RESULTS 中补齐：后两组完成的样本无该告警，原 B3 readiness 失败单独保留；x64 长跑与 x86 后台阶段仍有告警。beb 的五轮 x86 卡片恢复成功，但整段有 10 行告警、末次 drops=1080。不能因基线复现就判定频率/恢复完全一致，也不把改善 root 卡片的 ArkTS 修复当 GL 错误修复。
 
-定向任务建议：Terra 只读 `graphics/virgl_surface_presenter.*`、错误退避 policy、guest/host transport 和对应单次日志；先判断错误归属、是否遗留 GL error、分配/重建期间的失败及恢复时间。不得直接清掉错误检查、删除日志门禁或把失败行过滤掉来取得 PASS。若需修改 guest，另开子模块任务，本轮 pins 保持不动。
+2026-09-01 新证据把后台持续失败定位到队列耗尽：edd 的 PID 44689 在 03:09:55.690 隐藏 tl=1；18 ms 后同生产线程报告 `Released=0 Requested=0 Flushed=2 Acquired=1`、NativeWindow `RequestBuffer ret:40601000` 和 `gl=0x505`。主 renderer 的 loop=10091 一直暂停，生产端按既有 50 ms 退避重试，最后告警 drops=5640。03:14:47.898 恢复同 key 后重新出图，生产端错误停止。证据 `gl-i1-before-events.log`、`gl-i1-before-resume.log` 及截图；这是 NO_BUFFER 路径的实证，不把所有 0x505 都推断为显存不足。
+
+`dc287c9f` 只改 EglRenderer 两个文件：隐藏时用帧通知唤醒同一 EGL 线程执行 UpdateSurfaceImage，不绘制/交换隐藏 XComponent；现有 SetFramePeriod 接口限制后台约 30 Hz，恢复时显式还原原 VSync 周期。没有混用 NativeImage 手动 Acquire/Release，没有改 WHIP、guest pins、默认关闭的 GLES Direct、producer 错误检查或退避。帧、暂停与关闭状态按同一个 CV mutex 发布，避免检查/等待间丢通知。
+
+真机 PID 53844 的两次后台区间分别消费 2000/1422 帧，display loop 保持不动；同 key `234835926843417` 返回后实际恢复 GL。后台生产端没有 NO_BUFFER/0x505，后台停止引擎也完成资源释放和 Shutdown，再注册并启动 Modern D3D11。已有 host 全套、双 ABI Native/HAP、来源/包审计通过。详见 DEVICE_RESULTS 19；这只关闭后台持续耗尽的定向路径。
+
+**I1 仍未全项通过**：同一候选在 03:23:28 最大化时，EGL window 重配后出现 `Flushed=3 Acquired=0`、RequestBuffer NO_BUFFER 和 `gl=0x505`；随后恢复出图。前台消费端也有 UpdateSurfaceImage NO_BUFFER（信号合并/通知时序尚未定论）。下一步 Terra 先读 `gl-i1-minimal.json`，只追缩放的队列/旧 buffer 生命周期与残留通知；需要时再看单个时间窗和 `egl_renderer.cpp`、`virgl_surface_presenter.cpp`。不能把队列耗尽当成成功、清掉错误检查、删除日志门禁或用成功重试覆盖失败。若需修改 guest，另开子模块任务，本轮 pins 保持不动。
 
 ## I2：同进程 Wine 引擎重建后的 IME 注册
 
@@ -30,6 +36,8 @@
 - x86_64 HAP 已编译并做包检查，但没有 x86_64 Harmony 设备运行证据。
 
 ## I4：第三组候选冷启动未创建桌面
+
+新增 dc287c9f 证据在 `startup-i4-second-recreation.json`（约 4 KB）：PID 53844 第二次同进程引擎重建从 Modern 切 wined3d/x64 smoke，旧 renderer 已 Shutdown，新 shell #7 元数据出现，但 surfaces=0/renderers=0，180 秒仍未 ready。没有执行到新 renderer 的后台等待；这排除了将其直接当作该线程正在等待，但不能排除此前共享状态影响。原 stderr/hilog/截图完整保留，不能与下述 B3/edd 样本未经验证就认定同根因。失败收证后 force-stop 恢复设备，另开 Modern D3D11 控制成功；未重试此 x64 GL 样本，也未计它通过。
 
 `candidate-b3` 在 180 秒 readiness 门禁失败，451 秒截图仍为“启动桌面”。主进程与 Explorer 存活，Wayland 统计始终为零 surface/toplevel；Wine stderr 记录 Explorer guest 在 dlopen 的 SIGSEGV 及 Wine 异常处理恢复信息。现有证据不能认定异常是直接根因，也不能认定这是本次合并引入或基线已有。
 

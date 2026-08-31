@@ -9,5 +9,15 @@
     ],
     "host_evidence": "Real pinned Wayland lifecycle: 91 checks; previous source probe fails second global registration; full host/model/GLES/HUD/navigation/CI gates pass. Logs ime-lifecycle-host.log, ime-lifecycle-before.log, ime-lifecycle-all-host.log in ignored evidence directory.",
     "device_status": "edd6fc87 dual-ABI HAP archive/API/ELF/signature PASS. ARM64 PID 18390: cold Chinese, LAB/product engine recreation Chinese and desktop-card resume/continued Chinese visibly PASS. Three shutdown/re-registration cycles in one app process. The armed-before-third-restart first notepad launch exited before a window; one same-engine retry rendered and accepted Chinese. Preserve that startup failure separately (I4); do not claim all restart launches pass. See DEVICE_RESULTS item 18 and ime-lifecycle-device-final.log."
+  },
+  {
+    "commit": "dc287c9fd17add466c814b9426a04507fc5e653d",
+    "reason": "I1 background queue exhaustion: consume NativeImage frame notifications on the owning EGL thread without drawing/swapping the hidden XComponent; use the existing 30 Hz frame-period limit and restore measured foreground pacing. Serialize CV predicates with notification to avoid missed pause/frame/shutdown wakes. UI, guest pins, WHIP protocol and presenter error handling unchanged.",
+    "native_paths": [
+      "entry/src/main/cpp/graphics/egl_renderer.cpp",
+      "entry/src/main/cpp/graphics/egl_renderer.h"
+    ],
+    "host_evidence": "Existing full host/model/GLES/HUD/navigation/CI suite PASS (gl-background-host.log); both ABI application Native and signed HAP PASS (gl-background-hap.log). Reuse audit verifies 113 staged dependency ELFs and unchanged wine-data.zip. Only two libentry.so files differ from edd; ArkTS and other 119 Native entries identical. No new host test of EGL execution; device transition evidence is required.",
+    "device_status": "ARM64 PID 53844: two x86 GL hidden/resume intervals consumed 2000/1422 frames at about 30 Hz, stable display-loop count, same key and visible GL resumed. Paused teardown completed; Modern D3D9 hidden/resume consumed 2499 frames. Independent PID 62830 Venus/D3D11 hidden/resume consumed 2265 frames. All four hidden intervals had zero producer/consumer queue errors. Resize/API-switch GL drops and foreground consumer NO_BUFFER remain. A second engine recreation for x64 GL did not become desktop-ready in 180 seconds; retained as I4, not an x64 GL pass. SDK signature verification passed. See DEVICE_RESULTS item 19, gl-i1-minimal.json and startup-i4-second-recreation.json."
   }
 ]
