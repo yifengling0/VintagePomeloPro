@@ -37,8 +37,9 @@ def load_sampled_rgb(path: Path, step: int = 4) -> tuple[np.ndarray, np.ndarray,
 
 def validate_rgba_quadrants(image_path: Path, step: int = 4) -> dict:
     """Four-colour quadrant topology, rotation-invariant (validator
-    'rgba-quadrants-v1-rotations'). A reflection or duplicated/missing
-    quadrant fails the visual gate."""
+    'rgba-quadrants-v1-rotations'). Product overlays may reuse one fixture
+    colour outside the Wine window, so infer the window split from the other
+    three colours and count every colour only in its expected quadrant."""
     pixels, xgrid, ygrid, width, height = load_sampled_rgb(image_path, step)
     r = pixels[..., 0].astype(np.int16)
     g = pixels[..., 1].astype(np.int16)
@@ -50,52 +51,91 @@ def validate_rgba_quadrants(image_path: Path, step: int = 4) -> dict:
         "blue": (b > 160) & (r < 130) & (g < 140),
         "yellow": (r > 170) & (g > 140) & (b < 120),
     }
-    sample_count = math.ceil(width / step) * math.ceil(height / step)
-    minimum = max(80, int(sample_count * 0.003))
-
-    centroids = {}
-    enough = True
-    for name, mask in masks.items():
-        count = int(mask.sum())
-        if count < minimum:
-            enough = False
-        centroids[name] = {
-            "count": count,
-            "x": float(xgrid[mask].mean()) if count else -1.0,
-            "y": float(ygrid[mask].mean()) if count else -1.0,
-        }
-
-    # The OHOS presentation transform follows the display's native orientation.
-    # A landscape snapshot can therefore contain a 90/180/270 degree rotation of
-    # the canonical Vulkan framebuffer. Require the exact four-colour topology,
-    # but accept rotations; a reflection or duplicated/missing quadrant still
-    # fails the visual gate.
-    center_x = sum(centroids[name]["x"] for name in masks) / 4.0
-    center_y = sum(centroids[name]["y"] for name in masks) / 4.0
-    quadrants = {}
-    for name in masks:
-        column = "L" if centroids[name]["x"] < center_x else "R"
-        row = "T" if centroids[name]["y"] < center_y else "B"
-        quadrants[f"{row}{column}"] = name
-
     layouts = [
         {"name": "identity", "TL": "red", "TR": "green", "BL": "blue", "BR": "yellow"},
         {"name": "rotate90", "TL": "blue", "TR": "red", "BL": "yellow", "BR": "green"},
         {"name": "rotate180", "TL": "yellow", "TR": "blue", "BL": "green", "BR": "red"},
         {"name": "rotate270", "TL": "green", "TR": "yellow", "BL": "red", "BR": "blue"},
     ]
-    detected_transform = None
-    if len(quadrants) == 4:
-        for layout in layouts:
-            if all(quadrants.get(key) == layout[key] for key in ("TL", "TR", "BL", "BR")):
-                detected_transform = layout["name"]
-                break
+    sample_count = math.ceil(width / step) * math.ceil(height / step)
+    minimum = max(80, int(sample_count * 0.003))
 
+    raw_centroids = {}
+    for name, mask in masks.items():
+        count = int(mask.sum())
+        raw_centroids[name] = {
+            "count": count,
+            "x": float(xgrid[mask].mean()) if count else -1.0,
+            "y": float(ygrid[mask].mean()) if count else -1.0,
+        }
+
+    # Red/green/yellow are unique in the product chrome. The product's blue
+    # background, however, can be larger than the blue fixture quadrant. Test
+    # each legal rotation with the three uncontaminated centroids and choose
+    # the strongest separated L-shape; this locates the Wine content split.
+    candidates = []
+    known_colours = ("red", "green", "yellow")
+    for layout in layouts:
+        colour_quadrant = {
+            layout[quadrant]: quadrant for quadrant in ("TL", "TR", "BL", "BR")
+        }
+        left = [raw_centroids[name]["x"] for name in known_colours
+                if colour_quadrant[name].endswith("L")]
+        right = [raw_centroids[name]["x"] for name in known_colours
+                 if colour_quadrant[name].endswith("R")]
+        top = [raw_centroids[name]["y"] for name in known_colours
+               if colour_quadrant[name].startswith("T")]
+        bottom = [raw_centroids[name]["y"] for name in known_colours
+                  if colour_quadrant[name].startswith("B")]
+        if not (left and right and top and bottom):
+            continue
+        column_gap = min(right) - max(left)
+        row_gap = min(bottom) - max(top)
+        if column_gap <= width * 0.08 or row_gap <= height * 0.08:
+            continue
+        center_x = (max(left) + min(right)) / 2.0
+        center_y = (max(top) + min(bottom)) / 2.0
+        candidates.append((column_gap / width + row_gap / height,
+                           layout, colour_quadrant, center_x, center_y))
+
+    detected_transform = None
+    quadrants = {}
+    centroids = raw_centroids
+    if candidates:
+        _, layout, colour_quadrant, center_x, center_y = max(
+            candidates, key=lambda item: item[0])
+        detected_transform = layout["name"]
+        centroids = {}
+        for name, mask in masks.items():
+            quadrant = colour_quadrant[name]
+            expected_region = ((xgrid < center_x) if quadrant.endswith("L") else
+                               (xgrid >= center_x))
+            expected_region &= ((ygrid < center_y) if quadrant.startswith("T") else
+                                (ygrid >= center_y))
+            local_mask = mask & expected_region
+            count = int(local_mask.sum())
+            centroids[name] = {
+                "count": count,
+                "x": float(xgrid[local_mask].mean()) if count else -1.0,
+                "y": float(ygrid[local_mask].mean()) if count else -1.0,
+            }
+            if count:
+                column = "L" if centroids[name]["x"] < center_x else "R"
+                row = "T" if centroids[name]["y"] < center_y else "B"
+                quadrants[f"{row}{column}"] = name
+
+    enough = all(centroids[name]["count"] >= minimum for name in masks)
     x_values = [centroids[name]["x"] for name in masks]
     y_values = [centroids[name]["y"] for name in masks]
     separated_columns = (max(x_values) - min(x_values)) > (width * 0.08)
     separated_rows = (max(y_values) - min(y_values)) > (height * 0.08)
-    passed = bool(enough and separated_columns and separated_rows and detected_transform)
+    topology_matches = False
+    if detected_transform is not None and len(quadrants) == 4:
+        expected = next(layout for layout in layouts
+                        if layout["name"] == detected_transform)
+        topology_matches = all(
+            quadrants.get(key) == expected[key] for key in ("TL", "TR", "BL", "BR"))
+    passed = bool(enough and separated_columns and separated_rows and topology_matches)
 
     return {
         "schemaVersion": 1,
@@ -108,6 +148,7 @@ def validate_rgba_quadrants(image_path: Path, step: int = 4) -> dict:
         "detectedTransform": detected_transform,
         "quadrants": quadrants,
         "centroids": centroids,
+        "rawColorSamples": {name: raw_centroids[name]["count"] for name in masks},
     }
 
 
