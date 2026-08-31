@@ -16,7 +16,10 @@
 - T4 complete: ZcBridge owns geometry/key/publication state, occluders use the shared ordered layer list, z-order predicates and explicit sorting adopted; PresentTarget unifies target dispatch and named errors; renderer declares direct-pass capabilities.
 - T4 product adaptations: fullscreen GPU placement and occlusion remain parent-based; Vulkan protocol-only surfaces remain supported; GL failure deadlines, target generations, fence quarantine, device release and default-off GLES Direct preserved. Presenter clocks/shaders shared but product pacing remains authoritative. Shared ZC publication map now has a mutex because PC renderers can run concurrently.
 - T4 gates: `make test` (41 compositor/state checks incl. fresh-SHM fallback and capability rejection, 40 z-order checks) and ARM64 `check-native` passed. Host doubles replace only OHOS renderer discovery and ready-marker IPC.
-- T5 in progress; T6-T8 pending. Intermediate commits are not release-qualified. No full integration or phone-regression completion claim.
+- T5 complete: InputSpaceMapper, InputStateTracker, InputQueue and InputInjector own mapping, state, transport and Wayland injection respectively; upstream popup/scroll focus fixes adopted.
+- T5 product adaptations: queued relative motion retains its surface and checks liveness; geometry/display-fit/epoch changes reset the relative baseline; IME keyboard focus still reaches TextInputManager. Pointer protocol callbacks invalidate relative state through an injected sink instead of restoring a circular dependency. InputTarget retains dimensions used by the product baseline guard.
+- T5 gates: `make test` (including relative geometry/epoch/focus reset cases) and ARM64 `check-native` passed. Runtime dependencies are rebuilding in the isolated container; shader tools copied from the existing build container without modifying it.
+- T6 in progress; T7-T8 pending. Intermediate commits are not release-qualified. No full integration or phone-regression completion claim.
 
 ## Resume
 
