@@ -133,8 +133,9 @@ def hdc_local_path(path: Path) -> str:
     if match:
         suffix = (match.group(2) or "").replace("/", chr(92))
         return f"{match.group(1).upper()}:{chr(92)}{suffix}"
-    if value.startswith("/home/"):
-        return (chr(92) * 2 + "wsl.localhost" + chr(92) + "Ubuntu" +
+    if value.startswith("/"):
+        distro = os.environ.get("WINEHUA_WSL_DISTRO", "Ubuntu")
+        return (chr(92) * 2 + "wsl.localhost" + chr(92) + distro +
                 value.replace("/", chr(92)))
     return value
 
@@ -181,12 +182,20 @@ def get_device_text(hdc: str, device_id: str, remote_path: str) -> str:
     return text[start:end + 1].strip()
 
 
-def save_device_file(hdc: str, device_id: str, remote_path: str, local_path: Path) -> None:
+def save_device_file(hdc: str, device_id: str, remote_path: str,
+                     local_path: Path, required: bool = False) -> bool:
     local_path.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
+    result = subprocess.run(
         [hdc, "-t", device_id, "file", "recv", remote_path,
          hdc_local_path(local_path)],
-        capture_output=True, text=True)
+        capture_output=True, text=True, errors="replace")
+    received = (result.returncode == 0 and local_path.is_file() and
+                local_path.stat().st_size > 0)
+    if not received and required:
+        detail = (result.stdout + result.stderr).strip()
+        raise RuntimeError(
+            f"HDC recv failed remote={remote_path} local={local_path}: {detail}")
+    return received
 
 
 def save_probe_results(hdc: str, device_id: str, run_directory: Path,
@@ -222,8 +231,12 @@ def capture_frame(hdc: str, device_id: str, run_directory: Path, run_id: str,
     remote_image = f"/data/local/tmp/winehua-{run_id}-{test_id}.jpeg"
     local_image = run_directory / f"{test_id}.jpeg"
     visual_json = run_directory / f"{test_id}-visual.json"
-    run_hdc(hdc, device_id, "shell", "snapshot_display", "-f", remote_image)
-    save_device_file(hdc, device_id, remote_image, local_image)
+    snapshot_code, snapshot_output = run_hdc(
+        hdc, device_id, "shell", "snapshot_display", "-f", remote_image)
+    if snapshot_code != 0:
+        raise RuntimeError(
+            f"snapshot_display failed for {test_id}: {snapshot_output.strip()}")
+    save_device_file(hdc, device_id, remote_image, local_image, required=True)
     run_hdc(hdc, device_id, "shell", "rm", remote_image)
     report = validator(local_image)
     write_json(visual_json, report)
@@ -242,8 +255,12 @@ def capture_d3d11_frame(hdc: str, device_id: str, run_directory: Path,
         remote_image = f"/data/local/tmp/winehua-{run_id}-{test_id}.jpeg"
         local_image = run_directory / f"{test_id}.jpeg"
         visual_json = run_directory / f"{test_id}-visual.json"
-        run_hdc(hdc, device_id, "shell", "snapshot_display", "-f", remote_image)
-        save_device_file(hdc, device_id, remote_image, local_image)
+        snapshot_code, snapshot_output = run_hdc(
+            hdc, device_id, "shell", "snapshot_display", "-f", remote_image)
+        if snapshot_code != 0:
+            raise RuntimeError(
+                f"snapshot_display failed for {test_id}: {snapshot_output.strip()}")
+        save_device_file(hdc, device_id, remote_image, local_image, required=True)
         run_hdc(hdc, device_id, "shell", "rm", remote_image)
         attempt_json = visual_json.with_name(f"{test_id}-visual.json.attempt{attempt}")
         last_json = attempt_json
