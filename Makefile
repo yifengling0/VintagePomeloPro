@@ -434,7 +434,7 @@ test-process-lifecycle:
 	    -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/process_lifecycle_test \
 	    $(ROOT)/host_tests/process_lifecycle_test.cpp $(PROCESS_TEST_SOURCE)
-	$(HOST_TEST_DIR)/process_lifecycle_test
+	timeout 20s $(HOST_TEST_DIR)/process_lifecycle_test
 
 .PHONY: graphics-contract-check
 graphics-contract-check:

@@ -21,8 +21,10 @@ struct WineProcessEntry {
     uint64_t endTimestampMs;
     int exitCode;
     std::string exitCodeSource;
-    int stdoutFd;
+    int stdoutFd; // observation only; ReaderThread owns and closes this fd
     std::shared_ptr<std::atomic<bool>> readerActive;
+    bool forkChild = false;
+    bool waitPending = false;
 };
 
 // -- NAPI threadsafe 回调 (由 napi_init.cpp 设置) --
@@ -31,7 +33,7 @@ extern std::string gSockPath;
 
 // -- 进程注册表 --
 WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd,
-                            const std::string& sessionId = "");
+                            const std::string& sessionId = "", bool newForkChild = false);
 void RemoveProcess(pid_t pid, int exitCode = -1,
                    const std::string& exitCodeSource = "unknown");
 void KillAllProcesses();
@@ -49,7 +51,7 @@ void RemoveToplevelAssociation(uint32_t toplevelId);
 std::vector<WineProcessEntry> GetProcessListSnapshot();
 bool QueryProcessSnapshot(pid_t pid, WineProcessEntry* outEntry);
 /** 进程是否仍在注册表中且 running (NCP 后端存活判定的权威依据, 由系统
- *  NCP 退出回调维护; fork 后端由 ProcMon /proc 轮询维护)。 */
+ *  NCP 退出回调维护; fork 后端由注册子进程的 waitpid 回收线程维护)。 */
 bool IsProcessRegisteredRunning(pid_t pid);
 
 // -- 辅助函数 --
@@ -57,6 +59,9 @@ void LogProcessExit(const char* tag, pid_t pid, int status);
 void CloseInheritedFds(std::initializer_list<int> keepFds);
 
 // -- 信号处理 --
+// Call before fork. Only registered fork children are reaped; other modules
+// retain their own waitpid status. Registration wakes the same worker.
+bool EnsureChildReaper();
 void sigchld_handler(int);
 
 // -- 子进程日志读取 --

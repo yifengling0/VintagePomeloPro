@@ -7,6 +7,8 @@
 #include <signal.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <dirent.h>
 #include <cstdlib>
 #include <cstdio>
@@ -45,6 +47,7 @@ static uint64_t TimestampMs() {
 
 // 前向声明
 static void EnsureMonitorRunning();
+static void NotifyChildReaper();
 
 // -- 注册表辅助函数 --
 static std::string NormalizePath(std::string value) {
@@ -82,17 +85,20 @@ static bool IsProcessOrDescendant(pid_t clientPid, pid_t expectedParent) {
 }
 
 WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd,
-                             const std::string& requestedSessionId) {
+                             const std::string& requestedSessionId, bool newForkChild) {
     std::lock_guard<std::mutex> lock(gProcMutex);
     std::string basename = exeFullPath;
     // 兼容 Windows 反斜杠路径 (C:\game\game.exe), 否则完整路径会显示为进程名
     auto slash = basename.find_last_of("/\\");
     if (slash != std::string::npos) basename = basename.substr(slash + 1);
-    // Broker registers the child before the launch worker labels it as an
-    // engine process. Relabeling must not erase an exit received in between.
-    if (exeFullPath.rfind("@engine/", 0) == 0) {
+    // The phone adapter registers immediately after fork, before the handshake
+    // or broker response. Later broker/app labels must preserve this lifetime,
+    // including a child that already exited. A new fork explicitly replaces a
+    // reused PID, rather than inheriting an old wait result.
+    if (!newForkChild) {
         for (auto& entry : gProcRegistry) {
             if (entry.pid != pid) continue;
+            if (!entry.forkChild && exeFullPath.rfind("@engine/", 0) != 0) break;
             entry.exeBasename = basename;
             entry.exeFullPath = exeFullPath;
             if (!requestedSessionId.empty()) entry.sessionId = requestedSessionId;
@@ -103,7 +109,7 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
         [pid](const WineProcessEntry& entry) { return entry.pid == pid; }), gProcRegistry.end());
     while (gProcRegistry.size() >= 128) {
         auto ended = std::find_if(gProcRegistry.begin(), gProcRegistry.end(),
-            [](const WineProcessEntry& entry) { return !entry.running; });
+            [](const WineProcessEntry& entry) { return !entry.running && !entry.waitPending; });
         if (ended == gProcRegistry.end()) break;
         gProcRegistry.erase(ended);
     }
@@ -120,7 +126,9 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
         .exitCode = -1,
         .exitCodeSource = "unknown",
         .stdoutFd = stdoutFd,
-        .readerActive = std::make_shared<std::atomic<bool>>(true)
+        .readerActive = std::make_shared<std::atomic<bool>>(true),
+        .forkChild = newForkChild,
+        .waitPending = newForkChild
     });
     WineProcessEntry& added = gProcRegistry.back();
     for (auto pending = gPendingToplevels.begin(); pending != gPendingToplevels.end();) {
@@ -136,6 +144,7 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
     OH_LOG_INFO(LOG_APP, "[ProcReg] add pid=%{public}d name=%{public}s total=%{public}zu",
                 pid, basename.c_str(), gProcRegistry.size());
     EnsureMonitorRunning();
+    if (newForkChild) NotifyChildReaper();
     return &gProcRegistry.back();
 }
 
@@ -232,7 +241,8 @@ void RemoveProcess(pid_t pid, int exitCode, const std::string& exitCodeSource) {
             if (entry.endTimestampMs == 0) entry.endTimestampMs = TimestampMs();
             entry.exitCode = exitCode;
             entry.exitCodeSource = exitCodeSource;
-            if (entry.stdoutFd >= 0) { close(entry.stdoutFd); entry.stdoutFd = -1; }
+            // ReaderThread owns its fd until EOF/stop. Closing it here could
+            // make the reader close an unrelated, newly reused descriptor.
             return;
         }
     }
@@ -246,7 +256,6 @@ void KillAllProcesses() {
                         entry.pid, entry.exeBasename.c_str());
             *(entry.readerActive) = false;
             kill(entry.pid, SIGKILL);
-            if (entry.stdoutFd >= 0) { close(entry.stdoutFd); entry.stdoutFd = -1; }
         }
     }
     gPendingToplevels.clear();
@@ -323,24 +332,93 @@ void CloseInheritedFds(std::initializer_list<int> keepFds) {
     closedir(d);
 }
 
-// -- SIGCHLD handler: reap NCP child processes spawned by broker --
-void sigchld_handler(int) {
+// Process-lifetime self-pipe: never closed while the handler can run. The child
+// resets signals and closes inherited fds before entering Wine/graphics code.
+static volatile sig_atomic_t gReaperWriteFd = -1;
+
+static void NotifyChildReaper() {
     const int savedErrno = errno;
-    int status;
-    pid_t pid;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        LogProcessExit("broker-child", pid, status);
-        // Wine can use SIGKILL when retiring a successfully completed guest.
-        // The host signal alone does not carry the Windows process exit code.
-        const int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-        RemoveProcess(pid, exitCode, WIFSIGNALED(status) ? "signal" : "waitpid");
+    const int fd = gReaperWriteFd;
+    if (fd >= 0) {
+        const char byte = 1;
+        ssize_t written;
+        do { written = write(fd, &byte, 1); } while (written < 0 && errno == EINTR);
+        // EAGAIN means a wake is already queued. No allocation, log, lock,
+        // waitpid or NAPI operation is allowed in this signal path.
+    }
+    errno = savedErrno;
+}
+
+void sigchld_handler(int) {
+    NotifyChildReaper();
+}
+
+static void ReapRegisteredChildren() {
+    std::vector<pid_t> exited;
+    {
+        std::lock_guard<std::mutex> lock(gProcMutex);
+        for (auto& entry : gProcRegistry) {
+            if (!entry.waitPending) continue;
+            int status = 0;
+            pid_t waited;
+            do { waited = waitpid(entry.pid, &status, WNOHANG); }
+            while (waited < 0 && errno == EINTR);
+            if (waited == 0) continue;
+            if (waited < 0 && errno != ECHILD) continue;
+            entry.waitPending = false;
+            // Reap and publish under the same lock, so PID reuse cannot
+            // receive a previous incarnation's result between these steps.
+            entry.running = false;
+            if (!entry.endTimestampMs) entry.endTimestampMs = TimestampMs();
+            if (waited == entry.pid) {
+                LogProcessExit("broker-child", entry.pid, status);
+                entry.exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+                entry.exitCodeSource = WIFSIGNALED(status) ? "signal" : "waitpid";
+            }
+            OH_LOG_INFO(LOG_APP,
+                "[ProcReg] complete pid=%{public}d name=%{public}s exit=%{public}d source=%{public}s",
+                entry.pid, entry.exeBasename.c_str(), entry.exitCode, entry.exitCodeSource.c_str());
+            exited.push_back(entry.pid);
+        }
+    }
+    for (pid_t pid : exited) {
         if (gStateTsfn) {
             char msg[64];
             snprintf(msg, sizeof(msg), "%d:exited", pid);
             napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
         }
     }
-    errno = savedErrno;
+}
+
+bool EnsureChildReaper() {
+    static const bool started = [] {
+        int fds[2];
+        if (pipe2(fds, O_CLOEXEC | O_NONBLOCK) != 0) return false;
+        struct sigaction action{};
+        action.sa_handler = sigchld_handler;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+        if (sigaction(SIGCHLD, &action, nullptr) != 0) {
+            close(fds[0]);
+            close(fds[1]);
+            return false;
+        }
+        gReaperWriteFd = fds[1];
+        std::thread([readFd = fds[0]] {
+            for (;;) {
+                pollfd pfd{readFd, POLLIN, 0};
+                // The bounded poll also covers coalesced signals and a
+                // child that exits immediately before registration.
+                int result = poll(&pfd, 1, 1000);
+                if (result < 0 && errno == EINTR) continue;
+                char bytes[256];
+                while (read(readFd, bytes, sizeof(bytes)) > 0) {}
+                ReapRegisteredChildren();
+            }
+        }).detach();
+        return true;
+    }();
+    return started;
 }
 
 // -- NCP 进程存活监控 --
@@ -406,7 +484,7 @@ static void ProcessMonitorLoop() {
         {
             std::lock_guard<std::mutex> lock(gProcMutex);
             for (const auto& entry : gProcRegistry) {
-                if (!entry.running) continue;
+                if (!entry.running || entry.forkChild) continue;
                 char procPath[64];
                 snprintf(procPath, sizeof(procPath), "/proc/%d", entry.pid);
                 if (access(procPath, F_OK) != 0) {
@@ -453,6 +531,10 @@ void ReaderThread(int fd, pid_t pid, std::shared_ptr<std::atomic<bool>> active) 
     char buf[2048];
     std::string pending;
     while (*active) {
+        pollfd pfd{fd, POLLIN, 0};
+        int ready = poll(&pfd, 1, 100);
+        if (ready == 0 || (ready < 0 && errno == EINTR)) continue;
+        if (ready < 0) break;
         ssize_t n = read(fd, buf, sizeof(buf) - 1);
         if (n > 0) {
             buf[n] = 0;
@@ -474,22 +556,7 @@ void ReaderThread(int fd, pid_t pid, std::shared_ptr<std::atomic<bool>> active) 
         OH_LOG_INFO(LOG_APP, "[wine:%{public}d] %{public}s", pid, pending.c_str());
     }
     close(fd);
-
-    int status = 0;
-    pid_t waited;
-    do { waited = waitpid(pid, &status, 0); } while (waited < 0 && errno == EINTR);
-    // The SIGCHLD path may already own this child's status. Do not interpret
-    // an uninitialized/absent status as a successful exit or overwrite it.
-    if (waited != pid) return;
-    LogProcessExit("wine", pid, status);
-    int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    RemoveProcess(pid, exitCode, WIFSIGNALED(status) ? "signal" : "waitpid");
-
-    if (gStateTsfn) {
-        char msg[64];
-        snprintf(msg, sizeof(msg), "%d:exited", pid);
-        napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
-    }
+    // The registered-child reaper owns waitpid; EOF is not process exit.
 }
 
 // -- stderr pipe reader (后台线程, 逐行日志) --

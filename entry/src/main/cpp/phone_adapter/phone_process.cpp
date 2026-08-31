@@ -7,6 +7,7 @@
  */
 #include "phone_process.h"
 #include "phone_adapter.h"                     // PHONE_ADAPTER_DUMMY_PROXY
+#include "proc/wine_process.h"
 #include <AbilityKit/native_child_process.h>
 #include <IPCKit/ipc_kit.h>
 
@@ -37,22 +38,6 @@
 #include <hilog/log.h>
 
 namespace {
-
-// ---- 僵尸回收：NCP 由 appspawn 收尸，fork 后主进程必须自己 reap ----
-void InstallReaperOnce() {
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, [] {
-        struct sigaction sa{};
-        sa.sa_handler = [](int) {
-            int saved = errno;
-            while (waitpid(-1, nullptr, WNOHANG) > 0) {}
-            errno = saved;
-        };
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
-        sigaction(SIGCHLD, &sa, nullptr);
-    });
-}
 
 // ---- 关闭除 keep 外的所有继承 fd ----
 void CloseAllFdsExcept(const std::vector<int>& keep) {
@@ -204,7 +189,7 @@ Ability_NativeChildProcess_ErrCode Phone_StartNativeChildProcess(
         return NCP_ERR_INVALID_PARAM;
     }
 
-    InstallReaperOnce();
+    if (!EnsureChildReaper()) return NCP_ERR_INTERNAL;
     int hs[2];
     if (pipe(hs) != 0) return NCP_ERR_INTERNAL;
 
@@ -219,6 +204,7 @@ Ability_NativeChildProcess_ErrCode Phone_StartNativeChildProcess(
         StartChildMain(e.substr(0, pos), e.substr(pos + 1), args, hs[1]);
     }
 
+    AddProcess(child, "@engine/native-child", -1, "", true);
     close(hs[1]);
     bool ok = ParentWaitHandshake(hs[0]);
     for (auto* p = args.fdList.head; p; p = p->next) close(p->fd);
@@ -231,7 +217,7 @@ int Phone_CreateNativeChildProcess(
     const char* libName, OH_Ability_OnNativeChildProcessStarted onProcessStarted)
 {
     if (!libName || !onProcessStarted) return NCP_ERR_INVALID_PARAM;
-    InstallReaperOnce();
+    if (!EnsureChildReaper()) return NCP_ERR_INTERNAL;
 
     int hs[2], cfg[2];
     if (pipe(hs) != 0) return NCP_ERR_INTERNAL;
@@ -250,6 +236,7 @@ int Phone_CreateNativeChildProcess(
         CreateChildMain(libName, hs[1], cfg[1]);
     }
 
+    AddProcess(child, "@engine/virgl", -1, "@engine/virgl", true);
     close(hs[1]); close(cfg[1]);
     bool ok = ParentWaitHandshake(hs[0]);
     if (ok) {
