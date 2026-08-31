@@ -29,6 +29,15 @@ inline uint64_t PresentPacingPeriodNs(uint64_t displayPeriodNs)
         : kMinPresentFramePeriodNs;
 }
 
+// A NativeImage queue is drained by the display-paced consumer. Dispatching
+// its producer early on every frame eventually overtakes that consumer and
+// leaves callbacks for buffers already coalesced by UpdateSurfaceImage.
+// Match the consumer period; deadline-led direct/Vulkan paths keep the lead.
+inline uint64_t QueuePresentPacingPeriodNs(uint64_t displayPeriodNs)
+{
+    return NormalizePresentFramePeriodNs(displayPeriodNs);
+}
+
 struct PresentPacingDecision {
     bool presentNow = true;
     uint64_t nextDeadlineNs = 0;

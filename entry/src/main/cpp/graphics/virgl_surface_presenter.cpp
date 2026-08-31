@@ -98,7 +98,7 @@ public:
         ++generation_;
         policy_ = winehua::ReadPresenterRuntimePolicyFromEnvironment();
         displayPeriodNs_ = winehua::NormalizePresentFramePeriodNs(framePeriodNs);
-        framePeriodNs_ = winehua::PresentPacingPeriodNs(displayPeriodNs_);
+        framePeriodNs_ = winehua::QueuePresentPacingPeriodNs(displayPeriodNs_);
         OH_LOG_INFO(LOG_APP,
                     "[VIRGL-ZC][NCP] target attached surface_key=%{public}llu "
                     "window=%{public}p display_period_us=%{public}llu "
@@ -116,7 +116,7 @@ public:
             winehua::NormalizePresentFramePeriodNs(framePeriodNs);
         if (displayPeriodNs_ == displayPeriodNs) return 0;
         displayPeriodNs_ = displayPeriodNs;
-        framePeriodNs_ = winehua::PresentPacingPeriodNs(displayPeriodNs_);
+        framePeriodNs_ = winehua::QueuePresentPacingPeriodNs(displayPeriodNs_);
         OH_LOG_INFO(LOG_APP,
                     "[VIRGL-ZC][NCP] frame period surface_key=%{public}llu "
                     "display_period_us=%{public}llu pace_period_us=%{public}llu",

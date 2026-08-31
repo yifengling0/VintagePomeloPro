@@ -1,9 +1,14 @@
 #include "graphics/present_timing.h"
+#include "graphics/present_pacing.h"
 #include <cassert>
 #include <iostream>
 
 int main()
 {
+    assert(winehua::PresentPacingPeriodNs(16666667) == 16166667);
+    assert(winehua::QueuePresentPacingPeriodNs(16666667) == 16666667);
+    assert(winehua::QueuePresentPacingPeriodNs(0) ==
+           winehua::kDefaultPresentFramePeriodNs);
     winehua::PresentTimingWindow window;
     assert(window.Count() == 0 && window.CpuCsv().empty());
     for (size_t i = 0; i < window.kSize; ++i)

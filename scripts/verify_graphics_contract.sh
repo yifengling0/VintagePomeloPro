@@ -419,11 +419,15 @@ for presenter_file in \
     entry/src/main/cpp/graphics/venus_surface_presenter.cpp; do
     require_literal "Common presenter period normalization" \
         "NormalizePresentFramePeriodNs" "$presenter_file"
-    require_literal "Common presenter pacing lead" \
-        "PresentPacingPeriodNs" "$presenter_file"
     reject_literal "Removed presenter-local period normalization" \
         "NormalizeFramePeriodNs" "$presenter_file"
 done
+require_literal "GL queue matches its display-paced consumer" \
+    "QueuePresentPacingPeriodNs" \
+    entry/src/main/cpp/graphics/virgl_surface_presenter.cpp
+require_literal "Venus keeps deadline dispatch lead" \
+    "PresentPacingPeriodNs" \
+    entry/src/main/cpp/graphics/venus_surface_presenter.cpp
 require_literal "ArkTS backend intent API" \
     "setHostGraphicsBackend(this.hostGraphicsBackend)" \
     entry/src/main/ets/service/WineEngineService.ets
