@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     build-essential cmake ninja-build meson \
     bison flex autoconf automake libtool \
     pkgconf zip git file lsof python3 python3-pip glslang-tools \
+    # Wine 翻译资源与构建期下载工具（恢复 main 已验证的构建依赖）
+    gettext curl wget \
     spirv-tools \
     # wayland-scanner 原生构建 (生成 Wayland 协议代码)
     libexpat1-dev libxml2-dev libffi-dev \

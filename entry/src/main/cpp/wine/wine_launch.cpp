@@ -615,6 +615,8 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
             }
             winehua::SpawnRequest wbReq{winehua::SpawnKind::Wineboot};
             wbReq.desktopSurface = desktopSurface;
+            wbReq.env = {"LANG=" + p->wineLang + ".UTF-8",
+                         "LC_ALL=" + p->wineLang + ".UTF-8"};
 #ifdef __aarch64__
             winehua::AppendCompatEnvLines(wbReq.env, p->compatEnvStr, p->automationMode);
 #endif
@@ -694,6 +696,8 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
          * force=false, 仅当 wine.inf 时间戳变化 (升级) 才重装。 */
         OH_LOG_INFO(LOG_APP, "[Launch-Async] prefix ready; seeding wineboot boot event (--init)...");
         winehua::SpawnRequest wbReq{winehua::SpawnKind::Wineboot};
+        wbReq.env = {"LANG=" + p->wineLang + ".UTF-8",
+                     "LC_ALL=" + p->wineLang + ".UTF-8"};
 #ifdef __aarch64__
         winehua::AppendCompatEnvLines(wbReq.env, p->compatEnvStr, p->automationMode);
 #endif

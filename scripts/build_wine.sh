@@ -4,6 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
+# Wine compiles its .po catalogs into PE resources during the build. Without
+# msgfmt configure silently disables every translated resource, leaving the
+# desktop in English even when LANG/LC_ALL select another locale.
+command -v msgfmt >/dev/null 2>&1 \
+    || die "Wine 翻译构建需要 gettext/msgfmt；请重建构建镜像"
+
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \
@@ -47,6 +53,7 @@ build_native_tools() {
             export FREETYPE_CFLAGS="$("$PKG_CONFIG_BIN" --cflags freetype2)"
             export FREETYPE_LIBS="$("$PKG_CONFIG_BIN" --libs freetype2)"
             "$CONFIGURE_BIN" --srcdir="$WINE_SRC" --enable-archs=x86_64 --disable-tests \
+                --with-gettext \
                 --without-x --without-alsa --without-opengl --without-vulkan
         else
             export FREETYPE_CFLAGS="-I/usr/include/freetype2"
@@ -55,6 +62,7 @@ build_native_tools() {
             # out-of-tree 构建时默认 datadir=/usr/local/share 找不到 locale.nls
             # (clean 构建 wrc 编译 .rc 报 "unable to load locale.nls")。
             "$CONFIGURE_BIN" --srcdir="$WINE_SRC" --enable-win64 --disable-tests \
+                --with-gettext \
                 --without-x --without-alsa --without-opengl --without-vulkan \
                 --datadir="$WINE_SRC/.."
         fi
@@ -90,7 +98,8 @@ build_ohos_unix() {
        || ! grep -q '#define SONAME_LIBWAYLAND_CLIENT' include/config.h 2>/dev/null \
        || ! grep -q '#define SONAME_LIBVULKAN "libvulkan.so.1"' include/config.h 2>/dev/null \
        || ! grep -q '#define SONAME_LIBGNUTLS' include/config.h 2>/dev/null \
-       || ! grep -q '#define SONAME_LIBGSTREAMER_1_0' include/config.h 2>/dev/null; then
+       || ! grep -q '#define SONAME_LIBGSTREAMER_1_0' include/config.h 2>/dev/null \
+       || grep -q '^MSGFMT = false$' Makefile 2>/dev/null; then
         export FREETYPE_CFLAGS="-I$SYSROOT_EXT_INC/freetype2"
         export FREETYPE_LIBS="-L$SYSROOT_EXT_LIB -lfreetype"
         export ac_cv_header_ft2build_h=yes
@@ -158,6 +167,7 @@ build_ohos_unix() {
             --libdir='${prefix}' \
             --with-wine-tools="$BUILD_DIR/wine-native" \
             --with-mingw="$MINGW_CC" \
+            --with-gettext \
             --disable-tests \
             --without-x --without-alsa \
             --with-opengl --with-vulkan

@@ -190,6 +190,12 @@ require_literal "Product launch layout parses its locale extension" \
 require_literal "Wine locale supplies musl fallback" \
     'env.push_back("LC_ALL=" + locale + ".UTF-8");' \
     entry/src/main/cpp/wine/wine_env.cpp
+require_literal_count "Wineboot receives the selected locale on init and reuse" \
+    '"LC_ALL=" + p->wineLang + ".UTF-8"' 2 \
+    entry/src/main/cpp/wine/wine_launch.cpp
+require_literal "Isolated Wine child keeps the Chinese fallback locale" \
+    'setenv("LC_ALL", "zh_CN.UTF-8", 1);' \
+    entry/src/main/cpp/proc/wine_child.cpp
 require_literal "Process list keeps upstream desktop-shell field" \
     '"desktopShell"' entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Wineboot waits for broker worker" \

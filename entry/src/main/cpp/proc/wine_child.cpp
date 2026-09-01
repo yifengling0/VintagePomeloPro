@@ -297,9 +297,10 @@ static void setup_wine_env(const char* binDir, const char* homeDir, const char *
     setenv("USE_LIBBOX64", "1", 1);
 #endif
     setenv("WINEDEBUG", winedebug && winedebug[0] ? winedebug : default_winedebug_profile(), 1);
-    // wineboot 经 broker 只带 __env=WINEPREFIX=...（会话权威在 broker 尾部追加）；
-    // LANG 必须留在子进程基线。
+    // 非会话调用缺少显式 locale 时保持产品原有中文默认值。桌面与
+    // wineboot 会由父进程用 __env 覆盖这两个键，从而支持中英文切换。
     setenv("LANG", "zh_CN.UTF-8", 1);
+    setenv("LC_ALL", "zh_CN.UTF-8", 1);
 }
 
 static void apply_entry_param_env_overrides(const std::vector<std::string>& envOverrides)
