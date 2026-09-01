@@ -26,6 +26,7 @@ Thumbs.db
 # Build output (root)
 build/
 out/
+/ci-artifacts/
 
 # HAP project
 /node_modules
