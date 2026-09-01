@@ -9,11 +9,11 @@ export const setHostGraphicsBackend: (backend: string) => boolean;
 export const resolveGuestGraphicsEnvironmentForLab: (
   profile: string, backend: string) => string[] | null;
 /** Supports both WineHua's common control-plane layout and the product's
- * automation/prefix extension. The sixth argument type selects the layout. */
+ * automation/prefix/locale extension. The sixth argument type selects the layout. */
 export const launchClient: (exePath: string, argv: string[], sockPath: string, libPath: string,
   homeDir: string, d3dBackendOrAutomation?: string | boolean,
   dxvkBackendOrPrefixMode?: string, wineLangOrD3dBackend?: string,
-  compatEnvStr?: string) => number;
+  compatEnvStr?: string, productWineLang?: string) => number;
 export const stopClient: () => void;
 export const stopAll: () => void;
 export const setStateCallback: (cb: (state: string) => void) => void;

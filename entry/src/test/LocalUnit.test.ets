@@ -10,6 +10,7 @@ import {
   EngineState,
   LaunchKind,
   ViewMode,
+  WineLanguage,
   WinePresentationMode,
   RightJoystickOutputMode,
   VirtualGamepadLayout,
@@ -178,6 +179,7 @@ export default function localUnitTest() {
       expect(ViewMode.FILES).assertEqual('files');
       expect(settings.preserveUserDataOnReset).assertTrue();
       expect(settings.showFpsHud).assertFalse();
+      expect(settings.wineLanguage).assertEqual(WineLanguage.CHINESE);
     });
 
     it('clonesVirtualMouseSettingsWithoutSharingMutableState', 0, () => {

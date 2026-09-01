@@ -327,8 +327,8 @@ static napi_value ResolveGuestGraphicsEnvironmentForLab(
 }
 
 static napi_value LaunchClient(napi_env env, napi_callback_info info) {
-    size_t argc = 9;
-    napi_value args[9] = {};
+    size_t argc = 10;
+    napi_value args[10] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
     auto* p = new LaunchParams();
@@ -347,7 +347,7 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     p->prefixDir = WINE_PREFIX;
     // Keep both control-plane layouts during product convergence:
     //   WineHua: home, d3d, dxvk, wineLang, compat
-    //   product: home, automation(bool), prefix, d3d, compat
+    //   product: home, automation(bool), prefix, d3d, compat, wineLang
     // The sixth argument type is unambiguous and preserves old product calls
     // while allowing upstream services to use their common Native contract.
     bool productLayout = false;
@@ -388,6 +388,13 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
             napi_get_value_string_utf8(env, args[6], prefixMode,
                                        sizeof(prefixMode), nullptr);
             if (!strcmp(prefixMode, "clean")) p->prefixDir = WINE_SMOKE_PREFIX;
+        }
+        if (argc >= 10) {
+            char wineLang[16] = {};
+            napi_get_value_string_utf8(env, args[9], wineLang,
+                                       sizeof(wineLang), nullptr);
+            if (!strcmp(wineLang, "zh_CN") || !strcmp(wineLang, "en_US"))
+                p->wineLang = wineLang;
         }
     } else {
         if (argc >= 7) {

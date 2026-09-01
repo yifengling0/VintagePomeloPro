@@ -182,6 +182,11 @@ require_literal "WineHua launch control plane keeps locale compatibility" \
     "std::string wineLang" entry/src/main/cpp/wine/wine_launch.h
 require_literal "Launch NAPI accepts product and WineHua layouts" \
     "sixthType == napi_boolean" entry/src/main/cpp/bridge/napi_init.cpp
+require_literal "Product launch forwards selected Wine locale" \
+    "settings.wineLanguage ?? WineLanguage.CHINESE" \
+    entry/src/main/ets/service/WineEngineService.ets
+require_literal "Product launch layout parses its locale extension" \
+    "args[9], wineLang" entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Wine locale supplies musl fallback" \
     'env.push_back("LC_ALL=" + locale + ".UTF-8");' \
     entry/src/main/cpp/wine/wine_env.cpp
@@ -488,8 +493,8 @@ require_literal "VKD3D companion directory" \
     entry/src/main/cpp/graphics/graphics_profile.cpp
 require_literal "Modern mapped flush capability owner" \
     "if (dxvkRuntime.batchMappedFlush)" entry/src/main/cpp/wine/wine_env.cpp
-require_literal "Legacy mapped flush defaults to the product high-performance path" \
-    "true,  // batchMappedFlush" entry/src/main/cpp/graphics/graphics_profile.cpp
+require_literal_count "Both DXVK generations keep mapped-flush batching enabled" \
+    "true,  // batchMappedFlush" 2 entry/src/main/cpp/graphics/graphics_profile.cpp
 if ! sed -n '/^void AppendProductDxvkEnv(/,/^}/p' \
         "$ROOT/entry/src/main/cpp/wine/wine_env.cpp" | \
         grep -Fq -- "ResolveDxvkRuntimeProfile(backend, &dxvkRuntime)"; then

@@ -10,6 +10,7 @@ import {
   DesktopWindowMode,
   DisplayMode,
   GlobalSettings,
+  WineLanguage,
   ViewMode,
   cloneVirtualMouseConfig,
   createDefaultAppSettings,
@@ -127,6 +128,7 @@ export class AppSettingsStore {
     const current = this.globalSettings;
     this.globalSettings = {
       defaultDisplayMode: DisplayMode.DESKTOP,
+      wineLanguage: current.wineLanguage ?? WineLanguage.CHINESE,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode ?? DesktopWindowMode.FULLSCREEN,
       keepScreenOn: current.keepScreenOn,
@@ -187,7 +189,9 @@ export class AppSettingsStore {
       const stored = JSON.parse(raw) as GlobalSettings;
       const defaults = createDefaultGlobalSettings();
       this.globalSettings = {
-      defaultDisplayMode: stored.defaultDisplayMode ?? defaults.defaultDisplayMode,
+        defaultDisplayMode: stored.defaultDisplayMode ?? defaults.defaultDisplayMode,
+        wineLanguage: stored.wineLanguage === WineLanguage.ENGLISH ?
+          WineLanguage.ENGLISH : WineLanguage.CHINESE,
         desktopOrientation: stored.desktopOrientation ?? defaults.desktopOrientation,
         desktopWindowMode: stored.desktopWindowMode ??
           this.resolveDesktopWindowModeDefault(defaults.desktopWindowMode),
@@ -273,6 +277,7 @@ export class AppSettingsStore {
     const current = this.globalSettings;
     await this.saveGlobalSettings({
       defaultDisplayMode: current.defaultDisplayMode,
+      wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
@@ -305,6 +310,7 @@ export class AppSettingsStore {
     const current = this.globalSettings;
     await this.saveGlobalSettings({
       defaultDisplayMode: value,
+      wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
@@ -337,6 +343,7 @@ export class AppSettingsStore {
     const current = this.globalSettings;
     await this.saveGlobalSettings({
       defaultDisplayMode: current.defaultDisplayMode,
+      wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
@@ -370,6 +377,7 @@ export class AppSettingsStore {
     const current = this.globalSettings;
     await this.saveGlobalSettings({
       defaultDisplayMode: current.defaultDisplayMode,
+      wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
@@ -402,6 +410,7 @@ export class AppSettingsStore {
     const current = this.globalSettings;
     await this.saveGlobalSettings({
       defaultDisplayMode: current.defaultDisplayMode,
+      wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,

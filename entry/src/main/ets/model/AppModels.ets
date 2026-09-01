@@ -54,6 +54,12 @@ export enum ThemeMode {
   DARK = 'dark'
 }
 
+/** Locale exported to Wine processes. Keep values aligned with Native policy. */
+export enum WineLanguage {
+  CHINESE = 'zh_CN',
+  ENGLISH = 'en_US'
+}
+
 /** Orientation policy for the Wine desktop host window. */
 export enum ScreenOrientationSetting {
   SENSOR_LANDSCAPE = 'sensor-landscape',
@@ -315,6 +321,8 @@ export interface AppSettings {
 
 export interface GlobalSettings {
   defaultDisplayMode: DisplayMode;
+  /** Windows/Wine system language. Existing installs migrate to Chinese. */
+  wineLanguage: WineLanguage;
   desktopOrientation: ScreenOrientationSetting;
   /** Desktop host window layout: immersive fullscreen or safe-area inset. */
   desktopWindowMode: DesktopWindowMode;
@@ -937,6 +945,7 @@ export function createBuiltInInputProfiles(): InputProfile[] {
 export function createDefaultGlobalSettings(): GlobalSettings {
   return {
     defaultDisplayMode: DisplayMode.DESKTOP,
+    wineLanguage: WineLanguage.CHINESE,
     desktopOrientation: ScreenOrientationSetting.SENSOR_LANDSCAPE,
     desktopWindowMode: DesktopWindowMode.FULLSCREEN,
     keepScreenOn: true,

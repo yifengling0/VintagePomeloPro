@@ -23,6 +23,7 @@ import {
   INPUT_TEMPLATES,
   InputTemplate,
   ThemeMode,
+  WineLanguage,
   ViewMode,
   VirtualMouseConfig,
   ScreenOrientationSetting,
@@ -574,10 +575,12 @@ struct SystemSettingsPage {
       keepScreenOn: boolean = this.settings.keepScreenOn,
       preserveUserDataOnReset: boolean = this.settings.preserveUserDataOnReset,
       showFpsHud: boolean = this.settings.showFpsHud,
-      performanceHud: PerformanceHudSettings = this.settings.performanceHud): void {
+      performanceHud: PerformanceHudSettings = this.settings.performanceHud,
+      wineLanguage: WineLanguage = this.settings.wineLanguage): void {
     const virtualInputChanged = this.settings.virtualInputEnabled !== virtualInputEnabled;
     this.settings = {
       defaultDisplayMode: mode,
+      wineLanguage: wineLanguage,
        desktopOrientation: desktopOrientation,
       desktopWindowMode: desktopWindowMode,
       keepScreenOn: keepScreenOn,
@@ -1022,6 +1025,7 @@ struct SystemSettingsPage {
     if (preset === this.settings.box64Preset) return;
     this.settings = {
       defaultDisplayMode: this.settings.defaultDisplayMode,
+      wineLanguage: this.settings.wineLanguage,
       desktopOrientation: this.settings.desktopOrientation,
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
@@ -1078,6 +1082,7 @@ struct SystemSettingsPage {
     if (this.settings.controllerOutputMode === mode) return;
     this.settings = {
       defaultDisplayMode: this.settings.defaultDisplayMode,
+      wineLanguage: this.settings.wineLanguage,
       desktopOrientation: this.settings.desktopOrientation,
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
@@ -1111,6 +1116,23 @@ struct SystemSettingsPage {
         ? '已切换 Wine 手柄（XInput/DirectInput）；请重新启动 Wine 会话后生效'
         : '已切换键盘模拟；请重新启动 Wine 会话后生效'
     });
+  }
+
+  private updateWineLanguage(language: WineLanguage): void {
+    if (language === this.settings.wineLanguage) return;
+    this.update(this.settings.defaultDisplayMode, this.settings.viewMode,
+      this.settings.useGlassEffect, this.settings.usePageBackground,
+      this.settings.showVirtualControls, this.settings.autoHideVirtualControls,
+      this.settings.controlOpacity, this.settings.gamepadDeadzone,
+      this.settings.outputScale, this.settings.themeMode,
+      this.settings.controlBarDirection, this.settings.virtualMouseConfig,
+      this.settings.desktopInputProfileId, this.settings.pageBackgroundUri,
+      this.settings.virtualInputEnabled, this.settings.desktopOrientation,
+      this.settings.controlBarPositionX, this.settings.controlBarPositionY,
+      this.settings.d3dRendererPreference, this.settings.desktopWindowMode,
+      this.settings.keepScreenOn, this.settings.preserveUserDataOnReset,
+      this.settings.showFpsHud, this.settings.performanceHud, language);
+    promptAction.showToast({ message: '系统语言已保存；重启 Wine 引擎后生效' });
   }
 
   private updateDesktopWindowMode(mode: DesktopWindowMode): void {
@@ -2027,6 +2049,29 @@ struct SystemSettingsPage {
           }
           .width('100%').padding(14).borderRadius(16)
           .backgroundColor($r('app.color.search_background'))
+
+          Text('Windows 系统语言').fontSize(12).fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_secondary')).width('100%')
+          Row({ space: 8 }) {
+            Button('中文').layoutWeight(1).height(44).borderRadius(14)
+              .fontSize(13)
+              .backgroundColor(this.settings.wineLanguage === WineLanguage.CHINESE ?
+                $r('app.color.accent') : $r('app.color.search_background'))
+              .fontColor(this.settings.wineLanguage === WineLanguage.CHINESE ?
+                '#FFFFFFFF' : $r('app.color.text_primary'))
+              .id('wine-language-zh-cn')
+              .onClick((): void => this.updateWineLanguage(WineLanguage.CHINESE))
+            Button('English').layoutWeight(1).height(44).borderRadius(14)
+              .fontSize(13)
+              .backgroundColor(this.settings.wineLanguage === WineLanguage.ENGLISH ?
+                $r('app.color.accent') : $r('app.color.search_background'))
+              .fontColor(this.settings.wineLanguage === WineLanguage.ENGLISH ?
+                '#FFFFFFFF' : $r('app.color.text_primary'))
+              .id('wine-language-en-us')
+              .onClick((): void => this.updateWineLanguage(WineLanguage.ENGLISH))
+          }.width('100%')
+          Text('默认中文。更改后重启 Wine 引擎生效，已有 Windows 程序会在重启时关闭。')
+            .fontSize(11).fontColor('#C47A20').width('100%')
 
           Text('渲染模式').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.text_secondary')).width('100%')

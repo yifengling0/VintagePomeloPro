@@ -10,6 +10,7 @@ import {
   NativeLaunchResult,
   NativeProcessInfo,
   ScreenOrientationSetting,
+  WineLanguage,
   WinePresentationMode,
   canTransitionEngineState,
   LaunchKind,
@@ -497,6 +498,7 @@ export class WineEngineService {
     this.setState(EngineState.PREPARING, '正在准备 Wine 引擎');
 
     try {
+      const settings = AppSettingsStore.getInstance().getGlobalSettings();
       const bundledRuntimeVersion = this.getBundledRuntimeVersion();
       const prefixRefreshRequired = await this.ensureRuntimeInstalled(bundledRuntimeVersion);
       this.prefixRefreshRequired = prefixRefreshRequired;
@@ -506,8 +508,7 @@ export class WineEngineService {
       WineWindowManager.getInstance().applyModePolicy();
       this.presentationMode = WineWindowManager.getInstance().presentationMode;
       if (this.presentationMode !== WinePresentationMode.MANAGED_WINDOWS) {
-        const orientation = AppSettingsStore.getInstance().getGlobalSettings().desktopOrientation
-          ?? ScreenOrientationSetting.SENSOR_LANDSCAPE;
+        const orientation = settings.desktopOrientation ?? ScreenOrientationSetting.SENSOR_LANDSCAPE;
         // This must happen before startServer/launchClient. A later ArkUI
         // window resize can correct the surface, but cannot prevent the first
         // Wayland desktop frame from being created at the old orientation.
@@ -545,7 +546,7 @@ export class WineEngineService {
       // are migrated above before any wineserver process starts.
       testNapi.launchClient(BOX64, [], SOCK, WINE_BIN + ':' + WINE_LIB,
         homeDirectory, requestedPrefixMode === 'clean', requestedPrefixMode, this.d3dBackend,
-        box64PresetEnvString(AppSettingsStore.getInstance().getGlobalSettings().box64Preset));
+        box64PresetEnvString(settings.box64Preset), settings.wineLanguage ?? WineLanguage.CHINESE);
       return this.waitForReady();
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', JSON.stringify(error));
