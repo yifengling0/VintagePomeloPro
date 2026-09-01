@@ -97,5 +97,25 @@
     ],
     "host_evidence": "make test PASS, including graphics contract, 91 real Wayland lifecycle checks, 132 process checks, compositor/input suites, and smoke architecture assertions. Final incremental ARM64 API23 C/Ninja and ArkTS HAP build signed successfully; package inspection confirmed both DXVK generations, VKD3D/D3D12, x64/x86 diagnostics and requirements assets.",
     "device_status": "Signed ARM64 HAP (SHA256 d58dc7d678231906935e0229c36379e19c1a1f914f462493e4b4c797da8c175a) replacement-installed on API26 without clearing data. Short core/reuse smoke PASS: x64 752 frames, producer 115.493 FPS, display 113.860 FPS; x86 772 frames, producer 117.682 FPS, display 114.896 FPS; both present=true and fallback=false. Captured x64/x86 RGBA quadrants pass the product-UI-aware validator. No long, controller, or expanded-suite qualification."
+  },
+  {
+    "commit": "2102259e2debae9b118b03f4140a4b959977211f",
+    "reason": "Adapt Wine system-language settings through the product settings owner and compatible Native locale control plane.",
+    "native_paths": [
+      "entry/src/main/cpp/bridge/napi_init.cpp",
+      "entry/src/main/cpp/types/libentry/Index.d.ts"
+    ],
+    "host_evidence": "model/performance/graphics contract PASS; ARM64 API23 signed HAP PASS.",
+    "device_status": "Short reuse-prefix Chinese desktop main path PASS; no device identifier recorded; no controller or long-suite testing."
+  },
+  {
+    "commit": "500c6d8ab12717c458b68d97b1f2cc2d6ccf684f",
+    "reason": "Restore Wine desktop translations in the child launch environment and build inputs.",
+    "native_paths": [
+      "entry/src/main/cpp/proc/wine_child.cpp",
+      "entry/src/main/cpp/wine/wine_launch.cpp"
+    ],
+    "host_evidence": "model/performance/graphics contract PASS; ARM64 API23 signed HAP PASS.",
+    "device_status": "Short reuse-prefix Chinese desktop main path PASS; no device identifier recorded; no controller or long-suite testing."
   }
 ]

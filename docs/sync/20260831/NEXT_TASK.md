@@ -38,3 +38,6 @@ I2 生命周期修复 `edd6fc87` 已完成：真实 Wayland 91 checks，冷启�
 ## 后续回推
 
 产品验收和 main 接受后，按 UPSTREAM_PACKETS 的 P1–P5 从干净上游分支提取：几何正确性、GL 稳定性、DXVK 优化、guest→Native→ArkTS 手柄链、默认关闭的实验。子模块贡献先于 gitlink。此文件不是向公开 master 推送私有历史的授权。
+# Final handoff
+
+The main PR gate is complete: architecture audit PASS, model/performance/graphics contract PASS, signed ARM64 HAP PASS, and short reuse-prefix Chinese desktop smoke PASS. The two locale commits are recorded as Native fixes. Do not add device identifiers or restart long/controller testing for this merge.

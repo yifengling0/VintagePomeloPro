@@ -1,5 +1,11 @@
 # Integration status
 
+## Final short validation correction
+
+- Locale commits `2102259e` (`feat(settings): configure Wine system language`) and `500c6d8a` (`fix(locale): restore Wine desktop translations`) are included. Their Native paths are recorded in `native-fixes.json`; only `SystemSettings.ets` and `AppModels.ets` are allowed UI changes for this increment.
+- Model, performance and graphics contract checks PASS. ARM64 API23 signed HAP build/package/signature checks PASS; HAP SHA-256 is `1F48A094184484CCFA2EFFAEC5F105AF82E358DA2FC1CB2D38418D39F402C00B`.
+- Short reuse-prefix Chinese desktop main path PASS. No device identifier is recorded. Controller, long and expanded suites remain outside the PR gate.
+
 ## Current handoff
 
 - Branch `codex/sync-master-20260831`; integration T0–T7 plus the current smoke/common-control architecture convergence are complete. Product main remains `2c043636`. WineHua master was refreshed to `61cb4c64`: all 75 commits in `d256317e..61cb4c64` have explicit dispositions. Commit `522f9f1d` adapts the three-layer smoke design, data runner and current C/NAPI contracts behind the existing product UI; `7fc6a0ce` and `68d09913` repair host artifact collection and product-UI-aware visual validation. Do not repeat the migration or move other branches.

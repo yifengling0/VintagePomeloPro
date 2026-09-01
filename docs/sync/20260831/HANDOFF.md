@@ -116,3 +116,6 @@ T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.
 本分支覆盖范围的下一段从 `61cb4c64` 之后开始。重新 fetch 时记录新的不可变 SHA；新的增量继续分类为 adapted / covered_by_product / reference_only / not_applicable / superseded，并写理由。
 
 功能回推 master 从干净的上游分支提取，方案见 [UPSTREAM_PACKETS.md](UPSTREAM_PACKETS.md)。不要把此产品分支整体 merge 到 WineHua。
+# Final integration handoff
+
+Locale convergence from `2102259e` and `500c6d8a` is included. `SystemSettings.ets` and `AppModels.ets` are the only intentional UI changes in this increment; other product UI remains protected by `audit.py`. Host contracts, ARM64 signed package, and short Chinese desktop reuse smoke passed. The package hash is `1F48A094184484CCFA2EFFAEC5F105AF82E358DA2FC1CB2D38418D39F402C00B`. Device identifiers, controller tests and long tests are intentionally omitted.
