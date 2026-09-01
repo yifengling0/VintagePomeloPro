@@ -8,7 +8,7 @@ source "$SCRIPT_DIR/env.sh"
 # msgfmt configure silently disables every translated resource, leaving the
 # desktop in English even when LANG/LC_ALL select another locale.
 command -v msgfmt >/dev/null 2>&1 \
-    || die "Wine 翻译构建需要 gettext/msgfmt；请重建构建镜像"
+    || err "Wine 翻译构建需要 gettext/msgfmt；请重建构建镜像"
 
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
@@ -28,7 +28,7 @@ apply_wine_patches() {
             log "应用 Wine 补丁: $(basename "$patch")"
             git -C "$WINE_SRC" apply "$patch"
         else
-            die "Wine 补丁无法应用或回退: $patch"
+            err "Wine 补丁无法应用或回退: $patch"
         fi
     done
 }
