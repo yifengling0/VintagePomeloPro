@@ -88,5 +88,6 @@ Wine haptics ──WHGP rumble──► GamepadBridge RecvLoop ──TSFN──�
 - Kit hat polarity may differ by pad firmware — verify on tablet.
 - Harmony may not expose a gamepad vibrator (`getVibratorInfoSync` empty of `!isLocalVibrator`) — settings shows `震动: 无外接马达`; tablet will not buzz.
 - Wine rebuild required after `bus_ohos` changes (`make wine` + `make hap` / `hap-unsigned`).
+- Installing that HAP updates Host immediately (`libentry.so`) but Wine still uses the previous `winebus.so` until the **Wine session is restarted**. Host-ok / Wine-dead after a winebus/WHGP change is usually this, not a polarity bug.
 - Mode switch needs session restart for Wine env to refresh.
 - WHGP v1 peers are rejected; both sides must be rebuilt together.
