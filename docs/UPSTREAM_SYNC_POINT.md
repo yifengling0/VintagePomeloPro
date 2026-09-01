@@ -1,5 +1,20 @@
 # 上游同步基线标记
 
+## 2026-08-31 候选同步（尚未提升产品 main 的发布基线）
+
+`codex/sync-master-20260831` 从产品 main `2c043636` 完成了
+`d256317e02c83ed81172938c31152ded16393a32..74f2bfe1aba89cbfbc729d1cf658b46f3aea6f80`
+的逐项功能适配与 Native 目录对齐。69 个提交的处置以
+[来源 ledger](sync/20260831/commits.json) 为准，不能以 Git 祖先关系推断全部采用。
+双 ABI 构建已通过，真机验收状态见 [STATUS](sync/20260831/STATUS.md) 和
+[DEVICE_RESULTS](sync/20260831/DEVICE_RESULTS.md)。
+
+后续接手先读 [HANDOFF](sync/20260831/HANDOFF.md)，不要重复搬移已完成代码。
+本分支下一段上游增量从 `74f2bfe1` 后开始；历史 main 的已核对基线记录保留如下，
+等候选验收且产品 main 接受后再提升发布基线。此处没有伪造 merge，也没有 push。
+
+## 原产品 main 的历史记录
+
 > 用途：标明本地产品线已合并到 WineHua 上游的哪个提交，避免重复合并/漏合并。
 > 本地镜像分支：`mirror_master`（跟踪 `winehua/master`，只读对照，不 push）。
 > 维护命令：`git fetch winehua && git branch -f mirror_master winehua/master`

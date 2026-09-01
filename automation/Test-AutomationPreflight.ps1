@@ -69,7 +69,8 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('winehua-preflight-' + [Guid]:
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 function New-TestHap {
     param([string]$Name, [string]$Bundle='com.vintage.pomelopro', [int]$Api=60100023,
-        [int]$Machine=183, [string]$Omit='', [switch]$ExtraAbi)
+        [int]$Machine=183, [string]$Omit='', [switch]$ExtraAbi, [switch]$DualAbi,
+        [int]$ExtraMachine=62)
     $path = Join-Path $testRoot "$Name.hap"
     $zip = [IO.Compression.ZipFile]::Open($path, [IO.Compression.ZipArchiveMode]::Create)
     try {
@@ -85,6 +86,14 @@ function New-TestHap {
             $entries["libs/arm64-v8a/$lib"] = $header
         }
         if ($ExtraAbi) { $entries['libs/x86_64/libentry.so'] = $header }
+        if ($DualAbi) {
+            $extraHeader = $header.Clone()
+            $extraHeader[18] = $ExtraMachine
+            foreach ($lib in @('libentry.so', 'libwine_child.so', 'libwinehua_vtest_server.so',
+                'libvirglrenderer.so.1', 'libvirgl_child.so')) {
+                $entries["libs/x86_64/$lib"] = $extraHeader
+            }
+        }
         foreach ($name in $entries.Keys) {
             if ($name -eq $Omit) { continue }
             $stream = $zip.CreateEntry($name).Open()
@@ -94,8 +103,8 @@ function New-TestHap {
     return $path
 }
 function Read-TestHap {
-    param([string]$Path)
-    Get-ReferenceHapMetadata $Path (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash 'com.vintage.pomelopro'
+    param([string]$Path, [switch]$AllowDualAbi)
+    Get-ReferenceHapMetadata $Path (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash 'com.vintage.pomelopro' -AllowDualAbi:$AllowDualAbi
 }
 try {
     $valid = New-TestHap 'valid'
@@ -110,6 +119,12 @@ try {
     Assert-Rejected { Read-TestHap (New-TestHap 'missing' -Omit 'libs/arm64-v8a/box64.so') } 'missing native payload'
     Assert-Rejected { Read-TestHap (New-TestHap 'runtime' -Omit 'resources/rawfile/wine-data.zip') } 'missing runtime'
     Assert-Rejected { Read-TestHap (New-TestHap 'mixed' -ExtraAbi) } 'mixed ABI package'
+    $dual = New-TestHap 'dual' -DualAbi
+    Assert-Rejected { Read-TestHap $dual } 'dual ABI requires explicit opt-in'
+    $dualMeta = Read-TestHap $dual -AllowDualAbi
+    if (($dualMeta.packagedAbis -join ',') -ne 'arm64-v8a,x86_64') { throw 'Dual ABI inventory mismatch' }
+    Assert-Rejected { Read-TestHap (New-TestHap 'dual-wrong' -DualAbi -ExtraMachine 183) -AllowDualAbi } 'wrong x86_64 ELF'
+    Assert-Rejected { Read-TestHap (New-TestHap 'dual-missing' -DualAbi -Omit 'libs/x86_64/libvirgl_child.so') -AllowDualAbi } 'incomplete x86_64 payload'
     # Execute the real entrypoint's read-only path. It must not need HDC/Docker or
     # create an archive directory, even when an install would follow normally.
     $archive = Join-Path $testRoot 'must-not-exist'

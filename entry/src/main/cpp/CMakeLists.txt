@@ -9,7 +9,10 @@ set(NATIVERENDER_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 include_directories(
     ${NATIVERENDER_ROOT_PATH}
-    ${NATIVERENDER_ROOT_PATH}/include
+    ${NATIVERENDER_ROOT_PATH}/protocols
+    ${NATIVERENDER_ROOT_PATH}/compositor/frame
+    ${NATIVERENDER_ROOT_PATH}/compositor/toplevel
+    ${NATIVERENDER_ROOT_PATH}/compositor/input
 )
 
 if(DEFINED PACKAGE_FIND_FILE)
@@ -20,73 +23,83 @@ endif()
 set(WAYLAND_LIBS_DIR ${NATIVERENDER_ROOT_PATH}/../../../libs/${OHOS_ARCH})
 
 add_library(entry SHARED
-    app_log.cpp
-    audio_broker.cpp
-    audio_ipc_server.cpp
-    audio_stream.cpp
-    graphics_broker.cpp
-    graphics_profile.cpp
-    game_controller_bridge.cpp
-    controller/controller_hub.cpp
-    controller/controller_napi.cpp
-    controller/controller_runtime.cpp
-    controller/gamepad_bridge.cpp
-    controller/physical_gamepad.cpp
-    virgl_host_config.cpp
-    napi_init.cpp
-    experiment_payload.cpp
-    wine_process.cpp
-    wine_env.cpp
-    env_spec.cpp
-    env_profiles.cpp
-    spawner.cpp
-    wine_launch.cpp
-    wine_exe.cpp
-    font_zip.cpp
-    wine_mmap_test.cpp
-    host_vulkan_probe.cpp
-    broker.cpp
-    ncp_dispatch.cpp
-    perf_utils.cpp
-    performance_monitor.cpp
-    performance_monitor_napi.cpp
+    common/app_log.cpp
+    audio/audio_broker.cpp
+    audio/audio_ipc_server.cpp
+    audio/audio_stream.cpp
+    graphics/graphics_broker.cpp
+    graphics/graphics_profile.cpp
+    input/game_controller_bridge.cpp
+    input/controller/controller_hub.cpp
+    input/controller/controller_napi.cpp
+    input/controller/controller_runtime.cpp
+    input/controller/gamepad_bridge.cpp
+    input/controller/physical_gamepad.cpp
+    graphics/virgl_host_config.cpp
+    bridge/napi_init.cpp
+    wine/experiment_payload.cpp
+    proc/wine_process.cpp
+    wine/wine_env.cpp
+    wine/env_spec.cpp
+    wine/env_profiles.cpp
+    proc/spawner.cpp
+    wine/wine_launch.cpp
+    wine/wine_exe.cpp
+    common/font_zip.cpp
+    wine/wine_mmap_test.cpp
+    graphics/host_vulkan_probe.cpp
+    proc/broker.cpp
+    proc/ncp_dispatch.cpp
+    common/perf_utils.cpp
+    common/performance_monitor.cpp
+    bridge/performance_monitor_napi.cpp
     phone_adapter/phone_process.cpp
     phone_adapter/phone_virgl_relay.cpp
-    wayland_server.cpp
-    wl_core.cpp
-    compositor/compositor_blit.cpp
-    compositor/toplevel_manager.cpp
-    compositor/move_grab.cpp
-    compositor/compositor_utils.cpp
-    compositor/geometry.cpp
-    compositor/desktop_compositor.cpp
-    compositor/input_resolver.cpp
-    compositor/desktop_root_manager.cpp
-    egl_renderer.cpp
-    fs_utils.cpp
-    plugin_manager.cpp
-    process_utils.cpp
-    ring_buffer.cpp
-    seat.cpp
-    shader_utils.cpp
-    string_utils.cpp
-    input_manager.cpp
-    pointer_extras.cpp
-    text_input.cpp
-    text-input-unstable-v3-protocol.c
-    xdg_shell.cpp
-    xdg-shell-protocol.c
-    viewporter-server-protocol.c
-    pointer-warp-v1-protocol.c
-    pointer-constraints-unstable-v1-protocol.c
-    relative-pointer-unstable-v1-protocol.c
+    compositor/wayland_server.cpp
+    compositor/wl_core.cpp
+    compositor/frame/compositor_blit.cpp
+    compositor/toplevel/toplevel_manager.cpp
+    compositor/toplevel/popup_manager.cpp
+    compositor/toplevel/move_grab.cpp
+    compositor/frame/compositor_utils.cpp
+    compositor/frame/geometry.cpp
+    compositor/toplevel/desktop_compositor.cpp
+    compositor/frame/zc_bridge.cpp
+    compositor/frame/frame_composer.cpp
+    compositor/frame/frame_pipeline.cpp
+    compositor/frame/shm_frame_source.cpp
+    compositor/input/input_resolver.cpp
+    compositor/input/input_space_mapper.cpp
+    compositor/input/input_queue.cpp
+    compositor/input/input_state_tracker.cpp
+    compositor/input/input_injector.cpp
+    compositor/toplevel/desktop_root_manager.cpp
+    compositor/toplevel/toplevel_event_bus.cpp
+    graphics/egl_renderer.cpp
+    common/fs_utils.cpp
+    bridge/plugin_manager.cpp
+    common/process_utils.cpp
+    common/ring_buffer.cpp
+    input/seat.cpp
+    graphics/shader_utils.cpp
+    common/string_utils.cpp
+    input/input_manager.cpp
+    input/pointer_extras.cpp
+    input/text_input.cpp
+    protocols/text-input-unstable-v3-protocol.c
+    compositor/xdg_shell.cpp
+    protocols/xdg-shell-protocol.c
+    protocols/viewporter-server-protocol.c
+    protocols/pointer-warp-v1-protocol.c
+    protocols/pointer-constraints-unstable-v1-protocol.c
+    protocols/relative-pointer-unstable-v1-protocol.c
 )
 
 # 应用日志文件 sink：force-include app_log.h，让所有 OH_LOG_* 调用在保持
 # hilog 行为不变的同时追加写入 Download/.../logs/native-YYYYMMDD.log。
-target_compile_options(entry PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/app_log.h)
+target_compile_options(entry PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/common/app_log.h)
 # BlitScaled 热路径单独 -O2，其余保持 -O0 便于调试。
-set_source_files_properties(compositor/compositor_blit.cpp PROPERTIES COMPILE_OPTIONS "-O2")
+set_source_files_properties(compositor/frame/compositor_blit.cpp PROPERTIES COMPILE_OPTIONS "-O2")
 
 target_link_libraries(entry PUBLIC
     libohhidebug.so
@@ -108,18 +121,19 @@ target_link_libraries(entry PUBLIC
 )
 
 add_library(wine_child SHARED
-    wine_child.cpp
-    wine_mmap_child.cpp
+    proc/wine_child.cpp
+    proc/wine_mmap_child.cpp
 )
 target_link_libraries(wine_child PUBLIC libhilog_ndk.z.so libchild_process.so)
 
 add_library(virgl_child SHARED
-    virgl_child.cpp
-    virgl_host_config.cpp
-    virgl_surface_presenter.cpp
-    venus_surface_presenter.cpp
-    native_window_vk_target.cpp
-    native_window_gles_target.cpp
+    graphics/virgl_child.cpp
+    graphics/virgl_host_config.cpp
+    graphics/virgl_surface_presenter.cpp
+    graphics/venus_surface_presenter.cpp
+    graphics/native_window_vk_target.cpp
+    graphics/native_window_gles_target.cpp
+    graphics/shader_utils.cpp
     phone_adapter/phone_virgl_dispatch.cpp
 )
 target_link_libraries(virgl_child PUBLIC

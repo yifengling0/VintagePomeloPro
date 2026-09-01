@@ -1,6 +1,6 @@
 // env_spec (EnvSpec / entryParams 序列化契约) 的宿主机单元测试 (make test)。
 // 不依赖 OHOS SDK, 用宿主 g++ 编译。
-#include "env_spec.h"
+#include "wine/env_spec.h"
 
 #include <cstdio>
 #include <string>

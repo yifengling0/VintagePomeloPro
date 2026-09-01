@@ -1,0 +1,121 @@
+[
+  {
+    "commit": "edd6fc879a64efcf2f348b53cacbebc7dc22a1fb",
+    "reason": "I2: release TextInput global, queue, pipe and resources after Wayland dispatch joins so a new display can register; serialize NAPI target lookup/enqueue with teardown and discard retired-resource input.",
+    "native_paths": [
+      "entry/src/main/cpp/compositor/wayland_server.cpp",
+      "entry/src/main/cpp/input/text_input.cpp",
+      "entry/src/main/cpp/input/text_input.h"
+    ],
+    "host_evidence": "Real pinned Wayland lifecycle: 91 checks; previous source probe fails second global registration; full host/model/GLES/HUD/navigation/CI gates pass. Logs ime-lifecycle-host.log, ime-lifecycle-before.log, ime-lifecycle-all-host.log in ignored evidence directory.",
+    "device_status": "edd6fc87 dual-ABI HAP archive/API/ELF/signature PASS. ARM64 PID 18390: cold Chinese, LAB/product engine recreation Chinese and desktop-card resume/continued Chinese visibly PASS. Three shutdown/re-registration cycles in one app process. The armed-before-third-restart first notepad launch exited before a window; one same-engine retry rendered and accepted Chinese. Preserve that startup failure separately (I4); do not claim all restart launches pass. See DEVICE_RESULTS item 18 and ime-lifecycle-device-final.log."
+  },
+  {
+    "commit": "dc287c9fd17add466c814b9426a04507fc5e653d",
+    "reason": "I1 background queue exhaustion: consume NativeImage frame notifications on the owning EGL thread without drawing/swapping the hidden XComponent; use the existing 30 Hz frame-period limit and restore measured foreground pacing. Serialize CV predicates with notification to avoid missed pause/frame/shutdown wakes. UI, guest pins, WHIP protocol and presenter error handling unchanged.",
+    "native_paths": [
+      "entry/src/main/cpp/graphics/egl_renderer.cpp",
+      "entry/src/main/cpp/graphics/egl_renderer.h"
+    ],
+    "host_evidence": "Existing full host/model/GLES/HUD/navigation/CI suite PASS (gl-background-host.log); both ABI application Native and signed HAP PASS (gl-background-hap.log). Reuse audit verifies 113 staged dependency ELFs and unchanged wine-data.zip. Only two libentry.so files differ from edd; ArkTS and other 119 Native entries identical. No new host test of EGL execution; device transition evidence is required.",
+    "device_status": "ARM64 PID 53844: two x86 GL hidden/resume intervals consumed 2000/1422 frames at about 30 Hz, stable display-loop count, same key and visible GL resumed. Paused teardown completed; Modern D3D9 hidden/resume consumed 2499 frames. Independent PID 62830 Venus/D3D11 hidden/resume consumed 2265 frames. All four hidden intervals had zero producer/consumer queue errors. Resize/API-switch GL drops and foreground consumer NO_BUFFER remain. A second engine recreation for x64 GL did not become desktop-ready in 180 seconds; retained as I4, not an x64 GL pass. SDK signature verification passed. See DEVICE_RESULTS item 19, gl-i1-minimal.json and startup-i4-second-recreation.json."
+  },
+  {
+    "commit": "56345d67f55ca2a140f1d2ecc1d88855f7d8303b",
+    "reason": "I4 observed wineboot worker exit=1 was discarded before startup declared boot complete. Preserve waitpid/signal status, avoid unknown-status and engine-relabel overwrites, validate ReaderThread waitpid, and reject failed launcher/worker in the current boot attempt. No retries, timeouts, UI, NAPI signatures or guest pins changed.",
+    "native_paths": [
+      "entry/src/main/cpp/proc/wine_process.cpp",
+      "entry/src/main/cpp/wine/wine_launch.cpp",
+      "entry/src/main/cpp/wine/wineboot_wait.h"
+    ],
+    "host_evidence": "31 real fork/waitpid + production registry checks and complete host/model/GLES/HUD/navigation/CI suite passed, but the original test incorrectly considered every host signal a known Windows failure; c5e00c9a corrects that assumption using the device control. Old pre-fix source fails retained exit-code assertion. Logs startup-exit-before-test.log, startup-exit-56345d67-host.log, startup-exit-56345d67-all-host.log.",
+    "device_status": "ARM64 main 28043 cold product x64 GL visibly rendered and resumed from the desktop card. First Modern rebuild was rejected after mapping SIGKILL to exit=137. Diagnostic dc control shows Wine can clean up successful boot workers with SIGKILL; therefore this intermediate HAP is NOT ACCEPTED. Corrected by c5e00c9a. Preserve startup-exit-signal-false-failure.json and startup-exit-first-rebuild.log. Cold launch still reports unknown exits because Phone InstallReaperOnce overwrites the NAPI reaper."
+  },
+  {
+    "commit": "c5e00c9ac841eb00d262b2a80ff596f90551a7e8",
+    "reason": "I4 device correction: Wine server uses a SIGKILL timer for process cleanup, including successful guest exits. Preserve host signal source separately with unknown Windows exitCode=-1; only WIFEXITED provides a known nonzero code for bootstrap rejection.",
+    "native_paths": [
+      "entry/src/main/cpp/proc/wine_process.cpp"
+    ],
+    "host_evidence": "Corrected 31 real fork/waitpid + production registry checks; complete host/model/GLES/HUD/navigation/CI suite PASS (startup-exit-signal-all-host.log). Includes prior-failure isolation, PID incarnation, failed launcher/worker, unknown signal, competing waitpid and relabel cases. SDK interfaces are stubbed; does not validate async-signal safety.",
+    "device_status": "HAP 481343036 bytes, SHA256 4fba7852a92273b15b77b976a6e0fefc2dd57c7264aa6a75b684a8bd995af8ee; API23/dual ABI/archive/signature PASS. Main 36343 cold Modern and first wined3d recreation visibly show notepad. Wineboot signal cleanup no longer causes false failure; real exited code=0 from other children retains source=waitpid. Second Modern recreation remains metadata-only #7/client39283 with no mapped surface/renderer after 180 seconds. No explicit nonzero boot exit was observed in this c5 device sequence; rejection branch is host-tested only. First-cold fallback reaper status loss, async-unsafe handler, underlying faults and missing hardware gates remain open. App stopped after evidence, library reopened without test launch; no successful retry claimed. See DEVICE_RESULTS 20 and startup-exit-signal-device-summary.json."
+  },
+  {
+    "commit": "252176de96800577c7c87914a7d2fd418f0c9f35",
+    "reason": "I4: remove the phone fallback that overrides SIGCHLD and discards status. The signal handler only writes a nonblocking self-pipe; one ordinary thread reaps registered fork children under the existing registry lock, without stealing other modules' waitpid results. Register before handshake, preserve late broker/app labels and explicitly start a new lifetime for PID reuse. ReaderThread alone owns its fd and no longer competes for waitpid. Public UI/NAPI JSON, retries, timeouts and guest pins unchanged.",
+    "native_paths": [
+      "entry/src/main/cpp/bridge/napi_init.cpp",
+      "entry/src/main/cpp/phone_adapter/phone_process.cpp",
+      "entry/src/main/cpp/proc/wine_process.cpp",
+      "entry/src/main/cpp/proc/wine_process.h"
+    ],
+    "host_evidence": "132 checks with real SIGCHLD/fork/waitpid, production registry, signal interruption while its mutex is held, reentrant notification, early exit before registration, 24-child burst, unrelated wait owner, late labels, PID incarnation and actual fd-number reuse/idle-reader stop. Full host/model/GLES/HUD/navigation/CI gates PASS (reaper-all-host.log). Pre-fix source with API-only adapter fails early-exit publication (reaper-before-test.log).",
+    "device_status": "Dual-ABI API23 build/archive/SDK signature PASS. HAP 481350349 bytes, SHA256 057ce2f392ad0b37882ef674e43b44b9a907a43d0ca7a419026eb2f09a883654. Main 52298: cold Modern then VirGL/Modern/VirGL/Modern all visibly render notepad, each Explorer attempt 1/3. All observed exits publish from worker 52800 from the first cold boot; known code=0 retains waitpid, normal signal cleanup stays unknown Windows code. Chinese submission, root13 card resume with retained text and continued Chinese, normal notepad close without saving PASS. Library reopened without test Want, main58852, awake override retained. No nonzero wineboot exit reproduced here (host-tested only). Prior metadata-only/zero-toplevel failures remain under observation; full GL and hardware gates are not qualified. See DEVICE_RESULTS21 and reaper-device-summary.json."
+  },
+  {
+    "commit": "42e9330ae46214ab3198450f7506b6774a57cb0e",
+    "reason": "I1 geometry-only resize: keep the existing producer EGL context/window surface and NativeImage consumer queue, update the NativeWindow buffer geometry in place, and reserve full teardown for display/source-context/direct-transport changes. Preserve zero request timeout, 50 ms producer backoff, error accounting, default-off GLES Direct, UI, protocol and guest pins.",
+    "native_paths": [
+      "entry/src/main/cpp/graphics/virgl_surface_presenter.cpp"
+    ],
+    "host_evidence": "Full host/model/GLES/HUD/navigation/CI gates PASS (gl-resize-host.log). Dual-ABI API23 build, archive/ELF/package audit and SDK signature verification PASS. Reuse audit confirms staged dependencies and wine-data.zip unchanged; relative to 252176de only both ABI libvirgl_child.so entries changed. Host tests cannot exercise the device EGL/NativeWindow resize path.",
+    "device_status": "ARM64 main 4378, guest 5138, producer 4718 and consumer 5103: cold x64 wined3d GL rendered for the requested 900 seconds, ten geometry changes across five maximize/restore pairs all logged retained_egl=1 with the same surface key 22067541966873 and visibly correct frames. Two hidden/resume intervals consumed 1179/1648 frames and visibly resumed the same key. No buffer-cache-miss line occurred, but 20 producer RequestBuffer 40601000 errors occurred before the last resize; at normal teardown consumer totals were 98280 successful frames, 101525 notifications and 35 empty UpdateSurfaceImage failures. I1 strict zero-error gate remains FAIL. HAP 481349410 bytes, SHA256 fa79d3bb7e74ed81861bbc0c0f76eb9b6c53909fa2fa309ef27faca1f537cf3c. See DEVICE_RESULTS 22 and gl-resize-device-summary.json."
+  },
+  {
+    "commit": "9bce0b9f82a46ab6aa01d77930d8f364b3ecc775",
+    "reason": "I1 follow-up: a NativeImage queue is consumed on display VSync, so its EGL producer now uses the full normalized display period instead of the 0.5 ms deadline lead. Direct and Venus transports keep their existing lead. Geometry retention, zero request timeout, bounded failure backoff and error accounting remain unchanged.",
+    "native_paths": [
+      "entry/src/main/cpp/graphics/present_pacing.h",
+      "entry/src/main/cpp/graphics/virgl_surface_presenter.cpp"
+    ],
+    "host_evidence": "Present-pacing assertions and full host/model/GLES/HUD/navigation/CI gates PASS. Dual-ABI API23 signed HAP build PASS after verifying 113 reused dependency ELFs and wine-data.zip; HAP 481348956 bytes, SHA256 f80d06a482f5869937fd26c7966f353fb7691fe21d3103017304fda5850d6a55.",
+    "device_status": "Not installed or device-tested: the user stopped further testing and accepted the recorded current limits. This candidate does not replace installed 42e9330a evidence and no zero-NO_BUFFER claim is made."
+  },
+  {
+    "commit": "eb7802531738d420a6b3ff718996457bb48e0dd7",
+    "reason": "Adapt current WineHua master ff865647 into the product Native graphics policy authority. Product legacy-DXVK sessions also expose VKD3D-Proton for D3D12, so their VN_PERF always includes no_semaphore_feedback instead of deriving it only from the selected DXVK generation.",
+    "native_paths": [
+      "entry/src/main/cpp/graphics/graphics_profile.cpp"
+    ],
+    "host_evidence": "Focused graphics_policy_test PASS, including legacy and modern serialized VN_PERF contracts. No UI, session API, runtime selection, guest pin or packaging input changed.",
+    "device_status": "Not device-tested at the user's request to stop testing. Upstream reports the default VKD3D plus legacy-DXVK white-screen path fixed; this product adaptation is recorded without claiming an additional local device pass."
+  },
+  {
+    "commit": "522f9f1d58b6e8a506ebcb5d7d53a36aa48a114e",
+    "reason": "Converge the smoke/common Native control plane with current WineHua: support both launch layouts, route the legacy host-shadow adapter through product graphics policy, carry DXVK/VKD3D and locale settings consistently, fix the VKD3D program overlay, and expose compatible process metadata while product graphics/session owners remain authoritative.",
+    "native_paths": [
+      "entry/src/main/cpp/bridge/napi_init.cpp",
+      "entry/src/main/cpp/types/libentry/Index.d.ts",
+      "entry/src/main/cpp/wine/env_profiles.cpp",
+      "entry/src/main/cpp/wine/env_profiles.h",
+      "entry/src/main/cpp/wine/wine_env.cpp",
+      "entry/src/main/cpp/wine/wine_env.h",
+      "entry/src/main/cpp/wine/wine_exe.cpp",
+      "entry/src/main/cpp/wine/wine_exe.h",
+      "entry/src/main/cpp/wine/wine_launch.cpp",
+      "entry/src/main/cpp/wine/wine_launch.h"
+    ],
+    "host_evidence": "make test PASS, including graphics contract, 91 real Wayland lifecycle checks, 132 process checks, compositor/input suites, and smoke architecture assertions. Final incremental ARM64 API23 C/Ninja and ArkTS HAP build signed successfully; package inspection confirmed both DXVK generations, VKD3D/D3D12, x64/x86 diagnostics and requirements assets.",
+    "device_status": "Signed ARM64 HAP (SHA256 d58dc7d678231906935e0229c36379e19c1a1f914f462493e4b4c797da8c175a) replacement-installed on API26 without clearing data. Short core/reuse smoke PASS: x64 752 frames, producer 115.493 FPS, display 113.860 FPS; x86 772 frames, producer 117.682 FPS, display 114.896 FPS; both present=true and fallback=false. Captured x64/x86 RGBA quadrants pass the product-UI-aware validator. No long, controller, or expanded-suite qualification."
+  },
+  {
+    "commit": "2102259e2debae9b118b03f4140a4b959977211f",
+    "reason": "Adapt Wine system-language settings through the product settings owner and compatible Native locale control plane.",
+    "native_paths": [
+      "entry/src/main/cpp/bridge/napi_init.cpp",
+      "entry/src/main/cpp/types/libentry/Index.d.ts"
+    ],
+    "host_evidence": "model/performance/graphics contract PASS; ARM64 API23 signed HAP PASS.",
+    "device_status": "Short reuse-prefix Chinese desktop main path PASS; no device identifier recorded; no controller or long-suite testing."
+  },
+  {
+    "commit": "500c6d8ab12717c458b68d97b1f2cc2d6ccf684f",
+    "reason": "Restore Wine desktop translations in the child launch environment and build inputs.",
+    "native_paths": [
+      "entry/src/main/cpp/proc/wine_child.cpp",
+      "entry/src/main/cpp/wine/wine_launch.cpp"
+    ],
+    "host_evidence": "model/performance/graphics contract PASS; ARM64 API23 signed HAP PASS.",
+    "device_status": "Short reuse-prefix Chinese desktop main path PASS; no device identifier recorded; no controller or long-suite testing."
+  }
+]

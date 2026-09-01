@@ -1,6 +1,6 @@
 // controller_merge_test.cpp — ControllerHub source ownership (make test)
-#include "controller/controller_hub.h"
-#include "controller/gamepad_ipc_protocol.h"
+#include "input/controller/controller_hub.h"
+#include "input/controller/gamepad_ipc_protocol.h"
 
 #include <cstdio>
 

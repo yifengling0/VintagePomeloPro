@@ -26,6 +26,7 @@ Thumbs.db
 # Build output (root)
 build/
 out/
+/ci-artifacts/
 
 # HAP project
 /node_modules
@@ -57,6 +58,7 @@ prebuilt/
 
 # Local signing material (never commit)
 /sign/
+/signs/
 
 # Python caches
 __pycache__/

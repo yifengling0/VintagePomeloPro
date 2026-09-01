@@ -319,6 +319,18 @@ $(STAMPS)/box64-arm64-v8a: $(SCRIPTS)/build_box64.sh $(SCRIPTS)/env.sh FORCE | $
 .PHONY: native
 native: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/native)
 
+# Compile the application Native layer without repackaging the Wine payload.
+# Run inside the same SDK-equipped Docker container as `hap`.
+.PHONY: check-native
+check-native: native
+	@for arch in $(ARCHES); do \
+	    cmake -S $(ROOT)/entry/src/main/cpp -B $(BUILD_DIR)/native-check/$$arch -GNinja \
+	        -DCMAKE_TOOLCHAIN_FILE=$(OHOS_SDK)/native/build/cmake/ohos.toolchain.cmake \
+	        -DOHOS_ARCH=$$arch -DOHOS_PLATFORM=OHOS -DOHOS_STL=c++_shared \
+	        -DCMAKE_BUILD_TYPE=Debug && \
+	    cmake --build $(BUILD_DIR)/native-check/$$arch --parallel 4 || exit $$?; \
+	done
+
 NATIVE_SENTINEL_arm64_v8a := $(ROOT)/entry/libs/arm64-v8a/libvirglrenderer.so.1
 NATIVE_SENTINEL_x86_64    := $(ROOT)/entry/libs/x86_64/libvirglrenderer.so.1
 
@@ -368,6 +380,7 @@ $$(STAMPS)/$(1)/assemble: $(SCRIPTS)/assemble.sh $(SCRIPTS)/env.sh $(DXVK_ARTIFA
 	$(VKD3D_PROTON_ARTIFACTS) \
 	$(ROOT)/smoke/winehua_d3d8_smoke.c \
 	$(ROOT)/smoke/winehua_d3d_switch_cube.c \
+	$(ROOT)/smoke/winehua_gpu_diagnostics.c \
 	$(ROOT)/smoke/winehua_media_smoke.cpp \
 	$(ROOT)/smoke/winehua_dxvk26_requirements.c \
 	$(ROOT)/smoke/winehua_win32_driver.c \
@@ -409,12 +422,27 @@ test-ci-release:
 # ============================================================
 HOST_TEST_DIR := $(BUILD_DIR)/host_tests
 
+.PHONY: test-text-input
+test-text-input:
+	bash $(SCRIPTS)/run_text_input_unit_tests.sh
+
+PROCESS_TEST_SOURCE ?= $(ROOT)/entry/src/main/cpp/proc/wine_process.cpp
+.PHONY: test-process-lifecycle
+test-process-lifecycle:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -pthread \
+	    -I $(ROOT)/host_tests/process_stubs -I $(ROOT)/host_tests/stubs \
+	    -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/process_lifecycle_test \
+	    $(ROOT)/host_tests/process_lifecycle_test.cpp $(PROCESS_TEST_SOURCE)
+	timeout 20s $(HOST_TEST_DIR)/process_lifecycle_test
+
 .PHONY: graphics-contract-check
 graphics-contract-check:
 	bash $(SCRIPTS)/verify_graphics_contract.sh
 
 .PHONY: test
-test: graphics-contract-check
+test: graphics-contract-check test-text-input test-process-lifecycle
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/gles_direct_policy_test $(ROOT)/host_tests/gles_direct_policy_test.cpp
@@ -425,42 +453,69 @@ test: graphics-contract-check
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/geometry_test \
 	    $(ROOT)/host_tests/geometry_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp
 	$(HOST_TEST_DIR)/geometry_test
 	g++ -std=c++17 -Wall -Wextra -Werror -DWINEHUA_DEBUG_ASSERT \
 	    -I $(ROOT)/host_tests/stubs -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/compositor_state_test \
 	    $(ROOT)/host_tests/compositor_state_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/desktop_compositor.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/input_resolver.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/toplevel_manager.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/geometry.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/compositor_blit.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/toplevel/desktop_compositor.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/frame_pipeline.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/frame_composer.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/zc_bridge.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/input/input_resolver.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/toplevel/popup_manager.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/toplevel/toplevel_manager.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/compositor_blit.cpp
 	$(HOST_TEST_DIR)/compositor_state_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/blit_scaled_test \
 	    $(ROOT)/host_tests/blit_scaled_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/compositor/compositor_blit.cpp
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/compositor_blit.cpp
 	$(HOST_TEST_DIR)/blit_scaled_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/blit_clip_test \
+	    $(ROOT)/host_tests/blit_clip_test.cpp
+	$(HOST_TEST_DIR)/blit_clip_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/shm_frame_source_test \
+	    $(ROOT)/host_tests/shm_frame_source_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/shm_frame_source.cpp
+	$(HOST_TEST_DIR)/shm_frame_source_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/zorder_test \
+	    $(ROOT)/host_tests/zorder_test.cpp
+	$(HOST_TEST_DIR)/zorder_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/env_spec_test \
 	    $(ROOT)/host_tests/env_spec_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/env_spec.cpp
+	    $(ROOT)/entry/src/main/cpp/wine/env_spec.cpp
 	$(HOST_TEST_DIR)/env_spec_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/env_baseline_test \
 	    $(ROOT)/host_tests/env_baseline_test.cpp
 	$(HOST_TEST_DIR)/env_baseline_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/input_state_test \
+	    $(ROOT)/host_tests/input_state_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/input/input_state_tracker.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp
+	$(HOST_TEST_DIR)/input_state_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/toplevel_event_test \
+	    $(ROOT)/host_tests/toplevel_event_test.cpp
+	$(HOST_TEST_DIR)/toplevel_event_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/controller_merge_test \
 	    $(ROOT)/host_tests/controller_merge_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/controller/controller_hub.cpp
+	    $(ROOT)/entry/src/main/cpp/input/controller/controller_hub.cpp
 	$(HOST_TEST_DIR)/controller_merge_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/graphics_policy_test \
 	    $(ROOT)/host_tests/graphics_policy_test.cpp \
-	    $(ROOT)/entry/src/main/cpp/graphics_profile.cpp \
-	    $(ROOT)/entry/src/main/cpp/virgl_host_config.cpp
+	    $(ROOT)/entry/src/main/cpp/graphics/graphics_profile.cpp \
+	    $(ROOT)/entry/src/main/cpp/graphics/virgl_host_config.cpp
 	$(HOST_TEST_DIR)/graphics_policy_test
 	g++ -std=c++17 -Wall -Wextra -Werror \
 	    -I $(ROOT)/thirdparty/dxvk-modern/src/dxvk \
@@ -476,10 +531,14 @@ test-gles-direct:
 test-performance-hud:
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
-	    $(ROOT)/host_tests/performance_monitor_test.cpp $(ROOT)/entry/src/main/cpp/performance_monitor.cpp \
+	    $(ROOT)/host_tests/performance_monitor_test.cpp $(ROOT)/entry/src/main/cpp/common/performance_monitor.cpp \
 	    -o $(HOST_TEST_DIR)/performance_monitor_test
 	$(HOST_TEST_DIR)/performance_monitor_test
 	node $(SCRIPTS)/test_performance_hud.cjs
+
+.PHONY: test-model
+test-model:
+	bash $(SCRIPTS)/run_model_unit_tests.sh
 
 .PHONY: test-bottom-navigation
 test-bottom-navigation:

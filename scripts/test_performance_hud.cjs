@@ -108,8 +108,10 @@ async function main() {
   const saved = AppSettingsStore.getInstance();
   await saved.initialize({});
   assert.equal(saved.getGlobalSettings().showFpsHud, true);
+  assert.equal(saved.getGlobalSettings().wineLanguage, 'zh_CN');
   assert.deepEqual(clone(saved.getGlobalSettings().performanceHud), clone(defaults));
   const initial = clone(saved.getGlobalSettings()); initial.performanceHud = selected;
+  initial.wineLanguage = 'en_US';
   await saved.saveGlobalSettings(initial);
   await saved.setViewMode(initial.viewMode);
   await saved.setDefaultDisplayMode(initial.defaultDisplayMode);
@@ -117,8 +119,10 @@ async function main() {
   await saved.setShowVirtualControls(false);
   await saved.setBox64Preset('default');
   assert.equal(JSON.parse(preferences.get('global_settings_v1')).performanceHud.appCpu, true);
+  assert.equal(JSON.parse(preferences.get('global_settings_v1')).wineLanguage, 'en_US');
   const reloaded = new AppSettingsStore(); await reloaded.initialize({});
   assert.equal(reloaded.getGlobalSettings().performanceHud.appCpu, true);
+  assert.equal(reloaded.getGlobalSettings().wineLanguage, 'en_US');
 
   const { PerformanceMonitorService } = load(path.join(root, 'service/PerformanceMonitorService.ets'));
   const service = PerformanceMonitorService.getInstance();

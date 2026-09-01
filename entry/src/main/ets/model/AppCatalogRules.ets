@@ -20,6 +20,17 @@ export function catalogFileName(path: string): string {
   return index >= 0 ? normalized.substring(index + 1) : normalized;
 }
 
+// Broker registers wineboot before its @engine/ identity is applied. Keep
+// infrastructure out of running-card indicators without filtering the native
+// process snapshot used by shutdown and session reconciliation.
+export function isWineInfrastructurePath(path: string): boolean {
+  if (path.toLowerCase().startsWith('@engine/')) return true;
+  const name = catalogFileName(path).toLowerCase();
+  return ['wineserver', 'services.exe', 'csrss.exe', 'winedevice.exe',
+    'plugplay.exe', 'svchost.exe', 'rpcss.exe', 'wineboot', 'wineboot.exe',
+    'winehua_keep.exe'].includes(name);
+}
+
 export function catalogNameWithoutExtension(name: string): string {
   const index = name.lastIndexOf('.');
   return index > 0 ? name.substring(0, index) : name;

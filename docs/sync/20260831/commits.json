@@ -1,0 +1,1450 @@
+{
+  "product_base": "2c0436360ad3f821afe3fd6ea29d76e89f3781e7",
+  "upstream_base": "d256317e02c83ed81172938c31152ded16393a32",
+  "upstream_tip": "61cb4c6400a1c9a759fe2c511e6ef782d8586edb",
+  "commits": [
+    {
+      "source": "c2f0f7add7127d7864a91705633e35a778836627",
+      "subject": "refactor(smoke): 整体拆除 entry 内 smoke/automation 逻辑, 后续按三层设计重建",
+      "task": "T1",
+      "status": "adapted",
+      "paths": [
+        "docs/SMOKE_INFRASTRUCTURE.md",
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/broker.cpp",
+        "entry/src/main/cpp/env_profiles.cpp",
+        "entry/src/main/cpp/env_profiles.h",
+        "entry/src/main/cpp/experiment_payload.cpp",
+        "entry/src/main/cpp/experiment_payload.h",
+        "entry/src/main/cpp/host_vulkan_probe.cpp",
+        "entry/src/main/cpp/host_vulkan_probe.h",
+        "entry/src/main/cpp/napi_init.cpp",
+        "entry/src/main/cpp/spawner.cpp",
+        "entry/src/main/cpp/spawner.h",
+        "entry/src/main/cpp/types/libentry/Index.d.ts",
+        "entry/src/main/cpp/wine_child.cpp",
+        "entry/src/main/cpp/wine_constants.h",
+        "entry/src/main/cpp/wine_exe.cpp",
+        "entry/src/main/cpp/wine_exe.h",
+        "entry/src/main/cpp/wine_launch.cpp",
+        "entry/src/main/cpp/wine_launch.h",
+        "entry/src/main/cpp/wine_process.cpp",
+        "entry/src/main/ets/entryability/EntryAbility.ets",
+        "entry/src/main/ets/pages/HostVulkanSmoke.ets",
+        "entry/src/main/ets/pages/Index.ets",
+        "entry/src/main/ets/service/SmokeRunner.ets",
+        "entry/src/main/ets/service/WineEnvService.ets",
+        "entry/src/main/ets/service/WineWindowManager.ets",
+        "entry/src/main/resources/base/profile/main_pages.json"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "At this checkpoint managed payload sync was extracted and the then-unused runner removed. The later three-layer architecture checkpoint restores SmokeRunner as a thin data interpreter while retaining the product UI, engine, and session owners."
+    },
+    {
+      "source": "631baa7d81dafb35b7cf90f5e7e4e23269f3113d",
+      "subject": "refactor(env): DXVK 稳定化默认值收口 native 单源 — 拆除 ArkTS 平行拷贝",
+      "task": "T1",
+      "status": "covered_by_product",
+      "paths": [
+        "docs/PROCESS_SPAWNING.md",
+        "entry/src/main/cpp/env_profiles.cpp",
+        "entry/src/main/cpp/env_profiles.h",
+        "entry/src/main/cpp/wine_exe.cpp",
+        "entry/src/main/ets/pages/Index.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "Existing ResolveProductGraphicsPolicy/AppendProductDxvkEnv remain the single authority; both DXVK batching defaults retained. No old ArkTS profile policy reintroduced."
+    },
+    {
+      "source": "32f4f2f86a8ab4465ec4dabcaf0cca53322dc608",
+      "subject": "docs: 新增 compositor 重构方案",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_PLAN.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "53246d681eda1535333a3ef2249d31249112ac22",
+      "subject": "refactor(compositor): 删除死代码 (重构第 0 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_root_manager.cpp",
+        "entry/src/main/cpp/compositor/desktop_root_manager.h",
+        "entry/src/main/cpp/compositor/geometry.h",
+        "entry/src/main/cpp/compositor/input_resolver.cpp",
+        "entry/src/main/cpp/compositor/input_resolver.h",
+        "entry/src/main/cpp/compositor/surface_data.h",
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/graphics_broker.cpp",
+        "entry/src/main/cpp/graphics_broker.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/input_manager.h",
+        "entry/src/main/cpp/pointer_extras.cpp",
+        "entry/src/main/cpp/pointer_extras.h",
+        "entry/src/main/cpp/seat.cpp",
+        "entry/src/main/cpp/seat.h",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "host_tests/geometry_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "f2d65c4b62d731de484800fbb130fb4870058f02",
+      "subject": "refactor(compositor): 帧级诊断统一开关 FrameTraceEnabled (重构第 0 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/perf_utils.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "c38427bfc52cdc8ab095b6a194a7ba888f683fe9",
+      "subject": "docs(compositor): 修正与实现不符的注释与架构文档 (重构第 0 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "docs/ARCHITECTURE_OVERVIEW.md",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/move_grab.h",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/pointer_extras.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "34fd27689a4aaff15f39f385c298e77266ce7ec6",
+      "subject": "refactor(compositor): vpDst 显示尺寸的两个变体合并为 geometry.h 命名函数 (重构第 1 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/geometry.h",
+        "entry/src/main/cpp/compositor/input_resolver.cpp",
+        "entry/src/main/cpp/wl_core.cpp",
+        "host_tests/geometry_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "bc59b64a42fd34dd01a740da286a3ff58d76aeaa",
+      "subject": "refactor(compositor): 最小化 subsurface 的 offset 补偿合并为共享 helper — 裸魔数改命名常量 (重构第 1 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/compositor_utils.h",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "b00d2f7cc352f8f9f0226dd1a807250b9186c643",
+      "subject": "refactor(compositor): BuildLayerListLocked 重复的 subsurface 填充循环合并为共用 lambda (重构第 1 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "96563993bd8a63f951d1eae1ef916bccbe086b2c",
+      "subject": "refactor(compositor): 两份一模一样的 ZC 层查找合并为一个函数 (重构第 1 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "484661fd6aa6e7e9d5dea93e35e1868c3f5657a7",
+      "subject": "refactor(compositor): ToplevelManager 新增 Raise/PinToTop/EnsureInZOrder 业务方法与几何快照 getter (重构第 1 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "4f2ec7d0abb8fdc5bd16abc4659fc45280c8991f",
+      "subject": "refactor(compositor): xdg configure 的构造合并为 XdgConfigureSend 单点 (重构第 1 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/xdg_configure.h",
+        "entry/src/main/cpp/xdg_shell.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "4995fdbaa4626b68faf532603383bf2c41e4b89d",
+      "subject": "refactor(compositor): TakeToplevelFrame 超长函数拆成命名阶段成员函数 (重构第 2A 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "b2165f63db3619c94231b0b9fc2095bfc5e5dae3",
+      "subject": "refactor(compositor): 帧管线搬到 frame_pipeline.{h,cpp} — 规划/绘制彻底分开 (重构第 2A 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "docs/ARCHITECTURE_OVERVIEW.md",
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/blit_clip.h",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/frame_pipeline.cpp",
+        "entry/src/main/cpp/compositor/frame_pipeline.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "e9a44296ea593e8dd1fd4425414a63f849696c26",
+      "subject": "test(compositor): host_tests 新增 blit_clip 裁剪数学用例 (重构第 2A 步)",
+      "task": "T2",
+      "status": "adapted",
+      "paths": [
+        "Makefile",
+        "host_tests/blit_clip_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "622387cf664f371ad2e4e0b2990a2acd6860a178",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "df5fd27037598de9636ca5d3fa734fd2e1857688",
+      "subject": "wip(compositor): PresentedFrame 生成方切换 — 中断现场,当前不可编译 (重构第 2B 步半成品)",
+      "task": "T3",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/frame_pipeline.cpp",
+        "entry/src/main/cpp/compositor/frame_pipeline.h",
+        "entry/src/main/cpp/compositor/presented_frame.h",
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/egl_renderer.h",
+        "entry/src/main/cpp/wayland_server.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "eea65aba9b6c150df49561edb115cf5896010afe",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "8fc9328a6fa20570ac7c1d62cd65332da29552cf",
+      "subject": "docs(compositor): 重构进度记录 — 阶段 0/1/2A 完成,2B 现场与续作清单",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "37b83ad549cc9f597f7c8501b668207d6f202732",
+      "subject": "refactor(compositor): PresentedFrame 使用方接入 — GetInputLetterbox + RenderLoop/CoordTransform 改造 (重构第 2B 步)",
+      "task": "T3",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/egl_renderer.h",
+        "entry/src/main/cpp/input_manager.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "eea65aba9b6c150df49561edb115cf5896010afe",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "567697d3f431f321efc4753870487f6deb5751cd",
+      "subject": "refactor(compositor): PC/桌面两条取帧路径按 DisplayPolicy 拆成两个策略实现 (重构第 2B 步)",
+      "task": "T3",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/display_policy.h",
+        "entry/src/main/cpp/compositor/frame_composer.cpp",
+        "entry/src/main/cpp/compositor/frame_composer.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "eea65aba9b6c150df49561edb115cf5896010afe",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "61e979a84f326a2068ad30a5c565eec78cc4505d",
+      "subject": "docs(compositor): 进度记录 — 2B 任务 1/2 完成 (重构第 2B 步)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "35030a1a260657ed72e982dc5890dd458bd66fc3",
+      "subject": "docs(compositor): 进度验证记录 — 模拟器冒烟:任务 2 通过,任务 1 部分通过",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "30fb17ebc9914e23b5049697a47e6aa5a3800d29",
+      "subject": "refactor(compositor): 把零拷贝(ZC)的\"裁剪信息计算\"和\"帧显存 key 管理\"单独拆到 zc_bridge 模块 (重构第 3 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/zc_bridge.cpp",
+        "entry/src/main/cpp/compositor/zc_bridge.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "48c61ea1ca7c6de3985dee68ee5e32e22012849c",
+      "subject": "docs(compositor): 进度记录 — 阶段 3A zc_bridge 拆出完成 (f9a2d8a)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "13127c43e51061c1589e0a1e1af3840f3b1d817e",
+      "subject": "docs(compositor): 阶段 3A 设备验证记录 — arm64 Pad 实测确认行为不变",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "a4aba3c19d199bc293b9bbc401919a1b3463aa94",
+      "subject": "refactor(presenter): 呈现侧重复的工具函数与全屏 GLSL 并入公用文件 (重构第 3 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/presenter_common.h",
+        "entry/src/main/cpp/shader_utils.cpp",
+        "entry/src/main/cpp/shader_utils.h",
+        "entry/src/main/cpp/venus_surface_presenter.cpp",
+        "entry/src/main/cpp/virgl_child.cpp",
+        "entry/src/main/cpp/virgl_surface_presenter.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "566cde24c14cbebd5ba4fa467c94ae0b7ba801f7",
+      "subject": "refactor(presenter): PresentTarget 统一接口 + 返回码改用命名常量 (重构第 3 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/present_target.h",
+        "entry/src/main/cpp/venus_surface_presenter.cpp",
+        "entry/src/main/cpp/venus_surface_presenter.h",
+        "entry/src/main/cpp/virgl_surface_presenter.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "df171f3ebb4c0c5437a127473ecff80c92564d2b",
+      "subject": "docs(compositor): 重构进度记录 — 阶段 3D(presenter 并入)完成 (重构第 3 步)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "f6244f45b8c3afddb73e8924f8a6d37fa621b130",
+      "subject": "refactor(zorder): 新建 zorder_policy 统一层序规则 — 菜单置顶与 ZC 遮挡防护 (重构第 3B 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/zc_bridge.cpp",
+        "entry/src/main/cpp/compositor/zorder_policy.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "57dff6590fb02365b3b5575cb2d0ed54bddd63ee",
+      "subject": "docs(compositor): 进度记录 — 3B 谓词合并第一步 (重构第 3B 步)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "9dc9692edc0361f9a5c8b32901eadbdeb4f8a371",
+      "subject": "refactor(zorder): fsPriority 的选取也并入 zorder_policy (重构第 3B 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/zorder_policy.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "b8cd3b95f788cd2e462d80beeb6c6b9b55b0f372",
+      "subject": "docs(compositor): 进度记录 — 3B 谓词合并完成 (48b7333) (重构第 3B 步)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "f6c196aa9e3712b2e7384d10427b4059a6953c82",
+      "subject": "refactor(zc): ZC(零拷贝)状态机并入 ZcBridge (重构第 3C 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/zc_bridge.cpp",
+        "entry/src/main/cpp/compositor/zc_bridge.h",
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/egl_renderer.h",
+        "entry/src/main/cpp/wayland_server.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "fd07980ded9110082173a231cd0a513d556d9b55",
+      "subject": "refactor(zc): GetOccluders 改为遍历 BuildLayerList 层列表 (重构第 3A 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/zc_bridge.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "753167be8a71e3fc8fa763b219a9063ce15c48e3",
+      "subject": "refactor(zorder): BuildLayerListLocked 层序改为显式排序 — ZOrderSeq + ZOrderGroupFor (重构第 3B 步)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "Makefile",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/compositor/zorder_policy.h",
+        "host_tests/zorder_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "19c4d696c158a00a5322011e0f53b9aa17cfcaee",
+      "subject": "docs(compositor): 阶段 3 进度记录 — 3A 精化/3B 层序精化/3C 记录 + 待 ZC 回归清单 (重构第 3 步)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "ffbe9e3ee64017587e74031df37eabd97ae20293",
+      "subject": "refactor(directpass): 直传前提条件收拢为渲染器的能力声明 (重构第 2B 步任务 3)",
+      "task": "T4",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/direct_pass_policy.h",
+        "entry/src/main/cpp/compositor/frame_pipeline.cpp",
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/egl_renderer.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "b793ddaa8cf180679b009574e8c95f5fbd569f3d",
+      "subject": "docs(compositor): 进度记录 — 2B 任务 3 DirectPassPolicy 能力声明完成 (61b1d84) (重构第 2B 步)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "2d31ddab5252a980becfca05ca311cd77b34de6d",
+      "subject": "refactor(input): InputResolver 一次调用直接返回最终结果 — 逆映射和钳制收进内部 (重构第 4A 步)",
+      "task": "T5",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/compositor/geometry.h",
+        "entry/src/main/cpp/compositor/input_resolver.cpp",
+        "entry/src/main/cpp/compositor/input_resolver.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "host_tests/geometry_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "fe372d2b0a29fd638841bcbd95f329bfb7f03cd7",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "cee5b1a8d4cc286c5dda28100bd5357da2e63aab",
+      "subject": "fix(input): SendScrollEvent 补齐缺失段落 — 滚轮原来走的是不正确的高层路径 (重构第 4B 步, 行为有变化需设备回归)",
+      "task": "T5",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/input_manager.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "fe372d2b0a29fd638841bcbd95f329bfb7f03cd7",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "2de362f66a1770d151a880d87e01e85bcf60572a",
+      "subject": "refactor(input): 坐标换算集中到 InputSpaceMapper + PointerExtras 解环 + 桌面判断改走 DisplayPolicy (重构第 4C1 步)",
+      "task": "T5",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/input_space_mapper.cpp",
+        "entry/src/main/cpp/compositor/input_space_mapper.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/input_manager.h",
+        "entry/src/main/cpp/pointer_extras.cpp",
+        "entry/src/main/cpp/pointer_extras.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "fe372d2b0a29fd638841bcbd95f329bfb7f03cd7",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "e234b19e6f6223740ada76bc964383131c451f88",
+      "subject": "refactor(input): InputStateTracker 拆为纯状态类(配套 host_tests) (重构第 4C2 步)",
+      "task": "T5",
+      "status": "adapted",
+      "paths": [
+        "Makefile",
+        "entry/src/main/cpp/compositor/input_state_tracker.cpp",
+        "entry/src/main/cpp/compositor/input_state_tracker.h",
+        "host_tests/input_state_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "fe372d2b0a29fd638841bcbd95f329bfb7f03cd7",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "6835e214c5a02242135c33ac8dc1fd9b95a806ac",
+      "subject": "refactor(input): InputManager 拆成 InputQueue/InputInjector 两类 — 队列、注入、焦点状态各归其位 (重构第 4C2 步)",
+      "task": "T5",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/input_injector.cpp",
+        "entry/src/main/cpp/compositor/input_injector.h",
+        "entry/src/main/cpp/compositor/input_queue.cpp",
+        "entry/src/main/cpp/compositor/input_queue.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/input_manager.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "fe372d2b0a29fd638841bcbd95f329bfb7f03cd7",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "b0158d02390b0413a65e8593080caf3df57c3a55",
+      "subject": "refactor(input): InputTarget 删除没人用的 contentW/H + 4C2 收尾记录 (重构第 4C2 步收尾)",
+      "task": "T5",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/compositor/input_resolver.cpp",
+        "entry/src/main/cpp/compositor/input_resolver.h",
+        "entry/src/main/cpp/seat.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "fe372d2b0a29fd638841bcbd95f329bfb7f03cd7",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "8f98a21f3cad440c5a158e6b6412352a457997d2",
+      "subject": "refactor(wl): SHM 帧拷贝/缩放/内容区计算 拆成纯函数模块 ShmFrameSource (重构第 5A1 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "Makefile",
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/shm_frame_source.cpp",
+        "entry/src/main/cpp/compositor/shm_frame_source.h",
+        "entry/src/main/cpp/compositor/surface_data.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "host_tests/shm_frame_source_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "57a8875a20ff9d06fbd41d0850993ec0222a9856",
+      "subject": "refactor(wl): CommittedSurface 快照生成方 — commit 管线按名填充字段 (重构第 5A2 步·1/2)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/committed_surface.h",
+        "entry/src/main/cpp/compositor/surface_data.h",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "665f767cbb39d10f2692df5bedac4de20ce27264",
+      "subject": "refactor(wl): CommittedSurface 使用方切换 — geoX/geoY 的歧义消除 (重构第 5A2 步·2/2)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/committed_surface.h",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/surface_data.h",
+        "entry/src/main/cpp/compositor/zc_bridge.cpp",
+        "entry/src/main/cpp/wl_core.cpp",
+        "entry/src/main/cpp/xdg_shell.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "01ee2950196cb0baabc3d6edf453f2b13aae5ed8",
+      "subject": "refactor(wl): ARGB 掩码生成收进 ToplevelManager — 掩码算法集中一处 (重构第 5B1 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "7b2b253840ad2a15253230f620a6c383cac38899",
+      "subject": "refactor(wl): commit 后的位置同步/恢复/尺寸漂移 归入 ToplevelManager 业务方法层 (重构第 5B1 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "2369aacf74311fa03ef31025e5f187d0765083e5",
+      "subject": "refactor(wl): 首帧焦点处理集中为会话焦点策略 TryBeginSessionFirstFrame (重构第 5B1 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "cb88f42bd82be95f10ad82f3301096ee39585ea5",
+      "subject": "docs(compositor): 5B1 进度记录 — commit 业务段归属、lk.unlock 处置、首帧 focus 归属 (重构第 5B1 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "56bbefb2f1a3ec9c74bcff1bc81e5d0f4ca9847c",
+      "subject": "refactor(wl): popup 管理拆成独立模块 PopupManager (重构第 5B2 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/geometry.h",
+        "entry/src/main/cpp/compositor/popup_manager.cpp",
+        "entry/src/main/cpp/compositor/popup_manager.h",
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "host_tests/geometry_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "5701ffebd83e92dbab0c660dae999b26835ae835",
+      "subject": "refactor(wl): popup 偏移量公式 4 份合并为一处 ComputePopupOffset (重构第 5B2 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/zc_bridge.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "6352160ee19ef5defbc9496320792e89cc9e7760",
+      "subject": "docs(compositor): 5B2 进度记录 — PopupManager 接口、表迁移、尺寸通道、偏移公式核对表 (重构第 5B2 步)",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "49f6bd81e412bc28285d94f76e9b56c494ad1e9a",
+      "subject": "refactor(wl): maximized 状态也存进 ToplevelState — 窗口状态收拢到一处 (重构第 5C 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/compositor/surface_data.h",
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "entry/src/main/cpp/xdg_shell.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "ae67876e800e75054afa129e618b6010b7230f9a",
+      "subject": "refactor(evt): ToplevelEventBus — 事件名改 enum、JSON 构造并入单点、给 ArkTS 的通道移出核心 (重构第 5D 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "Makefile",
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/desktop_root_manager.h",
+        "entry/src/main/cpp/compositor/toplevel_event_bus.cpp",
+        "entry/src/main/cpp/compositor/toplevel_event_bus.h",
+        "entry/src/main/cpp/plugin_manager.cpp",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wine_process.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "entry/src/main/cpp/xdg_shell.cpp",
+        "host_tests/toplevel_event_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "d8e927c48a2579df7febf7afb8b4197d6901e12e",
+      "subject": "refactor(ws): 删掉 WaylandServer 上 27 个\"一层套一层\"的转发方法 — 调用方改为构造时直接注入依赖 (重构第 6A 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/input_injector.cpp",
+        "entry/src/main/cpp/compositor/input_injector.h",
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/egl_renderer.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/input_manager.h",
+        "entry/src/main/cpp/napi_init.cpp",
+        "entry/src/main/cpp/plugin_manager.cpp",
+        "entry/src/main/cpp/pointer_extras.cpp",
+        "entry/src/main/cpp/pointer_extras.h",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "entry/src/main/cpp/xdg_shell.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "70e2b5e848fd848c351e040783d62a503a07ea2f",
+      "subject": "refactor(ws): 桌面会话状态合并为单一 POD, desktopRootFrameSerial_ 改原子变量 — 共享状态只剩一处 (重构第 6B 步)",
+      "task": "T6",
+      "status": "adapted",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/desktop_root_manager.cpp",
+        "entry/src/main/cpp/compositor/desktop_root_manager.h",
+        "entry/src/main/cpp/compositor/desktop_session_state.h",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wine_launch.cpp",
+        "entry/src/main/cpp/wl_core.cpp",
+        "entry/src/main/cpp/xdg_shell.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "7494e63fcfb60727aa6c475089d672cf0d253f91",
+      "disposition": "Implemented in the named batch; product-specific adaptations and gate evidence in STATUS.md."
+    },
+    {
+      "source": "a38465f0d91ae85d2e1013790391e1a6c7ed2696",
+      "subject": "docs(compositor): 进度记录收尾 — 2B 切换完成, 旧 SHA 修正, 最终模拟器冒烟",
+      "task": "reference",
+      "status": "reference_only",
+      "paths": [
+        "docs/COMPOSITOR_REFACTOR_STATUS.md"
+      ],
+      "validation": [],
+      "disposition": "Historical upstream design/validation reference; not evidence that this product passed device tests."
+    },
+    {
+      "source": "2b1d495345ccb0550717a44cbeaf21b69ee43636",
+      "subject": "fix(ui): 运行中进程列表过滤掉 wineboot — 消除首启残留绿点",
+      "task": "T1",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/ets/service/ProcessService.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "Infrastructure paths filtered only from AppSessionService running cards through AppCatalogRules; native process inventory unchanged."
+    },
+    {
+      "source": "e95bf776207ab8dde71464cc9a2f08d1914b540b",
+      "subject": "fix(env): perfProfile 恢复「跟随全局设置」语义 — 修复首游戏白屏",
+      "task": "T1",
+      "status": "not_applicable",
+      "paths": [
+        "entry/src/main/ets/service/WineEnvService.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "Product has no upstream WineEnvService perfProfile selection; uses product graphics policy and existing per-app backend settings. No parallel perfProfile state added."
+    },
+    {
+      "source": "93330e0039ec37f14289f52c132a69fee90f58b5",
+      "subject": "refactor(env): 稳定化注入集的开关改名 — 原名限定了\"只针对桌面\", 实际两条链路都在用",
+      "task": "T1",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/env_profiles.cpp",
+        "entry/src/main/cpp/env_profiles.h",
+        "entry/src/main/cpp/wine_env.cpp",
+        "entry/src/main/cpp/wine_exe.cpp",
+        "entry/src/main/cpp/wine_launch.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "AppendStableDesktopDxvkEnv renamed AppendStableDxvkEnv and stableDesktopOverlay renamed applyStableOverlay; resolver semantics unchanged."
+    },
+    {
+      "source": "461028caae7e3eeec365497a0950d047339bc87b",
+      "subject": "refactor(compositor): 源码目录按职责分组 — 新建 frame/toplevel/input 三个子目录",
+      "task": "T7",
+      "status": "adapted",
+      "paths": [
+        "Makefile",
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/compositor/blit_clip.h",
+        "entry/src/main/cpp/compositor/committed_surface.h",
+        "entry/src/main/cpp/compositor/compositor_blit.cpp",
+        "entry/src/main/cpp/compositor/compositor_blit.h",
+        "entry/src/main/cpp/compositor/compositor_constants.h",
+        "entry/src/main/cpp/compositor/compositor_utils.cpp",
+        "entry/src/main/cpp/compositor/compositor_utils.h",
+        "entry/src/main/cpp/compositor/debug_assert.h",
+        "entry/src/main/cpp/compositor/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/desktop_root_manager.cpp",
+        "entry/src/main/cpp/compositor/desktop_root_manager.h",
+        "entry/src/main/cpp/compositor/desktop_session_state.h",
+        "entry/src/main/cpp/compositor/direct_pass_policy.h",
+        "entry/src/main/cpp/compositor/display_policy.h",
+        "entry/src/main/cpp/compositor/frame/blit_clip.h",
+        "entry/src/main/cpp/compositor/frame/committed_surface.h",
+        "entry/src/main/cpp/compositor/frame/compositor_blit.cpp",
+        "entry/src/main/cpp/compositor/frame/compositor_blit.h",
+        "entry/src/main/cpp/compositor/frame/compositor_constants.h",
+        "entry/src/main/cpp/compositor/frame/compositor_utils.cpp",
+        "entry/src/main/cpp/compositor/frame/compositor_utils.h",
+        "entry/src/main/cpp/compositor/frame/debug_assert.h",
+        "entry/src/main/cpp/compositor/frame/direct_pass_policy.h",
+        "entry/src/main/cpp/compositor/frame/display_policy.h",
+        "entry/src/main/cpp/compositor/frame/frame_composer.cpp",
+        "entry/src/main/cpp/compositor/frame/frame_composer.h",
+        "entry/src/main/cpp/compositor/frame/frame_pipeline.cpp",
+        "entry/src/main/cpp/compositor/frame/frame_pipeline.h",
+        "entry/src/main/cpp/compositor/frame/geometry.cpp",
+        "entry/src/main/cpp/compositor/frame/geometry.h",
+        "entry/src/main/cpp/compositor/frame/presented_frame.h",
+        "entry/src/main/cpp/compositor/frame/shm_frame_source.cpp",
+        "entry/src/main/cpp/compositor/frame/shm_frame_source.h",
+        "entry/src/main/cpp/compositor/frame/surface_data.h",
+        "entry/src/main/cpp/compositor/frame/zc_bridge.cpp",
+        "entry/src/main/cpp/compositor/frame/zc_bridge.h",
+        "entry/src/main/cpp/compositor/frame_composer.cpp",
+        "entry/src/main/cpp/compositor/frame_composer.h",
+        "entry/src/main/cpp/compositor/frame_pipeline.cpp",
+        "entry/src/main/cpp/compositor/frame_pipeline.h",
+        "entry/src/main/cpp/compositor/geometry.cpp",
+        "entry/src/main/cpp/compositor/geometry.h",
+        "entry/src/main/cpp/compositor/input/input_injector.cpp",
+        "entry/src/main/cpp/compositor/input/input_injector.h",
+        "entry/src/main/cpp/compositor/input/input_queue.cpp",
+        "entry/src/main/cpp/compositor/input/input_queue.h",
+        "entry/src/main/cpp/compositor/input/input_resolver.cpp",
+        "entry/src/main/cpp/compositor/input/input_resolver.h",
+        "entry/src/main/cpp/compositor/input/input_space_mapper.cpp",
+        "entry/src/main/cpp/compositor/input/input_space_mapper.h",
+        "entry/src/main/cpp/compositor/input/input_state_tracker.cpp",
+        "entry/src/main/cpp/compositor/input/input_state_tracker.h",
+        "entry/src/main/cpp/compositor/input_injector.cpp",
+        "entry/src/main/cpp/compositor/input_injector.h",
+        "entry/src/main/cpp/compositor/input_queue.cpp",
+        "entry/src/main/cpp/compositor/input_queue.h",
+        "entry/src/main/cpp/compositor/input_resolver.cpp",
+        "entry/src/main/cpp/compositor/input_resolver.h",
+        "entry/src/main/cpp/compositor/input_space_mapper.cpp",
+        "entry/src/main/cpp/compositor/input_space_mapper.h",
+        "entry/src/main/cpp/compositor/input_state_tracker.cpp",
+        "entry/src/main/cpp/compositor/input_state_tracker.h",
+        "entry/src/main/cpp/compositor/move_grab.cpp",
+        "entry/src/main/cpp/compositor/move_grab.h",
+        "entry/src/main/cpp/compositor/popup_manager.cpp",
+        "entry/src/main/cpp/compositor/popup_manager.h",
+        "entry/src/main/cpp/compositor/presented_frame.h",
+        "entry/src/main/cpp/compositor/shm_frame_source.cpp",
+        "entry/src/main/cpp/compositor/shm_frame_source.h",
+        "entry/src/main/cpp/compositor/surface_data.h",
+        "entry/src/main/cpp/compositor/toplevel/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/toplevel/desktop_compositor.h",
+        "entry/src/main/cpp/compositor/toplevel/desktop_root_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel/desktop_root_manager.h",
+        "entry/src/main/cpp/compositor/toplevel/desktop_session_state.h",
+        "entry/src/main/cpp/compositor/toplevel/move_grab.cpp",
+        "entry/src/main/cpp/compositor/toplevel/move_grab.h",
+        "entry/src/main/cpp/compositor/toplevel/popup_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel/popup_manager.h",
+        "entry/src/main/cpp/compositor/toplevel/toplevel_event_bus.cpp",
+        "entry/src/main/cpp/compositor/toplevel/toplevel_event_bus.h",
+        "entry/src/main/cpp/compositor/toplevel/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel/toplevel_manager.h",
+        "entry/src/main/cpp/compositor/toplevel/zorder_policy.h",
+        "entry/src/main/cpp/compositor/toplevel_event_bus.cpp",
+        "entry/src/main/cpp/compositor/toplevel_event_bus.h",
+        "entry/src/main/cpp/compositor/toplevel_manager.cpp",
+        "entry/src/main/cpp/compositor/toplevel_manager.h",
+        "entry/src/main/cpp/compositor/zc_bridge.cpp",
+        "entry/src/main/cpp/compositor/zc_bridge.h",
+        "entry/src/main/cpp/compositor/zorder_policy.h",
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/egl_renderer.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/input_manager.h",
+        "entry/src/main/cpp/pointer_extras.cpp",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "host_tests/blit_clip_test.cpp",
+        "host_tests/blit_scaled_test.cpp",
+        "host_tests/geometry_test.cpp",
+        "host_tests/input_state_test.cpp",
+        "host_tests/shm_frame_source_test.cpp",
+        "host_tests/toplevel_event_test.cpp",
+        "host_tests/zorder_test.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "f05cb8256b02738a3c42b5cbb38bbcdd54e942a6",
+      "disposition": "Deterministic mapping to final upstream layout plus private modules; path-map.json; all 181 bodies unchanged except include/path spelling."
+    },
+    {
+      "source": "40d24009c93994690766d367dc695e9968147c2f",
+      "subject": "refactor(protocol): wayland 自动生成代码全部收进 protocols/ — include/ 目录退役",
+      "task": "T7",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/include/audio_ipc_protocol.h",
+        "entry/src/main/cpp/include/pointer-constraints-unstable-v1-server-protocol.h",
+        "entry/src/main/cpp/include/pointer-warp-v1-server-protocol.h",
+        "entry/src/main/cpp/include/relative-pointer-unstable-v1-server-protocol.h",
+        "entry/src/main/cpp/include/text-input-unstable-v3-server-protocol.h",
+        "entry/src/main/cpp/include/viewporter-server-protocol.h",
+        "entry/src/main/cpp/include/wayland-client-core.h",
+        "entry/src/main/cpp/include/wayland-client-protocol.h",
+        "entry/src/main/cpp/include/wayland-client.h",
+        "entry/src/main/cpp/include/wayland-server-core.h",
+        "entry/src/main/cpp/include/wayland-server-protocol-output.h",
+        "entry/src/main/cpp/include/wayland-server-protocol.h",
+        "entry/src/main/cpp/include/wayland-server.h",
+        "entry/src/main/cpp/include/wayland-util.h",
+        "entry/src/main/cpp/include/wayland-version.h",
+        "entry/src/main/cpp/include/xdg-shell-client-protocol.h",
+        "entry/src/main/cpp/include/xdg-shell-server-protocol.h",
+        "entry/src/main/cpp/pointer-constraints-unstable-v1-protocol.c",
+        "entry/src/main/cpp/pointer-warp-v1-protocol.c",
+        "entry/src/main/cpp/pointer_extras.cpp",
+        "entry/src/main/cpp/protocols/audio_ipc_protocol.h",
+        "entry/src/main/cpp/protocols/pointer-constraints-unstable-v1-protocol.c",
+        "entry/src/main/cpp/protocols/pointer-constraints-unstable-v1-server-protocol.h",
+        "entry/src/main/cpp/protocols/pointer-warp-v1-protocol.c",
+        "entry/src/main/cpp/protocols/pointer-warp-v1-server-protocol.h",
+        "entry/src/main/cpp/protocols/relative-pointer-unstable-v1-protocol.c",
+        "entry/src/main/cpp/protocols/relative-pointer-unstable-v1-server-protocol.h",
+        "entry/src/main/cpp/protocols/text-input-unstable-v3-protocol.c",
+        "entry/src/main/cpp/protocols/text-input-unstable-v3-server-protocol.h",
+        "entry/src/main/cpp/protocols/viewporter-server-protocol.c",
+        "entry/src/main/cpp/protocols/viewporter-server-protocol.h",
+        "entry/src/main/cpp/protocols/wayland-client-core.h",
+        "entry/src/main/cpp/protocols/wayland-client-protocol.h",
+        "entry/src/main/cpp/protocols/wayland-client.h",
+        "entry/src/main/cpp/protocols/wayland-server-core.h",
+        "entry/src/main/cpp/protocols/wayland-server-protocol-output.h",
+        "entry/src/main/cpp/protocols/wayland-server-protocol.h",
+        "entry/src/main/cpp/protocols/wayland-server.h",
+        "entry/src/main/cpp/protocols/wayland-util.h",
+        "entry/src/main/cpp/protocols/wayland-version.h",
+        "entry/src/main/cpp/protocols/xdg-shell-client-protocol.h",
+        "entry/src/main/cpp/protocols/xdg-shell-protocol.c",
+        "entry/src/main/cpp/protocols/xdg-shell-server-protocol.h",
+        "entry/src/main/cpp/relative-pointer-unstable-v1-protocol.c",
+        "entry/src/main/cpp/text-input-unstable-v3-protocol.c",
+        "entry/src/main/cpp/viewporter-server-protocol.c",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wl_core.cpp",
+        "entry/src/main/cpp/xdg-shell-protocol.c",
+        "entry/src/main/cpp/xdg_configure.h",
+        "entry/src/main/cpp/xdg_shell.cpp"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "f05cb8256b02738a3c42b5cbb38bbcdd54e942a6",
+      "disposition": "Deterministic mapping to final upstream layout plus private modules; path-map.json; all 181 bodies unchanged except include/path spelling."
+    },
+    {
+      "source": "e6d963eb1eec166efb25a56f445e2def900fb465",
+      "subject": "fix(ui): Pad 光标锁定时不隐藏 — canHideCursor 的 Pad 分支改读 desktopActive",
+      "task": "T1",
+      "status": "covered_by_product",
+      "paths": [
+        "entry/src/main/ets/service/WineWindowManager.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "Product desktopLauncherVisible has live setter and floating/fullscreen semantics; keep its foreground/root guards instead of importing the upstream dead-field replacement."
+    },
+    {
+      "source": "69f550a34289446061d452d5da2a4beaa4b54669",
+      "subject": "fix(env): present 后端按 d3dBackend 派生收口 native — runWineProgram 调用方不再手算 venus/virgl",
+      "task": "T1",
+      "status": "covered_by_product",
+      "paths": [
+        "entry/src/main/cpp/wine_exe.cpp",
+        "entry/src/main/cpp/wine_exe.h",
+        "entry/src/main/ets/pages/Index.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "SpawnWineProgram uses ParseD3dBackend/UsesVenusPresent and the product native routing policy; no caller-calculated presentBackend contract required."
+    },
+    {
+      "source": "ed5ed452a7308cab849b298199f2bee727a4a5b5",
+      "subject": "feat(env): 引擎就绪后按需播种 C:\\smoke 烟测载荷 — 应用库手启动入口的存在性前提",
+      "task": "T1",
+      "status": "covered_by_product",
+      "paths": [
+        "entry/src/main/ets/service/WineEnvService.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "Managed payload sync already runs at engine-ready, ready reuse and managed program launch; extracted intact into ManagedSmokePayloadService."
+    },
+    {
+      "source": "c6c59c8ca8a77d024c6c9e693527de44f5cc668c",
+      "subject": "fix(env): smoke 播种 fs.copy 入参改 URI 形式 — 裸路径 401 参数校验失败",
+      "task": "T1",
+      "status": "superseded",
+      "paths": [
+        "entry/src/main/ets/service/WineEnvService.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "Intermediate fs.copy URI workaround superseded by d6c95756; product uses recursive listFileSync/copyFileSync and manifest ownership."
+    },
+    {
+      "source": "d6c95756f587accfd33b5a5d32058a7f4c4cd899",
+      "subject": "fix(env): smoke 播种改用 listFileSync+copyFileSync 递归复制 — fs.copy 沙箱内不可用",
+      "task": "T1",
+      "status": "covered_by_product",
+      "paths": [
+        "entry/src/main/ets/service/WineEnvService.ets"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
+      "disposition": "ManagedSmokePayloadService retains recursive listFileSync/copyFileSync from product; does not use fs.copy."
+    },
+    {
+      "source": "74f2bfe1aba89cbfbc729d1cf658b46f3aea6f80",
+      "subject": "refactor(cpp): 顶层源码按功能域归类到 8 个目录 (compositor/wine/proc/graphics/input/audio/bridge/common)",
+      "task": "T7",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/CMakeLists.txt",
+        "entry/src/main/cpp/audio/audio_broker.cpp",
+        "entry/src/main/cpp/audio/audio_broker.h",
+        "entry/src/main/cpp/audio/audio_ipc_server.cpp",
+        "entry/src/main/cpp/audio/audio_ipc_server.h",
+        "entry/src/main/cpp/audio/audio_stream.cpp",
+        "entry/src/main/cpp/audio/audio_stream.h",
+        "entry/src/main/cpp/audio_broker.cpp",
+        "entry/src/main/cpp/audio_broker.h",
+        "entry/src/main/cpp/audio_ipc_server.cpp",
+        "entry/src/main/cpp/audio_ipc_server.h",
+        "entry/src/main/cpp/audio_stream.cpp",
+        "entry/src/main/cpp/audio_stream.h",
+        "entry/src/main/cpp/bridge/napi_init.cpp",
+        "entry/src/main/cpp/bridge/plugin_manager.cpp",
+        "entry/src/main/cpp/bridge/plugin_manager.h",
+        "entry/src/main/cpp/broker.cpp",
+        "entry/src/main/cpp/broker.h",
+        "entry/src/main/cpp/common/fps_counter.h",
+        "entry/src/main/cpp/common/fs_utils.cpp",
+        "entry/src/main/cpp/common/fs_utils.h",
+        "entry/src/main/cpp/common/perf_utils.cpp",
+        "entry/src/main/cpp/common/perf_utils.h",
+        "entry/src/main/cpp/common/process_utils.cpp",
+        "entry/src/main/cpp/common/process_utils.h",
+        "entry/src/main/cpp/common/ring_buffer.cpp",
+        "entry/src/main/cpp/common/ring_buffer.h",
+        "entry/src/main/cpp/common/string_utils.cpp",
+        "entry/src/main/cpp/common/string_utils.h",
+        "entry/src/main/cpp/common/wait_utils.h",
+        "entry/src/main/cpp/compositor/frame/frame_composer.cpp",
+        "entry/src/main/cpp/compositor/frame/frame_pipeline.cpp",
+        "entry/src/main/cpp/compositor/frame/zc_bridge.cpp",
+        "entry/src/main/cpp/compositor/input/input_injector.cpp",
+        "entry/src/main/cpp/compositor/input/input_space_mapper.cpp",
+        "entry/src/main/cpp/compositor/toplevel/desktop_compositor.cpp",
+        "entry/src/main/cpp/compositor/wayland_server.cpp",
+        "entry/src/main/cpp/compositor/wayland_server.h",
+        "entry/src/main/cpp/compositor/wl_core.cpp",
+        "entry/src/main/cpp/compositor/xdg_configure.h",
+        "entry/src/main/cpp/compositor/xdg_shell.cpp",
+        "entry/src/main/cpp/compositor/xdg_shell.h",
+        "entry/src/main/cpp/egl_renderer.cpp",
+        "entry/src/main/cpp/egl_renderer.h",
+        "entry/src/main/cpp/env_profiles.cpp",
+        "entry/src/main/cpp/env_profiles.h",
+        "entry/src/main/cpp/env_spec.cpp",
+        "entry/src/main/cpp/env_spec.h",
+        "entry/src/main/cpp/fps_counter.h",
+        "entry/src/main/cpp/fs_utils.cpp",
+        "entry/src/main/cpp/fs_utils.h",
+        "entry/src/main/cpp/graphics/egl_renderer.cpp",
+        "entry/src/main/cpp/graphics/egl_renderer.h",
+        "entry/src/main/cpp/graphics/graphics_broker.cpp",
+        "entry/src/main/cpp/graphics/graphics_broker.h",
+        "entry/src/main/cpp/graphics/native_window_lease.h",
+        "entry/src/main/cpp/graphics/present_target.h",
+        "entry/src/main/cpp/graphics/presenter_common.h",
+        "entry/src/main/cpp/graphics/shader_utils.cpp",
+        "entry/src/main/cpp/graphics/shader_utils.h",
+        "entry/src/main/cpp/graphics/venus_surface_presenter.cpp",
+        "entry/src/main/cpp/graphics/venus_surface_presenter.h",
+        "entry/src/main/cpp/graphics/virgl_child.cpp",
+        "entry/src/main/cpp/graphics/virgl_host_config.cpp",
+        "entry/src/main/cpp/graphics/virgl_host_config.h",
+        "entry/src/main/cpp/graphics/virgl_ipc_protocol.h",
+        "entry/src/main/cpp/graphics/virgl_surface_presenter.cpp",
+        "entry/src/main/cpp/graphics/virgl_surface_presenter.h",
+        "entry/src/main/cpp/graphics_broker.cpp",
+        "entry/src/main/cpp/graphics_broker.h",
+        "entry/src/main/cpp/input/input_manager.cpp",
+        "entry/src/main/cpp/input/input_manager.h",
+        "entry/src/main/cpp/input/keymap_xkb.h",
+        "entry/src/main/cpp/input/pointer_extras.cpp",
+        "entry/src/main/cpp/input/pointer_extras.h",
+        "entry/src/main/cpp/input/seat.cpp",
+        "entry/src/main/cpp/input/seat.h",
+        "entry/src/main/cpp/input/text_input.cpp",
+        "entry/src/main/cpp/input/text_input.h",
+        "entry/src/main/cpp/input_manager.cpp",
+        "entry/src/main/cpp/input_manager.h",
+        "entry/src/main/cpp/keymap_xkb.h",
+        "entry/src/main/cpp/napi_init.cpp",
+        "entry/src/main/cpp/native_window_lease.h",
+        "entry/src/main/cpp/ncp_dispatch.cpp",
+        "entry/src/main/cpp/perf_utils.cpp",
+        "entry/src/main/cpp/perf_utils.h",
+        "entry/src/main/cpp/phone_adapter/phone_virgl_dispatch.cpp",
+        "entry/src/main/cpp/phone_adapter/phone_virgl_relay.cpp",
+        "entry/src/main/cpp/plugin_manager.cpp",
+        "entry/src/main/cpp/plugin_manager.h",
+        "entry/src/main/cpp/pointer_extras.cpp",
+        "entry/src/main/cpp/pointer_extras.h",
+        "entry/src/main/cpp/present_target.h",
+        "entry/src/main/cpp/presenter_common.h",
+        "entry/src/main/cpp/proc/broker.cpp",
+        "entry/src/main/cpp/proc/broker.h",
+        "entry/src/main/cpp/proc/ncp_dispatch.cpp",
+        "entry/src/main/cpp/proc/spawner.cpp",
+        "entry/src/main/cpp/proc/spawner.h",
+        "entry/src/main/cpp/proc/wine_child.cpp",
+        "entry/src/main/cpp/proc/wine_process.cpp",
+        "entry/src/main/cpp/proc/wine_process.h",
+        "entry/src/main/cpp/process_utils.cpp",
+        "entry/src/main/cpp/process_utils.h",
+        "entry/src/main/cpp/ring_buffer.cpp",
+        "entry/src/main/cpp/ring_buffer.h",
+        "entry/src/main/cpp/seat.cpp",
+        "entry/src/main/cpp/seat.h",
+        "entry/src/main/cpp/shader_utils.cpp",
+        "entry/src/main/cpp/shader_utils.h",
+        "entry/src/main/cpp/spawner.cpp",
+        "entry/src/main/cpp/spawner.h",
+        "entry/src/main/cpp/string_utils.cpp",
+        "entry/src/main/cpp/string_utils.h",
+        "entry/src/main/cpp/text_input.cpp",
+        "entry/src/main/cpp/text_input.h",
+        "entry/src/main/cpp/venus_surface_presenter.cpp",
+        "entry/src/main/cpp/venus_surface_presenter.h",
+        "entry/src/main/cpp/virgl_child.cpp",
+        "entry/src/main/cpp/virgl_host_config.cpp",
+        "entry/src/main/cpp/virgl_host_config.h",
+        "entry/src/main/cpp/virgl_ipc_protocol.h",
+        "entry/src/main/cpp/virgl_surface_presenter.cpp",
+        "entry/src/main/cpp/virgl_surface_presenter.h",
+        "entry/src/main/cpp/wait_utils.h",
+        "entry/src/main/cpp/wayland_server.cpp",
+        "entry/src/main/cpp/wayland_server.h",
+        "entry/src/main/cpp/wine/env_profiles.cpp",
+        "entry/src/main/cpp/wine/env_profiles.h",
+        "entry/src/main/cpp/wine/env_spec.cpp",
+        "entry/src/main/cpp/wine/env_spec.h",
+        "entry/src/main/cpp/wine/wine_constants.h",
+        "entry/src/main/cpp/wine/wine_env.cpp",
+        "entry/src/main/cpp/wine/wine_env.h",
+        "entry/src/main/cpp/wine/wine_env_baseline.h",
+        "entry/src/main/cpp/wine/wine_exe.cpp",
+        "entry/src/main/cpp/wine/wine_exe.h",
+        "entry/src/main/cpp/wine/wine_launch.cpp",
+        "entry/src/main/cpp/wine/wine_launch.h",
+        "entry/src/main/cpp/wine_child.cpp",
+        "entry/src/main/cpp/wine_constants.h",
+        "entry/src/main/cpp/wine_env.cpp",
+        "entry/src/main/cpp/wine_env.h",
+        "entry/src/main/cpp/wine_env_baseline.h",
+        "entry/src/main/cpp/wine_exe.cpp",
+        "entry/src/main/cpp/wine_exe.h",
+        "entry/src/main/cpp/wine_launch.cpp",
+        "entry/src/main/cpp/wine_launch.h",
+        "entry/src/main/cpp/wine_process.cpp",
+        "entry/src/main/cpp/wine_process.h",
+        "entry/src/main/cpp/wl_core.cpp",
+        "entry/src/main/cpp/xdg_configure.h",
+        "entry/src/main/cpp/xdg_shell.cpp",
+        "entry/src/main/cpp/xdg_shell.h"
+      ],
+      "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
+      "checkpoint": "f05cb8256b02738a3c42b5cbb38bbcdd54e942a6",
+      "disposition": "Deterministic mapping to final upstream layout plus private modules; path-map.json; all 181 bodies unchanged except include/path spelling."
+    },
+    {
+      "source": "a1c7da1877bdb38aa3753d1d17739ff0a4bc0689",
+      "subject": "docs(smoke): 一期重建设计 — 三层方案的落地规格 (Want 4键/数据驱动 suites/瘦解释器/脚本协议)",
+      "task": "reference",
+      "status": "adapted",
+      "paths": [
+        "docs/SMOKE_REBUILD_20260831.md"
+      ],
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "The three-layer design is implemented behind the product UI: Want smoke mode, data-driven suites, a thin SmokeRunner interpreter, and the external result protocol. Product pages and session ownership remain authoritative.",
+      "checkpoint": "68d09913"
+    },
+    {
+      "source": "ff865647d923aabe49224a7d9d87380c6787e163",
+      "subject": "fix(env): vkd3d 档 VN_PERF 固定带 no_semaphore_feedback — 不再随 dxvk 档位派生, 修默认 vkd3d+dxvk_legacy 白屏",
+      "task": "T8",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/cpp/wine/wine_env.cpp"
+      ],
+      "validation": "focused graphics_policy_test PASS; device testing stopped at user request and is not claimed",
+      "checkpoint": "eb7802531738d420a6b3ff718996457bb48e0dd7",
+      "disposition": "Adapted into the product Native policy authority: legacy DXVK sessions also expose the VKD3D-Proton D3D12 companion, so their serialized VN_PERF always disables semaphore feedback. Product UI and backend selection remain unchanged."
+    },
+    {
+      "source": "488aa0026b225bae76c86bb01b5f140d5b6d3d11",
+      "subject": "feat(smoke): smoke 回归设施一期重建 — 外部脚本驱动的 PE 套件回归 + 侧边栏极简入口",
+      "task": "T1",
+      "status": "adapted",
+      "paths": [
+        "automation/README.md",
+        "automation/run_regression.py",
+        "docs/SMOKE_REBUILD_20260831.md",
+        "entry/src/main/ets/common/SmokeTypes.ets",
+        "entry/src/main/ets/entryability/EntryAbility.ets",
+        "entry/src/main/ets/pages/Index.ets",
+        "entry/src/main/ets/service/SmokeRunner.ets",
+        "entry/src/main/ets/service/WineEnvService.ets",
+        "scripts/assemble.sh"
+      ],
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "Adapted the runner, suite/result protocol, managed payload, and external automation behind the existing product UI. The upstream sidebar entry was intentionally not copied; WineEngineService owns product and isolated smoke sessions.",
+      "checkpoint": "68d09913"
+    },
+    {
+      "source": "503d01cba6970c9ba8ff8ffea0ae61d4cc760aa4",
+      "subject": "fix(smoke): suites.json 的 exe 去掉 smoke/ 前缀 — 与载荷目录对齐",
+      "task": "T1",
+      "status": "adapted",
+      "paths": [
+        "scripts/assemble.sh"
+      ],
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "Adopted the corrected suite executable paths in the assembled managed smoke payload.",
+      "checkpoint": "68d09913"
+    },
+    {
+      "source": "4479b46576d6de5a66151f9b0f6bd1f94f508215",
+      "subject": "fix(smoke): --result 用 Windows 盘符形式 — 无盘符反斜杠结果落错目录",
+      "task": "T1",
+      "status": "adapted",
+      "paths": [
+        "entry/src/main/ets/service/SmokeRunner.ets"
+      ],
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "Adopted Windows-drive result paths in the runner command protocol; host artifact collection also accepts any WSL absolute archive path.",
+      "checkpoint": "68d09913"
+    },
+    {
+      "source": "61cb4c6400a1c9a759fe2c511e6ef782d8586edb",
+      "subject": "fix(smoke): resetSmokePrefix 延迟 startSession 前先清 opBusy",
+      "task": "T1",
+      "status": "covered_by_product",
+      "paths": [
+        "entry/src/main/ets/service/SmokeRunner.ets"
+      ],
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "The product does not use the upstream opBusy field. Its equivalent lifecycle is owned by WineEngineService: ensureSmokeReady resets and starts an isolated whole broker/spawner prefix session, and restoreProductSession returns to the product prefix without a same-owner lock.",
+      "checkpoint": "68d09913"
+    }
+  ],
+  "integration_status": "implementation_complete_short_smoke_passed_for_main_pr",
+  "merge_semantics": "selective adaptation; no full-tree merge/ours merge, no synthetic ancestry recorded"
+}

@@ -14,6 +14,7 @@ param(
     [switch]$Gate,
     [switch]$SkipBuild,
     [switch]$SkipInstall,
+    [switch]$AllowDualAbi,
     [switch]$PreflightOnly,
     [string]$HapPath = '',
     [string]$ExpectedHapSha256 = '',
@@ -22,6 +23,7 @@ param(
     [string]$WslDistro = 'Ubuntu',
     [switch]$BatchMappedFlush,
     [string]$DeviceId = '',
+    [string]$HdcPath = 'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe',
     [string]$ReplayFragmentSpv = '',
     [string]$ReplayVertexSpv = '',
     [string]$ArchiveRoot = '',
@@ -42,7 +44,7 @@ $Bundle = [string]$product.app.bundleName
 if ($Bundle -notmatch '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$') { throw 'Invalid product bundle name' }
 if (-not $ArchiveRoot) { $ArchiveRoot = Join-Path $SourceRepo '.hvigor/outputs/automation' }
 $Ability = 'EntryAbility'
-$Hdc = 'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe'
+$Hdc = $HdcPath
 $HapWsl = "$RepoWsl/entry/build/default/outputs/default/entry-default-signed.hap"
 $HapWindows = $HapPath
 if (-not $SkipBuild) {
@@ -428,7 +430,7 @@ function Get-ArtifactMetadata {
     if ($LASTEXITCODE -ne 0) { throw 'Signed HAP does not exist' }
     $hapHash = ((wsl -d $WslDistro -- sha256sum $HapWsl) -split '\s+')[0]
     if ($LASTEXITCODE -ne 0 -or $hapHash -notmatch '^[0-9a-f]{64}$') { throw 'Could not hash the built HAP' }
-    $identity = Get-ReferenceHapMetadata -HapPath $HapWindows -ExpectedHapSha256 $hapHash -Bundle $Bundle
+    $identity = Get-ReferenceHapMetadata -HapPath $HapWindows -ExpectedHapSha256 $hapHash -Bundle $Bundle -AllowDualAbi:$AllowDualAbi
     $rawHash = ((wsl -d $WslDistro -- sha256sum "$RepoWsl/entry/src/main/resources/rawfile/wine-data.zip") -split '\s+')[0]
     if ($LASTEXITCODE -ne 0 -or $rawHash -notmatch '^[0-9a-f]{64}$') { throw 'Could not hash the assembled runtime' }
     $embeddedHash = $identity.rawfileSha256
@@ -769,7 +771,7 @@ function Invoke-OneRun {
 
 if ($Runs -lt 1) { throw '-Runs must be at least 1' }
 $referenceArtifact = if ($SkipBuild) {
-    Get-ReferenceHapMetadata -HapPath $HapWindows -ExpectedHapSha256 $ExpectedHapSha256 -Bundle $Bundle
+    Get-ReferenceHapMetadata -HapPath $HapWindows -ExpectedHapSha256 $ExpectedHapSha256 -Bundle $Bundle -AllowDualAbi:$AllowDualAbi
 } else { $null }
 if ($PreflightOnly) {
     if (-not $SkipBuild) { Assert-BuildEnvironment }

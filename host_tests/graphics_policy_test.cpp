@@ -1,7 +1,7 @@
-#include "graphics_profile.h"
-#include "present_pacing.h"
-#include "present_policy.h"
-#include "virgl_host_config.h"
+#include "graphics/graphics_profile.h"
+#include "graphics/present_pacing.h"
+#include "graphics/present_policy.h"
+#include "graphics/virgl_host_config.h"
 
 #include <array>
 #include <cstdlib>
@@ -112,7 +112,7 @@ void TestBackendPolicy()
               runtime.relaxedFeatureCompatibility &&
               runtime.commandQueryReset && runtime.dynamicMappedFlush &&
               runtime.batchMappedFlush &&
-              !runtime.disableSemaphoreFeedback,
+              runtime.disableSemaphoreFeedback,
           "DXVK 1.10 high-performance runtime contract");
     Check(winehua::ResolveDxvkRuntimeProfile(D3dBackendKind::DxvkModern26, &runtime),
           "resolve DXVK 2.6 runtime");
@@ -287,7 +287,7 @@ void TestGuestProfileResolution()
               HasEnvironmentLine(environment,
               "VN_WINEHUA_REMOTE_MEMORY_SYNC=1") &&
               HasEnvironmentLine(environment,
-              "VN_PERF=no_fence_feedback,no_query_feedback,no_multi_ring") &&
+              "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring") &&
               HasEnvironmentLine(environment,
               "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1"),
           "DXVK 1.10 receives common precise/strong legacy policy");

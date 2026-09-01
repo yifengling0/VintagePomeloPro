@@ -92,7 +92,7 @@ jobs:
             test "$tag_sha" = "$expected_sha"
           fi
           python3 scripts/verify_ci_release.py source --expected-sha "$expected_sha" \
-            --release-tag "$RELEASE_TAG" --output build/ci-source.json
+            --release-tag "$RELEASE_TAG" --output ci-artifacts/ci-source.json
           make test-ci-release
           echo "commit=$expected_sha" >> "$GITHUB_OUTPUT"
 
@@ -100,7 +100,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: source-versions-${{ steps.source.outputs.commit }}
-          path: build/ci-source.json
+          path: ci-artifacts/ci-source.json
           if-no-files-found: error
 
       # ---- CI-only: 无签名的 build-profile.json5 ----
@@ -175,6 +175,9 @@ jobs:
           if ! command -v patch >/dev/null 2>&1; then
             packages+=(patch)
           fi
+          if ! command -v msgfmt >/dev/null 2>&1; then
+            packages+=(gettext)
+          fi
           if ! command -v curl >/dev/null 2>&1; then
             packages+=(curl)
           fi
@@ -243,8 +246,8 @@ jobs:
           ls -lh "$out_dir"
           hap="$out_dir/entry-default-unsigned.hap"
           test -s "$hap"
-          python3 scripts/verify_ci_release.py artifact --manifest build/ci-source.json \
-            --hap "$hap" --output build/ci-artifact.json
+          python3 scripts/verify_ci_release.py artifact --manifest ci-artifacts/ci-source.json \
+            --hap "$hap" --output ci-artifacts/ci-artifact.json
           echo "hap=$hap" >> "$GITHUB_OUTPUT"
 
       - name: Upload HAP
@@ -253,8 +256,8 @@ jobs:
           name: VintagePomeloPro-arm64-v8a-unsigned-${{ steps.source.outputs.commit }}
           path: |
             ${{ steps.art.outputs.hap }}
-            build/ci-source.json
-            build/ci-artifact.json
+            ci-artifacts/ci-source.json
+            ci-artifacts/ci-artifact.json
           if-no-files-found: error
           retention-days: 14
 
@@ -328,8 +331,8 @@ jobs:
           for f in "${haps[@]}"; do
             mv "$f" "VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
           done
-          cp build/ci-source.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-source.json"
-          cp build/ci-artifact.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-artifact.json"
+          cp ci-artifacts/ci-source.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-source.json"
+          cp ci-artifacts/ci-artifact.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-artifact.json"
           ls -lh
 
       - name: Generate changelog

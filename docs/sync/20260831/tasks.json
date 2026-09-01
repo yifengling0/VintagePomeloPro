@@ -1,0 +1,332 @@
+{
+  "T1": {
+    "sources": [
+      {
+        "sha": "c2f0f7add7127d7864a91705633e35a778836627",
+        "status": "adapted"
+      },
+      {
+        "sha": "631baa7d81dafb35b7cf90f5e7e4e23269f3113d",
+        "status": "covered_by_product"
+      },
+      {
+        "sha": "2b1d495345ccb0550717a44cbeaf21b69ee43636",
+        "status": "adapted"
+      },
+      {
+        "sha": "e95bf776207ab8dde71464cc9a2f08d1914b540b",
+        "status": "not_applicable"
+      },
+      {
+        "sha": "93330e0039ec37f14289f52c132a69fee90f58b5",
+        "status": "adapted"
+      },
+      {
+        "sha": "e6d963eb1eec166efb25a56f445e2def900fb465",
+        "status": "covered_by_product"
+      },
+      {
+        "sha": "69f550a34289446061d452d5da2a4beaa4b54669",
+        "status": "covered_by_product"
+      },
+      {
+        "sha": "ed5ed452a7308cab849b298199f2bee727a4a5b5",
+        "status": "covered_by_product"
+      },
+      {
+        "sha": "c6c59c8ca8a77d024c6c9e693527de44f5cc668c",
+        "status": "superseded"
+      },
+      {
+        "sha": "d6c95756f587accfd33b5a5d32058a7f4c4cd899",
+        "status": "covered_by_product"
+      }
+    ],
+    "checkpoints": [
+      "c078c1581f60695c7af6f96cd2116122145d3b60"
+    ]
+  },
+  "reference": {
+    "sources": [
+      {
+        "sha": "32f4f2f86a8ab4465ec4dabcaf0cca53322dc608",
+        "status": "reference_only"
+      },
+      {
+        "sha": "8fc9328a6fa20570ac7c1d62cd65332da29552cf",
+        "status": "reference_only"
+      },
+      {
+        "sha": "61e979a84f326a2068ad30a5c565eec78cc4505d",
+        "status": "reference_only"
+      },
+      {
+        "sha": "35030a1a260657ed72e982dc5890dd458bd66fc3",
+        "status": "reference_only"
+      },
+      {
+        "sha": "48c61ea1ca7c6de3985dee68ee5e32e22012849c",
+        "status": "reference_only"
+      },
+      {
+        "sha": "13127c43e51061c1589e0a1e1af3840f3b1d817e",
+        "status": "reference_only"
+      },
+      {
+        "sha": "df171f3ebb4c0c5437a127473ecff80c92564d2b",
+        "status": "reference_only"
+      },
+      {
+        "sha": "57dff6590fb02365b3b5575cb2d0ed54bddd63ee",
+        "status": "reference_only"
+      },
+      {
+        "sha": "b8cd3b95f788cd2e462d80beeb6c6b9b55b0f372",
+        "status": "reference_only"
+      },
+      {
+        "sha": "19c4d696c158a00a5322011e0f53b9aa17cfcaee",
+        "status": "reference_only"
+      },
+      {
+        "sha": "b793ddaa8cf180679b009574e8c95f5fbd569f3d",
+        "status": "reference_only"
+      },
+      {
+        "sha": "6352160ee19ef5defbc9496320792e89cc9e7760",
+        "status": "reference_only"
+      },
+      {
+        "sha": "a38465f0d91ae85d2e1013790391e1a6c7ed2696",
+        "status": "reference_only"
+      }
+    ],
+    "checkpoints": []
+  },
+  "T2": {
+    "sources": [
+      {
+        "sha": "53246d681eda1535333a3ef2249d31249112ac22",
+        "status": "adapted"
+      },
+      {
+        "sha": "f2d65c4b62d731de484800fbb130fb4870058f02",
+        "status": "adapted"
+      },
+      {
+        "sha": "c38427bfc52cdc8ab095b6a194a7ba888f683fe9",
+        "status": "adapted"
+      },
+      {
+        "sha": "34fd27689a4aaff15f39f385c298e77266ce7ec6",
+        "status": "adapted"
+      },
+      {
+        "sha": "bc59b64a42fd34dd01a740da286a3ff58d76aeaa",
+        "status": "adapted"
+      },
+      {
+        "sha": "b00d2f7cc352f8f9f0226dd1a807250b9186c643",
+        "status": "adapted"
+      },
+      {
+        "sha": "96563993bd8a63f951d1eae1ef916bccbe086b2c",
+        "status": "adapted"
+      },
+      {
+        "sha": "484661fd6aa6e7e9d5dea93e35e1868c3f5657a7",
+        "status": "adapted"
+      },
+      {
+        "sha": "4f2ec7d0abb8fdc5bd16abc4659fc45280c8991f",
+        "status": "adapted"
+      },
+      {
+        "sha": "4995fdbaa4626b68faf532603383bf2c41e4b89d",
+        "status": "adapted"
+      },
+      {
+        "sha": "b2165f63db3619c94231b0b9fc2095bfc5e5dae3",
+        "status": "adapted"
+      },
+      {
+        "sha": "e9a44296ea593e8dd1fd4425414a63f849696c26",
+        "status": "adapted"
+      }
+    ],
+    "checkpoints": [
+      "622387cf664f371ad2e4e0b2990a2acd6860a178"
+    ]
+  },
+  "T3": {
+    "sources": [
+      {
+        "sha": "df5fd27037598de9636ca5d3fa734fd2e1857688",
+        "status": "adapted"
+      },
+      {
+        "sha": "37b83ad549cc9f597f7c8501b668207d6f202732",
+        "status": "adapted"
+      },
+      {
+        "sha": "567697d3f431f321efc4753870487f6deb5751cd",
+        "status": "adapted"
+      }
+    ],
+    "checkpoints": [
+      "eea65aba9b6c150df49561edb115cf5896010afe"
+    ]
+  },
+  "T4": {
+    "sources": [
+      {
+        "sha": "30fb17ebc9914e23b5049697a47e6aa5a3800d29",
+        "status": "adapted"
+      },
+      {
+        "sha": "a4aba3c19d199bc293b9bbc401919a1b3463aa94",
+        "status": "adapted"
+      },
+      {
+        "sha": "566cde24c14cbebd5ba4fa467c94ae0b7ba801f7",
+        "status": "adapted"
+      },
+      {
+        "sha": "f6244f45b8c3afddb73e8924f8a6d37fa621b130",
+        "status": "adapted"
+      },
+      {
+        "sha": "9dc9692edc0361f9a5c8b32901eadbdeb4f8a371",
+        "status": "adapted"
+      },
+      {
+        "sha": "f6c196aa9e3712b2e7384d10427b4059a6953c82",
+        "status": "adapted"
+      },
+      {
+        "sha": "fd07980ded9110082173a231cd0a513d556d9b55",
+        "status": "adapted"
+      },
+      {
+        "sha": "753167be8a71e3fc8fa763b219a9063ce15c48e3",
+        "status": "adapted"
+      },
+      {
+        "sha": "ffbe9e3ee64017587e74031df37eabd97ae20293",
+        "status": "adapted"
+      }
+    ],
+    "checkpoints": [
+      "ae1974c78ad338e5ae63958d5ef19d85a0fabfbb"
+    ]
+  },
+  "T5": {
+    "sources": [
+      {
+        "sha": "2d31ddab5252a980becfca05ca311cd77b34de6d",
+        "status": "adapted"
+      },
+      {
+        "sha": "cee5b1a8d4cc286c5dda28100bd5357da2e63aab",
+        "status": "adapted"
+      },
+      {
+        "sha": "2de362f66a1770d151a880d87e01e85bcf60572a",
+        "status": "adapted"
+      },
+      {
+        "sha": "e234b19e6f6223740ada76bc964383131c451f88",
+        "status": "adapted"
+      },
+      {
+        "sha": "6835e214c5a02242135c33ac8dc1fd9b95a806ac",
+        "status": "adapted"
+      },
+      {
+        "sha": "b0158d02390b0413a65e8593080caf3df57c3a55",
+        "status": "adapted"
+      }
+    ],
+    "checkpoints": [
+      "fe372d2b0a29fd638841bcbd95f329bfb7f03cd7"
+    ]
+  },
+  "T6": {
+    "sources": [
+      {
+        "sha": "8f98a21f3cad440c5a158e6b6412352a457997d2",
+        "status": "adapted"
+      },
+      {
+        "sha": "57a8875a20ff9d06fbd41d0850993ec0222a9856",
+        "status": "adapted"
+      },
+      {
+        "sha": "665f767cbb39d10f2692df5bedac4de20ce27264",
+        "status": "adapted"
+      },
+      {
+        "sha": "01ee2950196cb0baabc3d6edf453f2b13aae5ed8",
+        "status": "adapted"
+      },
+      {
+        "sha": "7b2b253840ad2a15253230f620a6c383cac38899",
+        "status": "adapted"
+      },
+      {
+        "sha": "2369aacf74311fa03ef31025e5f187d0765083e5",
+        "status": "adapted"
+      },
+      {
+        "sha": "cb88f42bd82be95f10ad82f3301096ee39585ea5",
+        "status": "adapted"
+      },
+      {
+        "sha": "56bbefb2f1a3ec9c74bcff1bc81e5d0f4ca9847c",
+        "status": "adapted"
+      },
+      {
+        "sha": "5701ffebd83e92dbab0c660dae999b26835ae835",
+        "status": "adapted"
+      },
+      {
+        "sha": "49f6bd81e412bc28285d94f76e9b56c494ad1e9a",
+        "status": "adapted"
+      },
+      {
+        "sha": "ae67876e800e75054afa129e618b6010b7230f9a",
+        "status": "adapted"
+      },
+      {
+        "sha": "d8e927c48a2579df7febf7afb8b4197d6901e12e",
+        "status": "adapted"
+      },
+      {
+        "sha": "70e2b5e848fd848c351e040783d62a503a07ea2f",
+        "status": "adapted"
+      }
+    ],
+    "checkpoints": [
+      "7494e63fcfb60727aa6c475089d672cf0d253f91"
+    ]
+  },
+  "T7": {
+    "sources": [
+      {
+        "sha": "461028caae7e3eeec365497a0950d047339bc87b",
+        "status": "adapted"
+      },
+      {
+        "sha": "40d24009c93994690766d367dc695e9968147c2f",
+        "status": "adapted"
+      },
+      {
+        "sha": "74f2bfe1aba89cbfbc729d1cf658b46f3aea6f80",
+        "status": "adapted"
+      }
+    ],
+    "checkpoints": [
+      "f05cb8256b02738a3c42b5cbb38bbcdd54e942a6"
+    ]
+  }
+}

@@ -1,13 +1,13 @@
 #!/bin/bash
 # build_native.sh — Native compositor (Wayland compositor) 依赖
-# 产物: entry/libs/$NATIVE_ARCH/ (.so) + entry/src/main/cpp/include/ (头文件)
+# 产物: entry/libs/$NATIVE_ARCH/ (.so) + entry/src/main/cpp/protocols/ (头文件)
 # 注意: 协议文件 (xdg-shell-protocol.c 等) 架构无关, 只生成一次
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
 NATIVE_TARGET="${NATIVE_TARGET:-aarch64-linux-ohos}"
-WINEHUA_INC="$WINEHUA/entry/src/main/cpp/include"
+WINEHUA_INC="$WINEHUA/entry/src/main/cpp/protocols"
 NATIVE_BUILD="$BUILD_DIR/native_${NATIVE_ARCH}"
 if [ "$HOST_OS" = "Darwin" ] || [ "$HOST_OS" = "HarmonyOS" ]; then
     export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
@@ -56,7 +56,11 @@ build_libffi() {
     mkdir -p "$build"
     cd "$build"
 
-    "$src/autogen.sh" 2>/dev/null || true
+    # Git checkouts do not ship configure. autoreconf must run beside configure.ac;
+    # running autogen from the out-of-tree build directory silently did nothing.
+    if [ ! -x "$src/configure" ]; then
+        (cd "$src" && ./autogen.sh)
+    fi
     if [ "$HOST_OS" = "Darwin" ]; then
         CC="$OHOS_SDK/native/llvm/bin/clang" CCAS="$OHOS_SDK/native/llvm/bin/clang" \
         AR="$OHOS_SDK/native/llvm/bin/llvm-ar" \
@@ -275,7 +279,7 @@ build_wayland() {
 
 # ── 3. xdg-shell + wayland 协议文件 (架构无关, 只生成一次) ──
 build_protocols() {
-    if [ -f "$WINEHUA/entry/src/main/cpp/xdg-shell-protocol.c" ]; then
+    if [ -f "$WINEHUA/entry/src/main/cpp/protocols/xdg-shell-protocol.c" ]; then
         log "协议文件已就绪，跳过"
         return 0
     fi
@@ -291,7 +295,7 @@ build_protocols() {
 
     # xdg-shell protocol
     local xdg_xml="$ROOT/thirdparty/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
-    local cpp_dir="$WINEHUA/entry/src/main/cpp"
+    local cpp_dir="$WINEHUA/entry/src/main/cpp/protocols"
     "$scanner" server-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-server-protocol.h"
     "$scanner" client-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-client-protocol.h"
     "$scanner" private-code "$xdg_xml" "$cpp_dir/xdg-shell-protocol.c"
@@ -460,4 +464,4 @@ remove_native_egl_linker_stubs
 log "Native compositor 依赖就绪 ($NATIVE_ARCH)"
 log "  libs:  $NATIVE_LIBS"
 log "  inc:   $WINEHUA_INC"
-log "  proto: $WINEHUA/entry/src/main/cpp/xdg-shell-protocol.c"
+log "  proto: $WINEHUA/entry/src/main/cpp/protocols/xdg-shell-protocol.c"

@@ -27,7 +27,7 @@ assert.deepEqual(builtIns.map((profile) => profile.id),
   ['default', 'builtin-full-keyboard', 'builtin-rpg', 'builtin-fps', 'builtin-action']);
 assert.ok(builtIns.every((profile) => models.isBuiltInInputProfileId(profile.id)));
 assert.equal(models.isBuiltInInputProfileId('desktop-user'), false);
-assert.deepEqual(builtIns.map((profile) => profile.builtInRevision), [3, 3, 5, 3, 3]);
+assert.deepEqual(builtIns.map((profile) => profile.builtInRevision), [4, 14, 5, 3, 3]);
 
 const generic = models.createDefaultInputProfile();
 assert.equal(generic.id, 'default');
@@ -37,17 +37,13 @@ assert.ok(generic.gamepadMappings.length >= 10, '默认手柄映射应保留');
 
 const keyboard = models.createInputProfileFromTemplate('keyboard', '全键盘', 'full-keyboard');
 assert.ok(keyboard.elements.length >= 70, '全键盘模板应覆盖主要 PC 键区');
-const keyboardPanel = keyboard.elements.find((e) => e.type === 'PANEL');
-assert.ok(keyboardPanel, '全键盘应包含统一外框');
-assert.equal(keyboardPanel.panelWidthRatio, 0.84);
-assert.equal(keyboardPanel.panelHeightRatio, 0.48);
+assert.equal(keyboard.elements.some((e) => e.type === 'PANEL'), false,
+  '当前全键盘模板使用独立按键，不恢复已经移除的外框');
 assert.ok(keyboard.elements.some((e) => e.text === 'F12' && e.bindings[0].code === 88));
 assert.ok(keyboard.elements.some((e) => e.text === 'Space' && e.bindings[0].code === 57));
 assert.ok(keyboard.elements.some((e) => e.text === '↑' && e.bindings[0].code === 103));
-assert.ok(keyboard.elements.some((e) => e.text === 'Back' && e.widthScale >= 1.8),
-  '退格键应保留真实键盘的宽键比例');
-assert.ok(keyboard.elements.some((e) => e.text === 'Space' && e.widthScale >= 5),
-  '空格键应明显宽于普通键');
+assert.ok(keyboard.elements.every((e) => e.keyWidthRatio > 0 && e.keyHeightRatio > 0),
+  '全键盘应声明按视口缩放的键帽尺寸');
 assert.ok(keyboard.elements.some((e) => e.text === 'Home' && e.x > 0.8),
   '导航键区应与主键区分离');
 assert.ok(keyboard.elements.some((e) => e.text === 'A' && e.x >
@@ -89,6 +85,10 @@ function controlSize(element, width, height) {
   if (element.type === 'PANEL') {
     return [width * (element.panelWidthRatio ?? 0.84), height * (element.panelHeightRatio ?? 0.48)];
   }
+  if (element.type === 'BUTTON' && element.keyWidthRatio > 0 && element.keyHeightRatio > 0) {
+    return [width * element.keyWidthRatio * element.scale * (element.widthScale ?? 1),
+      height * element.keyHeightRatio * element.scale * (element.heightScale ?? 1)];
+  }
   const responsive = viewportScale(width, height);
   if (element.type === 'TRACKPAD') {
     return [150 * element.scale * (element.widthScale ?? 1) * responsive,
@@ -116,8 +116,8 @@ for (const profile of [generic, rpg, shooter, action]) {
   const modifiers = profile.elements.filter((e) => e.text === 'Shift' || e.text === 'Ctrl');
   assert.ok(modifiers.length > 0 && modifiers.every((modifier) => modifier.toggleSwitch),
     `${profile.name} 的 Shift/Ctrl 应默认启用按住锁定`);
-  assert.ok(modifiers.every((modifier) => modifier.x <= 0.17 && modifier.y >= 0.4),
-    `${profile.name} 的 Shift/Ctrl 应放在左侧移动区上方并避开工具栏`);
+  assert.ok(modifiers.every((modifier) => modifier.y < movement.y),
+    `${profile.name} 的 Shift/Ctrl 应放在移动区上方`);
   for (const [width, height] of [[809, 365], [1280, 800]]) {
     assert.ok(modifiers.every((modifier) => !overlaps(movement, modifier, width, height)),
       `${profile.name} 的 Shift/Ctrl 不应在 ${width}x${height} 下遮挡移动控件`);
@@ -144,16 +144,11 @@ const keyboardModifiers = keyboard.elements.filter((e) => e.text === 'Shift' || 
 assert.ok(keyboardModifiers.length >= 4 && keyboardModifiers.every((modifier) => modifier.toggleSwitch),
   '全键盘左右 Shift/Ctrl 应默认启用按住锁定');
 for (const [width, height] of [[809, 365], [1280, 800]]) {
-  const [panelW, panelH] = controlSize(keyboardPanel, width, height);
-  const panelLeft = keyboardPanel.x * width - panelW / 2;
-  const panelRight = keyboardPanel.x * width + panelW / 2;
-  const panelTop = keyboardPanel.y * height - panelH / 2;
-  const panelBottom = keyboardPanel.y * height + panelH / 2;
   for (const key of keyboard.elements.filter((element) => element.type === 'BUTTON')) {
     const [keyW, keyH] = controlSize(key, width, height);
-    assert.ok(key.x * width - keyW / 2 >= panelLeft && key.x * width + keyW / 2 <= panelRight &&
-      key.y * height - keyH / 2 >= panelTop && key.y * height + keyH / 2 <= panelBottom,
-    `全键盘按键 ${key.text} 不应在 ${width}x${height} 下越过外框`);
+    assert.ok(key.x * width - keyW / 2 >= 0 && key.x * width + keyW / 2 <= width &&
+      key.y * height - keyH / 2 >= 0 && key.y * height + keyH / 2 <= height,
+    `全键盘按键 ${key.text} 不应在 ${width}x${height} 下越过视口`);
   }
 }
 
