@@ -2,11 +2,11 @@
 
 当前代码：`codex/sync-master-20260831`。产品 main `2c043636` 与 WineHua master `61cb4c64` 已刷新核对；`d256317e..61cb4c64` 共 75 项全部有处置。原产品 main、其他工作树和所有子模块 pins 均未移动。T1–T7 与新增 master 增量已完成，**不要重新移植 75 项或重搬 181 个 Native 文件**。
 
-用户已接受现有设备结果并要求停止测试。当前任务是先创建产品 `main` PR，再从干净的 `61cb4c64` 上游分支启动 UPSTREAM_PACKETS 的反向贡献；不再安装候选或继续手机回归。PR 必须保留 OPEN_ISSUES/DEVICE_RESULTS 中的实际限制。
+用户随后要求真机安装并跑基础 smoke；当前架构收敛包已替换安装且未清数据，短 `core/reuse` 的 x64/x86 主路径与固定帧均通过。当前任务是先创建产品 `main` PR，再从执行时重新核验的 WineHua master 干净分支启动 UPSTREAM_PACKETS 的反向贡献。不追加长测、手柄或扩展套件，PR 必须保留 OPEN_ISSUES/DEVICE_RESULTS 中的实际限制。
 
 ## 当前优先任务：产品 main PR 与干净上游回推
 
-当前源码含 `9bce0b9f` 的 EGL queue pacing 候选（完整 host 与双 ABI HAP 构建通过、未安装）以及 `eb780253` 对 master `ff865647` 的 VKD3D semaphore-feedback 适配（focused host PASS、未新建 HAP）。用户明确停止后续测试，因此两项都必须在 PR 中标明设备未复核；手机仍安装 `42e9330a`。先让 source audit PASS、推送产品分支并创建 base=`main` 的 PR。随后从 `61cb4c64` 新建干净上游分支，先做不依赖子模块的 P1/P2；P3/P4 必须按子模块先行，产品 UI/品牌/签名/设备记录不能进入上游。
+当前源码包含 `9bce0b9f` 的 EGL queue pacing、`eb780253` 的 VKD3D semaphore-feedback 适配，以及 `522f9f1d` 的 smoke/common C 接口架构收敛；后两项与自动化修复已进入当前安装包。`make test`、最终 ARM64 API23 签名构建/包检查以及短 `core/reuse` 真机 smoke 均通过，但该短 smoke 不单独证明历史 GL 严格门禁已经关闭。先让 source audit PASS、推送产品分支并创建 base=`main` 的 PR。随后重新 fetch/核验 WineHua master，从其最新提交新建干净上游分支；P1/P2 不依赖子模块，P3/P4 必须按子模块先行，产品 UI/品牌/签名/设备记录不能进入上游。
 
 I1/I4、Legacy D3D9 和缺失资产的既有证据继续保留为已知限制，不在创建 PR 前继续追测。实体手柄按用户要求延期，不作为这次 main PR 阻塞条件，也不能改写成已通过。
 
@@ -29,8 +29,8 @@ I2 生命周期修复 `edd6fc87` 已完成：真实 Wayland 91 checks，冷启�
 - 保留产品 UI、资源、身份、浮窗、控制层、会话/NAPI 合约、GL 策略与 controller 约定。允许改动范围必须由所选问题的调用链决定。
 - Native/build 只能走既有 winehua-dev 容器中的根 Makefile 和 ext4 源码。原 Windows/其他 WSL 工作树不修改；不要把整个分支 merge 到 WineHua master。
 - 文档/日志改动只需 diff 与 source audit。ArkTS 修改需模型测试及 HAP 编译；Native 语义修改需受影响 host 测试、双 ABI 编译/包校验与相应实机动作。
-- 当前最新 HAP 为 `VintagePomeloPro-sync-42e9330a-dual.hap`，SHA-256 `fa79d3bb7e74ed81861bbc0c0f76eb9b6c53909fa2fa309ef27faca1f537cf3c`。实际产物、截图与日志在忽略目录 `.hvigor/outputs/sync-master-20260831/`；来源身份以安装记录和哈希为准。
-- 本机设备证据实际位于原 Windows 工作树 `D:/temp/VintagePomeloPro/.hvigor/outputs/sync-master-20260831/`，不是新 ext4 clone 的同名目录；原工作树只允许使用这个忽略输出目录，不改原代码。
+- 当前已安装 HAP 来自架构收敛检查点，SHA-256 `d58dc7d678231906935e0229c36379e19c1a1f914f462493e4b4c797da8c175a`。短 smoke 的主机归档位于忽略目录；来源身份以安装记录、提交和哈希为准。
+- 历史设备证据仍位于原 Windows 工作树的忽略输出目录；本次 runner 结果位于 WSL 的忽略临时归档。原工作树不改代码，文档不记录设备 ID 或机器专属路径。
 - 42 包相对 252 只有两种 ABI 的 `libvirgl_child.so` 变化；其余 119 个 Native 条目、ArkTS/wine-data.zip 字节一致。Hvigor 曾移除根 build 中间目录；复用依赖必须校验实际输入，不盲信缓存。Native 后续修复另提交、另验收，并在 native-fixes.json 精确登记，不改 T7 机械检查点。
 - hilog/stderr 先按进程和主题过滤，排除 `__env`、`entryParams` 再输出；不输出签名资料、设备 ID。用 JSON 解析提取 UI 文本，避免把单行完整 layout JSON 灌进上下文。
 - 每个任务输出：一个结论、变更范围、命令/exit code、证据路径、未覆盖项、提交 SHA。长日志不进 Git；失败结果不删除。每轮交付可编译的小提交后再换模型。

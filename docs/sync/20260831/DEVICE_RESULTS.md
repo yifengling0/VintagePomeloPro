@@ -79,6 +79,13 @@
     - guest 按请求运行 900 秒并于 05:20:28 正常离开测试窗口；最终 consumer 计数为 98,280 成功帧、101,525 通知、35 empty-update failures。合并中途与最终 ring 日志可确定 20 次 producer `NativeWindowRequestBuffer 40601000`，都在最后一次 resize 前；没有 cache-miss 行。错误后均恢复继续出图。这说明保留 EGL 消除了本样本的重建/cache 失配，但 producer 的 0.5 ms lead 持续跑在 120 Hz consumer 前面，前台空通知仍周期出现，严格门禁 FAIL。证据 `gl-resize-complete.log`、`gl-resize-end.log`、`gl-resize-device-summary.json`；不能写成 I1 通过或以可见恢复覆盖错误。
     - 本轮没有改 UI、ArkTS、协议、超时/50 ms 退避、GLES Direct 默认、guest 或 pins。手机继续保留常亮；当前包/数据/prefix 未卸载或重置。实体手柄、I4 首帧、I1 零错误和缺失资产门禁继续开放。
 
+23. `522f9f1d` smoke/common 架构收敛与短主路径回归（2026-09-01 07:40–07:50）：
+    - 最终 ARM64 API23 签名 HAP 的 SHA-256 为 `d58dc7d678231906935e0229c36379e19c1a1f914f462493e4b4c797da8c175a`；替换安装成功，没有卸载、清数据或重置用户 prefix。包检查确认 DXVK Legacy/Modern、VKD3D/D3D12、x64/x86 GPU diagnostics 与 requirements 资产齐全。
+    - 第一次 `core/reuse` 已在设备端进入 fixed-frame/present（659 帧），但主机将 WSL `/tmp` 归档路径原样交给 Windows HDC，导致截图收集失败；这不是 guest/runtime 失败。`7fc6a0ce` 将任意 WSL 绝对路径转换为 Windows 可访问路径，并对必需截图检查命令结果和非空文件。
+    - 修复后的短 `core/reuse`：x64 PASS，752 帧，producer/display 115.493/113.860 FPS；x86 PASS，772 帧，117.682/114.896 FPS；两项均 `present=true`、`fallback=false`。没有用重试掩盖设备 suite 失败。
+    - 两张实际截图均显示 Wine 窗口内左上红、右上绿、左下蓝、右下黄。原校验器把产品页自身的蓝色背景并入 fixture，造成主机端误报；`68d09913` 只在期望象限统计颜色，两张原图离线复验均为 `PASS / identity`，同时保留旋转允许和镜像拒绝。
+    - 本轮只覆盖基础 smoke 主路径；没有运行长测、实体手柄、其他 suites 或双 ABI 设备矩阵。历史 I1/I4、Legacy D3D9、缺资产及硬件限制继续有效，不能由本项改写成通过。设备保持临时常亮。
+
 音频 PASS 指 guest 提交、host 消费及非零 RMS；没有人耳确认时不声称可听性、音色或延迟通过。当前没有实体手柄输入/马达证据。
 
 ## 验收剩余项（不要重跑已完成的移植）
@@ -90,6 +97,6 @@
 - RA2/PAL2/Heaven 等指定游戏在当前设备目录未找到，不以 War3 或 smoke 替代；x86_64 Harmony 硬件未提供。构建与 guest x86 测试不等于另一设备 ABI 实测。
 - 受影响主机门禁已在最新 42e9330a 全套重跑通过，日志 `gl-resize-host.log`；其中保留 252 的 132 项真实进程检查及 edd 的真实 Wayland 生命周期 91 checks。双 ABI 包/签名、来源/保护范围与逐提交 Native 修复审计 PASS。当前仍不是全项无缺陷的发行验收。
 
-设备当前安装 42e9330a 包；main 4378 保留，x64 GL guest 已按 900 秒参数正常结束，蓝色桌面仍在。常亮 override=2147483647ms，原 timeout=600000ms 留存。本轮未改 Box64、手柄、触摸板、用户 prefix 或 UI。后续安装候选前只关闭当前测试会话/回到应用库，不卸载、不清数据；应用库收尾不算额外 Wine 启动通过。
+设备当前安装 smoke/common 架构收敛包，数据与 prefix 保留；短 x64/x86 `core/reuse` 已结束。常亮 override 继续保留。本轮未改 Box64、手柄、触摸板或产品 UI。后续安装候选前只关闭当前测试会话/回到应用库，不卸载、不清数据；应用库收尾不算额外 Wine 启动通过。
 
 最终验收应逐项更新本文件和 STATUS，并保留失败和限制，不抹去先前严格检查结果。下一轮最小范围见 NEXT_TASK.md。

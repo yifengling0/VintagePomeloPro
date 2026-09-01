@@ -79,5 +79,23 @@
     ],
     "host_evidence": "Focused graphics_policy_test PASS, including legacy and modern serialized VN_PERF contracts. No UI, session API, runtime selection, guest pin or packaging input changed.",
     "device_status": "Not device-tested at the user's request to stop testing. Upstream reports the default VKD3D plus legacy-DXVK white-screen path fixed; this product adaptation is recorded without claiming an additional local device pass."
+  },
+  {
+    "commit": "522f9f1d58b6e8a506ebcb5d7d53a36aa48a114e",
+    "reason": "Converge the smoke/common Native control plane with current WineHua: support both launch layouts, route the legacy host-shadow adapter through product graphics policy, carry DXVK/VKD3D and locale settings consistently, fix the VKD3D program overlay, and expose compatible process metadata while product graphics/session owners remain authoritative.",
+    "native_paths": [
+      "entry/src/main/cpp/bridge/napi_init.cpp",
+      "entry/src/main/cpp/types/libentry/Index.d.ts",
+      "entry/src/main/cpp/wine/env_profiles.cpp",
+      "entry/src/main/cpp/wine/env_profiles.h",
+      "entry/src/main/cpp/wine/wine_env.cpp",
+      "entry/src/main/cpp/wine/wine_env.h",
+      "entry/src/main/cpp/wine/wine_exe.cpp",
+      "entry/src/main/cpp/wine/wine_exe.h",
+      "entry/src/main/cpp/wine/wine_launch.cpp",
+      "entry/src/main/cpp/wine/wine_launch.h"
+    ],
+    "host_evidence": "make test PASS, including graphics contract, 91 real Wayland lifecycle checks, 132 process checks, compositor/input suites, and smoke architecture assertions. Final incremental ARM64 API23 C/Ninja and ArkTS HAP build signed successfully; package inspection confirmed both DXVK generations, VKD3D/D3D12, x64/x86 diagnostics and requirements assets.",
+    "device_status": "Signed ARM64 HAP (SHA256 d58dc7d678231906935e0229c36379e19c1a1f914f462493e4b4c797da8c175a) replacement-installed on API26 without clearing data. Short core/reuse smoke PASS: x64 752 frames, producer 115.493 FPS, display 113.860 FPS; x86 772 frames, producer 117.682 FPS, display 114.896 FPS; both present=true and fallback=false. Captured x64/x86 RGBA quadrants pass the product-UI-aware validator. No long, controller, or expanded-suite qualification."
   }
 ]

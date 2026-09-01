@@ -6,7 +6,7 @@
 
 T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.md](STATUS.md)，再读本文件对应任务，不要重新执行已经完成的补丁或搬目录脚本。全部来源、处置理由和检查点在 [commits.json](commits.json)，181 个 Native 路径映射在 [path-map.json](path-map.json)。总约束和验收范围见 [PLAN.md](PLAN.md)。
 
-当前双 ABI 候选包的运行时代码检查点是 `42e9330a`（含 252 的 beb 根会话、edd IME、dc 后台消费、c5 退出码和统一回收线程，并增加几何缩放保留 EGL/consumer queue 的单文件修复）；后续文档提交不会自动改变已安装 HAP 的二进制来源。最终状态必须同时记录源码 SHA、HAP SHA-256、安装日志、设备结果，不能只记录版本号 1.3.3。最新状态/未通过项以 STATUS、NEXT_TASK 和 DEVICE_RESULTS 22 为准。五轮缩放、两次后台恢复与完整 905 秒运行可见通过，但 20 次 producer NO_BUFFER 和最终 35 次 consumer empty-update 仍使 I1 严格门禁失败；252 的一次新冷启动又在 197 秒内保持 metadata-only，I4 也未关闭。
+当前已安装包来自 `522f9f1d` smoke/common 架构收敛及其自动化修复链，SHA-256 为 `d58dc7d678231906935e0229c36379e19c1a1f914f462493e4b4c797da8c175a`；替换安装保留数据和 prefix。最终状态必须同时记录源码 SHA、HAP SHA-256、安装结果和设备范围，不能只记录版本号 1.3.3。最新状态/未通过项以 STATUS、NEXT_TASK 和 DEVICE_RESULTS 23 为准。本次仅有短 x64/x86 `core/reuse` PASS；DEVICE_RESULTS 22 的五轮缩放和 905 秒历史证据仍有效，但 20 次 producer NO_BUFFER、35 次 consumer empty-update 与一次 197 秒 metadata-only 启动仍分别保留在 I1/I4。
 
 ## 不得改变的产品行为
 
@@ -25,7 +25,7 @@ T1–T7 的代码移植和目录重构已经实现。继续工作先读 [STATUS.
 
 范围：`AppCatalogRules`、`AppSessionService`、`ManagedSmokePayloadService`、`WineEngineService` 的必要引用，以及 Native defaults 命名。
 
-决策：只在运行中卡片过滤基础设施程序，不删除 Native 进程登记。移除未使用 SmokeRunner，但保留产品正在使用的 LAB API。桌面浮窗状态在产品中仍然有效，不照抄上游 Pad 修复。文件复制使用现有同步递归实现，不导入过渡 URI workaround。
+决策：只在运行中卡片过滤基础设施程序，不删除 Native 进程登记。最初移除未使用的 SmokeRunner；在 `522f9f1d` 按上游三层架构恢复为无 UI 权限的薄数据解释器，由 WineEngineService 管理独立 smoke 前缀和产品会话恢复。保留产品正在使用的 LAB API、页面和会话所有权。桌面浮窗状态在产品中仍然有效，不照抄上游 Pad 修复。文件复制使用现有同步递归实现，不导入过渡 URI workaround。
 
 检查：`make test test-model`、ARM64 `check-native`。若后续改服务，另跑 HAP 编译和冷/热启动，不能只靠模型测试。
 

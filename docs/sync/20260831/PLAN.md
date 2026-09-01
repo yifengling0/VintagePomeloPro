@@ -19,7 +19,7 @@ Do not copy upstream Pad cursor or perfProfile fixes literally: product floating
 ## Ordered tasks
 
 - T0: freeze inputs, ledger, isolated ext4 clone/container, baseline tests/device evidence.
-- T1: adopt Native default-policy naming; retain equivalent resolver behavior; adapt process filtering; extract managed smoke payload sync from unused SmokeRunner. Keep live LAB APIs isolated.
+- T1: adopt Native default-policy naming; retain equivalent resolver behavior; adapt process filtering; extract managed smoke payload sync. The first checkpoint removed an unused runner; the final architecture checkpoint restores it as a thin data interpreter behind product UI/session owners and aligns the common C/NAPI contracts. Keep live LAB APIs isolated.
 - T2: compositor dead-code audit, helpers and frame planner/blitter separation. Preserve product calls and lock boundaries.
 - T3: migrate PresentedFrame producers/renderers/input and DisplayPolicy together. df5fd270 is incomplete alone: pair with 37b83ad5 and 567697d3. Keep product fullscreen mapping and pointer geometry.
 - T4: ZcBridge, layer/z-order, PresentTarget/common shader tools and DirectPassPolicy. Preserve GL/Vulkan distinction, failure deadlines, native-window ownership and device release.

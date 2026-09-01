@@ -39,7 +39,7 @@
       ],
       "validation": "host_tests_and_dual_abi_signed_hap_passed; device_validation_in_progress; see DEVICE_RESULTS.md for baseline/candidate warnings",
       "checkpoint": "c078c1581f60695c7af6f96cd2116122145d3b60",
-      "disposition": "Extracted managed payload sync and removed unused SmokeRunner; retained live LAB APIs and product engine/session/UI. Source smoke deletion is intentionally not wholesale."
+      "disposition": "At this checkpoint managed payload sync was extracted and the then-unused runner removed. The later three-layer architecture checkpoint restores SmokeRunner as a thin data interpreter while retaining the product UI, engine, and session owners."
     },
     {
       "source": "631baa7d81dafb35b7cf90f5e7e4e23269f3113d",
@@ -1368,12 +1368,13 @@
       "source": "a1c7da1877bdb38aa3753d1d17739ff0a4bc0689",
       "subject": "docs(smoke): 一期重建设计 — 三层方案的落地规格 (Want 4键/数据驱动 suites/瘦解释器/脚本协议)",
       "task": "reference",
-      "status": "reference_only",
+      "status": "adapted",
       "paths": [
         "docs/SMOKE_REBUILD_20260831.md"
       ],
-      "validation": [],
-      "disposition": "Upstream smoke-runner design reference. Product regression remains external-script driven and keeps its own UI/session APIs."
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "The three-layer design is implemented behind the product UI: Want smoke mode, data-driven suites, a thin SmokeRunner interpreter, and the external result protocol. Product pages and session ownership remain authoritative.",
+      "checkpoint": "68d09913"
     },
     {
       "source": "ff865647d923aabe49224a7d9d87380c6787e163",
@@ -1391,7 +1392,7 @@
       "source": "488aa0026b225bae76c86bb01b5f140d5b6d3d11",
       "subject": "feat(smoke): smoke 回归设施一期重建 — 外部脚本驱动的 PE 套件回归 + 侧边栏极简入口",
       "task": "T1",
-      "status": "covered_by_product",
+      "status": "adapted",
       "paths": [
         "automation/README.md",
         "automation/run_regression.py",
@@ -1403,43 +1404,47 @@
         "entry/src/main/ets/service/WineEnvService.ets",
         "scripts/assemble.sh"
       ],
-      "validation": "existing product automation, managed payload and protected UI audits retained",
-      "disposition": "Product already uses external regression scripts, normal game launch, managed payload sync and bounded LAB APIs. Do not import the upstream sidebar/SmokeRunner or replace the product UI/session architecture."
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "Adapted the runner, suite/result protocol, managed payload, and external automation behind the existing product UI. The upstream sidebar entry was intentionally not copied; WineEngineService owns product and isolated smoke sessions.",
+      "checkpoint": "68d09913"
     },
     {
       "source": "503d01cba6970c9ba8ff8ffea0ae61d4cc760aa4",
       "subject": "fix(smoke): suites.json 的 exe 去掉 smoke/ 前缀 — 与载荷目录对齐",
       "task": "T1",
-      "status": "not_applicable",
+      "status": "adapted",
       "paths": [
         "scripts/assemble.sh"
       ],
-      "validation": [],
-      "disposition": "Fixes the upstream suites.json format introduced by 488aa002; that runner and payload layout are not used by the product."
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "Adopted the corrected suite executable paths in the assembled managed smoke payload.",
+      "checkpoint": "68d09913"
     },
     {
       "source": "4479b46576d6de5a66151f9b0f6bd1f94f508215",
       "subject": "fix(smoke): --result 用 Windows 盘符形式 — 无盘符反斜杠结果落错目录",
       "task": "T1",
-      "status": "not_applicable",
+      "status": "adapted",
       "paths": [
         "entry/src/main/ets/service/SmokeRunner.ets"
       ],
-      "validation": [],
-      "disposition": "Fixes command construction in the unadopted upstream SmokeRunner. Product automation already owns its result paths externally."
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "Adopted Windows-drive result paths in the runner command protocol; host artifact collection also accepts any WSL absolute archive path.",
+      "checkpoint": "68d09913"
     },
     {
       "source": "61cb4c6400a1c9a759fe2c511e6ef782d8586edb",
       "subject": "fix(smoke): resetSmokePrefix 延迟 startSession 前先清 opBusy",
       "task": "T1",
-      "status": "not_applicable",
+      "status": "covered_by_product",
       "paths": [
         "entry/src/main/ets/service/SmokeRunner.ets"
       ],
-      "validation": [],
-      "disposition": "Fixes state in the unadopted upstream SmokeRunner. Product reset/session ownership remains in WineEngineService and AppSessionService."
+      "validation": "make test PASS; final ARM64 API23 signed HAP and package/signature inspection PASS; API26 replacement install preserved data; short core/reuse smoke PASS for x64 and x86 with present=true and fallback=false; captured quadrants PASS the product-UI-aware validator. No long, controller, or expanded-suite qualification.",
+      "disposition": "The product does not use the upstream opBusy field. Its equivalent lifecycle is owned by WineEngineService: ensureSmokeReady resets and starts an isolated whole broker/spawner prefix session, and restoreProductSession returns to the product prefix without a same-owner lock.",
+      "checkpoint": "68d09913"
     }
   ],
-  "integration_status": "implementation_complete_device_limits_accepted_for_main_pr",
+  "integration_status": "implementation_complete_short_smoke_passed_for_main_pr",
   "merge_semantics": "selective adaptation; no full-tree merge/ours merge, no synthetic ancestry recorded"
 }
