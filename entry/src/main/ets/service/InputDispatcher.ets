@@ -74,14 +74,11 @@ export class InputDispatcher {
     this.publishDiagnostics();
   }
 
-  /** Overlay analog stick. stick 0 = left, 1 = right. +Y = Up, [-1, 1]. */
+  /** Overlay analog stick. stick 0 = left, 1 = right. Values are already canonical (+Y = Up). */
   setLogicalStick(stick: number, x: number, y: number): void {
     if (!this.isDinputHub()) return;
-    const axisX = stick === 1 ? 2 : 0;
-    const axisY = stick === 1 ? 3 : 1;
     try {
-      testNapi.controllerSetAxis(0, 0, axisX, x);
-      testNapi.controllerSetAxis(0, 0, axisY, y);
+      testNapi.controllerSetStick(0, 0, stick, x, y);
     } catch (_) {
     }
     this.injectedEvents++;

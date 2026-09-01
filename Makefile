@@ -511,6 +511,7 @@ test: graphics-contract-check test-text-input test-process-lifecycle
 	    $(ROOT)/host_tests/controller_merge_test.cpp \
 	    $(ROOT)/entry/src/main/cpp/input/controller/controller_hub.cpp
 	$(HOST_TEST_DIR)/controller_merge_test
+	python3 $(ROOT)/scripts/verify_whgp_protocol.py
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/graphics_policy_test \
 	    $(ROOT)/host_tests/graphics_policy_test.cpp \

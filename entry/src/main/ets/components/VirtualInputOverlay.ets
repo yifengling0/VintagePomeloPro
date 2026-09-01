@@ -669,6 +669,7 @@ export struct VirtualInputOverlay {
     if (this.hubGamepadActive()) {
       const radius = this.stickRadius(element);
       const nx = radius > 0 ? Math.max(-1, Math.min(1, dx / radius)) : 0;
+      // Screen +Y is down. Canonical stick +Y is Up (Touch adapter, not a WHGP fix).
       const ny = radius > 0 ? Math.max(-1, Math.min(1, -dy / radius)) : 0;
       InputDispatcher.getInstance().setLogicalStick(this.stickIsRight(element) ? 1 : 0, nx, ny);
     }

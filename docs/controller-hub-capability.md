@@ -1,6 +1,22 @@
 # Controller Hub capability notes
 
-Base: VintagePomeloPro **1.3.2** / branch `feature/controller-hub-p0`.
+Base: VintagePomeloPro **1.3.3** / canonical coordinate architecture.
+
+## Canonical Controller Space
+
+Hub, WHGP v2, and source adapters share one platform-independent space:
+
+| Control | Range | Positive direction |
+| --- | --- | --- |
+| Stick X | `[-1, 1]` | right |
+| Stick Y | `[-1, 1]` | **up** |
+| Hat X | `-1 / 0 / +1` | right |
+| Hat Y | `-1 / 0 / +1` | **up** |
+| Trigger | `[0, 1]` | pressed |
+
+Source adapters normalize platform raw input. Hub merges only canonical state. WHGP v2 copies that state. `bus_ohos` maps canonical sticks to HID/XInput **without** analog Y inversion (XInput is already +Y=Up). SDL/`bus_sdl` raw-thumb inversion must not be copied onto this sink.
+
+Hat stays a separate output conversion: HID hatswitch helper is +Y=Down, so winebus still uses `whgp_hat_y_to_hid`.
 
 ## Game Controller Kit (host)
 
@@ -10,9 +26,15 @@ Base: VintagePomeloPro **1.3.2** / branch `feature/controller-hub-p0`.
 | `libohgame_controller.z.so` | Runtime `dlopen`; not statically linked |
 | Online/offline | `OH_GameDevice_RegisterDeviceMonitor` → Hub `ResetSource(Physical)` + ArkTS UI |
 | ABXY / shoulders / menu / L3R3 / DPad buttons | Mapped OH codes → `LogicalButton` in `physical_gamepad.cpp` |
-| Sticks / triggers / hat axes | Axis monitors → Hub. **Hat** Kit +Y=Down → Hub +Y=Up. **Thumbs** pass Kit Y through (left and right share one path); winebus inverts analog Y for XUSB — do not also flip in Physical. |
+| Sticks | `NormalizeOhosThumb`: `canonicalY = -rawY` (Kit/SDL: up is negative) |
+| Hat | `NormalizeOhosHat`: Kit +Y=Down → Hub +Y=Up |
+| Triggers | `NormalizeOhosTrigger` then `SetTrigger` |
 | Deadzone | Hub radial inner **0.10** (settings deadzone still used by keyboard_legacy sink) |
 | Kit vibration | **None** — Game Controller Kit is input-only |
+
+## Touch overlay
+
+`VirtualInputOverlay` keeps `ny = -dy / radius` (screen +Y is down). `InputDispatcher.setLogicalStick` submits that canonical pair through one `controllerSetStick` call. Do **not** apply a second WHGP Y negate.
 
 ## Rumble / haptics
 
@@ -31,16 +53,17 @@ Wine XInput/DInput force-feedback → `winebus` `hid_device_add_haptics` → WHG
 |------|--------|
 | `bus_sdl` on OHOS | Can enumerate physical pads → **duplicate** with Hub |
 | Mitigation | `WINEHUA_CONTROLLER_HUB=1` gates `sdl_add_device` |
-| `bus_ohos` | WHGP AF_UNIX → `hid_device_add_gamepad()` + haptics; `is_gamepad=TRUE` (XInput + DInput) |
+| `bus_ohos` | WHGP AF_UNIX v2 → `hid_device_add_gamepad()` + haptics; `is_gamepad=TRUE` (XInput + DInput) |
+| Version mismatch | Log `WHGP protocol mismatch: peer=N expected=2` and disconnect; no v1 guess |
 | Env | `WINEHUA_GAMEPAD_ENABLE`, `WINEHUA_GAMEPAD_MODE`, `WINEHUA_GAMEPAD_SOCKET` |
 
 ## Architecture
 
 ```
-Touch Overlay ──NAPI──┐
+Touch Overlay ──NAPI SetStick──┐
   STICK analog + bound keys; D-Pad hat + bound keys; mouse at cursor
-Physical Kit ─Native──┼─► ControllerHub ─► WHGP sock ─► winebus bus_ohos ─► DInput/XInput
-keyboard_legacy ──────┘ (legacy: GamepadManager → evdev only; Hub off for Wine)
+Physical Kit ─OHOS adapter──┼─► ControllerHub ─► WHGP v2 sock ─► winebus bus_ohos ─► DInput/XInput
+keyboard_legacy ────────────┘ (legacy: GamepadManager → evdev only; Hub off for Wine)
 Overlay keys always sendKey; hub buttons/axes are additive, not exclusive.
 
 Wine haptics ──WHGP rumble──► GamepadBridge RecvLoop ──TSFN──► ArkTS vibrator (pad motors)
@@ -49,18 +72,21 @@ Wine haptics ──WHGP rumble──► GamepadBridge RecvLoop ──TSFN──�
 ## File map
 
 | Path | Role |
-|------|------|
-| `entry/.../cpp/controller/*` | Hub, merge, WHGP server (state + rumble recv), NAPI, Physical feed |
-| `entry/.../cpp/game_controller_bridge.cpp` | Kit dlopen; dual-feed Hub + ArkTS TSFN including rumble |
+|------|--------|
+| `entry/.../cpp/input/controller/*` | Hub, adapters, WHGP server (state + rumble recv), NAPI, Physical feed |
+| `entry/.../cpp/input/game_controller_bridge.cpp` | Kit dlopen; dual-feed Hub + ArkTS TSFN including rumble |
 | `entry/.../ets/service/GamepadManager.ets` | Overlay / legacy mapping; pad vibrator targeting |
 | `thirdparty/wine/dlls/winebus.sys/bus_ohos.c` | Wine virtual gamepad + rumble write |
-| `host_tests/controller_merge_test.cpp` | Ownership / trigger max / deadzone |
+| `host_tests/controller_merge_test.cpp` | Canonical polarity, atomic SetStick, ownership, WHGP copy |
+| `scripts/verify_whgp_protocol.py` | Host/Wine protocol header identity |
 
 ## Risks
 
-- Do not invert analog stick Y in Physical: winebus already inverts ly/ry. An extra host flip inverted both thumbs.
+- Do **not** pass Physical Kit Y into Hub without `NormalizeOhosThumb`. Raw Kit up is negative.
+- Do **not** invert analog Y again in `bus_ohos`; that double-flips Physical after the adapter fix.
 - Overlay D-pad/stick must not `return` after hub hat/analog — keys and highlight still run.
 - Kit hat polarity may differ by pad firmware — verify on tablet.
-- Harmony may not expose a gamepad vibrator (`getVibratorInfoSync` empty of `!isLocalVibrator`) — settings shows `震动: 无外接马达`; tablet will not buzz. Unverified on pads without a system vibrator.
-- Wine rebuild required after `bus_ohos` changes (`make wine` + `make hap`).
+- Harmony may not expose a gamepad vibrator (`getVibratorInfoSync` empty of `!isLocalVibrator`) — settings shows `震动: 无外接马达`; tablet will not buzz.
+- Wine rebuild required after `bus_ohos` changes (`make wine` + `make hap` / `hap-unsigned`).
 - Mode switch needs session restart for Wine env to refresh.
+- WHGP v1 peers are rejected; both sides must be rebuilt together.

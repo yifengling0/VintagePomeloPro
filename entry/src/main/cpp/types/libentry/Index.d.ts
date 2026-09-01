@@ -152,7 +152,10 @@ export const setGamepadRumbleCallback: (
 /** Controller Hub (Touch source + WHGP). source: 0=Touch 1=Physical 2=Keyboard */
 export const controllerSetEnabled: (enabled: boolean) => void;
 export const controllerSetButton: (source: number, slot: number, button: number, pressed: boolean) => void;
-export const controllerSetAxis: (source: number, slot: number, axis: number, value: number) => void;
+/** stick: 0=left 1=right. x/y already canonical (right+, up+). */
+export const controllerSetStick: (source: number, slot: number, stick: number, x: number, y: number) => void;
+/** trigger: 0=LT 1=RT. value 0..1. */
+export const controllerSetTrigger: (source: number, slot: number, trigger: number, value: number) => void;
 export const controllerSetHat: (source: number, slot: number, x: number, y: number) => void;
 export const controllerResetSource: (source: number) => void;
 export const controllerGetState: (slot: number) => {
