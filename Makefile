@@ -441,8 +441,18 @@ test-process-lifecycle:
 graphics-contract-check:
 	bash $(SCRIPTS)/verify_graphics_contract.sh
 
+.PHONY: test-audio-pcm
+test-audio-pcm:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/audio_pcm_metrics_test \
+	    $(ROOT)/host_tests/audio_pcm_metrics_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/audio/audio_pcm_metrics.cpp \
+	    -lm
+	$(HOST_TEST_DIR)/audio_pcm_metrics_test
+
 .PHONY: test
-test: graphics-contract-check test-text-input test-process-lifecycle
+test: graphics-contract-check test-text-input test-process-lifecycle test-audio-pcm
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/gles_direct_policy_test $(ROOT)/host_tests/gles_direct_policy_test.cpp

@@ -26,6 +26,7 @@ add_library(entry SHARED
     common/app_log.cpp
     audio/audio_broker.cpp
     audio/audio_ipc_server.cpp
+    audio/audio_pcm_metrics.cpp
     audio/audio_stream.cpp
     graphics/graphics_broker.cpp
     graphics/graphics_profile.cpp
@@ -98,6 +99,16 @@ add_library(entry SHARED
 # 应用日志文件 sink：force-include app_log.h，让所有 OH_LOG_* 调用在保持
 # hilog 行为不变的同时追加写入 Download/.../logs/native-YYYYMMDD.log。
 target_compile_options(entry PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/common/app_log.h)
+execute_process(
+    COMMAND git -C ${CMAKE_CURRENT_SOURCE_DIR}/../../../.. rev-parse --short=12 HEAD
+    OUTPUT_VARIABLE WINEHUA_AUDIO_GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT WINEHUA_AUDIO_GIT_COMMIT)
+    set(WINEHUA_AUDIO_GIT_COMMIT "unknown")
+endif()
+target_compile_definitions(entry PRIVATE WINEHUA_AUDIO_GIT_COMMIT="${WINEHUA_AUDIO_GIT_COMMIT}")
 # BlitScaled 热路径单独 -O2，其余保持 -O0 便于调试。
 set_source_files_properties(compositor/frame/compositor_blit.cpp PROPERTIES COMPILE_OPTIONS "-O2")
 

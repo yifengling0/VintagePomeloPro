@@ -15,6 +15,7 @@
 #include <ohaudio/native_audiostreambuilder.h>
 
 #include "protocols/audio_ipc_protocol.h"
+#include "audio/audio_pcm_metrics.h"
 #include "audio/audio_stream.h"
 
 namespace winehua {
@@ -55,6 +56,8 @@ private:
     {
         AudioBroker* broker = nullptr;
         uint32_t streamId = 0;
+        uint32_t ordinal = 0;
+        uint32_t gainQ15 = kUnityGainQ15;
         StreamPtr stream;
         OH_AudioRenderer* renderer = nullptr;
         uint32_t callbackFrames = 0;
@@ -76,6 +79,27 @@ private:
         std::atomic<uint64_t> intervalMaxNs{0};
         std::atomic<uint64_t> lateCallbacks{0};
         std::atomic<int32_t> maxAdjacentDelta{0};
+        std::atomic<uint64_t> pcmGeneration{1};
+        std::atomic<uint64_t> callbackWallTotalNs{0};
+        std::atomic<uint64_t> callbackWallMaxNs{0};
+        std::atomic<uint64_t> ringReadTotalNs{0};
+        std::atomic<uint64_t> metricsTotalNs{0};
+        std::atomic<uint32_t> startBoundaryMaxL{0};
+        std::atomic<uint32_t> startBoundaryMaxR{0};
+        std::atomic<uint32_t> stopBoundaryMaxL{0};
+        std::atomic<uint32_t> stopBoundaryMaxR{0};
+        PcmContinuityState ringContinuity;
+        PcmContinuityState outputContinuity;
+        PcmMetricAccumulators ringMetrics;
+        PcmMetricAccumulators outMetrics;
+        std::atomic<int32_t> lastValidL{0};
+        std::atomic<int32_t> lastValidR{0};
+        std::atomic<int32_t> lastValidBeforeStopL{0};
+        std::atomic<int32_t> lastValidBeforeStopR{0};
+        std::atomic<bool> haveLastValid{false};
+        std::atomic<bool> haveLastValidBeforeStop{false};
+        std::atomic<bool> expectFirstAfterStart{false};
+        std::atomic<bool> sawStopEdge{false};
     };
 
     AudioBroker() = default;
@@ -93,13 +117,19 @@ private:
     void StopCapturerLocked();
     bool HasStartedCaptureStreamLocked() const;
     void PublishSnapshotsLocked();
-    bool FillRendererCallback(AudioRendererSlot* slot, int16_t* dst, uint32_t frames);
+    bool FillRendererCallback(AudioRendererSlot* slot,
+                              int16_t* dst,
+                              uint32_t frames,
+                              uint64_t* ringReadNs,
+                              uint64_t* metricsNs);
     void DistributeCaptureFramesS16(const std::shared_ptr<const StreamSnapshot>& snapshot,
                                     const int16_t* src, uint32_t frames);
     void TelemetryLoop();
     void LifecycleLoop();
     void NoteCallbackTiming(AudioRendererSlot* slot, uint32_t frames);
     void RequestLifecyclePump();
+    void BumpPcmGeneration(AudioRendererSlot* slot);
+    void NoteGetStatusLatency(uint64_t elapsedNs);
 
     static OH_AudioData_Callback_Result OnWriteData(OH_AudioRenderer* renderer,
                                                     void* userData,
@@ -125,6 +155,7 @@ private:
     bool running_ = false;
     std::string runtimeDir_;
     uint32_t nextStreamId_ = 1;
+    uint32_t nextRenderOrdinal_ = 0;
     OH_AudioCapturer* capturer_ = nullptr;
     uint32_t capturerCallbackFrames_ = 0;
     bool capturerRunning_ = false;
@@ -138,6 +169,13 @@ private:
     std::atomic<uint32_t> telemetryInterruptCount_{0};
     std::atomic<uint32_t> telemetryResumeCount_{0};
     std::atomic<uint32_t> telemetryRouteGeneration_{0};
+    std::atomic<uint64_t> getStatusCalls_{0};
+    std::atomic<uint64_t> getStatusLatencyTotalNs_{0};
+    std::atomic<uint64_t> getStatusLatencyMaxNs_{0};
+    std::atomic<uint32_t> physicalStartCount_{0};
+    std::atomic<uint32_t> physicalStopCount_{0};
+    std::atomic<uint64_t> physicalStartWallMaxNs_{0};
+    std::atomic<uint64_t> physicalStopWallMaxNs_{0};
     std::atomic<bool> workerStop_{false};
     std::thread telemetryThread_;
     std::thread lifecycleThread_;
