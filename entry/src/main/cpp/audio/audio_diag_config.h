@@ -18,7 +18,7 @@ constexpr AudioDiagGainProfile kAudioDiagGainProfile =
 constexpr bool kKeepRendererPhysicallyStartedForB2 = false;
 
 // Diagnostic-only. Arm 2 s Ring/output dumps when started renderers go 1→2.
-constexpr bool kAudioDiagP2Capture = true;
+constexpr bool kAudioDiagP2Capture = false;
 constexpr uint32_t kAudioDiagP2MaxCaptures = 4;
 
 #ifndef WINEHUA_AUDIO_GIT_COMMIT
