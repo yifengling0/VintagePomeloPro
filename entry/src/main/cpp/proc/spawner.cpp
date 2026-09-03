@@ -2,6 +2,7 @@
 #include "wine/wine_constants.h"
 #include "wine/wine_exe.h"
 
+#include <string>
 #include <sys/types.h>
 
 #undef LOG_TAG
@@ -23,7 +24,20 @@ constexpr bool kNeedsWineLoaderToken = false;
 constexpr bool kNeedsWineLoaderToken = true;
 #endif
 
+void LogSpawnEnv(const SpawnRequest& req)
+{
+    if (req.env.empty()) return;
+    std::string envJoined;
+    for (const std::string& line : req.env) {
+        if (!envJoined.empty()) envJoined += ";";
+        envJoined += line;
+    }
+    OH_LOG_INFO(LOG_APP, "[Spawner] env kind=%{public}d count=%{public}zu [%{public}s]",
+                (int)req.kind, req.env.size(), envJoined.c_str());
+}
+
 pid_t SpawnLogged(const SpawnRequest& req, const std::string& params) {
+    LogSpawnEnv(req);
     const pid_t pid = SpawnViaBroker(params, req.env);
     if (pid <= 0)
         OH_LOG_ERROR(LOG_APP, "[Spawner] broker spawn FAILED kind=%{public}d params=%{public}s",

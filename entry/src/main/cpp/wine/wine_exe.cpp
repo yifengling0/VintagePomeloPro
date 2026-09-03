@@ -555,6 +555,11 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
     options.automationMode = GetBool(env, args[0], "automationMode", false);
     ReadStringArray(env, args[0], "argv", &options.argv);
     ReadEnvironment(env, args[0], &options.environment);
+    std::string envJoined;
+    for (const std::string& line : options.environment) {
+        if (!envJoined.empty()) envJoined += ";";
+        envJoined += line;
+    }
     const winehua::D3dBackendKind requestedBackend =
         winehua::ParseD3dBackend(options.d3dBackend);
     if (requestedBackend == winehua::D3dBackendKind::Unknown) {
@@ -564,8 +569,9 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
         return MakeProcessObject(env, nullptr, false);
     }
     OH_LOG_INFO(LOG_APP,
-                "[WineProgram] parsed options exe=%{public}s argc=%{public}zu env=%{public}zu dxvk=%{public}s present=%{public}s",
+                "[WineProgram] parsed options exe=%{public}s argc=%{public}zu env=%{public}zu [%{public}s] dxvk=%{public}s present=%{public}s",
                 options.windowsExePath.c_str(), options.argv.size(), options.environment.size(),
+                envJoined.c_str(),
                 options.dxvkBackend.c_str(), options.presentBackend.empty() ? "derived" :
                 options.presentBackend.c_str());
 

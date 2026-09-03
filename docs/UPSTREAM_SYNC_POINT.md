@@ -1,5 +1,25 @@
 # 上游同步基线标记
 
+## 2026-09-03 WineHua master 增量（61cb4c64..37f4616d）
+
+在 `diag/m5-b3-remaining-pop` 上核对 `winehua/master` @ `37f4616d`。
+上次产品 ledger 停在 `61cb4c64`；本段 10 个提交**选择性移植**，不是 Git merge。
+
+| 上游 | 处置 |
+| --- | --- |
+| `e989cd93` 可靠失效 stale VirGL 产物 | **adapted** → `scripts/build_native.sh` |
+| `43772ef4` 进程 env 全量打点 | **adapted** → `spawner.cpp` / `wine_exe.cpp`（保留产品 dxvk/present 字段） |
+| `25425184` resize 保留 EGL | **covered_by_product**（`virgl_surface_presenter.cpp` 已有 `retained_egl`） |
+| `e71c893d` VirGL queue pacing | **covered_by_product**（`QueuePresentPacingPeriodNs`） |
+| `923bc1c4` 引擎就绪无条件播种 C:\\smoke | **covered_by_product**（`syncManagedSmokePayload('engine-ready')`） |
+| `8c39a1c2` ArkTS perf.profile 写死 dirty-ring | **not_applicable**（产品默认来自 Native `graphics_profile`） |
+| `357db51d` 删除会话级 compatEnvStr | **keep_product**（设置页仍走 `launchClient` 兼容档） |
+| `7703adeb` smoke 迁到 `ets/smoke/` | **deferred**（产品已有独立 runner，不搬上游 Index/WineEnvService） |
+| `3398ae2d` 上游 Index 四档单选 UI | **not_applicable**（产品 `SystemSettings` 独立布局 + GPU 920 门禁） |
+| `37f4616d` 推进 dxvk-modern/virgl gitlink | **not_applicable**（HANDOFF：不因上游 pin 切换子模块） |
+
+下次增量从 `37f4616d` 之后开始：`git fetch winehua && git log 37f4616d..winehua/master --oneline`。
+
 ## 2026-08-31 候选同步（尚未提升产品 main 的发布基线）
 
 `codex/sync-master-20260831` 从产品 main `2c043636` 完成了
