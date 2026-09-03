@@ -4,7 +4,14 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
-> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `37f4616d`，本地镜像 `mirror_master`）。下次同步先 `git fetch winehua && git branch -f mirror_master winehua/master && git log 37f4616d..mirror_master --oneline`，避免重复合并。
+> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `b0e85c0e`，本地镜像 `mirror_master`）。下次同步先 `git fetch winehua && git branch -f mirror_master winehua/master && git log b0e85c0e..mirror_master --oneline`，避免重复合并。
+
+### 2026-09-04 对齐 wineserver 手柄总线 env（12aba3d4）
+
+- 分支：产品线 `diag/m5-b3-remaining-pop`（与 `main` @ `cc36a4c7` 同提交再叠本修复）。
+- 镜像：`winehua/master` @ `b0e85c0e`。
+- 原则：只补 wineserver spawn 的 `AppendWineGamepadEnv`。winebus 由 winedevice 加载、环境继承 wineserver；缺 `WINEHUA_CONTROLLER_HUB` / `WINEHUA_GAMEPAD_*` 时 SDL 总线仍会枚举实体手柄，和 Hub 重复。wineboot 两处产品已注入。不上游 Hub v1 整包、不上游 Index 四档 UI、不跟随 `e538f95a` wine gitlink。
+- 验证：未重新打包（用户要求先停打包做同步）。
 
 ### 2026-08-28 对齐会话生命周期三原语命名（d256317e 结构层）
 

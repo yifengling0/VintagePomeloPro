@@ -542,6 +542,12 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
     pid_t wsChildPid = -1;
     {
         winehua::SpawnRequest wsReq{winehua::SpawnKind::Wineserver};
+        // gamepad env 必须在此注入: winedevice (winebus 加载方) 是 wineserver
+        // 的服务进程, env 继承自 wineserver。只注入 wineboot/explorer 链
+        // (BuildSessionEnv) 时 winebus 读不到这些键, 门禁/模式全吃缺省 —
+        // keyboard_legacy 兜底完全失效 (bus_ohos/bus_sdl 的 env 唯一来源)。
+        // 上游: winehua/master 12aba3d4
+        winehua::controller::AppendWineGamepadEnv(wsReq.env);
 #ifdef __aarch64__
         winehua::AppendCompatEnvLines(wsReq.env, p->compatEnvStr, p->automationMode);
 #endif

@@ -1,5 +1,19 @@
 # 上游同步基线标记
 
+## 2026-09-04 WineHua master 增量（37f4616d..b0e85c0e）
+
+在 `diag/m5-b3-remaining-pop` 上核对 `winehua/master` @ `b0e85c0e`。
+本段 7 个提交**选择性移植**，不是 Git merge。不上游 Index/设置 UI，不切换 wine gitlink（产品线保留 float32 mix-format 与 WHGP v2）。
+
+| 上游 | 处置 |
+| --- | --- |
+| `91cee3fa` / `b60ab9bb` / `660f2bb8` / `c9c9cefd` Controller Hub v1 | **covered_by_product**（产品已有 Hub + canonical WHGP v2） |
+| `12aba3d4` wineserver/wineboot 注入手柄总线 env | **adapted** → `wine_launch.cpp` wineserver spawn（wineboot 两处产品已有） |
+| `e538f95a` wine gitlink 到手柄门禁 opt-in | **keep_product**（不丢 IEEE float32 mix format） |
+| `b0e85c0e` wayland 协议生成改 `protocols/` | **covered_by_product**（`build_native.sh` 已指向 `cpp/protocols`） |
+
+下次增量从 `b0e85c0e` 之后开始：`git fetch winehua && git log b0e85c0e..winehua/master --oneline`。
+
 ## 2026-09-03 WineHua master 增量（61cb4c64..37f4616d）
 
 在 `diag/m5-b3-remaining-pop` 上核对 `winehua/master` @ `37f4616d`。
