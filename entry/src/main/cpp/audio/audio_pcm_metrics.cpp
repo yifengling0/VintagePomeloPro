@@ -73,6 +73,14 @@ PcmBlockMetrics AnalyzeStereoS16(const int16_t* pcm,
             {
                 result.boundaryDeltaL = AbsI32(left - continuity.previousL);
                 result.boundaryDeltaR = AbsI32(right - continuity.previousR);
+                if (result.boundaryDeltaL >= kClickDelta16)
+                    ++result.click16L;
+                if (result.boundaryDeltaR >= kClickDelta16)
+                    ++result.click16R;
+                if (result.boundaryDeltaL >= kClickDelta32)
+                    ++result.click32L;
+                if (result.boundaryDeltaR >= kClickDelta32)
+                    ++result.click32R;
             }
         }
 
@@ -117,8 +125,18 @@ PcmBlockMetrics AnalyzeStereoS16(const int16_t* pcm,
         {
             const int32_t previousLeft = pcm[(frame - 1) * 2];
             const int32_t previousRight = pcm[(frame - 1) * 2 + 1];
-            result.maxDeltaL = std::max(result.maxDeltaL, AbsI32(left - previousLeft));
-            result.maxDeltaR = std::max(result.maxDeltaR, AbsI32(right - previousRight));
+            const uint32_t deltaL = AbsI32(left - previousLeft);
+            const uint32_t deltaR = AbsI32(right - previousRight);
+            result.maxDeltaL = std::max(result.maxDeltaL, deltaL);
+            result.maxDeltaR = std::max(result.maxDeltaR, deltaR);
+            if (deltaL >= kClickDelta16)
+                ++result.click16L;
+            if (deltaR >= kClickDelta16)
+                ++result.click16R;
+            if (deltaL >= kClickDelta32)
+                ++result.click32L;
+            if (deltaR >= kClickDelta32)
+                ++result.click32R;
         }
 
         result.lastL = left;
@@ -162,16 +180,19 @@ void ApplyStereoGainQ15(int16_t* pcm, uint32_t frames, uint32_t gainQ15)
 
 uint32_t GainQ15ForOrdinal(AudioDiagGainProfile profile, uint32_t ordinal)
 {
-    if (ordinal > 1)
-        return kUnityGainQ15;
-
     switch (profile)
     {
     case AudioDiagGainProfile::G10:
+        if (ordinal > 1)
+            return kUnityGainQ15;
         return ordinal == 0 ? kHalfGainQ15 : kUnityGainQ15;
     case AudioDiagGainProfile::G01:
+        if (ordinal > 1)
+            return kUnityGainQ15;
         return ordinal == 0 ? kUnityGainQ15 : kHalfGainQ15;
     case AudioDiagGainProfile::G11:
+        // Lifetime ordinals keep climbing across game launches. H1 needs
+        // headroom on every live GAME endpoint, not only 0/1.
         return kHalfGainQ15;
     case AudioDiagGainProfile::G00:
     default:
@@ -217,6 +238,10 @@ void PcmMetricAccumulators::Add(const PcmBlockMetrics& metrics)
     AtomicMax(maxDeltaR, metrics.maxDeltaR);
     AtomicMax(maxBoundaryDeltaL, metrics.boundaryDeltaL);
     AtomicMax(maxBoundaryDeltaR, metrics.boundaryDeltaR);
+    click16L.fetch_add(metrics.click16L, std::memory_order_relaxed);
+    click16R.fetch_add(metrics.click16R, std::memory_order_relaxed);
+    click32L.fetch_add(metrics.click32L, std::memory_order_relaxed);
+    click32R.fetch_add(metrics.click32R, std::memory_order_relaxed);
 }
 
 PcmMetricSnapshot PcmMetricAccumulators::ExchangeReset()
@@ -239,6 +264,10 @@ PcmMetricSnapshot PcmMetricAccumulators::ExchangeReset()
     snap.maxDeltaR = ExchangeMax32(maxDeltaR);
     snap.maxBoundaryDeltaL = ExchangeMax32(maxBoundaryDeltaL);
     snap.maxBoundaryDeltaR = ExchangeMax32(maxBoundaryDeltaR);
+    snap.click16L = ExchangeMax32(click16L);
+    snap.click16R = ExchangeMax32(click16R);
+    snap.click32L = ExchangeMax32(click32L);
+    snap.click32R = ExchangeMax32(click32R);
     snap.validCallbacks = ExchangeMax32(validCallbacks);
     snap.invalidCallbacks = ExchangeMax32(invalidCallbacks);
     return snap;

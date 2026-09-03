@@ -16,6 +16,7 @@
 
 #include "protocols/audio_ipc_protocol.h"
 #include "audio/audio_pcm_metrics.h"
+#include "audio/audio_pcm_capture.h"
 #include "audio/audio_stream.h"
 
 namespace winehua {
@@ -68,6 +69,7 @@ private:
         std::atomic<int32_t> fadeDir{0};
         std::atomic<uint32_t> fadeRemaining{0};
         std::atomic<float> gain{1.0f};
+        std::atomic<uint32_t> fadeRecoverCount{0};
         std::atomic<uint64_t> callbacks{0};
         std::atomic<uint64_t> requestedFrames{0};
         std::atomic<uint64_t> consumedFrames{0};
@@ -92,6 +94,8 @@ private:
         PcmContinuityState outputContinuity;
         PcmMetricAccumulators ringMetrics;
         PcmMetricAccumulators outMetrics;
+        PcmDiagnosticCapture ringCapture;
+        PcmDiagnosticCapture outCapture;
         std::atomic<int32_t> lastValidL{0};
         std::atomic<int32_t> lastValidR{0};
         std::atomic<int32_t> lastValidBeforeStopL{0};
@@ -130,6 +134,8 @@ private:
     void RequestLifecyclePump();
     void BumpPcmGeneration(AudioRendererSlot* slot);
     void NoteGetStatusLatency(uint64_t elapsedNs);
+    void MaybeArmP2Locked();
+    void FlushP2Captures();
 
     static OH_AudioData_Callback_Result OnWriteData(OH_AudioRenderer* renderer,
                                                     void* userData,
@@ -176,6 +182,8 @@ private:
     std::atomic<uint32_t> physicalStopCount_{0};
     std::atomic<uint64_t> physicalStartWallMaxNs_{0};
     std::atomic<uint64_t> physicalStopWallMaxNs_{0};
+    uint32_t p2LastStartedCount_ = 0;
+    uint32_t p2CapturesStarted_ = 0;
     std::atomic<bool> workerStop_{false};
     std::thread telemetryThread_;
     std::thread lifecycleThread_;

@@ -1,0 +1,26 @@
+# Diagnostic-only. Do not install as a product default.
+#
+# Intended later A/B (Phase B), after W0 already shows wrap:
+#
+#   [/bass.dll]
+#   BOX64_DYNAREC=0
+#
+# This Box64 fork stores per-file env on the mapping, but FillBlock/DBGetBlock
+# gate dynarec with the *global* BOX64ENV(dynarec). BOX64DRENV(dynarec) is never
+# read. So [/bass.dll] BOX64_DYNAREC=0 is currently NOT a reliable way to force
+# BASS onto the interpreter.
+#
+# Before using this file, confirm in Box64 logs that bass.dll actually received
+# a per-file env ("Applied [/bass.dll] ..." / Mapping of ... bass.dll) AND that
+# no dynablocks are created in that range.
+#
+# If per-file DYNAREC=0 does not skip FillBlock, Phase B must use process-wide:
+#
+#   BOX64_DYNAREC=0
+#
+# which will slow the whole Wine/M5 session.
+#
+# Copy to $HOME/.box64rc only for a measured A/B, then remove it.
+
+[/bass.dll]
+BOX64_DYNAREC=0

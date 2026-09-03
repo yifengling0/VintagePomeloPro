@@ -16,6 +16,7 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
 #include <hilog/log.h>
 
 #undef OH_LOG_DEBUG
@@ -59,6 +60,9 @@ void WineHuaLogAppend(int level, const char* tag, const char* fmt, ...);
 
 /* Points the sink at the logs directory and flushes the pre-init ring buffer. */
 void WineHuaLogInit(const char* dirPath);
+
+/* Directory passed to WineHuaLogInit, or empty if the sink is not ready. */
+void WineHuaLogDirectory(char* out, size_t outSize);
 
 /* Closes the sink and removes every native-*.log file in the logs directory. */
 void WineHuaLogClear(void);

@@ -217,6 +217,16 @@ void WineHuaLogInit(const char* dirPath) {
     CleanupOldLocked();
 }
 
+void WineHuaLogDirectory(char* out, size_t outSize) {
+    if (out == nullptr || outSize == 0) return;
+    std::lock_guard<std::mutex> lock(gMutex);
+    if (gDir.empty()) {
+        out[0] = '\0';
+        return;
+    }
+    snprintf(out, outSize, "%s", gDir.c_str());
+}
+
 void WineHuaLogClear() {
     std::lock_guard<std::mutex> lock(gMutex);
     CloseFdLocked();

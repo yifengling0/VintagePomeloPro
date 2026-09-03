@@ -1,4 +1,5 @@
 #include "audio/audio_pcm_metrics.h"
+#include "audio/audio_pcm_capture.h"
 #include "audio/audio_diag_config.h"
 
 #include <cstdint>
@@ -186,8 +187,42 @@ int main()
     CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G01, 1) == kHalfGainQ15, "G01 ordinal 1");
     CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G11, 0) == kHalfGainQ15, "G11 ordinal 0");
     CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G11, 1) == kHalfGainQ15, "G11 ordinal 1");
-    CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G11, 2) == kUnityGainQ15, "ordinal > 1 stays unity");
-    CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G11, 99) == kUnityGainQ15, "large ordinal stays unity");
+    CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G11, 2) == kHalfGainQ15, "G11 extra endpoint also half");
+    CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G11, 99) == kHalfGainQ15, "G11 large ordinal still half");
+    CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G00, 2) == kUnityGainQ15, "G00 extra stays unity");
+    CHECK(GainQ15ForOrdinal(AudioDiagGainProfile::G10, 2) == kUnityGainQ15, "G10 extra stays unity");
+
+    {
+        std::vector<int16_t> pcm(4 * 2);
+        pcm[0] = 32767; pcm[1] = 0;
+        pcm[2] = -32766; pcm[3] = 0;
+        pcm[4] = 32767; pcm[5] = 100;
+        pcm[6] = 32000; pcm[7] = 100;
+        PcmContinuityState continuity;
+        PcmBlockMetrics metrics = AnalyzeStereoS16(pcm.data(), 4, continuity, 1);
+        CHECK(metrics.click32L == 2, "two wrap-class L jumps");
+        CHECK(metrics.click32R == 0, "R has no wrap-class jump");
+        CHECK(metrics.click16L >= 2, "wrap-class also counts as click16");
+        CHECK(metrics.maxDeltaL == 65533u, "32767 to -32766 is 65533");
+    }
+
+    {
+        winehua::PcmDiagnosticCapture capture;
+        CHECK(capture.Allocate(8), "p2 allocate 8 frames");
+        capture.Arm(7);
+        auto first = StereoFrames(4, 100, 200);
+        auto second = StereoFrames(4, 300, 400);
+        capture.CaptureFromCallback(first.data(), 4, 1000);
+        capture.CaptureFromCallback(second.data(), 4, 2000);
+        winehua::PcmDiagnosticCapture::ReadyCapture ready;
+        CHECK(capture.PeekReady(&ready), "p2 becomes ready at capacity");
+        CHECK(ready.captureId == 7, "p2 capture id");
+        CHECK(ready.frames == 8, "p2 captured 8 frames");
+        CHECK(ready.firstTimestampNs == 1000, "p2 first timestamp from first callback");
+        CHECK(ready.samples && ready.samples[0] == 100 && ready.samples[14] == 300, "p2 copies stereo frames");
+        capture.ResetToIdle();
+        CHECK(!capture.PeekReady(&ready), "p2 idle is not ready");
+    }
 
     if (g_failures)
     {

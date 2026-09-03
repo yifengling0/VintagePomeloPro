@@ -448,8 +448,10 @@ test-audio-pcm:
 	    -o $(HOST_TEST_DIR)/audio_pcm_metrics_test \
 	    $(ROOT)/host_tests/audio_pcm_metrics_test.cpp \
 	    $(ROOT)/entry/src/main/cpp/audio/audio_pcm_metrics.cpp \
+	    $(ROOT)/entry/src/main/cpp/audio/audio_pcm_capture.cpp \
 	    -lm
 	$(HOST_TEST_DIR)/audio_pcm_metrics_test
+	python3 $(ROOT)/tools/audio/analyze_s16le.py --self-test
 
 .PHONY: test
 test: graphics-contract-check test-text-input test-process-lifecycle test-audio-pcm

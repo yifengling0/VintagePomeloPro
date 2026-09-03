@@ -18,8 +18,13 @@
 
 #include "audio/audio_diag_config.h"
 #include "audio/audio_ipc_server.h"
+#include "audio/audio_pcm_capture.h"
 #include "audio/audio_pcm_metrics.h"
+#include "common/app_log.h"
 #include "common/ring_buffer.h"
+
+#include <cstdio>
+#include <vector>
 
 namespace winehua {
 
@@ -147,6 +152,15 @@ void ApplyLinearRampS16(int16_t* samples, uint32_t frames, float* gain, float ta
         if (!left) g = target;
     }
 
+    if (!left && target == 1.0f && g != 1.0f)
+    {
+        // Fade-in remaining was lost while gain was still 0. Do not mute a
+        // running stream: pass PCM through and restore unity gain.
+        *gain = 1.0f;
+        *remaining = 0;
+        return;
+    }
+
     if (g != 1.0f)
     {
         for (uint32_t i = rampFrames; i < frames; ++i)
@@ -223,11 +237,12 @@ bool AudioBroker::EnsureStarted(const std::string& runtimeDir)
                 "[AudioBroker] started runtimeDir=%{public}s mix=48k/s16/2 per-endpoint B3 prime=%{public}u rampFrames=%{public}u",
                 runtimeDir_.c_str(), kAudioPrimePeriods, kAudioRampFrames);
     OH_LOG_INFO(LOG_APP,
-                "[AudioB3] started monoUs=%{public}llu commit=%{public}s profile=%{public}s b2=%{public}d mix=48k/s16/2 prime=%{public}u rampFrames=%{public}u",
+                "[AudioB3] started monoUs=%{public}llu commit=%{public}s profile=%{public}s b2=%{public}d p2=%{public}d mix=48k/s16/2 prime=%{public}u rampFrames=%{public}u",
                 static_cast<unsigned long long>(MonotonicUs()),
                 kAudioDiagGitCommit,
                 AudioDiagGainProfileName(kAudioDiagGainProfile),
                 kKeepRendererPhysicallyStartedForB2 ? 1 : 0,
+                kAudioDiagP2Capture ? 1 : 0,
                 kAudioPrimePeriods,
                 kAudioRampFrames);
     return true;
@@ -458,10 +473,19 @@ int32_t AudioBroker::StartStream(uint32_t connectionId, uint32_t streamId)
         }
         slot->wantStarted.store(true, std::memory_order_relaxed);
         slot->primeDeadlineNs = MonotonicNs() + kAudioPrimeTimeoutNs;
-        slot->fadeDir.store(0, std::memory_order_relaxed);
-        slot->fadeRemaining.store(0, std::memory_order_relaxed);
         slot->expectFirstAfterStart.store(true, std::memory_order_relaxed);
         slot->sawStopEdge.store(false, std::memory_order_relaxed);
+        if (slot->rendererStarted)
+        {
+            BeginFadeLocked(slot, 1);
+        }
+        else
+        {
+            slot->fadeDir.store(0, std::memory_order_relaxed);
+            slot->fadeRemaining.store(0, std::memory_order_relaxed);
+            if (slot->gain.load(std::memory_order_relaxed) == 0.0f)
+                slot->gain.store(1.0f, std::memory_order_relaxed);
+        }
         PumpRendererLifecycleLocked(slot);
         RequestLifecyclePump();
         OH_LOG_INFO(LOG_APP,
@@ -478,6 +502,7 @@ int32_t AudioBroker::StartStream(uint32_t connectionId, uint32_t streamId)
                     PhysicalRenderName(slot->rendererStarted),
                     slot->stream ? slot->stream->queued_frames() : 0,
                     slot->gainQ15);
+        MaybeArmP2Locked();
         return 0;
     }
 
@@ -545,6 +570,7 @@ int32_t AudioBroker::StopStream(uint32_t connectionId, uint32_t streamId)
     }
 
     OH_LOG_INFO(LOG_APP, "[AudioBroker] stop stream id=%{public}u", streamId);
+    MaybeArmP2Locked();
     return 0;
 }
 
@@ -641,7 +667,7 @@ AudioBroker::AudioRendererSlot* AudioBroker::CreateRendererSlotLocked(uint32_t s
     if (slot->ordinal > 1)
     {
         OH_LOG_WARN(LOG_APP,
-                    "[AudioB3] extra endpoint monoUs=%{public}llu stream=%{public}u ordinal=%{public}u gainQ15=%{public}u default=unity",
+                    "[AudioB3] extra endpoint monoUs=%{public}llu stream=%{public}u ordinal=%{public}u gainQ15=%{public}u",
                     static_cast<unsigned long long>(MonotonicUs()),
                     streamId, slot->ordinal, slot->gainQ15);
     }
@@ -701,6 +727,16 @@ AudioBroker::AudioRendererSlot* AudioBroker::CreateRendererSlotLocked(uint32_t s
     else
         slot->callbackFrames = kAudioTargetCallbackFrames;
 
+    if (kAudioDiagP2Capture)
+    {
+        if (!slot->ringCapture.Allocate(kPcmCaptureCapacityFrames) ||
+            !slot->outCapture.Allocate(kPcmCaptureCapacityFrames))
+        {
+            OH_LOG_WARN(LOG_APP,
+                        "[AudioB3] p2 alloc failed stream=%{public}u", streamId);
+        }
+    }
+
     OH_LOG_INFO(LOG_APP,
                 "[AudioBroker] renderer created stream=%{public}u rate=48000 ch=2 usage=GAME callbackFrames=%{public}u",
                 streamId, slot->callbackFrames);
@@ -736,11 +772,18 @@ int32_t AudioBroker::StartRendererLocked(AudioRendererSlot* slot)
     if (!slot || !slot->renderer) return -EIO;
     if (slot->rendererStarted) return 0;
 
+    // Arm fade-in before Start(). OH_AudioRenderer_Start can invoke the
+    // write callback before this function returns; if gain is 0 and remaining
+    // is still 0, that callback will scale the whole buffer by 0 and stick.
+    BeginFadeLocked(slot, 1);
     const uint64_t tStart = MonotonicNs();
     result = OH_AudioRenderer_Start(slot->renderer);
     const uint64_t startWallNs = MonotonicNs() - tStart;
     if (result != AUDIOSTREAM_SUCCESS)
     {
+        slot->fadeDir.store(0, std::memory_order_relaxed);
+        slot->fadeRemaining.store(0, std::memory_order_relaxed);
+        slot->gain.store(1.0f, std::memory_order_relaxed);
         telemetryRendererStartFailures_.fetch_add(1, std::memory_order_relaxed);
         OH_LOG_ERROR(LOG_APP, "[AudioBroker] renderer start failed stream=%{public}u result=%{public}d",
                      slot->streamId, static_cast<int>(result));
@@ -750,7 +793,6 @@ int32_t AudioBroker::StartRendererLocked(AudioRendererSlot* slot)
     slot->rendererStarted = true;
     physicalStartCount_.fetch_add(1, std::memory_order_relaxed);
     AtomicMax(physicalStartWallMaxNs_, startWallNs);
-    BeginFadeLocked(slot, 1);
     OH_LOG_INFO(LOG_APP,
                 "[AudioB3] physicalStart monoUs=%{public}llu stream=%{public}u ordinal=%{public}u wallUs=%{public}llu gen=%{public}llu",
                 static_cast<unsigned long long>(MonotonicUs()),
@@ -940,7 +982,8 @@ bool AudioBroker::FillRendererCallback(AudioRendererSlot* slot,
     size_t gotFrames;
     const bool wineStarted = slot && slot->stream && slot->stream->started();
     const int32_t fadeDir = slot ? slot->fadeDir.load(std::memory_order_relaxed) : 0;
-    uint32_t fadeRemaining = slot ? slot->fadeRemaining.load(std::memory_order_relaxed) : 0;
+    const uint32_t fadeRemainingLoaded = slot ? slot->fadeRemaining.load(std::memory_order_relaxed) : 0;
+    uint32_t fadeRemaining = fadeRemainingLoaded;
     const bool fadingOut = fadeDir < 0;
     float gain;
 
@@ -961,8 +1004,12 @@ bool AudioBroker::FillRendererCallback(AudioRendererSlot* slot,
     const uint64_t tMetrics = MonotonicNs();
     const uint64_t generation = slot->pcmGeneration.load(std::memory_order_relaxed);
     if (gotFrames)
+    {
         slot->ringMetrics.Add(AnalyzeStereoS16(dst, static_cast<uint32_t>(gotFrames),
                                                 slot->ringContinuity, generation));
+        if (kAudioDiagP2Capture)
+            slot->ringCapture.CaptureFromCallback(dst, static_cast<uint32_t>(gotFrames), tMetrics);
+    }
 
     if (gotFrames < frames)
     {
@@ -994,12 +1041,20 @@ bool AudioBroker::FillRendererCallback(AudioRendererSlot* slot,
     }
 
     gain = slot->gain.load(std::memory_order_relaxed);
-    if (fadeRemaining || gain != 1.0f)
+    if (wineStarted && !fadingOut && fadeRemaining == 0 && gain == 0.0f)
+    {
+        gain = 1.0f;
+        slot->gain.store(1.0f, std::memory_order_relaxed);
+        slot->fadeRecoverCount.fetch_add(1, std::memory_order_relaxed);
+    }
+    else if (fadeRemaining || gain != 1.0f)
     {
         const float target = fadeDir < 0 ? 0.0f : 1.0f;
         ApplyLinearRampS16(dst, frames, &gain, target, &fadeRemaining);
         slot->gain.store(gain, std::memory_order_relaxed);
-        slot->fadeRemaining.store(fadeRemaining, std::memory_order_relaxed);
+        const uint32_t remainingNow = slot->fadeRemaining.load(std::memory_order_relaxed);
+        if (remainingNow <= fadeRemainingLoaded)
+            slot->fadeRemaining.store(fadeRemaining, std::memory_order_relaxed);
         if (!fadeRemaining && fadeDir != 0)
             slot->broker->RequestLifecyclePump();
     }
@@ -1009,6 +1064,8 @@ bool AudioBroker::FillRendererCallback(AudioRendererSlot* slot,
 
     const PcmBlockMetrics out = AnalyzeStereoS16(dst, frames, slot->outputContinuity, generation);
     slot->outMetrics.Add(out);
+    if (kAudioDiagP2Capture)
+        slot->outCapture.CaptureFromCallback(dst, frames, MonotonicNs());
     slot->outMetrics.validCallbacks.fetch_add(1, std::memory_order_relaxed);
     if (out.hasFrames)
     {
@@ -1116,6 +1173,150 @@ void AudioBroker::NoteCallbackTiming(AudioRendererSlot* slot, uint32_t frames)
         slot->lateCallbacks.fetch_add(1, std::memory_order_relaxed);
 }
 
+void AudioBroker::MaybeArmP2Locked()
+{
+    uint32_t started = 0;
+    for (const auto& [id, slot] : renderers_)
+    {
+        (void)id;
+        if (slot && slot->stream && slot->stream->started())
+            ++started;
+    }
+
+    if (kAudioDiagP2Capture &&
+        p2CapturesStarted_ < kAudioDiagP2MaxCaptures &&
+        p2LastStartedCount_ == 1 && started >= 2)
+    {
+        ++p2CapturesStarted_;
+        const uint64_t captureId = p2CapturesStarted_;
+        for (auto& [id, slot] : renderers_)
+        {
+            (void)id;
+            if (!slot)
+                continue;
+            slot->ringCapture.Arm(captureId);
+            slot->outCapture.Arm(captureId);
+        }
+        OH_LOG_INFO(LOG_APP,
+                    "[AudioB3] p2arm captureId=%{public}llu started=%{public}u",
+                    static_cast<unsigned long long>(captureId), started);
+    }
+    p2LastStartedCount_ = started;
+}
+
+void AudioBroker::FlushP2Captures()
+{
+    struct Job
+    {
+        uint32_t streamId = 0;
+        uint32_t ordinal = 0;
+        uint64_t captureId = 0;
+        uint64_t firstNs = 0;
+        uint32_t ringFrames = 0;
+        uint32_t ringDropped = 0;
+        uint32_t outFrames = 0;
+        uint32_t outDropped = 0;
+        std::vector<int16_t> ring;
+        std::vector<int16_t> out;
+    };
+
+    std::vector<Job> jobs;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto& [id, slot] : renderers_)
+        {
+            if (!slot)
+                continue;
+            PcmDiagnosticCapture::ReadyCapture ring{};
+            PcmDiagnosticCapture::ReadyCapture out{};
+            const bool hasRing = slot->ringCapture.PeekReady(&ring);
+            const bool hasOut = slot->outCapture.PeekReady(&out);
+            if (!hasRing && !hasOut)
+                continue;
+
+            Job job;
+            job.streamId = slot->streamId;
+            job.ordinal = slot->ordinal;
+            if (hasRing && ring.samples)
+            {
+                job.captureId = ring.captureId;
+                job.firstNs = ring.firstTimestampNs;
+                job.ringFrames = ring.frames;
+                job.ringDropped = ring.droppedFrames;
+                job.ring.assign(ring.samples,
+                              ring.samples + static_cast<size_t>(ring.frames) * 2);
+                slot->ringCapture.ResetToIdle();
+            }
+            if (hasOut && out.samples)
+            {
+                if (!job.captureId)
+                    job.captureId = out.captureId;
+                if (!job.firstNs)
+                    job.firstNs = out.firstTimestampNs;
+                job.outFrames = out.frames;
+                job.outDropped = out.droppedFrames;
+                job.out.assign(out.samples,
+                               out.samples + static_cast<size_t>(out.frames) * 2);
+                slot->outCapture.ResetToIdle();
+            }
+            jobs.push_back(std::move(job));
+        }
+    }
+
+    if (jobs.empty())
+        return;
+
+    char logDir[512] = {};
+    WineHuaLogDirectory(logDir, sizeof(logDir));
+    const char* dir = logDir[0] ? logDir : runtimeDir_.c_str();
+    for (const Job& job : jobs)
+    {
+        char ringPath[768];
+        char outPath[768];
+        snprintf(ringPath, sizeof(ringPath),
+                 "%s/p2_c%llu_e%u_s%u_ring.s16le",
+                 dir,
+                 static_cast<unsigned long long>(job.captureId),
+                 job.ordinal,
+                 job.streamId);
+        snprintf(outPath, sizeof(outPath),
+                 "%s/p2_c%llu_e%u_s%u_out.s16le",
+                 dir,
+                 static_cast<unsigned long long>(job.captureId),
+                 job.ordinal,
+                 job.streamId);
+        if (job.ringFrames)
+        {
+            FILE* fp = fopen(ringPath, "wb");
+            if (fp)
+            {
+                fwrite(job.ring.data(), sizeof(int16_t), job.ring.size(), fp);
+                fclose(fp);
+            }
+        }
+        if (job.outFrames)
+        {
+            FILE* fp = fopen(outPath, "wb");
+            if (fp)
+            {
+                fwrite(job.out.data(), sizeof(int16_t), job.out.size(), fp);
+                fclose(fp);
+            }
+        }
+        OH_LOG_INFO(LOG_APP,
+                    "[AudioB3] p2write captureId=%{public}llu stream=%{public}u ordinal=%{public}u firstNs=%{public}llu ringFrames=%{public}u ringDrop=%{public}u outFrames=%{public}u outDrop=%{public}u path=%{public}s",
+                    static_cast<unsigned long long>(job.captureId),
+                    job.streamId,
+                    job.ordinal,
+                    static_cast<unsigned long long>(job.firstNs),
+                    job.ringFrames,
+                    job.ringDropped,
+                    job.outFrames,
+                    job.outDropped,
+                    ringPath);
+    }
+}
+
 void AudioBroker::LifecycleLoop()
 {
     while (!workerStop_.load(std::memory_order_relaxed))
@@ -1138,6 +1339,8 @@ void AudioBroker::TelemetryLoop()
 
         if (workerStop_.load(std::memory_order_relaxed)) break;
 
+        FlushP2Captures();
+
         struct SlotSnap
         {
             uint32_t streamId = 0;
@@ -1148,6 +1351,9 @@ void AudioBroker::TelemetryLoop()
             bool physical = false;
             bool wineStarted = false;
             int32_t fadeDir = 0;
+            uint32_t fadeRemaining = 0;
+            int32_t fadeGainX1000 = 1000;
+            uint32_t fadeRecover = 0;
             uint64_t callbacks = 0;
             uint64_t underrunEv = 0;
             uint64_t underrunFr = 0;
@@ -1212,6 +1418,10 @@ void AudioBroker::TelemetryLoop()
                 snap.physical = slot->rendererStarted;
                 snap.wineStarted = slot->stream && slot->stream->started();
                 snap.fadeDir = slot->fadeDir.load(std::memory_order_relaxed);
+                snap.fadeRemaining = slot->fadeRemaining.load(std::memory_order_relaxed);
+                snap.fadeGainX1000 = static_cast<int32_t>(
+                    slot->gain.load(std::memory_order_relaxed) * 1000.0f);
+                snap.fadeRecover = slot->fadeRecoverCount.exchange(0, std::memory_order_relaxed);
                 if (snap.want) streams++;
                 snap.callbacks = slot->callbacks.exchange(0, std::memory_order_relaxed);
                 snap.underrunEv = slot->underrunEvents.exchange(0, std::memory_order_relaxed);
@@ -1275,13 +1485,13 @@ void AudioBroker::TelemetryLoop()
         for (const SlotSnap& snap : snaps)
         {
             if (!snap.callbacks && !snap.out.validCallbacks && !snap.out.invalidCallbacks &&
-                !snap.ring.frames)
+                !snap.ring.frames && !snap.fadeRecover)
                 continue;
             const uint64_t avgWallUs = snap.callbacks
                 ? (snap.wallTotalNs / snap.callbacks) / 1000ull
                 : 0;
             OH_LOG_INFO(LOG_APP,
-                        "[AudioB3] pcm monoUs=%{public}llu commit=%{public}s profile=%{public}s stream=%{public}u ordinal=%{public}u gen=%{public}llu logical=%{public}s physical=%{public}s gainQ15=%{public}u ringFrames=%{public}llu ringPeakL=%{public}u ringPeakR=%{public}u ringFullL=%{public}u ringFullR=%{public}u ringRunL=%{public}u ringRunR=%{public}u ringNearFullL=%{public}u ringNearFullR=%{public}u outPeakL=%{public}u outPeakR=%{public}u outFullL=%{public}u outFullR=%{public}u outRunL=%{public}u outRunR=%{public}u deltaL=%{public}u deltaR=%{public}u boundaryL=%{public}u boundaryR=%{public}u rmsL=%{public}u rmsR=%{public}u dcL=%{public}d dcR=%{public}d validCb=%{public}u invalidCb=%{public}u startBoundL=%{public}u startBoundR=%{public}u stopBoundL=%{public}u stopBoundR=%{public}u",
+                        "[AudioB3] pcm monoUs=%{public}llu commit=%{public}s profile=%{public}s stream=%{public}u ordinal=%{public}u gen=%{public}llu logical=%{public}s physical=%{public}s gainQ15=%{public}u fadeGainX1000=%{public}d fadeRem=%{public}u fadeRecover=%{public}u ringFrames=%{public}llu ringPeakL=%{public}u ringPeakR=%{public}u ringFullL=%{public}u ringFullR=%{public}u ringRunL=%{public}u ringRunR=%{public}u ringNearFullL=%{public}u ringNearFullR=%{public}u outPeakL=%{public}u outPeakR=%{public}u outFullL=%{public}u outFullR=%{public}u outRunL=%{public}u outRunR=%{public}u deltaL=%{public}u deltaR=%{public}u boundaryL=%{public}u boundaryR=%{public}u rmsL=%{public}u rmsR=%{public}u dcL=%{public}d dcR=%{public}d validCb=%{public}u invalidCb=%{public}u startBoundL=%{public}u startBoundR=%{public}u stopBoundL=%{public}u stopBoundR=%{public}u click16L=%{public}u click16R=%{public}u click32L=%{public}u click32R=%{public}u",
                         static_cast<unsigned long long>(monoUs),
                         kAudioDiagGitCommit,
                         AudioDiagGainProfileName(kAudioDiagGainProfile),
@@ -1291,6 +1501,9 @@ void AudioBroker::TelemetryLoop()
                         LogicalRenderName(snap.want, snap.physical, snap.wineStarted, snap.fadeDir),
                         PhysicalRenderName(snap.physical),
                         snap.gainQ15,
+                        static_cast<int>(snap.fadeGainX1000),
+                        snap.fadeRemaining,
+                        snap.fadeRecover,
                         static_cast<unsigned long long>(snap.ring.frames),
                         snap.ring.peakL,
                         snap.ring.peakR,
@@ -1319,7 +1532,11 @@ void AudioBroker::TelemetryLoop()
                         snap.startBoundL,
                         snap.startBoundR,
                         snap.stopBoundL,
-                        snap.stopBoundR);
+                        snap.stopBoundR,
+                        snap.ring.click16L,
+                        snap.ring.click16R,
+                        snap.ring.click32L,
+                        snap.ring.click32R);
             OH_LOG_INFO(LOG_APP,
                         "[AudioB3] cbperf monoUs=%{public}llu stream=%{public}u ordinal=%{public}u callbacks=%{public}llu wallAvgUs=%{public}llu wallMaxUs=%{public}llu intervalMaxUs=%{public}llu ringReadUs=%{public}llu metricsUs=%{public}llu late=%{public}llu underrunEv=%{public}llu requested=%{public}llu consumed=%{public}llu",
                         static_cast<unsigned long long>(monoUs),

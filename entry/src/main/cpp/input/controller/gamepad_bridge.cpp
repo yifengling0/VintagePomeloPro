@@ -3,6 +3,7 @@
 #include "input/controller/controller_hub.h"
 #include "input/controller/gamepad_ipc_protocol.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -11,6 +12,7 @@
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <sys/un.h>
+#include <thread>
 #include <unistd.h>
 
 #undef LOG_TAG
@@ -100,7 +102,7 @@ bool GamepadBridge::Start(const std::string& socketPath)
         return false;
     }
     chmod(path.c_str(), 0666);
-    if (listen(fd, 1) != 0) {
+    if (listen(fd, 8) != 0) {
         close(fd);
         unlink(path.c_str());
         return false;
@@ -127,14 +129,13 @@ void GamepadBridge::Stop()
             close(listenFd_);
             listenFd_ = -1;
         }
-        if (clientFd_ >= 0) {
-            shutdown(clientFd_, SHUT_RDWR);
-            clientFd_ = -1;
+        for (int fd : clientFds_) {
+            if (fd >= 0) shutdown(fd, SHUT_RDWR);
         }
+        clientFds_.clear();
         if (!path_.empty()) unlink(path_.c_str());
     }
     if (acceptThread_.joinable()) acceptThread_.join();
-    if (rumbleThread_.joinable()) rumbleThread_.join();
 }
 
 void GamepadBridge::AcceptLoop()
@@ -158,27 +159,30 @@ void GamepadBridge::AcceptLoop()
             continue;
         }
 
-        int oldClient = -1;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            oldClient = clientFd_;
-            clientFd_ = -1;
-            if (oldClient >= 0) shutdown(oldClient, SHUT_RDWR);
-        }
-        if (rumbleThread_.joinable()) rumbleThread_.join();
-
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (!running_) {
                 close(client);
                 return;
             }
-            clientFd_ = client;
-            OH_LOG_INFO(LOG_APP, "[WHGP] client connected fd=%{public}d", client);
+            if (clientFds_.size() >= kMaxClients) {
+                OH_LOG_WARN(LOG_APP, "[WHGP] refuse extra client fd=%{public}d already=%{public}zu",
+                            client, clientFds_.size());
+                close(client);
+                continue;
+            }
+            clientFds_.push_back(client);
+            OH_LOG_INFO(LOG_APP, "[WHGP] client connected fd=%{public}d clients=%{public}zu",
+                        client, clientFds_.size());
         }
-        rumbleThread_ = std::thread([this, client] { RecvLoop(client); });
+        std::thread([this, client] { RecvLoop(client); }).detach();
         PublishState(0, ControllerHub::Instance().GetState(0));
     }
+}
+
+void GamepadBridge::RemoveClientLocked(int fd)
+{
+    clientFds_.erase(std::remove(clientFds_.begin(), clientFds_.end(), fd), clientFds_.end());
 }
 
 void GamepadBridge::RecvLoop(int fd)
@@ -228,7 +232,7 @@ void GamepadBridge::RecvLoop(int fd)
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (clientFd_ == fd) clientFd_ = -1;
+        RemoveClientLocked(fd);
     }
     close(fd);
     OH_LOG_INFO(LOG_APP, "[WHGP] client recv loop exited fd=%{public}d", fd);
@@ -260,22 +264,28 @@ void GamepadBridge::WriteState(int fd, uint32_t slot, const LogicalGamepadState&
         {&body, sizeof(body)},
     };
     std::lock_guard<std::mutex> lock(mutex_);
-    if (clientFd_ != fd) return;
+    bool found = false;
+    for (int clientFd : clientFds_) {
+        if (clientFd == fd) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) return;
     if (writev(fd, iov, 2) != total) {
         shutdown(fd, SHUT_RDWR);
-        if (clientFd_ == fd) clientFd_ = -1;
+        RemoveClientLocked(fd);
     }
 }
 
 void GamepadBridge::PublishState(uint32_t slot, const LogicalGamepadState& state)
 {
-    int fd = -1;
+    std::vector<int> fds;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        fd = clientFd_;
+        fds = clientFds_;
     }
-    if (fd < 0) return;
-    WriteState(fd, slot, state);
+    for (int fd : fds) WriteState(fd, slot, state);
 }
 
 void GamepadBridge::AttachToHub()

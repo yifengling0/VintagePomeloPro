@@ -2,6 +2,8 @@
 #include "wine/env_spec.h"
 #include "wine/wine_constants.h"
 #include "audio/audio_broker.h"
+#include "audio/audio_diag_config.h"
+#include "common/app_log.h"
 #include "protocols/audio_ipc_protocol.h"
 #include "graphics/graphics_broker.h"
 #include "graphics/graphics_profile.h"
@@ -99,6 +101,14 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
         env.push_back("WINE_OHOS_AUDIO_ENABLE=1");
         env.push_back("WINE_OHOS_AUDIO_BOOTSTRAP_FD=" + std::to_string(audioBootstrapFd));
         env.push_back("WINE_OHOS_AUDIO_PROTOCOL_VERSION=" + std::to_string(WINEHUA_AUDIO_PROTOCOL_VERSION));
+        env.push_back("WINEHUA_AUDIO_W01=1");
+        env.push_back(std::string("WINEHUA_AUDIO_GIT_COMMIT=") + winehua::kAudioDiagGitCommit);
+        char logDir[512] = {};
+        WineHuaLogDirectory(logDir, sizeof(logDir));
+        if (logDir[0])
+            env.push_back(std::string("WINEHUA_AUDIO_W01_DIR=") + logDir);
+        else
+            env.push_back("WINEHUA_AUDIO_W01_DIR=/storage/media/100/local/files/Docs/Download/com.vintage.pomelopro/logs");
     }
     winehua::GraphicsBroker::GetInstance().SetWineRuntimeBinaryDir(binDir);
     // Layer 4: 窗口模式。与 master 同层; 取值只来自 WindowingModeFor。
@@ -109,11 +119,12 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     winehua::GraphicsBroker::GetInstance().AppendWineEnv(env);
 
     OH_LOG_INFO(LOG_APP,
-                "[WineEnv] backend=%{public}s guestMode=%{public}s guestLib=%{public}s runtimeLibPath=%{public}s",
+                "[WineEnv] backend=%{public}s guestMode=%{public}s guestLib=%{public}s runtimeLibPath=%{public}s w01=%{public}d",
                 winehua::GraphicsBroker::BackendName(graphicsState.active),
                 graphicsState.guestReceiverMode.empty() ? "stock-egl" : graphicsState.guestReceiverMode.c_str(),
                 guestReceiverLibDir.empty() ? "(none)" : guestReceiverLibDir.c_str(),
-                runtimeLibPath.c_str());
+                runtimeLibPath.c_str(),
+                audioBootstrapFd >= 0 ? 1 : 0);
     return env;
 }
 

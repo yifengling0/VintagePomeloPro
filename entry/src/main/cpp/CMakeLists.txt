@@ -26,6 +26,7 @@ add_library(entry SHARED
     common/app_log.cpp
     audio/audio_broker.cpp
     audio/audio_ipc_server.cpp
+    audio/audio_pcm_capture.cpp
     audio/audio_pcm_metrics.cpp
     audio/audio_stream.cpp
     graphics/graphics_broker.cpp

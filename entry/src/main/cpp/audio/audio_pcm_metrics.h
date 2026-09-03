@@ -7,6 +7,8 @@
 namespace winehua {
 
 constexpr int32_t kNearFullScaleThreshold = 32000;
+constexpr uint32_t kClickDelta16 = 16384;
+constexpr uint32_t kClickDelta32 = 32768;
 constexpr uint32_t kUnityGainQ15 = 32768;
 constexpr uint32_t kHalfGainQ15 = 16384;
 
@@ -52,6 +54,10 @@ struct PcmBlockMetrics
     uint32_t maxDeltaR = 0;
     uint32_t boundaryDeltaL = 0;
     uint32_t boundaryDeltaR = 0;
+    uint32_t click16L = 0;
+    uint32_t click16R = 0;
+    uint32_t click32L = 0;
+    uint32_t click32R = 0;
 
     int32_t firstL = 0;
     int32_t firstR = 0;
@@ -79,6 +85,10 @@ struct PcmMetricSnapshot
     uint32_t maxDeltaR = 0;
     uint32_t maxBoundaryDeltaL = 0;
     uint32_t maxBoundaryDeltaR = 0;
+    uint32_t click16L = 0;
+    uint32_t click16R = 0;
+    uint32_t click32L = 0;
+    uint32_t click32R = 0;
     uint32_t validCallbacks = 0;
     uint32_t invalidCallbacks = 0;
 };
@@ -102,6 +112,10 @@ struct PcmMetricAccumulators
     std::atomic<uint32_t> maxDeltaR{0};
     std::atomic<uint32_t> maxBoundaryDeltaL{0};
     std::atomic<uint32_t> maxBoundaryDeltaR{0};
+    std::atomic<uint32_t> click16L{0};
+    std::atomic<uint32_t> click16R{0};
+    std::atomic<uint32_t> click32L{0};
+    std::atomic<uint32_t> click32R{0};
     std::atomic<uint32_t> validCallbacks{0};
     std::atomic<uint32_t> invalidCallbacks{0};
 

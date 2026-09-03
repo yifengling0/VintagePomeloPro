@@ -53,7 +53,7 @@ Wine XInput/DInput force-feedback → `winebus` `hid_device_add_haptics` → WHG
 |------|--------|
 | `bus_sdl` on OHOS | Can enumerate physical pads → **duplicate** with Hub |
 | Mitigation | `WINEHUA_CONTROLLER_HUB=1` gates `sdl_add_device` |
-| `bus_ohos` | WHGP AF_UNIX v2 → `hid_device_add_gamepad()` + haptics; `is_gamepad=TRUE` (XInput + DInput) |
+| `bus_ohos` | WHGP AF_UNIX v2 → `hid_device_add_gamepad()` + haptics; `is_gamepad=TRUE` (XInput + DInput). Host keeps up to 4 clients (32/64-bit winedevice); a new accept must **not** shut down the previous client. winebus backs off 50ms–1s after a drop. |
 | Version mismatch | Log `WHGP protocol mismatch: peer=N expected=2` and disconnect; no v1 guess |
 | Env | `WINEHUA_GAMEPAD_ENABLE`, `WINEHUA_GAMEPAD_MODE`, `WINEHUA_GAMEPAD_SOCKET` |
 
