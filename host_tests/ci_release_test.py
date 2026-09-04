@@ -68,6 +68,19 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(git(checkout, "cat-file", "-t", "refs/tags/rc-1.3.3"), "commit")
         self.assertEqual(release.verify_source(checkout, self.sha, "rc-1.3.3")["commit"], self.sha)
 
+    def test_sha_checkout_without_local_tag_is_recreated(self):
+        git(self.root, "tag", "-am", "RC", "rc-1.3.3")
+        checkout = Path(self.temp.name) / "checkout"
+        checkout.mkdir()
+        git(checkout, "init", "-q")
+        git(checkout, "fetch", "--depth=1", "--no-tags", str(self.root), self.sha)
+        git(checkout, "checkout", "-q", "--detach", "FETCH_HEAD")
+        git(checkout, "fetch", "--depth=1", "--no-tags", str(self.root), "refs/tags/rc-1.3.3")
+        with self.assertRaisesRegex(ValueError, "not in checkout"):
+            release.verify_source(checkout, self.sha, "rc-1.3.3")
+        git(checkout, "tag", "rc-1.3.3", self.sha)
+        self.assertEqual(release.verify_source(checkout, self.sha, "rc-1.3.3")["commit"], self.sha)
+
     def test_wrong_sha_and_version(self):
         with self.assertRaises(ValueError):
             release.verify_source(self.root, "0" * 40, "")

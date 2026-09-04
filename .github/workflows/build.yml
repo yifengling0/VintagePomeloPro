@@ -82,14 +82,19 @@ jobs:
           expected_sha="$GITHUB_SHA"
           if [ -n "$RELEASE_TAG" ]; then
             [[ "$RELEASE_TAG" =~ ^(rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*$ ]] || exit 1
-            # checkout may synthesize a lightweight local ref for an annotated tag.
-            # Fetch into FETCH_HEAD only; never overwrite a local or remote tag.
+            # checkout@v4 with ref=github.sha does not create refs/tags/*.
+            # Fetch the annotated tag into FETCH_HEAD only; never overwrite a
+            # local or remote tag. Recreate the lightweight local ref the
+            # version gate expects (same as actions/checkout on a tag name).
             git fetch --depth=1 --no-tags origin "refs/tags/$RELEASE_TAG"
             tag_sha="$(git rev-parse 'FETCH_HEAD^{commit}')"
             if [ "$EVENT_NAME" = workflow_dispatch ]; then
               expected_sha="$tag_sha"
             fi
             test "$tag_sha" = "$expected_sha"
+            if ! git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+              git tag "$RELEASE_TAG" "$expected_sha"
+            fi
           fi
           python3 scripts/verify_ci_release.py source --expected-sha "$expected_sha" \
             --release-tag "$RELEASE_TAG" --output ci-artifacts/ci-source.json
@@ -289,6 +294,7 @@ jobs:
         with:
           ref: ${{ needs.build.outputs.source_sha }}
           fetch-depth: 0        # 需要历史 commit 生成 changelog
+          fetch-tags: true
 
       - name: Determine release tag & Latest ownership
         id: tag
@@ -302,6 +308,10 @@ jobs:
             tag="${GITHUB_REF#refs/tags/}"
           fi
           [[ "$tag" =~ ^(rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*$ ]] || exit 1
+          if ! git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null; then
+            git fetch --depth=1 --no-tags origin "refs/tags/$tag"
+            git update-ref "refs/tags/$tag" FETCH_HEAD
+          fi
           test "$(git rev-parse "refs/tags/$tag^{commit}")" = "$SOURCE_SHA"
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           # Latest 徽章归属: rc-* 占, dev-* 不占

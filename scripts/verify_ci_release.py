@@ -30,7 +30,11 @@ def verify_source(root, expected_sha, release_tag):
     if release_tag:
         if not re.fullmatch(r"(?:rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*", release_tag):
             raise ValueError("invalid release tag")
-        if git(root, "rev-parse", f"refs/tags/{release_tag}^{{commit}}") != sha:
+        try:
+            tag_sha = git(root, "rev-parse", f"refs/tags/{release_tag}^{{commit}}")
+        except subprocess.CalledProcessError as error:
+            raise ValueError(f"release tag not in checkout: {release_tag}") from error
+        if tag_sha != sha:
             raise ValueError("release tag points to a different commit")
         if release_tag.startswith("rc-") and release_tag != "rc-" + app["versionName"]:
             raise ValueError("RC tag does not match AppScope versionName")
