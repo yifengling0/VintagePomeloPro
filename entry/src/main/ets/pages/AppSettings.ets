@@ -7,13 +7,18 @@ import { hilog } from '../service/LogService';
 import {
   BOX64_APP_PRESET_IDS,
   BOX64_PRESET_DEFAULT,
+  GRAPHICS_LAUNCH_PRESET_IDS,
   AppDescriptor,
   AppSettings as StoredAppSettings,
   AppSource,
   DisplayMode,
-  box64PresetDescription,
   box64PresetLabel,
-  createDefaultAppSettings
+  cloneAppSettings,
+  createDefaultAppSettings,
+  formatLaunchArgumentText,
+  graphicsLaunchPresetDescription,
+  graphicsLaunchPresetLabel,
+  parseLaunchArgumentText
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
@@ -213,19 +218,13 @@ struct AppSettingsPage {
     this.app = AppCatalogService.getInstance().getApps().find((item: AppDescriptor) => item.id === appId) ?? null;
     this.value = AppSettingsStore.getInstance().getAppSettings(appId);
     if (this.app) {
-      this.value = {
-        appId: appId,
-        customTitle: this.value.customTitle || this.app.title,
-        customCover: this.value.customCover,
-        favorite: this.value.favorite,
-        box64Preset: this.value.box64Preset,
-        executable: this.value.executable || this.app.launchTarget.executable,
-        arguments: this.value.arguments,
-        workingDirectory: this.value.workingDirectory || this.app.launchTarget.workingDirectory,
-        displayModeOverride: this.value.displayModeOverride ?? this.app.displayModeOverride,
-        inputProfileId: this.value.inputProfileId,
-        prefixId: this.value.prefixId
-      };
+      const next = cloneAppSettings(this.value);
+      next.appId = appId;
+      next.customTitle = this.value.customTitle || this.app.title;
+      next.executable = this.value.executable || this.app.launchTarget.executable;
+      next.workingDirectory = this.value.workingDirectory || this.app.launchTarget.workingDirectory;
+      next.displayModeOverride = this.value.displayModeOverride ?? this.app.displayModeOverride;
+      this.value = next;
     }
   }
 
@@ -280,19 +279,13 @@ struct AppSettingsPage {
 
   private replace(title: string, cover: string, executable: string, workingDirectory: string,
     displayMode: DisplayMode | null): void {
-    this.value = {
-      appId: this.value.appId,
-      customTitle: title,
-      customCover: cover,
-      favorite: this.value.favorite,
-      box64Preset: this.value.box64Preset,
-      executable: executable,
-      arguments: this.value.arguments,
-      workingDirectory: workingDirectory,
-      displayModeOverride: displayMode,
-      inputProfileId: this.value.inputProfileId,
-      prefixId: this.value.prefixId
-    };
+    const next = cloneAppSettings(this.value);
+    next.customTitle = title;
+    next.customCover = cover;
+    next.executable = executable;
+    next.workingDirectory = workingDirectory;
+    next.displayModeOverride = displayMode;
+    this.value = next;
   }
 
   /** 修改即保存：仅持久化设置，目录卡片在返回主页面时自动刷新。 */
@@ -465,19 +458,9 @@ struct AppSettingsPage {
 
   private async editInputProfile(): Promise<void> {
     const profileId = this.profileEditorId();
-    this.value = {
-      appId: this.value.appId,
-      customTitle: this.value.customTitle,
-      customCover: this.value.customCover,
-      favorite: this.value.favorite,
-      box64Preset: this.value.box64Preset,
-      executable: this.value.executable,
-      arguments: this.value.arguments,
-      workingDirectory: this.value.workingDirectory,
-      displayModeOverride: this.value.displayModeOverride,
-      inputProfileId: profileId,
-      prefixId: this.value.prefixId
-    };
+    const next = cloneAppSettings(this.value);
+    next.inputProfileId = profileId;
+    this.value = next;
     // Entering a child editor is an explicit choice to create a dedicated
     // profile. Persist it first so returning from the editor cannot restore
     // stale app settings and silently lose the association.
@@ -494,55 +477,56 @@ struct AppSettingsPage {
   }
 
   private async useGlobalInputProfile(): Promise<void> {
-    this.value = {
-      appId: this.value.appId,
-      customTitle: this.value.customTitle,
-      customCover: this.value.customCover,
-      favorite: this.value.favorite,
-      box64Preset: this.value.box64Preset,
-      executable: this.value.executable,
-      arguments: this.value.arguments,
-      workingDirectory: this.value.workingDirectory,
-      displayModeOverride: this.value.displayModeOverride,
-      inputProfileId: 'default',
-      prefixId: this.value.prefixId
-    };
+    const next = cloneAppSettings(this.value);
+    next.inputProfileId = 'default';
+    this.value = next;
     await AppSettingsStore.getInstance().saveAppSettings(this.value);
     promptAction.showToast({ message: '此应用已恢复使用全局输入方案' });
   }
 
   private setFavorite(value: boolean): void {
-    this.value = {
-      appId: this.value.appId,
-      customTitle: this.value.customTitle,
-      customCover: this.value.customCover,
-      favorite: value,
-      box64Preset: this.value.box64Preset,
-      executable: this.value.executable,
-      arguments: this.value.arguments,
-      workingDirectory: this.value.workingDirectory,
-      displayModeOverride: this.value.displayModeOverride,
-      inputProfileId: this.value.inputProfileId,
-      prefixId: this.value.prefixId
-    };
+    const next = cloneAppSettings(this.value);
+    next.favorite = value;
+    this.value = next;
     void this.persist();
   }
 
   private setBox64Preset(preset: string): void {
     if (preset === this.value.box64Preset) return;
-    this.value = {
-      appId: this.value.appId,
-      customTitle: this.value.customTitle,
-      customCover: this.value.customCover,
-      favorite: this.value.favorite,
-      box64Preset: preset,
-      executable: this.value.executable,
-      arguments: this.value.arguments,
-      workingDirectory: this.value.workingDirectory,
-      displayModeOverride: this.value.displayModeOverride,
-      inputProfileId: this.value.inputProfileId,
-      prefixId: this.value.prefixId
-    };
+    const next = cloneAppSettings(this.value);
+    next.box64Preset = preset;
+    this.value = next;
+    void this.persist();
+  }
+
+  private setGraphicsLaunchPreset(preset: string): void {
+    if (preset === this.value.graphicsLaunchPreset) return;
+    const next = cloneAppSettings(this.value);
+    next.graphicsLaunchPreset = preset;
+    this.value = next;
+    void this.persist();
+  }
+
+  private setDisableMfDxgiDeviceManager(enabled: boolean): void {
+    if (enabled === this.value.disableMfDxgiDeviceManager) return;
+    const next = cloneAppSettings(this.value);
+    next.disableMfDxgiDeviceManager = enabled;
+    this.value = next;
+    void this.persist();
+  }
+
+  private setPreferMfMpeg4Handler(enabled: boolean): void {
+    if (enabled === this.value.preferMfMpeg4Handler) return;
+    const next = cloneAppSettings(this.value);
+    next.preferMfMpeg4Handler = enabled;
+    this.value = next;
+    void this.persist();
+  }
+
+  private setExtraLaunchArguments(text: string): void {
+    const next = cloneAppSettings(this.value);
+    next.arguments = parseLaunchArgumentText(text);
+    this.value = next;
     void this.persist();
   }
 
@@ -606,6 +590,36 @@ struct AppSettingsPage {
           }.width('100%').padding(this.cardPadding()).backgroundColor($r('app.color.card_background')).borderRadius(16)
 
           Column({ space: 12 }) {
+            Text('启动参数').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
+            Text('图形 API').fontSize(13).fontColor($r('app.color.text_secondary')).width('100%')
+            Text('启动时追加命令行参数，让游戏选择 Direct3D 11 或 OpenGL。不改变系统设置中的 DXVK/VirGL 后端。')
+              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+              ForEach(GRAPHICS_LAUNCH_PRESET_IDS, (preset: string) => {
+                Button(graphicsLaunchPresetLabel(preset))
+                  .height(42)
+                  .padding({ left: 12, right: 12 })
+                  .margin({ right: 8, bottom: 8 })
+                  .borderRadius(14)
+                  .fontSize(12)
+                  .fontColor(this.value.graphicsLaunchPreset === preset ?
+                    '#FFFFFFFF' : $r('app.color.text_primary'))
+                  .backgroundColor(this.value.graphicsLaunchPreset === preset ?
+                    $r('app.color.accent') : $r('app.color.search_background'))
+                  .id('app-settings-gfx-' + preset)
+                  .onClick(() => this.setGraphicsLaunchPreset(preset))
+              }, (preset: string): string => preset)
+            }.width('100%')
+            Text(graphicsLaunchPresetDescription(this.value.graphicsLaunchPreset))
+              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            this.Field('额外参数', formatLaunchArgumentText(this.value.arguments), (text: string): void => {
+              this.setExtraLaunchArguments(text);
+            })
+            Text('空格分隔，例如 -force-gfx-direct 或 -no-cef-sandbox。与上方图形预设合并后启动。')
+              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+          }.width('100%').padding(this.cardPadding()).backgroundColor($r('app.color.card_background')).borderRadius(16)
+
+          Column({ space: 12 }) {
             Text('兼容性').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
             Text('Box64 兼容性预设').fontSize(13).fontColor($r('app.color.text_secondary')).width('100%')
             Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')
@@ -629,6 +643,32 @@ struct AppSettingsPage {
             Text(this.value.box64Preset === BOX64_PRESET_DEFAULT ?
               '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
               .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            Text('Media Foundation 视频').fontSize(13).fontColor($r('app.color.text_secondary'))
+              .width('100%').margin({ top: 8 })
+            Text('默认关闭。不要因为游戏是 Unity 就自动打开；仅在开场视频黑屏、花屏、有声无画或卡死时按需启用。')
+              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            Row() {
+              Column({ space: 4 }) {
+                Text('禁用 Media Foundation DXGI 视频加速').fontSize(15).fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.text_primary'))
+                Text('部分 Unity / MF 游戏开场视频黑屏、花屏、有声无画或卡死。开启后禁用 DXGI Device Manager，视频可能改走兼容性更高的非 DXGI 路径。')
+                  .fontSize(11).fontColor($r('app.color.text_secondary'))
+              }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+              Toggle({ type: ToggleType.Switch, isOn: this.value.disableMfDxgiDeviceManager })
+                .onChange((value: boolean): void => this.setDisableMfDxgiDeviceManager(value))
+            }.width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+            .id('app-settings-mf-disable-dxgi')
+            Row() {
+              Column({ space: 4 }) {
+                Text('优先 Wine MPEG4 Handler').fontSize(15).fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.text_primary'))
+                Text('实验性。handler 查找失败时先试 Wine MPEG4，再回退 GStreamer。不要和无视频问题一起乱开。')
+                  .fontSize(11).fontColor($r('app.color.text_secondary'))
+              }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+              Toggle({ type: ToggleType.Switch, isOn: this.value.preferMfMpeg4Handler })
+                .onChange((value: boolean): void => this.setPreferMfMpeg4Handler(value))
+            }.width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+            .id('app-settings-mf-prefer-mpeg4')
           }.width('100%').padding(this.cardPadding()).backgroundColor($r('app.color.card_background')).borderRadius(16)
 
           Column({ space: 12 }) {

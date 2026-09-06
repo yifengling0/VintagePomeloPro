@@ -14,7 +14,8 @@ import {
   ViewMode,
   cloneVirtualMouseConfig,
   createDefaultAppSettings,
-  createDefaultGlobalSettings
+  createDefaultGlobalSettings,
+  normalizeGraphicsLaunchPreset
 } from '../model/AppModels';
 
 const STORE_NAME = 'vintage_pomelo_pro';
@@ -253,6 +254,10 @@ export class AppSettingsStore {
       customCover: value.customCover ?? defaults.customCover,
       favorite: value.favorite ?? defaults.favorite,
       box64Preset: value.box64Preset ?? defaults.box64Preset,
+      graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
+        value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
+      disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager ?? defaults.disableMfDxgiDeviceManager,
+      preferMfMpeg4Handler: value.preferMfMpeg4Handler ?? defaults.preferMfMpeg4Handler,
       executable: value.executable ?? defaults.executable,
       arguments: value.arguments ?? defaults.arguments,
       workingDirectory: value.workingDirectory ?? defaults.workingDirectory,

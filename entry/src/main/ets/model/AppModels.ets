@@ -264,6 +264,92 @@ export function isUnityCompatPreset(presetId: string): boolean {
   return presetId === BOX64_PRESET_UNITY;
 }
 
+/** 每游戏图形启动预设：只改 argv，不改系统 DXVK/VirGL 后端。 */
+export const GRAPHICS_LAUNCH_PRESET_DEFAULT = 'default';
+export const GRAPHICS_LAUNCH_PRESET_DX11 = 'dx11';
+export const GRAPHICS_LAUNCH_PRESET_OPENGL = 'opengl';
+
+export const GRAPHICS_LAUNCH_PRESET_IDS: string[] = [
+  GRAPHICS_LAUNCH_PRESET_DEFAULT,
+  GRAPHICS_LAUNCH_PRESET_DX11,
+  GRAPHICS_LAUNCH_PRESET_OPENGL
+];
+
+export function normalizeGraphicsLaunchPreset(value: string): string {
+  if (value === GRAPHICS_LAUNCH_PRESET_DX11 || value === GRAPHICS_LAUNCH_PRESET_OPENGL) {
+    return value;
+  }
+  return GRAPHICS_LAUNCH_PRESET_DEFAULT;
+}
+
+export function graphicsLaunchPresetLabel(presetId: string): string {
+  switch (presetId) {
+    case GRAPHICS_LAUNCH_PRESET_DX11:
+      return 'DX11';
+    case GRAPHICS_LAUNCH_PRESET_OPENGL:
+      return 'OpenGL';
+    default:
+      return '默认';
+  }
+}
+
+export function graphicsLaunchPresetDescription(presetId: string): string {
+  switch (presetId) {
+    case GRAPHICS_LAUNCH_PRESET_DX11:
+      return '追加 -dx11 -force-d3d11，覆盖 Unreal/通用与 Unity Direct3D 11。';
+    case GRAPHICS_LAUNCH_PRESET_OPENGL:
+      return '追加 -opengl -force-glcore，覆盖 Unreal/旧版与 Unity CoreGL。';
+    default:
+      return '不追加图形参数，使用游戏自己的渲染器。';
+  }
+}
+
+export function graphicsLaunchPresetArgs(presetId: string): string[] {
+  switch (normalizeGraphicsLaunchPreset(presetId)) {
+    case GRAPHICS_LAUNCH_PRESET_DX11:
+      return ['-dx11', '-force-d3d11'];
+    case GRAPHICS_LAUNCH_PRESET_OPENGL:
+      return ['-opengl', '-force-glcore'];
+    default:
+      return [];
+  }
+}
+
+export function parseLaunchArgumentText(text: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  for (let index = 0; index < text.length; index++) {
+    const ch = text.charAt(index);
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+      if (current.length > 0) {
+        parts.push(current);
+        current = '';
+      }
+    } else {
+      current += ch;
+    }
+  }
+  if (current.length > 0) {
+    parts.push(current);
+  }
+  return parts;
+}
+
+export function formatLaunchArgumentText(args: string[]): string {
+  return args.join(' ');
+}
+
+export function mergeLaunchArguments(base: string[], extras: string[]): string[] {
+  const result = base.slice();
+  for (let index = 0; index < extras.length; index++) {
+    const extra = extras[index];
+    if (!result.some((arg: string) => arg.toLowerCase() === extra.toLowerCase())) {
+      result.push(extra);
+    }
+  }
+  return result;
+}
+
 export interface VirtualMouseConfig {
   mouseSensitivity: number;
   doubleClickInterval: number;
@@ -311,12 +397,37 @@ export interface AppSettings {
   favorite: boolean;
   /** Box64 兼容性预设；'default' 表示跟随全局设置。 */
   box64Preset: string;
+  /** 图形启动预设：default / dx11 / opengl。只改 argv。 */
+  graphicsLaunchPreset: string;
+  /** 禁用 MF DXGI Device Manager；默认关。 */
+  disableMfDxgiDeviceManager: boolean;
+  /** 优先 Wine MPEG4 ByteStream Handler，失败仍回 GStreamer；默认关。 */
+  preferMfMpeg4Handler: boolean;
   executable: string;
   arguments: string[];
   workingDirectory: string;
   displayModeOverride: DisplayMode | null;
   inputProfileId: string;
   prefixId: string;
+}
+
+export function cloneAppSettings(value: AppSettings): AppSettings {
+  return {
+    appId: value.appId,
+    customTitle: value.customTitle,
+    customCover: value.customCover,
+    favorite: value.favorite,
+    box64Preset: value.box64Preset,
+    graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
+    disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager === true,
+    preferMfMpeg4Handler: value.preferMfMpeg4Handler === true,
+    executable: value.executable,
+    arguments: (value.arguments ?? []).slice(),
+    workingDirectory: value.workingDirectory,
+    displayModeOverride: value.displayModeOverride,
+    inputProfileId: value.inputProfileId,
+    prefixId: value.prefixId
+  };
 }
 
 export interface GlobalSettings {
@@ -988,6 +1099,9 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     customCover: '',
     favorite: false,
     box64Preset: BOX64_PRESET_DEFAULT,
+    graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
+    disableMfDxgiDeviceManager: false,
+    preferMfMpeg4Handler: false,
     executable: '',
     arguments: [],
     workingDirectory: '',
@@ -995,6 +1109,21 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     inputProfileId: 'default',
     prefixId: 'default'
   };
+}
+
+export const MF_DXGI_DEVICE_MANAGER_DISABLE_ENV = 'WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER=1';
+export const MF_PREFER_MPEG4_HANDLER_ENV = 'WINE_MF_PREFER_MPEG4_HANDLER=1';
+
+/** Per-game Media Foundation compat env; default settings emit nothing. */
+export function resolveMfCompatEnv(settings: AppSettings): string[] {
+  const env: string[] = [];
+  if (settings.disableMfDxgiDeviceManager) {
+    env.push(MF_DXGI_DEVICE_MANAGER_DISABLE_ENV);
+  }
+  if (settings.preferMfMpeg4Handler) {
+    env.push(MF_PREFER_MPEG4_HANDLER_ENV);
+  }
+  return env;
 }
 
 export function normalizeLaunchPath(path: string): string {

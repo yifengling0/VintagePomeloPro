@@ -22,11 +22,13 @@ apply_wine_patches() {
     [ -d "$patch_dir" ] || return 0
     for patch in "$patch_dir"/*.patch; do
         [ -e "$patch" ] || continue
-        if git -C "$WINE_SRC" apply --reverse --check "$patch" >/dev/null 2>&1; then
+        # Ignore CRLF/LF so patches apply on both Windows-checked-out and
+        # Linux/Docker working trees of thirdparty/wine.
+        if git -C "$WINE_SRC" apply --ignore-whitespace --reverse --check "$patch" >/dev/null 2>&1; then
             log "Wine 补丁已应用: $(basename "$patch")"
-        elif git -C "$WINE_SRC" apply --check "$patch"; then
+        elif git -C "$WINE_SRC" apply --ignore-whitespace --check "$patch"; then
             log "应用 Wine 补丁: $(basename "$patch")"
-            git -C "$WINE_SRC" apply "$patch"
+            git -C "$WINE_SRC" apply --ignore-whitespace "$patch"
         else
             err "Wine 补丁无法应用或回退: $patch"
         fi

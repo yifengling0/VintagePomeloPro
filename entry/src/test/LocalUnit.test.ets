@@ -17,14 +17,19 @@ import {
   VirtualKey,
   VirtualKeyConfig,
   canTransitionEngineState,
+  cloneAppSettings,
   cloneGamepadLayout,
   cloneVirtualKeyConfig,
   cloneVirtualMouseConfig,
+  createDefaultAppSettings,
   createDefaultGlobalSettings,
   createDefaultInputProfile,
+  MF_DXGI_DEVICE_MANAGER_DISABLE_ENV,
+  MF_PREFER_MPEG4_HANDLER_ENV,
   normalizeLaunchPath,
   resolveDisplayMode,
   resolveLaunchDisplayMode,
+  resolveMfCompatEnv,
   resolveWinePresentationMode,
   resolveInputProfileId,
   resolveVirtualJoystickDirection,
@@ -259,6 +264,43 @@ export default function localUnitTest() {
       expect(gate.shouldHandleTouch(0, 0, 1000)).assertTrue();
       expect(gate.shouldHandleMouse(0, 0, 1200)).assertFalse();
       expect(gate.shouldHandleMouse(0, 0, 1400)).assertTrue();
+    });
+
+    it('keepsMediaFoundationCompatOffByDefault', 0, () => {
+      const settings = createDefaultAppSettings('game-1');
+      expect(settings.disableMfDxgiDeviceManager).assertFalse();
+      expect(settings.preferMfMpeg4Handler).assertFalse();
+      expect(resolveMfCompatEnv(settings).length).assertEqual(0);
+    });
+
+    it('emitsMediaFoundationCompatEnvOnlyWhenToggled', 0, () => {
+      const dxgiOnly = createDefaultAppSettings('game-1');
+      dxgiOnly.disableMfDxgiDeviceManager = true;
+      const dxgiEnv = resolveMfCompatEnv(dxgiOnly);
+      expect(dxgiEnv.length).assertEqual(1);
+      expect(dxgiEnv[0]).assertEqual(MF_DXGI_DEVICE_MANAGER_DISABLE_ENV);
+
+      const mpeg4Only = createDefaultAppSettings('game-1');
+      mpeg4Only.preferMfMpeg4Handler = true;
+      const mpeg4Env = resolveMfCompatEnv(mpeg4Only);
+      expect(mpeg4Env.length).assertEqual(1);
+      expect(mpeg4Env[0]).assertEqual(MF_PREFER_MPEG4_HANDLER_ENV);
+
+      const both = createDefaultAppSettings('game-1');
+      both.disableMfDxgiDeviceManager = true;
+      both.preferMfMpeg4Handler = true;
+      const bothEnv = resolveMfCompatEnv(both);
+      expect(bothEnv.length).assertEqual(2);
+      expect(bothEnv[0]).assertEqual(MF_DXGI_DEVICE_MANAGER_DISABLE_ENV);
+      expect(bothEnv[1]).assertEqual(MF_PREFER_MPEG4_HANDLER_ENV);
+    });
+
+    it('doesNotBindMediaFoundationCompatToUnityPreset', 0, () => {
+      const settings = cloneAppSettings(createDefaultAppSettings('unity-game'));
+      settings.box64Preset = 'unity';
+      expect(settings.disableMfDxgiDeviceManager).assertFalse();
+      expect(settings.preferMfMpeg4Handler).assertFalse();
+      expect(resolveMfCompatEnv(settings).length).assertEqual(0);
     });
   });
 }

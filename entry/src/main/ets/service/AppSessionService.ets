@@ -16,11 +16,14 @@ import {
   SessionState,
   UNITY_COMPAT_LAUNCH_ARGS,
   WinePresentationMode,
+  graphicsLaunchPresetArgs,
   isUnityCompatPreset,
+  mergeLaunchArguments,
   normalizeCatalogLaunchIdentity,
   normalizeLaunchPath,
   resolveBox64PresetEnv,
   resolveLaunchDisplayMode,
+  resolveMfCompatEnv,
   resolveWinePresentationMode
 } from '../model/AppModels';
 import { isWineInfrastructurePath } from '../model/AppCatalogRules';
@@ -279,12 +282,19 @@ export class AppSessionService {
     const appSettings = AppSettingsStore.getInstance().getAppSettings(app.id);
     const presetId = appSettings.box64Preset !== BOX64_PRESET_DEFAULT
       ? appSettings.box64Preset : settings.box64Preset;
-    const envOverrides = resolveBox64PresetEnv(presetId);
+    const envOverrides = resolveBox64PresetEnv(presetId).concat(resolveMfCompatEnv(appSettings));
     hilog.info(DOMAIN, '[SESS]', 'launch: app=%{public}s preset=%{public}s env=%{public}s',
       app.id, presetId, JSON.stringify(envOverrides));
+    // 图形预设旗标不写进 settings.arguments，避免和设定页自定义框互相污染。
+    // settings.arguments 是自定义参数的权威来源（目录扫描写入 launchTarget，
+    // 但改设定后可能尚未 rescan）；再与 launchTarget 去重合并。
+    const launchArguments = mergeLaunchArguments(
+      graphicsLaunchPresetArgs(appSettings.graphicsLaunchPreset),
+      mergeLaunchArguments(app.launchTarget.arguments, appSettings.arguments));
+    hilog.info(DOMAIN, '[SESS]', 'launch: argv=%{public}s gfx=%{public}s',
+      JSON.stringify(launchArguments), appSettings.graphicsLaunchPreset);
     // Unity 兼容档：自动追加 -force-gfx-direct（跳过 GDI 间接渲染），
     // 已存在同名参数时不重复注入；只对选中 Unity 档的游戏生效。
-    const launchArguments = app.launchTarget.arguments.slice();
     if (isUnityCompatPreset(presetId)) {
       for (const extra of UNITY_COMPAT_LAUNCH_ARGS) {
         if (!launchArguments.some((arg: string) => arg.toLowerCase() === extra.toLowerCase())) {
