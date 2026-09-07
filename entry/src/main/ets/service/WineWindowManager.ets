@@ -12,6 +12,7 @@ import {
 } from '../model/AppModels';
 import { PopupWindowManager } from './PopupWindowManager';
 import { ArgbWindowManager } from './ArgbWindowManager';
+import { ModalWindowManager } from './ModalWindowManager';
 import { AppSettingsStore } from './AppSettingsStore';
 import { DesktopModeService, MODE_VIRTUAL, MODE_FUSION } from './DesktopModeService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
@@ -103,6 +104,8 @@ export class WineWindowManager {
   private destroyed: Set<number> = new Set();
   // 正在启动中的 toplevel (防止重复 startAbility)
   private pendingStarts: Set<number> = new Set();
+  // PC 融合模式 modal 对话框 (无独立 Ability, 子窗口承载在 ModalWindowManager)
+  private modalToplevelIds: Set<number> = new Set();
   // 系统窗口加载状态与 Wine 全屏状态分开记录。fullscreen 事件经常早于
   // Ability/loadContent 到达，不能在 onAfterLoadContent 时猜测窗口模式。
   private loadedWindows: Set<number> = new Set();
@@ -238,6 +241,7 @@ export class WineWindowManager {
     this.loadedWindows.clear();
     this.fullscreenWindows.clear();
     this.pendingRaises.clear();
+    this.modalToplevelIds.clear();
     testNapi.setDesktopMode(this.isDesktopMode);
     hilog.info(DOMAIN, TAG, '[MW] setPresentationMode=%{public}s nativeDesktop=%{public}s',
       mode, this.isDesktopMode ? 'yes' : 'no');
@@ -399,6 +403,7 @@ export class WineWindowManager {
     const hadMaxFlight = this.maximizeInFlight.has(toplevelId);
     // 级联销毁该窗口的全部 popup 子窗口
     PopupWindowManager.getInstance().destroyPopupsForToplevel(toplevelId);
+    ModalWindowManager.getInstance().destroyForOwner(toplevelId);
     this.abilityContexts.delete(toplevelId);
     this.windows.delete(toplevelId);
     this.windowStages.delete(toplevelId);
@@ -549,6 +554,7 @@ export class WineWindowManager {
     const win = this.getWindow(toplevelId);
     if (stage && win) {
       PopupWindowManager.getInstance().flushPending(toplevelId, stage, win, this.getEffectiveScale());
+      ModalWindowManager.getInstance().flushForOwner(toplevelId, stage, win, this.getEffectiveScale());
     }
 
     const pending = this.pendingEvents.get(toplevelId);
@@ -571,6 +577,45 @@ export class WineWindowManager {
   private onToplevelEvent(id: number, event: string, data: string): void {
     hilog.info(DOMAIN, TAG, '[MW] onToplevelEvent #%{public}d event=%{public}s hasWindow=%{public}s',
       id, event, this.windows.has(id) ? 'yes' : 'no');
+
+    // PC 融合模式 modal: 不建 Ability。桌面模式由 compositor 组员化+输入拦截处理。
+    if (!this.isDesktopMode && (event === 'modal' || this.modalToplevelIds.has(id))) {
+      if (event === 'modal') {
+        try {
+          const obj: Record<string, number> = JSON.parse(data) as Record<string, number>;
+          if (obj.modal === 1) {
+            this.modalToplevelIds.add(id);
+            this.pendingStarts.delete(id);
+            const ownerId = Number(obj.owner ?? 0);
+            ModalWindowManager.getInstance().show(id, obj,
+              this.windowStages.get(ownerId) ?? null,
+              this.getWindow(ownerId) ?? null,
+              this.getEffectiveScale());
+          } else {
+            this.modalToplevelIds.delete(id);
+            ModalWindowManager.getInstance().hide(id);
+          }
+        } catch (err) {
+          hilog.error(DOMAIN, TAG, '[MW] modal event bad data #%{public}d: %{public}s',
+            id, JSON.stringify(err));
+        }
+        return;
+      }
+      if (event === 'resize') {
+        ModalWindowManager.getInstance().onResize(id, data, this.getEffectiveScale());
+        return;
+      }
+      if (event === 'destroyed') {
+        this.modalToplevelIds.delete(id);
+        ModalWindowManager.getInstance().hide(id);
+        return;
+      }
+      if (event === 'created') {
+        hilog.info(DOMAIN, TAG, '[MW] skip Ability for modal toplevel #%{public}d', id);
+        return;
+      }
+      return;
+    }
 
     switch (event) {
       case 'created':
@@ -988,6 +1033,10 @@ export class WineWindowManager {
 
   // -- startAbility 启动 multiton 实例 --
   private startWineWindowAbility(id: number, data: string): void {
+    if (this.modalToplevelIds.has(id)) {
+      hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: modal, skip Ability', id);
+      return;
+    }
     if (this.pendingStarts.has(id)) {
       hilog.warn(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: already in flight, skip', id);
       return;

@@ -4,7 +4,19 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
-> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `b0e85c0e`，本地镜像 `mirror_master`）。下次同步先 `git fetch winehua && git branch -f mirror_master winehua/master && git log b0e85c0e..mirror_master --oneline`，避免重复合并。
+> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `46139138`，本地镜像 `mirror_master`）。下次同步先 `git fetch winehua && git branch -f mirror_master winehua/master && git log 46139138..mirror_master --oneline`，避免重复合并。
+
+### 2026-09-05 对齐 Steam dnsapi musl + Win32 模态框（46139138）
+
+- 分支：产品线 `sync/winehua-dns-modal-launch-args`（叠在 `main` @ `39774aae`）。
+- 镜像：`winehua/master` @ `46139138`。
+- 原则：只吸收 dnsapi musl fallback 与模态对话框。不上游 Index / CustomLaunchDialog / `dnsapi-fix.zip` / Steam Legacy zip / `WineEnvService`。wine gitlink 不跟随 `bd2a5b55` / `46139138`，改为在本仓 `thirdparty/wine` cherry-pick `205ba344`（modal）与 `08cbdd642b9`（libresolv_musl），保留 schannel CHACHA20、WHGP、WASAPI float32。
+- 已落地：
+  - Wine：`dlls/dnsapi/libresolv_musl.c`（`#ifndef HAVE_RESOLV`）+ `winewayland.drv` `modal.c` / `winehua-toplevel.xml`
+  - Host：`winehua_toplevel` 协议服务端、`modalOf_` 组员化、命中被禁 owner 时吞 PRESS 并 raise 模态、PC 融合 `ModalWindowManager` 子窗口；桌面模式只合成、不 `startAbility`
+  - 回归：`smoke/winehua_dns_probe.c` 编进 assemble core/all（`DnsQuery_A` 不再空 unixlib 崩溃）
+  - 产品：游戏设定 DX11（`-dx11 -force-d3d11`）/ OpenGL（`-opengl -force-glcore`）预设 + 额外参数；启动链去重合并，预设旗标不写进 `arguments[]`
+- 验证：`scripts/vpbuild.sh make hap`（winehua-dev / vp-build，arm64-v8a，API 23）CompileArkTS + 签名通过，HAP `entry/build/default/outputs/default/entry-default-signed.hap`（489M）。宿主 `toplevel_event_test` 70/70、`compositor_state_test` 48/48。设备上 Steam `DnsQuery_A` / 模态框 / 启动 argv 仍需真机验收。
 
 ### 2026-09-04 对齐 wineserver 手柄总线 env（12aba3d4）
 

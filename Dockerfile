@@ -1,14 +1,21 @@
 FROM ubuntu:26.04
 
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Asia/Shanghai \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
 # Aliyun mirrors (中国大陆加速)
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.aliyun.com/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources \
  && sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.aliyun.com/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
 
+# libltdl-dev 必须显式列出：Ubuntu 官方 docker 镜像默认关闭 Recommends，
+# 不装则 aclocal 找不到 ltdl.m4，libffi autogen.sh 会失败。
 RUN apt-get update && apt-get install -y \
     # 编译工具链
     build-essential cmake ninja-build meson \
-    bison flex autoconf automake libtool \
-    pkgconf zip git file lsof python3 python3-pip glslang-tools \
+    bison flex autoconf automake libtool libltdl-dev \
+    pkgconf zip git file lsof patch python3 python3-pip glslang-tools \
     # Wine 翻译资源与构建期下载工具（恢复 main 已验证的构建依赖）
     gettext curl wget \
     spirv-tools \
@@ -19,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     # Wine OHOS 交叉 PE 编译 (i386 + x86_64 mingw, C++17 for icu.dll)
     gcc-mingw-w64-i686 g++-mingw-w64-i686 \
     gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
+    mingw-w64-tools \
     # HAP 签名
     default-jdk \
  && apt-get clean && rm -rf /var/lib/apt/lists/*

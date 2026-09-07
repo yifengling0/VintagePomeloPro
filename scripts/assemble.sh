@@ -375,6 +375,16 @@ PY
     i686-w64-mingw32-gcc -O2 -s -mwindows -o \
         "$smoke_dir/x86/winehua_d3d8_smoke.exe" "$d3d8_source" \
         -luser32 -lgdi32
+    # DNS probe: must exercise wine's dnsapi.dll -> unixlib resolver path.
+    # On hosts without libresolv (OHOS musl) this is the gate for the
+    # builtin resolver fallback (dlls/dnsapi/libresolv_musl.c).
+    local dns_probe_source="$WINEHUA/smoke/winehua_dns_probe.c"
+    x86_64-w64-mingw32-gcc -O2 -s -mwindows -o \
+        "$smoke_dir/x64/winehua_dns_probe.exe" "$dns_probe_source" \
+        -ldnsapi -luser32 -lgdi32
+    i686-w64-mingw32-gcc -O2 -s -mwindows -o \
+        "$smoke_dir/x86/winehua_dns_probe.exe" "$dns_probe_source" \
+        -ldnsapi -luser32 -lgdi32
     local dxvk26_requirements_source="$WINEHUA/smoke/winehua_dxvk26_requirements.c"
     x86_64-w64-mingw32-gcc -O2 -s -Wall -Wextra -Werror -I"$DXVK_SRC/include" -o \
         "$smoke_dir/x64/winehua_dxvk26_requirements.exe" "$dxvk26_requirements_source" \
@@ -475,8 +485,8 @@ PY
         cp "$smoke64" "$smoke_dir/x64/$smoke_program.exe"
         cp "$smoke32" "$smoke_dir/x86/$smoke_program.exe"
     done
-    local audio64_sha graphics64_sha vulkan64_sha d3d1164_sha d3d864_sha cube64_sha media64_sha diagnostics64_sha driver64_sha requirements64_sha
-    local audio32_sha graphics32_sha vulkan32_sha d3d1132_sha d3d832_sha cube32_sha media32_sha diagnostics32_sha driver32_sha requirements32_sha
+    local audio64_sha graphics64_sha vulkan64_sha d3d1164_sha d3d864_sha dns64_sha cube64_sha media64_sha diagnostics64_sha driver64_sha requirements64_sha
+    local audio32_sha graphics32_sha vulkan32_sha d3d1132_sha d3d832_sha dns32_sha cube32_sha media32_sha diagnostics32_sha driver32_sha requirements32_sha
     local storage_write_sha storage_read_sha image_fetch_sha combined_sample_sha separated_sample_sha
     local vkd3d64_d3d12_sha vkd3d64_smoke_sha vkd3d_triangle_sha vkd3d_gears_sha
     audio64_sha="$(sha256sum "$smoke_dir/x64/winehua_audio_smoke.exe" | awk '{print $1}')"
@@ -484,6 +494,7 @@ PY
     vulkan64_sha="$(sha256sum "$smoke_dir/x64/winehua_vulkan_smoke.exe" | awk '{print $1}')"
     d3d1164_sha="$(sha256sum "$smoke_dir/x64/winehua_d3d11_smoke.exe" | awk '{print $1}')"
     d3d864_sha="$(sha256sum "$smoke_dir/x64/winehua_d3d8_smoke.exe" | awk '{print $1}')"
+    dns64_sha="$(sha256sum "$smoke_dir/x64/winehua_dns_probe.exe" | awk '{print $1}')"
     cube64_sha="$(sha256sum "$smoke_dir/x64/winehua_d3d_switch_cube.exe" | awk '{print $1}')"
     media64_sha="$(sha256sum "$smoke_dir/x64/winehua_media_smoke.exe" | awk '{print $1}')"
     diagnostics64_sha="$(sha256sum "$smoke_dir/x64/winehua_gpu_diagnostics.exe" | awk '{print $1}')"
@@ -494,6 +505,7 @@ PY
     vulkan32_sha="$(sha256sum "$smoke_dir/x86/winehua_vulkan_smoke.exe" | awk '{print $1}')"
     d3d1132_sha="$(sha256sum "$smoke_dir/x86/winehua_d3d11_smoke.exe" | awk '{print $1}')"
     d3d832_sha="$(sha256sum "$smoke_dir/x86/winehua_d3d8_smoke.exe" | awk '{print $1}')"
+    dns32_sha="$(sha256sum "$smoke_dir/x86/winehua_dns_probe.exe" | awk '{print $1}')"
     cube32_sha="$(sha256sum "$smoke_dir/x86/winehua_d3d_switch_cube.exe" | awk '{print $1}')"
     media32_sha="$(sha256sum "$smoke_dir/x86/winehua_media_smoke.exe" | awk '{print $1}')"
     diagnostics32_sha="$(sha256sum "$smoke_dir/x86/winehua_gpu_diagnostics.exe" | awk '{print $1}')"
@@ -591,6 +603,7 @@ EOF
     "x64/winehua_vulkan_smoke.exe": "$vulkan64_sha",
     "x64/winehua_d3d11_smoke.exe": "$d3d1164_sha",
     "x64/winehua_d3d8_smoke.exe": "$d3d864_sha",
+    "x64/winehua_dns_probe.exe": "$dns64_sha",
     "x64/winehua_d3d_switch_cube.exe": "$cube64_sha",
     "x64/winehua_media_smoke.exe": "$media64_sha",
     "x64/winehua_gpu_diagnostics.exe": "$diagnostics64_sha",
@@ -604,6 +617,7 @@ EOF
     "x86/winehua_vulkan_smoke.exe": "$vulkan32_sha",
     "x86/winehua_d3d11_smoke.exe": "$d3d1132_sha",
     "x86/winehua_d3d8_smoke.exe": "$d3d832_sha",
+    "x86/winehua_dns_probe.exe": "$dns32_sha",
     "x86/winehua_d3d_switch_cube.exe": "$cube32_sha",
     "x86/winehua_media_smoke.exe": "$media32_sha",
     "x86/winehua_gpu_diagnostics.exe": "$diagnostics32_sha",
@@ -632,7 +646,9 @@ EOF
     "core": {
       "tests": [
         {"testId": "opengl-x64", "exe": "x64/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
-        {"testId": "opengl-x86", "exe": "x86/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000}
+        {"testId": "opengl-x86", "exe": "x86/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
+        {"testId": "dns-api-x64", "exe": "x64/winehua_dns_probe.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 120000},
+        {"testId": "dns-api-x86", "exe": "x86/winehua_dns_probe.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 120000}
       ]
     },
     "opengl": {
@@ -729,6 +745,8 @@ EOF
         {"testId": "audio-x86", "exe": "x86/winehua_audio_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 3, "timeoutMs": 45000},
         {"testId": "opengl-x64", "exe": "x64/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
         {"testId": "opengl-x86", "exe": "x86/winehua_graphics_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 60000},
+        {"testId": "dns-api-x64", "exe": "x64/winehua_dns_probe.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 120000},
+        {"testId": "dns-api-x86", "exe": "x86/winehua_dns_probe.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 8, "timeoutMs": 120000},
         {"testId": "d3d8-capability-x86", "exe": "x86/winehua_d3d8_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
         {"testId": "d3d8-capability-x64", "exe": "x64/winehua_d3d8_smoke.exe", "env": {}, "d3dBackend": "wined3d", "seconds": 5, "timeoutMs": 180000},
         {"testId": "d3d9-cube-x86", "exe": "x86/winehua_d3d_switch_cube.exe", "env": {}, "d3dBackend": "wined3d", "extraArgs": ["--d3d9"], "seconds": 8, "timeoutMs": 180000},

@@ -56,6 +56,35 @@ const MAX_LAUNCH_SCAN_DEPTH = 2;
 // ArkUI thread when the user pulls to refresh.
 const MAX_LAUNCH_SCAN_ENTRIES = 1024;
 const MAX_LAUNCH_TARGETS = 64;
+// Manual "select executable" may need a nested launcher several folders down.
+// Recurse from that card's game directory only; sibling games stay out of reach.
+const MAX_PICKER_SCAN_DEPTH = 16;
+const MAX_PICKER_DIRECTORY_VISITS = 512;
+const MAX_PICKER_TARGETS = 256;
+const MAX_PICKER_NAMES_PER_DIRECTORY = 8192;
+const ORDINARY_FILE_EXTENSIONS: string[] = [
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tga', '.dds', '.ico',
+  '.wav', '.mp3', '.ogg', '.flac', '.wma', '.mp4', '.avi', '.mkv', '.webm',
+  '.dll', '.so', '.sys', '.ocx', '.dat', '.txt', '.ini', '.xml', '.json',
+  '.cfg', '.log', '.pdf', '.zip', '.rar', '.7z', '.cab', '.ttf', '.otf',
+  '.html', '.htm', '.css', '.js', '.lua', '.pdb', '.bak', '.tmp', '.db',
+  '.sav', '.csv', '.yml', '.yaml', '.md', '.nfo', '.url', '.lnk', '.cur',
+  '.ani', '.res', '.pak', '.arc', '.bin', '.iso', '.manifest', '.config'
+];
+
+interface LaunchScanLimits {
+  maxDepth: number;
+  maxDirectoryVisits: number;
+  maxTargets: number;
+  maxNamesPerDirectory: number;
+}
+
+const PICKER_LAUNCH_SCAN_LIMITS: LaunchScanLimits = {
+  maxDepth: MAX_PICKER_SCAN_DEPTH,
+  maxDirectoryVisits: MAX_PICKER_DIRECTORY_VISITS,
+  maxTargets: MAX_PICKER_TARGETS,
+  maxNamesPerDirectory: MAX_PICKER_NAMES_PER_DIRECTORY
+};
 const MAX_GAME_DIRECTORIES = 256;
 const MAX_COVER_CANDIDATES = 128;
 const DOMAIN = 0x0000;
@@ -291,7 +320,8 @@ export class AppCatalogService {
     const normalizedGames = status.games.replace(/\\/g, '/').replace(/\/+$/, '');
     // Standalone files placed directly in games/ form their own root-level
     // cards. Do not let one such card browse into every sibling game's folder.
-    return this.collectLaunchTargets(directory, normalizedDirectory !== normalizedGames);
+    return this.collectLaunchTargets(directory, normalizedDirectory !== normalizedGames,
+      PICKER_LAUNCH_SCAN_LIMITS);
   }
 
   ensureGamesDirectory(): GamesDirectoryStatus {
@@ -656,34 +686,44 @@ export class AppCatalogService {
     return normalizedPath === normalizedDirectory || normalizedPath.startsWith(normalizedDirectory + '/');
   }
 
-  private async collectLaunchTargets(directory: string, recursive: boolean = true): Promise<string[]> {
+  private looksLikeOrdinaryFile(name: string): boolean {
+    const lower = catalogFileName(name).toLowerCase();
+    return ORDINARY_FILE_EXTENSIONS.some((extension: string) => lower.endsWith(extension));
+  }
+
+  private async collectLaunchTargets(directory: string, recursive: boolean = true,
+    limits?: LaunchScanLimits): Promise<string[]> {
     const result: string[] = [];
     const pending: DirectoryScanFrame[] = [{ path: directory, depth: 0 }];
-    const maxDepth = recursive ? MAX_LAUNCH_SCAN_DEPTH : 0;
-    let visitedEntries = 0;
-    while (pending.length > 0 && visitedEntries < MAX_LAUNCH_SCAN_ENTRIES &&
-      result.length < MAX_LAUNCH_TARGETS) {
+    const maxDepth = recursive ? (limits?.maxDepth ?? MAX_LAUNCH_SCAN_DEPTH) : 0;
+    const maxTargets = limits?.maxTargets ?? MAX_LAUNCH_TARGETS;
+    const maxDirectoryVisits = limits?.maxDirectoryVisits ?? MAX_LAUNCH_SCAN_ENTRIES;
+    const maxNamesPerDirectory = limits?.maxNamesPerDirectory ?? MAX_LAUNCH_SCAN_ENTRIES;
+    let directoryVisits = 0;
+    while (pending.length > 0 && directoryVisits < maxDirectoryVisits &&
+      result.length < maxTargets) {
       const frame = pending.shift();
       if (!frame) break;
+      directoryVisits++;
       let names: string[] = [];
       try {
         names = await fs.listFile(frame.path, {
-          listNum: Math.max(1, MAX_LAUNCH_SCAN_ENTRIES - visitedEntries)
+          listNum: Math.max(1, maxNamesPerDirectory)
         });
       } catch (_) {
         continue;
       }
       for (let index = 0; index < names.length; index++) {
-        if (++visitedEntries > MAX_LAUNCH_SCAN_ENTRIES || result.length >= MAX_LAUNCH_TARGETS) break;
+        if (result.length >= maxTargets) break;
         const name = names[index].replace(/\\/g, '/').replace(/^\/+/, '');
         if (!name || name.split('/').some((part: string) => part === '..')) continue;
         const path = joinPath(frame.path, name);
-        // listFile already proves a launch target exists. At the maximum
-        // depth, skip stat calls for every asset file; only shallower,
-        // non-launch entries need a type check to discover child directories.
+        // Skip known asset/library files without a stat. Deep picker scans
+        // would otherwise block the ArkUI thread on texture-heavy trees.
         if (isWindowsLaunchTarget(name)) {
           result.push(path);
-        } else if (frame.depth < maxDepth && await isDirectoryAsync(path)) {
+        } else if (frame.depth < maxDepth && !this.looksLikeOrdinaryFile(name) &&
+          await isDirectoryAsync(path)) {
           pending.push({ path: path, depth: frame.depth + 1 });
         }
       }

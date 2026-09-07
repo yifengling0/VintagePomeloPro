@@ -1,5 +1,23 @@
 # 上游同步基线标记
 
+## 2026-09-05 WineHua master 增量（b0e85c0e..46139138）
+
+在 `sync/winehua-dns-modal-launch-args` 上核对 `winehua/master` @ `46139138`。
+本段 6 个提交**选择性移植**，不是 Git merge。不上游 Index / CustomLaunchDialog / Steam Legacy zip / WineEnvService；wine gitlink **不整段快进**（cherry-pick dnsapi musl 与 winewayland modal，保留 schannel CHACHA20 / WHGP / IEEE float32 mix-format）。
+
+| 上游 | 处置 |
+| --- | --- |
+| `f5c6e5ec` compositor modal 组员化 + 输入拦截 | **adapted** → `ToplevelManager::modalOf_` / `desktop_compositor` / `input_manager` |
+| `cfd960ac` PC 融合 `ModalWindowManager` | **adapted** → `ModalWindowManager.ets` + `WineWindowManager`（桌面模式不 `startAbility`） |
+| `bd2a5b55` wine gitlink modal `205ba344` | **keep_product** gitlink；wine 子模块 cherry-pick → `21ca0eeab01` |
+| `028c07e2` docs(modal) | **skipped** |
+| `fdcb54e6` dnsapi smoke 探针 | **adapted** → `smoke/winehua_dns_probe.c` + `assemble.sh` core/all（`dns-api-x64/x86`） |
+| `46139138` wine gitlink dnsapi `08cbdd642b9` | **keep_product** gitlink；wine 子模块 cherry-pick → `b74ddbb61d7` |
+
+产品侧另加游戏设定 DX11 / OpenGL 启动参数预设与额外 argv（不在上游本段）。
+
+下次增量从 `46139138` 之后开始：`git fetch winehua && git log 46139138..winehua/master --oneline`。
+
 ## 2026-09-04 WineHua master 增量（37f4616d..b0e85c0e）
 
 在 `diag/m5-b3-remaining-pop` 上核对 `winehua/master` @ `b0e85c0e`。

@@ -12,6 +12,7 @@ import {
   ThemeMode,
   cloneControlElement,
   cloneInputProfile,
+  cloneAppSettings,
   createControlElement,
   createDefaultInputProfile,
   keyBinding,
@@ -576,20 +577,9 @@ struct InputLayoutEditor {
     saved.name = this.profileName;
     await InputProfileService.getInstance().saveProfile(saved);
     if (this.appId) {
-      const current = AppSettingsStore.getInstance().getAppSettings(this.appId);
-      await AppSettingsStore.getInstance().saveAppSettings({
-        appId: current.appId,
-        customTitle: current.customTitle,
-        customCover: current.customCover,
-        favorite: current.favorite,
-        box64Preset: current.box64Preset,
-        executable: current.executable,
-        arguments: current.arguments,
-        workingDirectory: current.workingDirectory,
-        displayModeOverride: current.displayModeOverride,
-        inputProfileId: this.profile.id,
-        prefixId: current.prefixId
-      });
+      const current = cloneAppSettings(AppSettingsStore.getInstance().getAppSettings(this.appId));
+      current.inputProfileId = this.profile.id;
+      await AppSettingsStore.getInstance().saveAppSettings(current);
     }
     promptAction.showToast({ message: '输入方案已保存' });
     await this.finishEditor();

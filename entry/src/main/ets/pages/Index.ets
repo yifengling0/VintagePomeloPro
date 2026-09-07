@@ -657,6 +657,7 @@ struct Index {
   }
 
   private captureScrollOffsets(): void {
+    this.scrollOffsets['recent'] = this.safeScrollOffset(this.recentScroller);
     this.scrollOffsets['builtin'] = this.safeScrollOffset(this.builtinScroller);
     this.scrollOffsets['windows'] = this.safeScrollOffset(this.windowsScroller);
     this.scrollOffsets['favorite'] = this.safeScrollOffset(this.favoriteScroller);
@@ -831,6 +832,13 @@ struct Index {
     return result;
   }
 
+  private appsForFilter(filter: CatalogFilter): AppDescriptor[] {
+    if (filter === this.filter) {
+      return this.visibleApps;
+    }
+    return this.filterApps(this.searchQuery, filter);
+  }
+
   private updateSearch(value: string): void {
     this.searchQuery = value;
     this.visibleApps = this.filterApps(value, this.filter);
@@ -895,21 +903,21 @@ struct Index {
     return this.engineMessage;
   }
 
-  private emptyTitle(): string {
+  private emptyTitle(filter: CatalogFilter): string {
     if (this.searchQuery.trim()) return '没有匹配的应用';
-    if (this.filter === 'recent') return '还没有启动过程序';
-    if (this.filter === 'favorite') return '还没有收藏应用';
-    if (this.filter === 'running') return '当前没有运行中的应用';
-    if (this.filter === 'windows') return '尚未发现 Windows 程序';
+    if (filter === 'recent') return '还没有启动过程序';
+    if (filter === 'favorite') return '还没有收藏应用';
+    if (filter === 'running') return '当前没有运行中的应用';
+    if (filter === 'windows') return '尚未发现 Windows 程序';
     return '未找到内建应用';
   }
 
-  private emptyDescription(): string {
+  private emptyDescription(filter: CatalogFilter): string {
     if (this.searchQuery.trim()) return '请更换关键词，或清除搜索后查看当前分类的全部内容';
-    if (this.filter === 'recent') return '启动过的程序会出现在这里，方便快速再次打开';
-    if (this.filter === 'favorite') return '在应用设置中开启收藏后，应用会显示在这里';
-    if (this.filter === 'running') return '启动 Wine 桌面或程序后，可在这里恢复或关闭会话';
-    if (this.filter === 'windows') {
+    if (filter === 'recent') return '启动过的程序会出现在这里，方便快速再次打开';
+    if (filter === 'favorite') return '在应用设置中开启收藏后，应用会显示在这里';
+    if (filter === 'running') return '启动 Wine 桌面或程序后，可在这里恢复或关闭会话';
+    if (filter === 'windows') {
       const catalog = AppCatalogService.getInstance();
       if (!catalog.isGamesDirectoryReady()) {
         return '系统需要一次确认来建立 Download/com.vintage.pomelopro，之后应用会自动创建 games';
@@ -919,28 +927,28 @@ struct Index {
     return '安装包中的内建应用清单为空，请检查应用资源';
   }
 
-  private emptyIcon(): Resource {
-    if (this.filter === 'recent') return $r('sys.symbol.clock');
-    if (this.filter === 'favorite') return $r('sys.symbol.star');
-    if (this.filter === 'running') return $r('sys.symbol.play_fill');
-    if (this.filter === 'windows') return $r('sys.symbol.folder');
+  private emptyIcon(filter: CatalogFilter): Resource {
+    if (filter === 'recent') return $r('sys.symbol.clock');
+    if (filter === 'favorite') return $r('sys.symbol.star');
+    if (filter === 'running') return $r('sys.symbol.play_fill');
+    if (filter === 'windows') return $r('sys.symbol.folder');
     return $r('sys.symbol.house_fill');
   }
 
-  private emptyActionLabel(): string {
+  private emptyActionLabel(filter: CatalogFilter): string {
     if (this.searchQuery.trim()) return '清除搜索';
-    if (this.filter === 'windows') {
+    if (filter === 'windows') {
       return AppCatalogService.getInstance().isGamesDirectoryReady() ? '重新扫描' : '创建游戏目录';
     }
     return '';
   }
 
-  private handleEmptyAction(): void {
+  private handleEmptyAction(filter: CatalogFilter): void {
     if (this.searchQuery.trim()) {
       this.updateSearch('');
       return;
     }
-    if (this.filter === 'windows') {
+    if (filter === 'windows') {
       if (AppCatalogService.getInstance().isGamesDirectoryReady()) {
         void this.rescan();
       } else {
@@ -1445,18 +1453,19 @@ struct Index {
   }
 
   @Builder
-  private EmptyLibraryState() {
+  private EmptyLibraryState(filter: CatalogFilter) {
     Column({ space: 12 }) {
-      SymbolGlyph(this.emptyIcon()).fontSize(this.isNarrowPhone() ? 34 : 48)
+      SymbolGlyph(this.emptyIcon(filter)).fontSize(this.isNarrowPhone() ? 34 : 48)
         .fontColor([$r('app.color.text_secondary')])
-      Text(this.emptyTitle()).fontSize(this.isNarrowPhone() ? 16 : 20)
+      Text(this.emptyTitle(filter)).fontSize(this.isNarrowPhone() ? 16 : 20)
         .fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary'))
-      Text(this.emptyDescription()).fontSize(this.isNarrowPhone() ? 11 : 13)
+      Text(this.emptyDescription(filter)).fontSize(this.isNarrowPhone() ? 11 : 13)
         .fontColor($r('app.color.text_secondary')).textAlign(TextAlign.Center)
         .constraintSize({ maxWidth: this.isNarrowPhone() ? 240 : 420 })
-      if (this.emptyActionLabel()) {
-        Button(this.emptyActionLabel()).height(48).borderRadius(24).id('library-empty-action')
-          .onClick((): void => this.handleEmptyAction())
+      if (this.emptyActionLabel(filter)) {
+        Button(this.emptyActionLabel(filter)).height(48).borderRadius(24)
+          .id('library-empty-action-' + filter)
+          .onClick((): void => this.handleEmptyAction(filter))
       }
     }
     .layoutWeight(1)
@@ -1469,7 +1478,7 @@ struct Index {
   private CatalogEmptyScroll(filter: CatalogFilter) {
     Scroll(this.catalogScroller(filter)) {
       Column() {
-        this.EmptyLibraryState()
+        this.EmptyLibraryState(filter)
       }
       .width('100%')
       .constraintSize({ minHeight: '100%' })
@@ -1497,16 +1506,38 @@ struct Index {
           LoadingProgress().width(20).height(20)
           Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
         }.layoutWeight(1).justifyContent(FlexAlign.Center)
-      } else if (this.visibleApps.length === 0) {
+      } else if (this.appsForFilter('windows').length === 0) {
         this.CatalogEmptyScroll('windows')
       } else {
-        this.CatalogScroll(this.visibleApps, 'windows')
+        this.CatalogScroll(this.appsForFilter('windows'), 'windows')
       }
     }
     .layoutWeight(1)
     .width('100%')
     .onRefreshing((): void => { void this.refreshFromPull(); })
     .id('windows-library-refresh')
+  }
+
+  @Builder
+  private LibraryPane(filter: CatalogFilter) {
+    if (filter === 'windows') {
+      this.WindowsRefreshContent()
+    } else if (this.scanning) {
+      Row({ space: 10 }) {
+        LoadingProgress().width(20).height(20)
+        Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
+      }.margin({ top: this.isNarrowPhone() ? 12 : 22 })
+    } else if (this.appsForFilter(filter).length === 0) {
+      this.CatalogEmptyScroll(filter)
+    } else if (filter === 'builtin') {
+      this.CatalogScroll(this.appsForFilter(filter), 'builtin')
+    } else if (filter === 'running') {
+      this.CatalogScroll(this.appsForFilter(filter), 'running')
+    } else if (filter === 'recent') {
+      this.CatalogScroll(this.appsForFilter(filter), 'recent')
+    } else {
+      this.CatalogScroll(this.appsForFilter(filter), 'favorite')
+    }
   }
 
   @Builder
@@ -1566,15 +1597,55 @@ struct Index {
 
   @Builder
   private PhoneNavigationContents() {
-    TabContent() { Column() }
+    TabContent() {
+      Column() {
+        this.LibraryPane('recent')
+      }
+      .width('100%')
+      .height('100%')
+      .layoutWeight(1)
+      .padding({ left: this.contentPadding(), right: this.contentPadding() })
+    }
       .tabBar(this.PhoneNavigationTab('最近', $r('sys.symbol.clock'), PHONE_NAV_RECENT))
-    TabContent() { Column() }
+    TabContent() {
+      Column() {
+        this.LibraryPane('builtin')
+      }
+      .width('100%')
+      .height('100%')
+      .layoutWeight(1)
+      .padding({ left: this.contentPadding(), right: this.contentPadding() })
+    }
       .tabBar(this.PhoneNavigationTab('内建', $r('sys.symbol.house_fill'), PHONE_NAV_BUILTIN))
-    TabContent() { Column() }
+    TabContent() {
+      Column() {
+        this.LibraryPane('windows')
+      }
+      .width('100%')
+      .height('100%')
+      .layoutWeight(1)
+      .padding({ left: this.contentPadding(), right: this.contentPadding() })
+    }
       .tabBar(this.PhoneNavigationTab('Windows', $r('sys.symbol.folder'), PHONE_NAV_WINDOWS))
-    TabContent() { Column() }
+    TabContent() {
+      Column() {
+        this.LibraryPane('favorite')
+      }
+      .width('100%')
+      .height('100%')
+      .layoutWeight(1)
+      .padding({ left: this.contentPadding(), right: this.contentPadding() })
+    }
       .tabBar(this.PhoneNavigationTab('收藏', $r('sys.symbol.star'), PHONE_NAV_FAVORITE))
-    TabContent() { Column() }
+    TabContent() {
+      Column() {
+        this.LibraryPane('running')
+      }
+      .width('100%')
+      .height('100%')
+      .layoutWeight(1)
+      .padding({ left: this.contentPadding(), right: this.contentPadding() })
+    }
       .tabBar(this.PhoneNavigationTab('运行中', $r('sys.symbol.play_fill'), PHONE_NAV_RUNNING))
   }
 
@@ -1589,7 +1660,8 @@ struct Index {
     }
     .vertical(false)
     .barHeight(bottomNavigationLayout(this.isPhoneLandscape(), this.navBarInsetVp).barHeight)
-    .scrollable(false)
+    .scrollable(true)
+    .animationDuration(300)
     .barOverlap(true)
     .divider({ mode: DividerMode.FOLLOW_SCROLL })
     .barBackgroundBlurStyle(BlurStyle.COMPONENT_THICK)
@@ -1611,15 +1683,14 @@ struct Index {
       this.selectFilter(target, false);
     })
     .width('100%')
-    .height(bottomNavigationLayout(this.isPhoneLandscape(), this.navBarInsetVp).containerHeight)
+    .height('100%')
     .id('library-bottom-bar')
-    .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
   }
 
   @Builder
   private PhoneLibraryNavigation() {
     HdsNavigation() {
-      this.Library()
+      this.PhoneNavigation()
     }
     .mode(NavigationMode.Stack)
     .titleBar({
@@ -1727,9 +1798,6 @@ struct Index {
       .height('100%')
       .padding({ top: this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
       .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
-      if (this.isPhone()) {
-        this.PhoneNavigation()
-      }
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
         Stack() {

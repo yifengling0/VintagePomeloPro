@@ -279,26 +279,39 @@ build_wayland() {
 
 # ── 3. xdg-shell + wayland 协议文件 (架构无关, 只生成一次) ──
 build_protocols() {
-    if [ -f "$WINEHUA/entry/src/main/cpp/protocols/xdg-shell-protocol.c" ]; then
+    local cpp_dir="$WINEHUA/entry/src/main/cpp/protocols"
+    local scanner="$WAYLAND_SCANNER"
+    local need_xdg=0
+    local need_wh=0
+    [ -f "$cpp_dir/xdg-shell-protocol.c" ] || need_xdg=1
+    [ -f "$cpp_dir/winehua-toplevel-protocol.c" ] || need_wh=1
+    if [ "$need_xdg" -eq 0 ] && [ "$need_wh" -eq 0 ]; then
         log "协议文件已就绪，跳过"
         return 0
     fi
 
     log "--- 生成 Wayland 协议文件 ---"
-    local scanner="$WAYLAND_SCANNER"
 
-    # wayland core protocol
-    local wl_xml="$ROOT/thirdparty/wayland/protocol/wayland.xml"
-    "$scanner" server-header "$wl_xml" "$WINEHUA_INC/wayland-server-protocol.h"
-    "$scanner" client-header "$wl_xml" "$WINEHUA_INC/wayland-client-protocol.h"
-    "$scanner" code "$wl_xml" /dev/null
+    if [ "$need_xdg" -eq 1 ]; then
+        # wayland core protocol
+        local wl_xml="$ROOT/thirdparty/wayland/protocol/wayland.xml"
+        "$scanner" server-header "$wl_xml" "$WINEHUA_INC/wayland-server-protocol.h"
+        "$scanner" client-header "$wl_xml" "$WINEHUA_INC/wayland-client-protocol.h"
+        "$scanner" code "$wl_xml" /dev/null
 
-    # xdg-shell protocol
-    local xdg_xml="$ROOT/thirdparty/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
-    local cpp_dir="$WINEHUA/entry/src/main/cpp/protocols"
-    "$scanner" server-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-server-protocol.h"
-    "$scanner" client-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-client-protocol.h"
-    "$scanner" private-code "$xdg_xml" "$cpp_dir/xdg-shell-protocol.c"
+        # xdg-shell protocol
+        local xdg_xml="$ROOT/thirdparty/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+        "$scanner" server-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-server-protocol.h"
+        "$scanner" client-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-client-protocol.h"
+        "$scanner" private-code "$xdg_xml" "$cpp_dir/xdg-shell-protocol.c"
+    fi
+
+    if [ "$need_wh" -eq 1 ]; then
+        # WineHua 私有协议 (权威源在 winewayland.drv, 双端同一 XML)
+        local wh_xml="$ROOT/thirdparty/wine/dlls/winewayland.drv/winehua-toplevel.xml"
+        "$scanner" server-header "$wh_xml" "$cpp_dir/winehua-toplevel-server-protocol.h"
+        "$scanner" private-code "$wh_xml" "$cpp_dir/winehua-toplevel-protocol.c"
+    fi
 
     log "协议文件 → $WINEHUA_INC + $cpp_dir"
 }

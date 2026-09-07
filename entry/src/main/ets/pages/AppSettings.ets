@@ -64,34 +64,166 @@ class ExecutableChoice {
   }
 }
 
+class ExecutableFolderChoice {
+  prefix: string;
+  name: string;
+  fileCount: number;
+
+  constructor(prefix: string, name: string, fileCount: number) {
+    this.prefix = prefix;
+    this.name = name;
+    this.fileCount = fileCount;
+  }
+}
+
 @CustomDialog
 struct WindowsExecutablePickerDialog {
   controller?: CustomDialogController;
   choices: ExecutableChoice[] = [];
   selectedPath: string = '';
+  initialPrefix: string = '';
+  @State browsePrefix: string = '';
   onSelect: (path: string) => void = (_path: string): void => {};
+
+  aboutToAppear(): void {
+    this.browsePrefix = this.initialPrefix;
+  }
+
+  private restPath(relativePath: string): string {
+    if (!this.browsePrefix) {
+      return relativePath;
+    }
+    if (relativePath.startsWith(this.browsePrefix + '/')) {
+      return relativePath.substring(this.browsePrefix.length + 1);
+    }
+    return '';
+  }
+
+  private locationLabel(): string {
+    if (!this.browsePrefix) {
+      return '游戏目录';
+    }
+    return '游戏目录 / ' + this.browsePrefix.replace(/\//g, ' / ');
+  }
+
+  private foldersHere(): ExecutableFolderChoice[] {
+    const counts = new Map<string, number>();
+    for (let index = 0; index < this.choices.length; index++) {
+      const rest = this.restPath(this.choices[index].relativePath);
+      const slash = rest.indexOf('/');
+      if (slash <= 0) {
+        continue;
+      }
+      const name = rest.substring(0, slash);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    const folders: ExecutableFolderChoice[] = [];
+    counts.forEach((fileCount: number, name: string) => {
+      const prefix = this.browsePrefix ? `${this.browsePrefix}/${name}` : name;
+      folders.push(new ExecutableFolderChoice(prefix, name, fileCount));
+    });
+    folders.sort((left: ExecutableFolderChoice, right: ExecutableFolderChoice) =>
+      left.name.toLowerCase().localeCompare(right.name.toLowerCase()));
+    return folders;
+  }
+
+  private filesHere(): ExecutableChoice[] {
+    const files: ExecutableChoice[] = [];
+    for (let index = 0; index < this.choices.length; index++) {
+      const choice = this.choices[index];
+      const rest = this.restPath(choice.relativePath);
+      if (rest.length > 0 && rest.indexOf('/') < 0) {
+        files.push(choice);
+      }
+    }
+    files.sort((left: ExecutableChoice, right: ExecutableChoice) =>
+      left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase()));
+    return files;
+  }
+
+  private fileName(relativePath: string): string {
+    const slash = relativePath.lastIndexOf('/');
+    return slash >= 0 ? relativePath.substring(slash + 1) : relativePath;
+  }
+
+  private goUp(): void {
+    const slash = this.browsePrefix.lastIndexOf('/');
+    this.browsePrefix = slash >= 0 ? this.browsePrefix.substring(0, slash) : '';
+  }
 
   build() {
     Column({ space: 14 }) {
       Column({ space: 5 }) {
         Text('选择 Windows 主程序').fontSize(20).fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary')).width('100%')
-        Text('仅显示当前游戏目录及其子目录中的 EXE、COM、BAT、CMD。')
+        Text('按目录进入子文件夹，点 EXE / COM / BAT / CMD 设为主程序。')
           .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+        Text(this.locationLabel())
+          .fontSize(12).fontColor($r('app.color.accent')).width('100%').maxLines(2)
       }.width('100%').alignItems(HorizontalAlign.Start)
+
+      if (this.browsePrefix.length > 0) {
+        Button() {
+          Row({ space: 8 }) {
+            SymbolGlyph($r('sys.symbol.chevron_up')).fontSize(16)
+              .fontColor([$r('app.color.text_primary')])
+            Text('返回上级目录').fontSize(14).fontColor($r('app.color.text_primary'))
+          }
+        }
+        .width('100%')
+        .height(44)
+        .backgroundColor($r('app.color.search_background'))
+        .onClick((): void => this.goUp())
+      }
 
       Scroll() {
         Column({ space: 8 }) {
-          ForEach(this.choices, (choice: ExecutableChoice) => {
+          ForEach(this.foldersHere(), (folder: ExecutableFolderChoice) => {
             Button() {
-              Column({ space: 3 }) {
-                Text(choice.relativePath).fontSize(14).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.text_primary')).width('100%').maxLines(2)
-                Text(choice.path === this.selectedPath ? '当前已关联' : '选择为此卡片的主程序')
-                  .fontSize(11)
-                  .fontColor(choice.path === this.selectedPath ? $r('app.color.accent') : $r('app.color.text_secondary'))
-                  .width('100%')
-              }.width('100%').alignItems(HorizontalAlign.Start)
+              Row({ space: 10 }) {
+                SymbolGlyph($r('sys.symbol.folder')).fontSize(20)
+                  .fontColor([$r('app.color.accent')])
+                Column({ space: 2 }) {
+                  Text(folder.name).fontSize(14).fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.text_primary')).width('100%').maxLines(1)
+                  Text(folder.fileCount + ' 个可执行文件')
+                    .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+                }
+                .layoutWeight(1)
+                .alignItems(HorizontalAlign.Start)
+                SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16)
+                  .fontColor([$r('app.color.text_secondary')])
+              }
+              .width('100%')
+            }
+            .width('100%')
+            .padding(14)
+            .borderRadius(14)
+            .backgroundColor($r('app.color.search_background'))
+            .onClick((): void => {
+              this.browsePrefix = folder.prefix;
+            })
+          }, (folder: ExecutableFolderChoice): string => 'dir:' + folder.prefix)
+
+          ForEach(this.filesHere(), (choice: ExecutableChoice) => {
+            Button() {
+              Row({ space: 10 }) {
+                SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(20)
+                  .fontColor([choice.path === this.selectedPath ?
+                    $r('app.color.accent') : $r('app.color.text_secondary')])
+                Column({ space: 2 }) {
+                  Text(this.fileName(choice.relativePath)).fontSize(14).fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.text_primary')).width('100%').maxLines(1)
+                  Text(choice.path === this.selectedPath ? '当前已关联' : '选择为此卡片的主程序')
+                    .fontSize(11)
+                    .fontColor(choice.path === this.selectedPath ?
+                      $r('app.color.accent') : $r('app.color.text_secondary'))
+                    .width('100%')
+                }
+                .layoutWeight(1)
+                .alignItems(HorizontalAlign.Start)
+              }
+              .width('100%')
             }
             .width('100%')
             .padding(14)
@@ -101,7 +233,7 @@ struct WindowsExecutablePickerDialog {
               if (this.controller) this.controller.close();
               this.onSelect(choice.path);
             })
-          }, (choice: ExecutableChoice): string => choice.path)
+          }, (choice: ExecutableChoice): string => 'file:' + choice.path)
         }.width('100%')
       }
       .width('100%')
@@ -322,17 +454,21 @@ struct AppSettingsPage {
     if (candidates.length === 0) {
       AlertDialog.show({
         title: '未找到可启动的主程序',
-        message: '已扫描当前游戏目录及两层子目录，未发现 EXE、COM、BAT 或 CMD。请确认游戏文件已完整放入此目录。',
+        message: '已扫描当前游戏目录及全部子目录，未发现 EXE、COM、BAT 或 CMD。请确认游戏文件已完整放入此目录。',
         primaryButton: { value: '知道了', action: (): void => {} }
       });
       return;
     }
+    const directory = this.app.directory;
     const choices: ExecutableChoice[] = candidates.map((path: string) =>
-      new ExecutableChoice(path, this.relativeExecutablePath(this.app?.directory ?? '', path)));
+      new ExecutableChoice(path, this.relativeExecutablePath(directory, path)));
+    const selectedRelative = this.relativeExecutablePath(directory, this.value.executable);
+    const selectedSlash = selectedRelative.lastIndexOf('/');
     this.executablePickerController = new CustomDialogController({
       builder: WindowsExecutablePickerDialog({
         choices: choices,
         selectedPath: this.value.executable,
+        initialPrefix: selectedSlash > 0 ? selectedRelative.substring(0, selectedSlash) : '',
         onSelect: (path: string): void => { void this.selectExecutableCandidate(path); }
       }),
       cancel: (): void => { this.executablePickerController = null; },

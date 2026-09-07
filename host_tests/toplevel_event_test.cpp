@@ -25,7 +25,7 @@ static void eq_str(const char* what, const std::string& got, const std::string& 
     }
 }
 
-// ---- ToplevelEventName: 22 种事件名与旧字符串逐字 ----
+// ---- ToplevelEventName: 事件名与 ArkTS 消费字符串逐字 ----
 static void test_event_names() {
     eq_str("name(Created)", ToplevelEventName(ToplevelEventType::Created), "created");
     eq_str("name(ArgbCreated)", ToplevelEventName(ToplevelEventType::ArgbCreated), "argb_created");
@@ -48,6 +48,7 @@ static void test_event_names() {
     eq_str("name(Minimized)", ToplevelEventName(ToplevelEventType::Minimized), "minimized");
     eq_str("name(MoveStart)", ToplevelEventName(ToplevelEventType::MoveStart), "move_start");
     eq_str("name(MoveEnd)", ToplevelEventName(ToplevelEventType::MoveEnd), "move_end");
+    eq_str("name(Modal)", ToplevelEventName(ToplevelEventType::Modal), "modal");
     eq_str("name(DesktopRoot)", ToplevelEventName(ToplevelEventType::DesktopRoot), "desktop_root");
 }
 
@@ -92,6 +93,11 @@ static void test_json_templates() {
            "{\"minW\":320,\"minH\":200,\"maxW\":1400,\"maxH\":920}");
     // surface
     eq_str("JsonSurface", ToplevelEventBus::JsonSurface(1280, 800), "{\"w\":1280,\"h\":800}");
+    // modal (winehua_toplevel.set_modal → PC 融合子窗口)
+    eq_str("JsonModal on", ToplevelEventBus::JsonModal(12, 7, 1, 40, -16, 420, 240),
+           "{\"modal\":1,\"owner\":7,\"tl\":12,\"dx\":40,\"dy\":-16,\"w\":420,\"h\":240}");
+    eq_str("JsonModal off", ToplevelEventBus::JsonModal(12, 0, 0, 0, 0, 0, 0),
+           "{\"modal\":0,\"owner\":0,\"tl\":12,\"dx\":0,\"dy\":0,\"w\":0,\"h\":0}");
 }
 
 // 无 payload 事件的 "{}" 语义: 旧调用点传字面量 "{}" 或省略 jsonData 参数
@@ -100,8 +106,8 @@ static void test_json_templates() {
 // 不属 host 可编译面; 默认参数值在此声明为契约)。
 
 static void test_full_coverage() {
-    // 22 种枚举全在 EventName 映射内 (编译器已保证 switch 完整性; 此处
-    // 再逐一遍历确认 22 个名字均为非空且长度>0)
+    // 枚举全在 EventName 映射内 (编译器已保证 switch 完整性; 此处
+    // 再逐一遍历确认名字均为非空且长度>0；含产品 Raise 与 WineHua Modal)
     int n = 0;
     for (uint32_t i = 0; i <= static_cast<uint32_t>(ToplevelEventType::DesktopRoot); i++) {
         const char* name = ToplevelEventName(static_cast<ToplevelEventType>(i));
