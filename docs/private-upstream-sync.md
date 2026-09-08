@@ -4,7 +4,18 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
-> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `46139138`，本地镜像 `mirror_master`）。下次同步先 `git fetch winehua && git branch -f mirror_master winehua/master && git log 46139138..mirror_master --oneline`，避免重复合并。
+> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `5dc2ceb5`）。下次同步先 `git fetch winehua && git log 5dc2ceb5..winehua/master --oneline`，避免重复合并。
+
+### 2026-09-09 对齐嵌套 modal 宿主继承（5dc2ceb5）
+
+- 分支：产品线 `sync/winehua-1.3.6`（叠在 `main` @ `b24243a8` / rc-1.3.5）。
+- 镜像：`winehua/master` @ `5dc2ceb5`。
+- 原则：只吸收 PC 融合模式下「owner 为另一 modal」时的宿主 WindowStage 继承。不上游 Index / WineEnvService / 测试 Makefile `-I cpp/wine`。wine gitlink 不跟随。
+- 已落地：
+  - `ModalWindowManager.ets`：`ModalEntry.stage`；`show()` 从 `modals` 继承 host stage/subWin；显示成功后 `flushForOwner(self)`；`destroyEntry` 级联 owned 链
+- 跳过：`bc66706e`（产品 host 测试已用 `wine/` 前缀 include）
+- 版本：1.3.6（1003006）
+- 验证：见本轮 Docker ARM64 API 23 未签名 HAP + `proRelease` 上架 APP。
 
 ### 2026-09-05 对齐 Steam dnsapi musl + Win32 模态框（46139138）
 

@@ -1,5 +1,17 @@
 # 上游同步基线标记
 
+## 2026-09-09 WineHua master 增量（46139138..5dc2ceb5）
+
+在产品 `main` @ `b24243a8`（rc-1.3.5）上核对 `winehua/master` @ `5dc2ceb5`。
+本段 2 个提交**选择性移植**，不是 Git merge。不上游 Index / WineEnvService / 品牌 / 版本号；wine gitlink 不跟随。
+
+| 上游 | 处置 |
+| --- | --- |
+| `bc66706e` host 测试 `-I …/cpp/wine` + `env_spec.cpp` 路径 | **skipped**（产品 `host_tests` 已用 `#include "wine/…"`，Makefile 已编 `wine/env_spec.cpp`） |
+| `5dc2ceb5` PC 融合嵌套 modal 继承宿主 stage | **adapted** → `ModalWindowManager.ets`（保留 `LogService`；不改 `WineWindowManager` / `Index` / `DesktopAbility`） |
+
+下次增量从 `5dc2ceb5` 之后开始：`git fetch winehua && git log 5dc2ceb5..winehua/master --oneline`。
+
 ## 2026-09-05 WineHua master 增量（b0e85c0e..46139138）
 
 在 `sync/winehua-dns-modal-launch-args` 上核对 `winehua/master` @ `46139138`。
