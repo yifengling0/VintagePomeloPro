@@ -1,0 +1,65 @@
+From: VintagePomeloPro
+Subject: [PATCH] ohos: per-process font antialiasing override
+
+Legacy CJK titles render GDI text into a bitmap and threshold it into a
+1-bit mask (only near-white pixels are ink). Grayscale antialiasing turns
+12px CJK strokes grey, so the mask loses them and on-screen text becomes a
+scatter of fragments. Allow game processes to ask for bilevel glyphs via
+WINEHUA_FONT_AA=bitmap, keeping the desktop default of grayscale AA.
+
+--- a/dlls/win32u/font.c
++++ b/dlls/win32u/font.c
+@@ -4708,8 +4708,38 @@
+     return font;
+ }
+ 
+ /*************************************************************
++ *           ohos_font_aa_override
++ *
++ * Per-process override for GDI text antialiasing. Legacy CJK game engines
++ * render text with GDI and then threshold the bitmap into a 1-bit mask
++ * (启动器.exe 0x4a5b40 keeps only pixels > 0x7ffe as ink), so they need
++ * bilevel glyphs: the OHOS default of grayscale AA fragments them.
++ *
++ * WINEHUA_FONT_AA=bitmap -> GGO_BITMAP, =gray -> GGO_GRAY4_BITMAP.
++ */
++static UINT ohos_font_aa_override(void)
++{
++#ifdef __OHOS__
++    static int cached = -1;
++
++    if (cached < 0)
++    {
++        const char *value = getenv( "WINEHUA_FONT_AA" );
++
++        cached = 0;
++        if (value && !strcmp( value, "bitmap" )) cached = GGO_BITMAP;
++        else if (value && !strcmp( value, "gray" )) cached = GGO_GRAY4_BITMAP;
++        TRACE( "OHOS font AA override env=%s -> %#x\n", value ? value : "(unset)", cached );
++    }
++    return cached;
++#else
++    return 0;
++#endif
++}
++
++/*************************************************************
+  * font_SelectFont
+  */
+ static HFONT font_SelectFont( PHYSDEV dev, HFONT hfont, UINT *aa_flags )
+ {
+@@ -4731,8 +4761,14 @@
+             break;
+         case ANTIALIASED_QUALITY:
+             if (!*aa_flags) *aa_flags = GGO_GRAY4_BITMAP;
+             break;
++        }
++
++        {
++            UINT forced_aa = ohos_font_aa_override();
++
++            if (forced_aa) *aa_flags = forced_aa;
+         }
+ 
+         if (lf.lfOutPrecision == OUT_TT_ONLY_PRECIS)
+             can_use_bitmap = FALSE;

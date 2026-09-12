@@ -189,6 +189,12 @@ function isCommandScript(executable: string): boolean {
   return lower.endsWith('.bat') || lower.endsWith('.cmd');
 }
 
+function isWineDesktopProgram(executable: string): boolean {
+  const name = executable.trim().replace(/\\/g, '/').toLowerCase();
+  const base = name.substring(name.lastIndexOf('/') + 1);
+  return base === 'explorer' || base === 'explorer.exe';
+}
+
 function ensureDirectory(path: string): void {
   if (!pathExists(path)) {
     fs.mkdirSync(path, true);
@@ -613,6 +619,15 @@ export class WineEngineService {
     // the Guest half from the same policy authority that configured Host;
     // product sessions add no experiment override.
     const launchEnvironment = envOverrides.slice();
+    // 旧 Windows 游戏（梦幻群侠传/XYQ 系）用 GDI 把文字画进位图后再二值化成字形
+    // 遮罩：启动器.exe 0x4a5b40 只把 > 0x7ffe 的像素当笔画。灰度抗锯齿会把 12px
+    // 汉字笔画变成灰色，于是被当成透明，游戏内文字只剩零散笔画碎片，看起来像乱码。
+    // 游戏进程关掉 GDI 文字抗锯齿，桌面 shell 保持默认外观。
+    const fontAntialiasOverridden = launchEnvironment.some((entry: string) =>
+      entry.startsWith('WINEHUA_FONT_AA='));
+    if (!isWineDesktopProgram(program) && !fontAntialiasOverridden) {
+      launchEnvironment.push('WINEHUA_FONT_AA=bitmap');
+    }
     if (this.appliedHostGraphicsLabExperiment.length > 0) {
       launchEnvironment.push(
         `WINEHUA_GRAPHICS_PROFILE=${this.appliedHostGraphicsLabExperiment}`);
