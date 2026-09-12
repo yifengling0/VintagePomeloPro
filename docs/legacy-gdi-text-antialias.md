@@ -72,3 +72,20 @@ bash scripts/vpbuild.sh make hap       # NATIVE_ARCH=arm64-v8a, GUEST_ARCH=x86_6
 `AddFontResourceExW ... res 00000000`（全部失败），游戏退化为用系统字体渲染。
 修复乱码不依赖这些字体（问题是 AA 而非字形文件），若要还原作者设计观感，
 把 `font/*.ttf` 复制成 `Media/font/*.ttf` 即可。
+
+## 补丁序列现状
+
+排查期间 `patches/wine/` 加过一批"GBK 被当 Shift-JIS 解"假设下的补丁，
+问题定位后已整理：
+
+| 补丁 | 状态 |
+| --- | --- |
+| `0005-ohos-scan-prefix-windows-fonts.patch` | 保留（扫描 prefix 的 `windows/fonts`，用户导入的字体才可见） |
+| `0006-ohos-cjk-missing-font-gbk-fallback.patch` | 保留，但只留"缺字体名→本地 CJK 面、不落到 Noto CJK JP/KR"的部分 |
+| `0008-ohos-musl-c-utf8-zh-cn-locale.patch` | 保留（musl 的 `C.UTF-8` 按 LANG 处理，中文环境 ACP=936） |
+| `0010-ohos-font-aa-override.patch` | 本次修复的核心 |
+| ~~`0007` / `0009` / `0011`~~ | 已删除：按字体字符集强制改写 codepage、`MultiByteToWideChar(932)`→936 重映射、GBK 反查假名码点。它们对显式请求 cp932/cp949 的日韩游戏是回归隐患，且对 GBK 游戏也已无必要 |
+
+自检：`git -C thirdparty/wine status` 只应有 4 个改动文件
+（`mfplat/main.c`、`ntdll/unix/env.c`、`win32u/font.c`、`win32u/freetype.c`）；
+`kernelbase/locale.c` 必须与 submodule HEAD 一致（0009 已撤除）。
