@@ -264,8 +264,8 @@ int main() {
         child.w = 400; child.h = 300; child.pixels.resize(400 * 300 * 4, 128);
         ShmCommitInfo fi;
         auto first = popups.UpdatePopupOnCommit(&child, &resource, &parent, fi);
-        CHECK(first.isNew && !first.sizeChanged && first.winW == 800 && first.dispW == 400,
-              "fullscreen popup reports output size while retaining content size");
+        CHECK(first.isNew && !first.sizeChanged && first.winW == 400 && first.dispW == 400,
+              "popup reports content size (fullscreen-parent output heuristic retired)");
         { auto lk = tm.Lock(); auto* st = tm.FindToplevelLocked(first.popupId);
           CHECK(st && st->Width() == 400 && st->Pixels().size() == 400 * 300 * 4,
                 "popup frame keeps actual pixel dimensions"); }

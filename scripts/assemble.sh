@@ -247,7 +247,10 @@ assemble_pad() {
     # install_addon 在 WINEDATADIR/mono/ 找到 msi → 静默安装不弹框;
     # 若 msi 缺失 (BUILD_WINE_MONO=0) 则弹 DialogBoxW 模态框, OHOS
     # 无头环境无人响应 → wineboot 永久阻塞. 故 cpl 与 mono msi 必须同包.
-    for ext in dll drv exe sys acm ax ocx tlb cpl; do
+    # msstyles: 主题文件, 名义上是 DLL 但扩展名是 .msstyles (data-only PE)。
+    # 缺它时 uxtheme 加载 aero.msstyles 落空, 控件退化成经典 Win95 绘制。
+    # x86_64 与 i386 两份都要: WoW64 下 32 位进程加载 32 位主题。
+    for ext in dll drv exe sys acm ax ocx tlb cpl msstyles; do
         for f in "$BUILD_DIR/wine-ohos/dlls/"*/x86_64-windows/*.$ext; do
             [ -f "$f" ] && cp "$f" "$wine_data/bin/x86_64-windows/"
         done
@@ -270,7 +273,10 @@ assemble_pad() {
     # 注意: wineboot/rpcss/services/conhost 等服务程序只有 x86_64 版,
     # WoW64 下它们由 Wine 以 64 位进程拉起, 属上游 WoW64 的正常行为.
     mkdir -p "$wine_data/bin/i386-windows"
-    for ext in dll drv exe sys acm ax ocx tlb cpl; do
+    # msstyles: 主题文件, 名义上是 DLL 但扩展名是 .msstyles (data-only PE)。
+    # 缺它时 uxtheme 加载 aero.msstyles 落空, 控件退化成经典 Win95 绘制。
+    # x86_64 与 i386 两份都要: WoW64 下 32 位进程加载 32 位主题。
+    for ext in dll drv exe sys acm ax ocx tlb cpl msstyles; do
         for f in "$BUILD_DIR/wine-ohos/dlls/"*/i386-windows/*.$ext; do
             [ -f "$f" ] && cp "$f" "$wine_data/bin/i386-windows/"
         done
@@ -802,55 +808,96 @@ SMOKE_SUITES_EOF
     cp "$BUILD_DIR/wine-ohos/loader/wine.inf" "$wine_data/share/wine/"
     sed_i '/^\[MCI\]$/i\
 ;; OHOS font substitutes\
-HKLM,%FontSubStr%,"System",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"MS Sans Serif",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"MS Shell Dlg",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"MS Shell Dlg 2",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Arial",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Arial Black",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Calibri",,"HarmonyOS Sans SC"\
+;; HarmonyOS_Sans_SC.ttf registers as 鸿蒙黑体, not HarmonyOS Sans SC.\
+;; Avoid Noto CJK TTC (JP face is first) for SimSun/宋体.\
+HKLM,%FontSubStr%,"HarmonyOS Sans SC",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"宋体",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"新宋体",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"黑体",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"楷体",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"楷体_GB2312",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"仿宋",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"仿宋_GB2312",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"微软雅黑",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"萝莉体",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Lolita",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Noto Sans CJK KR",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Noto Serif CJK JP",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Noto Serif CJK KR",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"宋体,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"新宋体,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"黑体,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"微软雅黑,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"萝莉体,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"Lolita,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"System",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"MS Sans Serif",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"MS Shell Dlg",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"MS Shell Dlg 2",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Arial",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Arial Black",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Calibri",,"鸿蒙黑体"\
 HKLM,%FontSubStr%,"Cambria",,"Noto Serif"\
-HKLM,%FontSubStr%,"Candara",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Comic Sans MS",,"HarmonyOS Sans SC"\
+HKLM,%FontSubStr%,"Candara",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Comic Sans MS",,"鸿蒙黑体"\
 HKLM,%FontSubStr%,"Constantia",,"Noto Serif"\
-HKLM,%FontSubStr%,"Corbel",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Impact",,"HarmonyOS Sans SC"\
+HKLM,%FontSubStr%,"Corbel",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Impact",,"鸿蒙黑体"\
 HKLM,%FontSubStr%,"Palatino Linotype",,"Noto Serif"\
-HKLM,%FontSubStr%,"Segoe UI",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Tahoma",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Trebuchet MS",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Verdana",,"HarmonyOS Sans SC"\
+HKLM,%FontSubStr%,"Segoe UI",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Tahoma",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Trebuchet MS",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Verdana",,"鸿蒙黑体"\
 ;; Latin: 衬线 (serif)\
 HKLM,%FontSubStr%,"Georgia",,"Noto Serif"\
 HKLM,%FontSubStr%,"Times New Roman",,"Noto Serif"\
 ;; CJK: 简体中文\
 HKLM,%FontSubStr%,"Microsoft JhengHei",,"HarmonyOS Sans TC"\
 HKLM,%FontSubStr%,"Microsoft JhengHei UI",,"HarmonyOS Sans TC"\
-HKLM,%FontSubStr%,"Microsoft YaHei",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"Microsoft YaHei UI",,"HarmonyOS Sans SC"\
-;; CJK: 宋体/楷体 (serif)\
-HKLM,%FontSubStr%,"SimSun",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"NSimSun",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"SimHei",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"FangSong",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"KaiTi",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"YouYuan",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"LiSu",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"DengXian",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STSong",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"STKaiti",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"STFangsong",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"STHeiti",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STXihei",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STLiti",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STXingkai",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STXinwei",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STHupo",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STCaiyun",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"STZhongSong",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"STBaoli",,"Noto Serif CJK SC"\
-HKLM,%FontSubStr%,"FZShuTi",,"HarmonyOS Sans SC"\
-HKLM,%FontSubStr%,"FZYaoti",,"HarmonyOS Sans SC"\
+HKLM,%FontSubStr%,"MS Gothic",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"MS PGothic",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"MS UI Gothic",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Noto Sans CJK JP",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Microsoft YaHei",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"Microsoft YaHei UI",,"鸿蒙黑体"\
+;; CJK: 宋体/楷体 — 用单文件 SC TTF, 不用 Noto CJK TTC\
+HKLM,%FontSubStr%,"SimSun",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"NSimSun",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"SimSun,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"NSimSun,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"Microsoft YaHei,134",,"鸿蒙黑体,134"\
+HKLM,%FontSubStr%,"SimHei",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"FangSong",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"KaiTi",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"YouYuan",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"LiSu",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"DengXian",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STSong",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STKaiti",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STFangsong",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STHeiti",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STXihei",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STLiti",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STXingkai",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STXinwei",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STHupo",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STCaiyun",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STZhongSong",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"STBaoli",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"FZShuTi",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"FZYaoti",,"鸿蒙黑体"\
+HKLM,%FontSubStr%,"汉仪魏碑",,"汉仪魏碑简"\
+HKLM,%FontSubStr%,"汉仪魏碑,134",,"汉仪魏碑简,134"\
+HKLM,%FontSubStr%,"HYWeiBei",,"汉仪魏碑简"\
+HKLM,%FontSubStr%,"hyh1gjm",,"汉仪魏碑简"\
+HKLM,%FontSubStr%,"汉仪中黑",,"汉仪中黑 简"\
+HKLM,%FontSubStr%,"汉仪中黑简",,"汉仪中黑 简"\
+HKLM,%FontSubStr%,"汉仪中黑,134",,"汉仪中黑 简,134"\
+HKLM,%FontSubStr%,"hyb1gjm",,"汉仪中黑 简"\
+HKLM,%FontSubStr%,"汉仪柏青体",,"汉仪柏青体简"\
+HKLM,%FontSubStr%,"汉仪柏青简",,"汉仪柏青体简"\
+HKLM,%FontSubStr%,"华康少女体",,"华康少女文字W5"\
+HKLM,%FontSubStr%,"hksnt",,"华康少女文字W5"\
 ;; CJK: 繁体中文\
 HKLM,%FontSubStr%,"MingLiU",,"HarmonyOS Sans TC"\
 HKLM,%FontSubStr%,"PMingLiU",,"HarmonyOS Sans TC"\
@@ -860,6 +907,15 @@ HKLM,%FontSubStr%,"Courier",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Courier New",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Fixedsys",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/wine.inf"
+    # setupapi only treats wine.inf as UTF-8 when a BOM is present. Without it,
+    # CJK FontSubstitutes are decoded as CP_ACP (GBK on zh_CN prefixes).
+    wine_inf="$wine_data/share/wine/wine.inf"
+    wine_inf_magic="$(od -An -N3 -tx1 "$wine_inf" | tr -d ' \n')"
+    if [ "$wine_inf_magic" != "efbbbf" ]; then
+        wine_inf_bom="$wine_inf.utf8bom"
+        printf '\xef\xbb\xbf' | cat - "$wine_inf" > "$wine_inf_bom"
+        mv "$wine_inf_bom" "$wine_inf"
+    fi
     # XKB
     if [ -d "$SYSROOT_EXT_SHARE/X11/xkb" ]; then
         cp -r "$SYSROOT_EXT_SHARE/X11/xkb" "$wine_data/share/X11/"

@@ -2,6 +2,7 @@
 #include "compositor/wayland_server.h"
 #include "common/fps_counter.h"
 #include <native_window/external_window.h>
+#include <algorithm>
 
 #undef LOG_TAG
 #undef LOG_DOMAIN
@@ -17,8 +18,23 @@ PluginManager* PluginManager::GetInstance() {
 uint32_t PluginManager::DequeuePendingToplevel() {
     if (pendingToplevelQueue_.empty()) return 0;
     uint32_t id = pendingToplevelQueue_.front();
-    pendingToplevelQueue_.pop();
+    pendingToplevelQueue_.pop_front();
     return id;
+}
+
+// 清除队列中指定 id 的残坑: 窗口在 loadContent 完成前被销毁 (destroy-while-
+// creating, aboutToAppear 未执行 → id 无人消费), 不删会让后续每个页面出队
+// 拿到这个死 id → 渲染器挂错 toplevel 取不到帧 → 黑屏。id 未在
+// 队列 (页面已出队) 时是 no-op, 无条件调用安全。
+void PluginManager::CancelPendingToplevel(uint32_t id) {
+    const size_t before = pendingToplevelQueue_.size();
+    pendingToplevelQueue_.erase(
+        std::remove(pendingToplevelQueue_.begin(), pendingToplevelQueue_.end(), id),
+        pendingToplevelQueue_.end());
+    if (pendingToplevelQueue_.size() != before) {
+        OH_LOG_WARN(LOG_APP, "[MW-Life] CancelPendingToplevel id=%{public}u (%{public}zu→%{public}zu)",
+                    id, before, pendingToplevelQueue_.size());
+    }
 }
 
 void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {

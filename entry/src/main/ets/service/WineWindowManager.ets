@@ -11,8 +11,8 @@ import {
   WinePresentationMode
 } from '../model/AppModels';
 import { PopupWindowManager } from './PopupWindowManager';
-import { ArgbWindowManager } from './ArgbWindowManager';
 import { ModalWindowManager } from './ModalWindowManager';
+import { FusionWindowManager } from './FusionWindowManager';
 import { AppSettingsStore } from './AppSettingsStore';
 import { DesktopModeService, MODE_VIRTUAL, MODE_FUSION } from './DesktopModeService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
@@ -44,7 +44,7 @@ export class WineWindowManager {
   // -- Desktop 模式 (Tablet / PC 虚拟桌面) --
   // 公开: WineEngineService 镜像给 ArkTS 上层
   isDesktopMode: boolean = true;
-  // 公开: 由 applyModePolicy 统一判定 (PC 按 DesktopModeService 设置)
+  // 公开: 由 applyModePolicy 统一判定 (phone 强制虚拟; tablet 默虚拟可切多窗口; PC 按设置)
   presentationMode: WinePresentationMode = WinePresentationMode.DESKTOP;
   // -- 光标隐藏门禁 (dinput 相对模式驱动, 见 applyPointerVisibility) --
   // pointerLocked: wine 最近的真实"相对模式锁定"请求 (不受展示形态门禁过滤,
@@ -71,27 +71,48 @@ export class WineWindowManager {
   private mainWindowStage: window.WindowStage | null = null;
 
   /**
-   * 桌面模式统一判定 (与上游 master 同构):
-   * - Pad/phone 恒走桌面合成器 (isDesktopMode=true)
-   * - PC/2in1 按 DesktopModeService 用户设置 (MODE_FUSION=独立窗口 / MODE_VIRTUAL=虚拟桌面)
-   * 调用点: app 启动 (init) + 引擎每次启动前 (WineEngineService), 切换后重启引擎即生效。
+   * 桌面模式统一判定:
+   * - phone 恒走虚拟桌面 (isDesktopMode=true), 无设置项
+   * - tablet 默认虚拟桌面, 设置可切多窗口 (Fusion subWindow, 不 startAbility)
+   * - PC/2in1 按 DesktopModeService (MODE_FUSION=独立 Ability / MODE_VIRTUAL=虚拟桌面)
+   * 显式 want 覆盖 (winehua.desktopMode) 优先于持久化值, 不落盘。
+   * 调用点: app 启动 (init) + 引擎每次启动前 (WineEngineService)。
    */
   applyModePolicy(): void {
-    const isPadOrPhone = DeviceCapabilityPolicy.isTabletDevice() ||
-      DeviceCapabilityPolicy.isPhoneDevice();
-    if (isPadOrPhone) {
+    const isPhone = DeviceCapabilityPolicy.isPhoneDevice();
+    const explicitMode = DesktopModeService.getInstance().getOverrideMode();
+    const savedMode = DesktopModeService.getInstance().mode;
+    const effectiveMode = (explicitMode === MODE_FUSION || explicitMode === MODE_VIRTUAL) ?
+      explicitMode : savedMode;
+    if (isPhone) {
       this.isDesktopMode = true;
       this.presentationMode = WinePresentationMode.DESKTOP;
     } else {
-      const mode = DesktopModeService.getInstance().mode;
-      this.isDesktopMode = (mode === MODE_VIRTUAL);
+      this.isDesktopMode = (effectiveMode === MODE_VIRTUAL);
       this.presentationMode = this.isDesktopMode ?
         WinePresentationMode.DESKTOP : WinePresentationMode.MANAGED_WINDOWS;
     }
     this.desktopRootId = 0;
     testNapi.setDesktopMode(this.isDesktopMode);
-    hilog.info(DOMAIN, TAG, '[MW] applyModePolicy=%{public}s nativeDesktop=%{public}s',
-      this.presentationMode, this.isDesktopMode ? 'yes' : 'no');
+    hilog.info(DOMAIN, TAG,
+      '[MW] applyModePolicy=%{public}s nativeDesktop=%{public}s explicit=%{public}s',
+      this.presentationMode, this.isDesktopMode ? 'yes' : 'no', explicitMode || 'none');
+    // 模式判定变了必须刷新镜像, 否则「设置切多窗口 → 重启引擎」后
+    // AppSessionService 仍按旧虚拟桌面走 ensureDesktop。
+    AppStorage.setOrCreate('winehua.desktopMode', this.isDesktopMode);
+    AppStorage.setOrCreate('winehua.presentationMode', this.presentationMode);
+  }
+
+  // -- Pad 多窗口承载判定: 非 desktop 模式下, 每窗口是独立 UIAbility 主窗口
+  //    (PC/2in1 现状) 还是主窗口 stage 下的 subWindow (Pad 多窗口)。
+  //    调试键 winehua.fusionHost 可跨设备强制 (subwindow|ability)。
+  fusionUsesSubWindow(): boolean {
+    if (this.isDesktopMode) return false;
+    if (DeviceCapabilityPolicy.isTabletDevice()) {
+      return AppStorage.get<string>('winehua.fusionHost') !== 'ability';
+    }
+    const forced = AppStorage.get<string>('winehua.fusionHost') ?? '';
+    return forced === 'subwindow';
   }
 
   // toplevelId -> UIAbilityContext (用于 terminateSelf)
@@ -172,8 +193,8 @@ export class WineWindowManager {
     hilog.info(DOMAIN, TAG, '[MW] init: mainWindow=%{public}s ctx=%{public}s',
       this.mainWindow ? 'ok' : 'NULL', this.uiAbilityContext ? 'ok' : 'NULL');
 
-    // 桌面模式统一判定: PC/2in1 按 DesktopModeService 设置 (融合/虚拟桌面),
-    // Pad/phone 恒走桌面合成器。同步 native setDesktopMode (explorer 是否启动)。
+    // 桌面模式统一判定: phone 恒虚拟桌面; tablet 默认虚拟、可切多窗口;
+    // PC/2in1 按 DesktopModeService。同步 native setDesktopMode。
     try {
       DesktopModeService.getInstance().init(this.uiAbilityContext);
     } catch (_) {
@@ -404,6 +425,9 @@ export class WineWindowManager {
     // 级联销毁该窗口的全部 popup 子窗口
     PopupWindowManager.getInstance().destroyPopupsForToplevel(toplevelId);
     ModalWindowManager.getInstance().destroyForOwner(toplevelId);
+    FusionWindowManager.getInstance().destroy(toplevelId);
+    this.moveGrabPending.delete(toplevelId);
+    this.clearPointerLockFor(toplevelId);
     this.abilityContexts.delete(toplevelId);
     this.windows.delete(toplevelId);
     this.windowStages.delete(toplevelId);
@@ -439,6 +463,20 @@ export class WineWindowManager {
   // WineWindow 的 onMouse 在下一帧 MOVE 时检查此标记并调用 startMoving()
   shouldStartMoving(toplevelId: number): boolean {
     return this.moveGrabPending.has(toplevelId);
+  }
+
+  // startMoving() 已发起 → 消费 pending: 拖拽期间触摸/鼠标每帧 Move 都会查
+  // shouldStartMoving, 不清会每帧重复 startMoving()。
+  clearMovePending(toplevelId: number): void {
+    this.moveGrabPending.delete(toplevelId);
+  }
+
+  // 点击置顶整组: 主窗 raise 后其 popup 子窗口再 raise (子窗口恒在主窗之上)。
+  // 仅 subWindow 承载的多窗口模式需要 (PC/独立 Ability 由系统管理层序)。
+  raiseWindowGroup(toplevelId: number): void {
+    if (!this.fusionUsesSubWindow()) return;
+    FusionWindowManager.getInstance().raise(toplevelId);
+    PopupWindowManager.getInstance().raisePopups(toplevelId);
   }
 
   getWindow(toplevelId: number): window.Window | undefined {
@@ -550,7 +588,7 @@ export class WineWindowManager {
   // -- WineWindowAbility 在 onWindowStageCreate 中调用: 应用积压的事件 --
   flushPendingEvents(toplevelId: number): void {
     // popup 积压事件 (windowStage 就绪后补建)
-    const stage = this.getWindowStage(toplevelId);
+    const stage = this.getWindowStage(toplevelId) ?? this.mainWindowStage;
     const win = this.getWindow(toplevelId);
     if (stage && win) {
       PopupWindowManager.getInstance().flushPending(toplevelId, stage, win, this.getEffectiveScale());
@@ -588,7 +626,7 @@ export class WineWindowManager {
             this.pendingStarts.delete(id);
             const ownerId = Number(obj.owner ?? 0);
             ModalWindowManager.getInstance().show(id, obj,
-              this.windowStages.get(ownerId) ?? null,
+              this.windowStages.get(ownerId) ?? this.mainWindowStage,
               this.getWindow(ownerId) ?? null,
               this.getEffectiveScale());
           } else {
@@ -685,7 +723,9 @@ export class WineWindowManager {
         break;
       case 'raise':
         if (!this.isDesktopMode && !this.fullscreenWindows.has(id)) {
-          if (this.loadedWindows.has(id)) {
+          if (this.fusionUsesSubWindow()) {
+            this.raiseWindowGroup(id);
+          } else if (this.loadedWindows.has(id)) {
             this.scheduleManagedRaise(id, 'wine-z-order');
           } else {
             this.pendingRaises.add(id);
@@ -757,14 +797,6 @@ export class WineWindowManager {
       case 'title':
       case 'resize':
         if (this.isDesktopMode && id !== this.desktopRootId) return;
-        if (ArgbWindowManager.getInstance().has(id)) {
-          // ARGB 异型窗口: resize 调整子窗口尺寸; title 不需要 (子窗口无标题栏)。
-          // 注意不能进 pendingEvents 队列 — ARGB 窗口永远不会注册 ability, 永不 flush
-          if (event === 'resize') {
-            ArgbWindowManager.getInstance().onResize(id, data, this.getEffectiveScale());
-          }
-          break;
-        }
         if (this.windows.has(id)) {
           hilog.info(DOMAIN, TAG, '[MW] -> applyEvent directly #%{public}d %{public}s', id, event);
           this.applyEvent(id, event, data);
@@ -783,8 +815,6 @@ export class WineWindowManager {
       case 'limits':
       case 'argb':
         if (this.isDesktopMode && id !== this.desktopRootId) return;
-        // ARGB 异型窗口: 这些事件无意义且会泄漏进 pendingEvents (永不注册 ability)
-        if (ArgbWindowManager.getInstance().has(id)) break;
         if (this.windows.has(id)) {
           this.applyEvent(id, event, data);
         } else {
@@ -793,30 +823,11 @@ export class WineWindowManager {
           q.push([event, data]);
         }
         break;
-      case 'argb_created':
-      case 'argb_move':
-      case 'mask_dirty':
-        // ARGB 异型窗口 (子窗口 + setWindowMask 路线, desktop 模式不涉及)
-        if (this.isDesktopMode) return;
-        if (!this.mainWindowStage) return;
-        {
-          const argb = ArgbWindowManager.getInstance();
-          const s = this.getEffectiveScale();
-          if (event === 'argb_created') {
-            argb.onCreated(id, data, this.mainWindowStage!, s);
-          } else if (event === 'argb_move') {
-            argb.onMove(id, data, s);
-          } else {
-            argb.onMaskDirty(id, s);
-          }
-        }
-        break;
       case 'popup_show':
       case 'popup_move':
       case 'popup_resize':
       case 'popup_hide':
         // PC 模式 popup 子窗口 (desktop 模式 C++ 不会发这些事件)
-        // 父窗口可能是普通 ability 窗口, 也可能是 ARGB 异型子窗口 (回退)
         if (this.isDesktopMode) return;
         // 父窗口 Wine 尺寸传给 PopupWindowManager: 全屏游戏把渲染 surface 放
         // popup (popup 尺寸==模拟分辨率==父窗口尺寸), 需判定并拉伸到宿主屏幕;
@@ -824,7 +835,7 @@ export class WineWindowManager {
         PopupWindowManager.getInstance().onPopupEvent(
           id, event, data,
           this.getWindowStage(id) ?? this.mainWindowStage,
-          this.getWindow(id) ?? ArgbWindowManager.getInstance().getWindow(id),
+          this.getWindow(id) ?? null,
           this.getEffectiveScale(),
           this.lastResizeWineDim.get(id) ?? null);
         break;
@@ -892,6 +903,36 @@ export class WineWindowManager {
     if (!win) {
       hilog.warn(DOMAIN, TAG, '[MW] applyEvent #%{public}d: window NOT FOUND (unregistered?)', toplevelId);
       return;
+    }
+
+    // Pad 多窗口 (subWindow 承载): 系统接口差异适配 —
+    //   title     → subWindow decorEnabled:false 时 setWindowTitle 报 1300002,
+    //               标题由 Wine 像素自带, 只记录不改
+    //   minimized → 独立于任务栏, 最小化近似为隐藏 (restored 恢复显示)
+    //   maximized/unmaximized/fullscreen/unfullscreen → subWindow 无系统最大化,
+    //               全屏化 = resize 到显示尺寸 + 定位 0,0
+    if (this.fusionUsesSubWindow() && FusionWindowManager.getInstance().has(toplevelId)) {
+      switch (event) {
+        case 'title':
+          hilog.info(DOMAIN, TAG, '[MW] fusion #%{public}d title (record only, subwindow no decor)', toplevelId);
+          return;
+        case 'minimized':
+          FusionWindowManager.getInstance().hide(toplevelId);
+          return;
+        case 'restored':
+          FusionWindowManager.getInstance().show(toplevelId);
+          return;
+        case 'maximized':
+        case 'fullscreen':
+          FusionWindowManager.getInstance().fullscreen(toplevelId);
+          return;
+        case 'unmaximized':
+        case 'unfullscreen':
+          FusionWindowManager.getInstance().restore(toplevelId);
+          return;
+        default:
+          break; // resize/limits 等走通用 win 接口
+      }
     }
 
     switch (event) {
@@ -1031,10 +1072,14 @@ export class WineWindowManager {
     }
   }
 
-  // -- startAbility 启动 multiton 实例 --
+  // -- startAbility 启动 multiton 实例 (Pad 多窗口模式经 startFusionSubWindow 分叉) --
   private startWineWindowAbility(id: number, data: string): void {
     if (this.modalToplevelIds.has(id)) {
       hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: modal, skip Ability', id);
+      return;
+    }
+    if (this.fusionUsesSubWindow()) {
+      this.startFusionSubWindow(id, data);
       return;
     }
     if (this.pendingStarts.has(id)) {
@@ -1090,10 +1135,80 @@ export class WineWindowManager {
     });
   }
 
+  // -- Pad 多窗口承载: 子窗口创建 (FusionWindowManager) + product maps 回填 --
+  // 与 WineWindowAbility 三步回填对齐: 子窗口就绪即 registerWindow,
+  // flushPendingEvents 应用积压的 title/resize/limits 事件。subWindow 无独立
+  // WindowStage, popup/modal 宿主回退 mainWindowStage。
+  private startFusionSubWindow(id: number, data: string): void {
+    if (this.pendingStarts.has(id) || this.windows.has(id)) {
+      hilog.warn(DOMAIN, TAG, '[MW] startFusionSubWindow #%{public}d: already in flight/alive, skip', id);
+      return;
+    }
+    this.pendingStarts.add(id);
+
+    let initW = 0;
+    let initH = 0;
+    try {
+      const obj: Record<string, string | number> = JSON.parse(data) as Record<string, string | number>;
+      initW = Number(obj.w) || 0;
+      initH = Number(obj.h) || 0;
+    } catch (_) { /* use defaults */ }
+
+    if (!this.mainWindowStage) {
+      hilog.error(DOMAIN, TAG, '[MW] FATAL: no mainWindowStage, cannot start fusion subwindow #%{public}d', id);
+      this.pendingStarts.delete(id);
+      testNapi.sendToplevelClose(id);
+      return;
+    }
+
+    hilog.info(DOMAIN, TAG, '[MW] startFusionSubWindow #%{public}d wine=%{public}dx%{public}d',
+      id, initW, initH);
+    FusionWindowManager.getInstance().initIfNeeded(this.mainWindowStage, () => this.getEffectiveScale());
+    FusionWindowManager.getInstance().ensure(id, initW, initH,
+      (winId: number, subWin: window.Window) => {
+      this.pendingStarts.delete(winId);
+      this.registerWindow(winId, subWin);
+      try { testNapi.registerHostWindow(subWin.getWindowProperties().id); } catch (_) { /* ignore */ }
+      try {
+        subWin.on('windowRectChange', () => {
+          PopupWindowManager.getInstance().repositionPopups(winId, subWin, this.getEffectiveScale());
+        });
+      } catch (_) { /* ignore */ }
+      try {
+        subWin.on('windowEvent', (eventType: number) => {
+          if (eventType === window.WindowEventType.WINDOW_DESTROYED) {
+            hilog.info(DOMAIN, TAG, '[MW] fusion subwindow #%{public}d WINDOW_DESTROYED (fallback)', winId);
+            this.onToplevelDestroyed(winId);
+          }
+        });
+      } catch (_) { /* ignore */ }
+      this.flushPendingEvents(winId);
+      this.onFusionWindowReady(winId);
+    }, () => {
+      this.pendingStarts.delete(id);
+      hilog.info(DOMAIN, TAG, '[MW] startFusionSubWindow #%{public}d failed → sendToplevelClose', id);
+      testNapi.sendToplevelClose(id);
+    });
+  }
+
+  private onFusionWindowReady(toplevelId: number): void {
+    const win = FusionWindowManager.getInstance().getWindow(toplevelId);
+    if (!win) return;
+    this.loadedWindows.add(toplevelId);
+    try {
+      win.setWindowCornerRadius(0);
+      hilog.info(DOMAIN, TAG, '[MW] onFusionWindowReady #%{public}d: cornerRadius(0) done', toplevelId);
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, '[MW] onFusionWindowReady #%{public}d: setWindowCornerRadius: %{public}s',
+        toplevelId, JSON.stringify(e));
+    }
+  }
+
   // -- Wine toplevel destroyed -> terminateSelf --
   private onToplevelDestroyed(id: number): void {
     hilog.info(DOMAIN, TAG, '[MW] onToplevelDestroyed #%{public}d', id);
     this.destroyed.add(id);
+    this.clearPointerLockFor(id);
 
     // Desktop 模式: root 销毁 → 关闭 DesktopAbility, 回到主页面。
     if (this.isDesktopMode && id === this.desktopRootId) {
@@ -1118,11 +1233,13 @@ export class WineWindowManager {
       return;
     }
 
-    // PC: ARGB 异型子窗口销毁 (级联销毁其 popup)
-    if (ArgbWindowManager.getInstance().has(id)) {
-      hilog.info(DOMAIN, TAG, '[MW] onToplevelDestroyed #%{public}d: destroy ARGB subwindow', id);
-      ArgbWindowManager.getInstance().destroy(id);
+    // Pad 多窗口 (subWindow 承载): 无 Ability 可 terminateSelf, 销毁子窗口即可
+    if (this.fusionUsesSubWindow() &&
+      (FusionWindowManager.getInstance().has(id) || this.pendingStarts.has(id))) {
+      hilog.info(DOMAIN, TAG, '[MW] onToplevelDestroyed #%{public}d: destroy fusion subwindow', id);
+      FusionWindowManager.getInstance().destroy(id);
       testNapi.destroyToplevel(id);
+      this.pendingStarts.delete(id);
       this.unregisterAbility(id);
       return;
     }
@@ -1368,6 +1485,15 @@ export class WineWindowManager {
       if (this.desktopAbilityRunning && !this.desktopAbilityForeground) return false;
     }
     return fromToplevel !== this.desktopRootId;
+  }
+
+  // 关窗/锁定失败时清相对模式锁: 与 native ReleaseLockForToplevel 配对,
+  // 避免 pointerLocked 永真、光标一直隐藏、下一局游戏锁不上。
+  private clearPointerLockFor(id: number): void {
+    if (!this.pointerLocked || this.pointerLockToplevel !== id) return;
+    this.pointerLocked = false;
+    this.pointerLockToplevel = 0;
+    this.applyPointerVisibility();
   }
 
   // 统一重算并应用光标显隐: shouldHide = pointerLocked × canHideCursor()。

@@ -330,7 +330,13 @@ require_literal "Frame-order validates transport action" \
 require_literal "Frame-order supports the WineD3D VirGL route" \
     "'product-virgl'" automation/Measure-WineHuaFrameOrder.ps1
 require_literal "Prefix migration validates the HarmonyOS UI font mapping" \
-    "{ name: 'MS Shell Dlg', replacement: 'HarmonyOS Sans SC' }" \
+    "{ name: 'MS Shell Dlg', replacement: MASTER_FONT_SC }" \
+    entry/src/main/ets/service/WineEngineService.ets
+require_literal "Prefix FontSubstitutes target the registered HarmonyOS SC family" \
+    "const MASTER_FONT_SC = '鸿蒙黑体'" \
+    entry/src/main/ets/service/WineEngineService.ets
+require_literal "Prefix FontSubstitutes persist wineserver Unicode escapes" \
+    "function wineRegistryEscape(text: string): string" \
     entry/src/main/ets/service/WineEngineService.ets
 require_literal "Prefix migration validates every managed font mapping" \
     "MASTER_FONT_SUBSTITUTES.every" \

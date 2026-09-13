@@ -127,6 +127,7 @@ export default class WineWindowAbility extends UIAbility {
             // 禁止 OHOS 标题栏双击最大化 (与 Wine 内置最大化冲突),
             // maximize() 程序调用不受影响
             try { mw.setWindowTitleMoveEnabled(false); } catch (_) {}
+            try { mw.setWindowBackgroundColor('#FF000000'); } catch (_) {}
             hilog.info(DOMAIN, TAG, '[WWA] window decor config OK');
           }
         } catch (e) {

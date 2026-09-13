@@ -379,12 +379,17 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
                 doLock = true;
                 ids = hostWindowIds_;
             }
+            // "锁定成功"与"已通知 ets"是两件事: 无获焦窗口时 LockCursor 失败
+            // 也必须能再发 false, 否则 pointerLocked 永真。
+            etsLockNotified_ = true;
+            lockedToplevelId_ = toplevelId;
         } else {
-            if (lockedWindowId_ != 0) {
+            if (etsLockNotified_) {
                 doUnlock = true;
-                ids = {lockedWindowId_};
-                // 受理即清位: 解锁已排入工作线程, 后续 lock 快照不被旧状态吞掉
+                if (lockedWindowId_) ids.push_back(lockedWindowId_);
                 lockedWindowId_ = 0;
+                etsLockNotified_ = false;
+                lockedToplevelId_ = 0;
             }
         }
     }
@@ -402,10 +407,14 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
     std::thread([this, doLock, doUnlock, ids, toplevelId, isShell, cb = std::move(cb)]() mutable {
         static std::mutex ipcMutex;
         if (doUnlock) {
-            std::lock_guard<std::mutex> ipc(ipcMutex);
-            const int32_t ret = OH_WindowManager_UnlockCursor(ids[0]);
-            OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor UNLOCKED win=%{public}d ret=%{public}d",
-                        ids[0], ret);
+            if (!ids.empty()) {
+                std::lock_guard<std::mutex> ipc(ipcMutex);
+                const int32_t ret = OH_WindowManager_UnlockCursor(ids[0]);
+                OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor UNLOCKED win=%{public}d ret=%{public}d",
+                            ids[0], ret);
+            } else {
+                OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor never locked, notify ets only");
+            }
             if (cb) cb(false, toplevelId);
             return;
         }
@@ -441,4 +450,15 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
             if (cb) cb(true, toplevelId);
         }
     }).detach();
+}
+
+void PointerExtras::ReleaseLockForToplevel(uint32_t toplevelId) {
+    bool release = false;
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        release = etsLockNotified_ && lockedToplevelId_ == toplevelId;
+    }
+    if (!release) return;
+    OH_LOG_INFO(LOG_APP, "[PtrExt] release lock for destroyed toplevel %{public}u", toplevelId);
+    ApplyHostCursorLock(false, 0);
 }

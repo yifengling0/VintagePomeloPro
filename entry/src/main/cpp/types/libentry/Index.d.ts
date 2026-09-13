@@ -25,6 +25,7 @@ export const sendImeCommit: (text: string) => void;
 export const sendImePreedit: (text: string, start: number, end: number) => void;
 export const imeBackspace: () => void;
 export const setPendingToplevel: (id: number) => void;
+export const cancelPendingToplevel: (id: number) => void;
 export const getCurrentToplevelId: () => number;
 export const destroyToplevel: (id: number) => void;
 export const sendToplevelClose: (id: number) => void;
@@ -127,7 +128,6 @@ export const sendPointerEvent: (toplevelId: number, action: number, px: number, 
 export const sendKeyEvent: (toplevelId: number, evdevCode: number, pressed: boolean) => void;
 export const sendScrollEvent: (toplevelId: number, axis: number, value: number, scrollStep: number, px: number, py: number) => void;
 export const notifyToplevelResize: (toplevelId: number, w: number, h: number) => void;
-export const takeWindowMask: (toplevelId: number) => { w: number, h: number, buffer: ArrayBuffer } | null;
 export const setToplevelVisible: (toplevelId: number, visible: boolean) => void;
 export const getProcessList: () => Array<{
   pid: number;

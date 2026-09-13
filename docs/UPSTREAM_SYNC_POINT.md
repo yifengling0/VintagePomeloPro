@@ -1,5 +1,53 @@
 # 上游同步基线标记
 
+## 2026-09-13 WineHua master 增量（151d38bf..ae2cfa63）
+
+在产品 `sync/winehua-pad-fusion-inline` 上核对 `winehua/master` @ `ae2cfa63`。
+本段 7 个提交**选择性移植**，不是 Git merge。不上游 Index / WineEnvService / 品牌；wine gitlink 不跟随。
+本仓 GDI 汉字乱码修复（`WINEHUA_FONT_AA=bitmap` / patch `0010`）一并带入 1.3.8。
+
+| 上游 | 处置 |
+| --- | --- |
+| `8e986ff` ARGB 改按普通窗口承载 | **adapted** → 首帧一律 `created`；删 `ArgbWindowManager` / `takeWindowMask` NAPI；桌面 blit 不动 |
+| `a0cab50` assemble 打 `msstyles` + wine 标题栏主题 `93c7c58` | **adapted** → `scripts/assemble.sh` 增加 `msstyles`；wine 工作树 cherry-pick → `45e32e8d2ab`；**不改**父仓 gitlink |
+| `caa9c9c` Fusion modal 相对 owner 居中 + pending 残坑 | **adapted** → `ModalWindowManager.computePosition` / `reposition` + `cancelPendingToplevel` |
+| `afa1f12` `applyModePolicy` 后通知订阅者 | **adapted** → `AppStorage` 写 `winehua.desktopMode` / `winehua.presentationMode` |
+| `b99a0c2` 相对模式锁定关窗/失败必退出 | **adapted** → `etsLockNotified_` + `ReleaseLockForToplevel` + `clearPointerLockFor` |
+| `b863c84` 标题栏「运行中 (N)」 | **adapted** → 产品 `Index`「运行中」导航（不上游 WineEnvService） |
+| `ae2cfa6` 窗口 Stack 黑底 | **adapted** → `WineWindow` / `WineWindowAbility` / Fusion 子窗口 |
+
+下次增量从 `ae2cfa63` 之后开始：`git fetch winehua && git log ae2cfa63..winehua/master --oneline`。
+
+## 2026-09-12 WineHua master 增量（03c2384e..151d38bf）
+
+在产品 `sync/winehua-pad-fusion-inline`（叠在 `main` @ `50efd6fb` / rc-1.3.6，工作区已有 1.3.7 平板 fusion）上核对 `winehua/master` @ `151d38bf`。
+本段 3 个提交**选择性移植**，不是 Git merge。不上游 Index / WineEnvService / 品牌；**版本号保持 1.3.7 / 1003007**；wine gitlink 不跟随。
+
+| 上游 | 处置 |
+| --- | --- |
+| `fb8d07bd` virgl gitlink `ba8e4fa8` → `6627c031`（缓存 EGL fence 指针） | **adapted** → 在产品 virgl `670ff196` 上 cherry-pick `6627c031` → 工作树 `fde243e1`；**不改**父仓 virgl gitlink（本地 SHA 不在 winehua/virglrenderer） |
+| `68a4c8b2` DXVK legacy 1.10.3 d3d10 链 | **adapted** → 只改 `wine_env.cpp`（legacy 纯 `d3d10/d3d10_1/d3d10core=n`，vkd3d overlay 同步；modern 2.x 仍 `d3d11=n;dxgi=n`；DX9 仍 builtin）。`scripts/assemble.sh` 已打 d3d10 DLL → **covered_by_product** |
+| `151d38bf` wine gitlink `08cbdd64` → `f085bc22`（OHOS noexec PE 头 / mprotect 匿名页） | **keep_product** gitlink；wine 子模块 cherry-pick `0b1a274e` + `f085bc22` → 工作树 `9b934b28779`（保留未提交 mfplat MPEG4 handler） |
+
+下次增量从 `151d38bf` 之后开始：`git fetch winehua && git log 151d38bf..winehua/master --oneline`。
+
+## 2026-09-11 WineHua master 增量（5dc2ceb5..03c2384e）
+
+在产品 `sync/winehua-pad-fusion-inline`（叠在 `main` @ `50efd6fb` / rc-1.3.6）上核对 `winehua/master` @ `03c2384e`。
+本段 14 个提交**选择性移植**，不是 Git merge。不上游 Index / WineEnvService / 品牌 / 版本号；wine gitlink 不跟随。
+
+| 上游 | 处置 |
+| --- | --- |
+| docs: `4a161256` `1f8635a6` `d20375a5` `d6c59668` `6a0eefa0` `4dbcd628` `4f923aa3` | **skipped** |
+| `6e28f281` + `6736ebd3` + `1d1005c7` + `03c2384e` | **adapted** → `DisplayPolicy::RouteForSubsurface` / InlineClient / 窗口合成持锁 |
+| `770e86fb` | **adapted** → `cancelPendingToplevel`（pending 队列改 deque） |
+| `348da8db` + WineWindow raise/startMoving | **adapted** → `FusionWindowManager` + 产品 `WineWindowManager` |
+| `5363b38d` | **adapted** → `WineEngineService` + `EntryAbility` want（不上游 WineEnvService） |
+
+产品策略：phone 强制虚拟桌面；平板默认虚拟、设置可开多窗口（Fusion subWindow，不 `startAbility`）；PC 仍 Ability 融合。
+
+下次增量从 `03c2384e` 之后开始：`git fetch winehua && git log 03c2384e..winehua/master --oneline`。
+
 ## 2026-09-09 WineHua master 增量（46139138..5dc2ceb5）
 
 在产品 `main` @ `b24243a8`（rc-1.3.5）上核对 `winehua/master` @ `5dc2ceb5`。

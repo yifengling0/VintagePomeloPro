@@ -1,6 +1,7 @@
-import { window } from '@kit.ArkUI';
+import { window, display } from '@kit.ArkUI';
 import { hilog } from './LogService';
 import testNapi from 'libentry.so';
+import { FusionWindowManager } from './FusionWindowManager';
 
 const DOMAIN = 0x0000;
 const TAG = 'ModalWM';
@@ -142,6 +143,7 @@ export class ModalWindowManager {
           modalId, JSON.stringify(e));
         this.creating.delete(modalId);
         this.pendingDestroy.delete(modalId);  // 失败路径同样清理, 防下次 show 闪灭
+        testNapi.cancelPendingToplevel(modalId);
         try { await subWin.destroyWindow(); } catch (_) { /* ignore */ }
         return;
       }
@@ -159,25 +161,21 @@ export class ModalWindowManager {
       if (this.pendingDestroy.has(modalId)) {
         this.pendingDestroy.delete(modalId);
         hilog.info(DOMAIN, TAG, '[MODAL] #%{public}d destroy requested while creating', modalId);
+        testNapi.cancelPendingToplevel(modalId);
         this.destroyEntry(entry);
         return;
       }
       this.modals.set(modalId, entry);
 
       try {
-        // 尺寸: wine 逻辑 × scale; 位置: owner 屏幕位置 + 相对差 × scale
         await subWin.resize(Math.max(1, Math.round(entry.w * scale)),
                             Math.max(1, Math.round(entry.h * scale)));
         const pr = carrierWin.getWindowProperties().windowRect;
-        const dx = Number(d.dx ?? 0);
-        const dy = Number(d.dy ?? 0);
-        await subWin.moveWindowToGlobal(
-          pr.left + Math.round(dx * scale),
-          pr.top + Math.round(dy * scale));
+        const pos = this.computePosition(entry.ownerId, pr, d, entry.w, entry.h, scale);
+        await subWin.moveWindowToGlobal(pos[0], pos[1]);
         await subWin.showWindow();
         hilog.info(DOMAIN, TAG, '[MODAL] #%{public}d shown at screen(%{public}d,%{public}d)',
-          modalId, pr.left + Math.round(dx * scale),
-          pr.top + Math.round(dy * scale));
+          modalId, pos[0], pos[1]);
         // 嵌套模态: 自身已可见 → 以自身为 owner 的暂存 show 请求可补建
         // (宿主 stage + 本 subWin 即其物理父/定位基准)
         this.flushForOwner(entry.modalId, entry.stage, entry.subWin, scale);
@@ -189,6 +187,7 @@ export class ModalWindowManager {
     }).catch((e: Error) => {
       this.creating.delete(modalId);
       this.pendingDestroy.delete(modalId);  // 失败路径同样清理
+      testNapi.cancelPendingToplevel(modalId);
       hilog.error(DOMAIN, TAG, '[MODAL] #%{public}d createSubWindow FAILED: %{public}s',
         modalId, JSON.stringify(e));
     });
@@ -211,23 +210,46 @@ export class ModalWindowManager {
     }
   }
 
+  // Fusion 用 owner 子窗口居中; PC Ability 保持 Wine dx/dy; 末尾钳进屏幕。
+  private computePosition(ownerId: number, pr: window.Rect,
+                          d: Record<string, string | number>,
+                          w: number, h: number, scale: number): number[] {
+    const modalW = Math.max(1, Math.round(w * scale));
+    const modalH = Math.max(1, Math.round(h * scale));
+    let x: number;
+    let y: number;
+    if (FusionWindowManager.getInstance().has(ownerId)) {
+      x = pr.left + Math.round((pr.width - modalW) / 2);
+      y = pr.top + Math.round((pr.height - modalH) / 2);
+    } else {
+      x = pr.left + Math.round(Number(d.dx ?? 0) * scale);
+      y = pr.top + Math.round(Number(d.dy ?? 0) * scale);
+    }
+    try {
+      const scr = display.getDefaultDisplaySync();
+      x = Math.min(Math.max(x, 0), Math.max(0, scr.width - modalW));
+      y = Math.min(Math.max(y, 0), Math.max(0, scr.height - modalH));
+    } catch (_) { /* 拿不到屏幕尺寸则不钳制 */ }
+    return [x, y];
+  }
+
   // -- 已存在 modal 的尺寸/位置跟随 (Wine 重发 modal=1 带新 dx/dy) --
   private reposition(entry: ModalEntry, d: Record<string, string | number>,
                      parentWin: window.Window, scale: number): void {
     if (!entry.subWin) return;
-    const w = Math.max(1, Number(d.w ?? entry.w));
-    const h = Math.max(1, Number(d.h ?? entry.h));
+    const nw = Number(d.w ?? 0);
+    const nh = Number(d.h ?? 0);
+    const w = nw > 0 ? nw : entry.w;
+    const h = nh > 0 ? nh : entry.h;
     entry.w = w;
     entry.h = h;
-    const dx = Number(d.dx ?? 0);
-    const dy = Number(d.dy ?? 0);
-    entry.subWin.resize(Math.max(1, Math.round(w * scale)),
-                        Math.max(1, Math.round(h * scale))).then(() => {
+    const subWin = entry.subWin;
+    subWin.resize(Math.max(1, Math.round(w * scale)),
+                  Math.max(1, Math.round(h * scale))).then(() => {
       const pr = parentWin.getWindowProperties().windowRect;
-      return entry.subWin!.moveWindowToGlobal(
-        pr.left + Math.round(dx * scale),
-        pr.top + Math.round(dy * scale));
-    }).catch(() => { /* ignore */ });
+      const pos = this.computePosition(entry.ownerId, pr, d, w, h, scale);
+      return subWin.moveWindowToGlobal(pos[0], pos[1]);
+    }).then(() => subWin.showWindow()).catch(() => { /* ignore */ });
   }
 
   // -- resize 事件 (wine 逻辑尺寸 × scale) --

@@ -199,10 +199,15 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
         "VK_DRIVER_FILES=" + guestVulkanIcd,
         "VK_ICD_FILENAMES=" + guestVulkanIcd,
         "VN_DEBUG=vtest",
-        /* 与 master 方针一致: DXVK 只接管 D3D11。DX9/10/10.1 使用 Wine 内建
-         * WineD3D → OpenGL → VirGL, 该路径在 Venus/Maleoon 栈上对老游戏更
-         * 成熟稳定; 全 D3D 走 DXVK(Venus) 会破坏原本 VirGL 驱动的游戏。 */
-        "WINEDLLOVERRIDES=d3d11=n;dxgi=n",
+        /* DX9 仍走 Wine 内建 WineD3D → OpenGL → VirGL。
+         * legacy DXVK 1.10.3 自带 d3d10/d3d10_1/d3d10core, 必须整套纯 native
+         * (`=n`, 不能 `n,b`): builtin d3d10core 要调 DXVK dxgi 没有的
+         * DXGID3D10CreateDevice, 再叠加 dxgi=n 会直接 abort
+         * (WarThunderLauncher)。modern 2.x 已移除 d3d10, 只接管 D3D11。 */
+        "WINEDLLOVERRIDES=" + std::string(
+            backend == winehua::D3dBackendKind::DxvkModern26
+                ? "d3d11=n;dxgi=n"
+                : "d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n"),
         "WINEDLLPATH=" + wineDllPath,
         "WINEDLLDIR0=" + overlay64,
         "WINEDLLDIR1=" + overlay86,
@@ -240,7 +245,10 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
             "WINEHUA_VKD3D_PROFILE=limited-500k",
             "WINEHUA_VKD3D_VERSION=2.6",
             "VKD3D_WINEHUA_GPU_UPLOAD=0",
-            "WINEDLLOVERRIDES=d3d12=n;d3d11=n;dxgi=n",
+            "WINEDLLOVERRIDES=" + std::string(
+                backend == winehua::D3dBackendKind::DxvkModern26
+                    ? "d3d12=n;d3d11=n;dxgi=n"
+                    : "d3d12=n;d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n"),
             "WINEDLLPATH=" + wineDllPathWithVkd3d,
         };
         for (const std::string& line : vkd3dOverlay) UpsertEnvLine(env, line);

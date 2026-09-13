@@ -210,6 +210,12 @@ struct WineWindow {
             if (ev.type === TouchType.Down) {
               hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] TOUCH tl=%{public}d px=(%{public}d,%{public}d)',
                 this.toplevelId, px, py);
+              // 点击置顶: 主窗 + 其 popup 子窗口整组提升。WMS 焦点提升只抬主窗,
+              // 不同步抬 popup → 子窗口被主窗盖住。现多窗口模式的客户区已合入主窗帧,
+              // 本调用实际保护的是菜单/下拉等浮层 popup (见 raiseWindowGroup)。
+              try {
+                WineWindowManager.getInstance().raiseWindowGroup(this.toplevelId);
+              } catch (_) { /* ignore */ }
               // 进入 PENDING 状态: 暂不发送事件, 等判定长按/拖拽/点击
               this.touchPending = true;
               this.isDragging = false;
@@ -234,6 +240,22 @@ struct WineWindow {
                 testNapi.sendPointerEvent(this.toplevelId, MouseAction.Press, this.pendingPx, this.pendingPy, btnLeft);
                 testNapi.sendPointerEvent(this.toplevelId, MouseAction.Move, px, py, btnLeft);
               } else if (this.isDragging) {
+                // Pad 多窗口 (subWindow 承载): 触摸拖动 wine 标题栏 → wine 已发
+                // move 请求 (moveGrabPending), 由 OHOS startMoving 接管系统拖拽。
+                // 必须在触摸路径处理 — 本状态机的合成 mouse Move 被守卫吞掉,
+                // onMouse 分支到不了。startMoving 后系统接管。
+                if (WineWindowManager.getInstance().shouldStartMoving(this.toplevelId) &&
+                    WineWindowManager.getInstance().fusionUsesSubWindow()) {
+                  try {
+                    const win = WineWindowManager.getInstance().getWindow(this.toplevelId);
+                    if (win) {
+                      win.startMoving();
+                      WineWindowManager.getInstance().clearMovePending(this.toplevelId);
+                      hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] TP-DRAG startMoving tl=%{public}d', this.toplevelId);
+                      return;
+                    }
+                  } catch (e) { /* fall through to inject */ }
+                }
                 testNapi.sendPointerEvent(this.toplevelId, MouseAction.Move, px, py, 0);
                 if (++this.motionLogCounter % 10 === 0) {
                   hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] DRAG-MOVE tl=%{public}d px=(%{public}d,%{public}d) frame=%{public}d',
@@ -243,6 +265,10 @@ struct WineWindow {
               // PENDING 且未超阈值: 不做任何事 (等 Up 判定长按/点击)
 
             } else if (ev.type === TouchType.Up) {
+              // WMS 置顶可能晚于 Down 的 raise, 松手再提一次组 (理由同 Down 分支)
+              try {
+                WineWindowManager.getInstance().raiseWindowGroup(this.toplevelId);
+              } catch (_) { /* ignore */ }
               if (this.isDragging) {
                 const btnLeft = mapMouseButton(1);
                 hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] DRAG-END tl=%{public}d px=(%{public}d,%{public}d)',
@@ -317,7 +343,7 @@ struct WineWindow {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#00000000')
+    .backgroundColor('#FF000000')
     .focusable(true)
     .defaultFocus(true)
 
@@ -333,6 +359,7 @@ struct WineWindow {
           const win = WineWindowManager.getInstance().getWindow(this.toplevelId);
           if (win) {
             win.startMoving();
+            WineWindowManager.getInstance().clearMovePending(this.toplevelId);
             return; // OHOS 接管拖拽, 不再转发给 Wine
           }
         } catch (e) { /* fall through to normal path */ }

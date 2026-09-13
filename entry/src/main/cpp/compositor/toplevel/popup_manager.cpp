@@ -68,28 +68,13 @@ PopupManager::PopupCommitEvent PopupManager::UpdatePopupOnCommit(
     bool sizeChanged = false;
     bool posChanged = false;
     /*
-     * 全屏主窗口的 GL client surface (war3 D3D 模式切换): wine 把客户区
-     * MoveWindow 到模式尺寸 (800x600), client surface 随之缩小, 按 1:1
-     * 上报会把画面缩在屏幕左上角。这里把"窗口上报尺寸"与"内容像素尺寸"
-     * 解耦: 窗口按全屏输出尺寸上报, FrameData 仍按内容尺寸存 — 渲染侧
-     * EglRenderer letterbox 保比例放大上屏, 输入侧 CoordTransform 按同
-     * 一 letterbox 逆映射 (与 RA2 主 surface 全屏路径同构)。
-     * 判定 = 父全屏 + 偏移 (0,0) + 内容尺寸等于父内容尺寸 (client
-     * surface 恰好覆盖整个客户区; 菜单等小 popup 不满足, 不受影响)。
-     * 本函数仅 PC 模式到达 (桌面模式走 layer 合成), 不影响 Pad 桌面。
-     * 补丁来源: PLAN §2.5 "wl_core.cpp:974-995 popup 窗口/内容尺寸解耦"。
+     * 窗口上报尺寸 = 内容像素尺寸。旧 war3 全屏父 + 偏移 (0,0) 把窗口
+     * 撑到 output 尺寸的启发式已退役 — 多窗口模式客户区走 InlineClient
+     * 合入父窗口帧, 不再经 popup 伪 toplevel 上报。
      */
     int winW = dispW, winH = dispH;
     {
         auto lk = tmgr_.Lock();
-        auto* pst = tmgr_.FindToplevelLocked(parentId);
-        if (pst && pst->IsFullscreen() && offX == 0 && offY == 0 &&
-            dispW == pst->Width() && dispH == pst->Height() &&
-            outputW_ > 0 && outputH_ > 0 &&
-            (dispW < outputW_ || dispH < outputH_)) {
-            winW = outputW_;
-            winH = outputH_;
-        }
         popupId = FindPopupBySurfaceKey(sd->surfaceKey);
         if (popupId == 0) {
             popupId = tmgr_.AllocateToplevelId();
@@ -137,7 +122,7 @@ PopupManager::PopupCommitEvent PopupManager::UpdatePopupOnCommit(
             // 尺寸上报语义 (重构第 5B2 步): 原 sizeChanged 用 PopupRecord::w/h
             // 与"窗口上报尺寸"比较, 现改经 popup 自身 ToplevelState 的尺寸上报
             // 去重通道 (5B1 收口的 HandleCommittedSizeLocked, 传自身 id/rootId=0):
-            // - 判定值逐字 = winW/H (全屏父补丁后的窗口上报尺寸), 去重状态
+            // - 判定值逐字 = winW/H (内容像素尺寸), 去重状态
             //   记录在 ToplevelState::lastReportedW_/H (随 popup 生命周期复位,
             //   与原 rec->w/h 同语义);
             // - popup 从不 SetToplevelFullscreen → 漂移分支 (ReassertFullscreen,

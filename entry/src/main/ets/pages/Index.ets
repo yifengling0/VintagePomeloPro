@@ -796,6 +796,11 @@ struct Index {
     this.visibleApps = this.filterApps(this.searchQuery, this.filter, running);
   }
 
+  private runningFilterLabel(): string {
+    const n = this.runningAppIds.size;
+    return n > 0 ? `运行中 (${n})` : '运行中';
+  }
+
   private pageBackgroundSource(): string {
     const value = this.settings.pageBackgroundUri;
     // DocumentViewPicker may return file://, datashare:// or another
@@ -1284,7 +1289,7 @@ struct Index {
             this.NavItem('收藏', 'favorite', $r('sys.symbol.star'))
             this.NavItem('内建应用', 'builtin', $r('sys.symbol.house_fill'))
             this.NavItem('Windows 程序', 'windows', $r('sys.symbol.folder'))
-            this.NavItem('运行中', 'running', $r('sys.symbol.play_fill'))
+            this.NavItem(this.runningFilterLabel(), 'running', $r('sys.symbol.play_fill'))
           }.width('100%')
 
           Blank()
@@ -1382,7 +1387,7 @@ struct Index {
       Button('Windows').height(48).layoutWeight(1).borderRadius(16)
         .backgroundColor(this.filter === 'windows' ? $r('app.color.selected_background') : $r('app.color.search_background'))
         .fontColor($r('app.color.text_primary')).onClick(() => this.selectFilter('windows'))
-      Button('运行中').height(48).layoutWeight(1).borderRadius(16)
+      Button(this.runningFilterLabel()).height(48).layoutWeight(1).borderRadius(16)
         .backgroundColor(this.filter === 'running' ? $r('app.color.selected_background') : $r('app.color.search_background'))
         .fontColor($r('app.color.text_primary')).onClick(() => this.selectFilter('running'))
       Button('收藏').height(48).layoutWeight(1).borderRadius(16)
@@ -1646,7 +1651,7 @@ struct Index {
       .layoutWeight(1)
       .padding({ left: this.contentPadding(), right: this.contentPadding() })
     }
-      .tabBar(this.PhoneNavigationTab('运行中', $r('sys.symbol.play_fill'), PHONE_NAV_RUNNING))
+      .tabBar(this.PhoneNavigationTab(this.runningFilterLabel(), $r('sys.symbol.play_fill'), PHONE_NAV_RUNNING))
   }
 
   @Builder

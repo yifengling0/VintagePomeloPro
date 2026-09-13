@@ -61,6 +61,10 @@ public:
     // LockCursor 仅支持获焦窗口 (失焦系统自动解锁), 故逐个尝试已注册窗口。
     static void RegisterHostWindow(int32_t windowId);
     void SetPointerLockCallback(std::function<void(bool, uint32_t)> cb);
+    // 锁定窗口所属 toplevel 被宿主销毁时立即释放 host 锁定并通知 ets,
+    // 不等 relative_pointer 销毁。游戏卡死时 wine 不响应 sendToplevelClose,
+    // 相对对象永不销毁、正常解锁回调不来。toplevelId 与当前锁定不匹配则空转。
+    void ReleaseLockForToplevel(uint32_t toplevelId);
 
     // -- warp 回调装配 (重构第 4C1 步: PointerExtras↔InputManager 单向化) --
     // wp_pointer_warp_v1 的 warp 请求与 Lock 约束销毁时的 cursor_position_hint
@@ -149,6 +153,8 @@ private:
     void ApplyHostCursorLock(bool lock, uint32_t toplevelId);
     std::vector<int32_t> hostWindowIds_;       // mutex_ 保护; 各 Ability 主窗口
     int32_t lockedWindowId_ = 0;               // 实际锁定成功的窗口 (0=未锁)
+    bool etsLockNotified_ = false;             // 已向 ets 通知 locked=true; 与 lockedWindowId_ 分离
+    uint32_t lockedToplevelId_ = 0;            // ReleaseLockForToplevel 按它匹配
     std::function<void(bool, uint32_t)> lockCallback_;   // mutex_ 保护
     // warp 回调装配 (4C1 解环): SetPointerWarpSink 在事件循环启动前一次性注入,
     // 之后只在 Wayland 线程读 → 无锁 (见头文件 Top 注释"warp 回调装配")。

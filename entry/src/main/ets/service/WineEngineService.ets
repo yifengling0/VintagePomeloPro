@@ -75,53 +75,154 @@ interface FontSubstitute {
 // while older prefixes predate the block entirely. Update only this registry
 // section directly before Wine starts instead of running the slow wineboot
 // --update.
+// Device fonts register localized family names. HarmonyOS_Sans_SC.ttf is
+// "鸿蒙黑体", not "HarmonyOS Sans SC". Noto CJK *.ttc also exposes JP first.
+// Point SC replacements at the registered SC TTF so GBK games (宋体) do not
+// pick the Japanese face. Keep the English alias for leftover lookups.
+const MASTER_FONT_SC = '鸿蒙黑体';
+const MASTER_FONT_SC_GB2312 = MASTER_FONT_SC + ',134';
+
+function isAsciiHexDigit(code: number): boolean {
+  return (code >= 0x30 && code <= 0x39) ||
+    (code >= 0x41 && code <= 0x46) ||
+    (code >= 0x61 && code <= 0x66);
+}
+
+// wineserver dumps non-ASCII as \xHH / \xHHHH; parse_strW also accepts UTF-8.
+// Match the dumped form so prefixFontSubstitutesCurrent() stays true after Wine
+// flushes system.reg.
+function wineRegistryEscape(text: string): string {
+  let out = '';
+  const len = text.length;
+  for (let i = 0; i < len; i++) {
+    const code = text.charCodeAt(i);
+    if (code > 127) {
+      let hex = code.toString(16);
+      const next = i + 1 < len ? text.charCodeAt(i + 1) : 0;
+      if (next > 0 && next <= 127 && isAsciiHexDigit(next)) {
+        while (hex.length < 4) {
+          hex = '0' + hex;
+        }
+      }
+      out += '\\x' + hex;
+    } else {
+      out += text.charAt(i);
+    }
+  }
+  return out;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+}
+
+function fontSubstituteRegistryLine(item: FontSubstitute): string {
+  return '"' + wineRegistryEscape(item.name) + '"="' + wineRegistryEscape(item.replacement) + '"';
+}
+
+function fontSubstituteRegistryKeys(item: FontSubstitute): string[] {
+  const escaped = wineRegistryEscape(item.name);
+  if (escaped === item.name) {
+    return [item.name];
+  }
+  return [escaped, item.name];
+}
+
+function fontSubstituteLinePresent(registry: string, item: FontSubstitute): boolean {
+  const escapedLine = fontSubstituteRegistryLine(item);
+  if (registry.includes(escapedLine)) {
+    return true;
+  }
+  const utf8Line = '"' + item.name + '"="' + item.replacement + '"';
+  return utf8Line !== escapedLine && registry.includes(utf8Line);
+}
+
 const MASTER_FONT_SUBSTITUTES: FontSubstitute[] = [
-  { name: 'System', replacement: 'HarmonyOS Sans SC' },
-  { name: 'MS Sans Serif', replacement: 'HarmonyOS Sans SC', persistent: false },
-  { name: 'MS Shell Dlg', replacement: 'HarmonyOS Sans SC' },
-  { name: 'MS Shell Dlg 2', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Arial', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Arial Black', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Calibri', replacement: 'HarmonyOS Sans SC' },
+  { name: 'HarmonyOS Sans SC', replacement: MASTER_FONT_SC },
+  { name: '宋体', replacement: MASTER_FONT_SC },
+  { name: '新宋体', replacement: MASTER_FONT_SC },
+  { name: '黑体', replacement: MASTER_FONT_SC },
+  { name: '楷体', replacement: MASTER_FONT_SC },
+  { name: '楷体_GB2312', replacement: MASTER_FONT_SC },
+  { name: '仿宋', replacement: MASTER_FONT_SC },
+  { name: '仿宋_GB2312', replacement: MASTER_FONT_SC },
+  { name: '微软雅黑', replacement: MASTER_FONT_SC },
+  { name: '萝莉体', replacement: MASTER_FONT_SC },
+  { name: 'Lolita', replacement: MASTER_FONT_SC },
+  { name: 'Noto Sans CJK KR', replacement: MASTER_FONT_SC },
+  { name: 'Noto Serif CJK JP', replacement: MASTER_FONT_SC },
+  { name: 'Noto Serif CJK KR', replacement: MASTER_FONT_SC },
+  { name: '宋体,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: '新宋体,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: '黑体,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: '微软雅黑,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: '萝莉体,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: 'Lolita,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: 'System', replacement: MASTER_FONT_SC },
+  { name: 'MS Sans Serif', replacement: MASTER_FONT_SC, persistent: false },
+  { name: 'MS Shell Dlg', replacement: MASTER_FONT_SC },
+  { name: 'MS Shell Dlg 2', replacement: MASTER_FONT_SC },
+  { name: 'Arial', replacement: MASTER_FONT_SC },
+  { name: 'Arial Black', replacement: MASTER_FONT_SC },
+  { name: 'Calibri', replacement: MASTER_FONT_SC },
   { name: 'Cambria', replacement: 'Noto Serif' },
-  { name: 'Candara', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Comic Sans MS', replacement: 'HarmonyOS Sans SC' },
+  { name: 'Candara', replacement: MASTER_FONT_SC },
+  { name: 'Comic Sans MS', replacement: MASTER_FONT_SC },
   { name: 'Constantia', replacement: 'Noto Serif' },
-  { name: 'Corbel', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Impact', replacement: 'HarmonyOS Sans SC' },
+  { name: 'Corbel', replacement: MASTER_FONT_SC },
+  { name: 'Impact', replacement: MASTER_FONT_SC },
   { name: 'Palatino Linotype', replacement: 'Noto Serif' },
-  { name: 'Segoe UI', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Tahoma', replacement: 'HarmonyOS Sans SC', persistent: false },
-  { name: 'Trebuchet MS', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Verdana', replacement: 'HarmonyOS Sans SC' },
+  { name: 'Segoe UI', replacement: MASTER_FONT_SC },
+  { name: 'Tahoma', replacement: MASTER_FONT_SC, persistent: false },
+  { name: 'Trebuchet MS', replacement: MASTER_FONT_SC },
+  { name: 'Verdana', replacement: MASTER_FONT_SC },
   { name: 'Georgia', replacement: 'Noto Serif' },
   { name: 'Times New Roman', replacement: 'Noto Serif' },
   { name: 'Microsoft JhengHei', replacement: 'HarmonyOS Sans TC', persistent: false },
   { name: 'Microsoft JhengHei UI', replacement: 'HarmonyOS Sans TC', persistent: false },
-  { name: 'Microsoft YaHei', replacement: 'HarmonyOS Sans SC' },
-  { name: 'Microsoft YaHei UI', replacement: 'HarmonyOS Sans SC' },
-  { name: 'SimSun', replacement: 'Noto Serif CJK SC' },
-  { name: 'NSimSun', replacement: 'Noto Serif CJK SC' },
-  { name: 'SimHei', replacement: 'HarmonyOS Sans SC' },
-  { name: 'FangSong', replacement: 'Noto Serif CJK SC' },
-  { name: 'KaiTi', replacement: 'Noto Serif CJK SC' },
-  { name: 'YouYuan', replacement: 'HarmonyOS Sans SC' },
-  { name: 'LiSu', replacement: 'HarmonyOS Sans SC' },
-  { name: 'DengXian', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STSong', replacement: 'Noto Serif CJK SC' },
-  { name: 'STKaiti', replacement: 'Noto Serif CJK SC' },
-  { name: 'STFangsong', replacement: 'Noto Serif CJK SC' },
-  { name: 'STHeiti', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STXihei', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STLiti', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STXingkai', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STXinwei', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STHupo', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STCaiyun', replacement: 'HarmonyOS Sans SC' },
-  { name: 'STZhongSong', replacement: 'Noto Serif CJK SC' },
-  { name: 'STBaoli', replacement: 'Noto Serif CJK SC' },
-  { name: 'FZShuTi', replacement: 'HarmonyOS Sans SC' },
-  { name: 'FZYaoti', replacement: 'HarmonyOS Sans SC' },
+  { name: 'MS Gothic', replacement: MASTER_FONT_SC },
+  { name: 'MS PGothic', replacement: MASTER_FONT_SC },
+  { name: 'MS UI Gothic', replacement: MASTER_FONT_SC },
+  { name: 'Noto Sans CJK JP', replacement: MASTER_FONT_SC },
+  { name: 'Microsoft YaHei', replacement: MASTER_FONT_SC },
+  { name: 'Microsoft YaHei UI', replacement: MASTER_FONT_SC },
+  { name: 'SimSun', replacement: MASTER_FONT_SC },
+  { name: 'NSimSun', replacement: MASTER_FONT_SC },
+  { name: 'SimSun,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: 'NSimSun,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: 'Microsoft YaHei,134', replacement: MASTER_FONT_SC_GB2312 },
+  { name: 'SimHei', replacement: MASTER_FONT_SC },
+  { name: 'FangSong', replacement: MASTER_FONT_SC },
+  { name: 'KaiTi', replacement: MASTER_FONT_SC },
+  { name: 'YouYuan', replacement: MASTER_FONT_SC },
+  { name: 'LiSu', replacement: MASTER_FONT_SC },
+  { name: 'DengXian', replacement: MASTER_FONT_SC },
+  { name: 'STSong', replacement: MASTER_FONT_SC },
+  { name: 'STKaiti', replacement: MASTER_FONT_SC },
+  { name: 'STFangsong', replacement: MASTER_FONT_SC },
+  { name: 'STHeiti', replacement: MASTER_FONT_SC },
+  { name: 'STXihei', replacement: MASTER_FONT_SC },
+  { name: 'STLiti', replacement: MASTER_FONT_SC },
+  { name: 'STXingkai', replacement: MASTER_FONT_SC },
+  { name: 'STXinwei', replacement: MASTER_FONT_SC },
+  { name: 'STHupo', replacement: MASTER_FONT_SC },
+  { name: 'STCaiyun', replacement: MASTER_FONT_SC },
+  { name: 'STZhongSong', replacement: MASTER_FONT_SC },
+  { name: 'STBaoli', replacement: MASTER_FONT_SC },
+  { name: 'FZShuTi', replacement: MASTER_FONT_SC },
+  { name: 'FZYaoti', replacement: MASTER_FONT_SC },
+  { name: '汉仪魏碑', replacement: '汉仪魏碑简' },
+  { name: '汉仪魏碑,134', replacement: '汉仪魏碑简,134' },
+  { name: 'HYWeiBei', replacement: '汉仪魏碑简' },
+  { name: 'hyh1gjm', replacement: '汉仪魏碑简' },
+  { name: '汉仪中黑', replacement: '汉仪中黑 简' },
+  { name: '汉仪中黑简', replacement: '汉仪中黑 简' },
+  { name: '汉仪中黑,134', replacement: '汉仪中黑 简,134' },
+  { name: 'hyb1gjm', replacement: '汉仪中黑 简' },
+  { name: '汉仪柏青体', replacement: '汉仪柏青体简' },
+  { name: '汉仪柏青简', replacement: '汉仪柏青体简' },
+  { name: '华康少女体', replacement: '华康少女文字W5' },
+  { name: 'hksnt', replacement: '华康少女文字W5' },
   { name: 'MingLiU', replacement: 'HarmonyOS Sans TC', persistent: false },
   { name: 'PMingLiU', replacement: 'HarmonyOS Sans TC', persistent: false },
   { name: 'DFKai-SB', replacement: 'Noto Serif CJK TC' },
@@ -131,6 +232,100 @@ const MASTER_FONT_SUBSTITUTES: FontSubstitute[] = [
   { name: 'Fixedsys', replacement: 'Noto Sans Mono' },
   { name: 'Lucida Console', replacement: 'Noto Sans Mono' }
 ];
+
+// Game TTFs registered via AddFontResourceEx must keep their own family names.
+// Older prefixes mapped these to 鸿蒙黑体, which then served Hangul/kana at GBK
+// code points. Strip leftover keys even when the master list is otherwise current.
+// Real game TTF families must not be redirected to 鸿蒙黑体. Alias keys for
+// slightly-wrong CreateFont names live in MASTER_FONT_SUBSTITUTES instead.
+const OBSOLETE_GAME_FONT_SUBSTITUTES: string[] = [
+  '汉仪魏碑简', 'HYWeiBeiJ',
+  '汉仪中黑 简', 'HYZhongHeiJ', 'HYZhongHei',
+  '汉仪柏青体简', 'HYBaiQingJ', 'HYBaiQing',
+  '华康少女文字W5',
+  '方正胖头鱼简体'
+];
+
+function fontSubstituteRegistryKey(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('"')) {
+    return '';
+  }
+  const end = trimmed.indexOf('"=', 1);
+  if (end < 0) {
+    return '';
+  }
+  return trimmed.substring(1, end);
+}
+
+function unescapeWineRegistryKey(key: string): string {
+  let out = '';
+  for (let i = 0; i < key.length; i++) {
+    if (key.charAt(i) === '\\' && i + 1 < key.length && key.charAt(i + 1) === 'x') {
+      let hex = '';
+      let j = i + 2;
+      while (j < key.length && isAsciiHexDigit(key.charCodeAt(j)) && hex.length < 4) {
+        hex += key.charAt(j);
+        j++;
+      }
+      if (hex.length > 0) {
+        out += String.fromCharCode(parseInt(hex, 16));
+        i = j - 1;
+        continue;
+      }
+    }
+    out += key.charAt(i);
+  }
+  return out;
+}
+
+function isObsoleteGameFontSubstituteKey(key: string): boolean {
+  const decoded = unescapeWineRegistryKey(key);
+  const base = decoded.split(',')[0];
+  return OBSOLETE_GAME_FONT_SUBSTITUTES.indexOf(base) >= 0 ||
+    OBSOLETE_GAME_FONT_SUBSTITUTES.indexOf(decoded) >= 0;
+}
+
+function registryHasObsoleteGameFontSubstitutes(registry: string): boolean {
+  const lines = registry.split('\n');
+  let inSection = false;
+  for (let i = 0; i < lines.length; i++) {
+    const stripped = lines[i].trim();
+    if (stripped.indexOf('FontSubstitutes') >= 0 && stripped.startsWith('[')) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && stripped.startsWith('[')) {
+      break;
+    }
+    if (inSection && isObsoleteGameFontSubstituteKey(fontSubstituteRegistryKey(stripped))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function stripObsoleteGameFontSubstitutes(registry: string): string {
+  const lines = registry.split('\n');
+  const kept: string[] = [];
+  let inSection = false;
+  for (let i = 0; i < lines.length; i++) {
+    const stripped = lines[i].trim();
+    if (stripped.indexOf('FontSubstitutes') >= 0 && stripped.startsWith('[')) {
+      inSection = true;
+      kept.push(lines[i]);
+      continue;
+    }
+    if (inSection && stripped.startsWith('[')) {
+      inSection = false;
+    }
+    if (inSection && isObsoleteGameFontSubstituteKey(fontSubstituteRegistryKey(stripped))) {
+      continue;
+    }
+    kept.push(lines[i]);
+  }
+  return kept.join('\n');
+}
 
 const REQUIRED_RUNTIME_PATHS: RuntimePathRequirement[] = [
   { path: PREFIX_MARKER, label: 'share/wine/wine.inf' },
@@ -199,6 +394,149 @@ function ensureDirectory(path: string): void {
   if (!pathExists(path)) {
     fs.mkdirSync(path, true);
   }
+}
+
+// Wine opens C:\windows\fonts in lowercase. OHOS paths are case-sensitive, so a
+// user-imported C:\windows\Fonts directory is invisible to GDI and games that
+// CreateFont() a packed face (萝莉体) get a random /system/fonts fallback.
+const WINE_WINDOWS_DIR = PREFIX_DIR + '/drive_c/windows';
+const WINE_FONTS_DIR = WINE_WINDOWS_DIR + '/fonts';
+const WINE_FONTS_DIR_LEGACY = WINE_WINDOWS_DIR + '/Fonts';
+
+function ensureWineFontsDirectory(): void {
+  if (!pathExists(WINE_WINDOWS_DIR)) return;
+  const hasLower = pathExists(WINE_FONTS_DIR);
+  const hasUpper = pathExists(WINE_FONTS_DIR_LEGACY);
+  if (hasUpper && !hasLower) {
+    fs.renameSync(WINE_FONTS_DIR_LEGACY, WINE_FONTS_DIR);
+    hilog.info(DOMAIN, TAG, 'renamed C:\\windows\\Fonts to fonts for case-sensitive Wine lookup');
+    return;
+  }
+  if (!hasUpper || !hasLower) return;
+  const names = fs.listFileSync(WINE_FONTS_DIR_LEGACY);
+  for (let i = 0; i < names.length; i++) {
+    const src = WINE_FONTS_DIR_LEGACY + '/' + names[i];
+    const dst = WINE_FONTS_DIR + '/' + names[i];
+    if (!pathExists(dst)) {
+      fs.renameSync(src, dst);
+    } else {
+      try { fs.unlinkSync(src); } catch (_) {}
+    }
+  }
+  try { fs.rmdirSync(WINE_FONTS_DIR_LEGACY); } catch (_) {}
+  hilog.info(DOMAIN, TAG, 'merged legacy C:\\windows\\Fonts into fonts');
+}
+
+const WINE_SHARE_FONTS = WINE_ROOT + '/share/wine/fonts';
+
+function importedFontShouldPublish(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (lower === '1.ttf' || lower === '1.otf' || lower === '1.ttc') return true;
+  if (lower.indexOf('simsun') >= 0 || lower.indexOf('simhei') >= 0 ||
+    lower.indexOf('simkai') >= 0 || lower.indexOf('msyh') >= 0) return true;
+  if (lower.indexOf('lolita') >= 0) return true;
+  if (name.indexOf('萝莉') >= 0 || name.indexOf('安装字体') >= 0) return true;
+  return false;
+}
+
+// Wine's unix NT path through $WINEPREFIX cannot see ".wine" (dotfiles hidden),
+// and C:\\windows\\fonts directory enumeration does not surface imported TTFs.
+// Copy the CJK faces this title needs into share/wine/fonts, which Wine already
+// loads via \\??\\unix\\...\\wine\\share\\wine\\fonts (see marlett.ttf).
+function copyImportedFontsIntoWineShare(): void {
+  if (!pathExists(WINE_FONTS_DIR) || !pathExists(WINE_SHARE_FONTS)) return;
+  const names = fs.listFileSync(WINE_FONTS_DIR);
+  let copied = 0;
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    if (!importedFontShouldPublish(name)) continue;
+    const src = WINE_FONTS_DIR + '/' + name;
+    const dst = WINE_SHARE_FONTS + '/' + name;
+    try {
+      if (pathExists(dst) && fs.statSync(src).size === fs.statSync(dst).size) continue;
+      copyRecursiveOrThrow(src, dst);
+      copied++;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, 'failed to publish imported font %{public}s: %{public}s',
+        name, JSON.stringify(error));
+    }
+  }
+  if (copied > 0) {
+    hilog.info(DOMAIN, TAG, 'published %{public}d imported fonts into wine share/fonts', copied);
+  }
+}
+
+function wineUnixNtRegPath(unixPath: string): string {
+  return '\\\\??\\\\unix' + unixPath.split('/').join('\\\\');
+}
+
+interface ImportedFontFace {
+  face: string;
+  file: string;
+}
+
+const IMPORTED_FONT_FACES: ImportedFontFace[] = [
+  { face: 'Lolita', file: '1.ttf' },
+  { face: '萝莉体', file: '1.ttf' },
+  { face: 'Microsoft YaHei', file: 'msyh.ttc' },
+  { face: 'Microsoft YaHei UI', file: 'msyh.ttc' }
+];
+
+const FONTS_REGISTRY_SECTIONS: string[] = [
+  '[Software\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\Fonts]',
+  '[Software\\\\Wow6432Node\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\Fonts]',
+  '[Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Fonts]'
+];
+
+function importedFontRegistryLine(face: ImportedFontFace): string {
+  return '"' + wineRegistryEscape(face.face) + ' (TrueType)"="' +
+    wineUnixNtRegPath(WINE_SHARE_FONTS + '/' + face.file) + '"';
+}
+
+function upsertRegistrySectionLine(registry: string, sectionHeader: string, line: string): string {
+  const sectionStart = registry.indexOf(sectionHeader);
+  if (sectionStart < 0) return registry;
+  let sectionEnd = registry.indexOf('\n[', sectionStart + sectionHeader.length);
+  if (sectionEnd < 0) sectionEnd = registry.length;
+  const section = registry.substring(sectionStart, sectionEnd);
+  if (section.indexOf(line) >= 0) return registry;
+  const eq = line.indexOf('=');
+  if (eq < 0) return registry;
+  const keyRe = new RegExp('^' + escapeRegExp(line.substring(0, eq + 1)) + '.*$', 'm');
+  const nextSection = keyRe.test(section)
+    ? section.replace(keyRe, line)
+    : section + (section.endsWith('\n') ? '' : '\n') + line + '\n';
+  return registry.substring(0, sectionStart) + nextSection + registry.substring(sectionEnd);
+}
+
+// Directory enumeration of both C:\\windows\\fonts and share/wine/fonts misses
+// newly copied TTFs. load_registry_fonts() still loads a full unix NT path, which
+// is how marlett.ttf gets into GDI. Register 萝莉体 the same way.
+function ensureImportedFontFacesRegistered(): void {
+  if (!pathExists(PREFIX_SYSTEM_REG) || !pathExists(WINE_SHARE_FONTS)) return;
+  let registry = fs.readTextSync(PREFIX_SYSTEM_REG);
+  let changed = false;
+  IMPORTED_FONT_FACES.forEach((face: ImportedFontFace) => {
+    if (!pathExists(WINE_SHARE_FONTS + '/' + face.file)) return;
+    const line = importedFontRegistryLine(face);
+    FONTS_REGISTRY_SECTIONS.forEach((header: string) => {
+      const updated = upsertRegistrySectionLine(registry, header, line);
+      if (updated !== registry) {
+        registry = updated;
+        changed = true;
+      }
+    });
+  });
+  if (!changed) return;
+  const temporary = PREFIX_SYSTEM_REG + '.winehua-fontfaces.tmp';
+  const output = fs.openSync(temporary, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
+  try {
+    fs.writeSync(output.fd, registry);
+  } finally {
+    fs.closeSync(output);
+  }
+  fs.renameSync(temporary, PREFIX_SYSTEM_REG);
+  hilog.info(DOMAIN, TAG, 'registered imported CJK faces in HKLM Fonts');
 }
 
 function isDirectory(path: string): boolean {
@@ -353,6 +691,9 @@ export class WineEngineService {
   private enginePhase: string = '';
   private phaseStartedAt: number = 0;
   private readySafetyTimer: number = -1;
+  // Want 自动化 (winehua.autoStart / winehua.program): 挂在本服务, 不引入 WineEnvService
+  autoStartPending: boolean = false;
+  private autoProgram: string = '';
 
   static getInstance(): WineEngineService {
     if (!WineEngineService.instance) WineEngineService.instance = new WineEngineService();
@@ -364,6 +705,39 @@ export class WineEngineService {
     if (this.callbackInstalled) return;
     this.callbackInstalled = true;
     testNapi.setStateCallback((raw: string) => this.handleNativeState(raw));
+  }
+
+  setAutoProgram(v: string): void {
+    this.autoProgram = v;
+  }
+
+  getAutoProgram(): string {
+    return this.autoProgram;
+  }
+
+  consumeAutoProgram(): string {
+    const p = this.autoProgram;
+    this.autoProgram = '';
+    return p;
+  }
+
+  consumeAutoStart(): boolean {
+    if (!this.autoStartPending) return false;
+    this.autoStartPending = false;
+    return true;
+  }
+
+  /**
+   * Want 自动化: 按当前 applyModePolicy 拉起引擎 (autoStart / program 共用)。
+   */
+  async ensureEngineReady(): Promise<boolean> {
+    if (!this.context) return false;
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    const home = this.homeDirectory.length > 0 ? this.homeDirectory :
+      '/storage/Users/currentUser/Download/com.vintage.pomelopro';
+    WineWindowManager.getInstance().applyModePolicy();
+    return this.ensureReady(settings.defaultDisplayMode,
+      WineWindowManager.getInstance().presentationMode, home);
   }
 
   getState(): EngineState {
@@ -509,7 +883,7 @@ export class WineEngineService {
       const prefixRefreshRequired = await this.ensureRuntimeInstalled(bundledRuntimeVersion);
       this.prefixRefreshRequired = prefixRefreshRequired;
       this.pendingPrefixVersion = prefixRefreshRequired ? bundledRuntimeVersion : new Uint8Array(0);
-      // 桌面模式按最新设置统一判定 (PC: 融合=独立窗口 / 虚拟桌面; Pad/phone 恒桌面)。
+      // 桌面模式按最新设置统一判定 (phone 恒虚拟; tablet 默虚拟可切多窗口; PC 按设置)。
       // 切换后重启引擎即生效 — applyModePolicy 内部已同步 native setDesktopMode。
       WineWindowManager.getInstance().applyModePolicy();
       this.presentationMode = WineWindowManager.getInstance().presentationMode;
@@ -1042,9 +1416,11 @@ export class WineEngineService {
     if (!pathExists(PREFIX_SYSTEM_REG)) return false;
     try {
       const registry = fs.readTextSync(PREFIX_SYSTEM_REG);
+      if (registryHasObsoleteGameFontSubstitutes(registry)) {
+        return false;
+      }
       return MASTER_FONT_SUBSTITUTES.every((item: FontSubstitute) =>
-        item.persistent === false ||
-        registry.includes('"' + item.name + '"="' + item.replacement + '"'));
+        item.persistent === false || fontSubstituteLinePresent(registry, item));
     } catch (_) {
       return false;
     }
@@ -1055,14 +1431,20 @@ export class WineEngineService {
     const temporary = PREFIX_SYSTEM_REG + '.winehua-fonts.tmp';
     let output: fs.File | null = null;
     try {
-      let registry = fs.readTextSync(PREFIX_SYSTEM_REG);
+      let registry = stripObsoleteGameFontSubstitutes(fs.readTextSync(PREFIX_SYSTEM_REG));
       let additions = '';
       MASTER_FONT_SUBSTITUTES.forEach((item: FontSubstitute) => {
-        const line = '"' + item.name + '"="' + item.replacement + '"';
-        const pattern = new RegExp('^"' + item.name + '"=.*$', 'm');
-        if (pattern.test(registry)) {
-          registry = registry.replace(pattern, line);
-        } else {
+        const line = fontSubstituteRegistryLine(item);
+        let replaced = false;
+        fontSubstituteRegistryKeys(item).forEach((key: string) => {
+          const pattern = new RegExp('^"' + escapeRegExp(key) + '"=.*$', 'm');
+          const next = registry.replace(pattern, line);
+          if (next !== registry) {
+            registry = next;
+            replaced = true;
+          }
+        });
+        if (!replaced) {
           additions += line + '\n';
         }
       });
@@ -1156,6 +1538,13 @@ export class WineEngineService {
     // Recover or reconcile a marker stashed by a previous interrupted extract
     // before deciding whether this runtime is complete.
     this.reconcilePreservedWineInf();
+    try {
+      ensureWineFontsDirectory();
+      copyImportedFontsIntoWineShare();
+      ensureImportedFontFacesRegistered();
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, 'Wine fonts directory migration failed: %{public}s', JSON.stringify(error));
+    }
     const missingBefore = this.getMissingRuntimePaths();
     const versionMatches = this.runtimeVersionMatches(bundledVersion);
     const prefixMatches = this.prefixVersionMatches(bundledVersion);
@@ -1225,6 +1614,8 @@ export class WineEngineService {
       if (!this.writeVersionMarker(RUNTIME_VERSION_MARKER, bundledVersion)) {
         throw new Error('Unable to persist Wine runtime version marker');
       }
+      copyImportedFontsIntoWineShare();
+      ensureImportedFontFacesRegistered();
     } finally {
       this.context.resourceManager.closeRawFdSync('wine-data.zip');
       try { fs.unlinkSync(temporaryZip); } catch (_) {}

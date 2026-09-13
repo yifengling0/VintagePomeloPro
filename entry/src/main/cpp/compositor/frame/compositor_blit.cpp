@@ -1,5 +1,6 @@
 #include "compositor/frame/compositor_blit.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -141,4 +142,17 @@ void BlitClipAlpha(uint8_t* dstRow, const uint8_t* srcRow, int copyW,
             }
         }
     }
+}
+
+bool IsFullyOpaqueArgb(const uint8_t* pixels, int stridePx, int w, int h)
+{
+    if (!pixels || stridePx < w || w <= 0 || h <= 0) return false;
+    for (int y = 0; y < h; ++y) {
+        const uint32_t* row = reinterpret_cast<const uint32_t*>(
+            pixels + static_cast<size_t>(y) * stridePx * 4);
+        for (int x = 0; x < w; ++x) {
+            if ((row[x] & 0xFF000000u) != 0xFF000000u) return false;
+        }
+    }
+    return true;
 }

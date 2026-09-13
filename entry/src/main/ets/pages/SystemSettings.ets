@@ -683,8 +683,9 @@ struct SystemSettingsPage {
   }
 
   /**
-   * PC 桌面模式切换 (融合=每程序独立窗口 / 虚拟桌面=独立窗口承载 Wine 桌面)。
-   * 持久化到 DesktopService (Preferences); 模式需重启 Wine 才生效 —
+   * 桌面模式切换 (PC 融合=每程序独立 Ability / 平板多窗口=Fusion 子窗口 /
+   * 虚拟桌面=桌面合成器)。phone 不展示此项。
+   * 持久化到 DesktopModeService (Preferences); 模式需重启 Wine 才生效 —
    * 直接重启应用最干净 (结束 Wine 进程并重新初始化), 弹窗给用户选择。
    * await setMode: 确保 Preferences 落盘完成再给"重启应用"入口, 否则立即
    * 重启会读到旧模式 (flush 未完成丢失写入)。
@@ -738,16 +739,16 @@ struct SystemSettingsPage {
     '/data/storage/el2/base/files/.wine/drive_c/windows/';
 
   private wineFontsDir(): string {
-    try {
-      if (fs.accessSync(SystemSettingsPage.WINE_WINDOWS_DIR + 'Fonts')) {
-        return SystemSettingsPage.WINE_WINDOWS_DIR + 'Fonts';
-      }
-      if (fs.accessSync(SystemSettingsPage.WINE_WINDOWS_DIR + 'fonts')) {
-        return SystemSettingsPage.WINE_WINDOWS_DIR + 'fonts';
-      }
-    } catch (_) {
+    const lower = SystemSettingsPage.WINE_WINDOWS_DIR + 'fonts';
+    const upper = SystemSettingsPage.WINE_WINDOWS_DIR + 'Fonts';
+    let hasLower = false;
+    let hasUpper = false;
+    try { hasLower = !!fs.accessSync(lower); } catch (_) {}
+    try { hasUpper = !!fs.accessSync(upper); } catch (_) {}
+    if (hasUpper && !hasLower) {
+      try { fs.renameSync(upper, lower); } catch (_) {}
     }
-    return SystemSettingsPage.WINE_WINDOWS_DIR + 'Fonts';
+    return lower;
   }
 
   private async importFontZip(): Promise<void> {
@@ -1839,11 +1840,12 @@ struct SystemSettingsPage {
               (value: boolean): void => this.updateFloatingMode(value),
               'floating-mode')
           }
-          if (!DeviceCapabilityPolicy.isTabletDevice() && !DeviceCapabilityPolicy.isPhoneDevice()) {
+          if (!DeviceCapabilityPolicy.isPhoneDevice()) {
             Text('桌面模式').fontSize(14).fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.text_primary')).width('100%')
             Row({ space: 8 }) {
-              Button('融合（每程序独立窗口）').layoutWeight(1).height(48).borderRadius(14)
+              Button(DeviceCapabilityPolicy.isTabletDevice() ? '多窗口' : '融合（每程序独立窗口）')
+                .layoutWeight(1).height(48).borderRadius(14)
                 .fontSize(this.isNarrowPhone() ? 11 : 13)
                 .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
                 .backgroundColor(DesktopModeService.getInstance().mode === MODE_FUSION ? $r('app.color.accent') : $r('app.color.search_background'))
@@ -1856,7 +1858,10 @@ struct SystemSettingsPage {
                 .fontColor(DesktopModeService.getInstance().mode === MODE_VIRTUAL ? '#FFFFFFFF' : $r('app.color.text_primary'))
                 .onClick(() => { this.updateDesktopMode(MODE_VIRTUAL); })
             }.width('100%')
-            Text('融合：每个程序独立窗口；虚拟桌面：独立窗口承载 Wine 桌面（重启引擎后生效）。').fontSize(12)
+            Text(DeviceCapabilityPolicy.isTabletDevice() ?
+              '多窗口：每个程序独立子窗口；虚拟桌面：桌面合成器（重启引擎后生效）。' :
+              '融合：每个程序独立窗口；虚拟桌面：独立窗口承载 Wine 桌面（重启引擎后生效）。')
+              .fontSize(12)
               .fontColor($r('app.color.text_secondary')).width('100%')
           }
           this.SwitchRow('桌面打开时保持亮屏',

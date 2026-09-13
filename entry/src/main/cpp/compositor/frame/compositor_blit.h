@@ -25,3 +25,8 @@ enum class PixelBlend { SrcOnly, Normal };
 // 裁剪后像素数。alphaBlend=false → 整行不透明 memcpy (含 alpha 通道)。
 void BlitClipAlpha(uint8_t* dstRow, const uint8_t* srcRow, int copyW,
                    bool alphaBlend, PixelBlend blend);
+
+// ARGB 层是否逐像素不透明 (alpha 全 255)。窗口内 blit 与 desktop 快照
+// 共用同一语义: GL readback 客户区常为 ARGB 格式但 alpha 全 255, 只按
+// 格式判会走 alpha 混合 → 画面发暗/透底。stridePx 为行跨距 (像素, 可 > w)。
+bool IsFullyOpaqueArgb(const uint8_t* pixels, int stridePx, int w, int h);

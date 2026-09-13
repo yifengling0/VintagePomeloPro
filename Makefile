@@ -489,8 +489,13 @@ test: graphics-contract-check test-text-input test-process-lifecycle test-audio-
 	$(HOST_TEST_DIR)/blit_scaled_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/blit_clip_test \
-	    $(ROOT)/host_tests/blit_clip_test.cpp
+	    $(ROOT)/host_tests/blit_clip_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/frame/compositor_blit.cpp
 	$(HOST_TEST_DIR)/blit_clip_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/display_policy_test \
+	    $(ROOT)/host_tests/display_policy_test.cpp
+	$(HOST_TEST_DIR)/display_policy_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/shm_frame_source_test \
 	    $(ROOT)/host_tests/shm_frame_source_test.cpp \

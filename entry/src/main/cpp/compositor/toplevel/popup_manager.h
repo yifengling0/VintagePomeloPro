@@ -37,8 +37,7 @@ struct ShmCommitInfo;
 // UnmapToplevelSurface 对称清除 (原 RemovePopupDataLocked 的 toplevels_ /
 // toplevelSurfaceMap_ 段, 行为逐字)。
 //
-// -- popup 窗口/内容尺寸解耦补丁 (PLAN §2.5, war3 PC 模式 GL client surface
-//    缩左上) 随 UpdatePopupOnCommit 正文平移, 见 cpp 定义处 --
+// -- popup 窗口/内容尺寸: 上报值 = 内容像素尺寸 (旧 war3 全屏父启发式已退役)
 class PopupManager {
 public:
     PopupManager(ToplevelManager& tmgr, int32_t& outputW, int32_t& outputH);
@@ -67,7 +66,7 @@ public:
         uint32_t popupId = 0;
         uint32_t parentId = 0;
         int32_t offX = 0, offY = 0;
-        int32_t winW = 0, winH = 0;      // 窗口上报尺寸 (全屏父补丁后)
+        int32_t winW = 0, winH = 0;      // 窗口上报尺寸
         int32_t dispW = 0, dispH = 0;    // 裁剪后内容显示尺寸 (仅 show 日志用)
         uint32_t shmFormat = 1;          // 0=ARGB8888 (show 日志 argb 位用)
     };

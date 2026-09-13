@@ -226,6 +226,7 @@ export class PopupWindowManager {
       }
     }).catch((e: Error) => {
       this.creating.delete(popupId);
+      testNapi.cancelPendingToplevel(popupId);  // 创建失败 → 同样清残坑
       hilog.error(DOMAIN, TAG, '[POPUP] #%{public}d createSubWindow FAILED: %{public}s',
         popupId, JSON.stringify(e));
     });
@@ -265,6 +266,11 @@ export class PopupWindowManager {
   private hide(popupId: number): void {
     if (this.creating.has(popupId)) {
       this.pendingDestroy.add(popupId);
+      // 窗口关闭于创建中 (destroy-while-creating): 页面可能未执行 aboutToAppear,
+      // pending 队列里的 id 无人消费 (残坑) — 立即清除, 否则后续每个 popup
+      // 出队拿到这个死 id → 渲染器挂错 toplevel 黑屏。页面已出队
+      // 时队列无此 id, cancel 是 no-op。
+      testNapi.cancelPendingToplevel(popupId);
       return;
     }
     const entry = this.popups.get(popupId);
@@ -318,6 +324,17 @@ export class PopupWindowManager {
     const gx = Math.round(rect.left + entry.offX * scale);
     const gy = Math.round(rect.top + entry.offY * scale);
     await entry.subWin.moveWindowToGlobal(gx, gy);
+  }
+
+  // z 单元提升: 主窗点击置顶时其全部 popup 必须提到主窗之上 (否则画面被
+  // 白壳主窗盖住)。主窗先 raise、popup 后 raise, 保证"画面在顶层"。
+  raisePopups(parentToplevel: number): void {
+    this.popups.forEach((entry) => {
+      if (entry.parentToplevel !== parentToplevel || !entry.subWin) return;
+      try {
+        entry.subWin.raiseToAppTop().catch(() => { /* ignore */ });
+      } catch (_) { /* ignore */ }
+    });
   }
 
   // 诊断: 某父窗口是否有活动 popup

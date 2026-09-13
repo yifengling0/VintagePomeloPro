@@ -4,7 +4,52 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
-> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `5dc2ceb5`）。下次同步先 `git fetch winehua && git log 5dc2ceb5..winehua/master --oneline`，避免重复合并。
+> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `ae2cfa63`）。下次同步先 `git fetch winehua && git log ae2cfa63..winehua/master --oneline`，避免重复合并。
+
+### 2026-09-13 对齐 ARGB 普通窗口 + 光标锁退出 + Fusion modal + msstyles（ae2cfa63）
+
+- 分支：产品线 `sync/winehua-pad-fusion-inline`。
+- 镜像：`winehua/master` @ `ae2cfa63`。
+- 原则：按功能 cherry-pick/适配，不整仓 merge。不上游 Index / WineEnvService / 品牌。wine gitlink 不跟随 `93c7c58`。
+- 已落地：
+  - ARGB 首帧与 XRGB 同走 `created`（Fusion subWindow 或 `WineWindowAbility`）；删除 `ArgbWindowManager.ets` 与 `takeWindowMask` NAPI。
+  - `pointer_extras`：`etsLockNotified_` 与锁定成功分离；`ReleaseLockForToplevel`；`WineWindowManager.clearPointerLockFor`。
+  - `ModalWindowManager`：Fusion 相对 owner 居中并钳屏；`w/h=0` 不覆盖；re-show 补 `showWindow`。
+  - `applyModePolicy` 后写 `AppStorage` 桌面模式镜像。
+  - `WineWindow` Stack / Ability / Fusion 子窗口黑底，避免浅色模式 ARGB 透白。
+  - `assemble.sh` 打包 `*.msstyles`；wine 工作树 cherry-pick 标题栏主题 → `45e32e8d2ab`；保留未提交 FONT_AA / mfplat / ntdll locale。
+  - 产品 `Index`「运行中」导航附个数（仅 >0 显示括号）。
+  - 乱码修复：`patches/wine/0010-ohos-font-aa-override.patch` + `launchExecutable` 注入 `WINEHUA_FONT_AA=bitmap`。
+- 跳过：推进父仓 `thirdparty/wine` gitlink；上游 `WineEnvService` 标题栏。
+- 版本：1.3.8（1003008）
+- 验证：本轮 Docker ARM64 API 23 未签名 HAP + 调试签名 HAP + `proRelease` 上架 APP。
+
+### 2026-09-12 对齐 DXVK d3d10 native + OHOS noexec + VirGL fence 缓存（151d38bf）
+
+- 分支：产品线 `sync/winehua-pad-fusion-inline`（叠在 `main` @ `50efd6fb` / rc-1.3.6；工作区含 1.3.7 平板 fusion，**版本不升**）。
+- 镜像：`winehua/master` @ `151d38bf`。
+- 原则：按功能 cherry-pick/适配，不整仓 merge。不上游 Index / WineEnvService / 品牌 / 版本号。wine gitlink 不跟随 `f085bc22`。virgl gitlink 不跟随 `6627c031`（产品 pin 是 `670ff196` Maleoon shadow upload，与上游 `ba8e4fa8` 同题分叉）。
+- 已落地：
+  - `wine_env.cpp`：DXVK legacy 的 `WINEDLLOVERRIDES` 补 `d3d10=n;d3d10_1=n;d3d10core=n`（纯 native，不能 `n,b`）；vkd3d overlay 覆盖同一串以免冲掉；modern 2.6 / vkd3d demo 仍只 `d3d11+dxgi`。assemble 已打这三个 DLL，未再抄上游 assemble 段。
+  - Wine 工作树：`b74ddbb61d7` 上 cherry-pick `0b1a274e`（PE 头 `pread`）+ `f085bc22`（`ohos_mprotect_exec` 匿名页兜底）→ `9b934b28779`；`dlls/mfplat/main.c` MPEG4 handler 仍为未提交脏改。
+  - VirGL 工作树：`670ff196` 上 cherry-pick `6627c031` → `fde243e1`（`eglGetProcAddress` 缓存 fence 指针，避免 libepoxy 在 GL context 销毁后 abort）。
+- 跳过：推进父仓 `thirdparty/wine` / `thirdparty/virglrenderer` gitlink。
+- 版本：保持 1.3.7（1003007）
+- 验证：见本轮 Docker ARM64 API 23 未签名 HAP + 调试签名 HAP + `proRelease` 上架 APP。
+
+### 2026-09-11 对齐平板多窗口 / InlineClient（03c2384e）
+
+- 分支：产品线 `sync/winehua-pad-fusion-inline`（叠在 `main` @ `50efd6fb` / rc-1.3.6）。
+- 镜像：`winehua/master` @ `03c2384e`。
+- 原则：按功能 cherry-pick/适配，不整仓 merge。不上游 Index / WineEnvService / 品牌。wine gitlink 不跟随。phone 强制虚拟桌面；平板默认虚拟、设置可开 Fusion subWindow；PC 仍 Ability 融合。
+- 已落地：
+  - C++：`RouteForSubsurface` 三路分流、InlineClient 合入父窗口帧、窗口合成全程持锁、`IsFullyOpaqueArgb`、退役 popup war3 全屏启发式
+  - NAPI：`cancelPendingToplevel`（pending 队列 `queue`→`deque`），Popup/Argb/Fusion destroy-while-creating 清残坑
+  - ArkTS：`FusionWindowManager`；`WineWindowManager` 保留 `windows`/`windowStages`/`abilityContexts`；设置页平板显示「多窗口 / 虚拟桌面」
+  - Want：`winehua.desktopMode` / `fusionHost` / `autoStart` / `program` 挂 `EntryAbility` + `WineEngineService`
+- 跳过：上游 docs 链（`4a161256`…`4f923aa3`）
+- 版本：1.3.7（1003007）
+- 验证：见本轮 Docker ARM64 API 23 debug HAP + 平板动作测试。
 
 ### 2026-09-09 对齐嵌套 modal 宿主继承（5dc2ceb5）
 

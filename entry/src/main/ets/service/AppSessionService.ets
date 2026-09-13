@@ -100,7 +100,8 @@ export class AppSessionService {
 
   resolvePresentationMode(app: AppDescriptor, settings: GlobalSettings): WinePresentationMode {
     return resolveWinePresentationMode(app.launchTarget.kind, this.resolveMode(app, settings),
-      AppSettingsStore.getInstance().usesManagedWineWindows(),
+      !WineWindowManager.getInstance().isDesktopMode ||
+        AppSettingsStore.getInstance().usesManagedWineWindows(),
       WineWindowManager.getInstance().isDesktopMode);
   }
 
@@ -140,10 +141,9 @@ export class AppSessionService {
 
   async launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
     if (!app.available) return null;
-    // PC/2-in-1 融合模式: 每个 Wine 程序独立窗口, 桌面 root 目标不适用。
+    // PC/2-in-1 融合 或 平板多窗口: 每个 Wine 程序独立窗口, 桌面 root 目标不适用。
     // 虚拟桌面模式 (VIRTUAL, isDesktopMode=true) 与平板同逻辑 — 放行桌面。
     if (app.launchTarget.kind === LaunchKind.WINE_DESKTOP &&
-      AppSettingsStore.getInstance().usesManagedWineWindows() &&
       !WineWindowManager.getInstance().isDesktopMode) return null;
     if ((app.launchTarget.kind === LaunchKind.WINE_EXE ||
       app.launchTarget.kind === LaunchKind.WINE_SYSTEM ||
