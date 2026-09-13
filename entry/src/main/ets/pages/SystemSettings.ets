@@ -10,7 +10,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { systemShare } from '@kit.ShareKit';
 import { fileUri, picker } from '@kit.CoreFileKit';
 import testNapi from 'libentry.so';
-import { BreakpointSystem, BreakpointType } from '../common/BreakpointSystem';
+import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import {
   BOX64_PRESET_IDS,
   ControlBarDirection,
@@ -1584,7 +1584,7 @@ struct SystemSettingsPage {
   }
 
   private compactProfileDialog(): boolean {
-    return this.breakpoint === 'xs' || this.breakpoint === 'sm';
+    return !isWideBreakpoint(this.breakpoint);
   }
 
   private openInputProfilePicker(): void {
@@ -2360,7 +2360,7 @@ struct SystemSettingsPage {
   build() {
     Stack() {
       HdsNavigation() {
-        if (this.breakpoint === 'lg' || this.breakpoint === 'xl') {
+        if (isWideBreakpoint(this.breakpoint)) {
           Row({ space: 22 }) {
             Column({ space: 5 }) {
               Text('设置分类').fontSize(13).fontWeight(FontWeight.Medium)

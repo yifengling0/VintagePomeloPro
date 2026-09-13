@@ -22,7 +22,7 @@ import {
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
-import { BreakpointSystem, BreakpointType } from '../common/BreakpointSystem';
+import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { LengthMetrics, window } from '@kit.ArkUI';
 import deviceInfo from '@ohos.deviceInfo';
@@ -270,7 +270,7 @@ struct AppSettingsPage {
   private openExecutablePickerOnShow: boolean = false;
 
   private isCompact(): boolean {
-    return this.breakpoint === 'xs' || this.breakpoint === 'sm';
+    return !isWideBreakpoint(this.breakpoint);
   }
 
   private isNarrowPhone(): boolean {

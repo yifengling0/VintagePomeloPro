@@ -8,7 +8,7 @@ import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
 import { FileBrowserView } from '../components/FileBrowserView';
-import { BreakpointSystem, BreakpointType } from '../common/BreakpointSystem';
+import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import { bottomNavigationLayout } from '../model/BottomNavigationLayout';
 import {
   AppDescriptor,
@@ -152,7 +152,10 @@ struct Index {
   private floatPosPlaced: boolean = false;
 
   private isPhone(): boolean {
-    return DeviceCapabilityPolicy.isPhoneDevice() || this.breakpoint === 'xs' || this.breakpoint === 'sm';
+    // Width-based chrome: MatePad 11.5s portrait is md (~720vp) and must not
+    // keep the in-between tablet header. xs/sm/md → phone shell + bottom nav;
+    // lg/xl → pad landscape / PC sidebar.
+    return !isWideBreakpoint(this.breakpoint);
   }
 
   private isNarrowPhone(): boolean {
@@ -160,7 +163,7 @@ struct Index {
   }
 
   private isPhoneLandscape(): boolean {
-    return DeviceCapabilityPolicy.isPhoneDevice() && this.viewportWidth > this.viewportHeight && this.viewportHeight > 0;
+    return this.isPhone() && this.viewportWidth > this.viewportHeight && this.viewportHeight > 0;
   }
 
   // ── 浮窗模式: 桌面由 Index 承载 (main_ui 同构) ──
@@ -509,8 +512,7 @@ struct Index {
   private contentPadding(): number {
     if (this.isPhoneLandscape()) return 12;
     if (this.breakpoint === 'xs') return 10;
-    if (this.breakpoint === 'sm') return 16;
-    if (this.breakpoint === 'md') return 20;
+    if (this.isPhone()) return 16;
     return 28;
   }
 
@@ -616,6 +618,9 @@ struct Index {
     BreakpointSystem.initialize();
     this.breakpointCallback = (value: BreakpointType): void => {
       this.breakpoint = value;
+      if (!isWideBreakpoint(value)) {
+        this.phoneNavIndex = this.phoneNavIndexForFilter(this.filter);
+      }
     };
     BreakpointSystem.subscribe(this.breakpointCallback);
     this.engineCallback = (state: EngineState, message: string): void => {
@@ -985,9 +990,7 @@ struct Index {
     if (this.catalogCardViewMode() === ViewMode.COMPACT) return '1fr';
     // VintagePomelo keeps cover cards in two columns on phones. A single
     // flexible column makes one icon fill almost the entire compact window.
-    if (this.isPhoneLandscape()) return '1fr 1fr';
     if (this.isPhone()) return '1fr 1fr';
-    if (this.breakpoint === 'md') return '1fr 1fr';
     if (this.breakpoint === 'xl') return '1fr 1fr 1fr 1fr 1fr';
     return '1fr 1fr 1fr';
   }
@@ -1007,7 +1010,6 @@ struct Index {
   private compactGridColumns(): string {
     if (this.isPhoneLandscape()) return '1fr 1fr';
     if (this.isPhone()) return '1fr';
-    if (this.breakpoint === 'md') return '1fr 1fr';
     if (this.breakpoint === 'xl') return '1fr 1fr 1fr';
     return '1fr 1fr';
   }
@@ -1015,7 +1017,6 @@ struct Index {
   private largeGridColumns(): string {
     if (this.isPhoneLandscape()) return '1fr 1fr';
     if (this.isPhone()) return '1fr';
-    if (this.breakpoint === 'md') return '1fr 1fr';
     if (this.breakpoint === 'xl') return '1fr 1fr 1fr';
     return '1fr 1fr';
   }
@@ -1227,6 +1228,10 @@ struct Index {
     return bottomNavigationLayout(this.isPhoneLandscape(), this.navBarInsetVp).contentInset;
   }
 
+  private showsCompactSearch(): boolean {
+    return this.isPhone() && this.breakpoint === 'md';
+  }
+
   @Builder
   private NavItem(label: string, value: CatalogFilter, icon: Resource) {
     Row({ space: 12 }) {
@@ -1333,67 +1338,33 @@ struct Index {
 
   @Builder
   private Header() {
-    Column({ space: 12 }) {
-      if (!this.isPhone()) {
-        Row() {
-          Column({ space: 3 }) {
-            Text(this.filterTitle())
-              .fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
-            Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : $r('app.color.text_secondary'))
-          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          Row({ space: 4 }) {
-            Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-              .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
-            Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-              .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COMPACT ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.COMPACT))
-            Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_1x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-              .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.LARGE ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.LARGE))
-            Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.folder')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-              .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.FILES ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.FILES))
-          }
-          .id('library-view-modes')
-          // Keep the complete system-reported title-button area. PC window
-          // managers add spacing between the maximize/minimize/close nodes
-          // that is not always included in TitleButtonRect.width.
-          .margin({ right: this.titleButtonInsetVp > 0 ? this.titleButtonInsetVp + 24 : 0 })
-        }.width('100%')
-      }
-      if (this.breakpoint === 'md') {
-        AppSearchBar({
-          value: this.searchQuery,
-          heightVp: 48,
-          onValueChange: (value: string): void => { this.updateSearch(value); }
-        })
-      }
-      if (this.breakpoint === 'md') {
-        this.FilterBar()
-      }
+    Column() {
+      Row() {
+        Column({ space: 3 }) {
+          Text(this.filterTitle())
+            .fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
+          Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : $r('app.color.text_secondary'))
+        }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+        Row({ space: 4 }) {
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COMPACT ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.COMPACT))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_1x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.LARGE ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.LARGE))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.folder')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.FILES ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.FILES))
+        }
+        .id('library-view-modes')
+        // Keep the complete system-reported title-button area. PC window
+        // managers add spacing between the maximize/minimize/close nodes
+        // that is not always included in TitleButtonRect.width.
+        .margin({ right: this.titleButtonInsetVp > 0 ? this.titleButtonInsetVp + 24 : 0 })
+      }.width('100%')
     }
     .width('100%')
-    // The wide layout has no second search row.  Keep its header deliberately
-    // compact so that the first application row starts in the visible area.
-    .height(this.isPhone() ? (this.isPhoneLandscape() ? 52 : 60) :
-      ((this.breakpoint === 'lg' || this.breakpoint === 'xl') ? 64 :
-        (this.breakpoint === 'md' ? 172 : 112)))
+    .height(64)
     .justifyContent(FlexAlign.Start)
-  }
-
-  @Builder
-  private FilterBar() {
-    Row({ space: 8 }) {
-      Button('内建').height(48).layoutWeight(1).borderRadius(16)
-        .backgroundColor(this.filter === 'builtin' ? $r('app.color.selected_background') : $r('app.color.search_background'))
-        .fontColor($r('app.color.text_primary')).onClick(() => this.selectFilter('builtin'))
-      Button('Windows').height(48).layoutWeight(1).borderRadius(16)
-        .backgroundColor(this.filter === 'windows' ? $r('app.color.selected_background') : $r('app.color.search_background'))
-        .fontColor($r('app.color.text_primary')).onClick(() => this.selectFilter('windows'))
-      Button(this.runningFilterLabel()).height(48).layoutWeight(1).borderRadius(16)
-        .backgroundColor(this.filter === 'running' ? $r('app.color.selected_background') : $r('app.color.search_background'))
-        .fontColor($r('app.color.text_primary')).onClick(() => this.selectFilter('running'))
-      Button('收藏').height(48).layoutWeight(1).borderRadius(16)
-        .backgroundColor(this.filter === 'favorite' ? $r('app.color.selected_background') : $r('app.color.search_background'))
-        .fontColor($r('app.color.text_primary')).onClick(() => this.selectFilter('favorite'))
-    }.width('100%').id('library-filter-bar')
   }
 
   @Builder
@@ -1439,6 +1410,13 @@ struct Index {
   private CatalogScroll(items: AppDescriptor[], filter: CatalogFilter) {
     Scroll(this.catalogScroller(filter)) {
       Column() {
+        if (this.showsCompactSearch()) {
+          AppSearchBar({
+            value: this.searchQuery,
+            heightVp: 44,
+            onValueChange: (value: string): void => { this.updateSearch(value); }
+          }).margin({ bottom: 10 })
+        }
         this.AppGrid(items)
       }
       .width('100%')
@@ -1483,6 +1461,13 @@ struct Index {
   private CatalogEmptyScroll(filter: CatalogFilter) {
     Scroll(this.catalogScroller(filter)) {
       Column() {
+        if (this.showsCompactSearch()) {
+          AppSearchBar({
+            value: this.searchQuery,
+            heightVp: 44,
+            onValueChange: (value: string): void => { this.updateSearch(value); }
+          }).margin({ bottom: 10 })
+        }
         this.EmptyLibraryState(filter)
       }
       .width('100%')
@@ -1665,7 +1650,7 @@ struct Index {
     }
     .vertical(false)
     .barHeight(bottomNavigationLayout(this.isPhoneLandscape(), this.navBarInsetVp).barHeight)
-    .scrollable(true)
+    .scrollable(this.breakpoint === 'xs' || this.breakpoint === 'sm')
     .animationDuration(300)
     .barOverlap(true)
     .divider({ mode: DividerMode.FOLLOW_SCROLL })
@@ -1790,7 +1775,7 @@ struct Index {
           .id('library-page-background')
       }
       Row() {
-        if (!this.isPhone() && (this.breakpoint === 'lg' || this.breakpoint === 'xl')) {
+        if (!this.isPhone()) {
           this.SideBar()
         }
         if (this.isPhone()) {

@@ -3,6 +3,11 @@ import { display, mediaquery } from '@kit.ArkUI';
 export type BreakpointType = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type BreakpointCallback = (breakpoint: BreakpointType) => void;
 
+/** Catalog chrome split: <960vp uses the phone shell, 960vp+ uses pad/PC. */
+export function isWideBreakpoint(breakpoint: BreakpointType): boolean {
+  return breakpoint === 'lg' || breakpoint === 'xl';
+}
+
 class BreakpointSystemImpl {
   private current: BreakpointType = 'lg';
   private callbacks: Set<BreakpointCallback> = new Set<BreakpointCallback>();

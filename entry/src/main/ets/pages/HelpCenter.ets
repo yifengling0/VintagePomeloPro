@@ -1,6 +1,6 @@
 import router from '@ohos.router';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
-import { BreakpointSystem, BreakpointType } from '../common/BreakpointSystem';
+import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { LengthMetrics, window } from '@kit.ArkUI';
 import deviceInfo from '@ohos.deviceInfo';
@@ -109,7 +109,7 @@ struct HelpCenter {
     {
       id: 'phone-layout', category: 'start', icon: $r('sys.symbol.rectangle_grid_1x2'),
       title: '手机横竖屏与小窗怎么操作', description: '手机使用顶部菜单和底部分类，大屏自动切换左侧导航。',
-      details: '竖屏和横屏会根据可用宽度重新排布卡片。顶部菜单可打开系统设置、帮助和卡片视图；底部导航用于切换内建应用、Windows 程序、收藏和运行中。'
+      details: '窗口宽度不足 960vp 时（手机，以及平板竖屏）使用顶部菜单和底部沉浸导航；达到 960vp 后（平板横屏、PC）切换为左侧导航。竖屏和横屏会根据可用宽度重新排布卡片。顶部菜单可打开系统设置、帮助和卡片视图；底部导航用于切换最近、内建应用、Windows 程序、收藏和运行中。'
     }
   ];
   private readonly sections: HelpSectionData[] = [
@@ -175,7 +175,7 @@ struct HelpCenter {
   }
 
   private isLargeLayout(): boolean {
-    return this.breakpoint === 'lg' || this.breakpoint === 'xl';
+    return isWideBreakpoint(this.breakpoint);
   }
 
   private usesDarkAppearance(): boolean {
