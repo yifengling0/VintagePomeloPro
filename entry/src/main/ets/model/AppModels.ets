@@ -55,9 +55,26 @@ export enum ThemeMode {
 }
 
 /** Locale exported to Wine processes. Keep values aligned with Native policy. */
+/**
+ * Wine 内核语言 (设置页 "Windows 系统语言")。
+ *
+ * 取值就是 unix locale, 由 Native 侧落成 LANG/LC_ALL, Wine 的 ntdll 再用它
+ * 反查系统 LCID / ANSI 代码页:
+ *   zh_CN → 0x0804 / ACP 936    ja_JP → 0x0411 / ACP 932
+ *   en_US → 0x0409 / ACP 1252
+ * 因此日语内核同时决定日语 Windows 程序 (Shift-JIS) 的代码页解析。
+ */
 export enum WineLanguage {
   CHINESE = 'zh_CN',
+  JAPANESE = 'ja_JP',
   ENGLISH = 'en_US'
+}
+
+/** 语言取值的白名单归一化 (存储/设置页统一入口, 未知值回中文)。 */
+export function normalizeWineLanguage(value: string | undefined): WineLanguage {
+  if (value === WineLanguage.JAPANESE) return WineLanguage.JAPANESE;
+  if (value === WineLanguage.ENGLISH) return WineLanguage.ENGLISH;
+  return WineLanguage.CHINESE;
 }
 
 /** Orientation policy for the Wine desktop host window. */

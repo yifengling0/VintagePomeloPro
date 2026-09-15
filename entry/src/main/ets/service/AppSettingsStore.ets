@@ -15,7 +15,8 @@ import {
   cloneVirtualMouseConfig,
   createDefaultAppSettings,
   createDefaultGlobalSettings,
-  normalizeGraphicsLaunchPreset
+  normalizeGraphicsLaunchPreset,
+  normalizeWineLanguage
 } from '../model/AppModels';
 
 const STORE_NAME = 'vintage_pomelo_pro';
@@ -129,7 +130,7 @@ export class AppSettingsStore {
     const current = this.globalSettings;
     this.globalSettings = {
       defaultDisplayMode: DisplayMode.DESKTOP,
-      wineLanguage: current.wineLanguage ?? WineLanguage.CHINESE,
+      wineLanguage: normalizeWineLanguage(current.wineLanguage),
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode ?? DesktopWindowMode.FULLSCREEN,
       keepScreenOn: current.keepScreenOn,
@@ -191,8 +192,7 @@ export class AppSettingsStore {
       const defaults = createDefaultGlobalSettings();
       this.globalSettings = {
         defaultDisplayMode: stored.defaultDisplayMode ?? defaults.defaultDisplayMode,
-        wineLanguage: stored.wineLanguage === WineLanguage.ENGLISH ?
-          WineLanguage.ENGLISH : WineLanguage.CHINESE,
+        wineLanguage: normalizeWineLanguage(stored.wineLanguage),
         desktopOrientation: stored.desktopOrientation ?? defaults.desktopOrientation,
         desktopWindowMode: stored.desktopWindowMode ??
           this.resolveDesktopWindowModeDefault(defaults.desktopWindowMode),

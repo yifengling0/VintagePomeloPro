@@ -1,5 +1,25 @@
 # 上游同步基线标记
 
+## 2026-09-16 WineHua master 增量（fa13f36a..2049af9e）
+
+在产品 `sync/winehua-pad-fusion-inline` 上核对 `winehua/master` @ `2049af9e`。
+本段 1 个提交**选择性移植**，不是 Git merge。不上游 Index / WineEnvService / 品牌；wine gitlink 不跟随。
+
+| 上游 | 处置 |
+| --- | --- |
+| `2049af9e` 全屏直传误判窗口浮层为内容层（含 WINEDEBUG 不再经 `__env` 下发、`SubsurfaceLayer`/`CompositorLayer` 迁 `compositor_layer.h`） | **adapted** → 新增 `SubsurfaceCoversContentRect` 单一判据（覆盖检测与直传扫描共用）+ `compositor/frame/compositor_layer.h`（`DesktopCompositor` 保留同名 `using` 别名）；`wine_env.cpp` 删 `WINEDEBUG=-all` 注入、`wine_child.cpp` 拦截 `__env` 的 `WINEDEBUG` |
+
+产品侧保留：`frame_pipeline` 20260822 黑屏实锤的严格直传几何门（sub 位置与
+buffer 尺寸须等于全屏 fit src）、`zc_bridge` 的 `fitChildren` 全屏跳过分支；
+不引入上游 `GetZeroCopyContentSizeLocked`（产品无声明无调用方）。
+
+本轮同时新增设置页「Windows 系统语言」日语内核（`ja_JP` / ACP 932），并把
+`graphics-stack.lock.yaml` 的 wine 期望值对齐到实际登记指针（此前自 `7d68686c`
+起漂移，`make test` 的 graphics-contract-check 一直失败）。详见
+[wine-kernel-language.md](wine-kernel-language.md)。
+
+下次增量从 `2049af9e` 之后开始：`git fetch winehua && git log 2049af9e..winehua/master --oneline`。
+
 ## 2026-09-15 WineHua master 增量（ae2cfa63..fa13f36a）
 
 在产品 `sync/winehua-pad-fusion-inline` 上核对 `winehua/master` @ `fa13f36a`。

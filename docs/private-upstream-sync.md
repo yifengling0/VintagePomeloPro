@@ -4,7 +4,28 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
-> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `fa13f36a`）。下次同步先 `git fetch winehua && git log fa13f36a..winehua/master --oneline`，避免重复合并。
+> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `2049af9e`）。下次同步先 `git fetch winehua && git log 2049af9e..winehua/master --oneline`，避免重复合并。
+
+### 2026-09-16 对齐全屏直传浮层判据 + 新增日语 Wine 内核（2049af9e，版本 1.3.9 不变）
+
+- 分支：产品线 `sync/winehua-pad-fusion-inline`。
+- 镜像：`winehua/master` @ `2049af9e`（自 `fa13f36a` 起 1 个提交，选择性适配，不整仓 merge）。
+- 上游适配：
+  - `SubsurfaceCoversContentRect` 成为全屏直传与遮挡检测的单一判据：只把覆盖窗口内容区的 subsurface 当内容层（游戏画面）；局部浮层判为真遮挡并回退 CPU 合成 —— 修全屏窗口（tdx）右键菜单不显示。
+  - `SubsurfaceLayer` / `CompositorLayer` 迁至 `compositor/frame/compositor_layer.h` 作模块级数据契约，`DesktopCompositor` 保留 `using` 别名；`wayland_server.h` 别名改指全局类型。
+  - `WINEDEBUG` 不再经 `__env` 下发（会盖掉 `select_winedebug_profile` 的选择）：`wine_env.cpp` 去掉 `WINEDEBUG=-all` 注入，`wine_child.cpp` 拦截并记录。
+  - 产品保留：20260822 严格直传几何门（位置 + buffer 尺寸须等于 fit src，只会退回 CPU 合成）、`fitChildren` 全屏跳过分支；不引入上游 `GetZeroCopyContentSizeLocked`。
+- 新增功能（设置页）：`系统设定 → Wine 引擎 → Windows 系统语言` 增加 **日本語**，与中文/English 三选一。
+  - ArkTS：`WineLanguage.JAPANESE='ja_JP'` + `normalizeWineLanguage()` 白名单；`SystemSettings` 增加 `wine-language-ja-jp` 按钮；提示文案补代码页说明。
+  - Native：`wine_env.cpp` 新增 `WineLocaleFor()`（zh_CN / ja_JP / en_US，未知回 zh_CN），`LANG`/`LC_ALL` 同源；Wine 侧由 patch `0008` 解析成 LCID 0x0411 / ACP 932。
+  - 字族：**不随语言变化**。真机实测设备 `NotoSansCJK-Regular.ttc` 只注册 SC/HK/TC 面（无 JP 面），且产品既有注释已确认「鸿蒙黑体」可出 kana/Hangul —— 当年的乱码是 GBK 代码点取字形（代码页问题），不是缺字形。日文字族请求继续映射 `鸿蒙黑体`，由 ACP 932 保证 Shift-JIS 解析。
+  - 机制与自查步骤见 [wine-kernel-language.md](wine-kernel-language.md)。
+- 构建门修复：`graphics-stack.lock.yaml` 的 `wine` 期望值自 `7d68686c`（float32 WASAPI，2026-09-03）起与实际 gitlink 漂移，`make test` 的 `graphics-contract-check` 一直失败；本轮对齐到 `993993b5`（= 父仓登记指针，本地工作树 6 个 cherry-pick 的基准）。
+- 跳过：上游 Index / WineEnvService / 品牌 / 微信二维码；父仓 `thirdparty/wine` gitlink 仍不跟随上游。
+- 版本：**1.3.9（1003009）不变**（按用户要求本轮不升版本）。
+- 验证：`make test test-model` 全绿（graphics-contract OK、toplevel_event 72/72、controller_merge 55/55、WHGP v2 一致、graphics_policy PASS、dxvk_mapped_range 27/27、catalog/model 单测通过）；ARM64 `make hap` 构建 + 签名成功，产物校验版本/ABI/关键载荷齐全。
+- 产物：`F:\PomeloWin\artifacts\VintagePomeloPro-1.3.9-20260916\VintagePomeloPro-1.3.9-20260916-debug.hap`（SHA-256 `80c1aacb7d7ce56ddae34fe8f962ff63562fed7f2ff08707aafe20609e485454`）。未签正式 `proRelease` APP（无版本变更，待真机验收后再签）。
+- 未验证：真机回归（全屏右键菜单、最小化还原、语言切换后重启引擎、日语字形）尚未执行。
 
 ### 2026-09-15 对齐全屏黑边 + 最小化恢复 + 桌面未就绪光标锁（fa13f36a）
 
@@ -18,7 +39,7 @@
   - wine 工作树 cherry-pick 最外 1px 圈填充 → `3071a32860b`；保留未提交 FONT_AA / mfplat / ntdll locale。
 - 跳过：`c76cc795` 微信二维码；推进父仓 `thirdparty/wine` gitlink。
 - 版本：1.3.9（1003009）
-- 验证：本轮未编 HAP/APP（代码合入）。编包仍走 `bash scripts/vpbuild.sh make hap`。
+- 验证：当日后续已补编 ARM64 Debug HAP（1.3.9，2026-09-15 12:43）；编包统一走 `bash scripts/vpbuild.sh make hap`。
 
 ### 2026-09-13 对齐 ARGB 普通窗口 + 光标锁退出 + Fusion modal + msstyles（ae2cfa63）
 

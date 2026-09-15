@@ -2066,6 +2066,14 @@ struct SystemSettingsPage {
                 '#FFFFFFFF' : $r('app.color.text_primary'))
               .id('wine-language-zh-cn')
               .onClick((): void => this.updateWineLanguage(WineLanguage.CHINESE))
+            Button('日本語').layoutWeight(1).height(44).borderRadius(14)
+              .fontSize(13)
+              .backgroundColor(this.settings.wineLanguage === WineLanguage.JAPANESE ?
+                $r('app.color.accent') : $r('app.color.search_background'))
+              .fontColor(this.settings.wineLanguage === WineLanguage.JAPANESE ?
+                '#FFFFFFFF' : $r('app.color.text_primary'))
+              .id('wine-language-ja-jp')
+              .onClick((): void => this.updateWineLanguage(WineLanguage.JAPANESE))
             Button('English').layoutWeight(1).height(44).borderRadius(14)
               .fontSize(13)
               .backgroundColor(this.settings.wineLanguage === WineLanguage.ENGLISH ?
@@ -2075,7 +2083,7 @@ struct SystemSettingsPage {
               .id('wine-language-en-us')
               .onClick((): void => this.updateWineLanguage(WineLanguage.ENGLISH))
           }.width('100%')
-          Text('默认中文。更改后重启 Wine 引擎生效，已有 Windows 程序会在重启时关闭。')
+          Text('默认中文。切换后决定 Windows 程序的语言与代码页（中文 936 / 日语 932 / 英文 1252），重启 Wine 引擎生效；已有 Windows 程序会在重启时关闭。')
             .fontSize(11).fontColor('#C47A20').width('100%')
 
           Text('渲染模式').fontSize(12).fontWeight(FontWeight.Medium)
