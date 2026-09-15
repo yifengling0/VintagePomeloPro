@@ -37,7 +37,7 @@
 // 实现的无锁语义等价 (sink_ 在 wl 线程读, 装配一次性注入)。
 // ============================================================================
 
-// 22 种 toplevel 事件 (PLAN §2.3 清单; 命名与旧字符串一一对应, 每个事件
+// 25 种 toplevel 事件 (PLAN §2.3 清单 + 产品 Raise + 最小化 Restored; 命名与旧字符串一一对应, 每个事件
 // 的 JSON 模板见对应 Json* 函数)。ArkTS 侧按 ToplevelEventName 字符串
 // 消费 — 事件名逐字不变 (红线)。
 enum class ToplevelEventType : uint32_t {
@@ -66,6 +66,7 @@ enum class ToplevelEventType : uint32_t {
     Fullscreen,    // "fullscreen"
     Unfullscreen,  // "unfullscreen"
     Minimized,     // "minimized"
+    Restored,      // "restored"       最小化还原 (Wine 恢复帧 / 主动显示窗口)
     // 交互式移动
     MoveStart,     // "move_start"     xdg_toplevel.move grab 开始
     MoveEnd,       // "move_end"       grab 结束 (或 grab 窗口销毁复位)
@@ -98,6 +99,7 @@ inline const char* ToplevelEventName(ToplevelEventType evt) {
         case ToplevelEventType::Fullscreen:    return "fullscreen";
         case ToplevelEventType::Unfullscreen:  return "unfullscreen";
         case ToplevelEventType::Minimized:     return "minimized";
+        case ToplevelEventType::Restored:      return "restored";
         case ToplevelEventType::MoveStart:     return "move_start";
         case ToplevelEventType::MoveEnd:       return "move_end";
         case ToplevelEventType::Modal:         return "modal";

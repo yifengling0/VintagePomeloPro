@@ -129,6 +129,8 @@ export const sendKeyEvent: (toplevelId: number, evdevCode: number, pressed: bool
 export const sendScrollEvent: (toplevelId: number, axis: number, value: number, scrollStep: number, px: number, py: number) => void;
 export const notifyToplevelResize: (toplevelId: number, w: number, h: number) => void;
 export const setToplevelVisible: (toplevelId: number, visible: boolean) => void;
+/** Pauses GPU draw/swap. Only for unpresentable surfaces (DesktopAbility background). */
+export const setRendererPaused: (toplevelId: number, paused: boolean) => void;
 export const getProcessList: () => Array<{
   pid: number;
   name: string;

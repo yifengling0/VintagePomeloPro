@@ -210,11 +210,11 @@ export default class DesktopAbility extends UIAbility {
     hilog.info(DOMAIN, TAG, '[DWA] onForeground tl=%{public}d', this.toplevelId);
     WineWindowManager.getInstance().markDesktopAbilityForeground(this.toplevelId);
     InputRouter.getInstance().setActiveToplevel(WineWindowManager.getInstance().getDesktopRootId());
-    // 前台恢复: 恢复根 renderer 渲染 + 强制重绘一帧 + 重新武装 vsync
-    // (setToplevelVisible 同步暂停/恢复 renderer), 避免后台返回后画面冻结。
+    // 虚拟桌面宿主进后台后 surface 不可呈现, 才暂停 GPU; 回前台再画。
     const rootId = WineWindowManager.getInstance().getDesktopRootId();
     if (rootId > 0) {
       try { testNapi.setToplevelVisible(rootId, true); } catch (_) {}
+      try { testNapi.setRendererPaused(rootId, false); } catch (_) {}
       try { testNapi.refreshRenderer(rootId); } catch (_) {}
     }
     this.attachInputOverlay();
@@ -254,10 +254,11 @@ export default class DesktopAbility extends UIAbility {
     InputDispatcher.getInstance().releaseAll('desktop-background');
     InputRouter.getInstance().releaseAllKeys();
     InputOverlayWindowCoordinator.getInstance().setVisible(false).catch(() => {});
-    // 后台: 暂停根 renderer 渲染 (避免 surface 不可呈现时 vsync/swap 阻塞)。
+    // 后台: 桌面窗口 surface 不可呈现, 暂停 GPU, 避免 vsync/swap 阻塞。
     const rootId = WineWindowManager.getInstance().getDesktopRootId();
     if (rootId > 0) {
       try { testNapi.setToplevelVisible(rootId, false); } catch (_) {}
+      try { testNapi.setRendererPaused(rootId, true); } catch (_) {}
     }
   }
 

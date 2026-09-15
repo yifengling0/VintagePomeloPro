@@ -1203,16 +1203,24 @@ static napi_value SetToplevelVisible(napi_env env, napi_callback_info info) {
     uint32_t tl; bool visible;
     napi_get_value_uint32(env, args[0], &tl);
     napi_get_value_bool(env, args[1], &visible);
+    // 只改输入命中: 2in1 融合下 WINDOW_HIDDEN / 失焦不是"surface 不可呈现",
+    // 在这里暂停 GPU 会把仍挂在任务栏里的 WineWindow 画成黑窗。
+    // 最小化还原走 SetToplevelRestored (xdg / Wine commit), 不要从可见性
+    // 回调顺手发 restored。真正进后台的 DesktopAbility 另调 setRendererPaused。
     InputManager::GetInstance()->SetToplevelVisible(tl, visible);
-    // 同步暂停/恢复渲染: 窗口不可见 (后台/HIDDEN) 时暂停 GPU 渲染, 避免
-    // surface 不可呈现时 vsync/eglSwapBuffers 阻塞渲染线程 (卡顿根因之一);
-    // 恢复可见时立即重渲染并重新武装 vsync。
-    PluginManager::GetInstance()->SetRendererPaused(tl, !visible);
-    if (visible) {
-        // 6A: 兼容别名 NotifyWindowRestored 已删, 直调语义方法 (同实现同值)
-        WaylandServer::GetInstance()->SetToplevelRestored(tl);
-        PluginManager::GetInstance()->RefreshRenderer(tl);
-    }
+    return nullptr;
+}
+
+// -- NAPI: setRendererPaused -- (仅 DesktopAbility 进后台: surface 不可呈现)
+static napi_value SetRendererPaused(napi_env env, napi_callback_info info) {
+    size_t argc = 2;
+    napi_value args[2];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc < 2) return nullptr;
+    uint32_t tl; bool paused;
+    napi_get_value_uint32(env, args[0], &tl);
+    napi_get_value_bool(env, args[1], &paused);
+    PluginManager::GetInstance()->SetRendererPaused(tl, paused);
     return nullptr;
 }
 
@@ -1433,6 +1441,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"findToplevelAt",   nullptr, FindToplevelAt,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"raiseToplevel",    nullptr, RaiseToplevel,    nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setToplevelVisible", nullptr, SetToplevelVisible, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setRendererPaused", nullptr, SetRendererPaused, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getProcessList",   nullptr, GetProcessList,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"killProcess",     nullptr, KillProcess,     nullptr, nullptr, nullptr, napi_default, nullptr},
         {"initGameController", nullptr, InitGameController, nullptr, nullptr, nullptr, napi_default, nullptr},

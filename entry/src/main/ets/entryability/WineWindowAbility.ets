@@ -104,6 +104,8 @@ export default class WineWindowAbility extends UIAbility {
           hilog.info(DOMAIN, TAG, '[WWA] #%{public}d  WINDOW_SHOWN → resume input', this.toplevelId);
           try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
         } else if (eventType === window.WindowEventType.WINDOW_HIDDEN) {
+          // 2in1 融合: 失焦也会 HIDDEN, surface 仍可呈现。只关输入, 不停 GPU
+          // (停渲染会出现任务栏两个图标、切过去黑屏)。对齐 master/main-ui。
           hilog.info(DOMAIN, TAG, '[WWA] #%{public}d  WINDOW_HIDDEN → suppress input', this.toplevelId);
           try { testNapi.setToplevelVisible(this.toplevelId, false); } catch (_) {}
         }
@@ -146,15 +148,12 @@ export default class WineWindowAbility extends UIAbility {
 
   onForeground(): void {
     hilog.info(DOMAIN, TAG, '[WWA] onForeground tl=%{public}d', this.toplevelId);
-    // 前台恢复: 恢复输入与渲染 (setToplevelVisible 同步暂停/恢复 renderer),
-    // 并强制重绘一帧 + 重新武装 vsync, 避免后台返回后画面冻结。
     try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
-    try { testNapi.refreshRenderer(this.toplevelId); } catch (_) {}
   }
 
   onBackground(): void {
     hilog.info(DOMAIN, TAG, '[WWA] onBackground tl=%{public}d', this.toplevelId);
-    // 后台: 暂停输入与渲染 (避免 surface 不可呈现时 vsync/swap 阻塞)。
+    // 与 master 相同: 融合 Ability 失焦不等于 surface 不可呈现, 不停渲染。
     try { testNapi.setToplevelVisible(this.toplevelId, false); } catch (_) {}
   }
 

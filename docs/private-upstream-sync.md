@@ -4,7 +4,21 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
-> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `ae2cfa63`）。下次同步先 `git fetch winehua && git log ae2cfa63..winehua/master --oneline`，避免重复合并。
+> **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `fa13f36a`）。下次同步先 `git fetch winehua && git log fa13f36a..winehua/master --oneline`，避免重复合并。
+
+### 2026-09-15 对齐全屏黑边 + 最小化恢复 + 桌面未就绪光标锁（fa13f36a）
+
+- 分支：产品线 `sync/winehua-pad-fusion-inline`。
+- 镜像：`winehua/master` @ `fa13f36a`。
+- 原则：按功能 cherry-pick/适配，不整仓 merge。不上游 Index / WineEnvService / 品牌 / 微信二维码。wine gitlink 不跟随 `3ce65ee4`。
+- 已落地：
+  - `egl_renderer`：无帧跳过改比 `lastDrawW_/lastDrawH_`；`SetSize` 只写声明尺寸；letterbox/viewport/输入 fit 共用绘制快照。保留产品 `inputFitMutex_`、`skipFrames_`、`renderPaused_`。
+  - C++ 补发 `restored`：Wine 自发恢复帧 + `SetToplevelRestored`（仅 `OhosWindowPerToplevel`）。ArkTS 已有 Fusion `showWindow` / Ability `showWindow`。
+  - `PointerExtras`：桌面模式且 root 未确立时不 `LockCursor`；`BindWaylandRefs` 增加 `desktopMode` 引用，第三参仍为产品 `InputResolver`。
+  - wine 工作树 cherry-pick 最外 1px 圈填充 → `3071a32860b`；保留未提交 FONT_AA / mfplat / ntdll locale。
+- 跳过：`c76cc795` 微信二维码；推进父仓 `thirdparty/wine` gitlink。
+- 版本：1.3.9（1003009）
+- 验证：本轮未编 HAP/APP（代码合入）。编包仍走 `bash scripts/vpbuild.sh make hap`。
 
 ### 2026-09-13 对齐 ARGB 普通窗口 + 光标锁退出 + Fusion modal + msstyles（ae2cfa63）
 

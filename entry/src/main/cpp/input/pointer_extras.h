@@ -84,13 +84,13 @@ public:
     void SetRelativeBaselineSink(RelativeBaselineSink sink);
 
     // -- 会话引用装配 (重构第 6A 步) --
-    // 注入 ToplevelManager (surface→toplevelId 反查) 与 desktop root id 的
-    // 共享引用 — 替代 WaselyServer::FindToplevelIdBySurface /
-    // GetDesktopRootToplevelId 两处转发。装配点 = wl_core.cpp
-    // RegisterWlCoreGlobals (Start 阶段, 事件循环启动前, 与 warpSink 同模式:
-    // 之后只读, 无锁); 引用与 WaylandServer 单例成员同生命周期。
+    // 注入 ToplevelManager (surface→toplevelId 反查)、desktop root id、
+    // 产品 InputResolver (相对指针按 surface 存活) 与桌面模式标志的共享引用。
+    // 装配点 = wl_core.cpp RegisterWlCoreGlobals (Start 阶段, 事件循环启动前,
+    // 与 warpSink 同模式: 之后只读, 无锁); 引用与 WaylandServer 单例成员同生命周期。
+    // desktopMode 供 isShell 判"桌面未就绪不锁定" (见 ApplyHostCursorLock)。
     void BindWaylandRefs(ToplevelManager* tmgr, const uint32_t* desktopRootToplevelId,
-                         InputResolver* resolver);
+                         InputResolver* resolver, const bool* desktopMode);
 
 
     // -- 协议接口实现 (public: wl 接口表在类外初始化, 与 wayland_server.h 同例) --
@@ -165,4 +165,5 @@ private:
     ToplevelManager* tmgr_ = nullptr;           // FindToplevelBySurface
     InputResolver* resolver_ = nullptr;        // product per-surface liveness guard
     const uint32_t* desktopRootToplevelId_ = nullptr;  // isShell 判定 (共享 root 引用)
+    const bool* desktopMode_ = nullptr;   // isShell: 桌面模式 && root 未识别 = 桌面启动中
 };

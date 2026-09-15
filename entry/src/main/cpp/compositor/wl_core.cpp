@@ -611,6 +611,13 @@ void WaylandServer::UpdateToplevelFrameOnCommit(SurfaceData* sd, wl_resource* su
     // 注释随方法平移 (见 toplevel_manager.cpp); 返回值 = justRestored
     const bool justRestored =
         toplevelMgr_.TryAutoRestoreLocked(sd->toplevelId, fi.contentW, fi.contentH);
+    // Wine 自己把最小化窗口恢复了 (xdg 无 unset_minimized 协议, 靠 commit 正常
+    // 尺寸内容判定): 通知 ArkTS 把 OHOS 承载窗口显示回来。子窗口 minimize 后
+    // 系统无 Dock 还原入口, 只能本应用 showWindow, 缺此事件则 ArkTS 侧窗口
+    // 永久隐藏。本函数持 toplevelMgr_ 锁, 但 PostToplevelEvent 不碰该锁。
+    if (justRestored && Policy().OhosWindowPerToplevel()) {
+        PostToplevelEvent(sd->toplevelId, ToplevelEventType::Restored);
+    }
     // 首帧判定只认 hasPosition, 不认条目存在
     // (pre-commit 的 SetToplevelMinimized 等路径可能已建档)
     outFirstCommit = !st.HasPosition();
@@ -994,14 +1001,14 @@ extern "C" void RegisterWlCoreGlobals(wl_display* display) {
         InputManager::GetInstance()->InvalidateRelativePointerBaseline(reason);
     });
     // 会话引用装配 (重构第 6A 步): surface→toplevel 反查 (FindToplevelBySurface)
-    // 与 root 身份判定 (isShell) 直呼 ToplevelManager / rootId 共享引用 —
-    // 替代 WaylandServer::FindToplevelIdBySurface/GetDesktopRootToplevelId
-    // 转发 (6A 删除)。装配在 wl 事件循环启动前一次性, 之后只读 → 无锁
-    // (与 warpSink 同模式; GetToplevelManager/DesktopRootToplevelIdRef 是
-    // 装配出口, 见 wayland_server.h)。
+    // 与 isShell 判定直呼 ToplevelManager / root id / 桌面模式标志的共享引用 —
+    // 替代 WaylandServer::FindToplevelIdBySurface/GetDesktopRootToplevelId 转发
+    // (6A 删除)。产品额外注入 InputResolver (相对指针按 surface 存活判据)。
+    // 装配在 wl 事件循环启动前一次性, 之后只读 → 无锁。
     PointerExtras::GetInstance()->BindWaylandRefs(
         &WaylandServer::GetInstance()->GetToplevelManager(),
-        &self->DesktopRootToplevelIdRef(), &self->GetInputResolver());
+        &self->DesktopRootToplevelIdRef(), &self->GetInputResolver(),
+        &self->DesktopModeRef());
     // IME 文本输入 (Wine wayland_text_input.c 绑定, 软键盘文字经此注入)
     TextInputManager::GetInstance()->Register(display);
 }

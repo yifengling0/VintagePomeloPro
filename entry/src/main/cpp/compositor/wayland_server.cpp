@@ -382,6 +382,14 @@ void WaylandServer::SetToplevelRestored(uint32_t id) {
         if (auto* st = toplevelMgr_.FindToplevelLocked(id)) st->SetMinimized(false);
         MarkDesktopRootDirtyLocked();
     }
+    // 通知 ArkTS 把 OHOS 承载窗口显示回来 (子窗口 minimize 后系统无 Dock 还原
+    // 入口, 只能本应用 showWindow): 覆盖 set_maximized / set_fullscreen。
+    // Wine 自发恢复帧不走本函数, 由 wl_core 的 auto-restore 通道另发。
+    // 不要从 NAPI setToplevelVisible (失焦/HIDDEN) 调用本函数 — 那会把
+    // 焦点变化误当成最小化还原。此处锁已释放。
+    if (Policy().OhosWindowPerToplevel()) {
+        PostToplevelEvent(id, ToplevelEventType::Restored);
+    }
     // 发 configure 通知 Wine (如果 toplevel resource 存在)
     wl_resource* tl = toplevelMgr_.FindToplevelResource(id);
     if (!tl) return;

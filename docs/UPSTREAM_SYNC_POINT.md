@@ -1,5 +1,20 @@
 # 上游同步基线标记
 
+## 2026-09-15 WineHua master 增量（ae2cfa63..fa13f36a）
+
+在产品 `sync/winehua-pad-fusion-inline` 上核对 `winehua/master` @ `fa13f36a`。
+本段 5 个提交**选择性移植**，不是 Git merge。不上游 Index / WineEnvService / 品牌 / 微信二维码；wine gitlink 不跟随 `3ce65ee4`。
+
+| 上游 | 处置 |
+| --- | --- |
+| `ea0068fe` 无帧跳过改比上次绘制尺寸 | **adapted** → 产品 `egl_renderer`（保留 `inputFitMutex_` / `skipFrames_` / `renderPaused_`；不抄上游删产品字段） |
+| `1d03b063` 补 toplevel `restored` 事件 | **adapted** → `ToplevelEventType::Restored` + `wl_core` / `SetToplevelRestored` 发送点；ArkTS `showWindow` 分支已有 |
+| `c76cc795` 更新微信二维码 | **skipped** |
+| `6f319a6c` wine gitlink `93c7c58` → `3ce65ee`（最外 1px 圈绘制） | **keep_product** gitlink；wine 工作树 cherry-pick → `3071a32860b`（保留未提交 FONT_AA / mfplat / ntdll locale） |
+| `fa13f36a` 桌面未就绪不锁宿主光标 | **adapted** → `BindWaylandRefs` 第四参 `desktopMode`（第三参仍是产品 `InputResolver`） |
+
+下次增量从 `fa13f36a` 之后开始：`git fetch winehua && git log fa13f36a..winehua/master --oneline`。
+
 ## 2026-09-13 WineHua master 增量（151d38bf..ae2cfa63）
 
 在产品 `sync/winehua-pad-fusion-inline` 上核对 `winehua/master` @ `ae2cfa63`。

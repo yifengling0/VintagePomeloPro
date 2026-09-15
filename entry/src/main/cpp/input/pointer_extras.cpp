@@ -58,10 +58,12 @@ void PointerExtras::SetRelativeBaselineSink(RelativeBaselineSink sink) {
 // 一次性, 之后只在 Wayland 线程读 tmgr_/rootId 引用 — 无锁。
 void PointerExtras::BindWaylandRefs(ToplevelManager* tmgr,
                                     const uint32_t* desktopRootToplevelId,
-                                    InputResolver* resolver) {
+                                    InputResolver* resolver,
+                                    const bool* desktopMode) {
     tmgr_ = tmgr;
     resolver_ = resolver;
     desktopRootToplevelId_ = desktopRootToplevelId;
+    desktopMode_ = desktopMode;
 }
 
 // ========================================================================
@@ -395,10 +397,18 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
     }
     if (!doLock && !doUnlock) return;
     // isShell 在调用线程 (wl 事件循环) 算好再捕获进工作线程 — 避免工作线程
-    // 与 wl 线程并发读 desktopRootToplevelId_ (数据竞争)
-    // 6A: 直读装配注入的 rootId 共享引用 (与 WaylandServer::GetDesktopRootToplevelId 同值同源)
-    const bool isShell =
-        (toplevelId == *desktopRootToplevelId_);
+    // 与 wl 线程并发读这些共享引用 (数据竞争)。
+    // 6A: 直读装配注入的 id 共享引用 (与 WaylandServer 的 session 字段同源)。
+    //
+    // 桌面模式下 root 尚未确立 = 桌面未就绪: 此刻能发起相对指针的只可能是
+    // 桌面壳自身 (游戏要先有桌面), 不能按游戏冻结 — 否则宿主锁死系统光标,
+    // 表现为"可见但动不了", 且 relative 对象不销毁则永不解锁。
+    // toplevelId==0 (约束 surface 未映射成 toplevel) 与 root==0 同属身份未知,
+    // 一并按不冻结处理。
+    const bool desktopNotReady = desktopMode_ && desktopRootToplevelId_ &&
+        *desktopMode_ && *desktopRootToplevelId_ == 0;
+    const bool isShell = desktopNotReady || toplevelId == 0 ||
+        (desktopRootToplevelId_ && toplevelId == *desktopRootToplevelId_);
     // IPC 挪入独立线程执行 (20260822 review #3): OH_WindowManager_LockCursor
     // 是同步 Binder 往返, 在调用点 (wl 事件循环线程) 执行会停摆整个
     // Wayland 循环 — 进游戏瞬间的相对模式切换恰是最高频时刻。工作线程按

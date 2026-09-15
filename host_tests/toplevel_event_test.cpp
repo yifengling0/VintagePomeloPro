@@ -46,6 +46,7 @@ static void test_event_names() {
     eq_str("name(Fullscreen)", ToplevelEventName(ToplevelEventType::Fullscreen), "fullscreen");
     eq_str("name(Unfullscreen)", ToplevelEventName(ToplevelEventType::Unfullscreen), "unfullscreen");
     eq_str("name(Minimized)", ToplevelEventName(ToplevelEventType::Minimized), "minimized");
+    eq_str("name(Restored)", ToplevelEventName(ToplevelEventType::Restored), "restored");
     eq_str("name(MoveStart)", ToplevelEventName(ToplevelEventType::MoveStart), "move_start");
     eq_str("name(MoveEnd)", ToplevelEventName(ToplevelEventType::MoveEnd), "move_end");
     eq_str("name(Modal)", ToplevelEventName(ToplevelEventType::Modal), "modal");
