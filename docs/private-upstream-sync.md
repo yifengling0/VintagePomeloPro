@@ -23,6 +23,25 @@
 - 构建门修复：`graphics-stack.lock.yaml` 的 `wine` 期望值自 `7d68686c`（float32 WASAPI，2026-09-03）起与实际 gitlink 漂移，`make test` 的 `graphics-contract-check` 一直失败；本轮对齐到 `993993b5`（= 父仓登记指针，本地工作树 6 个 cherry-pick 的基准）。
 - 跳过：上游 Index / WineEnvService / 品牌 / 微信二维码；父仓 `thirdparty/wine` gitlink 仍不跟随上游。
 - 版本：**1.3.9（1003009）不变**（按用户要求本轮不升版本）。
+
+### 2026-09-16 子模块指针收口：GDI 抗锯齿改为正式提交 + 子模块分支推送
+
+- 背景：GDI 文本抗锯齿（`WINEHUA_FONT_AA=bitmap|gray`）此前以本地 patch `0010`
+  形态存在；上游 `winehua/wine` 已把同一改动发布为 `ad7bdd7f092`
+  （`fix/ohos-gdi-text-antialias` 分支，作者与机制一致）。为免两处维护，
+  改为正式提交并入产品线，**不丢修复**。
+- wine 子模块：在产品线 `3071a32860b` 上 cherry-pick `ad7bdd7f092` → `effb47e65cb`；
+  分支 `sync/winehua-pad-fusion-inline` 已推送到 `winehua/wine`
+  （`993993b5` 底座 + modal/dnsapi/pread/mprotect/theme/1px + 抗锯齿）。
+- virglrenderer 子模块：`fde243e144d3`（EGL fence 指针缓存）已推送到
+  `winehua/virglrenderer:sync/winehua-pad-fusion-inline`。
+- 父仓：两个 gitlink 正式登记（此前刻意不登记，因为 SHA 只存在于本机）；
+  `docs/graphics/graphics-stack.lock.yaml` 同步这两个指针，新增 clone 可直接
+  `git submodule update --init --recursive` 解析。
+- 删除 `patches/wine/0010-ohos-font-aa-override.patch`；其余 7 个 patch 仍由
+  `build_wine.sh` 幂等应用（0001 已在上游底座内，脚本走 reverse-check 跳过）。
+- 影响：wine 源码树变化触发一次完整 Wine 重编，随后重编 HAP 并做真机回归。
+
 - 验证：`make test test-model` 全绿（graphics-contract OK、toplevel_event 72/72、controller_merge 55/55、WHGP v2 一致、graphics_policy PASS、dxvk_mapped_range 27/27、catalog/model 单测通过）；ARM64 `make hap` 构建 + 签名成功，产物校验版本/ABI/关键载荷齐全。
 - 产物：`F:\PomeloWin\artifacts\VintagePomeloPro-1.3.9-20260916\VintagePomeloPro-1.3.9-20260916-debug.hap`（SHA-256 `80c1aacb7d7ce56ddae34fe8f962ff63562fed7f2ff08707aafe20609e485454`）。未签正式 `proRelease` APP（无版本变更，待真机验收后再签）。
 - 未验证：真机回归（全屏右键菜单、最小化还原、语言切换后重启引擎、日语字形）尚未执行。

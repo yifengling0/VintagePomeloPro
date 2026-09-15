@@ -18,6 +18,22 @@ buffer 尺寸须等于全屏 fit src）、`zc_bridge` 的 `fitChildren` 全屏�
 起漂移，`make test` 的 graphics-contract-check 一直失败）。详见
 [wine-kernel-language.md](wine-kernel-language.md)。
 
+### 子模块指针登记（2026-09-16）
+
+GDI 文本抗锯齿修复（本地 patch `0010`）与上游 `winehua/wine`
+`fix/ohos-gdi-text-antialias` 的 `ad7bdd7f092` 是同一改动（同作者、同
+`WINEHUA_FONT_AA` 机制），因此改为**正式提交**并入产品 wine 线：
+
+| 项 | 值 |
+| --- | --- |
+| 产品 wine 线 | `effb47e65cb`（`993993b5` + modal/dnsapi/pread/mprotect/theme/1px + `ad7bdd7` 抗锯齿） |
+| 推送分支 | `winehua/wine:sync/winehua-pad-fusion-inline` |
+| virglrenderer | `fde243e144d3`（EGL fence 指针缓存），推送分支 `winehua/virglrenderer:sync/winehua-pad-fusion-inline` |
+| 删除 | `patches/wine/0010-ohos-font-aa-override.patch`（已被提交取代；`build_wine.sh` 对其余 7 个 patch 仍幂等应用） |
+
+两个 gitlink 已在父仓登记，`graphics-stack.lock.yaml` 同步为可解析指针 ——
+新增 clone / `git submodule update` 不再需要本机私有对象。
+
 下次增量从 `2049af9e` 之后开始：`git fetch winehua && git log 2049af9e..winehua/master --oneline`。
 
 ## 2026-09-15 WineHua master 增量（ae2cfa63..fa13f36a）
