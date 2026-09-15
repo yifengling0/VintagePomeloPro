@@ -28,6 +28,21 @@ constexpr const char* X86_BUNDLED_GUEST_GFX_DIR = "/data/storage/el1/bundle/libs
 }
 #endif
 
+namespace {
+
+// 设置页 "Windows 系统语言" 的取值白名单 (ArkTS WineLanguage 枚举)。
+// Wine 的 ntdll 用这套 unix locale 反查 LCID / ACP:
+//   zh_CN → 0x0804 / ACP 936    ja_JP → 0x0411 / ACP 932
+//   en_US → 0x0409 / ACP 1252
+// 未知值一律回中文, 避免把任意字符串拼进 LANG 造成解析失败。
+std::string WineLocaleFor(const std::string& wineLang) {
+    if (wineLang == "en_US" || wineLang == "ja_JP" || wineLang == "zh_CN")
+        return wineLang;
+    return "zh_CN";
+}
+
+}  // namespace
+
 int CreateAudioBootstrapFd(const std::string& runtimeDir) {
     if (!winehua::AudioBroker::GetInstance().EnsureStarted(runtimeDir)) {
         OH_LOG_ERROR(LOG_APP, "[AudioBroker] failed to start for runtimeDir=%{public}s", runtimeDir.c_str());
@@ -81,12 +96,17 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     /* Front-load WHGP so NativeChildProcess truncation cannot drop it. */
     winehua::controller::EnsureBridgeForWineLaunch(prefix);
     winehua::controller::AppendWineGamepadEnv(env);
-    env.push_back("WINEDEBUG=-all");
-    const std::string locale = wineLang == "en_US" ? "en_US" : "zh_CN";
+    // locale / GStreamer 插件路径。WINEDEBUG 不在此注入: 本列表经 __env 通道
+    // 下发, 在 wine 侧晚于 setup_wine_env 应用, 会盖掉 select_winedebug_profile
+    // 的选择 — wine 进程 WINEDEBUG 的唯一决策点是 wine_child.cpp。
+    const std::string locale = WineLocaleFor(wineLang);
     env.push_back("LANG=" + locale + ".UTF-8");
-    // OHOS musl has no locale database. Wine falls back through LC_ALL when
-    // setlocale returns C, so keep it paired with LANG as WineHua master does.
+    // OHOS musl 无 locale 数据, setlocale 激活失败返回 "C";
+    // Wine 的 unix_to_win_locale 遇 "C" 只读 LC_ALL 兜底 (ntdll/unix/env.c),
+    // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (见 WineLocaleFor),
+    // 与 LANG 同取设置页 wineLang (zh_CN / ja_JP / en_US)。
     env.push_back("LC_ALL=" + locale + ".UTF-8");
+    // winegstreamer 运行时加载 GStreamer 插件 (gst-plugins-base/good/libav)
     env.push_back("GST_PLUGIN_PATH=" + binDir + "/x86_64-unix/gstreamer-1.0");
     env.push_back("GST_PLUGIN_SYSTEM_PATH=" + binDir + "/x86_64-unix/gstreamer-1.0");
     winehua::AppendBox64PerfStrings(env);

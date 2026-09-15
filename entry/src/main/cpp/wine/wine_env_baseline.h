@@ -8,11 +8,13 @@
  * 从同一张表生成公共键, 各自只保留真分歧键:
  *   - XDG_RUNTIME_DIR / WAYLAND_DISPLAY (主: 合成器 socket 参数; 子: prefix/固定名)
  *   - LD_LIBRARY_PATH 系 (主: 按图形后端拼 runtimeLibPath; 子: 系统原生路径)
- *   - 仅主进程序列化: LANG/GST_PLUGIN_PATH/WINEDEBUG 基线
+ *   - 仅主进程序列化: LANG/LC_ALL/GST_PLUGIN_PATH
  *   - 仅子进程: WINEBINDIR/WINEUNIXDIR、PROCESSBROKER、WINEDEBUG profile
  *   - 窗口模式 (WINEHUA_DESKTOP_MODE / SIMULATE_RESOLUTION): 取值只在
  *     WindowingModeFor; 父进程 BuildWineEnv Layer 4 写出 (与 master 同层);
  *     子进程不进基线表, 只在 __env 缺键时 EnsureWindowingModeEnv 补同一对值
+ *   (WINEDEBUG 不再是主进程基线: __env 下发会盖掉子进程的 profile 选择,
+ *    唯一决策点是 wine_child.cpp 的 select_winedebug_profile)
  *
  * header-only: wine_child 是独立 libwine_child.so, 不链 entry obj。
  *
