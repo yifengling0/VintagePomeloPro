@@ -32,11 +32,12 @@ namespace {
 
 // 设置页 "Windows 系统语言" 的取值白名单 (ArkTS WineLanguage 枚举)。
 // Wine 的 ntdll 用这套 unix locale 反查 LCID / ACP:
-//   zh_CN → 0x0804 / ACP 936    ja_JP → 0x0411 / ACP 932
-//   en_US → 0x0409 / ACP 1252
+//   zh_CN → 0x0804 / ACP 936    zh_TW → 0x0404 / ACP 950
+//   ja_JP → 0x0411 / ACP 932    en_US → 0x0409 / ACP 1252
 // 未知值一律回中文, 避免把任意字符串拼进 LANG 造成解析失败。
 std::string WineLocaleFor(const std::string& wineLang) {
-    if (wineLang == "en_US" || wineLang == "ja_JP" || wineLang == "zh_CN")
+    if (wineLang == "en_US" || wineLang == "ja_JP" ||
+        wineLang == "zh_CN" || wineLang == "zh_TW")
         return wineLang;
     return "zh_CN";
 }

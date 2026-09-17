@@ -4,6 +4,31 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
+### 2026-09-18 Wine 内核语言新增繁體中文 + 版本 1.4.0（1004000）
+
+- 分支：产品线 `sync/winehua-pad-fusion-inline`。
+- 功能：`系统设定 → Wine 引擎 → Windows 系统语言` 由三档扩为四档
+  **中文 / 繁體中文 / 日本語 / English**（界面两行两列）。
+  - `WineLanguage.TRADITIONAL_CHINESE = 'zh_TW'` + `normalizeWineLanguage()` 放行；
+  - `wine_env.cpp` 的 `WineLocaleFor()` 白名单加 `zh_TW` → `LANG`/`LC_ALL=zh_TW.UTF-8`
+    → Wine ntdll 解析 LCID **`0x0404`** / ACP **950 (Big5)**；
+  - 字体无需改动：设备自带 `HarmonyOS_Sans_TC.ttf`，`MASTER_FONT_SUBSTITUTES`
+    已把 `MingLiU` / `PMingLiU` / `Microsoft JhengHei` 指向 `HarmonyOS Sans TC`；
+  - 机制与自查步骤见 [wine-kernel-language.md](wine-kernel-language.md)。
+- 版本：**1.4.0（1004000）**。
+- 子模块审计（回答"是否所有子分支都提交了"）：`git submodule foreach` 逐个核对
+  HEAD 是否落在远端分支上，唯一缺口是 `thirdparty/pcre2`（`5ac89450`
+  "重生成 config.h.in 引号样式"，只存在于本机）——已推送到
+  `winehua/pcre2:sync/winehua-pad-fusion-inline`。其余 22 个子模块的固定提交
+  均在各自远端分支/tag 上（wine / virglrenderer 见上一节）。
+- 验证：`make test test-model` 全绿；ARM64 Debug/unsigned/proRelease HAP 与正式
+  APP 全部构建成功，正式包 `verify-app` 通过；Debug HAP 内确认含
+  `wine-language-zh-tw` 与 `zh_TW`（ArkTS + libentry.so）。
+- 产物：`F:\PomeloWin\artifacts\VintagePomeloPro-1.4.0-20260918\`
+  （unsigned / debug / proRelease HAP + signed APP + SHA256.txt + NOTES.md）。
+- 未验证：真机回归（繁体码页、日文码页、全屏右键菜单、最小化还原）。
+- 父仓 5 个提交仍在本地，未推 `origin/main`（等真机确认）。
+
 > **同步基线标记**：最新核对到的上游 SHA 见 [UPSTREAM_SYNC_POINT.md](UPSTREAM_SYNC_POINT.md)（当前为 WineHua `master` @ `2049af9e`）。下次同步先 `git fetch winehua && git log 2049af9e..winehua/master --oneline`，避免重复合并。
 
 ### 2026-09-16 对齐全屏直传浮层判据 + 新增日语 Wine 内核（2049af9e，版本 1.3.9 不变）

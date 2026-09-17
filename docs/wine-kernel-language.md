@@ -2,7 +2,8 @@
 
 ## 设置位置
 
-`系统设定 → Wine 引擎 → Windows 系统语言`，三选一：**中文 / 日本語 / English**。
+`系统设定 → Wine 引擎 → Windows 系统语言`，四选一：**中文 / 繁體中文 / 日本語 / English**
+（界面按两行两列排布：中文·繁體中文 / 日本語·English）。
 
 切换后写入全局设置，提示「系统语言已保存；重启 Wine 引擎后生效」。运行中的
 Windows 程序不会立即中断，下次启动引擎（或重启 App）时按新语言拉起。
@@ -32,6 +33,7 @@ Windows 程序不会立即中断，下次启动引擎（或重启 App）时按�
 | 设置 | LANG / LC_ALL | LCID | ACP | 字族取向 |
 | --- | --- | --- | --- | --- |
 | 中文 | `zh_CN.UTF-8` | `0x0804` | 936 (GBK) | `鸿蒙黑体` |
+| 繁體中文 | `zh_TW.UTF-8` | `0x0404` | 950 (Big5) | `鸿蒙黑体`（`MingLiU` 等已映射 `HarmonyOS Sans TC`） |
 | 日本語 | `ja_JP.UTF-8` | `0x0411` | 932 (Shift-JIS) | `鸿蒙黑体` |
 | English | `en_US.UTF-8` | `0x0409` | 1252 | `鸿蒙黑体` |
 
@@ -67,8 +69,16 @@ hdc -t <target> shell "grep -i 'MSGothic\|Noto Sans CJK JP' \
   /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/system.reg"
 ```
 
-游戏侧验证要点：用 `GetACP()` 自证 —— Shift-JIS 文本在 936 下会乱码，在 932
-下正常；反之 GBK 文本在 932 下乱码。
+游戏侧验证要点：用 `GetACP()` 自证 —— GBK 文本在 950/932 下乱码、Big5 文本在
+936/932 下乱码、Shift-JIS 文本在 936/950 下乱码；只有与游戏编码一致的档位才正常。
+
+繁体档另有两点已就绪、无需额外改动：
+
+- Wine 侧 `locale.nls` 含 `zh-TW`，`unix_to_win_locale("zh_TW.UTF-8")` 直接得到
+  `0x0404`（`ntdll` 的 `__OHOS__` 强制 zh-CN 分支只在"解析失败退化成英文"时生效，
+  `zh_TW` 不落进该分支）。
+- 设备自带 `HarmonyOS_Sans_TC.ttf`；`MASTER_FONT_SUBSTITUTES` 里
+  `MingLiU` / `PMingLiU` / `Microsoft JhengHei` 已指向 `HarmonyOS Sans TC`。
 
 ## 新增第三种语言时
 
