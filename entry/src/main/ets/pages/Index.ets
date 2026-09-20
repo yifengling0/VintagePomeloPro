@@ -411,10 +411,11 @@ struct Index {
       return;
     }
     if (DeviceCapabilityPolicy.isPhoneDevice()) {
-      await DeviceCapabilityPolicy.applyPortraitOrientation(win, 'Index-float');
-      await DeviceCapabilityPolicy.waitForRequestedOrientation(win, ScreenOrientationSetting.PORTRAIT,
+      // 库页只做横板: 从桌面退回库页时直接回到"仅横屏自动旋转",
+      // 不再先转竖屏再放开 (横板 UI 下那一步只会闪一下竖屏)。
+      DeviceCapabilityPolicy.applyLauncherLandscapeRotation(win, 'Index-float');
+      await DeviceCapabilityPolicy.waitForRequestedOrientation(win, ScreenOrientationSetting.SENSOR_LANDSCAPE,
         'Index-float');
-      DeviceCapabilityPolicy.enableSensorRotation(win, 'Index-float');
     }
     await this.restoreLibraryWindowShell(win);
   }
@@ -1002,25 +1003,24 @@ struct Index {
     return this.settings.viewMode === ViewMode.FILES ? ViewMode.GRID : this.settings.viewMode;
   }
 
-  /** 封面墙用更多列: 竖版瓦片比横版窄, 同样宽度下能多排一列而不挤压封面。 */
+  /**
+   * 封面墙列数。库页只做横板, 所以按窄屏 (<960vp, 含手机横屏) / 宽屏两档:
+   * 竖版瓦片比横版窄, 同宽度下比网格模式多排一列而不挤压封面。
+   */
   private coverWallColumns(): string {
-    if (this.isPhoneLandscape()) return '1fr 1fr 1fr';
-    if (this.isPhone()) return '1fr 1fr';
-    if (this.breakpoint === 'md') return '1fr 1fr 1fr';
+    if (this.isPhone()) return '1fr 1fr 1fr';
     if (this.breakpoint === 'xl') return '1fr 1fr 1fr 1fr 1fr 1fr';
     return '1fr 1fr 1fr 1fr';
   }
 
   /**
-   * 封面墙瓦片高度 (竖版, 约 3:4)。列数决定格宽, 列越多格越窄、高度要降,
-   * 否则封面会被裁掉上下; 调整列数模板时这里要跟着改。
+   * 封面墙瓦片高度 (竖版, 约 3:4)。高度必须跟着列数走: 列多格窄就降高度,
+   * 否则封面上下会被裁掉 — 调整上面的列数模板时这里要同步改。
    */
   private coverWallHeight(): number {
-    if (this.isPhoneLandscape()) return 208;
-    if (this.isPhone()) return 236;
-    if (this.breakpoint === 'md') return 292;
-    if (this.breakpoint === 'xl') return 288;
-    return 320;
+    if (this.isPhone()) return 300;
+    if (this.breakpoint === 'xl') return 240;
+    return 280;
   }
 
   private gridColumns(): string {

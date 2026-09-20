@@ -28,16 +28,17 @@ export class DeviceCapabilityPolicy {
     return type === '2in1' || type === 'pc';
   }
 
-  static supportsSensorRotation(): boolean {
-    return DeviceCapabilityPolicy.isPhoneDevice();
-  }
-
-  static enableSensorRotation(target: window.Window, tag: string): void {
-    if (!DeviceCapabilityPolicy.supportsSensorRotation()) return;
-    target.setPreferredOrientation(window.Orientation.AUTO_ROTATION_RESTRICTED).then(() => {
-      hilog.info(DOMAIN, tag, 'Phone auto rotation enabled');
+  /**
+   * 启动器/库页 UI 的方向策略: 只走横板 — 左横屏 ↔ 右横屏跟随传感器自动旋转
+   * (受系统控制中心旋转开关约束), 不再进入竖屏。
+   * 2in1/PC 是自由缩放的桌面窗口, 不加方向约束。
+   */
+  static applyLauncherLandscapeRotation(target: window.Window, tag: string): void {
+    if (DeviceCapabilityPolicy.usesManagedWineWindows()) return;
+    target.setPreferredOrientation(window.Orientation.AUTO_ROTATION_LANDSCAPE_RESTRICTED).then(() => {
+      hilog.info(DOMAIN, tag, 'Launcher landscape rotation enabled');
     }).catch((error: Error) => {
-      hilog.warn(DOMAIN, tag, 'Phone auto rotation unavailable: %{public}s', JSON.stringify(error));
+      hilog.warn(DOMAIN, tag, 'Launcher landscape rotation unavailable: %{public}s', JSON.stringify(error));
     });
   }
 

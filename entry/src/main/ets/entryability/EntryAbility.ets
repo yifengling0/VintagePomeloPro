@@ -101,7 +101,7 @@ export default class EntryAbility extends UIAbility {
       let mainWin = windowStage.getMainWindowSync();
       if (mainWin) {
         this.mainWindow = mainWin;
-        DeviceCapabilityPolicy.enableSensorRotation(mainWin, 'EntryAbility');
+        DeviceCapabilityPolicy.applyLauncherLandscapeRotation(mainWin, 'EntryAbility');
         mainWin.setWindowDecorVisible(false);
         if (DeviceCapabilityPolicy.isPhoneDevice()) {
           // HDS navigation owns the status-bar material. Extend the ArkUI
