@@ -217,7 +217,13 @@ export class IconExtractor {
     for (let i = 0; i < total; i++) {
       const id = ev.getUint32(i * 8, true);
       const off = ev.getUint32(i * 8 + 4, true);
-      if (id & 0x80000000 || !(off & 0x80000000)) {
+      if (!(off & 0x80000000)) {
+        continue;
+      }
+      // 资源既能用数字 ID 也能用字符串名标识, 部分链接器把整组图标挂在一个名字下。
+      // 取"任意一个"时不能跳过名字型条目, 否则整组图标都读不到 (实测 4399启动器 命中);
+      // 只有按数字 ID 精确匹配时才必须排除名字型条目。
+      if (wantId >= 0 && (id & 0x80000000) !== 0) {
         continue;
       }
       if (wantId >= 0 && (id & 0xFFFF) !== wantId) {

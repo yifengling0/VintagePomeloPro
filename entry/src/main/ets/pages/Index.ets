@@ -108,6 +108,8 @@ struct Index {
   @State private scanning: boolean = false;
   @State private refreshing: boolean = false;
   @State private runningAppIds: Set<string> = new Set<string>();
+  /** 收藏标记是卡面上的可见状态, 随运行态一起刷新, 避免每张卡片各查一次设置。 */
+  @State private favoriteIds: Set<string> = new Set<string>();
   @State private phoneNavIndex: number = PHONE_NAV_BUILTIN;
   @State private viewportWidth: number = 0;
   @State private viewportHeight: number = 0;
@@ -798,12 +800,26 @@ struct Index {
     const running = resolveRunningAppIds(this.apps, sessionService.getRunningAppIds(),
       sessionService.getRunningPaths());
     this.runningAppIds = running;
+    this.refreshFavoriteIds();
     this.visibleApps = this.filterApps(this.searchQuery, this.filter, running);
   }
 
   private runningFilterLabel(): string {
     const n = this.runningAppIds.size;
     return n > 0 ? `运行中 (${n})` : '运行中';
+  }
+
+  /**
+   * 收藏状态只在应用设置页里改, 但返回本页时 onPageShow → rescan 会走到这里,
+   * 因此和运行态共用同一个刷新入口即可覆盖全部时机。
+   */
+  private refreshFavoriteIds(): void {
+    const store = AppSettingsStore.getInstance();
+    const next: Set<string> = new Set<string>();
+    this.apps.forEach((app: AppDescriptor): void => {
+      if (store.getAppSettings(app.id).favorite) next.add(app.id);
+    });
+    this.favoriteIds = next;
   }
 
   private pageBackgroundSource(): string {
@@ -986,8 +1002,30 @@ struct Index {
     return this.settings.viewMode === ViewMode.FILES ? ViewMode.GRID : this.settings.viewMode;
   }
 
+  /** 封面墙用更多列: 竖版瓦片比横版窄, 同样宽度下能多排一列而不挤压封面。 */
+  private coverWallColumns(): string {
+    if (this.isPhoneLandscape()) return '1fr 1fr 1fr';
+    if (this.isPhone()) return '1fr 1fr';
+    if (this.breakpoint === 'md') return '1fr 1fr 1fr';
+    if (this.breakpoint === 'xl') return '1fr 1fr 1fr 1fr 1fr 1fr';
+    return '1fr 1fr 1fr 1fr';
+  }
+
+  /**
+   * 封面墙瓦片高度 (竖版, 约 3:4)。列数决定格宽, 列越多格越窄、高度要降,
+   * 否则封面会被裁掉上下; 调整列数模板时这里要跟着改。
+   */
+  private coverWallHeight(): number {
+    if (this.isPhoneLandscape()) return 208;
+    if (this.isPhone()) return 236;
+    if (this.breakpoint === 'md') return 292;
+    if (this.breakpoint === 'xl') return 288;
+    return 320;
+  }
+
   private gridColumns(): string {
     if (this.catalogCardViewMode() === ViewMode.COMPACT) return '1fr';
+    if (this.catalogCardViewMode() === ViewMode.COVER) return this.coverWallColumns();
     // VintagePomelo keeps cover cards in two columns on phones. A single
     // flexible column makes one icon fill almost the entire compact window.
     if (this.isPhone()) return '1fr 1fr';
@@ -1026,6 +1064,8 @@ struct Index {
     // layout is settling. Reserve the cover, fixed title row and shadow inset
     // explicitly so the following row can never paint over this card.
     if (this.catalogCardViewMode() === ViewMode.COMPACT) return 120;
+    // 封面墙把标题压进美术里, 没有独立标题行, 只留瓦片高度和阴影内边距。
+    if (this.catalogCardViewMode() === ViewMode.COVER) return this.coverWallHeight() + 16;
     const coverHeight = this.catalogCardViewMode() === ViewMode.LARGE ? 196 : 120;
     return coverHeight + 71 + 16;
   }
@@ -1176,15 +1216,17 @@ struct Index {
       title: '卡片视图',
       buttons: [
         { text: (this.settings.viewMode === ViewMode.GRID ? '✓ ' : '') + '网格封面', color: $r('sys.color.ohos_id_color_text_primary') },
+        { text: (this.settings.viewMode === ViewMode.COVER ? '✓ ' : '') + '封面墙', color: $r('sys.color.ohos_id_color_text_primary') },
         { text: (this.settings.viewMode === ViewMode.COMPACT ? '✓ ' : '') + '紧凑列表', color: $r('sys.color.ohos_id_color_text_primary') },
         { text: (this.settings.viewMode === ViewMode.LARGE ? '✓ ' : '') + '大封面', color: $r('sys.color.ohos_id_color_text_primary') },
         { text: (this.settings.viewMode === ViewMode.FILES ? '✓ ' : '') + '文件浏览', color: $r('sys.color.ohos_id_color_text_primary') }
       ]
     }).then((result) => {
       if (result.index === 0) this.setViewMode(ViewMode.GRID);
-      else if (result.index === 1) this.setViewMode(ViewMode.COMPACT);
-      else if (result.index === 2) this.setViewMode(ViewMode.LARGE);
-      else if (result.index === 3) this.setViewMode(ViewMode.FILES);
+      else if (result.index === 1) this.setViewMode(ViewMode.COVER);
+      else if (result.index === 2) this.setViewMode(ViewMode.COMPACT);
+      else if (result.index === 3) this.setViewMode(ViewMode.LARGE);
+      else if (result.index === 4) this.setViewMode(ViewMode.FILES);
     }).catch(() => {});
   }
 
@@ -1192,6 +1234,7 @@ struct Index {
     if (this.settings.viewMode === ViewMode.COMPACT) return $r('sys.symbol.list_bullet');
     if (this.settings.viewMode === ViewMode.LARGE) return $r('sys.symbol.rectangle_grid_1x2');
     if (this.settings.viewMode === ViewMode.FILES) return $r('sys.symbol.folder');
+    if (this.settings.viewMode === ViewMode.COVER) return $r('sys.symbol.rectangle_grid_2x1');
     return $r('sys.symbol.square_grid_2x2');
   }
 
@@ -1348,6 +1391,8 @@ struct Index {
         Row({ space: 4 }) {
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
             .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_2x1')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COVER ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.COVER))
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
             .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COMPACT ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.COMPACT))
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_1x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
@@ -1393,6 +1438,8 @@ struct Index {
       app: app,
       viewMode: this.catalogCardViewMode(),
       running: this.runningAppIds.has(app.id),
+      favorite: this.favoriteIds.has(app.id),
+      coverWallHeight: this.coverWallHeight(),
       useGlassEffect: this.settings.useGlassEffect,
       narrowPhone: this.isPhone(),
       onLaunch: (target: AppDescriptor): void => { this.launch(target); },

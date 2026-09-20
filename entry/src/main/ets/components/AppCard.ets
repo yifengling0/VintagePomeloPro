@@ -1,19 +1,70 @@
 import { AppDescriptor, AppSource, DisplayMode, ViewMode } from '../model/AppModels';
+import { IconExtractor } from '../service/IconExtractor';
 
 @Component
 export struct AppCard {
   @Prop app: AppDescriptor;
   @Prop viewMode: ViewMode = ViewMode.GRID;
   @Prop running: boolean = false;
+  @Prop favorite: boolean = false;
+  /** 封面墙瓦片高度 (竖版), 由页面按断点算好传进来, 卡片不猜屏幕宽度。 */
+  @Prop coverWallHeight: number = 288;
   @Prop useGlassEffect: boolean = true;
   @Prop narrowPhone: boolean = false;
   @State private pressed: boolean = false;
+  /** exe 内嵌图标 (PE .rsrc 提取, 落盘缓存) — 无自定义封面时的卡面主视觉。 */
+  @State private iconPath: string = '';
+  /** 封面文件被删除或解码失败: 退回图标/字母占位, 不留空白卡面。 */
+  @State private coverFailed: boolean = false;
+  /** 每张卡片只发起一次提取; 失败不重试, 避免每轮重绘反复解析 PE。 */
+  private iconRequested: boolean = false;
   onLaunch: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
   onSettings: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
   onLongPress: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
 
+  aboutToAppear(): void {
+    this.requestIcon(false);
+  }
+
+  /** 内建程序用清单封面, 不走 PE 解析; 未关联/不可用程序的 exe 打不开, 直接跳过。 */
+  private requestIcon(coverUnusable: boolean): void {
+    if (this.iconRequested) return;
+    if (this.app.source !== AppSource.DOWNLOAD) return;
+    if (!coverUnusable && this.app.coverPath.length > 0) return;
+    if (!this.app.available) return;
+    const executable = this.app.launchTarget.executable;
+    if (executable.length === 0) return;
+    this.iconRequested = true;
+    void this.loadIcon(executable);
+  }
+
+  private async loadIcon(executable: string): Promise<void> {
+    try {
+      const path = await IconExtractor.getInstance().extract(executable);
+      if (path.length > 0) this.iconPath = path;
+    } catch (_) {
+      // 图标缺失不是错误: 保留字母占位。
+    }
+  }
+
+  private hasCover(): boolean {
+    return this.app.coverPath.length > 0 && !this.coverFailed;
+  }
+
   private coverSource(): string {
     return this.app.coverPath.startsWith('file://') ? this.app.coverPath : 'file://' + this.app.coverPath;
+  }
+
+  private plateSize(): number {
+    if (this.viewMode === ViewMode.COMPACT) return 54;
+    if (this.viewMode === ViewMode.COVER) return this.narrowPhone ? 104 : 124;
+    return this.narrowPhone ? 58 : 92;
+  }
+
+  private plateRadius(): number {
+    if (this.viewMode === ViewMode.COMPACT) return 16;
+    if (this.viewMode === ViewMode.COVER) return this.narrowPhone ? 22 : 30;
+    return this.narrowPhone ? 18 : 26;
   }
 
   private coverHeight(): number {
@@ -113,8 +164,39 @@ export struct AppCard {
       .borderRadius(9)
   }
 
+  /**
+   * 卡面主视觉的统一载体: 拿到 exe 图标就放图标, 否则放首字母占位。
+   * 尺寸随视图模式变化, 三种模式观感一致。
+   */
   @Builder
-  private DownloadFallback(height: number) {
+  private ArtPlate(size: number, radius: number) {
+    Stack({ alignContent: Alignment.Center }) {
+      if (this.iconPath.length > 0) {
+        Image(`file://${this.iconPath}`)
+          .width(size * 0.74)
+          .height(size * 0.74)
+          .objectFit(ImageFit.Contain)
+          // exe 图标常见 32~256px, 放大到卡面时必须用高质量插值, 否则发糊。
+          .interpolation(ImageInterpolation.High)
+          .draggable(false)
+      } else {
+        Text(this.fallbackMonogram())
+          .fontSize(size * 0.58)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#F2FFFFFF')
+      }
+    }
+    .width(size)
+    .height(size)
+    // 有图标时压低底板亮度, 让图标本身成为视觉焦点。
+    .backgroundColor(this.iconPath.length > 0 ? '#14FFFFFF' : '#24FFFFFF')
+    .border({ width: 1.5, color: '#38FFFFFF' })
+    .borderRadius(radius)
+    .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 5 })
+  }
+
+  @Builder
+  private ArtFallback(height: number) {
     Stack({ alignContent: Alignment.Center }) {
       Circle()
         .width(this.viewMode === ViewMode.COMPACT ? 96 : (this.narrowPhone ? 104 : 190))
@@ -128,19 +210,8 @@ export struct AppCard {
         .fill('#0AFFFFFF')
         .position({ x: this.viewMode === ViewMode.COMPACT ? -24 : -38, y: this.viewMode === ViewMode.COMPACT ? 60 : '58%' })
       Column({ space: this.viewMode === ViewMode.COMPACT ? 4 : 8 }) {
-        Stack({ alignContent: Alignment.Center }) {
-          Text(this.fallbackMonogram())
-            .fontSize(this.viewMode === ViewMode.COMPACT ? 31 : (this.narrowPhone ? 34 : 54))
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#F2FFFFFF')
-        }
-        .width(this.viewMode === ViewMode.COMPACT ? 54 : (this.narrowPhone ? 58 : 92))
-        .height(this.viewMode === ViewMode.COMPACT ? 54 : (this.narrowPhone ? 58 : 92))
-        .backgroundColor('#24FFFFFF')
-        .border({ width: 1.5, color: '#38FFFFFF' })
-        .borderRadius(this.viewMode === ViewMode.COMPACT ? 16 : (this.narrowPhone ? 18 : 26))
-        .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 5 })
-        if (this.viewMode !== ViewMode.COMPACT) {
+        this.ArtPlate(this.plateSize(), this.plateRadius())
+        if (this.iconPath.length === 0 && this.viewMode !== ViewMode.COMPACT) {
           Text('EXE')
             .fontSize(10)
             .fontWeight(FontWeight.Bold)
@@ -160,12 +231,17 @@ export struct AppCard {
   @Builder
   private Cover(height: number) {
     Stack({ alignContent: Alignment.TopStart }) {
-      if (this.app.coverPath.length > 0) {
+      if (this.hasCover()) {
         Image(this.coverSource())
           .width('100%')
           .height(height)
           .objectFit(ImageFit.Cover)
           .draggable(false)
+          .onError((): void => {
+            // 封面被删除或损坏时不要留白卡面: 改用 exe 图标或字母占位。
+            this.coverFailed = true;
+            this.requestIcon(true);
+          })
       } else if (this.app.source === AppSource.BUILTIN) {
         Image(this.builtinCover())
           .width('100%')
@@ -173,11 +249,14 @@ export struct AppCard {
           .objectFit(ImageFit.Cover)
           .draggable(false)
       } else {
-        this.DownloadFallback(height)
+        this.ArtFallback(height)
       }
 
       if (this.viewMode === ViewMode.COMPACT) {
         Row({ space: 4 }) {
+          if (this.favorite) {
+            this.CompactBadge('★', '#E0D9A21B')
+          }
           if (this.app.source === AppSource.BUILTIN) {
             this.CompactBadge('内建', '#E02979B8')
           }
@@ -191,6 +270,9 @@ export struct AppCard {
         }
       } else {
         Row({ space: 5 }) {
+          if (this.favorite) {
+            this.Badge('收藏', '#CCD9A21B')
+          }
           if (this.app.source === AppSource.BUILTIN) {
             this.Badge('内建', '#DE2979B8')
           }
@@ -246,6 +328,74 @@ export struct AppCard {
     .padding({ left: 14, right: 8, top: 11, bottom: 12 })
   }
 
+  /**
+   * 竖版封面墙瓦片 (游戏启动器观感): 美术铺满整格, 标题压在底部渐隐层上。
+   * 盒装封面是竖版, 横版瓦片会把封面裁成一条 — 这里按竖版呈现让封面完整可看。
+   */
+  @Builder
+  private CoverWall() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      this.Cover(this.coverWallHeight)
+
+      // 满高容器把信息条压到底部; 渐隐层保证浅色封面上的白字也读得清。
+      Column() {
+        Column({ space: 2 }) {
+          Text(this.app.title)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#FFFFFFFF')
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.executableText())
+            .fontSize(11)
+            .fontColor('#B8FFFFFF')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
+        .padding({ left: 12, right: 12, top: 30, bottom: 12 })
+        .linearGradient({
+          angle: 180,
+          colors: [['#00000000', 0], ['#59000000', 0.4], ['#D9000000', 1]]
+        })
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.End)
+
+      // 标题信息压进美术后, 设定入口改为浮层按钮 (徽标仍在左上角)。
+      Row() {
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(15).fontColor(['#FFFFFFFF'])
+        }
+          .width(40)
+          .height(40)
+          .backgroundColor('#59000000')
+          .id('wine-app-settings-' + this.app.id)
+          .onClick(() => {
+            this.onSettings(this.app);
+          })
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.End)
+      .padding({ right: 8, top: 8 })
+    }
+    .width('100%')
+    .height(this.coverWallHeight)
+    .borderRadius(20)
+    .border({ width: 1, color: '#14FFFFFF' })
+    .clip(true)
+    .shadow({ radius: 16, color: '#22000000', offsetX: 0, offsetY: 7 })
+    .opacity(this.app.available ? 1 : 0.62)
+    .scale({ x: this.pressed ? 0.985 : 1, y: this.pressed ? 0.985 : 1 })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .onTouch((event: TouchEvent) => this.handleCardTouch(event))
+    .onClick(() => this.onLaunch(this.app))
+    .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
+    .id('wine-app-card-' + this.app.id)
+  }
+
   build() {
     if (this.viewMode === ViewMode.COMPACT) {
       Row() {
@@ -267,6 +417,8 @@ export struct AppCard {
       .onClick(() => this.onLaunch(this.app))
       .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
       .id('wine-app-card-' + this.app.id)
+    } else if (this.viewMode === ViewMode.COVER) {
+      this.CoverWall()
     } else {
       Column() {
         this.Cover(this.coverHeight())

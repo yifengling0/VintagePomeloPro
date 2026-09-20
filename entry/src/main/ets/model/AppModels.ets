@@ -43,6 +43,8 @@ export enum SessionState {
 
 export enum ViewMode {
   GRID = 'grid',
+  /** 竖版封面墙: 美术铺满瓦片, 标题压底部 — 游戏启动器观感。 */
+  COVER = 'cover',
   COMPACT = 'compact',
   LARGE = 'large',
   FILES = 'files'
