@@ -1983,22 +1983,6 @@ struct Index {
 
       Row({ space: 6 }) {
         this.SortButton()
-        this.ViewModeSwitcher()
-        Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.house_fill')).fontSize(14)
-            .fontColor([this.filter === 'builtin' ? $r('app.color.accent') : $r('app.color.text_primary')])
-        }
-        .width(32).height(32)
-        .backgroundColor(this.filter === 'builtin' ? $r('app.color.selected_background') : '#00000000')
-        .border({ width: 1, color: '#20FFFFFF' })
-        .borderRadius(16)
-        .onClick(() => {
-          this.builtinMenuVisible = !this.builtinMenuVisible;
-          if (!this.builtinMenuVisible) {
-            this.selectFilter('builtin');
-          }
-        })
-        .id('library-builtin-toggle')
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.gearshape')).fontSize(14)
             .fontColor([$r('app.color.text_primary')])
@@ -2032,8 +2016,9 @@ struct Index {
         ForEach([
           { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
           { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
-          { label: 'Windows', value: 'windows', icon: $r('sys.symbol.folder') },
-          { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') }
+          { label: 'Game', value: 'windows', icon: $r('sys.symbol.gamecontroller') },
+          { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') },
+          { label: 'Home', value: 'builtin', icon: $r('sys.symbol.house_fill') }
         ], (tab: Record<string, Resource | string>) => {
           Button({ type: ButtonType.Normal }) {
             Row({ space: 4 }) {
