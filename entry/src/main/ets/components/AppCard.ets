@@ -146,9 +146,11 @@ export struct AppCard {
       .fontSize(10.5)
       .fontWeight(FontWeight.Bold)
       .fontColor('#FFFFFFFF')
-      .padding({ left: 9, right: 9, top: 4, bottom: 4 })
+      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
       .backgroundColor(color)
-      .borderRadius(12)
+      .border({ width: 1, color: '#30FFFFFF' })
+      .borderRadius(14)
+      .shadow({ radius: 4, color: '#40000000', offsetX: 0, offsetY: 2 })
   }
 
   @Builder
@@ -158,10 +160,10 @@ export struct AppCard {
       .fontWeight(FontWeight.Bold)
       .fontColor('#FFF7FAFF')
       .maxLines(1)
-      .padding({ left: 6, right: 6, top: 3, bottom: 3 })
+      .padding({ left: 7, right: 7, top: 3, bottom: 3 })
       .backgroundColor(color)
-      .border({ width: 1, color: '#24FFFFFF' })
-      .borderRadius(9)
+      .border({ width: 1, color: '#30FFFFFF' })
+      .borderRadius(10)
   }
 
   /**
@@ -188,11 +190,10 @@ export struct AppCard {
     }
     .width(size)
     .height(size)
-    // 有图标时压低底板亮度, 让图标本身成为视觉焦点。
-    .backgroundColor(this.iconPath.length > 0 ? '#14FFFFFF' : '#24FFFFFF')
-    .border({ width: 1.5, color: '#38FFFFFF' })
+    .backgroundColor(this.iconPath.length > 0 ? '#18FFFFFF' : '#28FFFFFF')
+    .border({ width: 1.5, color: '#42FFFFFF' })
     .borderRadius(radius)
-    .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 5 })
+    .shadow({ radius: 14, color: '#38000000', offsetX: 0, offsetY: 6 })
   }
 
   @Builder
@@ -294,7 +295,7 @@ export struct AppCard {
   @Builder
   private TitleRow() {
     Row() {
-      Column({ space: 3 }) {
+      Column({ space: 2 }) {
         Text(this.app.title)
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
@@ -311,21 +312,21 @@ export struct AppCard {
       .alignItems(HorizontalAlign.Start)
 
       Button({ type: ButtonType.Circle }) {
-        SymbolGlyph($r('sys.symbol.gearshape')).fontSize(16).fontColor([$r('app.color.text_secondary')])
+        SymbolGlyph($r('sys.symbol.gearshape')).fontSize(15).fontColor([$r('app.color.text_secondary')])
       }
-        .width(48)
-        .height(48)
-        .backgroundColor('#00000000')
+        .width(40)
+        .height(40)
+        .backgroundColor('#18FFFFFF')
+        .border({ width: 1, color: '#18FFFFFF' })
+        .borderRadius(12)
         .id('wine-app-settings-' + this.app.id)
         .onClick(() => {
           this.onSettings(this.app);
         })
     }
-    // COMPACT 卡片是 Row(Cover + TitleRow): TitleRow 必须占剩余空间,
-    // 否则 width('100%') 会占满整卡宽度并把右侧设定按钮挤出裁剪区。
     .layoutWeight(this.viewMode === ViewMode.COMPACT ? 1 : 0)
     .width(this.viewMode === ViewMode.COMPACT ? 0 : '100%')
-    .padding({ left: 14, right: 8, top: 11, bottom: 12 })
+    .padding({ left: 14, right: 10, top: 10, bottom: 12 })
   }
 
   /**
@@ -339,39 +340,40 @@ export struct AppCard {
 
       // 满高容器把信息条压到底部; 渐隐层保证浅色封面上的白字也读得清。
       Column() {
-        Column({ space: 2 }) {
+        Column({ space: 3 }) {
           Text(this.app.title)
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
             .fontColor('#FFFFFFFF')
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(this.executableText())
             .fontSize(11)
-            .fontColor('#B8FFFFFF')
+            .fontColor('#C0FFFFFF')
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Start)
-        .padding({ left: 12, right: 12, top: 30, bottom: 12 })
+        .padding({ left: 14, right: 14, top: 40, bottom: 14 })
         .linearGradient({
           angle: 180,
-          colors: [['#00000000', 0], ['#59000000', 0.4], ['#D9000000', 1]]
+          colors: [['#00000000', 0], ['#66000000', 0.35], ['#E6000000', 1]]
         })
       }
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.End)
 
-      // 标题信息压进美术后, 设定入口改为浮层按钮 (徽标仍在左上角)。
       Row() {
         Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(15).fontColor(['#FFFFFFFF'])
+          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(14).fontColor(['#FFFFFFFF'])
         }
-          .width(40)
-          .height(40)
-          .backgroundColor('#59000000')
+          .width(36)
+          .height(36)
+          .backgroundColor('#66000000')
+          .border({ width: 1, color: '#30FFFFFF' })
+          .borderRadius(10)
           .id('wine-app-settings-' + this.app.id)
           .onClick(() => {
             this.onSettings(this.app);
@@ -379,17 +381,17 @@ export struct AppCard {
       }
       .width('100%')
       .justifyContent(FlexAlign.End)
-      .padding({ right: 8, top: 8 })
+      .padding({ right: 10, top: 10 })
     }
     .width('100%')
     .height(this.coverWallHeight)
-    .borderRadius(20)
-    .border({ width: 1, color: '#14FFFFFF' })
+    .borderRadius(22)
+    .border({ width: 1, color: '#20FFFFFF' })
     .clip(true)
-    .shadow({ radius: 16, color: '#22000000', offsetX: 0, offsetY: 7 })
+    .shadow({ radius: 20, color: '#30000000', offsetX: 0, offsetY: 8 })
     .opacity(this.app.available ? 1 : 0.62)
-    .scale({ x: this.pressed ? 0.985 : 1, y: this.pressed ? 0.985 : 1 })
-    .animation({ duration: 120, curve: Curve.EaseOut })
+    .scale({ x: this.pressed ? 0.97 : 1, y: this.pressed ? 0.97 : 1 })
+    .animation({ duration: 150, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => this.handleCardTouch(event))
     .onClick(() => this.onLaunch(this.app))
     .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
@@ -406,13 +408,13 @@ export struct AppCard {
       .width('100%')
       .backgroundColor(this.useGlassEffect ? $r('app.color.card_glass_background') : $r('app.color.card_background'))
       .backgroundBlurStyle(this.useGlassEffect ? BlurStyle.COMPONENT_THICK : BlurStyle.NONE)
-      .borderRadius(18)
-      .border({ width: 1, color: '#15FFFFFF' })
+      .borderRadius(20)
+      .border({ width: 1, color: '#20FFFFFF' })
       .clip(true)
-      .shadow({ radius: 10, color: '#18000000', offsetX: 0, offsetY: 4 })
+      .shadow({ radius: 12, color: '#20000000', offsetX: 0, offsetY: 5 })
       .opacity(this.app.available ? 1 : 0.62)
-      .scale({ x: this.pressed ? 0.985 : 1, y: this.pressed ? 0.985 : 1 })
-      .animation({ duration: 120, curve: Curve.EaseOut })
+      .scale({ x: this.pressed ? 0.97 : 1, y: this.pressed ? 0.97 : 1 })
+      .animation({ duration: 150, curve: Curve.EaseOut })
       .onTouch((event: TouchEvent) => this.handleCardTouch(event))
       .onClick(() => this.onLaunch(this.app))
       .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
@@ -427,13 +429,13 @@ export struct AppCard {
       .width('100%')
       .backgroundColor(this.useGlassEffect ? $r('app.color.card_glass_background') : $r('app.color.card_background'))
       .backgroundBlurStyle(this.useGlassEffect ? BlurStyle.COMPONENT_THICK : BlurStyle.NONE)
-      .borderRadius(20)
-      .border({ width: 1, color: '#14FFFFFF' })
+      .borderRadius(22)
+      .border({ width: 1, color: '#20FFFFFF' })
       .clip(true)
-      .shadow({ radius: 16, color: '#22000000', offsetX: 0, offsetY: 7 })
+      .shadow({ radius: 20, color: '#30000000', offsetX: 0, offsetY: 8 })
       .opacity(this.app.available ? 1 : 0.62)
-      .scale({ x: this.pressed ? 0.985 : 1, y: this.pressed ? 0.985 : 1 })
-      .animation({ duration: 120, curve: Curve.EaseOut })
+      .scale({ x: this.pressed ? 0.97 : 1, y: this.pressed ? 0.97 : 1 })
+      .animation({ duration: 150, curve: Curve.EaseOut })
       .onTouch((event: TouchEvent) => this.handleCardTouch(event))
       .onClick(() => this.onLaunch(this.app))
       .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))

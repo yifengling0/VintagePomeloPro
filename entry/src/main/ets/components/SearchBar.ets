@@ -12,6 +12,7 @@ export struct AppSearchBar {
       .backgroundColor($r('app.color.search_background'))
       .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
       .borderRadius(24)
+      .border({ width: 1, color: '#18FFFFFF' })
       .padding({ left: 6, right: 6 })
       .onChange((value: string) => this.onValueChange(value))
   }

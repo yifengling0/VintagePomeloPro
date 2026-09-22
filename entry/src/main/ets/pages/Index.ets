@@ -17,6 +17,7 @@ import {
   DisplayMode,
   EngineState,
   GlobalSettings,
+  LayoutMode,
   LaunchKind,
   RuntimeSession,
   ScreenOrientationSetting,
@@ -53,9 +54,11 @@ import {
   DividerMode,
   DividerShowType,
   HdsNavigation,
+  HdsNavigationAttribute,
   HdsNavigationMenuContentOptions,
   HdsNavigationTitleMode,
   HdsTabs,
+  HdsTabsAttribute,
   HdsTabsController,
   ScrollEffectType,
   hdsMaterial
@@ -99,9 +102,11 @@ struct Index {
   @State private apps: AppDescriptor[] = [];
   @State private visibleApps: AppDescriptor[] = [];
   @State private searchQuery: string = '';
-  @State private filter: CatalogFilter = 'builtin';
+  @State private filter: CatalogFilter = 'windows';
   @State private breakpoint: BreakpointType = 'lg';
   @State private sidebarCollapsed: boolean = false;
+  @State private xmbFocusIndex: number = 0;
+  @State private topTabBarVisible: boolean = true;
   @State private settings: GlobalSettings = AppSettingsStore.getInstance().getGlobalSettings();
   @State private engineState: EngineState = EngineState.STOPPED;
   @State private engineMessage: string = 'Wine 引擎未启动';
@@ -110,7 +115,7 @@ struct Index {
   @State private runningAppIds: Set<string> = new Set<string>();
   /** 收藏标记是卡面上的可见状态, 随运行态一起刷新, 避免每张卡片各查一次设置。 */
   @State private favoriteIds: Set<string> = new Set<string>();
-  @State private phoneNavIndex: number = PHONE_NAV_BUILTIN;
+  @State private phoneNavIndex: number = PHONE_NAV_WINDOWS;
   @State private viewportWidth: number = 0;
   @State private viewportHeight: number = 0;
   @State private titleContentTopInsetVp: number = 40;
@@ -572,7 +577,7 @@ struct Index {
           hilog.info(DOMAIN, 'IME', '[keyboardStatus] %{public}d', status);
         });
         controller.on('setPreviewText', (text: string, range: inputMethod.Range) => {
-          testNapi.wineTextInputPreedit(text, 0, text.length);  // 预上屏 → Wine preedit
+          testNapi.wineTextInputPreedit(text, 0, text.length);
         });
         // 软键盘回车 (DONE/NEWLINE 功能键): 本设备 onKeyEvent 收不到软键盘回车,
         // 在 sendFunctionKey 回调直接向激活窗口注入回车 down+up 实现换行
@@ -1288,8 +1293,15 @@ struct Index {
     .width('100%')
     .height(48)
     .padding({ left: 15, right: 12 })
-    .borderRadius(12)
+    .borderRadius(14)
     .backgroundColor(this.filter === value ? $r('app.color.selected_background') : '#00000000')
+    .border({
+      width: this.filter === value ? 1 : 0,
+      color: this.filter === value ? $r('app.color.accent') : '#00000000'
+    })
+    .shadow(this.filter === value
+      ? { radius: 4, color: '#28000000', offsetX: 0, offsetY: 2 }
+      : { radius: 0, color: '#00000000', offsetX: 0, offsetY: 0 })
     .id('library-nav-' + value)
     .onClick(() => this.selectFilter(value))
   }
@@ -1310,7 +1322,8 @@ struct Index {
         }
           .width(48).height(48)
           .backgroundColor($r('app.color.search_background'))
-          .border({ width: 1, color: '#12000000' })
+          .border({ width: 1, color: '#20FFFFFF' })
+          .borderRadius(14)
           .id('library-toggle-sidebar')
           .onClick((): void => {
             this.sidebarCollapsed = !this.sidebarCollapsed;
@@ -1324,7 +1337,9 @@ struct Index {
           onValueChange: (value: string): void => { this.updateSearch(value); }
         })
         Button('重新扫描').width('100%').height(48).fontSize(13).fontWeight(FontWeight.Medium)
-          .backgroundColor($r('app.color.search_background')).fontColor($r('app.color.text_primary')).borderRadius(16)
+          .backgroundColor($r('app.color.search_background')).fontColor($r('app.color.text_primary'))
+          .borderRadius(16)
+          .border({ width: 1, color: '#18FFFFFF' })
           .id('library-rescan')
           .onClick(() => this.rescan())
           .margin({ top: 10, bottom: 18 })
@@ -1347,7 +1362,7 @@ struct Index {
               Text('系统设置').fontSize(14).fontColor($r('app.color.text_primary'))
             }
           }
-          .width('100%').height(48).padding({ left: 15 }).borderRadius(12)
+          .width('100%').height(48).padding({ left: 15, right: 12 }).borderRadius(14)
           .id('library-open-system-settings')
           .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
           Row({ space: 12 }) {
@@ -1355,7 +1370,7 @@ struct Index {
             if (!this.sidebarCollapsed) {
               Text('帮助').fontSize(14).fontColor($r('app.color.text_primary'))
             }
-          }.width('100%').height(48).padding({ left: 15 })
+          }.width('100%').height(48).padding({ left: 15, right: 12 }).borderRadius(14)
             .id('library-open-help')
             .onClick((): void => { this.openSidebarPage('pages/HelpCenter'); })
         }
@@ -1380,6 +1395,24 @@ struct Index {
   }
 
   @Builder
+  private ViewModeButton(icon: Resource, mode: ViewMode) {
+    Button({ type: ButtonType.Circle }) {
+      SymbolGlyph(icon).fontSize(17)
+        .fontColor([this.settings.viewMode === mode ? $r('app.color.accent') : $r('app.color.text_primary')])
+    }
+    .width(48).height(48)
+    .backgroundColor(this.settings.viewMode === mode ? $r('app.color.selected_background') : $r('app.color.search_background'))
+    .border({
+      width: this.settings.viewMode === mode ? 1.5 : 1,
+      color: this.settings.viewMode === mode ? $r('app.color.accent') : '#18FFFFFF'
+    })
+    .shadow(this.settings.viewMode === mode
+      ? { radius: 6, color: '#30000000', offsetX: 0, offsetY: 3 }
+      : { radius: 0, color: '#00000000', offsetX: 0, offsetY: 0 })
+    .onClick(() => this.setViewMode(mode))
+  }
+
+  @Builder
   private Header() {
     Column() {
       Row() {
@@ -1389,21 +1422,13 @@ struct Index {
           Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : $r('app.color.text_secondary'))
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Row({ space: 4 }) {
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_2x1')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COVER ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.COVER))
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COMPACT ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.COMPACT))
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_1x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.LARGE ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.LARGE))
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.folder')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.FILES ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.FILES))
+          this.ViewModeButton($r('sys.symbol.square_grid_2x2'), ViewMode.GRID)
+          this.ViewModeButton($r('sys.symbol.rectangle_grid_2x1'), ViewMode.COVER)
+          this.ViewModeButton($r('sys.symbol.list_bullet'), ViewMode.COMPACT)
+          this.ViewModeButton($r('sys.symbol.rectangle_grid_1x2'), ViewMode.LARGE)
+          this.ViewModeButton($r('sys.symbol.folder'), ViewMode.FILES)
         }
         .id('library-view-modes')
-        // Keep the complete system-reported title-button area. PC window
-        // managers add spacing between the maximize/minimize/close nodes
-        // that is not always included in TitleButtonRect.width.
         .margin({ right: this.titleButtonInsetVp > 0 ? this.titleButtonInsetVp + 24 : 0 })
       }.width('100%')
     }
@@ -1427,8 +1452,8 @@ struct Index {
     }
     .columnsTemplate(this.catalogCardViewMode() === ViewMode.COMPACT ? this.compactGridColumns() :
       (this.catalogCardViewMode() === ViewMode.LARGE ? this.largeGridColumns() : this.gridColumns()))
-    .columnsGap(8)
-    .rowsGap(this.isPhone() ? 8 : 4)
+    .columnsGap(10)
+    .rowsGap(this.isPhone() ? 10 : 6)
     .width('100%')
   }
 
@@ -1484,16 +1509,26 @@ struct Index {
 
   @Builder
   private EmptyLibraryState(filter: CatalogFilter) {
-    Column({ space: 12 }) {
-      SymbolGlyph(this.emptyIcon(filter)).fontSize(this.isNarrowPhone() ? 34 : 48)
-        .fontColor([$r('app.color.text_secondary')])
+    Column({ space: 14 }) {
+      Stack() {
+        Circle()
+          .width(this.isNarrowPhone() ? 80 : 100)
+          .height(this.isNarrowPhone() ? 80 : 100)
+          .fill('#18FFFFFF')
+        SymbolGlyph(this.emptyIcon(filter)).fontSize(this.isNarrowPhone() ? 34 : 48)
+          .fontColor([$r('app.color.accent')])
+      }
+      .width(this.isNarrowPhone() ? 80 : 100)
+      .height(this.isNarrowPhone() ? 80 : 100)
       Text(this.emptyTitle(filter)).fontSize(this.isNarrowPhone() ? 16 : 20)
-        .fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary'))
+        .fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
       Text(this.emptyDescription(filter)).fontSize(this.isNarrowPhone() ? 11 : 13)
         .fontColor($r('app.color.text_secondary')).textAlign(TextAlign.Center)
         .constraintSize({ maxWidth: this.isNarrowPhone() ? 240 : 420 })
       if (this.emptyActionLabel(filter)) {
         Button(this.emptyActionLabel(filter)).height(48).borderRadius(24)
+          .backgroundColor($r('app.color.accent'))
+          .fontColor('#FFFFFFFF')
           .id('library-empty-action-' + filter)
           .onClick((): void => this.handleEmptyAction(filter))
       }
@@ -1613,13 +1648,13 @@ struct Index {
 
   @Builder
   private PhoneNavigationTab(label: string, icon: Resource, index: number) {
-    Column({ space: 2 }) {
+    Column({ space: 3 }) {
       SymbolGlyph(icon)
         .fontSize(20)
         .fontColor([this.phoneNavIndex === index ? $r('app.color.accent') : $r('app.color.text_secondary')])
       Text(label)
         .fontSize(10)
-        .fontWeight(this.phoneNavIndex === index ? FontWeight.Medium : FontWeight.Normal)
+        .fontWeight(this.phoneNavIndex === index ? FontWeight.Bold : FontWeight.Normal)
         .fontColor(this.phoneNavIndex === index ? $r('app.color.accent') : $r('app.color.text_secondary'))
         .maxLines(1)
     }
@@ -1809,6 +1844,236 @@ struct Index {
   }
 
   @Builder
+  private TopTabBar() {
+    Row({ space: 6 }) {
+      ForEach([
+        { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
+        { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
+        { label: '内建', value: 'builtin', icon: $r('sys.symbol.house_fill') },
+        { label: 'Windows', value: 'windows', icon: $r('sys.symbol.folder') },
+        { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') }
+      ], (tab: Record<string, Resource | string>) => {
+        Button({ type: ButtonType.Normal }) {
+          Row({ space: 6 }) {
+            SymbolGlyph(tab.icon as Resource).fontSize(14)
+              .fontColor([this.filter === tab.value ? '#FFFFFF' : $r('app.color.text_secondary')])
+            Text(tab.label as string).fontSize(13)
+              .fontColor(this.filter === tab.value ? '#FFFFFF' : $r('app.color.text_secondary'))
+              .fontWeight(this.filter === tab.value ? FontWeight.Bold : FontWeight.Normal)
+          }
+        }
+        .height(36)
+        .padding({ left: 14, right: 14 })
+        .borderRadius(18)
+        .backgroundColor(this.filter === tab.value ? $r('app.color.accent') : '#00000000')
+        .border({
+          width: this.filter === tab.value ? 0 : 1,
+          color: '#20FFFFFF'
+        })
+        .onClick(() => this.selectFilter(tab.value as CatalogFilter))
+      }, (tab: Record<string, Resource | string>) => tab.value as string)
+
+      Blank()
+
+      Row({ space: 8 }) {
+        this.LayoutModeSwitcher()
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(16)
+            .fontColor([$r('app.color.text_primary')])
+        }
+        .width(36).height(36)
+        .backgroundColor('#00000000')
+        .border({ width: 1, color: '#20FFFFFF' })
+        .borderRadius(18)
+        .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
+      }
+    }
+    .width('100%')
+    .height(48)
+    .padding({ left: 16, right: 16 })
+    .visibility(this.topTabBarVisible ? Visibility.Visible : Visibility.None)
+    .id('library-top-tab-bar')
+  }
+
+  @Builder
+  private LayoutModeSwitcher() {
+    Button({ type: ButtonType.Circle }) {
+      SymbolGlyph(this.settings.layoutMode === LayoutMode.STANDARD
+        ? $r('sys.symbol.square_grid_2x2')
+        : this.settings.layoutMode === LayoutMode.XMB
+          ? $r('sys.symbol.rectangle_grid_1x2')
+          : $r('sys.symbol.list_bullet'))
+        .fontSize(16)
+        .fontColor([$r('app.color.text_primary')])
+    }
+    .width(36).height(36)
+    .backgroundColor('#00000000')
+    .border({ width: 1, color: '#20FFFFFF' })
+    .borderRadius(18)
+    .onClick(() => {
+      const modes: LayoutMode[] = [LayoutMode.STANDARD, LayoutMode.XMB, LayoutMode.CLASSIC];
+      const currentIdx = modes.indexOf(this.settings.layoutMode);
+      const nextIdx = (currentIdx + 1) % modes.length;
+      this.settings.layoutMode = modes[nextIdx];
+      AppSettingsStore.getInstance().saveGlobalSettings(this.settings);
+    })
+    .id('library-layout-mode-switcher')
+  }
+
+  @Builder
+  private StandardLayout() {
+    Column() {
+      this.TopTabBar()
+      if (this.filter === 'windows') {
+        this.WindowsRefreshContent()
+      } else if (this.scanning) {
+        Row({ space: 10 }) {
+          LoadingProgress().width(20).height(20)
+          Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
+        }.layoutWeight(1).justifyContent(FlexAlign.Center)
+      } else if (this.visibleApps.length === 0) {
+        this.CatalogEmptyScroll(this.filter)
+      } else {
+        Scroll(this.catalogScroller(this.filter)) {
+          Column() {
+            this.AppGrid(this.visibleApps)
+          }
+          .width('100%')
+          .constraintSize({ minHeight: '100%' })
+          .padding({
+            top: 8,
+            bottom: Math.max(36, this.navBarInsetVp)
+          })
+        }
+        .layoutWeight(1)
+        .width('100%')
+        .scrollBar(BarState.Off)
+        .id('library-standard-scroll-' + this.filter)
+      }
+    }
+    .layoutWeight(1)
+    .height('100%')
+    .padding({ left: this.contentPadding(), right: this.contentPadding() })
+  }
+
+  @Builder
+  private XMBLayout() {
+    Row() {
+      Column() {
+        ForEach([
+          { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
+          { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
+          { label: '内建', value: 'builtin', icon: $r('sys.symbol.house_fill') },
+          { label: 'Windows', value: 'windows', icon: $r('sys.symbol.folder') },
+          { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') }
+        ], (tab: Record<string, Resource | string>) => {
+          Column({ space: 4 }) {
+            SymbolGlyph(tab.icon as Resource).fontSize(22)
+              .fontColor([this.filter === tab.value ? $r('app.color.accent') : $r('app.color.text_secondary')])
+            Text(tab.label as string).fontSize(10)
+              .fontColor(this.filter === tab.value ? $r('app.color.accent') : $r('app.color.text_secondary'))
+              .fontWeight(this.filter === tab.value ? FontWeight.Bold : FontWeight.Normal)
+          }
+          .width(56)
+          .height(64)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .borderRadius(12)
+          .backgroundColor(this.filter === tab.value ? $r('app.color.selected_background') : '#00000000')
+          .onClick(() => this.selectFilter(tab.value as CatalogFilter))
+        }, (tab: Record<string, Resource | string>) => tab.value as string)
+      }
+      .width(64)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .padding({ top: 8, bottom: 8 })
+
+      Column() {
+        if (this.scanning) {
+          Row({ space: 10 }) {
+            LoadingProgress().width(20).height(20)
+            Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
+          }.layoutWeight(1).justifyContent(FlexAlign.Center)
+        } else if (this.visibleApps.length === 0) {
+          this.EmptyLibraryState(this.filter)
+        } else {
+          List({ space: 8 }) {
+            ForEach(this.visibleApps, (app: AppDescriptor, index: number) => {
+              ListItem() {
+                Row({ space: 16 }) {
+                  if (app.coverPath.length > 0) {
+                    Image(app.coverPath)
+                      .width(this.xmbFocusIndex === index ? 80 : 48)
+                      .height(this.xmbFocusIndex === index ? 80 : 48)
+                      .borderRadius(8)
+                      .objectFit(ImageFit.Cover)
+                  } else {
+                    Stack() {
+                      Circle()
+                        .width(this.xmbFocusIndex === index ? 80 : 48)
+                        .height(this.xmbFocusIndex === index ? 80 : 48)
+                        .fill($r('app.color.selected_background'))
+                      SymbolGlyph($r('sys.symbol.house'))
+                        .fontSize(this.xmbFocusIndex === index ? 32 : 20)
+                        .fontColor([$r('app.color.accent')])
+                    }
+                    .width(this.xmbFocusIndex === index ? 80 : 48)
+                    .height(this.xmbFocusIndex === index ? 80 : 48)
+                  }
+                  Column({ space: 4 }) {
+                    Text(app.title)
+                      .fontSize(this.xmbFocusIndex === index ? 18 : 14)
+                      .fontWeight(this.xmbFocusIndex === index ? FontWeight.Bold : FontWeight.Normal)
+                      .fontColor($r('app.color.text_primary'))
+                      .maxLines(1)
+                    if (this.xmbFocusIndex === index) {
+                      Text(app.source === AppSource.BUILTIN ? '内建应用' : 'Windows 程序')
+                        .fontSize(12).fontColor($r('app.color.text_secondary'))
+                      if (this.runningAppIds.has(app.id)) {
+                        Text('运行中').fontSize(11).fontColor($r('app.color.accent'))
+                      }
+                    }
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+                }
+                .width('100%')
+                .padding({
+                  left: 16, right: 16,
+                  top: this.xmbFocusIndex === index ? 12 : 8,
+                  bottom: this.xmbFocusIndex === index ? 12 : 8
+                })
+                .borderRadius(this.xmbFocusIndex === index ? 16 : 12)
+                .backgroundColor(this.xmbFocusIndex === index ? $r('app.color.selected_background') : '#00000000')
+                .border({
+                  width: this.xmbFocusIndex === index ? 1.5 : 0,
+                  color: this.xmbFocusIndex === index ? $r('app.color.accent') : '#00000000'
+                })
+                .onClick(() => {
+                  this.xmbFocusIndex = index as number;
+                  this.launch(app);
+                })
+              }
+            }, (app: AppDescriptor) => app.id)
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .scrollBar(BarState.Off)
+          .onScrollIndex((start: number) => {
+            this.xmbFocusIndex = start;
+          })
+          .id('library-xmb-list')
+        }
+      }
+      .layoutWeight(1)
+      .height('100%')
+      .padding({ top: this.statusBarHeightVp })
+    }
+    .layoutWeight(1)
+    .height('100%')
+  }
+
+  @Builder
   private PageSurface() {
     Stack({ alignContent: Alignment.Bottom }) {
       if (this.settings.usePageBackground && this.settings.pageBackgroundUri.length > 0) {
@@ -1822,18 +2087,22 @@ struct Index {
           .id('library-page-background')
       }
       Row() {
-        if (!this.isPhone()) {
-          this.SideBar()
-        }
-        if (this.isPhone()) {
-          this.PhoneLibraryNavigation()
-        } else {
-          this.Library()
+        if (this.settings.layoutMode === LayoutMode.CLASSIC) {
+          if (this.isPhone()) {
+            this.PhoneLibraryNavigation()
+          } else {
+            this.SideBar()
+            this.Library()
+          }
+        } else if (this.settings.layoutMode === LayoutMode.STANDARD) {
+          this.StandardLayout()
+        } else if (this.settings.layoutMode === LayoutMode.XMB) {
+          this.XMBLayout()
         }
       }
       .width('100%')
       .height('100%')
-      .padding({ top: this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
+      .padding({ top: this.settings.layoutMode === LayoutMode.CLASSIC && this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
       .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
@@ -1882,7 +2151,12 @@ struct Index {
       WineEngineBlockingOverlay()
     }
     .width('100%').height('100%')
-    .backgroundColor($r('app.color.page_background'))
+    .linearGradient({
+      angle: 135,
+      colors: this.usesDarkAppearance()
+        ? [['#1E1830', 0], ['#2A2040', 0.5], ['#332850', 1]]
+        : [['#F0EBF5', 0], ['#E0D5ED', 0.5], ['#D4C5E8', 1]]
+    })
     .onAreaChange((_oldValue: Area, area: Area): void => {
       this.viewportWidth = area.width as number;
       this.viewportHeight = area.height as number;
