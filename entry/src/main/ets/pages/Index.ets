@@ -1956,17 +1956,78 @@ struct Index {
 
   @Builder
   private TopTabBar() {
-    Column({ space: 6 }) {
-      Row({ space: 4 }) {
+    // 单行: 左 时间电量 | 中 缩小搜索框 | 右 工具按钮。
+    // 分类胶囊已下放到底部悬浮导航栏 (BottomFloatNav)。
+    Row() {
+      Row({ space: 6 }) {
         if (this.settings.layoutMode === LayoutMode.STANDARD) {
           Text(this.clockText).fontSize(13).fontWeight(FontWeight.Bold)
             .fontColor(this.usesDarkAppearance() ? '#FFFFFFFF' : '#FF1A1525')
-            .margin({ right: 6 })
           Text(this.batteryText).fontSize(13).fontWeight(FontWeight.Bold)
             .fontColor(this.usesDarkAppearance() ? '#FFFFFFFF' : '#FF1A1525')
-            .margin({ right: 8 })
         }
+      }
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.Start)
 
+      TextInput({ placeholder: '搜索游戏…', text: this.searchQuery })
+        .fontSize(13)
+        .height(34)
+        .width(300)
+        .borderRadius(17)
+        .backgroundColor($r('app.color.search_background'))
+        .border({ width: 1, color: '#18FFFFFF' })
+        .padding({ left: 14, right: 14 })
+        .onChange((value: string) => this.updateSearch(value))
+        .id('library-top-search')
+
+      Row({ space: 6 }) {
+        this.SortButton()
+        this.ViewModeSwitcher()
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.house_fill')).fontSize(14)
+            .fontColor([this.filter === 'builtin' ? $r('app.color.accent') : $r('app.color.text_primary')])
+        }
+        .width(32).height(32)
+        .backgroundColor(this.filter === 'builtin' ? $r('app.color.selected_background') : '#00000000')
+        .border({ width: 1, color: '#20FFFFFF' })
+        .borderRadius(16)
+        .onClick(() => {
+          this.builtinMenuVisible = !this.builtinMenuVisible;
+          if (!this.builtinMenuVisible) {
+            this.selectFilter('builtin');
+          }
+        })
+        .id('library-builtin-toggle')
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(14)
+            .fontColor([$r('app.color.text_primary')])
+        }
+        .width(32).height(32)
+        .backgroundColor('#00000000')
+        .border({ width: 1, color: '#20FFFFFF' })
+        .borderRadius(16)
+        .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
+      }
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.End)
+    }
+    .width('100%')
+    .height(40)
+    .padding({ left: 12, right: 12, top: 4 })
+    .visibility(this.topTabBarVisible ? Visibility.Visible : Visibility.None)
+    .id('library-top-tab-bar')
+  }
+
+  /**
+   * 底部居中悬浮导航栏: 分类胶囊 (最近/收藏/Windows/运行中), 宽度刚好包住内容。
+   * 玻璃拟态 + 模糊; 外层 Column 占满宽但 hitTestBehavior Transparent,
+   * 保证胶囊两侧的空白区域不吞掉下方卡片的点击。
+   */
+  @Builder
+  private BottomFloatNav() {
+    Column() {
+      Row({ space: 4 }) {
         ForEach([
           { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
           { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
@@ -1982,68 +2043,25 @@ struct Index {
                 .fontWeight(this.filter === tab.value ? FontWeight.Bold : FontWeight.Normal)
             }
           }
-          .height(32)
-          .padding({ left: 10, right: 10 })
-          .borderRadius(16)
+          .height(34)
+          .padding({ left: 12, right: 12 })
+          .borderRadius(17)
           .backgroundColor(this.filter === tab.value ? $r('app.color.accent') : '#00000000')
-          .border({
-            width: this.filter === tab.value ? 0 : 1,
-            color: '#20FFFFFF'
-          })
           .onClick(() => this.selectFilter(tab.value as CatalogFilter))
         }, (tab: Record<string, Resource | string>) => tab.value as string)
-
-        Blank()
-
-        Row({ space: 6 }) {
-          this.SortButton()
-          this.ViewModeSwitcher()
-          Button({ type: ButtonType.Circle }) {
-            SymbolGlyph($r('sys.symbol.house_fill')).fontSize(14)
-              .fontColor([this.filter === 'builtin' ? $r('app.color.accent') : $r('app.color.text_primary')])
-          }
-          .width(32).height(32)
-          .backgroundColor(this.filter === 'builtin' ? $r('app.color.selected_background') : '#00000000')
-          .border({ width: 1, color: '#20FFFFFF' })
-          .borderRadius(16)
-          .onClick(() => {
-            this.builtinMenuVisible = !this.builtinMenuVisible;
-            if (!this.builtinMenuVisible) {
-              this.selectFilter('builtin');
-            }
-          })
-          .id('library-builtin-toggle')
-          Button({ type: ButtonType.Circle }) {
-            SymbolGlyph($r('sys.symbol.gearshape')).fontSize(14)
-              .fontColor([$r('app.color.text_primary')])
-          }
-          .width(32).height(32)
-          .backgroundColor('#00000000')
-          .border({ width: 1, color: '#20FFFFFF' })
-          .borderRadius(16)
-          .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
-        }
       }
-      .width('100%')
-      .height(40)
-
-      Row() {
-        TextInput({ placeholder: '搜索游戏…', text: this.searchQuery })
-          .fontSize(13)
-          .height(36)
-          .borderRadius(18)
-          .backgroundColor($r('app.color.search_background'))
-          .border({ width: 1, color: '#18FFFFFF' })
-          .padding({ left: 14, right: 14 })
-          .onChange((value: string) => this.updateSearch(value))
-          .layoutWeight(1)
-      }
-      .width('100%')
+      .padding({ left: 6, right: 6, top: 5, bottom: 5 })
+      .backgroundColor($r('app.color.card_glass_background'))
+      .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
+      .border({ width: 1, color: '#20FFFFFF' })
+      .borderRadius(24)
+      .shadow({ radius: 14, color: '#26000000', offsetX: 0, offsetY: 5 })
+      .id('library-bottom-float-bar')
     }
     .width('100%')
-    .padding({ left: 12, right: 12, top: 4 })
-    .visibility(this.topTabBarVisible ? Visibility.Visible : Visibility.None)
-    .id('library-top-tab-bar')
+    .alignItems(HorizontalAlign.Center)
+    .padding({ bottom: Math.max(12, this.navBarInsetVp) })
+    .hitTestBehavior(HitTestMode.Transparent)
   }
 
   @Builder
@@ -2094,49 +2112,59 @@ struct Index {
   private StandardLayout() {
     Column() {
       this.TopTabBar()
-      if (this.scanning) {
-        Row({ space: 10 }) {
-          LoadingProgress().width(20).height(20)
-          Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
-        }.layoutWeight(1).justifyContent(FlexAlign.Center)
-      } else if (this.visibleApps.length === 0) {
-        this.CatalogEmptyScroll(this.filter)
-      } else if (this.settings.viewMode === ViewMode.LIST) {
-        this.ListView()
-      } else if (this.catalogCardViewMode() === ViewMode.COVER) {
-        // 视图分支必须先于 filter==='windows' 分支: 否则落地分类 windows 永远
-        // 走 WindowsRefreshContent 的竖向网格, 封面流 (横向滑动) 永远不渲染 —
-        // 这正是此前"左右滑动无效"的根因。
-        if (this.filter === 'windows') {
-          // windows 分类保留下拉刷新语义
-          Refresh({ refreshing: $$this.refreshing }) {
+      // 内容区包 Stack: 底部挂居中悬浮导航栏 (分类胶囊)。
+      Stack({ alignContent: Alignment.Bottom }) {
+        Column() {
+        if (this.scanning) {
+          Row({ space: 10 }) {
+            LoadingProgress().width(20).height(20)
+            Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
+          }.layoutWeight(1).justifyContent(FlexAlign.Center)
+        } else if (this.visibleApps.length === 0) {
+          this.CatalogEmptyScroll(this.filter)
+        } else if (this.settings.viewMode === ViewMode.LIST) {
+          this.ListView()
+        } else if (this.catalogCardViewMode() === ViewMode.COVER) {
+          // 视图分支必须先于 filter==='windows' 分支: 否则落地分类 windows 永远
+          // 走 WindowsRefreshContent 的竖向网格, 封面流 (横向滑动) 永远不渲染 —
+          // 这正是此前"左右滑动无效"的根因。
+          if (this.filter === 'windows') {
+            // windows 分类保留下拉刷新语义
+            Refresh({ refreshing: $$this.refreshing }) {
+              this.CoverFlow()
+            }
+            .onRefreshing((): void => { void this.refreshFromPull(); })
+            .layoutWeight(1)
+            .width('100%')
+          } else {
             this.CoverFlow()
           }
-          .onRefreshing((): void => { void this.refreshFromPull(); })
+        } else if (this.filter === 'windows') {
+          this.WindowsRefreshContent()
+        } else {
+          Scroll(this.catalogScroller(this.filter)) {
+            Column() {
+              this.AppGrid(this.visibleApps)
+            }
+            .width('100%')
+            .constraintSize({ minHeight: '100%' })
+            .padding({
+              top: 8,
+              bottom: Math.max(64, this.navBarInsetVp + 44)
+            })
+          }
           .layoutWeight(1)
           .width('100%')
-        } else {
-          this.CoverFlow()
+          .scrollBar(BarState.Off)
+          .id('library-standard-scroll-' + this.filter)
         }
-      } else if (this.filter === 'windows') {
-        this.WindowsRefreshContent()
-      } else {
-        Scroll(this.catalogScroller(this.filter)) {
-          Column() {
-            this.AppGrid(this.visibleApps)
-          }
-          .width('100%')
-          .constraintSize({ minHeight: '100%' })
-          .padding({
-            top: 8,
-            bottom: Math.max(36, this.navBarInsetVp)
-          })
         }
-        .layoutWeight(1)
         .width('100%')
-        .scrollBar(BarState.Off)
-        .id('library-standard-scroll-' + this.filter)
+        .height('100%')
+        this.BottomFloatNav()
       }
+      .layoutWeight(1)
+      .width('100%')
     }
     .layoutWeight(1)
     .height('100%')
@@ -2163,7 +2191,7 @@ struct Index {
         }, (app: AppDescriptor): string => app.id)
       }
       .alignItems(VerticalAlign.Top)
-      .padding({ left: 3, right: 3 })
+      .padding({ left: 3, right: 3, bottom: 60 })
       .width(this.coverFlowContentWidth(this.visibleApps.length))
       .height('100%')
     }
