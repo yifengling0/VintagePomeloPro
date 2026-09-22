@@ -8,6 +8,7 @@ import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
 import { FileBrowserView } from '../components/FileBrowserView';
+import { GameDetailSheet } from '../components/GameDetailSheet';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import { bottomNavigationLayout } from '../model/BottomNavigationLayout';
 import {
@@ -108,6 +109,8 @@ struct Index {
   @State private listFocusIndex: number = 0;
   @State private topTabBarVisible: boolean = true;
   @State private builtinMenuVisible: boolean = false;
+  @State private detailSheetApp: AppDescriptor | null = null;
+  @State private detailSheetVisible: boolean = false;
   @State private settings: GlobalSettings = AppSettingsStore.getInstance().getGlobalSettings();
   @State private engineState: EngineState = EngineState.STOPPED;
   @State private engineMessage: string = 'Wine 引擎未启动';
@@ -1154,41 +1157,61 @@ struct Index {
   }
 
   private showAppLongPressMenu(app: AppDescriptor): void {
-    const running = this.runningAppIds.has(app.id);
-    if (app.source === AppSource.DOWNLOAD && !app.available) {
-      promptAction.showDialog({
-        title: app.title,
-        message: '主程序已不存在，可重新关联或只删除卡片记录（不会删除任何文件）',
-        buttons: [
-          { text: '重新关联', color: '#5569D8' },
-          { text: '应用设置', color: $r('sys.color.ohos_id_color_text_primary') },
-          { text: '删除卡片', color: '#D94848' }
-        ]
-      }).then((result) => {
-        if (result.index === 0) this.openAppSettings(app, true);
-        else if (result.index === 1) this.openAppSettings(app);
-        else if (result.index === 2) this.confirmDeleteUnavailableApp(app);
-      }).catch((_error: Error) => {});
-      return;
+    this.detailSheetApp = app;
+    this.detailSheetVisible = true;
+  }
+
+  private closeDetailSheet(): void {
+    this.detailSheetVisible = false;
+    this.detailSheetApp = null;
+  }
+
+  private toggleFavoriteFromDetail(app: AppDescriptor): void {
+    const store = AppSettingsStore.getInstance();
+    const settings = store.getAppSettings(app.id);
+    store.saveAppSettings({
+      appId: settings.appId,
+      customTitle: settings.customTitle,
+      customCover: settings.customCover,
+      favorite: !settings.favorite,
+      box64Preset: settings.box64Preset,
+      graphicsLaunchPreset: settings.graphicsLaunchPreset,
+      disableMfDxgiDeviceManager: settings.disableMfDxgiDeviceManager,
+      preferMfMpeg4Handler: settings.preferMfMpeg4Handler,
+      executable: settings.executable,
+      arguments: settings.arguments,
+      workingDirectory: settings.workingDirectory,
+      displayModeOverride: settings.displayModeOverride,
+      inputProfileId: settings.inputProfileId,
+      prefixId: settings.prefixId
+    });
+    this.refreshFavoriteIds();
+  }
+
+  private getLastPlayedText(appId: string): string {
+    const store = AppSettingsStore.getInstance();
+    const lastPlayedAt = store.getLastPlayedAt(appId);
+    if (lastPlayedAt === 0) return '';
+    const now = Date.now();
+    const diffMs = now - lastPlayedAt;
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+      if (diffHours === 0) return '刚刚游玩';
+      return `${diffHours} 小时前`;
     }
-    promptAction.showDialog({
-      title: app.title,
-      message: '请选择操作',
-      buttons: [
-        { text: running ? '关闭运行中的程序' : (app.available ? '启动或恢复' : '重新关联'), color: running ? '#D94848' : '#5569D8' },
-        { text: '应用设置', color: $r('sys.color.ohos_id_color_text_primary') },
-        { text: '取消', color: $r('sys.color.ohos_id_color_text_secondary') }
-      ]
-    }).then((result) => {
-      if (result.index === 0) {
-        if (running) {
-          AppSessionService.getInstance().stopApp(app);
-          this.refreshRunningState();
-        } else if (app.available) this.launch(app); else this.openAppSettings(app, true);
-      } else if (result.index === 1) {
-        this.openAppSettings(app);
-      }
-    }).catch((_error: Error) => {});
+    if (diffDays === 1) return '昨天游玩';
+    return `${diffDays} 天前`;
+  }
+
+  private getPlayTimeText(appId: string): string {
+    const store = AppSettingsStore.getInstance();
+    const minutes = store.getPlayMinutes(appId);
+    if (minutes === 0) return '';
+    if (minutes < 60) return `累计 ${minutes} 分钟`;
+    const hours = minutes / 60;
+    if (hours < 10) return `累计 ${hours.toFixed(1)} 小时`;
+    return `累计 ${Math.floor(hours)} 小时`;
   }
 
   private confirmDeleteUnavailableApp(app: AppDescriptor): void {
@@ -2113,6 +2136,54 @@ struct Index {
         .id('desktop-layer-container')
       }
       WineEngineBlockingOverlay()
+
+      if (this.detailSheetVisible && this.detailSheetApp) {
+        Stack() {
+          Column() {
+            if (this.detailSheetApp!.backgroundPath && this.detailSheetApp!.backgroundPath.length > 0) {
+              Image(this.detailSheetApp!.backgroundPath)
+                .width('100%').height('100%')
+                .objectFit(ImageFit.Cover)
+                .opacity(0.4)
+            } else if (this.detailSheetApp!.coverPath.length > 0) {
+              Image(this.detailSheetApp!.coverPath)
+                .width('100%').height('100%')
+                .objectFit(ImageFit.Cover)
+                .blur(60)
+                .opacity(0.3)
+            }
+          }
+          .width('100%').height('100%')
+          .backgroundColor('#CC000000')
+
+          GameDetailSheet({
+            app: this.detailSheetApp!,
+            isRunning: this.runningAppIds.has(this.detailSheetApp!.id),
+            isFavorite: this.favoriteIds.has(this.detailSheetApp!.id),
+            lastPlayedText: this.getLastPlayedText(this.detailSheetApp!.id),
+            playTimeText: this.getPlayTimeText(this.detailSheetApp!.id),
+            callbacks: {
+              onLaunch: (target: AppDescriptor): void => {
+                this.closeDetailSheet();
+                this.launch(target);
+              },
+              onClose: (): void => {
+                this.closeDetailSheet();
+              },
+              onToggleFavorite: (target: AppDescriptor): void => {
+                this.toggleFavoriteFromDetail(target);
+              },
+              onOpenSettings: (target: AppDescriptor): void => {
+                this.closeDetailSheet();
+                this.openAppSettings(target);
+              }
+            }
+          })
+        }
+        .width('100%').height('100%')
+        .animation({ duration: 300, curve: Curve.EaseOut })
+        .id('library-detail-sheet-overlay')
+      }
     }
     .width('100%').height('100%')
     .linearGradient({

@@ -242,6 +242,7 @@ export struct FileBrowserView {
       source: AppSource.DOWNLOAD,
       directory: dir,
       coverPath: '',
+      backgroundPath: '',
       available: true,
       launchTarget: {
         kind: LaunchKind.WINE_EXE,

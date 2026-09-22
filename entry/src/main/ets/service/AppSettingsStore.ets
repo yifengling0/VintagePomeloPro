@@ -26,6 +26,8 @@ const APP_SETTINGS_KEY = 'app_settings_v1';
 const LIBRARY_PATH_KEY = 'library_path_v1';
 const CATALOG_CACHE_KEY = 'catalog_cache_v1';
 const RECENT_LAUNCHES_KEY = 'recent_launches_v1';
+const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
+const PLAY_TIME_KEY = 'play_time_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
@@ -41,6 +43,8 @@ export class AppSettingsStore {
   private globalSettings: GlobalSettings = createDefaultGlobalSettings();
   // 最近启动的 appId 列表 (最新在前), 持久化, 供"最近"分类使用
   private recentLaunches: string[] = [];
+  private recentLaunchesV2: Map<string, number> = new Map<string, number>();
+  private playTime: Map<string, number> = new Map<string, number>();
   private libraryPath: string = '';
   private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
@@ -534,12 +538,46 @@ export class AppSettingsStore {
 
   private loadRecentLaunches(): void {
     if (!this.store) return;
-    const raw = this.store.getSync(RECENT_LAUNCHES_KEY, '[]') as string;
+    const rawV1 = this.store.getSync(RECENT_LAUNCHES_KEY, '[]') as string;
     try {
-      const values = JSON.parse(raw) as string[];
+      const values = JSON.parse(rawV1) as string[];
       this.recentLaunches = Array.isArray(values) ? values.filter((v) => typeof v === 'string') : [];
     } catch (_) {
       this.recentLaunches = [];
+    }
+    const rawV2 = this.store.getSync(RECENT_LAUNCHES_V2_KEY, '{}') as string;
+    try {
+      const parsed = JSON.parse(rawV2) as Record<string, number>;
+      this.recentLaunchesV2 = new Map<string, number>();
+      if (parsed && typeof parsed === 'object') {
+        const keys = Object.keys(parsed);
+        for (const key of keys) {
+          this.recentLaunchesV2.set(key, parsed[key] as number);
+        }
+      }
+    } catch (_) {
+      this.recentLaunchesV2 = new Map<string, number>();
+    }
+    if (this.recentLaunchesV2.size === 0 && this.recentLaunches.length > 0) {
+      for (const id of this.recentLaunches) {
+        this.recentLaunchesV2.set(id, 0);
+      }
+      void this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(this.recentLaunchesV2)).then((): void => {
+        void this.store?.flush();
+      });
+    }
+    const rawPlayTime = this.store.getSync(PLAY_TIME_KEY, '{}') as string;
+    try {
+      const parsedPt = JSON.parse(rawPlayTime) as Record<string, number>;
+      this.playTime = new Map<string, number>();
+      if (parsedPt && typeof parsedPt === 'object') {
+        const ptKeys = Object.keys(parsedPt);
+        for (const key of ptKeys) {
+          this.playTime.set(key, parsedPt[key] as number);
+        }
+      }
+    } catch (_) {
+      this.playTime = new Map<string, number>();
     }
   }
 
@@ -548,16 +586,42 @@ export class AppSettingsStore {
     if (!appId) return;
     this.recentLaunches = this.recentLaunches.filter((id: string) => id !== appId);
     this.recentLaunches.unshift(appId);
-    if (this.recentLaunches.length > 20) {
-      this.recentLaunches = this.recentLaunches.slice(0, 20);
+    if (this.recentLaunches.length > 50) {
+      this.recentLaunches = this.recentLaunches.slice(0, 50);
     }
+    this.recentLaunchesV2.set(appId, Date.now());
     if (!this.store) return;
     await this.store.put(RECENT_LAUNCHES_KEY, JSON.stringify(this.recentLaunches));
+    const v2Obj: Record<string, number> = {};
+    this.recentLaunchesV2.forEach((value: number, key: string) => {
+      v2Obj[key] = value;
+    });
+    await this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(v2Obj));
     await this.store.flush();
   }
 
-  /** 最近启动的 appId 列表 (最新在前)。 */
   getRecentLaunches(): string[] {
     return this.recentLaunches.slice();
   }
+
+  getLastPlayedAt(appId: string): number {
+    return this.recentLaunchesV2.get(appId) ?? 0;
+  }
+
+  getPlayMinutes(appId: string): number {
+    return this.playTime.get(appId) ?? 0;
+  }
+
+  async addPlayMinutes(appId: string, minutes: number): Promise<void> {
+    if (!appId || minutes <= 0) return;
+    this.playTime.set(appId, (this.playTime.get(appId) ?? 0) + minutes);
+    if (!this.store) return;
+    const ptObj: Record<string, number> = {};
+    this.playTime.forEach((value: number, key: string) => {
+      ptObj[key] = value;
+    });
+    await this.store.put(PLAY_TIME_KEY, JSON.stringify(ptObj));
+    await this.store.flush();
+  }
 }
+

@@ -19,6 +19,7 @@ import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
   catalogFileName,
   chooseCoverFileName,
+  chooseBackgroundFileName,
   chooseExecutablePath,
   isWindowsLaunchTarget,
   shouldRetainMissingCachedCard
@@ -568,6 +569,7 @@ export class AppCatalogService {
         source: AppSource.BUILTIN,
         directory: '',
         coverPath: settings.customCover || item.cover,
+        backgroundPath: '',
         available: target.executable.length > 0,
         launchTarget: target,
         displayModeOverride: settings.displayModeOverride
@@ -649,12 +651,13 @@ export class AppCatalogService {
     const executable = settings.executable || automaticExecutable;
     const title = settings.customTitle || fileName(directory);
     const cover = settings.customCover || await this.findCover(directory);
-    return this.createExternalApp(executable, directory, title, cover, settings, id,
+    const background = await this.findBackground(directory);
+    return this.createExternalApp(executable, directory, title, cover, background, settings, id,
       await existsAsync(settings.executable || executable));
   }
 
   private createExternalApp(executable: string, directory: string, defaultTitle: string,
-    defaultCover: string, provided?: AppSettings, providedId?: string,
+    defaultCover: string, defaultBackground: string, provided?: AppSettings, providedId?: string,
     executableExists?: boolean): AppDescriptor {
     const id = providedId ?? stableAppId(AppSource.DOWNLOAD, executable);
     const settings = provided ?? AppSettingsStore.getInstance().getAppSettings(id);
@@ -678,6 +681,7 @@ export class AppCatalogService {
       source: AppSource.DOWNLOAD,
       directory: directory,
       coverPath: settings.customCover || defaultCover,
+      backgroundPath: defaultBackground,
       available: executableExists ?? exists(target.executable),
       launchTarget: target,
       displayModeOverride: settings.displayModeOverride
@@ -748,5 +752,16 @@ export class AppCatalogService {
     }
     const cover = chooseCoverFileName(names);
     return cover ? joinPath(directory, cover) : '';
+  }
+
+  private async findBackground(directory: string): Promise<string> {
+    let names: string[] = [];
+    try {
+      names = await fs.listFile(directory, { listNum: MAX_COVER_CANDIDATES });
+    } catch (_) {
+      return '';
+    }
+    const bg = chooseBackgroundFileName(names);
+    return bg ? joinPath(directory, bg) : '';
   }
 }

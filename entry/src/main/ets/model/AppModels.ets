@@ -413,6 +413,7 @@ export interface AppDescriptor {
   source: AppSource;
   directory: string;
   coverPath: string;
+  backgroundPath: string;
   available: boolean;
   launchTarget: LaunchTarget;
   displayModeOverride: DisplayMode | null;
