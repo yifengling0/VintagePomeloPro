@@ -183,3 +183,4 @@ export const wineTextInputCommit: (text: string) => boolean;
 export const wineTextInputEnabled: () => boolean;
 /** 宿主键盘打开/关闭时切换 text-input 协议激活。 */
 export const wineTextInputSetArmed: (armed: boolean) => void;
+export const getDesktopRootId: () => number;

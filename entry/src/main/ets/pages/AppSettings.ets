@@ -35,6 +35,7 @@ import {
 import {
   DividerShowType,
   HdsNavigation,
+  HdsNavigationAttribute,
   HdsNavigationMenuContentOptions,
   HdsNavigationTitleMode,
   ScrollEffectType

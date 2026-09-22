@@ -1,0 +1,23 @@
+* text=auto
+
+*.ets text eol=lf
+*.ts text eol=lf
+*.d.ts text eol=lf
+*.json text eol=lf
+*.json5 text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.hap binary
+*.so binary
+*.cer binary
+*.p12 binary
+*.p7b binary
