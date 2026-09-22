@@ -53,10 +53,14 @@ export enum ViewMode {
 }
 
 export enum LayoutMode {
-  /** 经典模式: 侧边栏 + 内容区 (保留原有布局) */
   CLASSIC = 'classic',
-  /** 全屏模式: 顶部标签分类 + 封面墙/列表视图, 无侧边栏 — 游戏启动器风格 */
   STANDARD = 'standard'
+}
+
+export enum SortMode {
+  RECENT = 'recent',
+  NAME = 'name',
+  PLAY_TIME = 'play_time'
 }
 
 export enum ThemeMode {

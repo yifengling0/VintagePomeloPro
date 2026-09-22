@@ -11,6 +11,7 @@ export struct AppCard {
   @Prop coverWallHeight: number = 288;
   @Prop useGlassEffect: boolean = true;
   @Prop narrowPhone: boolean = false;
+  @Prop lastPlayedText: string = '';
   @State private pressed: boolean = false;
   /** exe 内嵌图标 (PE .rsrc 提取, 落盘缓存) — 无自定义封面时的卡面主视觉。 */
   @State private iconPath: string = '';
@@ -347,7 +348,7 @@ export struct AppCard {
             .fontColor('#FFFFFFFF')
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.executableText())
+          Text(this.lastPlayedText.length > 0 ? this.lastPlayedText : this.executableText())
             .fontSize(11)
             .fontColor('#C0FFFFFF')
             .maxLines(1)

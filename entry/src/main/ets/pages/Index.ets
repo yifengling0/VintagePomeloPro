@@ -22,6 +22,7 @@ import {
   LaunchKind,
   RuntimeSession,
   ScreenOrientationSetting,
+  SortMode,
   ThemeMode,
   ViewMode,
   normalizeLaunchPath,
@@ -111,6 +112,7 @@ struct Index {
   @State private builtinMenuVisible: boolean = false;
   @State private detailSheetApp: AppDescriptor | null = null;
   @State private detailSheetVisible: boolean = false;
+  @State private sortMode: SortMode = SortMode.RECENT;
   @State private settings: GlobalSettings = AppSettingsStore.getInstance().getGlobalSettings();
   @State private engineState: EngineState = EngineState.STOPPED;
   @State private engineMessage: string = 'Wine 引擎未启动';
@@ -860,10 +862,20 @@ struct Index {
       return app.title.toLowerCase().includes(query) || normalized.includes(query);
     });
     if (filter === 'recent') {
-      // 最近启动顺序排序 (最新在前): recentIds 已是最新在前
       const order = new Map(recentIds.map((id: string, index: number) => [id, index]));
       result.sort((a: AppDescriptor, b: AppDescriptor) =>
         (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999));
+    } else if (this.sortMode === SortMode.NAME) {
+      result.sort((a: AppDescriptor, b: AppDescriptor) =>
+        a.title.localeCompare(b.title));
+    } else if (this.sortMode === SortMode.PLAY_TIME) {
+      const store = AppSettingsStore.getInstance();
+      result.sort((a: AppDescriptor, b: AppDescriptor) =>
+        store.getPlayMinutes(b.id) - store.getPlayMinutes(a.id));
+    } else if (this.sortMode === SortMode.RECENT) {
+      const store = AppSettingsStore.getInstance();
+      result.sort((a: AppDescriptor, b: AppDescriptor) =>
+        store.getLastPlayedAt(b.id) - store.getLastPlayedAt(a.id));
     }
     return result;
   }
@@ -1491,6 +1503,7 @@ struct Index {
       coverWallHeight: this.coverWallHeight(),
       useGlassEffect: this.settings.useGlassEffect,
       narrowPhone: this.isPhone(),
+      lastPlayedText: this.getLastPlayedText(app.id),
       onLaunch: (target: AppDescriptor): void => { this.launch(target); },
       onSettings: (target: AppDescriptor): void => { this.openAppSettings(target); },
       onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); }
@@ -1899,6 +1912,7 @@ struct Index {
       Blank()
 
       Row({ space: 8 }) {
+        this.SortButton()
         this.ViewModeSwitcher()
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.house_fill')).fontSize(16)
@@ -1931,6 +1945,30 @@ struct Index {
     .padding({ left: 16, right: 16 })
     .visibility(this.topTabBarVisible ? Visibility.Visible : Visibility.None)
     .id('library-top-tab-bar')
+  }
+
+  @Builder
+  private SortButton() {
+    Button({ type: ButtonType.Circle }) {
+      SymbolGlyph(this.sortMode === SortMode.RECENT
+        ? $r('sys.symbol.clock')
+        : this.sortMode === SortMode.NAME
+          ? $r('sys.symbol.textformat')
+          : $r('sys.symbol.timer'))
+        .fontSize(16)
+        .fontColor([$r('app.color.text_primary')])
+    }
+    .width(36).height(36)
+    .backgroundColor('#00000000')
+    .border({ width: 1, color: '#20FFFFFF' })
+    .borderRadius(18)
+    .onClick(() => {
+      const modes: SortMode[] = [SortMode.RECENT, SortMode.NAME, SortMode.PLAY_TIME];
+      const currentIdx = modes.indexOf(this.sortMode);
+      this.sortMode = modes[(currentIdx + 1) % modes.length];
+      this.visibleApps = this.filterApps(this.searchQuery, this.filter);
+    })
+    .id('library-sort-button')
   }
 
   @Builder
