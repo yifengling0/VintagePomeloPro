@@ -3,6 +3,7 @@ import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { inputMethod } from '@kit.IMEKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { batteryInfo } from '@kit.BasicServicesKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
@@ -113,6 +114,9 @@ struct Index {
   @State private detailSheetApp: AppDescriptor | null = null;
   @State private detailSheetVisible: boolean = false;
   @State private sortMode: SortMode = SortMode.RECENT;
+  @State private clockText: string = '';
+  @State private batteryText: string = '';
+  private clockTimer: number = -1;
   @State private settings: GlobalSettings = AppSettingsStore.getInstance().getGlobalSettings();
   @State private engineState: EngineState = EngineState.STOPPED;
   @State private engineMessage: string = 'Wine 引擎未启动';
@@ -524,10 +528,10 @@ struct Index {
   }
 
   private contentPadding(): number {
-    if (this.isPhoneLandscape()) return 12;
-    if (this.breakpoint === 'xs') return 10;
-    if (this.isPhone()) return 16;
-    return 28;
+    if (this.isPhoneLandscape()) return 8;
+    if (this.breakpoint === 'xs') return 8;
+    if (this.isPhone()) return 12;
+    return 20;
   }
 
   // The HDS title is an overlay. Put its height into the scroll content so
@@ -644,6 +648,8 @@ struct Index {
     };
     WineEngineService.getInstance().subscribe(this.engineCallback);
     this.refreshTimer = setInterval(() => this.refreshRunningState(), 1500);
+    this.updateClockBattery();
+    this.clockTimer = setInterval(() => this.updateClockBattery(), 30000);
   }
 
   aboutToDisappear(): void {
@@ -651,7 +657,21 @@ struct Index {
     if (this.engineCallback) WineEngineService.getInstance().unsubscribe(this.engineCallback);
     if (this.settingsCallback) ThemeSettingsService.getInstance().unsubscribe(this.settingsCallback);
     if (this.refreshTimer >= 0) clearInterval(this.refreshTimer);
+    if (this.clockTimer >= 0) clearInterval(this.clockTimer);
     this.stopWindowInsetObserver();
+  }
+
+  private updateClockBattery(): void {
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    this.clockText = `${h < 10 ? '0' : ''}${h}:${m < 10 ? '0' : ''}${m}`;
+    try {
+      const level = batteryInfo.batterySOC;
+      this.batteryText = `${level}%`;
+    } catch (_) {
+      this.batteryText = '';
+    }
   }
 
   onPageShow(): void {
@@ -707,7 +727,19 @@ struct Index {
       if (!pageWindow) {
         return;
       }
-      await applyStatusOnlyImmersiveShell(pageWindow);
+      if (this.settings.layoutMode === LayoutMode.STANDARD) {
+        await pageWindow.setWindowLayoutFullScreen(true);
+        try {
+          await pageWindow.setSpecificSystemBarEnabled('status', false);
+        } catch (_) {
+        }
+        try {
+          await pageWindow.setSpecificSystemBarEnabled('navigationIndicator', false);
+        } catch (_) {
+        }
+      } else {
+        await applyStatusOnlyImmersiveShell(pageWindow);
+      }
       this.startWindowInsetObserver(pageWindow);
     } catch (_) {
     }
@@ -1039,9 +1071,9 @@ struct Index {
    * 否则封面上下会被裁掉 — 调整上面的列数模板时这里要同步改。
    */
   private coverWallHeight(): number {
-    if (this.isPhone()) return 300;
-    if (this.breakpoint === 'xl') return 240;
-    return 280;
+    if (this.isPhone()) return 260;
+    if (this.breakpoint === 'xl') return 220;
+    return 250;
   }
 
   private gridColumns(): string {
@@ -1482,14 +1514,14 @@ struct Index {
         }
         // Shadows extend beyond the card's measured bounds. Without this
         // inset Grid clips the last row's rounded bottom edge and shadow.
-        .padding({ left: 4, right: 4, top: 4, bottom: 12 })
+        .padding({ left: 3, right: 3, top: 3, bottom: 8 })
         .constraintSize({ minHeight: this.isPhone() ? this.phoneGridItemMinHeight() : 0 })
       }, (app: AppDescriptor): string => app.id)
     }
     .columnsTemplate(this.catalogCardViewMode() === ViewMode.COMPACT ? this.compactGridColumns() :
       (this.catalogCardViewMode() === ViewMode.LARGE ? this.largeGridColumns() : this.gridColumns()))
-    .columnsGap(10)
-    .rowsGap(this.isPhone() ? 10 : 6)
+    .columnsGap(6)
+    .rowsGap(this.isPhone() ? 6 : 4)
     .width('100%')
   }
 
@@ -1519,7 +1551,7 @@ struct Index {
   private CatalogScroll(items: AppDescriptor[], filter: CatalogFilter) {
     Scroll(this.catalogScroller(filter)) {
       Column() {
-        if (this.showsCompactSearch()) {
+        if (this.showsCompactSearch() && this.settings.layoutMode !== LayoutMode.STANDARD) {
           AppSearchBar({
             value: this.searchQuery,
             heightVp: 44,
@@ -1580,7 +1612,7 @@ struct Index {
   private CatalogEmptyScroll(filter: CatalogFilter) {
     Scroll(this.catalogScroller(filter)) {
       Column() {
-        if (this.showsCompactSearch()) {
+        if (this.showsCompactSearch() && this.settings.layoutMode !== LayoutMode.STANDARD) {
           AppSearchBar({
             value: this.searchQuery,
             heightVp: 44,
@@ -1882,67 +1914,90 @@ struct Index {
 
   @Builder
   private TopTabBar() {
-    Row({ space: 6 }) {
-      ForEach([
-        { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
-        { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
-        { label: 'Windows', value: 'windows', icon: $r('sys.symbol.folder') },
-        { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') }
-      ], (tab: Record<string, Resource | string>) => {
-        Button({ type: ButtonType.Normal }) {
-          Row({ space: 6 }) {
-            SymbolGlyph(tab.icon as Resource).fontSize(14)
-              .fontColor([this.filter === tab.value ? '#FFFFFF' : $r('app.color.text_secondary')])
-            Text(tab.label as string).fontSize(13)
-              .fontColor(this.filter === tab.value ? '#FFFFFF' : $r('app.color.text_secondary'))
-              .fontWeight(this.filter === tab.value ? FontWeight.Bold : FontWeight.Normal)
-          }
+    Column({ space: 6 }) {
+      Row({ space: 4 }) {
+        if (this.settings.layoutMode === LayoutMode.STANDARD) {
+          Text(this.clockText).fontSize(12).fontColor('#A0FFFFFF')
+            .margin({ right: 4 })
+          Text(this.batteryText).fontSize(12).fontColor('#A0FFFFFF')
+            .margin({ right: 8 })
         }
-        .height(36)
-        .padding({ left: 14, right: 14 })
-        .borderRadius(18)
-        .backgroundColor(this.filter === tab.value ? $r('app.color.accent') : '#00000000')
-        .border({
-          width: this.filter === tab.value ? 0 : 1,
-          color: '#20FFFFFF'
-        })
-        .onClick(() => this.selectFilter(tab.value as CatalogFilter))
-      }, (tab: Record<string, Resource | string>) => tab.value as string)
 
-      Blank()
-
-      Row({ space: 8 }) {
-        this.SortButton()
-        this.ViewModeSwitcher()
-        Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.house_fill')).fontSize(16)
-            .fontColor([this.filter === 'builtin' ? $r('app.color.accent') : $r('app.color.text_primary')])
-        }
-        .width(36).height(36)
-        .backgroundColor(this.filter === 'builtin' ? $r('app.color.selected_background') : '#00000000')
-        .border({ width: 1, color: '#20FFFFFF' })
-        .borderRadius(18)
-        .onClick(() => {
-          this.builtinMenuVisible = !this.builtinMenuVisible;
-          if (!this.builtinMenuVisible) {
-            this.selectFilter('builtin');
+        ForEach([
+          { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
+          { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
+          { label: 'Windows', value: 'windows', icon: $r('sys.symbol.folder') },
+          { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') }
+        ], (tab: Record<string, Resource | string>) => {
+          Button({ type: ButtonType.Normal }) {
+            Row({ space: 4 }) {
+              SymbolGlyph(tab.icon as Resource).fontSize(12)
+                .fontColor([this.filter === tab.value ? '#FFFFFF' : $r('app.color.text_secondary')])
+              Text(tab.label as string).fontSize(12)
+                .fontColor(this.filter === tab.value ? '#FFFFFF' : $r('app.color.text_secondary'))
+                .fontWeight(this.filter === tab.value ? FontWeight.Bold : FontWeight.Normal)
+            }
           }
-        })
-        .id('library-builtin-toggle')
-        Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(16)
-            .fontColor([$r('app.color.text_primary')])
+          .height(32)
+          .padding({ left: 10, right: 10 })
+          .borderRadius(16)
+          .backgroundColor(this.filter === tab.value ? $r('app.color.accent') : '#00000000')
+          .border({
+            width: this.filter === tab.value ? 0 : 1,
+            color: '#20FFFFFF'
+          })
+          .onClick(() => this.selectFilter(tab.value as CatalogFilter))
+        }, (tab: Record<string, Resource | string>) => tab.value as string)
+
+        Blank()
+
+        Row({ space: 6 }) {
+          this.SortButton()
+          this.ViewModeSwitcher()
+          Button({ type: ButtonType.Circle }) {
+            SymbolGlyph($r('sys.symbol.house_fill')).fontSize(14)
+              .fontColor([this.filter === 'builtin' ? $r('app.color.accent') : $r('app.color.text_primary')])
+          }
+          .width(32).height(32)
+          .backgroundColor(this.filter === 'builtin' ? $r('app.color.selected_background') : '#00000000')
+          .border({ width: 1, color: '#20FFFFFF' })
+          .borderRadius(16)
+          .onClick(() => {
+            this.builtinMenuVisible = !this.builtinMenuVisible;
+            if (!this.builtinMenuVisible) {
+              this.selectFilter('builtin');
+            }
+          })
+          .id('library-builtin-toggle')
+          Button({ type: ButtonType.Circle }) {
+            SymbolGlyph($r('sys.symbol.gearshape')).fontSize(14)
+              .fontColor([$r('app.color.text_primary')])
+          }
+          .width(32).height(32)
+          .backgroundColor('#00000000')
+          .border({ width: 1, color: '#20FFFFFF' })
+          .borderRadius(16)
+          .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
         }
-        .width(36).height(36)
-        .backgroundColor('#00000000')
-        .border({ width: 1, color: '#20FFFFFF' })
-        .borderRadius(18)
-        .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
       }
+      .width('100%')
+      .height(40)
+
+      Row() {
+        TextInput({ placeholder: '搜索游戏…', text: this.searchQuery })
+          .fontSize(13)
+          .height(36)
+          .borderRadius(18)
+          .backgroundColor($r('app.color.search_background'))
+          .border({ width: 1, color: '#18FFFFFF' })
+          .padding({ left: 14, right: 14 })
+          .onChange((value: string) => this.updateSearch(value))
+          .layoutWeight(1)
+      }
+      .width('100%')
     }
     .width('100%')
-    .height(48)
-    .padding({ left: 16, right: 16 })
+    .padding({ left: 12, right: 12, top: 4 })
     .visibility(this.topTabBarVisible ? Visibility.Visible : Visibility.None)
     .id('library-top-tab-bar')
   }
@@ -1955,13 +2010,13 @@ struct Index {
         : this.sortMode === SortMode.NAME
           ? $r('sys.symbol.textformat')
           : $r('sys.symbol.timer'))
-        .fontSize(16)
+        .fontSize(14)
         .fontColor([$r('app.color.text_primary')])
     }
-    .width(36).height(36)
+    .width(32).height(32)
     .backgroundColor('#00000000')
     .border({ width: 1, color: '#20FFFFFF' })
-    .borderRadius(18)
+    .borderRadius(16)
     .onClick(() => {
       const modes: SortMode[] = [SortMode.RECENT, SortMode.NAME, SortMode.PLAY_TIME];
       const currentIdx = modes.indexOf(this.sortMode);
@@ -1977,13 +2032,13 @@ struct Index {
       SymbolGlyph(this.settings.viewMode === ViewMode.LIST
         ? $r('sys.symbol.list_bullet')
         : $r('sys.symbol.rectangle_grid_2x1'))
-        .fontSize(16)
+        .fontSize(14)
         .fontColor([$r('app.color.text_primary')])
     }
-    .width(36).height(36)
+    .width(32).height(32)
     .backgroundColor('#00000000')
     .border({ width: 1, color: '#20FFFFFF' })
-    .borderRadius(18)
+    .borderRadius(16)
     .onClick(() => {
       this.settings.viewMode = this.settings.viewMode === ViewMode.LIST ? ViewMode.COVER : ViewMode.LIST;
       AppSettingsStore.getInstance().saveGlobalSettings(this.settings);
@@ -2127,7 +2182,7 @@ struct Index {
       }
       .width('100%')
       .height('100%')
-      .padding({ top: this.settings.layoutMode === LayoutMode.CLASSIC && this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
+      .padding({ top: this.settings.layoutMode === LayoutMode.STANDARD ? 0 : (this.isPhone() ? 0 : this.statusBarHeightVp + 16) })
       .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
