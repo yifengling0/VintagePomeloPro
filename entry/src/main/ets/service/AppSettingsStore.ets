@@ -10,6 +10,7 @@ import {
   DesktopWindowMode,
   DisplayMode,
   GlobalSettings,
+  LayoutMode,
   WineLanguage,
   ViewMode,
   cloneVirtualMouseConfig,
@@ -29,6 +30,9 @@ const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
 const PLATFORM_DEFAULTS_KEY = 'platform_defaults_v7';
+// UI 重组一次性迁移标记: 老安装首次升级后直接落在"标准布局 + 封面墙",
+// 让游戏启动器观感开箱可见; 之后用户的手动选择不再被覆盖。
+const UI_REORG_KEY = 'ui_reorg_v1';
 
 export class AppSettingsStore {
   private static instance: AppSettingsStore | null = null;
@@ -137,6 +141,7 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      layoutMode: current.layoutMode,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -200,6 +205,7 @@ export class AppSettingsStore {
         box64Preset: stored.box64Preset ?? defaults.box64Preset,
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
         viewMode: stored.viewMode ?? defaults.viewMode,
+        layoutMode: stored.layoutMode ?? defaults.layoutMode,
         themeMode: stored.themeMode ?? defaults.themeMode,
         useGlassEffect: stored.useGlassEffect ?? defaults.useGlassEffect,
         usePageBackground: stored.usePageBackground ?? defaults.usePageBackground,
@@ -226,6 +232,25 @@ export class AppSettingsStore {
     } catch (_) {
       this.globalSettings = createDefaultGlobalSettings();
     }
+    this.migrateUiReorgOnce();
+  }
+
+  /**
+   * UI 重组一次性迁移: 已有安装的持久化偏好仍停在旧视图 (网格/列表),
+   * 首次加载时切到"标准布局 + 封面墙"并落标记; 仅执行一次, 此后以用户选择为准。
+   */
+  private migrateUiReorgOnce(): void {
+    if (!this.store) return;
+    if (this.store.getSync(UI_REORG_KEY, false) as boolean) return;
+    const store = this.store;
+    if (this.globalSettings.layoutMode !== LayoutMode.STANDARD ||
+      this.globalSettings.viewMode !== ViewMode.COVER) {
+      this.globalSettings.layoutMode = LayoutMode.STANDARD;
+      this.globalSettings.viewMode = ViewMode.COVER;
+      void this.saveGlobalSettings(this.globalSettings);
+    }
+    store.putSync(UI_REORG_KEY, true);
+    store.flushSync();
   }
 
   /** Rounded-screen tablets keep the desktop inside the safe area by default so
@@ -289,6 +314,7 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: value,
+      layoutMode: current.layoutMode,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -322,6 +348,7 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      layoutMode: current.layoutMode,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -355,6 +382,7 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      layoutMode: current.layoutMode,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -389,6 +417,7 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      layoutMode: current.layoutMode,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -422,6 +451,7 @@ export class AppSettingsStore {
       box64Preset: value,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      layoutMode: current.layoutMode,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,

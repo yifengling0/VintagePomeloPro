@@ -50,6 +50,15 @@ export enum ViewMode {
   FILES = 'files'
 }
 
+export enum LayoutMode {
+  /** 经典模式: 侧边栏 + 内容区 (保留原有布局) */
+  CLASSIC = 'classic',
+  /** Standard 模式: 全屏网格, 顶部标签分类, 无侧边栏 — iiSU 风格 */
+  STANDARD = 'standard',
+  /** XMB 模式: 纵向列布局, 中间大两侧小 — PlayStation XMB 风格 */
+  XMB = 'xmb'
+}
+
 export enum ThemeMode {
   SYSTEM = 'system',
   LIGHT = 'light',
@@ -464,6 +473,7 @@ export interface GlobalSettings {
   /** Desktop mode always uses this global profile; single-app may override it. */
   desktopInputProfileId: string;
   viewMode: ViewMode;
+  layoutMode: LayoutMode;
   themeMode: ThemeMode;
   useGlassEffect: boolean;
   usePageBackground: boolean;
@@ -1082,7 +1092,8 @@ export function createDefaultGlobalSettings(): GlobalSettings {
     keepScreenOn: true,
     box64Preset: BOX64_PRESET_DEFAULT,
     desktopInputProfileId: 'default',
-    viewMode: ViewMode.GRID,
+    viewMode: ViewMode.COVER,
+    layoutMode: LayoutMode.STANDARD,
     themeMode: ThemeMode.SYSTEM,
     useGlassEffect: true,
     usePageBackground: false,
