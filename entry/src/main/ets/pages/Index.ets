@@ -2014,7 +2014,8 @@ struct Index {
     }
     .width('100%')
     .height(40)
-    .padding({ left: 12, right: 12, top: 4 })
+    // 沉浸式全屏下状态栏已隐藏, 顶栏不能贴着屏幕物理上缘, 整体下移。
+    .padding({ left: 12, right: 12, top: 16 })
     .visibility(this.topTabBarVisible ? Visibility.Visible : Visibility.None)
     .id('library-top-tab-bar')
   }
@@ -2179,8 +2180,8 @@ struct Index {
   @Builder
   private CoverFlow() {
     Scroll(this.catalogScroller(this.filter)) {
-      // alignItems(Top) 必须显式给: Row 默认垂直居中, 会在搜索栏和卡片之间
-      // 垫出一段随内容高度变化的空白 (用户实测反馈)。
+      // 卡片行垂直居中于顶部工具栏与底部悬浮栏之间 (用户定案)。
+      // 底部 padding 把悬浮导航栏的高度从居中盒里扣除, 保证视觉居中偏上不多占。
       Row({ space: 6 }) {
         ForEach(this.visibleApps, (app: AppDescriptor): void => {
           Column() {
@@ -2190,7 +2191,7 @@ struct Index {
           .padding({ top: 3, bottom: 8 })
         }, (app: AppDescriptor): string => app.id)
       }
-      .alignItems(VerticalAlign.Top)
+      .alignItems(VerticalAlign.Center)
       .padding({ left: 3, right: 3, bottom: 60 })
       .width(this.coverFlowContentWidth(this.visibleApps.length))
       .height('100%')
