@@ -113,6 +113,8 @@ struct Index {
   @State private builtinMenuVisible: boolean = false;
   @State private detailSheetApp: AppDescriptor | null = null;
   @State private detailSheetVisible: boolean = false;
+  /** 氛围背景: 最近启动/查看的游戏 id — STANDARD 模式下取其美术做模糊铺底。 */
+  @State private ambientAppId: string = '';
   @State private sortMode: SortMode = SortMode.RECENT;
   @State private clockText: string = '';
   @State private batteryText: string = '';
@@ -1061,9 +1063,10 @@ struct Index {
    * 竖版瓦片比横版窄, 同宽度下比网格模式多排一列而不挤压封面。
    */
   private coverWallColumns(): string {
-    if (this.isPhone()) return '1fr 1fr 1fr';
-    if (this.breakpoint === 'xl') return '1fr 1fr 1fr 1fr 1fr 1fr';
-    return '1fr 1fr 1fr 1fr';
+    // 横屏手机视口窄高 (~640vp 高), 瓦片要小: 一行 5 张, 保证一屏能看到两排以上。
+    if (this.isPhone()) return '1fr 1fr 1fr 1fr 1fr';
+    if (this.breakpoint === 'xl') return '1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr';
+    return '1fr 1fr 1fr 1fr 1fr 1fr';
   }
 
   /**
@@ -1071,9 +1074,19 @@ struct Index {
    * 否则封面上下会被裁掉 — 调整上面的列数模板时这里要同步改。
    */
   private coverWallHeight(): number {
-    if (this.isPhone()) return 260;
-    if (this.breakpoint === 'xl') return 220;
-    return 250;
+    // 与列数联动: 手机 5 列 (格宽 ~120vp) → 高 160; xl 8 列 → 高 150; 其余 6 列 → 高 165。
+    if (this.isPhone()) return 160;
+    if (this.breakpoint === 'xl') return 150;
+    return 165;
+  }
+
+  /**
+   * 横向封面流的瓦片宽度 (rowsTemplate 两行时, 瓦片高 = 可用高/2 − 间隙)。
+   * auto-fill 需要绝对宽度列模板; 宽度 ≈ 瓦片高 × 3/4 (竖版封面), 与
+   * coverWallHeight() 保持同一比例, 保证两种滚动方向的观感一致。
+   */
+  private coverTileWidthVp(): string {
+    return Math.round(this.coverWallHeight() * 0.75) + 'vp';
   }
 
   private gridColumns(): string {
@@ -1124,6 +1137,7 @@ struct Index {
   }
 
   private launch(app: AppDescriptor): Promise<void> {
+    this.ambientAppId = app.id;
     if (!app.available) {
       this.openAppSettings(app, true);
       return Promise.resolve();
@@ -1201,8 +1215,26 @@ struct Index {
   }
 
   private showAppLongPressMenu(app: AppDescriptor): void {
+    this.ambientAppId = app.id;
     this.detailSheetApp = app;
     this.detailSheetVisible = true;
+  }
+
+  private getAmbientApp(): AppDescriptor | null {
+    if (this.ambientAppId.length === 0) return null;
+    for (const app of this.apps) {
+      if (app.id === this.ambientAppId) return app;
+    }
+    return null;
+  }
+
+  /** 氛围背景美术来源: 背景 > 封面 > 无 (渐变兜底)。 */
+  private getAmbientBackgroundPath(): string {
+    const app = this.getAmbientApp();
+    if (!app) return '';
+    if (app.backgroundPath && app.backgroundPath.length > 0) return app.backgroundPath;
+    if (app.coverPath && app.coverPath.length > 0) return app.coverPath;
+    return '';
   }
 
   private closeDetailSheet(): void {
@@ -2063,6 +2095,25 @@ struct Index {
         this.CatalogEmptyScroll(this.filter)
       } else if (this.settings.viewMode === ViewMode.LIST) {
         this.ListView()
+      } else if (this.catalogCardViewMode() === ViewMode.COVER) {
+        // 封面墙 = 横向网格: 行数固定 (横屏一屏两行), 列数随游戏数自动扩展,
+        // 手势左右滑动翻页 — 贴合移动端横持握姿 (盖世/主机式)。
+        Grid() {
+          ForEach(this.visibleApps, (app: AppDescriptor): void => {
+            GridItem() {
+              this.CatalogCard(app)
+            }
+            .padding({ left: 3, right: 3, top: 3, bottom: 8 })
+          }, (app: AppDescriptor): string => app.id)
+        }
+        .columnsTemplate('repeat(auto-fill, ' + this.coverTileWidthVp() + ')')
+        .rowsTemplate('1fr 1fr')
+        .columnsGap(6)
+        .rowsGap(6)
+        .scrollBar(BarState.Off)
+        .layoutWeight(1)
+        .width('100%')
+        .id('library-coverflow-grid-' + this.filter)
       } else {
         Scroll(this.catalogScroller(this.filter)) {
           Column() {
@@ -2169,6 +2220,24 @@ struct Index {
           // 浮窗模式全屏态: 桌面铺满, 隐藏启动器背景
           .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
           .id('library-page-background')
+      }
+      // 氛围背景 — STANDARD 模式下用最近互动游戏的美术做重度模糊铺底 (Steam Big Picture 式沉浸感)。
+      // 位于用户自定义背景之后、内容之前; 用户手动背景开启时本层被其遮盖, 优先级自然让位。
+      if (this.settings.layoutMode === LayoutMode.STANDARD && this.ambientAppId.length > 0) {
+        Stack() {
+          if (this.getAmbientBackgroundPath().length > 0) {
+            Image(this.getAmbientBackgroundPath())
+              .width('100%').height('100%')
+              .objectFit(ImageFit.Cover)
+              .blur(50)
+              .opacity(0.3)
+              .draggable(false)
+          }
+        }
+        .width('100%').height('100%')
+        .hitTestBehavior(HitTestMode.None)
+        .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .id('library-ambient-background')
       }
       Row() {
         if (this.settings.layoutMode === LayoutMode.CLASSIC) {

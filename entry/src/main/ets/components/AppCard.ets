@@ -133,6 +133,8 @@ export struct AppCard {
     // shell role explicitly while keeping explorer.exe as the actual launch target.
     if (this.app.id === 'builtin-desktop') return 'desktop (explorer)';
     if (this.app.id === 'builtin-dxvk-cube') return 'DXVK Legacy · D3D11';
+    // 封面瓦片副行不放文件路径 (长且无意义): 无游玩历史时显示来源类型。
+    if (this.viewMode === ViewMode.COVER) return 'Windows 程序';
     return this.app.launchTarget.executable;
   }
 
@@ -343,20 +345,20 @@ export struct AppCard {
       Column() {
         Column({ space: 3 }) {
           Text(this.app.title)
-            .fontSize(17)
-            .fontWeight(FontWeight.Bold)
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
             .fontColor('#FFFFFFFF')
-            .maxLines(2)
+            .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(this.lastPlayedText.length > 0 ? this.lastPlayedText : this.executableText())
-            .fontSize(11)
+            .fontSize(10)
             .fontColor('#C0FFFFFF')
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Start)
-        .padding({ left: 14, right: 14, top: 40, bottom: 14 })
+        .padding({ left: 10, right: 10, top: 26, bottom: 9 })
         .linearGradient({
           angle: 180,
           colors: [['#00000000', 0], ['#66000000', 0.35], ['#E6000000', 1]]
@@ -368,13 +370,13 @@ export struct AppCard {
 
       Row() {
         Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(14).fontColor(['#FFFFFFFF'])
+          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(12).fontColor(['#FFFFFFFF'])
         }
-          .width(36)
-          .height(36)
+          .width(28)
+          .height(28)
           .backgroundColor('#66000000')
           .border({ width: 1, color: '#30FFFFFF' })
-          .borderRadius(10)
+          .borderRadius(8)
           .id('wine-app-settings-' + this.app.id)
           .onClick(() => {
             this.onSettings(this.app);
@@ -382,14 +384,14 @@ export struct AppCard {
       }
       .width('100%')
       .justifyContent(FlexAlign.End)
-      .padding({ right: 10, top: 10 })
+      .padding({ right: 8, top: 8 })
     }
     .width('100%')
     .height(this.coverWallHeight)
-    .borderRadius(22)
+    .borderRadius(14)
     .border({ width: 1, color: '#20FFFFFF' })
     .clip(true)
-    .shadow({ radius: 20, color: '#30000000', offsetX: 0, offsetY: 8 })
+    .shadow({ radius: 12, color: '#26000000', offsetX: 0, offsetY: 5 })
     .opacity(this.app.available ? 1 : 0.62)
     .scale({ x: this.pressed ? 0.97 : 1, y: this.pressed ? 0.97 : 1 })
     .animation({ duration: 150, curve: Curve.EaseOut })

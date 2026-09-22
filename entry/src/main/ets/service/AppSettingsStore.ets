@@ -34,7 +34,8 @@ const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 const PLATFORM_DEFAULTS_KEY = 'platform_defaults_v7';
 // UI 重组一次性迁移标记: 老安装首次升级后直接落在"标准布局 + 封面墙",
 // 让游戏启动器观感开箱可见; 之后用户的手动选择不再被覆盖。
-const UI_REORG_KEY = 'ui_reorg_v1';
+// v2: 首次迁移发布后又调小了瓦片规格并归一旧视图模式, 再触发一次 (覆盖已装测试机)。
+const UI_REORG_KEY = 'ui_reorg_v2';
 
 export class AppSettingsStore {
   private static instance: AppSettingsStore | null = null;
