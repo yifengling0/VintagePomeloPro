@@ -1917,9 +1917,11 @@ struct Index {
     Column({ space: 6 }) {
       Row({ space: 4 }) {
         if (this.settings.layoutMode === LayoutMode.STANDARD) {
-          Text(this.clockText).fontSize(12).fontColor('#A0FFFFFF')
-            .margin({ right: 4 })
-          Text(this.batteryText).fontSize(12).fontColor('#A0FFFFFF')
+          Text(this.clockText).fontSize(13).fontWeight(FontWeight.Bold)
+            .fontColor(this.usesDarkAppearance() ? '#FFFFFFFF' : '#FF1A1525')
+            .margin({ right: 6 })
+          Text(this.batteryText).fontSize(13).fontWeight(FontWeight.Bold)
+            .fontColor(this.usesDarkAppearance() ? '#FFFFFFFF' : '#FF1A1525')
             .margin({ right: 8 })
         }
 
