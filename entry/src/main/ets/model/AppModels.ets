@@ -47,16 +47,16 @@ export enum ViewMode {
   COVER = 'cover',
   COMPACT = 'compact',
   LARGE = 'large',
-  FILES = 'files'
+  FILES = 'files',
+  /** 全屏模式下的列表视图: 纵向滚动, 聚焦项放大 — 原 XMB 模式收敛而来。 */
+  LIST = 'list'
 }
 
 export enum LayoutMode {
   /** 经典模式: 侧边栏 + 内容区 (保留原有布局) */
   CLASSIC = 'classic',
-  /** Standard 模式: 全屏网格, 顶部标签分类, 无侧边栏 — iiSU 风格 */
-  STANDARD = 'standard',
-  /** XMB 模式: 纵向列布局, 中间大两侧小 — PlayStation XMB 风格 */
-  XMB = 'xmb'
+  /** 全屏模式: 顶部标签分类 + 封面墙/列表视图, 无侧边栏 — 游戏启动器风格 */
+  STANDARD = 'standard'
 }
 
 export enum ThemeMode {
