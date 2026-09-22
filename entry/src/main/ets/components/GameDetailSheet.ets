@@ -46,7 +46,9 @@ export struct GameDetailSheet {
       Column() {
         Row({ space: 20 }) {
           if (this.app.coverPath.length > 0) {
-            Image(this.app.coverPath)
+            // coverPath 是裸文件路径, Image 需要 file:// 前缀 (AppCard.coverSource 同款)。
+            Image(this.app.coverPath.startsWith('file://')
+              ? this.app.coverPath : 'file://' + this.app.coverPath)
               .width(120).height(160)
               .borderRadius(12)
               .objectFit(ImageFit.Cover)
