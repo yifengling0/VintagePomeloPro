@@ -1074,7 +1074,7 @@ struct Index {
    * 否则封面上下会被裁掉 — 调整上面的列数模板时这里要同步改。
    */
   private coverWallHeight(): number {
-    // 与列数联动: 手机 5 列 (格宽 ~120vp) → 高 160; xl 8 列 → 高 150; 其余 6 列 → 高 165。
+    // 单行封面流, 瓦片尺寸按用户定案保持紧凑 (横屏一屏约两排高, 主体留给滑动浏览)。
     if (this.isPhone()) return 160;
     if (this.breakpoint === 'xl') return 150;
     return 165;
@@ -1087,6 +1087,16 @@ struct Index {
    */
   private coverTileWidthVp(): string {
     return Math.round(this.coverWallHeight() * 0.75) + 'vp';
+  }
+
+  /**
+   * 单行封面流内容总宽: 数量 × (瓦片宽 + 间距), 至少一屏 (不足时不可滚)。
+   */
+  private coverFlowContentWidth(count: number): string {
+    const tileW = Math.round(this.coverWallHeight() * 0.75) + 6;
+    const screenW = this.viewportWidth > 0 ? this.viewportWidth : 800;
+    const contentW = Math.max(screenW, count * tileW + 12);
+    return Math.round(contentW) + 'vp';
   }
 
   private gridColumns(): string {
@@ -2084,9 +2094,7 @@ struct Index {
   private StandardLayout() {
     Column() {
       this.TopTabBar()
-      if (this.filter === 'windows') {
-        this.WindowsRefreshContent()
-      } else if (this.scanning) {
+      if (this.scanning) {
         Row({ space: 10 }) {
           LoadingProgress().width(20).height(20)
           Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
@@ -2096,24 +2104,22 @@ struct Index {
       } else if (this.settings.viewMode === ViewMode.LIST) {
         this.ListView()
       } else if (this.catalogCardViewMode() === ViewMode.COVER) {
-        // 封面墙 = 横向网格: 行数固定 (横屏一屏两行), 列数随游戏数自动扩展,
-        // 手势左右滑动翻页 — 贴合移动端横持握姿 (盖世/主机式)。
-        Grid() {
-          ForEach(this.visibleApps, (app: AppDescriptor): void => {
-            GridItem() {
-              this.CatalogCard(app)
-            }
-            .padding({ left: 3, right: 3, top: 3, bottom: 8 })
-          }, (app: AppDescriptor): string => app.id)
+        // 视图分支必须先于 filter==='windows' 分支: 否则落地分类 windows 永远
+        // 走 WindowsRefreshContent 的竖向网格, 封面流 (横向滑动) 永远不渲染 —
+        // 这正是此前"左右滑动无效"的根因。
+        if (this.filter === 'windows') {
+          // windows 分类保留下拉刷新语义
+          Refresh({ refreshing: $$this.refreshing }) {
+            this.CoverFlow()
+          }
+          .onRefreshing((): void => { void this.refreshFromPull(); })
+          .layoutWeight(1)
+          .width('100%')
+        } else {
+          this.CoverFlow()
         }
-        .columnsTemplate('repeat(auto-fill, ' + this.coverTileWidthVp() + ')')
-        .rowsTemplate('1fr 1fr')
-        .columnsGap(6)
-        .rowsGap(6)
-        .scrollBar(BarState.Off)
-        .layoutWeight(1)
-        .width('100%')
-        .id('library-coverflow-grid-' + this.filter)
+      } else if (this.filter === 'windows') {
+        this.WindowsRefreshContent()
       } else {
         Scroll(this.catalogScroller(this.filter)) {
           Column() {
@@ -2135,6 +2141,37 @@ struct Index {
     .layoutWeight(1)
     .height('100%')
     .padding({ left: this.contentPadding(), right: this.contentPadding() })
+  }
+
+  /**
+   * 单行横向封面流 (用户定案: 永远单行) — Switch/主机式横排, 手势左右滑动翻页,
+   * 贴合移动端横持握姿。实现: 横向 Scroll 包 Row 定宽容器,
+   * 内容宽 = 数量 × (瓦片宽 + 间距), 不足一屏时不可滚。
+   */
+  @Builder
+  private CoverFlow() {
+    Scroll(this.catalogScroller(this.filter)) {
+      // alignItems(Top) 必须显式给: Row 默认垂直居中, 会在搜索栏和卡片之间
+      // 垫出一段随内容高度变化的空白 (用户实测反馈)。
+      Row({ space: 6 }) {
+        ForEach(this.visibleApps, (app: AppDescriptor): void => {
+          Column() {
+            this.CatalogCard(app)
+          }
+          .width(this.coverTileWidthVp())
+          .padding({ top: 3, bottom: 8 })
+        }, (app: AppDescriptor): string => app.id)
+      }
+      .alignItems(VerticalAlign.Top)
+      .padding({ left: 3, right: 3 })
+      .width(this.coverFlowContentWidth(this.visibleApps.length))
+      .height('100%')
+    }
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
+    .layoutWeight(1)
+    .width('100%')
+    .id('library-coverflow-scroll-' + this.filter)
   }
 
   @Builder
