@@ -118,6 +118,8 @@ struct Index {
   @State private sortMode: SortMode = SortMode.RECENT;
   @State private clockText: string = '';
   @State private batteryText: string = '';
+  /** 电量图标 (按 batterySOC 分段选 symbol), 顶栏不显示数字 (用户定案)。 */
+  @State private batteryIcon: Resource = $r('sys.symbol.battery_100percent');
   private clockTimer: number = -1;
   @State private settings: GlobalSettings = AppSettingsStore.getInstance().getGlobalSettings();
   @State private engineState: EngineState = EngineState.STOPPED;
@@ -671,8 +673,13 @@ struct Index {
     try {
       const level = batteryInfo.batterySOC;
       this.batteryText = `${level}%`;
+      // 分段电池图标: 向下取最接近的一档, 低电量段更细 (5/10/15/20)。
+      const steps: number[] = [100, 90, 80, 70, 60, 50, 40, 30, 20, 15, 10, 5];
+      const picked = steps.find((s: number): boolean => level >= s) ?? 5;
+      this.batteryIcon = $r('sys.symbol.battery_' + picked + 'percent');
     } catch (_) {
       this.batteryText = '';
+      this.batteryIcon = $r('sys.symbol.battery');
     }
   }
 
@@ -1961,10 +1968,11 @@ struct Index {
     Row() {
       Row({ space: 6 }) {
         if (this.settings.layoutMode === LayoutMode.STANDARD) {
-          Text(this.clockText).fontSize(13).fontWeight(FontWeight.Bold)
-            .fontColor(this.usesDarkAppearance() ? '#FFFFFFFF' : '#FF1A1525')
-          Text(this.batteryText).fontSize(13).fontWeight(FontWeight.Bold)
-            .fontColor(this.usesDarkAppearance() ? '#FFFFFFFF' : '#FF1A1525')
+          // 字体样式与底部导航栏对齐: 12fp / text_secondary, 不加粗。
+          Text(this.clockText).fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+          SymbolGlyph(this.batteryIcon).fontSize(15)
+            .fontColor([$r('app.color.text_secondary')])
         }
       }
       .layoutWeight(1)
@@ -1984,13 +1992,13 @@ struct Index {
       Row({ space: 6 }) {
         this.SortButton()
         Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(14)
+          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(17)
             .fontColor([$r('app.color.text_primary')])
         }
-        .width(32).height(32)
+        .width(40).height(40)
         .backgroundColor('#00000000')
         .border({ width: 1, color: '#20FFFFFF' })
-        .borderRadius(16)
+        .borderRadius(20)
         .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
       }
       .layoutWeight(1)
@@ -2058,13 +2066,13 @@ struct Index {
         : this.sortMode === SortMode.NAME
           ? $r('sys.symbol.textformat')
           : $r('sys.symbol.timer'))
-        .fontSize(14)
+        .fontSize(17)
         .fontColor([$r('app.color.text_primary')])
     }
-    .width(32).height(32)
+    .width(40).height(40)
     .backgroundColor('#00000000')
     .border({ width: 1, color: '#20FFFFFF' })
-    .borderRadius(16)
+    .borderRadius(20)
     .onClick(() => {
       const modes: SortMode[] = [SortMode.RECENT, SortMode.NAME, SortMode.PLAY_TIME];
       const currentIdx = modes.indexOf(this.sortMode);
