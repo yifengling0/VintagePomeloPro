@@ -297,7 +297,10 @@ struct SystemSettingsPage {
   }
 
   private navigationControlBackground(): string {
-    return this.usesDarkAppearance() ? '#30FFFFFF' : '#28FFFFFF';
+    // 设置页左上返回 / 右上刷新按钮: 尺寸由 HDS 组件固定
+    // (HdsNavigationIconItemStyle 只暴露颜色, 无尺寸字段), 因此改为**去掉圆底**,
+    // 只保留图标 —— 视觉体积最小化, 点击热区不变 (用户反馈"太大")。
+    return '#00000000';
   }
 
   private navigationTitleColor(): string {
