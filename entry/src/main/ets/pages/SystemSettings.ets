@@ -2429,7 +2429,7 @@ struct SystemSettingsPage {
   }
 
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.TopStart }) {
       HdsNavigation() {
         if (this.useSideBySideSettings()) {
           Row({ space: 22 }) {
