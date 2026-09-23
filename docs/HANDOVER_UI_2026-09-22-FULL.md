@@ -452,3 +452,34 @@ if (this.settings.layoutMode === LayoutMode.STANDARD && this.ambientAppId.length
 ### 11.4 真机保活（通宵工作用）
 - `hidumper -s PowerManagerService -a '-t'` = keep screen on（`-f` 恢复）；系统超时本身 600s。
 - 兜底循环：`E:\iiSU\keep-awake.sh`（每 4 分钟 keep-on + wakeup，nohup 后台）。
+
+---
+
+## 12. 2026-09-23 增补二：全局暗色 + 焦点体系（提交 36e4f2e）
+
+### 12.1 全局暗色系（主机/掌机风格，用户定案）
+- **base 与 dark 两套色板统一为近黑中性色**：基座 `#0B0B0F`、卡面 `#1C1C22`、玻璃 `#E61A1A20`、强调色亮紫 `#A78BFA`。两套一致 → **任何系统主题模式下都是暗色**，不会穿帮（这是最稳的做法，比只改 dark 安全）。
+- PageSurface 基座渐变改暗色常量（原浅色紫渐变分支删除）。
+- 默认 `themeMode` 改为 `DARK`；迁移键 `ui_reorg_v2 → v3`，存量安装一并切暗色。
+- 设置页/帮助页等自定义色函数（`groupSurfaceColor`/`topicSurfaceColor`）本就有 dark 分支，随 `usesDarkAppearance()` 自动生效。
+
+### 12.2 P1 氛围背景跟随焦点
+- 新增 `@State focusedIndex`（视口中心所在瓦片），`Scroll.onDidScroll` 调用 `updateCoverFlowFocus(xOffset)` 追踪。
+- 焦点变化 → `ambientAppId` 同步 → 模糊铺底跟着滑动实时变化（`blur(60)` + `opacity(0.45)` + `#8C0B0B0F` 暗化遮罩保证前景对比度）。
+- **`ambientSource()` 修复**：裸路径必须补 `file://` 前缀，否则 Image 静默加载失败（详情页 `backgroundPath` 同款坑一并修复）。
+- 分类切换/重扫描走 `resetCoverFlowFocus()` 回第一张，避免沿用上个分类的游戏。
+
+### 12.3 P2 焦点卡放大（标题不动，用户定案）
+- `AppCard` 新增 `@Prop focused`：`scale 1.14` + accent 2vp 描边 + 强化投影 + `zIndex` 提升。
+- **只做视觉缩放**（scale 不改布局）→ Row 内卡片位置稳定，放大后不被邻卡压住。
+
+### 12.4 焦点计算口径
+```
+unit   = 瓦片宽(vp) + 间距(6)
+center = xOffset + viewportWidth/2 - 3
+index  = clamp(floor(center / unit), 0, n-1)
+```
+调整瓦片尺寸（`coverWallHeight()`）时无需改这里——`unit` 由同一函数推导。
+
+### 12.5 顶栏/底栏（用户确认冻结，勿动）
+布局与样式保持 2026-09-22 定稿：顶栏 = 时间电量(12fp text_secondary + 分段电池图标) | 300vp 搜索框居中 | 排序 + 设置(40vp/17fp)；底栏 = 最近/收藏/Game(手柄)/运行中/Home 五元对称玻璃悬浮条。
