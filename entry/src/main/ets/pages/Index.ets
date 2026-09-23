@@ -69,6 +69,59 @@ import {
 
 type CatalogFilter = 'recent' | 'builtin' | 'windows' | 'running' | 'favorite';
 
+/** 环形流一屏可见张数 (不大于此数时不循环, 否则原地打转无意义)。 */
+const RING_VISIBLE_COUNT: number = 5;
+
+/**
+ * 环形封面流的无限数据源。
+ *
+ * 之前用"三倍数据 + 边界等价跳转"伪造循环, 有个致命缺陷: 跳转把滚动位置
+ * 反复拉回中段, 中心索引只能在一个小区间里打转 —— 用户从尾部往头部滑时
+ * **永远轮不到索引 0**("能从头到尾, 不能从尾到头"的真因)。
+ *
+ * 改为真·无限: totalCount 给一个用户滑不到的极大值, getData(index) 按
+ * index % n 取真实游戏。滑动过程中索引自然递增/递减, 头尾无缝相接;
+ * 配合 LazyForEach 只渲染可见项, 顺带解决了滑动卡顿。
+ */
+class RingDataSource implements IDataSource {
+  /** 虚拟总长度: 按 5 格/屏、每格约 160vp 计, 10 万格远超任何手动滑动量。 */
+  static readonly VIRTUAL_TOTAL: number = 100000;
+  private listeners: DataChangeListener[] = [];
+  private apps: AppDescriptor[] = [];
+
+  setApps(apps: AppDescriptor[]): void {
+    this.apps = apps;
+    this.listeners.forEach((l: DataChangeListener): void => l.onDataReloaded());
+  }
+
+  count(): number {
+    return this.apps.length;
+  }
+
+  totalCount(): number {
+    const n = this.apps.length;
+    if (n === 0) return 0;
+    // 游戏数不足一屏时不做循环 (LazyForEach 只报真实项数, 滑动到头即止)。
+    if (n <= RING_VISIBLE_COUNT) return n;
+    return RingDataSource.VIRTUAL_TOTAL;
+  }
+
+  getData(index: number): AppDescriptor {
+    const n = this.apps.length;
+    if (n === 0) return this.apps[0];
+    return this.apps[((index % n) + n) % n];
+  }
+
+  registerDataChangeListener(listener: DataChangeListener): void {
+    if (this.listeners.indexOf(listener) < 0) this.listeners.push(listener);
+  }
+
+  unregisterDataChangeListener(listener: DataChangeListener): void {
+    const i = this.listeners.indexOf(listener);
+    if (i >= 0) this.listeners.splice(i, 1);
+  }
+}
+
 const DOMAIN = 0x0000;
 
 const PHONE_NAV_RECENT: number = 0;
@@ -2217,8 +2270,10 @@ struct Index {
    */
   @Builder
   private CoverFlow() {
-    List({ space: 0, scroller: this.ringScroller, initialIndex: this.ringInitialIndex() }) {
-      ForEach(this.ringApps(), (app: AppDescriptor, index: number): void => {
+    // 不用 List 的 initialIndex (它是左对齐语义, 与居中对齐混用会错位):
+    // 初始定位统一由 resetCoverFlowFocus() 的 scrollToIndex(CENTER) 完成。
+    List({ space: 0, scroller: this.ringScroller }) {
+      LazyForEach(this.ringData, (app: AppDescriptor, index: number): void => {
         ListItem() {
           // 外层 = 一格 (屏宽/5, 留白来源); 内层 = 卡片固定竖版尺寸并居中。
           Column() {
@@ -2238,30 +2293,34 @@ struct Index {
     }
     .listDirection(Axis.Horizontal)
     .scrollBar(BarState.Off)
-    // 缓存前后各 2 项 (约 9 项同帧渲染): 再多会显著增加每帧重绘量,
-    // 反而让常速滑动更卡 (实测权衡)。
+    // 只渲染可见区 ± 2 项 (LazyForEach 虚拟化): 每帧重绘量最小, 滑动更跟手。
     .cachedCount(2)
     .layoutWeight(1)
     .width('100%')
     .padding({ top: 8, bottom: 68 })
     .onDidScroll((): void => {
-      // 滚动中只同步偏移 (驱动逐卡变换), 不做 scrollTo 跳转 ——
-      // 滚动中调用 scrollTo 会重入 onDidScroll, 快速滑动时递归导致闪退。
+      // 初始定位期间忽略上报: List 会先报一次 offset=0, 会把 ringOffset 冲成 0
+      // 导致所有卡片被算成"远离中心"而缩小 (实测)。
+      if (this.ringLocating) return;
       this.ringOffset = this.safeRingOffset();
     })
     .onScrollStop((): void => {
-      // 松手后 (无惯性) 做等价跳转 + 吸附: 跳转前后内容逐格等价, 视觉无感。
-      const x = this.safeRingOffset();
-      this.recycleRingIfNeeded(x);
+      if (this.ringLocating) return;
       this.ringOffset = this.safeRingOffset();
       this.snapRingToNearest();
     })
     .id('library-coverflow-ring-' + this.filter)
   }
 
-  /** List 初始索引: 落在三倍数据的中段起点 (首帧即对位, 避免启动时变换错乱)。 */
+  /**
+   * 初始索引: 虚拟列表中部、且为 n 的整数倍 → 定位后中心正好是第一个游戏。
+   * (配合 scrollToIndex 的 CENTER 对齐语义)
+   */
   private ringInitialIndex(): number {
-    return this.ringEnabled() ? this.visibleApps.length : 0;
+    const n = this.visibleApps.length;
+    if (n === 0 || n <= RING_VISIBLE_COUNT) return 0;
+    const mid = Math.floor(RingDataSource.VIRTUAL_TOTAL / 2);
+    return mid - (mid % n);
   }
 
   /** 安全读取当前横向偏移 (未就绪/异常值返回上一已知值)。 */
@@ -2278,12 +2337,11 @@ struct Index {
     return this.ringOffset;
   }
 
-  /** 安全的横向滚动: 过滤 NaN/Infinity 并钳制到 [0, 内容宽 - 视口宽]。 */
+  /** 安全的横向滚动: 过滤 NaN/Infinity 并钳制到 [0, 虚拟总宽 - 视口宽]。 */
   private safeScrollTo(xOffset: number): void {
     if (typeof xOffset !== 'number' || !isFinite(xOffset)) return;
-    const cell = this.ringCellWidth();
     const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
-    const max = Math.max(0, this.ringApps().length * cell - viewport);
+    const max = Math.max(0, this.ringContentSpan() - viewport);
     const clamped = Math.max(0, Math.min(max, xOffset));
     try {
       this.ringScroller.scrollTo({ xOffset: clamped, yOffset: 0, animation: false });
@@ -2292,36 +2350,17 @@ struct Index {
       // 容器未就绪时忽略。
     }
   }
+  /** 无限数据源 (LazyForEach 用): 索引按 n 取模映射到真实游戏。 */
+  private ringData: RingDataSource = new RingDataSource();
+  /** 初始定位门控: 定位完成前忽略 onDidScroll (避免把偏移冲成 0)。 */
+  private ringLocating: boolean = true;
 
-  /**
-   * 环数据: 三倍化以伪造无缝循环 (边界等价跳转)。
-   * 缓存到成员 (build 外重建, build 内只读): 每次 build 新建 33 元素数组会让
-   * ForEach 每帧重新 diff, 是滑动卡顿的主要来源之一。
-   * 长度不匹配时安全退化到原数组 (宁可不循环也不能显示错数据)。
-   */
-  private ringAppsCache: AppDescriptor[] = [];
-
-  /** 重建三倍化环数据 (visibleApps 变化后调用, 不在 build 内触发)。 */
+  /** 可见列表变化后同步数据源 (不在 build 内触发)。 */
   private rebuildRingApps(): void {
-    const n = this.visibleApps.length;
-    if (n === 0 || n <= Index.RING_VISIBLE) {
-      this.ringAppsCache = [];
-      return;
-    }
-    const out: AppDescriptor[] = [];
-    for (let round = 0; round < 3; round++) {
-      for (let i = 0; i < n; i++) out.push(this.visibleApps[i]);
-    }
-    this.ringAppsCache = out;
+    this.ringData.setApps(this.visibleApps);
   }
 
-  private ringApps(): AppDescriptor[] {
-    const n = this.visibleApps.length;
-    if (n === 0 || n <= Index.RING_VISIBLE) return this.visibleApps;
-    return this.ringAppsCache.length === n * 3 ? this.ringAppsCache : this.visibleApps;
-  }
-
-  /** 是否启用环 (循环) 模式。 */
+  /** 是否启用环 (循环) 模式: 游戏数多于一屏时才循环。 */
   private ringEnabled(): boolean {
     return this.visibleApps.length > Index.RING_VISIBLE;
   }
@@ -2336,10 +2375,9 @@ struct Index {
     return this.ringCellWidth() + 'vp';
   }
 
-  /** 环初始偏移: 落在中段起点, 保证两侧都有内容可滑 (循环用)。 */
-  private ringStartOffset(): number {
-    const n = this.visibleApps.length;
-    return this.ringEnabled() ? n * this.ringCellWidth() : 0;
+  /** 环内容总宽 (vp): 无限列表用虚拟总长, 保证滑动范围足够大。 */
+  private ringContentSpan(): number {
+    return this.ringData.totalCount() * this.ringCellWidth();
   }
 
   /** 当前正对视口中心的格子索引 (三倍数组内)。 */
@@ -2391,34 +2429,6 @@ struct Index {
     return this.ringOpacityFor(index);
   }
 
-  /**
-   * 边界等价跳转 (数据三倍化伪造无限循环)。
-   * 跳转前后可见内容逐格等价 (三段数据完全相同), 因此视觉上无感。
-   * `conservative=true` (滚动中) 时只在贴近边界 (2 格内) 才跳, 避免打断惯性;
-   * `false` (松手后) 用同样的保守阈值, 此时无惯性, 跳转绝对无感。
-   */
-  private recycleRingIfNeeded(xOffset: number): void {
-    if (!this.ringEnabled()) return;
-    if (typeof xOffset !== 'number' || !isFinite(xOffset)) return;
-    const n = this.visibleApps.length;
-    const cell = this.ringCellWidth();
-    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
-    const span = n * cell;
-    const margin = cell * 2;
-    // 跳到**绝对中段安全区**, 而不是相对位移 —— 相对位移后新位置又贴着另一侧
-    // 边界, 连续同向滑动会反复触发跳转, 表现为"滑到某处就滑不动了"。
-    const safeStart = span + margin;
-    const safeEnd = 2 * span - viewport - margin;
-    let target = -1;
-    if (xOffset < margin) {
-      target = safeStart;
-    } else if (xOffset > 3 * span - viewport - margin) {
-      target = safeEnd;
-    }
-    if (target < 0) return;
-    this.safeScrollTo(target);
-  }
-
   /** 松手后吸附: 让某张卡正好落在视口中心 (焦点位恒定)。 */
   private snapRingToNearest(): void {
     const cell = this.ringCellWidth();
@@ -2457,18 +2467,29 @@ struct Index {
     this.scrollOffsetX = 0;
     this.ringIndex = 0;
     this.selectedAppId = '';
-    const start = this.ringEnabled() ? this.visibleApps.length : 0;
-    this.ringOffset = start * this.ringCellWidth();
+    const start = this.ringInitialIndex();
+    const cell = this.ringCellWidth();
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
+    // 与 scrollToIndex(CENTER) 对齐一致的期望偏移 (居中项 = 第一个游戏)。
+    this.ringOffset = start * cell + cell / 2 - viewport / 2;
+    this.ringLocating = true;
     setTimeout((): void => {
-      // 钳制到合法范围: 数据刚变化时索引可能越界, 直接 scrollToIndex 会原生崩。
-      const count = this.ringApps().length;
-      if (count === 0) return;
+      const count = this.ringData.totalCount();
+      if (count === 0) {
+        this.ringLocating = false;
+        return;
+      }
       const safe = Math.max(0, Math.min(count - 1, start));
       try {
-        this.ringScroller.scrollToIndex(safe, false);
+        this.ringScroller.scrollToIndex(safe, false, ScrollAlign.CENTER);
       } catch (_) {
         // 忽略
       }
+      // 定位完成后解除门控, 并以真实偏移校准一次 (此后由 onDidScroll 接管)。
+      setTimeout((): void => {
+        this.ringOffset = this.safeRingOffset();
+        this.ringLocating = false;
+      }, 180);
     }, 0);
     if (this.visibleApps.length > 0) {
       this.ambientAppId = this.visibleApps[0].id;
@@ -2477,7 +2498,7 @@ struct Index {
 
   /** 点到非中心卡: 把它滚到视口中心 (成为焦点)。 */
   private selectRingIndex(index: number): void {
-    const count = this.ringApps().length;
+    const count = this.ringData.totalCount();
     if (count === 0) return;
     const safe = Math.max(0, Math.min(count - 1, Math.round(index)));
     try {
