@@ -509,3 +509,36 @@ index  = clamp(floor(center / unit), 0, n-1)
 **`uinput -T -m` 注入的滑动手势不能触发本应用的 List/Scroll 滚动** —— 用它可以验证点击/长按，但**不能用来验证滚动**。本次排查中我多次用"滑动前后截图 `cmp` 对比"判断滚动是否生效，结果被**时间戳像素差异**骗了（`cmp` 报"已变化"，实际画面静止），白走了几个来回。
 **正确做法**：滚动必须**用真机手指滑动 + 肉眼/截图确认卡片位置是否真的变了**（看内容而非二进制对比）；或加 `hilog` 到 `onDidScroll` 观察是否触发（本次即以此定位到"手势根本没到滚动容器"）。
 设备保活（通宵）：`hidumper -s PowerManagerService -a '-t'` + `E:\iiSU\keep-awake.sh`。
+
+---
+
+## 14. 2026-09-23 增补四：环形流改真·无限数据源（提交 e764331，**用户验收"很满意"**）
+
+### 14.1 为什么必须换掉"三倍数据 + 边界跳转"
+用户实测发现：**能从头滑到尾，不能从尾滑到头**。
+根因：跳转把滚动位置反复拉回中段，中心索引只能在一个小区间里打转，**永远轮不到索引 0**。
+（"三倍化 + 等价跳转"这类伪循环方案都有这个通病，不要再用。）
+
+### 14.2 现方案：`LazyForEach` + `IDataSource`
+- 新增 **`RingDataSource`**（`Index.ets` 文件顶部）：
+  - `totalCount()` = `VIRTUAL_TOTAL`(10 万)，游戏数 ≤ 5 时返回真实项数（不循环）
+  - `getData(index)` = `apps[((index % n) + n) % n]` —— 索引自然循环，头尾无缝
+  - `setApps()` 在 `visibleApps` 变化后调用（`rebuildRingApps()`）
+- `CoverFlow()` 用 `LazyForEach(this.ringData, ...)` + `.cachedCount(2)`
+  - 只渲染可见 ±2 项 → **卡顿问题一并解决**（旧 `ForEach` 要维护 33 项）
+- **边界跳转逻辑（`recycleRingIfNeeded`）与三倍化缓存（`ringAppsCache`）已整个移除**
+- 初始定位：`ringInitialIndex()` = 虚拟长度中部且为 `n` 的整数倍 → 配合 `scrollToIndex(CENTER)`，中心正好是第一个游戏
+
+### 14.3 本轮三个新坑（都已修）
+1. **List 首帧会上报 `offset = 0`**，把 `ringOffset` 冲成 0 → 所有卡片被算成"远离中心"而缩小（开局全小卡）。
+   修法：`ringLocating` 门控 —— 初始定位期间 `onDidScroll` 直接 return；定位后延迟 180ms 校准一次并解除。
+2. **`List` 的 `initialIndex` 是左对齐语义**，与 `scrollToIndex(..., ScrollAlign.CENTER)` 混用会错位。统一只用 CENTER 定位。
+3. **`ringApps()` 每帧新建 33 元素数组**会让 ForEach 每帧重新 diff（卡顿来源）；改用 LazyForEach 后不复存在。
+
+### 14.4 性能相关的经验（保留在其他视图也适用）
+- `clip + shadow + 3D transform` 组合会触发**离屏渲染**：非焦点卡阴影压到 `radius 5`，只有焦点/待启动卡用大投影
+- 逐卡派生属性（scale/opacity/rotY/transY）都依赖同一个 `ringDelta()`，必须**按 `ringOffset` 缓存**，否则每卡每帧重复算 6 次
+- 需要"无限循环"的场景一律用 `LazyForEach` + `IDataSource`，不要用数据复制 + 跳转
+
+### 14.5 定稿状态（用户验收）
+顶栏/底栏冻结不变；中间为**单行环形封面流**：中心恒定焦点（正对/最大 1.08/accent 描边）、两侧向内旋转 26°/格 + 下沉 12vp + 缩小压暗、一屏 5 格、**双向无限循环**、松手吸附、点两侧卡转到中心、点中心卡两步启动。UI 分支 HEAD `e764331`。
