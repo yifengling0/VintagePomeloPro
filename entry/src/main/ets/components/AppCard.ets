@@ -12,8 +12,8 @@ export struct AppCard {
   @Prop useGlassEffect: boolean = true;
   @Prop narrowPhone: boolean = false;
   @Prop lastPlayedText: string = '';
-  /** 横向封面流的焦点卡 (最靠近视口中心): 视觉放大浮起, 主机式焦点反馈。 */
-  @Prop focused: boolean = false;
+  /** 已选中 = 唯一焦点卡 (点击决定): 放大 + accent 描边 + "再点启动"提示。 */
+  @Prop selected: boolean = false;
   @State private pressed: boolean = false;
   /** exe 内嵌图标 (PE .rsrc 提取, 落盘缓存) — 无自定义封面时的卡面主视觉。 */
   @State private iconPath: string = '';
@@ -370,6 +370,24 @@ export struct AppCard {
       .height('100%')
       .justifyContent(FlexAlign.End)
 
+      // 选中态提示: 两步交互下用户需要知道"再点一次才启动"。
+      if (this.selected) {
+        Column() {
+          Row({ space: 4 }) {
+            SymbolGlyph($r('sys.symbol.play_fill')).fontSize(11).fontColor(['#FF0B0B0F'])
+            Text('再点启动').fontSize(11).fontWeight(FontWeight.Bold).fontColor('#FF0B0B0F')
+          }
+          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+          .backgroundColor('#C4B5FD')
+          .borderRadius(11)
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.End)
+        .padding({ bottom: 54 })
+        .hitTestBehavior(HitTestMode.None)
+      }
+
       Row() {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.gearshape')).fontSize(12).fontColor(['#FFFFFFFF'])
@@ -391,21 +409,23 @@ export struct AppCard {
     .width('100%')
     .height(this.coverWallHeight)
     .borderRadius(14)
-    // 焦点卡用 accent 描边 + 更强投影, 与相邻卡片明确区分 (主机式焦点反馈)。
-    .border({ width: this.focused ? 2 : 1, color: this.focused ? '#A78BFA' : '#20FFFFFF' })
+    // 缩放与描边只由"选中"决定 (点击哪张哪张才是焦点), 与滚动位置无关。
+    .border({
+      width: this.selected ? 2 : 1,
+      color: this.selected ? '#C4B5FD' : '#20FFFFFF'
+    })
     .clip(true)
-    .shadow(this.focused
-      ? { radius: 28, color: '#99000000', offsetX: 0, offsetY: 12 }
+    .shadow(this.selected
+      ? { radius: 30, color: '#BB000000', offsetX: 0, offsetY: 13 }
       : { radius: 12, color: '#26000000', offsetX: 0, offsetY: 5 })
     .opacity(this.app.available ? 1 : 0.62)
-    // 焦点放大只做视觉缩放 (scale 不改布局), 卡片在 Row 内位置稳定;
-    // zIndex 提到相邻卡片之上, 放大后不被压住。
     .scale({
-      x: this.pressed ? 0.97 : (this.focused ? 1.14 : 1),
-      y: this.pressed ? 0.97 : (this.focused ? 1.14 : 1)
+      x: this.pressed ? 0.97 : (this.selected ? 1.14 : 1),
+      y: this.pressed ? 0.97 : (this.selected ? 1.14 : 1)
     })
-    .zIndex(this.focused ? 2 : 1)
-    .animation({ duration: 180, curve: Curve.EaseOut })
+    .zIndex(this.selected ? 2 : 1)
+    // 选中/取消时的缩放与描边过渡 (点哪张哪张放大, 有动画手感)。
+    .animation({ duration: 200, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => this.handleCardTouch(event))
     .onClick(() => this.onLaunch(this.app))
     .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))

@@ -117,6 +117,10 @@ struct Index {
   @State private ambientAppId: string = '';
   /** 横向封面流焦点: 最靠近视口中心的卡片索引 (缩放 + 驱动氛围背景)。 */
   @State private focusedIndex: number = 0;
+  /** 封面流当前横向滚动偏移 (vp): 逐卡算"离中心多远"→ 连续缩放。 */
+  @State private scrollOffsetX: number = 0;
+  /** 已选中的卡片 id (两步交互: 首次点击选中, 再次点击才启动, 防误触)。 */
+  @State private selectedAppId: string = '';
   @State private sortMode: SortMode = SortMode.RECENT;
   @State private clockText: string = '';
   @State private batteryText: string = '';
@@ -961,6 +965,7 @@ struct Index {
     setTimeout((): void => this.restoreScrollOffset(value), 0);
     // 切换分类后焦点回到首张, 氛围背景随之一致 (避免沿用上个分类的游戏)。
     this.resetCoverFlowFocus();
+    this.dismissKeyboard();
     if (syncPhoneNavigation && this.isPhone()) {
       const index = this.phoneNavIndexForFilter(value);
       if (index !== this.phoneNavIndex) {
@@ -1161,6 +1166,7 @@ struct Index {
 
   private launch(app: AppDescriptor): Promise<void> {
     this.ambientAppId = app.id;
+    this.dismissKeyboard();
     if (!app.available) {
       this.openAppSettings(app, true);
       return Promise.resolve();
@@ -1587,7 +1593,7 @@ struct Index {
   }
 
   @Builder
-  private CatalogCard(app: AppDescriptor, focused: boolean = false) {
+  private CatalogCard(app: AppDescriptor, index: number = -1) {
     AppCard({
       app: app,
       viewMode: this.catalogCardViewMode(),
@@ -1597,8 +1603,17 @@ struct Index {
       useGlassEffect: this.settings.useGlassEffect,
       narrowPhone: this.isPhone(),
       lastPlayedText: this.getLastPlayedText(app.id),
-      focused: focused,
-      onLaunch: (target: AppDescriptor): void => { this.launch(target); },
+      selected: app.id === this.selectedAppId,
+      onLaunch: (target: AppDescriptor): void => {
+        // 两步交互 (防误触 + 可见焦点效果):
+        // 首次点击 = 选中 (滑到中心、放大、显示"再点启动"); 再次点击同一张 = 启动。
+        if (this.selectedAppId !== target.id) {
+          this.selectedAppId = target.id;
+          if (index >= 0) this.setCoverFlowFocus(index);
+          return;
+        }
+        this.launch(target);
+      },
       onSettings: (target: AppDescriptor): void => { this.openAppSettings(target); },
       onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); }
     })
@@ -2191,7 +2206,7 @@ struct Index {
       Row({ space: 6 }) {
         ForEach(this.visibleApps, (app: AppDescriptor, index: number): void => {
           Column() {
-            this.CatalogCard(app, index === this.focusedIndex)
+            this.CatalogCard(app, index)
           }
           .width(this.coverTileWidthVp())
           .padding({ top: 3, bottom: 8 })
@@ -2209,16 +2224,19 @@ struct Index {
     // 焦点追踪: 滚动时算"最靠近视口中心的卡片", 驱动焦点放大与氛围背景。
     .onDidScroll((xOffset: number): void => {
       this.updateCoverFlowFocus(xOffset);
+      // 一滑动就收起输入法: 面板浮层会挡住右侧卡片, 造成"点不动"的错觉。
+      this.dismissKeyboard();
     })
     .id('library-coverflow-scroll-' + this.filter)
   }
 
   /**
-   * 由横向滚动量算出焦点卡片: 视口中心所在的瓦片即焦点。
-   * 焦点卡放大 (AppCard.focused) 并让其美术成为氛围背景 (P1) —
-   * 两者共用同一个索引, 保证视觉主体与背景始终一致。
+   * 由横向滚动量算出浏览焦点: 视口中心所在的瓦片。
+   * 仅用于驱动氛围背景 (滑动时背景跟着浏览位置变, 保持沉浸感);
+   * **卡片缩放/描边只由点击选中决定**, 与滚动位置无关。
    */
   private updateCoverFlowFocus(xOffset: number): void {
+    this.scrollOffsetX = xOffset;
     if (this.visibleApps.length === 0) return;
     const unit = Math.round(this.coverWallHeight() * 0.75) + 6;
     const viewport = this.viewportWidth > 0 ? this.viewportWidth : 800;
@@ -2233,8 +2251,46 @@ struct Index {
   /** 焦点回到首张并把氛围背景同步为该卡片 (分类切换/重扫描后调用)。 */
   private resetCoverFlowFocus(): void {
     this.focusedIndex = 0;
+    this.scrollOffsetX = 0;
+    // 换分类/重扫描后清空选中, 避免"选中态"跨越不同列表残留。
+    this.selectedAppId = '';
     if (this.visibleApps.length > 0) {
       this.ambientAppId = this.visibleApps[0].id;
+    }
+  }
+
+  /**
+   * 把焦点设到指定卡片并让它滑到视口中心 (点击卡片时调用)。
+   * 主机式交互: 点哪张, 哪张就居中放大, 视觉反馈与启动动作一致。
+   */
+  private setCoverFlowFocus(index: number): void {
+    if (index < 0 || index >= this.visibleApps.length) return;
+    this.focusedIndex = index;
+    this.ambientAppId = this.visibleApps[index].id;
+    const unit = Math.round(this.coverWallHeight() * 0.75) + 6;
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 800;
+    const target = index * unit + unit / 2 + 3 - viewport / 2;
+    try {
+      this.catalogScroller(this.filter).scrollTo({
+        xOffset: Math.max(0, target),
+        yOffset: 0,
+        animation: { duration: 240, curve: Curve.EaseOut }
+      });
+    } catch (_) {
+      // 滚动容器尚未就绪时忽略: 焦点状态已更新, 不影响启动。
+    }
+  }
+
+  /**
+   * 收起系统输入法。搜索框一旦获得焦点, 输入法面板会一直浮在应用上层遮挡
+   * 右侧卡片 (实测: 点卡片无反应 = 其实点在输入法上)。启动游戏/滚动/切分类
+   * 时主动收起, 避免遮挡与误触。
+   */
+  private dismissKeyboard(): void {
+    try {
+      inputMethod.getController().stopInputSession();
+    } catch (_) {
+      // 输入法未启动时停止会抛错, 属正常路径, 忽略。
     }
   }
 
