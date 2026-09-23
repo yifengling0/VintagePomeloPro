@@ -316,8 +316,38 @@ struct SystemSettingsPage {
     return this.usesDarkAppearance() ? '#52FFFFFF' : '#8CFFFFFF';
   }
 
+  /**
+   * 横屏可用高度只有 ~365vp, 原来按竖屏密度给的卡片内边距(22)/间距(16/14)/
+   * 控件高度(48) 一屏只放得下两三个设置 (用户: "横屏看到的内容太少了")。
+   * 双栏(横屏)一律收紧一档, 竖屏/窄屏维持原样。
+   */
+  private compactDensity(): boolean {
+    return this.useSideBySideSettings();
+  }
+
   private cardPadding(): number {
-    return this.isNarrowPhone() ? 12 : 22;
+    if (this.isNarrowPhone()) return 12;
+    return this.compactDensity() ? 14 : 22;
+  }
+
+  /** 区块内元素间距 (原固定 16)。 */
+  private blockSpace(): number {
+    return this.compactDensity() ? 10 : 16;
+  }
+
+  /** 区块之间 / 列表项间距 (原固定 14)。 */
+  private sectionSpace(): number {
+    return this.compactDensity() ? 10 : 14;
+  }
+
+  /** 整行选项按钮高度 (原固定 48)。 */
+  private choiceHeight(): number {
+    return this.compactDensity() ? 40 : 48;
+  }
+
+  /** 开关行的上下内边距 (原固定 13)。 */
+  private switchRowPadding(): number {
+    return this.compactDensity() ? 10 : 13;
   }
 
   private settingsTopInset(): number {
@@ -1467,7 +1497,7 @@ struct SystemSettingsPage {
       Toggle({ type: ToggleType.Switch, isOn: enabled }).onChange((value: boolean) => onChange(value))
     }
     .width('100%')
-    .padding({ left: 14, right: 14, top: 13, bottom: 13 })
+    .padding({ left: 14, right: 14, top: this.switchRowPadding(), bottom: this.switchRowPadding() })
     .backgroundColor($r('app.color.search_background'))
     .borderRadius(14)
     .id(id)
@@ -1826,22 +1856,22 @@ struct SystemSettingsPage {
 
   @Builder
   private Content(section: SettingsSection) {
-    Column({ space: 14 }) {
+    Column({ space: this.sectionSpace() }) {
       if (section === 'display') {
-        Column({ space: 16 }) {
+        Column({ space: this.blockSpace() }) {
           Text('Windows 显示').fontSize(16).fontWeight(FontWeight.Bold).width('100%')
           Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。桌面方向跟随设备自动切换左右横屏。')
             .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
            Text('桌面窗口显示').fontSize(13).fontWeight(FontWeight.Medium)
              .fontColor($r('app.color.text_primary')).width('100%')
            Row({ space: 8 }) {
-             Button('全屏（沉浸）').layoutWeight(1).height(48).borderRadius(14)
+             Button('全屏（沉浸）').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
                .fontSize(this.isNarrowPhone() ? 11 : 13)
                .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
                .backgroundColor(this.isDesktopWindowModeSelected(DesktopWindowMode.FULLSCREEN) ? $r('app.color.accent') : $r('app.color.search_background'))
                .fontColor(this.isDesktopWindowModeSelected(DesktopWindowMode.FULLSCREEN) ? '#FFFFFFFF' : $r('app.color.text_primary'))
                .onClick(() => this.updateDesktopWindowMode(DesktopWindowMode.FULLSCREEN))
-             Button('切边（安全区）').layoutWeight(1).height(48).borderRadius(14)
+             Button('切边（安全区）').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
                .fontSize(this.isNarrowPhone() ? 11 : 13)
                .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
                .backgroundColor(this.isDesktopWindowModeSelected(DesktopWindowMode.SAFE_AREA) ? $r('app.color.accent') : $r('app.color.search_background'))
@@ -1862,13 +1892,13 @@ struct SystemSettingsPage {
               .fontColor($r('app.color.text_primary')).width('100%')
             Row({ space: 8 }) {
               Button(DeviceCapabilityPolicy.isTabletDevice() ? '多窗口' : '融合（每程序独立窗口）')
-                .layoutWeight(1).height(48).borderRadius(14)
+                .layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
                 .fontSize(this.isNarrowPhone() ? 11 : 13)
                 .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
                 .backgroundColor(DesktopModeService.getInstance().mode === MODE_FUSION ? $r('app.color.accent') : $r('app.color.search_background'))
                 .fontColor(DesktopModeService.getInstance().mode === MODE_FUSION ? '#FFFFFFFF' : $r('app.color.text_primary'))
                 .onClick(() => { this.updateDesktopMode(MODE_FUSION); })
-              Button('虚拟桌面').layoutWeight(1).height(48).borderRadius(14)
+              Button('虚拟桌面').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
                 .fontSize(this.isNarrowPhone() ? 11 : 13)
                 .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
                 .backgroundColor(DesktopModeService.getInstance().mode === MODE_VIRTUAL ? $r('app.color.accent') : $r('app.color.search_background'))
@@ -1906,22 +1936,22 @@ struct SystemSettingsPage {
         .border({ width: 1, color: this.groupBorderColor() })
         .borderRadius(20)
       } else if (section === 'appearance') {
-        Column({ space: 16 }) {
+        Column({ space: this.blockSpace() }) {
           Text('外观').fontSize(16).fontWeight(FontWeight.Bold).width('100%')
           Text('主题').fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
           Row({ space: 8 }) {
-            Button(this.isNarrowPhone() ? '跟随' : '跟随系统').layoutWeight(1).height(48).borderRadius(14)
+            Button(this.isNarrowPhone() ? '跟随' : '跟随系统').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
               .fontSize(this.isNarrowPhone() ? 10 : 14)
               .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
               .backgroundColor(this.settings.themeMode === ThemeMode.SYSTEM ? $r('app.color.accent') : $r('app.color.search_background'))
               .fontColor(this.settings.themeMode === ThemeMode.SYSTEM ? '#FFFFFFFF' : $r('app.color.text_primary'))
               .onClick(() => this.updateTheme(ThemeMode.SYSTEM))
-            Button('浅色').layoutWeight(1).height(48).borderRadius(14)
+            Button('浅色').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
               .fontSize(this.isNarrowPhone() ? 10 : 14)
               .backgroundColor(this.settings.themeMode === ThemeMode.LIGHT ? $r('app.color.accent') : $r('app.color.search_background'))
               .fontColor(this.settings.themeMode === ThemeMode.LIGHT ? '#FFFFFFFF' : $r('app.color.text_primary'))
               .onClick(() => this.updateTheme(ThemeMode.LIGHT))
-            Button('深色').layoutWeight(1).height(48).borderRadius(14)
+            Button('深色').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
               .fontSize(this.isNarrowPhone() ? 10 : 14)
               .backgroundColor(this.settings.themeMode === ThemeMode.DARK ? $r('app.color.accent') : $r('app.color.search_background'))
               .fontColor(this.settings.themeMode === ThemeMode.DARK ? '#FFFFFFFF' : $r('app.color.text_primary'))
@@ -1975,7 +2005,7 @@ struct SystemSettingsPage {
         .border({ width: 1, color: this.groupBorderColor() })
         .borderRadius(20)
       } else if (section === 'input') {
-        Column({ space: 16 }) {
+        Column({ space: this.blockSpace() }) {
           Text('输入与控制').fontSize(16).fontWeight(FontWeight.Bold).width('100%')
           if (this.isManagedWindowsHost()) {
             Column({ space: 6 }) {
@@ -2078,7 +2108,7 @@ struct SystemSettingsPage {
         .border({ width: 1, color: this.groupBorderColor() })
         .borderRadius(20)
       } else if (section === 'engine') {
-        Column({ space: 14 }) {
+        Column({ space: this.sectionSpace() }) {
           Row({ space: 12 }) {
             Stack({ alignContent: Alignment.Center }) {
               SymbolGlyph($r('sys.symbol.arrow_clockwise')).fontSize(24).fontColor([$r('app.color.accent')])
@@ -2177,7 +2207,7 @@ struct SystemSettingsPage {
 
           Text('会话维护').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.text_secondary')).width('100%')
-          Button('重启 Wine 引擎').width('100%').height(48).borderRadius(14)
+          Button('重启 Wine 引擎').width('100%').height(this.choiceHeight()).borderRadius(14)
             .backgroundColor($r('app.color.accent'))
             .fontColor('#FFFFFFFF')
             .enabled(!this.engineBusy)
@@ -2188,7 +2218,7 @@ struct SystemSettingsPage {
               primaryButton: { value: '取消', action: (): void => {} },
               secondaryButton: { value: '立即重启', action: (): void => { this.restartEngine(); } }
             }))
-          Button('停止全部 Windows 会话').width('100%').height(48).borderRadius(14)
+          Button('停止全部 Windows 会话').width('100%').height(this.choiceHeight()).borderRadius(14)
             .backgroundColor($r('app.color.search_background'))
             .fontColor($r('app.color.text_primary'))
             .enabled(!this.engineBusy)
@@ -2214,7 +2244,7 @@ struct SystemSettingsPage {
               this.settings.preserveUserDataOnReset,
               (value: boolean): void => this.setPreserveUserDataOnReset(value),
               'wine-reset-preserve-user-data')
-            Button('重置 Wine prefix').width('100%').height(48).borderRadius(14)
+            Button('重置 Wine prefix').width('100%').height(this.choiceHeight()).borderRadius(14)
               .backgroundColor('#18D94848')
               .fontColor('#D94848')
               .enabled(!this.engineBusy)
@@ -2240,7 +2270,7 @@ struct SystemSettingsPage {
         .border({ width: 1, color: this.groupBorderColor() })
         .borderRadius(20)
       } else if (section === 'performance') {
-        Column({ space: 14 }) {
+        Column({ space: this.sectionSpace() }) {
           Text('性能监控').fontSize(16).fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary')).width('100%')
           Text('在游戏顶部以小字号横条显示，即时生效；不修改图形后端或游戏启动环境。')
@@ -2277,7 +2307,7 @@ struct SystemSettingsPage {
         .backgroundBlurStyle(this.settings.useGlassEffect ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
         .border({ width: 1, color: this.groupBorderColor() }).borderRadius(20)
       } else if (section === 'logs') {
-        Column({ space: 14 }) {
+        Column({ space: this.sectionSpace() }) {
           Row({ space: 12 }) {
             Stack({ alignContent: Alignment.Center }) {
               SymbolGlyph($r('sys.symbol.doc_text')).fontSize(24).fontColor([$r('app.color.accent')])
@@ -2306,12 +2336,12 @@ struct SystemSettingsPage {
           .backgroundColor($r('app.color.search_background'))
 
           Row({ space: 10 }) {
-            Button('导出日志').layoutWeight(1).height(48).borderRadius(14)
+            Button('导出日志').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
               .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
               .enabled(!this.logBusy)
               .id('log-export')
               .onClick((): void => { this.exportLogs(); })
-            Button('清空日志').layoutWeight(1).height(48).borderRadius(14)
+            Button('清空日志').layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
               .backgroundColor($r('app.color.search_background'))
               .fontColor($r('app.color.text_primary'))
               .id('log-clear')
@@ -2325,7 +2355,7 @@ struct SystemSettingsPage {
         .border({ width: 1, color: this.groupBorderColor() })
         .borderRadius(20)
       } else {
-        Column({ space: 14 }) {
+        Column({ space: this.sectionSpace() }) {
           Row({ space: 12 }) {
             Stack({ alignContent: Alignment.Center }) {
               SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(25).fontColor([$r('app.color.accent')])
@@ -2349,10 +2379,10 @@ struct SystemSettingsPage {
           }
           .width('100%').padding(14).borderRadius(16)
           .backgroundColor($r('app.color.search_background'))
-          Button('打开帮助中心').width('100%').height(48).borderRadius(14)
+          Button('打开帮助中心').width('100%').height(this.choiceHeight()).borderRadius(14)
             .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
             .onClick((): void => { router.pushUrl({ url: 'pages/HelpCenter' }); })
-          Button('GitHub 开源地址').width('100%').height(48).borderRadius(14)
+          Button('GitHub 开源地址').width('100%').height(this.choiceHeight()).borderRadius(14)
             .backgroundColor($r('app.color.search_background'))
             .fontColor($r('app.color.text_primary'))
             .id('about-github')
@@ -2379,7 +2409,7 @@ struct SystemSettingsPage {
 
   @Builder
   private SettingsList(maxWidth: number, scrollUnderTitle: boolean = false) {
-    List({ space: 14, scroller: this.settingsScroller }) {
+    List({ space: this.sectionSpace(), scroller: this.settingsScroller }) {
       ListItem() {
         Column() {
           if (scrollUnderTitle) {
@@ -2641,7 +2671,7 @@ struct SystemSettingsPage {
             .width('100%').height('100%')
             .backgroundColor('#E80B1220')
             .hitTestBehavior(HitTestMode.Block)
-          Column({ space: 16 }) {
+          Column({ space: this.blockSpace() }) {
             LoadingProgress().width(56).height(56).color('#2F6BFF')
             Text('Wine 引擎维护中').fontSize(22).fontWeight(FontWeight.Bold)
               .fontColor('#101828').textAlign(TextAlign.Center)
@@ -2672,7 +2702,7 @@ struct SystemSettingsPage {
             .width('100%').height('100%')
             .backgroundColor('#E80B1220')
             .hitTestBehavior(HitTestMode.Block)
-          Column({ space: 16 }) {
+          Column({ space: this.blockSpace() }) {
             if (this.fontImportStage.startsWith('正在解压') || this.fontImportProgress === 0) {
               LoadingProgress().width(56).height(56).color('#2F6BFF')
             } else {
