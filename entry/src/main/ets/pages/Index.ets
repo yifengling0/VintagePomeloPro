@@ -2213,7 +2213,7 @@ struct Index {
    */
   @Builder
   private CoverFlow() {
-    List({ space: 0, scroller: this.ringScroller }) {
+    List({ space: 0, scroller: this.ringScroller, initialIndex: this.ringInitialIndex() }) {
       ForEach(this.ringApps(), (app: AppDescriptor, index: number): void => {
         ListItem() {
           // 外层 = 一格 (屏宽/5, 留白来源); 内层 = 卡片固定竖版尺寸并居中。
@@ -2240,12 +2240,22 @@ struct Index {
     .onDidScroll((): void => {
       const x = this.safeRingOffset();
       this.ringOffset = x;
-      this.recycleRingIfNeeded(x);
+      // 滚动中仅在**真正贴近数据边界**时兜底跳转 (阈值 2 格),
+      // 避免频繁跳转打断惯性造成"划到头卡一下"。
+      this.recycleRingIfNeeded(x, true);
     })
     .onScrollStop((): void => {
+      // 松手后先做等价跳转 (无惯性, 完全无感), 再吸附焦点。
+      this.recycleRingIfNeeded(this.safeRingOffset(), false);
+      this.ringOffset = this.safeRingOffset();
       this.snapRingToNearest();
     })
     .id('library-coverflow-ring-' + this.filter)
+  }
+
+  /** List 初始索引: 落在三倍数据的中段起点 (首帧即对位, 避免启动时变换错乱)。 */
+  private ringInitialIndex(): number {
+    return this.ringEnabled() ? this.visibleApps.length : 0;
   }
 
   /** 安全读取当前横向偏移 (scroller 未就绪时返回上一已知值)。 */
@@ -2343,19 +2353,31 @@ struct Index {
     return this.ringOpacityFor(index);
   }
 
-  /** 滚到边界附近时无感跳回中段 (数据三倍化伪造无限循环)。 */
-  private recycleRingIfNeeded(xOffset: number): void {
+  /**
+   * 边界等价跳转 (数据三倍化伪造无限循环)。
+   * 跳转前后可见内容逐格等价 (三段数据完全相同), 因此视觉上无感。
+   * `conservative=true` (滚动中) 时只在贴近边界 (2 格内) 才跳, 避免打断惯性;
+   * `false` (松手后) 用同样的保守阈值, 此时无惯性, 跳转绝对无感。
+   */
+  private recycleRingIfNeeded(xOffset: number, conservative: boolean): void {
     if (!this.ringEnabled()) return;
     const n = this.visibleApps.length;
-    const span = n * this.ringCellWidth();
+    const cell = this.ringCellWidth();
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
+    const span = n * cell;
+    const margin = cell * 2;
     let target = -1;
-    if (xOffset < span * 0.5) target = xOffset + span;
-    else if (xOffset > span * 1.5) target = xOffset - span;
+    if (xOffset < margin) {
+      target = xOffset + span;
+    } else if (xOffset > 3 * span - viewport - margin) {
+      target = xOffset - span;
+    }
     if (target < 0) return;
-    hilog.info(0x0000, 'RingDbg', 'recycle %{public}f -> %{public}f', xOffset, target);
     try {
-      this.ringScroller.scrollTo({ xOffset: target, yOffset: 0, animation: false });
-      this.ringOffset = target;
+      const offset = this.ringScroller.currentOffset();
+      const current = offset && typeof offset.xOffset === 'number' ? offset.xOffset : xOffset;
+      this.ringScroller.scrollTo({ xOffset: current + (target - xOffset), yOffset: 0, animation: false });
+      this.ringOffset = current + (target - xOffset);
     } catch (_) {
       // 容器未就绪时忽略。
     }
