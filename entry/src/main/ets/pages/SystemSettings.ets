@@ -325,10 +325,11 @@ struct SystemSettingsPage {
   }
 
   private settingsSidePadding(): number {
+    // 沉浸式下横向留白略收 (原 md 20 / lg 28), 让内容区更满。
     if (this.isNarrowPhone()) return 10;
-    if (this.breakpoint === 'sm') return 16;
-    if (this.breakpoint === 'md') return 20;
-    return 28;
+    if (this.breakpoint === 'sm') return 14;
+    if (this.breakpoint === 'md') return 14;
+    return 20;
   }
 
   private settingsContentMaxWidth(): number {
@@ -2478,7 +2479,9 @@ struct SystemSettingsPage {
           .alignItems(VerticalAlign.Top)
           .padding({
             left: this.settingsSidePadding(), right: this.settingsSidePadding(),
-            top: this.settingsTopInset(), bottom: 20
+            // 沉浸式: 底部只留安全区距 (原来固定 20vp, 视觉上就是一条大黑边)。
+            top: this.settingsTopInset(),
+            bottom: Math.max(8, this.navBarInsetVp)
           })
         } else {
           Column() {
