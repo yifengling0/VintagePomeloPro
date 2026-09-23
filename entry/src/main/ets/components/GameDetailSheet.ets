@@ -27,26 +27,6 @@ export struct GameDetailSheet {
   build() {
     Stack() {
       Column() {
-        Row() {
-          Button({ type: ButtonType.Circle }) {
-            SymbolGlyph($r('sys.symbol.xmark')).fontSize(18)
-              .fontColor(['#FFFFFFFF'])
-          }
-          .width(40).height(40)
-          .backgroundColor('#66000000')
-          .border({ width: 1, color: '#30FFFFFF' })
-          .borderRadius(20)
-          .onClick(() => this.callbacks.onClose())
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.End)
-        .padding({ right: 16, top: 16 })
-      }
-      .width('100%')
-      .height('100%')
-      .alignItems(HorizontalAlign.End)
-
-      Column() {
         Row({ space: 28 }) {
           if (this.app.coverPath.length > 0) {
             // coverPath 是裸文件路径, Image 需要 file:// 前缀 (AppCard.coverSource 同款)。
@@ -166,6 +146,32 @@ export struct GameDetailSheet {
       }
       .width('100%')
       .justifyContent(FlexAlign.Center)
+      // 内容容器是全屏的, 空白区必须透明穿透 —— ArkUI 默认命中测试会阻塞
+      // 下层兄弟节点, 否则它会吞掉右上角关闭按钮的点击 (用户实测点不动)。
+      .hitTestBehavior(HitTestMode.Transparent)
+
+      // 关闭按钮放最后一层 (Stack 最上层), 任何情况下都能点到。
+      Column() {
+        Row() {
+          Button({ type: ButtonType.Circle }) {
+            SymbolGlyph($r('sys.symbol.xmark')).fontSize(18)
+              .fontColor(['#FFFFFFFF'])
+          }
+          .width(40).height(40)
+          .backgroundColor('#66000000')
+          .border({ width: 1, color: '#30FFFFFF' })
+          .borderRadius(20)
+          .onClick(() => this.callbacks.onClose())
+          .id('detail-close-button')
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.End)
+        .padding({ right: 16, top: 16 })
+      }
+      .width('100%')
+      .height('100%')
+      .alignItems(HorizontalAlign.End)
+      .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .height('100%')
