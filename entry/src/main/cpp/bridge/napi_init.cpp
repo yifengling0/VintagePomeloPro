@@ -393,7 +393,10 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
             char wineLang[16] = {};
             napi_get_value_string_utf8(env, args[9], wineLang,
                                        sizeof(wineLang), nullptr);
-            if (!strcmp(wineLang, "zh_CN") || !strcmp(wineLang, "en_US"))
+            if (!strcmp(wineLang, "zh_CN") ||
+                !strcmp(wineLang, "zh_TW") ||
+                !strcmp(wineLang, "ja_JP") ||
+                !strcmp(wineLang, "en_US"))
                 p->wineLang = wineLang;
         }
     } else {
@@ -409,7 +412,10 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
             char wineLang[16] = {};
             napi_get_value_string_utf8(env, args[7], wineLang,
                                        sizeof(wineLang), nullptr);
-            if (!strcmp(wineLang, "zh_CN") || !strcmp(wineLang, "en_US"))
+            if (!strcmp(wineLang, "zh_CN") ||
+                !strcmp(wineLang, "zh_TW") ||
+                !strcmp(wineLang, "ja_JP") ||
+                !strcmp(wineLang, "en_US"))
                 p->wineLang = wineLang;
         }
     }
