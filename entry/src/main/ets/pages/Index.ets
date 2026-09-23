@@ -870,6 +870,7 @@ struct Index {
     this.runningAppIds = running;
     this.refreshFavoriteIds();
     this.visibleApps = this.filterApps(this.searchQuery, this.filter, running);
+    this.rebuildRingApps();
   }
 
   private runningFilterLabel(): string {
@@ -946,6 +947,7 @@ struct Index {
   private updateSearch(value: string): void {
     this.searchQuery = value;
     this.visibleApps = this.filterApps(value, this.filter);
+    this.rebuildRingApps();
   }
 
   private phoneNavIndexForFilter(value: CatalogFilter): number {
@@ -969,6 +971,7 @@ struct Index {
     this.captureScrollOffsets();
     this.filter = value;
     this.visibleApps = this.filterApps(this.searchQuery, value);
+    this.rebuildRingApps();
     setTimeout((): void => this.restoreScrollOffset(value), 0);
     // 切换分类后焦点回到首张, 氛围背景随之一致 (避免沿用上个分类的游戏)。
     this.resetCoverFlowFocus();
@@ -2110,6 +2113,7 @@ struct Index {
       const currentIdx = modes.indexOf(this.sortMode);
       this.sortMode = modes[(currentIdx + 1) % modes.length];
       this.visibleApps = this.filterApps(this.searchQuery, this.filter);
+      this.rebuildRingApps();
     })
     .id('library-sort-button')
   }
@@ -2234,6 +2238,9 @@ struct Index {
     }
     .listDirection(Axis.Horizontal)
     .scrollBar(BarState.Off)
+    // 缓存前后各 2 项 (约 9 项同帧渲染): 再多会显著增加每帧重绘量,
+    // 反而让常速滑动更卡 (实测权衡)。
+    .cachedCount(2)
     .layoutWeight(1)
     .width('100%')
     .padding({ top: 8, bottom: 68 })
@@ -2287,17 +2294,31 @@ struct Index {
   }
 
   /**
-   * 环数据: 三倍化以伪造无缝循环 (滚到边界时无感跳回中段)。
-   * 少于 5 张时不循环 (直接原数组)。
+   * 环数据: 三倍化以伪造无缝循环 (边界等价跳转)。
+   * 缓存到成员 (build 外重建, build 内只读): 每次 build 新建 33 元素数组会让
+   * ForEach 每帧重新 diff, 是滑动卡顿的主要来源之一。
+   * 长度不匹配时安全退化到原数组 (宁可不循环也不能显示错数据)。
    */
-  private ringApps(): AppDescriptor[] {
+  private ringAppsCache: AppDescriptor[] = [];
+
+  /** 重建三倍化环数据 (visibleApps 变化后调用, 不在 build 内触发)。 */
+  private rebuildRingApps(): void {
     const n = this.visibleApps.length;
-    if (n === 0 || n <= Index.RING_VISIBLE) return this.visibleApps;
+    if (n === 0 || n <= Index.RING_VISIBLE) {
+      this.ringAppsCache = [];
+      return;
+    }
     const out: AppDescriptor[] = [];
     for (let round = 0; round < 3; round++) {
       for (let i = 0; i < n; i++) out.push(this.visibleApps[i]);
     }
-    return out;
+    this.ringAppsCache = out;
+  }
+
+  private ringApps(): AppDescriptor[] {
+    const n = this.visibleApps.length;
+    if (n === 0 || n <= Index.RING_VISIBLE) return this.visibleApps;
+    return this.ringAppsCache.length === n * 3 ? this.ringAppsCache : this.visibleApps;
   }
 
   /** 是否启用环 (循环) 模式。 */
@@ -2384,14 +2405,18 @@ struct Index {
     const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
     const span = n * cell;
     const margin = cell * 2;
-    let delta = 0;
+    // 跳到**绝对中段安全区**, 而不是相对位移 —— 相对位移后新位置又贴着另一侧
+    // 边界, 连续同向滑动会反复触发跳转, 表现为"滑到某处就滑不动了"。
+    const safeStart = span + margin;
+    const safeEnd = 2 * span - viewport - margin;
+    let target = -1;
     if (xOffset < margin) {
-      delta = span;
+      target = safeStart;
     } else if (xOffset > 3 * span - viewport - margin) {
-      delta = -span;
+      target = safeEnd;
     }
-    if (delta === 0) return;
-    this.safeScrollTo(xOffset + delta);
+    if (target < 0) return;
+    this.safeScrollTo(target);
   }
 
   /** 松手后吸附: 让某张卡正好落在视口中心 (焦点位恒定)。 */

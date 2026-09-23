@@ -28,11 +28,20 @@ export struct AppCard {
   @Prop ringCellW: number = 0;
   @Prop ringViewportW: number = 0;
 
-  /** 该卡离视口中心的格数距离 (0 = 正中, 负 = 左, 正 = 右)。 */
+  /** 该卡离视口中心的格数距离 (0 = 正中, 负 = 左, 正 = 右)。
+   *  结果按 ringOffset 缓存: 每帧 5~6 个派生属性都要用它, 不缓存会重复算 6 次。 */
+  private deltaCache: number = 0;
+  private deltaCacheKey: number = Number.NaN;
+
   private ringDelta(): number {
     if (this.ringIndexPos < 0 || this.ringCellW <= 0) return 0;
-    const cardCenter = this.ringIndexPos * this.ringCellW + this.ringCellW / 2 - this.ringOffset;
-    return (cardCenter - this.ringViewportW / 2) / this.ringCellW;
+    const key = this.ringOffset;
+    if (this.deltaCacheKey === key) return this.deltaCache;
+    const cardCenter = this.ringIndexPos * this.ringCellW + this.ringCellW / 2 - key;
+    const d = (cardCenter - this.ringViewportW / 2) / this.ringCellW;
+    this.deltaCacheKey = key;
+    this.deltaCache = d;
+    return d;
   }
 
   /** 中心卡最大最亮; 两侧按距离递增地缩小、压暗、向内旋转、下沉。 */
@@ -469,9 +478,11 @@ export struct AppCard {
         : ((this.isRingCenter() || this.center) ? '#A78BFA' : '#20FFFFFF')
     })
     .clip(true)
+    // 阴影是渲染大头 (clip+shadow+transform 会触发离屏渲染): 只有待启动/中心卡
+    // 用大投影, 环绕中的卡片压到很轻, 否则多卡同帧重绘会明显掉帧。
     .shadow(this.selected || this.isRingCenter() || this.center
       ? { radius: 30, color: '#BB000000', offsetX: 0, offsetY: 13 }
-      : { radius: 12, color: '#26000000', offsetX: 0, offsetY: 5 })
+      : { radius: 5, color: '#1F000000', offsetX: 0, offsetY: 3 })
     .opacity(this.app.available ? this.ringOpacityValue() : 0.62)
     .scale({
       x: this.pressed ? 0.97 : this.ringScaleValue(),
@@ -481,8 +492,11 @@ export struct AppCard {
     .rotate({ x: 0, y: 1, z: 0, angle: this.ringRotYValue() })
     .translate({ y: this.ringTransYValue() })
     .zIndex((this.isRingCenter() || this.center) ? 2 : 1)
-    // 选中引起的大小与明暗变化走同一过渡; 环内滚动时由 ringOffset 每帧驱动。
-    .animation({ duration: 160, curve: Curve.EaseOut })
+    // 环模式下不加过渡动画: ringOffset 每帧驱动变换本就平滑, 再叠动画会让
+    // 每张卡每帧生成新动画对象, 快速滑动时堆积成卡顿。网格模式保留过渡。
+    .animation(this.ringIndexPos >= 0
+      ? { duration: 0 }
+      : { duration: 200, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => this.handleCardTouch(event))
     .onClick(() => this.onLaunch(this.app))
     .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
