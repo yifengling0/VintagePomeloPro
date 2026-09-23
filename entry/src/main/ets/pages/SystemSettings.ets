@@ -262,6 +262,9 @@ struct SystemSettingsPage {
   /** 封面抓取 API Key 的编辑草稿 (保存后才落盘, 避免边输边写)。 */
   @State private sgdbKeyDraft: string = '';
   @State private sgdbKeySaved: boolean = false;
+  /** 视口尺寸 (vp): 用于判断"横屏"以便在手机上也用双栏布局。 */
+  @State private viewportW: number = 0;
+  @State private viewportH: number = 0;
   @State private fontImportStage: string = '';
   @State private fontImportProgress: number = 0;
   @State private hubStateText: string = '等待手柄输入…';
@@ -330,6 +333,17 @@ struct SystemSettingsPage {
     if (this.breakpoint === 'xl') return 1080;
     if (this.breakpoint === 'lg') return 960;
     return 100000;
+  }
+
+  /**
+   * 是否用"分类侧栏 + 内容"双栏布局。
+   * 之前只判 lg/xl (≥960vp), 于是手机横屏 (813vp, md 档) 走单列 ——
+   * 既没有分类侧栏、横向空间也浪费, 一屏只能看到一两个设置项。
+   * 横屏同样有充足横向空间 (且高度只有 ~360vp), 双栏比单列合理得多。
+   */
+  private useSideBySideSettings(): boolean {
+    if (isWideBreakpoint(this.breakpoint)) return true;
+    return this.viewportW > this.viewportH && this.viewportH > 0;
   }
 
   private isManagedWindowsHost(): boolean {
@@ -645,16 +659,10 @@ struct SystemSettingsPage {
       this.settings.desktopInputProfileId, this.settings.pageBackgroundUri, enabled);
   }
 
-  private updateDesktopOrientation(orientation: ScreenOrientationSetting): void {
-    this.update(this.settings.defaultDisplayMode, this.settings.viewMode,
-      this.settings.useGlassEffect, this.settings.usePageBackground,
-      this.settings.showVirtualControls, this.settings.autoHideVirtualControls,
-      this.settings.controlOpacity, this.settings.gamepadDeadzone,
-      this.settings.outputScale, this.settings.themeMode,
-      this.settings.controlBarDirection, this.settings.virtualMouseConfig,
-      this.settings.desktopInputProfileId, this.settings.pageBackgroundUri,
-      this.settings.virtualInputEnabled, orientation);
-  }
+  /**
+   * 桌面方向不再由用户选择 (设置项已移除): 统一跟随传感器左右横屏,
+   * 由 DeviceCapabilityPolicy 自动施加, 故此处不再提供更新入口。
+   */
 
   private updateKeepScreenOn(enabled: boolean): void {
     this.update(this.settings.defaultDisplayMode, this.settings.viewMode,
@@ -1813,30 +1821,8 @@ struct SystemSettingsPage {
       if (section === 'display') {
         Column({ space: 16 }) {
           Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
-          Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。')
+          Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。桌面方向跟随设备自动切换左右横屏。')
             .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
-           Text('桌面屏幕方向').fontSize(14).fontWeight(FontWeight.Medium)
-             .fontColor($r('app.color.text_primary')).width('100%')
-           Row({ space: 8 }) {
-             Button('自动横屏').layoutWeight(1).height(48).borderRadius(14)
-               .fontSize(this.isNarrowPhone() ? 11 : 13)
-               .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.SENSOR_LANDSCAPE ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.SENSOR_LANDSCAPE ? '#FFFFFFFF' : $r('app.color.text_primary'))
-               .onClick(() => this.updateDesktopOrientation(ScreenOrientationSetting.SENSOR_LANDSCAPE))
-             Button('横屏').layoutWeight(1).height(48).borderRadius(14)
-               .fontSize(this.isNarrowPhone() ? 11 : 13)
-               .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.LANDSCAPE ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.LANDSCAPE ? '#FFFFFFFF' : $r('app.color.text_primary'))
-               .onClick(() => this.updateDesktopOrientation(ScreenOrientationSetting.LANDSCAPE))
-             Button('竖屏').layoutWeight(1).height(48).borderRadius(14)
-               .fontSize(this.isNarrowPhone() ? 11 : 13)
-               .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.PORTRAIT ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.PORTRAIT ? '#FFFFFFFF' : $r('app.color.text_primary'))
-               .onClick(() => this.updateDesktopOrientation(ScreenOrientationSetting.PORTRAIT))
-           }.width('100%')
            Text('桌面窗口显示').fontSize(14).fontWeight(FontWeight.Medium)
              .fontColor($r('app.color.text_primary')).width('100%')
            Row({ space: 8 }) {
@@ -2423,7 +2409,7 @@ struct SystemSettingsPage {
   build() {
     Stack() {
       HdsNavigation() {
-        if (isWideBreakpoint(this.breakpoint)) {
+        if (this.useSideBySideSettings()) {
           Row({ space: 22 }) {
             Column({ space: 5 }) {
               Text('设置分类').fontSize(13).fontWeight(FontWeight.Medium)
@@ -2546,6 +2532,10 @@ struct SystemSettingsPage {
       .bindToScrollable([this.settingsScroller])
       .width('100%').height('100%')
       .backgroundColor('#00FFFFFF')
+      .onAreaChange((_old: Area, area: Area): void => {
+        this.viewportW = area.width as number;
+        this.viewportH = area.height as number;
+      })
 
       if (this.engineBusy) {
         Stack() {

@@ -11,6 +11,7 @@ import {
   DisplayMode,
   GlobalSettings,
   LayoutMode,
+  ScreenOrientationSetting,
   ThemeMode,
   WineLanguage,
   ViewMode,
@@ -220,7 +221,7 @@ export class AppSettingsStore {
       this.globalSettings = {
         defaultDisplayMode: stored.defaultDisplayMode ?? defaults.defaultDisplayMode,
         wineLanguage: normalizeWineLanguage(stored.wineLanguage),
-        desktopOrientation: stored.desktopOrientation ?? defaults.desktopOrientation,
+        desktopOrientation: ScreenOrientationSetting.SENSOR_LANDSCAPE,
         desktopWindowMode: stored.desktopWindowMode ??
           this.resolveDesktopWindowModeDefault(defaults.desktopWindowMode),
         keepScreenOn: stored.keepScreenOn ?? defaults.keepScreenOn,
