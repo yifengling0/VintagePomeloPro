@@ -5,6 +5,8 @@ export interface GameDetailSheetCallbacks {
   onClose: () => void;
   onToggleFavorite: (app: AppDescriptor) => void;
   onOpenSettings: (app: AppDescriptor) => void;
+  /** 从 SteamGridDB 抓取竖版封面 (展示侧零改动: 抓到的图写入游戏目录 cover.png)。 */
+  onScrapeCover: (app: AppDescriptor) => void;
 }
 
 @Component
@@ -18,7 +20,8 @@ export struct GameDetailSheet {
     onLaunch: (_app: AppDescriptor): void => {},
     onClose: (): void => {},
     onToggleFavorite: (_app: AppDescriptor): void => {},
-    onOpenSettings: (_app: AppDescriptor): void => {}
+    onOpenSettings: (_app: AppDescriptor): void => {},
+    onScrapeCover: (_app: AppDescriptor): void => {}
   };
 
   build() {
@@ -136,6 +139,17 @@ export struct GameDetailSheet {
           .onClick(() => this.callbacks.onToggleFavorite(this.app))
 
           Button({ type: ButtonType.Circle }) {
+            SymbolGlyph($r('sys.symbol.cloud_and_arrow_down')).fontSize(22)
+              .fontColor(['#FFFFFFFF'])
+          }
+          .width(54).height(54)
+          .backgroundColor('#66000000')
+          .border({ width: 1, color: '#30FFFFFF' })
+          .borderRadius(27)
+          .onClick(() => this.callbacks.onScrapeCover(this.app))
+          .id('detail-scrape-cover')
+
+          Button({ type: ButtonType.Circle }) {
             SymbolGlyph($r('sys.symbol.gearshape')).fontSize(22)
               .fontColor(['#FFFFFFFF'])
           }
@@ -144,6 +158,7 @@ export struct GameDetailSheet {
           .border({ width: 1, color: '#30FFFFFF' })
           .borderRadius(27)
           .onClick(() => this.callbacks.onOpenSettings(this.app))
+          .id('detail-open-settings')
         }
         .width('100%')
         .justifyContent(FlexAlign.Center)

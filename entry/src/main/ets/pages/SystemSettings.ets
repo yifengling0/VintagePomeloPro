@@ -259,6 +259,9 @@ struct SystemSettingsPage {
   // 渲染模式 (dxvk_1_10/dxvk_2_6/virgl): @State 保证按钮选中态即时刷新
   @State private renderMode: string = 'dxvk_1_10';
   @State private fontImporting: boolean = false;
+  /** 封面抓取 API Key 的编辑草稿 (保存后才落盘, 避免边输边写)。 */
+  @State private sgdbKeyDraft: string = '';
+  @State private sgdbKeySaved: boolean = false;
   @State private fontImportStage: string = '';
   @State private fontImportProgress: number = 0;
   @State private hubStateText: string = '等待手柄输入…';
@@ -339,6 +342,8 @@ struct SystemSettingsPage {
 
   aboutToAppear(): void {
     this.settings = ThemeSettingsService.getInstance().getSettings();
+    this.sgdbKeyDraft = AppSettingsStore.getInstance().getSgdbApiKey();
+    this.sgdbKeySaved = this.sgdbKeyDraft.trim().length > 0;
     BreakpointSystem.initialize();
     this.callback = (value: BreakpointType): void => {
       this.breakpoint = value;
@@ -962,6 +967,18 @@ struct SystemSettingsPage {
       this.settings.showVirtualControls, this.settings.autoHideVirtualControls,
       this.settings.controlOpacity, this.settings.gamepadDeadzone,
       this.settings.outputScale, theme);
+  }
+
+  /** 保存封面抓取的 API Key (独立存储键, 不进 GlobalSettings)。 */
+  private saveSgdbKey(): void {
+    const key = this.sgdbKeyDraft.trim();
+    if (key.length === 0) return;
+    AppSettingsStore.getInstance().setSgdbApiKey(key).then((): void => {
+      this.sgdbKeySaved = true;
+      promptAction.showToast({ message: 'API Key 已保存，可在游戏详情页抓取封面' });
+    }).catch((): void => {
+      promptAction.showToast({ message: 'API Key 保存失败' });
+    });
   }
 
   private updateControlBarDirection(direction: ControlBarDirection): void {
@@ -1930,6 +1947,29 @@ struct SystemSettingsPage {
               .id('font-import-button')
               .enabled(!this.fontImporting)
               .onClick((): void => { this.importFontZip(); })
+          }
+          .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+
+          // 封面与元数据: SteamGridDB API Key (用于详情页一键抓取竖版封面)。
+          Column({ space: 10 }) {
+            Text('封面与元数据').fontSize(14).fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary')).width('100%')
+            Text('填入 SteamGridDB API Key 后，可在游戏详情页一键抓取竖版封面（自动写入该游戏目录的 cover.png，扫描后立即生效）。免费申请：steamgriddb.com → Preferences → API。')
+              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            TextInput({ placeholder: 'SteamGridDB API Key', text: this.sgdbKeyDraft })
+              .fontSize(13).height(44).borderRadius(12)
+              .backgroundColor($r('app.color.card_background'))
+              .onChange((value: string): void => {
+                this.sgdbKeyDraft = value;
+                this.sgdbKeySaved = false;
+              })
+              .id('sgdb-api-key-input')
+            Button(this.sgdbKeySaved ? '已保存' : '保存 Key').width('100%').height(44).borderRadius(12)
+              .backgroundColor(this.sgdbKeySaved ? $r('app.color.selected_background') : $r('app.color.accent'))
+              .fontColor(this.sgdbKeySaved ? $r('app.color.text_primary') : '#FFFFFFFF')
+              .enabled(this.sgdbKeyDraft.trim().length > 0 && !this.sgdbKeySaved)
+              .onClick((): void => { this.saveSgdbKey(); })
+              .id('sgdb-api-key-save')
           }
           .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
         }

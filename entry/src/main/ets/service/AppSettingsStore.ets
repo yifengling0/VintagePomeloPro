@@ -27,6 +27,8 @@ const APP_SETTINGS_KEY = 'app_settings_v1';
 const LIBRARY_PATH_KEY = 'library_path_v1';
 const CATALOG_CACHE_KEY = 'catalog_cache_v1';
 const RECENT_LAUNCHES_KEY = 'recent_launches_v1';
+/** 封面抓取的 SteamGridDB API Key (独立键, 与全局设置解耦)。 */
+const SGDB_KEY = 'sgdb_api_key_v1';
 const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
 const PLAY_TIME_KEY = 'play_time_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
@@ -48,6 +50,7 @@ export class AppSettingsStore {
   private recentLaunchesV2: Map<string, number> = new Map<string, number>();
   private playTime: Map<string, number> = new Map<string, number>();
   private libraryPath: string = '';
+  private sgdbApiKey: string = '';
   private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
 
@@ -66,6 +69,19 @@ export class AppSettingsStore {
     this.libraryPath = this.store.getSync(LIBRARY_PATH_KEY, '') as string;
     this.loadRecentLaunches();
     this.loadRenderMode();
+    this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
+  }
+
+  /** 封面抓取 (SteamGridDB) 的 API Key: 独立键存储, 不进 GlobalSettings。 */
+  getSgdbApiKey(): string {
+    return this.sgdbApiKey;
+  }
+
+  async setSgdbApiKey(key: string): Promise<void> {
+    this.sgdbApiKey = key.trim();
+    if (!this.store) return;
+    await this.store.put(SGDB_KEY, this.sgdbApiKey);
+    await this.store.flush();
   }
 
   private normalizeRenderMode(value: string): string {

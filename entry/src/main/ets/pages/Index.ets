@@ -33,6 +33,7 @@ import { AppCatalogService } from '../service/AppCatalogService';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { AppSessionService, LaunchConflictKind } from '../service/AppSessionService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { MetadataScraper } from '../service/MetadataScraper';
 import { LauncherAdapterRegistry } from '../service/LauncherAdapterRegistry';
 import { ThemeSettingsListener, ThemeSettingsService } from '../service/ThemeSettingsService';
 import { WineEngineService } from '../service/WineEngineService';
@@ -1336,6 +1337,46 @@ struct Index {
     this.setAmbient(app.id);
     this.detailSheetApp = app;
     this.detailSheetVisible = true;
+  }
+
+  /**
+   * 抓取封面 (SteamGridDB): 按标题搜索 → 取竖版封面 → 写入游戏目录 cover.png。
+   * 展示侧零改动 —— 文件名落在扫描链已支持的优先级列表里, 重扫描后自动生效。
+   * 无 API Key 时提示去系统设置填写。
+   */
+  private async scrapeCoverFor(app: AppDescriptor): Promise<void> {
+    const store = AppSettingsStore.getInstance();
+    const key = store.getSgdbApiKey();
+    if (key.trim().length === 0) {
+      promptAction.showToast({ message: '请先在 系统设置 → 封面与元数据 填入 SteamGridDB API Key' });
+      return;
+    }
+    const dir = this.gameDirOf(app);
+    if (dir.length === 0) {
+      promptAction.showToast({ message: '该程序没有可写入的目录' });
+      return;
+    }
+    promptAction.showToast({ message: '正在抓取封面…' });
+    try {
+      const result = await MetadataScraper.getInstance().scrapeCover(key, app.title, dir);
+      promptAction.showToast({
+        message: result.ok ? `已获取封面：${result.detail}` : result.detail
+      });
+      if (result.ok) {
+        // 新封面文件落在游戏目录里, 重扫描后 AppCard 自动使用。
+        void this.rescan();
+      }
+    } catch (e) {
+      promptAction.showToast({ message: '抓取失败：' + JSON.stringify(e) });
+    }
+  }
+
+  /** 取可写入封面的目录: 优先目录卡片, 否则取主程序所在目录。 */
+  private gameDirOf(app: AppDescriptor): string {
+    if (app.directory.length > 0) return app.directory;
+    const exe = app.launchTarget.executable;
+    const slash = Math.max(exe.lastIndexOf('/'), exe.lastIndexOf('\\'));
+    return slash > 0 ? exe.substring(0, slash) : '';
   }
 
   private getAmbientApp(): AppDescriptor | null {
@@ -2817,6 +2858,9 @@ struct Index {
               onOpenSettings: (target: AppDescriptor): void => {
                 this.closeDetailSheet();
                 this.openAppSettings(target);
+              },
+              onScrapeCover: (target: AppDescriptor): void => {
+                void this.scrapeCoverFor(target);
               }
             }
           })
