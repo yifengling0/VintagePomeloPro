@@ -201,6 +201,12 @@ struct Index {
   @State private runningAppIds: Set<string> = new Set<string>();
   /** 收藏标记是卡面上的可见状态, 随运行态一起刷新, 避免每张卡片各查一次设置。 */
   @State private favoriteIds: Set<string> = new Set<string>();
+  /**
+   * 各程序本次启动的时间戳 (内存态): 检测到它从"运行中"变为"已停止"时
+   * 结算本次时长并累加 (addPlayMinutes)。此前只有存储方法没有调用点,
+   * 导致累计时长恒为 0、按游玩时长排序无意义。
+   */
+  private launchStartTimes: Map<string, number> = new Map<string, number>();
   @State private phoneNavIndex: number = PHONE_NAV_WINDOWS;
   @State private viewportWidth: number = 0;
   @State private viewportHeight: number = 0;
@@ -926,10 +932,26 @@ struct Index {
     const sessionService = AppSessionService.getInstance();
     const running = resolveRunningAppIds(this.apps, sessionService.getRunningAppIds(),
       sessionService.getRunningPaths());
+    this.settleFinishedSessions(running);
     this.runningAppIds = running;
     this.refreshFavoriteIds();
     this.visibleApps = this.filterApps(this.searchQuery, this.filter, running);
     this.rebuildRingApps();
+  }
+
+  /**
+   * 结算刚结束的会话: 之前记录过启动时间、现在已不在运行中的, 累加本次时长。
+   * 时长满 1 分钟才计入 (避免误点一次也产生记录)。
+   */
+  private settleFinishedSessions(running: Set<string>): void {
+    if (this.launchStartTimes.size === 0) return;
+    const store = AppSettingsStore.getInstance();
+    this.launchStartTimes.forEach((startedAt: number, appId: string): void => {
+      if (running.has(appId)) return;
+      this.launchStartTimes.delete(appId);
+      const minutes = Math.round((Date.now() - startedAt) / 60000);
+      if (minutes >= 1) void store.addPlayMinutes(appId, minutes);
+    });
   }
 
   private runningFilterLabel(): string {
@@ -1284,6 +1306,9 @@ struct Index {
         promptAction.showToast({
           message: engineMessage === 'Wine 引擎已就绪' ? '程序启动失败，请稍后重试' : engineMessage
         });
+      } else if (session) {
+        // 启动成功: 记录起点, 停止时由 settleFinishedSessions 结算时长。
+        this.launchStartTimes.set(app.id, Date.now());
       }
     } catch (_) {
       promptAction.showToast({ message: '程序启动异常，请稍后重试' });
@@ -2213,7 +2238,13 @@ struct Index {
             Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
           }.layoutWeight(1).justifyContent(FlexAlign.Center)
         } else if (this.visibleApps.length === 0) {
-          this.CatalogEmptyScroll(this.filter)
+          // @Builder 的传值参数变化不会触发刷新, 而"最近/收藏/运行中"都满足
+          // "空"这个分支条件 → ArkUI 复用首次渲染的空状态文案, 切分类时
+          // 画面文字不更新 (用户看到的就是"点了没反应")。
+          // 用 ForEach 以 filter 作 key, key 变化即强制重建。
+          ForEach([this.filter], (f: CatalogFilter): void => {
+            this.CatalogEmptyScroll(f);
+          }, (f: CatalogFilter): string => f)
         } else if (this.settings.viewMode === ViewMode.LIST) {
           this.ListView()
         } else if (this.catalogCardViewMode() === ViewMode.COVER) {

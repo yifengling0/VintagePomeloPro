@@ -44,56 +44,61 @@ export struct GameDetailSheet {
       .alignItems(HorizontalAlign.End)
 
       Column() {
-        Row({ space: 20 }) {
+        Row({ space: 28 }) {
           if (this.app.coverPath.length > 0) {
             // coverPath 是裸文件路径, Image 需要 file:// 前缀 (AppCard.coverSource 同款)。
             Image(this.app.coverPath.startsWith('file://')
               ? this.app.coverPath : 'file://' + this.app.coverPath)
-              .width(120).height(160)
-              .borderRadius(12)
+              .width(168).height(224)
+              .borderRadius(16)
               .objectFit(ImageFit.Cover)
               .border({ width: 1, color: '#40FFFFFF' })
+              .shadow({ radius: 24, color: '#80000000', offsetX: 0, offsetY: 10 })
           } else {
             Stack() {
               Column() {
-                SymbolGlyph($r('sys.symbol.house')).fontSize(40)
+                SymbolGlyph($r('sys.symbol.house')).fontSize(56)
                   .fontColor([$r('app.color.accent')])
               }
             }
-            .width(120).height(160)
-            .borderRadius(12)
+            .width(168).height(224)
+            .borderRadius(16)
             .backgroundColor($r('app.color.selected_background'))
             .border({ width: 1, color: '#40FFFFFF' })
+            .shadow({ radius: 24, color: '#80000000', offsetX: 0, offsetY: 10 })
           }
 
-          Column({ space: 8 }) {
+          Column({ space: 10 }) {
             Text(this.app.title)
-              .fontSize(24)
+              .fontSize(30)
               .fontWeight(FontWeight.Bold)
               .fontColor('#FFFFFFFF')
               .maxLines(2)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
 
             Text(this.app.source === AppSource.BUILTIN ? '内建应用' : 'Windows 程序')
-              .fontSize(14)
-              .fontColor('#C0FFFFFF')
+              .fontSize(15)
+              .fontColor('#B0FFFFFF')
 
+            // 信息行带图标, 与标题形成清晰层级。
             if (this.lastPlayedText.length > 0) {
-              Text(this.lastPlayedText)
-                .fontSize(13)
-                .fontColor('#A0FFFFFF')
+              Row({ space: 7 }) {
+                SymbolGlyph($r('sys.symbol.clock')).fontSize(14).fontColor(['#90FFFFFF'])
+                Text(this.lastPlayedText).fontSize(15).fontColor('#B8FFFFFF')
+              }
             }
 
             if (this.playTimeText.length > 0) {
-              Text(this.playTimeText)
-                .fontSize(13)
-                .fontColor('#A0FFFFFF')
+              Row({ space: 7 }) {
+                SymbolGlyph($r('sys.symbol.timer')).fontSize(14).fontColor(['#90FFFFFF'])
+                Text(this.playTimeText).fontSize(15).fontColor('#B8FFFFFF')
+              }
             }
 
             if (this.isRunning) {
-              Row({ space: 6 }) {
-                Circle().width(8).height(8).fill('#4CAF50')
-                Text('运行中').fontSize(13).fontColor('#4CAF50')
+              Row({ space: 7 }) {
+                Circle().width(9).height(9).fill('#4CAF50')
+                Text('运行中').fontSize(15).fontColor('#4CAF50')
               }
             }
           }
@@ -101,48 +106,48 @@ export struct GameDetailSheet {
           .layoutWeight(1)
         }
         .width('100%')
-        .padding({ left: 24, right: 24, top: 24, bottom: 16 })
+        .padding({ left: 32, right: 32, top: 24, bottom: 20 })
 
         Row({ space: 16 }) {
           Button({ type: ButtonType.Normal }) {
-            Row({ space: 8 }) {
-              SymbolGlyph($r('sys.symbol.play_fill')).fontSize(18)
+            Row({ space: 10 }) {
+              SymbolGlyph($r('sys.symbol.play_fill')).fontSize(20)
                 .fontColor(['#FFFFFFFF'])
-              Text(this.isRunning ? '关闭程序' : '启动游戏').fontSize(16)
+              Text(this.isRunning ? '关闭程序' : '启动游戏').fontSize(17)
                 .fontColor('#FFFFFFFF')
                 .fontWeight(FontWeight.Bold)
             }
           }
-          .height(48)
-          .padding({ left: 24, right: 24 })
-          .borderRadius(24)
+          .height(54)
+          .padding({ left: 32, right: 32 })
+          .borderRadius(27)
           .backgroundColor(this.isRunning ? '#D94848' : $r('app.color.accent'))
           .onClick(() => this.callbacks.onLaunch(this.app))
 
           Button({ type: ButtonType.Circle }) {
             SymbolGlyph(this.isFavorite ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'))
-              .fontSize(20)
+              .fontSize(22)
               .fontColor([this.isFavorite ? '#FFD700' : '#FFFFFFFF'])
           }
-          .width(48).height(48)
+          .width(54).height(54)
           .backgroundColor('#66000000')
           .border({ width: 1, color: '#30FFFFFF' })
-          .borderRadius(24)
+          .borderRadius(27)
           .onClick(() => this.callbacks.onToggleFavorite(this.app))
 
           Button({ type: ButtonType.Circle }) {
-            SymbolGlyph($r('sys.symbol.gearshape')).fontSize(20)
+            SymbolGlyph($r('sys.symbol.gearshape')).fontSize(22)
               .fontColor(['#FFFFFFFF'])
           }
-          .width(48).height(48)
+          .width(54).height(54)
           .backgroundColor('#66000000')
           .border({ width: 1, color: '#30FFFFFF' })
-          .borderRadius(24)
+          .borderRadius(27)
           .onClick(() => this.callbacks.onOpenSettings(this.app))
         }
         .width('100%')
         .justifyContent(FlexAlign.Center)
-        .padding({ top: 8, bottom: 24 })
+        .padding({ top: 10, bottom: 28 })
       }
       .width('100%')
       .justifyContent(FlexAlign.Center)
