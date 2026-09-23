@@ -121,6 +121,13 @@ struct Index {
   @State private scrollOffsetX: number = 0;
   /** 已选中的卡片 id (两步交互: 首次点击选中, 再次点击才启动, 防误触)。 */
   @State private selectedAppId: string = '';
+  /** 环形封面流中心索引 (原数组下标); 供分类同步与氛围背景使用。 */
+  @State private ringIndex: number = 0;
+  /** 环的横向滚动偏移 (vp): 驱动每张卡的 3D 变换实时重算。 */
+  @State private ringOffset: number = 0;
+  private ringScroller: Scroller = new Scroller();
+  /** 环形流一屏可见张数 (用户定案: 一屏 5 张, 中间为焦点)。 */
+  private static readonly RING_VISIBLE: number = 5;
   @State private sortMode: SortMode = SortMode.RECENT;
   @State private clockText: string = '';
   @State private batteryText: string = '';
@@ -1099,22 +1106,10 @@ struct Index {
   }
 
   /**
-   * 横向封面流的瓦片宽度 (rowsTemplate 两行时, 瓦片高 = 可用高/2 − 间隙)。
-   * auto-fill 需要绝对宽度列模板; 宽度 ≈ 瓦片高 × 3/4 (竖版封面), 与
-   * coverWallHeight() 保持同一比例, 保证两种滚动方向的观感一致。
+   * 封面瓦片宽度 (竖版 3:4): 由高度推导, 供网格视图与环形流共用口径。
    */
   private coverTileWidthVp(): string {
     return Math.round(this.coverWallHeight() * 0.75) + 'vp';
-  }
-
-  /**
-   * 单行封面流内容总宽: 数量 × (瓦片宽 + 间距), 至少一屏 (不足时不可滚)。
-   */
-  private coverFlowContentWidth(count: number): string {
-    const tileW = Math.round(this.coverWallHeight() * 0.75) + 6;
-    const screenW = this.viewportWidth > 0 ? this.viewportWidth : 800;
-    const contentW = Math.max(screenW, count * tileW + 12);
-    return Math.round(contentW) + 'vp';
   }
 
   private gridColumns(): string {
@@ -1593,7 +1588,8 @@ struct Index {
   }
 
   @Builder
-  private CatalogCard(app: AppDescriptor, index: number = -1) {
+  private CatalogCard(app: AppDescriptor, index: number = -1,
+    ringIndexPos: number = -1, center: boolean = false) {
     AppCard({
       app: app,
       viewMode: this.catalogCardViewMode(),
@@ -1603,13 +1599,21 @@ struct Index {
       useGlassEffect: this.settings.useGlassEffect,
       narrowPhone: this.isPhone(),
       lastPlayedText: this.getLastPlayedText(app.id),
+      // 环变换由 AppCard 内部按 ringOffset 计算 (外部传值在 ForEach 复用时不更新)。
+      ringIndexPos: ringIndexPos,
+      ringOffset: this.ringOffset,
+      ringCellW: this.ringCellWidth(),
+      ringViewportW: this.viewportWidth > 0 ? this.viewportWidth : 813,
+      center: center,
       selected: app.id === this.selectedAppId,
       onLaunch: (target: AppDescriptor): void => {
-        // 两步交互 (防误触 + 可见焦点效果):
-        // 首次点击 = 选中 (滑到中心、放大、显示"再点启动"); 再次点击同一张 = 启动。
+        // 环模式: 点非中心卡 = 把它转到中心; 点中心卡 = 进入待启动态, 再点启动。
+        if (index >= 0 && Math.abs(this.ringDelta(index)) > 0.5) {
+          this.selectRingIndex(index);
+          return;
+        }
         if (this.selectedAppId !== target.id) {
           this.selectedAppId = target.id;
-          if (index >= 0) this.setCoverFlowFocus(index);
           return;
         }
         this.launch(target);
@@ -2194,91 +2198,233 @@ struct Index {
   }
 
   /**
-   * 单行横向封面流 (用户定案: 永远单行) — Switch/主机式横排, 手势左右滑动翻页,
-   * 贴合移动端横持握姿。实现: 横向 Scroll 包 Row 定宽容器,
-   * 内容宽 = 数量 × (瓦片宽 + 间距), 不足一屏时不可滚。
+   * 环形封面流 (用户定案): 一屏 5 张, 中间恒为焦点, 首尾无缝衔接成环。
+   * 实现用 Swiper 的 loop + displayCount —— loop 是原生无限循环, 不会出现
+   * "数据三倍化 + 边界跳转"那类闪烁; displayCount(5) 让两侧各露出 2 张,
+   * itemSpace 拉大间距。缩放/透明度按"离中心的环距离"分层, 中心最大最亮。
+   * 少于 5 张时自动关闭 loop (数据不足时循环会原地打转)。
+   */
+  /**
+   * 环形封面流 (用户定案): 卡片沿弧线排列成"环", 中心恒为焦点,
+   * 两侧卡片向内旋转 (rotationY) + 下沉 + 缩小, 形成环绕的立体纵深;
+   * 首尾无缝衔接 (数据三倍化 + 边界无感跳转) 实现真·循环。
+   * 用横向 List: 其手势识别比 Scroll 可靠, 且 scroller 通过构造参数绑定
+   * (漏绑会导致 currentOffset() 抛错/崩溃)。
    */
   @Builder
   private CoverFlow() {
-    Scroll(this.catalogScroller(this.filter)) {
-      // 卡片行垂直居中于顶部工具栏与底部悬浮栏之间 (用户定案)。
-      // 底部 padding 把悬浮导航栏的高度从居中盒里扣除, 保证视觉居中偏上不多占。
-      Row({ space: 6 }) {
-        ForEach(this.visibleApps, (app: AppDescriptor, index: number): void => {
+    List({ space: 0, scroller: this.ringScroller }) {
+      ForEach(this.ringApps(), (app: AppDescriptor, index: number): void => {
+        ListItem() {
+          // 外层 = 一格 (屏宽/5, 留白来源); 内层 = 卡片固定竖版尺寸并居中。
           Column() {
-            this.CatalogCard(app, index)
+            Column() {
+              this.CatalogCard(app, index, index,
+                Math.abs(this.ringDelta(index)) < 0.5)
+            }
+            .width(this.coverTileWidthVp())
           }
-          .width(this.coverTileWidthVp())
-          .padding({ top: 3, bottom: 8 })
-        }, (app: AppDescriptor): string => app.id)
-      }
-      .alignItems(VerticalAlign.Center)
-      .padding({ left: 3, right: 3, bottom: 60 })
-      .width(this.coverFlowContentWidth(this.visibleApps.length))
-      .height('100%')
+          .width(this.ringCellWidthVp())
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+        }
+        .width(this.ringCellWidthVp())
+      }, (app: AppDescriptor, index: number): string =>
+        app.id + '#' + index.toString())
     }
-    .scrollable(ScrollDirection.Horizontal)
+    .listDirection(Axis.Horizontal)
     .scrollBar(BarState.Off)
     .layoutWeight(1)
     .width('100%')
-    // 焦点追踪: 滚动时算"最靠近视口中心的卡片", 驱动焦点放大与氛围背景。
-    .onDidScroll((xOffset: number): void => {
-      this.updateCoverFlowFocus(xOffset);
-      // 一滑动就收起输入法: 面板浮层会挡住右侧卡片, 造成"点不动"的错觉。
-      this.dismissKeyboard();
+    .padding({ top: 8, bottom: 68 })
+    .onDidScroll((): void => {
+      const x = this.safeRingOffset();
+      this.ringOffset = x;
+      this.recycleRingIfNeeded(x);
     })
-    .id('library-coverflow-scroll-' + this.filter)
+    .onScrollStop((): void => {
+      this.snapRingToNearest();
+    })
+    .id('library-coverflow-ring-' + this.filter)
+  }
+
+  /** 安全读取当前横向偏移 (scroller 未就绪时返回上一已知值)。 */
+  private safeRingOffset(): number {
+    try {
+      const offset = this.ringScroller.currentOffset();
+      if (offset && typeof offset.xOffset === 'number') return offset.xOffset;
+    } catch (_) {
+      // 未绑定或未就绪
+    }
+    return this.ringOffset;
   }
 
   /**
-   * 由横向滚动量算出浏览焦点: 视口中心所在的瓦片。
-   * 仅用于驱动氛围背景 (滑动时背景跟着浏览位置变, 保持沉浸感);
-   * **卡片缩放/描边只由点击选中决定**, 与滚动位置无关。
+   * 环数据: 三倍化以伪造无缝循环 (滚到边界时无感跳回中段)。
+   * 少于 5 张时不循环 (直接原数组)。
    */
-  private updateCoverFlowFocus(xOffset: number): void {
-    this.scrollOffsetX = xOffset;
-    if (this.visibleApps.length === 0) return;
-    const unit = Math.round(this.coverWallHeight() * 0.75) + 6;
-    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 800;
-    const center = xOffset + viewport / 2 - 3;
-    const index = Math.floor(center / unit);
-    const clamped = Math.max(0, Math.min(this.visibleApps.length - 1, index));
-    if (clamped === this.focusedIndex) return;
-    this.focusedIndex = clamped;
-    this.ambientAppId = this.visibleApps[clamped].id;
+  private ringApps(): AppDescriptor[] {
+    const n = this.visibleApps.length;
+    if (n === 0 || n <= Index.RING_VISIBLE) return this.visibleApps;
+    const out: AppDescriptor[] = [];
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < n; i++) out.push(this.visibleApps[i]);
+    }
+    return out;
   }
 
-  /** 焦点回到首张并把氛围背景同步为该卡片 (分类切换/重扫描后调用)。 */
+  /** 是否启用环 (循环) 模式。 */
+  private ringEnabled(): boolean {
+    return this.visibleApps.length > Index.RING_VISIBLE;
+  }
+
+  /** 每格宽度 (vp): 屏宽均分成 5 格, 让一屏正好五张且左右留白。 */
+  private ringCellWidth(): number {
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
+    return viewport / Index.RING_VISIBLE;
+  }
+
+  private ringCellWidthVp(): string {
+    return this.ringCellWidth() + 'vp';
+  }
+
+  /** 环初始偏移: 落在中段起点, 保证两侧都有内容可滑 (循环用)。 */
+  private ringStartOffset(): number {
+    const n = this.visibleApps.length;
+    return this.ringEnabled() ? n * this.ringCellWidth() : 0;
+  }
+
+  /** 当前正对视口中心的格子索引 (三倍数组内)。 */
+  private ringCenterIndex(): number {
+    const cell = this.ringCellWidth();
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
+    return Math.round((this.ringOffset + viewport / 2 - cell / 2) / cell);
+  }
+
+  /** 该格离视口中心的"格数"距离 (0 = 正中, 负 = 左侧, 正 = 右侧)。 */
+  private ringDelta(index: number): number {
+    const cell = this.ringCellWidth();
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
+    const cardCenter = index * cell + cell / 2 - this.ringOffset;
+    return (cardCenter - viewport / 2) / cell;
+  }
+
+  /**
+   * 逐卡 3D 变换 (核心视觉): 按离中心的角度算旋转/下沉/缩放,
+   * 卡片沿弧线排布并向内转向观众, 形成"环"的立体纵深。
+   */
+  private ringRotY(index: number): number {
+    const t = this.ringDelta(index);
+    const capped = Math.max(-2.6, Math.min(2.6, t));
+    return -capped * 26;
+  }
+
+  private ringTransY(index: number): number {
+    const t = Math.abs(this.ringDelta(index));
+    return Math.min(2.6, t) * 12;
+  }
+
+  private ringScaleFor(index: number): number {
+    const t = Math.min(2.6, Math.abs(this.ringDelta(index)));
+    return 1.08 - t * 0.17;
+  }
+
+  private ringOpacityFor(index: number): number {
+    const t = Math.min(2.6, Math.abs(this.ringDelta(index)));
+    return Math.max(0.35, 1 - t * 0.26);
+  }
+
+  /** 环模式下的别名 (与三倍化索引配套, 供 CoverFlow 调用)。 */
+  private ringScaleAt(index: number): number {
+    return this.ringScaleFor(index);
+  }
+
+  private ringOpacityAt(index: number): number {
+    return this.ringOpacityFor(index);
+  }
+
+  /** 滚到边界附近时无感跳回中段 (数据三倍化伪造无限循环)。 */
+  private recycleRingIfNeeded(xOffset: number): void {
+    if (!this.ringEnabled()) return;
+    const n = this.visibleApps.length;
+    const span = n * this.ringCellWidth();
+    let target = -1;
+    if (xOffset < span * 0.5) target = xOffset + span;
+    else if (xOffset > span * 1.5) target = xOffset - span;
+    if (target < 0) return;
+    hilog.info(0x0000, 'RingDbg', 'recycle %{public}f -> %{public}f', xOffset, target);
+    try {
+      this.ringScroller.scrollTo({ xOffset: target, yOffset: 0, animation: false });
+      this.ringOffset = target;
+    } catch (_) {
+      // 容器未就绪时忽略。
+    }
+  }
+
+  /** 松手后吸附: 让某张卡正好落在视口中心 (焦点位恒定)。 */
+  private snapRingToNearest(): void {
+    const cell = this.ringCellWidth();
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
+    const nearest = Math.round((this.ringOffset + viewport / 2 - cell / 2) / cell);
+    const target = Math.max(0, nearest * cell - viewport / 2 + cell / 2);
+    if (Math.abs(target - this.ringOffset) < 1) {
+      this.syncRingFocus();
+      return;
+    }
+    try {
+      this.ringScroller.scrollTo({ xOffset: target, yOffset: 0, animation: true });
+    } catch (_) {
+      // 忽略
+    }
+    this.syncRingFocus();
+  }
+
+  /** 中心项变化时同步氛围背景与待启动态。 */
+  private syncRingFocus(): void {
+    const n = this.visibleApps.length;
+    if (n === 0) return;
+    const center = this.ringCenterIndex();
+    const real = ((center % n) + n) % n;
+    this.ringIndex = real;
+    this.selectedAppId = '';
+    this.dismissKeyboard();
+    this.ambientAppId = this.visibleApps[real].id;
+  }
+
+  /**
+   * 环中心回到第一张并把氛围背景同步 (分类切换/重扫描后调用)。
+   * 同时清空待启动态, 避免选中/待启动状态跨越不同列表残留。
+   */
   private resetCoverFlowFocus(): void {
     this.focusedIndex = 0;
     this.scrollOffsetX = 0;
-    // 换分类/重扫描后清空选中, 避免"选中态"跨越不同列表残留。
+    this.ringIndex = 0;
     this.selectedAppId = '';
+    const start = this.ringEnabled() ? this.visibleApps.length : 0;
+    this.ringOffset = start * this.ringCellWidth();
+    setTimeout((): void => {
+      try {
+        this.ringScroller.scrollToIndex(start, false);
+      } catch (_) {
+        // 忽略
+      }
+    }, 0);
     if (this.visibleApps.length > 0) {
       this.ambientAppId = this.visibleApps[0].id;
     }
   }
 
-  /**
-   * 把焦点设到指定卡片并让它滑到视口中心 (点击卡片时调用)。
-   * 主机式交互: 点哪张, 哪张就居中放大, 视觉反馈与启动动作一致。
-   */
-  private setCoverFlowFocus(index: number): void {
-    if (index < 0 || index >= this.visibleApps.length) return;
-    this.focusedIndex = index;
-    this.ambientAppId = this.visibleApps[index].id;
-    const unit = Math.round(this.coverWallHeight() * 0.75) + 6;
-    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 800;
-    const target = index * unit + unit / 2 + 3 - viewport / 2;
+  /** 点到非中心卡: 把它滚到视口中心 (成为焦点)。 */
+  private selectRingIndex(index: number): void {
     try {
-      this.catalogScroller(this.filter).scrollTo({
-        xOffset: Math.max(0, target),
-        yOffset: 0,
-        animation: { duration: 240, curve: Curve.EaseOut }
-      });
+      this.ringScroller.scrollToIndex(index, true, ScrollAlign.CENTER);
     } catch (_) {
-      // 滚动容器尚未就绪时忽略: 焦点状态已更新, 不影响启动。
+      // 忽略
     }
+    const n = Math.max(1, this.visibleApps.length);
+    this.ringIndex = ((index % n) + n) % n;
+    this.ambientAppId = this.visibleApps[this.ringIndex].id;
+    this.selectedAppId = '';
   }
 
   /**

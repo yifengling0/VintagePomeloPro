@@ -12,7 +12,60 @@ export struct AppCard {
   @Prop useGlassEffect: boolean = true;
   @Prop narrowPhone: boolean = false;
   @Prop lastPlayedText: string = '';
-  /** 已选中 = 唯一焦点卡 (点击决定): 放大 + accent 描边 + "再点启动"提示。 */
+  /**
+   * 环形封面流: 由页面按"离中心的环距离"算好的缩放/透明度直接传入,
+   * AppCard 不理解环的概念, 只负责呈现 (中心最大最亮, 两侧渐次收缩变暗)。
+   */
+  /**
+   * 环形封面流参数: 卡片自己按"离视口中心的格数"算缩放/旋转/下沉。
+   * 必须在 AppCard 内部算 (而不是由页面算好传入) —— ForEach 在 key 不变时
+   * 不重新执行 itemGenerator, 外部传入的变换值不会随滚动更新; 只有 @Prop
+   * 变化才能驱动组件重渲染。
+   * ringIndexPos < 0 表示非环模式 (网格/列表), 此时不做任何变换。
+   */
+  @Prop ringIndexPos: number = -1;
+  @Prop ringOffset: number = 0;
+  @Prop ringCellW: number = 0;
+  @Prop ringViewportW: number = 0;
+
+  /** 该卡离视口中心的格数距离 (0 = 正中, 负 = 左, 正 = 右)。 */
+  private ringDelta(): number {
+    if (this.ringIndexPos < 0 || this.ringCellW <= 0) return 0;
+    const cardCenter = this.ringIndexPos * this.ringCellW + this.ringCellW / 2 - this.ringOffset;
+    return (cardCenter - this.ringViewportW / 2) / this.ringCellW;
+  }
+
+  /** 中心卡最大最亮; 两侧按距离递增地缩小、压暗、向内旋转、下沉。 */
+  private ringScaleValue(): number {
+    if (this.ringIndexPos < 0) return 1;
+    const t = Math.min(2.6, Math.abs(this.ringDelta()));
+    return 1.08 - t * 0.17;
+  }
+
+  private ringOpacityValue(): number {
+    if (this.ringIndexPos < 0) return 1;
+    const t = Math.min(2.6, Math.abs(this.ringDelta()));
+    return Math.max(0.35, 1 - t * 0.26);
+  }
+
+  private ringRotYValue(): number {
+    if (this.ringIndexPos < 0) return 0;
+    const capped = Math.max(-2.6, Math.min(2.6, this.ringDelta()));
+    return -capped * 26;
+  }
+
+  private ringTransYValue(): number {
+    if (this.ringIndexPos < 0) return 0;
+    const t = Math.min(2.6, Math.abs(this.ringDelta()));
+    return t * 12;
+  }
+
+  private isRingCenter(): boolean {
+    return this.ringIndexPos >= 0 && Math.abs(this.ringDelta()) < 0.5;
+  }
+  /** 位于环中心 (恒定焦点位): accent 描边标识。 */
+  @Prop center: boolean = false;
+  /** 已点选待启动 (两步交互的第二步前): 最强描边 + "再点启动"提示。 */
   @Prop selected: boolean = false;
   @State private pressed: boolean = false;
   /** exe 内嵌图标 (PE .rsrc 提取, 落盘缓存) — 无自定义封面时的卡面主视觉。 */
@@ -409,23 +462,27 @@ export struct AppCard {
     .width('100%')
     .height(this.coverWallHeight)
     .borderRadius(14)
-    // 缩放与描边只由"选中"决定 (点击哪张哪张才是焦点), 与滚动位置无关。
+    // 三级描边: 待启动(最亮粗) > 环中心(accent 细) > 普通。
     .border({
-      width: this.selected ? 2 : 1,
-      color: this.selected ? '#C4B5FD' : '#20FFFFFF'
+      width: this.selected ? 2 : (this.isRingCenter() || this.center ? 1.5 : 1),
+      color: this.selected ? '#C4B5FD'
+        : ((this.isRingCenter() || this.center) ? '#A78BFA' : '#20FFFFFF')
     })
     .clip(true)
-    .shadow(this.selected
+    .shadow(this.selected || this.isRingCenter() || this.center
       ? { radius: 30, color: '#BB000000', offsetX: 0, offsetY: 13 }
       : { radius: 12, color: '#26000000', offsetX: 0, offsetY: 5 })
-    .opacity(this.app.available ? 1 : 0.62)
+    .opacity(this.app.available ? this.ringOpacityValue() : 0.62)
     .scale({
-      x: this.pressed ? 0.97 : (this.selected ? 1.14 : 1),
-      y: this.pressed ? 0.97 : (this.selected ? 1.14 : 1)
+      x: this.pressed ? 0.97 : this.ringScaleValue(),
+      y: this.pressed ? 0.97 : this.ringScaleValue()
     })
-    .zIndex(this.selected ? 2 : 1)
-    // 选中/取消时的缩放与描边过渡 (点哪张哪张放大, 有动画手感)。
-    .animation({ duration: 200, curve: Curve.EaseOut })
+    // 环的立体姿态: 绕 Y 轴向内旋转 + 下沉, 与缩放叠加成弧线环绕观感。
+    .rotate({ x: 0, y: 1, z: 0, angle: this.ringRotYValue() })
+    .translate({ y: this.ringTransYValue() })
+    .zIndex((this.isRingCenter() || this.center) ? 2 : 1)
+    // 选中引起的大小与明暗变化走同一过渡; 环内滚动时由 ringOffset 每帧驱动。
+    .animation({ duration: 160, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => this.handleCardTouch(event))
     .onClick(() => this.onLaunch(this.app))
     .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
