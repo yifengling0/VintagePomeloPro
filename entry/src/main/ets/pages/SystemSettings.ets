@@ -2401,10 +2401,10 @@ struct SystemSettingsPage {
     .height('100%')
     .constraintSize({ maxWidth: maxWidth })
     .padding({
-      // 外层已包容器框并给了 padding, 这里不再叠加右侧/底部内边距
-      // (叠加会让卡片超出容器右边缘, 视觉上被裁)。
+      // 右侧归零 (外层容器已有 padding, 叠加会让卡片超出右边缘被裁);
+      // 底部保留安全距: 归零后最后一张卡片会贴到屏幕底部被安全区压住。
       right: 0,
-      bottom: 0
+      bottom: Math.max(this.isNarrowPhone() ? 28 : 16, this.navBarInsetVp)
     })
     .scrollBar(BarState.Off)
     .edgeEffect(EdgeEffect.Spring)
@@ -2459,9 +2459,11 @@ struct SystemSettingsPage {
             .width(this.breakpoint === 'xl' ? 224 : 204)
             .height('100%')
             .padding({ left: 8, right: 8, top: 12, bottom: 12 })
-            // 去掉外框: 右侧是"区块卡片列表", 左侧若自带一个完整圆角框,
-            // 两栏观感不同构 (用户反馈"左右不统一")。改为裸列表 + 选中项高亮,
-            // 与右侧的卡片列表形成一致的列表观感。
+            // 左栏保留容器框 (用户偏好, 与页面卡片材质一致)。
+            .backgroundColor(this.groupSurfaceColor())
+            .backgroundBlurStyle(this.settings.useGlassEffect ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
+            .border({ width: 1, color: this.groupBorderColor() })
+            .borderRadius(20)
             .clip(true)
             .hitTestBehavior(HitTestMode.Default)
             // 右侧保持裸列表 (区块卡片自带样式): 若这里再包一层容器框,
