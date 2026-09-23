@@ -819,6 +819,9 @@ struct Index {
       if (!pageWindow) {
         return;
       }
+      // 库页每次显示都重申横板方向策略: 进过设置页/输入编辑等页面后,
+      // 窗口方向可能被改回系统默认, 导致"不能自动左右旋转"。
+      DeviceCapabilityPolicy.applyLauncherLandscapeRotation(pageWindow, 'Index-shell');
       if (this.settings.layoutMode === LayoutMode.STANDARD) {
         await pageWindow.setWindowLayoutFullScreen(true);
         try {

@@ -407,6 +407,9 @@ struct SystemSettingsPage {
   private async restoreSettingsWindowChrome(): Promise<void> {
     try {
       const pageWindow = await window.getLastWindow(this.context);
+      // 设置页同样要施加横板方向策略: 此前只有库页设置, 进设置页后窗口方向
+      // 回到系统默认, 表现为"不能自动左右旋转"(用户实测回归)。
+      DeviceCapabilityPolicy.applyLauncherLandscapeRotation(pageWindow, 'SystemSettings');
       await applyStatusOnlyImmersiveShell(pageWindow);
       try {
         const useLightIcons = this.usesDarkAppearance();
