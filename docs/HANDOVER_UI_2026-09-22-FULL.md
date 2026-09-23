@@ -542,3 +542,71 @@ index  = clamp(floor(center / unit), 0, n-1)
 
 ### 14.5 定稿状态（用户验收）
 顶栏/底栏冻结不变；中间为**单行环形封面流**：中心恒定焦点（正对/最大 1.08/accent 描边）、两侧向内旋转 26°/格 + 下沉 12vp + 缩小压暗、一屏 5 格、**双向无限循环**、松手吸附、点两侧卡转到中心、点中心卡两步启动。UI 分支 HEAD `e764331`。
+---
+
+## 15. 2026-09-23 增补五：设置页沉浸与横屏密度（提交 8fdc197 / 3fccb24 / ccd26a2）
+
+### 15.1 顶部黑边的真身：HDS 标题栏
+用户："我不需要顶栏有沉浸标题效果，我现在只想消除顶部的宽黑边 和底部的黑边"。
+
+- 设置页用 `HdsNavigation`（HDS/UIDesignKit），**`titleBar(...)` 里的 MINI 标题栏本身占 56vp**
+  （`HDS_MINI_TITLE_HEIGHT_VP = 56`，见 `common/StatusOnlyImmersiveShell.ets`），
+  再叠上内容区自己让出的 `settingsTopInset()`（= 56 + 状态栏），顶部实际被吃掉两条。
+- **`HdsNavigationAttribute.hideTitleBar(hide: boolean, animated?: boolean)` 存在可用**
+  （声明在 `@hms.hds.hdsBaseComponent.d.ets` 2249 行；同处还有 `hideToolBar`、`hideBackButton`）。
+  之前自绘返回键被 HDS 内部层遮挡、只能回退（提交 eba4c19）—— 那是因为**标题栏还在**；
+  标题栏整条隐藏后，自绘控件放进内容区就正常显示。
+
+### 15.2 现方案：隐藏 HDS 标题栏 + 自绘紧凑顶栏
+- `SystemSettings.ets`：`.hideTitleBar(true)`，内容外层包 `Column`
+  = `SettingsTopBar()` + 原双栏/单列分支（分支改 `layoutWeight(1)`，不再用 `height('100%')`）。
+- `SettingsTopBar()`（新增 `@Builder`）：返回(`sys.symbol.arrow_left` + `router.back()`)、
+  标题 15fp、刷新(`arrow_counterclockwise` → `restoreDefaults()`)，按钮 32vp / 圆角 16，
+  底色 `navigationControlBackground()`(#30FFFFFF)，高 40vp。
+  **返回键必须自绘**：隐藏标题栏后 HDS 自带的返回键一并消失，不自绘就出不去。
+- 顶部让位改为 `状态栏安全距(statusBarHeightVp) + 40vp 实栏 + 6vp`；
+  单列分支的 `SettingsList(840, true)` 改 `SettingsList(840)`（不再插标题避让 Blank）。
+- 底部维持 `Math.max(8, navBarInsetVp)`，无黑边。
+
+**真机量化**（`hdc shell uitest dumpLayout -p /data/local/tmp/layout.json`，屏 2848×1276，密度 3.5 → 813×365vp）：
+| 元素 | bounds(px) | 换算 |
+|---|---|---|
+| `settings-top-bar` | [0,0][2848,140] | 0–40vp，满宽 |
+| `settings-back-button` | [49,14][161,126] | 32vp 圆钮，距左 14vp |
+| `system-settings-list` | [840,161][2799,1248] | 内容起点 46vp，底边距 8vp |
+
+内容起点从 56vp 提到 46vp；`statusBarHeightVp` 实测 0（沉浸式全屏，挖孔在左侧）。
+**`uitest dumpLayout` 是验证"当前跑的是不是新构建"的可靠手段**：按 `.id()` 反查控件树，
+比截图比对靠谱（截图会被时间像素干扰，历史上吃过亏）。
+
+### 15.3 横屏信息密度（用户："横屏看到的内容太少了"）
+横屏可用高度只有 ~365vp，原来按竖屏密度给值，一屏只放得下两三个设置。
+新增**单一开关** `compactDensity()`（= `useSideBySideSettings()`，即横屏双栏），
+其余间距全部走 helper，竖屏/窄屏自动维持原样：
+
+| 项 | 原值 | 横屏新值 | helper |
+|---|---|---|---|
+| 卡片内边距 | 22 | 14 | `cardPadding()` |
+| 区块内元素间距 | 16 | 10 | `blockSpace()` |
+| 区块/列表项间距 | 14 | 10 | `sectionSpace()` |
+| 整行选项按钮高 | 48 | 40 | `choiceHeight()` |
+| 开关行上下内边距 | 13 | 10 | `switchRowPadding()` |
+
+注意：**只改圆角 14 的整行按钮**；`.width(48).height(48).borderRadius(16)` 是图标方块，
+批量替换时不能碰（否则变矩形/椭圆）。替换脚本模式：`.height(48).borderRadius(14)`。
+
+### 15.4 底栏配色对齐（用户："他自己黑黑的很奇怪"、"换成搜索框里的灰色"）
+- 底栏原用 `app.color.card_glass_background`(#E61A1A20，90% 不透明深黑) + `COMPONENT_THICK` 模糊，
+  压在暗色页面上就是一块黑板。
+- 第一版换成设置页框那种半透明玻璃(`#3A202833`) —— 用户仍反馈偏黑（**透明度只 23%，背后是暗色，等于没变**）。
+- 终版：`app.color.search_background`(#CC1F1F26，与顶栏搜索框、设置页灰行/灰按钮同资源)
+  **并去掉 `backgroundBlurStyle`** —— 搜索框是实心色块，底栏若保留模糊会把背后暗色再叠进来，灰度对不上。
+  描边统一 `#18FFFFFF`。
+- 经验：**"换成某处的颜色"要连材质(模糊/透明度)一起对齐**，只抄色值往往看着还是不一样。
+
+### 15.5 顺带验证
+- 设置页横屏方向策略仍生效：hilog `WMSRotation: HandleSetOrientationCommon: winId: 372 policy has taken effect`
+  （`DeviceCapabilityPolicy.applyLauncherLandscapeRotation` 在 `restoreSettingsWindowChrome` 里）。
+- 自绘返回键点击后正常回到库页（`uinput -T -d/-u` 注入点击可用）。
+
+UI 分支 HEAD `ccd26a2`。
