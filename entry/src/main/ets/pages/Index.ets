@@ -610,6 +610,16 @@ struct Index {
     return this.usesDarkAppearance() ? '#30FFFFFF' : '#28FFFFFF';
   }
 
+  /**
+   * 悬浮玻璃容器底色: 与设置页左右框 (SystemSettings.groupSurfaceColor) 同款,
+   * 半透明灰叠在模糊层上。底栏原用 90% 不透明的 #1A1A20, 在暗色页面上就是
+   * 一块死黑, 和设置页那种灰色玻璃对不上 (用户反馈"他自己黑黑的很奇怪")。
+   */
+  private groupSurfaceColor(): string | Resource {
+    if (!this.settings.useGlassEffect) return $r('app.color.card_background');
+    return this.usesDarkAppearance() ? '#3A202833' : '#DDF5F9FD';
+  }
+
   private navigationTitleColor(): string {
     return this.usesDarkAppearance() ? '#F4F7FB' : '#182431';
   }
@@ -2231,7 +2241,7 @@ struct Index {
         }, (tab: Record<string, Resource | string>) => tab.value as string)
       }
       .padding({ left: 6, right: 6, top: 5, bottom: 5 })
-      .backgroundColor($r('app.color.card_glass_background'))
+      .backgroundColor(this.groupSurfaceColor())
       .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
       .border({ width: 1, color: '#20FFFFFF' })
       .borderRadius(24)
