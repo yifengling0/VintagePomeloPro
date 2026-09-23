@@ -297,10 +297,9 @@ struct SystemSettingsPage {
   }
 
   private navigationControlBackground(): string {
-    // 设置页左上返回 / 右上刷新按钮: 尺寸由 HDS 组件固定
-    // (HdsNavigationIconItemStyle 只暴露颜色, 无尺寸字段), 因此改为**去掉圆底**,
-    // 只保留图标 —— 视觉体积最小化, 点击热区不变 (用户反馈"太大")。
-    return '#00000000';
+    // 保留原灰底: 它与左右两个内容框的背景材质保持一致 (用户明确要求
+    // 不要去掉, 只是按钮视觉尺寸与主页对齐 —— 尺寸由 HDS 组件固定)。
+    return this.usesDarkAppearance() ? '#30FFFFFF' : '#28FFFFFF';
   }
 
   private navigationTitleColor(): string {
@@ -2402,8 +2401,10 @@ struct SystemSettingsPage {
     .height('100%')
     .constraintSize({ maxWidth: maxWidth })
     .padding({
-      right: this.isNarrowPhone() ? 0 : 10,
-      bottom: Math.max(this.isNarrowPhone() ? 28 : 16, this.navBarInsetVp)
+      // 外层已包容器框并给了 padding, 这里不再叠加右侧/底部内边距
+      // (叠加会让卡片超出容器右边缘, 视觉上被裁)。
+      right: 0,
+      bottom: 0
     })
     .scrollBar(BarState.Off)
     .edgeEffect(EdgeEffect.Spring)
@@ -2458,13 +2459,14 @@ struct SystemSettingsPage {
             .width(this.breakpoint === 'xl' ? 224 : 204)
             .height('100%')
             .padding({ left: 8, right: 8, top: 12, bottom: 12 })
-            .backgroundColor(this.groupSurfaceColor())
-            .backgroundBlurStyle(this.settings.useGlassEffect ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
-            .border({ width: 1, color: this.groupBorderColor() })
-            .borderRadius(20)
-            // 裁剪: 分类列表滚动时内容不能溢出到圆角外 (用户反馈"都穿了")。
+            // 去掉外框: 右侧是"区块卡片列表", 左侧若自带一个完整圆角框,
+            // 两栏观感不同构 (用户反馈"左右不统一")。改为裸列表 + 选中项高亮,
+            // 与右侧的卡片列表形成一致的列表观感。
             .clip(true)
             .hitTestBehavior(HitTestMode.Default)
+            // 右侧保持裸列表 (区块卡片自带样式): 若这里再包一层容器框,
+            // 会与内部卡片形成"框中框", 观感很怪 (用户反馈)。
+            // 两栏的视觉统一改由"左侧也不带外框"实现 (见上)。
             this.SettingsList(this.settingsContentMaxWidth())
           }
           .width('100%').height('100%')
