@@ -4,6 +4,16 @@
 
 基线：WineHua `VintagePomeloMaster` @ `ba7218a`
 
+### 2026-09-23 繁體中文 locale/字体回退 + 版本 1.4.1（1004001）
+
+- 功能：修复 `zh_TW` 在 NAPI 启动桥接白名单中被丢弃的问题，并补齐 OHOS Wine 对
+  `C.UTF-8`、ACP 950、繁中字族回退和 Wine prefix 字体扫描的处理。
+- 主工程 PR：[VintagePomeloPro #100](https://github.com/yifengling0/VintagePomeloPro/pull/100)。
+- Wine 上游 PR：[WineHua #9](https://github.com/winehua/wine/pull/9)。
+- 版本：**1.4.1（1004001）**。
+- 验证：平板日志确认 Wine 收到 `LANG=zh_TW.UTF-8` 与 `LC_ALL=zh_TW.UTF-8`；Wine 上游
+  master 构建和游戏画面回归仍待完成。
+
 ### 2026-09-18 Wine 内核语言新增繁體中文 + 版本 1.4.0（1004000）
 
 - 分支：产品线 `sync/winehua-pad-fusion-inline`。
