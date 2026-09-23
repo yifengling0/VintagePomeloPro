@@ -2238,15 +2238,14 @@ struct Index {
     .width('100%')
     .padding({ top: 8, bottom: 68 })
     .onDidScroll((): void => {
-      const x = this.safeRingOffset();
-      this.ringOffset = x;
-      // 滚动中仅在**真正贴近数据边界**时兜底跳转 (阈值 2 格),
-      // 避免频繁跳转打断惯性造成"划到头卡一下"。
-      this.recycleRingIfNeeded(x, true);
+      // 滚动中只同步偏移 (驱动逐卡变换), 不做 scrollTo 跳转 ——
+      // 滚动中调用 scrollTo 会重入 onDidScroll, 快速滑动时递归导致闪退。
+      this.ringOffset = this.safeRingOffset();
     })
     .onScrollStop((): void => {
-      // 松手后先做等价跳转 (无惯性, 完全无感), 再吸附焦点。
-      this.recycleRingIfNeeded(this.safeRingOffset(), false);
+      // 松手后 (无惯性) 做等价跳转 + 吸附: 跳转前后内容逐格等价, 视觉无感。
+      const x = this.safeRingOffset();
+      this.recycleRingIfNeeded(x);
       this.ringOffset = this.safeRingOffset();
       this.snapRingToNearest();
     })
@@ -2258,15 +2257,33 @@ struct Index {
     return this.ringEnabled() ? this.visibleApps.length : 0;
   }
 
-  /** 安全读取当前横向偏移 (scroller 未就绪时返回上一已知值)。 */
+  /** 安全读取当前横向偏移 (未就绪/异常值返回上一已知值)。 */
   private safeRingOffset(): number {
     try {
       const offset = this.ringScroller.currentOffset();
-      if (offset && typeof offset.xOffset === 'number') return offset.xOffset;
+      const v = offset ? offset.xOffset : NaN;
+      // isFinite 而非 typeof: NaN 的 typeof 也是 'number', 放过去会一路传到
+      // scrollTo({xOffset: NaN}) 在原生层崩溃 (快速滑动的闪退根因)。
+      if (typeof v === 'number' && isFinite(v)) return v;
     } catch (_) {
       // 未绑定或未就绪
     }
     return this.ringOffset;
+  }
+
+  /** 安全的横向滚动: 过滤 NaN/Infinity 并钳制到 [0, 内容宽 - 视口宽]。 */
+  private safeScrollTo(xOffset: number): void {
+    if (typeof xOffset !== 'number' || !isFinite(xOffset)) return;
+    const cell = this.ringCellWidth();
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
+    const max = Math.max(0, this.ringApps().length * cell - viewport);
+    const clamped = Math.max(0, Math.min(max, xOffset));
+    try {
+      this.ringScroller.scrollTo({ xOffset: clamped, yOffset: 0, animation: false });
+      this.ringOffset = clamped;
+    } catch (_) {
+      // 容器未就绪时忽略。
+    }
   }
 
   /**
@@ -2359,45 +2376,38 @@ struct Index {
    * `conservative=true` (滚动中) 时只在贴近边界 (2 格内) 才跳, 避免打断惯性;
    * `false` (松手后) 用同样的保守阈值, 此时无惯性, 跳转绝对无感。
    */
-  private recycleRingIfNeeded(xOffset: number, conservative: boolean): void {
+  private recycleRingIfNeeded(xOffset: number): void {
     if (!this.ringEnabled()) return;
+    if (typeof xOffset !== 'number' || !isFinite(xOffset)) return;
     const n = this.visibleApps.length;
     const cell = this.ringCellWidth();
     const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
     const span = n * cell;
     const margin = cell * 2;
-    let target = -1;
+    let delta = 0;
     if (xOffset < margin) {
-      target = xOffset + span;
+      delta = span;
     } else if (xOffset > 3 * span - viewport - margin) {
-      target = xOffset - span;
+      delta = -span;
     }
-    if (target < 0) return;
-    try {
-      const offset = this.ringScroller.currentOffset();
-      const current = offset && typeof offset.xOffset === 'number' ? offset.xOffset : xOffset;
-      this.ringScroller.scrollTo({ xOffset: current + (target - xOffset), yOffset: 0, animation: false });
-      this.ringOffset = current + (target - xOffset);
-    } catch (_) {
-      // 容器未就绪时忽略。
-    }
+    if (delta === 0) return;
+    this.safeScrollTo(xOffset + delta);
   }
 
   /** 松手后吸附: 让某张卡正好落在视口中心 (焦点位恒定)。 */
   private snapRingToNearest(): void {
     const cell = this.ringCellWidth();
     const viewport = this.viewportWidth > 0 ? this.viewportWidth : 813;
-    const nearest = Math.round((this.ringOffset + viewport / 2 - cell / 2) / cell);
-    const target = Math.max(0, nearest * cell - viewport / 2 + cell / 2);
-    if (Math.abs(target - this.ringOffset) < 1) {
+    const offset = this.ringOffset;
+    if (typeof offset !== 'number' || !isFinite(offset)) return;
+    const nearest = Math.round((offset + viewport / 2 - cell / 2) / cell);
+    if (!isFinite(nearest)) return;
+    const target = nearest * cell - viewport / 2 + cell / 2;
+    if (Math.abs(target - offset) < 1) {
       this.syncRingFocus();
       return;
     }
-    try {
-      this.ringScroller.scrollTo({ xOffset: target, yOffset: 0, animation: true });
-    } catch (_) {
-      // 忽略
-    }
+    this.safeScrollTo(target);
     this.syncRingFocus();
   }
 
@@ -2425,8 +2435,12 @@ struct Index {
     const start = this.ringEnabled() ? this.visibleApps.length : 0;
     this.ringOffset = start * this.ringCellWidth();
     setTimeout((): void => {
+      // 钳制到合法范围: 数据刚变化时索引可能越界, 直接 scrollToIndex 会原生崩。
+      const count = this.ringApps().length;
+      if (count === 0) return;
+      const safe = Math.max(0, Math.min(count - 1, start));
       try {
-        this.ringScroller.scrollToIndex(start, false);
+        this.ringScroller.scrollToIndex(safe, false);
       } catch (_) {
         // 忽略
       }
@@ -2438,13 +2452,16 @@ struct Index {
 
   /** 点到非中心卡: 把它滚到视口中心 (成为焦点)。 */
   private selectRingIndex(index: number): void {
+    const count = this.ringApps().length;
+    if (count === 0) return;
+    const safe = Math.max(0, Math.min(count - 1, Math.round(index)));
     try {
-      this.ringScroller.scrollToIndex(index, true, ScrollAlign.CENTER);
+      this.ringScroller.scrollToIndex(safe, true, ScrollAlign.CENTER);
     } catch (_) {
       // 忽略
     }
     const n = Math.max(1, this.visibleApps.length);
-    this.ringIndex = ((index % n) + n) % n;
+    this.ringIndex = ((safe % n) + n) % n;
     this.ambientAppId = this.visibleApps[this.ringIndex].id;
     this.selectedAppId = '';
   }
