@@ -115,6 +115,8 @@ struct Index {
   @State private detailSheetVisible: boolean = false;
   /** 氛围背景: 最近启动/查看的游戏 id — STANDARD 模式下取其美术做模糊铺底。 */
   @State private ambientAppId: string = '';
+  /** 横向封面流焦点: 最靠近视口中心的卡片索引 (缩放 + 驱动氛围背景)。 */
+  @State private focusedIndex: number = 0;
   @State private sortMode: SortMode = SortMode.RECENT;
   @State private clockText: string = '';
   @State private batteryText: string = '';
@@ -830,6 +832,8 @@ struct Index {
     try {
       this.apps = await AppCatalogService.getInstance().scan();
       this.refreshRunningState();
+      // 首次/重扫描后建立初始焦点, 氛围背景立即有内容 (空库时为空, 无副作用)。
+      this.resetCoverFlowFocus();
     } finally {
       this.scanning = false;
     }
@@ -955,6 +959,8 @@ struct Index {
     this.filter = value;
     this.visibleApps = this.filterApps(this.searchQuery, value);
     setTimeout((): void => this.restoreScrollOffset(value), 0);
+    // 切换分类后焦点回到首张, 氛围背景随之一致 (避免沿用上个分类的游戏)。
+    this.resetCoverFlowFocus();
     if (syncPhoneNavigation && this.isPhone()) {
       const index = this.phoneNavIndexForFilter(value);
       if (index !== this.phoneNavIndex) {
@@ -1252,6 +1258,12 @@ struct Index {
     if (app.backgroundPath && app.backgroundPath.length > 0) return app.backgroundPath;
     if (app.coverPath && app.coverPath.length > 0) return app.coverPath;
     return '';
+  }
+
+  /** 裸文件路径 -> Image 可加载的 file:// URI (幂等)。 */
+  private ambientSource(path: string): string {
+    if (path.length === 0) return '';
+    return path.startsWith('file://') ? path : 'file://' + path;
   }
 
   private closeDetailSheet(): void {
@@ -1575,7 +1587,7 @@ struct Index {
   }
 
   @Builder
-  private CatalogCard(app: AppDescriptor) {
+  private CatalogCard(app: AppDescriptor, focused: boolean = false) {
     AppCard({
       app: app,
       viewMode: this.catalogCardViewMode(),
@@ -1585,6 +1597,7 @@ struct Index {
       useGlassEffect: this.settings.useGlassEffect,
       narrowPhone: this.isPhone(),
       lastPlayedText: this.getLastPlayedText(app.id),
+      focused: focused,
       onLaunch: (target: AppDescriptor): void => { this.launch(target); },
       onSettings: (target: AppDescriptor): void => { this.openAppSettings(target); },
       onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); }
@@ -2176,9 +2189,9 @@ struct Index {
       // 卡片行垂直居中于顶部工具栏与底部悬浮栏之间 (用户定案)。
       // 底部 padding 把悬浮导航栏的高度从居中盒里扣除, 保证视觉居中偏上不多占。
       Row({ space: 6 }) {
-        ForEach(this.visibleApps, (app: AppDescriptor): void => {
+        ForEach(this.visibleApps, (app: AppDescriptor, index: number): void => {
           Column() {
-            this.CatalogCard(app)
+            this.CatalogCard(app, index === this.focusedIndex)
           }
           .width(this.coverTileWidthVp())
           .padding({ top: 3, bottom: 8 })
@@ -2193,7 +2206,36 @@ struct Index {
     .scrollBar(BarState.Off)
     .layoutWeight(1)
     .width('100%')
+    // 焦点追踪: 滚动时算"最靠近视口中心的卡片", 驱动焦点放大与氛围背景。
+    .onDidScroll((xOffset: number): void => {
+      this.updateCoverFlowFocus(xOffset);
+    })
     .id('library-coverflow-scroll-' + this.filter)
+  }
+
+  /**
+   * 由横向滚动量算出焦点卡片: 视口中心所在的瓦片即焦点。
+   * 焦点卡放大 (AppCard.focused) 并让其美术成为氛围背景 (P1) —
+   * 两者共用同一个索引, 保证视觉主体与背景始终一致。
+   */
+  private updateCoverFlowFocus(xOffset: number): void {
+    if (this.visibleApps.length === 0) return;
+    const unit = Math.round(this.coverWallHeight() * 0.75) + 6;
+    const viewport = this.viewportWidth > 0 ? this.viewportWidth : 800;
+    const center = xOffset + viewport / 2 - 3;
+    const index = Math.floor(center / unit);
+    const clamped = Math.max(0, Math.min(this.visibleApps.length - 1, index));
+    if (clamped === this.focusedIndex) return;
+    this.focusedIndex = clamped;
+    this.ambientAppId = this.visibleApps[clamped].id;
+  }
+
+  /** 焦点回到首张并把氛围背景同步为该卡片 (分类切换/重扫描后调用)。 */
+  private resetCoverFlowFocus(): void {
+    this.focusedIndex = 0;
+    if (this.visibleApps.length > 0) {
+      this.ambientAppId = this.visibleApps[0].id;
+    }
   }
 
   @Builder
@@ -2280,18 +2322,24 @@ struct Index {
           .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
           .id('library-page-background')
       }
-      // 氛围背景 — STANDARD 模式下用最近互动游戏的美术做重度模糊铺底 (Steam Big Picture 式沉浸感)。
-      // 位于用户自定义背景之后、内容之前; 用户手动背景开启时本层被其遮盖, 优先级自然让位。
+      // 氛围背景 — STANDARD 模式下用焦点游戏的美术做重度模糊铺底
+      // (主机/掌机风格: 背景随焦点卡片变化)。位于用户自定义背景之后、内容之前;
+      // 用户手动背景开启时本层被其遮盖, 优先级自然让位。
       if (this.settings.layoutMode === LayoutMode.STANDARD && this.ambientAppId.length > 0) {
         Stack() {
           if (this.getAmbientBackgroundPath().length > 0) {
-            Image(this.getAmbientBackgroundPath())
+            // 裸路径必须补 file:// 前缀, 否则 Image 静默加载失败 (详情页同款坑)。
+            Image(this.ambientSource(this.getAmbientBackgroundPath()))
               .width('100%').height('100%')
               .objectFit(ImageFit.Cover)
-              .blur(50)
-              .opacity(0.3)
+              .blur(60)
+              .opacity(0.45)
               .draggable(false)
           }
+          // 暗化遮罩: 压住背景保证前景文字/卡片对比度 (暗色系基座)。
+          Column()
+            .width('100%').height('100%')
+            .backgroundColor('#8C0B0B0F')
         }
         .width('100%').height('100%')
         .hitTestBehavior(HitTestMode.None)
@@ -2364,20 +2412,21 @@ struct Index {
         Stack() {
           Column() {
             if (this.detailSheetApp!.backgroundPath && this.detailSheetApp!.backgroundPath.length > 0) {
-              Image(this.detailSheetApp!.backgroundPath)
+              Image(this.ambientSource(this.detailSheetApp!.backgroundPath))
                 .width('100%').height('100%')
                 .objectFit(ImageFit.Cover)
-                .opacity(0.4)
+                .blur(30)
+                .opacity(0.5)
             } else if (this.detailSheetApp!.coverPath.length > 0) {
-              Image(this.detailSheetApp!.coverPath)
+              Image(this.ambientSource(this.detailSheetApp!.coverPath))
                 .width('100%').height('100%')
                 .objectFit(ImageFit.Cover)
                 .blur(60)
-                .opacity(0.3)
+                .opacity(0.4)
             }
           }
           .width('100%').height('100%')
-          .backgroundColor('#CC000000')
+          .backgroundColor('#CC0B0B0F')
 
           GameDetailSheet({
             app: this.detailSheetApp!,
@@ -2410,10 +2459,10 @@ struct Index {
     }
     .width('100%').height('100%')
     .linearGradient({
+      // 全局暗色基座 (主机/掌机风格): 近黑中性渐变, 只留极弱层次;
+      // 氛围背景层叠在其上, 无氛围时也不出现亮底。
       angle: 135,
-      colors: this.usesDarkAppearance()
-        ? [['#1E1830', 0], ['#2A2040', 0.5], ['#332850', 1]]
-        : [['#F0EBF5', 0], ['#E0D5ED', 0.5], ['#D4C5E8', 1]]
+      colors: [['#0B0B0F', 0], ['#121218', 0.5], ['#17171F', 1]]
     })
     .onAreaChange((_oldValue: Area, area: Area): void => {
       this.viewportWidth = area.width as number;

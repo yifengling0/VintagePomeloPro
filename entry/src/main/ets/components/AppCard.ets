@@ -12,6 +12,8 @@ export struct AppCard {
   @Prop useGlassEffect: boolean = true;
   @Prop narrowPhone: boolean = false;
   @Prop lastPlayedText: string = '';
+  /** 横向封面流的焦点卡 (最靠近视口中心): 视觉放大浮起, 主机式焦点反馈。 */
+  @Prop focused: boolean = false;
   @State private pressed: boolean = false;
   /** exe 内嵌图标 (PE .rsrc 提取, 落盘缓存) — 无自定义封面时的卡面主视觉。 */
   @State private iconPath: string = '';
@@ -389,12 +391,21 @@ export struct AppCard {
     .width('100%')
     .height(this.coverWallHeight)
     .borderRadius(14)
-    .border({ width: 1, color: '#20FFFFFF' })
+    // 焦点卡用 accent 描边 + 更强投影, 与相邻卡片明确区分 (主机式焦点反馈)。
+    .border({ width: this.focused ? 2 : 1, color: this.focused ? '#A78BFA' : '#20FFFFFF' })
     .clip(true)
-    .shadow({ radius: 12, color: '#26000000', offsetX: 0, offsetY: 5 })
+    .shadow(this.focused
+      ? { radius: 28, color: '#99000000', offsetX: 0, offsetY: 12 }
+      : { radius: 12, color: '#26000000', offsetX: 0, offsetY: 5 })
     .opacity(this.app.available ? 1 : 0.62)
-    .scale({ x: this.pressed ? 0.97 : 1, y: this.pressed ? 0.97 : 1 })
-    .animation({ duration: 150, curve: Curve.EaseOut })
+    // 焦点放大只做视觉缩放 (scale 不改布局), 卡片在 Row 内位置稳定;
+    // zIndex 提到相邻卡片之上, 放大后不被压住。
+    .scale({
+      x: this.pressed ? 0.97 : (this.focused ? 1.14 : 1),
+      y: this.pressed ? 0.97 : (this.focused ? 1.14 : 1)
+    })
+    .zIndex(this.focused ? 2 : 1)
+    .animation({ duration: 180, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => this.handleCardTouch(event))
     .onClick(() => this.onLaunch(this.app))
     .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))

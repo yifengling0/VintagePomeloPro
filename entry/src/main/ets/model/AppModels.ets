@@ -1099,7 +1099,7 @@ export function createDefaultGlobalSettings(): GlobalSettings {
     desktopInputProfileId: 'default',
     viewMode: ViewMode.COVER,
     layoutMode: LayoutMode.STANDARD,
-    themeMode: ThemeMode.SYSTEM,
+    themeMode: ThemeMode.DARK,
     useGlassEffect: true,
     usePageBackground: false,
     pageBackgroundUri: '',
