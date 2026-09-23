@@ -610,16 +610,6 @@ struct Index {
     return this.usesDarkAppearance() ? '#30FFFFFF' : '#28FFFFFF';
   }
 
-  /**
-   * 悬浮玻璃容器底色: 与设置页左右框 (SystemSettings.groupSurfaceColor) 同款,
-   * 半透明灰叠在模糊层上。底栏原用 90% 不透明的 #1A1A20, 在暗色页面上就是
-   * 一块死黑, 和设置页那种灰色玻璃对不上 (用户反馈"他自己黑黑的很奇怪")。
-   */
-  private groupSurfaceColor(): string | Resource {
-    if (!this.settings.useGlassEffect) return $r('app.color.card_background');
-    return this.usesDarkAppearance() ? '#3A202833' : '#DDF5F9FD';
-  }
-
   private navigationTitleColor(): string {
     return this.usesDarkAppearance() ? '#F4F7FB' : '#182431';
   }
@@ -2241,9 +2231,12 @@ struct Index {
         }, (tab: Record<string, Resource | string>) => tab.value as string)
       }
       .padding({ left: 6, right: 6, top: 5, bottom: 5 })
-      .backgroundColor(this.groupSurfaceColor())
-      .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
-      .border({ width: 1, color: '#20FFFFFF' })
+      // 与顶栏搜索框同款灰 (app.color.search_background): 底栏原用
+      // #E61A1A20(90% 不透明深黑) 压在暗色页面上就是一块黑板 (用户反馈)。
+      // 这里连背景模糊一起去掉 —— 搜索框是实心色块, 底栏若保留
+      // COMPONENT_THICK 模糊会把背后的暗色再叠进来, 灰度对不上。
+      .backgroundColor($r('app.color.search_background'))
+      .border({ width: 1, color: '#18FFFFFF' })
       .borderRadius(24)
       .shadow({ radius: 14, color: '#26000000', offsetX: 0, offsetY: 5 })
       .id('library-bottom-float-bar')
