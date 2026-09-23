@@ -84,8 +84,14 @@ const RING_VISIBLE_COUNT: number = 5;
  * 配合 LazyForEach 只渲染可见项, 顺带解决了滑动卡顿。
  */
 class RingDataSource implements IDataSource {
-  /** 虚拟总长度: 按 5 格/屏、每格约 160vp 计, 10 万格远超任何手动滑动量。 */
-  static readonly VIRTUAL_TOTAL: number = 100000;
+  /**
+   * 虚拟总长度 (格数)。取值要兼顾两点:
+   * ① 足够大 —— 用户滑不到边界 (起点在中部, 往两边各约 1500 格,
+   *    单次滑动约 2~3 格, 相当于数百次滑动, 实际用不到);
+   * ② 不能太大 —— 偏移量 = 格数 × 每格宽, 10 万格时约 8,130,000vp,
+   *    超出浮点精度会让吸附/定位计算产生偏差 (实测导致循环中断)。
+   */
+  static readonly VIRTUAL_TOTAL: number = 3000;
   private listeners: DataChangeListener[] = [];
   private apps: AppDescriptor[] = [];
 
@@ -1021,6 +1027,9 @@ struct Index {
   }
 
   private selectFilter(value: CatalogFilter, syncPhoneNavigation: boolean = true): void {
+    // 点击当前已选中的分类不做任何事: 此前每次都重置定位, 连点同一个按钮
+    // 表现得像"刷新" (用户实测反馈)。
+    if (value === this.filter && this.catalogInitialized) return;
     this.captureScrollOffsets();
     this.filter = value;
     this.visibleApps = this.filterApps(this.searchQuery, value);
@@ -2299,8 +2308,7 @@ struct Index {
     .width('100%')
     .padding({ top: 8, bottom: 68 })
     .onDidScroll((): void => {
-      // 初始定位期间忽略上报: List 会先报一次 offset=0, 会把 ringOffset 冲成 0
-      // 导致所有卡片被算成"远离中心"而缩小 (实测)。
+      // 定位期间忽略上报 (List 会先报 offset=0, 会把 ringOffset 冲成 0)。
       if (this.ringLocating) return;
       this.ringOffset = this.safeRingOffset();
     })
@@ -2352,7 +2360,11 @@ struct Index {
   }
   /** 无限数据源 (LazyForEach 用): 索引按 n 取模映射到真实游戏。 */
   private ringData: RingDataSource = new RingDataSource();
-  /** 初始定位门控: 定位完成前忽略 onDidScroll (避免把偏移冲成 0)。 */
+  /**
+   * 定位门控: 数据 reload 后的重新定位期间, 忽略 onDidScroll 上报 ——
+   * List 会先报一次 offset=0, 把 ringOffset 冲成 0 会让所有卡片被算成
+   * "远离中心"而缩小 (刷新/切分类后"全缩小的鬼样子"就是这个)。
+   */
   private ringLocating: boolean = true;
 
   /** 可见列表变化后同步数据源 (不在 build 内触发)。 */
@@ -2473,7 +2485,14 @@ struct Index {
     // 与 scrollToIndex(CENTER) 对齐一致的期望偏移 (居中项 = 第一个游戏)。
     this.ringOffset = start * cell + cell / 2 - viewport / 2;
     this.ringLocating = true;
-    setTimeout((): void => {
+    const expected = this.ringOffset;
+    let attempts = 0;
+    // 带成功判据的重试定位: 刷新/切分类时 LazyForEach 正在重建数据, 一次性
+    // scrollToIndex 会在数据就绪前调用而**静默失败** (List 停在 0, ringOffset
+    // 却是期望值 → 所有卡片被算成"远离中心"而缩小, 即"刷新后全缩小的鬼样子")。
+    // 以"实际偏移是否到位"为判据反复重试, 不靠定时器猜时长。
+    const tryLocate = (): void => {
+      attempts++;
       const count = this.ringData.totalCount();
       if (count === 0) {
         this.ringLocating = false;
@@ -2483,14 +2502,17 @@ struct Index {
       try {
         this.ringScroller.scrollToIndex(safe, false, ScrollAlign.CENTER);
       } catch (_) {
-        // 忽略
+        // 容器未就绪, 下一轮重试
       }
-      // 定位完成后解除门控, 并以真实偏移校准一次 (此后由 onDidScroll 接管)。
-      setTimeout((): void => {
-        this.ringOffset = this.safeRingOffset();
+      const actual = this.safeRingOffset();
+      if (Math.abs(actual - expected) <= cell || attempts >= 12) {
+        this.ringOffset = actual;
         this.ringLocating = false;
-      }, 180);
-    }, 0);
+        return;
+      }
+      setTimeout(tryLocate, 80);
+    };
+    setTimeout(tryLocate, 40);
     if (this.visibleApps.length > 0) {
       this.ambientAppId = this.visibleApps[0].id;
     }
