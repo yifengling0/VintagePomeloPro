@@ -2433,67 +2433,117 @@ struct SystemSettingsPage {
     .id('system-settings-list')
   }
 
+  /**
+   * 自绘紧凑顶栏。HDS 标题栏已整条隐藏 (hideTitleBar), 返回/刷新/标题
+   * 全部由本栏绘制: 高度只有 HDS MINI 标题栏 (56vp) 的一半多一点, 按钮
+   * 也比 HDS 默认小一圈, 顶部不再留一条空白黑带。
+   */
+  @Builder
+  private SettingsTopBar() {
+    Row({ space: 8 }) {
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph($r('sys.symbol.arrow_left')).fontSize(16)
+          .fontColor([$r('app.color.text_primary')])
+      }
+      .width(32).height(32)
+      .backgroundColor(this.navigationControlBackground())
+      .border({ width: 1, color: this.groupBorderColor() })
+      .borderRadius(16)
+      .onClick((): void => { router.back(); })
+      .id('settings-back-button')
+
+      Text('系统设置').fontSize(15).fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+
+      Blank()
+
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph($r('sys.symbol.arrow_counterclockwise')).fontSize(16)
+          .fontColor([$r('app.color.text_primary')])
+      }
+      .width(32).height(32)
+      .backgroundColor(this.navigationControlBackground())
+      .border({ width: 1, color: this.groupBorderColor() })
+      .borderRadius(16)
+      .onClick((): void => { this.restoreDefaults(); })
+      .id('settings-reset-button')
+    }
+    .width('100%')
+    .height(40)
+    .padding({ left: this.settingsSidePadding(), right: this.settingsSidePadding() })
+    .id('settings-top-bar')
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       HdsNavigation() {
-        if (this.useSideBySideSettings()) {
-          Row({ space: 22 }) {
-            Column() {
-              Text('设置分类').fontSize(12).fontWeight(FontWeight.Medium)
-                .fontColor($r('app.color.text_secondary')).width('100%').margin({ left: 8, bottom: 4 })
-              // 分类列表可滚动: 横屏高度有限 (7 个分类已按 38vp 收紧,
-              // 更矮的窗口/更大字体下仍能滚到底, 不再被裁切)。
-              Scroll() {
-                Column({ space: 3 }) {
-                  this.SectionButton('显示模式', 'display', $r('sys.symbol.rectangle_grid_1x2'))
-                  this.SectionButton('外观', 'appearance', $r('sys.symbol.square_grid_2x2'))
-                  this.SectionButton('输入与手柄', 'input', $r('sys.symbol.gamecontroller'))
-                  this.SectionButton('Wine 引擎', 'engine', $r('sys.symbol.arrow_clockwise'))
-                  this.SectionButton('性能监控', 'performance', $r('sys.symbol.bolt'))
-                  this.SectionButton('日志', 'logs', $r('sys.symbol.doc_text'))
-                  this.SectionButton('关于', 'about', $r('sys.symbol.info_circle'))
+        // HDS 标题栏已隐藏 (见下方 hideTitleBar), 顶部改由自绘顶栏 + 状态栏
+        // 安全距构成: 原来 56vp(HDS MINI 标题) 的空白黑带被收到 40vp 的实栏。
+        Column() {
+          this.SettingsTopBar()
+          if (this.useSideBySideSettings()) {
+            Row({ space: 22 }) {
+              Column() {
+                Text('设置分类').fontSize(12).fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.text_secondary')).width('100%').margin({ left: 8, bottom: 4 })
+                // 分类列表可滚动: 横屏高度有限 (7 个分类已按 38vp 收紧,
+                // 更矮的窗口/更大字体下仍能滚到底, 不再被裁切)。
+                Scroll() {
+                  Column({ space: 3 }) {
+                    this.SectionButton('显示模式', 'display', $r('sys.symbol.rectangle_grid_1x2'))
+                    this.SectionButton('外观', 'appearance', $r('sys.symbol.square_grid_2x2'))
+                    this.SectionButton('输入与手柄', 'input', $r('sys.symbol.gamecontroller'))
+                    this.SectionButton('Wine 引擎', 'engine', $r('sys.symbol.arrow_clockwise'))
+                    this.SectionButton('性能监控', 'performance', $r('sys.symbol.bolt'))
+                    this.SectionButton('日志', 'logs', $r('sys.symbol.doc_text'))
+                    this.SectionButton('关于', 'about', $r('sys.symbol.info_circle'))
+                  }
+                  .width('100%')
                 }
+                .layoutWeight(1)
                 .width('100%')
+                .scrollBar(BarState.Off)
+                .id('settings-section-scroll')
               }
-              .layoutWeight(1)
-              .width('100%')
-              .scrollBar(BarState.Off)
-              .id('settings-section-scroll')
+              .width(this.breakpoint === 'xl' ? 224 : 204)
+              .height('100%')
+              .padding({ left: 8, right: 8, top: 12, bottom: 12 })
+              // 左栏保留容器框 (用户偏好, 与页面卡片材质一致)。
+              .backgroundColor(this.groupSurfaceColor())
+              .backgroundBlurStyle(this.settings.useGlassEffect ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
+              .border({ width: 1, color: this.groupBorderColor() })
+              .borderRadius(20)
+              .clip(true)
+              .hitTestBehavior(HitTestMode.Default)
+              // 右侧保持裸列表 (区块卡片自带样式): 若这里再包一层容器框,
+              // 会与内部卡片形成"框中框", 观感很怪 (用户反馈)。
+              // 两栏的视觉统一改由"左侧也不带外框"实现 (见上)。
+              this.SettingsList(this.settingsContentMaxWidth())
             }
-            .width(this.breakpoint === 'xl' ? 224 : 204)
-            .height('100%')
-            .padding({ left: 8, right: 8, top: 12, bottom: 12 })
-            // 左栏保留容器框 (用户偏好, 与页面卡片材质一致)。
-            .backgroundColor(this.groupSurfaceColor())
-            .backgroundBlurStyle(this.settings.useGlassEffect ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
-            .border({ width: 1, color: this.groupBorderColor() })
-            .borderRadius(20)
-            .clip(true)
-            .hitTestBehavior(HitTestMode.Default)
-            // 右侧保持裸列表 (区块卡片自带样式): 若这里再包一层容器框,
-            // 会与内部卡片形成"框中框", 观感很怪 (用户反馈)。
-            // 两栏的视觉统一改由"左侧也不带外框"实现 (见上)。
-            this.SettingsList(this.settingsContentMaxWidth())
+            .width('100%').layoutWeight(1)
+            .alignItems(VerticalAlign.Top)
+            .padding({
+              left: this.settingsSidePadding(), right: this.settingsSidePadding(),
+              // 沉浸式: 底部只留安全区距 (原来固定 20vp, 视觉上就是一条大黑边)。
+              top: 6,
+              bottom: Math.max(8, this.navBarInsetVp)
+            })
+          } else {
+            Column() {
+              this.SettingsList(840)
+            }
+            .width('100%').layoutWeight(1)
+            .alignItems(HorizontalAlign.Start)
+            .padding({
+              left: this.settingsSidePadding(), right: this.settingsSidePadding(),
+              top: 0, bottom: Math.max(this.isNarrowPhone() ? 8 : 16, this.navBarInsetVp)
+            })
           }
-          .width('100%').height('100%')
-          .alignItems(VerticalAlign.Top)
-          .padding({
-            left: this.settingsSidePadding(), right: this.settingsSidePadding(),
-            // 沉浸式: 底部只留安全区距 (原来固定 20vp, 视觉上就是一条大黑边)。
-            top: this.settingsTopInset(),
-            bottom: Math.max(8, this.navBarInsetVp)
-          })
-        } else {
-          Column() {
-            this.SettingsList(840, true)
-          }
-          .width('100%').height('100%')
-          .alignItems(HorizontalAlign.Start)
-          .padding({
-            left: this.settingsSidePadding(), right: this.settingsSidePadding(),
-            top: 0, bottom: Math.max(this.isNarrowPhone() ? 8 : 16, this.navBarInsetVp)
-          })
         }
+        .width('100%').height('100%')
+        // 状态栏安全距: 沉浸式全屏下系统内容已隐藏/仅留挖孔, 实测多为 0;
+        // 非 0 时顶栏整体下移, 不会被状态栏图标压住。
+        .padding({ top: this.statusBarHeightVp })
       }
       .mode(NavigationMode.Stack)
       .titleBar({
@@ -2570,6 +2620,9 @@ struct SystemSettingsPage {
       })
     .titleMode(HdsNavigationTitleMode.MINI)
     .hideToolBar(true)
+    // 整条隐藏 HDS 标题栏: 它自带 56vp 高度 + 状态栏避让, 就是用户看到的
+    // "顶部宽黑边"。返回/刷新/标题已由 SettingsTopBar 自绘 (按钮也更小)。
+    .hideTitleBar(true)
     .systemBarStyle(
       { statusBarContentColor: this.navigationTitleColor() },
       { statusBarContentColor: this.navigationTitleColor() }
