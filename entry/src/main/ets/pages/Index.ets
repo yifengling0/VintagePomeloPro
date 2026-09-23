@@ -174,6 +174,10 @@ struct Index {
   @State private detailSheetVisible: boolean = false;
   /** 氛围背景: 最近启动/查看的游戏 id — STANDARD 模式下取其美术做模糊铺底。 */
   @State private ambientAppId: string = '';
+  /** 氛围背景交叉淡入: 当前图 / 上一张图 / 是否已完成淡入 (避免换图瞬间跳变)。 */
+  @State private ambientBgCur: string = '';
+  @State private ambientBgPrev: string = '';
+  @State private ambientFading: boolean = false;
   /** 横向封面流焦点: 最靠近视口中心的卡片索引 (缩放 + 驱动氛围背景)。 */
   @State private focusedIndex: number = 0;
   /** 封面流当前横向滚动偏移 (vp): 逐卡算"离中心多远"→ 连续缩放。 */
@@ -1247,7 +1251,7 @@ struct Index {
   }
 
   private launch(app: AppDescriptor): Promise<void> {
-    this.ambientAppId = app.id;
+    this.setAmbient(app.id);
     this.dismissKeyboard();
     if (!app.available) {
       this.openAppSettings(app, true);
@@ -1329,7 +1333,7 @@ struct Index {
   }
 
   private showAppLongPressMenu(app: AppDescriptor): void {
-    this.ambientAppId = app.id;
+    this.setAmbient(app.id);
     this.detailSheetApp = app;
     this.detailSheetVisible = true;
   }
@@ -1355,6 +1359,22 @@ struct Index {
   private ambientSource(path: string): string {
     if (path.length === 0) return '';
     return path.startsWith('file://') ? path : 'file://' + path;
+  }
+
+  /**
+   * 切换氛围背景 (带交叉淡入): 直接替换 Image 源是瞬间跳变, 观感生硬。
+   * 旧图淡出 + 新图淡入 (600ms), 切换游戏时背景平滑流动。
+   * 所有改变 ambientAppId 的地方都走这里。
+   */
+  private setAmbient(appId: string): void {
+    this.ambientAppId = appId;
+    const uri = this.ambientSource(this.getAmbientBackgroundPath());
+    if (uri === this.ambientBgCur) return;
+    this.ambientBgPrev = this.ambientBgCur;
+    this.ambientBgCur = uri;
+    this.ambientFading = false;
+    // 下一帧再置 true: 让 .animation() 捕捉到透明度变化产生过渡。
+    setTimeout((): void => { this.ambientFading = true; }, 16);
   }
 
   private closeDetailSheet(): void {
@@ -2498,7 +2518,7 @@ struct Index {
     this.ringIndex = real;
     this.selectedAppId = '';
     this.dismissKeyboard();
-    this.ambientAppId = this.visibleApps[real].id;
+    this.setAmbient(this.visibleApps[real].id);
   }
 
   /**
@@ -2545,7 +2565,7 @@ struct Index {
     };
     setTimeout(tryLocate, 40);
     if (this.visibleApps.length > 0) {
-      this.ambientAppId = this.visibleApps[0].id;
+      this.setAmbient(this.visibleApps[0].id);
     }
   }
 
@@ -2561,7 +2581,7 @@ struct Index {
     }
     const n = Math.max(1, this.visibleApps.length);
     this.ringIndex = ((safe % n) + n) % n;
-    this.ambientAppId = this.visibleApps[this.ringIndex].id;
+    this.setAmbient(this.visibleApps[this.ringIndex].id);
     this.selectedAppId = '';
   }
 
@@ -2665,17 +2685,26 @@ struct Index {
       // 氛围背景 — STANDARD 模式下用焦点游戏的美术做重度模糊铺底
       // (主机/掌机风格: 背景随焦点卡片变化)。位于用户自定义背景之后、内容之前;
       // 用户手动背景开启时本层被其遮盖, 优先级自然让位。
-      if (this.settings.layoutMode === LayoutMode.STANDARD && this.ambientAppId.length > 0) {
+      if (this.settings.layoutMode === LayoutMode.STANDARD && this.ambientBgCur.length > 0) {
         Stack() {
-          if (this.getAmbientBackgroundPath().length > 0) {
-            // 裸路径必须补 file:// 前缀, 否则 Image 静默加载失败 (详情页同款坑)。
-            Image(this.ambientSource(this.getAmbientBackgroundPath()))
+          // 旧图淡出 (新图淡入完成后它就不再显示)。
+          if (this.ambientBgPrev.length > 0) {
+            Image(this.ambientBgPrev)
               .width('100%').height('100%')
               .objectFit(ImageFit.Cover)
               .blur(60)
-              .opacity(0.45)
+              .opacity(this.ambientFading ? 0 : 0.45)
+              .animation({ duration: 600, curve: Curve.EaseInOut })
               .draggable(false)
           }
+          // 新图淡入。
+          Image(this.ambientBgCur)
+            .width('100%').height('100%')
+            .objectFit(ImageFit.Cover)
+            .blur(60)
+            .opacity(this.ambientFading ? 0.45 : 0)
+            .animation({ duration: 600, curve: Curve.EaseInOut })
+            .draggable(false)
           // 暗化遮罩: 压住背景保证前景文字/卡片对比度 (暗色系基座)。
           Column()
             .width('100%').height('100%')
