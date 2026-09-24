@@ -1,3 +1,4 @@
+import { skinColor } from '../service/SkinColors';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
@@ -7,12 +8,16 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
+import { ConsoleGameCard } from '../components/ConsoleGameCard';
+import { GameDetailSheet } from '../components/GameDetailSheet';
 import { FileBrowserView } from '../components/FileBrowserView';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import { bottomNavigationLayout } from '../model/BottomNavigationLayout';
 import {
   AppDescriptor,
   AppSource,
+  ConsoleCardLayout,
+  ConsolePalette,
   DesktopWindowMode,
   DisplayMode,
   EngineState,
@@ -21,7 +26,10 @@ import {
   RuntimeSession,
   ScreenOrientationSetting,
   ThemeMode,
+  SortMode,
+  UiSkin,
   ViewMode,
+  cloneAppSettings,
   normalizeLaunchPath,
   resolveRunningAppIds
 } from '../model/AppModels';
@@ -29,13 +37,16 @@ import { AppCatalogService } from '../service/AppCatalogService';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { AppSessionService, LaunchConflictKind } from '../service/AppSessionService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { GameArtworkService, ArtworkListener } from '../service/GameArtworkService';
+import { MetadataScraper } from '../service/MetadataScraper';
 import { LauncherAdapterRegistry } from '../service/LauncherAdapterRegistry';
 import { ThemeSettingsListener, ThemeSettingsService } from '../service/ThemeSettingsService';
 import { WineEngineService } from '../service/WineEngineService';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { InputRouter } from '../service/InputRouter';
 import { EVDEV_KEY_ENTER } from '../common/KeyMap';
-import { GamepadManager } from '../service/GamepadManager';
+import { GamepadManager, GamepadNavigationListener } from '../service/GamepadManager';
+import { ConsoleUiSound } from '../service/ConsoleUiSound';
 import { InputProfileService } from '../service/InputProfileService';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
 import { DesktopLayer } from '../components/DesktopLayer';
@@ -102,6 +113,15 @@ struct Index {
   @State private filter: CatalogFilter = 'builtin';
   @State private breakpoint: BreakpointType = 'lg';
   @State private sidebarCollapsed: boolean = false;
+  @State private consoleSort: SortMode = SortMode.RECENT;
+  @State private consoleOrderedApps: AppDescriptor[] = [];
+  @State private consoleFocusIndex: number = 0;
+  @State private consoleSelectedAppId: string = '';
+  @State private consoleDetailApp: AppDescriptor | null = null;
+  @State private consoleDetailVisible: boolean = false;
+  @State private consoleSearchActive: boolean = false;
+  private consoleSearchRequested: boolean = false;
+  @State private artworkRevision: number = 0;
   @State private settings: GlobalSettings = AppSettingsStore.getInstance().getGlobalSettings();
   @State private engineState: EngineState = EngineState.STOPPED;
   @State private engineMessage: string = 'Wine 引擎未启动';
@@ -126,6 +146,15 @@ struct Index {
   private engineCallback: ((state: EngineState, message: string) => void) | null = null;
   private settingsCallback: ThemeSettingsListener | null = null;
   private refreshTimer: number = -1;
+  private artworkListener: ArtworkListener | null = null;
+  private consoleNavigationListener: GamepadNavigationListener | null = null;
+  private consoleNavigationActive: boolean = false;
+  private consolePageVisible: boolean = false;
+  private consoleLastNavigationAt: number = 0;
+  private consoleIgnoreCardClickUntil: number = 0;
+  private consoleCategoryInitialized: boolean = false;
+  private consoleBackgroundCache: Map<string, string> = new Map<string, string>();
+  private playStartTimes: Map<string, number> = new Map<string, number>();
   private disposeWindowInsetObserver: (() => void) | null = null;
   private catalogInitialized: boolean = false;
   // 启动请求串行队列：后续点击加入队列，条件满足（会话建立/明确失败）后
@@ -485,6 +514,7 @@ struct Index {
   }
 
   private usesDarkAppearance(): boolean {
+    if (this.settings.uiSkin === UiSkin.CONSOLE) return this.settings.consolePalette !== ConsolePalette.PEARL;
     if (this.settings.themeMode === ThemeMode.DARK) return true;
     if (this.settings.themeMode === ThemeMode.LIGHT) return false;
     try {
@@ -569,7 +599,7 @@ struct Index {
           hilog.info(DOMAIN, 'IME', '[keyboardStatus] %{public}d', status);
         });
         controller.on('setPreviewText', (text: string, range: inputMethod.Range) => {
-          testNapi.wineTextInputPreedit(text, 0, text.length);  // 预上屏 → Wine preedit
+          testNapi.wineTextInputPreedit(text);  // 预上屏 → Wine preedit
         });
         // 软键盘回车 (DONE/NEWLINE 功能键): 本设备 onKeyEvent 收不到软键盘回车,
         // 在 sendFunctionKey 回调直接向激活窗口注入回车 down+up 实现换行
@@ -630,19 +660,37 @@ struct Index {
     };
     WineEngineService.getInstance().subscribe(this.engineCallback);
     this.refreshTimer = setInterval(() => this.refreshRunningState(), 1500);
+    this.artworkListener = (_appId: string, _path: string): void => {
+      this.consoleBackgroundCache.delete(_appId);
+      this.artworkRevision++;
+    };
+    GameArtworkService.getInstance().subscribe(this.artworkListener);
   }
 
   aboutToDisappear(): void {
+    this.detachConsoleNavigation();
     if (this.breakpointCallback) BreakpointSystem.unsubscribe(this.breakpointCallback);
     if (this.engineCallback) WineEngineService.getInstance().unsubscribe(this.engineCallback);
     if (this.settingsCallback) ThemeSettingsService.getInstance().unsubscribe(this.settingsCallback);
     if (this.refreshTimer >= 0) clearInterval(this.refreshTimer);
+    if (this.artworkListener) GameArtworkService.getInstance().unsubscribe(this.artworkListener);
     this.stopWindowInsetObserver();
   }
 
   onPageShow(): void {
+    this.consolePageVisible = true;
     this.settings = AppSettingsStore.getInstance().getGlobalSettings();
-    if (this.catalogInitialized) {
+    this.consoleBackgroundCache.clear();
+    this.syncConsoleNavigation();
+    this.preferGamesForConsole();
+    if (this.settings.uiSkin === UiSkin.CONSOLE) {
+      this.consoleSearchActive = false;
+      this.consoleSearchRequested = false;
+      try { inputMethod.getController().stopInputSession(); } catch (_) {}
+      setTimeout((): void => this.focusConsoleLauncher(), 300);
+      setTimeout((): void => this.focusConsoleLauncher(), 850);
+    }
+    if (this.catalogInitialized && this.settings.uiSkin !== UiSkin.CONSOLE) {
       // Wine/File Explorer can add, rename or remove programs while this page
       // is hidden. Reconcile the catalog whenever it becomes visible again.
       void this.rescan().then((): void => {
@@ -657,6 +705,8 @@ struct Index {
   }
 
   onPageHide(): void {
+    this.consolePageVisible = false;
+    this.detachConsoleNavigation();
     this.captureScrollOffsets();
     this.stopWindowInsetObserver();
   }
@@ -753,19 +803,23 @@ struct Index {
     WineWindowManager.getInstance().setOutputScalePercent(this.settings.outputScale);
     this.settingsCallback = (settings: GlobalSettings): void => {
       this.settings = settings;
+      this.syncConsoleNavigation();
       WineWindowManager.getInstance().setOutputScalePercent(settings.outputScale);
       GamepadManager.getInstance().setDeadzone(settings.gamepadDeadzone);
       GamepadManager.getInstance().setOutputMode(settings.controllerOutputMode ?? 'dinput');
     };
     ThemeSettingsService.getInstance().subscribe(this.settingsCallback);
     await AppCatalogService.getInstance().initialize(this.context);
+    await GameArtworkService.getInstance().initialize(this.context);
     AppSessionService.getInstance().initialize(this.context);
     LauncherAdapterRegistry.getInstance().initialize(this.context);
     WineEngineService.getInstance().initialize(this.context);
     await InputProfileService.getInstance().initialize(this.context);
     GamepadManager.getInstance().initialize(this.settings.gamepadDeadzone,
       this.settings.controllerOutputMode ?? 'dinput');
+    ConsoleUiSound.getInstance().initialize(this.context);
     await this.rescan();
+    this.preferGamesForConsole();
     this.catalogInitialized = true;
   }
 
@@ -773,6 +827,7 @@ struct Index {
     if (this.scanning) return;
     this.scanning = true;
     try {
+      this.consoleBackgroundCache.clear();
       this.apps = await AppCatalogService.getInstance().scan();
       this.refreshRunningState();
     } finally {
@@ -797,8 +852,27 @@ struct Index {
     const sessionService = AppSessionService.getInstance();
     const running = resolveRunningAppIds(this.apps, sessionService.getRunningAppIds(),
       sessionService.getRunningPaths());
-    this.runningAppIds = running;
-    this.visibleApps = this.filterApps(this.searchQuery, this.filter, running);
+    const now = Date.now();
+    running.forEach((id: string): void => {
+      if (!this.playStartTimes.has(id)) this.playStartTimes.set(id, now);
+    });
+    this.playStartTimes.forEach((startedAt: number, id: string): void => {
+      if (running.has(id)) return;
+      this.playStartTimes.delete(id);
+      void AppSettingsStore.getInstance().addPlayMinutes(id, (now - startedAt) / 60000);
+    });
+    if (this.runningAppIds.size !== running.size ||
+      Array.from(running).some((id: string): boolean => !this.runningAppIds.has(id))) {
+      this.runningAppIds = running;
+    }
+    const visible = this.filterApps(this.searchQuery, this.filter, running);
+    if (!this.sameAppSequence(this.visibleApps, visible)) this.visibleApps = visible;
+    this.syncConsoleFocus();
+  }
+
+  private sameAppSequence(left: AppDescriptor[], right: AppDescriptor[]): boolean {
+    return left.length === right.length &&
+      left.every((app: AppDescriptor, index: number): boolean => app === right[index]);
   }
 
   private runningFilterLabel(): string {
@@ -852,6 +926,7 @@ struct Index {
   private updateSearch(value: string): void {
     this.searchQuery = value;
     this.visibleApps = this.filterApps(value, this.filter);
+    this.syncConsoleFocus();
   }
 
   private phoneNavIndexForFilter(value: CatalogFilter): number {
@@ -872,9 +947,13 @@ struct Index {
   }
 
   private selectFilter(value: CatalogFilter, syncPhoneNavigation: boolean = true): void {
+    if (this.settings.uiSkin === UiSkin.CONSOLE) this.consoleCategoryInitialized = true;
     this.captureScrollOffsets();
     this.filter = value;
+    this.consoleFocusIndex = 0;
+    this.consoleSelectedAppId = '';
     this.visibleApps = this.filterApps(this.searchQuery, value);
+    this.syncConsoleFocus();
     setTimeout((): void => this.restoreScrollOffset(value), 0);
     if (syncPhoneNavigation && this.isPhone()) {
       const index = this.phoneNavIndexForFilter(value);
@@ -883,7 +962,6 @@ struct Index {
         this.phoneNavController.changeIndex(index);
       }
     }
-    if (value === 'windows' && this.catalogInitialized) void this.rescan();
   }
 
   private openSidebarPage(url: string): void {
@@ -972,6 +1050,7 @@ struct Index {
     this.scanning = true;
     try {
       const status = await AppCatalogService.getInstance().provisionGamesDirectory();
+      this.consoleBackgroundCache.clear();
       this.apps = await AppCatalogService.getInstance().scan();
       this.refreshRunningState();
       promptAction.showToast({
@@ -1236,9 +1315,9 @@ struct Index {
   private NavItem(label: string, value: CatalogFilter, icon: Resource) {
     Row({ space: 12 }) {
       SymbolGlyph(icon).fontSize(19)
-        .fontColor([this.filter === value ? $r('app.color.accent') : $r('app.color.text_secondary')])
+        .fontColor([this.filter === value ? skinColor('accent') : skinColor('text_secondary')])
       if (!this.sidebarCollapsed) {
-        Text(label).fontSize(14).fontColor($r('app.color.text_primary'))
+        Text(label).fontSize(14).fontColor(skinColor('text_primary'))
           .fontWeight(this.filter === value ? FontWeight.Medium : FontWeight.Normal)
       }
     }
@@ -1246,7 +1325,7 @@ struct Index {
     .height(48)
     .padding({ left: 15, right: 12 })
     .borderRadius(12)
-    .backgroundColor(this.filter === value ? $r('app.color.selected_background') : '#00000000')
+    .backgroundColor(this.filter === value ? skinColor('selected_background') : '#00000000')
     .id('library-nav-' + value)
     .onClick(() => this.selectFilter(value))
   }
@@ -1257,16 +1336,16 @@ struct Index {
       Row() {
         if (!this.sidebarCollapsed) {
           Column({ space: this.isNarrowPhone() ? 2 : 3 }) {
-            Text('旧柚Pro').fontSize(this.isNarrowPhone() ? 16 : 18).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
-            Text(this.apps.length + ' 个程序').fontSize(this.isNarrowPhone() ? 9 : 11).fontColor($r('app.color.text_secondary'))
+            Text('旧柚Pro').fontSize(this.isNarrowPhone() ? 16 : 18).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
+            Text(this.apps.length + ' 个程序').fontSize(this.isNarrowPhone() ? 9 : 11).fontColor(skinColor('text_secondary'))
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         }
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph(this.sidebarCollapsed ? $r('sys.symbol.chevron_right') : $r('sys.symbol.chevron_left'))
-            .fontSize(16).fontColor([$r('app.color.text_primary')])
+            .fontSize(16).fontColor([skinColor('text_primary')])
         }
           .width(48).height(48)
-          .backgroundColor($r('app.color.search_background'))
+          .backgroundColor(skinColor('search_background'))
           .border({ width: 1, color: '#12000000' })
           .id('library-toggle-sidebar')
           .onClick((): void => {
@@ -1281,7 +1360,7 @@ struct Index {
           onValueChange: (value: string): void => { this.updateSearch(value); }
         })
         Button('重新扫描').width('100%').height(48).fontSize(13).fontWeight(FontWeight.Medium)
-          .backgroundColor($r('app.color.search_background')).fontColor($r('app.color.text_primary')).borderRadius(16)
+          .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary')).borderRadius(16)
           .id('library-rescan')
           .onClick(() => this.rescan())
           .margin({ top: 10, bottom: 18 })
@@ -1299,18 +1378,18 @@ struct Index {
 
           Blank()
           Row({ space: 12 }) {
-            SymbolGlyph($r('sys.symbol.gearshape')).fontSize(19).fontColor([$r('app.color.text_secondary')])
+            SymbolGlyph($r('sys.symbol.gearshape')).fontSize(19).fontColor([skinColor('text_secondary')])
             if (!this.sidebarCollapsed) {
-              Text('系统设置').fontSize(14).fontColor($r('app.color.text_primary'))
+              Text('系统设置').fontSize(14).fontColor(skinColor('text_primary'))
             }
           }
           .width('100%').height(48).padding({ left: 15 }).borderRadius(12)
           .id('library-open-system-settings')
           .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
           Row({ space: 12 }) {
-            SymbolGlyph($r('sys.symbol.info_circle')).fontSize(19).fontColor([$r('app.color.text_secondary')])
+            SymbolGlyph($r('sys.symbol.info_circle')).fontSize(19).fontColor([skinColor('text_secondary')])
             if (!this.sidebarCollapsed) {
-              Text('帮助').fontSize(14).fontColor($r('app.color.text_primary'))
+              Text('帮助').fontSize(14).fontColor(skinColor('text_primary'))
             }
           }.width('100%').height(48).padding({ left: 15 })
             .id('library-open-help')
@@ -1332,7 +1411,7 @@ struct Index {
       top: this.isNarrowPhone() ? 10 : 16,
       bottom: Math.max(this.isNarrowPhone() ? 10 : 16, this.navBarInsetVp)
     })
-    .backgroundColor($r('app.color.sidebar_background'))
+    .backgroundColor(skinColor('sidebar_background'))
     .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
   }
 
@@ -1342,18 +1421,18 @@ struct Index {
       Row() {
         Column({ space: 3 }) {
           Text(this.filterTitle())
-            .fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
-          Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : $r('app.color.text_secondary'))
+            .fontSize(28).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
+          Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : skinColor('text_secondary'))
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Row({ space: 4 }) {
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COMPACT ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.COMPACT))
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_1x2')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.LARGE ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.LARGE))
-          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.folder')).fontSize(17).fontColor([$r('app.color.text_primary')]) }
-            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.FILES ? $r('app.color.selected_background') : $r('app.color.search_background')).onClick(() => this.setViewMode(ViewMode.FILES))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([skinColor('text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([skinColor('text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.COMPACT ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.COMPACT))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.rectangle_grid_1x2')).fontSize(17).fontColor([skinColor('text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.LARGE ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.LARGE))
+          Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.folder')).fontSize(17).fontColor([skinColor('text_primary')]) }
+            .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.FILES ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.FILES))
         }
         .id('library-view-modes')
         // Keep the complete system-reported title-button area. PC window
@@ -1395,7 +1474,7 @@ struct Index {
       running: this.runningAppIds.has(app.id),
       useGlassEffect: this.settings.useGlassEffect,
       narrowPhone: this.isPhone(),
-      onLaunch: (target: AppDescriptor): void => { this.launch(target); },
+      onLaunch: (target: AppDescriptor): void => { this.showConsoleDetail(target); },
       onSettings: (target: AppDescriptor): void => { this.openAppSettings(target); },
       onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); }
     })
@@ -1439,11 +1518,11 @@ struct Index {
   private EmptyLibraryState(filter: CatalogFilter) {
     Column({ space: 12 }) {
       SymbolGlyph(this.emptyIcon(filter)).fontSize(this.isNarrowPhone() ? 34 : 48)
-        .fontColor([$r('app.color.text_secondary')])
+        .fontColor([skinColor('text_secondary')])
       Text(this.emptyTitle(filter)).fontSize(this.isNarrowPhone() ? 16 : 20)
-        .fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary'))
+        .fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
       Text(this.emptyDescription(filter)).fontSize(this.isNarrowPhone() ? 11 : 13)
-        .fontColor($r('app.color.text_secondary')).textAlign(TextAlign.Center)
+        .fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
         .constraintSize({ maxWidth: this.isNarrowPhone() ? 240 : 420 })
       if (this.emptyActionLabel(filter)) {
         Button(this.emptyActionLabel(filter)).height(48).borderRadius(24)
@@ -1494,7 +1573,7 @@ struct Index {
       } else if (this.scanning) {
         Row({ space: 10 }) {
           LoadingProgress().width(20).height(20)
-          Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
+          Text('正在扫描应用目录…').fontColor(skinColor('text_secondary'))
         }.layoutWeight(1).justifyContent(FlexAlign.Center)
       } else if (this.appsForFilter('windows').length === 0) {
         this.CatalogEmptyScroll('windows')
@@ -1515,7 +1594,7 @@ struct Index {
     } else if (this.scanning) {
       Row({ space: 10 }) {
         LoadingProgress().width(20).height(20)
-        Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
+        Text('正在扫描应用目录…').fontColor(skinColor('text_secondary'))
       }.margin({ top: this.isNarrowPhone() ? 12 : 22 })
     } else if (this.appsForFilter(filter).length === 0) {
       this.CatalogEmptyScroll(filter)
@@ -1541,7 +1620,7 @@ struct Index {
       } else if (this.scanning) {
         Row({ space: 10 }) {
           LoadingProgress().width(20).height(20)
-          Text('正在扫描应用目录…').fontColor($r('app.color.text_secondary'))
+          Text('正在扫描应用目录…').fontColor(skinColor('text_secondary'))
         }.margin({ top: this.isNarrowPhone() ? 12 : 22 })
       } else if (this.visibleApps.length === 0) {
         this.CatalogEmptyScroll(this.filter)
@@ -1569,11 +1648,11 @@ struct Index {
     Column({ space: 2 }) {
       SymbolGlyph(icon)
         .fontSize(20)
-        .fontColor([this.phoneNavIndex === index ? $r('app.color.accent') : $r('app.color.text_secondary')])
+        .fontColor([this.phoneNavIndex === index ? skinColor('accent') : skinColor('text_secondary')])
       Text(label)
         .fontSize(10)
         .fontWeight(this.phoneNavIndex === index ? FontWeight.Medium : FontWeight.Normal)
-        .fontColor(this.phoneNavIndex === index ? $r('app.color.accent') : $r('app.color.text_secondary'))
+        .fontColor(this.phoneNavIndex === index ? skinColor('accent') : skinColor('text_secondary'))
         .maxLines(1)
     }
     .width('100%')
@@ -1658,7 +1737,7 @@ struct Index {
     .barFloatingStyle({
       barBottomMargin: bottomNavigationLayout(this.isPhoneLandscape(), this.navBarInsetVp).bottomMargin,
       barSideMargin: bottomNavigationLayout(this.isPhoneLandscape(), this.navBarInsetVp).sideMargin,
-      gradientMask: { maskColor: $r('app.color.page_background') },
+      gradientMask: { maskColor: skinColor('page_background') },
       systemMaterialEffect: {
         materialType: hdsMaterial.MaterialType.ADAPTIVE,
         materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
@@ -1698,16 +1777,16 @@ struct Index {
           },
           contentStyle: {
             titleStyle: {
-              mainTitleColor: $r('app.color.text_primary'),
-              subTitleColor: $r('app.color.text_secondary')
+              mainTitleColor: skinColor('text_primary'),
+              subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             }
           }
         },
@@ -1717,16 +1796,16 @@ struct Index {
           },
           contentStyle: {
             titleStyle: {
-              mainTitleColor: $r('app.color.text_primary'),
-              subTitleColor: $r('app.color.text_secondary')
+              mainTitleColor: skinColor('text_primary'),
+              subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             }
           }
         },
@@ -1761,6 +1840,715 @@ struct Index {
     .id('library-phone-navigation')
   }
 
+  onBackPress(): boolean {
+    if (this.consoleDetailVisible) {
+      this.consoleDetailVisible = false;
+      return true;
+    }
+    return false;
+  }
+
+  private focusConsoleLauncher(): void {
+    if (!this.consolePageVisible || this.settings.uiSkin !== UiSkin.CONSOLE ||
+      this.consoleDetailVisible || this.consoleSearchRequested) return;
+    const focused = focusControl.requestFocus('console-launcher');
+    hilog.info(DOMAIN, 'ConsoleFocus', 'launcher focus=%{public}s', focused.toString());
+    if (focused) {
+      this.consoleSearchActive = false;
+      try { inputMethod.getController().stopInputSession(); } catch (_) {}
+    }
+  }
+
+  private consoleApps(): AppDescriptor[] {
+    return this.consoleOrderedApps;
+  }
+
+  private orderedConsoleApps(): AppDescriptor[] {
+    const result = this.visibleApps.slice();
+    const store = AppSettingsStore.getInstance();
+    if (this.consoleSort === SortMode.NAME) {
+      result.sort((a: AppDescriptor, b: AppDescriptor): number => a.title.localeCompare(b.title));
+    } else if (this.consoleSort === SortMode.PLAY_TIME) {
+      result.sort((a: AppDescriptor, b: AppDescriptor): number =>
+        store.getPlayMinutes(b.id) - store.getPlayMinutes(a.id));
+    } else {
+      result.sort((a: AppDescriptor, b: AppDescriptor): number =>
+        store.getLastPlayedAt(b.id) - store.getLastPlayedAt(a.id));
+    }
+    return result;
+  }
+
+  private syncConsoleFocus(): void {
+    const apps = this.orderedConsoleApps();
+    if (!this.sameAppSequence(this.consoleOrderedApps, apps)) this.consoleOrderedApps = apps;
+    if (apps.length === 0) {
+      if (this.consoleFocusIndex !== 0) this.consoleFocusIndex = 0;
+      if (this.consoleSelectedAppId) this.consoleSelectedAppId = '';
+      return;
+    }
+    const selected = apps.findIndex((app: AppDescriptor): boolean => app.id === this.consoleSelectedAppId);
+    const next = selected >= 0 ? selected : 0;
+    if (this.consoleFocusIndex !== next) this.consoleFocusIndex = next;
+    if (this.consoleSelectedAppId !== apps[next].id) this.consoleSelectedAppId = apps[next].id;
+  }
+
+  private preferGamesForConsole(): void {
+    if (this.settings.uiSkin !== UiSkin.CONSOLE || this.consoleCategoryInitialized) return;
+    if (this.apps.some((app: AppDescriptor): boolean => app.source === AppSource.DOWNLOAD)) {
+      this.selectFilter('windows', false);
+    }
+  }
+
+  private consoleFocusApp(): AppDescriptor | null {
+    const apps = this.consoleApps();
+    if (apps.length === 0) return null;
+    return apps[Math.max(0, Math.min(this.consoleFocusIndex, apps.length - 1))];
+  }
+
+  private consoleBackground(app: AppDescriptor): string {
+    if (this.artworkRevision < 0) return '';
+    const cached = this.consoleBackgroundCache.get(app.id);
+    if (cached !== undefined) return cached;
+    const path = GameArtworkService.getInstance().resolve(app);
+    this.consoleBackgroundCache.set(app.id, path);
+    return path;
+  }
+
+  private consoleHasArtworkBackground(): boolean {
+    const app = this.consoleFocusApp();
+    return !!app && (this.consoleBackground(app).length > 0 || app.coverPath.length > 0);
+  }
+
+  private consoleContentWidth(): number {
+    return Math.max(180, Math.min(1600, this.viewportWidth - 32));
+  }
+
+  private consoleGridColumns(tile: boolean): number {
+    const minimum = tile ? 152 : 220;
+    const maxColumns = tile ? 6 : (this.viewportHeight > this.viewportWidth ? 2 : 4);
+    return Math.max(1, Math.min(maxColumns,
+      Math.floor((this.consoleContentWidth() + 12) / (minimum + 12))));
+  }
+
+  private consoleGridTemplate(tile: boolean): string {
+    const count = this.consoleGridColumns(tile);
+    const parts: string[] = [];
+    for (let index = 0; index < count; index++) parts.push('1fr');
+    return parts.join(' ');
+  }
+
+  private consoleGridCardWidth(tile: boolean): number {
+    const count = this.consoleGridColumns(tile);
+    return Math.max(140, (this.consoleContentWidth() - (count - 1) * 12) / count - 2);
+  }
+
+  private consoleFocusRadius(): number {
+    const width = this.consoleContentWidth();
+    if (this.viewportHeight > this.viewportWidth) return 1;
+    if (width < 720) return 1;
+    if (width < 1150) return 2;
+    return 3;
+  }
+
+  private consoleFocusOffsets(): number[] {
+    const radius = this.consoleFocusRadius();
+    const count = this.consoleApps().length;
+    if (count === 0) return [];
+    const offsets: number[] = [0];
+    const seen: Set<number> = new Set<number>();
+    seen.add(((this.consoleFocusIndex % count) + count) % count);
+    for (let distance = 1; distance <= radius && offsets.length < count; distance++) {
+      const left = ((this.consoleFocusIndex - distance) % count + count) % count;
+      if (!seen.has(left)) { offsets.push(-distance); seen.add(left); }
+      const right = ((this.consoleFocusIndex + distance) % count + count) % count;
+      if (!seen.has(right)) { offsets.push(distance); seen.add(right); }
+    }
+    offsets.sort((a: number, b: number): number => a - b);
+    return offsets;
+  }
+
+  private consoleFocusCardWidth(offset: number): number {
+    const width = this.consoleContentWidth();
+    const portrait = this.viewportHeight > this.viewportWidth;
+    const center = Math.min(420, Math.max(240, width * (portrait ?
+      (width < 540 ? 0.76 : 0.48) : (width < 540 ? 0.68 : 0.30))));
+    return offset === 0 ? center : center * 0.74;
+  }
+
+  private consoleFocusCardHeight(offset: number): number {
+    const width = this.consoleFocusCardWidth(0);
+    const center = Math.max(210, Math.min(430, width * 1.18, this.viewportHeight * 0.45));
+    return offset === 0 ? center : center * 0.84;
+  }
+
+  private consoleFocusCardShift(offset: number): number {
+    return offset * this.consoleFocusCardWidth(0) *
+      (this.consoleContentWidth() < 540 ? 0.68 : 0.82);
+  }
+
+  private consoleFocusOffsetApp(offset: number): AppDescriptor | null {
+    const apps = this.consoleApps();
+    if (apps.length === 0 || Math.abs(offset) >= apps.length) return null;
+    const index = ((this.consoleFocusIndex + offset) % apps.length + apps.length) % apps.length;
+    return apps[index];
+  }
+
+  private focusConsoleStep(step: number): void {
+    const apps = this.consoleApps();
+    if (apps.length === 0) return;
+    const next = ((this.consoleFocusIndex + step) % apps.length + apps.length) % apps.length;
+    if (next === this.consoleFocusIndex) return;
+    animateTo({ duration: 220, curve: Curve.EaseOut }, (): void => {
+      this.consoleFocusIndex = next;
+      this.consoleSelectedAppId = apps[next].id;
+    });
+    ConsoleUiSound.getInstance().focus();
+    GameArtworkService.getInstance().enqueueIfMissing(apps[next]);
+  }
+
+  private focusConsoleApp(app: AppDescriptor): void {
+    const index = this.consoleApps().findIndex((item: AppDescriptor): boolean => item.id === app.id);
+    if (index >= 0 && index !== this.consoleFocusIndex) ConsoleUiSound.getInstance().focus();
+    animateTo({ duration: 220, curve: Curve.EaseOut }, (): void => {
+      if (index >= 0) this.consoleFocusIndex = index;
+      this.consoleSelectedAppId = app.id;
+    });
+    GameArtworkService.getInstance().enqueueIfMissing(app);
+  }
+
+  private consoleActivate(app: AppDescriptor): void {
+    ConsoleUiSound.getInstance().select();
+    if (this.runningAppIds.has(app.id)) {
+      AppSessionService.getInstance().stopApp(app);
+      this.refreshRunningState();
+    } else {
+      void this.launch(app);
+    }
+  }
+
+  private showConsoleDetail(app: AppDescriptor): void {
+    if (this.settings.uiSkin === UiSkin.CONSOLE) {
+      ConsoleUiSound.getInstance().select();
+      this.focusConsoleApp(app);
+    }
+    this.consoleDetailApp = app;
+    this.consoleDetailVisible = true;
+  }
+
+  private syncConsoleNavigation(): void {
+    if (!this.consolePageVisible || this.settings.uiSkin !== UiSkin.CONSOLE) {
+      this.detachConsoleNavigation();
+      return;
+    }
+    if (!this.consoleNavigationListener) {
+      this.consoleNavigationListener = (code: number): boolean => this.handleConsoleHardware(code);
+    }
+    if (!this.consoleNavigationActive) {
+      GamepadManager.getInstance().subscribeNavigation(this.consoleNavigationListener);
+      this.consoleNavigationActive = true;
+    }
+  }
+
+  private detachConsoleNavigation(): void {
+    if (this.consoleNavigationActive && this.consoleNavigationListener) {
+      GamepadManager.getInstance().unsubscribeNavigation(this.consoleNavigationListener);
+    }
+    this.consoleNavigationActive = false;
+  }
+
+  private handleConsoleHardware(code: number, fromKeyboard: boolean = false): boolean {
+    if (this.settings.uiSkin !== UiSkin.CONSOLE || !this.libraryChromeVisible()) return false;
+    if (code === 2070 || code === 2302) {
+      if (this.consoleDetailVisible) {
+        this.consoleDetailVisible = false;
+        return true;
+      }
+      return false;
+    }
+    if (this.consoleDetailVisible) {
+      if ((code === 2054 || code === 2016 || code === 2050 || code === 2301) &&
+        this.consoleDetailApp) {
+        const app = this.consoleDetailApp;
+        this.consoleDetailVisible = false;
+        this.consoleActivate(app);
+        return true;
+      }
+      return false;
+    }
+    if (fromKeyboard && this.consoleSearchActive) return false;
+    const now = Date.now();
+    const direction = code === 2014 || code === 2012 ? -1 :
+      (code === 2015 || code === 2013 ? 1 : 0);
+    if (direction !== 0) {
+      if (now - this.consoleLastNavigationAt < 75) return true;
+      this.consoleLastNavigationAt = now;
+      const columns = this.consoleGridColumns(this.settings.consoleCardLayout === ConsoleCardLayout.XBOX_TILES);
+      const vertical = code === 2012 || code === 2013;
+      this.focusConsoleStep(this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ?
+        direction : direction * (vertical ? columns : 1));
+      return true;
+    }
+    const focused = this.consoleFocusApp();
+    if (!focused) return false;
+    if (code === 2054 || code === 2016 || code === 2050 || code === 2301) {
+      this.showConsoleDetail(focused);
+      return true;
+    }
+    if (code === 2025 || code === 2304 || code === 2305) {
+      this.showConsoleDetail(focused);
+      return true;
+    }
+    return false;
+  }
+
+  private toggleConsoleFavorite(app: AppDescriptor): void {
+    const store = AppSettingsStore.getInstance();
+    const next = cloneAppSettings(store.getAppSettings(app.id));
+    next.favorite = !next.favorite;
+    void store.saveAppSettings(next).then((): void => {
+      this.apps = this.apps.slice();
+      this.refreshRunningState();
+    });
+  }
+
+  private async scrapeConsoleCover(app: AppDescriptor): Promise<void> {
+    if (app.source !== AppSource.DOWNLOAD || !app.directory) return;
+    const store = AppSettingsStore.getInstance();
+    const key = store.getSgdbApiKey();
+    if (store.getAppSettings(app.id).customCover) {
+      promptAction.showToast({ message: '已有手动封面；可在游戏设置中更换' });
+      return;
+    }
+    promptAction.showToast({ message: '正在查找封面…' });
+    const result = await MetadataScraper.getInstance().scrapeCover(key, app.title, app.directory);
+    promptAction.showToast({ message: result.ok ? '封面已更新' : result.detail });
+    if (result.ok) await this.rescan();
+  }
+
+  private consoleLastPlayed(appId: string): string {
+    const at = AppSettingsStore.getInstance().getLastPlayedAt(appId);
+    return at > 0 ? '上次游玩 ' + new Date(at).toLocaleDateString() : '';
+  }
+
+  private consolePlayTime(appId: string): string {
+    const minutes = AppSettingsStore.getInstance().getPlayMinutes(appId);
+    if (minutes <= 0) return '';
+    if (minutes < 60) return '累计 ' + Math.max(1, Math.floor(minutes)).toString() + ' 分钟';
+    return '累计 ' + (minutes / 60).toFixed(1) + ' 小时';
+  }
+
+  private cycleConsoleSort(): void {
+    const modes: SortMode[] = [SortMode.RECENT, SortMode.NAME, SortMode.PLAY_TIME];
+    const next = (modes.indexOf(this.consoleSort) + 1) % modes.length;
+    this.consoleSort = modes[next];
+    this.consoleFocusIndex = 0;
+    this.consoleSelectedAppId = '';
+    this.syncConsoleFocus();
+  }
+
+  private consoleSortLabel(): string {
+    if (this.consoleSort === SortMode.NAME) return '名称';
+    if (this.consoleSort === SortMode.PLAY_TIME) return '时长';
+    return '最近';
+  }
+
+  private consoleImageSource(path: string): string {
+    return path.startsWith('file://') ? path : 'file://' + path;
+  }
+
+  @Builder
+  private ConsoleNavButton(label: string, target: CatalogFilter, icon: Resource) {
+    Button() {
+      Row({ space: 10 }) {
+        SymbolGlyph(icon).fontSize(17)
+          .fontColor([this.filter === target ? skinColor('accent') : skinColor('text_secondary')])
+        Text(label).fontSize(14)
+          .fontColor(this.filter === target ? skinColor('text_primary') : skinColor('text_secondary'))
+      }
+      .width('100%')
+    }
+    .width('100%').height(46).borderRadius(14)
+    .backgroundColor(this.filter === target ? skinColor('selected_background') : '#00000000')
+    .onClick((): void => this.selectFilter(target, false))
+  }
+
+  @Builder
+  private ConsoleSideBar() {
+    Column({ space: 8 }) {
+      Text('旧柚 Pro').fontSize(22).fontWeight(FontWeight.Bold)
+        .fontColor(skinColor('text_primary')).width('100%').margin({ bottom: 22 })
+      this.ConsoleNavButton('最近', 'recent', $r('sys.symbol.clock'))
+      this.ConsoleNavButton('内建应用', 'builtin', $r('sys.symbol.square_grid_2x2'))
+      this.ConsoleNavButton('Windows 程序', 'windows', $r('sys.symbol.gamecontroller'))
+      this.ConsoleNavButton('收藏', 'favorite', $r('sys.symbol.star'))
+      this.ConsoleNavButton(this.runningFilterLabel(), 'running', $r('sys.symbol.play_fill'))
+      Blank()
+      Button('系统设置').width('100%').height(44).borderRadius(14)
+        .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
+        .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
+    }
+    .width(220).height('100%')
+    .padding({ left: 16, right: 16, top: 24, bottom: 24 })
+    .backgroundColor(skinColor('sidebar_background'))
+    .id('console-sidebar')
+  }
+
+  @Builder
+  private ConsoleBottomNav() {
+    Scroll() {
+      Row({ space: 4 }) {
+        ForEach([
+          { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
+          { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
+          { label: 'Game', value: 'windows', icon: $r('sys.symbol.gamecontroller') },
+          { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') },
+          { label: 'Home', value: 'builtin', icon: $r('sys.symbol.house_fill') }
+        ], (item: Record<string, Resource | string>): void => {
+          Button() {
+            Row({ space: 4 }) {
+              SymbolGlyph(item.icon as Resource).fontSize(12)
+                .fontColor([this.filter === item.value ? '#FFFFFFFF' : skinColor('text_secondary')])
+              Text(item.label as string).fontSize(12)
+                .fontColor(this.filter === item.value ? '#FFFFFFFF' : skinColor('text_secondary'))
+            }
+          }
+          .height(36).borderRadius(18).padding({ left: 12, right: 12 })
+          .backgroundColor(this.filter === item.value ? skinColor('accent') : '#00000000')
+          .onClick((): void => this.selectFilter(item.value as CatalogFilter, false))
+        }, (item: Record<string, Resource | string>): string => item.value as string)
+      }.height(52).padding({ left: 8, right: 8 })
+        .justifyContent(FlexAlign.Center)
+    }
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
+    .width(Math.min(445, this.consoleContentWidth())).height(52)
+    .borderRadius(26)
+    .backgroundColor(skinColor('search_background'))
+    .border({ width: 1, color: '#30FFFFFF' })
+    .shadow({ radius: 14, color: '#55000000', offsetX: 0, offsetY: 5 })
+    .margin({ bottom: 12 })
+    .id('console-bottom-nav')
+  }
+
+  @Builder
+  private ConsoleHeader() {
+    Row({ space: 10 }) {
+      if (this.consoleContentWidth() >= 520) {
+        Column({ space: 2 }) {
+          Text('游戏库').fontSize(20).fontWeight(FontWeight.Bold)
+            .fontColor(skinColor('text_primary'))
+          Text(this.filterTitle()).fontSize(11).fontColor(skinColor('text_secondary'))
+        }.width(100).alignItems(HorizontalAlign.Start)
+      }
+      TextInput({ placeholder: '搜索游戏…', text: this.searchQuery })
+        .height(42).borderRadius(20).layoutWeight(1)
+        .constraintSize({ maxWidth: 560 })
+        .backgroundColor(skinColor('search_background'))
+        .fontColor(skinColor('text_primary'))
+        .enableKeyboardOnFocus(false)
+        .onChange((value: string): void => this.updateSearch(value))
+        .onTouch((event: TouchEvent): void => {
+          if (event.type === TouchType.Down) this.consoleSearchRequested = true;
+        })
+        .onFocus((): void => {
+          if (this.consoleSearchRequested) this.consoleSearchActive = true;
+          else setTimeout((): void => this.focusConsoleLauncher(), 0);
+        })
+        .onBlur((): void => {
+          this.consoleSearchActive = false;
+          this.consoleSearchRequested = false;
+        })
+        .onClick((): void => {
+          this.consoleSearchRequested = true;
+          this.consoleSearchActive = true;
+          focusControl.requestFocus('console-search');
+          void inputMethod.getController().showTextInput().catch((): void => {});
+        })
+        .id('console-search')
+      Button(this.consoleSortLabel()).height(40).borderRadius(20)
+        .padding({ left: 10, right: 10 })
+        .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
+        .onClick((): void => this.cycleConsoleSort())
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph($r('sys.symbol.arrow_clockwise')).fontSize(18)
+          .fontColor([skinColor('text_primary')])
+      }
+      .width(40).height(40).backgroundColor(skinColor('search_background'))
+      .enabled(!this.scanning)
+      .onClick((): void => { void this.rescan(); })
+      .accessibilityText('刷新游戏库')
+      .id('console-refresh')
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph($r('sys.symbol.gearshape')).fontSize(18)
+          .fontColor([skinColor('text_primary')])
+      }
+      .width(40).height(40).backgroundColor(skinColor('search_background'))
+      .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
+    }
+    .width(Math.min(1100, this.consoleContentWidth()))
+    .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+    .borderRadius(26)
+    .backgroundColor(skinColor('card_glass_background'))
+    .backgroundBlurStyle(BlurStyle.COMPONENT_ULTRA_THICK)
+    .border({ width: 1, color: '#44FFFFFF' })
+    .shadow({ radius: 22, color: '#44000000', offsetX: 0, offsetY: 5 })
+    .margin({ top: 12, bottom: 8 })
+    .id('console-header')
+  }
+
+  @Builder
+  private ConsoleFocusFlow() {
+    Column({ space: 4 }) {
+      Stack({ alignContent: Alignment.Center }) {
+        ForEach(this.consoleFocusOffsets(), (offset: number): void => {
+          if (this.consoleFocusOffsetApp(offset)) {
+            ConsoleGameCard({
+              app: this.consoleFocusOffsetApp(offset)!,
+              layout: ConsoleCardLayout.FOCUS_3D,
+              backgroundPath: this.consoleBackground(this.consoleFocusOffsetApp(offset)!),
+              focused: offset === 0,
+              running: this.runningAppIds.has(this.consoleFocusOffsetApp(offset)!.id),
+              favorite: AppSettingsStore.getInstance()
+                .getAppSettings(this.consoleFocusOffsetApp(offset)!.id).favorite,
+              lastPlayed: this.consoleLastPlayed(this.consoleFocusOffsetApp(offset)!.id),
+              cardWidth: this.consoleFocusCardWidth(offset),
+              cardHeight: this.consoleFocusCardHeight(offset),
+              inRing: true,
+              ringPosition: offset,
+              ringShiftX: this.consoleFocusCardShift(offset),
+              onSelect: (target: AppDescriptor): void => {
+                if (Date.now() >= this.consoleIgnoreCardClickUntil) this.focusConsoleApp(target);
+              },
+              onLaunch: (target: AppDescriptor): void => {
+                if (Date.now() >= this.consoleIgnoreCardClickUntil) this.showConsoleDetail(target);
+              },
+              onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
+              onVisible: (target: AppDescriptor): void =>
+                GameArtworkService.getInstance().enqueueIfMissing(target)
+            })
+          }
+        }, (offset: number): string => this.consoleFocusOffsetApp(offset)?.id ?? offset.toString())
+      }
+      .width('100%').layoutWeight(1).clip(true)
+      .priorityGesture(PanGesture({ direction: PanDirection.Horizontal })
+        .onActionUpdate((event: GestureEvent): void => {
+          if (Math.abs(event.offsetX) > 18) this.consoleIgnoreCardClickUntil = Date.now() + 350;
+        })
+        .onActionEnd((event: GestureEvent): void => {
+          if (Math.abs(event.offsetX) > 45 &&
+            Math.abs(event.offsetX) > Math.abs(event.offsetY) * 1.2) {
+            this.consoleIgnoreCardClickUntil = Date.now() + 350;
+            this.focusConsoleStep(event.offsetX < 0 ? 1 : -1);
+          }
+        }))
+      .id('console-focus-flow')
+      Row({ space: 16 }) {
+        Button('‹').width(44).height(44).borderRadius(22)
+          .backgroundColor(skinColor('card_glass_background')).fontColor(skinColor('text_primary'))
+          .onClick((): void => this.focusConsoleStep(-1))
+        Column({ space: 4 }) {
+          Stack() {
+            Text(this.consoleFocusApp()?.title ?? '')
+              .fontSize(this.consoleContentWidth() < 520 ? 21 : 30)
+              .fontWeight(FontWeight.Bold).fontColor(skinColor('accent'))
+              .maxLines(1).blur(12).opacity(0.85)
+              .hitTestBehavior(HitTestMode.None)
+            Text(this.consoleFocusApp()?.title ?? '')
+              .fontSize(this.consoleContentWidth() < 520 ? 21 : 30)
+              .fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary')).maxLines(1)
+              .shadow({ radius: 16, color: skinColor('accent'), offsetX: 0, offsetY: 0 })
+          }
+          .width('100%').alignContent(Alignment.Center)
+          Text(this.consoleFocusApp() ? this.consolePlayTime(this.consoleFocusApp()!.id) : '')
+            .fontSize(12).fontColor(skinColor('text_secondary')).maxLines(1)
+        }.layoutWeight(1).alignItems(HorizontalAlign.Center)
+        Button('›').width(44).height(44).borderRadius(22)
+          .backgroundColor(skinColor('card_glass_background')).fontColor(skinColor('text_primary'))
+          .onClick((): void => this.focusConsoleStep(1))
+      }
+      .width(Math.min(650, this.consoleContentWidth())).height(68)
+      .justifyContent(FlexAlign.Center)
+      Text('左右滑动选择  ·  A / Enter 查看详情  ·  在详情中启动')
+        .fontSize(11).fontColor(skinColor('text_secondary')).maxLines(1)
+    }
+    .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
+    .padding({ top: 6, bottom: 16 })
+  }
+
+  @Builder
+  private ConsoleGrid(tile: boolean) {
+    Column({ space: 10 }) {
+      if (tile && this.consoleFocusApp()) {
+        ConsoleGameCard({
+          app: this.consoleFocusApp()!,
+          layout: ConsoleCardLayout.XBOX_TILES,
+          backgroundPath: this.consoleBackground(this.consoleFocusApp()!),
+          focused: true,
+          running: this.runningAppIds.has(this.consoleFocusApp()!.id),
+          favorite: AppSettingsStore.getInstance().getAppSettings(this.consoleFocusApp()!.id).favorite,
+          cardWidth: Math.min(900, this.consoleContentWidth() - 24),
+          cardHeight: Math.max(145, Math.min(250, this.viewportHeight * 0.25)),
+          onLaunch: (app: AppDescriptor): void => this.showConsoleDetail(app),
+          onDetails: (app: AppDescriptor): void => this.showConsoleDetail(app),
+          onVisible: (app: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(app)
+        })
+      }
+      Scroll() {
+        Grid() {
+          ForEach(this.consoleApps(), (app: AppDescriptor): void => {
+            GridItem() {
+              Column() {
+                ConsoleGameCard({
+                  app: app,
+                  layout: tile ? ConsoleCardLayout.XBOX_TILES : ConsoleCardLayout.GALLERY,
+                  backgroundPath: this.consoleBackground(app),
+                  focused: this.consoleSelectedAppId === app.id,
+                  running: this.runningAppIds.has(app.id),
+                  favorite: AppSettingsStore.getInstance().getAppSettings(app.id).favorite,
+                  lastPlayed: this.consoleLastPlayed(app.id),
+                  cardWidth: this.consoleGridCardWidth(tile),
+                  cardHeight: tile ? Math.min(178, this.consoleGridCardWidth(tile) * 0.60) :
+                    Math.min(420, this.consoleGridCardWidth(tile) * 1.15),
+                  onSelect: (target: AppDescriptor): void => this.showConsoleDetail(target),
+                  onLaunch: (target: AppDescriptor): void => this.showConsoleDetail(target),
+                  onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
+                  onVisible: (target: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(target)
+                })
+              }.width('100%').alignItems(HorizontalAlign.Center)
+            }
+          }, (app: AppDescriptor): string => app.id)
+        }
+        .columnsTemplate(this.consoleGridTemplate(tile))
+        .columnsGap(12).rowsGap(14).width('100%')
+        .padding({ left: 12, right: 12, top: 8, bottom: 112 })
+      }
+      .width('100%').layoutWeight(1).scrollBar(BarState.Off)
+      .focusable(true)
+    }
+    .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
+    .id(tile ? 'console-xbox-grid' : 'console-gallery-grid')
+  }
+
+  @Builder
+  private ConsoleContent() {
+    if (this.scanning) {
+      Column() {
+        LoadingProgress().width(32).height(32)
+      }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
+    } else if (this.visibleApps.length === 0) {
+      ForEach([this.filter], (category: CatalogFilter): void => {
+        Column({ space: 14 }) {
+          Text(this.emptyTitle(category)).fontSize(20).fontWeight(FontWeight.Bold)
+            .fontColor(skinColor('text_primary'))
+          Text(this.emptyDescription(category)).fontSize(13)
+            .fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
+          Button('重新扫描').height(42).borderRadius(20)
+            .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
+            .onClick((): void => { void this.rescan(); })
+        }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
+      }, (category: CatalogFilter): string => category)
+    } else if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) {
+      this.ConsoleFocusFlow()
+    } else {
+      this.ConsoleGrid(this.settings.consoleCardLayout === ConsoleCardLayout.XBOX_TILES)
+    }
+  }
+
+  @Builder
+  private ConsoleDetailOverlay() {
+    if (this.consoleDetailVisible && this.consoleDetailApp) {
+      Stack() {
+        if (this.consoleBackground(this.consoleDetailApp!).length > 0) {
+          Image(this.consoleImageSource(this.consoleBackground(this.consoleDetailApp!)))
+            .width('100%').height('100%').objectFit(ImageFit.Cover).blur(28).opacity(0.55)
+        }
+        Column().width('100%').height('100%').backgroundColor('#D90B0B13')
+        GameDetailSheet({
+          app: this.consoleDetailApp!,
+          isRunning: this.runningAppIds.has(this.consoleDetailApp!.id),
+          isFavorite: AppSettingsStore.getInstance().getAppSettings(this.consoleDetailApp!.id).favorite,
+          lastPlayedText: this.consoleLastPlayed(this.consoleDetailApp!.id),
+          playTimeText: this.consolePlayTime(this.consoleDetailApp!.id),
+          compact: this.viewportWidth < 620,
+          topInset: Math.max(56, this.statusBarHeightVp),
+          callbacks: {
+            onLaunch: (app: AppDescriptor): void => {
+              this.consoleDetailVisible = false;
+              this.consoleActivate(app);
+            },
+            onClose: (): void => { this.consoleDetailVisible = false; },
+            onToggleFavorite: (app: AppDescriptor): void => this.toggleConsoleFavorite(app),
+            onOpenSettings: (app: AppDescriptor): void => {
+              this.consoleDetailVisible = false;
+              this.openAppSettings(app);
+            },
+            onScrapeCover: (app: AppDescriptor): void => { void this.scrapeConsoleCover(app); }
+          }
+        })
+      }
+      .width('100%').height('100%')
+      .backgroundColor(skinColor('page_background'))
+      .parallelGesture(PanGesture({ direction: PanDirection.Horizontal })
+        .onActionEnd((event: GestureEvent): void => {
+          if (Math.abs(event.offsetX) > 90 && Math.abs(event.offsetX) > Math.abs(event.offsetY) * 1.2) {
+            this.consoleDetailVisible = false;
+          }
+        }))
+      .id('console-game-detail')
+    }
+  }
+
+  @Builder
+  private ConsoleLayout() {
+    Stack({ alignContent: Alignment.Bottom }) {
+      if (this.consoleHasArtworkBackground() && this.consoleFocusApp()) {
+        if (this.consoleBackground(this.consoleFocusApp()!).length > 0) {
+          Image(this.consoleImageSource(this.consoleBackground(this.consoleFocusApp()!)))
+            .width('100%').height('100%').objectFit(ImageFit.Cover)
+            .blur(32).opacity(0.55).scale({ x: 1.12, y: 1.12 })
+            .hitTestBehavior(HitTestMode.None)
+        } else if (this.consoleFocusApp()!.coverPath.length > 0) {
+          Image(this.consoleImageSource(this.consoleFocusApp()!.coverPath))
+            .width('100%').height('100%').objectFit(ImageFit.Cover)
+            .blur(42).opacity(0.38).scale({ x: 1.12, y: 1.12 })
+            .hitTestBehavior(HitTestMode.None)
+        }
+        Column().width('100%').height('100%').backgroundColor('#330A071A')
+          .hitTestBehavior(HitTestMode.None)
+      } else {
+        Column().width('100%').height('100%')
+          .linearGradient({ angle: 140, colors: [
+            [skinColor('page_background'), 0],
+            [skinColor('selected_background'), 0.58],
+            [skinColor('page_background'), 1]
+          ] })
+          .hitTestBehavior(HitTestMode.None)
+      }
+      Column() {
+        this.ConsoleHeader()
+        this.ConsoleContent()
+      }
+      .width(this.consoleContentWidth()).height('100%')
+      .alignItems(HorizontalAlign.Center)
+      .padding({ top: Math.max(8, this.statusBarHeightVp),
+        bottom: Math.max(72, this.navBarInsetVp + 64) })
+      Column() {
+        this.ConsoleBottomNav()
+      }
+      .width('100%').height(Math.max(64, this.navBarInsetVp + 64))
+      .justifyContent(FlexAlign.End).alignItems(HorizontalAlign.Center)
+      .padding({ bottom: Math.max(4, this.navBarInsetVp) })
+    }
+    .width('100%').height('100%')
+    .clip(true)
+    .backgroundColor(skinColor('page_background'))
+    .focusable(true).defaultFocus(true)
+    .onAppear((): void => {
+      setTimeout((): void => this.focusConsoleLauncher(), 120);
+    })
+    .id('console-launcher')
+  }
+
   @Builder
   private PageSurface() {
     Stack({ alignContent: Alignment.Bottom }) {
@@ -1774,20 +2562,26 @@ struct Index {
           .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
           .id('library-page-background')
       }
-      Row() {
-        if (!this.isPhone()) {
-          this.SideBar()
+      if (this.settings.uiSkin === UiSkin.CONSOLE) {
+        Column() { this.ConsoleLayout() }
+          .width('100%').height('100%')
+          .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+      } else {
+        Row() {
+          if (!this.isPhone()) {
+            this.SideBar()
+          }
+          if (this.isPhone()) {
+            this.PhoneLibraryNavigation()
+          } else {
+            this.Library()
+          }
         }
-        if (this.isPhone()) {
-          this.PhoneLibraryNavigation()
-        } else {
-          this.Library()
-        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
+        .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       }
-      .width('100%')
-      .height('100%')
-      .padding({ top: this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
-      .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
         Stack() {
@@ -1832,10 +2626,13 @@ struct Index {
         .shadow({ radius: this.launcherVisible ? 12 : 0, color: '#66000000', offsetX: 0, offsetY: this.launcherVisible ? 4 : 0 })
         .id('desktop-layer-container')
       }
+      if (this.libraryChromeVisible()) {
+        this.ConsoleDetailOverlay()
+      }
       WineEngineBlockingOverlay()
     }
     .width('100%').height('100%')
-    .backgroundColor($r('app.color.page_background'))
+    .backgroundColor(skinColor('page_background'))
     .onAreaChange((_oldValue: Area, area: Area): void => {
       this.viewportWidth = area.width as number;
       this.viewportHeight = area.height as number;
@@ -1855,5 +2652,12 @@ struct Index {
       this.PageSurface()
     }
     .width('100%').height('100%')
+    .focusable(true)
+    .defaultFocus(true)
+    .onKeyEvent((event: KeyEvent): void => {
+      if (event.type === KeyType.Down && this.handleConsoleHardware(event.keyCode, true)) {
+        event.stopPropagation();
+      }
+    })
   }
 }

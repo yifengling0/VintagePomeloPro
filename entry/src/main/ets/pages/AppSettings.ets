@@ -1,3 +1,4 @@
+import { skinColor } from '../service/SkinColors';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import fs from '@ohos.file.fs';
@@ -11,6 +12,7 @@ import {
   AppDescriptor,
   AppSettings as StoredAppSettings,
   AppSource,
+  GameBackgroundMode,
   DisplayMode,
   box64PresetLabel,
   cloneAppSettings,
@@ -22,6 +24,7 @@ import {
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { LengthMetrics, window } from '@kit.ArkUI';
@@ -155,24 +158,24 @@ struct WindowsExecutablePickerDialog {
     Column({ space: 14 }) {
       Column({ space: 5 }) {
         Text('选择 Windows 主程序').fontSize(20).fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary')).width('100%')
+          .fontColor(skinColor('text_primary')).width('100%')
         Text('按目录进入子文件夹，点 EXE / COM / BAT / CMD 设为主程序。')
-          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+          .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
         Text(this.locationLabel())
-          .fontSize(12).fontColor($r('app.color.accent')).width('100%').maxLines(2)
+          .fontSize(12).fontColor(skinColor('accent')).width('100%').maxLines(2)
       }.width('100%').alignItems(HorizontalAlign.Start)
 
       if (this.browsePrefix.length > 0) {
         Button() {
           Row({ space: 8 }) {
             SymbolGlyph($r('sys.symbol.chevron_up')).fontSize(16)
-              .fontColor([$r('app.color.text_primary')])
-            Text('返回上级目录').fontSize(14).fontColor($r('app.color.text_primary'))
+              .fontColor([skinColor('text_primary')])
+            Text('返回上级目录').fontSize(14).fontColor(skinColor('text_primary'))
           }
         }
         .width('100%')
         .height(44)
-        .backgroundColor($r('app.color.search_background'))
+        .backgroundColor(skinColor('search_background'))
         .onClick((): void => this.goUp())
       }
 
@@ -182,24 +185,24 @@ struct WindowsExecutablePickerDialog {
             Button() {
               Row({ space: 10 }) {
                 SymbolGlyph($r('sys.symbol.folder')).fontSize(20)
-                  .fontColor([$r('app.color.accent')])
+                  .fontColor([skinColor('accent')])
                 Column({ space: 2 }) {
                   Text(folder.name).fontSize(14).fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.text_primary')).width('100%').maxLines(1)
+                    .fontColor(skinColor('text_primary')).width('100%').maxLines(1)
                   Text(folder.fileCount + ' 个可执行文件')
-                    .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+                    .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
                 }
                 .layoutWeight(1)
                 .alignItems(HorizontalAlign.Start)
                 SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16)
-                  .fontColor([$r('app.color.text_secondary')])
+                  .fontColor([skinColor('text_secondary')])
               }
               .width('100%')
             }
             .width('100%')
             .padding(14)
             .borderRadius(14)
-            .backgroundColor($r('app.color.search_background'))
+            .backgroundColor(skinColor('search_background'))
             .onClick((): void => {
               this.browsePrefix = folder.prefix;
             })
@@ -210,14 +213,14 @@ struct WindowsExecutablePickerDialog {
               Row({ space: 10 }) {
                 SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(20)
                   .fontColor([choice.path === this.selectedPath ?
-                    $r('app.color.accent') : $r('app.color.text_secondary')])
+                    skinColor('accent') : skinColor('text_secondary')])
                 Column({ space: 2 }) {
                   Text(this.fileName(choice.relativePath)).fontSize(14).fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.text_primary')).width('100%').maxLines(1)
+                    .fontColor(skinColor('text_primary')).width('100%').maxLines(1)
                   Text(choice.path === this.selectedPath ? '当前已关联' : '选择为此卡片的主程序')
                     .fontSize(11)
                     .fontColor(choice.path === this.selectedPath ?
-                      $r('app.color.accent') : $r('app.color.text_secondary'))
+                      skinColor('accent') : skinColor('text_secondary'))
                     .width('100%')
                 }
                 .layoutWeight(1)
@@ -228,7 +231,7 @@ struct WindowsExecutablePickerDialog {
             .width('100%')
             .padding(14)
             .borderRadius(14)
-            .backgroundColor(choice.path === this.selectedPath ? '#1F246BFD' : $r('app.color.search_background'))
+            .backgroundColor(choice.path === this.selectedPath ? '#1F246BFD' : skinColor('search_background'))
             .onClick((): void => {
               if (this.controller) this.controller.close();
               this.onSelect(choice.path);
@@ -240,15 +243,15 @@ struct WindowsExecutablePickerDialog {
       .constraintSize({ maxHeight: 380 })
       .scrollBar(BarState.Auto)
 
-      Button('取消').width('100%').height(46).backgroundColor($r('app.color.search_background'))
-        .fontColor($r('app.color.text_primary')).onClick((): void => {
+      Button('取消').width('100%').height(46).backgroundColor(skinColor('search_background'))
+        .fontColor(skinColor('text_primary')).onClick((): void => {
           if (this.controller) this.controller.close();
         })
     }
     .width('92%')
     .constraintSize({ maxWidth: 620 })
     .padding(20)
-    .backgroundColor($r('app.color.card_background'))
+    .backgroundColor(skinColor('card_background'))
     .borderRadius(20)
   }
 }
@@ -507,6 +510,38 @@ struct AppSettingsPage {
     }
   }
 
+  private async selectGameBackground(): Promise<void> {
+    if (!this.app) return;
+    try {
+      const photoPicker = new picker.PhotoViewPicker();
+      const options = new picker.PhotoSelectOptions();
+      options.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
+      options.maxSelectNumber = 1;
+      const result = await photoPicker.select(options);
+      if (!result || result.photoUris.length === 0) return;
+      const saved = await GameArtworkService.getInstance().importManual(this.app, result.photoUris[0]);
+      if (!saved) {
+        promptAction.showToast({ message: '背景图片导入失败' });
+        return;
+      }
+      this.value = AppSettingsStore.getInstance().getAppSettings(this.app.id);
+      promptAction.showToast({ message: '已使用手动背景，自动获取已暂停' });
+    } catch (_) { promptAction.showToast({ message: '未选择背景图片' }); }
+  }
+
+  private async restoreAutomaticBackground(): Promise<void> {
+    if (!this.app) return;
+    await GameArtworkService.getInstance().restoreAutomatic(this.app);
+    this.value = AppSettingsStore.getInstance().getAppSettings(this.app.id);
+    promptAction.showToast({ message: '已恢复自动背景' });
+  }
+
+  private retryGameBackground(): void {
+    if (!this.app) return;
+    GameArtworkService.getInstance().retryNow(this.app);
+    promptAction.showToast({ message: '正在重新获取背景' });
+  }
+
   /**
    * 把选择器授权的封面图片复制到该游戏自己的目录（<gameDir>/cover.<ext>）后
    * 返回本地路径。
@@ -669,8 +704,8 @@ struct AppSettingsPage {
   @Builder
   private Field(label: string, value: string, onChange: (value: string) => void) {
     Column({ space: 7 }) {
-      Text(label).fontSize(13).fontColor($r('app.color.text_secondary'))
-      TextInput({ text: value }).height(48).borderRadius(14).backgroundColor($r('app.color.search_background'))
+      Text(label).fontSize(13).fontColor(skinColor('text_secondary'))
+      TextInput({ text: value }).height(48).borderRadius(14).backgroundColor(skinColor('search_background'))
         .onChange((text: string) => onChange(text))
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
@@ -689,47 +724,75 @@ struct AppSettingsPage {
             })
             Row() {
               Column({ space: 4 }) {
-                Text('收藏').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary'))
-                Text('收藏后可从侧边栏快速访问').fontSize(11).fontColor($r('app.color.text_secondary'))
+                Text('收藏').fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+                Text('收藏后可从侧边栏快速访问').fontSize(11).fontColor(skinColor('text_secondary'))
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               Toggle({ type: ToggleType.Switch, isOn: this.value.favorite }).onChange((value: boolean): void => this.setFavorite(value))
-            }.width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+            }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             if (this.app && this.app.source === AppSource.DOWNLOAD) {
               Column({ space: 6 }) {
-                Text('当前游戏目录').fontSize(13).fontColor($r('app.color.text_secondary'))
-                Text(this.app.directory).fontSize(12).fontColor($r('app.color.text_primary')).maxLines(2)
+                Text('当前游戏目录').fontSize(13).fontColor(skinColor('text_secondary'))
+                Text(this.app.directory).fontSize(12).fontColor(skinColor('text_primary')).maxLines(2)
                 Text('从此目录及所有子目录选择 EXE、COM、BAT 或 CMD；不会打开系统文件框。')
-                  .fontSize(11).fontColor($r('app.color.text_secondary'))
+                  .fontSize(11).fontColor(skinColor('text_secondary'))
                 Text(this.value.executable ? '当前主程序：' + this.relativeExecutablePath(this.app.directory, this.value.executable) : '尚未选择主程序')
-                  .fontSize(11).fontColor($r('app.color.text_secondary')).maxLines(2)
+                  .fontSize(11).fontColor(skinColor('text_secondary')).maxLines(2)
                 if (!this.app.available && this.value.executable === this.app.launchTarget.executable) {
                   Text('未找到当前主程序，请重新选择。').fontSize(12).fontColor('#D94848')
                 }
-                Button('选择此游戏目录中的主程序').width('100%').height(48).backgroundColor($r('app.color.search_background'))
-                  .fontColor($r('app.color.text_primary')).id('app-settings-select-exe').onClick(() => this.openExecutablePicker())
-              }.width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14).alignItems(HorizontalAlign.Start)
+                Button('选择此游戏目录中的主程序').width('100%').height(48).backgroundColor(skinColor('search_background'))
+                  .fontColor(skinColor('text_primary')).id('app-settings-select-exe').onClick(() => this.openExecutablePicker())
+              }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14).alignItems(HorizontalAlign.Start)
             } else {
-              Text('内建系统应用由 Wine 运行时提供，不能更换 EXE。').fontSize(12).fontColor($r('app.color.text_secondary'))
-                .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+              Text('内建系统应用由 Wine 运行时提供，不能更换 EXE。').fontSize(12).fontColor(skinColor('text_secondary'))
+                .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             }
             // 封面仅对下载游戏开放: 每个游戏的封面存各自的游戏目录 (cover.<ext>),
             // 内建应用封面是内置的, 不提供自定义。
             if (this.app?.source === AppSource.DOWNLOAD) {
-              Button('选择封面图片').width('100%').height(48).backgroundColor($r('app.color.search_background'))
-                .fontColor($r('app.color.text_primary')).id('app-settings-select-cover').onClick(() => this.selectCover())
+              Button('选择封面图片').width('100%').height(48).backgroundColor(skinColor('search_background'))
+                .fontColor(skinColor('text_primary')).id('app-settings-select-cover').onClick(() => this.selectCover())
               if (this.value.customCover.length > 0) {
                 Button('移除封面').width('100%').height(44).margin({ top: 8 })
                   .backgroundColor('#1AD94848').fontColor('#D94848').id('app-settings-remove-cover')
                   .onClick(() => { void this.removeCover(); })
               }
             }
-          }.width('100%').padding(this.cardPadding()).backgroundColor($r('app.color.card_background')).borderRadius(16)
+            if (this.app) {
+              Text('游戏背景').fontSize(15).fontWeight(FontWeight.Medium)
+                .fontColor(skinColor('text_primary')).width('100%').margin({ top: 8 })
+              Text('来源：' + GameArtworkService.getInstance().sourceLabel(this.app!))
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              Text('首次展示时自动尝试 Steam 公开图源，无需 Key；仅唯一准确匹配才会下载。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              if (GameArtworkService.getInstance().resolve(this.app!).length > 0) {
+                Image('file://' + GameArtworkService.getInstance().resolve(this.app!))
+                  .width('100%').height(160).objectFit(ImageFit.Cover).borderRadius(12)
+              }
+              Button('手动选择背景').width('100%').height(44).borderRadius(12)
+                .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
+                .id('app-settings-select-background')
+                .onClick((): void => { void this.selectGameBackground(); })
+              if (this.value.backgroundMode === GameBackgroundMode.MANUAL) {
+                Button('恢复自动获取').width('100%').height(44).borderRadius(12)
+                  .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
+                  .id('app-settings-auto-background')
+                  .onClick((): void => { void this.restoreAutomaticBackground(); })
+              } else if (this.app.source === AppSource.DOWNLOAD &&
+                GameArtworkService.getInstance().sourceLabel(this.app!) !== '游戏目录') {
+                Button('重新获取背景').width('100%').height(44).borderRadius(12)
+                  .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
+                  .id('app-settings-retry-background')
+                  .onClick((): void => this.retryGameBackground())
+              }
+            }
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
 
           Column({ space: 12 }) {
             Text('启动参数').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
-            Text('图形 API').fontSize(13).fontColor($r('app.color.text_secondary')).width('100%')
+            Text('图形 API').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
             Text('启动时追加命令行参数，让游戏选择 Direct3D 11 或 OpenGL。不改变系统设置中的 DXVK/VirGL 后端。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
               ForEach(GRAPHICS_LAUNCH_PRESET_IDS, (preset: string) => {
                 Button(graphicsLaunchPresetLabel(preset))
@@ -739,27 +802,27 @@ struct AppSettingsPage {
                   .borderRadius(14)
                   .fontSize(12)
                   .fontColor(this.value.graphicsLaunchPreset === preset ?
-                    '#FFFFFFFF' : $r('app.color.text_primary'))
+                    '#FFFFFFFF' : skinColor('text_primary'))
                   .backgroundColor(this.value.graphicsLaunchPreset === preset ?
-                    $r('app.color.accent') : $r('app.color.search_background'))
+                    skinColor('accent') : skinColor('search_background'))
                   .id('app-settings-gfx-' + preset)
                   .onClick(() => this.setGraphicsLaunchPreset(preset))
               }, (preset: string): string => preset)
             }.width('100%')
             Text(graphicsLaunchPresetDescription(this.value.graphicsLaunchPreset))
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             this.Field('额外参数', formatLaunchArgumentText(this.value.arguments), (text: string): void => {
               this.setExtraLaunchArguments(text);
             })
             Text('空格分隔，例如 -force-gfx-direct 或 -no-cef-sandbox。与上方图形预设合并后启动。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
-          }.width('100%').padding(this.cardPadding()).backgroundColor($r('app.color.card_background')).borderRadius(16)
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
 
           Column({ space: 12 }) {
             Text('兼容性').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
-            Text('Box64 兼容性预设').fontSize(13).fontColor($r('app.color.text_secondary')).width('100%')
+            Text('Box64 兼容性预设').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
             Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
               ForEach(BOX64_APP_PRESET_IDS, (preset: string) => {
                 Button(box64PresetLabel(preset))
@@ -769,55 +832,55 @@ struct AppSettingsPage {
                   .borderRadius(14)
                   .fontSize(12)
                   .fontColor(this.value.box64Preset === preset ?
-                    '#FFFFFFFF' : $r('app.color.text_primary'))
+                    '#FFFFFFFF' : skinColor('text_primary'))
                   .backgroundColor(this.value.box64Preset === preset ?
-                    $r('app.color.accent') : $r('app.color.search_background'))
+                    skinColor('accent') : skinColor('search_background'))
                   .id('app-settings-box64-' + preset)
                   .onClick(() => this.setBox64Preset(preset))
               }, (preset: string): string => preset)
             }.width('100%')
             Text(this.value.box64Preset === BOX64_PRESET_DEFAULT ?
               '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
-            Text('Media Foundation 视频').fontSize(13).fontColor($r('app.color.text_secondary'))
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            Text('Media Foundation 视频').fontSize(13).fontColor(skinColor('text_secondary'))
               .width('100%').margin({ top: 8 })
             Text('默认关闭。不要因为游戏是 Unity 就自动打开；仅在开场视频黑屏、花屏、有声无画或卡死时按需启用。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Row() {
               Column({ space: 4 }) {
                 Text('禁用 Media Foundation DXGI 视频加速').fontSize(15).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.text_primary'))
+                  .fontColor(skinColor('text_primary'))
                 Text('部分 Unity / MF 游戏开场视频黑屏、花屏、有声无画或卡死。开启后禁用 DXGI Device Manager，视频可能改走兼容性更高的非 DXGI 路径。')
-                  .fontSize(11).fontColor($r('app.color.text_secondary'))
+                  .fontSize(11).fontColor(skinColor('text_secondary'))
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               Toggle({ type: ToggleType.Switch, isOn: this.value.disableMfDxgiDeviceManager })
                 .onChange((value: boolean): void => this.setDisableMfDxgiDeviceManager(value))
-            }.width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+            }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             .id('app-settings-mf-disable-dxgi')
             Row() {
               Column({ space: 4 }) {
                 Text('优先 Wine MPEG4 Handler').fontSize(15).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.text_primary'))
+                  .fontColor(skinColor('text_primary'))
                 Text('实验性。handler 查找失败时先试 Wine MPEG4，再回退 GStreamer。不要和无视频问题一起乱开。')
-                  .fontSize(11).fontColor($r('app.color.text_secondary'))
+                  .fontSize(11).fontColor(skinColor('text_secondary'))
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               Toggle({ type: ToggleType.Switch, isOn: this.value.preferMfMpeg4Handler })
                 .onChange((value: boolean): void => this.setPreferMfMpeg4Handler(value))
-            }.width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+            }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             .id('app-settings-mf-prefer-mpeg4')
-          }.width('100%').padding(this.cardPadding()).backgroundColor($r('app.color.card_background')).borderRadius(16)
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
 
           Column({ space: 12 }) {
             Text('输入映射').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
             Text('桌面模式始终使用系统设置中的桌面全局方案；这里的应用专用方案在启动单个程序时生效。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Text(this.currentProfileId() === 'default' ? '当前跟随桌面全局输入方案' : '当前使用应用专用输入方案')
-              .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
             Button('编辑应用专用输入方案')
               .width('100%')
               .height(48)
-              .backgroundColor($r('app.color.search_background'))
-              .fontColor($r('app.color.text_primary'))
+              .backgroundColor(skinColor('search_background'))
+              .fontColor(skinColor('text_primary'))
               .id('app-settings-edit-input-profile')
               .onClick(() => this.editInputProfile())
             if (this.currentProfileId() !== 'default') {
@@ -825,14 +888,14 @@ struct AppSettingsPage {
                 .width('100%')
                 .height(48)
                 .backgroundColor('#1F246BFD')
-                .fontColor($r('app.color.accent'))
+                .fontColor(skinColor('accent'))
                 .id('app-settings-use-global-input')
                 .onClick((): void => { this.useGlobalInputProfile(); })
             }
-          }.width('100%').padding(this.cardPadding()).backgroundColor($r('app.color.card_background')).borderRadius(16)
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
 
           if (this.app && !this.app.available) {
-            Button('删除不可用卡片').height(48).fontColor('#D94848').backgroundColor($r('app.color.card_background')).onClick(() => this.removeUnavailable())
+            Button('删除不可用卡片').height(48).fontColor('#D94848').backgroundColor(skinColor('card_background')).onClick(() => this.removeUnavailable())
           }
         }
         .width('100%')
@@ -862,16 +925,16 @@ struct AppSettingsPage {
           },
           contentStyle: {
               titleStyle: {
-                mainTitleColor: $r('app.color.text_primary'),
-                subTitleColor: $r('app.color.text_secondary')
+                mainTitleColor: skinColor('text_primary'),
+                subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.accent')
+              iconColor: skinColor('accent')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
               }
             }
         },
@@ -881,16 +944,16 @@ struct AppSettingsPage {
           },
           contentStyle: {
               titleStyle: {
-                mainTitleColor: $r('app.color.text_primary'),
-                subTitleColor: $r('app.color.text_secondary')
+                mainTitleColor: skinColor('text_primary'),
+                subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.accent')
+              iconColor: skinColor('accent')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
               }
             }
         },
@@ -923,7 +986,7 @@ struct AppSettingsPage {
       .backgroundColor('#00FFFFFF')
     }
     .width('100%').height('100%')
-    .backgroundColor($r('app.color.page_background'))
+    .backgroundColor(skinColor('page_background'))
     .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
       [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM, SafeAreaEdge.START, SafeAreaEdge.END])
   }

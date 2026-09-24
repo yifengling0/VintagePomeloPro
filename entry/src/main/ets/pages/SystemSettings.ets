@@ -1,3 +1,4 @@
+import { skinColor } from '../service/SkinColors';
 /// <reference path="../ohos.systemShare.d.ts" />
 import router from '@ohos.router';
 import { PerformanceHudField, PerformanceHudSettings, hasPerformanceHudContent,
@@ -14,6 +15,8 @@ import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/Br
 import {
   BOX64_PRESET_IDS,
   ControlBarDirection,
+  ConsoleCardLayout,
+  ConsolePalette,
   D3DRendererPreference,
   DesktopWindowMode,
   DisplayMode,
@@ -23,6 +26,7 @@ import {
   INPUT_TEMPLATES,
   InputTemplate,
   ThemeMode,
+  UiSkin,
   WineLanguage,
   ViewMode,
   VirtualMouseConfig,
@@ -125,12 +129,12 @@ struct InputProfilePickerDialog {
           $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
           .fontSize(21)
           .fontColor([profile.id === this.selectedId ?
-            $r('app.color.accent') : $r('app.color.text_secondary')])
+            skinColor('accent') : skinColor('text_secondary')])
         Column({ space: 3 }) {
           Text(profile.name).fontSize(14).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary')).maxLines(1).width('100%')
+            .fontColor(skinColor('text_primary')).maxLines(1).width('100%')
           Text(inputTemplateForProfileId(profile.id)?.description ?? '内置输入方案')
-            .fontSize(10).fontColor($r('app.color.text_secondary')).maxLines(2).width('100%')
+            .fontSize(10).fontColor(skinColor('text_secondary')).maxLines(2).width('100%')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')
     }
@@ -138,9 +142,9 @@ struct InputProfilePickerDialog {
     .height(this.compact ? 70 : 78)
     .padding(11).borderRadius(14)
     .backgroundColor(profile.id === this.selectedId ?
-      $r('app.color.selected_background') : $r('app.color.search_background'))
+      skinColor('selected_background') : skinColor('search_background'))
     .border({ width: 1, color: profile.id === this.selectedId ?
-      $r('app.color.accent') : '#14000000' })
+      skinColor('accent') : '#14000000' })
     .margin({ bottom: 8 })
     .id('picker-input-profile-' + profile.id)
     .onClick((): void => this.choose(profile.id))
@@ -155,13 +159,13 @@ struct InputProfilePickerDialog {
             $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
             .fontSize(21)
             .fontColor([profile.id === this.selectedId ?
-              $r('app.color.accent') : $r('app.color.text_secondary')])
+              skinColor('accent') : skinColor('text_secondary')])
           Column({ space: 3 }) {
             Text(profile.name).fontSize(14).fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.text_primary')).maxLines(1).width('100%')
+              .fontColor(skinColor('text_primary')).maxLines(1).width('100%')
             Text(profile.id === this.selectedId ? '我的方案 · 使用中' : '我的方案')
               .fontSize(10).fontColor(profile.id === this.selectedId ?
-                $r('app.color.accent') : $r('app.color.text_secondary')).width('100%')
+                skinColor('accent') : skinColor('text_secondary')).width('100%')
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         }.width('100%')
       }
@@ -176,7 +180,7 @@ struct InputProfilePickerDialog {
     }
     .width('100%').height(62).borderRadius(14)
     .backgroundColor(profile.id === this.selectedId ?
-      $r('app.color.selected_background') : $r('app.color.search_background'))
+      skinColor('selected_background') : skinColor('search_background'))
     .margin({ bottom: 8 })
   }
 
@@ -185,19 +189,19 @@ struct InputProfilePickerDialog {
       Row() {
         Column({ space: 3 }) {
           Text('切换输入方案').fontSize(20).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary')).width('100%')
+            .fontColor(skinColor('text_primary')).width('100%')
           Text('内置方案可直接使用；自己的方案可在这里切换或删除。')
-            .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Button('关闭').height(38).borderRadius(12).fontSize(12)
-          .backgroundColor($r('app.color.search_background')).fontColor($r('app.color.text_primary'))
+          .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
           .onClick((): void => { if (this.controller) this.controller.close(); })
       }.width('100%')
 
       Scroll() {
         Column({ space: 6 }) {
           Text('内置方案').fontSize(12).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary')).width('100%')
+            .fontColor(skinColor('text_secondary')).width('100%')
           Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
             ForEach(this.builtInProfiles(), (profile: InputProfile): void => {
               this.BuiltInChoice(profile)
@@ -205,11 +209,11 @@ struct InputProfilePickerDialog {
           }.width('100%')
 
           Text('我的方案').fontSize(12).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary')).width('100%').margin({ top: 2 })
+            .fontColor(skinColor('text_secondary')).width('100%').margin({ top: 2 })
           if (this.customProfiles().length === 0) {
             Text('还没有自定义方案，可关闭后点击“新建方案”。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
-              .padding(12).backgroundColor($r('app.color.search_background')).borderRadius(12)
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              .padding(12).backgroundColor(skinColor('search_background')).borderRadius(12)
           } else {
             ForEach(this.customProfiles(), (profile: InputProfile): void => {
               this.CustomChoice(profile)
@@ -224,7 +228,7 @@ struct InputProfilePickerDialog {
     .width(this.compact ? '94%' : '82%')
     .constraintSize({ maxWidth: 720 })
     .padding(this.compact ? 16 : 22)
-    .backgroundColor($r('app.color.card_background'))
+    .backgroundColor(skinColor('card_background'))
     .borderRadius(22)
   }
 }
@@ -257,6 +261,7 @@ struct SystemSettingsPage {
   // 渲染模式 (dxvk_1_10/dxvk_2_6/virgl): @State 保证按钮选中态即时刷新
   @State private renderMode: string = 'dxvk_1_10';
   @State private fontImporting: boolean = false;
+  @State private sgdbKeyDraft: string = '';
   @State private fontImportStage: string = '';
   @State private fontImportProgress: number = 0;
   @State private hubStateText: string = '等待手柄输入…';
@@ -274,6 +279,7 @@ struct SystemSettingsPage {
   }
 
   private usesDarkAppearance(): boolean {
+    if (this.settings.uiSkin === UiSkin.CONSOLE) return this.settings.consolePalette !== ConsolePalette.PEARL;
     if (this.settings.themeMode === ThemeMode.DARK) return true;
     if (this.settings.themeMode === ThemeMode.LIGHT) return false;
     try {
@@ -297,7 +303,7 @@ struct SystemSettingsPage {
   }
 
   private groupSurfaceColor(): string | Resource {
-    if (!this.settings.useGlassEffect) return $r('app.color.card_background');
+    if (!this.settings.useGlassEffect) return skinColor('card_background');
     return this.usesDarkAppearance() ? '#3A202833' : '#DDF5F9FD';
   }
 
@@ -357,6 +363,7 @@ struct SystemSettingsPage {
 
   onPageShow(): void {
     this.settings = ThemeSettingsService.getInstance().getSettings();
+    this.sgdbKeyDraft = AppSettingsStore.getInstance().getSgdbApiKey();
     // 初始化非浮窗模式 (全屏/切边): 浮窗模式下 UI 高亮显示此前的选择,
     // 关闭浮窗开关时恢复该模式。
     if (this.settings.desktopWindowMode !== DesktopWindowMode.FLOATING) {
@@ -587,6 +594,9 @@ struct SystemSettingsPage {
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: desktopInputProfileId || 'default',
       viewMode: view,
+      uiSkin: this.settings.uiSkin,
+      consoleCardLayout: this.settings.consoleCardLayout,
+      consolePalette: this.settings.consolePalette,
       themeMode: theme,
       useGlassEffect: glass,
       usePageBackground: background,
@@ -1033,6 +1043,9 @@ struct SystemSettingsPage {
       box64Preset: preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
+      uiSkin: this.settings.uiSkin,
+      consoleCardLayout: this.settings.consoleCardLayout,
+      consolePalette: this.settings.consolePalette,
       themeMode: this.settings.themeMode,
       useGlassEffect: this.settings.useGlassEffect,
       usePageBackground: this.settings.usePageBackground,
@@ -1090,6 +1103,9 @@ struct SystemSettingsPage {
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
+      uiSkin: this.settings.uiSkin,
+      consoleCardLayout: this.settings.consoleCardLayout,
+      consolePalette: this.settings.consolePalette,
       themeMode: this.settings.themeMode,
       useGlassEffect: this.settings.useGlassEffect,
       usePageBackground: this.settings.usePageBackground,
@@ -1352,15 +1368,42 @@ struct SystemSettingsPage {
     InputOverlayWindowCoordinator.getInstance().setEnabled(defaults.virtualInputEnabled).catch((): void => {});
   }
 
+  private selectUiSkin(value: UiSkin): void {
+    const next = JSON.parse(JSON.stringify(this.settings)) as GlobalSettings;
+    next.uiSkin = value;
+    this.settings = next;
+    void ThemeSettingsService.getInstance().update(this.settings);
+  }
+
+  private selectConsoleCardLayout(value: ConsoleCardLayout): void {
+    const next = JSON.parse(JSON.stringify(this.settings)) as GlobalSettings;
+    next.consoleCardLayout = value;
+    this.settings = next;
+    void ThemeSettingsService.getInstance().update(this.settings);
+  }
+
+  private selectConsolePalette(value: ConsolePalette): void {
+    const next = JSON.parse(JSON.stringify(this.settings)) as GlobalSettings;
+    next.consolePalette = value;
+    this.settings = next;
+    void ThemeSettingsService.getInstance().update(this.settings);
+  }
+
+  private saveSgdbKey(): void {
+    void AppSettingsStore.getInstance().setSgdbApiKey(this.sgdbKeyDraft).then((): void => {
+      promptAction.showToast({ message: 'SteamGridDB Key 已保存' });
+    });
+  }
+
   @Builder
   private SectionButton(label: string, section: SettingsSection, icon: Resource) {
     Row({ space: 12 }) {
-      SymbolGlyph(icon).fontSize(18).fontColor([$r('app.color.text_primary')])
-      Text(label).fontSize(14).fontColor($r('app.color.text_primary'))
+      SymbolGlyph(icon).fontSize(18).fontColor([skinColor('text_primary')])
+      Text(label).fontSize(14).fontColor(skinColor('text_primary'))
         .fontWeight(this.section === section ? FontWeight.Medium : FontWeight.Regular)
     }
       .width('100%').height(48).padding({ left: 14, right: 14 }).borderRadius(16)
-      .backgroundColor(this.section === section ? $r('app.color.selected_background') : '#00FFFFFF')
+      .backgroundColor(this.section === section ? skinColor('selected_background') : '#00FFFFFF')
       .border({ width: this.section === section ? 1 : 0, color: this.groupBorderColor() })
       .id('settings-nav-' + section)
       .onClick(() => this.selectSection(section))
@@ -1371,15 +1414,15 @@ struct SystemSettingsPage {
     Button() {
       Row({ space: 7 }) {
         SymbolGlyph(icon).fontSize(16)
-          .fontColor([this.section === section ? $r('app.color.accent') : $r('app.color.text_secondary')])
+          .fontColor([this.section === section ? skinColor('accent') : skinColor('text_secondary')])
         Text(label).fontSize(13).fontWeight(this.section === section ? FontWeight.Medium : FontWeight.Regular)
-          .fontColor(this.section === section ? $r('app.color.accent') : $r('app.color.text_primary'))
+          .fontColor(this.section === section ? skinColor('accent') : skinColor('text_primary'))
       }
     }
     .height(40)
     .padding({ left: 13, right: 13 })
     .borderRadius(20)
-    .backgroundColor(this.section === section ? $r('app.color.selected_background') : '#18FFFFFF')
+    .backgroundColor(this.section === section ? skinColor('selected_background') : '#18FFFFFF')
     .border({ width: 1, color: this.section === section ? '#38FFFFFF' : '#22FFFFFF' })
     .onClick((): void => this.selectSection(section))
   }
@@ -1422,14 +1465,14 @@ struct SystemSettingsPage {
     onChange: (value: boolean) => void, id: string = '') {
     Row() {
       Column({ space: 4 }) {
-        Text(title).fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary'))
-        Text(description).fontSize(11).fontColor($r('app.color.text_secondary'))
+        Text(title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+        Text(description).fontSize(11).fontColor(skinColor('text_secondary'))
       }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       Toggle({ type: ToggleType.Switch, isOn: enabled }).onChange((value: boolean) => onChange(value))
     }
     .width('100%')
     .padding({ left: 14, right: 14, top: 13, bottom: 13 })
-    .backgroundColor($r('app.color.search_background'))
+    .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
     .id(id)
   }
@@ -1444,28 +1487,28 @@ struct SystemSettingsPage {
               .width('100%').height('100%').objectFit(ImageFit.Cover)
           } else {
             SymbolGlyph($r('sys.symbol.rectangle_grid_1x2')).fontSize(26)
-              .fontColor([$r('app.color.text_secondary')])
+              .fontColor([skinColor('text_secondary')])
           }
         }
         .width(112).height(72).borderRadius(12).clip(true)
-        .backgroundColor($r('app.color.search_background'))
+        .backgroundColor(skinColor('search_background'))
         .border({ width: 1, color: '#1F000000' })
         .id('page-background-preview')
         Column({ space: 4 }) {
           Text(this.settings.pageBackgroundUri.length > 0 ? '已选择背景图片' : '尚未选择背景')
-            .fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary'))
+            .fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
           Text('建议使用横向图片，应用库会自动裁切填充')
-            .fontSize(11).fontColor($r('app.color.text_secondary'))
+            .fontSize(11).fontColor(skinColor('text_secondary'))
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')
       Row({ space: 10 }) {
         Button('选择图片').height(44).borderRadius(14)
-          .backgroundColor($r('app.color.selected_background')).fontColor($r('app.color.accent'))
+          .backgroundColor(skinColor('selected_background')).fontColor(skinColor('accent'))
           .id('page-background-select')
           .onClick((): void => { this.selectPageBackground(); })
         if (this.settings.pageBackgroundUri.length > 0) {
           Button('移除图片').height(44).borderRadius(14)
-            .backgroundColor($r('app.color.search_background')).fontColor('#D94848')
+            .backgroundColor(skinColor('search_background')).fontColor('#D94848')
             .id('page-background-clear')
             .onClick((): void => this.clearPageBackground())
         }
@@ -1482,8 +1525,8 @@ struct SystemSettingsPage {
       .padding({ left: 14, right: 14 })
       .borderRadius(20)
       .fontSize(13)
-      .fontColor(this.settings.controlBarDirection === direction ? '#FFFFFFFF' : $r('app.color.text_primary'))
-      .backgroundColor(this.settings.controlBarDirection === direction ? $r('app.color.accent') : $r('app.color.search_background'))
+      .fontColor(this.settings.controlBarDirection === direction ? '#FFFFFFFF' : skinColor('text_primary'))
+      .backgroundColor(this.settings.controlBarDirection === direction ? skinColor('accent') : skinColor('search_background'))
       .id('control-bar-direction-' + direction)
       .onClick((): void => this.updateControlBarDirection(direction))
   }
@@ -1496,9 +1539,9 @@ struct SystemSettingsPage {
       .borderRadius(14)
       .fontSize(13)
       .fontColor(this.settings.d3dRendererPreference === preference ?
-        '#FFFFFFFF' : $r('app.color.text_primary'))
+        '#FFFFFFFF' : skinColor('text_primary'))
       .backgroundColor(this.settings.d3dRendererPreference === preference ?
-        $r('app.color.accent') : $r('app.color.search_background'))
+        skinColor('accent') : skinColor('search_background'))
       .id('d3d-renderer-' + preference)
       .onClick((): void => this.updateD3DRendererPreference(preference))
   }
@@ -1527,12 +1570,12 @@ struct SystemSettingsPage {
           Text(mode === 'dxvk_2_6' ? 'DXVK 2.6' : 'DXVK')
             .fontSize(10)
             .fontWeight(FontWeight.Medium)
-            .fontColor(!enabled ? '#666' : (this.renderModeActive(mode) ? '#FFFFFFFF' : $r('app.color.text_primary')))
+            .fontColor(!enabled ? '#666' : (this.renderModeActive(mode) ? '#FFFFFFFF' : skinColor('text_primary')))
             .maxLines(1)
           Text(mode === 'dxvk_2_6' ? '实验' : '1.10')
             .fontSize(13)
             .fontWeight(FontWeight.Bold)
-            .fontColor(!enabled ? '#666' : (this.renderModeActive(mode) ? '#FFFFFFFF' : $r('app.color.text_primary')))
+            .fontColor(!enabled ? '#666' : (this.renderModeActive(mode) ? '#FFFFFFFF' : skinColor('text_primary')))
             .maxLines(1)
         }
         .width('100%')
@@ -1541,7 +1584,7 @@ struct SystemSettingsPage {
       } else {
         Text(label)
           .fontSize(13)
-          .fontColor(!enabled ? '#666' : (this.renderModeActive(mode) ? '#FFFFFFFF' : $r('app.color.text_primary')))
+          .fontColor(!enabled ? '#666' : (this.renderModeActive(mode) ? '#FFFFFFFF' : skinColor('text_primary')))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
@@ -1550,7 +1593,7 @@ struct SystemSettingsPage {
       .layoutWeight(1)
       .borderRadius(14)
       .enabled(enabled)
-      .backgroundColor(!enabled ? '#222' : (this.renderModeActive(mode) ? $r('app.color.accent') : $r('app.color.search_background')))
+      .backgroundColor(!enabled ? '#222' : (this.renderModeActive(mode) ? skinColor('accent') : skinColor('search_background')))
       .id('render-mode-' + mode)
       .onClick((): void => this.updateRenderMode(mode))
   }
@@ -1563,8 +1606,8 @@ struct SystemSettingsPage {
       .borderRadius(14)
       .fontSize(13)
       .enabled(enabled)
-      .fontColor(!enabled ? '#666' : (this.dxvkVersionActive(version) ? '#FFFFFFFF' : $r('app.color.text_primary')))
-      .backgroundColor(!enabled ? '#222' : (this.dxvkVersionActive(version) ? $r('app.color.accent') : $r('app.color.search_background')))
+      .fontColor(!enabled ? '#666' : (this.dxvkVersionActive(version) ? '#FFFFFFFF' : skinColor('text_primary')))
+      .backgroundColor(!enabled ? '#222' : (this.dxvkVersionActive(version) ? skinColor('accent') : skinColor('search_background')))
       .id('dxvk-version-' + version)
       .onClick((): void => this.updateDxvkVersion(version))
   }
@@ -1623,17 +1666,17 @@ struct SystemSettingsPage {
     Button() {
       Column({ space: 3 }) {
         Text(title).fontSize(13).fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary')).maxLines(1).width('100%')
-        Text(description).fontSize(10).fontColor($r('app.color.text_secondary'))
+          .fontColor(skinColor('text_primary')).maxLines(1).width('100%')
+        Text(description).fontSize(10).fontColor(skinColor('text_secondary'))
           .maxLines(2).width('100%')
       }.width('100%').alignItems(HorizontalAlign.Start)
     }
     .width(this.compactProfileDialog() ? '100%' : '48%')
     .height(66).padding(10).borderRadius(12)
     .backgroundColor(this.profileCreatorBaseId === baseId ?
-      $r('app.color.selected_background') : $r('app.color.card_background'))
+      skinColor('selected_background') : skinColor('card_background'))
     .border({ width: 1, color: this.profileCreatorBaseId === baseId ?
-      $r('app.color.accent') : this.groupBorderColor() })
+      skinColor('accent') : this.groupBorderColor() })
     .margin({ right: 7, bottom: 7 })
     .id('profile-base-' + baseId.replace(':', '-'))
     .onClick((): void => this.selectProfileCreatorBase(baseId))
@@ -1645,16 +1688,16 @@ struct SystemSettingsPage {
       Row() {
         Column({ space: 3 }) {
           Text('新建我的方案').fontSize(15).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary'))
+            .fontColor(skinColor('text_primary'))
           Text('先选择一个起点，再为新方案命名。创建后会自动切换。')
-            .fontSize(10).fontColor($r('app.color.text_secondary'))
+            .fontSize(10).fontColor(skinColor('text_secondary'))
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-        Text('取消').fontSize(12).fontColor($r('app.color.text_secondary'))
+        Text('取消').fontSize(12).fontColor(skinColor('text_secondary'))
           .onClick((): void => { this.showProfileCreator = false; })
       }.width('100%')
 
       Text('1  选择起点').fontSize(12).fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary')).width('100%')
+        .fontColor(skinColor('text_primary')).width('100%')
       Flex({ wrap: FlexWrap.Wrap }) {
         this.ProfileCreatorBaseChoice('current', '复制当前', '保留“' + this.selectedProfileName() + '”的全部设置')
         ForEach(INPUT_TEMPLATES, (template: InputTemplate): void => {
@@ -1663,10 +1706,10 @@ struct SystemSettingsPage {
       }.width('100%')
 
       Text('2  输入名称').fontSize(12).fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary')).width('100%')
+        .fontColor(skinColor('text_primary')).width('100%')
       TextInput({ text: this.profileCreatorName, placeholder: '例如：仙剑快捷键、我的 FPS 布局' })
         .width('100%').height(46).borderRadius(12).maxLength(40)
-        .backgroundColor($r('app.color.card_background'))
+        .backgroundColor(skinColor('card_background'))
         .id('new-input-profile-name')
         .onChange((value: string): void => { this.profileCreatorName = value; })
       if (this.profileCreatorError().length > 0) {
@@ -1674,55 +1717,55 @@ struct SystemSettingsPage {
       }
       Button(this.profileCreating ? '正在创建…' : '创建并使用')
         .width('100%').height(46).borderRadius(12)
-        .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+        .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
         .enabled(!this.profileCreating && this.profileCreatorError().length === 0)
         .id('confirm-create-input-profile')
         .onClick((): void => { this.createNamedProfile(); })
     }
     .width('100%').padding(13).borderRadius(14)
-    .backgroundColor($r('app.color.selected_background'))
-    .border({ width: 1, color: $r('app.color.accent') })
+    .backgroundColor(skinColor('selected_background'))
+    .border({ width: 1, color: skinColor('accent') })
   }
 
   @Builder
   private DesktopInputProfiles() {
     Column({ space: 11 }) {
       Text('输入方案').fontSize(16).fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary')).width('100%')
+        .fontColor(skinColor('text_primary')).width('100%')
       Text('当前只显示正在使用的方案；需要时打开选择器快速切换。')
-        .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+        .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
 
       Button() {
         Row({ space: 12 }) {
           Stack({ alignContent: Alignment.Center }) {
-            SymbolGlyph($r('sys.symbol.keyboard')).fontSize(23).fontColor([$r('app.color.accent')])
+            SymbolGlyph($r('sys.symbol.keyboard')).fontSize(23).fontColor([skinColor('accent')])
           }
           .width(44).height(44).borderRadius(14)
-          .backgroundColor($r('app.color.selected_background'))
+          .backgroundColor(skinColor('selected_background'))
           Column({ space: 3 }) {
             Text(this.selectedProfileName()).fontSize(15).fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.text_primary')).maxLines(1).width('100%')
+              .fontColor(skinColor('text_primary')).maxLines(1).width('100%')
             Text(this.selectedProfileDescription()).fontSize(10)
-              .fontColor($r('app.color.text_secondary')).maxLines(2).width('100%')
+              .fontColor(skinColor('text_secondary')).maxLines(2).width('100%')
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          Text('切换').fontSize(12).fontColor($r('app.color.accent'))
+          Text('切换').fontSize(12).fontColor(skinColor('accent'))
         }.width('100%')
       }
       .width('100%').height(72).padding({ left: 12, right: 12 }).borderRadius(14)
-      .backgroundColor($r('app.color.card_background'))
+      .backgroundColor(skinColor('card_background'))
       .border({ width: 1, color: this.groupBorderColor() })
       .id('open-input-profile-picker')
       .onClick((): void => this.openInputProfilePicker())
 
       Row({ space: 8 }) {
         Button('切换方案').layoutWeight(1).height(46).borderRadius(12)
-          .backgroundColor($r('app.color.selected_background')).fontColor($r('app.color.accent'))
+          .backgroundColor(skinColor('selected_background')).fontColor(skinColor('accent'))
           .fontSize(12)
           .id('switch-input-profile')
           .onClick((): void => this.openInputProfilePicker())
         Button(this.showProfileCreator ? '收起新建' : '新建方案')
           .layoutWeight(1).height(46).borderRadius(12)
-          .backgroundColor($r('app.color.selected_background')).fontColor($r('app.color.accent'))
+          .backgroundColor(skinColor('selected_background')).fontColor(skinColor('accent'))
           .fontSize(12)
           .id('open-input-profile-creator')
           .onClick((): void => {
@@ -1736,12 +1779,12 @@ struct SystemSettingsPage {
 
       Row({ space: 8 }) {
         Button('导入方案').layoutWeight(1).height(44).borderRadius(12)
-          .backgroundColor($r('app.color.card_background')).fontColor($r('app.color.text_primary'))
+          .backgroundColor(skinColor('card_background')).fontColor(skinColor('text_primary'))
           .fontSize(12)
           .id('import-input-profile')
           .onClick((): void => { this.importInputProfile(); })
         Button('导出当前方案').layoutWeight(1).height(44).borderRadius(12)
-          .backgroundColor($r('app.color.card_background')).fontColor($r('app.color.text_primary'))
+          .backgroundColor(skinColor('card_background')).fontColor(skinColor('text_primary'))
           .fontSize(12)
           .id('export-input-profile')
           .onClick((): void => { this.exportCurrentInputProfile(); })
@@ -1749,31 +1792,31 @@ struct SystemSettingsPage {
       if (inputTemplateForProfileId(this.settings.desktopInputProfileId || 'default')) {
         Button('恢复当前内置方案')
           .width('100%').height(42).borderRadius(12)
-          .backgroundColor($r('app.color.card_background')).fontColor('#D94848')
+          .backgroundColor(skinColor('card_background')).fontColor('#D94848')
           .fontSize(12)
           .id('reset-builtin-input-profile')
           .onClick((): void => { this.resetSelectedBuiltInProfile(); })
       }
     }
-    .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+    .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
   }
 
   @Builder
   private InputLayoutEntry() {
     Row({ space: 14 }) {
       Stack({ alignContent: Alignment.Center }) {
-        SymbolGlyph($r('sys.symbol.gamecontroller')).fontSize(22).fontColor([$r('app.color.accent')])
+        SymbolGlyph($r('sys.symbol.gamecontroller')).fontSize(22).fontColor([skinColor('accent')])
       }
-      .width(48).height(48).borderRadius(16).backgroundColor($r('app.color.selected_background'))
+      .width(48).height(48).borderRadius(16).backgroundColor(skinColor('selected_background'))
       Column({ space: 4 }) {
-        Text('编辑当前桌面方案布局').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary'))
-        Text(this.selectedProfileName() + '：在画布上自由摆放按钮、摇杆、方向键与触摸板，逐元素设置绑定、形状与透明度').fontSize(11).fontColor($r('app.color.text_secondary')).maxLines(2)
+        Text('编辑当前桌面方案布局').fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+        Text(this.selectedProfileName() + '：在画布上自由摆放按钮、摇杆、方向键与触摸板，逐元素设置绑定、形状与透明度').fontSize(11).fontColor(skinColor('text_secondary')).maxLines(2)
       }
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
-      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([$r('app.color.text_secondary')])
+      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([skinColor('text_secondary')])
     }
-    .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+    .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
     .id('open-input-layout-editor')
     .onClick((): void => { router.pushUrl({
       url: 'pages/InputLayoutEditor',
@@ -1792,47 +1835,47 @@ struct SystemSettingsPage {
         Column({ space: 16 }) {
           Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。')
-            .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
            Text('桌面屏幕方向').fontSize(14).fontWeight(FontWeight.Medium)
-             .fontColor($r('app.color.text_primary')).width('100%')
+             .fontColor(skinColor('text_primary')).width('100%')
            Row({ space: 8 }) {
              Button('自动横屏').layoutWeight(1).height(48).borderRadius(14)
                .fontSize(this.isNarrowPhone() ? 11 : 13)
                .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.SENSOR_LANDSCAPE ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.SENSOR_LANDSCAPE ? '#FFFFFFFF' : $r('app.color.text_primary'))
+               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.SENSOR_LANDSCAPE ? skinColor('accent') : skinColor('search_background'))
+               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.SENSOR_LANDSCAPE ? '#FFFFFFFF' : skinColor('text_primary'))
                .onClick(() => this.updateDesktopOrientation(ScreenOrientationSetting.SENSOR_LANDSCAPE))
              Button('横屏').layoutWeight(1).height(48).borderRadius(14)
                .fontSize(this.isNarrowPhone() ? 11 : 13)
                .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.LANDSCAPE ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.LANDSCAPE ? '#FFFFFFFF' : $r('app.color.text_primary'))
+               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.LANDSCAPE ? skinColor('accent') : skinColor('search_background'))
+               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.LANDSCAPE ? '#FFFFFFFF' : skinColor('text_primary'))
                .onClick(() => this.updateDesktopOrientation(ScreenOrientationSetting.LANDSCAPE))
              Button('竖屏').layoutWeight(1).height(48).borderRadius(14)
                .fontSize(this.isNarrowPhone() ? 11 : 13)
                .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.PORTRAIT ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.PORTRAIT ? '#FFFFFFFF' : $r('app.color.text_primary'))
+               .backgroundColor(this.settings.desktopOrientation === ScreenOrientationSetting.PORTRAIT ? skinColor('accent') : skinColor('search_background'))
+               .fontColor(this.settings.desktopOrientation === ScreenOrientationSetting.PORTRAIT ? '#FFFFFFFF' : skinColor('text_primary'))
                .onClick(() => this.updateDesktopOrientation(ScreenOrientationSetting.PORTRAIT))
            }.width('100%')
            Text('桌面窗口显示').fontSize(14).fontWeight(FontWeight.Medium)
-             .fontColor($r('app.color.text_primary')).width('100%')
+             .fontColor(skinColor('text_primary')).width('100%')
            Row({ space: 8 }) {
              Button('全屏（沉浸）').layoutWeight(1).height(48).borderRadius(14)
                .fontSize(this.isNarrowPhone() ? 11 : 13)
                .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.isDesktopWindowModeSelected(DesktopWindowMode.FULLSCREEN) ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.isDesktopWindowModeSelected(DesktopWindowMode.FULLSCREEN) ? '#FFFFFFFF' : $r('app.color.text_primary'))
+               .backgroundColor(this.isDesktopWindowModeSelected(DesktopWindowMode.FULLSCREEN) ? skinColor('accent') : skinColor('search_background'))
+               .fontColor(this.isDesktopWindowModeSelected(DesktopWindowMode.FULLSCREEN) ? '#FFFFFFFF' : skinColor('text_primary'))
                .onClick(() => this.updateDesktopWindowMode(DesktopWindowMode.FULLSCREEN))
              Button('切边（安全区）').layoutWeight(1).height(48).borderRadius(14)
                .fontSize(this.isNarrowPhone() ? 11 : 13)
                .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-               .backgroundColor(this.isDesktopWindowModeSelected(DesktopWindowMode.SAFE_AREA) ? $r('app.color.accent') : $r('app.color.search_background'))
-               .fontColor(this.isDesktopWindowModeSelected(DesktopWindowMode.SAFE_AREA) ? '#FFFFFFFF' : $r('app.color.text_primary'))
+               .backgroundColor(this.isDesktopWindowModeSelected(DesktopWindowMode.SAFE_AREA) ? skinColor('accent') : skinColor('search_background'))
+               .fontColor(this.isDesktopWindowModeSelected(DesktopWindowMode.SAFE_AREA) ? '#FFFFFFFF' : skinColor('text_primary'))
                .onClick(() => this.updateDesktopWindowMode(DesktopWindowMode.SAFE_AREA))
            }.width('100%')
            Text('圆角屏全屏可能遮挡开始菜单；切边模式保留状态栏与圆角安全区。').fontSize(12)
-             .fontColor($r('app.color.text_secondary')).width('100%')
+             .fontColor(skinColor('text_secondary')).width('100%')
           if (DeviceCapabilityPolicy.isTabletDevice() || DeviceCapabilityPolicy.isPhoneDevice()) {
             this.SwitchRow('浮窗模式',
               '桌面缩成可拖动小窗，点击放大；放大在当前画面完成，不切换窗口',
@@ -1842,33 +1885,33 @@ struct SystemSettingsPage {
           }
           if (!DeviceCapabilityPolicy.isPhoneDevice()) {
             Text('桌面模式').fontSize(14).fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.text_primary')).width('100%')
+              .fontColor(skinColor('text_primary')).width('100%')
             Row({ space: 8 }) {
               Button(DeviceCapabilityPolicy.isTabletDevice() ? '多窗口' : '融合（每程序独立窗口）')
                 .layoutWeight(1).height(48).borderRadius(14)
                 .fontSize(this.isNarrowPhone() ? 11 : 13)
                 .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-                .backgroundColor(DesktopModeService.getInstance().mode === MODE_FUSION ? $r('app.color.accent') : $r('app.color.search_background'))
-                .fontColor(DesktopModeService.getInstance().mode === MODE_FUSION ? '#FFFFFFFF' : $r('app.color.text_primary'))
+                .backgroundColor(DesktopModeService.getInstance().mode === MODE_FUSION ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(DesktopModeService.getInstance().mode === MODE_FUSION ? '#FFFFFFFF' : skinColor('text_primary'))
                 .onClick(() => { this.updateDesktopMode(MODE_FUSION); })
               Button('虚拟桌面').layoutWeight(1).height(48).borderRadius(14)
                 .fontSize(this.isNarrowPhone() ? 11 : 13)
                 .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-                .backgroundColor(DesktopModeService.getInstance().mode === MODE_VIRTUAL ? $r('app.color.accent') : $r('app.color.search_background'))
-                .fontColor(DesktopModeService.getInstance().mode === MODE_VIRTUAL ? '#FFFFFFFF' : $r('app.color.text_primary'))
+                .backgroundColor(DesktopModeService.getInstance().mode === MODE_VIRTUAL ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(DesktopModeService.getInstance().mode === MODE_VIRTUAL ? '#FFFFFFFF' : skinColor('text_primary'))
                 .onClick(() => { this.updateDesktopMode(MODE_VIRTUAL); })
             }.width('100%')
             Text(DeviceCapabilityPolicy.isTabletDevice() ?
               '多窗口：每个程序独立子窗口；虚拟桌面：桌面合成器（重启引擎后生效）。' :
               '融合：每个程序独立窗口；虚拟桌面：独立窗口承载 Wine 桌面（重启引擎后生效）。')
               .fontSize(12)
-              .fontColor($r('app.color.text_secondary')).width('100%')
+              .fontColor(skinColor('text_secondary')).width('100%')
           }
           this.SwitchRow('桌面打开时保持亮屏',
             '游玩中自动锁屏会中断操作；关闭后恢复系统默认的自动锁屏策略',
             this.settings.keepScreenOn, (value: boolean): void => this.updateKeepScreenOn(value),
             'keep-screen-on')
-          Text('输出缩放 ' + this.settings.outputScale + '%').fontSize(14).fontColor($r('app.color.text_primary')).width('100%')
+          Text('输出缩放 ' + this.settings.outputScale + '%').fontSize(14).fontColor(skinColor('text_primary')).width('100%')
            Slider({ value: this.settings.outputScale, min: 75, max: 150, step: 5 })
              // Match VintagePomelo: a press on the track must not immediately
              // commit a new value while the user is scrolling the page.
@@ -1891,23 +1934,81 @@ struct SystemSettingsPage {
       } else if (section === 'appearance') {
         Column({ space: 16 }) {
           Text('外观').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
-          Text('主题').fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+          Text('界面皮肤').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+          Row({ space: 8 }) {
+            Button('经典界面').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.uiSkin === UiSkin.CLASSIC ? skinColor('accent') : skinColor('search_background'))
+              .fontColor(this.settings.uiSkin === UiSkin.CLASSIC ? '#FFFFFFFF' : skinColor('text_primary'))
+              .onClick((): void => this.selectUiSkin(UiSkin.CLASSIC))
+            Button('新皮肤').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.uiSkin === UiSkin.CONSOLE ? skinColor('accent') : skinColor('search_background'))
+              .fontColor(this.settings.uiSkin === UiSkin.CONSOLE ? '#FFFFFFFF' : skinColor('text_primary'))
+              .onClick((): void => this.selectUiSkin(UiSkin.CONSOLE))
+          }.width('100%')
+          if (this.settings.uiSkin === UiSkin.CONSOLE) {
+            Text('游戏背景会在首次展示时自动从 Steam 公开图源精确匹配并下载，无需填写 Key。游戏设置中可重新获取或手动选择。')
+              .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+            Column({ space: 8 }) {
+              Text('补充图源 · SteamGridDB Key（可选）').fontSize(13).fontWeight(FontWeight.Medium)
+                .fontColor(skinColor('text_primary')).width('100%')
+              Text('仅在公开图源无图时查询；也可用于获取更多封面。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              TextInput({ placeholder: 'SteamGridDB API Key', text: this.sgdbKeyDraft })
+                .height(44).borderRadius(12).backgroundColor(skinColor('card_background'))
+                .onChange((value: string): void => { this.sgdbKeyDraft = value; })
+              Button('保存 Key').height(42).width('100%').borderRadius(12)
+                .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
+                .onClick((): void => this.saveSgdbKey())
+            }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
+            Text('新皮肤配色').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
+              Button('深紫').width('31%').height(42).borderRadius(12)
+                .backgroundColor(this.settings.consolePalette === ConsolePalette.VIOLET ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(this.settings.consolePalette === ConsolePalette.VIOLET ? '#FFFFFFFF' : skinColor('text_primary'))
+                .onClick((): void => this.selectConsolePalette(ConsolePalette.VIOLET))
+              Button('深蓝').width('31%').height(42).borderRadius(12)
+                .backgroundColor(this.settings.consolePalette === ConsolePalette.BLUE ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(this.settings.consolePalette === ConsolePalette.BLUE ? '#FFFFFFFF' : skinColor('text_primary'))
+                .onClick((): void => this.selectConsolePalette(ConsolePalette.BLUE))
+              Button('浅色').width('31%').height(42).borderRadius(12)
+                .backgroundColor(this.settings.consolePalette === ConsolePalette.PEARL ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(this.settings.consolePalette === ConsolePalette.PEARL ? '#FFFFFFFF' : skinColor('text_primary'))
+                .onClick((): void => this.selectConsolePalette(ConsolePalette.PEARL))
+            }.width('100%')
+            Text('卡片样式').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
+              Button('3D 焦点').width('31%').height(42).borderRadius(12)
+                .backgroundColor(this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ? '#FFFFFFFF' : skinColor('text_primary'))
+                .onClick((): void => this.selectConsoleCardLayout(ConsoleCardLayout.FOCUS_3D))
+              Button('多卡排版').width('31%').height(42).borderRadius(12)
+                .backgroundColor(this.settings.consoleCardLayout === ConsoleCardLayout.GALLERY ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(this.settings.consoleCardLayout === ConsoleCardLayout.GALLERY ? '#FFFFFFFF' : skinColor('text_primary'))
+                .onClick((): void => this.selectConsoleCardLayout(ConsoleCardLayout.GALLERY))
+              Button('背景小卡').width('31%').height(42).borderRadius(12)
+                .backgroundColor(this.settings.consoleCardLayout === ConsoleCardLayout.XBOX_TILES ? skinColor('accent') : skinColor('search_background'))
+                .fontColor(this.settings.consoleCardLayout === ConsoleCardLayout.XBOX_TILES ? '#FFFFFFFF' : skinColor('text_primary'))
+                .onClick((): void => this.selectConsoleCardLayout(ConsoleCardLayout.XBOX_TILES))
+            }.width('100%')
+          }
+          Text(this.settings.uiSkin === UiSkin.CLASSIC ? '经典界面主题' : '经典界面主题（切回后生效）')
+            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
           Row({ space: 8 }) {
             Button(this.isNarrowPhone() ? '跟随' : '跟随系统').layoutWeight(1).height(48).borderRadius(14)
               .fontSize(this.isNarrowPhone() ? 10 : 14)
               .padding({ left: this.isNarrowPhone() ? 4 : 12, right: this.isNarrowPhone() ? 4 : 12 })
-              .backgroundColor(this.settings.themeMode === ThemeMode.SYSTEM ? $r('app.color.accent') : $r('app.color.search_background'))
-              .fontColor(this.settings.themeMode === ThemeMode.SYSTEM ? '#FFFFFFFF' : $r('app.color.text_primary'))
+              .backgroundColor(this.settings.themeMode === ThemeMode.SYSTEM ? skinColor('accent') : skinColor('search_background'))
+              .fontColor(this.settings.themeMode === ThemeMode.SYSTEM ? '#FFFFFFFF' : skinColor('text_primary'))
               .onClick(() => this.updateTheme(ThemeMode.SYSTEM))
             Button('浅色').layoutWeight(1).height(48).borderRadius(14)
               .fontSize(this.isNarrowPhone() ? 10 : 14)
-              .backgroundColor(this.settings.themeMode === ThemeMode.LIGHT ? $r('app.color.accent') : $r('app.color.search_background'))
-              .fontColor(this.settings.themeMode === ThemeMode.LIGHT ? '#FFFFFFFF' : $r('app.color.text_primary'))
+              .backgroundColor(this.settings.themeMode === ThemeMode.LIGHT ? skinColor('accent') : skinColor('search_background'))
+              .fontColor(this.settings.themeMode === ThemeMode.LIGHT ? '#FFFFFFFF' : skinColor('text_primary'))
               .onClick(() => this.updateTheme(ThemeMode.LIGHT))
             Button('深色').layoutWeight(1).height(48).borderRadius(14)
               .fontSize(this.isNarrowPhone() ? 10 : 14)
-              .backgroundColor(this.settings.themeMode === ThemeMode.DARK ? $r('app.color.accent') : $r('app.color.search_background'))
-              .fontColor(this.settings.themeMode === ThemeMode.DARK ? '#FFFFFFFF' : $r('app.color.text_primary'))
+              .backgroundColor(this.settings.themeMode === ThemeMode.DARK ? skinColor('accent') : skinColor('search_background'))
+              .fontColor(this.settings.themeMode === ThemeMode.DARK ? '#FFFFFFFF' : skinColor('text_primary'))
               .onClick(() => this.updateTheme(ThemeMode.DARK))
           }.width('100%')
           this.SwitchRow('玻璃卡片', '默认使用 16vp 圆角和半透明材质', this.settings.useGlassEffect, (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode, value))
@@ -1917,16 +2018,16 @@ struct SystemSettingsPage {
           this.PageBackgroundChooser()
           Column({ space: 10 }) {
             Text('字体').fontSize(14).fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.text_primary')).width('100%')
+              .fontColor(skinColor('text_primary')).width('100%')
             Text('从 ZIP 压缩包导入字体到 Wine 的 C:\\windows\\Fonts。导入前会删除该目录下所有旧字体，导入完成后可一键重启应用生效。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Button('导入字体包 (ZIP)').width('100%').height(44).borderRadius(12)
-              .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+              .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
               .id('font-import-button')
               .enabled(!this.fontImporting)
               .onClick((): void => { this.importFontZip(); })
           }
-          .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+          .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
         }
         .width('100%')
         .padding(this.cardPadding())
@@ -1940,11 +2041,11 @@ struct SystemSettingsPage {
           if (this.isManagedWindowsHost()) {
             Column({ space: 6 }) {
               Text('PC 桌面默认使用实体键盘鼠标')
-                .fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary')).width('100%')
+                .fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
               Text('桌面模式不会创建屏幕控制层，虚拟输入主要面向平板触屏与手柄使用。')
-                .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+                .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
             }
-            .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+            .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
           }
           this.SwitchRow('启用屏幕虚拟输入',
             '关闭后不显示虚拟按键、全屏鼠标和右上角控制栏；实体外设仍可使用',
@@ -1954,9 +2055,9 @@ struct SystemSettingsPage {
             this.SwitchRow('显示虚拟按键', '只控制十字键、摇杆、ABXY 和肩键；全屏鼠标与右上角控制栏不受影响', this.settings.showVirtualControls, (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode, this.settings.useGlassEffect, this.settings.usePageBackground, value))
             this.SwitchRow('外设接管时隐藏按键', '检测到实体键盘、鼠标或手柄操作后，仅隐藏虚拟按键', this.settings.autoHideVirtualControls, (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode, this.settings.useGlassEffect, this.settings.usePageBackground, this.settings.showVirtualControls, value))
             Column({ space: 10 }) {
-              Text('控制栏方向').fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary')).width('100%')
+              Text('控制栏方向').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
               Text('自动会根据横竖屏切换；自动隐藏会在控制栏收起 3 秒后完全隐藏，点击右上角热区即可唤出。')
-                .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
               Flex({ wrap: FlexWrap.Wrap }) {
                 this.ControlBarDirectionChip('自动', ControlBarDirection.AUTO)
                 this.ControlBarDirectionChip('横向', ControlBarDirection.HORIZONTAL)
@@ -1964,17 +2065,17 @@ struct SystemSettingsPage {
                 this.ControlBarDirectionChip('自动隐藏', ControlBarDirection.AUTO_HIDE)
               }.width('100%')
             }
-            .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
+            .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             Column({ space: 10 }) {
-              Text('全屏触摸板模式').fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary')).width('100%')
+              Text('全屏触摸板模式').fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
               Text('从 Wine 画面右上角手指图标切换。开启后单指相对移动鼠标、轻点左键；双指轻点右键、双指滑动滚轮。')
-                .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
               this.SwitchRow('显示箭头指针', '触摸板模式用箭头显示鼠标位置，箭头尖即点击点', this.settings.virtualMouseConfig.showCursor,
                 (value: boolean): void => this.updateVirtualMouse(this.settings.virtualMouseConfig.mouseSensitivity, value))
               Text('轻点为左键，双指轻点为右键；轻点后再次按住并移动可拖拽窗口')
-                .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+                .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
               Text('滚动灵敏度 ' + this.settings.virtualMouseConfig.mouseSensitivity + '%')
-                .fontSize(14).fontColor($r('app.color.text_primary')).width('100%')
+                .fontSize(14).fontColor(skinColor('text_primary')).width('100%')
                Slider({ value: this.settings.virtualMouseConfig.mouseSensitivity, min: 50, max: 200, step: 10 })
                  .id('virtual-mouse-sensitivity')
                  .sliderInteractionMode(2)
@@ -1984,8 +2085,8 @@ struct SystemSettingsPage {
                    }
                  })
             }
-            .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
-            Text('控制层透明度 ' + this.settings.controlOpacity + '%').fontSize(14).fontColor($r('app.color.text_primary')).width('100%')
+            .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
+            Text('控制层透明度 ' + this.settings.controlOpacity + '%').fontSize(14).fontColor(skinColor('text_primary')).width('100%')
              Slider({ value: this.settings.controlOpacity, min: 25, max: 100, step: 1 })
                .sliderInteractionMode(2)
                .onChange((value: number, mode: SliderChangeMode) => {
@@ -1996,16 +2097,28 @@ struct SystemSettingsPage {
                  }
                })
           }
-          Text('手柄兼容模式').fontSize(14).fontColor($r('app.color.text_primary')).width('100%')
+          Text('手柄兼容模式').fontSize(14).fontColor(skinColor('text_primary')).width('100%')
           Row({ space: 10 }) {
             Button(this.settings.controllerOutputMode === 'dinput' ? 'Wine 手柄 ✓' : 'Wine 手柄')
               .fontSize(13)
+              .fontColor(this.settings.controllerOutputMode === 'dinput' ? '#FFFFFFFF' : skinColor('text_primary'))
+              .backgroundColor(this.settings.controllerOutputMode === 'dinput' ?
+                skinColor('accent') : skinColor('search_background'))
+              .height(38).borderRadius(19).padding({ left: 12, right: 12 })
               .onClick((): void => this.updateControllerOutputMode('dinput'))
             Button(this.settings.controllerOutputMode === 'keyboard_legacy' ? '键盘模拟 ✓' : '键盘模拟')
               .fontSize(13)
+              .fontColor(this.settings.controllerOutputMode === 'keyboard_legacy' ?
+                '#FFFFFFFF' : skinColor('text_primary'))
+              .backgroundColor(this.settings.controllerOutputMode === 'keyboard_legacy' ?
+                skinColor('accent') : skinColor('search_background'))
+              .height(38).borderRadius(19).padding({ left: 12, right: 12 })
               .onClick((): void => this.updateControllerOutputMode('keyboard_legacy'))
             Button('测试震动')
               .fontSize(13)
+              .fontColor(skinColor('text_primary'))
+              .backgroundColor(skinColor('search_background'))
+              .height(38).borderRadius(19).padding({ left: 12, right: 12 })
               .onClick((): void => {
                 const ok: boolean = GamepadManager.getInstance().testRumble();
                 promptAction.showToast({
@@ -2014,10 +2127,10 @@ struct SystemSettingsPage {
               })
           }.width('100%')
           Text('Wine 手柄经 Controller Hub 进入 DirectInput 与 XInput，并转发震动到实体手柄；键盘模拟保持旧版键鼠映射。切换后需重启会话。')
-            .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
           Text(this.hubStateText)
-            .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
-          Text('手柄死区 ' + this.settings.gamepadDeadzone + '%').fontSize(14).fontColor($r('app.color.text_primary')).width('100%')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+          Text('手柄死区 ' + this.settings.gamepadDeadzone + '%').fontSize(14).fontColor(skinColor('text_primary')).width('100%')
            Slider({ value: this.settings.gamepadDeadzone, min: 0, max: 40, step: 1 })
              .sliderInteractionMode(2)
              .onChange((value: number, mode: SliderChangeMode) => {
@@ -2041,37 +2154,37 @@ struct SystemSettingsPage {
         Column({ space: 14 }) {
           Row({ space: 12 }) {
             Stack({ alignContent: Alignment.Center }) {
-              SymbolGlyph($r('sys.symbol.arrow_clockwise')).fontSize(24).fontColor([$r('app.color.accent')])
+              SymbolGlyph($r('sys.symbol.arrow_clockwise')).fontSize(24).fontColor([skinColor('accent')])
             }
             .width(48).height(48).borderRadius(16)
-            .backgroundColor($r('app.color.selected_background'))
+            .backgroundColor(skinColor('selected_background'))
             Column({ space: 3 }) {
               Text('Wine 引擎').fontSize(20).fontWeight(FontWeight.Bold)
-                .fontColor($r('app.color.text_primary')).width('100%')
-              Text(this.engineMessage).fontSize(12).fontColor($r('app.color.text_secondary'))
+                .fontColor(skinColor('text_primary')).width('100%')
+              Text(this.engineMessage).fontSize(12).fontColor(skinColor('text_secondary'))
                 .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
             }.layoutWeight(1).alignItems(HorizontalAlign.Start)
           }
           .width('100%').padding(14).borderRadius(16)
-          .backgroundColor($r('app.color.search_background'))
+          .backgroundColor(skinColor('search_background'))
 
           Text('Windows 系统语言').fontSize(12).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary')).width('100%')
+            .fontColor(skinColor('text_secondary')).width('100%')
           Row({ space: 8 }) {
             Button('中文').layoutWeight(1).height(44).borderRadius(14)
               .fontSize(13)
               .backgroundColor(this.settings.wineLanguage === WineLanguage.CHINESE ?
-                $r('app.color.accent') : $r('app.color.search_background'))
+                skinColor('accent') : skinColor('search_background'))
               .fontColor(this.settings.wineLanguage === WineLanguage.CHINESE ?
-                '#FFFFFFFF' : $r('app.color.text_primary'))
+                '#FFFFFFFF' : skinColor('text_primary'))
               .id('wine-language-zh-cn')
               .onClick((): void => this.updateWineLanguage(WineLanguage.CHINESE))
             Button('繁體中文').layoutWeight(1).height(44).borderRadius(14)
               .fontSize(13)
               .backgroundColor(this.settings.wineLanguage === WineLanguage.TRADITIONAL_CHINESE ?
-                $r('app.color.accent') : $r('app.color.search_background'))
+                skinColor('accent') : skinColor('search_background'))
               .fontColor(this.settings.wineLanguage === WineLanguage.TRADITIONAL_CHINESE ?
-                '#FFFFFFFF' : $r('app.color.text_primary'))
+                '#FFFFFFFF' : skinColor('text_primary'))
               .id('wine-language-zh-tw')
               .onClick((): void => this.updateWineLanguage(WineLanguage.TRADITIONAL_CHINESE))
           }.width('100%')
@@ -2079,17 +2192,17 @@ struct SystemSettingsPage {
             Button('日本語').layoutWeight(1).height(44).borderRadius(14)
               .fontSize(13)
               .backgroundColor(this.settings.wineLanguage === WineLanguage.JAPANESE ?
-                $r('app.color.accent') : $r('app.color.search_background'))
+                skinColor('accent') : skinColor('search_background'))
               .fontColor(this.settings.wineLanguage === WineLanguage.JAPANESE ?
-                '#FFFFFFFF' : $r('app.color.text_primary'))
+                '#FFFFFFFF' : skinColor('text_primary'))
               .id('wine-language-ja-jp')
               .onClick((): void => this.updateWineLanguage(WineLanguage.JAPANESE))
             Button('English').layoutWeight(1).height(44).borderRadius(14)
               .fontSize(13)
               .backgroundColor(this.settings.wineLanguage === WineLanguage.ENGLISH ?
-                $r('app.color.accent') : $r('app.color.search_background'))
+                skinColor('accent') : skinColor('search_background'))
               .fontColor(this.settings.wineLanguage === WineLanguage.ENGLISH ?
-                '#FFFFFFFF' : $r('app.color.text_primary'))
+                '#FFFFFFFF' : skinColor('text_primary'))
               .id('wine-language-en-us')
               .onClick((): void => this.updateWineLanguage(WineLanguage.ENGLISH))
           }.width('100%')
@@ -2097,7 +2210,7 @@ struct SystemSettingsPage {
             .fontSize(11).fontColor('#C47A20').width('100%')
 
           Text('渲染模式').fontSize(12).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary')).width('100%')
+            .fontColor(skinColor('text_secondary')).width('100%')
           Row({ space: 6 }) {
             this.RenderModeChip('DXVK 1.10', 'dxvk_1_10')
             if (this.gpuSupportDxvk26) {
@@ -2108,12 +2221,12 @@ struct SystemSettingsPage {
           Text(this.gpuSupportDxvk26
             ? '默认使用 DXVK 1.10。当前 GPU 支持开启 DXVK 2.6（实验）。'
             : `默认使用 DXVK 1.10。当前 GPU（${this.gpuName || '未知'}）低于 920，不提供 DXVK 2.6。`)
-            .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
 
           Text('Box64 兼容性预设').fontSize(12).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary')).width('100%')
+            .fontColor(skinColor('text_secondary')).width('100%')
           Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
             ForEach(BOX64_PRESET_IDS, (preset: string) => {
               Button(box64PresetLabel(preset))
@@ -2123,22 +2236,22 @@ struct SystemSettingsPage {
                 .borderRadius(14)
                 .fontSize(13)
                 .fontColor(this.settings.box64Preset === preset ?
-                  '#FFFFFFFF' : $r('app.color.text_primary'))
+                  '#FFFFFFFF' : skinColor('text_primary'))
                 .backgroundColor(this.settings.box64Preset === preset ?
-                  $r('app.color.accent') : $r('app.color.search_background'))
+                  skinColor('accent') : skinColor('search_background'))
                 .id('box64-preset-' + preset)
                 .onClick((): void => this.updateBox64Preset(preset))
             }, (preset: string): string => preset)
           }.width('100%')
           Text(box64PresetDescription(this.settings.box64Preset))
-            .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           Text('预设会应用于之后启动的 Windows 程序；默认档使用系统当前已验证的兼容配置。')
             .fontSize(11).fontColor('#C47A20').width('100%')
 
           Text('会话维护').fontSize(12).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary')).width('100%')
+            .fontColor(skinColor('text_secondary')).width('100%')
           Button('重启 Wine 引擎').width('100%').height(48).borderRadius(14)
-            .backgroundColor($r('app.color.accent'))
+            .backgroundColor(skinColor('accent'))
             .fontColor('#FFFFFFFF')
             .enabled(!this.engineBusy)
             .id('wine-engine-restart')
@@ -2149,8 +2262,8 @@ struct SystemSettingsPage {
               secondaryButton: { value: '立即重启', action: (): void => { this.restartEngine(); } }
             }))
           Button('停止全部 Windows 会话').width('100%').height(48).borderRadius(14)
-            .backgroundColor($r('app.color.search_background'))
-            .fontColor($r('app.color.text_primary'))
+            .backgroundColor(skinColor('search_background'))
+            .fontColor(skinColor('text_primary'))
             .enabled(!this.engineBusy)
             .id('wine-engine-stop-all')
             .onClick((): void => AlertDialog.show({
@@ -2164,9 +2277,9 @@ struct SystemSettingsPage {
               SymbolGlyph($r('sys.symbol.info_circle')).fontSize(20).fontColor(['#D94848'])
               Column({ space: 3 }) {
                 Text('重置 Wine 环境').fontSize(14).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.text_primary')).width('100%')
+                  .fontColor(skinColor('text_primary')).width('100%')
                 Text('重建 Wine 沙盒并重装运行时。默认保留文档和注册表。')
-                  .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+                  .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
               }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             }.width('100%')
             this.SwitchRow('保留文档和注册表',
@@ -2202,9 +2315,9 @@ struct SystemSettingsPage {
       } else if (section === 'performance') {
         Column({ space: 14 }) {
           Text('性能监控').fontSize(20).fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary')).width('100%')
+            .fontColor(skinColor('text_primary')).width('100%')
           Text('在游戏顶部以小字号横条显示，即时生效；不修改图形后端或游戏启动环境。')
-            .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
           this.SwitchRow('显示性能监控', '总开关；关闭后保留各项选择并停止采样',
             this.settings.showFpsHud, (value: boolean): void => this.updateShowFpsHud(value),
             'performance-enabled')
@@ -2227,10 +2340,10 @@ struct SystemSettingsPage {
           }.width('100%')
           if (!hasPerformanceHudContent(this.settings.performanceHud)) {
             Text('未选择任何指标，监控层将隐藏且不采样。').fontSize(12)
-              .fontColor($r('app.color.text_secondary')).width('100%')
+              .fontColor(skinColor('text_secondary')).width('100%')
           }
           Text('FPS 每 0.5 秒刷新，其余指标每 2 秒采样；进入后台时暂停。尚未取得数值时显示省略号，读取失败的指标自动隐藏。GPU 占用率和芯片温度暂不提供开关。')
-            .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
         }
         .width('100%').padding(this.cardPadding())
         .backgroundColor(this.groupSurfaceColor())
@@ -2240,40 +2353,40 @@ struct SystemSettingsPage {
         Column({ space: 14 }) {
           Row({ space: 12 }) {
             Stack({ alignContent: Alignment.Center }) {
-              SymbolGlyph($r('sys.symbol.doc_text')).fontSize(24).fontColor([$r('app.color.accent')])
+              SymbolGlyph($r('sys.symbol.doc_text')).fontSize(24).fontColor([skinColor('accent')])
             }
             .width(48).height(48).borderRadius(16)
-            .backgroundColor($r('app.color.selected_background'))
+            .backgroundColor(skinColor('selected_background'))
             Column({ space: 3 }) {
               Text('日志管理').fontSize(20).fontWeight(FontWeight.Bold)
-                .fontColor($r('app.color.text_primary')).width('100%')
+                .fontColor(skinColor('text_primary')).width('100%')
               Text('应用日志按天保存，自动保留 7 天').fontSize(12)
-                .fontColor($r('app.color.text_secondary')).width('100%')
+                .fontColor(skinColor('text_secondary')).width('100%')
             }.layoutWeight(1).alignItems(HorizontalAlign.Start)
           }
           .width('100%').padding(14).borderRadius(16)
-          .backgroundColor($r('app.color.search_background'))
+          .backgroundColor(skinColor('search_background'))
 
           Column({ space: 8 }) {
             Text('日志目录').fontSize(12).fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.text_secondary')).width('100%')
+              .fontColor(skinColor('text_secondary')).width('100%')
             Text('Download/com.vintage.pomelopro/logs').fontSize(12)
-              .fontColor($r('app.color.text_primary')).width('100%')
+              .fontColor(skinColor('text_primary')).width('100%')
             Text('记录应用自身 ArkTS 与 native 日志，按日期分文件（app-日期.log / native-日期.log），同一天超过 20MB 自动滚动，超过 7 天的文件自动清理。')
-              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           }
           .width('100%').padding(14).borderRadius(16)
-          .backgroundColor($r('app.color.search_background'))
+          .backgroundColor(skinColor('search_background'))
 
           Row({ space: 10 }) {
             Button('导出日志').layoutWeight(1).height(48).borderRadius(14)
-              .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+              .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
               .enabled(!this.logBusy)
               .id('log-export')
               .onClick((): void => { this.exportLogs(); })
             Button('清空日志').layoutWeight(1).height(48).borderRadius(14)
-              .backgroundColor($r('app.color.search_background'))
-              .fontColor($r('app.color.text_primary'))
+              .backgroundColor(skinColor('search_background'))
+              .fontColor(skinColor('text_primary'))
               .id('log-clear')
               .onClick((): void => { this.clearLogs(); })
           }.width('100%')
@@ -2288,33 +2401,33 @@ struct SystemSettingsPage {
         Column({ space: 14 }) {
           Row({ space: 12 }) {
             Stack({ alignContent: Alignment.Center }) {
-              SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(25).fontColor([$r('app.color.accent')])
+              SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(25).fontColor([skinColor('accent')])
             }
             .width(52).height(52).borderRadius(17)
-            .backgroundColor($r('app.color.selected_background'))
+            .backgroundColor(skinColor('selected_background'))
             Column({ space: 3 }) {
               Text('旧柚Pro').fontSize(22).fontWeight(FontWeight.Bold)
-                .fontColor($r('app.color.text_primary')).width('100%')
+                .fontColor(skinColor('text_primary')).width('100%')
               Text('Wine 应用库与 Windows 兼容引擎').fontSize(12)
-                .fontColor($r('app.color.text_secondary')).width('100%')
+                .fontColor(skinColor('text_secondary')).width('100%')
               Text(this.appVersion).fontSize(12)
-                .fontColor($r('app.color.text_secondary')).width('100%').id('app-version')
+                .fontColor(skinColor('text_secondary')).width('100%').id('app-version')
             }.layoutWeight(1).alignItems(HorizontalAlign.Start)
           }.width('100%')
           Column({ space: 8 }) {
             Text('按需启动 Wine，集中管理内建工具与 Download/games 中的 Windows 程序。')
-              .fontSize(13).fontColor($r('app.color.text_primary')).width('100%')
+              .fontSize(13).fontColor(skinColor('text_primary')).width('100%')
             Text('支持桌面、多窗口、虚拟输入以及每个应用的独立运行设置。')
-              .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+              .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
           }
           .width('100%').padding(14).borderRadius(16)
-          .backgroundColor($r('app.color.search_background'))
+          .backgroundColor(skinColor('search_background'))
           Button('打开帮助中心').width('100%').height(48).borderRadius(14)
-            .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+            .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
             .onClick((): void => { router.pushUrl({ url: 'pages/HelpCenter' }); })
           Button('GitHub 开源地址').width('100%').height(48).borderRadius(14)
-            .backgroundColor($r('app.color.search_background'))
-            .fontColor($r('app.color.text_primary'))
+            .backgroundColor(skinColor('search_background'))
+            .fontColor(skinColor('text_primary'))
             .id('about-github')
             .onClick((): void => {
               try {
@@ -2382,7 +2495,7 @@ struct SystemSettingsPage {
           Row({ space: 22 }) {
             Column({ space: 5 }) {
               Text('设置分类').fontSize(13).fontWeight(FontWeight.Medium)
-                .fontColor($r('app.color.text_secondary')).width('100%').margin({ left: 8, bottom: 6 })
+                .fontColor(skinColor('text_secondary')).width('100%').margin({ left: 8, bottom: 6 })
               this.SectionButton('显示模式', 'display', $r('sys.symbol.rectangle_grid_1x2'))
               this.SectionButton('外观', 'appearance', $r('sys.symbol.square_grid_2x2'))
               this.SectionButton('输入与手柄', 'input', $r('sys.symbol.list_bullet'))
@@ -2435,16 +2548,16 @@ struct SystemSettingsPage {
           },
           contentStyle: {
               titleStyle: {
-                mainTitleColor: $r('app.color.text_primary'),
-                subTitleColor: $r('app.color.text_secondary')
+                mainTitleColor: skinColor('text_primary'),
+                subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
               }
             }
         },
@@ -2454,16 +2567,16 @@ struct SystemSettingsPage {
           },
           contentStyle: {
               titleStyle: {
-                mainTitleColor: $r('app.color.text_primary'),
-                subTitleColor: $r('app.color.text_secondary')
+                mainTitleColor: skinColor('text_primary'),
+                subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
               }
             }
         },
@@ -2569,7 +2682,7 @@ struct SystemSettingsPage {
         .id('font-import-blocker')
       }
     }
-    .width('100%').height('100%').backgroundColor($r('app.color.page_background'))
+    .width('100%').height('100%').backgroundColor(skinColor('page_background'))
     .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
       [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM, SafeAreaEdge.START, SafeAreaEdge.END])
   }

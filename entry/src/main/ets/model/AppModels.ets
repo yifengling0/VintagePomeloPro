@@ -48,6 +48,35 @@ export enum ViewMode {
   FILES = 'files'
 }
 
+/** Launcher skin is independent of the existing light/dark preference. */
+export enum UiSkin {
+  CLASSIC = 'classic',
+  CONSOLE = 'console'
+}
+
+export enum ConsoleCardLayout {
+  FOCUS_3D = 'focus3d',
+  GALLERY = 'gallery',
+  XBOX_TILES = 'xbox_tiles'
+}
+
+export enum ConsolePalette {
+  VIOLET = 'violet',
+  BLUE = 'blue',
+  PEARL = 'pearl'
+}
+
+export enum SortMode {
+  RECENT = 'recent',
+  NAME = 'name',
+  PLAY_TIME = 'play_time'
+}
+
+export enum GameBackgroundMode {
+  AUTO = 'auto',
+  MANUAL = 'manual'
+}
+
 export enum ThemeMode {
   SYSTEM = 'system',
   LIGHT = 'light',
@@ -402,6 +431,8 @@ export interface AppDescriptor {
   source: AppSource;
   directory: string;
   coverPath: string;
+  /** Resolved artwork. Optional for descriptors created by older catalog caches. */
+  backgroundPath?: string;
   available: boolean;
   launchTarget: LaunchTarget;
   displayModeOverride: DisplayMode | null;
@@ -411,6 +442,8 @@ export interface AppSettings {
   appId: string;
   customTitle: string;
   customCover: string;
+  backgroundMode: GameBackgroundMode;
+  manualBackgroundPath: string;
   /** Kept separately from catalog discovery so a moved game can stay starred. */
   favorite: boolean;
   /** Box64 兼容性预设；'default' 表示跟随全局设置。 */
@@ -434,6 +467,8 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     appId: value.appId,
     customTitle: value.customTitle,
     customCover: value.customCover,
+    backgroundMode: value.backgroundMode,
+    manualBackgroundPath: value.manualBackgroundPath,
     favorite: value.favorite,
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
@@ -462,6 +497,9 @@ export interface GlobalSettings {
   /** Desktop mode always uses this global profile; single-app may override it. */
   desktopInputProfileId: string;
   viewMode: ViewMode;
+  uiSkin: UiSkin;
+  consoleCardLayout: ConsoleCardLayout;
+  consolePalette: ConsolePalette;
   themeMode: ThemeMode;
   useGlassEffect: boolean;
   usePageBackground: boolean;
@@ -1081,6 +1119,9 @@ export function createDefaultGlobalSettings(): GlobalSettings {
     box64Preset: BOX64_PRESET_DEFAULT,
     desktopInputProfileId: 'default',
     viewMode: ViewMode.GRID,
+    uiSkin: UiSkin.CLASSIC,
+    consoleCardLayout: ConsoleCardLayout.FOCUS_3D,
+    consolePalette: ConsolePalette.VIOLET,
     themeMode: ThemeMode.SYSTEM,
     useGlassEffect: true,
     usePageBackground: false,
@@ -1115,6 +1156,8 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     appId: appId,
     customTitle: '',
     customCover: '',
+    backgroundMode: GameBackgroundMode.AUTO,
+    manualBackgroundPath: '',
     favorite: false,
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,

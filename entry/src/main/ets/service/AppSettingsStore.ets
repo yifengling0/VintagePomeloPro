@@ -5,11 +5,15 @@ import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
   AppSettings,
   AppDescriptor,
+  ConsoleCardLayout,
+  ConsolePalette,
   ControlBarDirection,
   D3DRendererPreference,
   DesktopWindowMode,
   DisplayMode,
   GlobalSettings,
+  GameBackgroundMode,
+  UiSkin,
   WineLanguage,
   ViewMode,
   cloneVirtualMouseConfig,
@@ -25,6 +29,9 @@ const APP_SETTINGS_KEY = 'app_settings_v1';
 const LIBRARY_PATH_KEY = 'library_path_v1';
 const CATALOG_CACHE_KEY = 'catalog_cache_v1';
 const RECENT_LAUNCHES_KEY = 'recent_launches_v1';
+const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
+const PLAY_TIME_KEY = 'play_time_v1';
+const SGDB_KEY = 'sgdb_api_key_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
@@ -37,6 +44,9 @@ export class AppSettingsStore {
   private globalSettings: GlobalSettings = createDefaultGlobalSettings();
   // 最近启动的 appId 列表 (最新在前), 持久化, 供"最近"分类使用
   private recentLaunches: string[] = [];
+  private lastPlayedAt: Map<string, number> = new Map<string, number>();
+  private playMinutes: Map<string, number> = new Map<string, number>();
+  private sgdbApiKey: string = '';
   private libraryPath: string = '';
   private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
@@ -55,7 +65,17 @@ export class AppSettingsStore {
     this.loadApps();
     this.libraryPath = this.store.getSync(LIBRARY_PATH_KEY, '') as string;
     this.loadRecentLaunches();
+    this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
     this.loadRenderMode();
+  }
+
+  getSgdbApiKey(): string { return this.sgdbApiKey; }
+
+  async setSgdbApiKey(key: string): Promise<void> {
+    this.sgdbApiKey = key.trim();
+    if (!this.store) return;
+    await this.store.put(SGDB_KEY, this.sgdbApiKey);
+    await this.store.flush();
   }
 
   private normalizeRenderMode(value: string): string {
@@ -137,6 +157,9 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -200,6 +223,11 @@ export class AppSettingsStore {
         box64Preset: stored.box64Preset ?? defaults.box64Preset,
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
         viewMode: stored.viewMode ?? defaults.viewMode,
+        uiSkin: stored.uiSkin === UiSkin.CONSOLE ? UiSkin.CONSOLE : UiSkin.CLASSIC,
+        consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.GALLERY ||
+          stored.consoleCardLayout === ConsoleCardLayout.XBOX_TILES ? stored.consoleCardLayout : ConsoleCardLayout.FOCUS_3D,
+        consolePalette: stored.consolePalette === ConsolePalette.BLUE ||
+          stored.consolePalette === ConsolePalette.PEARL ? stored.consolePalette : ConsolePalette.VIOLET,
         themeMode: stored.themeMode ?? defaults.themeMode,
         useGlassEffect: stored.useGlassEffect ?? defaults.useGlassEffect,
         usePageBackground: stored.usePageBackground ?? defaults.usePageBackground,
@@ -252,6 +280,9 @@ export class AppSettingsStore {
       appId: value.appId,
       customTitle: value.customTitle ?? defaults.customTitle,
       customCover: value.customCover ?? defaults.customCover,
+      backgroundMode: value.backgroundMode === GameBackgroundMode.MANUAL ?
+        GameBackgroundMode.MANUAL : GameBackgroundMode.AUTO,
+      manualBackgroundPath: value.manualBackgroundPath ?? '',
       favorite: value.favorite ?? defaults.favorite,
       box64Preset: value.box64Preset ?? defaults.box64Preset,
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
@@ -289,6 +320,9 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: value,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -322,6 +356,9 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -355,6 +392,9 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -389,6 +429,9 @@ export class AppSettingsStore {
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -422,6 +465,9 @@ export class AppSettingsStore {
       box64Preset: value,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -511,6 +557,19 @@ export class AppSettingsStore {
     } catch (_) {
       this.recentLaunches = [];
     }
+    try {
+      const last = JSON.parse(this.store.getSync(RECENT_LAUNCHES_V2_KEY, '{}') as string) as Record<string, number>;
+      Object.keys(last).forEach((id: string): void => {
+        if (typeof last[id] === 'number' && isFinite(last[id])) this.lastPlayedAt.set(id, last[id]);
+      });
+      const played = JSON.parse(this.store.getSync(PLAY_TIME_KEY, '{}') as string) as Record<string, number>;
+      Object.keys(played).forEach((id: string): void => {
+        if (typeof played[id] === 'number' && isFinite(played[id])) this.playMinutes.set(id, played[id]);
+      });
+    } catch (_) {
+      this.lastPlayedAt.clear();
+      this.playMinutes.clear();
+    }
   }
 
   /** 记录一次程序启动: 插入最前 (最近), 去重, 上限 20 条, 持久化。 */
@@ -521,8 +580,27 @@ export class AppSettingsStore {
     if (this.recentLaunches.length > 20) {
       this.recentLaunches = this.recentLaunches.slice(0, 20);
     }
+    this.lastPlayedAt.set(appId, Date.now());
     if (!this.store) return;
     await this.store.put(RECENT_LAUNCHES_KEY, JSON.stringify(this.recentLaunches));
+    await this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(this.mapToRecord(this.lastPlayedAt)));
+    await this.store.flush();
+  }
+
+  private mapToRecord(values: Map<string, number>): Record<string, number> {
+    const result: Record<string, number> = {};
+    values.forEach((value: number, key: string): void => { result[key] = value; });
+    return result;
+  }
+
+  getLastPlayedAt(appId: string): number { return this.lastPlayedAt.get(appId) ?? 0; }
+  getPlayMinutes(appId: string): number { return this.playMinutes.get(appId) ?? 0; }
+
+  async addPlayMinutes(appId: string, minutes: number): Promise<void> {
+    if (!appId || minutes <= 0) return;
+    this.playMinutes.set(appId, (this.playMinutes.get(appId) ?? 0) + minutes);
+    if (!this.store) return;
+    await this.store.put(PLAY_TIME_KEY, JSON.stringify(this.mapToRecord(this.playMinutes)));
     await this.store.flush();
   }
 

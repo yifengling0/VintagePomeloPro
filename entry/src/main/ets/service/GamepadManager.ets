@@ -7,6 +7,7 @@ import testNapi from 'libentry.so';
 
 export type GamepadConnectionListener = (connected: boolean) => void;
 export type GamepadActivityListener = () => void;
+export type GamepadNavigationListener = (buttonCode: number) => boolean;
 export type ControllerOutputMode = 'dinput' | 'keyboard_legacy';
 
 const DOMAIN: number = 0x0000;
@@ -31,6 +32,11 @@ export class GamepadManager {
   private outputMode: ControllerOutputMode = 'dinput';
   private connectionListeners: Set<GamepadConnectionListener> = new Set<GamepadConnectionListener>();
   private activityListeners: Set<GamepadActivityListener> = new Set<GamepadActivityListener>();
+  private navigationListeners: Set<GamepadNavigationListener> = new Set<GamepadNavigationListener>();
+  private navigationPressed: Set<number> = new Set<number>();
+  private lastNavigationAxis: number = 0;
+  private lastNavigationAt: number = 0;
+  private lastNavigationAxisHandled: boolean = false;
   private buttonMappings: Map<number, number> = new Map<number, number>(
     createDefaultInputProfile().gamepadMappings.map((mapping: GamepadButtonMapping): [number, number] =>
       [mapping.buttonCode, mapping.evdevCode])
@@ -139,6 +145,26 @@ export class GamepadManager {
     this.activityListeners.delete(listener);
   }
 
+  subscribeNavigation(listener: GamepadNavigationListener): void {
+    this.navigationListeners.add(listener);
+  }
+
+  unsubscribeNavigation(listener: GamepadNavigationListener): void {
+    this.navigationListeners.delete(listener);
+    if (this.navigationListeners.size === 0) {
+      this.lastNavigationAxis = 0;
+      this.lastNavigationAxisHandled = false;
+    }
+  }
+
+  private dispatchNavigation(buttonCode: number): boolean {
+    let handled = false;
+    this.navigationListeners.forEach((listener: GamepadNavigationListener): void => {
+      if (listener(buttonCode)) handled = true;
+    });
+    return handled;
+  }
+
   private notifyActivity(): void {
     this.activityListeners.forEach((listener: GamepadActivityListener) => listener());
   }
@@ -169,6 +195,15 @@ export class GamepadManager {
   }
 
   handleKey(keyCode: number, pressed: boolean): boolean {
+    if (pressed && this.dispatchNavigation(keyCode)) {
+      this.navigationPressed.add(keyCode);
+      this.notifyActivity();
+      return true;
+    }
+    if (!pressed && this.navigationPressed.has(keyCode)) {
+      this.navigationPressed.delete(keyCode);
+      return true;
+    }
     // dinput: Physical already feeds ControllerHub in native; skip evdev mapping.
     if (this.outputMode === 'dinput') {
       if (this.buttonMappings.has(keyCode)) {
@@ -212,6 +247,21 @@ export class GamepadManager {
   }
 
   handleAxis(axisType: number, x: number, y: number): void {
+    if (axisType === 0 && this.navigationListeners.size > 0) {
+      const direction = Math.abs(x) > 0.55 && Math.abs(x) >= Math.abs(y) ?
+        (x < 0 ? 2014 : 2015) : (Math.abs(y) > 0.55 ? (y < 0 ? 2012 : 2013) : 0);
+      const now = Date.now();
+      if (direction && (direction !== this.lastNavigationAxis || now - this.lastNavigationAt > 280)) {
+        this.lastNavigationAxisHandled = this.dispatchNavigation(direction);
+        if (this.lastNavigationAxisHandled) {
+          this.lastNavigationAt = now;
+          this.notifyActivity();
+        }
+      }
+      if (!direction) this.lastNavigationAxisHandled = false;
+      this.lastNavigationAxis = direction;
+      if (direction && this.lastNavigationAxisHandled) return;
+    }
     if (this.outputMode === 'dinput') {
       const active = Math.abs(x) >= this.deadzone || Math.abs(y) >= this.deadzone;
       if (active) this.notifyActivity();

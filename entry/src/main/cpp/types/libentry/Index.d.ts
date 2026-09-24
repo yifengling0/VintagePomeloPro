@@ -27,6 +27,7 @@ export const imeBackspace: () => void;
 export const setPendingToplevel: (id: number) => void;
 export const cancelPendingToplevel: (id: number) => void;
 export const getCurrentToplevelId: () => number;
+export const getDesktopRootId: () => number;
 export const destroyToplevel: (id: number) => void;
 export const sendToplevelClose: (id: number) => void;
 export interface WineLaunchResult { pid: number; sessionId: string; reused: boolean; }

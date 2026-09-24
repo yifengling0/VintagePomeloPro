@@ -3,6 +3,11 @@ const COVER_PRIORITY: string[] = [
   'folder.png', 'folder.jpg', 'folder.jpeg', 'folder.webp'
 ];
 
+const BACKGROUND_PRIORITY: string[] = [
+  'background.png', 'background.jpg', 'background.jpeg', 'background.webp',
+  'background.bmp', 'fanart.png', 'fanart.jpg', 'fanart.jpeg', 'fanart.webp'
+];
+
 const HELPER_TOKENS: string[] = [
   'unins', 'uninstall', 'setup', 'install', 'crash', 'report',
   'crashhandler', 'werfault', 'cefsubprocess', 'vc_redist', 'vcredist',
@@ -84,6 +89,15 @@ export function chooseCoverFileName(names: string[]): string {
   for (let index = 0; index < COVER_PRIORITY.length; index++) {
     const expected = COVER_PRIORITY[index];
     const found = names.find((name: string) => name.toLowerCase() === expected);
+    if (found) return found;
+  }
+  return '';
+}
+
+export function chooseBackgroundFileName(names: string[]): string {
+  for (let index = 0; index < BACKGROUND_PRIORITY.length; index++) {
+    const expected = BACKGROUND_PRIORITY[index];
+    const found = names.find((name: string): boolean => name.toLowerCase() === expected);
     if (found) return found;
   }
   return '';
