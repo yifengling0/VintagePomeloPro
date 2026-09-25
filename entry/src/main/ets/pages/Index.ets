@@ -151,12 +151,12 @@ struct Index {
   @State private consoleRingOffset: number = 0;
   @State private consoleRingLayoutRevision: number = 0;
   private consoleRingVirtualIndex: number = 0;
-  private consoleRingLocating: boolean = false;
+  @State private consoleRingLocating: boolean = false;
   private consoleRingMotionArmed: boolean = false;
+  private consoleRingMeasuredIndex: number = 0;
   private consoleRingLocateGeneration: number = 0;
   private consoleRingRelayoutGeneration: number = 0;
   private consoleRingAnchorAppId: string = '';
-  private consoleRingSuppressScrollUntil: number = 0;
   private consoleRingScroller: Scroller = new Scroller();
   private consoleGridScroller: Scroller = new Scroller();
   private consoleRingData: ConsoleRingDataSource = new ConsoleRingDataSource();
@@ -2096,6 +2096,20 @@ struct Index {
       (this.consoleFocusAreaWidth || this.consoleContentWidth()) / 2);
   }
 
+  private currentConsoleRingOffset(fallback: number): number {
+    // A lazy List estimates the size of unbuilt items. Its absolute offset can
+    // differ from index * cellWidth after jumps, resizing or reversed flings.
+    // Anchor the 3D transform to an actual visible ListItem instead.
+    try {
+      const index = this.consoleRingMeasuredIndex;
+      const rect = this.consoleRingScroller.getItemRect(index);
+      if (Number.isFinite(rect.x) && rect.width > 0) {
+        return this.consoleRingLeadingInset() + index * this.consoleRingCellWidth() - rect.x;
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
   private consoleRingDelta(index: number): number {
     const cell = this.consoleRingCellWidth();
     const inset = this.consoleRingLeadingInset();
@@ -2127,30 +2141,26 @@ struct Index {
     const targetAppId = this.consoleApps()[realIndex]?.id ?? '';
     const generation = ++this.consoleRingLocateGeneration;
     this.consoleRingLocating = true;
-    this.consoleRingSuppressScrollUntil = Date.now() + 700;
+    this.consoleRingMotionArmed = false;
     let attempts = 0;
     const locate = (): void => {
       if (generation !== this.consoleRingLocateGeneration) return;
       attempts++;
       try { this.consoleRingScroller.scrollToIndex(target, false, ScrollAlign.CENTER); } catch (_) {}
       const expected = this.consoleRingOffsetForIndex(target);
-      // During an orientation change Scroller.currentOffset() can retain the
-      // previous List geometry even after the item is visibly centered. Drive
-      // the transform from the exact target geometry until the new layout is
-      // stable, otherwise the centered card is rendered as a side card.
+      // Use the target while native layout is pending, then measure the item
+      // before allowing gestures against the new viewport geometry.
       this.consoleRingOffset = expected;
       this.syncConsoleRingFocus(target, false, true);
       if (targetAppId) this.consoleRingAnchorAppId = targetAppId;
       if (attempts >= 5) {
-        // Keep programmatic scroll callbacks isolated until the final native
-        // layout transaction has landed. User movement then starts from the
-        // exact offset above and is tracked by per-frame deltas.
+        // Keep callbacks isolated until the native layout transaction lands.
         setTimeout((): void => {
           if (generation !== this.consoleRingLocateGeneration) return;
-          this.consoleRingOffset = this.consoleRingOffsetForIndex(target);
+          this.consoleRingMeasuredIndex = target;
+          this.consoleRingOffset = this.currentConsoleRingOffset(this.consoleRingOffsetForIndex(target));
           this.syncConsoleRingFocus(target, false, true);
           this.consoleRingLocating = false;
-          this.consoleRingSuppressScrollUntil = Date.now() + 80;
         }, 100);
         return;
       }
@@ -2172,7 +2182,6 @@ struct Index {
     this.consoleRingRelayoutGeneration++;
     this.consoleRingLocating = true;
     this.consoleRingMotionArmed = false;
-    this.consoleRingSuppressScrollUntil = Date.now() + 2000;
     this.syncConsoleRingFocus(target, false, true);
     try { this.consoleRingScroller.scrollToIndex(target, false, ScrollAlign.CENTER); } catch (_) {}
     this.consoleRingOffset = this.consoleRingOffsetForIndex(target);
@@ -2194,7 +2203,6 @@ struct Index {
     this.consoleRingLocateGeneration++;
     this.consoleRingLocating = true;
     this.consoleRingMotionArmed = false;
-    this.consoleRingSuppressScrollUntil = Date.now() + 900;
   }
 
   private scheduleConsoleRingRelayout(): void {
@@ -2223,17 +2231,15 @@ struct Index {
     if (!animated) this.syncConsoleRingFocus(safe);
   }
 
-  private snapConsoleRing(): void {
-    if (!this.consolePageVisible || !this.consoleRingMotionArmed || this.consoleRingLocating ||
-      Date.now() < this.consoleRingSuppressScrollUntil) return;
-    const nearest = this.consoleRingCenterVirtualIndex();
-    this.syncConsoleRingFocus(nearest, false, true);
-    const expected = this.consoleRingOffsetForIndex(nearest);
-    if (Math.abs(this.consoleRingOffset - expected) <= 0.5) {
-      this.consoleRingOffset = expected;
-    } else {
-      this.selectConsoleRingIndex(nearest, true);
-    }
+  private finishConsoleRingScroll(): void {
+    if (!this.consolePageVisible || this.consoleRingLocating) return;
+    this.consoleRingOffset = this.currentConsoleRingOffset(this.consoleRingOffset);
+    this.consoleRingMotionArmed = false;
+    this.syncConsoleRingFocus(this.consoleRingCenterVirtualIndex(), false, true);
+    hilog.debug(DOMAIN, 'ConsoleRing', 'settled index=%{public}d residual=%{public}s',
+      this.consoleRingVirtualIndex, this.consoleRingDelta(this.consoleRingVirtualIndex).toFixed(4));
+    // Native CENTER snapping owns settling. Never start another scroll from
+    // onScrollStop: an interrupted snap would otherwise feed back into itself.
   }
 
   private focusConsoleStep(step: number): void {
@@ -2288,8 +2294,8 @@ struct Index {
     this.consoleRingRelayoutGeneration++;
     this.consoleRingLocating = false;
     this.consoleRingMotionArmed = false;
+    this.consoleRingMeasuredIndex = 0;
     this.consoleRingAnchorAppId = '';
-    this.consoleRingSuppressScrollUntil = 0;
     this.consoleRingOffset = 0;
     this.consoleRingVirtualIndex = 0;
   }
@@ -2676,20 +2682,27 @@ struct Index {
       .scrollBar(BarState.Off)
       .cachedCount(3)
       .edgeEffect(EdgeEffect.None)
+      .scrollSnapAlign(ScrollSnapAlign.CENTER)
+      .enableScrollInteraction(!this.consoleRingLocating)
       .contentStartOffset(this.consoleRingLeadingInset())
       .contentEndOffset(this.consoleRingLeadingInset())
       .width('100%').layoutWeight(1).clip(true)
       .onTouch((event: TouchEvent): void => {
-        if (event.type === TouchType.Down) this.consoleRingMotionArmed = true;
+        if (event.type === TouchType.Down && !this.consoleRingLocating) {
+          this.consoleRingMotionArmed = true;
+          this.consoleRingOffset = this.currentConsoleRingOffset(this.consoleRingOffset);
+        }
       })
-      .onDidScroll((scrollOffset: number, _scrollState: ScrollState): void => {
-        if (!this.consolePageVisible || !this.consoleRingMotionArmed || this.consoleRingLocating ||
-          Date.now() < this.consoleRingSuppressScrollUntil) return;
+      .onScrollIndex((_start: number, _end: number, center: number): void => {
+        this.consoleRingMeasuredIndex = center;
+      })
+      .onDidScroll((_scrollOffset: number, _scrollState: ScrollState): void => {
+        if (!this.consolePageVisible || this.consoleRingLocating) return;
         this.consoleIgnoreCardClickUntil = Date.now() + 180;
-        if (Number.isFinite(scrollOffset)) this.consoleRingOffset += scrollOffset;
-        this.syncConsoleRingFocus(this.consoleRingCenterVirtualIndex(), true, true);
+        this.consoleRingOffset = this.currentConsoleRingOffset(this.consoleRingOffset);
+        this.syncConsoleRingFocus(this.consoleRingCenterVirtualIndex(), this.consoleRingMotionArmed, true);
       })
-      .onScrollStop((): void => this.snapConsoleRing())
+      .onScrollStop((): void => this.finishConsoleRingScroll())
       .onAreaChange((_oldValue: Area, area: Area): void => {
         const width = area.width as number;
         const height = area.height as number;

@@ -5,6 +5,7 @@ import {
   syncManagedSmoke, writeSmokeText
 } from './ManagedSmokePayloadService';
 import { WineEngineService } from './WineEngineService';
+import { AppSettingsStore } from './AppSettingsStore';
 import { SmokeRequest } from '../common/SmokeTypes';
 
 const DOMAIN = 0x0000;
@@ -288,6 +289,7 @@ export class SmokeRunner {
       d3dBackend: d3dBackend,
       dxvkBackend: dxvkBackend,
       prefixMode: prefixMode,
+      wineLang: AppSettingsStore.getInstance().getGlobalSettings().wineLanguage,
       presentToSurface: test.mode !== 'offscreen',
       automationMode: true
     }) as RunProgramResult;

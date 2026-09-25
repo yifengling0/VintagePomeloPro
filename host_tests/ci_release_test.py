@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline source provenance and unsigned/signed packaging regression tests."""
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -118,9 +119,15 @@ class SourceTests(unittest.TestCase):
             release.verify_source(self.root, self.sha, "")
 
     def test_artifact_version_and_architecture(self):
-        manifest = {"commit": self.sha, "releaseTag": "rc-1.3.3", "app": APP}
+        modules = ("wine", "box64", "mesa", "virglrenderer", "gstreamer",
+                   "gnutls", "glib", "pcre2", "dxvk")
+        submodules = {"thirdparty/" + module: hashlib.sha1(module.encode()).hexdigest()
+                      for module in modules}
+        manifest = {"commit": self.sha, "releaseTag": "rc-1.3.3", "app": APP,
+                    "submodules": submodules}
         hap = self.root / "test.hap"
-        def create(app, machine=183):
+        def create(app, machine=183, stale_wine=False, corrupt_runtime=False,
+                   include_version=True):
             with zipfile.ZipFile(hap, "w") as archive:
                 archive.writestr("module.json", json.dumps({"app": dict(app, minAPIVersion=60100023, targetAPIVersion=60100023)}))
                 header = b"\x7fELF\x02\x01" + bytes(12) + machine.to_bytes(2, "little")
@@ -128,6 +135,16 @@ class SourceTests(unittest.TestCase):
                              "libvirglrenderer.so.1", "libvirgl_child.so"):
                     archive.writestr("libs/arm64-v8a/" + name, header)
                 archive.writestr("resources/rawfile/wine-data.zip", b"fixture")
+                version = {module: submodules["thirdparty/" + module][:10] for module in modules}
+                if stale_wine:
+                    version["wine"] = "0" * 10
+                if include_version:
+                    archive.writestr("resources/rawfile/wine_runtime.version",
+                                     ";".join(f"{key}={value}" for key, value in version.items()))
+                archive.writestr("resources/rawfile/wine-runtime-manifest.json", json.dumps({
+                    "schemaVersion": 1, "payload": "wine-data.zip",
+                    "payloadSha256": hashlib.sha256(b"stale" if corrupt_runtime else b"fixture").hexdigest()
+                }))
         create(APP)
         self.assertEqual(release.verify_artifact(hap, manifest)["app"], APP)
         create(dict(APP, versionCode=1003002))
@@ -135,6 +152,15 @@ class SourceTests(unittest.TestCase):
             release.verify_artifact(hap, manifest)
         create(APP, 62)
         with self.assertRaisesRegex(ValueError, "AArch64"):
+            release.verify_artifact(hap, manifest)
+        create(APP, stale_wine=True)
+        with self.assertRaisesRegex(ValueError, "wine runtime.*differs from pinned"):
+            release.verify_artifact(hap, manifest)
+        create(APP, corrupt_runtime=True)
+        with self.assertRaisesRegex(ValueError, "SHA-256 manifest"):
+            release.verify_artifact(hap, manifest)
+        create(APP, include_version=False)
+        with self.assertRaises(KeyError):
             release.verify_artifact(hap, manifest)
 
 

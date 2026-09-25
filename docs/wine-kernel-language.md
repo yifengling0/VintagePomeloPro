@@ -22,8 +22,9 @@ Windows 程序不会立即中断，下次启动引擎（或重启 App）时按�
 | --- | --- | --- |
 | 设置项 | `pages/SystemSettings.ets` | `updateWineLanguage()` 存 `WineLanguage`（`zh_CN` / `zh_TW` / `ja_JP` / `en_US`） |
 | 存储 | `service/AppSettingsStore.ets` | `normalizeWineLanguage()` 白名单归一化，未知值回中文 |
-| 引擎 | `service/WineEngineService.ets` | `launchClient(...)` 第 10 个实参传 `settings.wineLanguage` |
+| 引擎 | `service/WineEngineService.ets` | 将设置保存为会话 `activeWineLanguage`；语言改变使已有会话失效，`launchClient` 与游戏启动共用该值 |
 | NAPI | `bridge/napi_init.cpp` | 两种启动参数布局均将 `zh_CN` / `zh_TW` / `ja_JP` / `en_US` 写入 `LaunchParams::wineLang` |
+| 游戏 NAPI | `wine/wine_exe.cpp` | `runWineExe` 第 10 个参数及 `runWineProgram.wineLang` 传入进程环境策略；只修 `launchClient` 会导致游戏仍回退为简中 |
 | 主进程 env | `wine/wine_env.cpp` | `WineLocaleFor()` 白名单后写 `LANG` / `LC_ALL` = `<locale>.UTF-8` |
 | 子进程 env | `wine_launch.cpp` / `wine_child.cpp` | wineboot 与桌面会话同样下发；子进程基线仅作兜底默认值 |
 | Wine | `dlls/ntdll/unix/env.c`（patch `0008`） | unix locale → win locale → `system_lcid`；musl 的 `C.UTF-8` 走 `LC_ALL`→`LANG` 兜底 |
@@ -47,6 +48,7 @@ Wine 本体界面文字（explorer / 菜单等）跟随 `LC_MESSAGES`，由构�
 
 - `ntdll/unix/env.c` 将 `C`、`POSIX`、`C.UTF-8` 等视为未指定 locale，并依次检查
   `LC_ALL`、`LC_MESSAGES`、`LC_CTYPE`、`LANG`。
+  OHOS 下同时将 system/user LCID 设为选定值，避免已有 prefix 的旧区域设置覆盖选择。
 - `win32u/font.c` 为简中、繁中和日文分别使用 ACP 936、950 和 932。中文 ACP 下跳过
   JP/KR CJK face；简中优先 SC 面，繁中优先 TC 面，并在缺少 TC 面时回退到鸿蒙简体字族。
   这样 `DEFAULT_CHARSET` 和 ANSI 文本转换会按进程语言选择代码页与字体。

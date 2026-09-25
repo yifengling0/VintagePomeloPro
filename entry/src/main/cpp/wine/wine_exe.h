@@ -15,6 +15,7 @@ struct ProgramOptions {
     std::vector<std::string> environment;
     std::string workingDirectory;
     std::string prefixMode = "reuse";
+    std::string wineLang = "zh_CN";
     std::string d3dBackend = "dxvk_legacy";
     // WineHua master compatibility fields. Product policy still derives the
     // concrete runtime and presenter in Native code, but keeping these fields

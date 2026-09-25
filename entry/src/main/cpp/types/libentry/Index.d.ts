@@ -40,7 +40,7 @@ export interface WineSessionInfo {
 }
 export const runWineExe: (binDir: string, sockPath: string, libPath: string, exePath: string,
   homeDir: string, argumentsValue?: string[], workingDirectory?: string, d3dBackend?: string,
-  envOverrides?: string[]) => WineLaunchResult;
+  envOverrides?: string[], wineLang?: string) => WineLaunchResult;
 export const runWineExeLegacy: (binDir: string, sockPath: string, libPath: string,
   exePath: string, homeDir: string) => number;
 export const getWineSession: (sessionId: string) => WineSessionInfo | null;
@@ -52,6 +52,7 @@ export interface WineProgramOptions {
   environment: Record<string, string>;
   workingDirectory: string;
   prefixMode?: string;
+  wineLang?: string;
   d3dBackend: string;
   /** WineHua master compatibility; Native remains the policy authority. */
   dxvkBackend?: string;
