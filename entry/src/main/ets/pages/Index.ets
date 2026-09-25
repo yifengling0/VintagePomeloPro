@@ -149,8 +149,10 @@ struct Index {
   @State private consoleOrderedApps: AppDescriptor[] = [];
   @State private consoleFocusIndex: number = 0;
   @State private consoleRingOffset: number = 0;
+  @State private consoleRingLayoutRevision: number = 0;
   private consoleRingVirtualIndex: number = 0;
   private consoleRingLocating: boolean = false;
+  private consoleRingMotionArmed: boolean = false;
   private consoleRingLocateGeneration: number = 0;
   private consoleRingRelayoutGeneration: number = 0;
   private consoleRingAnchorAppId: string = '';
@@ -178,6 +180,8 @@ struct Index {
   @State private viewportHeight: number = 0;
   @State private titleContentTopInsetVp: number = 40;
   @State private statusBarHeightVp: number = 0;
+  @State private cutoutLeftInsetVp: number = 0;
+  @State private cutoutRightInsetVp: number = 0;
   @State private navBarInsetVp: number = 0;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
   private phoneNavController: HdsTabsController = new HdsTabsController();
@@ -808,6 +812,8 @@ struct Index {
     // inset only, independently from the narrow-layout title height.
     const insets = getStatusOnlyWindowInsets(pageWindow);
     this.statusBarHeightVp = insets.top;
+    this.cutoutLeftInsetVp = insets.left;
+    this.cutoutRightInsetVp = insets.right;
     this.navBarInsetVp = insets.bottom;
     if (this.launcherVisible && !this.transitioning) {
       this.ensureFloatPos();
@@ -2011,6 +2017,15 @@ struct Index {
     return Math.max(180, Math.min(1600, this.viewportWidth - 32));
   }
 
+  private consoleCompactLandscape(): boolean {
+    return this.viewportWidth > this.viewportHeight && this.viewportHeight < 650;
+  }
+
+  private consoleImmersiveHeader(): boolean {
+    return this.consoleCompactLandscape() ||
+      this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D;
+  }
+
   private consoleGridColumns(tile: boolean): number {
     const minimum = tile ? 152 : 220;
     const maxColumns = tile ? 6 : (this.viewportHeight > this.viewportWidth ? 2 : 4);
@@ -2044,7 +2059,7 @@ struct Index {
     }
     if (width < 600) return 1.72;
     if (width < 900) return 2.65;
-    if (width < 1280) return 4.15;
+    if (width < 1280) return 5.05;
     if (width < 1700) return 4.80;
     return 5.80;
   }
@@ -2156,6 +2171,7 @@ struct Index {
     this.consoleRingLocateGeneration++;
     this.consoleRingRelayoutGeneration++;
     this.consoleRingLocating = true;
+    this.consoleRingMotionArmed = false;
     this.consoleRingSuppressScrollUntil = Date.now() + 2000;
     this.syncConsoleRingFocus(target, false, true);
     try { this.consoleRingScroller.scrollToIndex(target, false, ScrollAlign.CENTER); } catch (_) {}
@@ -2166,9 +2182,18 @@ struct Index {
     if (this.settings.uiSkin !== UiSkin.CONSOLE ||
       this.settings.consoleCardLayout !== ConsoleCardLayout.FOCUS_3D) return;
     const current = this.consoleFocusApp();
-    if (!this.consoleRingAnchorAppId && current) this.consoleRingAnchorAppId = current.id;
+    if (!this.consoleRingLocating) {
+      if (current) this.consoleRingAnchorAppId = current.id;
+      // Stop an in-flight native fling before the List changes its item width.
+      // Otherwise its old pixel velocity can advance cards after relocation.
+      try {
+        this.consoleRingScroller.scrollToIndex(this.consoleRingVirtualIndex, false,
+          ScrollAlign.CENTER);
+      } catch (_) {}
+    }
     this.consoleRingLocateGeneration++;
     this.consoleRingLocating = true;
+    this.consoleRingMotionArmed = false;
     this.consoleRingSuppressScrollUntil = Date.now() + 900;
   }
 
@@ -2180,6 +2205,7 @@ struct Index {
         this.settings.consoleCardLayout !== ConsoleCardLayout.FOCUS_3D) return;
       // LazyForEach keeps the old ListItem width across orientation changes.
       // Reload after the new area settles so item width and 3D math use one coordinate system.
+      this.consoleRingLayoutRevision++;
       this.consoleRingData.setApps(this.consoleApps());
       const apps = this.consoleApps();
       const anchored = apps.findIndex((app: AppDescriptor): boolean =>
@@ -2192,12 +2218,13 @@ struct Index {
     const total = this.consoleRingData.totalCount();
     if (total === 0) return;
     const safe = Math.max(0, Math.min(total - 1, index));
+    if (animated) this.consoleRingMotionArmed = true;
     try { this.consoleRingScroller.scrollToIndex(safe, animated, ScrollAlign.CENTER); } catch (_) {}
     if (!animated) this.syncConsoleRingFocus(safe);
   }
 
   private snapConsoleRing(): void {
-    if (!this.consolePageVisible || this.consoleRingLocating ||
+    if (!this.consolePageVisible || !this.consoleRingMotionArmed || this.consoleRingLocating ||
       Date.now() < this.consoleRingSuppressScrollUntil) return;
     const nearest = this.consoleRingCenterVirtualIndex();
     this.syncConsoleRingFocus(nearest, false, true);
@@ -2260,6 +2287,7 @@ struct Index {
     this.consoleRingLocateGeneration++;
     this.consoleRingRelayoutGeneration++;
     this.consoleRingLocating = false;
+    this.consoleRingMotionArmed = false;
     this.consoleRingAnchorAppId = '';
     this.consoleRingSuppressScrollUntil = 0;
     this.consoleRingOffset = 0;
@@ -2531,16 +2559,20 @@ struct Index {
   @Builder
   private ConsoleHeader() {
     Row({ space: 10 }) {
-      if (this.consoleContentWidth() >= 520) {
+      if (this.consoleContentWidth() >= (this.consoleCompactLandscape() ? 620 : 520)) {
         Column({ space: 2 }) {
           Text('游戏库').fontSize(20).fontWeight(FontWeight.Bold)
             .fontColor(skinColor('text_primary'))
-          Text(this.filterTitle()).fontSize(11).fontColor(skinColor('text_secondary'))
-        }.width(100).alignItems(HorizontalAlign.Start)
+          if (!this.consoleCompactLandscape()) {
+            Text(this.filterTitle()).fontSize(11).fontColor(skinColor('text_secondary'))
+          }
+        }.width(this.consoleCompactLandscape() ? 74 : 100)
+          .alignItems(HorizontalAlign.Start)
       }
       TextInput({ placeholder: '搜索游戏…', text: this.searchQuery })
-        .height(42).borderRadius(20).layoutWeight(1)
-        .constraintSize({ maxWidth: 560 })
+        .height(this.consoleCompactLandscape() ? 38 : 42).borderRadius(20)
+        .layoutWeight(1)
+        .constraintSize({ minWidth: 120, maxWidth: this.consoleCompactLandscape() ? 320 : 560 })
         .backgroundColor(skinColor('search_background'))
         .fontColor(skinColor('text_primary'))
         .enableKeyboardOnFocus(false)
@@ -2584,19 +2616,24 @@ struct Index {
       .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
     }
     .width(Math.min(1100, this.consoleContentWidth()))
-    .padding({ left: 14, right: 14, top: 12, bottom: 12 })
-    .borderRadius(26)
-    .backgroundColor(skinColor('card_glass_background'))
-    .backgroundBlurStyle(BlurStyle.COMPONENT_ULTRA_THICK)
-    .border({ width: 1, color: '#44FFFFFF' })
-    .shadow({ radius: 22, color: '#44000000', offsetX: 0, offsetY: 5 })
-    .margin({ top: 12, bottom: 8 })
+    .justifyContent(this.consoleCompactLandscape() ? FlexAlign.SpaceBetween : FlexAlign.Start)
+    .padding({ left: this.consoleImmersiveHeader() ? 0 : 14,
+      right: this.consoleImmersiveHeader() ? 0 : 14,
+      top: this.consoleImmersiveHeader() ? 0 : 12,
+      bottom: this.consoleImmersiveHeader() ? 0 : 12 })
+    .borderRadius(this.consoleImmersiveHeader() ? 0 : 26)
+    .backgroundColor(this.consoleImmersiveHeader() ? '#00000000' : skinColor('card_glass_background'))
+    .backgroundBlurStyle(this.consoleImmersiveHeader() ? BlurStyle.NONE : BlurStyle.COMPONENT_ULTRA_THICK)
+    .border({ width: this.consoleImmersiveHeader() ? 0 : 1, color: '#44FFFFFF' })
+    .shadow({ radius: this.consoleImmersiveHeader() ? 0 : 22,
+      color: '#44000000', offsetX: 0, offsetY: this.consoleImmersiveHeader() ? 0 : 5 })
+    .margin({ top: this.consoleImmersiveHeader() ? 4 : 12,
+      bottom: this.consoleImmersiveHeader() ? 2 : 8 })
     .id('console-header')
   }
 
   @Builder
-  private ConsoleFocusFlow() {
-    Column({ space: 4 }) {
+  private ConsoleRingList() {
       List({ space: 0, scroller: this.consoleRingScroller }) {
         LazyForEach(this.consoleRingData, (app: AppDescriptor, index: number): void => {
           ListItem() {
@@ -2632,7 +2669,8 @@ struct Index {
           }
           .width(this.consoleRingCellWidth()).height('100%')
           .zIndex(100 - Math.min(90, Math.abs(this.consoleRingDelta(index)) * 10))
-        }, (app: AppDescriptor, index: number): string => `${app.id}#${index}`)
+        }, (app: AppDescriptor, index: number): string =>
+          `${app.id}#${index}#${this.consoleRingLayoutRevision}`)
       }
       .listDirection(Axis.Horizontal)
       .scrollBar(BarState.Off)
@@ -2641,8 +2679,11 @@ struct Index {
       .contentStartOffset(this.consoleRingLeadingInset())
       .contentEndOffset(this.consoleRingLeadingInset())
       .width('100%').layoutWeight(1).clip(true)
+      .onTouch((event: TouchEvent): void => {
+        if (event.type === TouchType.Down) this.consoleRingMotionArmed = true;
+      })
       .onDidScroll((scrollOffset: number, _scrollState: ScrollState): void => {
-        if (!this.consolePageVisible || this.consoleRingLocating ||
+        if (!this.consolePageVisible || !this.consoleRingMotionArmed || this.consoleRingLocating ||
           Date.now() < this.consoleRingSuppressScrollUntil) return;
         this.consoleIgnoreCardClickUntil = Date.now() + 180;
         if (Number.isFinite(scrollOffset)) this.consoleRingOffset += scrollOffset;
@@ -2664,23 +2705,20 @@ struct Index {
         if (changed) this.scheduleConsoleRingRelayout();
       })
       .id('console-focus-flow')
+  }
+
+  @Builder
+  private ConsoleRingCaption(compactLandscape: boolean) {
       Row({ space: 16 }) {
         Button('‹').width(44).height(44).borderRadius(22)
           .backgroundColor(skinColor('card_glass_background')).fontColor(skinColor('text_primary'))
           .onClick((): void => this.focusConsoleStep(-1))
         Column({ space: 4 }) {
-          Stack() {
-            Text(this.consoleFocusApp()?.title ?? '')
-              .fontSize(this.consoleContentWidth() < 520 ? 21 : 30)
-              .fontWeight(FontWeight.Bold).fontColor(skinColor('accent'))
-              .maxLines(1).blur(12).opacity(0.85)
-              .hitTestBehavior(HitTestMode.None)
-            Text(this.consoleFocusApp()?.title ?? '')
-              .fontSize(this.consoleContentWidth() < 520 ? 21 : 30)
-              .fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary')).maxLines(1)
-              .shadow({ radius: 16, color: skinColor('accent'), offsetX: 0, offsetY: 0 })
-          }
-          .width('100%').alignContent(Alignment.Center)
+          Text(this.consoleFocusApp()?.title ?? '')
+            .fontSize(compactLandscape ? 18 : (this.consoleContentWidth() < 520 ? 21 : 30))
+            .fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
+            .maxLines(compactLandscape ? 2 : 1)
+            .textAlign(TextAlign.Center).width('100%')
           Text(this.consoleFocusApp() ? this.consolePlayTime(this.consoleFocusApp()!.id) : '')
             .fontSize(12).fontColor(skinColor('text_secondary')).maxLines(1)
         }.layoutWeight(1).alignItems(HorizontalAlign.Center)
@@ -2688,71 +2726,119 @@ struct Index {
           .backgroundColor(skinColor('card_glass_background')).fontColor(skinColor('text_primary'))
           .onClick((): void => this.focusConsoleStep(1))
       }
-      .width(Math.min(650, this.consoleContentWidth())).height(68)
+      .width(compactLandscape ? Math.min(300, this.consoleContentWidth() * 0.34) :
+        Math.min(650, this.consoleContentWidth())).height(68)
       .justifyContent(FlexAlign.Center)
-    }
-    .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
+  }
+
+  @Builder
+  private ConsoleFocusFlow() {
+    if (this.consoleCompactLandscape()) {
+      Column() {
+        this.ConsoleRingList()
+      }
+      .width('100%').layoutWeight(1)
+      .padding({ top: 4,
+        bottom: bottomNavigationLayout(true, this.navBarInsetVp).contentInset })
+    } else {
+      Column({ space: 4 }) {
+        this.ConsoleRingList()
+        this.ConsoleRingCaption(false)
+      }
+      .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
     // The focused title and its controls must stay readable above the
     // floating tab bar. This clearance is local to the focus presentation;
     // the launcher background and scrolling card layouts still extend to the
     // bottom edge behind the navigation material.
-    .padding({
-      top: 6,
-      bottom: bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
-        this.navBarInsetVp).contentInset
-    })
+      .padding({
+        top: 6,
+        bottom: bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+          this.navBarInsetVp).contentInset
+      })
+    }
+  }
+
+  @Builder
+  private ConsoleTileHero(compactLandscape: boolean) {
+    if (this.consoleFocusApp()) {
+      ConsoleGameCard({
+        app: this.consoleFocusApp()!,
+        layout: ConsoleCardLayout.XBOX_TILES,
+        backgroundPath: this.consoleBackground(this.consoleFocusApp()!),
+        focused: true,
+        running: this.runningAppIds.has(this.consoleFocusApp()!.id),
+        favorite: AppSettingsStore.getInstance().getAppSettings(this.consoleFocusApp()!.id).favorite,
+        cardWidth: compactLandscape ? this.consoleContentWidth() * 0.35 :
+          Math.min(900, this.consoleContentWidth() - 24),
+        cardHeight: compactLandscape ? Math.min(220, this.viewportHeight * 0.46) :
+          Math.max(145, Math.min(200, this.viewportHeight * 0.20)),
+        onLaunch: (app: AppDescriptor): void => this.showConsoleDetail(app),
+        onDetails: (app: AppDescriptor): void => this.showConsoleDetail(app),
+        onVisible: (app: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(app)
+      })
+    }
+  }
+
+  private consoleCompactTileWidth(): number {
+    return Math.max(130, (this.consoleContentWidth() * 0.63 - 44) / 3);
+  }
+
+  @Builder
+  private ConsoleGridBody(tile: boolean, compactLandscape: boolean) {
+    Grid(this.consoleGridScroller) {
+      ForEach(this.consoleApps(), (app: AppDescriptor): void => {
+        GridItem() {
+          Column() {
+            ConsoleGameCard({
+              app: app,
+              layout: tile ? ConsoleCardLayout.XBOX_TILES : ConsoleCardLayout.GALLERY,
+              backgroundPath: this.consoleBackground(app),
+              focused: this.consoleSelectedAppId === app.id,
+              running: this.runningAppIds.has(app.id),
+              favorite: AppSettingsStore.getInstance().getAppSettings(app.id).favorite,
+              lastPlayed: this.consoleLastPlayed(app.id),
+              cardWidth: compactLandscape ? this.consoleCompactTileWidth() : this.consoleGridCardWidth(tile),
+              cardHeight: compactLandscape ? Math.min(132, this.consoleCompactTileWidth() * 0.60) :
+                (tile ? Math.min(178, this.consoleGridCardWidth(tile) * 0.60) :
+                  Math.min(420, this.consoleGridCardWidth(tile) * 1.15)),
+              onSelect: (target: AppDescriptor): void => this.showConsoleDetail(target),
+              onLaunch: (target: AppDescriptor): void => this.showConsoleDetail(target),
+              onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
+              onVisible: (target: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(target)
+            })
+          }.width('100%').alignItems(HorizontalAlign.Center)
+        }
+      }, (app: AppDescriptor): string => app.id)
+    }
+    .columnsTemplate(compactLandscape ? '1fr 1fr 1fr' : this.consoleGridTemplate(tile))
+    .columnsGap(12).rowsGap(14).width('100%').layoutWeight(1)
+    .padding({ left: compactLandscape ? 0 : 12, right: compactLandscape ? 0 : 12,
+      top: compactLandscape ? 0 : 8, bottom: compactLandscape ? 0 : 112 })
+    .scrollBar(BarState.Off)
+    .focusable(true)
   }
 
   @Builder
   private ConsoleGrid(tile: boolean) {
-    Column({ space: 10 }) {
-      if (tile && this.consoleFocusApp()) {
-        ConsoleGameCard({
-          app: this.consoleFocusApp()!,
-          layout: ConsoleCardLayout.XBOX_TILES,
-          backgroundPath: this.consoleBackground(this.consoleFocusApp()!),
-          focused: true,
-          running: this.runningAppIds.has(this.consoleFocusApp()!.id),
-          favorite: AppSettingsStore.getInstance().getAppSettings(this.consoleFocusApp()!.id).favorite,
-          cardWidth: Math.min(900, this.consoleContentWidth() - 24),
-          cardHeight: Math.max(145, Math.min(250, this.viewportHeight * 0.25)),
-          onLaunch: (app: AppDescriptor): void => this.showConsoleDetail(app),
-          onDetails: (app: AppDescriptor): void => this.showConsoleDetail(app),
-          onVisible: (app: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(app)
-        })
+    if (tile && this.consoleCompactLandscape()) {
+      Row({ space: 12 }) {
+        this.ConsoleTileHero(true)
+        Column() {
+          this.ConsoleGridBody(true, true)
+        }.layoutWeight(1).height('100%')
       }
-      Grid(this.consoleGridScroller) {
-        ForEach(this.consoleApps(), (app: AppDescriptor): void => {
-          GridItem() {
-            Column() {
-              ConsoleGameCard({
-                app: app,
-                layout: tile ? ConsoleCardLayout.XBOX_TILES : ConsoleCardLayout.GALLERY,
-                backgroundPath: this.consoleBackground(app),
-                focused: this.consoleSelectedAppId === app.id,
-                running: this.runningAppIds.has(app.id),
-                favorite: AppSettingsStore.getInstance().getAppSettings(app.id).favorite,
-                lastPlayed: this.consoleLastPlayed(app.id),
-                cardWidth: this.consoleGridCardWidth(tile),
-                cardHeight: tile ? Math.min(178, this.consoleGridCardWidth(tile) * 0.60) :
-                  Math.min(420, this.consoleGridCardWidth(tile) * 1.15),
-                onSelect: (target: AppDescriptor): void => this.showConsoleDetail(target),
-                onLaunch: (target: AppDescriptor): void => this.showConsoleDetail(target),
-                onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
-                onVisible: (target: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(target)
-              })
-            }.width('100%').alignItems(HorizontalAlign.Center)
-          }
-        }, (app: AppDescriptor): string => app.id)
+      .width('100%').layoutWeight(1).alignItems(VerticalAlign.Center)
+      .padding({ left: 12, right: 12, top: 4,
+        bottom: bottomNavigationLayout(true, this.navBarInsetVp).contentInset })
+      .id('console-xbox-grid')
+    } else {
+      Column({ space: 10 }) {
+        if (tile) this.ConsoleTileHero(false)
+        this.ConsoleGridBody(tile, false)
       }
-      .columnsTemplate(this.consoleGridTemplate(tile))
-      .columnsGap(12).rowsGap(14).width('100%').layoutWeight(1)
-      .padding({ left: 12, right: 12, top: 8, bottom: 112 })
-      .scrollBar(BarState.Off)
-      .focusable(true)
+      .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
+      .id(tile ? 'console-xbox-grid' : 'console-gallery-grid')
     }
-    .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
-    .id(tile ? 'console-xbox-grid' : 'console-gallery-grid')
   }
 
   @Builder
@@ -2799,7 +2885,10 @@ struct Index {
           lastPlayedText: this.consoleLastPlayed(this.consoleDetailApp!.id),
           playTimeText: this.consolePlayTime(this.consoleDetailApp!.id),
           compact: this.viewportWidth < 620,
+          shortLandscape: this.consoleCompactLandscape(),
           topInset: Math.max(56, this.statusBarHeightVp),
+          leftInset: this.cutoutLeftInsetVp,
+          rightInset: this.cutoutRightInsetVp,
           callbacks: {
             onLaunch: (app: AppDescriptor): void => {
               this.consoleDetailVisible = false;

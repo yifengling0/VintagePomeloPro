@@ -17,6 +17,9 @@ export struct ConsoleGameCard {
   @Prop ringPosition: number = 0;
   @Prop ringShiftX: number = 0;
   @State private artFailed: boolean = false;
+  private touchStartX: number = 0;
+  private touchStartY: number = 0;
+  private touchMoved: boolean = false;
   onSelect: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
   onLaunch: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
   onDetails: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
@@ -50,8 +53,26 @@ export struct ConsoleGameCard {
   }
 
   private activate(): void {
+    if (this.touchMoved) return;
     if (this.focused) this.onLaunch(this.app);
     else this.onSelect(this.app);
+  }
+
+  private trackTouch(event: TouchEvent): void {
+    if (event.type === TouchType.Cancel) {
+      this.touchMoved = true;
+      return;
+    }
+    if (event.touches.length === 0) return;
+    const point = event.touches[0];
+    if (event.type === TouchType.Down) {
+      this.touchStartX = point.x;
+      this.touchStartY = point.y;
+      this.touchMoved = false;
+    } else if (Math.abs(point.x - this.touchStartX) > 12 ||
+      Math.abs(point.y - this.touchStartY) > 12) {
+      this.touchMoved = true;
+    }
   }
 
   build() {
@@ -65,12 +86,10 @@ export struct ConsoleGameCard {
         Image(builtinCoverResource(this.app.id))
           .width('100%').height('100%').objectFit(ImageFit.Cover)
       } else {
-        Column({ space: 8 }) {
+        Column() {
           Text(this.app.title.length > 0 ? this.app.title.substring(0, 1).toUpperCase() : '?')
             .fontSize(this.layout === ConsoleCardLayout.XBOX_TILES ? 50 : 74)
             .fontWeight(FontWeight.Bold).fontColor(skinColor('accent'))
-          Text(this.app.title).fontSize(13).maxLines(2).textAlign(TextAlign.Center)
-            .fontColor(skinColor('text_secondary'))
         }
         .width('100%').height('100%').justifyContent(FlexAlign.Center)
         .backgroundColor(skinColor('selected_background'))
@@ -119,6 +138,7 @@ export struct ConsoleGameCard {
     .translate({ x: this.ringShiftX,
       y: !this.inRing ? 0 : Math.min(2.6, Math.abs(this.ringDelta())) * 11 })
     .zIndex(this.focused ? 10 : 1)
+    .onTouch((event: TouchEvent): void => this.trackTouch(event))
     .onClick((): void => this.activate())
     .onVisibleAreaChange([0.1], (visible: boolean): void => {
       if (visible) this.onVisible(this.app);

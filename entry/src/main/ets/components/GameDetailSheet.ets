@@ -20,7 +20,10 @@ export struct GameDetailSheet {
   @Prop lastPlayedText: string = '';
   @Prop playTimeText: string = '';
   @Prop compact: boolean = false;
+  @Prop shortLandscape: boolean = false;
   @Prop topInset: number = 0;
+  @Prop leftInset: number = 0;
+  @Prop rightInset: number = 0;
   callbacks: GameDetailSheetCallbacks = {
     onLaunch: (_app: AppDescriptor): void => {},
     onClose: (): void => {},
@@ -42,17 +45,19 @@ export struct GameDetailSheet {
     Stack({ alignContent: Alignment.TopEnd }) {
       Scroll() {
         Column() {
-        Row({ space: this.compact ? 14 : 28 }) {
+        Row({ space: this.shortLandscape ? 18 : (this.compact ? 14 : 28) }) {
           if (this.artworkPath().length > 0) {
             Image(this.artworkSource())
-              .width(this.compact ? 100 : 168).height(this.compact ? 148 : 224)
+              .width(this.shortLandscape ? 130 : (this.compact ? 100 : 168))
+              .height(this.shortLandscape ? 174 : (this.compact ? 148 : 224))
               .borderRadius(16)
               .objectFit(ImageFit.Cover)
               .border({ width: 1, color: '#40FFFFFF' })
               .shadow({ radius: 24, color: '#80000000', offsetX: 0, offsetY: 10 })
           } else if (this.app.source === AppSource.BUILTIN) {
             Image(builtinCoverResource(this.app.id))
-              .width(this.compact ? 100 : 168).height(this.compact ? 148 : 224)
+              .width(this.shortLandscape ? 130 : (this.compact ? 100 : 168))
+              .height(this.shortLandscape ? 174 : (this.compact ? 148 : 224))
               .borderRadius(16)
               .objectFit(ImageFit.Cover)
               .border({ width: 1, color: '#40FFFFFF' })
@@ -64,7 +69,8 @@ export struct GameDetailSheet {
                   .fontColor([skinColor('accent')])
               }
             }
-            .width(this.compact ? 100 : 168).height(this.compact ? 148 : 224)
+            .width(this.shortLandscape ? 130 : (this.compact ? 100 : 168))
+            .height(this.shortLandscape ? 174 : (this.compact ? 148 : 224))
             .borderRadius(16)
             .backgroundColor(skinColor('selected_background'))
             .border({ width: 1, color: '#40FFFFFF' })
@@ -109,8 +115,12 @@ export struct GameDetailSheet {
           .layoutWeight(1)
         }
         .width('100%')
-        .padding({ left: this.compact ? 14 : 32, right: this.compact ? 14 : 32,
-          top: this.compact ? 52 : 24, bottom: 20 })
+        .padding({ left: Math.max(this.leftInset, this.shortLandscape ? 36 : 0) +
+            (this.compact ? 14 : 24),
+          right: this.rightInset + (this.compact ? 14 : 24),
+          top: this.shortLandscape ? Math.max(48, this.topInset + 10) :
+            Math.max(this.compact ? 52 : 24, this.topInset + 20),
+          bottom: this.shortLandscape ? 8 : 20 })
 
         Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
           Button({ type: ButtonType.Normal }) {
@@ -128,7 +138,7 @@ export struct GameDetailSheet {
           .borderRadius(27)
           .backgroundColor(this.isRunning ? '#D94848' : skinColor('accent'))
           .onClick(() => this.callbacks.onLaunch(this.app))
-          .margin({ right: 8, bottom: 8 })
+          .margin({ right: this.compact ? 0 : 8, bottom: 8 })
 
           Button({ type: ButtonType.Circle }) {
             SymbolGlyph(this.isFavorite ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'))
@@ -168,7 +178,10 @@ export struct GameDetailSheet {
           .margin({ right: 8, bottom: 8 })
         }
         .width('100%')
-        .padding({ top: 10, bottom: 28 })
+        .padding({ left: Math.max(this.leftInset, this.shortLandscape ? 36 : 0) + 16,
+          right: this.rightInset + 16,
+          top: this.shortLandscape ? 4 : 10,
+          bottom: this.shortLandscape ? 12 : 28 })
         if (this.app.source === AppSource.DOWNLOAD) {
           Text('云朵按钮：自动获取封面。优先使用无需 Key 的 Steam 公共图源。')
             .fontSize(11).fontColor('#B8FFFFFF').textAlign(TextAlign.Center)
@@ -191,7 +204,7 @@ export struct GameDetailSheet {
       .backgroundColor('#66000000')
       .border({ width: 1, color: '#30FFFFFF' })
       .borderRadius(20)
-      .margin({ right: 16, top: Math.max(16, this.topInset + 12) })
+      .margin({ right: this.rightInset + 16, top: Math.max(16, this.topInset + 12) })
       .onClick(() => this.callbacks.onClose())
       .id('detail-close-button')
     }

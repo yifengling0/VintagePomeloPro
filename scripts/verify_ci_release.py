@@ -94,6 +94,23 @@ def verify_artifact(hap, manifest):
         runtime = archive.getinfo("resources/rawfile/wine-data.zip")
         if runtime.file_size == 0:
             raise ValueError("empty guest runtime")
+        version = archive.read("resources/rawfile/wine_runtime.version").decode("utf-8").strip()
+        runtime_fields = dict(field.split("=", 1) for field in version.split(";"))
+        for module in ("wine", "box64", "mesa", "virglrenderer", "gstreamer",
+                       "gnutls", "glib", "pcre2", "dxvk"):
+            pinned = manifest["submodules"]["thirdparty/" + module]
+            recorded = runtime_fields.get(module, "")
+            if len(recorded) < 7 or not pinned.startswith(recorded):
+                raise ValueError(f"HAP {module} runtime {recorded or 'unknown'} differs from pinned {pinned[:10]}")
+        runtime_manifest = json.loads(archive.read("resources/rawfile/wine-runtime-manifest.json"))
+        if runtime_manifest.get("payload") != "wine-data.zip":
+            raise ValueError("invalid HAP runtime manifest")
+        runtime_digest = hashlib.sha256()
+        with archive.open(runtime) as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                runtime_digest.update(chunk)
+        if runtime_digest.hexdigest() != runtime_manifest.get("payloadSha256"):
+            raise ValueError("HAP guest runtime differs from its SHA-256 manifest")
     digest = hashlib.sha256()
     with hap.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):

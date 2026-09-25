@@ -32,12 +32,12 @@ export struct ConsoleRingItem {
 
   private centerWidth(): number {
     const height = this.areaHeight || Math.max(220, this.viewportHeight * 0.55);
-    return Math.max(150, Math.min(460, this.cellWidth * 1.10, (height - 14) / 1.16));
+    return Math.max(72, Math.min(460, this.cellWidth * 1.10, (height - 14) / 1.16));
   }
 
   private centerHeight(): number {
     const height = this.areaHeight || Math.max(220, this.viewportHeight * 0.55);
-    return Math.max(120, Math.min(this.centerWidth() * 1.16, height - 14));
+    return Math.max(72, Math.min(this.centerWidth() * 1.16, height - 14));
   }
 
   private updateBackgroundPath(): void {
