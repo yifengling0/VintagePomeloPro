@@ -247,7 +247,10 @@ export class GamepadManager {
   }
 
   handleAxis(axisType: number, x: number, y: number): void {
-    if (axisType === 0 && this.navigationListeners.size > 0) {
+    // Controllers differ in how they expose directional input: the left
+    // stick is axis 0, while many D-pads only report a Hat axis (axis 2)
+    // instead of the four button callbacks. Both must drive launcher focus.
+    if ((axisType === 0 || axisType === 2) && this.navigationListeners.size > 0) {
       const direction = Math.abs(x) > 0.55 && Math.abs(x) >= Math.abs(y) ?
         (x < 0 ? 2014 : 2015) : (Math.abs(y) > 0.55 ? (y < 0 ? 2012 : 2013) : 0);
       const now = Date.now();

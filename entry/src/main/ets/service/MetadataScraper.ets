@@ -1,7 +1,7 @@
 import { http } from '@kit.NetworkKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { hilog } from './LogService';
-import { uniqueExactGameId } from '../model/GameArtworkRules';
+import { steamSearchLocales, uniqueArtworkGameId } from '../model/GameArtworkRules';
 
 const DOMAIN = 0x0000;
 const TAG = 'MetadataScraper';
@@ -106,19 +106,25 @@ export class MetadataScraper {
     if (title.trim().length === 0 || gameDirectory.length === 0) {
       return { ok: false, coverPath: '', detail: '缺少游戏名称或目录' };
     }
-    try {
-      const searchUrl = 'https://store.steampowered.com/api/storesearch/?term=' +
-        encodeURIComponent(title.trim()) + '&l=schinese&cc=CN';
-      const steam = JSON.parse(await this.getJson(searchUrl, '')) as SteamSearchResponse;
-      const steamId = uniqueExactGameId(steam.items ?? [], title);
-      if (steamId > 0) {
-        const publicUrl = 'https://cdn.cloudflare.steamstatic.com/steam/apps/' +
-          steamId.toString() + '/library_600x900.jpg';
-        const publicPath = await this.download(publicUrl, gameDirectory);
-        if (publicPath) return { ok: true, coverPath: publicPath, detail: title };
+    const locales = steamSearchLocales(title);
+    for (let index = 0; index < locales.length; index++) {
+      try {
+        const searchUrl = 'https://store.steampowered.com/api/storesearch/?term=' +
+          encodeURIComponent(title.trim()) + '&l=' + locales[index] + '&cc=US';
+        const steam = JSON.parse(await this.getJson(searchUrl, '')) as SteamSearchResponse;
+        const steamId = uniqueArtworkGameId(steam.items ?? [], title);
+        if (steamId > 0) {
+          const publicUrl = 'https://cdn.cloudflare.steamstatic.com/steam/apps/' +
+            steamId.toString() + '/library_600x900.jpg';
+          const publicPath = await this.download(publicUrl, gameDirectory);
+          if (publicPath) return { ok: true, coverPath: publicPath, detail: title };
+          // Every locale resolves to the same Steam app and therefore the same
+          // CDN path. Continue directly to the optional supplementary source.
+          break;
+        }
+      } catch (_) {
+        // A public lookup failure still permits other locales and the optional source.
       }
-    } catch (_) {
-      // A public lookup failure still permits the optional supplementary source.
     }
     if (!apiKey.trim()) {
       return { ok: false, coverPath: '',
@@ -128,7 +134,7 @@ export class MetadataScraper {
     if (candidates.length === 0) {
       return { ok: false, coverPath: '', detail: '未找到匹配的游戏' };
     }
-    const gameId = uniqueExactGameId(candidates, title);
+    const gameId = uniqueArtworkGameId(candidates, title);
     if (gameId <= 0) {
       return { ok: false, coverPath: '', detail: '未找到唯一准确匹配的游戏，请手动选择封面' };
     }

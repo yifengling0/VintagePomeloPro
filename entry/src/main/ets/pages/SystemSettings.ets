@@ -1391,8 +1391,16 @@ struct SystemSettingsPage {
 
   private saveSgdbKey(): void {
     void AppSettingsStore.getInstance().setSgdbApiKey(this.sgdbKeyDraft).then((): void => {
-      promptAction.showToast({ message: 'SteamGridDB Key 已保存' });
+      promptAction.showToast({ message: this.sgdbKeyDraft.trim().length > 0 ?
+        'SteamGridDB Key 已保存，返回游戏库后会用于补充取图' : 'SteamGridDB Key 已清除' });
     });
+  }
+
+  private openSgdbApiPage(): void {
+    void this.context.openLink('https://www.steamgriddb.com/profile/preferences/api')
+      .catch((): void => {
+        promptAction.showToast({ message: '无法打开网页，请访问 steamgriddb.com 的 Preferences → API' });
+      });
   }
 
   @Builder
@@ -1951,14 +1959,19 @@ struct SystemSettingsPage {
             Column({ space: 8 }) {
               Text('补充图源 · SteamGridDB Key（可选）').fontSize(13).fontWeight(FontWeight.Medium)
                 .fontColor(skinColor('text_primary')).width('100%')
-              Text('仅在公开图源无图时查询；也可用于获取更多封面。')
+              Text('登录 SteamGridDB 后打开 Preferences → API，生成 Key 并复制到下方。它不是 Steam 登录密码。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              Button('打开 SteamGridDB Key 页面').height(40).width('100%').borderRadius(12)
+                .backgroundColor(skinColor('card_background')).fontColor(skinColor('text_primary'))
+                .onClick((): void => this.openSgdbApiPage())
               TextInput({ placeholder: 'SteamGridDB API Key', text: this.sgdbKeyDraft })
                 .height(44).borderRadius(12).backgroundColor(skinColor('card_background'))
                 .onChange((value: string): void => { this.sgdbKeyDraft = value; })
               Button('保存 Key').height(42).width('100%').borderRadius(12)
                 .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
                 .onClick((): void => this.saveSgdbKey())
+              Text('自动下载的是横版背景；详情页云朵按钮用于竖版封面。公开 Steam 图源没有图片时才使用此 Key。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             Text('新皮肤配色').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {

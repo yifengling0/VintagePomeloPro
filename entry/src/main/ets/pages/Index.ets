@@ -9,6 +9,7 @@ import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
 import { ConsoleGameCard } from '../components/ConsoleGameCard';
+import { ConsoleRingItem } from '../components/ConsoleRingItem';
 import { GameDetailSheet } from '../components/GameDetailSheet';
 import { FileBrowserView } from '../components/FileBrowserView';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -74,6 +75,37 @@ import {
 
 type CatalogFilter = 'recent' | 'builtin' | 'windows' | 'running' | 'favorite';
 
+/** Virtual data keeps the native horizontal List far away from either edge. */
+class ConsoleRingDataSource implements IDataSource {
+  static readonly VIRTUAL_TOTAL: number = 3000;
+  private apps: AppDescriptor[] = [];
+  private listeners: DataChangeListener[] = [];
+
+  setApps(apps: AppDescriptor[]): void {
+    this.apps = apps;
+    this.listeners.forEach((listener: DataChangeListener): void => listener.onDataReloaded());
+  }
+
+  totalCount(): number {
+    if (this.apps.length <= 2) return this.apps.length;
+    return ConsoleRingDataSource.VIRTUAL_TOTAL;
+  }
+
+  getData(index: number): AppDescriptor {
+    const count = this.apps.length;
+    return this.apps[((index % count) + count) % count];
+  }
+
+  registerDataChangeListener(listener: DataChangeListener): void {
+    if (this.listeners.indexOf(listener) < 0) this.listeners.push(listener);
+  }
+
+  unregisterDataChangeListener(listener: DataChangeListener): void {
+    const index = this.listeners.indexOf(listener);
+    if (index >= 0) this.listeners.splice(index, 1);
+  }
+}
+
 const DOMAIN = 0x0000;
 
 const PHONE_NAV_RECENT: number = 0;
@@ -116,6 +148,18 @@ struct Index {
   @State private consoleSort: SortMode = SortMode.RECENT;
   @State private consoleOrderedApps: AppDescriptor[] = [];
   @State private consoleFocusIndex: number = 0;
+  @State private consoleRingOffset: number = 0;
+  private consoleRingVirtualIndex: number = 0;
+  private consoleRingLocating: boolean = false;
+  private consoleRingLocateGeneration: number = 0;
+  private consoleRingRelayoutGeneration: number = 0;
+  private consoleRingAnchorAppId: string = '';
+  private consoleRingSuppressScrollUntil: number = 0;
+  private consoleRingScroller: Scroller = new Scroller();
+  private consoleGridScroller: Scroller = new Scroller();
+  private consoleRingData: ConsoleRingDataSource = new ConsoleRingDataSource();
+  @State private consoleFocusAreaWidth: number = 0;
+  @State private consoleFocusAreaHeight: number = 0;
   @State private consoleSelectedAppId: string = '';
   @State private consoleDetailApp: AppDescriptor | null = null;
   @State private consoleDetailVisible: boolean = false;
@@ -129,6 +173,7 @@ struct Index {
   @State private refreshing: boolean = false;
   @State private runningAppIds: Set<string> = new Set<string>();
   @State private phoneNavIndex: number = PHONE_NAV_BUILTIN;
+  @State private consoleNavIndex: number = 4;
   @State private viewportWidth: number = 0;
   @State private viewportHeight: number = 0;
   @State private titleContentTopInsetVp: number = 40;
@@ -136,6 +181,7 @@ struct Index {
   @State private navBarInsetVp: number = 0;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
   private phoneNavController: HdsTabsController = new HdsTabsController();
+  private consoleNavController: HdsTabsController = new HdsTabsController();
   private builtinScroller: Scroller = new Scroller();
   private windowsScroller: Scroller = new Scroller();
   private favoriteScroller: Scroller = new Scroller();
@@ -687,6 +733,12 @@ struct Index {
       this.consoleSearchActive = false;
       this.consoleSearchRequested = false;
       try { inputMethod.getController().stopInputSession(); } catch (_) {}
+      // A pushed settings page keeps this Index instance and its List alive.
+      // Rebuild the ring from the selected app when the page becomes visible
+      // again, because the hidden List may still finish a native fling using
+      // geometry from before the route transition or an orientation change.
+      this.scheduleConsoleRingRelayout();
+      this.scrollConsoleGridSelection(this.consoleFocusIndex, false, 180);
       setTimeout((): void => this.focusConsoleLauncher(), 300);
       setTimeout((): void => this.focusConsoleLauncher(), 850);
     }
@@ -707,6 +759,7 @@ struct Index {
   onPageHide(): void {
     this.consolePageVisible = false;
     this.detachConsoleNavigation();
+    this.suspendConsoleRingForPageTransition();
     this.captureScrollOffsets();
     this.stopWindowInsetObserver();
   }
@@ -947,6 +1000,7 @@ struct Index {
   }
 
   private selectFilter(value: CatalogFilter, syncPhoneNavigation: boolean = true): void {
+    this.resetConsoleRingMotion();
     if (this.settings.uiSkin === UiSkin.CONSOLE) this.consoleCategoryInitialized = true;
     this.captureScrollOffsets();
     this.filter = value;
@@ -954,7 +1008,17 @@ struct Index {
     this.consoleSelectedAppId = '';
     this.visibleApps = this.filterApps(this.searchQuery, value);
     this.syncConsoleFocus();
+    if (this.settings.uiSkin === UiSkin.CONSOLE) {
+      this.scrollConsoleGridSelection(this.consoleFocusIndex, false, 80);
+    }
     setTimeout((): void => this.restoreScrollOffset(value), 0);
+    if (this.settings.uiSkin === UiSkin.CONSOLE) {
+      const index = this.consoleNavIndexForFilter(value);
+      if (index !== this.consoleNavIndex) {
+        this.consoleNavIndex = index;
+        this.consoleNavController.changeIndex(index);
+      }
+    }
     if (syncPhoneNavigation && this.isPhone()) {
       const index = this.phoneNavIndexForFilter(value);
       if (index !== this.phoneNavIndex) {
@@ -965,6 +1029,7 @@ struct Index {
   }
 
   private openSidebarPage(url: string): void {
+    this.suspendConsoleRingForPageTransition();
     router.pushUrl({ url });
   }
 
@@ -1840,6 +1905,22 @@ struct Index {
     .id('library-phone-navigation')
   }
 
+  private consoleNavIndexForFilter(value: CatalogFilter): number {
+    if (value === 'recent') return 0;
+    if (value === 'favorite') return 1;
+    if (value === 'windows') return 2;
+    if (value === 'running') return 3;
+    return 4;
+  }
+
+  private consoleFilterForNavIndex(index: number): CatalogFilter {
+    if (index === 0) return 'recent';
+    if (index === 1) return 'favorite';
+    if (index === 2) return 'windows';
+    if (index === 3) return 'running';
+    return 'builtin';
+  }
+
   onBackPress(): boolean {
     if (this.consoleDetailVisible) {
       this.consoleDetailVisible = false;
@@ -1880,16 +1961,23 @@ struct Index {
 
   private syncConsoleFocus(): void {
     const apps = this.orderedConsoleApps();
-    if (!this.sameAppSequence(this.consoleOrderedApps, apps)) this.consoleOrderedApps = apps;
+    const changed = !this.sameAppSequence(this.consoleOrderedApps, apps);
+    if (changed) {
+      this.consoleOrderedApps = apps;
+      this.consoleRingData.setApps(apps);
+    }
     if (apps.length === 0) {
       if (this.consoleFocusIndex !== 0) this.consoleFocusIndex = 0;
       if (this.consoleSelectedAppId) this.consoleSelectedAppId = '';
+      this.consoleRingAnchorAppId = '';
       return;
     }
     const selected = apps.findIndex((app: AppDescriptor): boolean => app.id === this.consoleSelectedAppId);
     const next = selected >= 0 ? selected : 0;
     if (this.consoleFocusIndex !== next) this.consoleFocusIndex = next;
     if (this.consoleSelectedAppId !== apps[next].id) this.consoleSelectedAppId = apps[next].id;
+    this.consoleRingAnchorAppId = apps[next].id;
+    if (changed) this.locateConsoleRing(next);
   }
 
   private preferGamesForConsole(): void {
@@ -1942,77 +2030,259 @@ struct Index {
     return Math.max(140, (this.consoleContentWidth() - (count - 1) * 12) / count - 2);
   }
 
-  private consoleFocusRadius(): number {
-    const width = this.consoleContentWidth();
-    if (this.viewportHeight > this.viewportWidth) return 1;
-    if (width < 720) return 1;
-    if (width < 1150) return 2;
-    return 3;
-  }
-
-  private consoleFocusOffsets(): number[] {
-    const radius = this.consoleFocusRadius();
-    const count = this.consoleApps().length;
-    if (count === 0) return [];
-    const offsets: number[] = [0];
-    const seen: Set<number> = new Set<number>();
-    seen.add(((this.consoleFocusIndex % count) + count) % count);
-    for (let distance = 1; distance <= radius && offsets.length < count; distance++) {
-      const left = ((this.consoleFocusIndex - distance) % count + count) % count;
-      if (!seen.has(left)) { offsets.push(-distance); seen.add(left); }
-      const right = ((this.consoleFocusIndex + distance) % count + count) % count;
-      if (!seen.has(right)) { offsets.push(distance); seen.add(right); }
-    }
-    offsets.sort((a: number, b: number): number => a - b);
-    return offsets;
-  }
-
-  private consoleFocusCardWidth(offset: number): number {
-    const width = this.consoleContentWidth();
+  private consoleRingVisibleCount(): number {
+    const width = this.consoleFocusAreaWidth || this.consoleContentWidth();
     const portrait = this.viewportHeight > this.viewportWidth;
-    const center = Math.min(420, Math.max(240, width * (portrait ?
-      (width < 540 ? 0.76 : 0.48) : (width < 540 ? 0.68 : 0.30))));
-    return offset === 0 ? center : center * 0.74;
+    // ArkUI measures these values in vp, so the physical card remains
+    // comfortable across densities. Fractional counts reveal the next card
+    // while breakpoints reserve more width for the focused card.
+    if (portrait) {
+      if (width < 480) return 1.58;
+      if (width < 700) return 2.08;
+      if (width < 900) return 2.30;
+      return 2.70;
+    }
+    if (width < 600) return 1.72;
+    if (width < 900) return 2.65;
+    if (width < 1280) return 4.15;
+    if (width < 1700) return 4.80;
+    return 5.80;
   }
 
-  private consoleFocusCardHeight(offset: number): number {
-    const width = this.consoleFocusCardWidth(0);
-    const center = Math.max(210, Math.min(430, width * 1.18, this.viewportHeight * 0.45));
-    return offset === 0 ? center : center * 0.84;
+  private consoleRingCellWidth(): number {
+    const width = this.consoleFocusAreaWidth || this.consoleContentWidth();
+    return width / this.consoleRingVisibleCount();
   }
 
-  private consoleFocusCardShift(offset: number): number {
-    return offset * this.consoleFocusCardWidth(0) *
-      (this.consoleContentWidth() < 540 ? 0.68 : 0.82);
+  private consoleRingLeadingInset(): number {
+    if (this.consoleApps().length > 2) return 0;
+    const width = this.consoleFocusAreaWidth || this.consoleContentWidth();
+    return Math.max(0, (width - this.consoleRingCellWidth()) / 2);
   }
 
-  private consoleFocusOffsetApp(offset: number): AppDescriptor | null {
+  private consoleRingInitialIndex(realIndex: number = 0): number {
+    const count = this.consoleApps().length;
+    if (count <= 2) return Math.max(0, Math.min(count - 1, realIndex));
+    const middle = Math.floor(ConsoleRingDataSource.VIRTUAL_TOTAL / 2);
+    const base = middle - (middle % count);
+    return base + Math.max(0, Math.min(count - 1, realIndex));
+  }
+
+  private consoleRingCenterVirtualIndex(offset: number = this.consoleRingOffset): number {
+    const cell = this.consoleRingCellWidth();
+    const inset = this.consoleRingLeadingInset();
+    const viewport = this.consoleFocusAreaWidth || this.consoleContentWidth();
+    return Math.round((offset + viewport / 2 - inset - cell / 2) / cell);
+  }
+
+  private consoleRingOffsetForIndex(index: number): number {
+    return Math.max(0, this.consoleRingLeadingInset() + index * this.consoleRingCellWidth() +
+      this.consoleRingCellWidth() / 2 -
+      (this.consoleFocusAreaWidth || this.consoleContentWidth()) / 2);
+  }
+
+  private consoleRingDelta(index: number): number {
+    const cell = this.consoleRingCellWidth();
+    const inset = this.consoleRingLeadingInset();
+    const viewport = this.consoleFocusAreaWidth || this.consoleContentWidth();
+    const center = inset + index * cell + cell / 2 - this.consoleRingOffset;
+    return (center - viewport / 2) / cell;
+  }
+
+  private syncConsoleRingFocus(index: number, playSound: boolean = false,
+    commitAnchor: boolean = false): void {
     const apps = this.consoleApps();
-    if (apps.length === 0 || Math.abs(offset) >= apps.length) return null;
-    const index = ((this.consoleFocusIndex + offset) % apps.length + apps.length) % apps.length;
-    return apps[index];
+    if (apps.length === 0) return;
+    const total = this.consoleRingData.totalCount();
+    const safe = Math.max(0, Math.min(total - 1, index));
+    const real = ((safe % apps.length) + apps.length) % apps.length;
+    this.consoleRingVirtualIndex = safe;
+    if (commitAnchor) this.consoleRingAnchorAppId = apps[real].id;
+    if (real === this.consoleFocusIndex && this.consoleSelectedAppId === apps[real].id) return;
+    this.consoleFocusIndex = real;
+    this.consoleSelectedAppId = apps[real].id;
+    if (playSound) ConsoleUiSound.getInstance().focus();
+    GameArtworkService.getInstance().enqueueIfMissing(apps[real]);
+  }
+
+  private locateConsoleRing(realIndex: number = this.consoleFocusIndex): void {
+    const count = this.consoleRingData.totalCount();
+    if (count === 0 || this.settings.consoleCardLayout !== ConsoleCardLayout.FOCUS_3D) return;
+    const target = this.consoleRingInitialIndex(realIndex);
+    const targetAppId = this.consoleApps()[realIndex]?.id ?? '';
+    const generation = ++this.consoleRingLocateGeneration;
+    this.consoleRingLocating = true;
+    this.consoleRingSuppressScrollUntil = Date.now() + 700;
+    let attempts = 0;
+    const locate = (): void => {
+      if (generation !== this.consoleRingLocateGeneration) return;
+      attempts++;
+      try { this.consoleRingScroller.scrollToIndex(target, false, ScrollAlign.CENTER); } catch (_) {}
+      const expected = this.consoleRingOffsetForIndex(target);
+      // During an orientation change Scroller.currentOffset() can retain the
+      // previous List geometry even after the item is visibly centered. Drive
+      // the transform from the exact target geometry until the new layout is
+      // stable, otherwise the centered card is rendered as a side card.
+      this.consoleRingOffset = expected;
+      this.syncConsoleRingFocus(target, false, true);
+      if (targetAppId) this.consoleRingAnchorAppId = targetAppId;
+      if (attempts >= 5) {
+        // Keep programmatic scroll callbacks isolated until the final native
+        // layout transaction has landed. User movement then starts from the
+        // exact offset above and is tracked by per-frame deltas.
+        setTimeout((): void => {
+          if (generation !== this.consoleRingLocateGeneration) return;
+          this.consoleRingOffset = this.consoleRingOffsetForIndex(target);
+          this.syncConsoleRingFocus(target, false, true);
+          this.consoleRingLocating = false;
+          this.consoleRingSuppressScrollUntil = Date.now() + 80;
+        }, 100);
+        return;
+      }
+      setTimeout(locate, 70);
+    };
+    setTimeout(locate, 20);
+  }
+
+  private suspendConsoleRingForPageTransition(): void {
+    if (this.settings.uiSkin !== UiSkin.CONSOLE ||
+      this.settings.consoleCardLayout !== ConsoleCardLayout.FOCUS_3D) return;
+    const total = this.consoleRingData.totalCount();
+    if (total === 0) return;
+    const target = Math.max(0, Math.min(total - 1, this.consoleRingCenterVirtualIndex()));
+    // A non-animated jump cancels the native List fling before another page
+    // covers this one. Keep callbacks suppressed until onPageShow performs a
+    // fresh locate with the current viewport geometry.
+    this.consoleRingLocateGeneration++;
+    this.consoleRingRelayoutGeneration++;
+    this.consoleRingLocating = true;
+    this.consoleRingSuppressScrollUntil = Date.now() + 2000;
+    this.syncConsoleRingFocus(target, false, true);
+    try { this.consoleRingScroller.scrollToIndex(target, false, ScrollAlign.CENTER); } catch (_) {}
+    this.consoleRingOffset = this.consoleRingOffsetForIndex(target);
+  }
+
+  private beginConsoleRingRelayout(): void {
+    if (this.settings.uiSkin !== UiSkin.CONSOLE ||
+      this.settings.consoleCardLayout !== ConsoleCardLayout.FOCUS_3D) return;
+    const current = this.consoleFocusApp();
+    if (!this.consoleRingAnchorAppId && current) this.consoleRingAnchorAppId = current.id;
+    this.consoleRingLocateGeneration++;
+    this.consoleRingLocating = true;
+    this.consoleRingSuppressScrollUntil = Date.now() + 900;
+  }
+
+  private scheduleConsoleRingRelayout(): void {
+    this.beginConsoleRingRelayout();
+    const generation = ++this.consoleRingRelayoutGeneration;
+    setTimeout((): void => {
+      if (generation !== this.consoleRingRelayoutGeneration ||
+        this.settings.consoleCardLayout !== ConsoleCardLayout.FOCUS_3D) return;
+      // LazyForEach keeps the old ListItem width across orientation changes.
+      // Reload after the new area settles so item width and 3D math use one coordinate system.
+      this.consoleRingData.setApps(this.consoleApps());
+      const apps = this.consoleApps();
+      const anchored = apps.findIndex((app: AppDescriptor): boolean =>
+        app.id === this.consoleRingAnchorAppId);
+      this.locateConsoleRing(anchored >= 0 ? anchored : this.consoleFocusIndex);
+    }, 160);
+  }
+
+  private selectConsoleRingIndex(index: number, animated: boolean): void {
+    const total = this.consoleRingData.totalCount();
+    if (total === 0) return;
+    const safe = Math.max(0, Math.min(total - 1, index));
+    try { this.consoleRingScroller.scrollToIndex(safe, animated, ScrollAlign.CENTER); } catch (_) {}
+    if (!animated) this.syncConsoleRingFocus(safe);
+  }
+
+  private snapConsoleRing(): void {
+    if (!this.consolePageVisible || this.consoleRingLocating ||
+      Date.now() < this.consoleRingSuppressScrollUntil) return;
+    const nearest = this.consoleRingCenterVirtualIndex();
+    this.syncConsoleRingFocus(nearest, false, true);
+    const expected = this.consoleRingOffsetForIndex(nearest);
+    if (Math.abs(this.consoleRingOffset - expected) <= 0.5) {
+      this.consoleRingOffset = expected;
+    } else {
+      this.selectConsoleRingIndex(nearest, true);
+    }
   }
 
   private focusConsoleStep(step: number): void {
     const apps = this.consoleApps();
     if (apps.length === 0) return;
-    const next = ((this.consoleFocusIndex + step) % apps.length + apps.length) % apps.length;
+    if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) {
+      const direction = step > 0 ? 1 : -1;
+      const target = this.consoleRingVirtualIndex + direction;
+      this.syncConsoleRingFocus(target, true, true);
+      this.selectConsoleRingIndex(target, true);
+      return;
+    }
+    const next = Math.max(0, Math.min(apps.length - 1, this.consoleFocusIndex + step));
     if (next === this.consoleFocusIndex) return;
-    animateTo({ duration: 220, curve: Curve.EaseOut }, (): void => {
-      this.consoleFocusIndex = next;
-      this.consoleSelectedAppId = apps[next].id;
-    });
+    this.consoleFocusIndex = next;
+    this.consoleSelectedAppId = apps[next].id;
     ConsoleUiSound.getInstance().focus();
     GameArtworkService.getInstance().enqueueIfMissing(apps[next]);
+    this.scrollConsoleGridSelection(next, true);
+  }
+
+  private scrollConsoleGridSelection(index: number = this.consoleFocusIndex,
+    animated: boolean = true, delayMs: number = 0): void {
+    if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) return;
+    const count = this.consoleApps().length;
+    if (count === 0) return;
+    const target = Math.max(0, Math.min(count - 1, index));
+    setTimeout((): void => {
+      if (!this.consolePageVisible ||
+        this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) return;
+      try {
+        // Center alignment keeps the highlighted card clear of the floating
+        // navigation bar, including the incomplete final row.
+        this.consoleGridScroller.scrollToIndex(target, animated, ScrollAlign.CENTER);
+      } catch (_) {
+      }
+    }, delayMs);
+  }
+
+  private focusConsoleCategoryStep(step: number): void {
+    const count = 5;
+    const next = ((this.consoleNavIndex + step) % count + count) % count;
+    const target = this.consoleFilterForNavIndex(next);
+    ConsoleUiSound.getInstance().focus();
+    this.consoleNavIndex = next;
+    this.consoleNavController.changeIndex(next);
+    if (target !== this.filter) this.selectFilter(target, false);
+  }
+
+  private resetConsoleRingMotion(): void {
+    this.consoleRingLocateGeneration++;
+    this.consoleRingRelayoutGeneration++;
+    this.consoleRingLocating = false;
+    this.consoleRingAnchorAppId = '';
+    this.consoleRingSuppressScrollUntil = 0;
+    this.consoleRingOffset = 0;
+    this.consoleRingVirtualIndex = 0;
   }
 
   private focusConsoleApp(app: AppDescriptor): void {
     const index = this.consoleApps().findIndex((item: AppDescriptor): boolean => item.id === app.id);
-    if (index >= 0 && index !== this.consoleFocusIndex) ConsoleUiSound.getInstance().focus();
-    animateTo({ duration: 220, curve: Curve.EaseOut }, (): void => {
-      if (index >= 0) this.consoleFocusIndex = index;
-      this.consoleSelectedAppId = app.id;
-    });
+    if (index === this.consoleFocusIndex) return;
+    const count = this.consoleApps().length;
+    if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D && count > 1) {
+      let delta = index - this.consoleFocusIndex;
+      if (delta > count / 2) delta -= count;
+      if (delta < -count / 2) delta += count;
+      const target = this.consoleRingVirtualIndex + delta;
+      this.syncConsoleRingFocus(target, false, true);
+      this.selectConsoleRingIndex(target, true);
+      ConsoleUiSound.getInstance().focus();
+      return;
+    }
+    if (index >= 0) this.consoleFocusIndex = index;
+    this.consoleSelectedAppId = app.id;
+    ConsoleUiSound.getInstance().focus();
     GameArtworkService.getInstance().enqueueIfMissing(app);
   }
 
@@ -2076,6 +2346,10 @@ struct Index {
       return false;
     }
     if (fromKeyboard && this.consoleSearchActive) return false;
+    if (code === 2307 || code === 2308) {
+      this.focusConsoleCategoryStep(code === 2307 ? -1 : 1);
+      return true;
+    }
     const now = Date.now();
     const direction = code === 2014 || code === 2012 ? -1 :
       (code === 2015 || code === 2013 ? 1 : 0);
@@ -2194,39 +2468,63 @@ struct Index {
   }
 
   @Builder
-  private ConsoleBottomNav() {
-    Scroll() {
-      Row({ space: 4 }) {
-        ForEach([
-          { label: '最近', value: 'recent', icon: $r('sys.symbol.clock') },
-          { label: '收藏', value: 'favorite', icon: $r('sys.symbol.star') },
-          { label: 'Game', value: 'windows', icon: $r('sys.symbol.gamecontroller') },
-          { label: this.runningFilterLabel(), value: 'running', icon: $r('sys.symbol.play_fill') },
-          { label: 'Home', value: 'builtin', icon: $r('sys.symbol.house_fill') }
-        ], (item: Record<string, Resource | string>): void => {
-          Button() {
-            Row({ space: 4 }) {
-              SymbolGlyph(item.icon as Resource).fontSize(12)
-                .fontColor([this.filter === item.value ? '#FFFFFFFF' : skinColor('text_secondary')])
-              Text(item.label as string).fontSize(12)
-                .fontColor(this.filter === item.value ? '#FFFFFFFF' : skinColor('text_secondary'))
-            }
-          }
-          .height(36).borderRadius(18).padding({ left: 12, right: 12 })
-          .backgroundColor(this.filter === item.value ? skinColor('accent') : '#00000000')
-          .onClick((): void => this.selectFilter(item.value as CatalogFilter, false))
-        }, (item: Record<string, Resource | string>): string => item.value as string)
-      }.height(52).padding({ left: 8, right: 8 })
-        .justifyContent(FlexAlign.Center)
+  private ConsoleBottomTab(label: string, icon: Resource, index: number) {
+    Column({ space: 2 }) {
+      SymbolGlyph(icon).fontSize(20)
+        .fontColor([this.consoleNavIndex === index ? skinColor('accent') : skinColor('text_secondary')])
+      Text(label).fontSize(10).maxLines(1)
+        .fontWeight(this.consoleNavIndex === index ? FontWeight.Medium : FontWeight.Normal)
+        .fontColor(this.consoleNavIndex === index ? skinColor('accent') : skinColor('text_secondary'))
     }
-    .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Off)
-    .width(Math.min(445, this.consoleContentWidth())).height(52)
-    .borderRadius(26)
-    .backgroundColor(skinColor('search_background'))
-    .border({ width: 1, color: '#30FFFFFF' })
-    .shadow({ radius: 14, color: '#55000000', offsetX: 0, offsetY: 5 })
-    .margin({ bottom: 12 })
+    .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
+  }
+
+  @Builder
+  private ConsoleBottomNav() {
+    HdsTabs({
+      barPosition: BarPosition.End,
+      index: this.consoleNavIndex,
+      controller: this.consoleNavController
+    }) {
+      TabContent() { Column() }.tabBar(this.ConsoleBottomTab('最近', $r('sys.symbol.clock'), 0))
+      TabContent() { Column() }.tabBar(this.ConsoleBottomTab('收藏', $r('sys.symbol.star'), 1))
+      TabContent() { Column() }.tabBar(this.ConsoleBottomTab('Game', $r('sys.symbol.gamecontroller'), 2))
+      TabContent() { Column() }.tabBar(this.ConsoleBottomTab(this.runningFilterLabel(), $r('sys.symbol.play_fill'), 3))
+      TabContent() { Column() }.tabBar(this.ConsoleBottomTab('Home', $r('sys.symbol.house_fill'), 4))
+    }
+    .vertical(false)
+    .barHeight(bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+      this.navBarInsetVp).barHeight)
+    .scrollable(false)
+    .animationDuration(250)
+    .barOverlap(true)
+    .divider({ mode: DividerMode.FOLLOW_SCROLL })
+    .barBackgroundBlurStyle(BlurStyle.COMPONENT_THICK)
+    .barFloatingStyle({
+      barBottomMargin: bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+        this.navBarInsetVp).bottomMargin,
+      barSideMargin: bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+        this.navBarInsetVp).sideMargin,
+      // Keep only the floating material bar visible. The launcher content is
+      // drawn behind it, so an opaque gradient backplate would look like a
+      // full-width footer and cut the cards off before the window edge.
+      gradientMask: { maskColor: '#00000000', maskHeight: 0 },
+      systemMaterialEffect: {
+        materialType: hdsMaterial.MaterialType.ADAPTIVE,
+        materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+      },
+      adaptToHandedness: false,
+      thermoCtrl: true
+    })
+    .onChange((index: number): void => {
+      const target = this.consoleFilterForNavIndex(index);
+      this.consoleNavIndex = index;
+      if (target !== this.filter) this.selectFilter(target, false);
+    })
+    .width('100%')
+    .height(bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+      this.navBarInsetVp).containerHeight)
     .id('console-bottom-nav')
   }
 
@@ -2299,48 +2597,72 @@ struct Index {
   @Builder
   private ConsoleFocusFlow() {
     Column({ space: 4 }) {
-      Stack({ alignContent: Alignment.Center }) {
-        ForEach(this.consoleFocusOffsets(), (offset: number): void => {
-          if (this.consoleFocusOffsetApp(offset)) {
-            ConsoleGameCard({
-              app: this.consoleFocusOffsetApp(offset)!,
-              layout: ConsoleCardLayout.FOCUS_3D,
-              backgroundPath: this.consoleBackground(this.consoleFocusOffsetApp(offset)!),
-              focused: offset === 0,
-              running: this.runningAppIds.has(this.consoleFocusOffsetApp(offset)!.id),
-              favorite: AppSettingsStore.getInstance()
-                .getAppSettings(this.consoleFocusOffsetApp(offset)!.id).favorite,
-              lastPlayed: this.consoleLastPlayed(this.consoleFocusOffsetApp(offset)!.id),
-              cardWidth: this.consoleFocusCardWidth(offset),
-              cardHeight: this.consoleFocusCardHeight(offset),
-              inRing: true,
-              ringPosition: offset,
-              ringShiftX: this.consoleFocusCardShift(offset),
-              onSelect: (target: AppDescriptor): void => {
-                if (Date.now() >= this.consoleIgnoreCardClickUntil) this.focusConsoleApp(target);
-              },
-              onLaunch: (target: AppDescriptor): void => {
-                if (Date.now() >= this.consoleIgnoreCardClickUntil) this.showConsoleDetail(target);
-              },
-              onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
-              onVisible: (target: AppDescriptor): void =>
-                GameArtworkService.getInstance().enqueueIfMissing(target)
-            })
+      List({ space: 0, scroller: this.consoleRingScroller }) {
+        LazyForEach(this.consoleRingData, (app: AppDescriptor, index: number): void => {
+          ListItem() {
+            Column() {
+              ConsoleRingItem({
+                app: app,
+                virtualIndex: index,
+                scrollOffset: $consoleRingOffset,
+                cellWidth: this.consoleRingCellWidth(),
+                viewportWidth: this.consoleFocusAreaWidth || this.consoleContentWidth(),
+                leadingInset: this.consoleRingLeadingInset(),
+                areaHeight: this.consoleFocusAreaHeight,
+                viewportHeight: this.viewportHeight,
+                artworkRevision: $artworkRevision,
+                running: this.runningAppIds.has(app.id),
+                favorite: AppSettingsStore.getInstance().getAppSettings(app.id).favorite,
+                lastPlayed: this.consoleLastPlayed(app.id),
+                onSelect: (_target: AppDescriptor): void => {
+                  if (Date.now() >= this.consoleIgnoreCardClickUntil) {
+                    this.selectConsoleRingIndex(index, true);
+                  }
+                },
+                onLaunch: (target: AppDescriptor): void => {
+                  if (Date.now() >= this.consoleIgnoreCardClickUntil) this.showConsoleDetail(target);
+                },
+                onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
+                onVisible: (target: AppDescriptor): void =>
+                  GameArtworkService.getInstance().enqueueIfMissing(target)
+              })
+            }
+            .width(this.consoleRingCellWidth()).height('100%')
+            .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
           }
-        }, (offset: number): string => this.consoleFocusOffsetApp(offset)?.id ?? offset.toString())
+          .width(this.consoleRingCellWidth()).height('100%')
+          .zIndex(100 - Math.min(90, Math.abs(this.consoleRingDelta(index)) * 10))
+        }, (app: AppDescriptor, index: number): string => `${app.id}#${index}`)
       }
+      .listDirection(Axis.Horizontal)
+      .scrollBar(BarState.Off)
+      .cachedCount(3)
+      .edgeEffect(EdgeEffect.None)
+      .contentStartOffset(this.consoleRingLeadingInset())
+      .contentEndOffset(this.consoleRingLeadingInset())
       .width('100%').layoutWeight(1).clip(true)
-      .priorityGesture(PanGesture({ direction: PanDirection.Horizontal })
-        .onActionUpdate((event: GestureEvent): void => {
-          if (Math.abs(event.offsetX) > 18) this.consoleIgnoreCardClickUntil = Date.now() + 350;
-        })
-        .onActionEnd((event: GestureEvent): void => {
-          if (Math.abs(event.offsetX) > 45 &&
-            Math.abs(event.offsetX) > Math.abs(event.offsetY) * 1.2) {
-            this.consoleIgnoreCardClickUntil = Date.now() + 350;
-            this.focusConsoleStep(event.offsetX < 0 ? 1 : -1);
-          }
-        }))
+      .onDidScroll((scrollOffset: number, _scrollState: ScrollState): void => {
+        if (!this.consolePageVisible || this.consoleRingLocating ||
+          Date.now() < this.consoleRingSuppressScrollUntil) return;
+        this.consoleIgnoreCardClickUntil = Date.now() + 180;
+        if (Number.isFinite(scrollOffset)) this.consoleRingOffset += scrollOffset;
+        this.syncConsoleRingFocus(this.consoleRingCenterVirtualIndex(), true, true);
+      })
+      .onScrollStop((): void => this.snapConsoleRing())
+      .onAreaChange((_oldValue: Area, area: Area): void => {
+        const width = area.width as number;
+        const height = area.height as number;
+        let changed = false;
+        if (Math.abs(width - this.consoleFocusAreaWidth) > 1) {
+          this.consoleFocusAreaWidth = width;
+          changed = true;
+        }
+        if (Math.abs(height - this.consoleFocusAreaHeight) > 1) {
+          this.consoleFocusAreaHeight = height;
+          changed = true;
+        }
+        if (changed) this.scheduleConsoleRingRelayout();
+      })
       .id('console-focus-flow')
       Row({ space: 16 }) {
         Button('‹').width(44).height(44).borderRadius(22)
@@ -2368,11 +2690,17 @@ struct Index {
       }
       .width(Math.min(650, this.consoleContentWidth())).height(68)
       .justifyContent(FlexAlign.Center)
-      Text('左右滑动选择  ·  A / Enter 查看详情  ·  在详情中启动')
-        .fontSize(11).fontColor(skinColor('text_secondary')).maxLines(1)
     }
     .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
-    .padding({ top: 6, bottom: 16 })
+    // The focused title and its controls must stay readable above the
+    // floating tab bar. This clearance is local to the focus presentation;
+    // the launcher background and scrolling card layouts still extend to the
+    // bottom edge behind the navigation material.
+    .padding({
+      top: 6,
+      bottom: bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+        this.navBarInsetVp).contentInset
+    })
   }
 
   @Builder
@@ -2393,36 +2721,34 @@ struct Index {
           onVisible: (app: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(app)
         })
       }
-      Scroll() {
-        Grid() {
-          ForEach(this.consoleApps(), (app: AppDescriptor): void => {
-            GridItem() {
-              Column() {
-                ConsoleGameCard({
-                  app: app,
-                  layout: tile ? ConsoleCardLayout.XBOX_TILES : ConsoleCardLayout.GALLERY,
-                  backgroundPath: this.consoleBackground(app),
-                  focused: this.consoleSelectedAppId === app.id,
-                  running: this.runningAppIds.has(app.id),
-                  favorite: AppSettingsStore.getInstance().getAppSettings(app.id).favorite,
-                  lastPlayed: this.consoleLastPlayed(app.id),
-                  cardWidth: this.consoleGridCardWidth(tile),
-                  cardHeight: tile ? Math.min(178, this.consoleGridCardWidth(tile) * 0.60) :
-                    Math.min(420, this.consoleGridCardWidth(tile) * 1.15),
-                  onSelect: (target: AppDescriptor): void => this.showConsoleDetail(target),
-                  onLaunch: (target: AppDescriptor): void => this.showConsoleDetail(target),
-                  onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
-                  onVisible: (target: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(target)
-                })
-              }.width('100%').alignItems(HorizontalAlign.Center)
-            }
-          }, (app: AppDescriptor): string => app.id)
-        }
-        .columnsTemplate(this.consoleGridTemplate(tile))
-        .columnsGap(12).rowsGap(14).width('100%')
-        .padding({ left: 12, right: 12, top: 8, bottom: 112 })
+      Grid(this.consoleGridScroller) {
+        ForEach(this.consoleApps(), (app: AppDescriptor): void => {
+          GridItem() {
+            Column() {
+              ConsoleGameCard({
+                app: app,
+                layout: tile ? ConsoleCardLayout.XBOX_TILES : ConsoleCardLayout.GALLERY,
+                backgroundPath: this.consoleBackground(app),
+                focused: this.consoleSelectedAppId === app.id,
+                running: this.runningAppIds.has(app.id),
+                favorite: AppSettingsStore.getInstance().getAppSettings(app.id).favorite,
+                lastPlayed: this.consoleLastPlayed(app.id),
+                cardWidth: this.consoleGridCardWidth(tile),
+                cardHeight: tile ? Math.min(178, this.consoleGridCardWidth(tile) * 0.60) :
+                  Math.min(420, this.consoleGridCardWidth(tile) * 1.15),
+                onSelect: (target: AppDescriptor): void => this.showConsoleDetail(target),
+                onLaunch: (target: AppDescriptor): void => this.showConsoleDetail(target),
+                onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
+                onVisible: (target: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(target)
+              })
+            }.width('100%').alignItems(HorizontalAlign.Center)
+          }
+        }, (app: AppDescriptor): string => app.id)
       }
-      .width('100%').layoutWeight(1).scrollBar(BarState.Off)
+      .columnsTemplate(this.consoleGridTemplate(tile))
+      .columnsGap(12).rowsGap(14).width('100%').layoutWeight(1)
+      .padding({ left: 12, right: 12, top: 8, bottom: 112 })
+      .scrollBar(BarState.Off)
       .focusable(true)
     }
     .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
@@ -2449,8 +2775,10 @@ struct Index {
       }, (category: CatalogFilter): string => category)
     } else if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) {
       this.ConsoleFocusFlow()
+    } else if (this.settings.consoleCardLayout === ConsoleCardLayout.GALLERY) {
+      this.ConsoleGrid(false)
     } else {
-      this.ConsoleGrid(this.settings.consoleCardLayout === ConsoleCardLayout.XBOX_TILES)
+      this.ConsoleGrid(true)
     }
   }
 
@@ -2465,6 +2793,7 @@ struct Index {
         Column().width('100%').height('100%').backgroundColor('#D90B0B13')
         GameDetailSheet({
           app: this.consoleDetailApp!,
+          backgroundPath: this.consoleBackground(this.consoleDetailApp!),
           isRunning: this.runningAppIds.has(this.consoleDetailApp!.id),
           isFavorite: AppSettingsStore.getInstance().getAppSettings(this.consoleDetailApp!.id).favorite,
           lastPlayedText: this.consoleLastPlayed(this.consoleDetailApp!.id),
@@ -2530,14 +2859,13 @@ struct Index {
       }
       .width(this.consoleContentWidth()).height('100%')
       .alignItems(HorizontalAlign.Center)
-      .padding({ top: Math.max(8, this.statusBarHeightVp),
-        bottom: Math.max(72, this.navBarInsetVp + 64) })
+      .padding({ top: Math.max(8, this.statusBarHeightVp) })
       Column() {
         this.ConsoleBottomNav()
       }
-      .width('100%').height(Math.max(64, this.navBarInsetVp + 64))
+      .width('100%').height(bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+        this.navBarInsetVp).containerHeight)
       .justifyContent(FlexAlign.End).alignItems(HorizontalAlign.Center)
-      .padding({ bottom: Math.max(4, this.navBarInsetVp) })
     }
     .width('100%').height('100%')
     .clip(true)
@@ -2634,8 +2962,13 @@ struct Index {
     .width('100%').height('100%')
     .backgroundColor(skinColor('page_background'))
     .onAreaChange((_oldValue: Area, area: Area): void => {
-      this.viewportWidth = area.width as number;
-      this.viewportHeight = area.height as number;
+      const width = area.width as number;
+      const height = area.height as number;
+      const geometryChanged = Math.abs(width - this.viewportWidth) > 1 ||
+        Math.abs(height - this.viewportHeight) > 1;
+      if (geometryChanged) this.beginConsoleRingRelayout();
+      this.viewportWidth = width;
+      this.viewportHeight = height;
       if (this.viewportWidth > 0 && this.viewportHeight > 0) {
         this.screenW = this.viewportWidth;
         this.screenH = this.viewportHeight;
@@ -2644,6 +2977,10 @@ struct Index {
         }
       }
       BreakpointSystem.updateFromWidth(this.viewportWidth);
+      if (geometryChanged) {
+        this.scheduleConsoleRingRelayout();
+        this.scrollConsoleGridSelection(this.consoleFocusIndex, false, 180);
+      }
     })
   }
 

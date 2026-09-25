@@ -1,4 +1,5 @@
 import { AppDescriptor, AppSource, DisplayMode, ViewMode } from '../model/AppModels';
+import { builtinCoverResource } from '../model/BuiltinArtwork';
 
 @Component
 export struct AppCard {
@@ -59,21 +60,7 @@ export struct AppCard {
 
   /** Deterministic cover slices supplied with the built-in application manifest. */
   private builtinCover(): Resource {
-    if (this.app.id === 'builtin-desktop') return $r('app.media.builtin_desktop');
-    if (this.app.id === 'builtin-explorer') return $r('app.media.builtin_explorer');
-    if (this.app.id === 'builtin-winecfg') return $r('app.media.builtin_winecfg');
-    if (this.app.id === 'builtin-iexplore') return $r('app.media.builtin_iexplore');
-    if (this.app.id === 'builtin-control') return $r('app.media.builtin_control');
-    if (this.app.id === 'builtin-taskmgr') return $r('app.media.builtin_taskmgr');
-    if (this.app.id === 'builtin-regedit') return $r('app.media.builtin_regedit');
-    if (this.app.id === 'builtin-cmd') return $r('app.media.builtin_cmd');
-    if (this.app.id === 'builtin-notepad') return $r('app.media.builtin_notepad');
-    if (this.app.id === 'builtin-graphics-smoke') return $r('app.media.builtin_graphics');
-    if (this.app.id === 'builtin-dxvk-cube') return $r('app.media.builtin_graphics');
-    if (this.app.id === 'builtin-vkd3d-triangle') return $r('app.media.builtin_vkd3d_triangle');
-    if (this.app.id === 'builtin-vkd3d-gears') return $r('app.media.builtin_vkd3d_gears');
-    if (this.app.id === 'builtin-audio-smoke') return $r('app.media.builtin_audio');
-    return $r('app.media.builtin_desktop');
+    return builtinCoverResource(this.app.id);
   }
 
   private executableText(): string {

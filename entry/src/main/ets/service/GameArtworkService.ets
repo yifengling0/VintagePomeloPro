@@ -4,7 +4,7 @@ import { http } from '@kit.NetworkKit';
 import preferences from '@ohos.data.preferences';
 import { AppDescriptor, AppSource, GameBackgroundMode, cloneAppSettings } from '../model/AppModels';
 import { chooseBackgroundFileName } from '../model/AppCatalogRules';
-import { uniqueExactGameId } from '../model/GameArtworkRules';
+import { steamSearchLocales, uniqueArtworkGameId } from '../model/GameArtworkRules';
 import { AppSettingsStore } from './AppSettingsStore';
 import { hilog } from './LogService';
 
@@ -166,13 +166,14 @@ export class GameArtworkService {
 
   private signature(app: AppDescriptor): string {
     const key = AppSettingsStore.getInstance().getSgdbApiKey();
-    if (!key) return app.title.trim().toLowerCase() + '#steam';
+    // v3 retries records produced before localized lookup and safe edition aliases.
+    if (!key) return app.title.trim().toLowerCase() + '#steam-v3';
     let hash = 2166136261;
     for (let index = 0; index < key.length; index++) {
       hash ^= key.charCodeAt(index);
       hash = Math.imul(hash, 16777619);
     }
-    return app.title.trim().toLowerCase() + '#sgdb-' + (hash >>> 0).toString(16);
+    return app.title.trim().toLowerCase() + '#sgdb-v3-' + (hash >>> 0).toString(16);
   }
 
   enqueueIfMissing(app: AppDescriptor): void { this.enqueue(app, false); }
@@ -254,17 +255,21 @@ export class GameArtworkService {
   }
 
   private async findSteamBackgroundUrl(title: string): Promise<ArtworkLookup> {
-    try {
-      const url = 'https://store.steampowered.com/api/storesearch/?term=' +
-        encodeURIComponent(title) + '&l=schinese&cc=CN';
-      const parsed = JSON.parse(await this.getJson(url, '')) as SteamSearchResponse;
-      const gameId = uniqueExactGameId(parsed.items ?? [], title);
-      if (gameId > 0) {
-        return { url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/' +
-          gameId.toString() + '/library_hero.jpg', transient: false };
-      }
-    } catch (_) { return { url: '', transient: true }; }
-    return { url: '', transient: false };
+    let transient = false;
+    const locales = steamSearchLocales(title);
+    for (let index = 0; index < locales.length; index++) {
+      try {
+        const url = 'https://store.steampowered.com/api/storesearch/?term=' +
+          encodeURIComponent(title) + '&l=' + locales[index] + '&cc=US';
+        const parsed = JSON.parse(await this.getJson(url, '')) as SteamSearchResponse;
+        const gameId = uniqueArtworkGameId(parsed.items ?? [], title);
+        if (gameId > 0) {
+          return { url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/' +
+            gameId.toString() + '/library_hero.jpg', transient: false };
+        }
+      } catch (_) { transient = true; }
+    }
+    return { url: '', transient: transient };
   }
 
   private async findSgdbBackgroundUrl(title: string): Promise<ArtworkLookup> {
@@ -273,7 +278,7 @@ export class GameArtworkService {
     try {
       const search = JSON.parse(await this.getJson('https://www.steamgriddb.com/api/v2/search/autocomplete/' +
         encodeURIComponent(title), key)) as SgdbSearchResponse;
-      const gameId = uniqueExactGameId(search.data ?? [], title);
+      const gameId = uniqueArtworkGameId(search.data ?? [], title);
       if (!search.success || gameId <= 0) return { url: '', transient: false };
       const heroes = JSON.parse(await this.getJson('https://www.steamgriddb.com/api/v2/heroes/game/' +
         gameId.toString(), key)) as SgdbHeroResponse;

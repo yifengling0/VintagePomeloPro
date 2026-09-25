@@ -1,5 +1,6 @@
 import { skinColor } from '../service/SkinColors';
 import { AppDescriptor, AppSource } from '../model/AppModels';
+import { builtinCoverResource } from '../model/BuiltinArtwork';
 
 export interface GameDetailSheetCallbacks {
   onLaunch: (app: AppDescriptor) => void;
@@ -13,6 +14,7 @@ export interface GameDetailSheetCallbacks {
 @Component
 export struct GameDetailSheet {
   @Prop app: AppDescriptor;
+  @Prop backgroundPath: string = '';
   @Prop isRunning: boolean = false;
   @Prop isFavorite: boolean = false;
   @Prop lastPlayedText: string = '';
@@ -27,15 +29,29 @@ export struct GameDetailSheet {
     onScrapeCover: (_app: AppDescriptor): void => {}
   };
 
+  private artworkPath(): string {
+    return this.app.coverPath || this.backgroundPath;
+  }
+
+  private artworkSource(): string {
+    const path = this.artworkPath();
+    return path.startsWith('file://') ? path : 'file://' + path;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopEnd }) {
       Scroll() {
         Column() {
         Row({ space: this.compact ? 14 : 28 }) {
-          if (this.app.coverPath.length > 0) {
-            // coverPath 是裸文件路径, Image 需要 file:// 前缀 (AppCard.coverSource 同款)。
-            Image(this.app.coverPath.startsWith('file://')
-              ? this.app.coverPath : 'file://' + this.app.coverPath)
+          if (this.artworkPath().length > 0) {
+            Image(this.artworkSource())
+              .width(this.compact ? 100 : 168).height(this.compact ? 148 : 224)
+              .borderRadius(16)
+              .objectFit(ImageFit.Cover)
+              .border({ width: 1, color: '#40FFFFFF' })
+              .shadow({ radius: 24, color: '#80000000', offsetX: 0, offsetY: 10 })
+          } else if (this.app.source === AppSource.BUILTIN) {
+            Image(builtinCoverResource(this.app.id))
               .width(this.compact ? 100 : 168).height(this.compact ? 148 : 224)
               .borderRadius(16)
               .objectFit(ImageFit.Cover)

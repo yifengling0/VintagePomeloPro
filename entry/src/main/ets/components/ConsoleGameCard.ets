@@ -1,4 +1,5 @@
-import { AppDescriptor, ConsoleCardLayout } from '../model/AppModels';
+import { AppDescriptor, AppSource, ConsoleCardLayout } from '../model/AppModels';
+import { builtinCoverResource } from '../model/BuiltinArtwork';
 import { skinColor } from '../service/SkinColors';
 
 @Component
@@ -40,7 +41,7 @@ export struct ConsoleGameCard {
 
   private ringScale(): number {
     if (!this.inRing) return 1;
-    return Math.max(0.62, 1.10 - Math.min(2.6, Math.abs(this.ringDelta())) * 0.18);
+    return Math.max(0.60, 1 - Math.min(3, Math.abs(this.ringDelta())) * 0.16);
   }
 
   private ringOpacity(): number {
@@ -60,6 +61,9 @@ export struct ConsoleGameCard {
           .width('100%').height('100%').objectFit(ImageFit.Cover)
           .blur(this.layout === ConsoleCardLayout.XBOX_TILES && !this.backgroundPath ? 14 : 0)
           .onError((): void => { this.artFailed = true; })
+      } else if (this.app.source === AppSource.BUILTIN) {
+        Image(builtinCoverResource(this.app.id))
+          .width('100%').height('100%').objectFit(ImageFit.Cover)
       } else {
         Column({ space: 8 }) {
           Text(this.app.title.length > 0 ? this.app.title.substring(0, 1).toUpperCase() : '?')
@@ -106,7 +110,8 @@ export struct ConsoleGameCard {
     .border({ width: this.focused ? 2 : 1,
       color: this.focused ? skinColor('accent') : '#42FFFFFF' })
     .shadow({ radius: this.focused ? 20 : 8, color: '#63000000', offsetX: 0, offsetY: 6 })
-    .opacity(this.app.available ? (this.artPath().length > 0 && !this.artFailed ? 1 :
+    .opacity(this.app.available ? ((this.artPath().length > 0 && !this.artFailed) ||
+      this.app.source === AppSource.BUILTIN ? 1 :
       this.ringOpacity()) : this.ringOpacity() * 0.65)
     .scale({ x: this.ringScale(), y: this.ringScale() })
     .rotate({ x: 0, y: 1, z: 0,
