@@ -10,6 +10,7 @@ import {
   InputBindingKind,
   InputProfile,
   ThemeMode,
+  UiSkin,
   cloneControlElement,
   cloneInputProfile,
   cloneAppSettings,
@@ -24,6 +25,7 @@ import { KEY_NAME_OPTIONS, keyNameLabel } from '../common/EvdevKeyNames';
 import { VirtualInputOverlay } from '../components/VirtualInputOverlay';
 import { InputProfileService } from '../service/InputProfileService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { consoleColors } from '../service/SkinColors';
 import { hilog } from '../service/LogService';
 
 interface PickerOption {
@@ -97,6 +99,28 @@ struct InputLayoutEditor {
   @State private safeAreaLeft: number = 0;
   @State private safeAreaRight: number = 0;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+
+  private editorAccent(): string {
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    return settings.uiSkin === UiSkin.CONSOLE ? consoleColors(settings.consolePalette).accent : '#FF64B5F6';
+  }
+
+  private editorSelectedBackground(): string {
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    return settings.uiSkin === UiSkin.CONSOLE ?
+      consoleColors(settings.consolePalette).selected_background : '#335C8DFF';
+  }
+
+  private editorBindingText(): string {
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    return settings.uiSkin === UiSkin.CONSOLE ?
+      consoleColors(settings.consolePalette).text_primary : '#FFFFFFFF';
+  }
+
+  private editorChipColor(classicColor: string): string {
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    return settings.uiSkin === UiSkin.CONSOLE ? consoleColors(settings.consolePalette).accent : classicColor;
+  }
   private panelDragStartX: number = 0;
   private panelDragStartY: number = 0;
   private panelDragTouchId: number = -1;
@@ -712,11 +736,11 @@ struct InputLayoutEditor {
         .hitTestBehavior(HitTestMode.Block)
         .onTouch((event: TouchEvent): void => this.handleToolbarHandleTouch(event))
       Row().width(1).height(24).backgroundColor('#33FFFFFF')
-      this.AddChip('键', '#FF64B5F6', (): void => this.addElement(ControlElementType.BUTTON), 'editor-add-button')
-      this.AddChip('方向', '#FF4CAF50', (): void => this.addElement(ControlElementType.D_PAD), 'editor-add-dpad')
-      this.AddChip('摇杆', '#FF8BC34A', (): void => this.addElement(ControlElementType.STICK), 'editor-add-stick')
-      this.AddChip('触摸板', '#FFFFB74D', (): void => this.addElement(ControlElementType.TRACKPAD), 'editor-add-trackpad')
-      this.AddChip('滚动键', '#FFAB47BC', (): void => this.addElement(ControlElementType.RANGE_BUTTON), 'editor-add-range')
+      this.AddChip('键', this.editorAccent(), (): void => this.addElement(ControlElementType.BUTTON), 'editor-add-button')
+      this.AddChip('方向', this.editorChipColor('#FF4CAF50'), (): void => this.addElement(ControlElementType.D_PAD), 'editor-add-dpad')
+      this.AddChip('摇杆', this.editorChipColor('#FF8BC34A'), (): void => this.addElement(ControlElementType.STICK), 'editor-add-stick')
+      this.AddChip('触摸板', this.editorChipColor('#FFFFB74D'), (): void => this.addElement(ControlElementType.TRACKPAD), 'editor-add-trackpad')
+      this.AddChip('滚动键', this.editorChipColor('#FFAB47BC'), (): void => this.addElement(ControlElementType.RANGE_BUTTON), 'editor-add-range')
       Row().width(1).height(24).backgroundColor('#33FFFFFF')
       this.ToolbarIconButton('✕', '#FFFF5252', (): void => { this.finishEditor(); }, 'input-layout-back')
       this.ToolbarIconButton('↺', '#FFFFB74D', (): void => { this.reset(); }, 'input-layout-reset')
@@ -734,8 +758,8 @@ struct InputLayoutEditor {
   private ShapeChip(label: string, shape: ControlElementShape) {
     Text(label).fontSize(11).fontColor(this.selectedElement()?.shape === shape ? '#FFFFFFFF' : '#FFFFFF99')
       .padding({ left: 9, right: 9, top: 6, bottom: 6 })
-      .backgroundColor(this.selectedElement()?.shape === shape ? '#335C8DFF' : '#18FFFFFF')
-      .borderRadius(14).border({ width: 1, color: this.selectedElement()?.shape === shape ? '#FF64B5F6' : '#33FFFFFF' })
+      .backgroundColor(this.selectedElement()?.shape === shape ? this.editorSelectedBackground() : '#18FFFFFF')
+      .borderRadius(14).border({ width: 1, color: this.selectedElement()?.shape === shape ? this.editorAccent() : '#33FFFFFF' })
       .onClick((): void => {
         this.updateSelectedElement((element: ControlElement): ControlElement => this.withElement(element, { shape: shape }));
       })
@@ -751,18 +775,18 @@ struct InputLayoutEditor {
             Row({ space: 8 }) {
               Text('输出').fontSize(11).fontColor('#FFFFFFAA')
               Text('按键').fontSize(11)
-                .fontColor((this.selectedElement()?.outputMode ?? 'keys') === 'keys' ? '#FF64B5F6' : '#FFFFFF88')
+                .fontColor((this.selectedElement()?.outputMode ?? 'keys') === 'keys' ? this.editorAccent() : '#FFFFFF88')
                 .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                .backgroundColor((this.selectedElement()?.outputMode ?? 'keys') === 'keys' ? '#335C8DFF' : '#18FFFFFF')
+                .backgroundColor((this.selectedElement()?.outputMode ?? 'keys') === 'keys' ? this.editorSelectedBackground() : '#18FFFFFF')
                 .borderRadius(12).border({ width: 1, color: '#44FFFFFF' })
                 .onClick((): void => {
                   this.updateSelectedElement((element: ControlElement): ControlElement =>
                     this.withElement(element, { outputMode: 'keys' }));
                 })
               Text('鼠标视角').fontSize(11)
-                .fontColor(this.selectedElement()?.outputMode === 'mouse' ? '#FF64B5F6' : '#FFFFFF88')
+                .fontColor(this.selectedElement()?.outputMode === 'mouse' ? this.editorAccent() : '#FFFFFF88')
                 .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                .backgroundColor(this.selectedElement()?.outputMode === 'mouse' ? '#335C8DFF' : '#18FFFFFF')
+                .backgroundColor(this.selectedElement()?.outputMode === 'mouse' ? this.editorSelectedBackground() : '#18FFFFFF')
                 .borderRadius(12).border({ width: 1, color: '#44FFFFFF' })
                 .onClick((): void => {
                   this.updateSelectedElement((element: ControlElement): ControlElement =>
@@ -774,9 +798,10 @@ struct InputLayoutEditor {
           ForEach([0, 1, 2, 3], (slot: number): void => {
             Row({ space: 8 }) {
               Text(['上', '右', '下', '左'][slot]).fontSize(11).fontColor('#FFFFFF88').width(24)
-              Text(this.bindingLabel(this.selectedElement()?.bindings[slot])).fontSize(12).fontColor('#FFFFFFFF')
+              Text(this.bindingLabel(this.selectedElement()?.bindings[slot])).fontSize(12)
+                .fontColor(this.editorBindingText())
                 .layoutWeight(1).textAlign(TextAlign.Center)
-                .padding({ top: 7, bottom: 7 }).backgroundColor('#335C8DFF')
+                .padding({ top: 7, bottom: 7 }).backgroundColor(this.editorSelectedBackground())
                 .borderRadius(10).border({ width: 1, color: '#55FFFFFF' })
                 .onClick((): void => this.openSlotPicker(slot))
             }.width('100%')
@@ -787,9 +812,10 @@ struct InputLayoutEditor {
           Text('按键绑定（最多 4 个，同时按下）').fontSize(11).fontColor('#FFFFFFAA').width('100%')
           ForEach([0, 1, 2, 3], (slot: number): void => {
             Row({ space: 8 }) {
-              Text(this.bindingLabel(this.selectedElement()?.bindings[slot])).fontSize(12).fontColor('#FFFFFFFF')
+              Text(this.bindingLabel(this.selectedElement()?.bindings[slot])).fontSize(12)
+                .fontColor(this.editorBindingText())
                 .layoutWeight(1).textAlign(TextAlign.Center)
-                .padding({ top: 7, bottom: 7 }).backgroundColor('#335C8DFF')
+                .padding({ top: 7, bottom: 7 }).backgroundColor(this.editorSelectedBackground())
                 .borderRadius(10).border({ width: 1, color: '#55FFFFFF' })
                 .onClick((): void => this.openSlotPicker(slot))
             }.width('100%')
@@ -800,18 +826,18 @@ struct InputLayoutEditor {
           Row({ space: 8 }) {
             Text('方向').fontSize(11).fontColor('#FFFFFFAA')
             Text('纵向').fontSize(11)
-              .fontColor((this.selectedElement()?.orientation ?? 'vertical') === 'vertical' ? '#FF64B5F6' : '#FFFFFF88')
+              .fontColor((this.selectedElement()?.orientation ?? 'vertical') === 'vertical' ? this.editorAccent() : '#FFFFFF88')
               .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-              .backgroundColor((this.selectedElement()?.orientation ?? 'vertical') === 'vertical' ? '#335C8DFF' : '#18FFFFFF')
+              .backgroundColor((this.selectedElement()?.orientation ?? 'vertical') === 'vertical' ? this.editorSelectedBackground() : '#18FFFFFF')
               .borderRadius(12).border({ width: 1, color: '#44FFFFFF' })
               .onClick((): void => {
                 this.updateSelectedElement((element: ControlElement): ControlElement =>
                   this.withElement(element, { orientation: 'vertical' }));
               })
             Text('横向').fontSize(11)
-              .fontColor(this.selectedElement()?.orientation === 'horizontal' ? '#FF64B5F6' : '#FFFFFF88')
+              .fontColor(this.selectedElement()?.orientation === 'horizontal' ? this.editorAccent() : '#FFFFFF88')
               .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-              .backgroundColor(this.selectedElement()?.orientation === 'horizontal' ? '#335C8DFF' : '#18FFFFFF')
+              .backgroundColor(this.selectedElement()?.orientation === 'horizontal' ? this.editorSelectedBackground() : '#18FFFFFF')
               .borderRadius(12).border({ width: 1, color: '#44FFFFFF' })
               .onClick((): void => {
                 this.updateSelectedElement((element: ControlElement): ControlElement =>
@@ -827,7 +853,7 @@ struct InputLayoutEditor {
                 .onClick((): void => this.removeRangeKey(code))
             }, (code: number): string => code.toString())
           }.width('100%')
-          Text('＋ 添加键').fontSize(11).fontColor('#FF64B5F6')
+          Text('＋ 添加键').fontSize(11).fontColor(this.editorAccent())
             .padding({ left: 9, right: 9, top: 6, bottom: 6 })
             .backgroundColor('#18FFFFFF').borderRadius(12).border({ width: 1, color: '#55FFFFFF' })
             .onClick((): void => this.openKeyListPicker())
@@ -845,7 +871,7 @@ struct InputLayoutEditor {
       Column() {
         Row() {
           Row({ space: 7 }) {
-            Text('▣').fontSize(12).fontColor('#FF64B5F6').fontWeight(FontWeight.Bold)
+            Text('▣').fontSize(12).fontColor(this.editorAccent()).fontWeight(FontWeight.Bold)
             Text('元素设置 · ' + elementTypeLabel(this.selectedElement()?.type ?? ControlElementType.BUTTON)).fontSize(13)
               .fontColor('#FFFFFFFF').fontWeight(FontWeight.Medium)
           }
@@ -878,9 +904,9 @@ struct InputLayoutEditor {
             Row({ space: 8 }) {
               Text('按住锁定（再按释放）').fontSize(11).fontColor('#FFFFFFAA')
               Text(this.selectedElement()?.toggleSwitch ? '开' : '关').fontSize(11)
-                .fontColor(this.selectedElement()?.toggleSwitch ? '#FF64B5F6' : '#FFFFFF88')
+                .fontColor(this.selectedElement()?.toggleSwitch ? this.editorAccent() : '#FFFFFF88')
                 .padding({ left: 9, right: 9, top: 6, bottom: 6 })
-                .backgroundColor(this.selectedElement()?.toggleSwitch ? '#335C8DFF' : '#18FFFFFF')
+                .backgroundColor(this.selectedElement()?.toggleSwitch ? this.editorSelectedBackground() : '#18FFFFFF')
                 .borderRadius(12).border({ width: 1, color: '#44FFFFFF' })
                 .onClick((): void => {
                   this.updateSelectedElement((current: ControlElement): ControlElement =>
@@ -891,7 +917,7 @@ struct InputLayoutEditor {
           Text('缩放 ' + Math.round((this.selectedElement()?.scale ?? 1) * 100) + '%')
             .fontSize(11).fontColor('#FFFFFFAA').width('100%')
           Slider({ value: (this.selectedElement()?.scale ?? 1) * 100, min: 10, max: 500, step: 5, style: SliderStyle.OutSet })
-            .width('100%').blockColor('#FF64B5F6').selectedColor('#FF64B5F6').trackColor('#FFFFFF22')
+            .width('100%').blockColor(this.editorAccent()).selectedColor(this.editorAccent()).trackColor('#FFFFFF22')
             .onChange((value: number, _mode: SliderChangeMode): void => {
               this.scaleElement(this.selectedElementId, value / 100);
             })
@@ -900,7 +926,7 @@ struct InputLayoutEditor {
               .fontSize(11).fontColor('#FFFFFFAA').width('100%')
             Slider({ value: (this.selectedElement()?.widthScale ?? 1) * 100,
               min: 20, max: 1200, step: 10, style: SliderStyle.OutSet })
-              .width('100%').blockColor('#FF64B5F6').selectedColor('#FF64B5F6').trackColor('#FFFFFF22')
+              .width('100%').blockColor(this.editorAccent()).selectedColor(this.editorAccent()).trackColor('#FFFFFF22')
               .onChange((value: number, _mode: SliderChangeMode): void => {
                 this.updateSelectedElement((current: ControlElement): ControlElement =>
                   this.withElement(current, { widthScale: value / 100 }));
@@ -911,9 +937,9 @@ struct InputLayoutEditor {
               Math.round(this.selectedElement()?.opacity ?? 70) : 100) + '%')
               .fontSize(11).fontColor('#FFFFFFAA')
             Text((this.selectedElement()?.opacity ?? -1) >= 0 ? '自定义' : '继承方案')
-              .fontSize(11).fontColor((this.selectedElement()?.opacity ?? -1) >= 0 ? '#FF64B5F6' : '#FFFFFF88')
+              .fontSize(11).fontColor((this.selectedElement()?.opacity ?? -1) >= 0 ? this.editorAccent() : '#FFFFFF88')
               .padding({ left: 9, right: 9, top: 6, bottom: 6 })
-              .backgroundColor((this.selectedElement()?.opacity ?? -1) >= 0 ? '#335C8DFF' : '#18FFFFFF')
+              .backgroundColor((this.selectedElement()?.opacity ?? -1) >= 0 ? this.editorSelectedBackground() : '#18FFFFFF')
               .borderRadius(12).border({ width: 1, color: '#44FFFFFF' })
               .onClick((): void => {
                 this.updateSelectedElement((current: ControlElement): ControlElement =>
@@ -979,8 +1005,8 @@ struct InputLayoutEditor {
           .backgroundColor('#22FFFFFF').borderRadius(8)
           .type(InputType.Number)
           .onChange((value: string): void => { this.customKeyText = value; })
-        Text('应用').fontSize(12).fontColor('#FF64B5F6').padding({ left: 12, right: 12, top: 8, bottom: 8 })
-          .backgroundColor('#335C8DFF').borderRadius(12)
+        Text('应用').fontSize(12).fontColor(this.editorAccent()).padding({ left: 12, right: 12, top: 8, bottom: 8 })
+          .backgroundColor(this.editorSelectedBackground()).borderRadius(12)
           .onClick((): void => this.applyCustomKey())
       }.width('100%')
     }

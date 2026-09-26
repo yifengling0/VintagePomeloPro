@@ -1,3 +1,14 @@
 # Historical CLI option name used by the hash-verified Gate C experiment.
 # The matched string is a command-line key selector, not a credential.
 aaba9061cbb5adf95d2493319dd0ecc7c6aa95c1:entry/src/main/cpp/virgl_child.cpp:generic-api-key:266
+
+# Historical preferences storage keys and source-file SHA-256 values.
+# These matches contain no service credentials.
+f77228b7161329569006c4e095cf77984ea760ac:entry/src/main/ets/service/AppSettingsStore.ets:generic-api-key:34
+33e468ba7f39979376b71fa3771a0073f96e6e9d:entry/src/main/ets/service/AppSettingsStore.ets:generic-api-key:31
+f05cb8256b02738a3c42b5cbb38bbcdd54e942a6:docs/sync/20260831/path-map.json:generic-api-key:250
+f05cb8256b02738a3c42b5cbb38bbcdd54e942a6:docs/sync/20260831/path-map.json:generic-api-key:251
+f05cb8256b02738a3c42b5cbb38bbcdd54e942a6:docs/sync/20260831/path-map.json:generic-api-key:301
+f05cb8256b02738a3c42b5cbb38bbcdd54e942a6:docs/sync/20260831/path-map.json:generic-api-key:302
+f05cb8256b02738a3c42b5cbb38bbcdd54e942a6:docs/sync/20260831/path-map.json:generic-api-key:315
+f05cb8256b02738a3c42b5cbb38bbcdd54e942a6:docs/sync/20260831/path-map.json:generic-api-key:316

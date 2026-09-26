@@ -18,6 +18,7 @@ import { DesktopModeService, MODE_VIRTUAL } from './DesktopModeService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
   catalogFileName,
+  chooseBackgroundFileName,
   chooseCoverFileName,
   chooseBackgroundFileName,
   chooseExecutablePath,

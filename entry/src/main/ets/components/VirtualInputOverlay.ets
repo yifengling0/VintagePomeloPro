@@ -11,6 +11,10 @@ import {
   createDefaultInputProfile,
   resolveVirtualJoystickDirection
 } from '../model/AppModels';
+import { GlobalSettings, UiSkin } from '../model/AppModels';
+import { AppSettingsStore } from '../service/AppSettingsStore';
+import { ThemeSettingsListener, ThemeSettingsService } from '../service/ThemeSettingsService';
+import { consoleColors } from '../service/SkinColors';
 import { InputDispatcher } from '../service/InputDispatcher';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { mapMouseButton } from '../common/MouseMap';
@@ -106,6 +110,12 @@ export struct VirtualInputOverlay {
   @State private overlayW: number = 0;
   @State private overlayH: number = 0;
   @State private pressedTokens: string = '';
+  @State private themeAccent: string = OVERLAY_HIGHLIGHT;
+  @State private themeToolbarBackground: string = '#BF282828';
+  @State private themeToolbarText: string = '#FFFFFFFF';
+  @State private themeToolbarMuted: string = '#FFAAB0BA';
+  @State private consoleThemeActive: boolean = false;
+  private themeListener: ThemeSettingsListener | null = null;
   @State private stickStates: StickVisualState[] = [];
   @State private rangeTokens: string = '';
   @State private toolbarExpanded: boolean = true;
@@ -309,19 +319,19 @@ export struct VirtualInputOverlay {
 
   /** Soft glow behind white strokes; not a hard second ring. */
   private overlayGlowColor(): string {
-    return '#4D000000';
+    return this.consoleThemeActive ? this.overlayArgb(this.themeAccent, 0.32) : '#4D000000';
   }
 
   private overlayStrokeColor(element: ControlElement): string {
     if (this.editMode && this.selectedElementId === element.id) {
-      return this.overlayArgb(OVERLAY_HIGHLIGHT, 0.95);
+      return this.overlayArgb(this.themeAccent, 0.95);
     }
-    return this.overlayArgb(OVERLAY_WHITE, 0.95);
+    return this.overlayArgb(this.consoleThemeActive ? this.themeAccent : OVERLAY_WHITE, 0.95);
   }
 
   private overlayFill(element: ControlElement, pressed: boolean): string {
     if (pressed) {
-      return this.overlayArgb(OVERLAY_WHITE, 0.70);
+      return this.overlayArgb(this.consoleThemeActive ? this.themeAccent : OVERLAY_WHITE, 0.70);
     }
     if ((element.keyWidthRatio ?? 0) > 0) {
       return this.overlayArgb(OVERLAY_KEYCAP, 0.42);
@@ -348,7 +358,32 @@ export struct VirtualInputOverlay {
   }
 
   private overlayTextColor(pressed: boolean): string {
-    return pressed ? '#FF000000' : '#FFFFFFFF';
+    return pressed && this.consoleThemeActive ? '#FFFFFFFF' :
+      (pressed ? '#FF000000' : '#FFFFFFFF');
+  }
+
+  private toolbarActiveColor(): string {
+    return this.consoleThemeActive ? this.themeAccent : '#FFB9F6CA';
+  }
+
+  private toolbarBorderColor(): string {
+    return this.consoleThemeActive ? this.overlayArgb(this.themeAccent, 0.35) : '#33FFFFFF';
+  }
+
+  private applyOverlayTheme(settings: GlobalSettings): void {
+    this.consoleThemeActive = settings.uiSkin === UiSkin.CONSOLE;
+    if (this.consoleThemeActive) {
+      const colors = consoleColors(settings.consolePalette);
+      this.themeAccent = colors.accent;
+      this.themeToolbarBackground = colors.search_background;
+      this.themeToolbarText = colors.text_primary;
+      this.themeToolbarMuted = colors.text_secondary;
+    } else {
+      this.themeAccent = OVERLAY_HIGHLIGHT;
+      this.themeToolbarBackground = '#BF282828';
+      this.themeToolbarText = '#FFFFFFFF';
+      this.themeToolbarMuted = '#FFAAB0BA';
+    }
   }
 
   /** 键盘键帽文字按实际键面尺寸放大, 保证平板/手机上清晰可读。 */
@@ -1915,6 +1950,9 @@ export struct VirtualInputOverlay {
   }
 
   aboutToAppear(): void {
+    this.applyOverlayTheme(AppSettingsStore.getInstance().getGlobalSettings());
+    this.themeListener = (settings: GlobalSettings): void => this.applyOverlayTheme(settings);
+    ThemeSettingsService.getInstance().subscribe(this.themeListener);
     this.controlsVisibleVisual = this.controlsVisible;
     this.touchpadModeVisual = this.touchpadMode;
     this.applyConfiguredToolbarPosition();
@@ -1922,6 +1960,8 @@ export struct VirtualInputOverlay {
   }
 
   aboutToDisappear(): void {
+    if (this.themeListener) ThemeSettingsService.getInstance().unsubscribe(this.themeListener);
+    this.themeListener = null;
     this.cancelToolbarAutoHide();
     this.releaseAllElementTouches();
   }
@@ -2183,19 +2223,21 @@ export struct VirtualInputOverlay {
     action: () => void = (): void => {}) {
     Button({ type: ButtonType.Circle }) {
       Stack({ alignContent: Alignment.Center }) {
-        SymbolGlyph(icon).fontSize(stateful ? 14 : 16).fontColor([tint])
+        SymbolGlyph(icon).fontSize(stateful ? 14 : 16)
+          .fontColor([this.consoleThemeActive ? this.themeToolbarText : tint])
           .translate({ y: stateful ? -3 : 0 })
         if (stateful) {
           Text(highlighted ? 'ON' : 'OFF')
             .fontSize(6.5).fontWeight(FontWeight.Bold)
-            .fontColor(highlighted ? '#FFB9F6CA' : '#FFAAB0BA')
+            .fontColor(highlighted ? this.toolbarActiveColor() : this.themeToolbarMuted)
             .position({ x: '50%', y: 24 }).translate({ x: '-50%' })
         }
       }.width(36).height(36)
     }
     .width(36).height(36)
-    .backgroundColor(highlighted ? highlightedBackground : '#BF282828')
-    .border({ width: 1, color: '#33FFFFFF' })
+    .backgroundColor(highlighted ? (this.consoleThemeActive ?
+      this.overlayArgb(this.themeAccent, 0.36) : highlightedBackground) : this.themeToolbarBackground)
+    .border({ width: 1, color: this.toolbarBorderColor() })
     .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 2 })
     .id(id)
     .hitTestBehavior(HitTestMode.Block)
@@ -2209,16 +2251,18 @@ export struct VirtualInputOverlay {
     Button({ type: ButtonType.Circle }) {
       Stack({ alignContent: Alignment.Center }) {
         SymbolGlyph(this.controlsVisibleVisual ? $r('sys.symbol.gamecontroller') : $r('sys.symbol.eye_slash'))
-          .fontSize(14).fontColor(['#FFFFFFFF']).translate({ y: -3 })
+          .fontSize(14).fontColor([this.themeToolbarText]).translate({ y: -3 })
         Text(this.controlsVisibleVisual ? 'ON' : 'OFF')
           .fontSize(6.5).fontWeight(FontWeight.Bold)
-          .fontColor(this.controlsVisibleVisual ? '#FFB9F6CA' : '#FFAAB0BA')
+          .fontColor(this.controlsVisibleVisual ? this.toolbarActiveColor() : this.themeToolbarMuted)
           .position({ x: '50%', y: 24 }).translate({ x: '-50%' })
       }.width(36).height(36)
     }
     .width(36).height(36)
-    .backgroundColor(this.controlsVisibleVisual ? '#384F7CFF' : '#BF282828')
-    .border({ width: 1, color: '#33FFFFFF' })
+    .backgroundColor(this.controlsVisibleVisual ? (this.consoleThemeActive ?
+      this.overlayArgb(this.themeAccent, 0.36) : '#384F7CFF') :
+      this.themeToolbarBackground)
+    .border({ width: 1, color: this.toolbarBorderColor() })
     .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 2 })
     .id('wine-input-overlay-fold').hitTestBehavior(HitTestMode.Block)
     .onTouch((event: TouchEvent): void => this.handleToolbarButtonTouch(event,
@@ -2233,16 +2277,19 @@ export struct VirtualInputOverlay {
     Button({ type: ButtonType.Circle }) {
       Stack({ alignContent: Alignment.Center }) {
         SymbolGlyph($r('sys.symbol.hand_tap')).fontSize(14)
-          .fontColor([this.touchpadModeVisual ? '#FFB9F6CA' : '#FFFFFFFF']).translate({ y: -3 })
+          .fontColor([this.touchpadModeVisual ? this.toolbarActiveColor() : this.themeToolbarText])
+          .translate({ y: -3 })
         Text(this.touchpadModeVisual ? 'ON' : 'OFF')
           .fontSize(6.5).fontWeight(FontWeight.Bold)
-          .fontColor(this.touchpadModeVisual ? '#FFB9F6CA' : '#FFAAB0BA')
+          .fontColor(this.touchpadModeVisual ? this.toolbarActiveColor() : this.themeToolbarMuted)
           .position({ x: '50%', y: 24 }).translate({ x: '-50%' })
       }.width(36).height(36)
     }
     .width(36).height(36)
-    .backgroundColor(this.touchpadModeVisual ? '#B0267A48' : '#BF282828')
-    .border({ width: 1, color: '#33FFFFFF' })
+    .backgroundColor(this.touchpadModeVisual ? (this.consoleThemeActive ?
+      this.overlayArgb(this.themeAccent, 0.36) : '#B0267A48') :
+      this.themeToolbarBackground)
+    .border({ width: 1, color: this.toolbarBorderColor() })
     .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 2 })
     .id('wine-input-touchpad-mode').hitTestBehavior(HitTestMode.Block)
     .onTouch((event: TouchEvent): void => this.handleToolbarButtonTouch(event,
@@ -2256,11 +2303,11 @@ export struct VirtualInputOverlay {
   @Builder
   private HostKeyboardButton() {
     Button({ type: ButtonType.Circle }) {
-      SymbolGlyph($r('sys.symbol.keyboard')).fontSize(16).fontColor(['#FFFFFFFF'])
+      SymbolGlyph($r('sys.symbol.keyboard')).fontSize(16).fontColor([this.themeToolbarText])
     }
     .width(36).height(36)
-    .backgroundColor('#BF282828')
-    .border({ width: 1, color: '#33FFFFFF' })
+    .backgroundColor(this.themeToolbarBackground)
+    .border({ width: 1, color: this.toolbarBorderColor() })
     .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 2 })
     .id('wine-input-host-keyboard').hitTestBehavior(HitTestMode.Block)
     .onTouch((event: TouchEvent): void => this.handleToolbarButtonTouch(event,
@@ -2291,15 +2338,17 @@ export struct VirtualInputOverlay {
     Button({ type: ButtonType.Circle }) {
       if (vertical) {
         SymbolGlyph(this.toolbarExpanded ? $r('sys.symbol.chevron_down') : $r('sys.symbol.chevron_up'))
-          .fontSize(14).fontColor(['#FFFFFFFF'])
+          .fontSize(14).fontColor([this.themeToolbarText])
       } else {
         SymbolGlyph(this.toolbarExpanded ? $r('sys.symbol.chevron_right') : $r('sys.symbol.chevron_left'))
-          .fontSize(14).fontColor(['#FFFFFFFF'])
+          .fontSize(14).fontColor([this.themeToolbarText])
       }
     }
     .width(28).height(28)
-    .backgroundColor(this.toolbarExpanded ? '#1AFFFFFF' : '#BF282828')
-    .border({ width: 1, color: '#33FFFFFF' })
+    .backgroundColor(this.toolbarExpanded ? (this.consoleThemeActive ?
+      this.overlayArgb(this.themeAccent, 0.22) : '#1AFFFFFF') :
+      this.themeToolbarBackground)
+    .border({ width: 1, color: this.toolbarBorderColor() })
     .id('wine-input-overlay-toggle')
     .hitTestBehavior(HitTestMode.None)
   }

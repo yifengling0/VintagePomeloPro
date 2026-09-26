@@ -1,3 +1,4 @@
+import { skinColor } from '../service/SkinColors';
 import router from '@ohos.router';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -245,24 +246,24 @@ struct HelpCenter {
     Column() {
       Row({ space: 12 }) {
         Stack({ alignContent: Alignment.Center }) {
-          SymbolGlyph(topic.icon).fontSize(18).fontColor([$r('app.color.accent')])
+          SymbolGlyph(topic.icon).fontSize(18).fontColor([skinColor('accent')])
         }
         .width(38).height(38).borderRadius(13)
-        .backgroundColor($r('app.color.selected_background'))
+        .backgroundColor(skinColor('selected_background'))
         Column({ space: 4 }) {
           Text(topic.title).fontSize(15).fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary')).width('100%')
-          Text(topic.description).fontSize(11).fontColor($r('app.color.text_secondary'))
+            .fontColor(skinColor('text_primary')).width('100%')
+          Text(topic.description).fontSize(11).fontColor(skinColor('text_secondary'))
             .lineHeight(17).maxLines(2).width('100%')
         }
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Start)
         SymbolGlyph(this.expandedTopicId === topic.id ? $r('sys.symbol.chevron_up') : $r('sys.symbol.chevron_down'))
-          .fontSize(18).fontColor([$r('app.color.text_secondary')])
+          .fontSize(18).fontColor([skinColor('text_secondary')])
       }
       .width('100%').padding(16)
       if (this.expandedTopicId === topic.id) {
-        Text(topic.details).fontSize(13).lineHeight(21).fontColor($r('app.color.text_secondary')).width('100%')
+        Text(topic.details).fontSize(13).lineHeight(21).fontColor(skinColor('text_secondary')).width('100%')
           .padding({ left: 66, right: 16, bottom: 18 })
       }
     }
@@ -277,15 +278,15 @@ struct HelpCenter {
     Column({ space: 12 }) {
       Row({ space: 10 }) {
         Stack({ alignContent: Alignment.Center }) {
-          SymbolGlyph(section.icon).fontSize(19).fontColor([$r('app.color.accent')])
+          SymbolGlyph(section.icon).fontSize(19).fontColor([skinColor('accent')])
         }
         .width(36).height(36).borderRadius(12)
-        .backgroundColor($r('app.color.selected_background'))
+        .backgroundColor(skinColor('selected_background'))
         Column({ space: 2 }) {
           Text(section.title).fontSize(18).fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary')).width('100%')
+            .fontColor(skinColor('text_primary')).width('100%')
           Text(this.sectionTopics(section.id).length.toString() + ' 个主题')
-            .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
         }
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Start)
@@ -330,17 +331,17 @@ struct HelpCenter {
 
             Row({ space: 12 }) {
               Stack({ alignContent: Alignment.Center }) {
-                SymbolGlyph($r('sys.symbol.gearshape')).fontSize(18).fontColor([$r('app.color.accent')])
+                SymbolGlyph($r('sys.symbol.gearshape')).fontSize(18).fontColor([skinColor('accent')])
               }
-              .width(40).height(40).borderRadius(14).backgroundColor($r('app.color.selected_background'))
+              .width(40).height(40).borderRadius(14).backgroundColor(skinColor('selected_background'))
               Column({ space: 2 }) {
-                Text('仍需帮助？').fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.text_primary')).width('100%')
-                Text('可在系统设置中检查 Wine 引擎与输入配置。').fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+                Text('仍需帮助？').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
+                Text('可在系统设置中检查 Wine 引擎与输入配置。').fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
               }
               .layoutWeight(1)
               .alignItems(HorizontalAlign.Start)
               Button('系统设置').height(40).borderRadius(14).fontSize(13)
-                .backgroundColor($r('app.color.selected_background')).fontColor($r('app.color.accent'))
+                .backgroundColor(skinColor('selected_background')).fontColor(skinColor('accent'))
                 .onClick((): void => { router.pushUrl({ url: 'pages/SystemSettings' }); })
             }
             .width('100%').padding(14).borderRadius(18)
@@ -377,16 +378,16 @@ struct HelpCenter {
           },
           contentStyle: {
               titleStyle: {
-                mainTitleColor: $r('app.color.text_primary'),
-                subTitleColor: $r('app.color.text_secondary')
+                mainTitleColor: skinColor('text_primary'),
+                subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
               }
             }
         },
@@ -396,16 +397,16 @@ struct HelpCenter {
           },
           contentStyle: {
               titleStyle: {
-                mainTitleColor: $r('app.color.text_primary'),
-                subTitleColor: $r('app.color.text_secondary')
+                mainTitleColor: skinColor('text_primary'),
+                subTitleColor: skinColor('text_secondary')
             },
             menuStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
             },
             backIconStyle: {
               backgroundColor: this.navigationControlBackground(),
-              iconColor: $r('app.color.text_primary')
+              iconColor: skinColor('text_primary')
               }
             }
         },
@@ -433,7 +434,7 @@ struct HelpCenter {
       .width('100%').height('100%')
       .backgroundColor('#00FFFFFF')
     }
-    .width('100%').height('100%').backgroundColor($r('app.color.page_background'))
+    .width('100%').height('100%').backgroundColor(skinColor('page_background'))
     .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
       [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM, SafeAreaEdge.START, SafeAreaEdge.END])
     .onAreaChange((_oldValue: Area, area: Area): void => {

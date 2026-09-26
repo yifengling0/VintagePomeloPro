@@ -473,7 +473,12 @@ struct InputOverlayPage {
     const rootId = WineWindowManager.getInstance().getDesktopRootId();
     if (rootId <= 0) return;
     ev.stopPropagation();
-    if (GamepadManager.getInstance().handleKey(ev.keyCode, ev.type === KeyType.Down)) return;
+    // Keyboard arrows share OHOS codes with gamepad D-pad. Do not let the
+    // default DInput gamepad path consume physical keyboard events.
+    if (ev.keySource === KeySource.JOYSTICK) {
+      GamepadManager.getInstance().handleKey(ev.keyCode, ev.type === KeyType.Down);
+      return;
+    }
     const code = OH2EVDEV[ev.keyCode] ?? 0;
     if (code <= 0) return;
     const pressed = ev.type === KeyType.Down;

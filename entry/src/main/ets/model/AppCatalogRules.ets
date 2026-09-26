@@ -5,6 +5,7 @@ const COVER_PRIORITY: string[] = [
 
 const BACKGROUND_PRIORITY: string[] = [
   'background.png', 'background.jpg', 'background.jpeg', 'background.webp',
+  'background.bmp',
   'bg.png', 'bg.jpg', 'bg.jpeg', 'bg.webp',
   'fanart.png', 'fanart.jpg', 'fanart.jpeg', 'fanart.webp'
 ];
@@ -98,7 +99,7 @@ export function chooseCoverFileName(names: string[]): string {
 export function chooseBackgroundFileName(names: string[]): string {
   for (let index = 0; index < BACKGROUND_PRIORITY.length; index++) {
     const expected = BACKGROUND_PRIORITY[index];
-    const found = names.find((name: string) => name.toLowerCase() === expected);
+    const found = names.find((name: string): boolean => name.toLowerCase() === expected);
     if (found) return found;
   }
   return '';

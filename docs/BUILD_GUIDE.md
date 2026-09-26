@@ -57,6 +57,13 @@ make assemble                      # 组装布局
 make hap                           # HAP 打包 + 签名
 ```
 
+`entry/src/main/resources/rawfile/wine-data.zip`、`wine_runtime.version` 和
+`entry/libs/` 是 Git 忽略的构建产物。切换提交或更新 Wine 子模块后，先运行
+`make NATIVE_ARCH=arm64-v8a hap` 重新组装；直接运行 `hvigorw assembleHap`
+只会打包当前目录中的文件。Hvigor 现在会核对运行时版本中的子模块提交和
+`wine-data.zip` 的 SHA-256，不匹配时停止打包。CI 还会检查 HAP 内嵌运行时
+与源码清单是否一致。
+
 ### 增量构建
 
 ```bash
