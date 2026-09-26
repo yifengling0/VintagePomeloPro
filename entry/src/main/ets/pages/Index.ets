@@ -718,6 +718,7 @@ struct Index {
   }
 
   aboutToAppear(): void {
+    DeviceCapabilityPolicy.screenDiagonalInches(); // 首次启动即检测屏幕尺寸并落日志 (≥8 寸为大屏)
     this.setupIme();
     this.initialize();
     BreakpointSystem.initialize();
