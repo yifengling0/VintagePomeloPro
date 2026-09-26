@@ -1818,7 +1818,7 @@ struct Index {
     .width('100%')
     // 底部悬浮导航栏是覆盖在内容上的: 不预留会吃掉最后一行瓦片 (与 CoverFlow 同理)
     .padding({
-      top: 8,
+      top: 24,
       bottom: Math.max(72, this.navBarInsetVp + 52)
     })
     .id('large-tile-grid-' + this.filter)
