@@ -24,15 +24,33 @@ const MAX_ROWS = 8;
  */
 @Component
 export struct LargeTileGrid {
-  apps: AppDescriptor[] = [];
+  /** @Prop: 父级 (顺序/筛选) 变化时同步进来; @Watch 触发布局版本号自增, 强制页面 ForEach 重建。 */
+  @Prop @Watch('onAppsChanged') apps: AppDescriptor[] = [];
   /** 期望行数 (调用方已按设备档位收口)。 */
-  @Prop rows: number = 3;
+  @Prop @Watch('onAppsChanged') rows: number = 3;
   runningIds: Set<string> = new Set<string>();
   onLaunch: (app: AppDescriptor) => void = (_a: AppDescriptor): void => {};
   onLongPress: (app: AppDescriptor) => void = (_a: AppDescriptor): void => {};
+  /** 拖拽换位: dragId 的瓦片被放到 dropId 的瓦片上 (父级负责换序并持久化)。 */
+  onSwap: (dragId: string, dropId: string) => void = (_d: string, _p: string): void => {};
   @State private canvasW: number = 0;
   @State private canvasH: number = 0;
   @State private currentPage: number = 0;
+  /** 布局版本号: apps/rows 变化时自增, 拼进页面 ForEach 的 key (key 不变不重建)。 */
+  @State private layoutVersion: number = 0;
+  /** 拖拽状态机: 长按拿起 (lifted) → 移动 (drag) → 松手换位/取消。 */
+  @State private liftedId: string = '';
+  @State private dragId: string = '';
+  @State private dragDX: number = 0;
+  @State private dragDY: number = 0;
+  @State private dropTargetId: string = '';
+
+  private onAppsChanged(): void {
+    this.layoutVersion++;
+    if (this.currentPage >= this.packPages().length) {
+      this.currentPage = 0;
+    }
+  }
 
   /** 贴图与瓦片形状对等: 横条 (2x1) 优先用游戏的背景横图, 竖条/方形用竖版封面。 */
   private artOf(t: TileBox): string {
@@ -170,6 +188,41 @@ export struct LargeTileGrid {
     return pages;
   }
 
+  /** 落点 (瓦片中心 + 拖动偏移) 命中的同页瓦片 id; 不含被拖瓦片自身。 */
+  private findDropTargetAt(centerX: number, centerY: number, dragId: string): string {
+    const pages = this.packPages();
+    for (let p = 0; p < pages.length; p++) {
+      const page = pages[p];
+      let isDragPage = false;
+      for (let i = 0; i < page.length; i++) {
+        if (page[i].app.id === dragId) {
+          isDragPage = true;
+          break;
+        }
+      }
+      if (!isDragPage) continue;
+      for (let i = 0; i < page.length; i++) {
+        const box = page[i];
+        if (box.app.id === dragId) continue;
+        const x = box.col * (this.cellW() + GAP);
+        const y = box.row * (this.cellH() + GAP);
+        if (centerX >= x && centerX <= x + this.cellW() * box.colSpan &&
+          centerY >= y && centerY <= y + this.cellH() * box.rowSpan) {
+          return box.app.id;
+        }
+      }
+    }
+    return '';
+  }
+
+  private resetDrag(): void {
+    this.liftedId = '';
+    this.dragId = '';
+    this.dragDX = 0;
+    this.dragDY = 0;
+    this.dropTargetId = '';
+  }
+
   @Builder
   private Tile(t: TileBox) {
     Stack({ alignContent: Alignment.TopEnd }) {
@@ -214,10 +267,64 @@ export struct LargeTileGrid {
     .borderRadius(14)
     .backgroundColor($r('app.color.card_background'))
     .clip(true)
-    .border({ width: 1, color: '#22FFFFFF' })
-    .onClick((): void => { this.onLaunch(t.app); })
-    .gesture(LongPressGesture({ repeat: false })
-      .onAction((): void => { this.onLongPress(t.app); }))
+    .border({
+      width: this.dropTargetId === t.app.id && this.dragId !== '' ? 2 : 1,
+      color: this.dropTargetId === t.app.id && this.dragId !== '' ? $r('app.color.accent') : '#22FFFFFF'
+    })
+    // 拖拽视觉: 跟手位移 + 放大 + 投影 + 置顶
+    .translate(this.dragId === t.app.id ? { x: this.dragDX, y: this.dragDY } : { x: 0, y: 0 })
+    .scale(this.dragId === t.app.id ? { x: 1.05, y: 1.05 } : { x: 1, y: 1 })
+    .zIndex(this.dragId === t.app.id ? 100 : 0)
+    .shadow(this.dragId === t.app.id
+      ? { radius: 24, color: '#66000000', offsetX: 0, offsetY: 8 }
+      : { radius: 0, color: '#00000000', offsetX: 0, offsetY: 0 })
+    .onClick((): void => {
+      if (this.dragId === '' && this.liftedId === '') this.onLaunch(t.app);
+    })
+    .gesture(GestureGroup(GestureMode.Parallel,
+      // 长按拿起; 抬起时没拖动 → 打开原长按菜单
+      LongPressGesture({ repeat: false, duration: 280 })
+        .onAction((): void => {
+          if (this.dragId === '') this.liftedId = t.app.id;
+        })
+        .onActionEnd((): void => {
+          if (this.liftedId === t.app.id && this.dragId === '') {
+            this.resetDrag();
+            this.onLongPress(t.app);
+          }
+        })
+        .onActionCancel((): void => {
+          if (this.dragId !== t.app.id) this.liftedId = '';
+        }),
+      PanGesture({ fingers: 1, distance: 10 })
+        .onActionStart((_e: GestureEvent): void => {
+          if (this.liftedId === t.app.id && this.dragId === '') {
+            this.dragId = t.app.id;
+            this.dragDX = 0;
+            this.dragDY = 0;
+          }
+        })
+        .onActionUpdate((e: GestureEvent): void => {
+          if (this.dragId !== t.app.id) return;
+          this.dragDX = e.offsetX;
+          this.dragDY = e.offsetY;
+          this.dropTargetId = this.findDropTargetAt(
+            t.col * (this.cellW() + GAP) + this.cellW() * t.colSpan / 2 + this.dragDX,
+            t.row * (this.cellH() + GAP) + this.cellH() * t.rowSpan / 2 + this.dragDY,
+            t.app.id);
+        })
+        .onActionEnd((_e: GestureEvent): void => {
+          if (this.dragId !== t.app.id) return;
+          const dragId = this.dragId;
+          const target = this.findDropTargetAt(
+            t.col * (this.cellW() + GAP) + this.cellW() * t.colSpan / 2 + this.dragDX,
+            t.row * (this.cellH() + GAP) + this.cellH() * t.rowSpan / 2 + this.dragDY,
+            dragId);
+          this.resetDrag();
+          if (target.length > 0) this.onSwap(dragId, target);
+        })
+        .onActionCancel((): void => { this.resetDrag(); })
+    ))
   }
 
   build() {
@@ -233,7 +340,8 @@ export struct LargeTileGrid {
             .width('100%')
             .height('100%')
           }, (page: TileBox[], index: number): string =>
-            'p' + index.toString() + '-' + this.canvasW.toFixed(0) + 'x' + this.canvasH.toFixed(0) +
+            'v' + this.layoutVersion.toString() + '-p' + index.toString() + '-' +
+            this.canvasW.toFixed(0) + 'x' + this.canvasH.toFixed(0) +
             '-' + this.effRows().toString() + '-' + this.cols().toString() + '-' +
             (page.length > 0 ? page[0].app.id : 'e'))
         }
