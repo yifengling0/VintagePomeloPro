@@ -287,44 +287,18 @@ function isObsoleteGameFontSubstituteKey(key: string): boolean {
 }
 
 function registryHasObsoleteGameFontSubstitutes(registry: string): boolean {
-  const lines = registry.split('\n');
-  let inSection = false;
+  const sectionHeader = '[Software\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\FontSubstitutes]';
+  const sectionStart = registry.indexOf(sectionHeader);
+  if (sectionStart < 0) return false;
+  let sectionEnd = registry.indexOf('\n[', sectionStart + sectionHeader.length);
+  if (sectionEnd < 0) sectionEnd = registry.length;
+  const lines = registry.substring(sectionStart, sectionEnd).split('\n');
   for (let i = 0; i < lines.length; i++) {
-    const stripped = lines[i].trim();
-    if (stripped.indexOf('FontSubstitutes') >= 0 && stripped.startsWith('[')) {
-      inSection = true;
-      continue;
-    }
-    if (inSection && stripped.startsWith('[')) {
-      break;
-    }
-    if (inSection && isObsoleteGameFontSubstituteKey(fontSubstituteRegistryKey(stripped))) {
+    if (isObsoleteGameFontSubstituteKey(fontSubstituteRegistryKey(lines[i]))) {
       return true;
     }
   }
   return false;
-}
-
-function stripObsoleteGameFontSubstitutes(registry: string): string {
-  const lines = registry.split('\n');
-  const kept: string[] = [];
-  let inSection = false;
-  for (let i = 0; i < lines.length; i++) {
-    const stripped = lines[i].trim();
-    if (stripped.indexOf('FontSubstitutes') >= 0 && stripped.startsWith('[')) {
-      inSection = true;
-      kept.push(lines[i]);
-      continue;
-    }
-    if (inSection && stripped.startsWith('[')) {
-      inSection = false;
-    }
-    if (inSection && isObsoleteGameFontSubstituteKey(fontSubstituteRegistryKey(stripped))) {
-      continue;
-    }
-    kept.push(lines[i]);
-  }
-  return kept.join('\n');
 }
 
 const REQUIRED_RUNTIME_PATHS: RuntimePathRequirement[] = [
@@ -681,6 +655,7 @@ export class WineEngineService {
   // Broker/Spawner prefix is session-scoped; smoke clean must switch the whole
   // engine session rather than only overriding one child process environment.
   private activePrefixMode: string = 'reuse';
+  private activeWineLanguage: WineLanguage = WineLanguage.CHINESE;
   private hostGraphicsBackend: string = 'dxvk_legacy';
   // Product sessions derive Host and Guest from the same D3D backend. Only
   // the qualified VKD3D smoke path owns an explicit one-session override.
@@ -825,12 +800,14 @@ export class WineEngineService {
     homeDirectory: string, prefixMode: string = 'reuse'): Promise<boolean> {
     if (!this.context) return false;
     const requestedPrefixMode = prefixMode === 'clean' ? 'clean' : 'reuse';
+    const requestedWineLanguage = AppSettingsStore.getInstance().getGlobalSettings().wineLanguage;
     const requestedD3DBackend = this.selectedD3DBackend();
     this.hostGraphicsBackend = this.hostGraphicsBackendOverride.length > 0 ?
       this.hostGraphicsBackendOverride : requestedD3DBackend;
     if (this.state === EngineState.READY && this.mode === mode &&
       this.presentationMode === presentationMode && this.d3dBackend === requestedD3DBackend &&
       this.activePrefixMode === requestedPrefixMode &&
+      this.activeWineLanguage === requestedWineLanguage &&
       this.appliedHostGraphicsBackend === this.hostGraphicsBackend &&
       this.appliedHostGraphicsLabExperiment === this.hostGraphicsLabExperiment) {
       this.syncManagedSmokePayload('ready-reuse');
@@ -840,6 +817,7 @@ export class WineEngineService {
       this.presentationMode === presentationMode &&
       this.d3dBackend === requestedD3DBackend &&
       this.activePrefixMode === requestedPrefixMode &&
+      this.activeWineLanguage === requestedWineLanguage &&
       this.appliedHostGraphicsBackend === this.hostGraphicsBackend &&
       this.appliedHostGraphicsLabExperiment === this.hostGraphicsLabExperiment) return this.waitForReady();
 
@@ -858,6 +836,7 @@ export class WineEngineService {
       (this.mode !== mode || this.presentationMode !== presentationMode ||
        this.d3dBackend !== requestedD3DBackend ||
        this.activePrefixMode !== requestedPrefixMode ||
+       this.activeWineLanguage !== requestedWineLanguage ||
        this.appliedHostGraphicsBackend !== this.hostGraphicsBackend ||
        this.appliedHostGraphicsLabExperiment !== this.hostGraphicsLabExperiment)) {
       const switchingHost = (this.appliedHostGraphicsBackend !== this.hostGraphicsBackend ||
@@ -874,6 +853,7 @@ export class WineEngineService {
     this.presentationMode = presentationMode;
     this.d3dBackend = requestedD3DBackend;
     this.activePrefixMode = requestedPrefixMode;
+    this.activeWineLanguage = requestedWineLanguage;
     this.homeDirectory = homeDirectory;
     this.setState(EngineState.PREPARING, '正在准备 Wine 引擎');
 
@@ -926,7 +906,7 @@ export class WineEngineService {
       // are migrated above before any wineserver process starts.
       testNapi.launchClient(BOX64, [], SOCK, WINE_BIN + ':' + WINE_LIB,
         homeDirectory, requestedPrefixMode === 'clean', requestedPrefixMode, this.d3dBackend,
-        box64PresetEnvString(settings.box64Preset), settings.wineLanguage ?? WineLanguage.CHINESE);
+        box64PresetEnvString(settings.box64Preset), this.activeWineLanguage);
       return this.waitForReady();
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', JSON.stringify(error));
@@ -1015,7 +995,8 @@ export class WineEngineService {
       launchArguments,
       workingDirectory,
       this.d3dBackend,
-      launchEnvironment
+      launchEnvironment,
+      this.activeWineLanguage
     ) as NativeLaunchResult;
   }
 
@@ -1431,35 +1412,41 @@ export class WineEngineService {
     const temporary = PREFIX_SYSTEM_REG + '.winehua-fonts.tmp';
     let output: fs.File | null = null;
     try {
-      let registry = stripObsoleteGameFontSubstitutes(fs.readTextSync(PREFIX_SYSTEM_REG));
-      let additions = '';
+      const registry = fs.readTextSync(PREFIX_SYSTEM_REG);
+      const sectionHeader = '[Software\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\FontSubstitutes]';
+      const sectionStart = registry.indexOf(sectionHeader);
+      if (sectionStart < 0) throw new Error('FontSubstitutes registry section missing');
+      let sectionEnd = registry.indexOf('\n[', sectionStart + sectionHeader.length);
+      if (sectionEnd < 0) sectionEnd = registry.length;
+      const replacements: Map<string, FontSubstitute> = new Map<string, FontSubstitute>();
       MASTER_FONT_SUBSTITUTES.forEach((item: FontSubstitute) => {
-        const line = fontSubstituteRegistryLine(item);
-        let replaced = false;
         fontSubstituteRegistryKeys(item).forEach((key: string) => {
-          const pattern = new RegExp('^"' + escapeRegExp(key) + '"=.*$', 'm');
-          const next = registry.replace(pattern, line);
-          if (next !== registry) {
-            registry = next;
-            replaced = true;
-          }
+          replacements.set(key, item);
         });
-        if (!replaced) {
-          additions += line + '\n';
+      });
+      const seen: Set<string> = new Set<string>();
+      const lines = registry.substring(sectionStart, sectionEnd).split('\n');
+      const updatedLines: string[] = [];
+      lines.forEach((line: string) => {
+        const key = fontSubstituteRegistryKey(line);
+        if (isObsoleteGameFontSubstituteKey(key)) return;
+        const item = replacements.get(key);
+        if (!item) {
+          updatedLines.push(line);
+        } else if (!seen.has(item.name)) {
+          updatedLines.push(fontSubstituteRegistryLine(item));
+          seen.add(item.name);
         }
       });
-      if (additions.length > 0) {
-        const sectionHeader = '[Software\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\FontSubstitutes]';
-        const sectionStart = registry.indexOf(sectionHeader);
-        if (sectionStart < 0) throw new Error('FontSubstitutes registry section missing');
-        let sectionEnd = registry.indexOf('\n[', sectionStart + sectionHeader.length);
-        if (sectionEnd < 0) sectionEnd = registry.length;
-        const prefix = sectionEnd > 0 && registry.charAt(sectionEnd - 1) === '\n' ? '' : '\n';
-        registry = registry.substring(0, sectionEnd) + prefix + additions + registry.substring(sectionEnd);
-      }
+      MASTER_FONT_SUBSTITUTES.forEach((item: FontSubstitute) => {
+        if (!seen.has(item.name)) updatedLines.push(fontSubstituteRegistryLine(item));
+      });
+      const updatedSection = updatedLines.join('\n') + '\n';
+      const updatedRegistry = registry.substring(0, sectionStart) + updatedSection +
+        registry.substring(sectionEnd);
       output = fs.openSync(temporary,
         fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
-      fs.writeSync(output.fd, registry);
+      fs.writeSync(output.fd, updatedRegistry);
       fs.closeSync(output);
       output = null;
       // rename is atomic on the prefix filesystem and replaces the old file.

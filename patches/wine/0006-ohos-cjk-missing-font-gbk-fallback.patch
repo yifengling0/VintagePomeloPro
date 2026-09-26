@@ -11,8 +11,7 @@ real fix for masking engines is 0010.
 diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
 --- a/dlls/win32u/font.c
 +++ b/dlls/win32u/font.c
-@@ -1205,8 +1205,104 @@
-     release_face( face );
+@@ -1206,6 +1206,103 @@
      return NULL;
  }
  
@@ -53,13 +52,14 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
 +    const char *lang;
 +    UINT acp = ansi_cp.CodePage;
 +
-+    if (acp == 936 || acp == 950) return acp;
++    /* A prefix created in another language can retain its old ACP. An
++     * explicit launch locale must win for TextOutA and fallback matching. */
 +    lang = getenv( "LC_ALL" );
 +    if (ohos_is_c_unix_locale( lang )) lang = getenv( "LANG" );
 +    if (lang)
 +    {
 +        if (!strncmp( lang, "en_US", 5 ) || !strncmp( lang, "en-US", 5 ))
-+            return acp;
++            return 1252;
 +        if (!strncmp( lang, "zh_CN", 5 ) || !strncmp( lang, "zh_Hans", 7 ) ||
 +            !strncmp( lang, "zh-CN", 5 ) || !strncmp( lang, "zh-Hans", 7 ))
 +            return 936;
@@ -71,8 +71,8 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
 +        if (!strncmp( lang, "ja", 2 ))
 +            return 932;
 +    }
-+    /* Product default is Simplified Chinese even when musl reports C.UTF-8
-+     * and LANG is not visible to win32u. */
++    if (acp == 932 || acp == 936 || acp == 950) return acp;
++    /* Product default is Simplified Chinese when no locale was selected. */
 +    return 936;
 +}
 +#else
@@ -115,13 +115,10 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
  int add_gdi_face( const WCHAR *family_name, const WCHAR *second_name,
                    const WCHAR *style, const WCHAR *fullname, const WCHAR *file,
                    void *data_ptr, SIZE_T data_size, UINT index, FONTSIGNATURE fs,
-                   DWORD ntmflags, DWORD weight, DWORD version, DWORD flags,
-@@ -1214,8 +1310,16 @@
- {
-     struct gdi_font_face *face;
+@@ -1216,6 +1313,14 @@
      struct gdi_font_family *family;
      int ret = 0;
-+
+ 
 +    if ((flags & ADDFONT_EXTERNAL_FONT) &&
 +        ohos_skip_foreign_cjk_face( family_name, fullname ))
 +    {
@@ -129,12 +126,11 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
 +               debugstr_w(family_name), debugstr_w(fullname) );
 +        return 0;
 +    }
- 
++
      if ((family = find_family_from_name( family_name ))) family->refcount++;
      else if (!(family = create_family( family_name, second_name ))) return ret;
  
-@@ -2262,8 +2366,49 @@
-     }
+@@ -2263,6 +2368,50 @@
      return NULL;
  }
  
@@ -146,6 +142,8 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
 +        {'H','a','r','m','o','n','y','O','S',' ','S','a','n','s',' ','S','C',0};
 +    static const WCHAR sc_notoW[] =
 +        {'N','o','t','o',' ','S','a','n','s',' ','C','J','K',' ','S','C',0};
++    /* HarmonyOS_Sans_TC.ttf registers as 鴻蒙黑體 on this device. */
++    static const WCHAR tc_harmonyW[] = { 0x9d3b, 0x8499, 0x9ed1, 0x9ad4, 0 };
 +    static const WCHAR tc_harmony_enW[] =
 +        {'H','a','r','m','o','n','y','O','S',' ','S','a','n','s',' ','T','C',0};
 +    static const WCHAR tc_notoW[] =
@@ -163,6 +161,7 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
 +        names[n++] = sc_notoW;
 +        break;
 +    case 950:
++        names[n++] = tc_harmonyW;
 +        names[n++] = tc_harmony_enW;
 +        names[n++] = tc_notoW;
 +        names[n++] = sc_harmonyW;
@@ -182,31 +181,27 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
  static struct gdi_font_face *find_matching_face( const LOGFONTW *lf, CHARSETINFO *csi, BOOL can_use_bitmap,
                                                   BOOL *substituted, const WCHAR **orig_name )
  {
-     BOOL want_vertical = (lf->lfFaceName[0] == '@');
-@@ -2297,14 +2442,18 @@
-     /* If requested charset was DEFAULT_CHARSET then try using charset
+@@ -2298,13 +2447,17 @@
         corresponding to the current ansi codepage */
      if (!csi->fs.fsCsb[0])
      {
 -        if (!translate_charset_info( (DWORD *)(INT_PTR)ansi_cp.CodePage, csi, TCI_SRCCODEPAGE ))
--        {
--            FIXME( "TCI failed on codepage %d\n", ansi_cp.CodePage );
 +        if (!translate_charset_info( (DWORD *)(INT_PTR)ohos_effective_ansi_cp(), csi, TCI_SRCCODEPAGE ))
-+        {
+         {
+-            FIXME( "TCI failed on codepage %d\n", ansi_cp.CodePage );
 +            FIXME( "TCI failed on codepage %d\n", ohos_effective_ansi_cp() );
              csi->fs.fsCsb[0] = 0;
          }
      }
-+
+ 
 +    /* Missing face names (game font\*.ttf not installed) must not walk the
 +     * family tree and land on Noto CJK JP. Prefer the locale UI face first. */
 +    if ((face = find_locale_fallback_face( lf, can_use_bitmap ))) return face;
- 
++
      if ((face = find_any_face( lf, csi->fs, can_use_bitmap, want_vertical ))) return face;
      if (csi->fs.fsCsb[0])
      {
-@@ -4395,15 +4544,27 @@
-      return the corresponding charset, else return the first charset */
+@@ -4396,13 +4549,25 @@
  
      int i;
  
@@ -233,9 +228,7 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
      }
      for (i = 0; i < 32; i++)
      {
-         DWORD fs0 = 1u << i;
-@@ -4415,9 +4576,9 @@
-     }
+@@ -4416,7 +4581,7 @@
  
      FIXME("returning DEFAULT_CHARSET face->fs.fsCsb[0] = %08x file = %s\n",
  	  face->fs.fsCsb[0], debugstr_w(face->file));
@@ -244,14 +237,10 @@ diff --git a/dlls/win32u/font.c b/dlls/win32u/font.c
      csi->ciCharset = DEFAULT_CHARSET;
  }
  
- static struct gdi_font *select_font( LOGFONTW *lf, FMAT2 dcmat, BOOL can_use_bitmap )
-@@ -4456,9 +4617,8 @@
-     font->can_use_bitmap = can_use_bitmap;
+@@ -4457,6 +4622,5 @@
      if (!csi.fs.fsCsb[0]) get_nearest_charset( face->family->family_name, face, &csi );
      font->charset = csi.ciCharset;
      font->codepage = csi.ciACP;
 -
      TRACE( "Chosen: %s (%s/%p:%u)\n", debugstr_w(face->full_name), debugstr_w(face->file),
             face->data_ptr, face->face_index );
- 
-     font->aveWidth = height ? lf->lfWidth : 0;

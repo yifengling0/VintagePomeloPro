@@ -417,6 +417,7 @@ hap-unsigned: assemble
 
 test-ci-release:
 	PYTHONDONTWRITEBYTECODE=1 python3 $(ROOT)/host_tests/ci_release_test.py
+	PYTHONDONTWRITEBYTECODE=1 python3 $(ROOT)/host_tests/wine_locale_test.py
 
 # ============================================================
 # test: 宿主机单元测试 (纯函数, 不依赖 OHOS SDK, 用宿主 g++ 编译)

@@ -183,8 +183,19 @@ require_literal "WineHua launch control plane keeps locale compatibility" \
 require_literal "Launch NAPI accepts product and WineHua layouts" \
     "sixthType == napi_boolean" entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Product launch forwards selected Wine locale" \
-    "settings.wineLanguage ?? WineLanguage.CHINESE" \
+    "box64PresetEnvString(settings.box64Preset), this.activeWineLanguage" \
     entry/src/main/ets/service/WineEngineService.ets
+require_literal "A locale change invalidates the managed Wine session" \
+    "this.activeWineLanguage !== requestedWineLanguage" \
+    entry/src/main/ets/service/WineEngineService.ets
+require_literal "Game launch NAPI accepts the locale argument" \
+    "ReadString(env, args[9])" entry/src/main/cpp/wine/wine_exe.cpp
+require_literal "Game process policy carries its selected locale" \
+    "policy.wineLang = wineLang;" entry/src/main/cpp/wine/wine_exe.cpp
+require_literal "Managed program policy carries its selected locale" \
+    "policy.wineLang = options.wineLang;" entry/src/main/cpp/wine/wine_exe.cpp
+require_literal "Pinned Wine honors selected OHOS system and user locale" \
+    "system_lcid = user_lcid = selected_lcid;" thirdparty/wine/dlls/ntdll/unix/env.c
 require_literal "Product launch layout parses its locale extension" \
     "args[9], wineLang" entry/src/main/cpp/bridge/napi_init.cpp
 require_literal "Wine locale supplies musl fallback" \

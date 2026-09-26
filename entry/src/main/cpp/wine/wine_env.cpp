@@ -105,7 +105,7 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     // OHOS musl 无 locale 数据, setlocale 激活失败返回 "C";
     // Wine 的 unix_to_win_locale 遇 "C" 只读 LC_ALL 兜底 (ntdll/unix/env.c),
     // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (见 WineLocaleFor),
-    // 与 LANG 同取设置页 wineLang (zh_CN / ja_JP / en_US)。
+    // 与 LANG 同取设置页 wineLang (zh_CN / zh_TW / ja_JP / en_US)。
     env.push_back("LC_ALL=" + locale + ".UTF-8");
     // winegstreamer 运行时加载 GStreamer 插件 (gst-plugins-base/good/libav)
     env.push_back("GST_PLUGIN_PATH=" + binDir + "/x86_64-unix/gstreamer-1.0");

@@ -20,13 +20,15 @@ Windows 程序不会立即中断，下次启动引擎（或重启 App）时按�
 
 | 层 | 位置 | 行为 |
 | --- | --- | --- |
-| 设置项 | `pages/SystemSettings.ets` | `updateWineLanguage()` 存 `WineLanguage`（`zh_CN` / `ja_JP` / `en_US`） |
+| 设置项 | `pages/SystemSettings.ets` | `updateWineLanguage()` 存 `WineLanguage`（`zh_CN` / `zh_TW` / `ja_JP` / `en_US`） |
 | 存储 | `service/AppSettingsStore.ets` | `normalizeWineLanguage()` 白名单归一化，未知值回中文 |
-| 引擎 | `service/WineEngineService.ets` | `launchClient(...)` 第 10 个实参传 `settings.wineLanguage` |
-| NAPI | `bridge/napi_init.cpp` | `args[9]` → `LaunchParams::wineLang` |
+| 引擎 | `service/WineEngineService.ets` | 将设置保存为会话 `activeWineLanguage`；语言改变使已有会话失效，`launchClient` 与游戏启动共用该值 |
+| NAPI | `bridge/napi_init.cpp` | 两种启动参数布局均将 `zh_CN` / `zh_TW` / `ja_JP` / `en_US` 写入 `LaunchParams::wineLang` |
+| 游戏 NAPI | `wine/wine_exe.cpp` | `runWineExe` 第 10 个参数及 `runWineProgram.wineLang` 传入进程环境策略；只修 `launchClient` 会导致游戏仍回退为简中 |
 | 主进程 env | `wine/wine_env.cpp` | `WineLocaleFor()` 白名单后写 `LANG` / `LC_ALL` = `<locale>.UTF-8` |
 | 子进程 env | `wine_launch.cpp` / `wine_child.cpp` | wineboot 与桌面会话同样下发；子进程基线仅作兜底默认值 |
 | Wine | `dlls/ntdll/unix/env.c`（patch `0008`） | unix locale → win locale → `system_lcid`；musl 的 `C.UTF-8` 走 `LC_ALL`→`LANG` 兜底 |
+| Wine 字体 | `dlls/win32u/font.c` / `freetype.c` | OHOS 按 locale/ACP 选择 CJK 字体回退，并扫描 Wine prefix 的 Windows 字体目录 |
 
 ## 语言与代码页对应
 
@@ -40,21 +42,22 @@ Windows 程序不会立即中断，下次启动引擎（或重启 App）时按�
 Wine 本体界面文字（explorer / 菜单等）跟随 `LC_MESSAGES`，由构建期
 `--with-gettext` 编译进 PE 资源，因此切到日语后内置程序界面也是日语。
 
-### 字族为什么不随语言变化（实测结论）
+### HarmonyOS 下的代码页和字体回退
 
-日语文本在这台设备上**不需要**换字族，原因是两条实测证据：
+游戏请求的字体名缺失时，Wine 在 HarmonyOS 下按有效 locale 和 ANSI 代码页选择字体回退：
 
-1. 设备 `/system/fonts/NotoSansCJK-Regular.ttc` 经 Wine 枚举后只注册了
-   `Noto Sans CJK SC` / `HK` / `TC` 三个面，**没有 `Noto Sans CJK JP` 面**
-   （见前缀 `system.reg` 的 `Fonts` 段）。把日语字族指向 JP 面会落到不存在的
-   字族上，比现状更差。
-2. 产品历史注释（`WineEngineService` 的 `OBSOLETE_GAME_FONT_SUBSTITUTES`
-   说明）明确「鸿蒙黑体」已经能出 Hangul 与 kana，当年的问题是这些字形被按
-   GBK 代码点取用 —— 也就是**代码页**问题，而不是缺字形。
+- `ntdll/unix/env.c` 将 `C`、`POSIX`、`C.UTF-8` 等视为未指定 locale，并依次检查
+  `LC_ALL`、`LC_MESSAGES`、`LC_CTYPE`、`LANG`。
+  OHOS 下同时将 system/user LCID 设为选定值，避免已有 prefix 的旧区域设置覆盖选择。
+- `win32u/font.c` 为简中、繁中和日文分别使用 ACP 936、950 和 932。中文 ACP 下跳过
+  JP/KR CJK face；简中优先 SC 面，繁中优先 TC 面，并在缺少 TC 面时回退到鸿蒙简体字族。
+  这样 `DEFAULT_CHARSET` 和 ANSI 文本转换会按进程语言选择代码页与字体。
+- `win32u/freetype.c` 扫描 `WINEPREFIX/drive_c/windows/fonts`，把游戏或用户导入到
+  Wine prefix 的 Windows 字体加入 FreeType 字体目录。
 
-所以本功能只切代码页与 LCID，字族保持 `MASTER_FONT_SUBSTITUTES`（`鸿蒙黑体`）
-不变。`MS Gothic` / `MS PGothic` / `MS UI Gothic` 等日文字族请求继续映射到
-`鸿蒙黑体`，由 ACP 932 保证 Shift-JIS 文本按日文代码页解析。
+设备上的 `NotoSansCJK-Regular.ttc` 注册了 SC/HK/TC 面，没有 JP 面；中文代码页下过滤
+JP/KR face 可避免字体枚举顺序令繁中/简中文本误走 Shift-JIS。产品字体替换表仍将
+`MingLiU` / `PMingLiU` / `Microsoft JhengHei` 映射到 `HarmonyOS Sans TC`。
 
 ## 设备侧自查
 
@@ -72,13 +75,10 @@ hdc -t <target> shell "grep -i 'MSGothic\|Noto Sans CJK JP' \
 游戏侧验证要点：用 `GetACP()` 自证 —— GBK 文本在 950/932 下乱码、Big5 文本在
 936/932 下乱码、Shift-JIS 文本在 936/950 下乱码；只有与游戏编码一致的档位才正常。
 
-繁体档另有两点已就绪、无需额外改动：
-
-- Wine 侧 `locale.nls` 含 `zh-TW`，`unix_to_win_locale("zh_TW.UTF-8")` 直接得到
-  `0x0404`（`ntdll` 的 `__OHOS__` 强制 zh-CN 分支只在"解析失败退化成英文"时生效，
-  `zh_TW` 不落进该分支）。
-- 设备自带 `HarmonyOS_Sans_TC.ttf`；`MASTER_FONT_SUBSTITUTES` 里
-  `MingLiU` / `PMingLiU` / `Microsoft JhengHei` 已指向 `HarmonyOS Sans TC`。
+繁体档的 locale、代码页与字体路径：`locale.nls` 含 `zh-TW`，`zh_TW.UTF-8` 对应
+LCID `0x0404`；Wine 的 OHOS 字体回退按 ACP 950 优先使用 HarmonyOS/Noto TC 字族。
+`MASTER_FONT_SUBSTITUTES` 也将 `MingLiU` / `PMingLiU` / `Microsoft JhengHei`
+映射到 `HarmonyOS Sans TC`。
 
 ## 新增第三种语言时
 

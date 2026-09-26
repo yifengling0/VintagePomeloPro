@@ -46,4 +46,4 @@ submodules:
   # 两个子模块指针都已推到 winehua 分支, 因此锁的就是可解析的 gitlink:
   #   winehua/wine:sync/winehua-pad-fusion-inline
   #   winehua/virglrenderer:sync/winehua-pad-fusion-inline
-  wine: effb47e65cba85434f4d256eddbfbc90f1e7995a
+  wine: 1cb1ac93e464fe6db019845f3451f50ef6fc78f4

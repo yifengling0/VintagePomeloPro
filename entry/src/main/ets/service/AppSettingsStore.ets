@@ -5,12 +5,16 @@ import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
   AppSettings,
   AppDescriptor,
+  ConsoleCardLayout,
+  ConsolePalette,
   ControlBarDirection,
   D3DRendererPreference,
   DesktopWindowMode,
   DisplayMode,
   GlobalSettings,
   LayoutMode,
+  GameBackgroundMode,
+  UiSkin,
   ScreenOrientationSetting,
   ThemeMode,
   WineLanguage,
@@ -28,10 +32,10 @@ const APP_SETTINGS_KEY = 'app_settings_v1';
 const LIBRARY_PATH_KEY = 'library_path_v1';
 const CATALOG_CACHE_KEY = 'catalog_cache_v1';
 const RECENT_LAUNCHES_KEY = 'recent_launches_v1';
-/** 封面抓取的 SteamGridDB API Key (独立键, 与全局设置解耦)。 */
-const SGDB_KEY = 'sgdb_api_key_v1';
 const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
 const PLAY_TIME_KEY = 'play_time_v1';
+/** 封面抓取的 SteamGridDB API Key (独立键, 与全局设置解耦)。 */
+const SGDB_KEY = 'sgdb_api_key_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
@@ -48,8 +52,8 @@ export class AppSettingsStore {
   private globalSettings: GlobalSettings = createDefaultGlobalSettings();
   // 最近启动的 appId 列表 (最新在前), 持久化, 供"最近"分类使用
   private recentLaunches: string[] = [];
-  private recentLaunchesV2: Map<string, number> = new Map<string, number>();
-  private playTime: Map<string, number> = new Map<string, number>();
+  private lastPlayedAt: Map<string, number> = new Map<string, number>();
+  private playMinutes: Map<string, number> = new Map<string, number>();
   private libraryPath: string = '';
   private sgdbApiKey: string = '';
   private managedWineWindowsHost: boolean = false;
@@ -69,6 +73,7 @@ export class AppSettingsStore {
     this.loadApps();
     this.libraryPath = this.store.getSync(LIBRARY_PATH_KEY, '') as string;
     this.loadRecentLaunches();
+    this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
     this.loadRenderMode();
     this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
   }
@@ -165,6 +170,9 @@ export class AppSettingsStore {
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
       layoutMode: current.layoutMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -228,7 +236,13 @@ export class AppSettingsStore {
         box64Preset: stored.box64Preset ?? defaults.box64Preset,
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
         viewMode: stored.viewMode ?? defaults.viewMode,
-        layoutMode: stored.layoutMode ?? defaults.layoutMode,
+        layoutMode: stored.layoutMode === LayoutMode.CLASSIC || stored.layoutMode === LayoutMode.STANDARD
+          ? stored.layoutMode : defaults.layoutMode,
+        uiSkin: stored.uiSkin === UiSkin.CONSOLE ? UiSkin.CONSOLE : UiSkin.CLASSIC,
+        consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.GALLERY ||
+          stored.consoleCardLayout === ConsoleCardLayout.XBOX_TILES ? stored.consoleCardLayout : ConsoleCardLayout.FOCUS_3D,
+        consolePalette: stored.consolePalette === ConsolePalette.BLUE ||
+          stored.consolePalette === ConsolePalette.PEARL ? stored.consolePalette : ConsolePalette.VIOLET,
         themeMode: stored.themeMode ?? defaults.themeMode,
         useGlassEffect: stored.useGlassEffect ?? defaults.useGlassEffect,
         usePageBackground: stored.usePageBackground ?? defaults.usePageBackground,
@@ -303,6 +317,9 @@ export class AppSettingsStore {
       appId: value.appId,
       customTitle: value.customTitle ?? defaults.customTitle,
       customCover: value.customCover ?? defaults.customCover,
+      backgroundMode: value.backgroundMode === GameBackgroundMode.MANUAL ?
+        GameBackgroundMode.MANUAL : GameBackgroundMode.AUTO,
+      manualBackgroundPath: value.manualBackgroundPath ?? '',
       favorite: value.favorite ?? defaults.favorite,
       box64Preset: value.box64Preset ?? defaults.box64Preset,
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
@@ -341,6 +358,9 @@ export class AppSettingsStore {
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: value,
       layoutMode: current.layoutMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -375,6 +395,9 @@ export class AppSettingsStore {
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
       layoutMode: current.layoutMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -409,6 +432,9 @@ export class AppSettingsStore {
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
       layoutMode: current.layoutMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -444,6 +470,9 @@ export class AppSettingsStore {
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
       layoutMode: current.layoutMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -478,6 +507,9 @@ export class AppSettingsStore {
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
       layoutMode: current.layoutMode,
+      uiSkin: current.uiSkin,
+      consoleCardLayout: current.consoleCardLayout,
+      consolePalette: current.consolePalette,
       themeMode: current.themeMode,
       useGlassEffect: current.useGlassEffect,
       usePageBackground: current.usePageBackground,
@@ -567,39 +599,18 @@ export class AppSettingsStore {
     } catch (_) {
       this.recentLaunches = [];
     }
-    const rawV2 = this.store.getSync(RECENT_LAUNCHES_V2_KEY, '{}') as string;
     try {
-      const parsed = JSON.parse(rawV2) as Record<string, number>;
-      this.recentLaunchesV2 = new Map<string, number>();
-      if (parsed && typeof parsed === 'object') {
-        const keys = Object.keys(parsed);
-        for (const key of keys) {
-          this.recentLaunchesV2.set(key, parsed[key] as number);
-        }
-      }
-    } catch (_) {
-      this.recentLaunchesV2 = new Map<string, number>();
-    }
-    if (this.recentLaunchesV2.size === 0 && this.recentLaunches.length > 0) {
-      for (const id of this.recentLaunches) {
-        this.recentLaunchesV2.set(id, 0);
-      }
-      void this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(this.recentLaunchesV2)).then((): void => {
-        void this.store?.flush();
+      const last = JSON.parse(this.store.getSync(RECENT_LAUNCHES_V2_KEY, '{}') as string) as Record<string, number>;
+      Object.keys(last).forEach((id: string): void => {
+        if (typeof last[id] === 'number' && isFinite(last[id])) this.lastPlayedAt.set(id, last[id]);
       });
-    }
-    const rawPlayTime = this.store.getSync(PLAY_TIME_KEY, '{}') as string;
-    try {
-      const parsedPt = JSON.parse(rawPlayTime) as Record<string, number>;
-      this.playTime = new Map<string, number>();
-      if (parsedPt && typeof parsedPt === 'object') {
-        const ptKeys = Object.keys(parsedPt);
-        for (const key of ptKeys) {
-          this.playTime.set(key, parsedPt[key] as number);
-        }
-      }
+      const played = JSON.parse(this.store.getSync(PLAY_TIME_KEY, '{}') as string) as Record<string, number>;
+      Object.keys(played).forEach((id: string): void => {
+        if (typeof played[id] === 'number' && isFinite(played[id])) this.playMinutes.set(id, played[id]);
+      });
     } catch (_) {
-      this.playTime = new Map<string, number>();
+      this.lastPlayedAt.clear();
+      this.playMinutes.clear();
     }
   }
 
@@ -611,38 +622,32 @@ export class AppSettingsStore {
     if (this.recentLaunches.length > 50) {
       this.recentLaunches = this.recentLaunches.slice(0, 50);
     }
-    this.recentLaunchesV2.set(appId, Date.now());
+    this.lastPlayedAt.set(appId, Date.now());
     if (!this.store) return;
     await this.store.put(RECENT_LAUNCHES_KEY, JSON.stringify(this.recentLaunches));
-    const v2Obj: Record<string, number> = {};
-    this.recentLaunchesV2.forEach((value: number, key: string) => {
-      v2Obj[key] = value;
-    });
-    await this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(v2Obj));
+    await this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(this.mapToRecord(this.lastPlayedAt)));
     await this.store.flush();
+  }
+
+  private mapToRecord(values: Map<string, number>): Record<string, number> {
+    const result: Record<string, number> = {};
+    values.forEach((value: number, key: string): void => { result[key] = value; });
+    return result;
   }
 
   getRecentLaunches(): string[] {
     return this.recentLaunches.slice();
   }
 
-  getLastPlayedAt(appId: string): number {
-    return this.recentLaunchesV2.get(appId) ?? 0;
-  }
+  getLastPlayedAt(appId: string): number { return this.lastPlayedAt.get(appId) ?? 0; }
 
-  getPlayMinutes(appId: string): number {
-    return this.playTime.get(appId) ?? 0;
-  }
+  getPlayMinutes(appId: string): number { return this.playMinutes.get(appId) ?? 0; }
 
   async addPlayMinutes(appId: string, minutes: number): Promise<void> {
     if (!appId || minutes <= 0) return;
-    this.playTime.set(appId, (this.playTime.get(appId) ?? 0) + minutes);
+    this.playMinutes.set(appId, (this.playMinutes.get(appId) ?? 0) + minutes);
     if (!this.store) return;
-    const ptObj: Record<string, number> = {};
-    this.playTime.forEach((value: number, key: string) => {
-      ptObj[key] = value;
-    });
-    await this.store.put(PLAY_TIME_KEY, JSON.stringify(ptObj));
+    await this.store.put(PLAY_TIME_KEY, JSON.stringify(this.mapToRecord(this.playMinutes)));
     await this.store.flush();
   }
 }

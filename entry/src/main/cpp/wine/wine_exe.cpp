@@ -334,6 +334,7 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     policy.binDir = binDir;
     policy.homeDir = homeDir;
     policy.prefixDir = prefixDir;
+    policy.wineLang = options.wineLang;
     policy.d3dBackend = options.d3dBackend;
     policy.dxvkBackend = options.dxvkBackend;
     /* Product DXVK capabilities must apply to every managed program, not
@@ -541,6 +542,7 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
     options.windowsExePath = GetString(env, args[0], "windowsExePath");
     options.workingDirectory = GetString(env, args[0], "workingDirectory");
     options.prefixMode = GetString(env, args[0], "prefixMode", "reuse");
+    options.wineLang = GetString(env, args[0], "wineLang", "zh_CN");
     options.d3dBackend = GetString(env, args[0], "d3dBackend", "dxvk_legacy");
     const std::string impliedDxvkBackend =
         options.d3dBackend == "dxvk_modern_2_6" ||
@@ -736,8 +738,8 @@ static napi_value MakeLaunchResult(napi_env env, int32_t pid,
 
 napi_value RunWineExe(napi_env env, napi_callback_info info)
 {
-    size_t argc = 9;
-    napi_value args[9] = {};
+    size_t argc = 10;
+    napi_value args[10] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc < 4) return MakeLaunchResult(env, -1, "", false);
 
@@ -805,6 +807,14 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
         }
     }
 
+    std::string wineLang = "zh_CN";
+    if (argc >= 10) {
+        const std::string requested = ReadString(env, args[9]);
+        if (requested == "zh_CN" || requested == "zh_TW" ||
+            requested == "ja_JP" || requested == "en_US")
+            wineLang = requested;
+    }
+
     std::string homeDir(homePath);
     if (homeDir.empty()) homeDir = gBrokerHomeDir;
     if (homeDir.empty()) homeDir = "/storage/Users/currentUser/Download";
@@ -833,6 +843,7 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
     policy.libPath = libPath;
     policy.binDir = binDir;
     policy.homeDir = homeDir;
+    policy.wineLang = wineLang;
     policy.d3dBackend = d3dBackend;
     policy.dxvkBackend =
         (d3dBackend == "dxvk_modern_2_6" ||

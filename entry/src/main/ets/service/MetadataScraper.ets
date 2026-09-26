@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { hilog } from './LogService';
+import { steamSearchLocales, uniqueArtworkGameId } from '../model/GameArtworkRules';
 
 const DOMAIN = 0x0000;
 const TAG = 'MetadataScraper';
@@ -39,6 +40,9 @@ interface SgdbGridResponse {
   success: boolean;
   data: SgdbGridItem[];
 }
+interface SteamSearchItem { id: number; name: string; }
+interface SteamSearchResponse { items: SteamSearchItem[]; }
+interface JsonHeaders { Authorization?: string; Accept: string; }
 
 /**
  * 封面元数据抓取 (SteamGridDB)。
@@ -95,37 +99,62 @@ export class MetadataScraper {
   }
 
   /**
-   * 一站抓取: 按标题搜索 → 取首个候选 → 下载竖版封面写入游戏目录。
-   * 无 API Key / 无候选 / 下载失败都会返回带原因的失败结果, 由 UI 提示。
+   * 一站抓取: 按标题搜索 → 唯一准确匹配 → 下载竖版封面写入游戏目录。
+   * Steam 公开图源无需 Key；仅在公开图源无图时尝试可选的 SteamGridDB。
    */
   async scrapeCover(apiKey: string, title: string, gameDirectory: string): Promise<ScrapeResult> {
-    if (apiKey.trim().length === 0) {
-      return { ok: false, coverPath: '', detail: '未配置 API Key (系统设置 → 封面抓取)' };
-    }
     if (title.trim().length === 0 || gameDirectory.length === 0) {
       return { ok: false, coverPath: '', detail: '缺少游戏名称或目录' };
+    }
+    const locales = steamSearchLocales(title);
+    for (let index = 0; index < locales.length; index++) {
+      try {
+        const searchUrl = 'https://store.steampowered.com/api/storesearch/?term=' +
+          encodeURIComponent(title.trim()) + '&l=' + locales[index] + '&cc=US';
+        const steam = JSON.parse(await this.getJson(searchUrl, '')) as SteamSearchResponse;
+        const steamId = uniqueArtworkGameId(steam.items ?? [], title);
+        if (steamId > 0) {
+          const publicUrl = 'https://cdn.cloudflare.steamstatic.com/steam/apps/' +
+            steamId.toString() + '/library_600x900.jpg';
+          const publicPath = await this.download(publicUrl, gameDirectory);
+          if (publicPath) return { ok: true, coverPath: publicPath, detail: title };
+          // Every locale resolves to the same Steam app and therefore the same
+          // CDN path. Continue directly to the optional supplementary source.
+          break;
+        }
+      } catch (_) {
+        // A public lookup failure still permits other locales and the optional source.
+      }
+    }
+    if (!apiKey.trim()) {
+      return { ok: false, coverPath: '',
+        detail: '公开图源未找到唯一匹配的竖版封面，可手动选图或在外观设置填写 SteamGridDB Key' };
     }
     const candidates = await this.search(apiKey, title);
     if (candidates.length === 0) {
       return { ok: false, coverPath: '', detail: '未找到匹配的游戏' };
     }
-    const matched = candidates[0];
-    const coverUrl = await this.fetchCoverUrl(apiKey, matched.id);
+    const gameId = uniqueArtworkGameId(candidates, title);
+    if (gameId <= 0) {
+      return { ok: false, coverPath: '', detail: '未找到唯一准确匹配的游戏，请手动选择封面' };
+    }
+    const matched = candidates.find((candidate: ScrapedGame): boolean => candidate.id === gameId)!;
+    const coverUrl = await this.fetchCoverUrl(apiKey, gameId);
     if (coverUrl.length === 0) {
       return { ok: false, coverPath: '', detail: `${matched.name} 没有竖版封面` };
     }
-    const dest = `${gameDirectory.replace(/\/+$/, '')}/cover.png`;
-    const downloaded = await this.download(coverUrl, dest);
+    const downloaded = await this.download(coverUrl, gameDirectory);
     if (!downloaded) {
       return { ok: false, coverPath: '', detail: '封面下载失败 (检查网络)' };
     }
-    hilog.info(DOMAIN, TAG, 'cover saved %{public}s -> %{public}s', matched.name, dest);
-    return { ok: true, coverPath: dest, detail: matched.name };
+    hilog.info(DOMAIN, TAG, 'cover saved %{public}s -> %{public}s', matched.name, downloaded);
+    return { ok: true, coverPath: downloaded, detail: matched.name };
   }
 
-  /** 下载任意图片到本地文件 (ArrayBuffer 直写, 不经 PixelMap)。 */
-  async download(url: string, destPath: string): Promise<boolean> {
+  /** Validate and atomically replace a cover in the game's directory. */
+  async download(url: string, gameDirectory: string): Promise<string> {
     const request = http.createHttp();
+    let temporary = '';
     try {
       const response = await request.request(url, {
         method: http.RequestMethod.GET,
@@ -135,36 +164,52 @@ export class MetadataScraper {
       });
       if (response.responseCode !== 200) {
         hilog.warn(DOMAIN, TAG, 'download http %{public}d for %{public}s', response.responseCode, url);
-        return false;
+        return '';
       }
       const buffer = response.result as ArrayBuffer;
-      if (!buffer || buffer.byteLength === 0) return false;
-      const file = fs.openSync(destPath,
+      if (!buffer || buffer.byteLength < 16 || buffer.byteLength > 12 * 1024 * 1024) return '';
+      const bytes = new Uint8Array(buffer);
+      const extension = bytes[0] === 0xFF && bytes[1] === 0xD8 ? '.jpg' :
+        (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47 ? '.png' :
+          (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+            bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50 ? '.webp' : ''));
+      if (!extension) return '';
+      const directory = gameDirectory.replace(/\/+$/, '');
+      const destPath = directory + '/cover' + extension;
+      temporary = destPath + '.tmp';
+      const file = fs.openSync(temporary,
         fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
       try {
-        fs.writeSync(file.fd, buffer);
+        if (fs.writeSync(file.fd, buffer) !== buffer.byteLength) return '';
       } finally {
         fs.closeSync(file);
       }
-      return true;
+      fs.renameSync(temporary, destPath);
+      temporary = '';
+      for (const other of ['cover.png', 'cover.jpg', 'cover.jpeg', 'cover.webp']) {
+        if (other !== 'cover' + extension) {
+          try { fs.unlinkSync(directory + '/' + other); } catch (_) {}
+        }
+      }
+      return destPath;
     } catch (e) {
       hilog.warn(DOMAIN, TAG, 'download failed: %{public}s', JSON.stringify(e));
-      return false;
+      return '';
     } finally {
       request.destroy();
+      if (temporary) try { fs.unlinkSync(temporary); } catch (_) {}
     }
   }
 
   /** 带鉴权头的 GET, 返回响应文本 (失败返回空串)。 */
   private async getJson(url: string, apiKey: string): Promise<string> {
     const request = http.createHttp();
+    const headers: JsonHeaders = { Accept: 'application/json' };
+    if (apiKey.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
     try {
       const response = await request.request(url, {
         method: http.RequestMethod.GET,
-        header: {
-          'Authorization': `Bearer ${apiKey.trim()}`,
-          'Accept': 'application/json'
-        },
+        header: headers,
         expectDataType: http.HttpDataType.STRING,
         connectTimeout: 15000,
         readTimeout: 20000

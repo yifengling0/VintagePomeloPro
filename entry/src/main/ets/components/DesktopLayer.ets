@@ -290,9 +290,15 @@ export struct DesktopLayer {
     const rootId = WineWindowManager.getInstance().getDesktopRootId();
     if (rootId <= 0) return;
     ev.stopPropagation();
-    hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] desktop key code=%{public}d type=%{public}d',
-      ev.keyCode, ev.type);
-    if (GamepadManager.getInstance().handleKey(ev.keyCode, ev.type === KeyType.Down)) return;
+    hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] desktop key code=%{public}d type=%{public}d source=%{public}d',
+      ev.keyCode, ev.type, ev.keySource);
+    // OHOS assigns the same 2012-2015 codes to keyboard arrows and gamepad D-pad.
+    // Only joystick events belong to GamepadManager; its DInput path consumes
+    // mapped codes without sending a Wine keyboard event.
+    if (ev.keySource === KeySource.JOYSTICK) {
+      GamepadManager.getInstance().handleKey(ev.keyCode, ev.type === KeyType.Down);
+      return;
+    }
     const code = OH2EVDEV[ev.keyCode] ?? 0;
     if (code <= 0) return;
     const pressed = ev.type === KeyType.Down;
