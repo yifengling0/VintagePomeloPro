@@ -88,10 +88,15 @@ git 的 auto-merge（非冲突区）留下了几处**重复定义**，加上上�
 
 ## 7. 上手第一步
 
+**提交身份自 2026-09-26 起改为 `rootrd`**：已写入 F: 仓库的 local config（`user.name=rootrd`、
+`user.email=rootrd@users.noreply.github.com`），所以直接 `git commit` 即可，**不要再带 `-c user.name='yifengling0'`**
+（本文件 §1–§6 与更早的交接文档里写的 yifengling0 身份已作废；`rootrd` 同时是 GitHub 上
+`yifengling0/VintagePomeloPro` 的 Write 协作者账号，即真正执行 push 的账号）。
+
 ```bash
 cd "F:/旧柚pro/VintagePomeloPro"
 git status --short                      # 确认 §5 的未提交改动还在不在
-git log --oneline -3 origin/UI          # 应为 d945e1d
+git log --oneline -3 origin/UI          # 应为 28ff8bf
 bash /e/iiSU/vpp-check-sync.sh /tmp/x.log   # 校验合并后代码（源=E:\ui-sync）
 ```
 
