@@ -1835,6 +1835,28 @@ struct Index {
     void AppSettingsStore.getInstance().setTileOrder(order);
   }
 
+  /** 拖到空白处: 把 dragId 插入到序列第 seq 位 (就近落槽)。 */
+  private insertTileAt(dragId: string, seq: number): void {
+    hilog.info(0x0000, 'Index', 'insertTileAt %{public}s seq=%{public}d', dragId, seq);
+    const visibleIds = this.orderedTileApps(this.visibleApps)
+      .map((a: AppDescriptor): string => a.id);
+    const order: string[] = visibleIds.slice();
+    this.tileOrder.forEach((id: string): void => {
+      if (!order.includes(id)) order.push(id);
+    });
+    const i = order.indexOf(dragId);
+    if (i < 0) return;
+    order.splice(i, 1);
+    let at = seq;
+    if (i < at) at--;
+    if (at < 0) at = 0;
+    if (at > order.length) at = order.length;
+    if (at === i) return;
+    order.splice(at, 0, dragId);
+    this.tileOrder = order;
+    void AppSettingsStore.getInstance().setTileOrder(order);
+  }
+
   /** 瓦片默认行数: 手机预览 3 行; 其他设备取该档位上限 (pad 4 / PC 6 / TV 8)。 */
   private largeTileDefaultRows(): number {
     const cap = DeviceCapabilityPolicy.largeTileRowCap();
@@ -1857,7 +1879,8 @@ struct Index {
       runningIds: this.runningAppIds,
       onLaunch: (target: AppDescriptor): void => { this.launch(target); },
       onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); },
-      onSwap: (dragId: string, dropId: string): void => { this.swapTileApps(dragId, dropId); }
+      onSwap: (dragId: string, dropId: string): void => { this.swapTileApps(dragId, dropId); },
+      onInsertAt: (dragId: string, seq: number): void => { this.insertTileAt(dragId, seq); }
     })
     .layoutWeight(1)
     .width('100%')
