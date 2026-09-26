@@ -37,6 +37,8 @@ export struct LargeTileGrid {
   onLongPress: (app: AppDescriptor) => void = (_a: AppDescriptor): void => {};
   /** 拖拽换位: dragId 的瓦片被放到 dropId 的瓦片上 (父级负责换序并持久化)。 */
   onSwap: (dragId: string, dropId: string) => void = (_d: string, _p: string): void => {};
+  /** 拖到空白处: dragId 插入到第 seq 个序列位 (父级负责插入并持久化)。 */
+  onInsertAt: (dragId: string, seq: number) => void = (_d: string, _s: number): void => {};
   @State private canvasW: number = 0;
   @State private canvasH: number = 0;
   @State private currentPage: number = 0;
@@ -337,10 +339,31 @@ export struct LargeTileGrid {
             this.onSwap(dragId, target);
           } else if (centerX >= 0 && centerX <= this.canvasW &&
             centerY >= 0 && centerY <= this.canvasH - DOTS_STRIP) {
-            // 落在空白处: 移到序列末尾 (dropId 传空串), 打包时自动进最近的空闲槽位
-            hilog.info(DOMAIN, TAG, 'emitMoveToEnd %{public}s (%{public}d,%{public}d)',
-              dragId, Math.round(centerX), Math.round(centerY));
-            this.onSwap(dragId, '');
+            // 落在空白处: 插入到"被拖瓦片所在页"的序列末尾, 就近落进该页第一个空闲槽位
+            const pages = this.packPages();
+            let before = 0;
+            let count = 0;
+            let found = false;
+            for (let p = 0; p < pages.length; p++) {
+              count = pages[p].length;
+              let has = false;
+              for (let i = 0; i < count; i++) {
+                if (pages[p][i].app.id === dragId) {
+                  has = true;
+                  break;
+                }
+              }
+              if (has) {
+                found = true;
+                break;
+              }
+              before += count;
+            }
+            if (found) {
+              hilog.info(DOMAIN, TAG, 'emitInsertAt %{public}s seq=%{public}d',
+                dragId, before + count);
+              this.onInsertAt(dragId, before + count);
+            }
           }
         })
         .onActionCancel((): void => {
