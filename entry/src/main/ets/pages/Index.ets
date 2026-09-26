@@ -208,6 +208,8 @@ struct Index {
   /** 大屏瓦片模式: 强制预览开关与行数 (AppStorage 由设置页/initialize 双向同步)。 */
   @StorageLink('largeTilesForce') private largeTilesForce: boolean = false;
   @StorageLink('largeTilesRows') private largeTilesRows: number = 0;
+  /** 大屏瓦片拖拽排序 (app id 顺序), 持久化于独立键。 */
+  @State private tileOrder: string[] = [];
   /** 收藏标记是卡面上的可见状态, 随运行态一起刷新, 避免每张卡片各查一次设置。 */
   @State private favoriteIds: Set<string> = new Set<string>();
   /**
@@ -896,6 +898,7 @@ struct Index {
   private async initialize(): Promise<void> {
     AppStorage.setOrCreate('largeTilesForce', AppSettingsStore.getInstance().getLargeTilesForce());
     AppStorage.setOrCreate('largeTilesRows', AppSettingsStore.getInstance().getLargeTilesRows());
+    this.tileOrder = AppSettingsStore.getInstance().getTileOrder();
     await ThemeSettingsService.getInstance().initialize(this.context);
     this.settings = ThemeSettingsService.getInstance().getSettings();
     WineWindowManager.getInstance().setOutputScalePercent(this.settings.outputScale);
@@ -1791,6 +1794,38 @@ struct Index {
     return DeviceCapabilityPolicy.isLargeScreen() || this.largeTilesForce;
   }
 
+  /** 按拖拽顺序排列瓦片数据 (没排过的按自然序垫底)。 */
+  private orderedTileApps(apps: AppDescriptor[]): AppDescriptor[] {
+    if (this.tileOrder.length === 0) return apps;
+    const rank = new Map<string, number>();
+    this.tileOrder.forEach((id: string, index: number): void => {
+      rank.set(id, index);
+    });
+    return apps.slice().sort((a: AppDescriptor, b: AppDescriptor): number => {
+      const ra = rank.has(a.id) ? (rank.get(a.id) as number) : 1000000;
+      const rb = rank.has(b.id) ? (rank.get(b.id) as number) : 1000000;
+      return ra - rb;
+    });
+  }
+
+  /** 拖拽换位: 先把当前可见顺序物化成显式序列, 再交换两 id, 持久化。 */
+  private swapTileApps(dragId: string, dropId: string): void {
+    if (dragId === dropId) return;
+    const visibleIds = this.orderedTileApps(this.visibleApps)
+      .map((a: AppDescriptor): string => a.id);
+    const order: string[] = visibleIds.slice();
+    this.tileOrder.forEach((id: string): void => {
+      if (!order.includes(id)) order.push(id);
+    });
+    const i = order.indexOf(dragId);
+    const j = order.indexOf(dropId);
+    if (i < 0 || j < 0) return;
+    order[i] = dropId;
+    order[j] = dragId;
+    this.tileOrder = order;
+    void AppSettingsStore.getInstance().setTileOrder(order);
+  }
+
   /** 瓦片默认行数: 手机预览 3 行; 其他设备取该档位上限 (pad 4 / PC 6 / TV 8)。 */
   private largeTileDefaultRows(): number {
     const cap = DeviceCapabilityPolicy.largeTileRowCap();
@@ -1808,11 +1843,12 @@ struct Index {
   @Builder
   private LargeTileArea() {
     LargeTileGrid({
-      apps: this.visibleApps,
+      apps: this.orderedTileApps(this.visibleApps),
       rows: this.largeTileEffectiveRows(),
       runningIds: this.runningAppIds,
       onLaunch: (target: AppDescriptor): void => { this.launch(target); },
-      onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); }
+      onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); },
+      onSwap: (dragId: string, dropId: string): void => { this.swapTileApps(dragId, dropId); }
     })
     .layoutWeight(1)
     .width('100%')

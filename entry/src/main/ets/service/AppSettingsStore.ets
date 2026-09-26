@@ -38,6 +38,7 @@ const PLAY_TIME_KEY = 'play_time_v1';
 const SGDB_KEY = 'sgdb_api_key_v1';
 const LARGE_TILES_FORCE_KEY = 'large_tiles_force_v1';
 const LARGE_TILES_ROWS_KEY = 'large_tiles_rows_v1';
+const LARGE_TILES_ORDER_KEY = 'large_tiles_order_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
@@ -60,6 +61,7 @@ export class AppSettingsStore {
   private sgdbApiKey: string = '';
   private largeTilesForce: boolean = false;
   private largeTilesRows: number = 0;
+  private largeTilesOrder: string[] = [];
   private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
 
@@ -82,6 +84,13 @@ export class AppSettingsStore {
     this.largeTilesForce = this.store.getSync(LARGE_TILES_FORCE_KEY, false) as boolean;
     const storedRows = this.store.getSync(LARGE_TILES_ROWS_KEY, 0) as number;
     this.largeTilesRows = storedRows > 0 ? Math.floor(storedRows) : 0;
+    try {
+      const orderArr = JSON.parse(this.store.getSync(LARGE_TILES_ORDER_KEY, '[]') as string) as string[];
+      this.largeTilesOrder = Array.isArray(orderArr)
+        ? orderArr.filter((v: string): boolean => typeof v === 'string') : [];
+    } catch (_) {
+      this.largeTilesOrder = [];
+    }
   }
 
   /** 大屏瓦片模式: 强制开启 (小屏预览用)。独立键存储。 */
@@ -105,6 +114,18 @@ export class AppSettingsStore {
     this.largeTilesRows = rows > 0 ? Math.floor(rows) : 0;
     if (!this.store) return;
     await this.store.put(LARGE_TILES_ROWS_KEY, this.largeTilesRows);
+    await this.store.flush();
+  }
+
+  /** 大屏瓦片: 用户拖拽排序后的 app id 顺序 (未拖拽过的 app 不在列表里, 按自然序跟随)。 */
+  getTileOrder(): string[] {
+    return this.largeTilesOrder.slice();
+  }
+
+  async setTileOrder(order: string[]): Promise<void> {
+    this.largeTilesOrder = order.slice();
+    if (!this.store) return;
+    await this.store.put(LARGE_TILES_ORDER_KEY, JSON.stringify(this.largeTilesOrder));
     await this.store.flush();
   }
 
