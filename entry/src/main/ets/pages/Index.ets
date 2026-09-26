@@ -8,6 +8,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
+import { LargeTileGrid } from '../components/LargeTileGrid';
 import { FileBrowserView } from '../components/FileBrowserView';
 import { GameDetailSheet } from '../components/GameDetailSheet';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -204,6 +205,9 @@ struct Index {
   @State private scanning: boolean = false;
   @State private refreshing: boolean = false;
   @State private runningAppIds: Set<string> = new Set<string>();
+  /** 大屏瓦片模式: 强制预览开关与行数 (AppStorage 由设置页/initialize 双向同步)。 */
+  @StorageLink('largeTilesForce') private largeTilesForce: boolean = false;
+  @StorageLink('largeTilesRows') private largeTilesRows: number = 0;
   /** 收藏标记是卡面上的可见状态, 随运行态一起刷新, 避免每张卡片各查一次设置。 */
   @State private favoriteIds: Set<string> = new Set<string>();
   /**
@@ -890,6 +894,8 @@ struct Index {
   }
 
   private async initialize(): Promise<void> {
+    AppStorage.setOrCreate('largeTilesForce', AppSettingsStore.getInstance().getLargeTilesForce());
+    AppStorage.setOrCreate('largeTilesRows', AppSettingsStore.getInstance().getLargeTilesRows());
     await ThemeSettingsService.getInstance().initialize(this.context);
     this.settings = ThemeSettingsService.getInstance().getSettings();
     WineWindowManager.getInstance().setOutputScalePercent(this.settings.outputScale);
@@ -1780,6 +1786,44 @@ struct Index {
     })
   }
 
+  /** 大屏瓦片模式判定: 真大屏 (>8.8") 或小屏开启强制预览。 */
+  private useLargeTileMode(): boolean {
+    return DeviceCapabilityPolicy.isLargeScreen() || this.largeTilesForce;
+  }
+
+  /** 瓦片默认行数: 手机预览 3 行; 其他设备取该档位上限 (pad 4 / PC 6 / TV 8)。 */
+  private largeTileDefaultRows(): number {
+    const cap = DeviceCapabilityPolicy.largeTileRowCap();
+    return DeviceCapabilityPolicy.isPhoneDevice() ? Math.min(3, cap) : cap;
+  }
+
+  /** 瓦片行数: 用户自定义 (0=默认), 收口到设备档位上限。 */
+  private largeTileEffectiveRows(): number {
+    if (this.largeTilesRows > 0) {
+      return Math.min(this.largeTilesRows, DeviceCapabilityPolicy.largeTileRowCap());
+    }
+    return this.largeTileDefaultRows();
+  }
+
+  @Builder
+  private LargeTileArea() {
+    LargeTileGrid({
+      apps: this.visibleApps,
+      rows: this.largeTileEffectiveRows(),
+      runningIds: this.runningAppIds,
+      onLaunch: (target: AppDescriptor): void => { this.launch(target); },
+      onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); }
+    })
+    .layoutWeight(1)
+    .width('100%')
+    // 底部悬浮导航栏是覆盖在内容上的: 不预留会吃掉最后一行瓦片 (与 CoverFlow 同理)
+    .padding({
+      top: 8,
+      bottom: Math.max(72, this.navBarInsetVp + 52)
+    })
+    .id('large-tile-grid-' + this.filter)
+  }
+
   /**
    * Give every catalog filter its own ArkUI branch and scroll identity.
    * Reusing one non-empty Grid made ForEach keep the previous category until
@@ -2169,7 +2213,8 @@ struct Index {
 
       TextInput({ placeholder: '搜索游戏…', text: this.searchQuery })
         .fontSize(13)
-        .height(34)
+        // 大屏/大字体设备上 fp 随系统字体放大而 vp 固定会裁字 → 高度自适应, 34vp 保底
+        .constraintSize({ minHeight: 34 })
         .width(300)
         .borderRadius(17)
         .backgroundColor($r('app.color.search_background'))
@@ -2321,7 +2366,11 @@ struct Index {
           // 视图分支必须先于 filter==='windows' 分支: 否则落地分类 windows 永远
           // 走 WindowsRefreshContent 的竖向网格, 封面流 (横向滑动) 永远不渲染 —
           // 这正是此前"左右滑动无效"的根因。
-          if (this.filter === 'windows') {
+          if (this.useLargeTileMode()) {
+            // 大屏 (>8.8" MatePad Mini 分界) 或小屏强制预览: 封面视图渲染为
+            // Switch 风瓦片网格, 顶栏/底栏等其余结构不变; 其他视图模式不受影响。
+            this.LargeTileArea()
+          } else if (this.filter === 'windows') {
             // windows 分类保留下拉刷新语义
             Refresh({ refreshing: $$this.refreshing }) {
               this.CoverFlow()

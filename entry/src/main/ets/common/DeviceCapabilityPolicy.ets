@@ -4,8 +4,11 @@ import { hilog } from '../service/LogService';
 import { ScreenOrientationSetting } from '../model/AppModels';
 
 const DOMAIN = 0x0000;
-/** 大屏判定阈值 (物理对角线, 英寸)。≥8 寸走大屏模式, <8 寸保持单行封面流。 */
-const LARGE_SCREEN_INCHES = 8.0;
+/**
+ * 大屏判定阈值: 以华为 MatePad Mini (2025) 的 8.8 英寸屏为分界。
+ * 超过 8.8" → 大屏模式 (Switch 风瓦片网格); ≤ 8.8" → 小屏 (单行环形封面流)。
+ */
+const LARGE_SCREEN_INCHES = 8.8;
 
 export class DeviceCapabilityPolicy {
   private static cachedDiagonalInches: number = -1;
@@ -41,10 +44,21 @@ export class DeviceCapabilityPolicy {
     return inches;
   }
 
-  /** ≥8 寸 → 大屏设备 (后续大屏模式的开关; 当前仅检测上报, 不改变 UI 行为)。 */
+  /** > 8.8" (MatePad Mini 分界) → 大屏设备。 */
   static isLargeScreen(): boolean {
     const inches = DeviceCapabilityPolicy.screenDiagonalInches();
-    return inches > 0 && inches >= LARGE_SCREEN_INCHES;
+    return inches > LARGE_SCREEN_INCHES;
+  }
+
+  /**
+   * 大屏瓦片网格的行数上限 (三档, 按 deviceType):
+   * TV 显示范围最大 8 行, PC/2in1 6 行, 平板 4 行; 其余 (含手机强制预览) 4 行。
+   */
+  static largeTileRowCap(): number {
+    const type = DeviceCapabilityPolicy.deviceType();
+    if (type === 'tv') return 8;
+    if (type === '2in1' || type === 'pc') return 6;
+    return 4;
   }
 
   /** 设置页展示用: "5.6 英寸"。 */

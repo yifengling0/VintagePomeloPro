@@ -262,6 +262,9 @@ struct SystemSettingsPage {
   /** 封面抓取 API Key 的编辑草稿 (保存后才落盘, 避免边输边写)。 */
   @State private sgdbKeyDraft: string = '';
   @State private sgdbKeySaved: boolean = false;
+  /** 大屏瓦片模式: 强制预览开关与行数 (0 = 跟随设备默认)。 */
+  @State private largeTilesForce: boolean = false;
+  @State private largeTilesRows: number = 0;
   /** 视口尺寸 (vp): 用于判断"横屏"以便在手机上也用双栏布局。 */
   @State private viewportW: number = 0;
   @State private viewportH: number = 0;
@@ -391,6 +394,8 @@ struct SystemSettingsPage {
     this.settings = ThemeSettingsService.getInstance().getSettings();
     this.sgdbKeyDraft = AppSettingsStore.getInstance().getSgdbApiKey();
     this.sgdbKeySaved = this.sgdbKeyDraft.trim().length > 0;
+    this.largeTilesForce = AppSettingsStore.getInstance().getLargeTilesForce();
+    this.largeTilesRows = AppSettingsStore.getInstance().getLargeTilesRows();
     BreakpointSystem.initialize();
     this.callback = (value: BreakpointType): void => {
       this.breakpoint = value;
@@ -1495,6 +1500,40 @@ struct SystemSettingsPage {
     }
   }
 
+  /** 大屏瓦片: 强制预览开关 (落盘 + AppStorage 让主页实时切换)。 */
+  private updateLargeTilesForce(value: boolean): void {
+    this.largeTilesForce = value;
+    AppStorage.setOrCreate('largeTilesForce', value);
+    void AppSettingsStore.getInstance().setLargeTilesForce(value);
+  }
+
+  /** 大屏瓦片: 行数 (0 = 跟随设备默认)。 */
+  private updateLargeTilesRows(rows: number): void {
+    this.largeTilesRows = rows;
+    AppStorage.setOrCreate('largeTilesRows', rows);
+    void AppSettingsStore.getInstance().setLargeTilesRows(rows);
+  }
+
+  private largeTilesRowOptions(): number[] {
+    const cap = DeviceCapabilityPolicy.largeTileRowCap();
+    const out: number[] = [];
+    for (let n = 2; n <= cap; n++) {
+      out.push(n);
+    }
+    return out;
+  }
+
+  @Builder
+  private LargeTilesRowsChip(value: number, label: string) {
+    Button(label)
+      .layoutWeight(1).height(this.choiceHeight()).borderRadius(14)
+      .fontSize(this.isNarrowPhone() ? 11 : 13)
+      .backgroundColor(this.largeTilesRows === value ? $r('app.color.accent') : $r('app.color.search_background'))
+      .fontColor(this.largeTilesRows === value ? '#FFFFFFFF' : $r('app.color.text_primary'))
+      .onClick((): void => { this.updateLargeTilesRows(value); })
+      .id('large-tiles-rows-' + label)
+  }
+
   @Builder
   private SwitchRow(title: string, description: string, enabled: boolean,
     onChange: (value: boolean) => void, id: string = '') {
@@ -1919,6 +1958,25 @@ struct SystemSettingsPage {
               '融合：每个程序独立窗口；虚拟桌面：独立窗口承载 Wine 桌面（重启引擎后生效）。')
               .fontSize(12)
               .fontColor($r('app.color.text_secondary')).width('100%')
+          }
+          // 大屏瓦片模式: >8.8" 设备自动启用; 小屏可强制预览 (Switch 风混排网格)。
+          this.SwitchRow('大屏瓦片模式 (预览)',
+            'Switch 风混排网格。超过 8.8 英寸（MatePad Mini 分界）的设备在封面视图自动启用；开启后当前设备立即预览。',
+            this.largeTilesForce,
+            (value: boolean): void => this.updateLargeTilesForce(value),
+            'large-tiles-force')
+          if (this.largeTilesForce || DeviceCapabilityPolicy.isLargeScreen()) {
+            Text('瓦片行数（行数越多单卡越小）').fontSize(13).fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary')).width('100%')
+            Row({ space: 8 }) {
+              this.LargeTilesRowsChip(0, '默认')
+              ForEach(this.largeTilesRowOptions(), (n: number): void => {
+                this.LargeTilesRowsChip(n, n.toString())
+              }, (n: number): string => 'rows-' + n.toString())
+            }.width('100%')
+            Text('行数上限按设备分档: 平板 4 / PC 6 / TV 8。当前设备上限 ' +
+              DeviceCapabilityPolicy.largeTileRowCap().toString() + ' 行。')
+              .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
           }
           this.SwitchRow('桌面打开时保持亮屏',
             '游玩中自动锁屏会中断操作；关闭后恢复系统默认的自动锁屏策略',
