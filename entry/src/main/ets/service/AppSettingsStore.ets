@@ -36,6 +36,8 @@ const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
 const PLAY_TIME_KEY = 'play_time_v1';
 /** 封面抓取的 SteamGridDB API Key (独立键, 与全局设置解耦)。 */
 const SGDB_KEY = 'sgdb_api_key_v1';
+const LARGE_TILES_FORCE_KEY = 'large_tiles_force_v1';
+const LARGE_TILES_ROWS_KEY = 'large_tiles_rows_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
@@ -56,6 +58,8 @@ export class AppSettingsStore {
   private playMinutes: Map<string, number> = new Map<string, number>();
   private libraryPath: string = '';
   private sgdbApiKey: string = '';
+  private largeTilesForce: boolean = false;
+  private largeTilesRows: number = 0;
   private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
 
@@ -75,7 +79,33 @@ export class AppSettingsStore {
     this.loadRecentLaunches();
     this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
     this.loadRenderMode();
-    this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
+    this.largeTilesForce = this.store.getSync(LARGE_TILES_FORCE_KEY, false) as boolean;
+    const storedRows = this.store.getSync(LARGE_TILES_ROWS_KEY, 0) as number;
+    this.largeTilesRows = storedRows > 0 ? Math.floor(storedRows) : 0;
+  }
+
+  /** 大屏瓦片模式: 强制开启 (小屏预览用)。独立键存储。 */
+  getLargeTilesForce(): boolean {
+    return this.largeTilesForce;
+  }
+
+  async setLargeTilesForce(value: boolean): Promise<void> {
+    this.largeTilesForce = value;
+    if (!this.store) return;
+    await this.store.put(LARGE_TILES_FORCE_KEY, value);
+    await this.store.flush();
+  }
+
+  /** 大屏瓦片行数 (0 = 跟随设备默认档位)。独立键存储。 */
+  getLargeTilesRows(): number {
+    return this.largeTilesRows;
+  }
+
+  async setLargeTilesRows(rows: number): Promise<void> {
+    this.largeTilesRows = rows > 0 ? Math.floor(rows) : 0;
+    if (!this.store) return;
+    await this.store.put(LARGE_TILES_ROWS_KEY, this.largeTilesRows);
+    await this.store.flush();
   }
 
   /** 封面抓取 (SteamGridDB) 的 API Key: 独立键存储, 不进 GlobalSettings。 */

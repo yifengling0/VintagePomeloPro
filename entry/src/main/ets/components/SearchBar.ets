@@ -7,7 +7,8 @@ export struct AppSearchBar {
 
   build() {
     Search({ value: this.value, placeholder: this.placeholder })
-      .height(this.heightVp)
+      // 高度自适应 + minHeight 保底: 大字体设备上固定 vp 高会裁字
+      .constraintSize({ minHeight: this.heightVp })
       .width('100%')
       .backgroundColor($r('app.color.search_background'))
       .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
