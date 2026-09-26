@@ -1,13 +1,56 @@
 import deviceInfo from '@ohos.deviceInfo';
-import { window } from '@kit.ArkUI';
+import { window, display } from '@kit.ArkUI';
 import { hilog } from '../service/LogService';
 import { ScreenOrientationSetting } from '../model/AppModels';
 
 const DOMAIN = 0x0000;
+/** 大屏判定阈值 (物理对角线, 英寸)。≥8 寸走大屏模式, <8 寸保持单行封面流。 */
+const LARGE_SCREEN_INCHES = 8.0;
 
 export class DeviceCapabilityPolicy {
+  private static cachedDiagonalInches: number = -1;
+
   static deviceType(): string {
     return deviceInfo.deviceType;
+  }
+
+  /**
+   * 屏幕物理对角线 (英寸)。px / DPI 计算, 与当前旋转方向无关;
+   * DPI 不可用时回退 densityPixels*160。取 0 表示无法测量。
+   */
+  static screenDiagonalInches(): number {
+    if (DeviceCapabilityPolicy.cachedDiagonalInches >= 0) {
+      return DeviceCapabilityPolicy.cachedDiagonalInches;
+    }
+    let inches = 0;
+    try {
+      const d = display.getDefaultDisplaySync();
+      const density = d.densityPixels > 0 ? d.densityPixels : 3.5;
+      const dpiX = d.xDPI > 0 ? d.xDPI : density * 160;
+      const dpiY = d.yDPI > 0 ? d.yDPI : density * 160;
+      const wIn = d.width / dpiX;
+      const hIn = d.height / dpiY;
+      inches = Math.sqrt(wIn * wIn + hIn * hIn);
+    } catch (_) {
+      inches = 0;
+    }
+    DeviceCapabilityPolicy.cachedDiagonalInches = inches;
+    hilog.info(DOMAIN, 'DeviceCapabilityPolicy', 'screen diagonal=%{public}s large=%{public}s',
+      inches > 0 ? inches.toFixed(2) + 'in' : 'unknown',
+      String(DeviceCapabilityPolicy.isLargeScreen()));
+    return inches;
+  }
+
+  /** ≥8 寸 → 大屏设备 (后续大屏模式的开关; 当前仅检测上报, 不改变 UI 行为)。 */
+  static isLargeScreen(): boolean {
+    const inches = DeviceCapabilityPolicy.screenDiagonalInches();
+    return inches > 0 && inches >= LARGE_SCREEN_INCHES;
+  }
+
+  /** 设置页展示用: "5.6 英寸"。 */
+  static screenSizeLabel(): string {
+    const inches = DeviceCapabilityPolicy.screenDiagonalInches();
+    return inches > 0 ? inches.toFixed(1) + ' 英寸' : '未知';
   }
 
   static isPhoneDevice(): boolean {

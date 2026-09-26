@@ -1984,11 +1984,11 @@ struct SystemSettingsPage {
           }
           .width('100%').padding(14).backgroundColor($r('app.color.search_background')).borderRadius(14)
 
-          // 封面与元数据: SteamGridDB API Key (用于详情页一键抓取竖版封面)。
+          // 封面与元数据: 双图源 —— 默认免 Key 的 Steam 官方源, 可选 SteamGridDB 增强。
           Column({ space: 10 }) {
             Text('封面与元数据').fontSize(13).fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.text_primary')).width('100%')
-            Text('填入 SteamGridDB API Key 后，可在游戏详情页一键抓取竖版封面（自动写入该游戏目录的 cover.png，扫描后立即生效）。免费申请：steamgriddb.com → Preferences → API。')
+            Text('默认使用 Steam 官方公开图源（免 Key）：按游戏名匹配后抓取官方竖版封面，写入该游戏目录的 cover.jpg，扫描后立即生效。可选填 SteamGridDB API Key 作为增强源：官方源未命中时自动改走 SteamGridDB（免费申请：steamgriddb.com → Preferences → API）。')
               .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
             TextInput({ placeholder: 'SteamGridDB API Key', text: this.sgdbKeyDraft })
               .fontSize(13).height(44).borderRadius(12)
@@ -2385,6 +2385,9 @@ struct SystemSettingsPage {
               .fontSize(13).fontColor($r('app.color.text_primary')).width('100%')
             Text('支持桌面、多窗口、虚拟输入以及每个应用的独立运行设置。')
               .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+            Text('屏幕 ' + DeviceCapabilityPolicy.screenSizeLabel() + ' · ' +
+              (DeviceCapabilityPolicy.isLargeScreen() ? '大屏设备（大屏模式待启用）' : '单行封面流模式'))
+              .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%').id('screen-size-info')
           }
           .width('100%').padding(14).borderRadius(16)
           .backgroundColor($r('app.color.search_background'))
