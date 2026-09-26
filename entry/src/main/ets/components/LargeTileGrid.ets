@@ -1,4 +1,8 @@
 import { AppDescriptor } from '../model/AppModels';
+import { hilog } from '../service/LogService';
+
+const DOMAIN = 0x0000;
+const TAG = 'LargeTileGrid';
 
 /** 单个瓦片的布局盒 (页面内绝对定位)。 */
 export interface TileBox {
@@ -278,6 +282,8 @@ export struct LargeTileGrid {
     .shadow(this.dragId === t.app.id
       ? { radius: 24, color: '#66000000', offsetX: 0, offsetY: 8 }
       : { radius: 0, color: '#00000000', offsetX: 0, offsetY: 0 })
+    // 挂 app id: uitest dumpLayout 可按 tile-<id> 反查每张卡的 bounds (验证换位)
+    .id('tile-' + t.app.id)
     .onClick((): void => {
       if (this.dragId === '' && this.liftedId === '') this.onLaunch(t.app);
     })
@@ -285,19 +291,25 @@ export struct LargeTileGrid {
       // 长按拿起; 抬起时没拖动 → 打开原长按菜单
       LongPressGesture({ repeat: false, duration: 280 })
         .onAction((): void => {
+          hilog.info(DOMAIN, TAG, 'lift %{public}s', t.app.id);
           if (this.dragId === '') this.liftedId = t.app.id;
         })
         .onActionEnd((): void => {
+          hilog.info(DOMAIN, TAG, 'lpEnd lifted=%{public}s drag=%{public}s',
+            this.liftedId, this.dragId);
           if (this.liftedId === t.app.id && this.dragId === '') {
             this.resetDrag();
             this.onLongPress(t.app);
           }
         })
         .onActionCancel((): void => {
+          hilog.info(DOMAIN, TAG, 'lpCancel %{public}s', t.app.id);
           if (this.dragId !== t.app.id) this.liftedId = '';
         }),
       PanGesture({ fingers: 1, distance: 10 })
         .onActionStart((_e: GestureEvent): void => {
+          hilog.info(DOMAIN, TAG, 'panStart lifted=%{public}s id=%{public}s',
+            this.liftedId, t.app.id);
           if (this.liftedId === t.app.id && this.dragId === '') {
             this.dragId = t.app.id;
             this.dragDX = 0;
@@ -316,14 +328,25 @@ export struct LargeTileGrid {
         .onActionEnd((_e: GestureEvent): void => {
           if (this.dragId !== t.app.id) return;
           const dragId = this.dragId;
-          const target = this.findDropTargetAt(
-            t.col * (this.cellW() + GAP) + this.cellW() * t.colSpan / 2 + this.dragDX,
-            t.row * (this.cellH() + GAP) + this.cellH() * t.rowSpan / 2 + this.dragDY,
-            dragId);
+          const centerX = t.col * (this.cellW() + GAP) + this.cellW() * t.colSpan / 2 + this.dragDX;
+          const centerY = t.row * (this.cellH() + GAP) + this.cellH() * t.rowSpan / 2 + this.dragDY;
+          const target = this.findDropTargetAt(centerX, centerY, dragId);
           this.resetDrag();
-          if (target.length > 0) this.onSwap(dragId, target);
+          if (target.length > 0) {
+            hilog.info(DOMAIN, TAG, 'emitSwap %{public}s -> %{public}s', dragId, target);
+            this.onSwap(dragId, target);
+          } else if (centerX >= 0 && centerX <= this.canvasW &&
+            centerY >= 0 && centerY <= this.canvasH - DOTS_STRIP) {
+            // 落在空白处: 移到序列末尾 (dropId 传空串), 打包时自动进最近的空闲槽位
+            hilog.info(DOMAIN, TAG, 'emitMoveToEnd %{public}s (%{public}d,%{public}d)',
+              dragId, Math.round(centerX), Math.round(centerY));
+            this.onSwap(dragId, '');
+          }
         })
-        .onActionCancel((): void => { this.resetDrag(); })
+        .onActionCancel((): void => {
+          hilog.info(DOMAIN, TAG, 'panCancel %{public}s', t.app.id);
+          this.resetDrag();
+        })
     ))
   }
 
