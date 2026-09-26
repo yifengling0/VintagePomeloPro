@@ -19,9 +19,34 @@
    别把上游关于方向的改动往我们 UI 上搬。
 3. **大屏（≥8 寸物理对角线）走"大屏模式"，而不是竖屏**。检测机制已加：
    `DeviceCapabilityPolicy.screenDiagonalInches()`（px/DPI 算对角线，缓存 + 首算落 hilog）、
-   `isLargeScreen()`（≥8.0）、`screenSizeLabel()`；Index `aboutToAppear` 首启触发一次；
+   `isLargeScreen()`、`screenSizeLabel()`；Index `aboutToAppear` 首启触发一次；
    设置页"关于"区有展示行（`.id('screen-size-info')`，uitest 可验）。
-   **大屏模式的具体形态未定**，用户会后续再提；当前检测只上报、不改变任何 UI 行为。
+   **2026-09-27 更新：阈值已按用户指示改为华为 MatePad Mini (2025) 的 8.8 英寸分界——
+   `> 8.8"` 大屏，`≤ 8.8"` 小屏（即单行环形封面流）。**
+
+## 0.5 大屏瓦片模式（2026-09-27 实装，`dd45efb`）
+
+用户给了 Switch 主机首页截图做参照：**大屏封面视图 = 大小混排瓦片网格（bento），横屏翻页，页点指示器；
+顶栏/底栏等其他结构不变**。当前实现：
+
+- **新组件 `components/LargeTileGrid.ets`**：固定行数 + 方形单元，按 bento 序列
+  `[2x2, 1x1, 1x1, 2x1, 1x1, 1x2, 1x1, 2x1, 1x1, 1x1]` 货架式装箱（装不下自动降级 1x1，一页满开新页）；
+  Swiper 横向翻页 + DotIndicator；单击 = 启动（launch），长按 = 既有长按菜单；运行中瓦片右上角绿点。
+- **接线**：`Index.StandardLayout()` 的 `ViewMode.COVER` 分支里 `useLargeTileMode()` 为真时用
+  `LargeTileArea()` 替代 `CoverFlow()`——**只换封面视图，其他视图模式（网格/紧凑/列表）不受影响**；
+  顶栏/底栏/详情页/长按菜单全部复用。
+- **启用条件**：`isLargeScreen() (>8.8") || 强制预览开关`。开关在设置页"显示模式"区
+  （`SwitchRow .id('large-tiles-force')`，独立 preferences 键 `large_tiles_force_v1`），
+  小屏手机可开它预览；通过 AppStorage(`largeTilesForce`/`largeTilesRows`) 与主页实时联动。
+- **行数档位（用户定的三档）**：`DeviceCapabilityPolicy.largeTileRowCap()` = TV 8 / PC(2in1) 6 / 平板 4
+  （手机预览上限也是 4，默认 3 行）。用户可自定义行数（设置页"瓦片行数"芯片，`默认/2..cap`，
+  键 `large_tiles_rows_v1`，0=跟设备默认）。**将来若下放小屏，做成可选主题；大屏强制用瓦片。**
+- **布局坑**：瓦片区必须给底部悬浮导航栏预留 padding（`bottom: max(72, navBarInsetVp+52)`），
+  否则最后一行被导航栏盖住（首版就栽在这）；顶部留 24（用户反馈"太贴合搜索框"）。
+- **真机已验**（手机 6.7" + 强制预览）：三行混排完整显示、翻页正常、顶部间距合适。
+  截图 `E:\iiSU\shots\tiles-main-3.jpeg`（第二页 + 页点）、`tiles-main.jpeg`（首版遮挡对照）。
+- **同批修复**：主页顶栏搜索框 & `AppSearchBar` 大字体裁字——`fontSize` 是 fp 随系统字体放大、
+  固定 `.height(vp)` 不缩放会裁字，改为 `.constraintSize({ minHeight })` 高度自适应（用户报的大屏遮挡 bug）。
 
 ---
 
