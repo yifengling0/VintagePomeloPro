@@ -8,13 +8,15 @@ export struct AppCard {
   @Prop running: boolean = false;
   @Prop useGlassEffect: boolean = true;
   @Prop narrowPhone: boolean = false;
+  @Prop artworkPath: string = '';
   @State private pressed: boolean = false;
   onLaunch: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
   onSettings: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
   onLongPress: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
+  onVisible: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
 
-  private coverSource(): string {
-    return this.app.coverPath.startsWith('file://') ? this.app.coverPath : 'file://' + this.app.coverPath;
+  private coverSource(path: string): string {
+    return path.startsWith('file://') ? path : 'file://' + path;
   }
 
   private coverHeight(): number {
@@ -148,13 +150,19 @@ export struct AppCard {
   private Cover(height: number) {
     Stack({ alignContent: Alignment.TopStart }) {
       if (this.app.coverPath.length > 0) {
-        Image(this.coverSource())
+        Image(this.coverSource(this.app.coverPath))
           .width('100%')
           .height(height)
           .objectFit(ImageFit.Cover)
           .draggable(false)
       } else if (this.app.source === AppSource.BUILTIN) {
         Image(this.builtinCover())
+          .width('100%')
+          .height(height)
+          .objectFit(ImageFit.Cover)
+          .draggable(false)
+      } else if (this.artworkPath.length > 0) {
+        Image(this.coverSource(this.artworkPath))
           .width('100%')
           .height(height)
           .objectFit(ImageFit.Cover)
@@ -252,6 +260,9 @@ export struct AppCard {
       .animation({ duration: 120, curve: Curve.EaseOut })
       .onTouch((event: TouchEvent) => this.handleCardTouch(event))
       .onClick(() => this.onLaunch(this.app))
+      .onVisibleAreaChange([0.1], (visible: boolean): void => {
+        if (visible) this.onVisible(this.app);
+      })
       .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
       .id('wine-app-card-' + this.app.id)
     } else {
@@ -271,6 +282,9 @@ export struct AppCard {
       .animation({ duration: 120, curve: Curve.EaseOut })
       .onTouch((event: TouchEvent) => this.handleCardTouch(event))
       .onClick(() => this.onLaunch(this.app))
+      .onVisibleAreaChange([0.1], (visible: boolean): void => {
+        if (visible) this.onVisible(this.app);
+      })
       .gesture(LongPressGesture().onAction(() => this.onLongPress(this.app)))
       .id('wine-app-card-' + this.app.id)
     }

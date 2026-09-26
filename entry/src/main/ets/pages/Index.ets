@@ -862,6 +862,10 @@ struct Index {
     WineWindowManager.getInstance().setOutputScalePercent(this.settings.outputScale);
     this.settingsCallback = (settings: GlobalSettings): void => {
       this.settings = settings;
+      if (settings.uiSkin !== UiSkin.CONSOLE) {
+        this.consoleDetailVisible = false;
+        this.consoleDetailApp = null;
+      }
       this.syncConsoleNavigation();
       WineWindowManager.getInstance().setOutputScalePercent(settings.outputScale);
       GamepadManager.getInstance().setDeadzone(settings.gamepadDeadzone);
@@ -1545,9 +1549,13 @@ struct Index {
       running: this.runningAppIds.has(app.id),
       useGlassEffect: this.settings.useGlassEffect,
       narrowPhone: this.isPhone(),
-      onLaunch: (target: AppDescriptor): void => { this.showConsoleDetail(target); },
+      artworkPath: this.consoleBackground(app),
+      onLaunch: (target: AppDescriptor): void => { void this.launch(target); },
       onSettings: (target: AppDescriptor): void => { this.openAppSettings(target); },
-      onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); }
+      onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); },
+      onVisible: (target: AppDescriptor): void => {
+        GameArtworkService.getInstance().enqueueIfMissing(target);
+      }
     })
   }
 
@@ -2331,10 +2339,9 @@ struct Index {
   }
 
   private showConsoleDetail(app: AppDescriptor): void {
-    if (this.settings.uiSkin === UiSkin.CONSOLE) {
-      ConsoleUiSound.getInstance().select();
-      this.focusConsoleApp(app);
-    }
+    if (this.settings.uiSkin !== UiSkin.CONSOLE) return;
+    ConsoleUiSound.getInstance().select();
+    this.focusConsoleApp(app);
     this.consoleDetailApp = app;
     this.consoleDetailVisible = true;
   }
@@ -3056,7 +3063,7 @@ struct Index {
         .shadow({ radius: this.launcherVisible ? 12 : 0, color: '#66000000', offsetX: 0, offsetY: this.launcherVisible ? 4 : 0 })
         .id('desktop-layer-container')
       }
-      if (this.libraryChromeVisible()) {
+      if (this.settings.uiSkin === UiSkin.CONSOLE && this.libraryChromeVisible()) {
         this.ConsoleDetailOverlay()
       }
       WineEngineBlockingOverlay()

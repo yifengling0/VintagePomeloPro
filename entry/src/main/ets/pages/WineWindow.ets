@@ -429,7 +429,7 @@ struct WineWindow {
       }
       const pressed = (event.type === KeyType.Down);
       hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] KEY ohos=%{public}d->evdev=%{public}d %{public}s',
-        this.toplevelId, event.keyCode, evdevCode, pressed ? 'DOWN' : 'UP');
+        event.keyCode, evdevCode, pressed ? 'DOWN' : 'UP');
       // 回车补发: 软键盘/IME 场景系统吞 KeyDown 只派 KeyUp → Wine 收不到按下
       if (evdevCode === EVDEV_KEY_ENTER) {
         if (pressed) {
