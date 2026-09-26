@@ -1810,6 +1810,7 @@ struct Index {
 
   /** 拖拽换位: 先把当前可见顺序物化成显式序列, 再交换两 id, 持久化。 */
   private swapTileApps(dragId: string, dropId: string): void {
+    hilog.info(0x0000, 'Index', 'swapTileApps drag=%{public}s drop=%{public}s', dragId, dropId);
     if (dragId === dropId) return;
     const visibleIds = this.orderedTileApps(this.visibleApps)
       .map((a: AppDescriptor): string => a.id);
@@ -1818,10 +1819,18 @@ struct Index {
       if (!order.includes(id)) order.push(id);
     });
     const i = order.indexOf(dragId);
-    const j = order.indexOf(dropId);
-    if (i < 0 || j < 0) return;
-    order[i] = dropId;
-    order[j] = dragId;
+    if (i < 0) return;
+    if (dropId.length === 0) {
+      // 空白处落卡: 移到序列末尾, 打包时自动进最近的空闲槽位
+      if (i === order.length - 1) return;
+      order.splice(i, 1);
+      order.push(dragId);
+    } else {
+      const j = order.indexOf(dropId);
+      if (j < 0) return;
+      order[i] = dropId;
+      order[j] = dragId;
+    }
     this.tileOrder = order;
     void AppSettingsStore.getInstance().setTileOrder(order);
   }
