@@ -674,7 +674,7 @@ struct Index {
           hilog.info(DOMAIN, 'IME', '[keyboardStatus] %{public}d', status);
         });
         controller.on('setPreviewText', (text: string, range: inputMethod.Range) => {
-          testNapi.wineTextInputPreedit(text, 0, text.length);
+          testNapi.wineTextInputPreedit(text);
         });
         // 软键盘回车 (DONE/NEWLINE 功能键): 本设备 onKeyEvent 收不到软键盘回车,
         // 在 sendFunctionKey 回调直接向激活窗口注入回车 down+up 实现换行
@@ -1433,6 +1433,8 @@ struct Index {
       appId: settings.appId,
       customTitle: settings.customTitle,
       customCover: settings.customCover,
+      backgroundMode: settings.backgroundMode,
+      manualBackgroundPath: settings.manualBackgroundPath,
       favorite: !settings.favorite,
       box64Preset: settings.box64Preset,
       graphicsLaunchPreset: settings.graphicsLaunchPreset,
