@@ -6,6 +6,25 @@
 
 ---
 
+## 0. 三条既定方针（2026-09-26 用户口头确认，后续会话必须遵守）
+
+1. **封面抓取双图源并存**：默认走**免 Key 的 Steam 官方源**
+   （`store.steampowered.com/api/storesearch` 认名 → `cdn.cloudflare.steamstatic.com/steam/apps/<id>/library_600x900.jpg`
+   竖版封面；两个端点 2026-09-26 本机 curl 实测 HTTP 200）。设置页填了 SteamGridDB Key 时，
+   官方源未命中自动改走 SteamGridDB。这套逻辑随合并已就位（`service/MetadataScraper.ets` + `model/GameArtworkRules.ets`），
+   设置页文案已同步改写。**M4 抓取不再被"注册不了 SteamGridDB"卡住。**
+2. **强制横屏是本地方针，不跟上游回退横竖屏**。上游 1.4.2 为兼容大屏重新放开了竖屏
+   （`ScreenOrientationSetting.PORTRAIT` 枚举值还在），但我们的设置页**不提供竖屏入口**、默认与运行时强制
+   `SENSOR_LANDSCAPE`（见 `DeviceCapabilityPolicy.applyLauncherLandscapeRotation`，Index/SystemSettings 启动即调）。
+   别把上游关于方向的改动往我们 UI 上搬。
+3. **大屏（≥8 寸物理对角线）走"大屏模式"，而不是竖屏**。检测机制已加：
+   `DeviceCapabilityPolicy.screenDiagonalInches()`（px/DPI 算对角线，缓存 + 首算落 hilog）、
+   `isLargeScreen()`（≥8.0）、`screenSizeLabel()`；Index `aboutToAppear` 首启触发一次；
+   设置页"关于"区有展示行（`.id('screen-size-info')`，uitest 可验）。
+   **大屏模式的具体形态未定**，用户会后续再提；当前检测只上报、不改变任何 UI 行为。
+
+---
+
 ## 1. 先说最重要的三件事
 
 1. **上游自己也实现了一套主机风 UI**（`feat(ui): add optional console skin and game artwork`）：新增
