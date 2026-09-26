@@ -10,6 +10,8 @@ export interface TileBox {
 }
 
 const GAP: number = 10;
+/** 翻页小球条带高度 (vp): 瓦片区之外, 紧贴导航栏上方。 */
+const DOTS_STRIP: number = 20;
 const MIN_ROWS = 2;
 const MAX_ROWS = 8;
 
@@ -30,6 +32,16 @@ export struct LargeTileGrid {
   onLongPress: (app: AppDescriptor) => void = (_a: AppDescriptor): void => {};
   @State private canvasW: number = 0;
   @State private canvasH: number = 0;
+  @State private currentPage: number = 0;
+
+  /** 贴图与瓦片形状对等: 横条 (2x1) 优先用游戏的背景横图, 竖条/方形用竖版封面。 */
+  private artOf(t: TileBox): string {
+    if (t.colSpan > t.rowSpan && t.app.backgroundPath && t.app.backgroundPath.length > 0) {
+      const bg = t.app.backgroundPath;
+      return bg.startsWith('file://') ? bg : 'file://' + bg;
+    }
+    return this.coverOf(t.app);
+  }
 
   private effRows(): number {
     return Math.max(MIN_ROWS, Math.min(MAX_ROWS, Math.floor(this.rows)));
@@ -37,7 +49,7 @@ export struct LargeTileGrid {
 
   private cellH(): number {
     const rows = this.effRows();
-    return (this.canvasH - (rows - 1) * GAP) / rows;
+    return (this.canvasH - DOTS_STRIP - (rows - 1) * GAP) / rows;
   }
 
   private cellW(): number {
@@ -161,12 +173,29 @@ export struct LargeTileGrid {
   @Builder
   private Tile(t: TileBox) {
     Stack({ alignContent: Alignment.TopEnd }) {
-      if (this.coverOf(t.app).length > 0) {
-        Image(this.coverOf(t.app))
-          .objectFit(ImageFit.Cover)
-          .draggable(false)
-          .width('100%')
-          .height('100%')
+      if (this.artOf(t).length > 0) {
+        if (t.colSpan !== t.rowSpan) {
+          // 宽/竖条瓦片: 底层同图模糊撑满 + 上层完整图 Contain,
+          // 避免把竖版封面硬裁成横条 (或反之) 的怪异观感。
+          Image(this.artOf(t))
+            .objectFit(ImageFit.Cover)
+            .draggable(false)
+            .blur(20)
+            .scale({ x: 1.15, y: 1.15 })
+            .width('100%')
+            .height('100%')
+          Image(this.artOf(t))
+            .objectFit(ImageFit.Contain)
+            .draggable(false)
+            .width('100%')
+            .height('100%')
+        } else {
+          Image(this.artOf(t))
+            .objectFit(ImageFit.Cover)
+            .draggable(false)
+            .width('100%')
+            .height('100%')
+        }
       } else {
         Text(t.app.title.length > 0 ? t.app.title.substring(0, 1) : '?')
           .fontSize(34).fontWeight(FontWeight.Bold)
@@ -208,15 +237,26 @@ export struct LargeTileGrid {
             '-' + this.effRows().toString() + '-' + this.cols().toString() + '-' +
             (page.length > 0 ? page[0].app.id : 'e'))
         }
-        .indicator(new DotIndicator()
-          .itemWidth(6).itemHeight(6)
-          .selectedItemWidth(8).selectedItemHeight(8)
-          .selectedColor($r('app.color.accent')))
+        .indicator(false)
         .loop(false)
         .duration(260)
+        .onChange((index: number): void => { this.currentPage = index; })
+        .layoutWeight(1)
         .width('100%')
-        .height('100%')
         .id('large-tile-swiper')
+        // 翻页小球条带: 独立于瓦片区 (不挤压行高), 紧贴导航栏上方。
+        // key 里带上选中态, 否则 ForEach 不重跑 itemGenerator、选中小球不变色。
+        Row({ space: 6 }) {
+          ForEach(this.packPages(), (page: TileBox[], index: number): void => {
+            Circle({ width: this.currentPage === index ? 8 : 6,
+              height: this.currentPage === index ? 8 : 6 })
+              .fill(this.currentPage === index ? $r('app.color.accent') : '#55FFFFFF')
+          }, (page: TileBox[], index: number): string =>
+            'dot-' + index.toString() + '-' + (this.currentPage === index ? 'on' : 'off'))
+        }
+        .height(DOTS_STRIP)
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
       } else if (this.apps.length === 0) {
         Text('没有可显示的程序')
           .fontSize(14).fontColor($r('app.color.text_secondary'))
