@@ -81,12 +81,6 @@ export enum ConsolePalette {
   PEARL = 'pearl'
 }
 
-export enum SortMode {
-  RECENT = 'recent',
-  NAME = 'name',
-  PLAY_TIME = 'play_time'
-}
-
 export enum GameBackgroundMode {
   AUTO = 'auto',
   MANUAL = 'manual'

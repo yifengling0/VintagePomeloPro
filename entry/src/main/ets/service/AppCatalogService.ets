@@ -20,7 +20,6 @@ import {
   catalogFileName,
   chooseBackgroundFileName,
   chooseCoverFileName,
-  chooseBackgroundFileName,
   chooseExecutablePath,
   isWindowsLaunchTarget,
   shouldRetainMissingCachedCard
