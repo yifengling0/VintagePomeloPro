@@ -122,7 +122,9 @@ export class SteamService {
     this.qrClientId = '';
     this.qrRequestId = '';
     const transport = new SteamHttpTransport();
-    const response = await transport.postForm(SteamAuthEndpoint.BEGIN_QR_SESSION, []);
+    // website_id 与 PC 实测一致; 空 body 在 @ohos http 上行为不确定, 显式带一个字段
+    const response = await transport.postForm(SteamAuthEndpoint.BEGIN_QR_SESSION,
+      [new SteamFormField('website_id', 'Community')]);
     if (response.statusCode !== 200) {
       throw new Error('HTTP ' + response.statusCode);
     }

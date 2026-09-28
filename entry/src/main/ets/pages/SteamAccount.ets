@@ -267,10 +267,10 @@ struct SteamAccount {
       this.qrUrl = url;
       this.qrStatus = '打开 Steam 手机 App 扫码，然后在手机上确认登录';
       this.startQrPoll();
-    }).catch((_e: Object): void => {
+    }).catch((e: Object): void => {
       this.qrStatus = '';
       this.loginMode = 'password';
-      this.message = '生成二维码失败，请检查网络后重试';
+      this.message = '生成二维码失败：' + JSON.stringify(e);
     });
   }
 
