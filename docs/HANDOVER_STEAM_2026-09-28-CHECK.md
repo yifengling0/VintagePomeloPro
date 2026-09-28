@@ -192,6 +192,18 @@ completeChallenge 对 MOBILE_CONFIRMATION 会话直接无视提交的验证码�
 账号页 NEEDS_CONFIRM 分支加"5 位令牌验证码"输入框（steam-confirm-code-input/submit，
 与手机确认轮询并行）。NOTICE.md 已记档。
 
+### 7.4 令牌验证码死循环根因（6ce9ca6）
+
+用户实测 fbd5d09 报"一直循环验证令牌"。根因：**keystone 风格错误以 HTTP 200 + `x-error` 响应头
+返回**（验证码被拒即如此），vendor 的 SteamAuthHttpResponse 只带 statusCode+body、responseObject
+只查状态码 → 拒绝被当成功 → pollAfterChallengeCode 轮询发现会话仍在等 → 界面再要码 → 死循环。
+且 Steam 对**未信任新设备**的首次密码登录常只认手机确认（TOTP 被拒属正常风控）。
+
+修复：SteamAuthHttpResponse 加 headers/keystoneError()（vendor，NOTICE 记档）、transport 透传
+响应头（POST/GET 两路）、responseObject 先查 x-error、submitCode 失败留在验证界面显示 Steam
+真实拒绝原因（不再弹回登录表单循环）。预期：新设备首次登录**手机确认一次后**启动器记住会话
+（refresh_token 落 AssetStore），之后启动自动恢复免一切验证。
+
 ## 6. 环境备忘（上会话验证过的事实）
 
 - 编译链路：`bash /e/iiSU/vpp-check-sync.sh /tmp/<日志名>.log`（同步 E:\ui-sync → E:\vpp-build 后
