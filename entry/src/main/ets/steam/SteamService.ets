@@ -17,6 +17,7 @@ import { SteamCryptoAdapter } from './SteamCryptoAdapter';
 import { SteamHttpTransport } from './SteamHttpTransport';
 import { SteamClock } from './SteamClock';
 import { SteamAccountStore, SteamProfile } from './SteamAccountStore';
+import { SteamMaFileImporter, SteamMaFileImportResult } from './vendor/import/SteamImporters';
 
 const DOMAIN = 0x0000;
 const TAG = 'SteamService';
@@ -313,6 +314,44 @@ export class SteamService {
     }
     await this.store.storeSecret(this.steamId64, 'shared_secret', secret.trim());
     this.setState(this.state, '令牌密钥已保存');
+  }
+
+  /** maFile 导入（W3）：解析 JSON，shared_secret/identity_secret/device_id 逐项入 AssetStore。
+   * 存储键用 maFile 自带 steamid（与登录账号一致时令牌立即生效）。返回给 UI 的报告文案。 */
+  async importMaFile(json: string): Promise<string> {
+    let result: SteamMaFileImportResult;
+    try {
+      result = SteamMaFileImporter.importMaFile(json);
+    } catch (e) {
+      const reason = (e as Error).message;
+      return 'maFile 解析失败：' + (reason.length > 0 ? reason : '格式不正确');
+    }
+    const steamId = result.steamId64;
+    const cred = result.credentials;
+    try {
+      await this.store.storeSecret(steamId, 'shared_secret', cred.sharedSecret);
+      await this.store.storeSecret(steamId, 'identity_secret', cred.identitySecret);
+      if (cred.deviceId.length > 0) {
+        await this.store.storeSecret(steamId, 'device_id', cred.deviceId);
+      }
+    } catch (_) {
+      return '密钥写入安全存储失败，请重试';
+    }
+    const parts: Array<string> = ['导入成功：识别 ' + result.report.recognizedFields.length + ' 项密钥'];
+    if (steamId !== this.steamId64) {
+      parts.push(this.steamId64.length > 0
+        ? '注意：maFile 属于其他账号，登录该账号后令牌生效'
+        : '注意：当前未登录，登录 maFile 对应账号后令牌生效');
+    }
+    if (result.report.unknownFields.length > 0) {
+      parts.push('忽略未知字段 ' + result.report.unknownFields.length + ' 个');
+    }
+    if (result.report.warnings.length > 0) {
+      parts.push('警告 ' + result.report.warnings.length + ' 条');
+    }
+    hilog.info(DOMAIN, TAG, 'maFile imported; steamid=%{public}s, recognized=%{public}d',
+      steamId, result.report.recognizedFields.length);
+    return parts.join('；');
   }
 
   private static describeError(e: Object): string {

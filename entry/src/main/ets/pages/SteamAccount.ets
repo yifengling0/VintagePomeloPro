@@ -2,6 +2,8 @@ import { window } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
+import { fileIo as fs, picker } from '@kit.CoreFileKit';
+import { util } from '@kit.ArkTS';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { applyStatusOnlyImmersiveShell } from '../common/StatusOnlyImmersiveShell';
 import { SteamService, SteamUiState } from '../steam/SteamService';
@@ -30,6 +32,7 @@ struct SteamAccount {
   @State private hasSharedSecret: boolean = false;
   @State private secretInput: string = '';
   @State private importing: boolean = false;
+  @State private tokenMessage: string = '';
   private codeTimer: number = -1;
   private confirmTimer: number = -1;
 
@@ -99,6 +102,52 @@ struct SteamAccount {
         this.startGuardTimer();
       }
     });
+  }
+
+  /** W3: 文件选择器选 maFile → 读文本 → Service 解析入库。 */
+  private pickMaFile(): void {
+    const docPicker = new picker.DocumentViewPicker(this.context);
+    const options = new picker.DocumentSelectOptions();
+    this.importing = true;
+    docPicker.select(options).then((uris: Array<string>): void => {
+      this.importing = false;
+      if (uris.length === 0 || !uris[0]) {
+        return;
+      }
+      const text = this.readPickedText(uris[0]);
+      if (text.length === 0) {
+        this.tokenMessage = '读取文件失败（文件不可读或非文本）';
+        return;
+      }
+      SteamService.getInstance().importMaFile(text).then((report: string): void => {
+        this.tokenMessage = report;
+        this.refreshGuardSecretFlag();
+      });
+    }).catch((_e: Object): void => {
+      this.importing = false;
+    });
+  }
+
+  private readPickedText(uri: string): string {
+    let fd: number = -1;
+    try {
+      const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      fd = file.fd;
+      const stat = fs.statSync(fd);
+      const buf = new ArrayBuffer(stat.size);
+      fs.readSync(fd, buf);
+      const bytes = new Uint8Array(buf);
+      return util.TextDecoder.create('utf-8', { fatal: false }).decodeWithStream(bytes, { stream: false });
+    } catch (_) {
+      return '';
+    } finally {
+      if (fd >= 0) {
+        try {
+          fs.closeSync(fd);
+        } catch (_) {
+        }
+      }
+    }
   }
 
   private syncTimers(): void {
@@ -241,8 +290,20 @@ struct SteamAccount {
         Text('与 Steam 手机 App 一致，30 秒刷新；点击复制')
           .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
       } else {
-        Text('粘贴 Steam 手机令牌的 shared_secret（maFile 里的 Base64 字符串）后，这里会显示 5 位动态码。')
+        Text('用 Steam 手机令牌的 maFile 导入（推荐），或手动粘贴 shared_secret（Base64）。')
           .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+        Button(this.importing ? '读取中…' : '导入 maFile 文件')
+          .width('100%').height(38).borderRadius(10)
+          .backgroundColor($r('app.color.selected_background'))
+          .fontColor($r('app.color.text_primary'))
+          .enabled(!this.importing)
+          .onClick((): void => { this.pickMaFile(); })
+          .id('steam-mafile-import')
+        if (this.tokenMessage.length > 0) {
+          Text(this.tokenMessage).fontSize(11)
+            .fontColor($r('app.color.text_secondary')).width('100%')
+            .id('steam-mafile-message')
+        }
         TextInput({ placeholder: 'shared_secret（Base64）', text: this.secretInput })
           .fontSize(12).height(38).borderRadius(10)
           .backgroundColor($r('app.color.card_background'))
