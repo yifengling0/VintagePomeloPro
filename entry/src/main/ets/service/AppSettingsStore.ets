@@ -13,6 +13,7 @@ import {
   DisplayMode,
   GlobalSettings,
   GameBackgroundMode,
+  SortMode,
   UiSkin,
   WineLanguage,
   ViewMode,
@@ -32,10 +33,16 @@ const RECENT_LAUNCHES_KEY = 'recent_launches_v1';
 const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
 const PLAY_TIME_KEY = 'play_time_v1';
 const SGDB_KEY = 'sgdb_api_key_v1';
+const BENTO_STATE_KEY = 'console_bento_state_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
 const PLATFORM_DEFAULTS_KEY = 'platform_defaults_v7';
+
+interface BentoState {
+  sort?: SortMode;
+  order?: string[];
+}
 
 export class AppSettingsStore {
   private static instance: AppSettingsStore | null = null;
@@ -47,6 +54,9 @@ export class AppSettingsStore {
   private lastPlayedAt: Map<string, number> = new Map<string, number>();
   private playMinutes: Map<string, number> = new Map<string, number>();
   private sgdbApiKey: string = '';
+  private bentoSort: SortMode = SortMode.RECENT;
+  private bentoOrder: string[] = [];
+  private bentoWriteChain: Promise<void> = Promise.resolve();
   private libraryPath: string = '';
   private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
@@ -66,7 +76,43 @@ export class AppSettingsStore {
     this.libraryPath = this.store.getSync(LIBRARY_PATH_KEY, '') as string;
     this.loadRecentLaunches();
     this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
+    this.loadBentoState();
     this.loadRenderMode();
+  }
+
+  private loadBentoState(): void {
+    if (!this.store) return;
+    try {
+      const parsed = JSON.parse(this.store.getSync(BENTO_STATE_KEY, '{}') as string) as BentoState;
+      const sort = parsed.sort;
+      this.bentoSort = sort === SortMode.NAME || sort === SortMode.PLAY_TIME ||
+        sort === SortMode.CUSTOM ? sort : SortMode.RECENT;
+      const seen = new Set<string>();
+      this.bentoOrder = Array.isArray(parsed.order) ? parsed.order.filter((id: string): boolean => {
+        if (typeof id !== 'string' || id.length === 0 || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      }) : [];
+    } catch (_) {
+      this.bentoSort = SortMode.RECENT;
+      this.bentoOrder = [];
+    }
+  }
+
+  getBentoSort(): SortMode { return this.bentoSort; }
+  getBentoOrder(): string[] { return this.bentoOrder.slice(); }
+
+  async setBentoState(sort: SortMode, order: string[]): Promise<void> {
+    this.bentoSort = sort;
+    this.bentoOrder = order.slice();
+    if (!this.store) return;
+    const serialized = JSON.stringify({ sort: sort, order: this.bentoOrder });
+    const store = this.store;
+    this.bentoWriteChain = this.bentoWriteChain.catch((): void => {}).then(async (): Promise<void> => {
+      await store.put(BENTO_STATE_KEY, serialized);
+      await store.flush();
+    });
+    await this.bentoWriteChain;
   }
 
   getSgdbApiKey(): string { return this.sgdbApiKey; }
@@ -225,7 +271,8 @@ export class AppSettingsStore {
         viewMode: stored.viewMode ?? defaults.viewMode,
         uiSkin: stored.uiSkin === UiSkin.CONSOLE ? UiSkin.CONSOLE : UiSkin.CLASSIC,
         consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.GALLERY ||
-          stored.consoleCardLayout === ConsoleCardLayout.XBOX_TILES ? stored.consoleCardLayout : ConsoleCardLayout.FOCUS_3D,
+          stored.consoleCardLayout === ConsoleCardLayout.XBOX_TILES ||
+          stored.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ? stored.consoleCardLayout : ConsoleCardLayout.FOCUS_3D,
         consolePalette: stored.consolePalette === ConsolePalette.BLUE ||
           stored.consolePalette === ConsolePalette.PEARL ? stored.consolePalette : ConsolePalette.VIOLET,
         themeMode: stored.themeMode ?? defaults.themeMode,

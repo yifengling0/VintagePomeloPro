@@ -9,6 +9,7 @@ import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
 import { ConsoleGameCard } from '../components/ConsoleGameCard';
+import { ConsoleBentoGrid, BentoTileBox } from '../components/ConsoleBentoGrid';
 import { ConsoleRingItem } from '../components/ConsoleRingItem';
 import { GameDetailSheet } from '../components/GameDetailSheet';
 import { FileBrowserView } from '../components/FileBrowserView';
@@ -146,6 +147,10 @@ struct Index {
   @State private breakpoint: BreakpointType = 'lg';
   @State private sidebarCollapsed: boolean = false;
   @State private consoleSort: SortMode = SortMode.RECENT;
+  @State private bentoSort: SortMode = SortMode.RECENT;
+  @State private bentoOrder: string[] = [];
+  @State private bentoInteractionEpoch: number = 0;
+  private bentoPages: BentoTileBox[][] = [];
   @State private consoleOrderedApps: AppDescriptor[] = [];
   @State private consoleFocusIndex: number = 0;
   @State private consoleRingOffset: number = 0;
@@ -762,6 +767,7 @@ struct Index {
 
   onPageHide(): void {
     this.consolePageVisible = false;
+    this.bentoInteractionEpoch++;
     this.detachConsoleNavigation();
     this.suspendConsoleRingForPageTransition();
     this.captureScrollOffsets();
@@ -859,9 +865,13 @@ struct Index {
   private async initialize(): Promise<void> {
     await ThemeSettingsService.getInstance().initialize(this.context);
     this.settings = ThemeSettingsService.getInstance().getSettings();
+    this.bentoSort = AppSettingsStore.getInstance().getBentoSort();
+    this.bentoOrder = AppSettingsStore.getInstance().getBentoOrder();
     WineWindowManager.getInstance().setOutputScalePercent(this.settings.outputScale);
     this.settingsCallback = (settings: GlobalSettings): void => {
+      if (this.settings.consoleCardLayout !== settings.consoleCardLayout) this.bentoPages = [];
       this.settings = settings;
+      this.syncConsoleFocus();
       if (settings.uiSkin !== UiSkin.CONSOLE) {
         this.consoleDetailVisible = false;
         this.consoleDetailApp = null;
@@ -892,6 +902,12 @@ struct Index {
     try {
       this.consoleBackgroundCache.clear();
       this.apps = await AppCatalogService.getInstance().scan();
+      const known = new Set(this.apps.map((app: AppDescriptor): string => app.id));
+      const retained = this.bentoOrder.filter((id: string): boolean => known.has(id));
+      if (retained.length !== this.bentoOrder.length) {
+        this.bentoOrder = retained;
+        void AppSettingsStore.getInstance().setBentoState(this.bentoSort, retained);
+      }
       this.refreshRunningState();
     } finally {
       this.scanning = false;
@@ -1959,11 +1975,22 @@ struct Index {
   }
 
   private orderedConsoleApps(): AppDescriptor[] {
-    const result = this.visibleApps.slice();
+    const sort = this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ?
+      this.bentoSort : this.consoleSort;
+    return this.sortConsoleApps(this.visibleApps, sort);
+  }
+
+  private sortConsoleApps(apps: AppDescriptor[], sort: SortMode): AppDescriptor[] {
+    const result = apps.slice();
     const store = AppSettingsStore.getInstance();
-    if (this.consoleSort === SortMode.NAME) {
+    if (sort === SortMode.CUSTOM) {
+      const rank = new Map<string, number>();
+      this.bentoOrder.forEach((id: string, index: number): void => { rank.set(id, index); });
+      result.sort((a: AppDescriptor, b: AppDescriptor): number =>
+        (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+    } else if (sort === SortMode.NAME) {
       result.sort((a: AppDescriptor, b: AppDescriptor): number => a.title.localeCompare(b.title));
-    } else if (this.consoleSort === SortMode.PLAY_TIME) {
+    } else if (sort === SortMode.PLAY_TIME) {
       result.sort((a: AppDescriptor, b: AppDescriptor): number =>
         store.getPlayMinutes(b.id) - store.getPlayMinutes(a.id));
     } else {
@@ -1973,10 +2000,50 @@ struct Index {
     return result;
   }
 
+  /** Replace only the visible positions in the full order, preserving hidden apps. */
+  private commitBentoOrder(visibleOrder: string[]): void {
+    const full = this.sortConsoleApps(this.apps, this.bentoSort)
+      .map((app: AppDescriptor): string => app.id);
+    const visible = new Set(visibleOrder);
+    let nextVisible = 0;
+    for (let index = 0; index < full.length; index++) {
+      if (visible.has(full[index])) full[index] = visibleOrder[nextVisible++];
+    }
+    if (nextVisible !== visibleOrder.length) return;
+    this.bentoOrder = full;
+    this.bentoSort = SortMode.CUSTOM;
+    void AppSettingsStore.getInstance().setBentoState(this.bentoSort, full);
+    this.syncConsoleFocus();
+  }
+
+  private swapBentoApps(dragId: string, dropId: string): void {
+    if (dragId === dropId) return;
+    const order = this.consoleApps().map((app: AppDescriptor): string => app.id);
+    const from = order.indexOf(dragId);
+    const to = order.indexOf(dropId);
+    if (from < 0 || to < 0) return;
+    order[from] = dropId;
+    order[to] = dragId;
+    this.commitBentoOrder(order);
+  }
+
+  private insertBentoApp(dragId: string, visibleIndex: number): void {
+    const order = this.consoleApps().map((app: AppDescriptor): string => app.id);
+    const from = order.indexOf(dragId);
+    if (from < 0) return;
+    order.splice(from, 1);
+    const destination = Math.max(0, Math.min(order.length,
+      from < visibleIndex ? visibleIndex - 1 : visibleIndex));
+    if (destination === from) return;
+    order.splice(destination, 0, dragId);
+    this.commitBentoOrder(order);
+  }
+
   private syncConsoleFocus(): void {
     const apps = this.orderedConsoleApps();
     const changed = !this.sameAppSequence(this.consoleOrderedApps, apps);
     if (changed) {
+      this.bentoPages = [];
       this.consoleOrderedApps = apps;
       this.consoleRingData.setApps(apps);
     }
@@ -2027,11 +2094,6 @@ struct Index {
 
   private consoleCompactLandscape(): boolean {
     return this.viewportWidth > this.viewportHeight && this.viewportHeight < 650;
-  }
-
-  private consoleImmersiveHeader(): boolean {
-    return this.consoleCompactLandscape() ||
-      this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D;
   }
 
   private consoleGridColumns(tile: boolean): number {
@@ -2271,13 +2333,15 @@ struct Index {
 
   private scrollConsoleGridSelection(index: number = this.consoleFocusIndex,
     animated: boolean = true, delayMs: number = 0): void {
-    if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) return;
+    if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ||
+      this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) return;
     const count = this.consoleApps().length;
     if (count === 0) return;
     const target = Math.max(0, Math.min(count - 1, index));
     setTimeout((): void => {
       if (!this.consolePageVisible ||
-        this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) return;
+        this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ||
+        this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) return;
       try {
         // Center alignment keeps the highlighted card clear of the floating
         // navigation bar, including the incomplete final row.
@@ -2326,6 +2390,51 @@ struct Index {
     this.consoleSelectedAppId = app.id;
     ConsoleUiSound.getInstance().focus();
     GameArtworkService.getInstance().enqueueIfMissing(app);
+  }
+
+  private moveBentoFocus(code: number): void {
+    if (this.bentoPages.length === 0) return;
+    let pageIndex = this.bentoPages.findIndex((page: BentoTileBox[]): boolean =>
+      page.some((tile: BentoTileBox): boolean => tile.app.id === this.consoleSelectedAppId));
+    if (pageIndex < 0) pageIndex = 0;
+    const page = this.bentoPages[pageIndex];
+    const current = page.find((tile: BentoTileBox): boolean => tile.app.id === this.consoleSelectedAppId);
+    if (!current) {
+      if (page.length > 0) this.focusConsoleApp(page[0].app);
+      return;
+    }
+    const horizontal = code === 2014 || code === 2015;
+    const sign = code === 2014 || code === 2012 ? -1 : 1;
+    const centerX = current.x + current.width / 2;
+    const centerY = current.y + current.height / 2;
+    let target: BentoTileBox | null = null;
+    let best = Number.MAX_SAFE_INTEGER;
+    for (let index = 0; index < page.length; index++) {
+      const candidate = page[index];
+      if (candidate.app.id === current.app.id) continue;
+      const dx = candidate.x + candidate.width / 2 - centerX;
+      const dy = candidate.y + candidate.height / 2 - centerY;
+      const primary = sign * (horizontal ? dx : dy);
+      if (primary <= 1) continue;
+      const cross = Math.abs(horizontal ? dy : dx);
+      const score = primary + cross * 2;
+      if (score < best) { best = score; target = candidate; }
+    }
+    if (!target) {
+      const nextPage = this.bentoPages[pageIndex + sign];
+      if (!nextPage || nextPage.length === 0) return;
+      best = Number.MAX_SAFE_INTEGER;
+      for (let index = 0; index < nextPage.length; index++) {
+        const candidate = nextPage[index];
+        const cx = candidate.x + candidate.width / 2;
+        const cy = candidate.y + candidate.height / 2;
+        const edge = horizontal ? (sign > 0 ? cx : -cx) : (sign > 0 ? cy : -cy);
+        const cross = horizontal ? Math.abs(cy - centerY) : Math.abs(cx - centerX);
+        const score = edge + cross * 2;
+        if (score < best) { best = score; target = candidate; }
+      }
+    }
+    if (target) this.focusConsoleApp(target.app);
   }
 
   private consoleActivate(app: AppDescriptor): void {
@@ -2397,6 +2506,10 @@ struct Index {
     if (direction !== 0) {
       if (now - this.consoleLastNavigationAt < 75) return true;
       this.consoleLastNavigationAt = now;
+      if (this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) {
+        this.moveBentoFocus(code);
+        return true;
+      }
       const columns = this.consoleGridColumns(this.settings.consoleCardLayout === ConsoleCardLayout.XBOX_TILES);
       const vertical = code === 2012 || code === 2013;
       this.focusConsoleStep(this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ?
@@ -2453,6 +2566,13 @@ struct Index {
   }
 
   private cycleConsoleSort(): void {
+    if (this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) {
+      const modes: SortMode[] = [SortMode.RECENT, SortMode.NAME, SortMode.PLAY_TIME, SortMode.CUSTOM];
+      this.bentoSort = modes[(modes.indexOf(this.bentoSort) + 1) % modes.length];
+      void AppSettingsStore.getInstance().setBentoState(this.bentoSort, this.bentoOrder);
+      this.syncConsoleFocus();
+      return;
+    }
     const modes: SortMode[] = [SortMode.RECENT, SortMode.NAME, SortMode.PLAY_TIME];
     const next = (modes.indexOf(this.consoleSort) + 1) % modes.length;
     this.consoleSort = modes[next];
@@ -2462,8 +2582,11 @@ struct Index {
   }
 
   private consoleSortLabel(): string {
-    if (this.consoleSort === SortMode.NAME) return '名称';
-    if (this.consoleSort === SortMode.PLAY_TIME) return '时长';
+    const sort = this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ?
+      this.bentoSort : this.consoleSort;
+    if (sort === SortMode.NAME) return '名称';
+    if (sort === SortMode.PLAY_TIME) return '时长';
+    if (sort === SortMode.CUSTOM) return '自定义';
     return '最近';
   }
 
@@ -2630,18 +2753,8 @@ struct Index {
     }
     .width(Math.min(1100, this.consoleContentWidth()))
     .justifyContent(this.consoleCompactLandscape() ? FlexAlign.SpaceBetween : FlexAlign.Start)
-    .padding({ left: this.consoleImmersiveHeader() ? 0 : 14,
-      right: this.consoleImmersiveHeader() ? 0 : 14,
-      top: this.consoleImmersiveHeader() ? 0 : 12,
-      bottom: this.consoleImmersiveHeader() ? 0 : 12 })
-    .borderRadius(this.consoleImmersiveHeader() ? 0 : 26)
-    .backgroundColor(this.consoleImmersiveHeader() ? '#00000000' : skinColor('card_glass_background'))
-    .backgroundBlurStyle(this.consoleImmersiveHeader() ? BlurStyle.NONE : BlurStyle.COMPONENT_ULTRA_THICK)
-    .border({ width: this.consoleImmersiveHeader() ? 0 : 1, color: '#44FFFFFF' })
-    .shadow({ radius: this.consoleImmersiveHeader() ? 0 : 22,
-      color: '#44000000', offsetX: 0, offsetY: this.consoleImmersiveHeader() ? 0 : 5 })
-    .margin({ top: this.consoleImmersiveHeader() ? 4 : 12,
-      bottom: this.consoleImmersiveHeader() ? 2 : 8 })
+    .backgroundColor('#00000000')
+    .margin({ top: 4, bottom: 2 })
     .id('console-header')
   }
 
@@ -2862,6 +2975,30 @@ struct Index {
   }
 
   @Builder
+  private ConsoleBentoArea() {
+    ConsoleBentoGrid({
+      apps: this.consoleApps(),
+      selectedId: this.consoleSelectedAppId,
+      artworkRevision: this.artworkRevision,
+      interactionEpoch: this.bentoInteractionEpoch,
+      runningIds: this.runningAppIds,
+      artworkPath: (app: AppDescriptor): string => this.consoleBackground(app),
+      onTileFocus: (app: AppDescriptor): void => this.focusConsoleApp(app),
+      onOpen: (app: AppDescriptor): void => this.showConsoleDetail(app),
+      onLongPress: (app: AppDescriptor): void => this.showAppLongPressMenu(app),
+      onSwap: (dragId: string, dropId: string): void => this.swapBentoApps(dragId, dropId),
+      onInsertAt: (dragId: string, index: number): void => this.insertBentoApp(dragId, index),
+      onPagesChanged: (pages: BentoTileBox[][]): void => { this.bentoPages = pages; }
+    })
+    .layoutWeight(1).width('100%')
+    .padding({ left: Math.max(12, this.cutoutLeftInsetVp),
+      right: Math.max(12, this.cutoutRightInsetVp), top: 6,
+      bottom: bottomNavigationLayout(this.viewportWidth > this.viewportHeight,
+        this.navBarInsetVp).contentInset })
+    .id('console-bento-grid')
+  }
+
+  @Builder
   private ConsoleContent() {
     if (this.scanning) {
       Column() {
@@ -2881,6 +3018,8 @@ struct Index {
       }, (category: CatalogFilter): string => category)
     } else if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) {
       this.ConsoleFocusFlow()
+    } else if (this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) {
+      this.ConsoleBentoArea()
     } else if (this.settings.consoleCardLayout === ConsoleCardLayout.GALLERY) {
       this.ConsoleGrid(false)
     } else {

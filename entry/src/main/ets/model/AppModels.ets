@@ -57,7 +57,8 @@ export enum UiSkin {
 export enum ConsoleCardLayout {
   FOCUS_3D = 'focus3d',
   GALLERY = 'gallery',
-  XBOX_TILES = 'xbox_tiles'
+  XBOX_TILES = 'xbox_tiles',
+  BENTO_TILES = 'bento_tiles'
 }
 
 export enum ConsolePalette {
@@ -69,7 +70,8 @@ export enum ConsolePalette {
 export enum SortMode {
   RECENT = 'recent',
   NAME = 'name',
-  PLAY_TIME = 'play_time'
+  PLAY_TIME = 'play_time',
+  CUSTOM = 'custom'
 }
 
 export enum GameBackgroundMode {
