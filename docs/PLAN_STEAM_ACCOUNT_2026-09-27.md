@@ -80,9 +80,20 @@ entry/src/main/ets/
 │  │                                （steam_profile_v1：accountName/steamId64/avatar；沿用我们的独立键模式）
 │  └─ SteamService.ets           ← 单例门面：登录状态机 + 订阅通知（极简版 SteamArkStateService）
 ├─ pages/SteamAccount.ets        ← 新页面，三段式：账号登录 / 令牌 / 游戏库（Tab 切换）
-├─ pages/Index.ets               ← 长按菜单加"匹配 Steam 库"入口（批量封面/时长）
-└─ pages/SystemSettings.ets      ← 设置页加"Steam 账号"分区入口（router.pushUrl）
+├─ pages/Index.ets               ← 顶栏右上角新增 Steam 头像按钮（与排序/设置并排）+ 弹窗面板；
+│                                   长按菜单加"匹配 Steam 库"入口（批量封面/时长）
+└─ pages/SystemSettings.ets      ← 不加入口（用户 2026-09-27 指定：入口在主页顶栏，不放设置页）
 ```
+
+**顶栏增量（用户 2026-09-27 亲自批准，记档防止后续会话误判违冻）**：
+顶栏右侧由「排序 + 设置」扩为「**Steam 头像 + 排序 + 设置**」三钮并排。头像钮行为：
+- **未登录**：显示灰色 Steam 图标（40vp，同设置钮规格），点击 → 弹窗显示"登录 Steam"按钮 → 跳 SteamAccount 页；
+- **已登录**：显示 Steam 头像（拉取 profile 头像，圆角 20），点击 → **小弹窗面板**（顶栏下方右锚定）：
+  账号名 + SteamID、**当前 Steam Guard 令牌码**（W3，面板内直接显示，最常用）、
+  "游戏库"行（跳 SteamAccount 库段）、"下载"行（W6 预留，先置灰"敬请期待"）、"登出"行。
+- 弹窗实现：ArkUI `bindPopup` 自定义 builder 或绝对定位浮层 + 全屏透明遮罩（点外部关闭）——
+  沿用我们详情页/底栏的 `hitTestBehavior` 经验；面板挂 id（`steam-pop-*`）供 dumpLayout 验证。
+- 顶栏其余结构（时间电池｜搜索框｜排序设置）原样不动。
 
 - 状态通知用**回调订阅 + AppStorage**（沿用我们现有模式，不引 Emitter）。
 - v1 **单账号**（数据结构用 accountId=steamid64 预留多账号扩展）。
@@ -119,7 +130,7 @@ entry/src/main/ets/
 | 2.1 | `SteamService.ets`：单例；状态枚举 `Idle→Rsa→Authenticating→AwaitingEmailCode/AwaitingCode/AwaitingConfirm→Polling→LoggedIn→Error`；`signIn(account,password)`、`submitCode(code)`、`poll()`（1s 间隔，最多 10 次×challenge 后 10 次沿用参考实现节奏）、`refresh()`、`signOut()`；成功后 SteamJwt 解析 steamid64、凭据落 AssetStore、刷新得到的 access_token 缓存内存+安全存储 | SteamService.ets | 状态可订阅；每步有 app-log |
 | 2.2 | `pages/SteamAccount.ets` 账号段：账号/密码输入、登录按钮（防连点）、挑战分支 UI（邮件码输入 / 令牌码输入 / "请在手机 Steam 上确认"轮询动画）、错误文案映射（SteamAuthErrors.kind→中文）、已登录态显示账号名+头像+登出 | 页面 + router 注册 | 真机：小号密码登录全流程走通一次，`steam_profile_v1` 落值 |
 | 2.3 | 会话恢复：启动时（或进 SteamAccount 页时）读 AssetStore refresh_token → `refresh()` → 成功直接 LoggedIn；失败清凭据回 Idle | SteamService.restore() | 杀进程重开，无需重新登录 |
-| 2.4 | SystemSettings 加"Steam 账号"入口行（`.id('steam-entry')`） | 设置页改动 | dumpLayout 可见 |
+| 2.4 | **主页顶栏右上角 Steam 头像钮**（与排序/设置并排，40vp 同规格）+ 弹窗面板骨架：未登录=灰色图标+登录入口；已登录=头像（profile 头像，回退灰图标）+ 弹窗（账号名/令牌码占位/游戏库行/下载行置灰/登出）；`.id('steam-top-btn')`、面板 `.id('steam-pop-panel')` | Index 顶栏 + 弹窗组件 | dumpLayout 可见；点击弹窗开合正常 |
 | 2.5 | 风控文案：登录页脚注"建议使用小号；频繁验证码属 Steam 风控，与客户端无关" | — | 页面可见 |
 
 ### W3 令牌：maFile 导入 + TOTP 显示（~60 分钟）
@@ -148,21 +159,56 @@ entry/src/main/ets/
 
 ---
 
+## 2.5 Steam 免费游戏下载（W6，2026-09-27 补充立项 · 下阶段）
+
+> 用户需求：像 DepotDownloader（github.com/steamre/DepotDownloader）那样**免登录下载免费游戏**，
+> 落到本地游戏库经 Wine 运行；原则同封面抓取——**免登录优先，登录增强**（登录后可下已拥有付费游戏）。
+
+### 已实测/已知事实（2026-09-27 PC 侧核验）
+
+- 匿名 `appdetails`（免 key 免登录）能给出 `is_free` / `platforms.windows` / `packages`——**发现与筛选够用**；
+  但**不含 depot 列表**（730 实测无 `depots` 键）→ "下载哪些文件"必须走 **CM 匿名会话**：
+  anonymous logon → PICS appinfo（depot 列表）→ GetDepotManifests → CDN auth token → 分块 HTTP 下载。
+  这正是 DepotDownloader 的免费游戏路径（`-u anonymous`）。
+- steam_core 可复用的只有 **CM 帧层 + 手写 protobuf 原语 + CM 客户端骨架**（登录/心跳）；
+  PICS/depot/CDN 下载相关消息（ClientPICS、GetDepotManifests、GetDepotDecryptionKeys、GetCDNAuthToken、
+  GetServersForSteamPipe）steam_core **没有**（ASF 不下载游戏文件），需要我们自己补写编解码。
+- chunk 解压两种格式：**VZip（zlib 容器）**——`@ohos.zlib` 可解；**LZMA**——ArkTS 无原生实现。
+  ⚠️ W6.1 必须先核对目标 depot 实际用的压缩格式与魔数（对照 SteamKit2/DepotDownloader 源码），
+  若主流是 LZMA 则面临选型：纯 TS 解码器（慢）/ 引入 cpp 组件（**碰铁律，需用户特批**）/ 只下 VZip depot。
+
+### 工作项（下阶段，预计 3–4 个晚上）
+
+| # | 任务 | 要点 | 验收 |
+|---|---|---|---|
+| 6.1 | **可研**：匿名 CM logon 打通（复用 steam_core CM 骨架）；核对 chunk 压缩格式与魔数；LZMA 选型结论上报用户 | 独立调试页只显示 logon 成败 + appinfo 抓取样例 | 匿名会话拿到任一免费 app 的 depot 列表 |
+| 6.2 | 协议补写：PICS appinfo / GetDepotManifests / GetDepotDecryptionKeys(免费=无键) / GetCDNAuthToken / GetServersForSteamPipe | 全部走 steam_core 的 SteamProtoReader/Writer，逐字段对照 SteamKit2 | 拿到某免费 app 的 manifest 明细 |
+| 6.3 | 下载器：CDN 分块并发下载（限 3 并发）、进度通知（AppStorage 给 UI）、断点续传（.part + chunk 校验 CRC/Murmur）、磁盘空间预检 | 下载到 `Download/games/<名称>/tmp` | 断网重试可续；进度条实时 |
+| 6.4 | 解包入库：VZip=zlib 解（LZMA 按 6.1 结论）；按 manifest 组装文件树 → `Download/games/<名称>/` → AppCatalogService 扫描自动出现在启动器 | — | 装机后封面流出现该游戏，Wine 点击可启动 |
+| 6.5 | **登录增强**：已拥有付费游戏 = CM 完整登录 + license → depot key；UI 上免费游戏标"免费可下"、已拥有标"库内可下" | 与 W2 登录打通（账号页显示下载入口） | 付费已拥有游戏可下载 |
+| 6.6 | 红线：只下载**免费内容**与**自有库内容**；**不提供 steam_api 破解/替换**（游戏自带 Steam DRM 在 Wine 下的可玩性不做承诺）；下载行为属 Steam ToS 灰区，批量/滥用风险由用户自担 | 页面免责声明 | — |
+
+**连带收益**：若 6.1/6.2 立项，CM 栈的投入可同时解锁 **扫码登录**（BeginAuthSessionViaQR）——届时把 W5+ 里的"扫码后议"一并评估。
+
+---
+
 ## 3. 今晚 23:00 执行顺序（预计 23:00–02:00，含装机验证）
 
 ```
 23:00  W0 预检（设备网络 0.1 硬门槛，不通先修网络）
 23:15  W1 底座四件套 → 编译过 → commit+push
 23:55  W2.1 SteamService 状态机（不看 UI，纯逻辑+日志）
-00:40  W2.2 登录页 UI + 设置入口 → 装机 → 小号登录实测 → 截图自证
-01:20  W2.3 会话恢复 + 杀进程复测
-01:35  W3 令牌（maFile 导入 + TOTP 页）→ 与官方 App 比对
-02:10  W4 至少完成 4.1+4.2（拉库展示）；4.3 匹配若时间不够顺延明晚
+00:40  W2.2 登录页 UI → 装机 → 小号登录实测 → 截图自证
+01:05  W2.4 顶栏头像钮 + 弹窗面板（登录态头像/令牌码/库/下载占位）→ 装机截图
+01:25  W2.3 会话恢复 + 杀进程复测
+01:45  W3 令牌（maFile 导入 + TOTP 页，弹窗内同步接入当前码）→ 与官方 App 比对
+02:20  W4 至少完成 4.1+4.2（拉库展示）；4.3 匹配若时间不够顺延明晚
 ```
 
 - 每完成一个 W 包：`vpp-check-sync.sh` 0 error → commit（rootrd）→ push。
 - 每次装机后：`uitest dumpLayout` 按 id 验证 + `snapshot_display` 截图。
 - 中途 Steam 风控/验证码轰炸：立即停手换时间，不硬刚。
+- 若 W4 提前完成：只启动 W6.1 可研（匿名 CM logon 通断 + chunk 压缩格式核对 + LZMA 选型），**不写下载本体**。
 
 ## 4. 风险与回退
 
@@ -191,3 +237,4 @@ entry/src/main/ets/
 1. 用哪个 Steam 账号测试（建议小号）？
 2. 令牌来源走 maFile 导入还是手动粘贴 shared_secret？（有 Steam 手机令牌的可从 SDA 导出 maFile）
 3. 游戏库匹配是"自动批量"还是"逐个确认"？（默认：自动但跳过已有封面）
+4. ~~入口位置~~ 已定：主页顶栏右上角，与排序/设置并排，头像+弹窗（2026-09-27 用户指定）。
