@@ -9,7 +9,8 @@ import { SteamBase64 } from './vendor/protocol/SteamBase64';
 export class SteamCryptoAdapter implements IBinaryCrypto {
   async hmacSha1(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
     const generator = cryptoFramework.createSymKeyGenerator('HMAC');
-    const symKey = await generator.convertKey(new cryptoFramework.DataBlob(key));
+    const keyBlob: cryptoFramework.DataBlob = { data: key };
+    const symKey = await generator.convertKey(keyBlob);
     const mac = cryptoFramework.createMac('SHA1');
     await mac.init(symKey);
     await mac.update({ data: data });
@@ -20,9 +21,10 @@ export class SteamCryptoAdapter implements IBinaryCrypto {
   async rsaEncrypt(publicKeyPem: string, data: Uint8Array): Promise<Uint8Array> {
     const der = SteamCryptoAdapter.pemToDer(publicKeyPem);
     const generator = cryptoFramework.createAsyKeyGenerator('RSA2048');
-    const pubKey = await generator.convertKey(new cryptoFramework.DataBlob(der));
+    const blob: cryptoFramework.DataBlob = { data: der };
+    const pubKey = await generator.convertKey(blob, null);
     const cipher = cryptoFramework.createCipher('RSA2048|PKCS1');
-    await cipher.init(cryptoFramework.CryptoMode.ENCRYPT_MODE, pubKey, null);
+    await cipher.init(cryptoFramework.CryptoMode.ENCRYPT_MODE, pubKey.pubKey, null);
     const out = await cipher.doFinal({ data: data });
     return out.data;
   }
@@ -40,11 +42,12 @@ export class SteamCryptoAdapter implements IBinaryCrypto {
     const bits = key.byteLength * 8;
     const spec = `AES${bits}|CBC|PKCS7`;
     const generator = cryptoFramework.createSymKeyGenerator(`AES${bits}`);
-    const symKey = await generator.convertKey(new cryptoFramework.DataBlob(key));
+    const keyBlob: cryptoFramework.DataBlob = { data: key };
+    const symKey = await generator.convertKey(keyBlob);
     const cipher = cryptoFramework.createCipher(spec);
     const params: cryptoFramework.IvParamsSpec = {
       algName: 'IvParamsSpec',
-      iv: new cryptoFramework.DataBlob(iv)
+      iv: { data: iv }
     };
     await cipher.init(encrypt ? cryptoFramework.CryptoMode.ENCRYPT_MODE
       : cryptoFramework.CryptoMode.DECRYPT_MODE, symKey, params);

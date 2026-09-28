@@ -1,16 +1,16 @@
 import { common } from '@kit.AbilityKit';
 import { http } from '@kit.NetworkKit';
-import { hilog } from './LogService';
+import { hilog } from '../service/LogService';
 import { SteamAuthService } from './vendor/auth/SteamAuthService';
 import {
   ISteamAuthService,
-  SteamAuthRequest,
-  SteamAuthChallengeKind
+  SteamAuthRequest
 } from './vendor/contracts/SteamPlatformContracts';
 import {
   SteamCredentialSet,
   SteamSessionState,
-  SteamAuthResult
+  SteamAuthResult,
+  SteamAuthChallengeKind
 } from './vendor/models/SteamModels';
 import { SteamTotp } from './vendor/security/SteamTotp';
 import { SteamCryptoAdapter } from './SteamCryptoAdapter';
@@ -141,7 +141,7 @@ export class SteamService {
     this.working = true;
     this.setState(SteamUiState.WORKING, '正在验证…');
     try {
-      const kind = this.state === SteamUiState.NEEDS_GUARD_CODE
+      const kind: SteamAuthChallengeKind = this.state === SteamUiState.NEEDS_GUARD_CODE
         ? SteamAuthChallengeKind.TWO_FACTOR : SteamAuthChallengeKind.EMAIL_CODE;
       const request = new SteamAuthRequest(this.accountName, this.lastCredentials, trimmed, kind);
       const result = await this.authService.completeChallenge(request);

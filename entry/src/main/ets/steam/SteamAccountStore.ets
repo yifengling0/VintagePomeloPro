@@ -1,7 +1,7 @@
 import { asset } from '@kit.AssetStoreKit';
 import { util } from '@kit.ArkTS';
 import { common } from '@kit.AbilityKit';
-import { preferences } from '@ohos.data.preferences';
+import preferences from '@ohos.data.preferences';
 
 /** Steam 凭据种类（AssetStore alias 尾段）。 */
 export const STEAM_SECRET_KINDS: Array<string> = [
@@ -40,8 +40,7 @@ export class SteamAccountStore {
 
   private static utf8Bytes(value: string): Uint8Array {
     const encoder = new util.TextEncoder();
-    const result = encoder.encodeInto(value);
-    return result.bytes;
+    return encoder.encodeInto(value);
   }
 
   private static utf8String(bytes: Uint8Array): string {
@@ -56,7 +55,7 @@ export class SteamAccountStore {
   /** 写入一条敏感凭据（幂等覆盖）。 */
   async storeSecret(steamId64: string, kind: string, value: string): Promise<void> {
     const map: asset.AssetMap = new Map<asset.Tag, asset.Value>();
-    map.set(asset.Tag.ALIAS, SteamAccountStore.alias(steamId64, kind));
+    map.set(asset.Tag.ALIAS, SteamAccountStore.utf8Bytes(SteamAccountStore.alias(steamId64, kind)));
     map.set(asset.Tag.SECRET, SteamAccountStore.utf8Bytes(value));
     map.set(asset.Tag.ACCESSIBILITY, asset.Accessibility.DEVICE_FIRST_UNLOCKED);
     map.set(asset.Tag.CONFLICT_RESOLUTION, asset.ConflictResolution.OVERWRITE);
@@ -70,11 +69,12 @@ export class SteamAccountStore {
   /** 读取敏感凭据；不存在返回空串。 */
   async loadSecret(steamId64: string, kind: string): Promise<string> {
     const query: asset.AssetMap = new Map<asset.Tag, asset.Value>();
-    query.set(asset.Tag.ALIAS, SteamAccountStore.alias(steamId64, kind));
+    query.set(asset.Tag.ALIAS, SteamAccountStore.utf8Bytes(SteamAccountStore.alias(steamId64, kind)));
     query.set(asset.Tag.RETURN_TYPE, asset.ReturnType.ALL);
     try {
-      const result = await asset.query(query);
-      const secret = result.get(asset.Tag.SECRET);
+      const results = await asset.query(query);
+      if (results.length === 0) return '';
+      const secret = results[0].get(asset.Tag.SECRET);
       if (secret === undefined) return '';
       return SteamAccountStore.utf8String(secret as Uint8Array);
     } catch (_) {
@@ -86,7 +86,7 @@ export class SteamAccountStore {
   async removeAllSecrets(steamId64: string): Promise<void> {
     for (const kind of STEAM_SECRET_KINDS) {
       const map: asset.AssetMap = new Map<asset.Tag, asset.Value>();
-      map.set(asset.Tag.ALIAS, SteamAccountStore.alias(steamId64, kind));
+      map.set(asset.Tag.ALIAS, SteamAccountStore.utf8Bytes(SteamAccountStore.alias(steamId64, kind)));
       try {
         await asset.remove(map);
       } catch (_) {
