@@ -328,7 +328,11 @@ export class SteamService {
     if (state !== SteamSessionState.LOGGED_ON) {
       const msg = result.session.lastErrorMessage.length > 0
         ? result.session.lastErrorMessage : `登录失败（${state}）`;
-      if (!silent) this.setState(SteamUiState.ERROR, msg);
+      if (!silent) {
+        // 新设备首次登录的常见终局: Steam 作废了验证会话, 只认手机确认
+        this.setState(SteamUiState.ERROR,
+          msg + '。首次登录请在手机 Steam App → Steam Guard → 「确认登录」里允许本次请求（只需一次）');
+      }
       return;
     }
     // 登录成功
