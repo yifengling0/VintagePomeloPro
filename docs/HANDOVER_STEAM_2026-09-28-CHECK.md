@@ -180,6 +180,18 @@ vendor `beginFields` 删 device_details（NOTICE.md 已记档）。上游 steam_
   失效自动重生成 ≤3 次后回退密码模式）→ 返回密码登录按钮；aboutToDisappear 清理轮询与扫码会话。
 - 复现脚本：`E:\tmp\steam-qr-probe.js`。"密钥登录"（refresh_token 粘贴）未做 —— QR 已覆盖该需求场景。
 
+### 7.3 手机确认会话改输令牌 5 位码（fbd5d09）
+
+用户真机反馈：QR 扫码被 Steam 风控标"恶意登录"（风控引擎判断，红线不硬刚）；密码登录只给
+"手机确认"选项太繁琐，要求支持密码+令牌验证码直登。排查发现 vendor parseChallenge 对
+allowed_confirmations **无条件优先手机确认**，而 Steam 响应通常同时含 TOTP(type 3) 选项；
+completeChallenge 对 MOBILE_CONFIRMATION 会话直接无视提交的验证码。
+
+修复三处：vendor parseChallenge 语义靠 completeChallenge 兜底（MOBILE_CONFIRMATION 收到验证码
+→ 按 code_type 3 提交，空码仍轮询）；宿主 submitCode 将 NEEDS_CONFIRM 路由到 TWO_FACTOR；
+账号页 NEEDS_CONFIRM 分支加"5 位令牌验证码"输入框（steam-confirm-code-input/submit，
+与手机确认轮询并行）。NOTICE.md 已记档。
+
 ## 6. 环境备忘（上会话验证过的事实）
 
 - 编译链路：`bash /e/iiSU/vpp-check-sync.sh /tmp/<日志名>.log`（同步 E:\ui-sync → E:\vpp-build 后
