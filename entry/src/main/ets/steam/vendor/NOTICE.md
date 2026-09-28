@@ -16,5 +16,9 @@
   `auth/SteamAuthService.ets` completeChallenge 行为修改：MOBILE_CONFIRMATION 会话收到验证码时
   改为按令牌码(code_type 3)提交而非无视（Steam 的 allowed_confirmations 通常同时含手机确认与 TOTP，
   parseChallenge 原实现无条件优先手机确认，导致只能去手机上点确认）。
+  `auth/SteamAuthProtocol.ets` SteamAuthHttpResponse 新增 headers/keystoneError()，
+  `auth/SteamAuthService.ets` responseObject 提交前先查 x-error 头 —— keystone 风格错误
+  以 HTTP 200 + x-error 头返回（验证码被拒即如此），原实现丢弃响应头把拒绝当成功，
+  造成"提交→以为成功→轮询仍等待→再要验证码"的死循环。
 - 平台适配（HTTP 传输 / 加密 / 时钟 / 存储）在本目录之外的 `entry/src/main/ets/steam/` 提供；
   其中 `SteamHttpTransport.postForm` 对 GET-only 端点（GetPasswordRSAPublicKey，POST 405）做 405→GET 重发。

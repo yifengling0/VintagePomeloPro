@@ -613,6 +613,16 @@ export class SteamAuthService implements ISteamAuthService {
   }
 
   private responseObject(response: SteamAuthHttpResponse, operation: string): SteamJsonValue {
+    // 2026-09-28: keystone 错误头检查（验证码被拒等错误以 HTTP 200 + x-error 头返回,
+    // 原实现只看 statusCode, 把拒绝当成功, 造成无限要求重输验证码的循环）
+    const keystoneError = response.keystoneError();
+    if (keystoneError.length > 0) {
+      throw new SteamAuthError(
+        operation + ' rejected: ' + keystoneError,
+        SteamAuthErrorKind.SERVER,
+        operation
+      );
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       let remoteCode = 0;
       let remoteMessage = '';

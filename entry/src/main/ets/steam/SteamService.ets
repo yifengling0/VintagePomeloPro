@@ -65,6 +65,7 @@ export class SteamService {
   accessToken: string = '';
   timeOffsetSeconds: number = 0;
   working: boolean = false;
+  private lastChallengeState: SteamUiState = SteamUiState.IDLE;
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     if (this.authService) return;
@@ -95,6 +96,11 @@ export class SteamService {
   private setState(state: SteamUiState, message: string = ''): void {
     this.state = state;
     this.message = message;
+    if (state === SteamUiState.NEEDS_EMAIL_CODE || state === SteamUiState.NEEDS_GUARD_CODE
+      || state === SteamUiState.NEEDS_CONFIRM) {
+      // 验证失败时回到当前验证界面而不是弹回登录表单（避免"重输→拒绝→重登"循环观感）
+      this.lastChallengeState = state;
+    }
     this.listeners.forEach((listener: SteamStateListener): void => {
       listener(state, message);
     });
@@ -232,7 +238,9 @@ export class SteamService {
       await this.applyAuthResult(this.accountName, result, this.lastCredentials);
     } catch (e) {
       hilog.warn(DOMAIN, TAG, 'submitCode failed: %{public}s', JSON.stringify(e));
-      this.setState(SteamUiState.ERROR, SteamService.describeError(e));
+      // 留在当前验证界面显示真实原因（弹回登录表单会造成"重输→拒绝→重登"循环观感）
+      this.setState(this.lastChallengeState === SteamUiState.IDLE
+        ? SteamUiState.ERROR : this.lastChallengeState, SteamService.describeError(e));
     } finally {
       this.working = false;
     }
@@ -436,6 +444,12 @@ export class SteamService {
 
   private static describeError(e: Object): string {
     const raw = JSON.stringify(e);
+    if (raw.indexOf('rejected:') >= 0) {
+      // keystone x-error 头透传的 Steam 拒绝（验证码错误/会话不接受该类型等）
+      const reason = raw.substring(raw.indexOf('rejected:') + 9).replace(/"$/, '');
+      return 'Steam 未接受：' + reason + '（看手机 App 当前 5 位码重试；'
+        + '新设备首次登录 Steam 通常要求在手机上确认一次，确认后启动器会记住本设备）';
+    }
     if (raw.indexOf('timeout') >= 0) return '连接 Steam 超时，请检查网络';
     if (raw.indexOf('InvalidPassword') >= 0 || raw.indexOf('invalid_password') >= 0) {
       return '账号或密码错误';

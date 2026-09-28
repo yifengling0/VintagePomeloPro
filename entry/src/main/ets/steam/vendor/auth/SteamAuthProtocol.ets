@@ -26,10 +26,20 @@ export class SteamFormField {
 export class SteamAuthHttpResponse {
   readonly statusCode: number;
   readonly body: string;
+  /** 响应头（键统一小写）。2026-09-28 新增: keystone 风格错误走 x-error 头（HTTP 200 也可能带），
+   * 原实现丢弃响应头导致验证码被拒时误判为提交成功（表现为无限要求重输验证码）。 */
+  readonly headers: Map<string, string>;
 
-  constructor(statusCode: number, body: string) {
+  constructor(statusCode: number, body: string, headers: Map<string, string> = new Map<string, string>()) {
     this.statusCode = statusCode;
     this.body = body;
+    this.headers = headers;
+  }
+
+  /** keystone 错误头（x-error）；无则空串。 */
+  keystoneError(): string {
+    const message = this.headers.get('x-error');
+    return message === undefined ? '' : message;
   }
 }
 

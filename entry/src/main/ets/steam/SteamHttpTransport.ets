@@ -34,15 +34,30 @@ export class SteamHttpTransport implements ISteamAuthTransport {
             connectTimeout: 15000,
             readTimeout: 20000
           });
-          return new SteamAuthHttpResponse(getResponse.responseCode, String(getResponse.result));
+          return new SteamAuthHttpResponse(getResponse.responseCode, String(getResponse.result),
+            SteamHttpTransport.lowercaseHeaders(getResponse.header));
         } finally {
           getter.destroy();
         }
       }
-      return new SteamAuthHttpResponse(response.responseCode, String(response.result));
+      return new SteamAuthHttpResponse(response.responseCode, String(response.result),
+        SteamHttpTransport.lowercaseHeaders(response.header));
     } finally {
       request.destroy();
     }
+  }
+
+  /** @ohos 响应头 → 键小写的 Map（vendor keystoneError 查询用）。 */
+  private static lowercaseHeaders(raw: Object): Map<string, string> {
+    const headers = new Map<string, string>();
+    try {
+      const record = raw as Record<string, string>;
+      for (const key of Object.keys(record)) {
+        headers.set(key.toLowerCase(), String(record[key]));
+      }
+    } catch (_) {
+    }
+    return headers;
   }
 
   /** 免鉴权连通性自检：ISteamWebAPIUtil/GetServerInfo（登录页自检用）。 */
