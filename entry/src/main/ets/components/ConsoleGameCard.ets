@@ -5,7 +5,7 @@ import { skinColor } from '../service/SkinColors';
 @Component
 export struct ConsoleGameCard {
   @Prop @Watch('onArtworkChanged') app: AppDescriptor;
-  @Prop layout: ConsoleCardLayout = ConsoleCardLayout.GALLERY;
+  @Prop layout: ConsoleCardLayout = ConsoleCardLayout.FOCUS_3D;
   @Prop @Watch('onArtworkChanged') backgroundPath: string = '';
   @Prop focused: boolean = false;
   @Prop running: boolean = false;
@@ -26,7 +26,6 @@ export struct ConsoleGameCard {
   onVisible: (app: AppDescriptor) => void = (_app: AppDescriptor): void => {};
 
   private artPath(): string {
-    if (this.layout === ConsoleCardLayout.XBOX_TILES && this.backgroundPath) return this.backgroundPath;
     if (this.app.coverPath) return this.app.coverPath;
     return this.backgroundPath;
   }
@@ -80,7 +79,6 @@ export struct ConsoleGameCard {
       if (this.artPath().length > 0 && !this.artFailed) {
         Image(this.artSource())
           .width('100%').height('100%').objectFit(ImageFit.Cover)
-          .blur(this.layout === ConsoleCardLayout.XBOX_TILES && !this.backgroundPath ? 14 : 0)
           .onError((): void => { this.artFailed = true; })
       } else if (this.app.source === AppSource.BUILTIN) {
         Image(builtinCoverResource(this.app.id))
@@ -88,7 +86,7 @@ export struct ConsoleGameCard {
       } else {
         Column() {
           Text(this.app.title.length > 0 ? this.app.title.substring(0, 1).toUpperCase() : '?')
-            .fontSize(this.layout === ConsoleCardLayout.XBOX_TILES ? 50 : 74)
+            .fontSize(74)
             .fontWeight(FontWeight.Bold).fontColor(skinColor('accent'))
         }
         .width('100%').height('100%').justifyContent(FlexAlign.Center)
@@ -103,10 +101,8 @@ export struct ConsoleGameCard {
             SymbolGlyph($r('sys.symbol.star_fill')).fontSize(15).fontColor(['#FFFFD166'])
           }
         }.width('100%')
-        if (this.layout !== ConsoleCardLayout.XBOX_TILES) {
-          Text(this.running ? '运行中' : (this.lastPlayed ? this.lastPlayed : '查看详情'))
-            .fontSize(11).fontColor('#CFE2E2EA').maxLines(1).width('100%')
-        }
+        Text(this.running ? '运行中' : (this.lastPlayed ? this.lastPlayed : '查看详情'))
+          .fontSize(11).fontColor('#CFE2E2EA').maxLines(1).width('100%')
       }
       .width('100%')
       .padding({ left: 13, right: 13, top: 16, bottom: 12 })

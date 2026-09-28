@@ -270,9 +270,8 @@ export class AppSettingsStore {
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
         viewMode: stored.viewMode ?? defaults.viewMode,
         uiSkin: stored.uiSkin === UiSkin.CONSOLE ? UiSkin.CONSOLE : UiSkin.CLASSIC,
-        consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.GALLERY ||
-          stored.consoleCardLayout === ConsoleCardLayout.XBOX_TILES ||
-          stored.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ? stored.consoleCardLayout : ConsoleCardLayout.FOCUS_3D,
+        consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ?
+          ConsoleCardLayout.BENTO_TILES : ConsoleCardLayout.FOCUS_3D,
         consolePalette: stored.consolePalette === ConsolePalette.BLUE ||
           stored.consolePalette === ConsolePalette.PEARL ? stored.consolePalette : ConsolePalette.VIOLET,
         themeMode: stored.themeMode ?? defaults.themeMode,

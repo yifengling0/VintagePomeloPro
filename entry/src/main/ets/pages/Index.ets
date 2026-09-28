@@ -8,7 +8,6 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
-import { ConsoleGameCard } from '../components/ConsoleGameCard';
 import { ConsoleBentoGrid, BentoTileBox } from '../components/ConsoleBentoGrid';
 import { ConsoleRingItem } from '../components/ConsoleRingItem';
 import { GameDetailSheet } from '../components/GameDetailSheet';
@@ -177,7 +176,6 @@ struct Index {
   private consoleRingRelayoutGeneration: number = 0;
   private consoleRingAnchorAppId: string = '';
   private consoleRingScroller: Scroller = new Scroller();
-  private consoleGridScroller: Scroller = new Scroller();
   private consoleRingData: ConsoleRingDataSource = new ConsoleRingDataSource();
   @State private consoleFocusAreaWidth: number = 0;
   @State private consoleFocusAreaHeight: number = 0;
@@ -764,7 +762,6 @@ struct Index {
       // again, because the hidden List may still finish a native fling using
       // geometry from before the route transition or an orientation change.
       this.scheduleConsoleRingRelayout();
-      this.scrollConsoleGridSelection(this.consoleFocusIndex, false, 180);
       setTimeout((): void => this.focusConsoleLauncher(), 300);
       setTimeout((): void => this.focusConsoleLauncher(), 850);
     }
@@ -1064,9 +1061,6 @@ struct Index {
     this.consoleSelectedAppId = '';
     this.visibleApps = this.filterApps(this.searchQuery, value);
     this.syncConsoleFocus();
-    if (this.settings.uiSkin === UiSkin.CONSOLE) {
-      this.scrollConsoleGridSelection(this.consoleFocusIndex, false, 80);
-    }
     setTimeout((): void => this.restoreScrollOffset(value), 0);
     if (this.settings.uiSkin === UiSkin.CONSOLE) {
       const index = this.consoleNavIndexForFilter(value);
@@ -2126,25 +2120,6 @@ struct Index {
     return this.viewportWidth > this.viewportHeight && this.viewportHeight < 650;
   }
 
-  private consoleGridColumns(tile: boolean): number {
-    const minimum = tile ? 152 : 220;
-    const maxColumns = tile ? 6 : (this.viewportHeight > this.viewportWidth ? 2 : 4);
-    return Math.max(1, Math.min(maxColumns,
-      Math.floor((this.consoleContentWidth() + 12) / (minimum + 12))));
-  }
-
-  private consoleGridTemplate(tile: boolean): string {
-    const count = this.consoleGridColumns(tile);
-    const parts: string[] = [];
-    for (let index = 0; index < count; index++) parts.push('1fr');
-    return parts.join(' ');
-  }
-
-  private consoleGridCardWidth(tile: boolean): number {
-    const count = this.consoleGridColumns(tile);
-    return Math.max(140, (this.consoleContentWidth() - (count - 1) * 12) / count - 2);
-  }
-
   private consoleRingVisibleCount(): number {
     const width = this.consoleFocusAreaWidth || this.consoleContentWidth();
     const portrait = this.viewportHeight > this.viewportWidth;
@@ -2358,27 +2333,6 @@ struct Index {
     this.consoleSelectedAppId = apps[next].id;
     ConsoleUiSound.getInstance().focus();
     GameArtworkService.getInstance().enqueueIfMissing(apps[next]);
-    this.scrollConsoleGridSelection(next, true);
-  }
-
-  private scrollConsoleGridSelection(index: number = this.consoleFocusIndex,
-    animated: boolean = true, delayMs: number = 0): void {
-    if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ||
-      this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) return;
-    const count = this.consoleApps().length;
-    if (count === 0) return;
-    const target = Math.max(0, Math.min(count - 1, index));
-    setTimeout((): void => {
-      if (!this.consolePageVisible ||
-        this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ||
-        this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) return;
-      try {
-        // Center alignment keeps the highlighted card clear of the floating
-        // navigation bar, including the incomplete final row.
-        this.consoleGridScroller.scrollToIndex(target, animated, ScrollAlign.CENTER);
-      } catch (_) {
-      }
-    }, delayMs);
   }
 
   private focusConsoleCategoryStep(step: number): void {
@@ -2540,10 +2494,7 @@ struct Index {
         this.moveBentoFocus(code);
         return true;
       }
-      const columns = this.consoleGridColumns(this.settings.consoleCardLayout === ConsoleCardLayout.XBOX_TILES);
-      const vertical = code === 2012 || code === 2013;
-      this.focusConsoleStep(this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D ?
-        direction : direction * (vertical ? columns : 1));
+      this.focusConsoleStep(direction);
       return true;
     }
     const focused = this.consoleFocusApp();
@@ -3039,89 +2990,6 @@ struct Index {
   }
 
   @Builder
-  private ConsoleTileHero(compactLandscape: boolean) {
-    if (this.consoleFocusApp()) {
-      ConsoleGameCard({
-        app: this.consoleFocusApp()!,
-        layout: ConsoleCardLayout.XBOX_TILES,
-        backgroundPath: this.consoleBackground(this.consoleFocusApp()!),
-        focused: true,
-        running: this.runningAppIds.has(this.consoleFocusApp()!.id),
-        favorite: AppSettingsStore.getInstance().getAppSettings(this.consoleFocusApp()!.id).favorite,
-        cardWidth: compactLandscape ? this.consoleContentWidth() * 0.35 :
-          Math.min(900, this.consoleContentWidth() - 24),
-        cardHeight: compactLandscape ? Math.min(220, this.viewportHeight * 0.46) :
-          Math.max(145, Math.min(200, this.viewportHeight * 0.20)),
-        onLaunch: (app: AppDescriptor): void => this.showConsoleDetail(app),
-        onDetails: (app: AppDescriptor): void => this.showConsoleDetail(app),
-        onVisible: (app: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(app)
-      })
-    }
-  }
-
-  private consoleCompactTileWidth(): number {
-    return Math.max(130, (this.consoleContentWidth() * 0.63 - 44) / 3);
-  }
-
-  @Builder
-  private ConsoleGridBody(tile: boolean, compactLandscape: boolean) {
-    Grid(this.consoleGridScroller) {
-      ForEach(this.consoleApps(), (app: AppDescriptor): void => {
-        GridItem() {
-          Column() {
-            ConsoleGameCard({
-              app: app,
-              layout: tile ? ConsoleCardLayout.XBOX_TILES : ConsoleCardLayout.GALLERY,
-              backgroundPath: this.consoleBackground(app),
-              focused: this.consoleSelectedAppId === app.id,
-              running: this.runningAppIds.has(app.id),
-              favorite: AppSettingsStore.getInstance().getAppSettings(app.id).favorite,
-              lastPlayed: this.consoleLastPlayed(app.id),
-              cardWidth: compactLandscape ? this.consoleCompactTileWidth() : this.consoleGridCardWidth(tile),
-              cardHeight: compactLandscape ? Math.min(132, this.consoleCompactTileWidth() * 0.60) :
-                (tile ? Math.min(178, this.consoleGridCardWidth(tile) * 0.60) :
-                  Math.min(420, this.consoleGridCardWidth(tile) * 1.15)),
-              onSelect: (target: AppDescriptor): void => this.showConsoleDetail(target),
-              onLaunch: (target: AppDescriptor): void => this.showConsoleDetail(target),
-              onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
-              onVisible: (target: AppDescriptor): void => GameArtworkService.getInstance().enqueueIfMissing(target)
-            })
-          }.width('100%').alignItems(HorizontalAlign.Center)
-        }
-      }, (app: AppDescriptor): string => app.id)
-    }
-    .columnsTemplate(compactLandscape ? '1fr 1fr 1fr' : this.consoleGridTemplate(tile))
-    .columnsGap(12).rowsGap(14).width('100%').layoutWeight(1)
-    .padding({ left: compactLandscape ? 0 : 12, right: compactLandscape ? 0 : 12,
-      top: compactLandscape ? 0 : 8, bottom: compactLandscape ? 0 : 112 })
-    .scrollBar(BarState.Off)
-    .focusable(true)
-  }
-
-  @Builder
-  private ConsoleGrid(tile: boolean) {
-    if (tile && this.consoleCompactLandscape()) {
-      Row({ space: 12 }) {
-        this.ConsoleTileHero(true)
-        Column() {
-          this.ConsoleGridBody(true, true)
-        }.layoutWeight(1).height('100%')
-      }
-      .width('100%').layoutWeight(1).alignItems(VerticalAlign.Center)
-      .padding({ left: 12, right: 12, top: 4,
-        bottom: bottomNavigationLayout(true, this.navBarInsetVp).contentInset })
-      .id('console-xbox-grid')
-    } else {
-      Column({ space: 10 }) {
-        if (tile) this.ConsoleTileHero(false)
-        this.ConsoleGridBody(tile, false)
-      }
-      .width('100%').layoutWeight(1).alignItems(HorizontalAlign.Center)
-      .id(tile ? 'console-xbox-grid' : 'console-gallery-grid')
-    }
-  }
-
-  @Builder
   private ConsoleBentoArea() {
     ConsoleBentoGrid({
       apps: this.consoleApps(),
@@ -3163,14 +3031,10 @@ struct Index {
             .onClick((): void => { void this.rescan(); })
         }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       }, (category: CatalogFilter): string => category)
-    } else if (this.settings.consoleCardLayout === ConsoleCardLayout.FOCUS_3D) {
-      this.ConsoleFocusFlow()
     } else if (this.settings.consoleCardLayout === ConsoleCardLayout.BENTO_TILES) {
       this.ConsoleBentoArea()
-    } else if (this.settings.consoleCardLayout === ConsoleCardLayout.GALLERY) {
-      this.ConsoleGrid(false)
     } else {
-      this.ConsoleGrid(true)
+      this.ConsoleFocusFlow()
     }
   }
 
@@ -3374,7 +3238,6 @@ struct Index {
       BreakpointSystem.updateFromWidth(this.viewportWidth);
       if (geometryChanged) {
         this.scheduleConsoleRingRelayout();
-        this.scrollConsoleGridSelection(this.consoleFocusIndex, false, 180);
       }
     })
   }

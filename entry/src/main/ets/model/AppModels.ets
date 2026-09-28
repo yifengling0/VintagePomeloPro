@@ -56,8 +56,6 @@ export enum UiSkin {
 
 export enum ConsoleCardLayout {
   FOCUS_3D = 'focus3d',
-  GALLERY = 'gallery',
-  XBOX_TILES = 'xbox_tiles',
   BENTO_TILES = 'bento_tiles'
 }
 
