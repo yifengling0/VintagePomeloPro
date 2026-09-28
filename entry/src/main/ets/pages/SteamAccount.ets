@@ -886,15 +886,16 @@ struct SteamAccount {
           .width('100%').layoutWeight(1)
       } else {
         Row({ space: 16 }) {
-          Scroll() {
-            Column({ space: 4 }) { this.SectionButtons() }
-              .width('100%')
+          List({ space: 4 }) {
+            ListItem() { this.SectionButton('账号登录', 'login', $r('sys.symbol.person')) }
+            ListItem() { this.SectionButton('手机令牌', 'token', $r('sys.symbol.timer')) }
+            ListItem() { this.SectionButton('游戏库', 'library', $r('sys.symbol.square_grid_2x2')) }
+            ListItem() { this.SectionButton('连接自检', 'probe', $r('sys.symbol.info_circle')) }
           }
           .width(this.availableWidth < 840 ? 164 : 204).height('100%')
           .padding(8).borderRadius(16)
           .backgroundColor(skinColor('search_background'))
           .scrollBar(BarState.Off)
-          .align(Alignment.TopStart)
           .id('steam-nav-sidebar')
           Column() { this.DetailPane() }
             .layoutWeight(1).height('100%')
