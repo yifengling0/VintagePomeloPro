@@ -11,6 +11,7 @@ import { skinColor } from '../service/SkinColors';
 import { SteamService, SteamUiState } from '../steam/SteamService';
 import { SteamLibraryService } from '../steam/SteamLibrary';
 import { SteamLibraryGame } from '../steam/vendor/models/SteamModels';
+import { SteamGameArtwork } from '../components/SteamGameArtwork';
 
 /** 库列表数据源（LazyForEach 增量渲染, 真实库可能几百款）。 */
 class LibraryDataSource implements IDataSource {
@@ -83,6 +84,9 @@ struct SteamAccount {
   @State private safeBottom: number = 0;
   @State private libUsingCache: boolean = false;
   private libGames: LibraryDataSource = new LibraryDataSource();
+  private libraryScroller: Scroller = new Scroller();
+  private libraryScrollOffset: number = 0;
+  private openingGame: boolean = false;
   private libSyncedOnce: boolean = false;
   private qrTimer: number = -1;
   private qrRetries: number = 0;
@@ -145,14 +149,17 @@ struct SteamAccount {
 
   onPageShow(): void {
     this.pageVisible = true;
+    this.openingGame = false;
     if (this.pageAlive) {
       this.refreshFromService();
       this.syncTimers();
+      this.restoreLibraryScroll();
       if (this.state === SteamUiState.LOGGED_IN) this.refreshGuardSecretFlag();
     }
   }
 
   onPageHide(): void {
+    this.captureLibraryScroll();
     this.pageVisible = false;
     this.stopQrPoll();
     SteamService.getInstance().cancelQrLogin();
@@ -184,6 +191,7 @@ struct SteamAccount {
   private refreshFromService(): void {
     const service = SteamService.getInstance();
     if (this.steamId64 !== service.steamId64) {
+      this.libraryScrollOffset = 0;
       this.libSyncedOnce = false;
       this.libGames.setGames([]);
       this.libCount = -1;
@@ -251,6 +259,15 @@ struct SteamAccount {
     if (days < 30) return days + ' 天前玩过';
     if (days < 365) return Math.floor(days / 30) + ' 个月前玩过';
     return Math.floor(days / 365) + ' 年前玩过';
+  }
+
+  private openLibraryGame(game: SteamLibraryGame): void {
+    if (this.openingGame) return;
+    this.openingGame = true;
+    router.pushUrl({
+      url: 'pages/SteamGameDetail',
+      params: { appId: game.appId }
+    }).catch((): void => { this.openingGame = false; });
   }
 
   private startProbe(): void {
@@ -323,7 +340,28 @@ struct SteamAccount {
 
   /** 左栏分类切换（主从布局, 与设置页同交互）。 */
   private selectSection(section: string): void {
+    this.captureLibraryScroll();
     this.activeSection = section;
+    this.restoreLibraryScroll();
+  }
+
+  private captureLibraryScroll(): void {
+    if (this.activeSection !== 'library' || this.libGames.totalCount() === 0) return;
+    try {
+      this.libraryScrollOffset = this.libraryScroller.currentOffset().yOffset;
+      // Stop any remaining fling before the page is hidden.
+      this.libraryScroller.scrollTo({ xOffset: 0, yOffset: this.libraryScrollOffset, animation: false });
+    } catch (_) {}
+  }
+
+  private restoreLibraryScroll(): void {
+    if (this.activeSection !== 'library' || this.libraryScrollOffset <= 0) return;
+    setTimeout((): void => {
+      if (!this.pageAlive || !this.pageVisible || this.activeSection !== 'library') return;
+      try {
+        this.libraryScroller.scrollTo({ xOffset: 0, yOffset: this.libraryScrollOffset, animation: false });
+      } catch (_) {}
+    }, 0);
   }
 
   /** 就地展开/收起扫码登录（同一页面内显示二维码, 不切视图）。 */
@@ -774,93 +812,98 @@ struct SteamAccount {
           .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
       }
       if (this.libGames.totalCount() > 0) {
-        List({ space: 8 }) {
+        List({ space: 8, scroller: this.libraryScroller }) {
           LazyForEach(this.libGames, (game: SteamLibraryGame) => {
             ListItem() {
-              Row({ space: 10 }) {
-                if (game.logoUrl.length > 0) {
-                  Image(game.logoUrl)
-                    .width(92).height(43).borderRadius(6)
-                    .objectFit(ImageFit.Cover).draggable(false)
-                } else if (game.iconUrl.length > 0) {
-                  Image(game.iconUrl)
-                    .width(34).height(34).borderRadius(6)
-                    .objectFit(ImageFit.Cover).draggable(false)
-                } else {
-                  Column() {
-                    Text(game.name.length > 0 ? game.name.substring(0, 1) : '?')
-                      .fontSize(14).fontWeight(FontWeight.Bold)
-                      .fontColor(skinColor('text_secondary'))
+              Button({ type: ButtonType.Normal }) {
+                Row({ space: 10 }) {
+                  SteamGameArtwork({ appId: game.appId, imageUrl: game.logoUrl, compact: true })
+                    .width(92).height(43).borderRadius(6).clip(true)
+                  Column({ space: 3 }) {
+                    Text(game.name.length > 0 ? game.name : ('App ' + game.appId))
+                      .fontSize(13).fontColor(skinColor('text_primary'))
+                      .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
+                    Text(this.formatPlayHours(game.playtimeForeverSeconds)
+                      + ' · ' + this.formatLastPlayed(game.lastPlayedEpochSeconds))
+                      .fontSize(11).fontColor(skinColor('text_secondary'))
                   }
-                  .width(34).height(34).borderRadius(6)
-                  .backgroundColor(skinColor('selected_background'))
-                  .justifyContent(FlexAlign.Center)
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+                  SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14)
+                    .fontColor([skinColor('text_secondary')])
                 }
-                Column({ space: 3 }) {
-                  Text(game.name.length > 0 ? game.name : ('App ' + game.appId))
-                    .fontSize(13).fontColor(skinColor('text_primary'))
-                    .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
-                  Text(this.formatPlayHours(game.playtimeForeverSeconds)
-                    + ' · ' + this.formatLastPlayed(game.lastPlayedEpochSeconds))
-                    .fontSize(11).fontColor(skinColor('text_secondary'))
-                }
-                .alignItems(HorizontalAlign.Start)
-                .layoutWeight(1)
+                .width('100%').padding(10)
               }
-              .width('100%').padding(8)
+              .width('100%').padding(0)
               .borderRadius(10)
               .backgroundColor(skinColor('card_background'))
+              .onClick((): void => { this.openLibraryGame(game); })
+              .accessibilityText((game.name.length > 0 ? game.name : 'App ' + game.appId) + '，查看详情')
+              .id('steam-lib-game-' + game.appId)
             }
           }, (game: SteamLibraryGame) => game.appId)
         }
-        .width('100%').height(300)
+        .width('100%').layoutWeight(1)
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.Spring)
+        .id('steam-lib-list')
+      } else if (this.libLoading) {
+        Column({ space: 12 }) {
+          LoadingProgress().width(32).height(32).color(skinColor('accent'))
+          Text('正在同步游戏库…').fontSize(12).fontColor(skinColor('text_secondary'))
+        }
+        .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       } else if (!this.libLoading) {
-        Text(this.libCount === 0 ? '账号下没有游戏（免费库也可能为空）' : '点右上角"同步"拉取你的 Steam 游戏库')
-          .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+        Column() {
+          Text(this.libCount === 0 ? '账号下没有游戏（免费库也可能为空）' : '点右上角“同步”拉取你的 Steam 游戏库')
+            .fontSize(12).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
+        }
+        .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
       }
     }
-    .width('100%').padding(14)
+    .width('100%').height('100%').padding(14)
     .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
+    .id('steam-library-pane')
   }
 
   @Builder
   private DetailPane() {
-    Scroll() {
-      Column({ space: 12 }) {
-        if (this.activeSection === 'probe') {
-          this.ProbeCard()
-        } else if (this.activeSection === 'token') {
-          if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
-            this.TokenCard()
-          } else {
-            this.SectionLockedHint('登录后可查看手机令牌动态码，或导入 maFile。')
-          }
-        } else if (this.activeSection === 'library') {
-          if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
-            this.LibraryCard()
-          } else {
+    if (this.activeSection === 'library' && this.steamId64.length > 0) {
+      // The library owns its scrolling and fills the pane; do not nest it in Scroll.
+      Column() { this.LibraryCard() }
+        .width('100%').height('100%').padding(4)
+    } else {
+      Scroll() {
+        Column({ space: 12 }) {
+          if (this.activeSection === 'probe') {
+            this.ProbeCard()
+          } else if (this.activeSection === 'token') {
+            if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+              this.TokenCard()
+            } else {
+              this.SectionLockedHint('登录后可查看手机令牌动态码，或导入 maFile。')
+            }
+          } else if (this.activeSection === 'library') {
             this.SectionLockedHint('登录后可同步 Steam 游戏库，并与本地游戏匹配封面和时长。')
-          }
-        } else {
-          if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
-            this.ProfileCard()
           } else {
-            this.LoginSection()
+            if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+              this.ProfileCard()
+            } else {
+              this.LoginSection()
+            }
           }
         }
+        .width('100%')
+        .constraintSize({ maxWidth: 960 })
+        .alignItems(HorizontalAlign.Start)
+        .padding({ left: 4, right: 4, top: 4, bottom: 16 })
       }
-      .width('100%')
-      .constraintSize({ maxWidth: 960 })
-      .alignItems(HorizontalAlign.Start)
-      .padding({ left: 4, right: 4, top: 4, bottom: 16 })
+      .width('100%').height('100%')
+      .scrollBar(BarState.Auto)
+      .align(Alignment.Top)
+      .id('steam-detail-scroll')
     }
-    .width('100%').height('100%')
-    .scrollBar(BarState.Auto)
-    .align(Alignment.Top)
-    .id('steam-detail-scroll')
   }
 
   @Builder
