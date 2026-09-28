@@ -34,8 +34,11 @@ export class DeviceCapabilityPolicy {
 
   static enableSensorRotation(target: window.Window, tag: string): void {
     if (!DeviceCapabilityPolicy.supportsSensorRotation()) return;
-    target.setPreferredOrientation(window.Orientation.AUTO_ROTATION_RESTRICTED).then(() => {
-      hilog.info(DOMAIN, tag, 'Phone auto rotation enabled');
+    // 2026-09-28: 由 AUTO_ROTATION_RESTRICTED 改为不受限 AUTO_ROTATION ——
+    // RESTRICTED 受系统控制中心"自动旋转"开关约束, 开关一关左右横旋就永远失效
+    // (用户实测长期回归); 不受限变体无视该开关, 传感器直接驱动, 方向集合不变。
+    target.setPreferredOrientation(window.Orientation.AUTO_ROTATION).then(() => {
+      hilog.info(DOMAIN, tag, 'Phone auto rotation enabled (unrestricted)');
     }).catch((error: Error) => {
       hilog.warn(DOMAIN, tag, 'Phone auto rotation unavailable: %{public}s', JSON.stringify(error));
     });

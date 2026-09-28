@@ -14,6 +14,7 @@ import {
 import {
   DividerShowType,
   HdsNavigation,
+  HdsNavigationAttribute,
   HdsNavigationTitleMode,
   ScrollEffectType
 } from '@kit.UIDesignKit';

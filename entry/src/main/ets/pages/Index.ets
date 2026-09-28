@@ -45,6 +45,9 @@ import { LauncherAdapterRegistry } from '../service/LauncherAdapterRegistry';
 import { ThemeSettingsListener, ThemeSettingsService } from '../service/ThemeSettingsService';
 import { WineEngineService } from '../service/WineEngineService';
 import { WineWindowManager } from '../service/WineWindowManager';
+import { SteamService, SteamUiState } from '../steam/SteamService';
+import { SteamLibraryService } from '../steam/SteamLibrary';
+import { SteamMatch } from '../steam/SteamMatch';
 import { InputRouter } from '../service/InputRouter';
 import { EVDEV_KEY_ENTER } from '../common/KeyMap';
 import { GamepadManager, GamepadNavigationListener } from '../service/GamepadManager';
@@ -66,9 +69,11 @@ import {
   DividerMode,
   DividerShowType,
   HdsNavigation,
+  HdsNavigationAttribute,
   HdsNavigationMenuContentOptions,
   HdsNavigationTitleMode,
   HdsTabs,
+  HdsTabsAttribute,
   HdsTabsController,
   ScrollEffectType,
   hdsMaterial
@@ -142,6 +147,15 @@ struct Index {
   @StorageLink('libraryTitleButtonInsetVp') private titleButtonInsetVp: number = 0;
   @State private apps: AppDescriptor[] = [];
   @State private visibleApps: AppDescriptor[] = [];
+  // Steam 顶栏入口: 登录态头像 + 弹窗 (2026-09-28)
+  @State private steamPop: boolean = false;
+  @State private steamLoggedIn: boolean = false;
+  @State private steamAvatar: string = '';
+  @State private steamPopName: string = '';
+  @State private steamPopCode: string = '';
+  @State private steamPopSeconds: number = 30;
+  @State private steamMatching: boolean = false;
+  private steamPopTimer: number = -1;
   @State private searchQuery: string = '';
   @State private filter: CatalogFilter = 'builtin';
   @State private breakpoint: BreakpointType = 'lg';
@@ -724,6 +738,7 @@ struct Index {
 
   aboutToDisappear(): void {
     this.detachConsoleNavigation();
+    this.stopSteamPopTimer();
     if (this.breakpointCallback) BreakpointSystem.unsubscribe(this.breakpointCallback);
     if (this.engineCallback) WineEngineService.getInstance().unsubscribe(this.engineCallback);
     if (this.settingsCallback) ThemeSettingsService.getInstance().unsubscribe(this.settingsCallback);
@@ -894,6 +909,15 @@ struct Index {
     await this.rescan();
     this.preferGamesForConsole();
     this.catalogInitialized = true;
+    // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标)
+    SteamService.getInstance().initialize(this.context).then((): void => {
+      this.refreshSteamEntry();
+      if (SteamService.getInstance().steamId64.length > 0) {
+        SteamService.getInstance().restoreSession().then((): void => {
+          this.refreshSteamEntry();
+        }).catch((): void => {});
+      }
+    }).catch((): void => {});
   }
 
   private async rescan(): Promise<void> {
@@ -2744,6 +2768,7 @@ struct Index {
       .onClick((): void => { void this.rescan(); })
       .accessibilityText('刷新游戏库')
       .id('console-refresh')
+      this.SteamEntryButton()
       Button({ type: ButtonType.Circle }) {
         SymbolGlyph($r('sys.symbol.gearshape')).fontSize(18)
           .fontColor([skinColor('text_primary')])
@@ -2756,6 +2781,122 @@ struct Index {
     .backgroundColor('#00000000')
     .margin({ top: 4, bottom: 2 })
     .id('console-header')
+  }
+
+  /** 顶栏 Steam 入口按钮: 未登录灰 S, 已登录显示头像。 */
+  @Builder
+  private SteamEntryButton() {
+    Button({ type: ButtonType.Circle }) {
+      if (this.steamLoggedIn && this.steamAvatar.length > 0) {
+        Image(this.steamAvatar)
+          .width(34).height(34).borderRadius(17)
+          .objectFit(ImageFit.Cover)
+          .draggable(false)
+      } else {
+        Text('S').fontSize(16).fontWeight(FontWeight.Bold)
+          .fontColor(this.steamLoggedIn ? skinColor('accent') : skinColor('text_secondary'))
+      }
+    }
+    .width(40).height(40)
+    .backgroundColor(skinColor(this.steamLoggedIn ? 'selected_background' : 'search_background'))
+    .onClick((): void => { this.toggleSteamPop(); })
+    .accessibilityText('Steam 账号')
+    .id('steam-top-btn')
+  }
+
+  /** Steam 弹窗面板: 未登录=登录入口; 已登录=账号/令牌码/库/匹配/登出。 */
+  @Builder
+  private SteamPopPanel() {
+    // 右上角锚定浮层: 顶栏下方, 遮罩之上
+    Stack({ alignContent: Alignment.TopEnd }) {
+      Column({ space: 10 }) {
+        if (this.steamLoggedIn) {
+          Row({ space: 10 }) {
+            if (this.steamAvatar.length > 0) {
+              Image(this.steamAvatar).width(36).height(36).borderRadius(10)
+                .objectFit(ImageFit.Cover).draggable(false)
+            } else {
+              Stack() {
+                Text('S').fontSize(15).fontWeight(FontWeight.Bold)
+                  .fontColor(skinColor('text_secondary'))
+              }.width(36).height(36).borderRadius(10)
+                .backgroundColor(skinColor('selected_background'))
+            }
+            Text(this.steamPopName.length > 0 ? this.steamPopName : 'Steam')
+              .fontSize(14).fontWeight(FontWeight.Medium)
+              .fontColor(skinColor('text_primary')).layoutWeight(1)
+              .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          }.width('100%')
+
+          Column({ space: 4 }) {
+            Text(this.steamPopCode.length > 0 ? this.steamPopCode : '-----')
+              .fontSize(24).fontWeight(FontWeight.Bold)
+              .fontColor(skinColor('accent')).letterSpacing(4)
+            Progress({ value: this.steamPopSeconds, total: 30, type: ProgressType.Linear })
+              .width('100%').height(4).color(skinColor('accent'))
+          }
+          .width('100%').padding(10)
+          .backgroundColor(skinColor('search_background'))
+          .borderRadius(10)
+          .id('steam-pop-code')
+
+          Button('游戏库与账号管理').width('100%').height(36).borderRadius(10)
+            .backgroundColor(skinColor('search_background'))
+            .fontColor(skinColor('text_primary'))
+            .onClick((): void => {
+              this.steamPop = false;
+              this.stopSteamPopTimer();
+              this.openSidebarPage('pages/SteamAccount');
+            })
+            .id('steam-pop-library')
+
+          Button(this.steamMatching ? '匹配中…' : '匹配本地游戏（封面/时长）')
+            .width('100%').height(36).borderRadius(10)
+            .backgroundColor(skinColor('search_background'))
+            .fontColor(skinColor('text_primary'))
+            .enabled(!this.steamMatching)
+            .onClick((): void => {
+              this.steamPop = false;
+              this.stopSteamPopTimer();
+              void this.matchSteamLibrary();
+            })
+            .id('steam-pop-match')
+
+          Button('登出').width('100%').height(36).borderRadius(10)
+            .backgroundColor(skinColor('search_background'))
+            .fontColor('#F87171')
+            .onClick((): void => {
+              SteamService.getInstance().signOut();
+              this.steamPop = false;
+              this.stopSteamPopTimer();
+              this.refreshSteamEntry();
+            })
+            .id('steam-pop-logout')
+        } else {
+          Text('Steam').fontSize(14).fontWeight(FontWeight.Medium)
+            .fontColor(skinColor('text_primary')).width('100%')
+          Text('登录后可显示手机令牌、游戏库与时长同步。')
+            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+          Button('登录 Steam').width('100%').height(38).borderRadius(10)
+            .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
+            .onClick((): void => {
+              this.steamPop = false;
+              this.openSidebarPage('pages/SteamAccount');
+            })
+            .id('steam-pop-login')
+        }
+      }
+      .width(240)
+      .padding(14)
+      .backgroundColor(skinColor('card_glass_background'))
+      .backgroundBlurStyle(BlurStyle.COMPONENT_ULTRA_THICK)
+      .borderRadius(16)
+      .border({ width: 1, color: '#44FFFFFF' })
+      .id('steam-pop-panel')
+    }
+    .width('100%').height('100%')
+    .padding({ top: 56, right: 12 })
+    .hitTestBehavior(HitTestMode.Transparent)
   }
 
   @Builder
@@ -3232,9 +3373,115 @@ struct Index {
     })
   }
 
+  /** 顶栏 Steam 入口状态刷新 (登录态/头像/弹窗数据)。 */
+  private refreshSteamEntry(): void {
+    const service = SteamService.getInstance();
+    this.steamLoggedIn = service.steamId64.length > 0 && service.state === SteamUiState.LOGGED_IN;
+    this.steamAvatar = service.avatarUrl;
+    this.steamPopName = service.personaName.length > 0 ? service.personaName : service.accountName;
+    if (this.steamLoggedIn && this.steamPop) {
+      SteamService.getInstance().currentGuardCode().then((code: string): void => {
+        this.steamPopCode = code;
+        this.steamPopSeconds = 30 - (Math.floor(Date.now() / 1000) % 30);
+      });
+    }
+  }
+
+  private startSteamPopTimer(): void {
+    if (this.steamPopTimer >= 0) return;
+    this.steamPopTimer = setInterval((): void => {
+      if (!this.steamPop) return;
+      SteamService.getInstance().currentGuardCode().then((code: string): void => {
+        this.steamPopCode = code;
+        this.steamPopSeconds = 30 - (Math.floor(Date.now() / 1000) % 30);
+      });
+    }, 1000);
+  }
+
+  private stopSteamPopTimer(): void {
+    if (this.steamPopTimer >= 0) {
+      clearInterval(this.steamPopTimer);
+      this.steamPopTimer = -1;
+    }
+  }
+
+  private toggleSteamPop(): void {
+    if (this.steamPop) {
+      this.steamPop = false;
+      this.stopSteamPopTimer();
+      return;
+    }
+    this.refreshSteamEntry();
+    this.steamPop = true;
+    if (this.steamLoggedIn) {
+      this.startSteamPopTimer();
+    }
+  }
+
+  /** Steam 库 ↔ 本地目录批量匹配: 补封面 + 写时长 (已有封面跳过, 不覆盖用户自选)。 */
+  private async matchSteamLibrary(): Promise<void> {
+    const service = SteamService.getInstance();
+    if (service.steamId64.length === 0) {
+      promptAction.showToast({ message: '请先登录 Steam 账号' });
+      return;
+    }
+    if (this.steamMatching) return;
+    this.steamMatching = true;
+    promptAction.showToast({ message: '正在匹配 Steam 库…' });
+    try {
+      const games = await SteamLibraryService.getInstance()
+        .fetchOwnedGames(service.steamId64, service.accessToken, false);
+      const store = AppSettingsStore.getInstance();
+      const total = this.apps.length;
+      let hit = 0;
+      let covers = 0;
+      for (const app of this.apps) {
+        const game = SteamMatch.bestMatch(app.title, games);
+        if (!game) continue;
+        hit++;
+        if (game.playtimeForeverSeconds > 0) {
+          await store.setPlayMinutes(app.id, game.playtimeForeverSeconds / 60);
+        }
+        if (app.coverPath && app.coverPath.length > 0) continue;
+        const dir = this.steamMatchDirOf(app);
+        if (dir.length === 0) continue;
+        const ok = await SteamMatch.downloadCoverTo(game.appId, game.logoUrl, dir);
+        if (ok) covers++;
+      }
+      promptAction.showToast({ message: `命中 ${hit} / 本地 ${total}；补封面 ${covers} 张` });
+      if (covers > 0) {
+        void this.rescan();
+      }
+    } catch (e) {
+      promptAction.showToast({ message: '匹配失败：' + JSON.stringify(e) });
+    } finally {
+      this.steamMatching = false;
+    }
+  }
+
+  /** 取可写入封面的目录: 优先目录卡片, 否则取主程序所在目录。 */
+  private steamMatchDirOf(app: AppDescriptor): string {
+    if (app.directory.length > 0) return app.directory;
+    const exe = app.launchTarget.executable;
+    const slash = Math.max(exe.lastIndexOf('/'), exe.lastIndexOf('\\'));
+    return slash > 0 ? exe.substring(0, slash) : '';
+  }
+
   build() {
     Stack() {
       this.PageSurface()
+      // Steam 弹窗浮层: 全屏透明遮罩 + 右上角锚定面板 (点遮罩空白处关闭)
+      if (this.steamPop) {
+        Column()
+          .width('100%').height('100%')
+          .backgroundColor('#33000000')
+          .onClick((): void => {
+            this.steamPop = false;
+            this.stopSteamPopTimer();
+          })
+          .id('steam-pop-mask')
+        this.SteamPopPanel()
+      }
     }
     .width('100%').height('100%')
     .focusable(true)
