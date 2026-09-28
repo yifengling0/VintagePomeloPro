@@ -139,6 +139,18 @@ SteamAccount.ets：三段式结构完整，10 个 steam-* id 齐全，括号 bal
 结论：41883b5 无污染，保留；按 §4 继续 W3/W4。
 ```
 
+## 7. W3/W4 续作进度（同日晚, 全部已推送 origin/UI）
+
+| 提交 | 内容 | 备注 |
+|---|---|---|
+| `4a8e934` | probe 自检异常透传（原 catch 吞掉无法定位）+ §5 结论 | 冒烟时两次"无法连接"是 §6 代理抽风，重试即绿 |
+| `5aea976` | **W3.1 maFile 导入**：DocumentViewPicker 读文件 → vendor importMaFile → shared_secret/identity_secret/device_id 入 AssetStore；steamid 不一致提示；令牌段加"导入 maFile 文件"按钮（`steam-mafile-import`） | 真机码与官方 App 比对仍需用户人工做 |
+| `7f5a127` | **W4.1+4.2**：`steam/SteamLibrary.ets`（GetOwnedGames 复用 vendor Endpoint/Parser；内存+持久缓存 30min TTL；网络失败回退过期缓存）+ 账号页 LibraryCard（LazyForEach/封面缩略/小时数/最近游玩/同步按钮 `steam-lib-sync`，登录后自动首拉） | — |
+| `2e57f74` | **W4.3+4.4**：`steam/SteamMatch.ets`（名称规范化双向包含；library_600x900 直链下 cover.jpg，logoUrl 兜底，<2KB 拒收）+ 弹窗"匹配本地游戏（封面/时长）"行（`steam-pop-match`）+ `AppSettingsStore.setPlayMinutes`（绝对值覆盖，防重复匹配累加）+ 已有封面跳过 | **入口偏离计划**：原计划"长按菜单"，实际放 Steam 弹窗面板（详情页组件回调链改动大，且批量操作语义属 Steam 入口）；总纲 §4.3 的"长按菜单"可视为已由该行替代 |
+
+- 待用户人工验收（需真账号）：登录全流程截图、库列表数量对账、"匹配本地游戏"命中报告 toast、令牌码与官方 App 比对、杀进程会话恢复。
+- W6 只差可研（§2.5 6.1），未动。
+
 ## 6. 环境备忘（上会话验证过的事实）
 
 - 编译链路：`bash /e/iiSU/vpp-check-sync.sh /tmp/<日志名>.log`（同步 E:\ui-sync → E:\vpp-build 后
