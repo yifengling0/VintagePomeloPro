@@ -50,3 +50,11 @@
 PR 可以与现有瓦片改动无冲突整合，原始 CI 已通过；审查发现的验证码、缓存和误匹配问题应与整合结果一起保留。本地修正版编译及服务回归通过，账号页已在平板打开。完成真实账号登录、图库与连续 UI 验收后，才可判断 Steam 功能是否已达到发布要求。
 
 本地构建日志、调试包和设备证据位于 `F:\VintagePomelo-Workspace\workspace_temp\pr128-integration`。其中设备证据不提交仓库。
+
+## 后续密码登录故障跟进
+
+用户反馈密码登录失败后，旧日志只有 `signIn failed: {}`，页面显示通用错误。增加不包含账号、密码或令牌的阶段与错误码诊断后，平板记录了 `SteamAuthError/transport,stage=rsa_public_key`：失败发生在获取公钥阶段，尚未提交密码进行认证。
+
+`GetPasswordRSAPublicKey` 是 GET 接口，原适配器先 POST，收到 HTTP 405 后才尝试 GET；平板在首个传输步骤抛异常，不能走到回退。改为直接 GET，其他认证接口保留 POST。修正后平板日志于 21:19:31 确认 `password preflight passed; no credentials used`，公钥获取、解析和 HarmonyOS RSA 加密步骤均通过。此预检使用固定诊断数据，不提交任何登录认证。完整账号认证结果仍需用户重新登录确认。
+
+同时修复原生非 Error 异常被转换为普通 Error 而丢掉错误码的问题；RSA 导入、加密以及登录响应解析均标注阶段。界面显示阶段/错误码，日志只记录结构化诊断标签。补充回归检查直接 GET、认证 POST 不回退 GET，以及原生网络错误码保留。

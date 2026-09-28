@@ -136,6 +136,36 @@ async function main() {
   const fakeJwt = 'header.' + Buffer.from('{"sub":"76561198000000001"}').toString('base64url') + '.signature';
   await auth.refresh('fixture', fakeJwt);
   assert.equal(refreshFields.find(field => field.name === 'steamid').value, '76561198000000001');
+  const { SteamAuthRequest } = authLoad('steam/vendor/contracts/SteamPlatformContracts.ets');
+  const nativeFailure = new SteamAuthService({ postForm: async () => {
+    throw { code: 2300006, message: 'fixture native network error' };
+  } }, {}, { nowEpochSeconds: () => 100 });
+  await assert.rejects(nativeFailure.signIn(new SteamAuthRequest('fixture',
+    new (authLoad('steam/vendor/models/SteamModels.ets').SteamCredentialSet)('fixture', 'fixture-password'))),
+    error => error.code === 2300006 && error.stage === 'rsa_public_key');
+  const { SteamHttpTransport } = loader({ '@kit.NetworkKit': { http } })('steam/SteamHttpTransport.ets');
+  const { SteamAuthEndpoint, SteamFormField } = authLoad('steam/vendor/auth/SteamAuthProtocol.ets');
+  const calls = [];
+  respond = async (url, options) => {
+    calls.push({ url, options });
+    return { responseCode: 200, result: '{}', header: {} };
+  };
+  await new SteamHttpTransport().postForm(SteamAuthEndpoint.GET_PASSWORD_RSA_PUBLIC_KEY,
+    [new SteamFormField('account_name', 'fixture')]);
+  assert.equal(calls.length, 1, 'RSA lookup must send GET directly');
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].url.includes('account_name=fixture'), true);
+  calls.length = 0;
+  http.RequestMethod.POST = 'POST';
+  respond = async (url, options) => {
+    calls.push({ url, options });
+    return { responseCode: 405, result: '{}', header: {} };
+  };
+  await new SteamHttpTransport().postForm(SteamAuthEndpoint.BEGIN_AUTH_SESSION,
+    [new SteamFormField('encrypted_password', 'fixture')]);
+  assert.equal(calls.length, 1, 'credential POST must not be retried with secrets in a GET URL');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].url.includes('encrypted_password'), false);
 
   let challenge;
   let qrResolve;

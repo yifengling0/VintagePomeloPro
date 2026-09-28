@@ -254,9 +254,11 @@ struct SteamAccount {
   }
 
   private startProbe(): void {
-    SteamService.getInstance().probeNetwork().then((error: string | null): void => {
-      this.probeOk = error === null;
-      this.probeResult = error === null ? 'Steam 连接正常' : error;
+    SteamService.getInstance().probeNetwork().then(async (error: string | null): Promise<void> => {
+      const failure = error ?? await SteamService.getInstance().probePasswordLogin();
+      if (!this.pageAlive) return;
+      this.probeOk = failure === null;
+      this.probeResult = failure === null ? 'Steam 连接正常' : failure;
     });
   }
 

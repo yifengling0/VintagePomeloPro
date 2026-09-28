@@ -155,19 +155,35 @@ export class SteamAuthService implements ISteamAuthService {
       [new SteamFormField('account_name', request.credentials.accountName)],
       'rsa_public_key'
     );
-    const rsaObject = this.responseObject(rsaResponse, 'RSA public key');
-    const rsaKey = this.parseRsaPublicKey(rsaObject);
-    const encryptedPassword = await this.crypto.rsaEncrypt(
-      rsaKey.toPem(),
-      SteamUtf8.encode(request.credentials.password)
-    );
+    let rsaKey: SteamRsaPublicKey;
+    try {
+      const rsaObject = this.responseObject(rsaResponse, 'RSA public key');
+      rsaKey = this.parseRsaPublicKey(rsaObject);
+    } catch (error) {
+      throw SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.RESPONSE,
+        'rsa_public_key_parse', 'Steam RSA public key response is invalid');
+    }
+    let encryptedPassword: Uint8Array;
+    try {
+      encryptedPassword = await this.crypto.rsaEncrypt(
+        rsaKey.toPem(), SteamUtf8.encode(request.credentials.password));
+    } catch (error) {
+      throw SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.CRYPTO,
+        'password_encrypt', 'Steam password encryption failed');
+    }
     const beginResponse = await this.postForm(
       SteamAuthEndpoint.BEGIN_AUTH_SESSION,
       this.beginFields(request, rsaKey, encryptedPassword),
       'begin_auth_session'
     );
-    const beginObject = this.responseObject(beginResponse, 'begin auth session');
-    const pending = this.parsePendingSession(request, beginObject);
+    let pending: SteamPendingAuthSession;
+    try {
+      const beginObject = this.responseObject(beginResponse, 'begin auth session');
+      pending = this.parsePendingSession(request, beginObject);
+    } catch (error) {
+      throw SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.RESPONSE,
+        'begin_auth_parse', 'Steam login response is invalid');
+    }
     this.pending.set(request.accountId, pending);
     this.knownSteamIds.set(request.accountId, pending.steamId64);
     this.logger.info(TAG, 'password sign-in challenge received; challenge=' + String(pending.challenge));
@@ -446,11 +462,8 @@ export class SteamAuthService implements ISteamAuthService {
     try {
       return await this.transport.postForm(endpoint, fields);
     } catch (error) {
-      const normalized: Error = error instanceof Error
-        ? error
-        : new Error('Steam authentication transport failed');
       throw SteamAuthErrorSupport.normalize(
-        normalized,
+        error,
         SteamAuthErrorKind.TRANSPORT,
         stage,
         'Steam authentication transport failed'
