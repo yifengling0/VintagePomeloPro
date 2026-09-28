@@ -5,7 +5,9 @@ import { router } from '@kit.ArkUI';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
-import { applyStatusOnlyImmersiveShell } from '../common/StatusOnlyImmersiveShell';
+import { applyStatusOnlyImmersiveShell, getStatusOnlyWindowInsets,
+  observeStatusOnlyWindowInsets } from '../common/StatusOnlyImmersiveShell';
+import { skinColor } from '../service/SkinColors';
 import { SteamService, SteamUiState } from '../steam/SteamService';
 import { SteamLibraryService } from '../steam/SteamLibrary';
 import { SteamLibraryGame } from '../steam/vendor/models/SteamModels';
@@ -74,17 +76,30 @@ struct SteamAccount {
   @State private qrOpen: boolean = false;
   @State private qrUrl: string = '';
   @State private qrStatus: string = '';
+  @State private availableWidth: number = 360;
+  @State private safeTop: number = 0;
+  @State private safeLeft: number = 0;
+  @State private safeRight: number = 0;
+  @State private safeBottom: number = 0;
+  @State private libUsingCache: boolean = false;
   private libGames: LibraryDataSource = new LibraryDataSource();
   private libSyncedOnce: boolean = false;
   private qrTimer: number = -1;
   private qrRetries: number = 0;
   private codeTimer: number = -1;
   private confirmTimer: number = -1;
+  private pageAlive: boolean = false;
+  private pageVisible: boolean = false;
+  private qrGeneration: number = 0;
+  private stopInsetObserver: (() => void) | null = null;
 
   aboutToAppear(): void {
+    this.pageAlive = true;
+    this.pageVisible = true;
     this.applyWindowChrome();
     this.startProbe();
     SteamService.getInstance().initialize(this.context).then((): void => {
+      if (!this.pageAlive) return;
       this.refreshFromService();
       SteamService.getInstance().subscribe('SteamAccountPage',
         (state: SteamUiState, message: string): void => {
@@ -92,25 +107,57 @@ struct SteamAccount {
           this.message = message;
           this.refreshFromService();
           this.syncTimers();
+          if (state === SteamUiState.LOGGED_IN) {
+            this.inputPassword = '';
+            this.inputCode = '';
+            this.refreshGuardSecretFlag();
+          }
         });
       if (SteamService.getInstance().steamId64.length > 0) {
         SteamService.getInstance().restoreSession().then((ok: boolean): void => {
-          if (!ok) {
-            this.message = '会话已过期，请重新登录';
-          }
+          if (!this.pageAlive) return;
           this.refreshFromService();
+          if (!ok) {
+            this.message = '无法恢复会话，可重试登录；已有游戏库可离线查看';
+            this.syncLibrary(false);
+          }
           this.refreshGuardSecretFlag();
         });
       } else {
         this.refreshGuardSecretFlag();
       }
+    }).catch((_error: Object): void => {
+      if (this.pageAlive) this.message = '账号存储初始化失败，请返回后重试';
     });
   }
 
   aboutToDisappear(): void {
+    this.pageAlive = false;
+    this.pageVisible = false;
     SteamService.getInstance().unsubscribe('SteamAccountPage');
     this.stopQrPoll();
     SteamService.getInstance().cancelQrLogin();
+    this.stopTimers();
+    this.inputPassword = '';
+    if (this.stopInsetObserver) this.stopInsetObserver();
+    this.stopInsetObserver = null;
+  }
+
+  onPageShow(): void {
+    this.pageVisible = true;
+    if (this.pageAlive) {
+      this.refreshFromService();
+      this.syncTimers();
+      if (this.state === SteamUiState.LOGGED_IN) this.refreshGuardSecretFlag();
+    }
+  }
+
+  onPageHide(): void {
+    this.pageVisible = false;
+    this.stopQrPoll();
+    SteamService.getInstance().cancelQrLogin();
+    this.qrOpen = false;
+    this.qrUrl = '';
     this.stopTimers();
   }
 
@@ -119,17 +166,37 @@ struct SteamAccount {
     window.getLastWindow(this.context).then(async (pageWindow: window.Window): Promise<void> => {
       DeviceCapabilityPolicy.enableSensorRotation(pageWindow, 'SteamAccount');
       await applyStatusOnlyImmersiveShell(pageWindow);
+      if (!this.pageAlive) return;
+      const updateInsets = (): void => {
+        const insets = getStatusOnlyWindowInsets(pageWindow);
+        this.safeTop = insets.top;
+        this.safeLeft = insets.left;
+        this.safeRight = insets.right;
+        this.safeBottom = insets.bottom;
+      };
+      updateInsets();
+      if (this.stopInsetObserver) this.stopInsetObserver();
+      this.stopInsetObserver = observeStatusOnlyWindowInsets(pageWindow, updateInsets);
     }).catch((_e: Error): void => {
     });
   }
 
   private refreshFromService(): void {
     const service = SteamService.getInstance();
+    if (this.steamId64 !== service.steamId64) {
+      this.libSyncedOnce = false;
+      this.libGames.setGames([]);
+      this.libCount = -1;
+      this.libError = '';
+      this.libUsingCache = false;
+    }
+    this.state = service.state;
+    this.message = service.message;
     this.accountName = service.accountName;
     this.steamId64 = service.steamId64;
     this.personaName = service.personaName;
     this.avatarUrl = service.avatarUrl;
-    if (this.state === SteamUiState.LOGGED_IN && !this.libSyncedOnce) {
+    if (this.state === SteamUiState.LOGGED_IN && service.accessToken.length > 0 && !this.libSyncedOnce) {
       this.libSyncedOnce = true;
       this.syncLibrary(false);
     }
@@ -145,15 +212,21 @@ struct SteamAccount {
     }
     this.libLoading = true;
     this.libError = '';
+    const steamId = service.steamId64;
     SteamLibraryService.getInstance()
       .fetchOwnedGames(service.steamId64, service.accessToken, force)
       .then((games: Array<SteamLibraryGame>): void => {
+        if (!this.pageAlive) return;
         this.libLoading = false;
+        if (SteamService.getInstance().steamId64 !== steamId) return;
         this.libGames.setGames(games);
         this.libCount = games.length;
+        this.libUsingCache = !SteamLibraryService.getInstance().hasFreshCache(steamId);
       })
       .catch((e: Object): void => {
+        if (!this.pageAlive) return;
         this.libLoading = false;
+        if (SteamService.getInstance().steamId64 !== steamId) return;
         const raw = JSON.stringify(e);
         if (raw.indexOf('HTTP 40') >= 0) {
           this.libError = '拉取失败（登录态过期），请重新登录后再同步';
@@ -261,28 +334,35 @@ struct SteamAccount {
       this.qrStatus = '';
       return;
     }
+    this.qrRetries = 0;
     this.qrOpen = true;
     this.startQrLogin();
   }
 
   private startQrLogin(): void {
+    this.stopQrPoll();
+    const generation = this.qrGeneration;
     this.qrUrl = '';
     this.qrStatus = '正在生成二维码…';
     SteamService.getInstance().beginQrLogin().then((url: string): void => {
+      if (!this.pageVisible || !this.qrOpen || generation !== this.qrGeneration) return;
       this.qrUrl = url;
       this.qrStatus = '打开 Steam 手机 App 扫码，然后在手机上确认登录';
-      this.startQrPoll();
+      this.startQrPoll(generation);
     }).catch((e: Object): void => {
+      if (!this.pageVisible || !this.qrOpen || generation !== this.qrGeneration) return;
       this.qrStatus = '';
       this.qrOpen = false;
       this.message = '生成二维码失败：' + JSON.stringify(e);
     });
   }
 
-  private startQrPoll(): void {
-    this.stopQrPoll();
-    this.qrTimer = setInterval((): void => {
+  private startQrPoll(generation: number): void {
+    if (!this.pageVisible || !this.qrOpen || generation !== this.qrGeneration) return;
+    this.qrTimer = setTimeout((): void => {
+      this.qrTimer = -1;
       SteamService.getInstance().pollQrLogin().then((result: string): void => {
+        if (!this.pageVisible || !this.qrOpen || generation !== this.qrGeneration) return;
         if (result === 'approved') {
           this.stopQrPoll();
           this.qrOpen = false;
@@ -298,21 +378,26 @@ struct SteamAccount {
           } else {
             this.startQrLogin();
           }
+        } else {
+          this.startQrPoll(generation);
         }
       }).catch((_e: Object): void => {
         // 单次轮询失败 (网络抽风) 静默, 下一轮再试
+        this.startQrPoll(generation);
       });
     }, 5000);
   }
 
   private stopQrPoll(): void {
+    this.qrGeneration++;
     if (this.qrTimer >= 0) {
-      clearInterval(this.qrTimer);
+      clearTimeout(this.qrTimer);
       this.qrTimer = -1;
     }
   }
 
   private syncTimers(): void {
+    if (!this.pageVisible) return;
     if (this.state === SteamUiState.NEEDS_CONFIRM) {
       this.startConfirmTimer();
     } else {
@@ -321,6 +406,7 @@ struct SteamAccount {
   }
 
   private startGuardTimer(): void {
+    if (!this.pageVisible) return;
     if (this.codeTimer >= 0) return;
     const tick = (): void => {
       SteamService.getInstance().currentGuardCode().then((code: string): void => {
@@ -364,15 +450,15 @@ struct SteamAccount {
     Row() {
       Button({ type: ButtonType.Circle }) {
         SymbolGlyph($r('sys.symbol.chevron_left')).fontSize(22)
-          .fontColor([$r('app.color.text_primary')])
+          .fontColor([skinColor('text_primary')])
       }
       .width(32).height(32)
-      .backgroundColor($r('app.color.search_background'))
+      .backgroundColor(skinColor('search_background'))
       .onClick((): void => { router.back(); })
       .id('steam-back-button')
 
       Text('Steam 账号').fontSize(15).fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary')).margin({ left: 10 })
+        .fontColor(skinColor('text_primary')).margin({ left: 10 })
         .layoutWeight(1)
     }
     .width('100%').height(40)
@@ -382,12 +468,12 @@ struct SteamAccount {
   @Builder
   private SectionButton(label: string, section: string, icon: Resource) {
     Row({ space: 10 }) {
-      SymbolGlyph(icon).fontSize(16).fontColor([$r('app.color.text_primary')])
-      Text(label).fontSize(13).fontColor($r('app.color.text_primary'))
+      SymbolGlyph(icon).fontSize(16).fontColor([skinColor('text_primary')])
+      Text(label).fontSize(13).fontColor(skinColor('text_primary'))
         .fontWeight(this.activeSection === section ? FontWeight.Medium : FontWeight.Regular)
     }
-    .width('100%').height(36).padding({ left: 12, right: 12 }).borderRadius(12)
-    .backgroundColor(this.activeSection === section ? $r('app.color.selected_background') : '#00FFFFFF')
+    .width(this.availableWidth < 600 ? 112 : '100%').height(40).padding({ left: 10, right: 10 }).borderRadius(12)
+    .backgroundColor(this.activeSection === section ? skinColor('selected_background') : '#00FFFFFF')
     .id('steam-nav-' + section)
     .onClick((): void => { this.selectSection(section); })
   }
@@ -396,20 +482,20 @@ struct SteamAccount {
   private ProbeCard() {
     Column({ space: 10 }) {
       Text('连接自检').fontSize(13).fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary')).width('100%')
+        .fontColor(skinColor('text_primary')).width('100%')
       Row({ space: 8 }) {
         Circle({ width: 8, height: 8 })
           .fill(this.probeOk ? '#4ADE80' : '#F87171')
         Text(this.probeResult).fontSize(12)
-          .fontColor($r('app.color.text_secondary')).layoutWeight(1)
+          .fontColor(skinColor('text_secondary')).layoutWeight(1)
       }
       .width('100%').padding(10)
-      .backgroundColor($r('app.color.card_background'))
+      .backgroundColor(skinColor('card_background'))
       .borderRadius(10)
       .id('steam-probe')
       Button('重新检测').width('100%').height(36).borderRadius(10)
-        .backgroundColor($r('app.color.selected_background'))
-        .fontColor($r('app.color.text_primary'))
+        .backgroundColor(skinColor('selected_background'))
+        .fontColor(skinColor('text_primary'))
         .onClick((): void => {
           this.probeOk = false;
           this.probeResult = '检测 Steam 连接中…';
@@ -417,10 +503,10 @@ struct SteamAccount {
         })
         .id('steam-probe-retry')
       Text('自检走 api.steampowered.com 免鉴权端点，与登录链路同通道。')
-        .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+        .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
     }
     .width('100%').padding(14)
-    .backgroundColor($r('app.color.search_background'))
+    .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
   }
 
@@ -429,16 +515,16 @@ struct SteamAccount {
   private SectionLockedHint(hint: string) {
     Column({ space: 10 }) {
       SymbolGlyph($r('sys.symbol.person')).fontSize(30)
-        .fontColor([$r('app.color.text_secondary')])
-      Text(hint).fontSize(12).fontColor($r('app.color.text_secondary'))
+        .fontColor([skinColor('text_secondary')])
+      Text(hint).fontSize(12).fontColor(skinColor('text_secondary'))
         .width('100%').textAlign(TextAlign.Center)
       Button('去登录').width(160).height(36).borderRadius(10)
-        .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+        .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
         .onClick((): void => { this.selectSection('login'); })
         .id('steam-goto-login')
     }
     .width('100%').padding(28)
-    .backgroundColor($r('app.color.search_background'))
+    .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
   }
 
@@ -446,38 +532,38 @@ struct SteamAccount {
   private LoginSection() {
     Column({ space: 10 }) {
       Text('登录 Steam').fontSize(13).fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary')).width('100%')
+        .fontColor(skinColor('text_primary')).width('100%')
 
       if (this.state === SteamUiState.NEEDS_EMAIL_CODE ||
         this.state === SteamUiState.NEEDS_GUARD_CODE) {
         Text(this.state === SteamUiState.NEEDS_GUARD_CODE
           ? '输入手机令牌 App 上的 5 位验证码' : '输入邮箱收到的验证码')
-          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+          .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
         TextInput({ placeholder: '验证码', text: this.inputCode })
           .fontSize(14).height(44).borderRadius(12)
-          .backgroundColor($r('app.color.card_background'))
+          .backgroundColor(skinColor('card_background'))
           .onChange((value: string): void => { this.inputCode = value; })
           .id('steam-code-input')
         Button('提交验证码').width('100%').height(44).borderRadius(12)
-          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
           .enabled(this.inputCode.trim().length > 0)
           .onClick((): void => {
             SteamService.getInstance().submitCode(this.inputCode);
           })
           .id('steam-code-submit')
       } else if (this.state === SteamUiState.NEEDS_CONFIRM) {
-        LoadingProgress().width(36).height(36).color($r('app.color.accent'))
+        LoadingProgress().width(36).height(36).color(skinColor('accent'))
         Text('新设备首次登录需要在手机上确认（只需一次，之后启动器自动记住本设备）：')
-          .fontSize(13).fontColor($r('app.color.text_primary')).width('100%')
+          .fontSize(13).fontColor(skinColor('text_primary')).width('100%')
         Text('打开手机 Steam App → Steam Guard（令牌页）→ 「确认登录」→ 找到这条登录请求 → 点「允许」。收不到推送也可以在这里手动确认。')
-          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+          .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
         TextInput({ placeholder: '备用：5 位令牌验证码（仅 Steam 允许时可用）', text: this.inputCode })
           .fontSize(14).height(44).borderRadius(12)
-          .backgroundColor($r('app.color.card_background'))
+          .backgroundColor(skinColor('card_background'))
           .onChange((value: string): void => { this.inputCode = value; })
           .id('steam-confirm-code-input')
         Button('提交令牌验证码').width('100%').height(44).borderRadius(12)
-          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
           .enabled(this.inputCode.trim().length > 0)
           .onClick((): void => {
             SteamService.getInstance().submitCode(this.inputCode);
@@ -486,18 +572,18 @@ struct SteamAccount {
       } else {
         TextInput({ placeholder: 'Steam 账号名', text: this.inputAccount })
           .fontSize(14).height(44).borderRadius(12)
-          .backgroundColor($r('app.color.card_background'))
+          .backgroundColor(skinColor('card_background'))
           .onChange((value: string): void => { this.inputAccount = value; })
           .id('steam-login-account')
         TextInput({ placeholder: '密码', text: this.inputPassword })
           .type(InputType.Password)
           .fontSize(14).height(44).borderRadius(12)
-          .backgroundColor($r('app.color.card_background'))
+          .backgroundColor(skinColor('card_background'))
           .onChange((value: string): void => { this.inputPassword = value; })
           .id('steam-login-password')
         Button(this.state === SteamUiState.WORKING ? '登录中…' : '登录')
           .width('100%').height(44).borderRadius(12)
-          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
           .enabled(this.state !== SteamUiState.WORKING)
           .onClick((): void => {
             SteamService.getInstance().signIn(this.inputAccount, this.inputPassword);
@@ -505,8 +591,8 @@ struct SteamAccount {
           .id('steam-login-button')
         Button(this.qrOpen ? '收起二维码' : '扫码登录（Steam 手机 App，免输密码）')
           .width('100%').height(40).borderRadius(12)
-          .backgroundColor($r('app.color.selected_background'))
-          .fontColor($r('app.color.text_primary'))
+          .backgroundColor(skinColor('selected_background'))
+          .fontColor(skinColor('text_primary'))
           .enabled(this.state !== SteamUiState.WORKING)
           .onClick((): void => { this.toggleQr(); })
           .id('steam-qr-login')
@@ -517,33 +603,33 @@ struct SteamAccount {
                 .backgroundColor('#FFFFFFFF')
                 .id('steam-qr-image')
             } else {
-              LoadingProgress().width(28).height(28).color($r('app.color.accent'))
+              LoadingProgress().width(28).height(28).color(skinColor('accent'))
                 .margin({ top: 30, bottom: 30 })
             }
             Text(this.qrStatus)
-              .fontSize(11).fontColor($r('app.color.text_secondary'))
+              .fontSize(11).fontColor(skinColor('text_secondary'))
               .width('100%').textAlign(TextAlign.Center)
           }
           .width('100%').padding(12)
-          .backgroundColor($r('app.color.card_background'))
+          .backgroundColor(skinColor('card_background'))
           .borderRadius(12)
           .id('steam-qr-inline')
         }
-        Text('建议使用小号测试；新设备登录可能触发 Steam 邮箱验证，频繁验证码属 Steam 风控，与客户端无关。')
-          .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+        Text('新设备登录可能需要邮箱验证码或 Steam 手机 App 确认。')
+          .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
       }
 
       if (this.message.length > 0) {
         Text(this.message).fontSize(12)
-          .fontColor(this.state === SteamUiState.ERROR ? '#F87171' : $r('app.color.text_secondary'))
+          .fontColor(this.state === SteamUiState.ERROR ? '#F87171' : skinColor('text_secondary'))
           .width('100%').id('steam-message')
       }
       if (this.state === SteamUiState.WORKING) {
-        LoadingProgress().width(28).height(28).color($r('app.color.accent'))
+        LoadingProgress().width(28).height(28).color(skinColor('accent'))
       }
     }
     .width('100%').padding(14)
-    .backgroundColor($r('app.color.search_background'))
+    .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
   }
 
@@ -559,29 +645,29 @@ struct SteamAccount {
         } else {
           Stack() {
             SymbolGlyph($r('sys.symbol.person')).fontSize(30)
-              .fontColor([$r('app.color.text_secondary')])
+              .fontColor([skinColor('text_secondary')])
           }
           .width(56).height(56).borderRadius(16)
-          .backgroundColor($r('app.color.selected_background'))
+          .backgroundColor(skinColor('selected_background'))
         }
         Column({ space: 3 }) {
           Text(this.personaName.length > 0 ? this.personaName : this.accountName)
             .fontSize(17).fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary')).width('100%')
+            .fontColor(skinColor('text_primary')).width('100%')
           if (this.accountName.length > 0) {
             Text(this.accountName).fontSize(12)
-              .fontColor($r('app.color.text_secondary')).width('100%')
+              .fontColor(skinColor('text_secondary')).width('100%')
           }
           if (this.steamId64.length > 0) {
             Text('SteamID ' + this.steamId64).fontSize(11)
-              .fontColor($r('app.color.text_secondary')).width('100%')
+              .fontColor(skinColor('text_secondary')).width('100%')
           }
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')
 
       Button('登出').width('100%').height(40).borderRadius(12)
-        .backgroundColor($r('app.color.search_background'))
-        .fontColor($r('app.color.text_primary'))
+        .backgroundColor(skinColor('search_background'))
+        .fontColor(skinColor('text_primary'))
         .onClick((): void => {
           SteamService.getInstance().signOut();
           this.stopGuardTimer();
@@ -590,7 +676,7 @@ struct SteamAccount {
         .id('steam-logout')
     }
     .width('100%').padding(14)
-    .backgroundColor($r('app.color.search_background'))
+    .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
   }
 
@@ -598,16 +684,16 @@ struct SteamAccount {
   private TokenCard() {
     Column({ space: 10 }) {
       Text('Steam 手机令牌').fontSize(13).fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary')).width('100%')
+        .fontColor(skinColor('text_primary')).width('100%')
       if (this.hasSharedSecret) {
         Stack() {
           Text(this.guardCode.length > 0 ? this.guardCode : '-----')
             .fontSize(34).fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.accent'))
+            .fontColor(skinColor('accent'))
             .letterSpacing(6)
         }
         .width('100%').height(72).borderRadius(14)
-        .backgroundColor($r('app.color.selected_background'))
+        .backgroundColor(skinColor('selected_background'))
         .onClick((): void => {
           if (this.guardCode.length > 0) {
             const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.guardCode);
@@ -617,32 +703,32 @@ struct SteamAccount {
         })
         .id('steam-totp-code')
         Progress({ value: this.guardCodeSeconds, total: 30, type: ProgressType.Linear })
-          .width('100%').color($r('app.color.accent'))
+          .width('100%').color(skinColor('accent'))
         Text('与 Steam 手机 App 一致，30 秒刷新；点击复制')
-          .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+          .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
       } else {
         Text('用 Steam 手机令牌的 maFile 导入（推荐），或手动粘贴 shared_secret（Base64）。')
-          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+          .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
         Button(this.importing ? '读取中…' : '导入 maFile 文件')
           .width('100%').height(38).borderRadius(10)
-          .backgroundColor($r('app.color.selected_background'))
-          .fontColor($r('app.color.text_primary'))
+          .backgroundColor(skinColor('selected_background'))
+          .fontColor(skinColor('text_primary'))
           .enabled(!this.importing)
           .onClick((): void => { this.pickMaFile(); })
           .id('steam-mafile-import')
         if (this.tokenMessage.length > 0) {
           Text(this.tokenMessage).fontSize(11)
-            .fontColor($r('app.color.text_secondary')).width('100%')
+            .fontColor(skinColor('text_secondary')).width('100%')
             .id('steam-mafile-message')
         }
         TextInput({ placeholder: 'shared_secret（Base64）', text: this.secretInput })
           .fontSize(12).height(38).borderRadius(10)
-          .backgroundColor($r('app.color.card_background'))
+          .backgroundColor(skinColor('card_background'))
           .onChange((value: string): void => { this.secretInput = value; })
           .id('steam-secret-input')
         Button(this.importing ? '保存中…' : '保存密钥并启用令牌')
           .width('100%').height(38).borderRadius(10)
-          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
           .enabled(!this.importing && this.secretInput.trim().length > 0)
           .onClick((): void => {
             this.importing = true;
@@ -656,7 +742,7 @@ struct SteamAccount {
       }
     }
     .width('100%').padding(14)
-    .backgroundColor($r('app.color.search_background'))
+    .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
   }
 
@@ -665,14 +751,14 @@ struct SteamAccount {
     Column({ space: 10 }) {
       Row({ space: 8 }) {
         Text('Steam 游戏库').fontSize(13).fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
+          .fontColor(skinColor('text_primary'))
         Text(this.libCount >= 0 ? '共 ' + this.libCount + ' 款' : '')
-          .fontSize(11).fontColor($r('app.color.text_secondary'))
+          .fontSize(11).fontColor(skinColor('text_secondary'))
         Blank()
         Button(this.libLoading ? '同步中…' : '同步')
           .fontSize(12).height(28).borderRadius(8)
           .padding({ left: 14, right: 14 })
-          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
           .enabled(!this.libLoading && this.steamId64.length > 0)
           .onClick((): void => { this.syncLibrary(true); })
           .id('steam-lib-sync')
@@ -680,6 +766,10 @@ struct SteamAccount {
       .width('100%')
       if (this.libError.length > 0) {
         Text(this.libError).fontSize(11).fontColor('#F87171').width('100%')
+      }
+      if (this.libUsingCache) {
+        Text('当前显示离线缓存；联网后点同步更新')
+          .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
       }
       if (this.libGames.totalCount() > 0) {
         List({ space: 8 }) {
@@ -698,26 +788,26 @@ struct SteamAccount {
                   Column() {
                     Text(game.name.length > 0 ? game.name.substring(0, 1) : '?')
                       .fontSize(14).fontWeight(FontWeight.Bold)
-                      .fontColor($r('app.color.text_secondary'))
+                      .fontColor(skinColor('text_secondary'))
                   }
                   .width(34).height(34).borderRadius(6)
-                  .backgroundColor($r('app.color.selected_background'))
+                  .backgroundColor(skinColor('selected_background'))
                   .justifyContent(FlexAlign.Center)
                 }
                 Column({ space: 3 }) {
                   Text(game.name.length > 0 ? game.name : ('App ' + game.appId))
-                    .fontSize(13).fontColor($r('app.color.text_primary'))
+                    .fontSize(13).fontColor(skinColor('text_primary'))
                     .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
                   Text(this.formatPlayHours(game.playtimeForeverSeconds)
                     + ' · ' + this.formatLastPlayed(game.lastPlayedEpochSeconds))
-                    .fontSize(11).fontColor($r('app.color.text_secondary'))
+                    .fontSize(11).fontColor(skinColor('text_secondary'))
                 }
                 .alignItems(HorizontalAlign.Start)
                 .layoutWeight(1)
               }
               .width('100%').padding(8)
               .borderRadius(10)
-              .backgroundColor($r('app.color.card_background'))
+              .backgroundColor(skinColor('card_background'))
             }
           }, (game: SteamLibraryGame) => game.appId)
         }
@@ -726,83 +816,99 @@ struct SteamAccount {
         .edgeEffect(EdgeEffect.Spring)
       } else if (!this.libLoading) {
         Text(this.libCount === 0 ? '账号下没有游戏（免费库也可能为空）' : '点右上角"同步"拉取你的 Steam 游戏库')
-          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+          .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
       }
     }
     .width('100%').padding(14)
-    .backgroundColor($r('app.color.search_background'))
+    .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
   }
 
-  build() {
-    Column() {
-      this.TopBar()
-      Row({ space: 18 }) {
-        // 左栏: 分类小列表 (与设置页同交互语言)
-        Column() {
-          Scroll() {
-            Column({ space: 3 }) {
-              this.SectionButton('账号登录', 'login', $r('sys.symbol.person'))
-              this.SectionButton('手机令牌', 'token', $r('sys.symbol.timer'))
-              this.SectionButton('游戏库', 'library', $r('sys.symbol.square_grid_2x2'))
-              this.SectionButton('连接自检', 'probe', $r('sys.symbol.info_circle'))
-            }
-            .width('100%')
+  @Builder
+  private DetailPane() {
+    Scroll() {
+      Column({ space: 12 }) {
+        if (this.activeSection === 'probe') {
+          this.ProbeCard()
+        } else if (this.activeSection === 'token') {
+          if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+            this.TokenCard()
+          } else {
+            this.SectionLockedHint('登录后可查看手机令牌动态码，或导入 maFile。')
           }
-          .layoutWeight(1)
-          .width('100%')
-          .scrollBar(BarState.Off)
-          .id('steam-nav-scroll')
-        }
-        .width(204)
-        .height('100%')
-        .padding({ left: 8, right: 8, top: 8, bottom: 8 })
-        .backgroundColor($r('app.color.search_background'))
-        .borderRadius(20)
-        .clip(true)
-        // 右栏: 选中分类的详情
-        Scroll() {
-          Column({ space: 12 }) {
-            if (this.activeSection === 'probe') {
-              this.ProbeCard()
-            } else if (this.activeSection === 'token') {
-              if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
-                this.TokenCard()
-              } else {
-                this.SectionLockedHint('登录后可在这里查看手机令牌动态码，或导入 maFile。')
-              }
-            } else if (this.activeSection === 'library') {
-              if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
-                this.LibraryCard()
-              } else {
-                this.SectionLockedHint('登录后可在这里同步 Steam 游戏库，并与本地游戏批量匹配封面/时长。')
-              }
-            } else {
-              if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
-                this.ProfileCard()
-              } else {
-                this.LoginSection()
-              }
-            }
+        } else if (this.activeSection === 'library') {
+          if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+            this.LibraryCard()
+          } else {
+            this.SectionLockedHint('登录后可同步 Steam 游戏库，并与本地游戏匹配封面和时长。')
           }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-          .padding({ left: 4, right: 4, top: 4, bottom: 32 })
-          .constraintSize({ minHeight: '100%' })
+        } else {
+          if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+            this.ProfileCard()
+          } else {
+            this.LoginSection()
+          }
         }
-        .layoutWeight(1)
-        .height('100%')
-        .scrollBar(BarState.Off)
-        .align(Alignment.TopStart)
-        .id('steam-detail-scroll')
       }
       .width('100%')
-      .layoutWeight(1)
-      .alignItems(VerticalAlign.Top)
-      .padding({ left: 16, right: 16, top: 8, bottom: Math.max(8, 0) })
+      .constraintSize({ maxWidth: 960 })
+      .alignItems(HorizontalAlign.Start)
+      .padding({ left: 4, right: 4, top: 4, bottom: 16 })
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.page_background'))
+    .width('100%').height('100%')
+    .scrollBar(BarState.Auto)
+    .align(Alignment.Top)
+    .id('steam-detail-scroll')
+  }
+
+  @Builder
+  private SectionButtons() {
+    this.SectionButton('账号登录', 'login', $r('sys.symbol.person'))
+    this.SectionButton('手机令牌', 'token', $r('sys.symbol.timer'))
+    this.SectionButton('游戏库', 'library', $r('sys.symbol.square_grid_2x2'))
+    this.SectionButton('连接自检', 'probe', $r('sys.symbol.info_circle'))
+  }
+
+  build() {
+    Column({ space: 8 }) {
+      this.TopBar()
+      if (this.availableWidth < 600) {
+        Scroll() {
+          Row({ space: 4 }) {
+            this.SectionButtons()
+          }
+        }
+        .width('100%').height(44)
+        .scrollable(ScrollDirection.Horizontal)
+        .scrollBar(BarState.Off)
+        .id('steam-nav-horizontal')
+        Column() { this.DetailPane() }
+          .width('100%').layoutWeight(1)
+      } else {
+        Row({ space: 16 }) {
+          Scroll() {
+            Column({ space: 4 }) { this.SectionButtons() }
+              .width('100%')
+          }
+          .width(this.availableWidth < 840 ? 164 : 204).height('100%')
+          .padding(8).borderRadius(16)
+          .backgroundColor(skinColor('search_background'))
+          .scrollBar(BarState.Off)
+          .align(Alignment.TopStart)
+          .id('steam-nav-sidebar')
+          Column() { this.DetailPane() }
+            .layoutWeight(1).height('100%')
+        }
+        .width('100%').layoutWeight(1)
+        .alignItems(VerticalAlign.Top)
+      }
+    }
+    .width('100%').height('100%')
+    .padding({ left: 12 + this.safeLeft, right: 12 + this.safeRight,
+      top: this.safeTop + 8, bottom: Math.max(12, this.safeBottom) })
+    .backgroundColor(skinColor('page_background'))
+    .onAreaChange((_old: Area, area: Area): void => {
+      this.availableWidth = Math.max(0, Number(area.width) - 24 - this.safeLeft - this.safeRight);
+    })
   }
 }

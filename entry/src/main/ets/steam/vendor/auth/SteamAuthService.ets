@@ -12,6 +12,7 @@ import { SteamJsonParser, SteamJsonValue, SteamJsonValueKind } from '../import/S
 import { SteamBase64 } from '../protocol/SteamBase64';
 import { SteamUtf8 } from '../protocol/SteamVarint';
 import { SteamTotp } from '../security/SteamTotp';
+import { SteamJwt } from '../security/SteamJwt';
 import {
   SteamAuthEndpoint,
   SteamAuthHttpResponse,
@@ -365,7 +366,7 @@ export class SteamAuthService implements ISteamAuthService {
     const fields: Array<SteamFormField> = [
       new SteamFormField('refresh_token', refreshToken)
     ];
-    const knownSteamId = this.knownSteamIds.get(accountId);
+    const knownSteamId = this.knownSteamIds.get(accountId) ?? SteamJwt.subjectClaim(refreshToken);
     if (knownSteamId !== undefined && knownSteamId.length > 0) {
       fields.push(new SteamFormField('steamid', knownSteamId));
     }

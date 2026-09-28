@@ -738,6 +738,7 @@ struct Index {
 
   aboutToDisappear(): void {
     this.detachConsoleNavigation();
+    SteamService.getInstance().unsubscribe('LauncherSteamEntry');
     this.stopSteamPopTimer();
     if (this.breakpointCallback) BreakpointSystem.unsubscribe(this.breakpointCallback);
     if (this.engineCallback) WineEngineService.getInstance().unsubscribe(this.engineCallback);
@@ -749,6 +750,7 @@ struct Index {
 
   onPageShow(): void {
     this.consolePageVisible = true;
+    this.refreshSteamEntry();
     this.settings = AppSettingsStore.getInstance().getGlobalSettings();
     this.consoleBackgroundCache.clear();
     this.syncConsoleNavigation();
@@ -782,6 +784,8 @@ struct Index {
 
   onPageHide(): void {
     this.consolePageVisible = false;
+    this.steamPop = false;
+    this.stopSteamPopTimer();
     this.bentoInteractionEpoch++;
     this.detachConsoleNavigation();
     this.suspendConsoleRingForPageTransition();
@@ -911,6 +915,8 @@ struct Index {
     this.catalogInitialized = true;
     // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标)
     SteamService.getInstance().initialize(this.context).then((): void => {
+      SteamService.getInstance().subscribe('LauncherSteamEntry',
+        (_state: SteamUiState, _message: string): void => this.refreshSteamEntry());
       this.refreshSteamEntry();
       if (SteamService.getInstance().steamId64.length > 0) {
         SteamService.getInstance().restoreSession().then((): void => {
@@ -2866,7 +2872,7 @@ struct Index {
             .backgroundColor(skinColor('search_background'))
             .fontColor('#F87171')
             .onClick((): void => {
-              SteamService.getInstance().signOut();
+              void SteamService.getInstance().signOut().then((): void => this.refreshSteamEntry());
               this.steamPop = false;
               this.stopSteamPopTimer();
               this.refreshSteamEntry();
@@ -3440,12 +3446,17 @@ struct Index {
         if (!game) continue;
         hit++;
         if (game.playtimeForeverSeconds > 0) {
-          await store.setPlayMinutes(app.id, game.playtimeForeverSeconds / 60);
+          await store.setPlayMinutes(app.id,
+            Math.max(store.getPlayMinutes(app.id), game.playtimeForeverSeconds / 60));
         }
+        if (store.getAppSettings(app.id).customCover) continue;
         if (app.coverPath && app.coverPath.length > 0) continue;
         const dir = this.steamMatchDirOf(app);
         if (dir.length === 0) continue;
-        const ok = await SteamMatch.downloadCoverTo(game.appId, game.logoUrl, dir);
+        const ok = await SteamMatch.downloadCoverTo(game.appId, game.logoUrl, dir, (): boolean => {
+          const current = this.apps.find((item: AppDescriptor): boolean => item.id === app.id);
+          return !!current && !current.coverPath && !store.getAppSettings(app.id).customCover;
+        });
         if (ok) covers++;
       }
       promptAction.showToast({ message: `命中 ${hit} / 本地 ${total}；补封面 ${covers} 张` });
