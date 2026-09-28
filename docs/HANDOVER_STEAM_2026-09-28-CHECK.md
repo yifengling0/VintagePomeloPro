@@ -167,6 +167,19 @@ vendor `beginFields` 删 device_details（NOTICE.md 已记档）。上游 steam_
 从未对真 Steam 端到端验证过（RSA 公钥注释自述 fixture-facing）， ASFWorkshop 参考实现同样带这两个坑。
 复现脚本：`E:\tmp\steam-login-repro.js`、`E:\tmp\steam-methods-probe.js`、`E:\tmp\steam-begin-matrix.js`。
 
+### 7.2 QR 扫码登录（c4e3602，替代繁琐的"手机确认"路径）
+
+用户反馈密码登录能到"手机确认"但体验差。**实测推翻总纲 §0.1"扫码登录需 CM WebSocket"的判断**：
+`BeginAuthSessionViaQR` 纯 HTTP 表单即返回 client_id/challenge_url(`s.team/q/1/<id>`)/request_id/interval=5s，
+轮询 `PollAuthSessionStatus`（与密码流程同端点）等待态 200 空响应，手机确认后响应带 refresh/access_token。
+
+实现（全部宿主侧，vendor 只加一个枚举值 BEGIN_QR_SESSION，NOTICE 记档）：
+- `SteamService.beginQrLogin()`（发会话回 challenge_url）/ `pollQrLogin()`（pending/approved/invalid 三态；
+  approved 时 JWT sub 解析 steamid，与密码登录同款落库+profile）/ `cancelQrLogin()`。
+- SteamAccount 登录卡：密码表单加"扫码登录"按钮 → QR 模式（ArkUI 内置 `QRCode` 组件渲染，5s 轮询，
+  失效自动重生成 ≤3 次后回退密码模式）→ 返回密码登录按钮；aboutToDisappear 清理轮询与扫码会话。
+- 复现脚本：`E:\tmp\steam-qr-probe.js`。"密钥登录"（refresh_token 粘贴）未做 —— QR 已覆盖该需求场景。
+
 ## 6. 环境备忘（上会话验证过的事实）
 
 - 编译链路：`bash /e/iiSU/vpp-check-sync.sh /tmp/<日志名>.log`（同步 E:\ui-sync → E:\vpp-build 后
