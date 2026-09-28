@@ -7,7 +7,7 @@ export enum SteamAuthEndpoint {
   BEGIN_AUTH_SESSION = 'https://api.steampowered.com/IAuthenticationService/BeginAuthSessionViaCredentials/v1/',
   UPDATE_STEAM_GUARD_CODE = 'https://api.steampowered.com/IAuthenticationService/UpdateAuthSessionWithSteamGuardCode/v1/',
   POLL_AUTH_SESSION = 'https://api.steampowered.com/IAuthenticationService/PollAuthSessionStatus/v1/',
-  GENERATE_ACCESS_TOKEN = 'https://api.steampowered.com/IAuthenticationService/GenerateAccessTokenForAccount/v1/',
+  GENERATE_ACCESS_TOKEN = 'https://api.steampowered.com/IAuthenticationService/GenerateAccessTokenForApp/v1/',
   // 2026-09-28 新增: QR 扫码登录 (宿主 SteamService 使用; 实测纯 HTTP 表单可用,
   // 上游"QR 需要 CM WebSocket"的判断不成立, 见 NOTICE.md)
   BEGIN_QR_SESSION = 'https://api.steampowered.com/IAuthenticationService/BeginAuthSessionViaQR/v1/'

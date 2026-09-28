@@ -129,12 +129,16 @@ async function main() {
   const { SteamAuthService } = authLoad('steam/vendor/auth/SteamAuthService.ets');
   const { SteamAuthHttpResponse } = authLoad('steam/vendor/auth/SteamAuthProtocol.ets');
   let refreshFields = [];
-  const auth = new SteamAuthService({ postForm: async (_endpoint, fields) => {
+  let refreshEndpoint;
+  const auth = new SteamAuthService({ postForm: async (endpoint, fields) => {
+    refreshEndpoint = endpoint;
     refreshFields = fields;
     return new SteamAuthHttpResponse(200, JSON.stringify({ response: { access_token: 'fake-access' } }));
   } }, {}, { nowEpochSeconds: () => 100 });
   const fakeJwt = 'header.' + Buffer.from('{"sub":"76561198000000001"}').toString('base64url') + '.signature';
   await auth.refresh('fixture', fakeJwt);
+  assert.equal(refreshEndpoint,
+    'https://api.steampowered.com/IAuthenticationService/GenerateAccessTokenForApp/v1/');
   assert.equal(refreshFields.find(field => field.name === 'steamid').value, '76561198000000001');
   const { SteamAuthRequest } = authLoad('steam/vendor/contracts/SteamPlatformContracts.ets');
   const nativeFailure = new SteamAuthService({ postForm: async () => {

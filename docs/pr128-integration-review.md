@@ -55,6 +55,12 @@ PR 可以与现有瓦片改动无冲突整合，原始 CI 已通过；审查发�
 
 用户反馈密码登录失败后，旧日志只有 `signIn failed: {}`，页面显示通用错误。增加不包含账号、密码或令牌的阶段与错误码诊断后，平板记录了 `SteamAuthError/transport,stage=rsa_public_key`：失败发生在获取公钥阶段，尚未提交密码进行认证。
 
-`GetPasswordRSAPublicKey` 是 GET 接口，原适配器先 POST，收到 HTTP 405 后才尝试 GET；平板在首个传输步骤抛异常，不能走到回退。改为直接 GET，其他认证接口保留 POST。修正后平板日志于 21:19:31 确认 `password preflight passed; no credentials used`，公钥获取、解析和 HarmonyOS RSA 加密步骤均通过。此预检使用固定诊断数据，不提交任何登录认证。完整账号认证结果仍需用户重新登录确认。
+`GetPasswordRSAPublicKey` 是 GET 接口，原适配器先 POST，收到 HTTP 405 后才尝试 GET；平板在首个传输步骤抛异常，不能走到回退。改为直接 GET，其他认证接口保留 POST。修正后平板日志于 21:19:31 确认 `password preflight passed; no credentials used`，公钥获取、解析和 HarmonyOS RSA 加密步骤均通过。此预检使用固定诊断数据，不提交任何登录认证。随后用户在设备上重新登录，21:21:06 日志确认实际密码登录成功，21:21:07 游戏库获取成功。代理未读取或使用用户的密码。
 
 同时修复原生非 Error 异常被转换为普通 Error 而丢掉错误码的问题；RSA 导入、加密以及登录响应解析均标注阶段。界面显示阶段/错误码，日志只记录结构化诊断标签。补充回归检查直接 GET、认证 POST 不回退 GET，以及原生网络错误码保留。
+
+覆盖安装后检查会话恢复，又发现旧端点 `GenerateAccessTokenForAccount/v1/` 返回 404。核对 [Steam Authentication protobuf](https://github.com/SteamDatabase/Protobufs/blob/master/steam/steammessages_auth.steamclient.proto)，当前方法为 `GenerateAccessTokenForApp`，字段沿用 refresh_token/steamid。修正端点并补充回归断言后再次覆盖安装；21:26:45 日志确认恢复持久档案，21:26:46 确认自动登录成功，无需再次输入密码。
+
+## 用户要求的布局收敛
+
+只保留“3D 瓦片”和“混排瓦片”。移除新皮肤的多卡排版、背景小卡及其绘制、滚动与导航分支。旧的 gallery/xbox_tiles 设置读取时回退到 3D；已选混排瓦片继续保持。经典皮肤的视图设置不变。修正版正常编译、签名验签并安装平板；Wine 运行时一致性预检继续通过。

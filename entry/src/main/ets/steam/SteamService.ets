@@ -346,7 +346,9 @@ export class SteamService {
       }
       return false;
     } catch (e) {
-      hilog.warn(DOMAIN, TAG, 'restore failed: %{public}s', JSON.stringify(e));
+      const failure = SteamAuthErrorSupport.normalize(e, SteamAuthErrorKind.UNKNOWN,
+        'restore_session', 'Steam session restore failed');
+      hilog.warn(DOMAIN, TAG, 'restore failed: %{public}s', SteamAuthErrorSupport.diagnosticLabel(failure));
       return false;
     } finally {
       this.working = false;
