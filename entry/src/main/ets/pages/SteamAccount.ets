@@ -7,6 +7,40 @@ import { util } from '@kit.ArkTS';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { applyStatusOnlyImmersiveShell } from '../common/StatusOnlyImmersiveShell';
 import { SteamService, SteamUiState } from '../steam/SteamService';
+import { SteamLibraryService } from '../steam/SteamLibrary';
+import { SteamLibraryGame } from '../steam/vendor/models/SteamModels';
+
+/** 库列表数据源（LazyForEach 增量渲染, 真实库可能几百款）。 */
+class LibraryDataSource implements IDataSource {
+  private listeners: DataChangeListener[] = [];
+  private games: Array<SteamLibraryGame> = [];
+
+  setGames(games: Array<SteamLibraryGame>): void {
+    this.games = games;
+    this.listeners.forEach((l: DataChangeListener): void => l.onDataReloaded());
+  }
+
+  totalCount(): number {
+    return this.games.length;
+  }
+
+  getData(index: number): SteamLibraryGame {
+    return this.games[index];
+  }
+
+  registerDataChangeListener(listener: DataChangeListener): void {
+    if (this.listeners.indexOf(listener) < 0) {
+      this.listeners.push(listener);
+    }
+  }
+
+  unregisterDataChangeListener(listener: DataChangeListener): void {
+    const i = this.listeners.indexOf(listener);
+    if (i >= 0) {
+      this.listeners.splice(i, 1);
+    }
+  }
+}
 
 /**
  * Steam 账号页：账号登录 / Steam Guard 令牌 / 游戏库 三段式。
@@ -33,6 +67,11 @@ struct SteamAccount {
   @State private secretInput: string = '';
   @State private importing: boolean = false;
   @State private tokenMessage: string = '';
+  @State private libLoading: boolean = false;
+  @State private libError: string = '';
+  @State private libCount: number = -1;
+  private libGames: LibraryDataSource = new LibraryDataSource();
+  private libSyncedOnce: boolean = false;
   private codeTimer: number = -1;
   private confirmTimer: number = -1;
 
@@ -82,6 +121,55 @@ struct SteamAccount {
     this.steamId64 = service.steamId64;
     this.personaName = service.personaName;
     this.avatarUrl = service.avatarUrl;
+    if (this.state === SteamUiState.LOGGED_IN && !this.libSyncedOnce) {
+      this.libSyncedOnce = true;
+      this.syncLibrary(false);
+    }
+  }
+
+  /** W4.2: 拉取/刷新库列表（force=true 跳过缓存走网络）。 */
+  private syncLibrary(force: boolean): void {
+    if (this.libLoading) return;
+    const service = SteamService.getInstance();
+    if (service.steamId64.length === 0) {
+      this.libError = '尚未登录 Steam 账号';
+      return;
+    }
+    this.libLoading = true;
+    this.libError = '';
+    SteamLibraryService.getInstance()
+      .fetchOwnedGames(service.steamId64, service.accessToken, force)
+      .then((games: Array<SteamLibraryGame>): void => {
+        this.libLoading = false;
+        this.libGames.setGames(games);
+        this.libCount = games.length;
+      })
+      .catch((e: Object): void => {
+        this.libLoading = false;
+        const raw = JSON.stringify(e);
+        if (raw.indexOf('HTTP 40') >= 0) {
+          this.libError = '拉取失败（登录态过期），请重新登录后再同步';
+        } else if (raw.indexOf('timeout') >= 0 || raw.indexOf('Timeout') >= 0) {
+          this.libError = '拉取超时，请检查网络后重试';
+        } else {
+          this.libError = '拉取失败，请稍后重试';
+        }
+      });
+  }
+
+  private formatPlayHours(seconds: number): string {
+    if (seconds <= 0) return '未游玩';
+    return (seconds / 3600).toFixed(1) + ' 小时';
+  }
+
+  private formatLastPlayed(epochSeconds: number): string {
+    if (epochSeconds <= 0) return '从未游玩';
+    const days = Math.floor((Date.now() / 1000 - epochSeconds) / 86400);
+    if (days <= 0) return '今天玩过';
+    if (days === 1) return '昨天玩过';
+    if (days < 30) return days + ' 天前玩过';
+    if (days < 365) return Math.floor(days / 30) + ' 个月前玩过';
+    return Math.floor(days / 365) + ' 年前玩过';
   }
 
   private startProbe(): void {
@@ -329,6 +417,80 @@ struct SteamAccount {
     .borderRadius(14)
   }
 
+  @Builder
+  private LibraryCard() {
+    Column({ space: 10 }) {
+      Row({ space: 8 }) {
+        Text('Steam 游戏库').fontSize(13).fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+        Text(this.libCount >= 0 ? '共 ' + this.libCount + ' 款' : '')
+          .fontSize(11).fontColor($r('app.color.text_secondary'))
+        Blank()
+        Button(this.libLoading ? '同步中…' : '同步')
+          .fontSize(12).height(28).borderRadius(8)
+          .padding({ left: 14, right: 14 })
+          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .enabled(!this.libLoading && this.steamId64.length > 0)
+          .onClick((): void => { this.syncLibrary(true); })
+          .id('steam-lib-sync')
+      }
+      .width('100%')
+      if (this.libError.length > 0) {
+        Text(this.libError).fontSize(11).fontColor('#F87171').width('100%')
+      }
+      if (this.libGames.totalCount() > 0) {
+        List({ space: 8 }) {
+          LazyForEach(this.libGames, (game: SteamLibraryGame) => {
+            ListItem() {
+              Row({ space: 10 }) {
+                if (game.logoUrl.length > 0) {
+                  Image(game.logoUrl)
+                    .width(92).height(43).borderRadius(6)
+                    .objectFit(ImageFit.Cover).draggable(false)
+                } else if (game.iconUrl.length > 0) {
+                  Image(game.iconUrl)
+                    .width(34).height(34).borderRadius(6)
+                    .objectFit(ImageFit.Cover).draggable(false)
+                } else {
+                  Column() {
+                    Text(game.name.length > 0 ? game.name.substring(0, 1) : '?')
+                      .fontSize(14).fontWeight(FontWeight.Bold)
+                      .fontColor($r('app.color.text_secondary'))
+                  }
+                  .width(34).height(34).borderRadius(6)
+                  .backgroundColor($r('app.color.selected_background'))
+                  .justifyContent(FlexAlign.Center)
+                }
+                Column({ space: 3 }) {
+                  Text(game.name.length > 0 ? game.name : ('App ' + game.appId))
+                    .fontSize(13).fontColor($r('app.color.text_primary'))
+                    .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
+                  Text(this.formatPlayHours(game.playtimeForeverSeconds)
+                    + ' · ' + this.formatLastPlayed(game.lastPlayedEpochSeconds))
+                    .fontSize(11).fontColor($r('app.color.text_secondary'))
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+              }
+              .width('100%').padding(8)
+              .borderRadius(10)
+              .backgroundColor($r('app.color.card_background'))
+            }
+          }, (game: SteamLibraryGame) => game.appId)
+        }
+        .width('100%').height(300)
+        .scrollBar(BarState.Auto)
+        .edgeEffect(EdgeEffect.Spring)
+      } else if (!this.libLoading) {
+        Text(this.libCount === 0 ? '账号下没有游戏（免费库也可能为空）' : '点右上角"同步"拉取你的 Steam 游戏库')
+          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+      }
+    }
+    .width('100%').padding(14)
+    .backgroundColor($r('app.color.search_background'))
+    .borderRadius(14)
+  }
+
   build() {
     Column() {
       this.TopBar()
@@ -348,6 +510,7 @@ struct SteamAccount {
           if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
             this.ProfileCard()
             this.TokenCard()
+            this.LibraryCard()
           } else {
             Column({ space: 10 }) {
               Text('登录 Steam').fontSize(13).fontWeight(FontWeight.Medium)
