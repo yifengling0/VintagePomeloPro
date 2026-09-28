@@ -759,6 +759,7 @@ struct Index {
   }
 
   aboutToDisappear(): void {
+    SteamService.getInstance().unsubscribe('LauncherSteamEntry');
     if (this.breakpointCallback) BreakpointSystem.unsubscribe(this.breakpointCallback);
     if (this.engineCallback) WineEngineService.getInstance().unsubscribe(this.engineCallback);
     if (this.settingsCallback) ThemeSettingsService.getInstance().unsubscribe(this.settingsCallback);
@@ -787,6 +788,8 @@ struct Index {
   }
 
   onPageShow(): void {
+    // 从 SteamAccount 页返回时刷新顶栏登录态 (上游 76402f8)
+    this.refreshSteamEntry();
     this.settings = AppSettingsStore.getInstance().getGlobalSettings();
     if (this.catalogInitialized) {
       // Wine/File Explorer can add, rename or remove programs while this page
@@ -913,13 +916,16 @@ struct Index {
     AppStorage.setOrCreate('largeTilesRows', AppSettingsStore.getInstance().getLargeTilesRows());
     this.tileOrder = AppSettingsStore.getInstance().getTileOrder();
     await ThemeSettingsService.getInstance().initialize(this.context);
-    // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标)
+    // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标);
+    // 订阅账号状态变化, 登录/登出后顶栏头像实时刷新 (上游 76402f8)。
     SteamService.getInstance().initialize(this.context).then((): void => {
+      SteamService.getInstance().subscribe('LauncherSteamEntry',
+        (_state: SteamUiState, _message: string): void => this.refreshSteamEntry());
       this.refreshSteamEntry();
       if (SteamService.getInstance().steamId64.length > 0) {
         SteamService.getInstance().restoreSession().then((): void => {
           this.refreshSteamEntry();
-        });
+        }).catch((): void => {});
       }
     });
     this.settings = ThemeSettingsService.getInstance().getSettings();
@@ -2440,14 +2446,23 @@ struct Index {
         if (!game) continue;
         hit++;
         if (game.playtimeForeverSeconds > 0) {
-          await store.setPlayMinutes(app.id, game.playtimeForeverSeconds / 60);
+          // Steam 与本地时长取较大值, 避免覆盖掉本地已记录的更长时长 (上游 76402f8)
+          await store.setPlayMinutes(app.id,
+            Math.max(store.getPlayMinutes(app.id), game.playtimeForeverSeconds / 60));
         }
         if (app.coverPath && app.coverPath.length > 0) {
           continue;
         }
+        if (store.getAppSettings(app.id).customCover) {
+          // 用户手动选过封面的跳过 (上游 76402f8)
+          continue;
+        }
         const dir = this.gameDirOf(app);
         if (dir.length === 0) continue;
-        const ok = await SteamMatch.downloadCoverTo(game.appId, game.logoUrl, dir);
+        const ok = await SteamMatch.downloadCoverTo(game.appId, game.logoUrl, dir, (): boolean => {
+          const current = this.apps.find((item: AppDescriptor): boolean => item.id === app.id);
+          return !!current && !current.coverPath && !store.getAppSettings(app.id).customCover;
+        });
         if (ok) covers++;
       }
       promptAction.showToast({ message: `命中 ${hit} / 本地 ${total}；补封面 ${covers} 张` });

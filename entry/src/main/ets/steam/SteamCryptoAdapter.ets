@@ -1,6 +1,7 @@
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { IBinaryCrypto } from './vendor/contracts/SteamPlatformContracts';
 import { SteamBase64 } from './vendor/protocol/SteamBase64';
+import { SteamAuthErrorKind, SteamAuthErrorSupport } from './vendor/contracts/SteamAuthErrors';
 
 /**
  * CryptoArchitectureKit 实现的宿主加密适配（注入 steam_core vendor）。
@@ -19,14 +20,23 @@ export class SteamCryptoAdapter implements IBinaryCrypto {
   }
 
   async rsaEncrypt(publicKeyPem: string, data: Uint8Array): Promise<Uint8Array> {
-    const der = SteamCryptoAdapter.pemToDer(publicKeyPem);
-    const generator = cryptoFramework.createAsyKeyGenerator('RSA2048');
-    const blob: cryptoFramework.DataBlob = { data: der };
-    const pubKey = await generator.convertKey(blob, null);
-    const cipher = cryptoFramework.createCipher('RSA2048|PKCS1');
-    await cipher.init(cryptoFramework.CryptoMode.ENCRYPT_MODE, pubKey.pubKey, null);
-    const out = await cipher.doFinal({ data: data });
-    return out.data;
+    let stage = 'rsa_key_decode';
+    try {
+      const der = SteamCryptoAdapter.pemToDer(publicKeyPem);
+      stage = 'rsa_key_import';
+      const generator = cryptoFramework.createAsyKeyGenerator('RSA2048');
+      const blob: cryptoFramework.DataBlob = { data: der };
+      const pubKey = await generator.convertKey(blob, null);
+      stage = 'rsa_cipher_create';
+      const cipher = cryptoFramework.createCipher('RSA2048|PKCS1');
+      stage = 'rsa_cipher_init';
+      await cipher.init(cryptoFramework.CryptoMode.ENCRYPT_MODE, pubKey.pubKey, null);
+      stage = 'rsa_cipher_encrypt';
+      const out = await cipher.doFinal({ data: data });
+      return out.data;
+    } catch (error) {
+      throw SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.CRYPTO, stage, 'RSA encryption failed');
+    }
   }
 
   async aesCbcEncrypt(key: Uint8Array, iv: Uint8Array, data: Uint8Array): Promise<Uint8Array> {

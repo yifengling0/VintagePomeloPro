@@ -6,7 +6,8 @@ import {
   ISteamAuthService,
   SteamAuthRequest
 } from './vendor/contracts/SteamPlatformContracts';
-import { SteamAuthEndpoint, SteamFormField } from './vendor/auth/SteamAuthProtocol';
+import { SteamAuthEndpoint, SteamFormField, SteamRsaPublicKey } from './vendor/auth/SteamAuthProtocol';
+import { SteamAuthError, SteamAuthErrorKind, SteamAuthErrorSupport } from './vendor/contracts/SteamAuthErrors';
 import { SteamJwt } from './vendor/security/SteamJwt';
 import {
   SteamCredentialSet,
@@ -66,15 +67,28 @@ export class SteamService {
   timeOffsetSeconds: number = 0;
   working: boolean = false;
   private lastChallengeState: SteamUiState = SteamUiState.IDLE;
+  private initializeTask: Promise<void> | null = null;
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
-    if (this.authService) return;
+    if (!this.initializeTask) {
+      this.initializeTask = this.initializeStore(context);
+    }
+    try {
+      await this.initializeTask;
+    } catch (e) {
+      this.initializeTask = null;
+      this.authService = null;
+      throw new Error('Steam 存储初始化失败');
+    }
+  }
+
+  private async initializeStore(context: common.UIAbilityContext): Promise<void> {
+    await this.store.initialize(context);
     this.authService = new SteamAuthService(
       new SteamHttpTransport(),
       new SteamCryptoAdapter(),
       new SteamClock()
     );
-    await this.store.initialize(context);
     this.timeOffsetSeconds = await this.store.loadTimeOffset();
     const profile = await this.store.loadProfile();
     this.accountName = profile.accountName;
@@ -118,19 +132,53 @@ export class SteamService {
     return null;
   }
 
+  /** Public pre-login check: imports a Steam RSA key and encrypts fixed non-secret bytes. */
+  async probePasswordLogin(): Promise<string | null> {
+    let stage = 'rsa_public_key';
+    try {
+      const response = await new SteamHttpTransport().postForm(SteamAuthEndpoint.GET_PASSWORD_RSA_PUBLIC_KEY,
+        [new SteamFormField('account_name', 'vintagepomelo_diagnostic')]);
+      if (response.statusCode !== 200 || response.keystoneError()) {
+        throw new SteamAuthError('RSA request rejected', SteamAuthErrorKind.SERVER,
+          stage, 0, response.statusCode);
+      }
+      stage = 'rsa_public_key_parse';
+      const envelope = JSON.parse(response.body) as RsaProbeEnvelope;
+      const key = envelope.response;
+      if (!key || !key.publickey_mod || !key.publickey_exp || !key.timestamp) {
+        throw new Error('RSA fields missing');
+      }
+      stage = 'password_encrypt';
+      const publicKey = new SteamRsaPublicKey(key.publickey_mod, key.publickey_exp, Number(key.timestamp));
+      const encrypted = await new SteamCryptoAdapter().rsaEncrypt(publicKey.toPem(), new Uint8Array([0x56, 0x50]));
+      if (encrypted.byteLength !== 256) throw new Error('RSA ciphertext size is invalid');
+      hilog.info(DOMAIN, TAG, 'password preflight passed; no credentials used');
+      return null;
+    } catch (error) {
+      const failure = SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.UNKNOWN, stage, 'Login preflight failed');
+      hilog.warn(DOMAIN, TAG, 'password preflight failed: %{public}s', SteamAuthErrorSupport.diagnosticLabel(failure));
+      return SteamService.describeError(failure);
+    }
+  }
+
   // ===== QR 扫码登录（2026-09-28 新增; 实测纯 HTTP 表单可用, 不需要 CM WebSocket） =====
 
   private qrClientId: string = '';
   private qrRequestId: string = '';
+  private qrGeneration: number = 0;
 
   /** QR 第一步: 发起扫码会话, 返回 challenge_url（给 QRCode 组件渲染）。 */
   async beginQrLogin(): Promise<string> {
+    this.cancelQrLogin();
+    const generation = this.qrGeneration;
     this.qrClientId = '';
     this.qrRequestId = '';
     const transport = new SteamHttpTransport();
     // website_id 与 PC 实测一致; 空 body 在 @ohos http 上行为不确定, 显式带一个字段
     const response = await transport.postForm(SteamAuthEndpoint.BEGIN_QR_SESSION,
       [new SteamFormField('website_id', 'Community')]);
+    if (generation !== this.qrGeneration) throw new Error('扫码会话已取消');
+    if (response.keystoneError().length > 0) throw new Error('Steam 拒绝扫码请求');
     if (response.statusCode !== 200) {
       throw new Error('HTTP ' + response.statusCode);
     }
@@ -147,12 +195,14 @@ export class SteamService {
   /** QR 轮询: pending=继续等; approved=登录完成; invalid=二维码已失效。 */
   async pollQrLogin(): Promise<'pending' | 'approved' | 'invalid'> {
     if (this.qrClientId.length === 0) return 'invalid';
+    const generation = this.qrGeneration;
     const transport = new SteamHttpTransport();
     const response = await transport.postForm(SteamAuthEndpoint.POLL_AUTH_SESSION, [
       new SteamFormField('client_id', this.qrClientId),
       new SteamFormField('request_id', this.qrRequestId)
     ]);
-    if (response.statusCode !== 200) {
+    if (generation !== this.qrGeneration) return 'invalid';
+    if (response.statusCode !== 200 || response.keystoneError().length > 0) {
       return 'invalid';
     }
     const parsed = JSON.parse(response.body) as QrPollEnvelope;
@@ -191,6 +241,7 @@ export class SteamService {
 
   /** 取消/作废当前扫码会话（页面离开或重新生成时调）。 */
   cancelQrLogin(): void {
+    this.qrGeneration++;
     this.qrClientId = '';
     this.qrRequestId = '';
   }
@@ -204,6 +255,8 @@ export class SteamService {
       return;
     }
     this.working = true;
+    this.cancelQrLogin();
+    this.lastChallengeState = SteamUiState.IDLE;
     this.accountName = name;
     this.setState(SteamUiState.WORKING, '正在连接 Steam…');
     try {
@@ -212,7 +265,8 @@ export class SteamService {
       const result = await this.authService.signIn(new SteamAuthRequest(name, credentials));
       await this.applyAuthResult(name, result, credentials);
     } catch (e) {
-      hilog.warn(DOMAIN, TAG, 'signIn failed: %{public}s', JSON.stringify(e));
+      const failure = SteamAuthErrorSupport.normalize(e, SteamAuthErrorKind.UNKNOWN, 'sign_in', 'Steam login failed');
+      hilog.warn(DOMAIN, TAG, 'signIn failed: %{public}s', SteamAuthErrorSupport.diagnosticLabel(failure));
       this.setState(SteamUiState.ERROR, SteamService.describeError(e));
     } finally {
       this.working = false;
@@ -231,13 +285,14 @@ export class SteamService {
     this.setState(SteamUiState.WORKING, '正在验证…');
     try {
       // NEEDS_CONFIRM 也允许改输令牌码 (Steam 响应同时提供手机确认与 TOTP 时, 用户可选手输)
-      const kind: SteamAuthChallengeKind = this.state === SteamUiState.NEEDS_EMAIL_CODE
+      const kind: SteamAuthChallengeKind = this.lastChallengeState === SteamUiState.NEEDS_EMAIL_CODE
         ? SteamAuthChallengeKind.EMAIL_CODE : SteamAuthChallengeKind.TWO_FACTOR;
       const request = new SteamAuthRequest(this.accountName, this.lastCredentials, trimmed, kind);
       const result = await this.authService.completeChallenge(request);
       await this.applyAuthResult(this.accountName, result, this.lastCredentials);
     } catch (e) {
-      hilog.warn(DOMAIN, TAG, 'submitCode failed: %{public}s', JSON.stringify(e));
+      const failure = SteamAuthErrorSupport.normalize(e, SteamAuthErrorKind.UNKNOWN, 'submit_code', 'Steam challenge failed');
+      hilog.warn(DOMAIN, TAG, 'submitCode failed: %{public}s', SteamAuthErrorSupport.diagnosticLabel(failure));
       // 留在当前验证界面显示真实原因（弹回登录表单会造成"重输→拒绝→重登"循环观感）
       this.setState(this.lastChallengeState === SteamUiState.IDLE
         ? SteamUiState.ERROR : this.lastChallengeState, SteamService.describeError(e));
@@ -250,16 +305,32 @@ export class SteamService {
   async pollOnce(): Promise<void> {
     if (!this.authService || this.working) return;
     if (this.state !== SteamUiState.NEEDS_CONFIRM) return;
+    this.working = true;
     try {
       const result = await this.authService.poll(this.accountName);
       await this.applyAuthResult(this.accountName, result, this.lastCredentials);
     } catch (_) {
       // 轮询失败静默（下一轮再试）
+    } finally {
+      this.working = false;
     }
   }
 
   /** 会话恢复：用 AssetStore 里的 refresh_token 换新 access_token。 */
+  private restoreTask: Promise<boolean> | null = null;
+
   async restoreSession(): Promise<boolean> {
+    if (this.restoreTask) return this.restoreTask;
+    const task = this.restoreStoredSession();
+    this.restoreTask = task;
+    try {
+      return await task;
+    } finally {
+      if (this.restoreTask === task) this.restoreTask = null;
+    }
+  }
+
+  private async restoreStoredSession(): Promise<boolean> {
     if (!this.authService) return false;
     if (this.steamId64.length === 0) return false;
     const refreshToken = await this.store.loadSecret(this.steamId64, 'refresh_token');
@@ -275,7 +346,9 @@ export class SteamService {
       }
       return false;
     } catch (e) {
-      hilog.warn(DOMAIN, TAG, 'restore failed: %{public}s', JSON.stringify(e));
+      const failure = SteamAuthErrorSupport.normalize(e, SteamAuthErrorKind.UNKNOWN,
+        'restore_session', 'Steam session restore failed');
+      hilog.warn(DOMAIN, TAG, 'restore failed: %{public}s', SteamAuthErrorSupport.diagnosticLabel(failure));
       return false;
     } finally {
       this.working = false;
@@ -283,6 +356,7 @@ export class SteamService {
   }
 
   async signOut(): Promise<void> {
+    this.cancelQrLogin();
     if (this.authService && this.accountName.length > 0) {
       try {
         await this.authService.close(this.accountName);
@@ -447,7 +521,21 @@ export class SteamService {
   }
 
   private static describeError(e: Object): string {
-    const raw = JSON.stringify(e);
+    const raw = (e as Error).message || JSON.stringify(e);
+    if (e instanceof SteamAuthError) {
+      const detail = `（${e.stage}${e.code ? ' / ' + e.code : ''}${e.httpStatusCode ? ' / HTTP ' + e.httpStatusCode : ''}）`;
+      if (e.kind === SteamAuthErrorKind.CRYPTO || e.stage === 'password_encrypt') {
+        return '设备上的密码加密失败' + detail;
+      }
+      if (e.kind === SteamAuthErrorKind.TRANSPORT || e.kind === SteamAuthErrorKind.TIMEOUT) {
+        return '连接 Steam 失败，请检查网络' + detail;
+      }
+      if (e.code === 5 || /InvalidPassword|invalid_password|InvalidPassword/i.test(raw)) return '账号或密码错误';
+      if (e.httpStatusCode) return 'Steam 登录接口请求失败' + detail;
+      if (e.stage === 'rsa_public_key_parse' || e.stage === 'begin_auth_parse') {
+        return 'Steam 登录响应解析失败' + detail;
+      }
+    }
     if (raw.indexOf('rejected:') >= 0) {
       // keystone x-error 头透传的 Steam 拒绝（验证码错误/会话不接受该类型等）
       const reason = raw.substring(raw.indexOf('rejected:') + 9).replace(/"$/, '');
@@ -464,6 +552,16 @@ export class SteamService {
 
 interface GetPlayerSummariesResponse {
   response?: PlayerSummaryEnvelope;
+}
+
+interface RsaProbeEnvelope {
+  response?: RsaProbeKey;
+}
+
+interface RsaProbeKey {
+  publickey_mod?: string;
+  publickey_exp?: string;
+  timestamp?: string;
 }
 
 /** QR 扫码会话发起响应（仅取用到的字段）。 */
