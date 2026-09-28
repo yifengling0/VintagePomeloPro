@@ -38,8 +38,9 @@ export class SteamHttpTransport implements ISteamAuthTransport {
         readTimeout: 10000
       });
       return response.responseCode === 200 ? String(response.result) : '';
-    } catch (_) {
-      return '';
+    } catch (e) {
+      // 自检诊断: 把异常透传给调用方 (ERR: 前缀), 否则 DNS/SSL/超时全被吞掉无法定位
+      return 'ERR:' + JSON.stringify(e);
     } finally {
       request.destroy();
     }

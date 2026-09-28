@@ -100,6 +100,9 @@ export class SteamService {
   /** 登录页连通性自检：返回 null=成功，否则为错误文案。 */
   async probeNetwork(): Promise<string | null> {
     const body = await SteamHttpTransport.probeServerInfo();
+    if (body.startsWith('ERR:')) {
+      return `无法连接 Steam API（${body.substring(4)}）`;
+    }
     if (body.length === 0) {
       return '无法连接 Steam API（api.steampowered.com），请检查设备网络';
     }

@@ -115,7 +115,28 @@ git show 41883b5 -- entry/src/main/ets/steam/SteamService.ets | head -80   # 抽
 ## 5. 核查结果（新会话追加）
 
 ```
-（核查会话在此追加: 日期 / git show --stat 结论 / 编译结果 / 冒烟结果 / 采取的路线 A|B|C）
+核查会话 2026-09-28 13:40–14:00，路线 A（核查通过，保留 41883b5）。
+
+git show --stat：41883b5 恰含 6 文件（Index.ets / SteamAccount.ets(新) / SteamService.ets /
+  SteamAccountStore.ets / SteamCryptoAdapter.ets / main_pages.json），无 vendor/docs/其他 pages 污染。
+  4 个小文件 diff 与 §1 的 8 条类型结论逐条对应，自洽。
+编译：vpp-check-sync.sh EXIT 0，"Error Message" 计数 0，BUILD SUCCESSFUL；
+  另按 §6 教训用 md5 比对了 ui-sync ↔ E:\vpp-build 五个关键文件，全部一致（同步未静默失败）。
+Index.ets 抽查：SteamEntryButton/SteamPopPanel/SortButton 三处 @Builder 装饰器都在；
+  全文括号配对 balance=0；steam 相关 state/方法/id（steam-top-btn）齐全。
+SteamAccount.ets：三段式结构完整，10 个 steam-* id 齐全，括号 balance=0，计时器在
+  aboutToDisappear 清理。未发现半截代码。
+装机冒烟（4NZ0225605001361，build-hap + hdc install -r + 冷启动）：
+  ① steam-top-btn 在布局 [2317,28][2457,168]（顶栏最右）✓
+  ② 点 S → 弹窗浮层出现（右上角锚定，"Steam"+说明+"登录 Steam"按钮，steam-pop-mask 存在）✓ 截图 pop2.jpeg
+  ③ 点遮罩空白 (700,900) → 弹窗关闭（mask 消失，S 钮仍在）✓
+  ④ 点"登录 Steam" → SteamAccount 页（steam-probe/steam-login-button 等 id 在）✓
+  ⑤ 页内自检：首两次红点"无法连接 Steam API"（§6 所述代理抽风），重试后绿点"Steam 连接正常" ✓
+     截图 acct.jpeg（绿点态）
+附带的修复：probeServerInfo 异常原被 catch(_) 吞掉导致无法定位 DNS/SSL/超时，
+  已改为 'ERR:'+JSON.stringify(e) 透传，SteamService.probeNetwork 展示真实原因
+  （提交 fix(steam)：probe 自检异常透传）。
+结论：41883b5 无污染，保留；按 §4 继续 W3/W4。
 ```
 
 ## 6. 环境备忘（上会话验证过的事实）
