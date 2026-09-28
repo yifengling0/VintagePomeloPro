@@ -6,4 +6,9 @@
 
 - 引入版本：2026-09 从 main 分支快照拷贝
 - 修改说明：仅裁剪了与本工程无关的可选依赖文件；逻辑未改动
-- 平台适配（HTTP 传输 / 加密 / 时钟 / 存储）在本目录之外的 `entry/src/main/ets/steam/` 提供
+- 逻辑修改（2026-09-28，对真 Steam 实测后）：
+  `auth/SteamAuthService.ets` beginFields 移除 `device_details` 表单字段 ——
+  Steam 表单模式拒收该字段（HTTP 400），任何 JSON 内容变体均被拒，省略即通过。
+  上游原实现对真 Steam 的 HTTP 登录未做过端到端验证（RSA 公钥注释自述 fixture-facing）。
+- 平台适配（HTTP 传输 / 加密 / 时钟 / 存储）在本目录之外的 `entry/src/main/ets/steam/` 提供；
+  其中 `SteamHttpTransport.postForm` 对 GET-only 端点（GetPasswordRSAPublicKey，POST 405）做 405→GET 重发。

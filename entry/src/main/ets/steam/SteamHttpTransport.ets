@@ -5,22 +5,40 @@ import { SteamAuthEndpoint, SteamAuthHttpResponse, SteamFormField } from './vend
 /** IAuthenticationService 表单 POST 传输（@ohos.net.http 实现）。 */
 export class SteamHttpTransport implements ISteamAuthTransport {
   async postForm(endpoint: SteamAuthEndpoint, fields: Array<SteamFormField>): Promise<SteamAuthHttpResponse> {
+    const parts: Array<string> = [];
+    for (const field of fields) {
+      parts.push(encodeURIComponent(field.name) + '=' + encodeURIComponent(field.value));
+    }
+    const form = parts.join('&');
     const request = http.createHttp();
     try {
-      const parts: Array<string> = [];
-      for (const field of fields) {
-        parts.push(encodeURIComponent(field.name) + '=' + encodeURIComponent(field.value));
-      }
       const response = await request.request(endpoint, {
         method: http.RequestMethod.POST,
         header: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json'
         },
-        extraData: parts.join('&'),
+        extraData: form,
         connectTimeout: 15000,
         readTimeout: 20000
       });
+      if (response.responseCode === 405) {
+        // 2026-09-28 实测: GetPasswordRSAPublicKey 等 GET-only 端点 POST 返回 405
+        // (HTML 页 "This API must be called with a HTTP GET request"), 表单改挂 query 用 GET 重发。
+        const getter = http.createHttp();
+        try {
+          const getUrl = endpoint + (endpoint.indexOf('?') >= 0 ? '&' : '?') + form;
+          const getResponse = await getter.request(getUrl, {
+            method: http.RequestMethod.GET,
+            header: { 'Accept': 'application/json' },
+            connectTimeout: 15000,
+            readTimeout: 20000
+          });
+          return new SteamAuthHttpResponse(getResponse.responseCode, String(getResponse.result));
+        } finally {
+          getter.destroy();
+        }
+      }
       return new SteamAuthHttpResponse(response.responseCode, String(response.result));
     } finally {
       request.destroy();

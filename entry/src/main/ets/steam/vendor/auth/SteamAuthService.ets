@@ -24,7 +24,6 @@ import {
   SteamAuthErrorKind,
   SteamAuthErrorSupport
 } from '../contracts/SteamAuthErrors';
-import { SteamProtocolIdentity } from '../contracts/SteamProtocolIdentity';
 
 const TAG: string = 'AuthService';
 
@@ -414,8 +413,9 @@ export class SteamAuthService implements ISteamAuthService {
     rsaKey: SteamRsaPublicKey,
     encryptedPassword: Uint8Array
   ): Array<SteamFormField> {
-    const deviceDetails: string = '{"device_friendly_name":"' + SteamProtocolIdentity.PRODUCT_NAME +
-      '","os_type":-1,"gaming_device_type":1}';
+    // 2026-09-28 真机实测: 表单(form-urlencoded)模式下 Steam 拒绝 device_details 字段
+    // (HTTP 400 "verify that all required parameters are being sent"), 任何 JSON 内容变体均被拒,
+    // 省略该字段即通过。platform_type 单独字段保留, Guard 挑战路由不受影响。
     const fields: Array<SteamFormField> = [
       new SteamFormField('account_name', request.credentials.accountName),
       new SteamFormField('encrypted_password', SteamBase64.encode(encryptedPassword)),
@@ -423,7 +423,6 @@ export class SteamAuthService implements ISteamAuthService {
       new SteamFormField('remember_login', '1'),
       new SteamFormField('persistence', '1'),
       new SteamFormField('website_id', 'Community'),
-      new SteamFormField('device_details', deviceDetails),
       new SteamFormField('platform_type', '3'),
       new SteamFormField('language', '0'),
       new SteamFormField('qos_level', '2')
