@@ -701,5 +701,14 @@ export class AppSettingsStore {
     await this.store.put(PLAY_TIME_KEY, JSON.stringify(this.mapToRecord(this.playMinutes)));
     await this.store.flush();
   }
+
+  /** 绝对值覆盖（Steam 匹配用, 避免重复匹配时累加）。 */
+  async setPlayMinutes(appId: string, minutes: number): Promise<void> {
+    if (!appId || minutes < 0) return;
+    this.playMinutes.set(appId, Math.round(minutes));
+    if (!this.store) return;
+    await this.store.put(PLAY_TIME_KEY, JSON.stringify(this.mapToRecord(this.playMinutes)));
+    await this.store.flush();
+  }
 }
 

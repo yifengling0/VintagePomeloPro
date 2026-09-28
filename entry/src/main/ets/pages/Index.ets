@@ -10,6 +10,8 @@ import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
 import { LargeTileGrid } from '../components/LargeTileGrid';
 import { SteamService, SteamUiState } from '../steam/SteamService';
+import { SteamLibraryService } from '../steam/SteamLibrary';
+import { SteamMatch } from '../steam/SteamMatch';
 import { FileBrowserView } from '../components/FileBrowserView';
 import { GameDetailSheet } from '../components/GameDetailSheet';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -218,6 +220,7 @@ struct Index {
   @State private steamPopName: string = '';
   @State private steamPopCode: string = '';
   @State private steamPopSeconds: number = 30;
+  @State private steamMatching: boolean = false;
   private steamPopTimer: number = -1;
   /** 收藏标记是卡面上的可见状态, 随运行态一起刷新, 避免每张卡片各查一次设置。 */
   @State private favoriteIds: Set<string> = new Set<string>();
@@ -2415,6 +2418,49 @@ struct Index {
     }
   }
 
+  /** W4.3: Steam 库 ↔ 本地目录批量匹配, 补封面+写时长 (已有封面跳过, 不覆盖自选)。 */
+  private async matchSteamLibrary(): Promise<void> {
+    const service = SteamService.getInstance();
+    if (service.steamId64.length === 0) {
+      promptAction.showToast({ message: '请先登录 Steam 账号' });
+      return;
+    }
+    if (this.steamMatching) return;
+    this.steamMatching = true;
+    promptAction.showToast({ message: '正在匹配 Steam 库…' });
+    try {
+      const games = await SteamLibraryService.getInstance()
+        .fetchOwnedGames(service.steamId64, service.accessToken, false);
+      const store = AppSettingsStore.getInstance();
+      const total = this.apps.length;
+      let hit = 0;
+      let covers = 0;
+      for (const app of this.apps) {
+        const game = SteamMatch.bestMatch(app.title, games);
+        if (!game) continue;
+        hit++;
+        if (game.playtimeForeverSeconds > 0) {
+          await store.setPlayMinutes(app.id, game.playtimeForeverSeconds / 60);
+        }
+        if (app.coverPath && app.coverPath.length > 0) {
+          continue;
+        }
+        const dir = this.gameDirOf(app);
+        if (dir.length === 0) continue;
+        const ok = await SteamMatch.downloadCoverTo(game.appId, game.logoUrl, dir);
+        if (ok) covers++;
+      }
+      promptAction.showToast({ message: `命中 ${hit} / 本地 ${total}；补封面 ${covers} 张` });
+      if (covers > 0) {
+        void this.rescan();
+      }
+    } catch (e) {
+      promptAction.showToast({ message: '匹配失败：' + JSON.stringify(e) });
+    } finally {
+      this.steamMatching = false;
+    }
+  }
+
   private toggleSteamPop(): void {
     if (this.steamPop) {
       this.steamPop = false;
@@ -2496,6 +2542,17 @@ struct Index {
             this.openSidebarPage('pages/SteamAccount');
           })
           .id('steam-pop-library')
+
+        Button('匹配本地游戏（封面/时长）').width('100%').height(36).borderRadius(10)
+          .backgroundColor($r('app.color.search_background'))
+          .fontColor($r('app.color.text_primary'))
+          .enabled(!this.steamMatching)
+          .onClick((): void => {
+            this.steamPop = false;
+            this.stopSteamPopTimer();
+            void this.matchSteamLibrary();
+          })
+          .id('steam-pop-match')
 
         Button('下载').width('100%').height(36).borderRadius(10)
           .backgroundColor($r('app.color.search_background'))
