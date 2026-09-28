@@ -151,6 +151,22 @@ SteamAccount.ets：三段式结构完整，10 个 steam-* id 齐全，括号 bal
 - 待用户人工验收（需真账号）：登录全流程截图、库列表数量对账、"匹配本地游戏"命中报告 toast、令牌码与官方 App 比对、杀进程会话恢复。
 - W6 只差可研（§2.5 6.1），未动。
 
+### 7.1 登录失败根因与修复（f74bf79，PC 实测定位）
+
+用户报"登录一直失败，其他客户端正常"。PC 上用 node 复刻 vendor 协议逐端点实测，抓到**两个上游 bug**：
+
+1. **GetPasswordRSAPublicKey 是 GET-only**：POST → 405 + HTML 错误页
+   ("This API must be called with a HTTP GET request")，vendor 的 responseObject 拿到 HTML 必炸。
+   其余 4 个端点实测均为 POST-only（GET 回 405）。
+2. **表单模式拒收 device_details**：BeginAuthSessionViaCredentials POST 带 device_details →
+   400 "verify that all required parameters"；字段矩阵实测（仅名字/加 platform/空对象/os_type=0）全部 400，
+   **省略该字段即 200**。
+
+修复：`SteamHttpTransport.postForm` 对 405 把表单转 query 用 GET 重发（通用自愈，vendor 不动）；
+vendor `beginFields` 删 device_details（NOTICE.md 已记档）。上游 steam_core 的 HTTP 登录链路
+从未对真 Steam 端到端验证过（RSA 公钥注释自述 fixture-facing）， ASFWorkshop 参考实现同样带这两个坑。
+复现脚本：`E:\tmp\steam-login-repro.js`、`E:\tmp\steam-methods-probe.js`、`E:\tmp\steam-begin-matrix.js`。
+
 ## 6. 环境备忘（上会话验证过的事实）
 
 - 编译链路：`bash /e/iiSU/vpp-check-sync.sh /tmp/<日志名>.log`（同步 E:\ui-sync → E:\vpp-build 后
