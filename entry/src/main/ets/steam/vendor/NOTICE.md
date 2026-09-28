@@ -13,5 +13,8 @@
   `auth/SteamAuthProtocol.ets` SteamAuthEndpoint 枚举新增 `BEGIN_QR_SESSION` ——
   实测 BeginAuthSessionViaQR 纯 HTTP 表单即可用（上游注释称 QR 需 CM WebSocket，与实测不符），
   QR 发起/轮询逻辑在宿主 `steam/SteamService.ets`。
+  `auth/SteamAuthService.ets` completeChallenge 行为修改：MOBILE_CONFIRMATION 会话收到验证码时
+  改为按令牌码(code_type 3)提交而非无视（Steam 的 allowed_confirmations 通常同时含手机确认与 TOTP，
+  parseChallenge 原实现无条件优先手机确认，导致只能去手机上点确认）。
 - 平台适配（HTTP 传输 / 加密 / 时钟 / 存储）在本目录之外的 `entry/src/main/ets/steam/` 提供；
   其中 `SteamHttpTransport.postForm` 对 GET-only 端点（GetPasswordRSAPublicKey，POST 405）做 405→GET 重发。

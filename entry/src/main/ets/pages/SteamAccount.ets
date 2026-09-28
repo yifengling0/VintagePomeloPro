@@ -625,8 +625,22 @@ struct SteamAccount {
                   .id('steam-code-submit')
               } else if (this.state === SteamUiState.NEEDS_CONFIRM) {
                 LoadingProgress().width(36).height(36).color($r('app.color.accent'))
-                Text('请在手机 Steam 上确认本次登录…')
+                Text('请在手机 Steam 上确认本次登录，或在下面直接输入手机令牌的 5 位验证码…')
                   .fontSize(13).fontColor($r('app.color.text_primary'))
+                TextInput({ placeholder: '5 位令牌验证码', text: this.inputCode })
+                  .fontSize(14).height(44).borderRadius(12)
+                  .backgroundColor($r('app.color.card_background'))
+                  .onChange((value: string): void => { this.inputCode = value; })
+                  .id('steam-confirm-code-input')
+                Button('提交令牌验证码').width('100%').height(44).borderRadius(12)
+                  .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+                  .enabled(this.inputCode.trim().length > 0)
+                  .onClick((): void => {
+                    SteamService.getInstance().submitCode(this.inputCode);
+                  })
+                  .id('steam-confirm-code-submit')
+                Text('验证码在 Steam 手机 App 的 Steam Guard 页面，30 秒刷新')
+                  .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
               } else {
                 TextInput({ placeholder: 'Steam 账号名', text: this.inputAccount })
                   .fontSize(14).height(44).borderRadius(12)

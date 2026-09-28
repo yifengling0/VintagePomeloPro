@@ -224,8 +224,9 @@ export class SteamService {
     this.working = true;
     this.setState(SteamUiState.WORKING, '正在验证…');
     try {
-      const kind: SteamAuthChallengeKind = this.state === SteamUiState.NEEDS_GUARD_CODE
-        ? SteamAuthChallengeKind.TWO_FACTOR : SteamAuthChallengeKind.EMAIL_CODE;
+      // NEEDS_CONFIRM 也允许改输令牌码 (Steam 响应同时提供手机确认与 TOTP 时, 用户可选手输)
+      const kind: SteamAuthChallengeKind = this.state === SteamUiState.NEEDS_EMAIL_CODE
+        ? SteamAuthChallengeKind.EMAIL_CODE : SteamAuthChallengeKind.TWO_FACTOR;
       const request = new SteamAuthRequest(this.accountName, this.lastCredentials, trimmed, kind);
       const result = await this.authService.completeChallenge(request);
       await this.applyAuthResult(this.accountName, result, this.lastCredentials);

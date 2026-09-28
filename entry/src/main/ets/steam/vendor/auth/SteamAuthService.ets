@@ -189,7 +189,11 @@ export class SteamAuthService implements ISteamAuthService {
       return this.poll(request.accountId);
     }
     if (pending.challenge === SteamAuthChallengeKind.MOBILE_CONFIRMATION) {
-      return this.poll(request.accountId);
+      // 2026-09-28: Steam 响应通常同时提供手机确认与令牌码; 用户嫌手机确认繁琐时
+      // 可直接提交手机令牌 5 位码 (code_type 3)。空码仍按原样轮询等手机确认。
+      if (request.challengeCode.trim().length === 0) {
+        return this.poll(request.accountId);
+      }
     }
     let code = request.challengeCode.trim();
     if (code.length === 0 && pending.challenge === SteamAuthChallengeKind.TWO_FACTOR) {
