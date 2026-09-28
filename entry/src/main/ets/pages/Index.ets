@@ -65,9 +65,11 @@ import {
   DividerMode,
   DividerShowType,
   HdsNavigation,
+  HdsNavigationAttribute,
   HdsNavigationMenuContentOptions,
   HdsNavigationTitleMode,
   HdsTabs,
+  HdsTabsAttribute,
   HdsTabsController,
   ScrollEffectType,
   hdsMaterial
