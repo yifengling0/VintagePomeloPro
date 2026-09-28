@@ -70,8 +70,13 @@ struct SteamAccount {
   @State private libLoading: boolean = false;
   @State private libError: string = '';
   @State private libCount: number = -1;
+  @State private loginMode: string = 'password';
+  @State private qrUrl: string = '';
+  @State private qrStatus: string = '';
   private libGames: LibraryDataSource = new LibraryDataSource();
   private libSyncedOnce: boolean = false;
+  private qrTimer: number = -1;
+  private qrRetries: number = 0;
   private codeTimer: number = -1;
   private confirmTimer: number = -1;
 
@@ -103,6 +108,8 @@ struct SteamAccount {
 
   aboutToDisappear(): void {
     SteamService.getInstance().unsubscribe('SteamAccountPage');
+    this.stopQrPoll();
+    SteamService.getInstance().cancelQrLogin();
     this.stopTimers();
   }
 
@@ -235,6 +242,68 @@ struct SteamAccount {
         } catch (_) {
         }
       }
+    }
+  }
+
+  /** 切换登录方式: qr=显示二维码并开始轮询; password=停轮询回到表单。 */
+  private switchLoginMode(mode: string): void {
+    if (mode === this.loginMode) return;
+    if (mode === 'password') {
+      this.stopQrPoll();
+      SteamService.getInstance().cancelQrLogin();
+      this.qrUrl = '';
+      this.qrStatus = '';
+      this.loginMode = 'password';
+      return;
+    }
+    this.loginMode = 'qr';
+    this.startQrLogin();
+  }
+
+  private startQrLogin(): void {
+    this.qrUrl = '';
+    this.qrStatus = '正在生成二维码…';
+    SteamService.getInstance().beginQrLogin().then((url: string): void => {
+      this.qrUrl = url;
+      this.qrStatus = '打开 Steam 手机 App 扫码，然后在手机上确认登录';
+      this.startQrPoll();
+    }).catch((_e: Object): void => {
+      this.qrStatus = '';
+      this.loginMode = 'password';
+      this.message = '生成二维码失败，请检查网络后重试';
+    });
+  }
+
+  private startQrPoll(): void {
+    this.stopQrPoll();
+    this.qrTimer = setInterval((): void => {
+      SteamService.getInstance().pollQrLogin().then((result: string): void => {
+        if (result === 'approved') {
+          this.stopQrPoll();
+          this.loginMode = 'password';
+          this.qrUrl = '';
+          this.qrStatus = '';
+        } else if (result === 'invalid') {
+          this.stopQrPoll();
+          this.qrRetries++;
+          if (this.qrRetries >= 3) {
+            this.qrRetries = 0;
+            this.switchLoginMode('password');
+            this.message = '二维码多次失效，请改用账号密码登录';
+          } else {
+            this.startQrLogin();
+          }
+        }
+      }).catch((_e: Object): void => {
+        // 单次轮询失败 (网络抽风) 静默, 下一轮再试
+      });
+    }, 5000);
+  }
+
+  private stopQrPoll(): void {
+    if (this.qrTimer >= 0) {
+      clearInterval(this.qrTimer);
+      this.qrTimer = -1;
     }
   }
 
@@ -513,6 +582,27 @@ struct SteamAccount {
             this.LibraryCard()
           } else {
             Column({ space: 10 }) {
+              if (this.loginMode === 'qr') {
+                Text('扫码登录').fontSize(13).fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.text_primary')).width('100%')
+                if (this.qrUrl.length > 0) {
+                  QRCode(this.qrUrl).width(180).height(180)
+                    .backgroundColor('#FFFFFFFF')
+                    .id('steam-qr-image')
+                } else {
+                  Column({ space: 8 }) {
+                    LoadingProgress().width(28).height(28).color($r('app.color.accent'))
+                  }.width('100%').height(180).justifyContent(FlexAlign.Center)
+                }
+                Text(this.qrStatus)
+                  .fontSize(12).fontColor($r('app.color.text_secondary'))
+                  .width('100%').textAlign(TextAlign.Center)
+                Button('返回密码登录').width('100%').height(36).borderRadius(10)
+                  .backgroundColor($r('app.color.search_background'))
+                  .fontColor($r('app.color.text_primary'))
+                  .onClick((): void => { this.switchLoginMode('password'); })
+                  .id('steam-qr-back')
+              } else {
               Text('登录 Steam').fontSize(13).fontWeight(FontWeight.Medium)
                 .fontColor($r('app.color.text_primary')).width('100%')
 
@@ -557,8 +647,16 @@ struct SteamAccount {
                     SteamService.getInstance().signIn(this.inputAccount, this.inputPassword);
                   })
                   .id('steam-login-button')
+                Button('扫码登录（Steam 手机 App，免输密码）')
+                  .width('100%').height(40).borderRadius(12)
+                  .backgroundColor($r('app.color.selected_background'))
+                  .fontColor($r('app.color.text_primary'))
+                  .enabled(this.state !== SteamUiState.WORKING)
+                  .onClick((): void => { this.switchLoginMode('qr'); })
+                  .id('steam-qr-login')
                 Text('建议使用小号测试；新设备登录可能触发 Steam 邮箱验证，频繁验证码属 Steam 风控，与客户端无关。')
                   .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+              }
               }
 
               if (this.message.length > 0) {

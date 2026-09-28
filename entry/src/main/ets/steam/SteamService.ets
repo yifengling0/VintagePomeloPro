@@ -6,6 +6,8 @@ import {
   ISteamAuthService,
   SteamAuthRequest
 } from './vendor/contracts/SteamPlatformContracts';
+import { SteamAuthEndpoint, SteamFormField } from './vendor/auth/SteamAuthProtocol';
+import { SteamJwt } from './vendor/security/SteamJwt';
 import {
   SteamCredentialSet,
   SteamSessionState,
@@ -108,6 +110,81 @@ export class SteamService {
       return '无法连接 Steam API（api.steampowered.com），请检查设备网络';
     }
     return null;
+  }
+
+  // ===== QR 扫码登录（2026-09-28 新增; 实测纯 HTTP 表单可用, 不需要 CM WebSocket） =====
+
+  private qrClientId: string = '';
+  private qrRequestId: string = '';
+
+  /** QR 第一步: 发起扫码会话, 返回 challenge_url（给 QRCode 组件渲染）。 */
+  async beginQrLogin(): Promise<string> {
+    this.qrClientId = '';
+    this.qrRequestId = '';
+    const transport = new SteamHttpTransport();
+    const response = await transport.postForm(SteamAuthEndpoint.BEGIN_QR_SESSION, []);
+    if (response.statusCode !== 200) {
+      throw new Error('HTTP ' + response.statusCode);
+    }
+    const parsed = JSON.parse(response.body) as QrBeginEnvelope;
+    const body = parsed?.response;
+    if (!body || !body.client_id || !body.challenge_url || !body.request_id) {
+      throw new Error('Steam 未返回扫码会话');
+    }
+    this.qrClientId = body.client_id;
+    this.qrRequestId = body.request_id;
+    return body.challenge_url;
+  }
+
+  /** QR 轮询: pending=继续等; approved=登录完成; invalid=二维码已失效。 */
+  async pollQrLogin(): Promise<'pending' | 'approved' | 'invalid'> {
+    if (this.qrClientId.length === 0) return 'invalid';
+    const transport = new SteamHttpTransport();
+    const response = await transport.postForm(SteamAuthEndpoint.POLL_AUTH_SESSION, [
+      new SteamFormField('client_id', this.qrClientId),
+      new SteamFormField('request_id', this.qrRequestId)
+    ]);
+    if (response.statusCode !== 200) {
+      return 'invalid';
+    }
+    const parsed = JSON.parse(response.body) as QrPollEnvelope;
+    const body = parsed?.response;
+    const refreshToken = body?.refresh_token ?? '';
+    const accessToken = body?.access_token ?? '';
+    if (refreshToken.length === 0) {
+      return 'pending';
+    }
+    // 手机已确认: 与密码登录成功路径同款落库
+    const steamId = SteamJwt.subjectClaim(refreshToken);
+    if (steamId.length === 0) {
+      this.setState(SteamUiState.ERROR, '扫码已确认但令牌解析失败');
+      return 'invalid';
+    }
+    this.accountName = this.accountName.length > 0 ? this.accountName : 'Steam 用户';
+    this.steamId64 = steamId;
+    this.accessToken = accessToken;
+    await this.store.storeSecret(steamId, 'refresh_token', refreshToken);
+    if (accessToken.length > 0) {
+      await this.store.storeSecret(steamId, 'access_token', accessToken);
+    }
+    const profile = new SteamProfile();
+    profile.accountName = this.accountName;
+    profile.steamId64 = steamId;
+    profile.personaName = this.personaName;
+    profile.avatarUrl = this.avatarUrl;
+    await this.store.saveProfile(profile);
+    this.qrClientId = '';
+    this.qrRequestId = '';
+    hilog.info(DOMAIN, TAG, 'QR login completed; steamId=%{public}s', steamId);
+    this.setState(SteamUiState.LOGGED_IN, '扫码登录成功');
+    void this.fetchProfileInfo();
+    return 'approved';
+  }
+
+  /** 取消/作废当前扫码会话（页面离开或重新生成时调）。 */
+  cancelQrLogin(): void {
+    this.qrClientId = '';
+    this.qrRequestId = '';
   }
 
   /** 密码登录第一步：密码 → （可能）验证码挑战 → 会话。 */
@@ -366,6 +443,29 @@ export class SteamService {
 
 interface GetPlayerSummariesResponse {
   response?: PlayerSummaryEnvelope;
+}
+
+/** QR 扫码会话发起响应（仅取用到的字段）。 */
+interface QrBeginEnvelope {
+  response?: QrBeginBody;
+}
+
+interface QrBeginBody {
+  client_id?: string;
+  request_id?: string;
+  challenge_url?: string;
+  interval?: number;
+}
+
+/** QR 轮询响应（手机确认后带 token）。 */
+interface QrPollEnvelope {
+  response?: QrPollBody;
+}
+
+interface QrPollBody {
+  refresh_token?: string;
+  access_token?: string;
+  had_remote_interaction?: boolean;
 }
 
 interface PlayerSummaryEnvelope {

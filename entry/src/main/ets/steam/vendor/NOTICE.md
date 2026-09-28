@@ -10,5 +10,8 @@
   `auth/SteamAuthService.ets` beginFields 移除 `device_details` 表单字段 ——
   Steam 表单模式拒收该字段（HTTP 400），任何 JSON 内容变体均被拒，省略即通过。
   上游原实现对真 Steam 的 HTTP 登录未做过端到端验证（RSA 公钥注释自述 fixture-facing）。
+  `auth/SteamAuthProtocol.ets` SteamAuthEndpoint 枚举新增 `BEGIN_QR_SESSION` ——
+  实测 BeginAuthSessionViaQR 纯 HTTP 表单即可用（上游注释称 QR 需 CM WebSocket，与实测不符），
+  QR 发起/轮询逻辑在宿主 `steam/SteamService.ets`。
 - 平台适配（HTTP 传输 / 加密 / 时钟 / 存储）在本目录之外的 `entry/src/main/ets/steam/` 提供；
   其中 `SteamHttpTransport.postForm` 对 GET-only 端点（GetPasswordRSAPublicKey，POST 405）做 405→GET 重发。
