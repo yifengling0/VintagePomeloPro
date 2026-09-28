@@ -86,14 +86,15 @@ export class DeviceCapabilityPolicy {
   }
 
   /**
-   * 启动器/库页 UI 的方向策略: 只走横板 — 左横屏 ↔ 右横屏跟随传感器自动旋转
-   * (受系统控制中心旋转开关约束), 不再进入竖屏。
-   * 2in1/PC 是自由缩放的桌面窗口, 不加方向约束。
+   * 启动器/库页 UI 的方向策略: 只走横板 — 左横屏 ↔ 右横屏跟随传感器自动旋转,
+   * 不再进入竖屏。2026-09-28: 由 *_RESTRICTED 改为不受限 AUTO_ROTATION_LANDSCAPE ——
+   * RESTRICTED 受系统控制中心"自动旋转"开关约束, 开关一关就永远不转 (用户实测"左旋/右旋老是失效");
+   * 不受限变体无视该开关, 传感器直接驱动。2in1/PC 是自由缩放的桌面窗口, 不加方向约束。
    */
   static applyLauncherLandscapeRotation(target: window.Window, tag: string): void {
     if (DeviceCapabilityPolicy.usesManagedWineWindows()) return;
-    target.setPreferredOrientation(window.Orientation.AUTO_ROTATION_LANDSCAPE_RESTRICTED).then(() => {
-      hilog.info(DOMAIN, tag, 'Launcher landscape rotation enabled');
+    target.setPreferredOrientation(window.Orientation.AUTO_ROTATION_LANDSCAPE).then(() => {
+      hilog.info(DOMAIN, tag, 'Launcher landscape rotation enabled (unrestricted)');
     }).catch((error: Error) => {
       hilog.warn(DOMAIN, tag, 'Launcher landscape rotation unavailable: %{public}s', JSON.stringify(error));
     });
