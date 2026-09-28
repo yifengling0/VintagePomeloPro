@@ -70,7 +70,8 @@ struct SteamAccount {
   @State private libLoading: boolean = false;
   @State private libError: string = '';
   @State private libCount: number = -1;
-  @State private loginMode: string = 'password';
+  @State private activeSection: string = 'login';
+  @State private qrOpen: boolean = false;
   @State private qrUrl: string = '';
   @State private qrStatus: string = '';
   private libGames: LibraryDataSource = new LibraryDataSource();
@@ -245,18 +246,22 @@ struct SteamAccount {
     }
   }
 
-  /** 切换登录方式: qr=显示二维码并开始轮询; password=停轮询回到表单。 */
-  private switchLoginMode(mode: string): void {
-    if (mode === this.loginMode) return;
-    if (mode === 'password') {
+  /** 左栏分类切换（主从布局, 与设置页同交互）。 */
+  private selectSection(section: string): void {
+    this.activeSection = section;
+  }
+
+  /** 就地展开/收起扫码登录（同一页面内显示二维码, 不切视图）。 */
+  private toggleQr(): void {
+    if (this.qrOpen) {
+      this.qrOpen = false;
       this.stopQrPoll();
       SteamService.getInstance().cancelQrLogin();
       this.qrUrl = '';
       this.qrStatus = '';
-      this.loginMode = 'password';
       return;
     }
-    this.loginMode = 'qr';
+    this.qrOpen = true;
     this.startQrLogin();
   }
 
@@ -269,7 +274,7 @@ struct SteamAccount {
       this.startQrPoll();
     }).catch((e: Object): void => {
       this.qrStatus = '';
-      this.loginMode = 'password';
+      this.qrOpen = false;
       this.message = '生成二维码失败：' + JSON.stringify(e);
     });
   }
@@ -280,7 +285,7 @@ struct SteamAccount {
       SteamService.getInstance().pollQrLogin().then((result: string): void => {
         if (result === 'approved') {
           this.stopQrPoll();
-          this.loginMode = 'password';
+          this.qrOpen = false;
           this.qrUrl = '';
           this.qrStatus = '';
         } else if (result === 'invalid') {
@@ -288,7 +293,7 @@ struct SteamAccount {
           this.qrRetries++;
           if (this.qrRetries >= 3) {
             this.qrRetries = 0;
-            this.switchLoginMode('password');
+            this.toggleQr();
             this.message = '二维码多次失效，请改用账号密码登录';
           } else {
             this.startQrLogin();
@@ -371,6 +376,175 @@ struct SteamAccount {
         .layoutWeight(1)
     }
     .width('100%').height(40)
+  }
+
+  /** 左栏分类按钮（视觉语言与设置页 SectionButton 一致）。 */
+  @Builder
+  private SectionButton(label: string, section: string, icon: Resource) {
+    Row({ space: 10 }) {
+      SymbolGlyph(icon).fontSize(16).fontColor([$r('app.color.text_primary')])
+      Text(label).fontSize(13).fontColor($r('app.color.text_primary'))
+        .fontWeight(this.activeSection === section ? FontWeight.Medium : FontWeight.Regular)
+    }
+    .width('100%').height(36).padding({ left: 12, right: 12 }).borderRadius(12)
+    .backgroundColor(this.activeSection === section ? $r('app.color.selected_background') : '#00FFFFFF')
+    .id('steam-nav-' + section)
+    .onClick((): void => { this.selectSection(section); })
+  }
+
+  @Builder
+  private ProbeCard() {
+    Column({ space: 10 }) {
+      Text('连接自检').fontSize(13).fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary')).width('100%')
+      Row({ space: 8 }) {
+        Circle({ width: 8, height: 8 })
+          .fill(this.probeOk ? '#4ADE80' : '#F87171')
+        Text(this.probeResult).fontSize(12)
+          .fontColor($r('app.color.text_secondary')).layoutWeight(1)
+      }
+      .width('100%').padding(10)
+      .backgroundColor($r('app.color.card_background'))
+      .borderRadius(10)
+      .id('steam-probe')
+      Button('重新检测').width('100%').height(36).borderRadius(10)
+        .backgroundColor($r('app.color.selected_background'))
+        .fontColor($r('app.color.text_primary'))
+        .onClick((): void => {
+          this.probeOk = false;
+          this.probeResult = '检测 Steam 连接中…';
+          this.startProbe();
+        })
+        .id('steam-probe-retry')
+      Text('自检走 api.steampowered.com 免鉴权端点，与登录链路同通道。')
+        .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+    }
+    .width('100%').padding(14)
+    .backgroundColor($r('app.color.search_background'))
+    .borderRadius(14)
+  }
+
+  /** 右栏分类未登录时的占位卡（文案为静态字面量, 不受 @Builder 传值刷新限制影响）。 */
+  @Builder
+  private SectionLockedHint(hint: string) {
+    Column({ space: 10 }) {
+      SymbolGlyph($r('sys.symbol.person')).fontSize(30)
+        .fontColor([$r('app.color.text_secondary')])
+      Text(hint).fontSize(12).fontColor($r('app.color.text_secondary'))
+        .width('100%').textAlign(TextAlign.Center)
+      Button('去登录').width(160).height(36).borderRadius(10)
+        .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+        .onClick((): void => { this.selectSection('login'); })
+        .id('steam-goto-login')
+    }
+    .width('100%').padding(28)
+    .backgroundColor($r('app.color.search_background'))
+    .borderRadius(14)
+  }
+
+  @Builder
+  private LoginSection() {
+    Column({ space: 10 }) {
+      Text('登录 Steam').fontSize(13).fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary')).width('100%')
+
+      if (this.state === SteamUiState.NEEDS_EMAIL_CODE ||
+        this.state === SteamUiState.NEEDS_GUARD_CODE) {
+        Text(this.state === SteamUiState.NEEDS_GUARD_CODE
+          ? '输入手机令牌 App 上的 5 位验证码' : '输入邮箱收到的验证码')
+          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+        TextInput({ placeholder: '验证码', text: this.inputCode })
+          .fontSize(14).height(44).borderRadius(12)
+          .backgroundColor($r('app.color.card_background'))
+          .onChange((value: string): void => { this.inputCode = value; })
+          .id('steam-code-input')
+        Button('提交验证码').width('100%').height(44).borderRadius(12)
+          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .enabled(this.inputCode.trim().length > 0)
+          .onClick((): void => {
+            SteamService.getInstance().submitCode(this.inputCode);
+          })
+          .id('steam-code-submit')
+      } else if (this.state === SteamUiState.NEEDS_CONFIRM) {
+        LoadingProgress().width(36).height(36).color($r('app.color.accent'))
+        Text('新设备首次登录需要在手机上确认（只需一次，之后启动器自动记住本设备）：')
+          .fontSize(13).fontColor($r('app.color.text_primary')).width('100%')
+        Text('打开手机 Steam App → Steam Guard（令牌页）→ 「确认登录」→ 找到这条登录请求 → 点「允许」。收不到推送也可以在这里手动确认。')
+          .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
+        TextInput({ placeholder: '备用：5 位令牌验证码（仅 Steam 允许时可用）', text: this.inputCode })
+          .fontSize(14).height(44).borderRadius(12)
+          .backgroundColor($r('app.color.card_background'))
+          .onChange((value: string): void => { this.inputCode = value; })
+          .id('steam-confirm-code-input')
+        Button('提交令牌验证码').width('100%').height(44).borderRadius(12)
+          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .enabled(this.inputCode.trim().length > 0)
+          .onClick((): void => {
+            SteamService.getInstance().submitCode(this.inputCode);
+          })
+          .id('steam-confirm-code-submit')
+      } else {
+        TextInput({ placeholder: 'Steam 账号名', text: this.inputAccount })
+          .fontSize(14).height(44).borderRadius(12)
+          .backgroundColor($r('app.color.card_background'))
+          .onChange((value: string): void => { this.inputAccount = value; })
+          .id('steam-login-account')
+        TextInput({ placeholder: '密码', text: this.inputPassword })
+          .type(InputType.Password)
+          .fontSize(14).height(44).borderRadius(12)
+          .backgroundColor($r('app.color.card_background'))
+          .onChange((value: string): void => { this.inputPassword = value; })
+          .id('steam-login-password')
+        Button(this.state === SteamUiState.WORKING ? '登录中…' : '登录')
+          .width('100%').height(44).borderRadius(12)
+          .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
+          .enabled(this.state !== SteamUiState.WORKING)
+          .onClick((): void => {
+            SteamService.getInstance().signIn(this.inputAccount, this.inputPassword);
+          })
+          .id('steam-login-button')
+        Button(this.qrOpen ? '收起二维码' : '扫码登录（Steam 手机 App，免输密码）')
+          .width('100%').height(40).borderRadius(12)
+          .backgroundColor($r('app.color.selected_background'))
+          .fontColor($r('app.color.text_primary'))
+          .enabled(this.state !== SteamUiState.WORKING)
+          .onClick((): void => { this.toggleQr(); })
+          .id('steam-qr-login')
+        if (this.qrOpen) {
+          Column({ space: 8 }) {
+            if (this.qrUrl.length > 0) {
+              QRCode(this.qrUrl).width(160).height(160)
+                .backgroundColor('#FFFFFFFF')
+                .id('steam-qr-image')
+            } else {
+              LoadingProgress().width(28).height(28).color($r('app.color.accent'))
+                .margin({ top: 30, bottom: 30 })
+            }
+            Text(this.qrStatus)
+              .fontSize(11).fontColor($r('app.color.text_secondary'))
+              .width('100%').textAlign(TextAlign.Center)
+          }
+          .width('100%').padding(12)
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(12)
+          .id('steam-qr-inline')
+        }
+        Text('建议使用小号测试；新设备登录可能触发 Steam 邮箱验证，频繁验证码属 Steam 风控，与客户端无关。')
+          .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+      }
+
+      if (this.message.length > 0) {
+        Text(this.message).fontSize(12)
+          .fontColor(this.state === SteamUiState.ERROR ? '#F87171' : $r('app.color.text_secondary'))
+          .width('100%').id('steam-message')
+      }
+      if (this.state === SteamUiState.WORKING) {
+        LoadingProgress().width(28).height(28).color($r('app.color.accent'))
+      }
+    }
+    .width('100%').padding(14)
+    .backgroundColor($r('app.color.search_background'))
+    .borderRadius(14)
   }
 
   @Builder
@@ -563,138 +737,69 @@ struct SteamAccount {
   build() {
     Column() {
       this.TopBar()
-      Scroll() {
-        Column({ space: 12 }) {
-          Row({ space: 8 }) {
-            Circle({ width: 8, height: 8 })
-              .fill(this.probeOk ? '#4ADE80' : '#F87171')
-            Text(this.probeResult).fontSize(12)
-              .fontColor($r('app.color.text_secondary')).layoutWeight(1)
+      Row({ space: 18 }) {
+        // 左栏: 分类小列表 (与设置页同交互语言)
+        Column() {
+          Scroll() {
+            Column({ space: 3 }) {
+              this.SectionButton('账号登录', 'login', $r('sys.symbol.person'))
+              this.SectionButton('手机令牌', 'token', $r('sys.symbol.timer'))
+              this.SectionButton('游戏库', 'library', $r('sys.symbol.square_grid_2x2'))
+              this.SectionButton('连接自检', 'probe', $r('sys.symbol.info_circle'))
+            }
+            .width('100%')
           }
-          .width('100%').padding(10)
-          .backgroundColor($r('app.color.search_background'))
-          .borderRadius(10)
-          .id('steam-probe')
-
-          if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
-            this.ProfileCard()
-            this.TokenCard()
-            this.LibraryCard()
-          } else {
-            Column({ space: 10 }) {
-              if (this.loginMode === 'qr') {
-                Text('扫码登录').fontSize(13).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.text_primary')).width('100%')
-                if (this.qrUrl.length > 0) {
-                  QRCode(this.qrUrl).width(180).height(180)
-                    .backgroundColor('#FFFFFFFF')
-                    .id('steam-qr-image')
-                } else {
-                  Column({ space: 8 }) {
-                    LoadingProgress().width(28).height(28).color($r('app.color.accent'))
-                  }.width('100%').height(180).justifyContent(FlexAlign.Center)
-                }
-                Text(this.qrStatus)
-                  .fontSize(12).fontColor($r('app.color.text_secondary'))
-                  .width('100%').textAlign(TextAlign.Center)
-                Button('返回密码登录').width('100%').height(36).borderRadius(10)
-                  .backgroundColor($r('app.color.search_background'))
-                  .fontColor($r('app.color.text_primary'))
-                  .onClick((): void => { this.switchLoginMode('password'); })
-                  .id('steam-qr-back')
+          .layoutWeight(1)
+          .width('100%')
+          .scrollBar(BarState.Off)
+          .id('steam-nav-scroll')
+        }
+        .width(204)
+        .height('100%')
+        .padding({ left: 8, right: 8, top: 8, bottom: 8 })
+        .backgroundColor($r('app.color.search_background'))
+        .borderRadius(20)
+        .clip(true)
+        // 右栏: 选中分类的详情
+        Scroll() {
+          Column({ space: 12 }) {
+            if (this.activeSection === 'probe') {
+              this.ProbeCard()
+            } else if (this.activeSection === 'token') {
+              if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+                this.TokenCard()
               } else {
-              Text('登录 Steam').fontSize(13).fontWeight(FontWeight.Medium)
-                .fontColor($r('app.color.text_primary')).width('100%')
-
-              if (this.state === SteamUiState.NEEDS_EMAIL_CODE ||
-                this.state === SteamUiState.NEEDS_GUARD_CODE) {
-                Text(this.state === SteamUiState.NEEDS_GUARD_CODE
-                  ? '输入手机令牌 App 上的 5 位验证码' : '输入邮箱收到的验证码')
-                  .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
-                TextInput({ placeholder: '验证码', text: this.inputCode })
-                  .fontSize(14).height(44).borderRadius(12)
-                  .backgroundColor($r('app.color.card_background'))
-                  .onChange((value: string): void => { this.inputCode = value; })
-                  .id('steam-code-input')
-                Button('提交验证码').width('100%').height(44).borderRadius(12)
-                  .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
-                  .enabled(this.inputCode.trim().length > 0)
-                  .onClick((): void => {
-                    SteamService.getInstance().submitCode(this.inputCode);
-                  })
-                  .id('steam-code-submit')
-              } else if (this.state === SteamUiState.NEEDS_CONFIRM) {
-                LoadingProgress().width(36).height(36).color($r('app.color.accent'))
-                Text('新设备首次登录需要在手机上确认（只需一次，之后启动器自动记住本设备）：')
-                  .fontSize(13).fontColor($r('app.color.text_primary')).width('100%')
-                Text('打开手机 Steam App → Steam Guard（令牌页）→ 「确认登录」→ 找到这条登录请求 → 点「允许」。收不到推送也可以在这里手动确认。')
-                  .fontSize(12).fontColor($r('app.color.text_secondary')).width('100%')
-                TextInput({ placeholder: '备用：5 位令牌验证码（仅 Steam 允许时可用）', text: this.inputCode })
-                  .fontSize(14).height(44).borderRadius(12)
-                  .backgroundColor($r('app.color.card_background'))
-                  .onChange((value: string): void => { this.inputCode = value; })
-                  .id('steam-confirm-code-input')
-                Button('提交令牌验证码').width('100%').height(44).borderRadius(12)
-                  .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
-                  .enabled(this.inputCode.trim().length > 0)
-                  .onClick((): void => {
-                    SteamService.getInstance().submitCode(this.inputCode);
-                  })
-                  .id('steam-confirm-code-submit')
+                this.SectionLockedHint('登录后可在这里查看手机令牌动态码，或导入 maFile。')
+              }
+            } else if (this.activeSection === 'library') {
+              if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+                this.LibraryCard()
               } else {
-                TextInput({ placeholder: 'Steam 账号名', text: this.inputAccount })
-                  .fontSize(14).height(44).borderRadius(12)
-                  .backgroundColor($r('app.color.card_background'))
-                  .onChange((value: string): void => { this.inputAccount = value; })
-                  .id('steam-login-account')
-                TextInput({ placeholder: '密码', text: this.inputPassword })
-                  .type(InputType.Password)
-                  .fontSize(14).height(44).borderRadius(12)
-                  .backgroundColor($r('app.color.card_background'))
-                  .onChange((value: string): void => { this.inputPassword = value; })
-                  .id('steam-login-password')
-                Button(this.state === SteamUiState.WORKING ? '登录中…' : '登录')
-                  .width('100%').height(44).borderRadius(12)
-                  .backgroundColor($r('app.color.accent')).fontColor('#FFFFFFFF')
-                  .enabled(this.state !== SteamUiState.WORKING)
-                  .onClick((): void => {
-                    SteamService.getInstance().signIn(this.inputAccount, this.inputPassword);
-                  })
-                  .id('steam-login-button')
-                Button('扫码登录（Steam 手机 App，免输密码）')
-                  .width('100%').height(40).borderRadius(12)
-                  .backgroundColor($r('app.color.selected_background'))
-                  .fontColor($r('app.color.text_primary'))
-                  .enabled(this.state !== SteamUiState.WORKING)
-                  .onClick((): void => { this.switchLoginMode('qr'); })
-                  .id('steam-qr-login')
-                Text('建议使用小号测试；新设备登录可能触发 Steam 邮箱验证，频繁验证码属 Steam 风控，与客户端无关。')
-                  .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+                this.SectionLockedHint('登录后可在这里同步 Steam 游戏库，并与本地游戏批量匹配封面/时长。')
               }
-              }
-
-              if (this.message.length > 0) {
-                Text(this.message).fontSize(12)
-                  .fontColor(this.state === SteamUiState.ERROR ? '#F87171' : $r('app.color.text_secondary'))
-                  .width('100%').id('steam-message')
-              }
-              if (this.state === SteamUiState.WORKING) {
-                LoadingProgress().width(28).height(28).color($r('app.color.accent'))
+            } else {
+              if (this.state === SteamUiState.LOGGED_IN && this.steamId64.length > 0) {
+                this.ProfileCard()
+              } else {
+                this.LoginSection()
               }
             }
-            .width('100%').padding(14)
-            .backgroundColor($r('app.color.search_background'))
-            .borderRadius(14)
           }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+          .padding({ left: 4, right: 4, top: 4, bottom: 32 })
+          .constraintSize({ minHeight: '100%' })
         }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 8, bottom: 32 })
-        .constraintSize({ minHeight: '100%' })
+        .layoutWeight(1)
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .align(Alignment.TopStart)
+        .id('steam-detail-scroll')
       }
-      .layoutWeight(1)
       .width('100%')
-      .scrollBar(BarState.Off)
-      .id('steam-account-scroll')
+      .layoutWeight(1)
+      .alignItems(VerticalAlign.Top)
+      .padding({ left: 16, right: 16, top: 8, bottom: Math.max(8, 0) })
     }
     .width('100%')
     .height('100%')
