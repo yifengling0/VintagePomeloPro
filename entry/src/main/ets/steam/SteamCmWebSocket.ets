@@ -56,7 +56,13 @@ export class SteamCmWebSocketTransport implements ISteamCmWireTransport {
       }, 45000);
       this.socket.connect(url, options).then((value: boolean): void => {
         clearTimeout(guard);
-        hilog.info(DOMAIN, TAG, 'cm connected: %{public}s (ret=%{public}s)', url, String(value));
+        if (!value) {
+          // resolve(false) = 握手失败 (非异常路径); 之前把它当成功导致会话状态假 Connected
+          hilog.warn(DOMAIN, TAG, 'cm connect refused (ret=false): %{public}s', url);
+          reject(new Error('CM 连接被拒 (WebSocket 握手未完成; 检查代理对 wss 长连接的放行)'));
+          return;
+        }
+        hilog.info(DOMAIN, TAG, 'cm connected: %{public}s', url);
         resolve();
       }).catch((e: Object): void => {
         clearTimeout(guard);
