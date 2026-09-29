@@ -27,8 +27,13 @@ export class SteamCmWebSocketTransport implements ISteamCmWireTransport {
     this.closedByUser = false;
     this.socket = webSocket.createWebSocket();
     this.bindListeners();
+    // minSupportTlsProtocol 必传: 缺省时 NETSTACK 报 "MIN_SUPPORT_TLS_PROTOCOL not found",
+    // 握手 30s 后超时 (wsi is nullptr → lws_service stop), 实测 CM 会话永远建不起来。
     const options: webSocket.WebSocketRequestOptions = {
-      header: { 'User-Agent': 'VintagePomeloPro SteamCm' } as Record<string, string>
+      header: { 'User-Agent': 'VintagePomeloPro SteamCm' } as Record<string, string>,
+      minSupportTlsProtocol: webSocket.TlsProtocol.TLS_V_1_2,
+      pingInterval: 30,
+      pongTimeout: 30
     };
     return new Promise<void>((resolve: () => void, reject: (e: Error) => void): void => {
       this.socket.connect(url, options).then((value: boolean): void => {

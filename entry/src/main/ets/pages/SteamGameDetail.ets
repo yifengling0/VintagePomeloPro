@@ -14,6 +14,7 @@ import { SteamDownloadService, SteamDownloadProgress } from '../steam/SteamDownl
 import { SteamDepotWriter } from '../steam/SteamDepotFileSink';
 import { SteamService } from '../steam/SteamService';
 import { PicsAppInfo } from '../steam/SteamContentProtocol';
+import { describeSteamError } from '../steam/SteamErrorText';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 interface SteamGameDetailParams {
@@ -245,8 +246,8 @@ struct SteamGameDetail {
       .catch((e: Object): void => {
         this.downloadActive = false;
         this.downloadPhase = '';
-        this.downloadMessage = '下载失败：' + JSON.stringify(e);
-        hilog.warn(0x0000, 'SteamGameDetail', 'download failed: %{public}s', JSON.stringify(e));
+        this.downloadMessage = '下载失败：' + describeSteamError(e);
+        hilog.warn(0x0000, 'SteamGameDetail', 'download failed: %{public}s', describeSteamError(e));
       });
   }
 
