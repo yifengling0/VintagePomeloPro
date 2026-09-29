@@ -25,6 +25,13 @@ export class SteamCmWebSocketTransport implements ISteamCmWireTransport {
     const endpoint = server.replace(/^wss:\/\//, '').replace(/\/+$/, '');
     const url = 'wss://' + endpoint + '/cmsocket/';
     this.closedByUser = false;
+    // 新 socket + 清旧监听: 复用 socket 时旧回调会重复触发
+    try {
+      this.socket.off('message');
+      this.socket.off('close');
+      this.socket.off('error');
+    } catch (_) {
+    }
     this.socket = webSocket.createWebSocket();
     this.bindListeners();
     // minSupportTlsProtocol 必传: 缺省时 NETSTACK 报 "MIN_SUPPORT_TLS_PROTOCOL not found",
@@ -35,11 +42,24 @@ export class SteamCmWebSocketTransport implements ISteamCmWireTransport {
       pingInterval: 30,
       pongTimeout: 30
     };
+    hilog.info(DOMAIN, TAG, 'cm connect begin: %{public}s', url);
     return new Promise<void>((resolve: () => void, reject: (e: Error) => void): void => {
+      // 兜底超时: @ohos wss 在某些网络下 connect promise 永不 settle (只有 lws stop 日志),
+      // 45s 后强制 reject, 让上层走重连/报错而不是永远挂起
+      const guard = setTimeout((): void => {
+        hilog.error(DOMAIN, TAG, 'cm connect guard timeout (45s): %{public}s', url);
+        try {
+          this.socket.close();
+        } catch (_) {
+        }
+        reject(new Error('CM 连接超时 (45s 无响应, TLS 握手未完成; 网络代理可能拦截 wss 长连接)'));
+      }, 45000);
       this.socket.connect(url, options).then((value: boolean): void => {
+        clearTimeout(guard);
         hilog.info(DOMAIN, TAG, 'cm connected: %{public}s (ret=%{public}s)', url, String(value));
         resolve();
       }).catch((e: Object): void => {
+        clearTimeout(guard);
         hilog.warn(DOMAIN, TAG, 'cm connect failed: %{public}s', JSON.stringify(e));
         reject(new Error('CM connect failed: ' + JSON.stringify(e)));
       });
