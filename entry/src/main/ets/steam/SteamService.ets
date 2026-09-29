@@ -319,6 +319,15 @@ export class SteamService {
   /** 会话恢复：用 AssetStore 里的 refresh_token 换新 access_token。 */
   private restoreTask: Promise<boolean> | null = null;
 
+  /** W6: 取 refresh_token 供 CM 下载会话用 (优先内存凭据, 回退安全存储)。 */
+  async getRefreshToken(): Promise<string> {
+    if (this.lastCredentials.refreshToken.length > 0) {
+      return this.lastCredentials.refreshToken;
+    }
+    if (this.steamId64.length === 0) return '';
+    return await this.store.loadSecret(this.steamId64, 'refresh_token');
+  }
+
   async restoreSession(): Promise<boolean> {
     if (this.restoreTask) return this.restoreTask;
     const task = this.restoreStoredSession();

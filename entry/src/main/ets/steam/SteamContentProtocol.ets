@@ -32,19 +32,19 @@ export class PicsAppInfoRequest {
   }
 }
 
-export interface PicsDepotInfo {
-  depotId: number;
+export class PicsDepotInfo {
+  depotId: number = 0;
   /** 全部 depot 分片大小合计 (bytes)。 */
-  sizeOnDisk: number;
-  /** manifest GID (十六进制串形态的 uint64, 这里转十进制字符串)。 */
-  manifestGid: string;
-  sharedDepot: boolean;
+  sizeOnDisk: number = 0;
+  /** manifest GID (uint64 十进制字符串)。 */
+  manifestGid: string = '';
+  sharedDepot: boolean = false;
 }
 
-export interface PicsAppInfo {
-  appId: number;
-  /** depots 子消息里的分depot条目。 */
-  depots: Array<PicsDepotInfo>;
+export class PicsAppInfo {
+  appId: number = 0;
+  /** depots 子消息里的 depot 条目。 */
+  depots: Array<PicsDepotInfo> = [];
 }
 
 export class PicsProductInfoResponse {
@@ -209,11 +209,11 @@ class SteamProtoReaderBytesHelper {
 
 // ===== ContentServerDirectory.GetServersForSteamPipe =====
 
-export interface CdnServer {
-  host: string;
+export class CdnServer {
+  host: string = '';
   /** 'SteamCache' 类型走 CDN 分块下载。 */
-  type: string;
-  sourceId: number;
+  type: string = '';
+  sourceId: number = 0;
 }
 
 export class GetServersForSteamPipeRequest {
@@ -318,22 +318,24 @@ export class GetCdnAuthTokenRequest {
 
 // ===== Depot Manifest 解析 (ProtoManifest 等价物) =====
 
-export interface ManifestFile {
-  path: string;
-  size: number;
+export class ManifestFile {
+  path: string = '';
+  size: number = 0;
   /** flag 位 64 = 目录 (size 0 无 chunks)。 */
-  flags: number;
-  chunks: Array<ManifestChunk>;
+  flags: number = 0;
+  chunks: Array<ManifestChunk> = [];
 }
 
-export interface ManifestChunk {
+export class ManifestChunk {
   /** chunk 的 SHA-1 (十六进制), 同时是 CDN 请求路径段。 */
-  sha: string;
+  sha: string = '';
   /** CDN 上的压缩后大小。 */
-  compressedSize: number;
+  compressedSize: number = 0;
   /** 解压后大小。 */
-  uncompressedSize: number;
-}export class DepotManifest {
+  uncompressedSize: number = 0;
+}
+
+export class DepotManifest {
   files: Array<ManifestFile> = [];
 
   static decode(body: Uint8Array): DepotManifest {

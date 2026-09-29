@@ -110,12 +110,8 @@ export class SteamDownloadService {
         '',
         '',
         true,
-        false,
-        null,
-        30000,
-        new SteamCmMultiDecompressor()
-      ),
-      null
+        false
+      )
     );
     await client.connect();
     if (client.session.state !== 'logged_on' && client.session.state !== 'connected') {
@@ -156,15 +152,8 @@ export class SteamDownloadService {
     return ServiceMethodSupport.readResponsePayload(message.body);
   }
 
-  /** PICS 拿一个 app 的 depot 列表 (走 EMsg 5202 unified 等价: ServiceMethod 封装)。 */
+  /** 拿一个 app 的 depot 列表: 免鉴权 appdetails (JSON 形态, manifest GID 就在里面)。 */
   async fetchAppInfo(appId: number): Promise<PicsAppInfo> {
-    const request = new PicsAppInfoRequest();
-    request.appIds = [appId];
-    // Client.PICSProductInfo 不是 ServiceMethod, 是 EMsg; CmClient.sendProtoMessage 是 private,
-    // 所以这里用 unified 等价: ContentServerDirectory.GetAppList 不可用 → 用 EMsg 直发。
-    // vendor 的 CmClient 暴露 call()/notify() (unified only), 为省事 PICS 也走
-    // SteamKit 同款 EMsg 5202 → 需要 notify/call 扩展; 此处先用 GetServers 前置依赖的
-    // appinfo from web (免鉴权) 兜底: appdetails 有 depot 列表的 JSON 形态。
     const info = new PicsAppInfo();
     info.appId = appId;
     info.depots = await this.fetchDepotsViaWebApi(appId);
@@ -184,15 +173,17 @@ export class SteamDownloadService {
       if (response.responseCode !== 200) {
         throw new Error('appdetails HTTP ' + response.responseCode);
       }
-      const parsed = JSON.parse(String(response.result)) as AppDetailsEnvelope;
-      const entry = parsed[String(appId)];
+      const parsed: AppDetailsEnvelope = JSON.parse(String(response.result)) as AppDetailsEnvelope;
+      const entry: AppDetailsEntry | undefined = parsed !== null
+        ? parsed.entries[appId.toString()] : undefined;
       if (!entry || !entry.success || !entry.data || !entry.data.depots) {
         throw new Error('appdetails 未返回 depots (该应用可能不可下载)');
       }
-      const depots = entry.data.depots;
+      const depots: DepotEntryMap = entry.data.depots;
       const result = new Array<PicsDepotInfo>();
-      for (const key of Object.keys(depots)) {
-        const depot = depots[key];
+      const keys: Array<string> = Object.keys(depots.entries);
+      for (const key of keys) {
+        const depot: DepotEntry | undefined = depots.entries[key];
         const numeric = Number(key);
         if (!Number.isSafeInteger(numeric) || numeric <= 0 || !depot) {
           continue;
@@ -200,8 +191,8 @@ export class SteamDownloadService {
         const item = new PicsDepotInfo();
         item.depotId = numeric;
         item.sizeOnDisk = typeof depot.maxsize === 'number' ? depot.maxsize : 0;
-        item.manifestGid = typeof depot.manifests === 'object' && depot.manifests !== null
-          ? (depot.manifests['public'] ?? '') : '';
+        const manifests: Record<string, string> | undefined = depot.manifests;
+        item.manifestGid = manifests !== undefined ? (manifests['public'] ?? '') : '';
         item.sharedDepot = false;
         if (item.manifestGid.length > 0) {
           result.push(item);
@@ -326,14 +317,25 @@ export interface DepotFileSink {
   writeFile(path: string, content: Uint8Array): Promise<void>;
 }
 
-interface AppDetailsEnvelope {
-  [appid: string]: {
-    success?: boolean;
-    data?: {
-      depots?: Record<string, {
-        maxsize?: string | number;
-        manifests?: Record<string, string>;
-      }>;
-    };
-  } | undefined;
+interface DepotEntry {
+  maxsize?: number;
+  manifests?: Record<string, string>;
+}
+
+/** appdetails 的 depots 对象: 键是 depotId 字符串 (ArkTS 不支持索引签名, 用 entries 包一层)。 */
+class DepotEntryMap {
+  entries: Record<string, DepotEntry> = {};
+}
+
+interface AppDetailsData {
+  depots?: DepotEntryMap;
+}
+
+interface AppDetailsEntry {
+  success?: boolean;
+  data?: AppDetailsData;
+}
+
+class AppDetailsEnvelope {
+  entries: Record<string, AppDetailsEntry> = {};
 }
