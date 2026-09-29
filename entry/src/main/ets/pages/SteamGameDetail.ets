@@ -217,13 +217,14 @@ struct SteamGameDetail {
     this.downloadMessage = '';
     service.getRefreshToken()
       .then((refreshToken: string): Promise<void> => {
+        this.downloadPhase = '1/4 凭据就绪';
         if (refreshToken.length === 0) {
           throw new Error('登录凭据不可用，请重新登录');
         }
         return downloader.ensureSession(service.accountName, refreshToken, service.steamId64);
       })
       .then((): Promise<PicsAppInfo> => {
-        this.downloadPhase = '获取 depot 信息';
+        this.downloadPhase = '2/4 获取 depot 信息';
         return downloader.fetchAppInfo(Number(game.appId));
       })
       .then(async (info: PicsAppInfo): Promise<void> => {
@@ -232,8 +233,10 @@ struct SteamGameDetail {
         }
         // 只下第一个有 manifest 的 depot (v1: 主 depot; DLC/shared depot 后续)
         const depot = info.depots[0];
+        this.downloadPhase = '3/4 准备落盘';
+        this.downloadMessage = `depot ${depot.depotId}`;
         await writer.begin(folderName, depot.depotId);
-        this.downloadPhase = '下载中';
+        this.downloadPhase = '4/4 下载中';
         await downloader.downloadDepot(Number(game.appId), depot.depotId, depot.manifestGid, writer);
       })
       .then((): void => {

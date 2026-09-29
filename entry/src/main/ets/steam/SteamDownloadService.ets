@@ -110,7 +110,10 @@ export class SteamDownloadService {
         '',
         '',
         true,
-        false
+        false,
+        undefined,
+        30000,
+        new SteamCmMultiDecompressor()
       )
     );
     await client.connect();
