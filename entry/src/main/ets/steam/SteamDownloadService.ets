@@ -176,26 +176,40 @@ export class SteamDownloadService {
       if (response.responseCode !== 200) {
         throw new Error('appdetails HTTP ' + response.responseCode);
       }
-      const parsed: AppDetailsEnvelope = JSON.parse(String(response.result)) as AppDetailsEnvelope;
-      const entry: AppDetailsEntry | undefined = parsed !== null
-        ? parsed.entries[appId.toString()] : undefined;
-      if (!entry || !entry.success || !entry.data || !entry.data.depots) {
+      // appdetails 返回形如 {"632360": {success, data:{depots:{"632360":{...}}}}};
+      // ArkTS 无索引签名, JSON.parse 的动态对象用 Record 承载再 Object.keys 遍历
+      const raw: Record<string, Object> = JSON.parse(String(response.result)) as Record<string, Object>;
+      if (raw === null) {
+        throw new Error('appdetails 返回为空');
+      }
+      const entryObj: Object | undefined = raw[appId.toString()];
+      if (entryObj === undefined || entryObj === null) {
+        throw new Error('appdetails 未返回该 app 的条目');
+      }
+      const entry = entryObj as AppDetailsEntry;
+      if (!entry.success || !entry.data) {
+        throw new Error('appdetails success=false (未拥有或区域限制)');
+      }
+      const depotsObj: Object | undefined = entry.data.depots;
+      if (depotsObj === undefined || depotsObj === null) {
         throw new Error('appdetails 未返回 depots (该应用可能不可下载)');
       }
-      const depots: DepotEntryMap = entry.data.depots;
       const result = new Array<PicsDepotInfo>();
-      const keys: Array<string> = Object.keys(depots.entries);
+      const depotRecord = depotsObj as Record<string, Object>;
+      const keys: Array<string> = Object.keys(depotRecord);
       for (const key of keys) {
-        const depot: DepotEntry | undefined = depots.entries[key];
+        const depotValue: Object | undefined = depotRecord[key];
         const numeric = Number(key);
-        if (!Number.isSafeInteger(numeric) || numeric <= 0 || !depot) {
+        if (!Number.isSafeInteger(numeric) || numeric <= 0 || depotValue === undefined
+          || depotValue === null) {
           continue;
         }
+        const depot = depotValue as DepotEntry;
         const item = new PicsDepotInfo();
         item.depotId = numeric;
         item.sizeOnDisk = typeof depot.maxsize === 'number' ? depot.maxsize : 0;
-        const manifests: Record<string, string> | undefined = depot.manifests;
-        item.manifestGid = manifests !== undefined ? (manifests['public'] ?? '') : '';
+        item.manifestGid = depot.manifests !== undefined && depot.manifests !== null
+          ? (depot.manifests['public'] ?? '') : '';
         item.sharedDepot = false;
         if (item.manifestGid.length > 0) {
           result.push(item);
@@ -325,20 +339,11 @@ interface DepotEntry {
   manifests?: Record<string, string>;
 }
 
-/** appdetails 的 depots 对象: 键是 depotId 字符串 (ArkTS 不支持索引签名, 用 entries 包一层)。 */
-class DepotEntryMap {
-  entries: Record<string, DepotEntry> = {};
-}
-
 interface AppDetailsData {
-  depots?: DepotEntryMap;
+  depots?: Object;
 }
 
 interface AppDetailsEntry {
   success?: boolean;
   data?: AppDetailsData;
-}
-
-class AppDetailsEnvelope {
-  entries: Record<string, AppDetailsEntry> = {};
 }
