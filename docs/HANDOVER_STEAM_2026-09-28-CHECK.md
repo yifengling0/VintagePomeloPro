@@ -214,3 +214,34 @@ completeChallenge 对 MOBILE_CONFIRMATION 会话直接无视提交的验证码�
 - `hdc file recv` 的本地路径必须用 **Windows 反斜杠**（正斜杠会拼错）。
 - 网络走路由器代理（fake-ip 198.18.x.x），抽风时 `SSL_ERROR_SYSCALL`，重试即可。
 - 用户多会话并行改仓库：动手前 `git status`；**不要信本会话之外任何"上一会话说编译通过"的说法**。
+
+## 8. W6 下载链路（2026-09-29/30 深夜状态：代码全通，待网络验证）
+
+### 8.1 已落地（全部编译 0 error、已推 origin/UI）
+
+| 提交 | 内容 |
+|---|---|
+| `9bcf1fe` | W6 一阶段：CM 栈补拷（SteamCmClient/AuthClient/DirectoryCodec+4 codec）+ SteamCmWebSocket 宿主传输 + gzip MULTI 解压器 + 内容协议（GetServersForSteamPipe/GetCDNAuthToken/GetDepotManifest/ServiceMethod 解包）+ SteamDownloadService 门面 + **native libsteamdecompress.so**（LzmaDec+zstd 1.5.7，NAPI decompressChunk，独立 so）+ SteamChunkDecoder（VSZa/VZa/裸 LZMA 魔数剥壳） |
+| `9f9a47f` | W6 二阶段：详情页下载 UI + SteamDepotWriter 落盘（Download/games/<名>/tmp/<depotId>/）+ setPlayMinutes/getRefreshToken + vpp-check-sync.sh 纳入 cpp 全目录同步（**修 native 源码缺失的假成功，重要**） |
+| `3192f9b` | **depot 信息改走 PICS 正道**：无鉴权 appdetails 已不返回 depots（Valve 收紧，PC 实测）；vendor CmClient 加 callProto（EMsg 请求/响应按 proto jobId 配对，路由 5203）；PicsAppInfoRequest 按官方 proto 重写 |
+| `77b00f2`/`44940d1`/`33bfb89` | CM 握手三连修：minSupportTlsProtocol 必传（缺则 NETSTACK not found + 30s 超时）、45s guard 兜底 promise 悬挂、**connect resolve(false) 勿当成功** |
+| `edc9426`/`231d027`/`5891923`/`1aa3899` | 诊断链：JSON.parse 动态对象 ArkTS 要 Record+Object.keys（直接取属性真机抛 Cannot load property of null）、Error 文案取 .message（stringify 恒为 {}）、堆栈首帧带回页面、4 阶段进度文案 |
+
+### 8.2 唯一剩余卡点（明早从这里继续）
+
+**CM wss 握手在设备网络环境失败**：`wss://cmp1-sea1.steamserver.net/cmsocket/` TLS 握手不通
+（connect resolve(false) / on('error') code=200 data=0）。**同网络 PC node 直连握手成功** → 代理放行
+wss，是鸿蒙 netstack(lws) 与代理的 TLS/SNI 兼容问题。
+
+**下一步（按优先级）**：
+1. 路由器 iStoreOS 给 `*.steamserver.net` 配直连规则（绕代理），设备重试下载；
+2. 仍失败 → 手机热点换网验证（区分代理 vs 运营商）；
+3. CM 一通则全链自通（PICS→CDN→chunk→解压→落盘代码全部就位）。
+4. 测试前先重新登录（会话恢复一直报 access_token refresh http=400，refresh_token 已过期）。
+
+### 8.3 资料索引
+
+- 解压验证脚本：`E:\tmp\vzip-test\`（vzip_test.c + sample.vzip，LzmaDec 解 VZip 逐字节还原）
+- 7-Zip-zstd 源码：`E:\tmp\7z-zstd\`（LzmaDec.c 1367 行零依赖；zstd/ 平铺布局，v01-v07 旧格式解码器不需要）
+- VZip 布局（实测钉死）：壳头 7B（'VZa'+ts4B）+ props 5B + LZMA 流 + 尾 14B（'zv'+CRC32+原长8B）；VSZa 尾 15B
+- 设备上当前构建：含全部上述代码（23:50 装机）
