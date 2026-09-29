@@ -250,7 +250,13 @@ struct SteamGameDetail {
         this.downloadActive = false;
         this.downloadPhase = '';
         this.downloadMessage = '下载失败：' + describeSteamError(e);
-        hilog.warn(0x0000, 'SteamGameDetail', 'download failed: %{public}s', describeSteamError(e));
+        const err = e as Error;
+        hilog.warn(0x0000, 'SteamGameDetail', 'download failed: %{public}s',
+          describeSteamError(e));
+        if (err && typeof err.stack === 'string' && err.stack.length > 0) {
+          hilog.warn(0x0000, 'SteamGameDetail', 'stack: %{public}s', err.stack);
+          this.downloadMessage += ' [' + err.stack.split('\n')[1].trim().substring(0, 80) + ']';
+        }
       });
   }
 
