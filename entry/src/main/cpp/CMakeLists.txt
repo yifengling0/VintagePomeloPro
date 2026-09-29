@@ -160,3 +160,23 @@ target_link_libraries(virgl_child PUBLIC
     libchild_process.so
     libipc_capi.so
 )
+
+# ===== Steam depot chunk 解压 (W6): LZMA (LzmaDec) + zstd, 独立 so, 不触碰现有模块 =====
+add_library(steamdecompress SHARED
+    steam_decompress/steam_decompress.cpp
+    steam_decompress/LzmaDec.c
+    steam_decompress/zstd/zstd_decompress.c
+    steam_decompress/zstd/zstd_decompress_block.c
+    steam_decompress/zstd/zstd_ddict.c
+    steam_decompress/zstd/zstd_common.c
+    steam_decompress/zstd/huf_decompress.c
+    steam_decompress/zstd/fse_decompress.c
+    steam_decompress/zstd/entropy_common.c
+    steam_decompress/zstd/error_private.c
+    steam_decompress/zstd/debug.c
+    steam_decompress/zstd/hist.c
+    steam_decompress/zstd/xxhash.c
+)
+target_include_directories(steamdecompress PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/steam_decompress ${CMAKE_CURRENT_SOURCE_DIR}/steam_decompress/zstd)
+target_compile_options(steamdecompress PRIVATE -O2 -Wno-everything)
+target_link_libraries(steamdecompress PUBLIC libhilog_ndk.z.so libace_napi.z.so)
