@@ -14,23 +14,30 @@ import { SteamCmMessageType } from './vendor/protocol/SteamCmProtocol';
 
 // ===== PICS ProductInfo (EMsg 5202 请求 / 5203 响应) =====
 
+/** CMsgClientPICSProductInfoRequest (EMsg 5202): apps=1{appid=1,access_token=2}, meta_data_only=2。 */
 export class PicsAppInfoRequest {
   appIds: Array<number> = [];
-  /** 只取 meta (depot 列表在 appinfo 里), 不需要 changes-number 精确性。 */
-  supportedMessages = 2;
+  /** true 只取 meta; 拿 depot 列表必须 false。 */
+  metaDataOnly: boolean = false;
 
   encode(): Uint8Array {
     const writer = new SteamProtoWriter();
-    // field 1 = apps (repeated message { appid=1 })
     for (const appId of this.appIds) {
       const inner = new SteamProtoWriter();
       inner.writeUInt32(1, appId);
+      inner.writeUInt64(2, '0'); // access_token (public 信息 0 即可)
       writer.writeMessage(1, inner.toUint8Array());
     }
-    writer.writeUInt32(2, 1); // field 2 = meta_only? (保留); 真正标志在 3
+    if (this.metaDataOnly) {
+      writer.writeBool(2, true);
+    }
     return writer.toUint8Array();
   }
 }
+
+/** EMsg 常量 (steammessages_clientserver_2): PICS ProductInfo 请求/响应。 */
+export const EMSG_PICS_PRODUCT_INFO_REQUEST = 5202;
+export const EMSG_PICS_PRODUCT_INFO_RESPONSE = 5203;
 
 export class PicsDepotInfo {
   depotId: number = 0;

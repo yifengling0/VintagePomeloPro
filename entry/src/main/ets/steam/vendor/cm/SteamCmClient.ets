@@ -90,6 +90,9 @@ export class SteamCmClient implements ISteamCmClient {
   private readonly unifiedListeners: Array<SteamCmUnifiedMessageListener> = [];
   private readonly pendingRequests: Map<string, SteamCmPendingRequest> =
     new Map<string, SteamCmPendingRequest>();
+  /** callProto 的响应类型配对: jobId → 期望的响应 EMsg。 */
+  private readonly pendingProtoResponses: Map<string, number> =
+    new Map<string, number>();
   private nextJobId: string = '1';
   private currentSession: SteamSessionSnapshot;
   private transportConnected: boolean = false;
@@ -267,8 +270,36 @@ export class SteamCmClient implements ISteamCmClient {
     });
   }
 
-  async notify(targetJobName: string, body: Uint8Array): Promise<void> {
+  /**
+   * W6: 发一条经典 EMsg (非 unified) 并按 proto header 的 jobId 配对响应。
+   * 用于 Client.PICSProductInfo (5202→5203) 等请求。响应经 handleDecodedMessage 路由。
+   */
+  callProto(messageType: number, responseType: number, body: Uint8Array,
+    stage: string): Promise<SteamCmDecodedMessage> {
     if (!this.isLoggedOn()) {
+      return Promise.reject(new Error('Steam EMsg call requires a logged-on CM session'));
+    }
+    const jobId: string = this.nextJobId;
+    this.nextJobId = SteamVarint.incrementUInt64(jobId);
+    const frame: Uint8Array = this.buildProtoMessage(messageType, body, true);
+    return new Promise<SteamCmDecodedMessage>((resolve: (message: SteamCmDecodedMessage) => void,
+      reject: (error: Error) => void): void => {
+      const pending: SteamCmPendingRequest = new SteamCmPendingRequest(jobId, stage, resolve, reject);
+      pending.timeoutHandle = this.scheduler.schedule(this.options.requestTimeoutMilliseconds, (): void => {
+        this.pendingProtoResponses.delete(jobId);
+        this.rejectPendingRequest(jobId,
+          new Error('Steam EMsg request timed out; stage=' + stage));
+      });
+      this.pendingProtoResponses.set(jobId, responseType);
+      this.pendingRequests.set(jobId, pending);
+      this.wire.send(frame).catch((error: Error): void => {
+        this.pendingProtoResponses.delete(jobId);
+        this.rejectPendingRequest(jobId, error);
+      });
+    });
+  }
+
+  async notify(targetJobName: string, body: Uint8Array): Promise<void> {    if (!this.isLoggedOn()) {
       throw new Error('Steam unified message notification requires a logged-on CM session');
     }
     const normalizedName: string = targetJobName.trim();
@@ -491,6 +522,20 @@ export class SteamCmClient implements ISteamCmClient {
   }
 
   private handleDecodedMessage(message: SteamCmDecodedMessage): void {
+    // W6: callProto 的 EMsg 响应配对 (PICS 5203 等) — 按 jobId 找 pending
+    const expectedResponseType: number | undefined =
+      this.pendingProtoResponses.get(message.protoHeader.jobIdTarget);
+    if (expectedResponseType !== undefined && message.messageType === expectedResponseType) {
+      this.pendingProtoResponses.delete(message.protoHeader.jobIdTarget);
+      const pending: SteamCmPendingRequest | undefined =
+        this.pendingRequests.get(message.protoHeader.jobIdTarget);
+      if (pending !== undefined) {
+        this.pendingRequests.delete(message.protoHeader.jobIdTarget);
+        this.scheduler.cancel(pending.timeoutHandle);
+        pending.resolve(message);
+      }
+      return;
+    }
     if (message.messageType === SteamCmMessageType.SERVICE_METHOD_RESPONSE) {
       const jobId: string = message.protoHeader.jobIdTarget;
       const pending: SteamCmPendingRequest | undefined = this.pendingRequests.get(jobId);

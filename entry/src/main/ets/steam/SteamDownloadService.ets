@@ -8,6 +8,8 @@ import { SteamCmMultiDecompressor, SteamCmScheduler, SteamHostClock } from './St
 import { SteamChunkDecoder } from './SteamChunkDecoder';
 import {
   DepotManifest,
+  EMSG_PICS_PRODUCT_INFO_REQUEST,
+  EMSG_PICS_PRODUCT_INFO_RESPONSE,
   GetCdnAuthTokenRequest,
   GetCdnAuthTokenResponse,
   GetDepotManifestRequest,
@@ -15,7 +17,9 @@ import {
   GetServersForSteamPipeResponse,
   CdnServer,
   PicsAppInfo,
+  PicsAppInfoRequest,
   PicsDepotInfo,
+  PicsProductInfoResponse,
   ServiceMethodSupport
 } from './SteamContentProtocol';
 
@@ -155,11 +159,26 @@ export class SteamDownloadService {
     return ServiceMethodSupport.readResponsePayload(message.body);
   }
 
-  /** 拿一个 app 的 depot 列表: 免鉴权 appdetails (JSON 形态, manifest GID 就在里面)。 */
+  /** 拿一个 app 的 depot 列表: 正道是 PICS ProductInfo (EMsg 5202 经 CM 会话);
+   * 免鉴权 appdetails 已不再返回 depots (Valve 收紧), 只做兜底。 */
   async fetchAppInfo(appId: number): Promise<PicsAppInfo> {
-    const info = new PicsAppInfo();
-    info.appId = appId;
-    info.depots = await this.fetchDepotsViaWebApi(appId);
+    const client = this.requireClient();
+    const request = new PicsAppInfoRequest();
+    request.appIds = [appId];
+    const message = await client.callProto(EMSG_PICS_PRODUCT_INFO_REQUEST,
+      EMSG_PICS_PRODUCT_INFO_RESPONSE, request.encode(), 'pics_product_info');
+    const response = PicsProductInfoResponse.decode(message.body);
+    if (response.apps.length === 0) {
+      throw new Error('PICS 未返回该 app (未拥有或 appid 错误)');
+    }
+    const info = response.apps[0];
+    const usable = info.depots.filter((depot: PicsDepotInfo): boolean =>
+      depot.manifestGid.length > 0 && !depot.sharedDepot);
+    if (usable.length === 0) {
+      throw new Error('PICS 返回的 depot 无可用 manifest');
+    }
+    info.depots = usable;
+    hilog.info(DOMAIN, TAG, 'PICS app=%{public}d depots=%{public}d', appId, usable.length);
     return info;
   }
 
