@@ -79,12 +79,15 @@ export class SteamDownloadService {
   /** 建立 CM 会话 (复用已登录账号的 refresh_token; 未登录抛错)。 */
   async ensureSession(accountName: string, refreshToken: string, steamId64: string): Promise<void> {
     if (this.cmClient && (this.cmClient.session.state === 'logged_on')) {
+      hilog.info(DOMAIN, TAG, 'ensureSession: cached live session');
       return;
     }
     if (refreshToken.length === 0) {
       throw new Error('尚未登录 Steam, 无法建立下载会话');
     }
     if (this.cmClient) {
+      hilog.info(DOMAIN, TAG, 'ensureSession: dropping old session (state=%{public}s)',
+        String(this.cmClient.session.state));
       try {
         await this.cmClient.disconnect();
       } catch (_) {
@@ -120,7 +123,10 @@ export class SteamDownloadService {
         new SteamCmMultiDecompressor()
       )
     );
+    hilog.info(DOMAIN, TAG, 'ensureSession: connecting to %{public}s...', DEFAULT_CM_SERVER);
     await client.connect();
+    hilog.info(DOMAIN, TAG, 'ensureSession: connect() returned, state=%{public}s',
+      String(client.session.state));
     if (client.session.state !== 'logged_on' && client.session.state !== 'connected') {
       throw new Error('CM 会话未建立: ' + client.session.state);
     }
