@@ -1,5 +1,7 @@
 import { SteamProtoReader, SteamProtoWriter } from './vendor/protocol/SteamVarint';
 import { SteamPicsNode, SteamPicsVdf } from './SteamPicsVdf';
+import { SteamBase64 } from './vendor/protocol/SteamBase64';
+import { SteamCryptoAdapter } from './SteamCryptoAdapter';
 
 /**
  * Fields follow SteamDatabase's appinfo/content directory/manifest protos.
@@ -11,6 +13,7 @@ import { SteamPicsNode, SteamPicsVdf } from './SteamPicsVdf';
 /** CMsgClientPICSProductInfoRequest: apps=2, meta_data_only=3. */
 export class PicsAppInfoRequest {
   appIds: Array<number> = [];
+  accessToken: string = '0';
   /** true 只取 meta; 拿 depot 列表必须 false。 */
   metaDataOnly: boolean = false;
 
@@ -19,7 +22,7 @@ export class PicsAppInfoRequest {
     for (const appId of this.appIds) {
       const inner = new SteamProtoWriter();
       inner.writeUInt32(1, appId);
-      inner.writeUInt64(2, '0'); // access_token (public 信息 0 即可)
+      inner.writeUInt64(2, this.accessToken);
       writer.writeMessage(2, inner.toUint8Array());
     }
     if (this.metaDataOnly) {
@@ -33,8 +36,48 @@ export class PicsAppInfoRequest {
 /** EMsg values from enums_clientserver.proto. */
 export const EMSG_PICS_PRODUCT_INFO_REQUEST = 8903;
 export const EMSG_PICS_PRODUCT_INFO_RESPONSE = 8904;
+export const EMSG_PICS_ACCESS_TOKEN_REQUEST = 8905;
+export const EMSG_PICS_ACCESS_TOKEN_RESPONSE = 8906;
 export const EMSG_GET_DEPOT_KEY_REQUEST = 5438;
 export const EMSG_GET_DEPOT_KEY_RESPONSE = 5439;
+
+export class PicsAppAccessTokenRequest {
+  static encode(appId: number): Uint8Array {
+    const writer = new SteamProtoWriter();
+    writer.writeUInt32(2, appId);
+    return writer.toUint8Array();
+  }
+}
+
+export class PicsAppAccessTokenResponse {
+  static decode(body: Uint8Array, appId: number): string {
+    const reader = new SteamProtoReader(body);
+    let denied = false;
+    for (;;) {
+      const tag = reader.readTag();
+      if (tag === null) break;
+      if (tag.fieldNumber === 3 && tag.wireType === 2) {
+        const entry = new SteamProtoReader(reader.readLengthDelimited());
+        let returnedAppId = 0;
+        let accessToken = '0';
+        for (;;) {
+          const entryTag = entry.readTag();
+          if (entryTag === null) break;
+          if (entryTag.fieldNumber === 1 && entryTag.wireType === 0) returnedAppId = entry.readVarintNumber();
+          else if (entryTag.fieldNumber === 2 && entryTag.wireType === 0) accessToken = entry.readVarintString();
+          else entry.skipField(entryTag.wireType);
+        }
+        if (returnedAppId === appId && accessToken !== '0') return accessToken;
+      } else if (tag.fieldNumber === 4 && tag.wireType === 0) {
+        denied = reader.readVarintNumber() === appId || denied;
+      } else {
+        reader.skipField(tag.wireType);
+      }
+    }
+    if (denied) throw new Error('Steam 未授权访问此游戏的内容资料');
+    throw new Error('Steam 未返回此游戏的 PICS 访问令牌');
+  }
+}
 
 export class GetDepotKeyRequest {
   static encode(appId: number, depotId: number): Uint8Array {
@@ -75,10 +118,17 @@ export class PicsAppInfo {
   appId: number = 0;
   /** depots 子消息里的 depot 条目。 */
   depots: Array<PicsDepotInfo> = [];
+  bufferLength: number = 0;
+  advertisedSize: number = 0;
+  missingToken: boolean = false;
+  onlyPublic: boolean = false;
+  hasDepotsSection: boolean = false;
+  shaHex: string = '';
 }
 
 export class PicsProductInfoResponse {
   apps: Array<PicsAppInfo> = [];
+  httpHost: string = '';
 
   static decode(body: Uint8Array): PicsProductInfoResponse {
     const result = new PicsProductInfoResponse();
@@ -90,6 +140,8 @@ export class PicsProductInfoResponse {
       }
       if (tag.fieldNumber === 1 && tag.wireType === 2) {
         result.apps.push(PicsProductInfoResponse.decodeApp(reader.readLengthDelimited()));
+      } else if (tag.fieldNumber === 8 && tag.wireType === 2) {
+        result.httpHost = SteamProtoReaderBytesHelper.readUtf8(reader.readLengthDelimited());
       } else {
         reader.skipField(tag.wireType);
       }
@@ -111,20 +163,43 @@ export class PicsProductInfoResponse {
       }
       if (tag.fieldNumber === 1 && tag.wireType === 0) {
         app.appId = outer.readVarintNumber();
+      } else if (tag.fieldNumber === 3 && tag.wireType === 0) {
+        app.missingToken = outer.readBool();
+      } else if (tag.fieldNumber === 4 && tag.wireType === 2) {
+        const sha = outer.readLengthDelimited();
+        if (sha.length === 20) {
+          for (const byte of sha) app.shaHex += (byte < 16 ? '0' : '') + byte.toString(16);
+        }
       } else if (tag.fieldNumber === 5 && tag.wireType === 2) {
         buffer = outer.readLengthDelimited();
+      } else if (tag.fieldNumber === 6 && tag.wireType === 0) {
+        app.onlyPublic = outer.readBool();
+      } else if (tag.fieldNumber === 7 && tag.wireType === 0) {
+        app.advertisedSize = outer.readVarintNumber();
       } else {
         outer.skipField(tag.wireType);
       }
     }
+    app.bufferLength = buffer.length;
     if (buffer.length === 0) {
       return app;
     }
     // Steam returns a NUL-terminated text KeyValues document, not protobuf.
-    const root = SteamPicsVdf.parse(buffer);
-    const depots = root.child(String(app.appId))?.child('depots') ?? root.child('depots');
-    if (depots) PicsProductInfoResponse.decodeDepots(depots, app);
+    PicsProductInfoResponse.parseAppBuffer(app, buffer);
     return app;
+  }
+
+  static parseAppBuffer(app: PicsAppInfo, buffer: Uint8Array): void {
+    const root = SteamPicsVdf.parse(buffer);
+    // Steam appinfo is commonly wrapped in an "appinfo" KeyValues object.
+    const content = root.child('appinfo') ?? root.child(String(app.appId)) ?? root;
+    const declaredAppId = content.text('appid');
+    if (declaredAppId.length > 0 && declaredAppId !== String(app.appId)) {
+      throw new Error('PICS appinfo ID 与请求的游戏不一致');
+    }
+    const depots = content.child('depots');
+    app.hasDepotsSection = depots !== null;
+    if (depots) PicsProductInfoResponse.decodeDepots(depots, app);
   }
 
   private static decodeDepots(node: SteamPicsNode, app: PicsAppInfo): void {
@@ -187,6 +262,7 @@ export class CdnServer {
   vhost: string = '';
   /** 'SteamCache' 类型走 CDN 分块下载。 */
   type: string = '';
+  httpsSupport: string = '';
   sourceId: number = 0;
 }
 
@@ -245,6 +321,8 @@ export class GetServersForSteamPipeResponse {
         server.host = SteamProtoReaderBytesHelper.readUtf8(reader.readLengthDelimited());
       } else if (tag.fieldNumber === 9 && tag.wireType === 2) {
         server.vhost = SteamProtoReaderBytesHelper.readUtf8(reader.readLengthDelimited());
+      } else if (tag.fieldNumber === 12 && tag.wireType === 2) {
+        server.httpsSupport = SteamProtoReaderBytesHelper.readUtf8(reader.readLengthDelimited());
       } else {
         reader.skipField(tag.wireType);
       }
@@ -318,6 +396,34 @@ export class ManifestChunk {
 
 export class DepotManifest {
   files: Array<ManifestFile> = [];
+  filenamesEncrypted: boolean = false;
+
+  /** Steam manifest names are Base64(AES-ECB(IV) + AES-CBC(name)). */
+  async decryptFilenames(key: Uint8Array): Promise<void> {
+    if (!this.filenamesEncrypted) return;
+    if (key.length !== 32) throw new Error('Invalid Steam depot key for filenames');
+    const crypto = new SteamCryptoAdapter();
+    const paths: Array<string> = [];
+    for (const file of this.files) {
+      const encoded = file.path.replace(/[ \t\r\n]/g, '');
+      if (encoded.length === 0 || encoded.length > 8192 || encoded.length % 4 === 1 ||
+        !/^[A-Za-z0-9+/_-]+={0,2}$/.test(encoded)) {
+        throw new Error('Invalid encrypted Steam filename encoding');
+      }
+      const bytes = SteamBase64.decode(encoded);
+      if (bytes.length < 32 || (bytes.length - 16) % 16 !== 0) {
+        throw new Error('Invalid encrypted Steam filename length');
+      }
+      const iv = await crypto.aesEcbDecryptBlock(key, bytes.subarray(0, 16));
+      const plaintext = await crypto.aesCbcDecrypt(key, iv, bytes.subarray(16));
+      const length = plaintext.length > 0 && plaintext[plaintext.length - 1] === 0
+        ? plaintext.length - 1 : plaintext.length;
+      if (length === 0) throw new Error('Empty decrypted Steam filename');
+      paths.push(SteamProtoReaderBytesHelper.readUtf8(plaintext.subarray(0, length)));
+    }
+    for (let index = 0; index < this.files.length; index++) this.files[index].path = paths[index];
+    this.filenamesEncrypted = false;
+  }
 
   static decode(body: Uint8Array): DepotManifest {
     const manifest = new DepotManifest();
@@ -340,10 +446,11 @@ export class DepotManifest {
     for (;;) {
       const tag = metadata.readTag();
       if (tag === null) break;
-      if (tag.fieldNumber === 4 && tag.wireType === 0 && metadata.readBool()) {
-        throw new Error('This Steam depot uses encrypted filenames');
+      if (tag.fieldNumber === 4 && tag.wireType === 0) {
+        manifest.filenamesEncrypted = metadata.readBool();
+      } else {
+        metadata.skipField(tag.wireType);
       }
-      if (tag.fieldNumber !== 4 || tag.wireType !== 0) metadata.skipField(tag.wireType);
     }
     const reader = new SteamProtoReader(body.subarray(8, next));
     for (;;) {

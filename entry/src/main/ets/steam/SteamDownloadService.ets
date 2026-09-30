@@ -11,6 +11,8 @@ import { SteamChunkDecoder } from './SteamChunkDecoder';
 import { SteamCryptoAdapter } from './SteamCryptoAdapter';
 import {
   DepotManifest,
+  EMSG_PICS_ACCESS_TOKEN_REQUEST,
+  EMSG_PICS_ACCESS_TOKEN_RESPONSE,
   EMSG_PICS_PRODUCT_INFO_REQUEST,
   EMSG_PICS_PRODUCT_INFO_RESPONSE,
   EMSG_GET_DEPOT_KEY_REQUEST,
@@ -24,6 +26,8 @@ import {
   GetServersForSteamPipeRequest,
   GetServersForSteamPipeResponse,
   CdnServer,
+  PicsAppAccessTokenRequest,
+  PicsAppAccessTokenResponse,
   PicsAppInfo,
   PicsAppInfoRequest,
   PicsDepotInfo,
@@ -48,6 +52,21 @@ export interface SteamDownloadProgress {
 }
 
 export type SteamDownloadProgressListener = (progress: SteamDownloadProgress) => void;
+
+interface PublicCdnServer {
+  host: string;
+  vhost?: string;
+  type: string;
+  https_support?: string;
+}
+
+interface PublicCdnDirectoryResponse {
+  servers: Array<PublicCdnServer>;
+}
+
+interface PublicCdnDirectory {
+  response: PublicCdnDirectoryResponse;
+}
 
 /**
  * Steam 内容下载门面 (W6, 登录增强路径):
@@ -233,14 +252,35 @@ export class SteamDownloadService {
     const client = this.requireClient();
     const request = new PicsAppInfoRequest();
     request.appIds = [appId];
-    const message = await client.callProto(EMSG_PICS_PRODUCT_INFO_REQUEST,
+    let message = await client.callProto(EMSG_PICS_PRODUCT_INFO_REQUEST,
       EMSG_PICS_PRODUCT_INFO_RESPONSE, request.encode(), 'pics_product_info');
-    const response = PicsProductInfoResponse.decode(message.body);
+    let response = PicsProductInfoResponse.decode(message.body);
     if (response.apps.length === 0) {
       throw new Error('PICS 未返回该 app (未拥有或 appid 错误)');
     }
-    const info = response.apps[0];
+    let info = response.apps[0];
     if (info.appId !== appId) throw new Error('PICS returned a different Steam app');
+    if (info.missingToken || info.onlyPublic) {
+      const tokenMessage = await client.callProto(EMSG_PICS_ACCESS_TOKEN_REQUEST,
+        EMSG_PICS_ACCESS_TOKEN_RESPONSE, PicsAppAccessTokenRequest.encode(appId), 'pics_access_token');
+      request.accessToken = PicsAppAccessTokenResponse.decode(tokenMessage.body, appId);
+      message = await client.callProto(EMSG_PICS_PRODUCT_INFO_REQUEST,
+        EMSG_PICS_PRODUCT_INFO_RESPONSE, request.encode(), 'pics_product_info_with_token');
+      response = PicsProductInfoResponse.decode(message.body);
+      if (response.apps.length === 0 || response.apps[0].appId !== appId) {
+        throw new Error('PICS 访问令牌未返回该游戏资料');
+      }
+      info = response.apps[0];
+    }
+    if (info.bufferLength === 0 && info.advertisedSize > 0 && info.shaHex.length === 40) {
+      const appBuffer = await this.fetchAppInfoBuffer(response.httpHost, info);
+      PicsProductInfoResponse.parseAppBuffer(info, appBuffer);
+      info.bufferLength = appBuffer.length;
+    }
+    hilog.info(DOMAIN, TAG,
+      'PICS app=%{public}d bytes=%{public}d size=%{public}d depotsSection=%{public}s depots=%{public}d public=%{public}s missingToken=%{public}s',
+      appId, info.bufferLength, info.advertisedSize, String(info.hasDepotsSection), info.depots.length,
+      String(info.onlyPublic), String(info.missingToken));
     const usable = info.depots.filter((depot: PicsDepotInfo): boolean =>
       depot.manifestGid.length > 0 || depot.sharedDepot);
     if (usable.length === 0) {
@@ -249,6 +289,33 @@ export class SteamDownloadService {
     info.depots = usable;
     hilog.info(DOMAIN, TAG, 'PICS app=%{public}d depots=%{public}d', appId, usable.length);
     return info;
+  }
+
+  private async fetchAppInfoBuffer(host: string, info: PicsAppInfo): Promise<Uint8Array> {
+    if (!/^[a-z0-9.-]+$/i.test(host) || !/(^|\.)(steamcontent\.com|steampowered\.com|steamstatic\.com|akamaized\.net)$/i.test(host)) {
+      throw new Error('PICS appinfo HTTP host 无效');
+    }
+    if (info.advertisedSize > 16 * 1024 * 1024) throw new Error('PICS appinfo 太大');
+    const url = `https://${host}/appinfo/${info.appId}/sha/${info.shaHex}.txt.gz`;
+    const request = http.createHttp();
+    try {
+      const response = await request.request(url, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.ARRAY_BUFFER,
+        maxLimit: 16 * 1024 * 1024,
+        connectTimeout: 20000,
+        readTimeout: 60000
+      }).catch(() => { throw new Error('PICS appinfo HTTP 请求失败'); });
+      if (response.responseCode !== 200) throw new Error('PICS appinfo HTTP ' + response.responseCode);
+      const bytes = new Uint8Array(response.result as ArrayBuffer);
+      if (bytes.length === 0 || bytes.length > 16 * 1024 * 1024) throw new Error('PICS appinfo HTTP 内容无效');
+      if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+        return new SteamCmMultiDecompressor().decompress(bytes, info.advertisedSize);
+      }
+      return bytes;
+    } finally {
+      request.destroy();
+    }
   }
 
   /** CDN 服务器列表 (GetServersForSteamPipe)。 */
@@ -260,13 +327,57 @@ export class SteamDownloadService {
     request.cellId = cellId;
     const body = await this.callService(METHOD_GET_SERVERS, request.encode());
     const response = GetServersForSteamPipeResponse.decode(body);
+    hilog.info(DOMAIN, TAG, 'CDN directory response bytes=%{public}d entries=%{public}d firstHost=%{public}s firstType=%{public}s firstHttps=%{public}s',
+      body.length, response.servers.length, response.servers.length > 0 ? response.servers[0].host : '',
+      response.servers.length > 0 ? response.servers[0].type : '',
+      response.servers.length > 0 ? response.servers[0].httpsSupport : '');
     this.cdnServers = response.servers.filter((server: CdnServer): boolean =>
-      /(^|\.)steamcontent\.com$/.test(server.host.toLowerCase()));
+      (server.type === 'SteamCache' || server.type === 'CDN') && this.isApprovedCdnHost(server.host));
+    if (this.cdnServers.length === 0) {
+      this.cdnServers = await this.fetchPublicCdnServers(cellId);
+    }
     hilog.info(DOMAIN, TAG, 'CDN servers: %{public}d', this.cdnServers.length);
     if (this.cdnServers.length === 0) {
       throw new Error('未获取到 CDN 服务器');
     }
     return this.cdnServers;
+  }
+
+  private async fetchPublicCdnServers(cellId: number): Promise<Array<CdnServer>> {
+    const url = 'https://api.steampowered.com/IContentServerDirectoryService/' +
+      'GetServersForSteamPipe/v1/?cell_id=' + cellId + '&max_servers=20';
+    const request = http.createHttp();
+    try {
+      const result = await request.request(url, {
+        method: http.RequestMethod.GET,
+        maxLimit: 2 * 1024 * 1024,
+        connectTimeout: 20000,
+        readTimeout: 20000
+      });
+      if (result.responseCode !== 200 || typeof result.result !== 'string') return [];
+      const parsed = JSON.parse(result.result as string) as PublicCdnDirectory;
+      if (!parsed.response || !Array.isArray(parsed.response.servers)) return [];
+      const servers: Array<CdnServer> = [];
+      for (const entry of parsed.response.servers) {
+        const host = entry.vhost || entry.host;
+        if (entry.type !== 'SteamCache' || !this.isApprovedCdnHost(host)) continue;
+        const server = new CdnServer();
+        server.host = host;
+        server.type = entry.type;
+        server.httpsSupport = entry.https_support || 'mandatory';
+        servers.push(server);
+      }
+      hilog.info(DOMAIN, TAG, 'Public CDN directory fallback entries=%{public}d', servers.length);
+      return servers;
+    } catch (_) {
+      return [];
+    } finally {
+      request.destroy();
+    }
+  }
+
+  private isApprovedCdnHost(host: string): boolean {
+    return /^[a-z0-9.-]+$/i.test(host) && /(^|\.)(steamcontent\.com|clngaa\.com)$/i.test(host);
   }
 
   /** depot 的 CDN 令牌 (缓存)。 */
@@ -306,10 +417,13 @@ export class SteamDownloadService {
     const code = GetManifestRequestCodeResponse.decode(codeBody);
     const server = (await this.fetchCdnServers())[0];
     const token = await this.cdnToken(depotId, appId, server.host);
-    const zipped = await this.fetchCdnBytes(server.host,
+    const zipped = await this.fetchCdnBytes(server,
       `depot/${depotId}/manifest/${manifestGid}/5/${code}`, token, 64 * 1024 * 1024);
     const body = new Uint8Array(native.unzipManifest(zipped) as ArrayBuffer);
     const manifest = DepotManifest.decode(body);
+    if (manifest.filenamesEncrypted) {
+      await manifest.decryptFilenames(await this.depotKey(appId, depotId));
+    }
     hilog.info(DOMAIN, TAG, 'manifest depot=%{public}d files=%{public}d', depotId, manifest.files.length);
     if (manifest.files.length === 0) {
       throw new Error('manifest 解析为空 (depot ' + depotId + ')');
@@ -356,7 +470,7 @@ export class SteamDownloadService {
       }
       let written = 0;
       for (const chunk of file.chunks) {
-        const compressed = await this.downloadChunk(server.host, appId, depotId, chunk.sha, token);
+        const compressed = await this.downloadChunk(server, appId, depotId, chunk.sha, token);
         if (chunk.compressedSize > 0 && compressed.length !== chunk.compressedSize) {
           throw new Error('Steam chunk compressed size mismatch');
         }
@@ -375,19 +489,22 @@ export class SteamDownloadService {
     }
   }
 
-  private async downloadChunk(host: string, appId: number, depotId: number,
+  private async downloadChunk(server: CdnServer, appId: number, depotId: number,
     chunkSha: string, token: string): Promise<Uint8Array> {
     if (!/^[0-9a-f]{40}$/.test(chunkSha)) throw new Error('Invalid Steam chunk identifier');
-    return this.fetchCdnBytes(host, `depot/${depotId}/chunk/${chunkSha}`, token, 128 * 1024 * 1024);
+    return this.fetchCdnBytes(server, `depot/${depotId}/chunk/${chunkSha}`, token, 128 * 1024 * 1024);
   }
 
-  private async fetchCdnBytes(host: string, path: string, token: string, maximum: number): Promise<Uint8Array> {
-    if (!/(^|\.)steamcontent\.com$/.test(host.toLowerCase())) throw new Error('Invalid Steam CDN host');
+  private async fetchCdnBytes(server: CdnServer, path: string, token: string,
+    maximum: number): Promise<Uint8Array> {
+    const host = server.host;
+    if (!this.isApprovedCdnHost(host)) throw new Error('Invalid Steam CDN host');
     const query = token.replace(/^\?/, '');
     if (query.length > 2048 || (query.length > 0 && !/^[A-Za-z0-9_%=&.+~-]+$/.test(query))) {
       throw new Error('Invalid Steam CDN token');
     }
-    const url = `https://${host}/${path}${query.length > 0 ? '?' + query : ''}`;
+    const scheme = server.httpsSupport === 'mandatory' ? 'https' : 'http';
+    const url = `${scheme}://${host}/${path}${query.length > 0 ? '?' + query : ''}`;
     const request = http.createHttp();
     try {
       const response = await request.request(url, {

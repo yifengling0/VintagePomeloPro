@@ -497,10 +497,13 @@ export class AppCatalogService {
         normalizedDirectory.toLowerCase() === (normalizedGames + '/games').toLowerCase();
       const directoryIsSteamContainer =
         normalizedDirectory.toLowerCase() === (normalizedGames + '/steam').toLowerCase();
+      const directoryIsSteamStaging =
+        normalizedDirectory.toLowerCase() === (normalizedGames + '/steam-download-staging').toLowerCase();
       // Cards represent game directories below games/. Never retain the
       // library root itself or the accidental games/games container produced
       // by older builds.
-      if (directoryIsGamesRoot || directoryIsLegacyNestedGamesRoot || directoryIsSteamContainer) continue;
+      if (directoryIsGamesRoot || directoryIsLegacyNestedGamesRoot || directoryIsSteamContainer ||
+        directoryIsSteamStaging) continue;
       if (!shouldRetainMissingCachedCard(directoryStillExists, executableStillExists, false)) continue;
       cached.available = executableStillExists;
       merged.push(cached);
@@ -629,6 +632,7 @@ export class AppCatalogService {
 
     for (let index = 0; index < names.length; index++) {
       const name = names[index];
+      if (containerDepth === 0 && name.toLowerCase() === 'steam-download-staging') continue;
       const path = joinPath(gamesPath, name);
       if (await isDirectoryAsync(path)) {
         // Some older builds provisioned an extra games/games level. Treat it
@@ -668,7 +672,7 @@ export class AppCatalogService {
 
   private readSteamGameTitle(directory: string): string {
     const appId = fileName(directory);
-    if (!/^\d+$/.test(appId) || !directory.replace(/\\/g, '/').includes('/games/steam/')) return '';
+    if (!/^\d+$/.test(appId) || !directory.replace(/\\/g, '/').toLowerCase().includes('/games/steam/')) return '';
     const marker = joinPath(directory, '.steam-game.json');
     try {
       if (fs.statSync(marker).size > 8192) return '';

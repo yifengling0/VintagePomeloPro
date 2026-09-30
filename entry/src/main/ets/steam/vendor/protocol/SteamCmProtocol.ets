@@ -70,6 +70,7 @@ export class SteamCmProtoHeader {
   readonly targetJobName: string;
   readonly eresult: number;
   readonly errorMessage: string;
+  readonly realm: number;
 
   constructor(
     steamId64: string = '',
@@ -78,7 +79,8 @@ export class SteamCmProtoHeader {
     jobIdTarget: string = '0',
     targetJobName: string = '',
     eresult: number = 0,
-    errorMessage: string = ''
+    errorMessage: string = '',
+    realm: number = 0
   ) {
     this.steamId64 = steamId64.length > 0 ? steamId64 : '0';
     this.clientSessionId = clientSessionId;
@@ -87,6 +89,7 @@ export class SteamCmProtoHeader {
     this.targetJobName = targetJobName;
     this.eresult = eresult;
     this.errorMessage = errorMessage;
+    this.realm = realm;
   }
 }
 
@@ -493,6 +496,9 @@ export class SteamCmProtocol {
     if (header.errorMessage.length > 0) {
       writer.writeString(14, header.errorMessage);
     }
+    if (header.realm !== 0) {
+      writer.writeUInt32(32, header.realm);
+    }
     return writer.toUint8Array();
   }
 
@@ -505,6 +511,7 @@ export class SteamCmProtocol {
     let targetJobName = '';
     let eresult = 0;
     let errorMessage = '';
+    let realm = 0;
     while (!reader.isAtEnd()) {
       const tag = reader.readTag();
       if (tag === null) {
@@ -524,6 +531,8 @@ export class SteamCmProtocol {
         eresult = reader.readInt32();
       } else if (tag.fieldNumber === 14 && tag.wireType === 2) {
         errorMessage = SteamUtf8.decode(reader.readLengthDelimited());
+      } else if (tag.fieldNumber === 32 && tag.wireType === 0) {
+        realm = reader.readVarintNumber();
       } else {
         reader.skipField(tag.wireType);
       }
@@ -535,7 +544,8 @@ export class SteamCmProtocol {
       jobIdTarget,
       targetJobName,
       eresult,
-      errorMessage
+      errorMessage,
+      realm
     );
   }
 

@@ -41,6 +41,14 @@ export class SteamAuthHttpResponse {
     const message = this.headers.get('x-error');
     return message === undefined ? '' : message;
   }
+
+  /** Steam can reject authentication with HTTP 200 and an empty response object. */
+  keystoneResult(): number {
+    const raw = this.headers.get('x-eresult');
+    if (raw === undefined || !/^\d{1,3}$/.test(raw.trim())) return 0;
+    const code = Number(raw.trim());
+    return Number.isSafeInteger(code) ? code : 0;
+  }
 }
 
 /** Public RSA material returned by GetPasswordRSAPublicKey. */

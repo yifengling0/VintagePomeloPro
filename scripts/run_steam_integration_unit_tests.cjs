@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
 const ts = require(process.argv[2] || 'typescript');
 const root = path.resolve(__dirname, '../entry/src/main/ets');
 const log = { hilog: { info() {}, warn() {}, error() {} } };
@@ -33,6 +34,68 @@ function loader(mocks = {}) {
 }
 
 async function main() {
+  const protocolLoad = loader({
+    './SteamCryptoAdapter': { SteamCryptoAdapter: class {
+      async aesEcbDecryptBlock(key, block) {
+        const cipher = crypto.createDecipheriv('aes-256-ecb', key, null);
+        cipher.setAutoPadding(false);
+        return new Uint8Array(Buffer.concat([cipher.update(block), cipher.final()]));
+      }
+      async aesCbcDecrypt(key, iv, bytes) {
+        const cipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+        return new Uint8Array(Buffer.concat([cipher.update(bytes), cipher.final()]));
+      }
+    } }
+  });
+  const { PicsAppInfo, PicsProductInfoResponse, DepotManifest, ManifestFile } =
+    protocolLoad('steam/SteamContentProtocol.ets');
+  const depots = '"depots" { "235901" { "config" { "oslist" "windows" } ' +
+    '"manifests" { "public" { "gid" "18446744073709551614" } } } ' +
+    '"235902" { "config" { "oslist" "linux" } ' +
+    '"manifests" { "public" { "gid" "20" } } } }';
+  for (const vdf of [depots, '"235900" { ' + depots + ' }',
+    '"appinfo" { "appid" "235900" ' + depots + ' }']) {
+    const info = new PicsAppInfo();
+    info.appId = 235900;
+    PicsProductInfoResponse.parseAppBuffer(info, new Uint8Array(Buffer.from(vdf + '\0')));
+    assert.equal(info.depots.length, 1, 'all supported PICS wrappers must expose Windows depots');
+    assert.equal(info.depots[0].manifestGid, '18446744073709551614', 'manifest IDs must retain uint64 precision');
+  }
+  const wrongInfo = new PicsAppInfo();
+  wrongInfo.appId = 235900;
+  assert.throws(() => PicsProductInfoResponse.parseAppBuffer(wrongInfo,
+    new Uint8Array(Buffer.from('"appinfo" { "appid" "1" ' + depots + ' }'))), /不一致/);
+
+  // Independent Node crypto fixtures exercise Steam's wire format, including
+  // the wrapped Base64 names that caused the real device download failure.
+  const fixtureKey = new Uint8Array(32).fill(0x5a);
+  const encryptedFile = name => {
+    const iv = Buffer.alloc(16, 0x23);
+    const ecb = crypto.createCipheriv('aes-256-ecb', fixtureKey, null);
+    ecb.setAutoPadding(false);
+    const cbc = crypto.createCipheriv('aes-256-cbc', fixtureKey, iv);
+    const encrypted = Buffer.concat([ecb.update(iv), ecb.final(),
+      cbc.update(Buffer.from(name + '\0')), cbc.final()]).toString('base64');
+    const file = new ManifestFile();
+    file.path = encrypted.slice(0, 20) + '\r\n\t ' + encrypted.slice(20) + '\n';
+    return file;
+  };
+  const manifest = new DepotManifest();
+  manifest.filenamesEncrypted = true;
+  manifest.files = [encryptedFile('bin/RPGXP.exe'), encryptedFile('繁體/ゲーム.exe')];
+  await manifest.decryptFilenames(fixtureKey);
+  assert.equal(manifest.files[0].path, 'bin/RPGXP.exe');
+  assert.equal(manifest.files[1].path, '繁體/ゲーム.exe');
+  assert.equal(manifest.filenamesEncrypted, false);
+  const partial = new DepotManifest();
+  partial.filenamesEncrypted = true;
+  partial.files = [encryptedFile('bin/RPGXP.exe'), new ManifestFile()];
+  partial.files[1].path = 'invalid!';
+  const originalPath = partial.files[0].path;
+  await assert.rejects(partial.decryptFilenames(fixtureKey), /encoding/);
+  assert.equal(partial.files[0].path, originalPath, 'failed name decryption must leave the manifest intact');
+  assert.equal(partial.filenamesEncrypted, true);
+
   let rawCache = '';
   let requestCount = 0;
   let respond = async () => { throw new Error('offline'); };
@@ -180,6 +243,8 @@ async function main() {
   } };
   const serviceLoad = loader({
     '@kit.NetworkKit': { http }, '../service/LogService': log,
+    './SteamDownloadService': { SteamDownloadService: class {} },
+    './SteamCmRuntime': { SteamCmScheduler: class {}, SteamCmMultiDecompressor: class {} },
     './SteamAccountStore': { SteamAccountStore: { getInstance: () => ({}) } },
     './vendor/auth/SteamAuthService': { SteamAuthService: class {} },
     './SteamCryptoAdapter': { SteamCryptoAdapter: class {} },
@@ -235,7 +300,7 @@ async function main() {
   assert.equal(refreshCount, 1, 'entry and account page must share a pending restore');
   refreshResolve({ session: { state: models.SteamSessionState.IDLE } });
   await Promise.all([restoreFirst, restoreSecond]);
-  console.log('Steam integration regression tests passed (cache, account isolation, matching, cover race, refresh, challenges, QR cancellation).');
+  console.log('Steam integration regression tests passed (PICS wrappers, encrypted filenames, cache, account isolation, matching, cover race, refresh, challenges, QR cancellation).');
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

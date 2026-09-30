@@ -194,7 +194,7 @@ export class SteamCmAuthClient implements ISteamCmAuthClient {
     this.nextJobId = SteamVarint.incrementUInt64(jobId);
     this.logger.debug(TAG, 'CM unified request started; jobIdLength=' + jobId.length.toString() +
       ', jobNameLength=' + normalizedJobName.length.toString() + ', bodyBytes=' + body.length.toString());
-    const header = new SteamCmProtoHeader('0', 0, jobId, '0', normalizedJobName);
+    const header = new SteamCmProtoHeader('0', 0, jobId, '0', normalizedJobName, 0, '', 1);
     const frame = SteamCmProtocol.encodeProtobufMessage(
       SteamCmMessageType.SERVICE_METHOD_CALL_FROM_CLIENT_NON_AUTHED,
       header,

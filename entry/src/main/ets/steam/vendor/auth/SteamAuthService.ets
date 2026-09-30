@@ -176,13 +176,21 @@ export class SteamAuthService implements ISteamAuthService {
       this.beginFields(request, rsaKey, encryptedPassword),
       'begin_auth_session'
     );
+    const beginResult = beginResponse.keystoneResult();
+    if (beginResult !== 0 && beginResult !== 1) {
+      throw new SteamAuthError('Steam rejected password sign-in', SteamAuthErrorKind.AUTHENTICATION,
+        'begin_auth_session', beginResult, beginResponse.statusCode);
+    }
     let pending: SteamPendingAuthSession;
     try {
       const beginObject = this.responseObject(beginResponse, 'begin auth session');
       pending = this.parsePendingSession(request, beginObject);
     } catch (error) {
-      throw SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.RESPONSE,
+      const failure = SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.RESPONSE,
         'begin_auth_parse', 'Steam login response is invalid');
+      if (failure.kind !== SteamAuthErrorKind.RESPONSE) throw failure;
+      throw new SteamAuthError(failure.message, failure.kind, failure.stage, failure.code,
+        beginResponse.statusCode, 0, '', 0, 0, beginResponse.body.length);
     }
     this.pending.set(request.accountId, pending);
     this.knownSteamIds.set(request.accountId, pending.steamId64);

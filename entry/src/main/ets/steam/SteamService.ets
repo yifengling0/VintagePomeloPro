@@ -21,6 +21,12 @@ import { SteamHttpTransport } from './SteamHttpTransport';
 import { SteamClock } from './SteamClock';
 import { SteamAccountStore, SteamProfile } from './SteamAccountStore';
 import { SteamDownloadService } from './SteamDownloadService';
+import { SteamClientQrProtocol } from './SteamClientQrProtocol';
+import { SteamCmAuthClient } from './vendor/cm/SteamCmAuthClient';
+import { SteamCmAuthClientOptions } from './vendor/contracts/SteamCmContracts';
+import { SteamCoreNoopLogger } from './vendor/contracts/SteamCoreLogger';
+import { SteamCmWebSocketTransport } from './SteamCmWebSocket';
+import { SteamCmMultiDecompressor, SteamCmScheduler } from './SteamCmRuntime';
 import { SteamMaFileImporter, SteamMaFileImportResult } from './vendor/import/SteamImporters';
 
 const DOMAIN = 0x0000;
@@ -162,13 +168,14 @@ export class SteamService {
     }
   }
 
-  // ===== QR 扫码登录（2026-09-28 新增; 实测纯 HTTP 表单可用, 不需要 CM WebSocket） =====
+  // Community 登录二维码走 HTTP；下载专用 Steam Client 二维码走 CM WebSocket。
 
   private qrClientId: string = '';
   private qrRequestId: string = '';
   private qrGeneration: number = 0;
   private clientQrClientId: string = '';
-  private clientQrRequestId: string = '';
+  private clientQrRequestId: Uint8Array = new Uint8Array(0);
+  private clientQrCmClient: SteamCmAuthClient | null = null;
   private clientQrGeneration: number = 0;
   private clientQrChallengeUrl: string = '';
   private clientQrSawRemoteInteraction: boolean = false;
@@ -188,57 +195,59 @@ export class SteamService {
     if (!this.steamId64) throw new Error('请先登录 Steam 账号');
     this.cancelClientQrLogin();
     const generation = this.clientQrGeneration;
-    const response = await new SteamHttpTransport().postForm(SteamAuthEndpoint.BEGIN_QR_SESSION, [
-      new SteamFormField('website_id', 'Client'),
-      new SteamFormField('platform_type', '1'),
-      new SteamFormField('device_details[platform_type]', '1')
-    ]);
-    if (generation !== this.clientQrGeneration) throw new Error('扫码会话已取消');
-    if (response.statusCode !== 200 || response.keystoneError().length > 0) {
-      throw new Error('Steam 客户端授权请求失败');
+    const client = new SteamCmAuthClient(new SteamCmWebSocketTransport(), new SteamCmScheduler(),
+      new SteamCmAuthClientOptions('cmp1-sea1.steamserver.net:443', 65580, 30000,
+        new SteamCoreNoopLogger(), new SteamCmMultiDecompressor()));
+    this.clientQrCmClient = client;
+    try {
+      await client.connect();
+      if (generation !== this.clientQrGeneration) throw new Error('扫码会话已取消');
+      const reply = await client.call('Authentication.BeginAuthSessionViaQR#1',
+        SteamClientQrProtocol.beginRequest());
+      if (generation !== this.clientQrGeneration) throw new Error('扫码会话已取消');
+      if (reply.protoHeader.eresult !== 1) {
+        throw new Error('Steam CM 拒绝客户端授权二维码 (EResult ' + reply.protoHeader.eresult + ')');
+      }
+      const body = SteamClientQrProtocol.decodeBegin(reply.body);
+      this.clientQrClientId = body.clientId;
+      this.clientQrRequestId = body.requestId;
+      this.clientQrChallengeUrl = body.challengeUrl;
+      hilog.info(DOMAIN, TAG, 'Steam Client CM QR ready; pollInterval=%{public}d',
+        Math.round(body.intervalSeconds));
+      return body.challengeUrl;
+    } catch (error) {
+      if (generation === this.clientQrGeneration) this.cancelClientQrLogin();
+      throw error instanceof Error ? error : new Error('Steam CM 客户端授权请求失败');
     }
-    const body = (JSON.parse(response.body) as QrBeginEnvelope)?.response;
-    if (!body || !body.client_id || !body.challenge_url || !body.request_id) {
-      throw new Error('Steam 未返回客户端授权二维码');
-    }
-    this.clientQrClientId = body.client_id;
-    this.clientQrRequestId = body.request_id;
-    this.clientQrChallengeUrl = body.challenge_url;
-    hilog.info(DOMAIN, TAG, 'Steam Client QR ready; pollInterval=%{public}d', body.interval ?? 0);
-    return body.challenge_url;
   }
 
   getClientQrChallengeUrl(): string { return this.clientQrChallengeUrl; }
 
   async pollClientQrLogin(): Promise<'pending' | 'scanned' | 'approved' | 'invalid'> {
-    if (!this.clientQrClientId) return 'invalid';
+    if (!this.clientQrClientId || !this.clientQrCmClient || this.clientQrRequestId.length === 0) return 'invalid';
     const generation = this.clientQrGeneration;
-    const response = await new SteamHttpTransport().postForm(SteamAuthEndpoint.POLL_AUTH_SESSION, [
-      new SteamFormField('client_id', this.clientQrClientId),
-      new SteamFormField('request_id', this.clientQrRequestId)
-    ]);
+    const reply = await this.clientQrCmClient.call('Authentication.PollAuthSessionStatus#1',
+      SteamClientQrProtocol.pollRequest(this.clientQrClientId, this.clientQrRequestId));
     if (generation !== this.clientQrGeneration) return 'invalid';
-    if (response.statusCode !== 200 || response.keystoneError().length > 0) {
-      hilog.warn(DOMAIN, TAG, 'Steam Client QR poll rejected: http=%{public}d headerError=%{public}s',
-        response.statusCode, String(response.keystoneError().length > 0));
-      throw new Error('Steam 客户端授权轮询失败 (HTTP ' + response.statusCode.toString() + ')');
+    if (reply.protoHeader.eresult !== 1) {
+      hilog.warn(DOMAIN, TAG, 'Steam Client CM QR poll rejected: result=%{public}d', reply.protoHeader.eresult);
+      throw new Error('Steam 客户端授权轮询失败 (EResult ' + reply.protoHeader.eresult + ')');
     }
-    const body = (JSON.parse(response.body) as QrPollEnvelope)?.response;
-    if (!body) throw new Error('Steam 客户端授权轮询响应缺少状态');
-    if (body.new_client_id && body.new_client_id !== this.clientQrClientId) {
-      this.clientQrClientId = body.new_client_id;
+    const body = SteamClientQrProtocol.decodePoll(reply.body);
+    if (body.newClientId && body.newClientId !== this.clientQrClientId) {
+      this.clientQrClientId = body.newClientId;
       hilog.info(DOMAIN, TAG, 'Steam Client QR client ID rotated');
     }
-    if (body.new_challenge_url && body.new_challenge_url !== this.clientQrChallengeUrl) {
-      this.clientQrChallengeUrl = body.new_challenge_url;
+    if (body.newChallengeUrl && body.newChallengeUrl !== this.clientQrChallengeUrl) {
+      this.clientQrChallengeUrl = body.newChallengeUrl;
       hilog.info(DOMAIN, TAG, 'Steam Client QR challenge URL refreshed');
     }
     this.clientQrPollCount++;
-    if (body.had_remote_interaction && !this.clientQrSawRemoteInteraction) {
+    if (body.hadRemoteInteraction && !this.clientQrSawRemoteInteraction) {
       this.clientQrSawRemoteInteraction = true;
       hilog.info(DOMAIN, TAG, 'Steam Client QR remote interaction detected');
     }
-    const refreshToken = body.refresh_token ?? '';
+    const refreshToken = body.refreshToken;
     if (!refreshToken) {
       if (this.clientQrPollCount === 1 || this.clientQrPollCount % 6 === 0) {
         hilog.info(DOMAIN, TAG, 'Steam Client QR pending; polls=%{public}d scanned=%{public}s',
@@ -264,8 +273,11 @@ export class SteamService {
 
   cancelClientQrLogin(): void {
     this.clientQrGeneration++;
+    const client = this.clientQrCmClient;
+    this.clientQrCmClient = null;
+    if (client) void client.disconnect().catch((): void => {});
     this.clientQrClientId = '';
-    this.clientQrRequestId = '';
+    this.clientQrRequestId = new Uint8Array(0);
     this.clientQrChallengeUrl = '';
     this.clientQrSawRemoteInteraction = false;
     this.clientQrPollCount = 0;
@@ -647,6 +659,8 @@ export class SteamService {
         return '连接 Steam 失败，请检查网络' + detail;
       }
       if (e.code === 5 || /InvalidPassword|invalid_password|InvalidPassword/i.test(raw)) return '账号或密码错误';
+      if (e.code === 84) return 'Steam 登录请求过于频繁，请稍后再试';
+      if (e.kind === SteamAuthErrorKind.AUTHENTICATION) return 'Steam 拒绝登录' + detail;
       if (e.httpStatusCode) return 'Steam 登录接口请求失败' + detail;
       if (e.stage === 'rsa_public_key_parse' || e.stage === 'begin_auth_parse') {
         return 'Steam 登录响应解析失败' + detail;

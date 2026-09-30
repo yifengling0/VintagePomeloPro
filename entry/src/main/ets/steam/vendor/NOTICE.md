@@ -13,6 +13,10 @@
   `auth/SteamAuthProtocol.ets` SteamAuthEndpoint 枚举新增 `BEGIN_QR_SESSION` ——
   实测 BeginAuthSessionViaQR 纯 HTTP 表单即可用（上游注释称 QR 需 CM WebSocket，与实测不符），
   QR 发起/轮询逻辑在宿主 `steam/SteamService.ets`。
+  2026-09-30 下载专用 Steam Client QR 改用 CM WebSocket 的非登录统一消息；
+  `protocol/SteamCmProtocol.ets` 支持 proto header 的 `realm=32` 字段，
+  `cm/SteamCmAuthClient.ets` 发起非登录统一消息时设置 realm=1，
+  与 Steam Client 的 CM 传输保持一致。普通 Community 二维码仍使用 HTTP。
   `auth/SteamAuthService.ets` completeChallenge 行为修改：MOBILE_CONFIRMATION 会话收到验证码时
   改为按令牌码(code_type 3)提交而非无视（Steam 的 allowed_confirmations 通常同时含手机确认与 TOTP，
   parseChallenge 原实现无条件优先手机确认，导致只能去手机上点确认）。
@@ -20,5 +24,7 @@
   `auth/SteamAuthService.ets` responseObject 提交前先查 x-error 头 —— keystone 风格错误
   以 HTTP 200 + x-error 头返回（验证码被拒即如此），原实现丢弃响应头把拒绝当成功，
   造成"提交→以为成功→轮询仍等待→再要验证码"的死循环。
+  2026-09-30 再补 `X-eresult`：密码登录被拒时 Steam 可能返回 HTTP 200、空 `response` 和
+  `X-eresult` 响应头；先解释结果码，避免把登录拒绝误报为 JSON 解析失败。
 - 平台适配（HTTP 传输 / 加密 / 时钟 / 存储）在本目录之外的 `entry/src/main/ets/steam/` 提供；
   其中 `SteamHttpTransport.postForm` 对 GET-only 端点（GetPasswordRSAPublicKey，POST 405）做 405→GET 重发。

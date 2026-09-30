@@ -87,7 +87,7 @@ struct SteamGameDetail {
     const games = SteamLibraryService.getInstance().cachedGames();
     const apps = AppCatalogService.getInstance().getApps();
     this.steamInstalled = apps.some((app: AppDescriptor): boolean =>
-      app.directory.replace(/\\/g, '/').endsWith('/games/steam/' + game.appId));
+      app.directory.replace(/\\/g, '/').toLowerCase().endsWith('/games/steam/' + game.appId));
     const matches = apps.filter((app: AppDescriptor): boolean => {
       return SteamMatch.titlesMatch(app.title, game.name)
         && SteamMatch.bestMatch(app.title, games)?.appId === game.appId;
@@ -199,7 +199,7 @@ struct SteamGameDetail {
       if (!this.pageAlive || generation !== this.clientQrGeneration) return;
       const message = describeSteamError(error as Object);
       if (message.indexOf('账号不一致') >= 0 || message.indexOf('不是客户端授权') >= 0 ||
-        message.indexOf('轮询失败 (HTTP') >= 0) {
+        message.indexOf('轮询失败 (EResult') >= 0) {
         this.stopClientQr();
         this.clientQrStatus = message;
         return;

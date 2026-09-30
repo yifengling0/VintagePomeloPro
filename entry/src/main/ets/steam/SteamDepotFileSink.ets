@@ -18,7 +18,9 @@ export class SteamDepotWriter implements DepotFileSink {
     if (!libraryRoot || !gamesDir) throw new Error('Steam 下载目录不可用');
     this.appId = appId;
     this.title = title.trim().slice(0, 200) || ('Steam ' + appId);
-    const stagingRoot = libraryRoot + '/.steam-download';
+    // The Download provider grants writes below games/, but may reject new
+    // siblings of games/. The catalog explicitly ignores this staging folder.
+    const stagingRoot = gamesDir + '/steam-download-staging';
     this.makeDirectory(stagingRoot);
     this.stagingDir = stagingRoot + '/app-' + appId + '-' + Date.now() + '-' +
       Math.floor(Math.random() * 1000000);
@@ -50,11 +52,23 @@ export class SteamDepotWriter implements DepotFileSink {
       if (!fs.statSync(path).isDirectory()) throw new Error('Steam path is not a directory');
       return;
     }
-    fs.mkdirSync(path);
+    try {
+      fs.mkdirSync(path);
+    } catch (directError) {
+      // Some document providers expose the path only through the recursive
+      // fileIo route. The verified games/ parent already exists here.
+      try { fs.mkdirSync(path, true); }
+      catch (_) {
+        if (!this.exists(path)) {
+          throw new Error('Steam directory creation failed: ' + String(directError));
+        }
+      }
+    }
+    if (!fs.statSync(path).isDirectory()) throw new Error('Steam path is not a directory');
   }
 
   private exists(path: string): boolean {
-    try { fs.accessSync(path); return true; } catch (_) { return false; }
+    try { fs.statSync(path); return true; } catch (_) { return false; }
   }
 
   async ensureDirectory(relativePath: string): Promise<void> {
@@ -121,7 +135,7 @@ export class SteamDepotWriter implements DepotFileSink {
   async discard(): Promise<void> {
     const path = this.stagingDir;
     this.stagingDir = '';
-    if (path && path.indexOf('/.steam-download/app-' + this.appId + '-') >= 0) {
+    if (path && path.indexOf('/steam-download-staging/app-' + this.appId + '-') >= 0) {
       try { await fs.rmdir(path); } catch (_) {}
     }
   }
