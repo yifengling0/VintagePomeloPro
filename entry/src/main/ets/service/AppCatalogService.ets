@@ -50,6 +50,12 @@ interface DirectoryScanFrame {
   depth: number;
 }
 
+interface SteamGameCatalogMarker {
+  appId: number;
+  name: string;
+  source: string;
+}
+
 const CATALOG_RAWFILE = 'builtin_apps/catalog.json';
 const GAMES_DIRECTORY = 'games';
 const MAX_LAUNCH_SCAN_DEPTH = 2;
@@ -489,10 +495,12 @@ export class AppCatalogService {
       const directoryIsGamesRoot = normalizedDirectory === normalizedGames;
       const directoryIsLegacyNestedGamesRoot =
         normalizedDirectory.toLowerCase() === (normalizedGames + '/games').toLowerCase();
+      const directoryIsSteamContainer =
+        normalizedDirectory.toLowerCase() === (normalizedGames + '/steam').toLowerCase();
       // Cards represent game directories below games/. Never retain the
       // library root itself or the accidental games/games container produced
       // by older builds.
-      if (directoryIsGamesRoot || directoryIsLegacyNestedGamesRoot) continue;
+      if (directoryIsGamesRoot || directoryIsLegacyNestedGamesRoot || directoryIsSteamContainer) continue;
       if (!shouldRetainMissingCachedCard(directoryStillExists, executableStillExists, false)) continue;
       cached.available = executableStillExists;
       merged.push(cached);
@@ -626,7 +634,8 @@ export class AppCatalogService {
         // Some older builds provisioned an extra games/games level. Treat it
         // as a structural container and expose each directory below it as its
         // own card instead of showing one unavailable card named "games".
-        if (name.toLowerCase() === GAMES_DIRECTORY && containerDepth < 2) {
+        if ((name.toLowerCase() === GAMES_DIRECTORY ||
+          (name.toLowerCase() === 'steam' && containerDepth === 0)) && containerDepth < 2) {
           const nested = await this.scanExternal(path, cachedCards, containerDepth + 1);
           nested.forEach((item: AppDescriptor) => result.push(item));
           continue;
@@ -649,11 +658,25 @@ export class AppCatalogService {
     // An explicit user choice remains authoritative even when the file was moved.
     // This lets the catalog expose an unavailable card that can be re-associated.
     const executable = settings.executable || automaticExecutable;
-    const title = settings.customTitle || fileName(directory);
+    const steamTitle = this.readSteamGameTitle(directory);
+    const title = settings.customTitle || steamTitle || fileName(directory);
     const cover = settings.customCover || await this.findCover(directory);
     const background = await this.findBackground(directory);
     return this.createExternalApp(executable, directory, title, cover, background, settings, id,
       await existsAsync(settings.executable || executable));
+  }
+
+  private readSteamGameTitle(directory: string): string {
+    const appId = fileName(directory);
+    if (!/^\d+$/.test(appId) || !directory.replace(/\\/g, '/').includes('/games/steam/')) return '';
+    const marker = joinPath(directory, '.steam-game.json');
+    try {
+      if (fs.statSync(marker).size > 8192) return '';
+      const data = JSON.parse(fs.readTextSync(marker, { encoding: 'utf-8' })) as SteamGameCatalogMarker;
+      if (data.source !== 'steam' || String(data.appId) !== appId ||
+        typeof data.name !== 'string') return '';
+      return data.name.trim().slice(0, 200);
+    } catch (_) { return ''; }
   }
 
   private createExternalApp(executable: string, directory: string, defaultTitle: string,

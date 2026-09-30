@@ -20,6 +20,7 @@ import { SteamCryptoAdapter } from './SteamCryptoAdapter';
 import { SteamHttpTransport } from './SteamHttpTransport';
 import { SteamClock } from './SteamClock';
 import { SteamAccountStore, SteamProfile } from './SteamAccountStore';
+import { SteamDownloadService } from './SteamDownloadService';
 import { SteamMaFileImporter, SteamMaFileImportResult } from './vendor/import/SteamImporters';
 
 const DOMAIN = 0x0000;
@@ -319,6 +320,15 @@ export class SteamService {
   /** 会话恢复：用 AssetStore 里的 refresh_token 换新 access_token。 */
   private restoreTask: Promise<boolean> | null = null;
 
+  /** CM content service uses the existing login's refresh token. */
+  async getRefreshToken(): Promise<string> {
+    if (this.lastCredentials.refreshToken.length > 0) {
+      return this.lastCredentials.refreshToken;
+    }
+    if (this.steamId64.length === 0) return '';
+    return await this.store.loadSecret(this.steamId64, 'refresh_token');
+  }
+
   async restoreSession(): Promise<boolean> {
     if (this.restoreTask) return this.restoreTask;
     const task = this.restoreStoredSession();
@@ -357,6 +367,7 @@ export class SteamService {
 
   async signOut(): Promise<void> {
     this.cancelQrLogin();
+    await SteamDownloadService.getInstance().closeSession();
     if (this.authService && this.accountName.length > 0) {
       try {
         await this.authService.close(this.accountName);

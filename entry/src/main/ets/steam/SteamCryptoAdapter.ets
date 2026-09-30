@@ -47,6 +47,16 @@ export class SteamCryptoAdapter implements IBinaryCrypto {
     return SteamCryptoAdapter.aesCbc(false, key, iv, data);
   }
 
+  /** Steam depot chunks store a single AES-256-ECB encrypted IV block. */
+  async aesEcbDecryptBlock(key: Uint8Array, block: Uint8Array): Promise<Uint8Array> {
+    if (key.length !== 32 || block.length !== 16) throw new Error('Invalid Steam depot key or IV');
+    const generator = cryptoFramework.createSymKeyGenerator('AES256');
+    const symKey = await generator.convertKey({ data: key });
+    const cipher = cryptoFramework.createCipher('AES256|ECB|NoPadding');
+    await cipher.init(cryptoFramework.CryptoMode.DECRYPT_MODE, symKey, null);
+    return (await cipher.doFinal({ data: block })).data;
+  }
+
   private static async aesCbc(encrypt: boolean, key: Uint8Array, iv: Uint8Array,
     data: Uint8Array): Promise<Uint8Array> {
     const bits = key.byteLength * 8;
