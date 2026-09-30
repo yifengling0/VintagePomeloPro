@@ -33,9 +33,15 @@ struct SteamGameDetail {
   @State private safeRight: number = 0;
   @State private safeBottom: number = 0;
   @State private downloadActive: boolean = false;
+  @State private downloadPreparing: boolean = false;
   @State private downloadMessage: string = '';
   @State private downloadPercent: number = 0;
+  @State private clientQrUrl: string = '';
+  @State private clientQrStatus: string = '';
   private pageAlive: boolean = false;
+  private clientQrTimer: number = -1;
+  private clientQrGeneration: number = 0;
+  private clientQrStartedAt: number = 0;
   private stopInsetObserver: (() => void) | null = null;
   private progressListener: SteamDownloadProgressListener | null = null;
 
@@ -64,6 +70,7 @@ struct SteamGameDetail {
 
   aboutToDisappear(): void {
     this.pageAlive = false;
+    this.stopClientQr();
     if (this.stopInsetObserver) this.stopInsetObserver();
     this.stopInsetObserver = null;
     if (this.progressListener) SteamDownloadService.getInstance().removeProgressListener(this.progressListener);
@@ -117,7 +124,102 @@ struct SteamGameDetail {
 
   private startDownload(): void {
     const game = this.game;
-    if (!game || this.downloadActive || this.steamInstalled || !/^\d+$/.test(game.appId)) return;
+    if (!game || this.downloadActive || this.downloadPreparing || this.clientQrUrl.length > 0 ||
+      this.steamInstalled || !/^\d+$/.test(game.appId)) return;
+    void this.prepareDownload(game);
+  }
+
+  private async prepareDownload(game: SteamLibraryGame): Promise<void> {
+    this.downloadPreparing = true;
+    try {
+      const service = SteamService.getInstance();
+      await service.initialize(this.context);
+      if (!service.steamId64) throw new Error('请先登录 Steam 账号');
+      const clientToken = await service.getClientRefreshToken();
+      if (!clientToken) {
+        await this.beginClientQr();
+        return;
+      }
+      if (this.pageAlive) this.startAuthorizedDownload(game, clientToken);
+    } catch (error) {
+      if (this.pageAlive) {
+        this.clientQrStatus = '';
+        this.downloadMessage = '下载准备失败：' + describeSteamError(error as Object);
+      }
+    } finally {
+      if (this.pageAlive) this.downloadPreparing = false;
+    }
+  }
+
+  private async beginClientQr(): Promise<void> {
+    const generation = ++this.clientQrGeneration;
+    this.clientQrStatus = '正在生成 Steam 客户端授权二维码…';
+    const url = await SteamService.getInstance().beginClientQrLogin();
+    if (!this.pageAlive || generation !== this.clientQrGeneration) return;
+    this.clientQrUrl = url;
+    this.clientQrStartedAt = Date.now();
+    this.clientQrStatus = '用手机 Steam App 扫码并确认；授权账号须与当前游戏库一致';
+    this.scheduleClientQrPoll(generation);
+  }
+
+  private scheduleClientQrPoll(generation: number): void {
+    if (!this.pageAlive || generation !== this.clientQrGeneration) return;
+    this.clientQrTimer = setTimeout((): void => {
+      this.clientQrTimer = -1;
+      void this.pollClientQr(generation);
+    }, 5000);
+  }
+
+  private async pollClientQr(generation: number): Promise<void> {
+    try {
+      if (Date.now() - this.clientQrStartedAt > 180000) {
+        this.stopClientQr();
+        this.clientQrStatus = '二维码已过期，请重新点击下载';
+        return;
+      }
+      const result = await SteamService.getInstance().pollClientQrLogin();
+      if (!this.pageAlive || generation !== this.clientQrGeneration) return;
+      const refreshedUrl = SteamService.getInstance().getClientQrChallengeUrl();
+      if (refreshedUrl.length > 0 && refreshedUrl !== this.clientQrUrl) {
+        this.clientQrUrl = refreshedUrl;
+        this.clientQrStartedAt = Date.now();
+      }
+      if (result === 'approved') {
+        this.stopClientQr();
+        this.clientQrStatus = '授权成功，正在开始下载';
+        this.startDownload();
+      } else if (result === 'invalid') {
+        this.stopClientQr();
+        this.clientQrStatus = '二维码已失效，请重新点击下载';
+      } else {
+        if (result === 'scanned') this.clientQrStatus = 'Steam 已收到扫码，请在手机上确认授权';
+        this.scheduleClientQrPoll(generation);
+      }
+    } catch (error) {
+      if (!this.pageAlive || generation !== this.clientQrGeneration) return;
+      const message = describeSteamError(error as Object);
+      if (message.indexOf('账号不一致') >= 0 || message.indexOf('不是客户端授权') >= 0 ||
+        message.indexOf('轮询失败 (HTTP') >= 0) {
+        this.stopClientQr();
+        this.clientQrStatus = message;
+        return;
+      }
+      this.clientQrStatus = '网络暂时超时，继续等待手机确认';
+      this.scheduleClientQrPoll(generation);
+    }
+  }
+
+  private stopClientQr(): void {
+    this.clientQrGeneration++;
+    if (this.clientQrTimer >= 0) clearTimeout(this.clientQrTimer);
+    this.clientQrTimer = -1;
+    this.clientQrStartedAt = 0;
+    this.clientQrUrl = '';
+    SteamService.getInstance().cancelClientQrLogin();
+  }
+
+  private startAuthorizedDownload(game: SteamLibraryGame, clientToken: string): void {
+    this.clientQrStatus = '';
     const appId = Number(game.appId);
     const downloader = SteamDownloadService.getInstance();
     try { downloader.beginDownload(appId); }
@@ -134,7 +236,7 @@ struct SteamGameDetail {
     this.progressListener = listener;
     downloader.onProgress(listener);
     const writer = new SteamDepotWriter();
-    void this.performDownload(appId, game.name, writer, downloader).finally((): void => {
+    void this.performDownload(appId, game.name, clientToken, writer, downloader).finally((): void => {
       downloader.endDownload(appId);
       downloader.removeProgressListener(listener);
       if (this.progressListener === listener) this.progressListener = null;
@@ -142,14 +244,13 @@ struct SteamGameDetail {
     });
   }
 
-  private async performDownload(appId: number, title: string, writer: SteamDepotWriter,
+  private async performDownload(appId: number, title: string, clientToken: string, writer: SteamDepotWriter,
     downloader: SteamDownloadService): Promise<void> {
     try {
       const service = SteamService.getInstance();
       await service.initialize(this.context);
-      const refreshToken = await service.getRefreshToken();
-      if (!refreshToken || !service.steamId64) throw new Error('请先登录 Steam 账号');
-      await downloader.ensureSession(service.accountName, refreshToken, service.steamId64);
+      if (!service.steamId64) throw new Error('请先登录 Steam 账号');
+      await downloader.ensureSession(service.accountName, clientToken, service.steamId64);
       if (this.pageAlive) this.downloadMessage = '正在查询游戏内容';
       const info = await downloader.fetchAppInfo(appId);
       if (info.depots.length === 0) throw new Error('Steam 未返回可下载的游戏内容');
@@ -174,7 +275,11 @@ struct SteamGameDetail {
       }
     } catch (error) {
       await writer.discard();
-      if (this.pageAlive) this.downloadMessage = '下载失败：' + describeSteamError(error as Object);
+      const message = describeSteamError(error as Object);
+      if (message.indexOf('Steam 客户端授权被拒') >= 0) {
+        await SteamService.getInstance().clearClientRefreshToken();
+      }
+      if (this.pageAlive) this.downloadMessage = '下载失败：' + message;
     }
   }
 
@@ -220,11 +325,31 @@ struct SteamGameDetail {
       this.Stat('累计游玩', this.playHours())
       this.Stat('最近游玩', this.lastPlayed())
       if (!this.steamInstalled) {
-        Button(this.downloadActive ? '下载中…' : '下载到本地')
+        Button(this.downloadActive ? '下载中…' :
+          (this.downloadPreparing ? '准备下载…' : '下载到本地'))
           .width('100%').height(42).borderRadius(12)
           .backgroundColor(skinColor('selected_background')).fontColor(skinColor('text_primary'))
-          .enabled(!this.downloadActive)
+          .enabled(!this.downloadActive && !this.downloadPreparing && this.clientQrUrl.length === 0)
           .onClick((): void => { this.startDownload(); }).id('steam-game-download')
+        if (this.clientQrUrl.length > 0) {
+          Column({ space: 8 }) {
+            QRCode(this.clientQrUrl).width(160).height(160)
+              .backgroundColor('#FFFFFFFF').id('steam-client-qr-image')
+            Text(this.clientQrStatus).fontSize(12).fontColor(skinColor('text_secondary'))
+              .width('100%').textAlign(TextAlign.Center)
+            Button('取消授权').height(36).borderRadius(10)
+              .backgroundColor(skinColor('selected_background'))
+              .onClick((): void => {
+                this.stopClientQr();
+                this.clientQrStatus = '';
+              }).id('steam-client-qr-cancel')
+          }
+          .width('100%').padding(12).borderRadius(12)
+          .backgroundColor(skinColor('card_background'))
+        } else if (this.clientQrStatus.length > 0) {
+          Text(this.clientQrStatus).fontSize(12).fontColor(skinColor('text_secondary'))
+            .width('100%')
+        }
         if (this.downloadActive) {
           Progress({ value: this.downloadPercent, total: 100, type: ProgressType.Linear })
             .width('100%').color(skinColor('accent'))

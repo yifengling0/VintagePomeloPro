@@ -72,6 +72,14 @@ const DOMAIN = 0x0000;
 
 type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'about';
 
+interface SwitchRowOptions {
+  title: string;
+  description: string;
+  enabled: boolean;
+  onChange: (value: boolean) => void;
+  id?: string;
+}
+
 /** native extractFontZip 的返回结构 (与 libentry Index.d.ts 保持一致)。 */
 interface FontZipExtractResult {
   ok: boolean;
@@ -1470,20 +1478,21 @@ struct SystemSettingsPage {
   }
 
   @Builder
-  private SwitchRow(title: string, description: string, enabled: boolean,
-    onChange: (value: boolean) => void, id: string = '') {
+  private SwitchRow(options: SwitchRowOptions) {
     Row() {
       Column({ space: 4 }) {
-        Text(title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
-        Text(description).fontSize(11).fontColor(skinColor('text_secondary'))
+        Text(options.title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+        Text(options.description).fontSize(11).fontColor(skinColor('text_secondary'))
       }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-      Toggle({ type: ToggleType.Switch, isOn: enabled }).onChange((value: boolean) => onChange(value))
+      Toggle({ type: ToggleType.Switch, isOn: options.enabled })
+        .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
     .padding({ left: 14, right: 14, top: 13, bottom: 13 })
     .backgroundColor(skinColor('search_background'))
     .borderRadius(14)
-    .id(id)
+    .id(options.id ?? '')
+    .onClick((): void => options.onChange(!options.enabled))
   }
 
   @Builder
@@ -1886,11 +1895,13 @@ struct SystemSettingsPage {
            Text('圆角屏全屏可能遮挡开始菜单；切边模式保留状态栏与圆角安全区。').fontSize(12)
              .fontColor(skinColor('text_secondary')).width('100%')
           if (DeviceCapabilityPolicy.isTabletDevice() || DeviceCapabilityPolicy.isPhoneDevice()) {
-            this.SwitchRow('浮窗模式',
-              '桌面缩成可拖动小窗，点击放大；放大在当前画面完成，不切换窗口',
-              this.settings.desktopWindowMode === DesktopWindowMode.FLOATING,
-              (value: boolean): void => this.updateFloatingMode(value),
-              'floating-mode')
+            this.SwitchRow({
+              title: '浮窗模式',
+              description: '桌面缩成可拖动小窗，点击放大；放大在当前画面完成，不切换窗口',
+              enabled: this.settings.desktopWindowMode === DesktopWindowMode.FLOATING,
+              onChange: (value: boolean): void => this.updateFloatingMode(value),
+              id: 'floating-mode'
+            })
           }
           if (!DeviceCapabilityPolicy.isPhoneDevice()) {
             Text('桌面模式').fontSize(14).fontWeight(FontWeight.Medium)
@@ -1916,10 +1927,13 @@ struct SystemSettingsPage {
               .fontSize(12)
               .fontColor(skinColor('text_secondary')).width('100%')
           }
-          this.SwitchRow('桌面打开时保持亮屏',
-            '游玩中自动锁屏会中断操作；关闭后恢复系统默认的自动锁屏策略',
-            this.settings.keepScreenOn, (value: boolean): void => this.updateKeepScreenOn(value),
-            'keep-screen-on')
+          this.SwitchRow({
+            title: '桌面打开时保持亮屏',
+            description: '游玩中自动锁屏会中断操作；关闭后恢复系统默认的自动锁屏策略',
+            enabled: this.settings.keepScreenOn,
+            onChange: (value: boolean): void => this.updateKeepScreenOn(value),
+            id: 'keep-screen-on'
+          })
           Text('输出缩放 ' + this.settings.outputScale + '%').fontSize(14).fontColor(skinColor('text_primary')).width('100%')
            Slider({ value: this.settings.outputScale, min: 75, max: 150, step: 5 })
              // Match VintagePomelo: a press on the track must not immediately
@@ -2021,10 +2035,17 @@ struct SystemSettingsPage {
               .fontColor(this.settings.themeMode === ThemeMode.DARK ? '#FFFFFFFF' : skinColor('text_primary'))
               .onClick(() => this.updateTheme(ThemeMode.DARK))
           }.width('100%')
-          this.SwitchRow('玻璃卡片', '默认使用 16vp 圆角和半透明材质', this.settings.useGlassEffect, (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode, value))
-          this.SwitchRow('自定义页面背景', '选择图片后可随时开启或关闭，不会删除原图',
-            this.settings.usePageBackground, (value: boolean): void => this.togglePageBackground(value),
-            'page-background-enabled')
+          this.SwitchRow({
+            title: '玻璃卡片', description: '默认使用 16vp 圆角和半透明材质',
+            enabled: this.settings.useGlassEffect,
+            onChange: (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode, value)
+          })
+          this.SwitchRow({
+            title: '自定义页面背景', description: '选择图片后可随时开启或关闭，不会删除原图',
+            enabled: this.settings.usePageBackground,
+            onChange: (value: boolean): void => this.togglePageBackground(value),
+            id: 'page-background-enabled'
+          })
           this.PageBackgroundChooser()
           Column({ space: 10 }) {
             Text('字体').fontSize(14).fontWeight(FontWeight.Medium)
@@ -2057,13 +2078,26 @@ struct SystemSettingsPage {
             }
             .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
           }
-          this.SwitchRow('启用屏幕虚拟输入',
-            '关闭后不显示虚拟按键、全屏鼠标和右上角控制栏；实体外设仍可使用',
-            this.settings.virtualInputEnabled, (value: boolean): void => this.updateVirtualInputEnabled(value),
-            'virtual-input-enabled')
+          this.SwitchRow({
+            title: '启用屏幕虚拟输入',
+            description: '关闭后不显示虚拟按键、全屏鼠标和右上角控制栏；实体外设仍可使用',
+            enabled: this.settings.virtualInputEnabled,
+            onChange: (value: boolean): void => this.updateVirtualInputEnabled(value),
+            id: 'virtual-input-enabled'
+          })
           if (this.settings.virtualInputEnabled) {
-            this.SwitchRow('显示虚拟按键', '只控制十字键、摇杆、ABXY 和肩键；全屏鼠标与右上角控制栏不受影响', this.settings.showVirtualControls, (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode, this.settings.useGlassEffect, this.settings.usePageBackground, value))
-            this.SwitchRow('外设接管时隐藏按键', '检测到实体键盘、鼠标或手柄操作后，仅隐藏虚拟按键', this.settings.autoHideVirtualControls, (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode, this.settings.useGlassEffect, this.settings.usePageBackground, this.settings.showVirtualControls, value))
+            this.SwitchRow({
+              title: '显示虚拟按键', description: '只控制十字键、摇杆、ABXY 和肩键；全屏鼠标与右上角控制栏不受影响',
+              enabled: this.settings.showVirtualControls,
+              onChange: (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode,
+                this.settings.useGlassEffect, this.settings.usePageBackground, value)
+            })
+            this.SwitchRow({
+              title: '外设接管时隐藏按键', description: '检测到实体键盘、鼠标或手柄操作后，仅隐藏虚拟按键',
+              enabled: this.settings.autoHideVirtualControls,
+              onChange: (value: boolean): void => this.update(this.settings.defaultDisplayMode, this.settings.viewMode,
+                this.settings.useGlassEffect, this.settings.usePageBackground, this.settings.showVirtualControls, value)
+            })
             Column({ space: 10 }) {
               Text('控制栏方向').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
               Text('自动会根据横竖屏切换；自动隐藏会在控制栏收起 3 秒后完全隐藏，点击右上角热区即可唤出。')
@@ -2080,8 +2114,11 @@ struct SystemSettingsPage {
               Text('全屏触摸板模式').fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
               Text('从 Wine 画面右上角手指图标切换。开启后单指相对移动鼠标、轻点左键；双指轻点右键、双指滑动滚轮。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-              this.SwitchRow('显示箭头指针', '触摸板模式用箭头显示鼠标位置，箭头尖即点击点', this.settings.virtualMouseConfig.showCursor,
-                (value: boolean): void => this.updateVirtualMouse(this.settings.virtualMouseConfig.mouseSensitivity, value))
+              this.SwitchRow({
+                title: '显示箭头指针', description: '触摸板模式用箭头显示鼠标位置，箭头尖即点击点',
+                enabled: this.settings.virtualMouseConfig.showCursor,
+                onChange: (value: boolean): void => this.updateVirtualMouse(this.settings.virtualMouseConfig.mouseSensitivity, value)
+              })
               Text('轻点为左键，双指轻点为右键；轻点后再次按住并移动可拖拽窗口')
                 .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
               Text('滚动灵敏度 ' + this.settings.virtualMouseConfig.mouseSensitivity + '%')
@@ -2292,11 +2329,13 @@ struct SystemSettingsPage {
                   .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
               }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             }.width('100%')
-            this.SwitchRow('保留文档和注册表',
-              '开启则还原用户文档与注册表；关闭则全部清空',
-              this.settings.preserveUserDataOnReset,
-              (value: boolean): void => this.setPreserveUserDataOnReset(value),
-              'wine-reset-preserve-user-data')
+            this.SwitchRow({
+              title: '保留文档和注册表',
+              description: '开启则还原用户文档与注册表；关闭则全部清空',
+              enabled: this.settings.preserveUserDataOnReset,
+              onChange: (value: boolean): void => this.setPreserveUserDataOnReset(value),
+              id: 'wine-reset-preserve-user-data'
+            })
             Button('重置 Wine prefix').width('100%').height(48).borderRadius(14)
               .backgroundColor('#18D94848')
               .fontColor('#D94848')
@@ -2328,25 +2367,38 @@ struct SystemSettingsPage {
             .fontColor(skinColor('text_primary')).width('100%')
           Text('在游戏顶部以小字号横条显示，即时生效；不修改图形后端或游戏启动环境。')
             .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-          this.SwitchRow('显示性能监控', '总开关；关闭后保留各项选择并停止采样',
-            this.settings.showFpsHud, (value: boolean): void => this.updateShowFpsHud(value),
-            'performance-enabled')
+          this.SwitchRow({
+            title: '显示性能监控', description: '总开关；关闭后保留各项选择并停止采样',
+            enabled: this.settings.showFpsHud,
+            onChange: (value: boolean): void => this.updateShowFpsHud(value),
+            id: 'performance-enabled'
+          })
           Column({ space: 10 }) {
-            this.SwitchRow('FPS', '宿主呈现帧率，非游戏引擎内部计数',
-              this.settings.performanceHud.fps,
-              (value: boolean): void => this.updatePerformanceHud('fps', value), 'performance-fps')
-            this.SwitchRow('应用 CPU', '累计 Wine 子进程；100%＝一个逻辑核，200%≈两个核的负载。≥ 表示计数不完整时的下限',
-              this.settings.performanceHud.appCpu,
-              (value: boolean): void => this.updatePerformanceHud('appCpu', value), 'performance-app-cpu')
-            this.SwitchRow('系统 CPU', '整机全部逻辑核的平均占用（0–100%），包含游戏、系统服务及其他应用；采样窗口可能与应用 CPU 不同',
-              this.settings.performanceHud.systemCpu,
-              (value: boolean): void => this.updatePerformanceHud('systemCpu', value), 'performance-system-cpu')
-            this.SwitchRow('电池温度', '系统电池传感器温度（℃），与芯片温度不同',
-              this.settings.performanceHud.batteryTemperature,
-              (value: boolean): void => this.updatePerformanceHud('batteryTemperature', value), 'performance-battery-temperature')
-            this.SwitchRow('热状态', '系统热管理等级，不代表具体温度或已发生降频',
-              this.settings.performanceHud.thermalLevel,
-              (value: boolean): void => this.updatePerformanceHud('thermalLevel', value), 'performance-thermal-level')
+            this.SwitchRow({
+              title: 'FPS', description: '宿主呈现帧率，非游戏引擎内部计数',
+              enabled: this.settings.performanceHud.fps,
+              onChange: (value: boolean): void => this.updatePerformanceHud('fps', value), id: 'performance-fps'
+            })
+            this.SwitchRow({
+              title: '应用 CPU', description: '累计 Wine 子进程；100%＝一个逻辑核，200%≈两个核的负载。≥ 表示计数不完整时的下限',
+              enabled: this.settings.performanceHud.appCpu,
+              onChange: (value: boolean): void => this.updatePerformanceHud('appCpu', value), id: 'performance-app-cpu'
+            })
+            this.SwitchRow({
+              title: '系统 CPU', description: '整机全部逻辑核的平均占用（0–100%），包含游戏、系统服务及其他应用；采样窗口可能与应用 CPU 不同',
+              enabled: this.settings.performanceHud.systemCpu,
+              onChange: (value: boolean): void => this.updatePerformanceHud('systemCpu', value), id: 'performance-system-cpu'
+            })
+            this.SwitchRow({
+              title: '电池温度', description: '系统电池传感器温度（℃），与芯片温度不同',
+              enabled: this.settings.performanceHud.batteryTemperature,
+              onChange: (value: boolean): void => this.updatePerformanceHud('batteryTemperature', value), id: 'performance-battery-temperature'
+            })
+            this.SwitchRow({
+              title: '热状态', description: '系统热管理等级，不代表具体温度或已发生降频',
+              enabled: this.settings.performanceHud.thermalLevel,
+              onChange: (value: boolean): void => this.updatePerformanceHud('thermalLevel', value), id: 'performance-thermal-level'
+            })
           }.width('100%')
           if (!hasPerformanceHudContent(this.settings.performanceHud)) {
             Text('未选择任何指标，监控层将隐藏且不采样。').fontSize(12)

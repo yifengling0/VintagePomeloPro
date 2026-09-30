@@ -51,7 +51,7 @@ export type SteamDownloadProgressListener = (progress: SteamDownloadProgress) =>
 
 /**
  * Steam 内容下载门面 (W6, 登录增强路径):
- * 已登录账号 → CM 会话 (refresh_token) → PICS 拿 depot 列表 →
+ * 已登录账号 → CM 会话 (Steam Client refresh_token) → PICS 拿 depot 列表 →
  * GetServersForSteamPipe / GetCDNAuthToken → 分块下载 → (解压在 native 层) 。
  * 红线: 只下载用户已拥有的内容 (license 校验由 Steam 服务端把守)。
  */
@@ -99,15 +99,15 @@ export class SteamDownloadService {
     }
   }
 
-  /** 建立 CM 会话 (复用已登录账号的 refresh_token; 未登录抛错)。 */
-  async ensureSession(accountName: string, refreshToken: string, steamId64: string): Promise<void> {
+  /** 建立 CM 会话 (使用 Steam Client 平台 refresh_token; 未授权抛错)。 */
+  async ensureSession(accountName: string, clientRefreshToken: string, steamId64: string): Promise<void> {
     if (this.cmClient && this.sessionSteamId === steamId64 &&
       this.cmClient.session.state === 'logged_on') {
       hilog.info(DOMAIN, TAG, 'ensureSession: cached live session');
       return;
     }
-    if (refreshToken.length === 0) {
-      throw new Error('尚未登录 Steam, 无法建立下载会话');
+    if (clientRefreshToken.length === 0) {
+      throw new Error('尚未授权 Steam 客户端下载');
     }
     if (this.cmClient) {
       hilog.info(DOMAIN, TAG, 'ensureSession: dropping old session (state=%{public}s)',
@@ -125,7 +125,7 @@ export class SteamDownloadService {
     const wire = new SteamCmWebSocketTransport();
     const client = new SteamCmClient(
       accountName.length > 0 ? accountName : steamId64,
-      new SteamCredentialSet(accountName, '', refreshToken),
+      new SteamCredentialSet(accountName, '', clientRefreshToken),
       wire,
       new SteamCmScheduler(),
       new SteamHostClock(),
@@ -176,11 +176,17 @@ export class SteamDownloadService {
         if (error) reject(error); else resolve();
       };
       const listener: SteamCmEventListener = (event: SteamCmEvent): void => {
+        if (event.type === SteamCmEventType.ERROR || event.type === SteamCmEventType.AUTH_CHALLENGE ||
+          event.type === SteamCmEventType.EXPIRED) {
+          hilog.warn(DOMAIN, TAG, 'CM login event: type=%{public}s code=%{public}d message=%{public}s',
+            String(event.type), event.errorCode, event.message);
+        }
         if (event.type === SteamCmEventType.LOGGED_ON) finish(null);
         else if (event.type === SteamCmEventType.AUTH_CHALLENGE || event.type === SteamCmEventType.EXPIRED) {
           finish(new Error('Steam CM 登录凭据已失效，请重新登录'));
         } else if (event.type === SteamCmEventType.ERROR || event.type === SteamCmEventType.DISCONNECTED) {
-          finish(new Error('Steam CM 登录失败，请检查网络'));
+          finish(new Error(event.errorCode === 5 || event.errorCode === 15
+            ? 'Steam 客户端授权被拒，请重新扫码' : 'Steam CM 登录失败，请检查网络'));
         }
       };
       client.addEventListener(listener);

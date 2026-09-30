@@ -5,7 +5,8 @@ import preferences from '@ohos.data.preferences';
 
 /** Steam 凭据种类（AssetStore alias 尾段）。 */
 export const STEAM_SECRET_KINDS: Array<string> = [
-  'refresh_token', 'access_token', 'shared_secret', 'identity_secret', 'device_id', 'guard_data'
+  'refresh_token', 'access_token', 'client_refresh_token',
+  'shared_secret', 'identity_secret', 'device_id', 'guard_data'
 ];
 
 /** 非敏感档案（preferences 明文可存）。 */
@@ -80,6 +81,12 @@ export class SteamAccountStore {
     } catch (_) {
       return '';
     }
+  }
+
+  async removeSecret(steamId64: string, kind: string): Promise<void> {
+    const map: asset.AssetMap = new Map<asset.Tag, asset.Value>();
+    map.set(asset.Tag.ALIAS, SteamAccountStore.utf8Bytes(SteamAccountStore.alias(steamId64, kind)));
+    try { await asset.remove(map); } catch (_) {}
   }
 
   /** 清空该账号全部 Steam 凭据（登出用，幂等）。 */

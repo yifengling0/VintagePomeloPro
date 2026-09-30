@@ -9,6 +9,27 @@ import { ISteamCoreLogger, SteamCoreNoopLogger } from '../contracts/SteamCoreLog
  * identity lookup instead of opening a full CM logon.
  */
 export class SteamJwt {
+  /** True when a token received from Steam is intended for the given client. */
+  static hasAudience(token: string, audience: string): boolean {
+    const firstDot = token.indexOf('.');
+    const secondDot = token.indexOf('.', firstDot + 1);
+    if (firstDot <= 0 || secondDot <= firstDot + 1) return false;
+    const payloadJson = SteamJwt.decodePayload(token.substring(firstDot + 1, secondDot));
+    if (payloadJson.length === 0) return false;
+    try {
+      const payload = SteamJsonParser.parse(payloadJson);
+      if (payload.kind !== SteamJsonValueKind.OBJECT) return false;
+      const claim = payload.getProperty('aud');
+      if (claim === null) return false;
+      if (claim.kind === SteamJsonValueKind.STRING) return claim.stringValue === audience;
+      if (claim.kind !== SteamJsonValueKind.ARRAY) return false;
+      return claim.items.some((item: SteamJsonValue): boolean =>
+        item.kind === SteamJsonValueKind.STRING && item.stringValue === audience);
+    } catch (_) {
+      return false;
+    }
+  }
+
   /** Returns the trimmed subject claim, or an empty string when unreadable. */
   static subjectClaim(
     token: string,
