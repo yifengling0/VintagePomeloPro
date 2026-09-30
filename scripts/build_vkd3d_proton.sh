@@ -62,10 +62,9 @@ if [ ! -f "$SOURCE_STAMP" ] || [ "$(cat "$SOURCE_STAMP")" != "$source_id" ]; the
     if find "$SOURCE_ROOT" -name .git -print -quit | grep -q .; then
         err "Isolated VKD3D-Proton source unexpectedly contains Git metadata"
     fi
-    # pinned tree ships CRLF in a few meson files; normalize before patching
-    # (submodule itself stays untouched/clean)
-    find "$SOURCE_ROOT" -maxdepth 2 -type f \( -name "meson.build" -o -name "meson_options.txt" \) \
-        -exec sed -i 's/\r$//' {} +
+    # pinned tree ships CRLF in parts of the tree; normalize all CRLF text
+    # files before patching (submodule itself stays untouched/clean)
+    grep -rlI $'\r' "$SOURCE_ROOT" --exclude-dir=.git | xargs -r sed -i 's/\r$//'
     for patch_file in "${patches[@]}"; do
         log "Applying $(basename "$patch_file")"
         patch -d "$SOURCE_ROOT" -p1 --forward --batch --ignore-whitespace < "$patch_file"
