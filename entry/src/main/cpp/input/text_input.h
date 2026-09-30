@@ -1,126 +1,82 @@
 #pragma once
-
 #include <wayland-server-core.h>
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <string>
-#include <utility>
-#include <vector>
+#include <unordered_map>
 
-/*
- * zwp_text_input_manager_v3 的 compositor 服务端。
- *
- * 设计原则: text-input 焦点必须与键盘注入完全同源。InputManager 在每次
- * 点击/按键时维护权威的 keyboardFocusedSurface_, 本类只做它的镜像:
- *   - InputManager::InjectKeyboardEnter -> OnKeyboardEnter (发 enter)
- *   - InputManager::InjectKeyboardLeave -> OnKeyboardLeave (发 leave)
- * 这样 Wine 收到的 commit/preedit 目标, 就是 wl_keyboard.key 实际注入的
- * 同一个 surface/client, 不再有第二套焦点状态。
- *
- * 线程模型:
- *   - 协议请求/焦点钩子: Wayland 线程
- *   - IsEnabled 等查询: NAPI 线程 (只读, mutex 保护)
- */
-class TextInputManager {
+// zwp_text_input_manager_v3 / zwp_text_input_v3 compositor 侧实现。
+//
+// 职责:
+//   - 注册 zwp_text_input_manager_v3 global (Wine 的 wayland_text_input.c 绑定)
+//   - 接收 Wine 请求: enable/disable/set_cursor_rectangle/set_content_type/commit
+//   - 主动发事件: enter/leave/preedit_string/commit_string/delete_surrounding_text/done
+//   - 激活判定: keyboard enter 后 Wine enable+commit(0,0,0,0); 文本框聚焦时
+//     Windows 应用调 SetIMECompositionRect → set_cursor_rectangle(非零) →
+//     commit 时判定激活 → 回调通知 ArkTS 弹软键盘
+//
+// 事件注入与 seat 绑定参照 Seat/InputManager 模式; 状态用 mutex 保护
+// (wayland dispatch 线程 vs ArkTS NAPI 注入线程)。
+
+class TextInput {
 public:
-    static TextInputManager* GetInstance();
-
-    // 激活回调 (对齐上游 54d188d): active=1 且带光标矩形 → ArkTS 弹系统软键盘;
-    // active=0 (失焦/leave) → 收起。
     using ActivateCb = std::function<void(bool active, int x, int y, int w, int h)>;
-    void SetActivateCallback(ActivateCb cb);
 
-    // Register before dispatch starts; Shutdown after its thread has joined and
-    // before clients/display are destroyed. Both are idempotent.
+    static TextInput* GetInstance();
+
     void Register(wl_display* display);
-    void Shutdown();
+    void Unregister();
 
-    // Wayland 线程: 键盘焦点跟随
-    void OnKeyboardEnter(uint32_t toplevelId, wl_resource* surface);
-    void OnKeyboardLeave();
-    void OnSurfaceDestroyed(wl_resource* surface);
+    void SetActivateCallback(ActivateCb cb) { activateCb_ = std::move(cb); }
 
-    bool IsEnabled() const;
+    // InputManager keyboard enter/leave → 同步 text-input enter/leave
+    void OnKeyboardEnter(wl_resource* surface);
+    void OnKeyboardLeave(wl_resource* surface);
 
-    // -- NAPI 线程入口 (preedit/commit 入队, Wayland 线程统一发送) --
-    bool SendPreedit(const char* utf8, int32_t cursorBegin, int32_t cursorEnd);
-    bool SendCommit(const char* utf8);
+    // ArkTS 桥接: 输入法文本注入 → Wine (UTF-8)
+    void SendCommitString(const char* utf8);
+    void SendPreeditString(const char* utf8, int32_t cursorBegin, int32_t cursorEnd);
+    void SendDeleteSurrounding(uint32_t before, uint32_t after);
 
-    // proton-baseline compat: theirs' napi surface calls these names
-    void SendPreeditString(const char* utf8, int32_t cursorBegin, int32_t cursorEnd) {
-        SendPreedit(utf8, cursorBegin, cursorEnd);
-    }
-    void SendCommitString(const char* utf8) { SendCommit(utf8); }
-    bool SendDeleteSurrounding(uint32_t before, uint32_t after);
-    void SetArmed(bool armed);
-
-    // -- 协议请求 (client -> server, Wayland 线程) --
+    // -- 协议 impl (wayland dispatcher 调用) --
     static void manager_bind(wl_client* client, void* data, uint32_t version, uint32_t id);
-    static void manager_destroy(wl_client*, wl_resource* r);
-    static void manager_get_text_input(wl_client*, wl_resource* manager, uint32_t id,
-                                       wl_resource* seat);
-    static void ti_destroy(wl_client*, wl_resource* r);
-    static void ti_enable(wl_client*, wl_resource* r);
-    static void ti_disable(wl_client*, wl_resource* r);
-    static void ti_set_surrounding_text(wl_client*, wl_resource*, const char*, int32_t, int32_t);
-    static void ti_set_text_change_cause(wl_client*, wl_resource*, uint32_t);
-    static void ti_set_content_type(wl_client*, wl_resource*, uint32_t, uint32_t);
-    static void ti_set_cursor_rectangle(wl_client*, wl_resource*, int32_t, int32_t, int32_t, int32_t);
-    static void ti_commit(wl_client*, wl_resource* r);
+    static void manager_destroy(wl_client* client, wl_resource* res);
+    static void manager_get_text_input(wl_client* client, wl_resource* res, uint32_t id, wl_resource* seat);
+    static void text_input_destroy(wl_client* client, wl_resource* res);
+    static void text_input_enable(wl_client* client, wl_resource* res);
+    static void text_input_disable(wl_client* client, wl_resource* res);
+    static void text_input_set_surrounding_text(wl_client* client, wl_resource* res,
+                                                const char* text, int32_t before, int32_t after);
+    static void text_input_set_text_change_cause(wl_client* client, wl_resource* res, uint32_t cause);
+    static void text_input_set_content_type(wl_client* client, wl_resource* res,
+                                            uint32_t hint, uint32_t purpose);
+    static void text_input_set_cursor_rectangle(wl_client* client, wl_resource* res,
+                                                int32_t x, int32_t y, int32_t w, int32_t h);
+    static void text_input_commit(wl_client* client, wl_resource* res);
 
 private:
-    struct Entry {
-        wl_resource* res = nullptr;
-        wl_resource* enteredSurface = nullptr;
+    struct State {
+        wl_resource* res = nullptr;     // zwp_text_input_v3 资源
+        wl_resource* surface = nullptr; // enter 的 surface (对应键盘焦点)
         bool enabled = false;
-        uint32_t commitCount = 0;
-        // 光标矩形 (ti_set_cursor_rectangle 存入): 激活判定 enabled+非零矩形。
+        bool activated = false;         // 已回调激活 (防重复)
         int32_t cursorX = 0, cursorY = 0, cursorW = 0, cursorH = 0;
-        bool activated = false;
     };
 
+    TextInput() = default;
+    void NotifyActivated(bool active);  // 统一收口激活/失活回调
+    void ResetState();                  // enter 时重置 pending 状态
 
-    enum class OpType { Preedit, Commit, DeleteSurrounding, Done, SetArmed };
-
-    struct Op {
-        OpType type = OpType::Preedit;
-        wl_resource* res = nullptr;
-        std::string text;
-        int32_t begin = 0;
-        int32_t end = 0;
-        bool armed = false;
-    };
-
-    TextInputManager() = default;
-    static void resource_destroyed(wl_resource* r);
-    // mutex_ is held by the caller; lock order is mutex_ -> opMutex_. The target
-    // lookup and enqueue stay atomic with resource destruction and Shutdown.
-    bool EnqueueOpLocked(Op op, bool appendDone = false);
-    static int OnPipeReadable(int fd, uint32_t mask, void* data);
-    void FlushOps();
-    Entry* EnabledEntryLocked();
-    void LeaveAllEnteredLocked(std::vector<std::pair<wl_resource*, wl_resource*>>& actions);
-    // 激活判定/回调 (Wayland 线程): enabled + 非零光标矩形 → 回调 ArkTS。
-    void MaybeActivateLocked();
-    void NotifyActivated(bool active);
+    // 每个 Wine 进程 (wl_client) 一个 zwp_text_input_v3 对象。多个 Wine 进程
+    // (wineboot/explorer/用户程序) 各自 get_text_input, 单实例 state_.res 只存
+    // 最后一个会导致 keyboard enter 发错对象 → 目标进程收不到 enter 不 enable。
+    // OnKeyboardEnter 按 surface 所属 client 路由到对应对象。
+    std::unordered_map<wl_client*, wl_resource*> textInputs_;
 
     wl_global* global_ = nullptr;
     wl_display* display_ = nullptr;
-    // 由 NAPI wineTextInputSetArmed 门控: 宿主键盘打开才 armed。
-    bool armed_ = false;
-    uint32_t focusedToplevel_ = 0;
-    wl_resource* focusedSurface_ = nullptr;
-    ActivateCb activateCb_ = nullptr;
-    mutable std::mutex mutex_;
-    std::vector<Entry> entries_;
-
-    std::mutex opMutex_;
-    std::vector<Op> opQueue_;
-    int pipeReadFd_ = -1;
-    int pipeWriteFd_ = -1;
-    struct wl_event_source* pipeSource_ = nullptr;
+    State state_;
+    std::mutex mutex_;
+    ActivateCb activateCb_;
+    uint32_t serial_ = 0;
 };
-
-// proton-baseline compat alias (theirs' napi/compositor uses TextInput)
-using TextInput = TextInputManager;

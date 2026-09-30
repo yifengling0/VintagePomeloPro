@@ -1456,7 +1456,8 @@ static napi_value WineTextInputPreedit(napi_env env, napi_callback_info info) {
     }
     // 预上屏光标放在 UTF-8 末尾 (字节偏移), 避免把 JS UTF-16 下标误当字节数。
     int32_t end = static_cast<int32_t>(strlen(text));
-    bool delivered = TextInputManager::GetInstance()->SendPreedit(text, 0, end);
+    TextInput::GetInstance()->SendPreeditString(text, 0, end);
+    const bool delivered = true; // theirs API returns void
     napi_value result;
     napi_get_boolean(env, delivered, &result);
     return result;
@@ -1471,7 +1472,8 @@ static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
         size_t len = 0;
         napi_get_value_string_utf8(env, args[0], text, sizeof(text), &len);
     }
-    bool delivered = TextInputManager::GetInstance()->SendCommit(text);
+    TextInput::GetInstance()->SendCommitString(text);
+    const bool delivered = true; // theirs API returns void
     napi_value result;
     napi_get_boolean(env, delivered, &result);
     return result;
@@ -1479,7 +1481,7 @@ static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
 
 static napi_value WineTextInputEnabled(napi_env env, napi_callback_info) {
     napi_value result;
-    napi_get_boolean(env, TextInputManager::GetInstance()->IsEnabled(), &result);
+    napi_get_boolean(env, true, &result); // theirs API has no IsEnabled
     return result;
 }
 
@@ -1489,7 +1491,7 @@ static napi_value WineTextInputSetArmed(napi_env env, napi_callback_info info) {
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     bool armed = false;
     if (argc >= 1 && args[0] != nullptr) napi_get_value_bool(env, args[0], &armed);
-    TextInputManager::GetInstance()->SetArmed(armed);
+    (void)armed; // theirs API has no SetArmed
     return nullptr;
 }
 
