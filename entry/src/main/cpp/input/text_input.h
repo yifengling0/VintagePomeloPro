@@ -46,6 +46,12 @@ public:
     // -- NAPI 线程入口 (preedit/commit 入队, Wayland 线程统一发送) --
     bool SendPreedit(const char* utf8, int32_t cursorBegin, int32_t cursorEnd);
     bool SendCommit(const char* utf8);
+
+    // proton-baseline compat: theirs' napi surface calls these names
+    void SendPreeditString(const char* utf8, int32_t cursorBegin, int32_t cursorEnd) {
+        SendPreedit(utf8, cursorBegin, cursorEnd);
+    }
+    void SendCommitString(const char* utf8) { SendCommit(utf8); }
     bool SendDeleteSurrounding(uint32_t before, uint32_t after);
     void SetArmed(bool armed);
 
@@ -73,6 +79,7 @@ private:
         int32_t cursorX = 0, cursorY = 0, cursorW = 0, cursorH = 0;
         bool activated = false;
     };
+
 
     enum class OpType { Preedit, Commit, DeleteSurrounding, Done, SetArmed };
 
@@ -114,3 +121,6 @@ private:
     int pipeWriteFd_ = -1;
     struct wl_event_source* pipeSource_ = nullptr;
 };
+
+// proton-baseline compat alias (theirs' napi/compositor uses TextInput)
+using TextInput = TextInputManager;

@@ -38,3 +38,7 @@
 #endif
 
 #endif // WINE_CONSTANTS_H
+
+// VPP: isolated prefix used by milestone smoke runs. It is never removed as
+// part of the normal user's prefix lifecycle.
+#define WINE_SMOKE_PREFIX    "/data/storage/el2/base/files/.wine-smoke"

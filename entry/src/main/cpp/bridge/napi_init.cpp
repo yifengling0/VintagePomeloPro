@@ -1248,6 +1248,24 @@ static napi_value KillProcess(napi_env env, napi_callback_info info) {
 // -- 模块注册 --
 
 // ================= VPP product surface (ported from VintagePomeloPro main) =================
+static napi_value BooleanResult(napi_env env, bool value) {
+    napi_value result;
+    napi_get_boolean(env, value, &result);
+    return result;
+}
+
+static bool SetHostGraphicsEnv(const char* key, std::string_view value) {
+    // std::string_view does not guarantee a trailing NUL. Profiles currently
+    // come from literals, but copying here keeps this boundary correct if a
+    // generated or sliced profile is introduced later.
+    const std::string stableValue(value);
+    if (setenv(key, stableValue.c_str(), 1) == 0) return true;
+    OH_LOG_ERROR(LOG_APP,
+                 "[NAPI] graphics environment apply failed key=%{public}s errno=%{public}d",
+                 key, errno);
+    return false;
+}
+
 
 // VPP: legacy shadow-profile store (setHostShadowProfile interplay)
 static std::string gLegacyHostShadowProfile;

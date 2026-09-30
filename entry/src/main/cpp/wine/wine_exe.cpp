@@ -7,6 +7,7 @@
 #include "compositor/wayland_server.h"
 #include "wine_constants.h"
 #include "container_session.h"
+#include "graphics/graphics_profile.h"
 #include "wine_env.h"
 #include "proc/wine_process.h"
 
