@@ -1,8 +1,7 @@
-#include "input/input_manager.h"
-#include "input/seat.h"
-#include "input/pointer_extras.h"
-#include "input/text_input.h"
-#include "compositor/wayland_server.h"
+#include "input_manager.h"
+#include "seat.h"
+#include "pointer_extras.h"
+#include "compositor/wayland_server.h"  // 保留: FlushQueue 的 move grab 动作委托 + InputTarget 别名
 #include "compositor/input/input_space_mapper.h"  // 坐标变换收口 (4C1): renderer 查找
                                             // fallback 已迁入, 本文件不再认识
                                             // PluginManager (include 已删)
@@ -10,6 +9,7 @@
 #include "compositor/input/input_resolver.h"   // FindInputTargetAt/SurfaceLocalToDesktop/IsSurfaceAlive(经 injector)
 #include "compositor/toplevel/toplevel_manager.h" // GetSurfaceForToplevel/GetToplevelGeometrySnapshot
 #include "compositor/toplevel/move_grab.h"        // IsActive/GetToplevelId
+#include "compositor/frame/input_target_probe.h"  // P0-1 Task A: 最近输入目标 (仅诊断)
 #include <chrono>
 #include <thread>
 #include <atomic>
@@ -91,9 +91,6 @@ void InputManager::Shutdown() {
     tracker_.ResetModifiers();
     tracker_.ClearPointerFocus();
     tracker_.ClearKeyboardFocus();
-    tracker_.ResetLastLocal();
-    tracker_.ResetRelativeSpace();
-    tracker_.InvalidateRelativeBaseline();
 
     OH_LOG_INFO(LOG_APP, "[Input] shutdown OK");
 }
@@ -161,19 +158,11 @@ bool InputManager::NeedsPointerEnter() const {
 
 void InputManager::ResetPointerEnter() {
     tracker_.ClearPointerFocus();
-    InvalidateRelativePointerBaseline("pointer-enter-reset");
     OH_LOG_INFO(LOG_APP, "[Input] ResetPointerEnter OK");
-}
-
-void InputManager::InvalidateRelativePointerBaseline(const char* reason) {
-    const uint64_t epoch = tracker_.InvalidateRelativeBaseline();
-    OH_LOG_INFO(LOG_APP, "[Input] relative baseline invalidated epoch=%{public}llu reason=%{public}s",
-                static_cast<unsigned long long>(epoch), reason ? reason : "unknown");
 }
 
 void InputManager::ResetKeyboardEnter() {
     tracker_.ClearKeyboardFocus();
-    TextInputManager::GetInstance()->OnKeyboardLeave();
     OH_LOG_INFO(LOG_APP, "[Input] ResetKeyboardEnter OK");
 }
 
@@ -193,8 +182,6 @@ void InputManager::ResetSessionState() {
     // 与旧实现清零顺序一致。
     InputSpaceMapper::GetInstance()->ResetGlobalPtr();
     tracker_.ResetLastLocal();
-    tracker_.ResetRelativeSpace();
-    tracker_.InvalidateRelativeBaseline();
     tracker_.ResetLastPressMs();
     tracker_.ClearVisible();
     OH_LOG_INFO(LOG_APP, "[Input] session state reset (focus/buttons/modifiers/position/visible)");
@@ -254,9 +241,10 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
     // 坐标会被 winewayland 的 motion clamp 夹回窗口内, 菜单伸出部分点不中)
     // 6A: 策略/rootId 经装配注入的共享引用直读 (与 WaylandServer getter 同值)
     wl_resource* targetSurf = nullptr;
-    FitRect inputFit, displayFit;
-    if ((*policy_).CompositorRoutesInput() && tl != (*desktopRootToplevelId_)) {
-        CoordTransform(px, py, (*desktopRootToplevelId_), &wx, &wy, &displayFit);
+    if (policy_->CompositorRoutesInput() && tl != *desktopRootToplevelId_) {
+        CoordTransform(px, py, *desktopRootToplevelId_, &wx, &wy);
+        // 记录最近一次注入的桌面全局指针位置 (grab 建立时算固定偏移用)。
+        // 4C1: 收进 InputSpaceMapper, 空间标签显式化为 Desktop (桌面逻辑坐标)
         InputSpaceMapper::GetInstance()->UpdateGlobalPtr(wx, wy, GlobalPtrState::Space::Desktop);
         // move grab 期间 (xdg_toplevel.move): compositor 用桌面全局坐标绝对定位
         // 被拖窗口, motion 必须注入全局坐标。局部坐标往返 (enqueue 时
@@ -311,13 +299,26 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
             }
             tl = target.toplevelId;
             targetSurf = target.surface;
-            inputFit.srcW = target.contentW;
-            inputFit.srcH = target.contentH;
-            inputFit.offX = target.originX;
-            inputFit.offY = target.originY;
-            inputFit.scale = target.scale;
+            // P0-1 Task A: 记录最近输入目标 (仅诊断)
+            winehua::NoteInputTargetToplevel(target.toplevelId);
+            // 裁决闭环 (重构第 4A 步): 桌面坐标 → surface 局部坐标的逆映射与
+            // 内容区钳制已由 InputResolver 收内 (终态 localX/localY), 调用方
+            // 只做 wl_fixed 注入 — 不再手写 (logical-origin)/scale + ClampToContent
             wx = wl_fixed_from_double(target.localX);
             wy = wl_fixed_from_double(target.localY);
+            // 系统性链路日志 (断点 2): 目标解析结果 — 手指桌面坐标命中哪个窗口/
+            // 区域, 全屏时 origin+scale 即 fit 几何 (内容/黑边), local 是最终
+            // 注入的 wine 坐标。PRESS/RELEASE 全量 (点按诊断核心), MOVE 高频
+            // 抽样 120:1 (拖动只看轨迹趋势, 防刷爆 hilog — 测试需全量时改这里)
+            static uint32_t sTargetLogN = 0;
+            if (action != ACT_MOVE || ++sTargetLogN % 120 == 0)
+                OH_LOG_INFO(LOG_APP, "[Input] TARGET a=%{public}d px=(%{public}.0f,%{public}.0f) → tl=%{public}u"
+                            " surf=%{public}p swallow=%{public}d origin=(%{public}.1f,%{public}.1f) scale=%{public}.2f"
+                            " → local=(%{public}.1f,%{public}.1f)",
+                            action, logicalX, logicalY, target.toplevelId,
+                            static_cast<void*>(target.surface),
+                            target.swallow ? 1 : 0, target.originX, target.originY,
+                            target.scale, target.localX, target.localY);
         } else {
             // 目标 surface 不可用: 退回旧路径 (父窗口相对坐标)
             const auto tlGeo = tmgr_->GetToplevelGeometrySnapshot(tl);
@@ -332,7 +333,6 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
     } else {
         FitRect lb{};
         CoordTransform(px, py, tl, &wx, &wy, &lb);
-        displayFit = lb;
         // 钳到内容区 (全屏 letterbox 黑边 / 拖出窗口边缘的越界坐标):
         // 与可见光标位置对齐, 防相对增量差分累积幽灵位移 (见 ClampToContent)
         if (lb.srcW > 0 && lb.srcH > 0) {
@@ -360,24 +360,29 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
         // PC 模式: wx/wy 即窗口局部坐标, 无需额外变换
     }
 
-    // 相对指针增量: 按当前 surface 所属 client 判定 (多窗口勿套旧窗相对模式)。
-    // 优先 rawDelta — 光标被 ClampToContent 钳在边缘后绝对差分恒 0。
-    wl_resource* relativeSurface = targetSurf ? targetSurf : tmgr_->GetSurfaceForToplevel(tl);
-    const bool relativeActive =
-        PointerExtras::GetInstance()->HasRelativePointerForSurface(relativeSurface);
+    // 相对指针增量 (zwp_relative_pointer_v1): wine 相对模式 (隐藏光标 + 约束,
+    // wayland_pointer.c needs_relative) 丢弃绝对 motion, 光标位置 = 基线 +
+    // 增量累积。host 不做模式判断 — 绝对 motion 照常注入 (相对模式下被 wine
+    // 丢弃), 有 relative 对象就入队 REL_MOTION。对象存在 ⇔ wine 判定当前为
+    // 相对模式。
+    // 增量来源: 优先用鸿蒙 MouseEvent.rawDelta (鼠标硬件原始增量) — 光标
+    // 被 ClampToContent 钳在屏幕/窗口边缘后, 绝对坐标差分恒为 0, 只有
+    // rawDelta 还在真实上报; 若仍用差分, dinput 视角游戏 (FPS) 鼠标顶到
+    // 边缘即卡死。rawDelta 缺失时 (触屏合成 mouse 等) 回退绝对差分。
+    // 基准在 MOVE 与「PRESS 的 enter 定位」时更新 — 两者都真实改变 wine
+    // 光标位置 (enter 是相对模式下唯一被消费的绝对坐标); 其余 PRESS/RELEASE
+    // 不发增量也不移动基准, 避免按下瞬间坐标跳变污染后续增量/标定样本。
     if (action == ACT_MOVE) {
         const double localX = wl_fixed_to_double(wx);
         const double localY = wl_fixed_to_double(wy);
-        const uint64_t spaceEpoch = tracker_.RelativeSpaceEpoch();
-        const bool sameSpace = tracker_.SameRelativeSpace(tl, relativeSurface, spaceEpoch,
-                                                         inputFit, displayFit);
-        const double diffDx = sameSpace ? (localX - tracker_.LastLocalX()) : 0.0;
-        const double diffDy = sameSpace ? (localY - tracker_.LastLocalY()) : 0.0;
-        if (relativeActive) {
+        const double diffDx = tracker_.HasLastLocal() ? (localX - tracker_.LastLocalX()) : 0.0;
+        const double diffDy = tracker_.HasLastLocal() ? (localY - tracker_.LastLocalY()) : 0.0;
+        if (PointerExtras::GetInstance()->HasRelativePointer()) {
             double dx = 0.0, dy = 0.0;
             if (rawDx != 0.0 || rawDy != 0.0) {
                 // 相对模式视角: rawDelta 已由 ArkTS 按设备类型缩放 (鼠标
-                // 2.5 / 触控板 0.625, 见 InputDeviceMapper.ets), C++ 直接使用。
+                // 2.5 / 触控板 0.75, 见 InputDeviceMapper.ets), C++ 直接使用。
+                // 单事件位移钳制: 防异常巨型跳变 (125Hz 合法单事件远小于此)
                 dx = std::clamp(rawDx, -512.0, 512.0);
                 dy = std::clamp(rawDy, -512.0, 512.0);
             } else {
@@ -385,17 +390,17 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
                 dy = diffDy;
             }
             if (dx != 0.0 || dy != 0.0) {
-                queue_.Enqueue(InputQueue::Event::REL_MOTION, 0, relativeSurface,
+                queue_.Enqueue(InputQueue::Event::REL_MOTION, 0, nullptr,
                         wl_fixed_from_double(dx), wl_fixed_from_double(dy), 0, 0);
+                // 系统性链路日志 (断点 4): 相对模式增量 — 相对模式下绝对
+                // motion 被 wine 丢弃, 增量是光标唯一移动来源; 高频抽样 120:1
+                // (与 SendRelativeMotion 断点 5 配对; 测试需全量时改这里)
                 static uint32_t sRelLogN = 0;
                 if (++sRelLogN % 120 == 0)
                     OH_LOG_INFO(LOG_APP, "[Input] REL d=(%{public}.1f,%{public}.1f) raw=(%{public}.1f,%{public}.1f)"
                                 " base=(%{public}.1f,%{public}.1f)",
                                 dx, dy, rawDx, rawDy, tracker_.LastLocalX(), tracker_.LastLocalY());
             }
-            tracker_.TrackRelativeSpace(tl, relativeSurface, spaceEpoch, inputFit, displayFit);
-        } else {
-            tracker_.ResetRelativeSpace();
         }
         tracker_.UpdateLastLocal(localX, localY);
     }
@@ -420,16 +425,34 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
 
     switch (action) {
         case ACT_PRESS: {
+            // 每次点击都重发 enter 定位: 触摸屏是绝对定位设备, 点按 =
+            // "光标跳到手指位置再点击" — wine 的 pointer_handle_enter 更新
+            // 光标绝对位置。方向 A (wayland_pointer.c 静默校准): 相对模式下
+            // enter 走 NtUserSetCursorPos 静默路径, 只更新 wineserver 光标
+            // 位置不产生硬件输入 — 读绝对位置的老游戏 (红警2/模拟邻居) 点按
+            // 定位正常, 真 dinput 视角游戏 (PAL2) 增量差分通道不受污染
+            // (曾需 tapPositioning 开关二选一, 已删除: 两类游戏现在同时正常)。
+            // 桌面模式需 surface 级比较 (菜单层与父窗口同 toplevelId), 其余
+            // 模式保持 toplevel 级比较 (一窗一 surface, 语义等价)。
             wl_resource* pressTargetSurf =
                 targetSurf ? targetSurf : tmgr_->GetSurfaceForToplevel(tl);
+            // 相对模式 + 物理鼠标: 跳过 enter/motion 重定位, 只投递按键。
+            // LockCursor 冻结系统光标后, 每次点击的坐标恒为冻结点, 而 wine
+            // 相对模式把 enter 当静默 SetCursorPos — 游戏自绘光标走绝对
+            // GetCursorPos (war3) 每次点击都瞬移到固定位置 (实测: 冻结点
+            // 633,392 → local 356.7,256.0 恒定)。触屏 tap 仍是绝对定位设备,
+            // 保留 enter (PAL2 点菜单依赖); 指针尚未聚焦该 surface 时也必须
+            // enter, 否则 button 无焦点投递
             const bool skipEnter = fromMouse
+                && PointerExtras::GetInstance()->HasRelativePointer()
                 && pressTargetSurf != nullptr
-                && PointerExtras::GetInstance()->HasRelativePointerForSurface(pressTargetSurf)
                 && tracker_.PointerFocusedSurfaceIs(pressTargetSurf);
+            // 系统性链路日志 (断点 3): relMode/skipEnter 仅诊断 (相对模式下
+            // enter 走静默校准, 行为与绝对模式一致; skipEnter=1 时 enter 被跳过)
             OH_LOG_INFO(LOG_APP, "[Input] PRESS-ENTER tl=%{public}u surf=%{public}p"
                         " relMode=%{public}d skip=%{public}d focused=%{public}p",
                         tl, static_cast<void*>(pressTargetSurf),
-                        skipEnter || relativeActive ? 1 : 0,
+                        PointerExtras::GetInstance()->HasRelativePointer() ? 1 : 0,
                         skipEnter ? 1 : 0,
                         static_cast<void*>(tracker_.PointerFocusedSurface()));
             if (pressTargetSurf && !skipEnter) {
@@ -749,7 +772,7 @@ void InputManager::FlushQueue() {
                 if (ev.state == WL_POINTER_BUTTON_STATE_RELEASED)
                     WaylandServer::GetInstance()->EndMoveGrab();
                 injector_.InjectPointerButton(ev.btn_or_key, ev.state); break;
-            case InputQueue::Event::REL_MOTION:  injector_.InjectRelativeMotion(ev.surface, ev.x, ev.y); break;
+            case InputQueue::Event::REL_MOTION:  injector_.InjectRelativeMotion(ev.x, ev.y); break;
             case InputQueue::Event::PTR_AXIS:    injector_.InjectPointerAxis(ev.axis, ev.axis_value); break;
             case InputQueue::Event::KBD_ENTER:   injector_.InjectKeyboardEnter(ev.tl, ev.surface); break;
             case InputQueue::Event::KBD_LEAVE:   injector_.InjectKeyboardLeave(); break;
@@ -772,8 +795,8 @@ void InputManager::InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fixe
 void InputManager::InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy) {
     injector_.InjectPointerMotion(sx, sy);
 }
-void InputManager::InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy) {
-    injector_.InjectRelativeMotion(surface, dx, dy);
+void InputManager::InjectRelativeMotion(wl_fixed_t dx, wl_fixed_t dy) {
+    injector_.InjectRelativeMotion(dx, dy);
 }
 void InputManager::InjectPointerButton(uint32_t button, uint32_t state) {
     injector_.InjectPointerButton(button, state);

@@ -195,12 +195,8 @@ set_abi_filters() {
         err "build-profile.json5 未找到: $profile"
     fi
 
-    local abi_value
-    if [ "$NATIVE_ARCH" = "all" ]; then
-        abi_value='"arm64-v8a", "x86_64"'
-    else
-        abi_value="\"$NATIVE_ARCH\""
-    fi
+    # NATIVE_ARCH=all 已移除 (env.sh 报错); 单一架构
+    local abi_value="\"$NATIVE_ARCH\""
 
     # 用 python 正则替换, 支持多行 abiFilters
     python3 -c "
@@ -259,6 +255,35 @@ with open('$module_json', 'w') as f:
         rm -rf "$libs_root/arm64-v8a"
     fi
 
+    # CMake 缓存按 WINE_ARCH 失效: hvigor 的 entry/.cxx CMake 缓存跨方案复用,
+    # WINEHUA_WINE_ARCH_IS_X86_64 宏不会重新注入。实测: 方案③ 构建后方案② (WINE_ARCH=x86_64)
+    # 复用 arm64-v8a CMake 缓存 → libentry.so 走 aarch64 路径 → 部署后 wineboot 初始化
+    # 失败 (c0000135 / 加载 el1 ntdll)。切换 WINE_ARCH 时清 entry/.cxx 强制重新 configure。
+    local cmake_arch_marker="$BUILD_DIR/.cmake_wine_arch"
+    # marker 不存在 (首次/旧构建缓存) 或 WINE_ARCH 变化 → 清 CMake 缓存强制重新 configure
+    if [ ! -f "$cmake_arch_marker" ] || [ "$(cat "$cmake_arch_marker" 2>/dev/null)" != "$WINE_ARCH" ]; then
+        log "  WINE_ARCH=$WINE_ARCH (上次: $(cat "$cmake_arch_marker" 2>/dev/null || echo 无)), 清 CMake 缓存 (entry/.cxx)"
+        rm -rf "$WINEHUA/entry/.cxx"
+    fi
+    printf '%s' "$WINE_ARCH" > "$cmake_arch_marker"
+    # 把 WINE_ARCH 写入 entry/.wine_arch, 供 CMakeLists.txt 读取注入宏。
+    # 不能依赖 ENV: hvigor daemon 常驻, 其 CMake 子进程环境是启动时快照, make 传的
+    # WINE_ARCH 环境变量在 daemon 里丢失 (实测 ENV{WINE_ARCH} 读不到, 宏未注入)。
+    printf '%s' "$WINE_ARCH" > "$WINEHUA/entry/.wine_arch"
+
+    # rawfile wine-data 与本次 hap 的架构组合一致性校验: 方案切换 (如 方案③→②)
+    # 后未重跑 assemble 直接 hap, 会把旧方案 staging 打进新宏的 HAP。
+    local data_arch_marker="$WINEHUA/entry/src/main/resources/rawfile/.wine-data-arch"
+    local expect_arch="$NATIVE_ARCH:$WINE_ARCH"
+    if [ -f "$data_arch_marker" ]; then
+        local actual_arch
+        actual_arch="$(cat "$data_arch_marker")"
+        [ "$actual_arch" = "$expect_arch" ] || \
+            err "rawfile wine-data 是 '$actual_arch' 的 assemble 产物, 当前 hap 目标是 '$expect_arch'。请先重跑 assemble (make assemble 或 ./build.sh assemble)。"
+    else
+        warn "未找到 $data_arch_marker (旧版 assemble 产物?), 无法校验 wine-data 架构一致性"
+    fi
+
     cd "$WINEHUA"
     hvigorw assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
@@ -271,6 +296,7 @@ with open('$module_json', 'w') as f:
 
     cd "$WINEHUA"
     python3 sign.py "$unsigned_hap" "$signed_hap"
+    python3 "$SCRIPT_DIR/check_runtime_components.py" --hap "$signed_hap"
 
     ls -lh "$signed_hap"
     log "HAP 构建 + 签名完成 ($NATIVE_ARCH)"
@@ -286,10 +312,25 @@ deploy() {
     fi
 
     log "=== 部署到 $device ==="
-    hdc tconn "$device" || { err "hdc tconn 失败"; }
-    hdc shell bm uninstall -n com.vintage.pomelopro 2>/dev/null || true
-    hdc file send "$hap" /data/local/tmp/ || { err "hdc file send 失败"; }
-    hdc shell bm install -p /data/local/tmp/entry-default-signed.hap -r || { err "bm install 失败"; }
+    if ! hdc list targets 2>/dev/null | grep -qF "$device"; then
+        hdc tconn "$device" >/dev/null 2>&1 || true
+        hdc list targets 2>/dev/null | grep -qF "$device" || err "设备不在线: $device"
+    fi
+
+    # 每条 hdc 都带 -t: 多台设备同时在线时, 不带 -t 的命令只打印
+    # "[Fail]ExecuteCommand need connect-key" 而**退出码仍是 0** —— 只看退出码会
+    # 静默假成功 (实测: 两台在线时 deploy 报"部署完成", 设备上却还是旧包)。
+    # 所以既校退出码, 也扫输出里的 [Fail] 标记。
+    local out
+    hdc -t "$device" shell bm uninstall -n com.vintage.pomelopro >/dev/null 2>&1 || true
+
+    out=$(hdc -t "$device" file send "$hap" /data/local/tmp/ 2>&1) || true
+    echo "$out" | tail -1
+    echo "$out" | grep -q '\[Fail\]' && err "推送失败: $(echo "$out" | grep '\[Fail\]' | head -1)"
+
+    out=$(hdc -t "$device" shell bm install -p /data/local/tmp/entry-default-signed.hap -r 2>&1) || true
+    echo "$out" | tail -2
+    echo "$out" | grep -q '\[Fail\]' && err "安装失败: $(echo "$out" | grep '\[Fail\]' | head -1)"
 
     log "部署完成"
 }

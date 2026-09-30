@@ -101,7 +101,7 @@ index 72fbb39c..be3d475f 100644
      return true;
  }
 
-@@ -1627,6 +1651,25 @@ static HRESULT STDMETHODCALLTYPE d3d12_resource_Map(d3d12_resource_iface *iface,
+@@ -1627,6 +1651,18 @@ static HRESULT STDMETHODCALLTYPE d3d12_resource_Map(d3d12_resource_iface *iface,
          TRACE("Returning pointer %p.\n", *data);
      }
 
@@ -113,21 +113,14 @@ index 72fbb39c..be3d475f 100644
 +    if (vkd3d_winehua_force_coherent_map_sync()
 +            && resource->heap_properties.Type == D3D12_HEAP_TYPE_UPLOAD)
 +    {
-+        /* Flush the D3D12 resource, not {0,1} and not the whole vkd3d upload
-+         * heap. Gears keeps a ~100 B CB mapped; D3D12SingleGpu keeps a 2.5 MiB
-+         * persistent CB (1024 triangles × 10 frames × 256 B). A 1 MiB cap
-+         * left those samples on a 1-byte write-intent. Do not expand to the
-+         * parent VkDeviceMemory heap (that is the 96 MiB smoke regression). */
-+        D3D12_RANGE write_intent_range = {0, 1};
-+        if (d3d12_resource_is_buffer(resource) && resource->desc.Width)
-+            write_intent_range.End = (SIZE_T)resource->desc.Width;
++        const D3D12_RANGE write_intent_range = {0, 1};
 +        d3d12_resource_flush_range(resource, sub_resource, &write_intent_range);
 +    }
 +
      d3d12_resource_invalidate_range(resource, sub_resource, read_range);
      return S_OK;
  }
-@@ -5857,6 +5900,17 @@ HRESULT d3d12_descriptor_heap_create(struct d3d12_device *device,
+@@ -5857,6 +5893,17 @@ HRESULT d3d12_descriptor_heap_create(struct d3d12_device *device,
          return E_INVALIDARG;
      }
 

@@ -15,11 +15,6 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
-// Device screenshots take longer than a displayed frame.  Advance the
-// byte-sized visual marker once per several frames so a snapshot interval
-// cannot wrap more than half of its 256-value range at normal VirGL rates.
-#define FRAME_MARKER_STEP_FRAMES 8u
-
 typedef enum RendererKind {
     RENDERER_D3D9 = 0,
     RENDERER_D3D11 = 1
@@ -33,11 +28,6 @@ typedef struct D3D9Vertex {
     float x, y, z;
     DWORD color;
 } D3D9Vertex;
-
-typedef struct D3D9OverlayVertex {
-    float x, y, z, rhw;
-    DWORD color;
-} D3D9OverlayVertex;
 
 typedef struct D3D11Vertex {
     float x, y, z;
@@ -515,15 +505,6 @@ static HRESULT init_d3d9(void)
 static void render_d3d9(float angle)
 {
     D3D9State *s = &g_app.d3d9;
-    const unsigned int marker = (g_app.render_sequence / FRAME_MARKER_STEP_FRAMES) & 0xffu;
-    const DWORD marker_color = D3DCOLOR_ARGB(
-        255, ((marker >> 4) & 0xfu) * 8u + 4u, (marker & 0xfu) * 8u + 4u, 255);
-    const D3D9OverlayVertex marker_vertices[4] = {
-        {24.0f,  32.0f, 0.0f, 1.0f, marker_color},
-        {240.0f, 32.0f, 0.0f, 1.0f, marker_color},
-        {24.0f,  146.0f, 0.0f, 1.0f, marker_color},
-        {240.0f, 146.0f, 0.0f, 1.0f, marker_color}
-    };
     D3DVIEWPORT9 viewport;
     Mat4 world = mat4_mul(mat4_rotation_x(angle * 0.67f), mat4_rotation_y(angle));
     Mat4 view = mat4_translation(0.0f, 0.0f, 5.0f);
@@ -551,15 +532,6 @@ static void render_d3d9(float angle)
         IDirect3DDevice9_DrawIndexedPrimitive(s->device, D3DPT_TRIANGLELIST,
                                               0, 0, (UINT)ARRAY_SIZE(g_d3d9_vertices),
                                               0, (UINT)ARRAY_SIZE(g_indices) / 3);
-        // The same fixed-position blue marker as the D3D11 variant lets the
-        // device frame-order harness validate WineD3D/VirGL without treating
-        // a correctly rendered D3D9 frame as an infrastructure failure.
-        IDirect3DDevice9_SetRenderState(s->device, D3DRS_ZENABLE, FALSE);
-        IDirect3DDevice9_SetFVF(s->device, D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
-        IDirect3DDevice9_DrawPrimitiveUP(s->device, D3DPT_TRIANGLESTRIP, 2,
-                                         marker_vertices, sizeof(marker_vertices[0]));
-        IDirect3DDevice9_SetRenderState(s->device, D3DRS_ZENABLE, TRUE);
-        IDirect3DDevice9_SetFVF(s->device, D3DFVF_XYZ | D3DFVF_DIFFUSE);
         IDirect3DDevice9_EndScene(s->device);
     }
     g_app.present_result = IDirect3DDevice9_Present(s->device, NULL, NULL, NULL, NULL);
@@ -894,7 +866,7 @@ static void render_d3d11(float angle, unsigned int frame_sequence)
 
     transform_to_ndc(g_d3d11_vertices, transformed, ARRAY_SIZE(g_d3d11_vertices), mvp);
     {
-        const unsigned int marker = (frame_sequence / FRAME_MARKER_STEP_FRAMES) & 0xffu;
+        const unsigned int marker = frame_sequence & 0xffu;
         const float marker_r = (float)(((marker >> 4) & 0xfu) * 8u + 4u) / 255.0f;
         const float marker_g = (float)((marker & 0xfu) * 8u + 4u) / 255.0f;
         const D3D11Vertex marker_vertices[4] = {
@@ -1022,15 +994,8 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
         }
         return 0;
     case WM_CLOSE:
-        /* The Harmony automation surface can send a close while the window is
-         * still being configured. Keep the bounded smoke alive long enough
-         * to publish and capture its fixed frame. */
-        if (g_app.automation && (!g_app.duration_ms ||
-            GetTickCount64() - g_app.run_start_ms < g_app.duration_ms))
-            return 0;
-        /* 交互启动 (非 automation): 必须销毁 HWND 让 WM_DESTROY/WM_QUIT
-         * 正常退出 — master 误改成 break 导致 cube 无法关闭。 */
-        DestroyWindow(hwnd);
+        g_app.running = 0;
+        PostQuitMessage(0);
         return 0;
     case WM_DESTROY:
         PostQuitMessage(0);

@@ -1,8 +1,8 @@
-#include "compositor/frame/frame_pipeline.h"
-#include "compositor/frame/compositor_blit.h"
-#include "compositor/frame/compositor_constants.h"
+#include "frame_pipeline.h"
+#include "compositor_blit.h"
+#include "compositor_constants.h"
 #include "compositor/frame/direct_pass_policy.h"  // DirectPassPolicy 能力位 (任务 3)
-#include "compositor/frame/geometry.h"
+#include "geometry.h"
 #include "bridge/plugin_manager.h"  // GetRendererForToplevel (直传能力查询)
 #include <algorithm>
 #include <chrono>
@@ -183,7 +183,6 @@ FramePlanOutcome FramePlanner::GateDesktopDirtyLocked(uint32_t id, FramePlan& pl
         }
     }
     if (!hasChildren && comp_.subsurfaceLayers_.empty()) {
-        comp_.desktopOutputInitialized_ = false;
         out = rst->Pixels();
         // 帧交付契约 (kFastPath): 无子窗口快进 = root 帧直通, 语义同合成帧
         frame.kind = PresentedFrame::Kind::Composed;
@@ -205,7 +204,7 @@ void FramePlanner::PlanFullscreenLocked(FramePlan& plan) {
     // 最大者 (多窗口可同时 fullscreen, 规则原因/局限见
     // ToplevelState::fsPriority 注释); fit 几何同样共用
     // ComputeFullscreenFitLocked (含内容尺寸选择, 见该函数注释)
-    plan.fullscreenId = comp_.PickFullscreenToplevelLocked();
+    plan.fullscreenId = comp_.PickFullscreenLayerLocked(plan.layers);
     const ToplevelManager::ToplevelState* fsWin =
         plan.fullscreenId ? tmgr_.FindToplevelLocked(plan.fullscreenId) : nullptr;
     if (fsWin) {
@@ -213,8 +212,7 @@ void FramePlanner::PlanFullscreenLocked(FramePlan& plan) {
         plan.fullscreenY = fsWin->Y();
         plan.hasFullscreen = comp_.ComputeFullscreenFitLocked(plan.fullscreenId, plan.rootW,
                                                               plan.rootH, plan.transform);
-        // Partial GPU children do not own the entire fullscreen frame.
-        plan.isZcGame = comp_.HasFullscreenZeroCopyContentLocked(plan.fullscreenId);
+        plan.isZcGame = comp_.HasZeroCopyLayerForToplevelLocked(plan.fullscreenId);
     }
 }
 
@@ -329,10 +327,6 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                 bool topOccluded = false;
                 for (const auto& layer : plan.layers) {
                     if (layer.zIndex <= fsZ) continue;  // 全屏窗口及其下: 被盖住
-                    if (layer.visible && layer.zcActive && layer.toplevelId == plan.fullscreenId) {
-                        topOccluded = true;
-                        break;
-                    }
                     if (layer.ShouldSkipCpu() ||
                         comp_.ShouldSkipFullscreenCascade(layer, plan.fullscreenId,
                                                           plan.hasFullscreen, tmgr_))
@@ -360,19 +354,11 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                             // 强制不透明: alpha=255 区域与 CPU 混合分支逐
                             // 像素一致, alpha=0 区域 CPU 保留黑底 (RGB 残留
                             // 值通常亦黑) — 视觉等价。
-                            // 产品保留 20260822 黑屏实锤的严格几何门 (位置与
-                            // buffer 尺寸必须等于全屏 fit src)。上游本条只留
-                            // viewport 判据, 因为上面的 SubsurfaceCoversContentRect
-                            // 已排除浮层; 产品维持更严的一侧: 不满足即不作直传
-                            // 源 (退回 CPU 合成, 只损失直传性能, 不改画面正确性)。
-                            if (layer.x == plan.fullscreenX && layer.y == plan.fullscreenY &&
-                                sl.w == plan.transform.srcW && sl.h == plan.transform.srcH &&
-                                (sl.vpDstW <= 0 || sl.vpDstW >= sl.w) &&
+                            if ((sl.vpDstW <= 0 || sl.vpDstW >= sl.w) &&
                                 (sl.vpDstH <= 0 || sl.vpDstH >= sl.h))
                                 contentSub = &sl;
                         }
-                        if (contentSub == layer.sub) continue;
-                        // Other child content still needs composition.
+                        continue;
                     }
                     topOccluded = true;  // 上方可见层: 需要真合成
                     break;
@@ -407,8 +393,6 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                     }
                 }
                 if (directPixels) {
-                    // A direct source invalidates the cached desktop even at the same byte size.
-                    comp_.desktopOutputInitialized_ = false;
                     // assign 而非 swap: 源缓冲属 wl 线程的层状态, 必须拷出
                     out.assign(directPixels->begin(), directPixels->end());
                     // 帧交付契约 (kDirectPass): 直传帧 buffer 是游戏内容尺寸
@@ -457,10 +441,6 @@ uint64_t FramePlanner::ComputeCompositionSignatureLocked(uint32_t id,
     mixSignature(id);
     mixSignature(static_cast<uint32_t>(plan.rootW));
     mixSignature(static_cast<uint32_t>(plan.rootH));
-    mixSignature(plan.fullscreenId);
-    mixSignature(static_cast<uint32_t>(plan.transform.srcW));
-    mixSignature(static_cast<uint32_t>(plan.transform.srcH));
-    mixSignature(plan.isZcGame ? 1 : 0);
     // 签名遍历 Layer 列表: 每个可见 toplevel/subsurface 的几何与标记
     // (与旧两个循环 mix 序列等价; 不可见 toplevel 的 (id,0) 不再混入,
     // 仅影响 rebuildBase 触发时机, 不影响输出像素 — 不可见窗口不参与
@@ -638,17 +618,10 @@ void FramePlanner::SnapshotBlitSourcesLocked(ToplevelManager::ToplevelState* rst
         // 局部合成: 与 R 不相交的层不会画到 R 内 (blit 有 R 裁剪早退),
         // 其像素本帧保持上帧内容 — 跳过快照拷贝。相交但未变化的层仍
         // 快照+重画 (半透明层以本次重建的底混合, 见 R 注释)。
-        int sx = layer.x, sy = layer.y, sw = layer.w, sh = layer.h;
-        if (plan.hasFullscreen && layer.toplevelId == plan.fullscreenId) {
-            if (layer.sub) {
-                sw = DisplaySizeAfterViewportClamped(layer.sub->vpDstW, sw);
-                sh = DisplaySizeAfterViewportClamped(layer.sub->vpDstH, sh);
-            }
-            FitMapLayerRect(plan.transform, sx - plan.fullscreenX, sy - plan.fullscreenY,
-                            sw, sh, sx, sy, sw, sh);
-        }
-        if (!plan.dmg.full && (plan.dmg.x >= sx + sw || plan.dmg.y >= sy + sh ||
-                          plan.dmg.x + plan.dmg.w <= sx || plan.dmg.y + plan.dmg.h <= sy)) {
+        if (!plan.dmg.full && (plan.dmg.x >= layer.x + layer.w ||
+                          plan.dmg.y >= layer.y + layer.h ||
+                          plan.dmg.x + plan.dmg.w <= layer.x ||
+                          plan.dmg.y + plan.dmg.h <= layer.y)) {
             bs.skip = true;
             continue;
         }
@@ -861,8 +834,10 @@ void FrameBlitter::BlitSubsurface(const FramePlan& plan, const CompositorLayer& 
     int renderDstX = dstX, renderDstY = dstY;
     if (bs.vpDstW > 0 && bs.vpDstW < copyW) renderW = bs.vpDstW;
     if (bs.vpDstH > 0 && bs.vpDstH < copyH) renderH = bs.vpDstH;
-        // Surface damage selects output region R; replay retained pixels within R.
-        // Clipping twice would discard unchanged pixels beneath overlapping damage.
+    if (bs.dmgW > 0 && bs.dmgH > 0 &&
+        !ClipBlitSourceToRect(renderSrcX, renderSrcY, renderDstX, renderDstY,
+                              renderW, renderH, bs.dmgX, bs.dmgY, bs.dmgW, bs.dmgH))
+        return;
     // 局部合成: 再裁剪到本帧重绘矩形 (R 外复用上帧内容, 不重画)
     if (!plan.dmg.full &&
         !IntersectBlitWithDamage(renderSrcX, renderSrcY, renderDstX, renderDstY,

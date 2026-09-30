@@ -1,9 +1,9 @@
-#include "compositor/frame/frame_composer.h"
+#include "frame_composer.h"
 
-#include "compositor/toplevel/desktop_compositor.h"
-#include "compositor/frame/frame_pipeline.h"
+#include "desktop_compositor.h"
+#include "frame_pipeline.h"
 #include "common/perf_utils.h"
-#include "compositor/toplevel/toplevel_manager.h"
+#include "toplevel_manager.h"
 
 #include <hilog/log.h>
 

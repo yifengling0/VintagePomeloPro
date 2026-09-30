@@ -1,6 +1,5 @@
-#include "bridge/plugin_manager.h"
+#include "plugin_manager.h"
 #include "compositor/wayland_server.h"
-#include "common/fps_counter.h"
 #include <native_window/external_window.h>
 #include <algorithm>
 
@@ -24,7 +23,7 @@ uint32_t PluginManager::DequeuePendingToplevel() {
 
 // 清除队列中指定 id 的残坑: 窗口在 loadContent 完成前被销毁 (destroy-while-
 // creating, aboutToAppear 未执行 → id 无人消费), 不删会让后续每个页面出队
-// 拿到这个死 id → 渲染器挂错 toplevel 取不到帧 → 黑屏。id 未在
+// 拿到这个死 id → 渲染器挂错 toplevel 取不到帧 → 黑屏 (1.8 实测)。id 未在
 // 队列 (页面已出队) 时是 no-op, 无条件调用安全。
 void PluginManager::CancelPendingToplevel(uint32_t id) {
     const size_t before = pendingToplevelQueue_.size();
@@ -80,6 +79,13 @@ void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {
     }
 }
 
+void PluginManager::SetRendererStretchFill(uint32_t toplevelId, bool on) {
+    auto rit = toplevelRenderers_.find(toplevelId);
+    if (rit != toplevelRenderers_.end() && rit->second->IsValid()) {
+        rit->second->SetStretchFill(on);
+    }
+}
+
 void PluginManager::ResizeRenderer(uint32_t toplevelId, int w, int h) {
     OH_LOG_INFO(LOG_APP, "[MW-Resize] toplevel=%{public}u size=%{public}dx%{public}d", toplevelId, w, h);
 
@@ -99,19 +105,6 @@ void PluginManager::ResizeRenderer(uint32_t toplevelId, int w, int h) {
     } else {
         OH_LOG_WARN(LOG_APP, "[MW-Resize] toplevel #%{public}u renderer NOT found or invalid", toplevelId);
     }
-}
-
-void PluginManager::RefreshRenderer(uint32_t toplevelId) {
-    auto it = toplevelRenderers_.find(toplevelId);
-    if (it == toplevelRenderers_.end() || !it->second->IsValid()) {
-        OH_LOG_WARN(LOG_APP, "[MW-Refresh] toplevel #%{public}u renderer NOT found or invalid", toplevelId);
-        return;
-    }
-
-    // 压测路径绝不能模拟 onSurfaceDestroyed/onSurfaceCreated：频繁释放 EGL
-    // Surface 会与 ArkUI 的真实生命周期竞争。请求 Wayland 将当前帧重新提交，
-    // 能覆盖 compositor/renderer 刷新，同时保留同一个 NativeWindow 与 EGLContext。
-    WaylandServer::GetInstance()->ForceToplevelRedraw(toplevelId);
 }
 
 void PluginManager::DestroyToplevel(uint32_t toplevelId) {
@@ -140,14 +133,6 @@ EglRenderer* PluginManager::GetAnyRenderer() {
     return toplevelRenderers_.begin()->second.get();
 }
 
-void PluginManager::SetRendererPaused(uint32_t toplevelId, bool paused) {
-    auto it = toplevelRenderers_.find(toplevelId);
-    if (it == toplevelRenderers_.end() || !it->second) return;
-    it->second->SetRenderPaused(paused);
-    OH_LOG_INFO(LOG_APP, "[MW-RNDR] toplevel #%{public}u renderer %{public}s",
-                toplevelId, paused ? "paused (background)" : "resumed (foreground)");
-}
-
 void PluginManager::MoveRendererToToplevel(uint32_t oldId, uint32_t newId) {
     OH_LOG_INFO(LOG_APP, "[MW-Life] MoveRenderer tl %{public}u→%{public}u", oldId, newId);
     if (oldId == newId) { OH_LOG_WARN(LOG_APP, "[MW-Life] MoveRenderer SKIP: old==new"); return; }
@@ -157,9 +142,27 @@ void PluginManager::MoveRendererToToplevel(uint32_t oldId, uint32_t newId) {
         return;
     }
     OH_LOG_INFO(LOG_APP, "[MW-Plug] MoveRenderer tl #%{public}u -> #%{public}u", oldId, newId);
-    auto renderer = std::move(it->second);
+    toplevelRenderers_[newId] = std::move(it->second);
     toplevelRenderers_.erase(it);
-    if (renderer) renderer->SetToplevelId(newId);
-    toplevelRenderers_[newId] = std::move(renderer);
-    DisplayFpsRegistry::Instance().Move(oldId, newId);
+}
+
+// ---- VPP additions ----
+void PluginManager::RefreshRenderer(uint32_t toplevelId) {
+    auto it = toplevelRenderers_.find(toplevelId);
+    if (it == toplevelRenderers_.end() || !it->second->IsValid()) {
+        OH_LOG_WARN(LOG_APP, "[MW-Refresh] toplevel #%{public}u renderer NOT found or invalid", toplevelId);
+        return;
+    }
+
+    // 压测路径绝不能模拟 onSurfaceDestroyed/onSurfaceCreated：频繁释放 EGL
+    // Surface 会与 ArkUI 的真实生命周期竞争。请求 Wayland 将当前帧重新提交，
+    // 能覆盖 compositor/renderer 刷新，同时保留同一个 NativeWindow 与 EGLContext。
+    WaylandServer::GetInstance()->ForceToplevelRedraw(toplevelId);
+}
+
+void PluginManager::SetRendererPaused(uint32_t toplevelId, bool paused) {
+    // proton 基线 renderer 无逐 toplevel pause API: 降级为日志 (不阻塞渲染)
+    OH_LOG_INFO(LOG_APP, "[MW-RNDR] toplevel #%{public}u pause request %{public}s (no-op on proton baseline)",
+                toplevelId, paused ? "paused" : "resumed");
+    (void)toplevelId; (void)paused;
 }

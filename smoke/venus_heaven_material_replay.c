@@ -3270,8 +3270,7 @@ int main(int argc, char **argv)
     state.requires_terminate_invocation =
         strstr(state.fragment_path, "terminate_invocation") != NULL;
     state.fragment_sha256 = "unknown";
-    if (strstr(state.fragment_path, "heaven_sparse_fs.spv") ||
-        strstr(state.fragment_path, "heaven_final_fs.spv")) {
+    if (strstr(state.fragment_path, "heaven_final_fs.spv")) {
         state.fragment_sha256 =
             "ee6dbab51709fe8e057c01b7e8cbc92b14f29bbe370ccad39f70640ae2fdd05f";
     }

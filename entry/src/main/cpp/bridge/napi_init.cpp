@@ -3,32 +3,37 @@
 #include "compositor/wayland_server.h"
 #include "bridge/plugin_manager.h"
 #include "input/input_manager.h"
-#include "input/text_input.h"
 #include "input/pointer_extras.h"
 #include "graphics/egl_renderer.h"
-#include "common/fps_counter.h"
-#include "bridge/performance_monitor_napi.h"
 #include "audio/audio_broker.h"
-#include "protocols/audio_ipc_protocol.h"
+#include "audio_ipc_protocol.h"
 #include "graphics/graphics_broker.h"
-#include "graphics/graphics_profile.h"
 #include "wine/wine_constants.h"
+#include "wine_scheme.h"
 #include "wine/wine_env.h"
+#include "wine/container_session.h"
 #include "proc/wine_process.h"
 #include "wine/wine_launch.h"
 #include "wine/wine_exe.h"
-#include "wine/wine_mmap_test.h"
-#include "common/font_zip.h"
-#include "graphics/host_vulkan_probe.h"
+#include "phone_adapter/phone_adapter.h"
+#include "input/text_input.h"
 #include "input/game_controller_bridge.h"
 #include "input/controller/controller_napi.h"
-#include "phone_adapter/phone_adapter.h"
-#include "common/app_log.h"
+#include "direct/vulkan_probe_launcher.h"
+#include "direct/direct_shared_buffer_probe.h"
+#include "direct/direct_wine_ipc_probe.h"
+#include "direct/direct_surface_probe_launcher.h"
+#include "direct/direct_output_probe.h"
+#include "direct/direct_wine_surface_controller.h"
+#include "direct/direct_vulkan_desktop_compositor.h"
 
 #include <unistd.h>
 #include <signal.h>
+#include <window_manager/oh_window.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <dirent.h>
@@ -50,12 +55,18 @@
 #define LOG_TAG "WL_NAPI"
 #include <hilog/log.h>
 
+// ---- VPP product-surface includes (proton baseline merge) ----
+#include "common/fps_counter.h"
+#include "common/font_zip.h"
+#include "common/app_log.h"
+#include "graphics/host_vulkan_probe.h"
+#include "graphics/graphics_profile.h"
+#include "bridge/performance_monitor_napi.h"
+
+
 // -- 全局状态 (NAPI 层, 被 wine_process / wine_launch 引用) --
 napi_threadsafe_function gStateTsfn = nullptr;
 std::string gSockPath;
-// Compatibility request from WineHua's legacy one-argument Host API. The
-// concrete policy is resolved from launchClient's D3D backend at session start.
-static std::string gLegacyHostShadowProfile;
 
 // -- State 回调 -> ArkTS --
 static void CallJsState(napi_env env, napi_value cb, void*, void* data) {
@@ -102,7 +113,7 @@ static napi_value StartServer(napi_env env, napi_callback_info info) {
     char path[512] = {};
     napi_get_value_string_utf8(env, args[0], path, sizeof(path), nullptr);
 
-    OH_LOG_INFO(LOG_APP, "[NAPI] startServer: %{public}s", path);
+    OH_LOG_WARN(LOG_APP, "[NAPI] startServer: %{public}s", path);
     // 确保 socket 父目录存在 (WINEPREFIX=.wine/)
     {
         std::string sockDir = path;
@@ -114,12 +125,12 @@ static napi_value StartServer(napi_env env, napi_callback_info info) {
     }
     gSockPath = path;
     bool ok = WaylandServer::GetInstance()->Start(path);
-    OH_LOG_INFO(LOG_APP, "[NAPI] startServer result: %{public}s", ok ? "OK" : "FAIL");
+    OH_LOG_WARN(LOG_APP, "[NAPI] startServer result: %{public}s", ok ? "OK" : "FAIL");
     // 确认 socket 文件存在
     if (ok) {
         struct stat st;
         int sr = stat(path, &st);
-        OH_LOG_INFO(LOG_APP, "[NAPI] wayland socket stat=%{public}d (errno=%{public}d)",
+        OH_LOG_WARN(LOG_APP, "[NAPI] wayland socket stat=%{public}d (errno=%{public}d)",
                     sr, sr == 0 ? 0 : errno);
     }
 
@@ -128,207 +139,207 @@ static napi_value StartServer(napi_env env, napi_callback_info info) {
     return r;
 }
 
-static napi_value BooleanResult(napi_env env, bool value) {
-    napi_value result;
-    napi_get_boolean(env, value, &result);
-    return result;
-}
-
-static bool SetHostGraphicsEnv(const char* key, std::string_view value) {
-    // std::string_view does not guarantee a trailing NUL. Profiles currently
-    // come from literals, but copying here keeps this boundary correct if a
-    // generated or sliced profile is introduced later.
-    const std::string stableValue(value);
-    if (setenv(key, stableValue.c_str(), 1) == 0) return true;
-    OH_LOG_ERROR(LOG_APP,
-                 "[NAPI] graphics environment apply failed key=%{public}s errno=%{public}d",
-                 key, errno);
-    return false;
-}
-
-static bool ApplyHostGraphicsProfile(const winehua::HostGraphicsProfile& profile) {
-    bool applied = true;
-    applied &= SetHostGraphicsEnv("WINEHUA_GRAPHICS_PROFILE", profile.name);
-    applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_FROM_HOST", profile.shadowMode);
-    applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_TRACE", profile.shadowSelector);
-    applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_MERGE_RANGES",
-                                  profile.mergeShadowRanges ? "1" : "0");
-    applied &= SetHostGraphicsEnv("VKR_WINEHUA_GPU_UPLOAD_WAIT",
-                                  profile.waitGpuUpload ? "1" : "0");
-    applied &= SetHostGraphicsEnv("VKR_WINEHUA_DESCRIPTOR_UPDATE_SERIALIZE",
-                                  profile.serializeDescriptorUpdates ? "1" : "0");
-    applied &= SetHostGraphicsEnv("VN_WINEHUA_DEFER_SHMEM_UNREF",
-                                  profile.deferSharedMemoryUnref ? "1" : "0");
-    /* Keep the App-side control plane separate from renderer environment.
-     * Phone hosts run in this process, so virgl_child's derived renderer
-     * settings must not change the profile observed by a later EnsureStarted. */
-    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_SHADOW_MODE",
-                                  profile.shadowMode);
-    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_SHADOW_SELECTOR",
-                                  profile.shadowSelector);
-    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_SHADOW_MERGE_RANGES",
-                                  profile.mergeShadowRanges ? "1" : "0");
-    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_GPU_UPLOAD_WAIT",
-                                  profile.waitGpuUpload ? "1" : "0");
-    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_DESCRIPTOR_UPDATE_SERIALIZE",
-                                  profile.serializeDescriptorUpdates ? "1" : "0");
-    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_PERF_SUMMARY",
-                                  profile.perfSummary ? "1" : "0");
-
-    if (!applied) return false;
-
-    const char* gpuUpload = profile.gpuUpload == winehua::GpuUploadPolicy::Disabled
-        ? "0" : (profile.gpuUpload == winehua::GpuUploadPolicy::Cpu ? "cpu" : "auto");
-    OH_LOG_INFO(LOG_APP,
-                "[NAPI] graphics profile=%{public}s mode=%{public}s "
-                "selector=%{public}s perf_summary=%{public}s "
-                "gpu_upload=%{public}s upload_wait=%{public}s "
-                "descriptor_serialize=%{public}s defer_shmem_unref=%{public}s",
-                profile.name.data(), profile.shadowMode.data(),
-                profile.shadowSelector.data(), profile.perfSummary ? "1" : "0",
-                gpuUpload, profile.waitGpuUpload ? "1" : "0",
-                profile.serializeDescriptorUpdates ? "1" : "0",
-                profile.deferSharedMemoryUnref ? "1" : "0");
-    return true;
-}
-
 static napi_value SetHostShadowProfile(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {};
-    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok ||
-        argc < 1) {
-        return BooleanResult(env, false);
-    }
-    char profile[96] = {};
-    if (napi_get_value_string_utf8(env, args[0], profile,
-                                   sizeof(profile), nullptr) != napi_ok) {
-        return BooleanResult(env, false);
-    }
-    const std::string requested(profile);
-    const bool knownShape = requested == "baseline" ||
-        requested.rfind("shadow-", 0) == 0;
-    if (!knownShape || requested.find_first_not_of(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-") !=
-            std::string::npos) {
-        OH_LOG_ERROR(LOG_APP,
-                     "[NAPI] invalid legacy Host shadow profile=%{public}s",
-                     profile);
-        return BooleanResult(env, false);
-    }
-    gLegacyHostShadowProfile = requested;
-    OH_LOG_WARN(LOG_APP,
-                "[NAPI] legacy Host profile=%{public}s accepted; session launch "
-                "will resolve it through product graphics policy",
-                profile);
-    return BooleanResult(env, true);
-}
-
-static napi_value SetHostGraphicsExperimentForLab(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {};
-    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok ||
-        argc < 2) {
-        return BooleanResult(env, false);
-    }
-    char experimentId[96] = {};
-    char backendName[64] = {};
-    if (napi_get_value_string_utf8(env, args[0], experimentId,
-                                   sizeof(experimentId), nullptr) != napi_ok ||
-        napi_get_value_string_utf8(env, args[1], backendName,
-                                   sizeof(backendName), nullptr) != napi_ok) {
-        return BooleanResult(env, false);
-    }
-
-    winehua::ProductGraphicsPolicy experiment;
-    const winehua::D3dBackendKind backend =
-        winehua::ParseD3dBackend(backendName);
-    if (!winehua::ResolveLabGraphicsExperiment(
-            experimentId, backend, &experiment)) {
-        OH_LOG_ERROR(LOG_APP,
-                     "[NAPI] invalid graphics LAB experiment=%{public}s "
-                     "backend=%{public}s",
-                     experimentId, backendName);
-        return BooleanResult(env, false);
-    }
-    const bool applied = ApplyHostGraphicsProfile(experiment.host);
-    if (applied) gLegacyHostShadowProfile.clear();
-    return BooleanResult(env, applied);
-}
-
-static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    char backendName[64] = {};
+    char profile[64] = "baseline";
     if (argc >= 1)
-        napi_get_value_string_utf8(env, args[0], backendName, sizeof(backendName), nullptr);
+        napi_get_value_string_utf8(env, args[0], profile, sizeof(profile), nullptr);
 
-    const winehua::D3dBackendKind backend = winehua::ParseD3dBackend(backendName);
-    winehua::ProductGraphicsPolicy policy;
-    if (!winehua::ResolveProductGraphicsPolicy(backend, &policy)) {
-        OH_LOG_ERROR(LOG_APP, "[NAPI] unknown graphics backend=%{public}s", backendName);
-        return BooleanResult(env, false);
-    }
+    const bool skip = !strcmp(profile, "shadow-none");
+    const bool directFence = !strcmp(profile, "shadow-precise-direct-fence");
+    const bool preciseStrongTrace =
+        !strcmp(profile, "shadow-precise-strong-ring-trace");
+    const bool preciseStrongPerf =
+        !strcmp(profile, "shadow-precise-strong-ring-perf");
+    /* Timeline feedback is independently disabled in the Guest.  Keep the
+     * Host-side mapped-memory semantics identical to the other precise
+     * transport profiles so the A/B changes only feedback and ring topology. */
+    const bool preciseNoSemaphoreFeedbackSingleRing =
+        !strcmp(profile, "shadow-precise-no-semaphore-feedback-single-ring") ||
+        !strcmp(profile,
+                "shadow-precise-no-semaphore-feedback-single-ring-sync-submit") ||
+        !strcmp(profile,
+                "shadow-precise-no-semaphore-feedback-single-ring-readback-idle");
+    const bool preciseNoSemaphoreFeedback =
+        !strcmp(profile, "shadow-precise-no-semaphore-feedback") ||
+        preciseNoSemaphoreFeedbackSingleRing ||
+        !strcmp(profile,
+                "shadow-precise-no-semaphore-feedback-single-ring-trace");
+    /* Keep the guest single-ring workaround while restoring completion-time
+     * Host-to-Guest visibility. This is a bounded diagnostic A/B, not a
+     * product profile: it separates transport corruption from readback
+     * coverage without changing the established precise path. */
+    const bool fullNoSemaphoreFeedbackSingleRingTrace =
+        !strcmp(profile,
+                "shadow-full-no-semaphore-feedback-single-ring-trace");
+    const bool legacyHostSync =
+        !strcmp(profile, "shadow-precise-legacy-host-sync");
+    const bool preciseDirtyPerf = !strcmp(profile, "shadow-precise-dirty-ring-perf");
+    const bool preciseDirtyGpuFrameProfile =
+        !strcmp(profile, "shadow-precise-dirty-ring-gpu-frame-profile");
+    const bool preciseDirtyFrameTimeline =
+        !strcmp(profile, "shadow-precise-dirty-ring-frame-timeline");
+    const bool preciseDirtyNoMerge = !strcmp(profile, "shadow-precise-dirty-ring-no-merge");
+    const bool preciseDirtyNoUpload = !strcmp(profile, "shadow-precise-dirty-ring-no-upload");
+    const bool preciseDirtyNoUploadFast =
+        !strcmp(profile, "shadow-precise-dirty-ring-no-upload-fast");
+    const bool preciseDirtyDescriptorSerialized =
+        !strcmp(profile, "shadow-precise-dirty-ring-inline-upload-descriptor-serialized");
+    const bool preciseDirtyCoverageSort =
+        !strcmp(profile, "shadow-precise-dirty-ring-inline-upload-coverage-sort");
+    /* Diagnostic only: submit the private upload separately and wait for its
+     * fence before the Guest copy, without a queue-wide idle. */
+    const bool preciseDirtyUploadWait =
+        !strcmp(profile, "shadow-precise-dirty-ring-upload-wait");
+    const bool preciseDirtyCoverageSortSampled =
+        !strcmp(profile, "shadow-precise-dirty-ring-coverage-sort-sampled");
+    /* Keep the established precise-dirty/coverage upload path unchanged
+     * while measuring only the host-side completion-wait mechanism. */
+    const bool preciseDirtyCoveragePoll =
+        !strcmp(profile, "shadow-precise-dirty-ring-coverage-poll");
+    const bool preciseDirtyAliasCover =
+        !strcmp(profile,
+                "shadow-precise-dirty-ring-inline-upload-alias-cover");
+    const bool preciseDirtyBgraArrayTrace =
+        !strcmp(profile, "shadow-precise-dirty-ring-bgra-array-trace");
+    const bool preciseDirtyFrameAssocTrace =
+        !strcmp(profile, "shadow-precise-dirty-ring-frame-assoc-trace") ||
+        preciseDirtyBgraArrayTrace;
+    const bool preciseDirtyPresentImageTrace =
+        !strcmp(profile, "shadow-precise-dirty-ring-present-image-trace");
+    const bool preciseDirtyInlineUpload =
+        !strcmp(profile, "shadow-precise-dirty-ring-inline-upload") ||
+        preciseDirtyCoverageSort || preciseDirtyCoverageSortSampled ||
+        preciseDirtyCoveragePoll ||
+        preciseDirtyDescriptorSerialized ||
+        preciseDirtyFrameAssocTrace || preciseDirtyAliasCover;
+    const bool preciseDirtyInlineUploadSerialized =
+        !strcmp(profile, "shadow-precise-dirty-ring-inline-upload-serialized");
+    const bool preciseDirtyRing =
+        !strcmp(profile, "shadow-precise-dirty-ring") ||
+        preciseDirtyPresentImageTrace;
+    const bool trace = !strcmp(profile, "shadow-trace") || preciseStrongTrace ||
+        !strcmp(profile,
+                "shadow-precise-no-semaphore-feedback-single-ring-trace") ||
+        fullNoSemaphoreFeedbackSingleRingTrace;
+    const bool explicitToHost = !strcmp(profile, "shadow-to-host-explicit");
+    const bool deferShmemUnref = !strcmp(profile, "shadow-precise-retain-shmem");
+    const bool cpuShadowUpload =
+        !strcmp(profile, "shadow-precise-cpu-upload");
+    const bool waitShadowUpload = !strcmp(profile, "shadow-precise-sync-submit") ||
+        preciseDirtyUploadWait;
+    const bool mailboxPresent = !strcmp(profile, "shadow-precise-strong-ring-mailbox");
+    const bool asyncPresent = !strcmp(
+        profile, "shadow-precise-strong-ring-async-present");
+    const bool pollPresent = !strcmp(
+        profile, "shadow-precise-strong-ring-fence-poll") ||
+        preciseDirtyCoveragePoll;
+    const bool precise = !strcmp(profile, "shadow-precise") ||
+        preciseNoSemaphoreFeedback ||
+        !strcmp(profile, "shadow-precise-single-ring") ||
+        !strcmp(profile, "shadow-precise-sync-submit") ||
+        (!strcmp(profile, "shadow-precise-strong-ring") || legacyHostSync || preciseStrongTrace ||
+         preciseStrongPerf || preciseDirtyRing || preciseDirtyPerf || preciseDirtyNoMerge || preciseDirtyNoUpload ||
+         preciseDirtyGpuFrameProfile ||
+         preciseDirtyFrameTimeline ||
+         preciseDirtyCoverageSortSampled ||
+         preciseDirtyNoUploadFast || preciseDirtyInlineUpload ||
+        preciseDirtyUploadWait ||
+        preciseDirtyInlineUploadSerialized) ||
+        asyncPresent ||
+        pollPresent ||
+        mailboxPresent ||
+        directFence ||
+        deferShmemUnref ||
+        cpuShadowUpload;
+    const char* mode = (preciseDirtyRing || preciseDirtyPerf || preciseDirtyGpuFrameProfile ||
+                        preciseDirtyFrameTimeline ||
+                        preciseDirtyCoverageSortSampled || preciseDirtyNoUpload ||
+                        preciseDirtyNoUploadFast || preciseDirtyInlineUpload ||
+                        preciseDirtyUploadWait ||
+                        preciseDirtyInlineUploadSerialized ||
+                        preciseDirtyNoMerge) ? "precise-dirty" : precise ? "precise" : skip ? "none" :
+        (explicitToHost ? "to-host-explicit" : "full");
+    setenv("VKR_WINEHUA_SHADOW_FROM_HOST", mode, 1);
+    /* Preserve the precise shadow contract while carrying one diagnostic
+     * selector through the existing graphics-broker IPC. The child converts
+     * this selector to the concrete renderer flags before vtest starts. */
+    const char* shadowSelector =
+        preciseNoSemaphoreFeedbackSingleRing ? "gpu-upload" :
+        legacyHostSync ? "legacy-host-sync" :
+        preciseDirtyAliasCover ? "inline-gpu-upload-alias-cover" :
+        preciseDirtyUploadWait ? "gpu-upload-wait" :
+        preciseDirtyCoveragePoll ? "inline-gpu-upload-coverage-sort" :
+        preciseDirtyCoverageSortSampled ? "inline-gpu-upload-coverage-sort-sampled" :
+        preciseDirtyBgraArrayTrace ? "inline-gpu-upload-bgra-array-trace" :
+        preciseDirtyCoverageSort ? "inline-gpu-upload-coverage-sort" :
+        preciseDirtyDescriptorSerialized ? "inline-gpu-upload-descriptor-serialized" :
+        preciseDirtyFrameAssocTrace ? "inline-gpu-upload-frame-assoc-trace" :
+        preciseDirtyPresentImageTrace ? "present-image-trace" :
+        preciseDirtyFrameTimeline ? "frame-timeline" :
+        preciseDirtyGpuFrameProfile ? "gpu-frame-profile" :
+        cpuShadowUpload ? "cpu-upload" :
+        preciseDirtyInlineUploadSerialized ? "inline-gpu-upload-serialized" :
+        preciseDirtyInlineUpload ? "inline-gpu-upload" :
+        preciseDirtyNoUpload ? "no-gpu-upload" :
+        preciseDirtyNoUploadFast ? "no-gpu-upload-fast" :
+        (preciseStrongPerf || preciseDirtyPerf || preciseDirtyNoMerge) ? "perf" :
+        directFence ? "vkd3d-gate-c" :
+        trace ? "1" : "0";
+    setenv("VKR_WINEHUA_SHADOW_TRACE", shadowSelector, 1);
+    setenv("VKR_WINEHUA_SHADOW_MERGE_RANGES", preciseDirtyNoMerge ? "0" : "1", 1);
+    setenv("VKR_WINEHUA_GPU_UPLOAD_WAIT", waitShadowUpload ? "1" : "0", 1);
+    setenv("VKR_WINEHUA_DESCRIPTOR_UPDATE_SERIALIZE",
+           preciseDirtyDescriptorSerialized ? "1" : "0", 1);
+    setenv("VN_WINEHUA_DEFER_SHMEM_UNREF", deferShmemUnref ? "1" : "0", 1);
+    const char* presentMode = mailboxPresent ? "mailbox" :
+        (asyncPresent ? "fifo-async" : (pollPresent ? "fifo-poll" : "fifo"));
+    setenv("WINEHUA_VENUS_PRESENT_MODE", presentMode, 1);
+    /* Keep the App-side control plane separate from renderer environment.
+     * Phone hosts run in this process, so virgl_child's derived renderer
+     * settings must not change the profile observed by a later EnsureStarted. */
+    setenv("WINEHUA_VIRGL_HOST_SHADOW_MODE", mode, 1);
+    setenv("WINEHUA_VIRGL_HOST_SHADOW_SELECTOR", shadowSelector, 1);
+    setenv("WINEHUA_VIRGL_HOST_SHADOW_MERGE_RANGES",
+           preciseDirtyNoMerge ? "0" : "1", 1);
+    setenv("WINEHUA_VIRGL_HOST_GPU_UPLOAD_WAIT",
+           waitShadowUpload ? "1" : "0", 1);
+    setenv("WINEHUA_VIRGL_HOST_DESCRIPTOR_UPDATE_SERIALIZE",
+           preciseDirtyDescriptorSerialized ? "1" : "0", 1);
+    setenv("WINEHUA_VIRGL_HOST_PRESENT_MODE", presentMode, 1);
+    /* Gate C owns this writable log path so its Host-side vtest diagnostics
+     * can be retrieved through HDC. Other profiles keep the regular cache. */
+    setenv("WINEHUA_VIRGL_HOST_LOG_PATH",
+           directFence
+               ? "/data/storage/el2/base/temp/vkd3d_virgl_host.log"
+               : "/data/storage/el2/base/cache/winehua_virgl_host.log",
+           1);
     OH_LOG_INFO(LOG_APP,
-                "[NAPI] graphics backend=%{public}s route=%{public}s",
-                backendName, policy.route.data());
-    const bool applied = ApplyHostGraphicsProfile(policy.host);
-    if (applied) gLegacyHostShadowProfile.clear();
-    return BooleanResult(env, applied);
-}
-
-static napi_value NullResult(napi_env env) {
-    napi_value result;
-    napi_get_null(env, &result);
-    return result;
-}
-
-static napi_value ResolveGuestGraphicsEnvironmentForLab(
-    napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {};
-    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok ||
-        argc < 2) {
-        return NullResult(env);
-    }
-
-    char profileName[96] = {};
-    char backendName[64] = {};
-    if (napi_get_value_string_utf8(env, args[0], profileName,
-                                   sizeof(profileName), nullptr) != napi_ok ||
-        napi_get_value_string_utf8(env, args[1], backendName,
-                                   sizeof(backendName), nullptr) != napi_ok) {
-        return NullResult(env);
-    }
-
-    std::vector<std::string> environment;
-    const winehua::D3dBackendKind backend = winehua::ParseD3dBackend(backendName);
-    if (!winehua::BuildLabGuestGraphicsEnvironment(
-            profileName, backend, &environment)) {
-        OH_LOG_ERROR(LOG_APP,
-                     "[NAPI] Guest LAB environment resolve failed "
-                     "profile=%{public}s backend=%{public}s",
-                     profileName, backendName);
-        return NullResult(env);
-    }
+                "[NAPI] host shadow profile=%{public}s mode=%{public}s "
+                "trace=%{public}s selector=%{public}s perf_summary=%{public}s "
+                "gpu_upload=%{public}s upload_wait=%{public}s "
+                "descriptor_serialize=%{public}s defer_shmem_unref=%{public}s "
+                "present_mode=%{public}s",
+                profile, mode, trace ? "1" : "0", shadowSelector,
+                (preciseStrongPerf || preciseDirtyPerf || preciseDirtyNoMerge ||
+                 preciseDirtyNoUpload || preciseDirtyInlineUpload ||
+                 preciseDirtyInlineUploadSerialized) ? "1" : "0",
+                (legacyHostSync || preciseDirtyNoUpload || preciseDirtyNoUploadFast) ? "0" :
+                    (cpuShadowUpload ? "cpu" : "auto"),
+                waitShadowUpload ? "1" : "0",
+                preciseDirtyDescriptorSerialized ? "1" : "0",
+                deferShmemUnref ? "1" : "0", presentMode);
 
     napi_value result;
-    if (napi_create_array_with_length(env, environment.size(), &result) != napi_ok)
-        return NullResult(env);
-    for (size_t index = 0; index < environment.size(); ++index) {
-        napi_value line;
-        if (napi_create_string_utf8(env, environment[index].c_str(),
-                                    NAPI_AUTO_LENGTH, &line) != napi_ok ||
-            napi_set_element(env, result, static_cast<uint32_t>(index), line) != napi_ok) {
-            return NullResult(env);
-        }
-    }
+    napi_get_boolean(env, true, &result);
     return result;
 }
 
 static napi_value LaunchClient(napi_env env, napi_callback_info info) {
-    size_t argc = 10;
-    napi_value args[10] = {};
+    size_t argc = 12;
+    napi_value args[12] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
     auto* p = new LaunchParams();
@@ -344,129 +355,96 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
         napi_get_value_string_utf8(env, args[4], buf, sizeof(buf), nullptr);
         p->homeDir = buf;
     }
-    p->prefixDir = WINE_PREFIX;
-    // Keep both control-plane layouts during product convergence:
-    //   WineHua: home, d3d, dxvk, wineLang, compat
-    //   product: home, automation(bool), prefix, d3d, compat, wineLang
-    // The sixth argument type is unambiguous and preserves old product calls
-    // while allowing upstream services to use their common Native contract.
-    bool productLayout = false;
-    if (argc >= 6) {
-        napi_valuetype sixthType = napi_undefined;
-        if (napi_typeof(env, args[5], &sixthType) == napi_ok &&
-            sixthType == napi_boolean) {
-            productLayout = true;
-            napi_get_value_bool(env, args[5], &p->automationMode);
-        }
-    }
-    const size_t d3dIndex = productLayout ? 7 : 5;
-    if (argc > d3dIndex) {
-        char d3dBackend[64] = {};
-        napi_get_value_string_utf8(env, args[d3dIndex], d3dBackend,
-                                   sizeof(d3dBackend), nullptr);
-        const winehua::D3dBackendKind backend =
-            winehua::ParseD3dBackend(d3dBackend);
-        if (backend != winehua::D3dBackendKind::Unknown) {
-            p->d3dBackend = d3dBackend;
-        } else {
-            OH_LOG_ERROR(LOG_APP,
-                         "[Launch] rejected unsupported d3d backend=%{public}s",
-                         d3dBackend);
-            delete p;
-            napi_value result;
-            napi_create_int32(env, -EINVAL, &result);
-            return result;
-        }
-    }
-    p->dxvkBackend =
-        (p->d3dBackend == "dxvk_modern_2_6" ||
-         p->d3dBackend == "vkd3d_limited_500k")
-            ? "dxvk_modern_2_6" : "dxvk_legacy";
-    if (productLayout) {
-        if (argc >= 7) {
-            char prefixMode[32] = {};
-            napi_get_value_string_utf8(env, args[6], prefixMode,
-                                       sizeof(prefixMode), nullptr);
-            if (!strcmp(prefixMode, "clean")) p->prefixDir = WINE_SMOKE_PREFIX;
-        }
-        if (argc >= 10) {
-            char wineLang[16] = {};
-            napi_get_value_string_utf8(env, args[9], wineLang,
-                                       sizeof(wineLang), nullptr);
-            if (!strcmp(wineLang, "zh_CN") ||
-                !strcmp(wineLang, "zh_TW") ||
-                !strcmp(wineLang, "ja_JP") ||
-                !strcmp(wineLang, "en_US"))
-                p->wineLang = wineLang;
-        }
-    } else {
-        if (argc >= 7) {
-            char dxvkBackend[64] = {};
-            napi_get_value_string_utf8(env, args[6], dxvkBackend,
-                                       sizeof(dxvkBackend), nullptr);
-            if (!strcmp(dxvkBackend, "dxvk_legacy") ||
-                !strcmp(dxvkBackend, "dxvk_modern_2_6"))
-                p->dxvkBackend = dxvkBackend;
-        }
-        if (argc >= 8) {
-            char wineLang[16] = {};
-            napi_get_value_string_utf8(env, args[7], wineLang,
-                                       sizeof(wineLang), nullptr);
-            if (!strcmp(wineLang, "zh_CN") ||
-                !strcmp(wineLang, "zh_TW") ||
-                !strcmp(wineLang, "ja_JP") ||
-                !strcmp(wineLang, "en_US"))
-                p->wineLang = wineLang;
-        }
-    }
+    std::string containerId = winehua::kDefaultContainerId;
     if (argc >= 9) {
-        char compatEnv[2048] = {};
-        napi_status compatStatus =
-            napi_get_value_string_utf8(env, args[8], compatEnv, sizeof(compatEnv), nullptr);
-        if (compatStatus != napi_ok) {
-            OH_LOG_WARN(LOG_APP, "[Launch] compatEnvStr arg is not a string, ignored");
-        } else {
-            p->compatEnvStr = compatEnv;
+        napi_valuetype type;
+        size_t length = 0;
+        if (napi_typeof(env, args[8], &type) != napi_ok || type != napi_string ||
+            napi_get_value_string_utf8(env, args[8], nullptr, 0, &length) != napi_ok ||
+            length == 0 || length > 64) {
+            delete p;
+            napi_value failed;
+            napi_create_int32(env, -1, &failed);
+            return failed;
         }
+        std::vector<char> value(length + 1);
+        if (napi_get_value_string_utf8(env, args[8], value.data(), value.size(), &length) != napi_ok) {
+            delete p;
+            napi_value failed;
+            napi_create_int32(env, -1, &failed);
+            return failed;
+        }
+        containerId.assign(value.data(), length);
+    }
+    winehua::ContainerSession container;
+    if (!winehua::SetActiveContainerSession(containerId, &container)) {
+        OH_LOG_ERROR(LOG_APP, "[Launch] invalid container id=%{public}s", containerId.c_str());
+        delete p;
+        napi_value failed;
+        napi_create_int32(env, -1, &failed);
+        return failed;
+    }
+    p->containerId = container.id;
+    p->prefixDir = container.prefixDir;
+    // Prefix and socket must be derived together.  Passing an arbitrary
+    // socket path here would split the Wine child from its session runtime.
+    p->sockPath = container.waylandSocket;
+    if (argc >= 6) {
+        char d3dBackend[64] = {};
+        napi_get_value_string_utf8(env, args[5], d3dBackend, sizeof(d3dBackend), nullptr);
+        if (!strcmp(d3dBackend, "wined3d") || !strcmp(d3dBackend, "dxvk_legacy") ||
+            !strcmp(d3dBackend, "dxvk_modern_2_6"))
+            p->d3dBackend = d3dBackend;
+    }
+    if (argc >= 7) {
+        char dxvkBackend[64] = {};
+        napi_get_value_string_utf8(env, args[6], dxvkBackend, sizeof(dxvkBackend), nullptr);
+        if (!strcmp(dxvkBackend, "dxvk_legacy") || !strcmp(dxvkBackend, "dxvk_modern_2_6"))
+            p->dxvkBackend = dxvkBackend;
+    }
+    if (argc >= 8) {
+        // 设置页 "Wine 语言": 仅接受白名单值, 非法/缺省保持 zh_CN
+        char wineLang[16] = {};
+        napi_get_value_string_utf8(env, args[7], wineLang, sizeof(wineLang), nullptr);
+        if (!strcmp(wineLang, "zh_CN") || !strcmp(wineLang, "en_US"))
+            p->wineLang = wineLang;
+    }
+    if (argc >= 10) {
+        bool directNcpSession = false;
+        if (napi_get_value_bool(env, args[9], &directNcpSession) != napi_ok) {
+            delete p;
+            napi_value failed;
+            napi_create_int32(env, -1, &failed);
+            return failed;
+        }
+        p->directNcpSession = directNcpSession;
+    }
+    if (argc >= 11 && napi_get_value_bool(env, args[10], &p->desktopVulkanCompositor) != napi_ok) {
+        delete p;
+        napi_value failed;
+        napi_create_int32(env, -1, &failed);
+        return failed;
+    }
+    if (argc >= 12 && (napi_get_value_int32(env, args[11], &p->desktopStallSeconds) != napi_ok ||
+                       p->desktopStallSeconds < 0 || p->desktopStallSeconds > 120)) {
+        delete p;
+        napi_value failed;
+        napi_create_int32(env, -1, &failed);
+        return failed;
     }
     // 向后兼容: 旧调用未传 homeDir 时使用默认路径
     if (p->homeDir.empty()) {
         p->homeDir = "/storage/Users/currentUser/Download";
     }
 
-    if (!gLegacyHostShadowProfile.empty()) {
-        winehua::ProductGraphicsPolicy policy;
-        const winehua::D3dBackendKind backend =
-            winehua::ParseD3dBackend(p->d3dBackend);
-        const std::string requested = gLegacyHostShadowProfile;
-        gLegacyHostShadowProfile.clear();
-        if (!winehua::ResolveProductGraphicsPolicy(backend, &policy) ||
-            !ApplyHostGraphicsProfile(policy.host)) {
-            OH_LOG_ERROR(LOG_APP,
-                         "[Launch] legacy Host profile adaptation failed "
-                         "profile=%{public}s d3d=%{public}s",
-                         requested.c_str(), p->d3dBackend.c_str());
-            delete p;
-            napi_value result;
-            napi_create_int32(env, -1, &result);
-            return result;
-        }
-        OH_LOG_WARN(LOG_APP,
-                    "[Launch] legacy Host profile=%{public}s converged to "
-                    "product route=%{public}s for d3d=%{public}s",
-                    requested.c_str(), policy.route.data(),
-                    p->d3dBackend.c_str());
-    }
-
-    OH_LOG_INFO(LOG_APP,
-                "[Launch] exe=%{public}s sock=%{public}s lib=%{public}s home=%{public}s prefix=%{public}s automation=%{public}s layout=%{public}s (async)",
+    OH_LOG_WARN(LOG_APP,
+                "[Launch] container=%{public}s exe=%{public}s sock=%{public}s lib=%{public}s home=%{public}s prefix=%{public}s (async)",
+                p->containerId.c_str(),
                 p->exePath.c_str(), p->sockPath.c_str(), p->libPath.c_str(), p->homeDir.c_str(),
-                p->prefixDir.c_str(), p->automationMode ? "true" : "false",
-                productLayout ? "product" : "winehua");
-    OH_LOG_INFO(LOG_APP,
-                "[Launch] desktop D3D=%{public}s DXVK=%{public}s lang=%{public}s compat=%{public}s",
+                p->prefixDir.c_str());
+    OH_LOG_WARN(LOG_APP, "[Launch] desktop D3D=%{public}s DXVK=%{public}s lang=%{public}s directNcp=%{public}d",
                 p->d3dBackend.c_str(), p->dxvkBackend.c_str(), p->wineLang.c_str(),
-                p->compatEnvStr.empty() ? "baseline" : "preset");
+                p->directNcpSession ? 1 : 0);
 
     // 保证可执行
     if (access(p->exePath.c_str(), X_OK) != 0) chmod(p->exePath.c_str(), 0755);
@@ -478,10 +456,12 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     pos = p->exePath.find_last_of('/');
     p->winehuaBin = (pos != std::string::npos) ? p->exePath.substr(0, pos) : p->exePath;
 
+    signal(SIGCHLD, sigchld_handler);
+
     // 启动后台线程: wineserver -> wineboot --init
     std::thread(LaunchThreadFunc, p).detach();
 
-    OH_LOG_INFO(LOG_APP, "[Launch] background thread started, returning to JS");
+    OH_LOG_WARN(LOG_APP, "[Launch] background thread started, returning to JS");
 
     napi_value r;
     napi_create_int32(env, 0, &r);
@@ -493,16 +473,32 @@ static napi_value CheckWinePrefix(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    std::string prefix = WINE_PREFIX;
+    std::string containerId = winehua::kDefaultContainerId;
     if (argc >= 1) {
-        char mode[32] = {};
-        napi_get_value_string_utf8(env, args[0], mode, sizeof(mode), nullptr);
-        if (!strcmp(mode, "clean")) prefix = WINE_SMOKE_PREFIX;
+        size_t length = 0;
+        napi_valuetype type;
+        if (napi_typeof(env, args[0], &type) != napi_ok || type != napi_string ||
+            napi_get_value_string_utf8(env, args[0], nullptr, 0, &length) != napi_ok ||
+            length == 0 || length > 64) {
+            napi_value invalid;
+            napi_get_boolean(env, false, &invalid);
+            return invalid;
+        }
+        std::vector<char> value(length + 1);
+        napi_get_value_string_utf8(env, args[0], value.data(), value.size(), &length);
+        containerId.assign(value.data(), length);
     }
+    winehua::ContainerSession container;
+    if (!winehua::ResolveContainerSession(containerId, &container)) {
+        napi_value invalid;
+        napi_get_boolean(env, false, &invalid);
+        return invalid;
+    }
+    const std::string& prefix = container.prefixDir;
     const std::string initMarker = prefix + "/.winehua-init-in-progress";
     bool ok = IsWinePrefixInitialized(prefix)
         && access(initMarker.c_str(), F_OK) != 0;
-    OH_LOG_INFO(LOG_APP, "[Wine] checkWinePrefix prefix=%{public}s initialized=%{public}s",
+    OH_LOG_WARN(LOG_APP, "[Wine] checkWinePrefix prefix=%{public}s initialized=%{public}s",
                 prefix.c_str(), ok ? "yes" : "no");
     napi_value r;
     napi_get_boolean(env, ok, &r);
@@ -546,13 +542,30 @@ static napi_value ResetWinePrefix(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    const char* prefix = WINE_PREFIX;
+    std::string containerId = winehua::kDefaultContainerId;
     if (argc >= 1) {
-        char mode[32] = {};
-        napi_get_value_string_utf8(env, args[0], mode, sizeof(mode), nullptr);
-        if (!strcmp(mode, "clean")) prefix = WINE_SMOKE_PREFIX;
+        size_t length = 0;
+        napi_valuetype type;
+        if (napi_typeof(env, args[0], &type) != napi_ok || type != napi_string ||
+            napi_get_value_string_utf8(env, args[0], nullptr, 0, &length) != napi_ok ||
+            length == 0 || length > 64) {
+            napi_value invalid;
+            napi_get_boolean(env, false, &invalid);
+            return invalid;
+        }
+        std::vector<char> value(length + 1);
+        napi_get_value_string_utf8(env, args[0], value.data(), value.size(), &length);
+        containerId.assign(value.data(), length);
     }
-    OH_LOG_INFO(LOG_APP, "[NAPI] resetWinePrefix called prefix=%{public}s", prefix);
+    winehua::ContainerSession container;
+    if (!winehua::ResolveContainerSession(containerId, &container)) {
+        napi_value invalid;
+        napi_get_boolean(env, false, &invalid);
+        return invalid;
+    }
+    const char* prefix = container.prefixDir.c_str();
+    OH_LOG_WARN(LOG_APP, "[NAPI] resetWinePrefix called container=%{public}s prefix=%{public}s",
+                container.id.c_str(), prefix);
     KillAllProcesses();
     bool ok = RmDir(prefix);
     if (mkdir(prefix, 0755) != 0 && errno != EEXIST) {
@@ -560,69 +573,38 @@ static napi_value ResetWinePrefix(napi_env env, napi_callback_info info) {
         OH_LOG_ERROR(LOG_APP, "[NAPI] mkdir %{public}s failed: %{public}s",
                      prefix, strerror(errno));
     }
-    OH_LOG_INFO(LOG_APP, "[NAPI] resetWinePrefix: %{public}s %{public}s",
+    OH_LOG_WARN(LOG_APP, "[NAPI] resetWinePrefix: %{public}s %{public}s",
                 prefix, ok ? "cleared and recreated" : "reset failed");
     napi_value result;
     napi_get_boolean(env, ok, &result);
     return result;
 }
 
-static napi_value RunHostVulkanProbe(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {};
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    uint64_t surfaceId = 0;
-    bool lossless = false;
-    char runId[128] = {};
-    if (argc < 2 ||
-        napi_get_value_bigint_uint64(env, args[0], &surfaceId, &lossless) != napi_ok || !lossless ||
-        napi_get_value_string_utf8(env, args[1], runId, sizeof(runId), nullptr) != napi_ok) {
-        napi_value result;
-        napi_get_boolean(env, false, &result);
-        return result;
-    }
-    bool started = StartHostVulkanProbe(surfaceId, runId);
-    OH_LOG_INFO(LOG_APP, "[HostVulkan] start surface=%{public}llu run=%{public}s result=%{public}s",
-                static_cast<unsigned long long>(surfaceId), runId, started ? "true" : "false");
-    napi_value result;
-    napi_get_boolean(env, started, &result);
-    return result;
-}
-
-static napi_value StopHostVulkanProbeNapi(napi_env env, napi_callback_info) {
-    StopHostVulkanProbe();
-    napi_value result;
-    napi_get_boolean(env, true, &result);
-    return result;
-}
-
-// 返回 host Vulkan 物理设备 GPU 名称 (如 "Mali-G920"), 供 ArkTS 按 GPU 能力
-// 控制 DXVK2.6 选项 (马良 920 以下不支持)。失败返回空串。
-static napi_value GetHostGpuNameNapi(napi_env env, napi_callback_info) {
-    const std::string name = ProbeGpuDeviceName();
-    napi_value result;
-    napi_create_string_utf8(env, name.c_str(), NAPI_AUTO_LENGTH, &result);
-    OH_LOG_INFO(LOG_APP, "[HostVulkan] gpuName=%{public}s", name.c_str());
-    return result;
-}
-
-
 // -- NAPI: stopClient — 杀掉所有 Wine 进程 --
 static napi_value StopClient(napi_env, napi_callback_info) {
+    /* Stop the VirGL renderer before reaping its Wine descendants.  The
+     * renderer is itself an app-owned NCP child; killing the whole process
+     * tree first can bypass its bounded shutdown and leave a stale Venus ring
+     * across the next isolated session. */
+    winehua::GraphicsBroker::GetInstance().Stop();
     KillAllProcesses();
     // 会话终结统一收口 (与桌面退出同路径): 杀进程后进程级一次性状态全部
-    // 复位, 下次引擎启动从冷启动基线开始 (ResetSessionState 含 firstFrame/
-    // move grab/输入状态; StopAll 走 WaylandServer::Stop 全量重建, 无需处理)
+    // 复位, 下次引擎启动从冷启动基线开始 (StopAll 走 WaylandServer::Stop
+    // 全量重建, 无需这里处理)
     WaylandServer::GetInstance()->ResetSessionState();
-    winehua::GraphicsBroker::GetInstance().Stop();
+    WaylandServer::GetInstance()->ResetFirstFrame();
     return nullptr;
 }
 
-// -- NAPI: stopAll — 杀掉所有 Wine 进程 + 停 Wayland server --
+// -- NAPI: stopAll — 杀掉所有 Wine 进程 (含主 wineserver) + 停 Wayland server --
 static napi_value StopAll(napi_env, napi_callback_info) {
-    KillAllProcesses();
     winehua::GraphicsBroker::GetInstance().Stop();
+    KillAllProcesses();
     WaylandServer::GetInstance()->Stop();
+    // 会话终结信号: zombie 感知等待全部死亡后发一次 state:stopped —
+    // ArkTS 重启/重置/停止编排以它为继续条件 (取代阶段1 的进程表轮询)。
+    // 放在 Wayland Stop (同步 join) 之后, 保证"完全退出"判据三项齐备才发声
+    NotifyWhenSessionDrained();
     return nullptr;
 }
 
@@ -680,6 +662,98 @@ static napi_value SetToplevelCallback(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
+// -- IME 激活回调 -> ArkTS (Wine 文本框聚焦 → 通知 ArkTS attach 弹软键盘) --
+static napi_threadsafe_function gImeTsfn = nullptr;
+
+struct ImeEvent {
+    int active;
+    int x, y, w, h;
+};
+
+static void CallJsIme(napi_env env, napi_value cb, void*, void* raw) {
+    auto* ev = static_cast<ImeEvent*>(raw);
+    if (env && cb && ev) {
+        napi_value undef, args[5];
+        napi_get_undefined(env, &undef);
+        napi_create_int32(env, ev->active, &args[0]);
+        napi_create_int32(env, ev->x, &args[1]);
+        napi_create_int32(env, ev->y, &args[2]);
+        napi_create_int32(env, ev->w, &args[3]);
+        napi_create_int32(env, ev->h, &args[4]);
+        napi_call_function(env, undef, cb, 5, args, nullptr);
+    }
+    delete ev;
+}
+
+// -- NAPI: setImeCallback -- (激活/失活回调注册, 同 setToplevelCallback 模式)
+static napi_value SetImeCallback(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    if (gImeTsfn) {
+        napi_release_threadsafe_function(gImeTsfn, napi_tsfn_release);
+        gImeTsfn = nullptr;
+    }
+
+    napi_value name;
+    napi_create_string_utf8(env, "WL_Ime", NAPI_AUTO_LENGTH, &name);
+    napi_create_threadsafe_function(env, args[0], nullptr, name,
+                                    0, 1, nullptr, nullptr, nullptr, CallJsIme, &gImeTsfn);
+
+    TextInput::GetInstance()->SetActivateCallback([](bool active, int x, int y, int w, int h) {
+        if (gImeTsfn) {
+            auto* ev = new ImeEvent{active ? 1 : 0, x, y, w, h};
+            napi_call_threadsafe_function(gImeTsfn, ev, napi_tsfn_blocking);
+        } else {
+            OH_LOG_WARN(LOG_APP, "[WL_NAPI] ime cb dropped (tsfn not ready) active=%{public}d", active);
+        }
+    });
+
+    return nullptr;
+}
+
+// -- NAPI: sendImeCommit -- (ArkTS inputMethod insertText → Wine commit_string)
+static napi_value SendImeCommit(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    size_t len = 0;
+    napi_get_value_string_utf8(env, args[0], nullptr, 0, &len);
+    std::string text(len, '\0');
+    napi_get_value_string_utf8(env, args[0], &text[0], len + 1, &len);
+    TextInput::GetInstance()->SendCommitString(text.c_str());
+    return nullptr;
+}
+
+// -- NAPI: sendImePreedit -- (ArkTS setPreviewText 预上屏 → Wine preedit_string)
+static napi_value SendImePreedit(napi_env env, napi_callback_info info) {
+    size_t argc = 3;
+    napi_value args[3];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    size_t len = 0;
+    napi_get_value_string_utf8(env, args[0], nullptr, 0, &len);
+    std::string text(len, '\0');
+    napi_get_value_string_utf8(env, args[0], &text[0], len + 1, &len);
+    int32_t b = 0, e = 0;
+    napi_get_value_int32(env, args[1], &b);
+    napi_get_value_int32(env, args[2], &e);
+    TextInput::GetInstance()->SendPreeditString(text.c_str(), b, e);
+    return nullptr;
+}
+
+// -- NAPI: imeBackspace -- (软键盘退格 → Wine KEY_BACKSPACE 按键注入;
+//    Wine 的 delete_surrounding_text 是空实现, 退格走现有 key 注入链路)
+static napi_value ImeBackspace(napi_env env, napi_callback_info info) {
+    (void)env;
+    (void)info;
+    constexpr uint32_t KEY_BACKSPACE = 14;
+    auto* im = InputManager::GetInstance();
+    im->InjectKeyboardKey(KEY_BACKSPACE, WL_KEYBOARD_KEY_STATE_PRESSED);
+    im->InjectKeyboardKey(KEY_BACKSPACE, WL_KEYBOARD_KEY_STATE_RELEASED);
+    return nullptr;
+}
+
 // -- NAPI: getCurrentToplevelId -- (WineWindow.aboutToAppear 同步读取, 无竞态)
 static napi_value GetCurrentToplevelId(napi_env env, napi_callback_info info) {
     uint32_t id = PluginManager::GetInstance()->DequeuePendingToplevel();
@@ -720,7 +794,11 @@ static napi_value DestroyToplevel(napi_env env, napi_callback_info info) {
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     uint32_t id = 0;
     napi_get_value_uint32(env, args[0], &id);
-    PluginManager::GetInstance()->DestroyToplevel(id);
+    if (!DirectWineSurfaceUnbindOutput(id))
+        PluginManager::GetInstance()->DestroyToplevel(id);
+    // 相对模式锁定兜底: 宿主主动销毁 toplevel (WWA 关窗) 时释放 host 锁定 —
+    // 游戏卡死时 wine 不响应 sendToplevelClose, relative_pointer 永不销毁,
+    // 正常解锁回调不来 (见 PointerExtras::ReleaseLockForToplevel)
     PointerExtras::GetInstance()->ReleaseLockForToplevel(id);
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] destroyToplevel id=%{public}u", id);
     return nullptr;
@@ -757,6 +835,15 @@ static napi_value CreateRenderer(napi_env env, napi_callback_info info) {
         return nullptr;
     }
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] createRenderer tl=%{public}u surfaceId=%{public}ld", tid, surfaceId);
+    // Only managed mode has a dedicated XComponent for this toplevel. A
+    // Direct producer must own that output exclusively; desktop mode keeps
+    // its EGL root until a separate multi-window overlay is implemented.
+    if (WaylandServer::GetInstance()->Policy().OhosWindowPerToplevel() &&
+        !PluginManager::GetInstance()->GetRendererForToplevel(tid) &&
+        DirectWineSurfaceBindOutput(tid, static_cast<uint64_t>(surfaceId))) {
+        OH_LOG_INFO(LOG_APP, "[MW-NAPI] Direct Vulkan output bound tl=%{public}u", tid);
+        return nullptr;
+    }
     PluginManager::GetInstance()->CreateRenderer(tid, surfaceId);
     return nullptr;
 }
@@ -776,22 +863,8 @@ static napi_value ResizeRenderer(napi_env env, napi_callback_info info) {
     napi_get_value_int32(env, args[1], &w);
     napi_get_value_int32(env, args[2], &h);
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] resizeRenderer tl=%{public}u %{public}dx%{public}d", tid, w, h);
-    PluginManager::GetInstance()->ResizeRenderer(tid, w, h);
-    return nullptr;
-}
-
-// -- NAPI: refreshRenderer -- (页面返回后保留 NativeWindow 的安全重绘)
-static napi_value RefreshRenderer(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1];
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    if (argc < 1) {
-        OH_LOG_ERROR(LOG_APP, "[MW-NAPI] refreshRenderer: need toplevelId");
-        return nullptr;
-    }
-    uint32_t tid = 0;
-    napi_get_value_uint32(env, args[0], &tid);
-    PluginManager::GetInstance()->RefreshRenderer(tid);
+    if (!DirectWineSurfaceResizeOutput(tid, w, h))
+        PluginManager::GetInstance()->ResizeRenderer(tid, w, h);
     return nullptr;
 }
 
@@ -805,7 +878,8 @@ static napi_value DestroyRenderer(napi_env env, napi_callback_info info) {
         napi_get_value_uint32(env, args[0], &tid);
     }
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] destroyRenderer tl=%{public}u", tid);
-    PluginManager::GetInstance()->DestroyToplevel(tid);
+    if (!DirectWineSurfaceUnbindOutput(tid))
+        PluginManager::GetInstance()->DestroyToplevel(tid);
     return nullptr;
 }
 
@@ -851,142 +925,8 @@ static napi_value SetPhoneMode(napi_env env, napi_callback_info info) {
         bool on;
         napi_get_value_bool(env, args[0], &on);
         PhoneAdapter_SetPhoneMode(on);
-        OH_LOG_INFO(LOG_APP, "[MW-NAPI] setPhoneMode = %{public}s", on ? "true" : "false");
+        OH_LOG_WARN(LOG_APP, "[MW-NAPI] setPhoneMode = %{public}s", on ? "true" : "false");
     }
-    return nullptr;
-}
-
-// -- NAPI: Wayland text-input 桥 (宿主输入法 -> Wine) --
-static napi_value WineTextInputPreedit(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = { nullptr };
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    char text[4096] = {};
-    if (argc >= 1 && args[0] != nullptr) {
-        size_t len = 0;
-        napi_get_value_string_utf8(env, args[0], text, sizeof(text), &len);
-    }
-    // 预上屏光标放在 UTF-8 末尾 (字节偏移), 避免把 JS UTF-16 下标误当字节数。
-    int32_t end = static_cast<int32_t>(strlen(text));
-    bool delivered = TextInputManager::GetInstance()->SendPreedit(text, 0, end);
-    napi_value result;
-    napi_get_boolean(env, delivered, &result);
-    return result;
-}
-
-static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = { nullptr };
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    char text[4096] = {};
-    if (argc >= 1 && args[0] != nullptr) {
-        size_t len = 0;
-        napi_get_value_string_utf8(env, args[0], text, sizeof(text), &len);
-    }
-    bool delivered = TextInputManager::GetInstance()->SendCommit(text);
-    napi_value result;
-    napi_get_boolean(env, delivered, &result);
-    return result;
-}
-
-static napi_value WineTextInputEnabled(napi_env env, napi_callback_info) {
-    napi_value result;
-    napi_get_boolean(env, TextInputManager::GetInstance()->IsEnabled(), &result);
-    return result;
-}
-
-static napi_value WineTextInputSetArmed(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = { nullptr };
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    bool armed = false;
-    if (argc >= 1 && args[0] != nullptr) napi_get_value_bool(env, args[0], &armed);
-    TextInputManager::GetInstance()->SetArmed(armed);
-    return nullptr;
-}
-
-// -- NAPI: setImeCallback (激活/失活回调, 对齐上游 54d188d) --
-// Wine 文本框聚焦 (enable + 非零光标矩形) → active=1 回调 ArkTS 弹系统软键盘;
-// 失焦/leave → active=0 收起。
-// 跨线程安全: 用 threadsafe function (与 gStateTsfn/gToplevelTsfn 同模式),
-// Wayland 线程触发回调经 TSFN 投递到 JS 线程执行 — 直接 napi_call_function
-// 跨线程会崩溃。
-struct ImeEvent {
-    int active;
-    int x, y, w, h;
-};
-static napi_threadsafe_function gImeTsfn = nullptr;
-
-static void CallJsIme(napi_env env, napi_value cb, void*, void* data) {
-    ImeEvent* ev = static_cast<ImeEvent*>(data);
-    if (env && cb && ev) {
-        napi_value undef, argv[5];
-        napi_get_undefined(env, &undef);
-        napi_create_int32(env, ev->active, &argv[0]);
-        napi_create_int32(env, ev->x, &argv[1]);
-        napi_create_int32(env, ev->y, &argv[2]);
-        napi_create_int32(env, ev->w, &argv[3]);
-        napi_create_int32(env, ev->h, &argv[4]);
-        napi_call_function(env, undef, cb, 5, argv, nullptr);
-    }
-    delete ev;
-}
-
-static napi_value SetImeCallback(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = { nullptr };
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-
-    if (gImeTsfn) {
-        napi_release_threadsafe_function(gImeTsfn, napi_tsfn_release);
-        gImeTsfn = nullptr;
-    }
-
-    napi_value name;
-    napi_create_string_utf8(env, "WL_Ime", NAPI_AUTO_LENGTH, &name);
-    napi_create_threadsafe_function(env, args[0], nullptr, name,
-                                    0, 1, nullptr, nullptr, nullptr, CallJsIme, &gImeTsfn);
-
-    TextInputManager::GetInstance()->SetActivateCallback(
-        [](bool active, int x, int y, int w, int h) {
-            if (gImeTsfn) {
-                auto* ev = new ImeEvent{active ? 1 : 0, x, y, w, h};
-                napi_call_threadsafe_function(gImeTsfn, ev, napi_tsfn_blocking);
-            } else {
-                OH_LOG_WARN(LOG_APP, "[WL_NAPI] ime cb dropped (tsfn not ready) active=%{public}d", active);
-            }
-        });
-    return nullptr;
-}
-
-// -- NAPI: imeBackspace (软键盘退格 → Wine KEY_BACKSPACE 键盘注入;
-//    Wine 的 delete_surrounding_text 是空实现, 退格走现有 key 注入链路) --
-static napi_value ImeBackspace(napi_env env, napi_callback_info info) {
-    (void)env;
-    (void)info;
-    constexpr uint32_t KEY_BACKSPACE = 14;
-    auto* im = InputManager::GetInstance();
-    im->InjectKeyboardKey(KEY_BACKSPACE, WL_KEYBOARD_KEY_STATE_PRESSED);
-    im->InjectKeyboardKey(KEY_BACKSPACE, WL_KEYBOARD_KEY_STATE_RELEASED);
-    return nullptr;
-}
-
-// -- NAPI: 应用日志文件 sink --
-static napi_value InitAppLog(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = { nullptr };
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    char path[1024] = {};
-    if (argc >= 1 && args[0] != nullptr) {
-        size_t len = 0;
-        napi_get_value_string_utf8(env, args[0], path, sizeof(path), &len);
-    }
-    WineHuaLogInit(path);
-    return nullptr;
-}
-
-static napi_value ClearNativeLog(napi_env env, napi_callback_info info) {
-    WineHuaLogClear();
     return nullptr;
 }
 
@@ -995,18 +935,6 @@ static napi_value GetDesktopRootId(napi_env env, napi_callback_info) {
     napi_value r;
     napi_create_uint32(env, id, &r);
     return r;
-}
-
-static napi_value GetDisplayFps(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1];
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    uint32_t id = 0;
-    if (argc >= 1) napi_get_value_uint32(env, args[0], &id);
-    const double fps = static_cast<double>(DisplayFpsRegistry::Instance().Get(id));
-    napi_value result;
-    napi_create_double(env, fps, &result);
-    return result;
 }
 
 // -- Input forwarding NAPI (unified InputManager path) --
@@ -1043,6 +971,32 @@ static napi_value SendPointerEvent(napi_env env, napi_callback_info info) {
                     tl, action, button, px, py, rawDx, rawDy, fromMouse ? 1 : 0);
     }
     InputManager::GetInstance()->SendPointerEvent(tl, action, px, py, button, rawDx, rawDy, fromMouse);
+    return nullptr;
+}
+
+// -- NAPI: dumpWindowLayout -- (WMS 全窗口布局列表, 层级排序 index 0 = 最高)
+// 白屏 z 序判定: Fusion 主窗 (335 类) 与画面 popup (336 类) 的 rect 在列表中
+// 的先后; 与 ArkTS 侧 subWinId 打点对照归属。
+static napi_value DumpWindowLayout(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    int64_t displayId = 0;
+    if (argc >= 1) napi_get_value_int64(env, args[0], &displayId);
+    WindowManager_Rect* list = nullptr;
+    size_t count = 0;
+    const int32_t ret = OH_WindowManager_GetAllWindowLayoutInfoList(displayId, &list, &count);
+    if (ret != 0 || !list) {
+        OH_LOG_WARN(LOG_APP, "[WinLayout] Get table failed ret=%{public}d", ret);
+        if (list) OH_WindowManager_ReleaseAllWindowLayoutInfoList(list);
+        return nullptr;
+    }
+    for (size_t i = 0; i < count; i++) {
+        OH_LOG_INFO(LOG_APP,
+                    "[WinLayout] idx=%{public}zu/%{public}zu rect=(%{public}d,%{public}d %{public}ux%{public}u)",
+                    i, count, list[i].posX, list[i].posY, list[i].width, list[i].height);
+    }
+    OH_WindowManager_ReleaseAllWindowLayoutInfoList(list);
     return nullptr;
 }
 
@@ -1149,17 +1103,33 @@ static napi_value SendScrollEvent(napi_env env, napi_callback_info info) {
 }
 
 static napi_value NotifyToplevelResize(napi_env env, napi_callback_info info) {
-    size_t argc = 3;
-    napi_value args[3];
+    size_t argc = 4;
+    napi_value args[4];
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc < 3) return nullptr;
     uint32_t tl; int32_t w, h;
+    bool resizing = false;
     napi_get_value_uint32(env, args[0], &tl);
     napi_get_value_int32(env, args[1], &w);
     napi_get_value_int32(env, args[2], &h);
-    OH_LOG_INFO(LOG_APP, "[NAPI] notifyToplevelResize tl=%{public}u %{public}dx%{public}d",
-                tl, w, h);
-    WaylandServer::GetInstance()->NotifyToplevelResize(tl, w, h);
+    if (argc >= 4) napi_get_value_bool(env, args[3], &resizing);
+    OH_LOG_INFO(LOG_APP, "[NAPI] notifyToplevelResize tl=%{public}u %{public}dx%{public}d resize=%{public}s",
+                tl, w, h, resizing ? "yes" : "no");
+    WaylandServer::GetInstance()->NotifyToplevelResize(tl, w, h, resizing);
+    return nullptr;
+}
+
+// 拖拽缩放结束 (ArkTS windowRectChange DRAG_END): 发 configure(0,0) 清 RESIZING
+// 状态, Wine 保持当前尺寸 (0 尺寸 → SWP_NOSIZE) 并退出 size-move。
+static napi_value NotifyToplevelResizeEnd(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc < 1) return nullptr;
+    uint32_t tl;
+    napi_get_value_uint32(env, args[0], &tl);
+    OH_LOG_INFO(LOG_APP, "[NAPI] notifyToplevelResizeEnd tl=%{public}u", tl);
+    WaylandServer::GetInstance()->NotifyToplevelResize(tl, 0, 0, false);
     return nullptr;
 }
 
@@ -1209,24 +1179,11 @@ static napi_value SetToplevelVisible(napi_env env, napi_callback_info info) {
     uint32_t tl; bool visible;
     napi_get_value_uint32(env, args[0], &tl);
     napi_get_value_bool(env, args[1], &visible);
-    // 只改输入命中: 2in1 融合下 WINDOW_HIDDEN / 失焦不是"surface 不可呈现",
-    // 在这里暂停 GPU 会把仍挂在任务栏里的 WineWindow 画成黑窗。
-    // 最小化还原走 SetToplevelRestored (xdg / Wine commit), 不要从可见性
-    // 回调顺手发 restored。真正进后台的 DesktopAbility 另调 setRendererPaused。
     InputManager::GetInstance()->SetToplevelVisible(tl, visible);
-    return nullptr;
-}
-
-// -- NAPI: setRendererPaused -- (仅 DesktopAbility 进后台: surface 不可呈现)
-static napi_value SetRendererPaused(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2];
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    if (argc < 2) return nullptr;
-    uint32_t tl; bool paused;
-    napi_get_value_uint32(env, args[0], &tl);
-    napi_get_value_bool(env, args[1], &paused);
-    PluginManager::GetInstance()->SetRendererPaused(tl, paused);
+    if (visible) {
+        // 6A: 兼容别名 NotifyWindowRestored 已删, 直调语义方法 (同实现同值)
+        WaylandServer::GetInstance()->SetToplevelRestored(tl);
+    }
     return nullptr;
 }
 
@@ -1244,24 +1201,22 @@ static napi_value GetProcessList(napi_env env, napi_callback_info info) {
         napi_value obj;
         napi_create_object(env, &obj);
 
-        napi_value pidVal, nameVal, pathVal, stateVal, sessionVal, desktopShellVal;
+        napi_value pidVal, nameVal, pathVal, stateVal, shellVal;
         napi_create_int32(env, entry.pid, &pidVal);
         napi_create_string_utf8(env, entry.exeBasename.c_str(), NAPI_AUTO_LENGTH, &nameVal);
         napi_create_string_utf8(env, entry.exeFullPath.c_str(), NAPI_AUTO_LENGTH, &pathVal);
         napi_create_string_utf8(env, entry.running ? "running" : "exited",
                                 NAPI_AUTO_LENGTH, &stateVal);
-        napi_create_string_utf8(env, entry.sessionId.c_str(), NAPI_AUTO_LENGTH, &sessionVal);
-        const bool desktopShell = entry.sessionId.rfind("@engine/", 0) == 0 ||
-            entry.exeFullPath.rfind("@engine/", 0) == 0;
-        napi_get_boolean(env, desktopShell, &desktopShellVal);
+        // 桌面 root 出现前加入的会话基础进程 (desktop + 桌面前的 explorer 等),
+        // ArkTS 据此隐藏"结束"操作防误操作破坏桌面运行
+        napi_get_boolean(env, entry.desktopShell, &shellVal);
 
         napi_property_descriptor props[] = {
             {"pid",   nullptr, nullptr, nullptr, nullptr, pidVal,   napi_default, nullptr},
             {"name",  nullptr, nullptr, nullptr, nullptr, nameVal,  napi_default, nullptr},
             {"path",  nullptr, nullptr, nullptr, nullptr, pathVal,  napi_default, nullptr},
             {"state", nullptr, nullptr, nullptr, nullptr, stateVal, napi_default, nullptr},
-            {"sessionId", nullptr, nullptr, nullptr, nullptr, sessionVal, napi_default, nullptr},
-            {"desktopShell", nullptr, nullptr, nullptr, nullptr, desktopShellVal, napi_default, nullptr},
+            {"desktopShell", nullptr, nullptr, nullptr, nullptr, shellVal, napi_default, nullptr},
         };
         napi_define_properties(env, obj, sizeof(props)/sizeof(props[0]), props);
         napi_set_element(env, arr, i, obj);
@@ -1280,29 +1235,23 @@ static napi_value KillProcess(napi_env env, napi_callback_info info) {
 
     int32_t pid = 0;
     napi_get_value_int32(env, args[0], &pid);
-    OH_LOG_INFO(LOG_APP, "[NAPI] killProcess pid=%{public}d", pid);
+    OH_LOG_WARN(LOG_APP, "[NAPI] killProcess pid=%{public}d", pid);
 
-    WineProcessEntry entry{};
-    const bool known = pid > 0 && QueryProcessSnapshot(pid, &entry);
-    KillProcessTree(pid);
+    KillChildProcess(pid);
     RemoveProcess(pid);
-    if (known && gStateTsfn) {
-        char msg[64];
-        snprintf(msg, sizeof(msg), "%d:exited", pid);
-        napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
-        if (entry.toplevelId > 0) {
-            // 立即联动: 让 ArkTS 关闭该进程的窗口, 不等 Wayland 断连回调
-            WaylandServer::GetInstance()->OnToplevelDestroyed(entry.toplevelId);
-            WaylandServer::GetInstance()->PostToplevelEvent(entry.toplevelId, ToplevelEventType::Destroyed);
-        }
-    }
 
     napi_value r;
     napi_get_boolean(env, true, &r);
     return r;
 }
 
-static std::string GetStringArgument(napi_env env, napi_callback_info info) {
+// -- 模块注册 --
+
+// ================= VPP product surface (ported from VintagePomeloPro main) =================
+
+// VPP: legacy shadow-profile store (setHostShadowProfile interplay)
+static std::string gLegacyHostShadowProfile;
+std::string GetStringArgument(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
@@ -1315,139 +1264,416 @@ static std::string GetStringArgument(napi_env env, napi_callback_info info) {
     return value;
 }
 
-static napi_value GetWineSession(napi_env env, napi_callback_info info) {
-    const std::string sessionId = GetStringArgument(env, info);
-    WineProcessEntry entry{};
-    if (!GetProcessBySessionId(sessionId, &entry)) {
+static bool ApplyHostGraphicsProfile(const winehua::HostGraphicsProfile& profile) {
+    bool applied = true;
+    applied &= SetHostGraphicsEnv("WINEHUA_GRAPHICS_PROFILE", profile.name);
+    applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_FROM_HOST", profile.shadowMode);
+    applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_TRACE", profile.shadowSelector);
+    applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_MERGE_RANGES",
+                                  profile.mergeShadowRanges ? "1" : "0");
+    applied &= SetHostGraphicsEnv("VKR_WINEHUA_GPU_UPLOAD_WAIT",
+                                  profile.waitGpuUpload ? "1" : "0");
+    applied &= SetHostGraphicsEnv("VKR_WINEHUA_DESCRIPTOR_UPDATE_SERIALIZE",
+                                  profile.serializeDescriptorUpdates ? "1" : "0");
+    applied &= SetHostGraphicsEnv("VN_WINEHUA_DEFER_SHMEM_UNREF",
+                                  profile.deferSharedMemoryUnref ? "1" : "0");
+    /* Keep the App-side control plane separate from renderer environment.
+     * Phone hosts run in this process, so virgl_child's derived renderer
+     * settings must not change the profile observed by a later EnsureStarted. */
+    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_SHADOW_MODE",
+                                  profile.shadowMode);
+    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_SHADOW_SELECTOR",
+                                  profile.shadowSelector);
+    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_SHADOW_MERGE_RANGES",
+                                  profile.mergeShadowRanges ? "1" : "0");
+    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_GPU_UPLOAD_WAIT",
+                                  profile.waitGpuUpload ? "1" : "0");
+    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_DESCRIPTOR_UPDATE_SERIALIZE",
+                                  profile.serializeDescriptorUpdates ? "1" : "0");
+    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_PERF_SUMMARY",
+                                  profile.perfSummary ? "1" : "0");
+
+    if (!applied) return false;
+
+    const char* gpuUpload = profile.gpuUpload == winehua::GpuUploadPolicy::Disabled
+        ? "0" : (profile.gpuUpload == winehua::GpuUploadPolicy::Cpu ? "cpu" : "auto");
+    OH_LOG_INFO(LOG_APP,
+                "[NAPI] graphics profile=%{public}s mode=%{public}s "
+                "selector=%{public}s perf_summary=%{public}s "
+                "gpu_upload=%{public}s upload_wait=%{public}s "
+                "descriptor_serialize=%{public}s defer_shmem_unref=%{public}s",
+                profile.name.data(), profile.shadowMode.data(),
+                profile.shadowSelector.data(), profile.perfSummary ? "1" : "0",
+                gpuUpload, profile.waitGpuUpload ? "1" : "0",
+                profile.serializeDescriptorUpdates ? "1" : "0",
+                profile.deferSharedMemoryUnref ? "1" : "0");
+    return true;
+}
+
+static napi_value SetHostGraphicsExperimentForLab(napi_env env, napi_callback_info info) {
+    size_t argc = 2;
+    napi_value args[2] = {};
+    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok ||
+        argc < 2) {
+        return BooleanResult(env, false);
+    }
+    char experimentId[96] = {};
+    char backendName[64] = {};
+    if (napi_get_value_string_utf8(env, args[0], experimentId,
+                                   sizeof(experimentId), nullptr) != napi_ok ||
+        napi_get_value_string_utf8(env, args[1], backendName,
+                                   sizeof(backendName), nullptr) != napi_ok) {
+        return BooleanResult(env, false);
+    }
+
+    winehua::ProductGraphicsPolicy experiment;
+    const winehua::D3dBackendKind backend =
+        winehua::ParseD3dBackend(backendName);
+    if (!winehua::ResolveLabGraphicsExperiment(
+            experimentId, backend, &experiment)) {
+        OH_LOG_ERROR(LOG_APP,
+                     "[NAPI] invalid graphics LAB experiment=%{public}s "
+                     "backend=%{public}s",
+                     experimentId, backendName);
+        return BooleanResult(env, false);
+    }
+    const bool applied = ApplyHostGraphicsProfile(experiment.host);
+    if (applied) gLegacyHostShadowProfile.clear();
+    return BooleanResult(env, applied);
+}
+
+static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    char backendName[64] = {};
+    if (argc >= 1)
+        napi_get_value_string_utf8(env, args[0], backendName, sizeof(backendName), nullptr);
+
+    const winehua::D3dBackendKind backend = winehua::ParseD3dBackend(backendName);
+    winehua::ProductGraphicsPolicy policy;
+    if (!winehua::ResolveProductGraphicsPolicy(backend, &policy)) {
+        OH_LOG_ERROR(LOG_APP, "[NAPI] unknown graphics backend=%{public}s", backendName);
+        return BooleanResult(env, false);
+    }
+    OH_LOG_INFO(LOG_APP,
+                "[NAPI] graphics backend=%{public}s route=%{public}s",
+                backendName, policy.route.data());
+    const bool applied = ApplyHostGraphicsProfile(policy.host);
+    if (applied) gLegacyHostShadowProfile.clear();
+    return BooleanResult(env, applied);
+}
+
+static napi_value RunHostVulkanProbe(napi_env env, napi_callback_info info) {
+    size_t argc = 2;
+    napi_value args[2] = {};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    uint64_t surfaceId = 0;
+    bool lossless = false;
+    char runId[128] = {};
+    if (argc < 2 ||
+        napi_get_value_bigint_uint64(env, args[0], &surfaceId, &lossless) != napi_ok || !lossless ||
+        napi_get_value_string_utf8(env, args[1], runId, sizeof(runId), nullptr) != napi_ok) {
         napi_value result;
-        napi_get_null(env, &result);
+        napi_get_boolean(env, false, &result);
         return result;
     }
-    napi_value result, pidValue, sessionValue, pathValue, stateValue, toplevelValue;
-    napi_create_object(env, &result);
-    napi_create_int32(env, entry.pid, &pidValue);
-    napi_create_string_utf8(env, entry.sessionId.c_str(), NAPI_AUTO_LENGTH, &sessionValue);
-    napi_create_string_utf8(env, entry.exeFullPath.c_str(), NAPI_AUTO_LENGTH, &pathValue);
-    napi_create_string_utf8(env, entry.running ? "running" : "exited", NAPI_AUTO_LENGTH,
-                            &stateValue);
-    napi_create_uint32(env, entry.toplevelId, &toplevelValue);
-    napi_set_named_property(env, result, "pid", pidValue);
-    napi_set_named_property(env, result, "sessionId", sessionValue);
-    napi_set_named_property(env, result, "path", pathValue);
-    napi_set_named_property(env, result, "state", stateValue);
-    napi_set_named_property(env, result, "toplevelId", toplevelValue);
+    bool started = StartHostVulkanProbe(surfaceId, runId);
+    OH_LOG_INFO(LOG_APP, "[HostVulkan] start surface=%{public}llu run=%{public}s result=%{public}s",
+                static_cast<unsigned long long>(surfaceId), runId, started ? "true" : "false");
+    napi_value result;
+    napi_get_boolean(env, started, &result);
     return result;
 }
 
-static napi_value StopWineSession(napi_env env, napi_callback_info info) {
-    const std::string sessionId = GetStringArgument(env, info);
-    WineProcessEntry entry{};
-    const bool found = GetProcessBySessionId(sessionId, &entry);
-    if (found) {
-        const uint32_t toplevelId = entry.toplevelId;
-        KillProcessTree(entry.pid);
-        RemoveProcess(entry.pid, -1, "session-stop");
-        if (gStateTsfn) {
-            char msg[64];
-            snprintf(msg, sizeof(msg), "%d:exited", entry.pid);
-            napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
-        }
-        if (toplevelId > 0) {
-            // 立即通知 ArkTS 销毁窗口, 保证"关闭运行中的程序"与 Wine
-            // 进程/窗口状态联动, 不依赖 Wayland 断连的异步时序。
-            WaylandServer::GetInstance()->OnToplevelDestroyed(toplevelId);
-            WaylandServer::GetInstance()->PostToplevelEvent(toplevelId, ToplevelEventType::Destroyed);
-        }
+static napi_value StopHostVulkanProbeNapi(napi_env env, napi_callback_info) {
+    StopHostVulkanProbe();
+    napi_value result;
+    napi_get_boolean(env, true, &result);
+    return result;
+}
+
+static napi_value GetHostGpuNameNapi(napi_env env, napi_callback_info) {
+    const std::string name = ProbeGpuDeviceName();
+    napi_value result;
+    napi_create_string_utf8(env, name.c_str(), NAPI_AUTO_LENGTH, &result);
+    OH_LOG_INFO(LOG_APP, "[HostVulkan] gpuName=%{public}s", name.c_str());
+    return result;
+}
+
+static napi_value RefreshRenderer(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc < 1) {
+        OH_LOG_ERROR(LOG_APP, "[MW-NAPI] refreshRenderer: need toplevelId");
+        return nullptr;
     }
+    uint32_t tid = 0;
+    napi_get_value_uint32(env, args[0], &tid);
+    PluginManager::GetInstance()->RefreshRenderer(tid);
+    return nullptr;
+}
+
+static napi_value SetRendererPaused(napi_env env, napi_callback_info info) {
+    size_t argc = 2;
+    napi_value args[2];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc < 2) return nullptr;
+    uint32_t tl; bool paused;
+    napi_get_value_uint32(env, args[0], &tl);
+    napi_get_value_bool(env, args[1], &paused);
+    PluginManager::GetInstance()->SetRendererPaused(tl, paused);
+    return nullptr;
+}
+
+static napi_value WineTextInputPreedit(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = { nullptr };
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    char text[4096] = {};
+    if (argc >= 1 && args[0] != nullptr) {
+        size_t len = 0;
+        napi_get_value_string_utf8(env, args[0], text, sizeof(text), &len);
+    }
+    // 预上屏光标放在 UTF-8 末尾 (字节偏移), 避免把 JS UTF-16 下标误当字节数。
+    int32_t end = static_cast<int32_t>(strlen(text));
+    bool delivered = TextInputManager::GetInstance()->SendPreedit(text, 0, end);
     napi_value result;
-    napi_get_boolean(env, found, &result);
+    napi_get_boolean(env, delivered, &result);
     return result;
 }
 
-static napi_value ActivateWineSession(napi_env env, napi_callback_info info) {
-    const std::string sessionId = GetStringArgument(env, info);
-    WineProcessEntry entry{};
-    const bool found = GetProcessBySessionId(sessionId, &entry) && entry.toplevelId > 0;
-    if (found) WaylandServer::GetInstance()->RaiseToplevel(entry.toplevelId);
+static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = { nullptr };
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    char text[4096] = {};
+    if (argc >= 1 && args[0] != nullptr) {
+        size_t len = 0;
+        napi_get_value_string_utf8(env, args[0], text, sizeof(text), &len);
+    }
+    bool delivered = TextInputManager::GetInstance()->SendCommit(text);
     napi_value result;
-    napi_get_boolean(env, found, &result);
+    napi_get_boolean(env, delivered, &result);
     return result;
 }
 
-// -- 模块注册 --
+static napi_value WineTextInputEnabled(napi_env env, napi_callback_info) {
+    napi_value result;
+    napi_get_boolean(env, TextInputManager::GetInstance()->IsEnabled(), &result);
+    return result;
+}
+
+static napi_value WineTextInputSetArmed(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = { nullptr };
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    bool armed = false;
+    if (argc >= 1 && args[0] != nullptr) napi_get_value_bool(env, args[0], &armed);
+    TextInputManager::GetInstance()->SetArmed(armed);
+    return nullptr;
+}
+
+static napi_value InitAppLog(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = { nullptr };
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    char path[1024] = {};
+    if (argc >= 1 && args[0] != nullptr) {
+        size_t len = 0;
+        napi_get_value_string_utf8(env, args[0], path, sizeof(path), &len);
+    }
+    WineHuaLogInit(path);
+    return nullptr;
+}
+
+static napi_value ClearNativeLog(napi_env env, napi_callback_info info) {
+    WineHuaLogClear();
+    return nullptr;
+}
+
+static napi_value GetDisplayFps(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    uint32_t id = 0;
+    if (argc >= 1) napi_get_value_uint32(env, args[0], &id);
+    const double fps = static_cast<double>(DisplayFpsRegistry::Instance().Get(id));
+    napi_value result;
+    napi_create_double(env, fps, &result);
+    return result;
+}
+
+
+// ---- VPP wine-session surface (degraded on proton baseline) ----
+// theirs' (proton) process registry has no sessionId/toplevelId fields, so the
+// VPP session-management exports degrade to inert responses for this test build.
+static napi_value GetWineSession(napi_env env, napi_callback_info) {
+    OH_LOG_WARN(LOG_APP, "[VPP-Compat] getWineSession: sessions unavailable on proton baseline");
+    napi_value result;
+    napi_get_null(env, &result);
+    return result;
+}
+static napi_value StopWineSession(napi_env env, napi_callback_info) {
+    OH_LOG_WARN(LOG_APP, "[VPP-Compat] stopWineSession: sessions unavailable on proton baseline");
+    napi_value result;
+    napi_get_boolean(env, false, &result);
+    return result;
+}
+static napi_value ActivateWineSession(napi_env env, napi_callback_info) {
+    OH_LOG_WARN(LOG_APP, "[VPP-Compat] activateWineSession: sessions unavailable on proton baseline");
+    napi_value result;
+    napi_get_boolean(env, false, &result);
+    return result;
+}
+
 EXTERN_C_START
+static napi_value CaptureNativePerformance(napi_env env, napi_callback_info) {
+    napi_value result;
+    napi_create_object(env, &result);
+    auto number = [&](const char* name, double value) {
+        napi_value property; napi_create_double(env, value, &property);
+        napi_set_named_property(env, result, name, property);
+    };
+    auto boolean = [&](const char* name, bool value) {
+        napi_value property; napi_get_boolean(env, value, &property);
+        napi_set_named_property(env, result, name, property);
+    };
+    timespec monotonic{}, cpu{};
+    const bool timeOk = clock_gettime(CLOCK_MONOTONIC, &monotonic) == 0;
+    const bool cpuOk = clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu) == 0;
+    rusage usage{};
+    const bool rssOk = getrusage(RUSAGE_SELF, &usage) == 0 && usage.ru_maxrss > 0;
+    const auto direct = winehua::direct::GetDirectDesktopPerformance();
+    number("pid", getpid());
+    boolean("monotonicAvailable", timeOk); boolean("cpuAvailable", cpuOk); boolean("rssAvailable", rssOk);
+    number("monotonicNs", static_cast<double>(monotonic.tv_sec) * 1e9 + monotonic.tv_nsec);
+    number("processCpuNs", static_cast<double>(cpu.tv_sec) * 1e9 + cpu.tv_nsec);
+    number("rssHighWaterKiB", usage.ru_maxrss);
+    number("clockTicksPerSecond", sysconf(_SC_CLK_TCK));
+    boolean("directActive", direct.active);
+    number("directPresents", static_cast<double>(direct.presents));
+    number("directGamePresents", static_cast<double>(direct.gamePresents));
+    number("eglPresents", static_cast<double>(GetEglAcceptedPresents()));
+    number("eglGpuPresents", static_cast<double>(GetEglAcceptedGpuPresents()));
+    return result;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
-    OH_LOG_INFO(LOG_APP, "[MW-NAPI]  Init called, env=%{public}p", env);
+    OH_LOG_WARN(LOG_APP, "[MW-NAPI]  Init called, env=%{public}p", env);
+    LogWineScheme("libentry.so (主进程)");
+
+    // 注册 NCP 子进程退出回调 (最早时机, 无条件): 沙箱 /proc 对 NCP 进程
+    // 不可见, 退出检测以系统回调为权威信号。手机 fork 模式注册后不触发
+    // (fork 子进程不走 NCP), 空转无害 — 故无需按模式分流, 模式分支只留在
+    // spawn 之后的判活/杀/等待操作里 (此时 IsForkBackend 已由 setPhoneMode
+    // 正确置位)
+    RegisterNcpExitCallback();
 
     napi_property_descriptor desc[] = {
+        {"captureNativePerformance", nullptr, CaptureNativePerformance, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectVulkanProbe", nullptr, winehua::direct::RunVulkanProbe,
+             nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runPhoneSharedBufferProbe", nullptr, winehua::direct::RunPhoneSharedBufferProbe,
+             nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"preparePhoneDirectForkServer", nullptr, winehua::direct::PreparePhoneDirectForkServer,
+             nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectVulkanForkServerProbe", nullptr, winehua::direct::RunVulkanForkServerProbe,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectVulkanInlineProbe", nullptr, winehua::direct::RunVulkanInlineProbe,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectVulkanCreateProbe", nullptr, winehua::direct::RunVulkanCreateProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectVulkanSystemCreateProbe", nullptr, winehua::direct::RunVulkanSystemCreateProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectWineIpcProbe", nullptr, winehua::direct::RunWineIpcProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectWineBrokerIpcProbe", nullptr, winehua::direct::RunWineBrokerIpcProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectWineSurfaceIpcProbe", nullptr, winehua::direct::RunWineSurfaceIpcProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectSurfaceProbe", nullptr, winehua::direct::RunSurfaceProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectSurfaceAbortProbe", nullptr, winehua::direct::RunSurfaceAbortProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuSurfaceProbe", nullptr, winehua::direct::RunGpuSurfaceProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuImportProbe", nullptr, winehua::direct::RunGpuImportProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuSampleProbe", nullptr, winehua::direct::RunGpuSampleProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuFenceProbe", nullptr, winehua::direct::RunGpuFenceProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuCompositeProbe", nullptr, winehua::direct::RunGpuCompositeProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuCompositeResizeProbe", nullptr, winehua::direct::RunGpuCompositeResizeProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuCompositeThroughputProbe", nullptr,
+          winehua::direct::RunGpuCompositeThroughputProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuProducerPipelineProbe", nullptr,
+          winehua::direct::RunGpuProducerPipelineProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuDualSlotProbe", nullptr,
+          winehua::direct::RunGpuDualSlotProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectGpuDualSlotResizeProbe", nullptr,
+          winehua::direct::RunGpuDualSlotResizeProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setDirectProbeSurfaceId", nullptr, winehua::direct::SetDirectProbeSurfaceId,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"clearDirectProbeSurfaceId", nullptr, winehua::direct::ClearDirectProbeSurfaceId,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setDirectProbeSurfaceSize", nullptr, winehua::direct::SetDirectProbeSurfaceSize,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"takeDirectProbeResizeRequest", nullptr, winehua::direct::TakeDirectProbeResizeRequest,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runDirectOutputProbe", nullptr, winehua::direct::RunDirectOutputProbe,
+          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startServer",    nullptr, StartServer,    nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setHostShadowProfile", nullptr, SetHostShadowProfile, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"setHostGraphicsExperimentForLab", nullptr, SetHostGraphicsExperimentForLab, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"setHostGraphicsBackend", nullptr, SetHostGraphicsBackend, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"resolveGuestGraphicsEnvironmentForLab", nullptr, ResolveGuestGraphicsEnvironmentForLab, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"launchClient",   nullptr, LaunchClient,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopClient",     nullptr, StopClient,     nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopAll",        nullptr, StopAll,        nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setStateCallback", nullptr, SetStateCallback, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setToplevelCallback", nullptr, SetToplevelCallback, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setImeCallback", nullptr, SetImeCallback, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sendImeCommit", nullptr, SendImeCommit, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sendImePreedit", nullptr, SendImePreedit, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"imeBackspace", nullptr, ImeBackspace, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getCurrentToplevelId", nullptr, GetCurrentToplevelId, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setPendingToplevel", nullptr, SetPendingToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"cancelPendingToplevel", nullptr, CancelPendingToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"destroyToplevel", nullptr, DestroyToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"sendToplevelClose", nullptr, SendToplevelClose, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runWineExe",     nullptr, RunWineExe,     nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"runWineExeLegacy", nullptr, RunWineExeLegacy, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"getWineSession", nullptr, GetWineSession, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"stopWineSession", nullptr, StopWineSession, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"activateWineSession", nullptr, ActivateWineSession, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runWineProgram", nullptr, RunWineProgram, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"extractFontZip", nullptr, ExtractFontZip, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"extractFontZipAsync", nullptr, ExtractFontZipAsync, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"runGuestProgram", nullptr, RunGuestProgram, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"runHostProgram", nullptr, RunHostProgram, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"runHostReplay", nullptr, RunHostReplay, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"isHostReplayRunning", nullptr, IsHostReplayRunning, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"queryWineProcess", nullptr, QueryWineProcess, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"terminateWineProcess", nullptr, TerminateWineProcess, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"checkWinePrefix",nullptr, CheckWinePrefix,nullptr, nullptr, nullptr, napi_default, nullptr},
         {"resetWinePrefix",nullptr, ResetWinePrefix,nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"runHostVulkanProbe", nullptr, RunHostVulkanProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"stopHostVulkanProbe", nullptr, StopHostVulkanProbeNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"getHostGpuName", nullptr, GetHostGpuNameNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"getDisplayFps", nullptr, GetDisplayFps, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"readPerformanceCounters", nullptr, ReadPerformanceCounters, nullptr, nullptr, nullptr, napi_default, nullptr},
         // surfaceId 驱动的渲染器管理 (XComponentController 回调)
         {"createRenderer",  nullptr, CreateRenderer,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"resizeRenderer",  nullptr, ResizeRenderer,  nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"refreshRenderer", nullptr, RefreshRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"destroyRenderer", nullptr, DestroyRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},
-#ifdef DEBUG_MMAP_TEST
-        {"runMmapTests",  nullptr, RunMmapTests,  nullptr, nullptr, nullptr, napi_default, nullptr},
-#endif
         {"setOutputSize",   nullptr, SetOutputSize,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDisplayScale",  nullptr, SetDisplayScale,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDesktopMode",   nullptr, SetDesktopMode,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setPhoneMode",     nullptr, SetPhoneMode,     nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"wineTextInputPreedit",    nullptr, WineTextInputPreedit,    nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"wineTextInputCommit",     nullptr, WineTextInputCommit,     nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"wineTextInputEnabled",    nullptr, WineTextInputEnabled,    nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"wineTextInputSetArmed",   nullptr, WineTextInputSetArmed,   nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"setImeCallback",           nullptr, SetImeCallback,           nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"imeBackspace",             nullptr, ImeBackspace,             nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"initAppLog",       nullptr, InitAppLog,       nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"clearNativeLog",   nullptr, ClearNativeLog,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getDesktopRootId", nullptr, GetDesktopRootId, nullptr, nullptr, nullptr, napi_default, nullptr},
         // ArkTS input forwarding (unified InputManager path)
         {"sendPointerEvent", nullptr, SendPointerEvent, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"sendKeyEvent",     nullptr, SendKeyEvent,     nullptr, nullptr, nullptr, napi_default, nullptr},
         {"sendScrollEvent",   nullptr, SendScrollEvent,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerHostWindow", nullptr, RegisterHostWindow, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"dumpWindowLayout", nullptr, DumpWindowLayout, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setPointerLockCallback", nullptr, SetPointerLockCallback, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"notifyToplevelResize",nullptr,NotifyToplevelResize,nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"notifyToplevelResizeEnd",nullptr,NotifyToplevelResizeEnd,nullptr, nullptr, nullptr, napi_default, nullptr},
         {"findToplevelAt",   nullptr, FindToplevelAt,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"raiseToplevel",    nullptr, RaiseToplevel,    nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setToplevelVisible", nullptr, SetToplevelVisible, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"setRendererPaused", nullptr, SetRendererPaused, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getProcessList",   nullptr, GetProcessList,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"killProcess",     nullptr, KillProcess,     nullptr, nullptr, nullptr, napi_default, nullptr},
         {"initGameController", nullptr, InitGameController, nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -1460,8 +1686,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"setGamepadRumbleCallback", nullptr, SetGamepadRumbleCallback, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetEnabled", nullptr, ControllerSetEnabled, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetButton", nullptr, ControllerSetButton, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"controllerSetStick", nullptr, ControllerSetStick, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"controllerSetTrigger", nullptr, ControllerSetTrigger, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"controllerSetAxis", nullptr, ControllerSetAxis, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetHat", nullptr, ControllerSetHat, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerResetSource", nullptr, ControllerResetSource, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerGetState", nullptr, ControllerGetState, nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -1471,13 +1696,35 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"controllerGetSocketPath", nullptr, ControllerGetSocketPath, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetOutputMode", nullptr, ControllerSetOutputMode, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerGetOutputMode", nullptr, ControllerGetOutputMode, nullptr, nullptr, nullptr, napi_default, nullptr},
+        // ---- VPP product surface ----
+        {"setHostGraphicsExperimentForLab", nullptr, SetHostGraphicsExperimentForLab, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setHostGraphicsBackend", nullptr, SetHostGraphicsBackend, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"runHostVulkanProbe", nullptr, RunHostVulkanProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopHostVulkanProbe", nullptr, StopHostVulkanProbeNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getHostGpuName", nullptr, GetHostGpuNameNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"refreshRenderer", nullptr, RefreshRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setRendererPaused", nullptr, SetRendererPaused, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"wineTextInputPreedit", nullptr, WineTextInputPreedit, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"wineTextInputCommit", nullptr, WineTextInputCommit, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"wineTextInputEnabled", nullptr, WineTextInputEnabled, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"wineTextInputSetArmed", nullptr, WineTextInputSetArmed, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"initAppLog", nullptr, InitAppLog, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"clearNativeLog", nullptr, ClearNativeLog, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getDisplayFps", nullptr, GetDisplayFps, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"extractFontZipAsync", nullptr, ExtractFontZipAsync, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"readPerformanceCounters", nullptr, ReadPerformanceCounters, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"controllerSetStick", nullptr, ControllerSetStick, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"controllerSetTrigger", nullptr, ControllerSetTrigger, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getWineSession", nullptr, GetWineSession, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopWineSession", nullptr, StopWineSession, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"activateWineSession", nullptr, ActivateWineSession, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
 
     // surfaceId 架构: 不再使用 libraryname='entry', XComponent 通过
     // 自定义 Controller 回调拿到 surfaceId, 由 createRenderer/renderer 管理。
     // 不再需要保存 gEnv/gExports, 不再依赖 XComponent exports 对象。
-    OH_LOG_INFO(LOG_APP, "[MW-NAPI] Init complete OK");
+    OH_LOG_WARN(LOG_APP, "[MW-NAPI] Init complete OK");
     return exports;
 }
 EXTERN_C_END

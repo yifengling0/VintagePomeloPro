@@ -1,17 +1,17 @@
-#include "graphics/graphics_broker.h"
+#include "graphics_broker.h"
 
 #include "common/fs_utils.h"
 #include "common/process_utils.h"
 #include "common/string_utils.h"
 #include "common/wait_utils.h"
 #include "compositor/wayland_server.h"
-#include "wine/wine_env.h"
 
 #include <AbilityKit/native_child_process.h>
 #include "phone_adapter/phone_adapter.h"
 #include <IPCKit/ipc_kit.h>
 #include <native_window/external_window.h>
-#include "graphics/virgl_ipc_protocol.h"
+#include "virgl_ipc_protocol.h"
+#include "wine/wine_env.h"
 
 // ---- 与 OH_IPCRemoteProxy_* 签名兼容的包装：真 proxy 走原 API，dummy 走 socket relay ----
 static int SendVirglRequestLocked(OHIPCRemoteProxy* proxy, uint32_t code,
@@ -45,7 +45,7 @@ static int VirglProxyIsRemoteDead(OHIPCRemoteProxy* proxy) {
     return 0;
 }
 
-#include "graphics/virgl_ipc_protocol.h"
+#include "virgl_ipc_protocol.h"
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -85,6 +85,7 @@ using VirglInProcessRunFn = int (*)(
     const char*, const char*, const char*, const char*, const char*,
     const char*, const char*, const char*, const char*, const char*,
     const char*);
+using VirglInProcessStopFn = int (*)();
 using VirglInProcessAttachFn = int (*)(uint64_t, uint64_t, uint32_t, OHNativeWindow*);
 using VirglInProcessDetachFn = int (*)(uint64_t);
 using VirglInProcessSetFramePeriodFn = int (*)(uint64_t, uint64_t);
@@ -205,13 +206,15 @@ bool GraphicsBroker::StartVirglInProcessHostLocked(const VirglHostConfig& config
 
     auto runFn = reinterpret_cast<VirglInProcessRunFn>(
         dlsym(virglInProcessHandle_, "WinehuaVirgl_RunConfiguredHost"));
+    virglInProcessStop_ = dlsym(virglInProcessHandle_, "WinehuaVirgl_RequestStop");
     virglInProcessAttach_ = dlsym(virglInProcessHandle_, "WinehuaVirgl_AttachSurfaceTarget");
     virglInProcessDetach_ = dlsym(virglInProcessHandle_, "WinehuaVirgl_DetachSurfaceTarget");
     virglInProcessSetFramePeriod_ = dlsym(
         virglInProcessHandle_, "WinehuaVirgl_SetSurfaceFramePeriod");
     virglInProcessQuery_ = dlsym(virglInProcessHandle_, "WinehuaVirgl_QuerySurfaces");
     virglInProcessReset_ = dlsym(virglInProcessHandle_, "WinehuaVirgl_ResetSurfaces");
-    if (!runFn || !virglInProcessAttach_ || !virglInProcessDetach_ ||
+    if (!runFn || !virglInProcessStop_ ||
+        !virglInProcessAttach_ || !virglInProcessDetach_ ||
         !virglInProcessSetFramePeriod_ || !virglInProcessQuery_ || !virglInProcessReset_)
     {
         const char* error = dlerror();
@@ -241,11 +244,10 @@ bool GraphicsBroker::StartVirglInProcessHostLocked(const VirglHostConfig& config
             config.helperPath.c_str(), config.socketPath.c_str(),
             config.libraryPath.c_str(), config.syncMode.c_str(),
             config.logPath.c_str(), config.shadowMode.c_str(),
-            config.shadowTrace.c_str(), config.perfSummary.c_str(),
+            config.shadowTrace.c_str(), config.presentMode.c_str(),
             config.shadowMergeRanges.c_str(),
             config.descriptorUpdateSerialize.c_str(),
             config.gpuUploadWait.c_str());
-        virglServerRunning_.store(false, std::memory_order_release);
         {
             std::lock_guard<std::mutex> ipcLock(virglIpcMutex_);
             virglIpcConfigured_ = false;
@@ -253,6 +255,8 @@ bool GraphicsBroker::StartVirglInProcessHostLocked(const VirglHostConfig& config
         OH_LOG_WARN(LOG_APP,
                     "[GraphicsBroker] phone in-process VirGL host exited result=%{public}d config=0x%{public}llx",
                     result, static_cast<unsigned long long>(configHash));
+        virglServerRunning_.store(false, std::memory_order_release);
+        virglIpcCondition_.notify_all();
     }).detach();
     return true;
 }
@@ -318,7 +322,7 @@ bool GraphicsBroker::SendVirglConfigureLocked()
     if (writeResult == OH_IPC_SUCCESS)
         writeResult = OH_IPCParcel_WriteString(request, virglHostConfig_.shadowTrace.c_str());
     if (writeResult == OH_IPC_SUCCESS)
-        writeResult = OH_IPCParcel_WriteString(request, virglHostConfig_.perfSummary.c_str());
+        writeResult = OH_IPCParcel_WriteString(request, virglHostConfig_.presentMode.c_str());
     if (writeResult == OH_IPC_SUCCESS)
         writeResult = OH_IPCParcel_WriteString(
             request, virglHostConfig_.shadowMergeRanges.c_str());
@@ -502,16 +506,14 @@ bool GraphicsBroker::SendVirglDetachLocked(uint64_t surfaceKey)
 
 bool GraphicsBroker::AttachZeroCopyTarget(uint64_t surfaceKey,
                                           OHNativeWindow* producerWindow,
-                                          uint64_t framePeriodNs,
-                                          bool vulkanSurface)
+                                          uint64_t framePeriodNs)
 {
     if (!surfaceKey || !producerWindow || GetState().active != GraphicsBackend::Virgl)
         return false;
 
     std::lock_guard<std::mutex> lock(virglIpcMutex_);
     if (zeroCopyAttachedSurfaces_.count(surfaceKey)) return true;
-    // kSurfaceVulkan describes this producer surface, not the session mode.
-    uint32_t flags = vulkanSurface
+    uint32_t flags = vulkanPresentMode_.load(std::memory_order_acquire)
         ? virgl_ipc::kSurfaceVulkan : 0;
     if (virglServerUsesInProcess_.load(std::memory_order_acquire))
         flags |= virgl_ipc::kSurfaceNativeObjectReference;
@@ -555,7 +557,12 @@ bool GraphicsBroker::QueryZeroCopySurfaces(std::vector<ZeroCopySurfaceInfo>& sur
 {
     surfaces.clear();
     std::lock_guard<std::mutex> lock(virglIpcMutex_);
-    if (!virglIpcConfigured_) return false;
+    if (!virglIpcConfigured_)
+    {
+        // 诊断 (2026-09-16): 旧实现静默返回 false — app 侧 ZC attach 就此停摆且无日志。
+        LogZeroCopyQueryFailureLocked("ipc_not_configured", 0, 0);
+        return false;
+    }
     if (virglServerUsesInProcess_.load(std::memory_order_acquire))
     {
         auto queryFn = reinterpret_cast<VirglInProcessQueryFn>(virglInProcessQuery_);
@@ -565,7 +572,10 @@ bool GraphicsBroker::QueryZeroCopySurfaces(std::vector<ZeroCopySurfaceInfo>& sur
             queryReply.version != static_cast<uint32_t>(virgl_ipc::kProtocolVersion) ||
             queryReply.size != sizeof(queryReply) ||
             queryReply.count > virgl_ipc::kMaxSurfaces)
+        {
+            LogZeroCopyQueryFailureLocked("in_process_reply_invalid", 0, 0);
             return false;
+        }
         surfaces.reserve(queryReply.count);
         for (uint32_t i = 0; i < queryReply.count; ++i)
         {
@@ -577,7 +587,11 @@ bool GraphicsBroker::QueryZeroCopySurfaces(std::vector<ZeroCopySurfaceInfo>& sur
         }
         return true;
     }
-    if (!virglRemoteProxy_) return false;
+    if (!virglRemoteProxy_)
+    {
+        LogZeroCopyQueryFailureLocked("no_remote_proxy", 0, 0);
+        return false;
+    }
 
     OHIPCParcel* request = OH_IPCParcel_Create();
     OHIPCParcel* reply = OH_IPCParcel_Create();
@@ -626,7 +640,29 @@ bool GraphicsBroker::QueryZeroCopySurfaces(std::vector<ZeroCopySurfaceInfo>& sur
     }
     if (reply) OH_IPCParcel_Destroy(reply);
     if (request) OH_IPCParcel_Destroy(request);
+    if (result != OH_IPC_SUCCESS)
+        LogZeroCopyQueryFailureLocked("ipc_request_failed", result,
+                                      static_cast<int32_t>(surfaces.size()));
     return result == OH_IPC_SUCCESS;
+}
+
+// 诊断 (2026-09-16): ZC surface 查询失败的带原因日志 (每 2s 最多一条, 不改变行为)。
+// 调用方须持有 virglIpcMutex_。
+void GraphicsBroker::LogZeroCopyQueryFailureLocked(const char* reason, int32_t detail,
+                                                  int32_t surfaceCount) const
+{
+    const auto now = std::chrono::steady_clock::now();
+    if (zeroCopyQueryFailureLogged_ &&
+        now - zeroCopyQueryFailureLogTime_ < std::chrono::seconds(2))
+        return;
+    zeroCopyQueryFailureLogged_ = true;
+    zeroCopyQueryFailureLogTime_ = now;
+    OH_LOG_WARN(LOG_APP,
+                "[VIRGL-ZC][MAIN][DIAG] zc_query_fail reason=%{public}s detail=%{public}d "
+                "surfaces=%{public}d ipc=%{public}d proxy=%{public}p in_process=%{public}d",
+                reason, detail, surfaceCount, virglIpcConfigured_ ? 1 : 0,
+                virglRemoteProxy_,
+                virglServerUsesInProcess_.load(std::memory_order_acquire) ? 1 : 0);
 }
 
 void GraphicsBroker::SetZeroCopySurfaceReady(uint64_t surfaceKey, bool ready)
@@ -742,6 +778,7 @@ void GraphicsBroker::Stop()
     bool serverUsesNcp = false;
     bool serverUsesIpc = false;
     bool serverUsesInProcess = false;
+    VirglInProcessStopFn inProcessStopFn = nullptr;
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -754,9 +791,8 @@ void GraphicsBroker::Stop()
         serverUsesIpc = virglServerUsesIpc_;
         if (serverUsesInProcess)
         {
-            virglServerPid_ = -1;
-            virglServerUsesInProcess_.store(false, std::memory_order_release);
-            virglServerRunning_.store(false, std::memory_order_release);
+            inProcessStopFn = reinterpret_cast<VirglInProcessStopFn>(
+                virglInProcessStop_);
             virglSocketReady_ = false;
         }
         else
@@ -773,9 +809,59 @@ void GraphicsBroker::Stop()
 
     if (serverUsesInProcess)
     {
-        std::lock_guard<std::mutex> ipcLock(virglIpcMutex_);
-        ResetVirglInProcessSurfacesLocked();
-        if (!socketPath.empty()) unlink(socketPath.c_str());
+        const auto deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(5);
+        int requestResult = 0;
+
+        /* The broker marks the host running immediately before launching its
+         * thread. Retry until virgl_child has entered its matching run so an
+         * immediate Stop cannot miss that narrow scheduling window. */
+        while (virglServerRunning_.load(std::memory_order_acquire) &&
+               requestResult == 0 &&
+               std::chrono::steady_clock::now() < deadline)
+        {
+            if (inProcessStopFn)
+                requestResult = inProcessStopFn();
+            if (requestResult == 0)
+            {
+                std::unique_lock<std::mutex> ipcLock(virglIpcMutex_);
+                virglIpcCondition_.wait_for(
+                    ipcLock, std::chrono::milliseconds(10), [this]() {
+                        return !virglServerRunning_.load(std::memory_order_acquire);
+                    });
+            }
+        }
+
+        std::unique_lock<std::mutex> ipcLock(virglIpcMutex_);
+        const bool exited = virglIpcCondition_.wait_until(
+            ipcLock, deadline, [this]() {
+                return !virglServerRunning_.load(std::memory_order_acquire);
+            });
+        if (exited)
+            ResetVirglInProcessSurfacesLocked();
+        ipcLock.unlock();
+
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (exited)
+            {
+                virglServerPid_ = -1;
+                virglServerUsesInProcess_.store(false, std::memory_order_release);
+                virglServerRunning_.store(false, std::memory_order_release);
+                virglServerUsesNcp_ = false;
+                virglServerUsesIpc_ = false;
+                lastError_.clear();
+            }
+            else
+            {
+                lastError_ = "timed out waiting for in-process VirGL host shutdown";
+            }
+        }
+
+        if (exited && !socketPath.empty()) unlink(socketPath.c_str());
+        OH_LOG_INFO(LOG_APP,
+                    "[GraphicsBroker] in-process VirGL stop request=%{public}d exited=%{public}d",
+                    requestResult, exited ? 1 : 0);
         return;
     }
     if (serverUsesIpc)
@@ -877,18 +963,31 @@ void GraphicsBroker::AppendWineEnv(std::vector<std::string>& env) const
             std::string guestLibDir = state.guestReceiverRuntimeDir + "/lib";
             env.push_back("EGL_PLATFORM=wayland");
             if (FileExists(guestLibDir + "/libEGL.so"))
-#ifdef __x86_64__
-                // 我们 x86_64 打包用唯一命名 (libwinehua_guest_EGL.so) 防覆盖系统库
-                env.push_back("WINEHUA_EGL_LIBRARY_PATH=/data/storage/el1/bundle/libs/x86_64/libwinehua_guest_EGL.so");
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+                // 方案③ arm64 原生: el1 dlopen (el2 被拒). 方案② (box64+wine) 走
+                // #else guestLibDir — guest 是 x86_64, EGL 在 el2 由 box64 转译加载,
+                // el1 的 arm64 libEGL.so 不存在, 注入会致 explorer 的 EGL 初始化失败.
+                env.push_back("WINEHUA_EGL_LIBRARY_PATH=/data/storage/el1/bundle/libs/arm64/libEGL.so");
+#elif defined(__x86_64__)
+                env.push_back("WINEHUA_EGL_LIBRARY_PATH=/data/storage/el1/bundle/libs/x86_64/libEGL.so");
 #else
                 env.push_back("WINEHUA_EGL_LIBRARY_PATH=" + guestLibDir + "/libEGL.so");
 #endif
-#ifdef __aarch64__
-            env.push_back("BOX64_EMULATED_LIBS=" + Box64EmulatedLibs());
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+            // 方案② box64+wine: 非 DXVK 基线值 (8 个 lib, 不含 libvulkan)。
+            // DXVK 路径下 AppendD3dBackendEnv 会用 14 个 lib (含 libvulkan) 覆盖此值。
+            env.push_back("BOX64_EMULATED_LIBS=libEGL.so:libEGL.so.1:libGLESv2.so:libGLESv2.so.2:"
+                          "libGLESv1_CM.so:libGLESv1_CM.so.1:libGL.so:libGL.so.1:"
+                          "libwayland-client.so:libwayland-client.so.0:libwayland-server.so:"
+                          "libwayland-server.so.0:libwayland-egl.so:libwayland-egl.so.1:"
+                          "libdrm.so:libdrm.so.2:libffi.so:libffi.so.8");
 #endif
-#ifdef __x86_64__
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+            // LIBGL_DRIVERS_PATH 由 virgl 块末尾统一 Upsert 到 el1 (guestEnv push 之后), 不在此设置
+#elif defined(__x86_64__)
             // LIBGL_DRIVERS_PATH 由下方 softpipe 块统一指向 el1, 不在此重复设置
 #else
+            // 方案② (box64+wine): dri 在 el2 guestLibDir, 由 box64 转译加载
             if (DirExists(guestLibDir + "/dri")) env.push_back("LIBGL_DRIVERS_PATH=" + guestLibDir + "/dri");
 #endif
             if (DirExists(guestLibDir + "/egl")) env.push_back("EGL_DRIVERS_PATH=" + guestLibDir + "/egl");
@@ -900,7 +999,15 @@ void GraphicsBroker::AppendWineEnv(std::vector<std::string>& env) const
         env.push_back("WINEHUA_VTEST_PRESENT=surface-queue");
         env.push_back(std::string("WINEHUA_ZERO_COPY_READY_DIR=") + ZERO_COPY_READY_DIR);
         for (const std::string& extra : guestEnv) env.push_back(extra);
-#ifdef __x86_64__
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+        // 方案③: dri 平铺在 el1 bundle。必须在 guestEnv 之后 Upsert, 盖掉
+        // env 文件里已展开的 LIBGL_DRIVERS_PATH=$ORIGIN/lib/dri (el2)。
+        // virpipe 的正确加载方式是 guest env 既有的
+        // LIBGL_ALWAYS_SOFTWARE=1 + MESA_LOADER_DRIVER_OVERRIDE=swrast +
+        // GALLIUM_DRIVER=virpipe (virpipe 是 gallium pipe, 不是独立 dri)。
+        UpsertEnvLine(env, "LIBGL_DRIVERS_PATH=/data/storage/el1/bundle/libs/arm64");
+        if (!state.virglSocketPath.empty()) env.push_back("VTEST_SOCKET_NAME=" + state.virglSocketPath);
+#elif defined(__x86_64__)
         // HarmonyOS PC emulator express GPU cannot host GL: eglCreateContext
         // with a NULL share context and glTexImage2D with NULL pixels crash
         // Emulator.exe. Route the x86_64 guest to software rendering
@@ -909,8 +1016,8 @@ void GraphicsBroker::AppendWineEnv(std::vector<std::string>& env) const
         //
         // NOTE: 必须用 UpsertEnvLine 覆盖而不是 push_back — guest_gfx env
         // 文件 (共享产物, arm64/x86_64 同一份) 里已含 GALLIUM_DRIVER=virpipe
-        // 与 LIBGL_DRIVERS_PATH=guest 路径, getenv 取首个匹配, push_back 追加
-        // 的 softpipe/el1 值会被产物里的旧值遮蔽。
+        // 与 LIBGL_DRIVERS_PATH=$ORIGIN/lib/dri, 而 getenv 取首个匹配项,
+        // push_back 追加的 softpipe/el1 值会被产物里的旧值遮蔽。
         UpsertEnvLine(env, "GALLIUM_DRIVER=softpipe");
         UpsertEnvLine(env, "LIBGL_DRIVERS_PATH=/data/storage/el1/bundle/libs/x86_64");
 #else
@@ -1158,7 +1265,10 @@ void GraphicsBroker::StartVirglSocketServerLocked()
                         syncMode.c_str());
             syncMode = "egl-thread";
         }
-        const std::string virglLogPath = "/data/storage/el2/base/cache/winehua_virgl_host.log";
+        const char* requestedLogPath = getenv("WINEHUA_VIRGL_HOST_LOG_PATH");
+        const std::string virglLogPath = requestedLogPath && requestedLogPath[0]
+            ? requestedLogPath
+            : "/data/storage/el2/base/cache/winehua_virgl_host.log";
         const bool phoneMode = PhoneAdapter_IsPhoneMode();
         const char* requestedShadowMode =
             getenv("WINEHUA_VIRGL_HOST_SHADOW_MODE");
@@ -1168,14 +1278,19 @@ void GraphicsBroker::StartVirglSocketServerLocked()
             getenv("WINEHUA_VIRGL_HOST_SHADOW_SELECTOR");
         if (!requestedShadowTrace || !requestedShadowTrace[0])
             requestedShadowTrace = getenv("VKR_WINEHUA_SHADOW_TRACE");
-        const char* requestedPerfSummary =
-            getenv("WINEHUA_VIRGL_HOST_PERF_SUMMARY");
+        const char* requestedPresentMode =
+            getenv("WINEHUA_VIRGL_HOST_PRESENT_MODE");
+        if (!requestedPresentMode || !requestedPresentMode[0])
+            requestedPresentMode = getenv("WINEHUA_VENUS_PRESENT_MODE");
         const std::string shadowMode = requestedShadowMode && requestedShadowMode[0]
             ? requestedShadowMode : "full";
         const std::string shadowTrace = requestedShadowTrace && requestedShadowTrace[0]
             ? requestedShadowTrace : "0";
-        const std::string perfSummary = requestedPerfSummary &&
-            !strcmp(requestedPerfSummary, "1") ? "1" : "0";
+        const std::string presentMode = requestedPresentMode &&
+            (!strcmp(requestedPresentMode, "mailbox") ||
+             !strcmp(requestedPresentMode, "fifo-async") ||
+             !strcmp(requestedPresentMode, "fifo-poll"))
+            ? requestedPresentMode : "fifo";
         const char* requestedMergeRanges =
             getenv("WINEHUA_VIRGL_HOST_SHADOW_MERGE_RANGES");
         if (!requestedMergeRanges || !requestedMergeRanges[0])
@@ -1191,7 +1306,7 @@ void GraphicsBroker::StartVirglSocketServerLocked()
             requestedGpuUploadWait = getenv("VKR_WINEHUA_GPU_UPLOAD_WAIT");
         VirglHostConfig desiredConfig = {
             virglVtestLibraryPath_, virglSocketPath_, ldLibraryPath, syncMode,
-            virglLogPath, shadowMode, shadowTrace, perfSummary,
+            virglLogPath, shadowMode, shadowTrace, presentMode,
             requestedMergeRanges && requestedMergeRanges[0]
                 ? requestedMergeRanges : "1",
             requestedDescriptorSerialize && requestedDescriptorSerialize[0]
@@ -1290,10 +1405,10 @@ void GraphicsBroker::StartVirglSocketServerLocked()
             OH_LOG_INFO(LOG_APP,
                         "[GraphicsBroker] IPC NCP virgl_child configured helper=%{public}s "
                         "socket=%{public}s hostLib=%{public}s sync=%{public}s log=%{public}s "
-                        "perf_summary=%{public}s config=0x%{public}llx",
+                        "present=%{public}s config=0x%{public}llx",
                         virglVtestLibraryPath_.c_str(), virglSocketPath_.c_str(),
                         ldLibraryPath.c_str(), syncMode.c_str(), virglLogPath.c_str(),
-                        perfSummary.c_str(),
+                        presentMode.c_str(),
                         static_cast<unsigned long long>(desiredConfigHash));
         }
     }
@@ -1304,10 +1419,9 @@ void GraphicsBroker::StartVirglSocketServerLocked()
     OH_LOG_INFO(LOG_APP, "[GraphicsBroker] waiting for virgl socket at %{public}s",
                 virglSocketPath_.c_str());
 
-    constexpr int kVtestSocketWaitMs = 30 * 1000;
     if (WaitFor("virgl_test_server socket",
                 [this]() { return FileExists(virglSocketPath_) || !IsVirglServerProcessAliveLocked(); },
-                kVtestSocketWaitMs, 100) &&
+                4000, 100) &&
         FileExists(virglSocketPath_) &&
         IsVirglServerProcessAliveLocked())
     {
@@ -1321,23 +1435,18 @@ void GraphicsBroker::StartVirglSocketServerLocked()
 
     const bool socketExists = FileExists(virglSocketPath_);
     const bool serverAlive = IsVirglServerProcessAliveLocked();
-    if (serverAlive) {
-        /* 慢设备上 vtest 服务首次冷启动可能超过固定等待。进程还活着就保留它,
-         * 让后续 EnsureStarted() 重新探测 socket, 而不是杀掉服务造成硬失败。 */
-        virglSocketReady_ = false;
-        lastError_ = "virgl_test_server socket not ready yet after " +
-                     std::to_string(kVtestSocketWaitMs / 1000) +
-                     " s; host process alive, will retry";
-        OH_LOG_WARN(LOG_APP,
-                    "[GraphicsBroker] virgl socket wait timed out but host alive: "
-                    "socket_exists=%{public}d process_alive=%{public}d; keeping host for retry",
-                    socketExists ? 1 : 0, serverAlive ? 1 : 0);
-        return;
-    }
-
     OH_LOG_ERROR(LOG_APP,
                  "[GraphicsBroker] virgl socket wait FAILED: socket_exists=%{public}d process_alive=%{public}d",
                  socketExists ? 1 : 0, serverAlive ? 1 : 0);
+
+    // An in-process host cannot be killed independently from the application.
+    // Keep its real state so a later Prepare() can observe a delayed socket.
+    if (virglServerUsesInProcess_.load(std::memory_order_acquire) && serverAlive)
+    {
+        virglSocketReady_ = false;
+        lastError_ = "timed out waiting for virgl_test_server socket; host is still starting";
+        return;
+    }
 
     if (virglServerPid_ > 0 &&
         !virglServerUsesInProcess_.load(std::memory_order_acquire))

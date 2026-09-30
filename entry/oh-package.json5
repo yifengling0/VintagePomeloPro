@@ -7,6 +7,7 @@
   "license": "",
   "dependencies": {
     "libentry.so": "file:./src/main/cpp/types/libentry",
-    "libsteamdecompress.so": "file:./src/main/cpp/types/libsteamdecompress"
+    "libsteamdecompress.so": "file:./src/main/cpp/types/libsteamdecompress",
+    "libsmoke_napi.so": "file:./src/main/cpp/types/smoke_napi"
   }
 }

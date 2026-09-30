@@ -82,7 +82,7 @@ public:
     //    wl_core.cpp 首帧 focus 预设直接调用本方法) --
     void InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fixed_t sx, wl_fixed_t sy);
     void InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy);
-    void InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy);
+    void InjectRelativeMotion(wl_fixed_t dx, wl_fixed_t dy);
     void InjectPointerButton(uint32_t button, uint32_t state);
     void InjectPointerAxis(int axis, wl_fixed_t value);
     void InjectPointerLeave();
@@ -93,12 +93,12 @@ public:
 
     // -- 状态重置 (Seat resource destroy 时调用) --
     void ResetPointerEnter();
-    // fullscreen/遮罩切换会改变物理坐标到 surface 局部坐标的映射。递增 epoch
-    // 让下一帧相对输入只重建基准、不发送坐标系跳变量。
-    void InvalidateRelativePointerBaseline(const char* reason);
     void ResetKeyboardEnter();
-    // Wine 会话终结统一收口 (WaylandServer::ResetSessionState 调用): 清残留
-    // 按键/修饰键/指针位置/可见性/相对输入基线, 防热重启后新会话卡键或漂移
+
+    // -- Wine 会话终结统一收口 (WaylandServer::ResetSessionState 调用) --
+    // 全量复位会话级状态 (焦点/按键/修饰键/指针位置/可见性表), 使下一次
+    // 引擎启动 (冷/热) 从与冷启动一致的基线开始 — 热重启复用同一进程,
+    // 任何"只清不重置"的字段都会跨会话残留 (卡键/修饰键污染/焦点漂移)
     void ResetSessionState();
 
     // surface 销毁时重置焦点, 防止后续 Inject*Leave 引用已销毁的 surface

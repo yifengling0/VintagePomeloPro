@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
-#include "compositor/frame/geometry.h"
 
 struct wl_resource;  // 只存指针做身份比较, 不做任何操作 (宿主单测可用假指针)
 
@@ -104,21 +103,6 @@ public:
     double LastLocalY() const { return lastLocalY_; }
     void UpdateLastLocal(double x, double y);
     void ResetLastLocal();
-    uint64_t RelativeSpaceEpoch() const { return relativeSpaceEpoch_.load(); }
-    uint64_t InvalidateRelativeBaseline() { return relativeSpaceEpoch_.fetch_add(1) + 1; }
-    bool SameRelativeSpace(uint32_t tl, wl_resource* surface, uint64_t epoch,
-                           const FitRect& fit, const FitRect& displayFit) const {
-        return hasLastLocal_ && lastRelativeToplevel_ == tl &&
-            lastRelativeSurface_ == surface && lastRelativeSpaceEpoch_ == epoch &&
-            SameFitRect(fit, lastRelativeFit_) && SameFitRect(displayFit, lastRelativeDisplayFit_);
-    }
-    void TrackRelativeSpace(uint32_t tl, wl_resource* surface, uint64_t epoch,
-                            const FitRect& fit, const FitRect& displayFit) {
-        lastRelativeToplevel_ = tl; lastRelativeSurface_ = surface;
-        lastRelativeSpaceEpoch_ = epoch; lastRelativeFit_ = fit;
-        lastRelativeDisplayFit_ = displayFit;
-    }
-    void ResetRelativeSpace() { lastRelativeToplevel_ = 0; lastRelativeSurface_ = nullptr; }
 
     // -- 最近按下时刻 (ACT_RELEASE 脉冲拉伸计时, 旧 lastPressMs_ atomic) --
     uint32_t LastPressMs() const { return lastPressMs_.load(); }
@@ -151,12 +135,6 @@ private:
 
     double lastLocalX_ = 0, lastLocalY_ = 0;
     bool hasLastLocal_ = false;
-    uint32_t lastRelativeToplevel_ = 0;
-    wl_resource* lastRelativeSurface_ = nullptr;
-    uint64_t lastRelativeSpaceEpoch_ = 0;
-    FitRect lastRelativeFit_;
-    FitRect lastRelativeDisplayFit_;
-    std::atomic<uint64_t> relativeSpaceEpoch_{1};
 
     std::atomic<uint32_t> lastPressMs_{0};
 };

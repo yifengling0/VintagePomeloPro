@@ -49,13 +49,68 @@ fi
 CLANG="$OHOS_SDK/native/llvm/bin/clang"
 SYSROOT="$OHOS_SDK/native/sysroot"
 
+# llvm-mingw (arm64ec/aarch64 PE 编译 + FEX 构建, 需 LLVM ≥ 18)
+# 版本常量只在此一处 (CI workflow / ci/Dockerfile.buildenv 的 version= 与其
+# 同步维护)。20260616 的 libc++ 无 ARM64EC C++ 库, 编不出 arm64x 双图 DLL。
+# 发现链 (位置完全参数化, 不要求任何固定目录名):
+#   1. $LLVM_MINGW 环境变量 — 用户自选位置, 任意目录名;
+#   2. $ROOT/.temp/llvm-mingw-<版本>-… — 脚本缺失时自动下载解压的落点
+#      (标准布局 = CI 同款, 不是"约定用户手工放这里");
+#   3. 无网络 → 显式报错 + 设置指引。
+# 均需通过双图库校验 (libc++.a 含 obj.arm64ec/ 成员, 旧版会失败)。
+LLVM_MINGW_VERSION="${LLVM_MINGW_VERSION:-20260826}"
+LLVM_MINGW_DIRNAME="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-22.04-x86_64"
+LLVM_MINGW="${LLVM_MINGW:-}"
+# 注意: arm64ec-w64-mingw32-clang 是二进制文件, 校验用 -x; 用 -d 永远为假 → 一旦
+# 某脚本 export LLVM_MINGW 后, 后续所有 source env.sh 的脚本全部误报 (2026-09-05 实测)。
+if [ -n "${LLVM_MINGW}" ] && [ ! -x "$LLVM_MINGW/bin/arm64ec-w64-mingw32-clang" ]; then
+    echo "ERROR: LLVM_MINGW 指向的工具链不完整: $LLVM_MINGW (缺 bin/arm64ec-w64-mingw32-clang)" >&2
+    exit 1
+fi
+if [ -z "${LLVM_MINGW}" ] && [ -d "$ROOT/.temp/$LLVM_MINGW_DIRNAME" ]; then
+    LLVM_MINGW="$ROOT/.temp/$LLVM_MINGW_DIRNAME"
+fi
+if [ -z "${LLVM_MINGW}" ]; then
+    echo "llvm-mingw 缺失, 自动下载 $LLVM_MINGW_VERSION (CI 同款 release) 到 $ROOT/.temp/  ..." >&2
+    mkdir -p "$ROOT/.temp"
+    tarball="$ROOT/.temp/$LLVM_MINGW_DIRNAME.tar.xz"
+    if ! curl -fL --retry 3 --connect-timeout 30 -o "$tarball" \
+         "https://github.com/mstorsjo/llvm-mingw/releases/download/$LLVM_MINGW_VERSION/$LLVM_MINGW_DIRNAME.tar.xz"; then
+        echo "ERROR: 自动下载失败。请用以下任一方式准备工具链再构建:" >&2
+        echo "  方式 A (推荐): http_proxy/https_proxy 正常后重试本命令;" >&2
+        echo "  方式 B: 自行下载解压, 然后 export LLVM_MINGW=/path/to/$LLVM_MINGW_DIRNAME" >&2
+        echo "  方式 C: 离线拷入 $ROOT/.temp/$LLVM_MINGW_DIRNAME (与 CI 同布局)" >&2
+        exit 1
+    fi
+    tar -xJf "$tarball" -C "$ROOT/.temp" || { echo "ERROR: 解压失败: $tarball" >&2; exit 1; }
+    rm -f "$tarball"
+    LLVM_MINGW="$ROOT/.temp/$LLVM_MINGW_DIRNAME"
+fi
+# 双图库校验: 版本合格才放行 (20260616 无 obj.arm64ec/ 成员)
+if ! "$LLVM_MINGW/bin/llvm-ar" t "$LLVM_MINGW/aarch64-w64-mingw32/lib/libc++.a" 2>/dev/null \
+     | grep -q 'obj\.arm64ec/'; then
+    echo "ERROR: $LLVM_MINGW 的 libc++.a 缺 ARM64EC 双图成员 (需 >= $LLVM_MINGW_VERSION)" >&2
+    exit 1
+fi
+export LLVM_MINGW
+
 # ── Native 层架构 (鸿蒙设备 CPU, HAP .so 的目标) ──
 # arm64-v8a: 真机 (AArch64)
 # x86_64:    模拟器 / x86_64 设备
 NATIVE_ARCH="${NATIVE_ARCH:-arm64-v8a}"
 
-# ── Wine 模拟层目标 (始终 x86_64, Wine 本身是 x86_64 ELF) ──
-TARGET="x86_64-linux-ohos"
+# ── Wine 模拟层架构 ──
+# arm64 真机 → aarch64 原生 wine + FEX 转译应用 (libarm64ecfex.dll)
+# x86_64 模拟器 → x86_64 同目标 wine
+if [ -z "${WINE_ARCH:-}" ]; then
+    [ "$NATIVE_ARCH" = "arm64-v8a" ] && WINE_ARCH=aarch64 || WINE_ARCH=x86_64
+fi
+export WINE_ARCH
+TARGET="${WINE_ARCH}-linux-ohos"                            # aarch64-linux-ohos | x86_64-linux-ohos
+HOST_TRIPLE="${HOST_TRIPLE:-${WINE_ARCH}-unknown-linux-ohos}"  # wine configure --host
+GNU_HOST="${GNU_HOST:-${WINE_ARCH}-linux-gnu}"              # autoconf 系 deps --host
+OHOS_ARCH="${OHOS_ARCH:-$( [ "$WINE_ARCH" = aarch64 ] && echo arm64-v8a || echo x86_64 )}"
+export TARGET HOST_TRIPLE GNU_HOST OHOS_ARCH
 
 # 根据 NATIVE_ARCH 推导 Native 层 LLVM target / meson cpu
 case "$NATIVE_ARCH" in
@@ -70,14 +125,11 @@ case "$NATIVE_ARCH" in
         NATIVE_CPU="x86_64"
         ;;
     all)
-        # 双架构模式: 仅在 package.sh 构建 HAP 时使用
-        # NATIVE_TARGET/NATIVE_CPU_FAMILY 不适用
-        NATIVE_TARGET=""
-        NATIVE_CPU_FAMILY=""
-        NATIVE_CPU=""
+        echo "ERROR: NATIVE_ARCH=all 不再支持 (单一 WINE_ARCH 无法同时满足 arm64 原生与 box64+wine 的 assemble)。请分别构建 NATIVE_ARCH=x86_64 / arm64-v8a。" >&2
+        exit 1
         ;;
     *)
-        echo "ERROR: 不支持的 NATIVE_ARCH: $NATIVE_ARCH (可选: arm64-v8a, x86_64, all)"
+        echo "ERROR: 不支持的 NATIVE_ARCH: $NATIVE_ARCH (可选: arm64-v8a, x86_64)"
         exit 1
         ;;
 esac
@@ -86,100 +138,44 @@ esac
 WINE_DEVICE_ROOT="/data/storage/el2/base/files/wine"
 
 # 源码路径
-WINE_SRC="$ROOT/thirdparty/wine"
-BOX64_SRC="$ROOT/thirdparty/box64"
+# Proton-OHOS 的受支持基线是 Valve Proton Wine。显式 WINE_SRC 仍可用于
+# 对照构建，但所有常规入口必须选择同一源码树，避免 make 静默打入旧 Wine。
+WINE_SRC="${WINE_SRC:-$ROOT/thirdparty/wine-valve}"
 DXVK_SRC="$ROOT/thirdparty/dxvk"
+# box64+wine 方案 (方案②, arm64 设备 + x86_64 wine) 的 in-process 转译器源码
+BOX64_SRC="$ROOT/thirdparty/box64"
+DXVK_MODERN_SRC="$ROOT/thirdparty/dxvk-modern"
+VKD3D_PROTON_SRC="$ROOT/thirdparty/vkd3d-proton"
 
 # 产物路径
-BUILD_DIR="$ROOT/build"          # 源码构建中间产物
+BUILD_DIR="${BUILD_DIR:-$ROOT/build}"   # 源码构建中间产物（同样允许覆盖，避免污染产品构建目录）
 SYSROOT_EXT="$BUILD_DIR/sysroot-ext"  # 交叉编译扩展 (不污染 SDK)
 STAGING_DIR="$BUILD_DIR/staging"   # 打包临时目录
 DXVK_BUILD_ROOT="$BUILD_DIR/dxvk/legacy"
-DXVK_MODERN_SRC="$ROOT/thirdparty/dxvk-modern"
-VKD3D_PROTON_SRC="$ROOT/thirdparty/vkd3d-proton"
 DXVK_MODERN_BUILD_ROOT="$BUILD_DIR/dxvk/modern-2.6"
 VKD3D_PROTON_BUILD_ROOT="$BUILD_DIR/vkd3d-proton"
 
 # sysroot-ext 目录结构
 SYSROOT_EXT_INC="$SYSROOT_EXT/usr/include"
-SYSROOT_EXT_LIB="$SYSROOT_EXT/usr/lib/x86_64-linux-ohos"
-SYSROOT_EXT_PC="$SYSROOT_EXT/usr/lib/pkgconfig"
+SYSROOT_EXT_LIB="$SYSROOT_EXT/usr/lib/$TARGET"
+# pkgconfig 按架构隔离: 共享目录跨架构切换会残留旧架构 .pc (libdir 指向旧架构)
+# → x86_64 构建解析到 aarch64 .pc → 链接旧架构 .so (gstreamer 链实测必现)
+SYSROOT_EXT_PC="$SYSROOT_EXT/usr/lib/$TARGET/pkgconfig"
 SYSROOT_EXT_SHARE="$SYSROOT_EXT/usr/share"
 
-# Linux/WSL 保留原路径；macOS/HarmonyOS 使用项目内扫描器和当前工具链的 pkg-config。
+# Linux/WSL 使用系统 pkg-config；macOS/HarmonyOS 使用当前工具链的 pkg-config。
+# wayland-scanner 各平台统一放项目内 build/host-tools（build_wayland.sh 现场编译），不写系统目录。
 if [ "$HOST_OS" = "Darwin" ] || [ "$HOST_OS" = "HarmonyOS" ]; then
     export PKG_CONFIG_BIN="${PKG_CONFIG_BIN:-$(command -v pkg-config || true)}"
-    export WAYLAND_SCANNER="${WAYLAND_SCANNER:-$BUILD_DIR/host-tools/bin/wayland-scanner}"
     [ -n "${PKG_CONFIG_BIN:-}" ] || err "pkg-config not found in PATH; run: brew install pkg-config"
 else
     export PKG_CONFIG_BIN="${PKG_CONFIG_BIN:-/usr/bin/pkg-config}"
-    if [ -z "${WAYLAND_SCANNER:-}" ]; then
-        if [ -x "$BUILD_DIR/host-tools/bin/wayland-scanner" ]; then
-            export WAYLAND_SCANNER="$BUILD_DIR/host-tools/bin/wayland-scanner"
-        elif [ -x /usr/local/bin/wayland-scanner ]; then
-            export WAYLAND_SCANNER=/usr/local/bin/wayland-scanner
-        elif [ -x /usr/bin/wayland-scanner ]; then
-            export WAYLAND_SCANNER=/usr/bin/wayland-scanner
-        else
-            # 自举: CI/新检出没有 wayland-scanner 时从 thirdparty/wayland 构建,
-            # 消除"从旧 worktree 复制 host-tools"的手工步骤。与
-            # build_ohos_guest_gfx.sh 的兜底一致, 但这里是顶层被 source 的脚本,
-            # 不能用 local。
-            wayland_src="$ROOT/thirdparty/wayland"
-            if [ -f "$wayland_src/meson.build" ]; then
-                echo "wayland-scanner not found, building from thirdparty/wayland..." >&2
-                wl_build="$BUILD_DIR/wayland-scanner-build"
-                rm -rf "$wl_build"
-                meson setup "$wl_build" "$wayland_src" -Ddocumentation=false -Dtests=false
-                meson compile -C "$wl_build"
-                wl_scanner=""
-                if [ -x "$wl_build/wayland-scanner" ]; then
-                    wl_scanner="$wl_build/wayland-scanner"
-                elif [ -x "$wl_build/src/wayland-scanner" ]; then
-                    wl_scanner="$wl_build/src/wayland-scanner"
-                fi
-                if [ -n "$wl_scanner" ]; then
-                    mkdir -p "$BUILD_DIR/host-tools/bin"
-                    cp "$wl_scanner" "$BUILD_DIR/host-tools/bin/wayland-scanner"
-                    # 生成 pkg-config 元数据: wayland/wayland-protocols 的
-                    # meson 依赖查找 "wayland-scanner" 需要 wayland-scanner.pc。
-                    mkdir -p "$BUILD_DIR/host-tools/lib/pkgconfig"
-                    cat > "$BUILD_DIR/host-tools/lib/pkgconfig/wayland-scanner.pc" << EOF
-prefix=$BUILD_DIR/host-tools
-exec_prefix=\${prefix}
-bindir=\${exec_prefix}/bin
-datarootdir=\${prefix}/share
-pkgdatadir=\${datarootdir}/wayland
-wayland_scanner=\${bindir}/wayland-scanner
-
-Name: Wayland Scanner
-Description: Wayland scanner
-Version: 1.22.0
-EOF
-                    export WAYLAND_SCANNER="$BUILD_DIR/host-tools/bin/wayland-scanner"
-                fi
-            fi
-            if [ -z "${WAYLAND_SCANNER:-}" ]; then
-                echo "ERROR: wayland-scanner not found; install libwayland-bin or set WAYLAND_SCANNER." >&2
-                return 1 2>/dev/null || exit 1
-            fi
-        fi
-    fi
-    [ -n "${WAYLAND_SCANNER:-}" ] || err "wayland-scanner not found in PATH; install libwayland-bin or set WAYLAND_SCANNER"
-    # 自举/预置的 scanner 元数据在 host-tools。Linux CI 镜像没有系统
-    # wayland-scanner 时, wayland/xkbcommon 的 meson build-machine 依赖
-    # 查找需要这个 pkgconfig 目录; 各平台统一在此导出, 幂等。
-    if [ -f "$BUILD_DIR/host-tools/lib/pkgconfig/wayland-scanner.pc" ]; then
-        case ":${PKG_CONFIG_PATH:-}:" in
-            *":$BUILD_DIR/host-tools/lib/pkgconfig:"*) ;;
-            *) export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" ;;
-        esac
-        case ":${PKG_CONFIG_PATH_FOR_BUILD:-}:" in
-            *":$BUILD_DIR/host-tools/lib/pkgconfig:"*) ;;
-            *) export PKG_CONFIG_PATH_FOR_BUILD="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH_FOR_BUILD:+:$PKG_CONFIG_PATH_FOR_BUILD}" ;;
-        esac
-    fi
 fi
+export WAYLAND_SCANNER="${WAYLAND_SCANNER:-$BUILD_DIR/host-tools/bin/wayland-scanner}"
+# host 工具入 PATH: 供 command -v 探测 (如 guest_gfx 生成 PKG_CONFIG_LIBDIR 隔离用的 .pc)
+export PATH="$BUILD_DIR/host-tools/bin:$PATH"
+# host 工具的 .pc 加入 native pkg-config 搜索路径 (meson 的 native 依赖查找只认 PKG_CONFIG_PATH)
+export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
 # HAP 项目
 WINEHUA="$ROOT"
@@ -201,14 +197,15 @@ export JOBS
 
 # 生成 meson cross file (路径依赖 ROOT, 不能硬编码)
 gen_cross_file() {
-    local cross="$BUILD_DIR/ohos-x86_64-cross.txt"
+    local cross="$BUILD_DIR/ohos-${WINE_ARCH}-cross.txt"
     # pkg-config wrapper: --with-path 替换默认搜索路径 (宿主系统 /usr/lib/pkgconfig
     # 会混入 x11.pc 等 → 交叉构建误用宿主库探测)
     local pcwrap="$BUILD_DIR/pkg-config-cross.sh"
     cat > "$pcwrap" << PWEOF
 #!/bin/sh
 # PKG_CONFIG_LIBDIR 替换默认搜索路径 (--with-path 只是追加, 宿主 /usr/lib 仍混入)
-export PKG_CONFIG_LIBDIR="$SYSROOT_EXT_PC:$SYSROOT_EXT/usr/lib/x86_64-linux-ohos/pkgconfig:$SYSROOT/usr/lib/pkgconfig"
+# SYSROOT_EXT_PC 已按架构隔离 (usr/lib/$TARGET/pkgconfig), 只加系统 pc 目录
+export PKG_CONFIG_LIBDIR="$SYSROOT_EXT_PC:$SYSROOT/usr/lib/pkgconfig"
 exec "$PKG_CONFIG_BIN" "\$@"
 PWEOF
     chmod +x "$pcwrap"
@@ -227,8 +224,9 @@ gdbus-codegen = '$SYSROOT_EXT/usr/bin/gdbus-codegen'
 [built-in options]
 c_args = ['--target=$TARGET', '--sysroot=$SYSROOT', '-I$SYSROOT_EXT_INC']
 c_link_args = ['--target=$TARGET', '--sysroot=$SYSROOT', '-fuse-ld=lld', '-L$SYSROOT_EXT_LIB']
-# pkgconfigdir = libdir/pkgconfig (x86_64-linux-ohos 子目录), 与 /usr/lib/pkgconfig 都要
-pkg_config_path = ['$SYSROOT_EXT/usr/lib/pkgconfig', '$SYSROOT_EXT/usr/lib/x86_64-linux-ohos/pkgconfig', '$SYSROOT/usr/lib/pkgconfig']
+# pkgconfig 只走架构隔离的 SYSROOT_EXT_PC (usr/lib/$TARGET/pkgconfig) + OHOS SDK;
+# 共享 usr/lib/pkgconfig 已废弃 (跨架构残留 aarch64 .pc → x86_64 链接错架构)
+pkg_config_path = ['$SYSROOT_EXT_PC', '$SYSROOT/usr/lib/pkgconfig']
 
 [properties]
 # 不设 sys_root: 编译器 --sysroot 已在 c_args/c_link_args 中，
@@ -240,8 +238,8 @@ needs_exe_wrapper = true
 
 [host_machine]
 system = 'linux'
-cpu_family = 'x86_64'
-cpu = 'x86_64'
+cpu_family = '$WINE_ARCH'
+cpu = '$WINE_ARCH'
 endian = 'little'
 XEOF
     echo "$cross"
@@ -255,13 +253,72 @@ meson_build() {
     # 源码时间戳可能来自 NFS (比本地时钟快), touch 到本地时间
     find "$src" -type f -exec touch {} + 2>/dev/null || true
     mkdir -p "$build"
-    meson setup "$build" "$src" --cross-file "$cross" "$@"
+    # meson 的 native 依赖查找 (如 wayland-scanner) 用 build.pkg_config_path 覆盖环境变量,
+    # 必须在此显式给项目内 host-tools 路径, 否则构建机 .pc 永远搜不到
+    meson setup "$build" "$src" --cross-file "$cross" \
+        -Dbuild.pkg_config_path="$BUILD_DIR/host-tools/lib/pkgconfig" "$@"
 }
 
 # 日志
 log()  { echo -e "\033[32m[BUILD]\033[0m $*" >&2; }
 warn() { echo -e "\033[33m[WARN]\033[0m $*" >&2; }
 err()  { echo -e "\033[31m[ERROR]\033[0m $*" >&2; exit 1; }
+
+# ARM64X 手搓 clang（绕过 meson -Dbuildtype=release）默认必须带优化。
+# 可被环境覆盖，但 require_optimization_flags 仍拒绝无 -O* 的生产构建。
+ARM64X_OPT_FLAGS="${ARM64X_OPT_FLAGS:--O2 -DNDEBUG}"
+
+# 断言参数串含 -O1/-O2/-O3/-Os/-Oz。用于手搓 ARM64X、Wine PE Makefile、CMake cache。
+require_optimization_flags() {
+    local label="$1"
+    shift
+    local blob=" $* "
+    case "$blob" in
+        *" -O1 "*|*" -O2 "*|*" -O3 "*|*" -Os "*|*" -Oz "*) ;;
+        *) err "$label: production build has no optimization flag (-O1/-O2/-O3/-Os/-Oz)" ;;
+    esac
+}
+
+require_ndebug() {
+    local label="$1"
+    shift
+    local blob=" $* "
+    case "$blob" in
+        *" -DNDEBUG "*|*" -DNDEBUG="*) ;;
+        *) err "$label: production build missing -DNDEBUG" ;;
+    esac
+}
+
+require_cmake_not_debug() {
+    local cache="$1"
+    local label="$2"
+    local t=""
+    [ -f "$cache" ] || err "$label: missing $cache"
+    t="$(sed -n 's/^CMAKE_BUILD_TYPE:STRING=//p' "$cache" | head -1)"
+    case "$t" in
+        Release|RelWithDebInfo|MinSizeRel) ;;
+        *) err "$label: CMAKE_BUILD_TYPE='$t' (need Release / RelWithDebInfo / MinSizeRel)" ;;
+    esac
+}
+
+require_cmake_flag_var() {
+    local cache="$1"
+    local var="$2"
+    local label="$3"
+    local val=""
+    [ -f "$cache" ] || err "$label: missing $cache"
+    val="$(sed -n "s/^${var}:STRING=//p" "$cache" | head -1)"
+    require_optimization_flags "$label" "$val"
+}
+
+require_makefile_opt_var() {
+    local mk="$1"
+    local var="$2"
+    local val=""
+    [ -f "$mk" ] || err "$var: missing $mk"
+    val="$(sed -n "s/^${var} = //p" "$mk" | head -1)"
+    require_optimization_flags "$var" "$val"
+}
 
 # ── 共享工具函数 ──
 find_first_existing_dir() {

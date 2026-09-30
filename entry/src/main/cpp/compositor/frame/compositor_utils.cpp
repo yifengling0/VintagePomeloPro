@@ -1,4 +1,4 @@
-#include "compositor/frame/compositor_utils.h"
+#include "compositor_utils.h"
 #include <unistd.h>
 
 uint64_t MakeSurfaceKey(uint32_t clientPid, uint32_t surfaceId)

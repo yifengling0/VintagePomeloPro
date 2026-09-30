@@ -1,5 +1,5 @@
-#include "compositor/toplevel/move_grab.h"
-#include "compositor/toplevel/toplevel_manager.h"
+#include "move_grab.h"
+#include "toplevel_manager.h"
 #include <hilog/log.h>
 #include <wayland-server-core.h>
 

@@ -20,6 +20,8 @@
 //     → PluginManager::ResizeRenderer → EglRenderer::SetSize
 //   WineWindow.ets (XComponentController.onSurfaceDestroyed)
 //     → NAPI destroyRenderer(toplevelId) → DestroyToplevel
+//   WaylandServer::NotifyToplevelResize (拖拽缩放标记随 configure 同步)
+//     → PluginManager::SetRendererStretchFill → EglRenderer::SetStretchFill
 //
 // 键盘事件仅通过 Stack.onKeyEvent → NAPI sendKeyEvent → InputManager 路径,
 // 不再使用 OH_NativeXComponent_RegisterKeyEventCallback。
@@ -30,15 +32,19 @@ public:
     // surfaceId 驱动的渲染器生命周期
     void CreateRenderer(uint32_t toplevelId, int64_t surfaceId);
     void ResizeRenderer(uint32_t toplevelId, int w, int h);
-    // 保留 NativeWindow/EGLContext 的安全重绑定路径。仅请求 Wayland 重新提交
-    // 当前帧；XComponent 的真实 surface 销毁/创建仍必须走 Create/Destroy 生命周期。
-    void RefreshRenderer(uint32_t toplevelId);
+    // 拖拽缩放中: 目标渲染器整帧拉伸填满 (EglRenderer::SetStretchFill)
+    void SetRendererStretchFill(uint32_t toplevelId, bool on);
     void DestroyToplevel(uint32_t toplevelId);
+    // ---- VPP additions ----
+    void RefreshRenderer(uint32_t toplevelId);
+    void SetRendererPaused(uint32_t toplevelId, bool paused);
+
 
     // pending toplevelId 队列: Ability 在 loadContent 前入队
     // WineWindow.aboutToAppear 同步出队 (FIFO); 出队方窗口被销毁时
     // 用 CancelPendingToplevel 清除残坑, 防止后续页面出队错位
-    // (getCurrentToplevelId 拿到别人的 id → 渲染器挂错 toplevel → 黑屏)
+    // (getCurrentToplevelId 拿到别人的 id → 渲染器挂错 toplevel → 黑屏,
+    // 1.8 实测: show/hide 快速交替的 destroy-while-creating 页面无 aboutToAppear)
     void SetPendingToplevel(uint32_t id) { pendingToplevelQueue_.push_back(id); }
     uint32_t DequeuePendingToplevel();
     void CancelPendingToplevel(uint32_t id);
@@ -47,10 +53,9 @@ public:
     EglRenderer* GetRendererForToplevel(uint32_t tid);
     // Desktop 合成模式: 取当前登记的唯一 renderer（输入坐标映射兜底）。
     // RootCompositing 下所有 renderer 都渲染桌面根，letterbox 与登记 id
-    // 无关；前台窗口"提升"导致根 id 上查不到 renderer 时用它仍能正确映射。
+    // 无关；桌面根重建/前台窗口"提升"导致按 id 查不到 renderer 时用它
+    // 仍能得到正确的 viewport 映射。
     EglRenderer* GetAnyRenderer();
-    /** 窗口可见性变化时暂停/恢复对应 renderer (后台时避免 vsync/swap 阻塞)。 */
-    void SetRendererPaused(uint32_t toplevelId, bool paused);
     // Desktop 模式: root 切换时更新渲染器的 toplevel 映射
     void MoveRendererToToplevel(uint32_t oldId, uint32_t newId);
     size_t GetRendererCount() const { return toplevelRenderers_.size(); }

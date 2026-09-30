@@ -5,7 +5,7 @@
 namespace winehua::virgl_ipc {
 
 constexpr uint32_t kMagic = 0x57484950; // "WHIP"
-constexpr int32_t kProtocolVersion = 10;
+constexpr int32_t kProtocolVersion = 9;
 constexpr uint32_t kMaxSurfaces = 16;
 constexpr uint32_t kHostConfigStringCount = 11;
 

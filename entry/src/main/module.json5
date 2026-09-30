@@ -87,6 +87,18 @@
         "exported": false,
         "launchType": "multiton",
         "removeMissionAfterTerminate": true
+      },
+      {
+        "name": "VirtualDesktopAbility",
+        "srcEntry": "./ets/entryability/VirtualDesktopAbility.ets",
+        "description": "$string:EntryAbility_desc",
+        "icon": "$media:layered_image",
+        "label": "$string:EntryAbility_label",
+        "startWindowIcon": "$media:startIcon",
+        "startWindowBackground": "$color:start_window_background",
+        "exported": false,
+        "launchType": "singleton",
+        "removeMissionAfterTerminate": true
       }
     ]
   }

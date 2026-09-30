@@ -1,11 +1,8 @@
 #define VK_USE_PLATFORM_OHOS 1
 
-#include "graphics/venus_surface_presenter.h"
-#include "graphics/native_window_vk_target.h"
-#include "graphics/native_window_lease.h"
-#include "graphics/present_pacing.h"
-#include "graphics/present_policy.h"
-#include "graphics/presenter_common.h"
+#include "venus_surface_presenter.h"
+#include "native_window_lease.h"
+#include "presenter_common.h"
 
 #include <hilog/log.h>
 #include <native_buffer/native_buffer.h>
@@ -15,8 +12,10 @@
 #include <array>
 #include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #undef LOG_DOMAIN
@@ -27,16 +26,88 @@
 namespace winehua {
 namespace {
 
-using SteadyClock = std::chrono::steady_clock;
+// 帧周期常量与工具函数收编于 presenter_common.h (行为平价 — 逻辑与返回值不变);
+// 本匿 namespace 位于 winehua 内, 直接可见 winehua 的 inline 函数与常量。
+// NormalizeVenus/PacingVenus 为 venus 专用策略版 (显式命名, 与 virgl 版区分)。
+using winehua::kDefaultFramePeriodNs;
+using winehua::kReleaseFenceWatchdogNs;
+using winehua::NowNs;
 
+VkPresentModeKHR RequestedPresentMode()
+{
+    const char* mode = std::getenv("WINEHUA_VENUS_PRESENT_MODE");
+    return mode && !std::strcmp(mode, "mailbox")
+        ? VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR;
+}
 
-enum class VulkanPresentTransport {
-    Unprobed,
-    DirectNativeBuffer,
-    Wsi,
-    DirectFallbackPending,
-};
+bool AsyncReleaseEnabled()
+{
+    const char* mode = std::getenv("WINEHUA_VENUS_PRESENT_MODE");
+    return mode && !std::strcmp(mode, "fifo-async");
+}
 
+bool PollReleaseEnabled()
+{
+    const char* mode = std::getenv("WINEHUA_VENUS_PRESENT_MODE");
+    return mode && !std::strcmp(mode, "fifo-poll");
+}
+
+const char* ReleaseModeName()
+{
+    if (AsyncReleaseEnabled()) return "async-ring";
+    return PollReleaseEnabled() ? "poll" : "wait";
+}
+
+const char* PresentModeName(VkPresentModeKHR mode)
+{
+    return mode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox" : "fifo";
+}
+
+bool TracePresentStages()
+{
+    const char* trace = std::getenv("VKR_WINEHUA_SHADOW_TRACE");
+    return trace && trace[0] == '1' && !trace[1];
+}
+
+/* This switch is deliberately diagnostic-only.  It adds two timestamp
+ * queries to the existing presenter command buffer, but leaves the command
+ * ordering, fences, image ownership and present mode unchanged. */
+bool GpuFrameProfileEnabled()
+{
+    const char* profile = std::getenv("WINEHUA_VENUS_GPU_FRAME_PROFILE");
+    return profile && profile[0] == '1' && !profile[1];
+}
+
+bool ForceSourceClearEnabled()
+{
+    const char* value = std::getenv("WINEHUA_VENUS_FORCE_SOURCE_CLEAR");
+    return value && value[0] == '1' && !value[1];
+}
+
+/* This is deliberately a presenter-only timestamp, not a scene GPU timer.
+ * Sample it sparsely so the timeline profile retains the production path on
+ * all ordinary frames. */
+bool GpuFrameProfileSample(uint32_t serial)
+{
+    return GpuFrameProfileEnabled() && serial && !(serial % 120);
+}
+
+bool TraceFrameOrder()
+{
+    if (TracePresentStages()) return true;
+    const char* trace = std::getenv("WINEHUA_VKR_TRACE_PRESENT_IMAGE");
+    return trace && trace[0] == '1' && !trace[1];
+}
+
+void TracePresentStage(const char* stage, uint32_t serial, uint64_t sourceImage)
+{
+    if (!TracePresentStages()) return;
+    OH_LOG_INFO(LOG_APP,
+                "[VENUS-TRACE][NCP] serial=%{public}u stage=%{public}s "
+                "source=0x%{public}llx timestamp=%{public}llu",
+                serial, stage, static_cast<unsigned long long>(sourceImage),
+                static_cast<unsigned long long>(NowNs()));
+}
 
 VkPipelineStageFlags SourceStage(VkImageLayout layout)
 {
@@ -78,52 +149,15 @@ VkCompositeAlphaFlagBitsKHR ChooseCompositeAlpha(VkCompositeAlphaFlagsKHR suppor
     return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 }
 
-bool IsRecoverableWsiTargetLoss(VkResult result)
-{
-    return result == VK_ERROR_OUT_OF_DATE_KHR ||
-           result == VK_ERROR_SURFACE_LOST_KHR ||
-           result == VK_ERROR_UNKNOWN;
-}
-
 } // namespace
 
 struct VenusSurfaceQueueTarget::Impl {
     struct Frame {
         VkCommandBuffer command = VK_NULL_HANDLE;
         VkSemaphore acquired = VK_NULL_HANDLE;
-        VkSemaphore released = VK_NULL_HANDLE;
         VkFence complete = VK_NULL_HANDLE;
         VkQueryPool gpuTiming = VK_NULL_HANDLE;
-        bool submitted = false;
     };
-
-    bool GpuFrameProfileEnabled() const
-    {
-        return policy_.gpuFrameProfile;
-    }
-
-    // This is deliberately a presenter-only timestamp, not a scene GPU
-    // timer. Sample it sparsely so ordinary frames retain the production path.
-    bool GpuFrameProfileSample(uint32_t serial) const
-    {
-        return policy_.gpuFrameProfile && serial && !(serial % 120);
-    }
-
-    bool TraceFrameOrder() const
-    {
-        return policy_.traceFrameOrder;
-    }
-
-    void TracePresentStage(const char* stage, uint32_t serial,
-                           uint64_t sourceImage) const
-    {
-        if (!policy_.traceStages) return;
-        OH_LOG_INFO(LOG_APP,
-                    "[VENUS-TRACE][NCP] serial=%{public}u stage=%{public}s "
-                    "source=0x%{public}llx timestamp=%{public}llu",
-                    serial, stage, static_cast<unsigned long long>(sourceImage),
-                    static_cast<unsigned long long>(NowNs()));
-    }
 
     int Attach(uint64_t surfaceKey, uint64_t framePeriodNs, OHNativeWindow* window,
                bool releaseWindowWithUnreference)
@@ -139,22 +173,14 @@ struct VenusSurfaceQueueTarget::Impl {
         surfaceKey_ = surfaceKey;
         surfaceAttached_ = true;
         deviceReleasing_ = false;
-        transport_ = VulkanPresentTransport::Unprobed;
-        transportReason_ = "not-probed";
-        displayPeriodNs_ = NormalizePresentFramePeriodNs(framePeriodNs);
-        framePeriodNs_ = PresentPacingPeriodNs(displayPeriodNs_);
+        displayPeriodNs_ = NormalizeVenusFramePeriodNs(framePeriodNs);
+        framePeriodNs_ = VenusPacingPeriodNs(displayPeriodNs_);
         lastPresentNs_ = 0;
         framesPresented_ = 0;
-        guestDeadlinePacingLogged_ = false;
-        policy_ = ReadPresenterRuntimePolicyFromEnvironment();
         lastSerial_ = 0;
         serialRegressions_ = 0;
         failures_ = 0;
         throttled_ = 0;
-        clockDeferred_ = 0;
-        acquireDeferred_ = 0;
-        fenceDeferred_ = 0;
-        guestDeadlineFrames_ = 0;
         firstPresentedNs_ = 0;
         totalPresentUs_ = 0;
         maxPresentUs_ = 0;
@@ -163,6 +189,7 @@ struct VenusSurfaceQueueTarget::Impl {
         totalSubmitUs_ = 0;
         totalQueuePresentUs_ = 0;
         totalReleaseWaitUs_ = 0;
+        totalReleasePolls_ = 0;
         totalGpuPresentWorkUs_ = 0;
         maxGpuPresentWorkUs_ = 0;
         gpuTimingSamples_ = 0;
@@ -203,8 +230,8 @@ struct VenusSurfaceQueueTarget::Impl {
     int SetFramePeriod(uint64_t framePeriodNs)
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        displayPeriodNs_ = NormalizePresentFramePeriodNs(framePeriodNs);
-        framePeriodNs_ = PresentPacingPeriodNs(displayPeriodNs_);
+        displayPeriodNs_ = NormalizeVenusFramePeriodNs(framePeriodNs);
+        framePeriodNs_ = VenusPacingPeriodNs(displayPeriodNs_);
         return 0;
     }
 
@@ -239,9 +266,6 @@ struct VenusSurfaceQueueTarget::Impl {
                     device_, waitResult);
         DestroyVulkanLocked();
         deviceReleasing_ = false;
-        transport_ = surfaceAttached_ ? VulkanPresentTransport::Unprobed
-                                      : VulkanPresentTransport::Wsi;
-        transportReason_ = surfaceAttached_ ? "device-recreated" : "detached";
         if (!surfaceAttached_) {
             ReleaseWindowLocked();
             surfaceKey_ = 0;
@@ -276,25 +300,11 @@ struct VenusSurfaceQueueTarget::Impl {
         if (deviceReleasing_) return -ENODEV;
 
         const uint64_t nowNs = NowNs();
-        const PresentPacingDecision pacing =
-            EvaluatePresentPacing(nowNs, lastPresentNs_, framePeriodNs_);
-        const bool guestDeadlinePacing =
-            DirectPresentUsesGuestDeadline(framesPresented_);
-        if (!guestDeadlinePacing && !pacing.presentNow) {
+        if (lastPresentNs_ && nowNs - lastPresentNs_ < framePeriodNs_) {
             if (nextPresentDeadlineNs)
-                *nextPresentDeadlineNs = pacing.nextDeadlineNs;
+                *nextPresentDeadlineNs = lastPresentNs_ + framePeriodNs_;
             ++throttled_;
-            ++clockDeferred_;
             return 1;
-        }
-        if (guestDeadlinePacing && !guestDeadlinePacingLogged_) {
-            guestDeadlinePacingLogged_ = true;
-            OH_LOG_INFO(LOG_APP,
-                        "[VENUS-PRESENT][NCP] guest_deadline_pacing=1 "
-                        "clock_drop=0 acquire_timeout_ns=%{public}llu warmup=%{public}llu",
-                        static_cast<unsigned long long>(
-                            DirectPresentAcquireTimeoutNs(framesPresented_)),
-                        static_cast<unsigned long long>(framesPresented_));
         }
 
         const VkInstance hostInstance = reinterpret_cast<VkInstance>(instance);
@@ -318,240 +328,22 @@ struct VenusSurfaceQueueTarget::Impl {
         const bool gpuTiming = gpuTimingEnabled_ && frame.gpuTiming &&
             GpuFrameProfileSample(serial);
         uint64_t stageStartNs = NowNs();
-        VkResult result = VK_SUCCESS;
-        uint64_t waitFenceUs = 0;
-        if (frame.submitted) {
-            result = vkWaitForFences(
-                device_, 1, &frame.complete, VK_TRUE,
-                displayPeriodNs_ * 4);
-            waitFenceUs = (NowNs() - stageStartNs) / 1000;
-            if (result == VK_TIMEOUT) {
-                ++throttled_;
-                ++fenceDeferred_;
-                if (nextPresentDeadlineNs)
-                    *nextPresentDeadlineNs = RetryPresentDeadlineNs(
-                        NowNs(), lastPresentNs_, framePeriodNs_);
-                return 1;
-            }
-            if (result != VK_SUCCESS)
-                return FailLocked("wait fence", result, serial);
-            frame.submitted = false;
-        }
+        const bool asyncRelease = AsyncReleaseEnabled();
+        VkResult result = vkWaitForFences(
+            device_, 1, &frame.complete, VK_TRUE,
+            asyncRelease ? kReleaseFenceWatchdogNs : displayPeriodNs_ * 4);
+        const uint64_t waitFenceUs = (NowNs() - stageStartNs) / 1000;
+        if (result == VK_TIMEOUT) return 1;
+        if (result != VK_SUCCESS) return FailLocked("wait fence", result, serial);
         TracePresentStage("source-fence-ready", serial, image);
-
-        if (transport_ == VulkanPresentTransport::DirectNativeBuffer) {
-            const int32_t requestTimeoutMs = static_cast<int32_t>(
-                DirectPresentAcquireTimeoutNs(framesPresented_) / 1000000ULL);
-            if (!vkDirect_.SetRequestTimeoutMs(requestTimeoutMs)) {
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = "set-request-timeout-failed";
-                return -EAGAIN;
-            }
-            stageStartNs = NowNs();
-            const NativeWindowVkBeginResult beginResult = vkDirect_.BeginFrame();
-            const uint64_t requestUs = (NowNs() - stageStartNs) / 1000;
-            if (beginResult == NativeWindowVkBeginResult::Deferred) {
-                ++throttled_;
-                ++acquireDeferred_;
-                if (nextPresentDeadlineNs) {
-                    *nextPresentDeadlineNs = RetryPresentDeadlineNs(
-                        NowNs(), lastPresentNs_, framePeriodNs_);
-                }
-                return 1;
-            }
-            if (beginResult != NativeWindowVkBeginResult::Ready) {
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = NativeWindowVkBeginResultName(beginResult);
-                ++failures_;
-                OH_LOG_ERROR(LOG_APP,
-                             "[VENUS-PRESENT][NCP] direct runtime failure "
-                             "key=%{public}llu reason=%{public}s fallback=pending",
-                             static_cast<unsigned long long>(surfaceKey_),
-                             transportReason_);
-                return -EAGAIN;
-            }
-            TracePresentStage("direct-target-acquired", serial, image);
-
-            result = vkDirect_.AcquireGpu(frame.acquired);
-            if (result != VK_SUCCESS) {
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = "acquire-image-failed";
-                return FailLocked("direct acquire image", result, serial);
-            }
-
-            const VkImage targetImage = vkDirect_.ColorImage();
-            const VkFormat targetFormat = vkDirect_.ColorFormat();
-            const uint32_t targetSeq = vkDirect_.CurrentSeq();
-            if (!targetImage || targetFormat == VK_FORMAT_UNDEFINED) {
-                vkDirect_.AbortFrame();
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = "invalid-imported-image";
-                return -EAGAIN;
-            }
-
-            result = RecordPresentCopyLocked(
-                frame, sourceImage, sourceLayout, targetImage, targetFormat,
-                sourceWidth_, sourceHeight_, VK_IMAGE_LAYOUT_UNDEFINED,
-                VK_IMAGE_LAYOUT_GENERAL, false);
-            if (result != VK_SUCCESS) {
-                vkDirect_.AbortFrame();
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = result == VK_ERROR_FORMAT_NOT_SUPPORTED
-                    ? "direct-format-blit-unsupported"
-                    : "direct-copy-record-failed";
-                return FailLocked("direct record copy", result, serial);
-            }
-
-            VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-            submit.waitSemaphoreCount = 1;
-            submit.pWaitSemaphores = &frame.acquired;
-            submit.pWaitDstStageMask = &waitStage;
-            submit.commandBufferCount = 1;
-            submit.pCommandBuffers = &frame.command;
-            submit.signalSemaphoreCount = 1;
-            submit.pSignalSemaphores = &frame.released;
-            stageStartNs = NowNs();
-            result = vkQueueSubmit(queue_, 1, &submit, frame.complete);
-            const uint64_t submitUs = (NowNs() - stageStartNs) / 1000;
-            if (result != VK_SUCCESS) {
-                vkDirect_.AbortFrame();
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = "queue-submit-failed";
-                return FailLocked("direct queue submit", result, serial);
-            }
-            frame.submitted = true;
-            TracePresentStage("direct-copy-submitted", serial, image);
-
-            int releaseFenceFd = -1;
-            stageStartNs = NowNs();
-            result = vkDirect_.SignalRelease(
-                queue_, 1, &frame.released, &releaseFenceFd);
-            const uint64_t releaseSignalUs = (NowNs() - stageStartNs) / 1000;
-            if (releaseQueue) releaseQueue(queueSyncData);
-            if (result != VK_SUCCESS) {
-                const VkResult completionResult = vkWaitForFences(
-                    device_, 1, &frame.complete, VK_TRUE,
-                    kReleaseFenceWatchdogNs);
-                if (completionResult == VK_SUCCESS) vkDirect_.AbortFrame();
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = "signal-release-image-failed";
-                return FailLocked("direct signal release", result, serial);
-            }
-
-            const uint64_t timestamp = NowNs();
-            stageStartNs = NowNs();
-            const int32_t flushResult =
-                vkDirect_.EndFrame(releaseFenceFd, timestamp);
-            const uint64_t flushUs = (NowNs() - stageStartNs) / 1000;
-            if (flushResult != 0) {
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = "flush-buffer-failed";
-                ++failures_;
-                return -EAGAIN;
-            }
-
-            lastPresentNs_ = timestamp;
-            ++framesPresented_;
-            if (guestDeadlinePacing) ++guestDeadlineFrames_;
-            if (lastSerial_ && serial <= lastSerial_) ++serialRegressions_;
-            lastSerial_ = serial;
-            const uint64_t frameEndNs = NowNs();
-            const uint64_t presentUs = (frameEndNs - presentStartNs) / 1000;
-            if (!firstPresentedNs_) firstPresentedNs_ = frameEndNs;
-            totalPresentUs_ += presentUs;
-            maxPresentUs_ = std::max(maxPresentUs_, presentUs);
-            totalWaitFenceUs_ += waitFenceUs;
-            totalAcquireUs_ += requestUs;
-            totalSubmitUs_ += submitUs;
-            totalQueuePresentUs_ += releaseSignalUs + flushUs;
-            if (GpuFrameProfileSample(serial)) {
-                OH_LOG_INFO(LOG_APP,
-                            "[VENUS-FRAME-TIMELINE][NCP] "
-                            "transport=direct-native-buffer serial=%{public}u "
-                            "release_wait_us=0 present_cpu_us=%{public}llu "
-                            "wait_fence_us=%{public}llu acquire_us=%{public}llu "
-                            "submit_us=%{public}llu queue_present_us=%{public}llu "
-                            "release_signal_us=%{public}llu flush_us=%{public}llu "
-                            "gpu_timing_available=0",
-                            serial, static_cast<unsigned long long>(presentUs),
-                            static_cast<unsigned long long>(waitFenceUs),
-                            static_cast<unsigned long long>(requestUs),
-                            static_cast<unsigned long long>(submitUs),
-                            static_cast<unsigned long long>(
-                                releaseSignalUs + flushUs),
-                            static_cast<unsigned long long>(releaseSignalUs),
-                            static_cast<unsigned long long>(flushUs));
-            }
-            if (nextPresentDeadlineNs) {
-                *nextPresentDeadlineNs =
-                    NextPresentDeadlineNs(lastPresentNs_, framePeriodNs_);
-            }
-            if (TraceFrameOrder() && framesPresented_ <= 600) {
-                OH_LOG_INFO(LOG_APP,
-                            "[VENUS-ORDER][NCP] transport=direct-native-buffer "
-                            "frame=%{public}llu serial=%{public}u "
-                            "serial_regress=%{public}llu source=0x%{public}llx "
-                            "target_seq=%{public}u target=0x%{public}llx "
-                            "timestamp=%{public}llu",
-                            static_cast<unsigned long long>(framesPresented_), serial,
-                            static_cast<unsigned long long>(serialRegressions_),
-                            static_cast<unsigned long long>(image),
-                            targetSeq,
-                            static_cast<unsigned long long>(
-                                reinterpret_cast<uintptr_t>(targetImage)),
-                            static_cast<unsigned long long>(timestamp));
-            }
-            if (policy_.perfSummary &&
-                (framesPresented_ == 1 || !(framesPresented_ % 120))) {
-                const uint64_t elapsedNs = frameEndNs - firstPresentedNs_;
-                const uint64_t fpsX100 = elapsedNs && framesPresented_ > 1
-                    ? ((framesPresented_ - 1) * 100ULL * 1000000000ULL) /
-                          elapsedNs
-                    : 0;
-                OH_LOG_INFO(LOG_APP,
-                            "[VENUS-PRESENT][NCP] transport=direct-native-buffer "
-                            "frames=%{public}llu key=%{public}llu serial=%{public}u "
-                            "fps=%{public}llu.%{public}02llu "
-                            "present_us_avg=%{public}llu max=%{public}llu "
-                            "slot_wait_avg=%{public}llu request_us=%{public}llu "
-                            "submit_us=%{public}llu release_signal_us=%{public}llu "
-                            "flush_us=%{public}llu imported_slots=%{public}zu "
-                            "post_present_cpu_wait=0 failures=%{public}llu "
-                            "throttled=%{public}llu",
-                            static_cast<unsigned long long>(framesPresented_),
-                            static_cast<unsigned long long>(surfaceKey_), serial,
-                            static_cast<unsigned long long>(fpsX100 / 100),
-                            static_cast<unsigned long long>(fpsX100 % 100),
-                            static_cast<unsigned long long>(
-                                totalPresentUs_ / framesPresented_),
-                            static_cast<unsigned long long>(maxPresentUs_),
-                            static_cast<unsigned long long>(
-                                totalWaitFenceUs_ / framesPresented_),
-                            static_cast<unsigned long long>(requestUs),
-                            static_cast<unsigned long long>(submitUs),
-                            static_cast<unsigned long long>(releaseSignalUs),
-                            static_cast<unsigned long long>(flushUs),
-                            vkDirect_.ImportedSlotCount(),
-                            static_cast<unsigned long long>(failures_),
-                            static_cast<unsigned long long>(throttled_));
-            }
-            TracePresentStage("published", serial, image);
-            return 0;
-        }
 
         uint32_t imageIndex = 0;
         stageStartNs = NowNs();
-        result = vkAcquireNextImageKHR(
-            device_, swapchain_, DirectPresentAcquireTimeoutNs(framesPresented_),
-            frame.acquired, VK_NULL_HANDLE, &imageIndex);
+        result = vkAcquireNextImageKHR(device_, swapchain_, displayPeriodNs_ * 2,
+                                       frame.acquired, VK_NULL_HANDLE, &imageIndex);
         const uint64_t acquireUs = (NowNs() - stageStartNs) / 1000;
         if (result == VK_TIMEOUT || result == VK_NOT_READY) {
             ++throttled_;
-            ++acquireDeferred_;
-            if (nextPresentDeadlineNs)
-                *nextPresentDeadlineNs = RetryPresentDeadlineNs(
-                    NowNs(), lastPresentNs_, framePeriodNs_);
             return 1;
         }
         /*
@@ -563,7 +355,9 @@ struct VenusSurfaceQueueTarget::Impl {
          * per-frame fence wait above.  Do not convert it to device-lost: the
          * Vulkan device and guest Venus context remain usable.
          */
-        if (IsRecoverableWsiTargetLoss(result)) {
+        if (result == VK_ERROR_OUT_OF_DATE_KHR ||
+            result == VK_ERROR_SURFACE_LOST_KHR ||
+            result == VK_ERROR_UNKNOWN) {
             swapchainDirty_ = true;
             return -EAGAIN;
         }
@@ -571,14 +365,151 @@ struct VenusSurfaceQueueTarget::Impl {
             return FailLocked("acquire", result, serial);
         TracePresentStage("target-acquired", serial, image);
 
-        result = RecordPresentCopyLocked(
-            frame, sourceImage, sourceLayout, swapchainImages_[imageIndex],
-            targetFormat_, extent_.width, extent_.height,
-            targetInitialized_[imageIndex] ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                                           : VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, gpuTiming);
-        if (result != VK_SUCCESS)
-            return FailLocked("record present copy", result, serial);
+        vkResetFences(device_, 1, &frame.complete);
+        vkResetCommandBuffer(frame.command, 0);
+        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        result = vkBeginCommandBuffer(frame.command, &begin);
+        if (result != VK_SUCCESS) return FailLocked("begin command", result, serial);
+
+        if (gpuTiming) {
+            /* The query pool belongs to this completed frame slot.  It was
+             * waited above, so resetting it cannot race GPU execution. */
+            vkCmdResetQueryPool(frame.command, frame.gpuTiming, 0, 2);
+            vkCmdWriteTimestamp(frame.command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                frame.gpuTiming, 0);
+        }
+
+        VkImageMemoryBarrier sourceToTransfer{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        sourceToTransfer.srcAccessMask = SourceAccess(sourceLayout);
+        const bool forceSourceClear = ForceSourceClearEnabled();
+        sourceToTransfer.dstAccessMask = forceSourceClear
+            ? VK_ACCESS_TRANSFER_WRITE_BIT : VK_ACCESS_TRANSFER_READ_BIT;
+        sourceToTransfer.oldLayout = sourceLayout;
+        sourceToTransfer.newLayout = forceSourceClear
+            ? VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+            : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        sourceToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceToTransfer.image = sourceImage;
+        sourceToTransfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        sourceToTransfer.subresourceRange.levelCount = 1;
+        sourceToTransfer.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier targetToTransfer{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        targetToTransfer.srcAccessMask = targetInitialized_[imageIndex]
+            ? VK_ACCESS_MEMORY_READ_BIT : 0;
+        targetToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        targetToTransfer.oldLayout = targetInitialized_[imageIndex]
+            ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_UNDEFINED;
+        targetToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        targetToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetToTransfer.image = swapchainImages_[imageIndex];
+        targetToTransfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        targetToTransfer.subresourceRange.levelCount = 1;
+        targetToTransfer.subresourceRange.layerCount = 1;
+
+        const std::array<VkImageMemoryBarrier, 2> before = {
+            sourceToTransfer, targetToTransfer
+        };
+        vkCmdPipelineBarrier(frame.command,
+                             SourceStage(sourceLayout) |
+                                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                             0, nullptr, 0, nullptr,
+                             static_cast<uint32_t>(before.size()), before.data());
+
+        if (forceSourceClear) {
+            const VkClearColorValue colour = {{1.0f, 0.0f, 0.75f, 1.0f}};
+            const VkImageSubresourceRange range = {
+                VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+            vkCmdClearColorImage(frame.command, sourceImage,
+                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                 &colour, 1, &range);
+
+            VkImageMemoryBarrier sourceClearToRead{
+                VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+            sourceClearToRead.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            sourceClearToRead.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            sourceClearToRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            sourceClearToRead.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            sourceClearToRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            sourceClearToRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            sourceClearToRead.image = sourceImage;
+            sourceClearToRead.subresourceRange = range;
+            vkCmdPipelineBarrier(frame.command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                                 0, nullptr, 0, nullptr, 1,
+                                 &sourceClearToRead);
+        }
+
+        if (useBlit_) {
+            VkImageBlit blit{};
+            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.srcSubresource.layerCount = 1;
+            blit.srcOffsets[1] = {
+                static_cast<int32_t>(sourceWidth_),
+                static_cast<int32_t>(sourceHeight_), 1};
+            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstSubresource.layerCount = 1;
+            blit.dstOffsets[1] = {
+                static_cast<int32_t>(extent_.width),
+                static_cast<int32_t>(extent_.height), 1};
+            vkCmdBlitImage(frame.command,
+                           sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           swapchainImages_[imageIndex],
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1, &blit, VK_FILTER_NEAREST);
+        } else {
+            VkImageCopy copy{};
+            copy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.srcSubresource.layerCount = 1;
+            copy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.dstSubresource.layerCount = 1;
+            copy.extent = {sourceWidth_, sourceHeight_, 1};
+            vkCmdCopyImage(frame.command,
+                           sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           swapchainImages_[imageIndex],
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+        }
+
+        VkImageMemoryBarrier sourceRestore{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        sourceRestore.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        sourceRestore.dstAccessMask = SourceAccess(sourceLayout);
+        sourceRestore.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        sourceRestore.newLayout = sourceLayout;
+        sourceRestore.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceRestore.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceRestore.image = sourceImage;
+        sourceRestore.subresourceRange = sourceToTransfer.subresourceRange;
+
+        VkImageMemoryBarrier targetToPresent{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        targetToPresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        targetToPresent.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        targetToPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        targetToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        targetToPresent.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetToPresent.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetToPresent.image = swapchainImages_[imageIndex];
+        targetToPresent.subresourceRange = targetToTransfer.subresourceRange;
+        const std::array<VkImageMemoryBarrier, 2> after = {
+            sourceRestore, targetToPresent
+        };
+        vkCmdPipelineBarrier(frame.command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
+                             0, nullptr, 0, nullptr,
+                             static_cast<uint32_t>(after.size()), after.data());
+
+        if (gpuTiming) {
+            /* Includes presenter barriers plus the final blit/copy.  It does
+             * not include the DXVK draw work submitted before this command. */
+            vkCmdWriteTimestamp(frame.command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                frame.gpuTiming, 1);
+        }
+
+        result = vkEndCommandBuffer(frame.command);
+        if (result != VK_SUCCESS) return FailLocked("end command", result, serial);
 
         const uint64_t timestamp = NowNs();
         OH_NativeWindow_NativeWindowHandleOpt(
@@ -596,7 +527,6 @@ struct VenusSurfaceQueueTarget::Impl {
         result = vkQueueSubmit(queue_, 1, &submit, frame.complete);
         const uint64_t submitUs = (NowNs() - stageStartNs) / 1000;
         if (result != VK_SUCCESS) return FailLocked("queue submit", result, serial);
-        frame.submitted = true;
         TracePresentStage("copy-submitted", serial, image);
 
         VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
@@ -617,14 +547,29 @@ struct VenusSurfaceQueueTarget::Impl {
 
         VkResult fenceResult = VK_SUCCESS;
         uint64_t releaseWaitUs = 0;
-        stageStartNs = NowNs();
-        const uint64_t timeoutNs =
-            std::max(displayPeriodNs_ * 4, kReleaseFenceWatchdogNs);
-        fenceResult = vkWaitForFences(
-            device_, 1, &frame.complete, VK_TRUE, timeoutNs);
-        releaseWaitUs = (NowNs() - stageStartNs) / 1000;
+        uint64_t releasePolls = 0;
+        if (!asyncRelease ||
+            (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)) {
+            stageStartNs = NowNs();
+            const uint64_t timeoutNs =
+                std::max(displayPeriodNs_ * 4, kReleaseFenceWatchdogNs);
+            if (PollReleaseEnabled()) {
+                const uint64_t deadlineNs = stageStartNs + timeoutNs;
+                do {
+                    fenceResult = vkGetFenceStatus(device_, frame.complete);
+                    if (fenceResult != VK_NOT_READY) break;
+                    ++releasePolls;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                } while (NowNs() < deadlineNs);
+                if (fenceResult == VK_NOT_READY) fenceResult = VK_TIMEOUT;
+            } else {
+                fenceResult = vkWaitForFences(
+                    device_, 1, &frame.complete, VK_TRUE, timeoutNs);
+            }
+            releaseWaitUs = (NowNs() - stageStartNs) / 1000;
+        }
         if (fenceResult == VK_TIMEOUT) {
-            if (IsRecoverableWsiTargetLoss(result)) {
+            if (result == VK_ERROR_OUT_OF_DATE_KHR) {
                 swapchainDirty_ = true;
                 return -EAGAIN;
             }
@@ -632,10 +577,8 @@ struct VenusSurfaceQueueTarget::Impl {
                 return FailLocked("queue present", result, serial);
             targetInitialized_[imageIndex] = true;
             ++throttled_;
-            ++fenceDeferred_;
             if (nextPresentDeadlineNs)
-                *nextPresentDeadlineNs = RetryPresentDeadlineNs(
-                    NowNs(), lastPresentNs_, framePeriodNs_);
+                *nextPresentDeadlineNs = NowNs() + displayPeriodNs_;
             if (throttled_ == 1 || !(throttled_ % 60)) {
                 OH_LOG_WARN(LOG_APP,
                             "[VENUS-PRESENT][NCP] source release fence watchdog "
@@ -647,7 +590,6 @@ struct VenusSurfaceQueueTarget::Impl {
         }
         if (fenceResult != VK_SUCCESS)
             return FailLocked("source release fence", fenceResult, serial);
-        frame.submitted = false;
         targetInitialized_[imageIndex] = true;
         TracePresentStage("source-release-ready", serial, image);
 
@@ -676,7 +618,7 @@ struct VenusSurfaceQueueTarget::Impl {
             }
         }
 
-        if (IsRecoverableWsiTargetLoss(result)) {
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             swapchainDirty_ = true;
             return -EAGAIN;
         }
@@ -685,7 +627,6 @@ struct VenusSurfaceQueueTarget::Impl {
 
         lastPresentNs_ = timestamp;
         ++framesPresented_;
-        if (guestDeadlinePacing) ++guestDeadlineFrames_;
         if (lastSerial_ && serial <= lastSerial_) ++serialRegressions_;
         lastSerial_ = serial;
         const uint64_t frameEndNs = NowNs();
@@ -698,6 +639,7 @@ struct VenusSurfaceQueueTarget::Impl {
         totalSubmitUs_ += submitUs;
         totalQueuePresentUs_ += queuePresentUs;
         totalReleaseWaitUs_ += releaseWaitUs;
+        totalReleasePolls_ += releasePolls;
         if (GpuFrameProfileSample(serial)) {
             OH_LOG_INFO(LOG_APP,
                         "[VENUS-FRAME-TIMELINE][NCP] serial=%{public}u "
@@ -715,8 +657,7 @@ struct VenusSurfaceQueueTarget::Impl {
                         static_cast<unsigned long long>(gpuPresentCopyUs));
         }
         if (nextPresentDeadlineNs)
-            *nextPresentDeadlineNs =
-                NextPresentDeadlineNs(lastPresentNs_, framePeriodNs_);
+            *nextPresentDeadlineNs = lastPresentNs_ + framePeriodNs_;
         if (TraceFrameOrder() && framesPresented_ <= 600) {
             OH_LOG_INFO(LOG_APP,
                         "[VENUS-ORDER][NCP] frame=%{public}llu serial=%{public}u "
@@ -731,29 +672,26 @@ struct VenusSurfaceQueueTarget::Impl {
                         static_cast<unsigned long long>(timestamp));
         }
         TracePresentStage("published", serial, image);
-        if (policy_.perfSummary &&
+        if (PresentPerfSummaryEnabled() &&
             (framesPresented_ == 1 || !(framesPresented_ % 120))) {
             const uint64_t elapsedNs = frameEndNs - firstPresentedNs_;
             const uint64_t fpsX100 = elapsedNs && framesPresented_ > 1
                 ? ((framesPresented_ - 1) * 100ULL * 1000000000ULL) / elapsedNs
                 : 0;
             OH_LOG_INFO(LOG_APP,
-                        "[VENUS-PRESENT][NCP] transport=wsi "
-                        "frames=%{public}llu ctx=%{public}u "
+                        "[VENUS-PRESENT][NCP] frames=%{public}llu ctx=%{public}u "
                         "key=%{public}llu serial=%{public}u size=%{public}ux%{public}u "
                         "target=%{public}ux%{public}u format=%{public}u "
                         "fps=%{public}llu.%{public}02llu gpu_copy=1 "
                         "present_us_avg=%{public}llu max=%{public}llu "
                         "wait_fence_avg=%{public}llu acquire_avg=%{public}llu "
                         "submit_avg=%{public}llu queue_present_avg=%{public}llu "
-                        "release_wait_avg=%{public}llu "
+                        "release_wait_avg=%{public}llu release_polls_avg=%{public}llu "
                         "gpu_present_copy_avg=%{public}llu max=%{public}llu samples=%{public}llu "
                         "release_minus_present_gpu_avg=%{public}llu "
-                        "release_mode=wait post_present_cpu_wait=1 "
+                        "release_mode=%{public}s "
                         "failures=%{public}llu "
-                        "throttled=%{public}llu clock_deferred=%{public}llu "
-                        "acquire_deferred=%{public}llu fence_deferred=%{public}llu "
-                        "guest_deadline_frames=%{public}llu",
+                        "throttled=%{public}llu",
                         static_cast<unsigned long long>(framesPresented_), contextId,
                         static_cast<unsigned long long>(surfaceKey_), serial,
                         width, height, extent_.width, extent_.height, format,
@@ -766,6 +704,7 @@ struct VenusSurfaceQueueTarget::Impl {
                         static_cast<unsigned long long>(totalSubmitUs_ / framesPresented_),
                         static_cast<unsigned long long>(totalQueuePresentUs_ / framesPresented_),
                         static_cast<unsigned long long>(totalReleaseWaitUs_ / framesPresented_),
+                        static_cast<unsigned long long>(totalReleasePolls_ / framesPresented_),
                         static_cast<unsigned long long>(gpuTimingSamples_
                             ? totalGpuPresentWorkUs_ / gpuTimingSamples_ : 0),
                         static_cast<unsigned long long>(maxGpuPresentWorkUs_),
@@ -778,12 +717,9 @@ struct VenusSurfaceQueueTarget::Impl {
                                       (gpuTimingSamples_
                                           ? totalGpuPresentWorkUs_ / gpuTimingSamples_ : 0)
                                 : 0),
+                        ReleaseModeName(),
                         static_cast<unsigned long long>(failures_),
-                        static_cast<unsigned long long>(throttled_),
-                        static_cast<unsigned long long>(clockDeferred_),
-                        static_cast<unsigned long long>(acquireDeferred_),
-                        static_cast<unsigned long long>(fenceDeferred_),
-                        static_cast<unsigned long long>(guestDeadlineFrames_));
+                        static_cast<unsigned long long>(throttled_));
         }
         return 0;
     }
@@ -796,7 +732,6 @@ struct VenusSurfaceQueueTarget::Impl {
                         "[VENUS-PRESENT][NCP] abandoning presenter objects without "
                         "device-owner callback key=%{public}llu ctx=%{public}u device=%{public}p",
                         static_cast<unsigned long long>(surfaceKey_), contextId_, device_);
-            vkDirect_.Abandon();
             ClearVulkanStateLocked();
         }
         ReleaseWindowLocked();
@@ -816,230 +751,6 @@ private:
         return result == VK_ERROR_DEVICE_LOST ? -ENODEV : -EIO;
     }
 
-    VkResult RecordPresentCopyLocked(Frame& frame,
-                                     VkImage sourceImage,
-                                     VkImageLayout sourceLayout,
-                                     VkImage targetImage,
-                                     VkFormat targetFormat,
-                                     uint32_t targetWidth,
-                                     uint32_t targetHeight,
-                                     VkImageLayout targetOldLayout,
-                                     VkImageLayout targetFinalLayout,
-                                     bool gpuTiming)
-    {
-        if (!sourceImage || !targetImage || targetFormat == VK_FORMAT_UNDEFINED ||
-            !sourceWidth_ || !sourceHeight_ || !targetWidth || !targetHeight) {
-            return VK_ERROR_INITIALIZATION_FAILED;
-        }
-        const bool useBlit = sourceFormat_ != targetFormat ||
-            sourceWidth_ != targetWidth || sourceHeight_ != targetHeight;
-        if (useBlit) {
-            VkFormatProperties sourceProperties{};
-            VkFormatProperties targetProperties{};
-            vkGetPhysicalDeviceFormatProperties(
-                physicalDevice_, sourceFormat_, &sourceProperties);
-            vkGetPhysicalDeviceFormatProperties(
-                physicalDevice_, targetFormat, &targetProperties);
-            if (!(sourceProperties.optimalTilingFeatures &
-                  VK_FORMAT_FEATURE_BLIT_SRC_BIT) ||
-                !(targetProperties.optimalTilingFeatures &
-                  VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
-                return VK_ERROR_FORMAT_NOT_SUPPORTED;
-            }
-        }
-
-        VkResult result = vkResetCommandBuffer(frame.command, 0);
-        if (result != VK_SUCCESS) return result;
-        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        result = vkBeginCommandBuffer(frame.command, &begin);
-        if (result != VK_SUCCESS) return result;
-
-        if (gpuTiming) {
-            vkCmdResetQueryPool(frame.command, frame.gpuTiming, 0, 2);
-            vkCmdWriteTimestamp(frame.command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                frame.gpuTiming, 0);
-        }
-
-        VkImageMemoryBarrier sourceToTransfer{
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-        sourceToTransfer.srcAccessMask = SourceAccess(sourceLayout);
-        sourceToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        sourceToTransfer.oldLayout = sourceLayout;
-        sourceToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        sourceToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        sourceToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        sourceToTransfer.image = sourceImage;
-        sourceToTransfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        sourceToTransfer.subresourceRange.levelCount = 1;
-        sourceToTransfer.subresourceRange.layerCount = 1;
-
-        VkImageMemoryBarrier targetToTransfer{
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-        targetToTransfer.srcAccessMask =
-            targetOldLayout == VK_IMAGE_LAYOUT_UNDEFINED ? 0 : VK_ACCESS_MEMORY_READ_BIT;
-        targetToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        targetToTransfer.oldLayout = targetOldLayout;
-        targetToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        targetToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        targetToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        targetToTransfer.image = targetImage;
-        targetToTransfer.subresourceRange = sourceToTransfer.subresourceRange;
-        const std::array<VkImageMemoryBarrier, 2> before = {
-            sourceToTransfer, targetToTransfer};
-        const VkPipelineStageFlags targetSourceStage =
-            targetOldLayout == VK_IMAGE_LAYOUT_UNDEFINED
-            ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
-            : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-        vkCmdPipelineBarrier(
-            frame.command, SourceStage(sourceLayout) | targetSourceStage,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
-            static_cast<uint32_t>(before.size()), before.data());
-
-        if (useBlit) {
-            VkImageBlit blit{};
-            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            blit.srcSubresource.layerCount = 1;
-            blit.srcOffsets[1] = {
-                static_cast<int32_t>(sourceWidth_),
-                static_cast<int32_t>(sourceHeight_), 1};
-            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            blit.dstSubresource.layerCount = 1;
-            blit.dstOffsets[1] = {
-                static_cast<int32_t>(targetWidth),
-                static_cast<int32_t>(targetHeight), 1};
-            vkCmdBlitImage(
-                frame.command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-                VK_FILTER_NEAREST);
-        } else {
-            VkImageCopy copy{};
-            copy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            copy.srcSubresource.layerCount = 1;
-            copy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            copy.dstSubresource.layerCount = 1;
-            copy.extent = {sourceWidth_, sourceHeight_, 1};
-            vkCmdCopyImage(
-                frame.command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-        }
-
-        VkImageMemoryBarrier sourceRestore{
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-        sourceRestore.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        sourceRestore.dstAccessMask = SourceAccess(sourceLayout);
-        sourceRestore.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        sourceRestore.newLayout = sourceLayout;
-        sourceRestore.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        sourceRestore.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        sourceRestore.image = sourceImage;
-        sourceRestore.subresourceRange = sourceToTransfer.subresourceRange;
-
-        VkImageMemoryBarrier targetPublish{
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-        targetPublish.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        targetPublish.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        targetPublish.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        targetPublish.newLayout = targetFinalLayout;
-        targetPublish.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        targetPublish.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        targetPublish.image = targetImage;
-        targetPublish.subresourceRange = targetToTransfer.subresourceRange;
-        const std::array<VkImageMemoryBarrier, 2> after = {
-            sourceRestore, targetPublish};
-        vkCmdPipelineBarrier(
-            frame.command, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr,
-            static_cast<uint32_t>(after.size()), after.data());
-
-        if (gpuTiming) {
-            vkCmdWriteTimestamp(frame.command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                frame.gpuTiming, 1);
-        }
-        result = vkEndCommandBuffer(frame.command);
-        if (result != VK_SUCCESS) return result;
-        return vkResetFences(device_, 1, &frame.complete);
-    }
-
-    VkResult WaitForOutstandingFramesLocked()
-    {
-        std::vector<VkFence> pending;
-        pending.reserve(frames_.size());
-        for (const Frame& frame : frames_) {
-            if (frame.submitted && frame.complete)
-                pending.push_back(frame.complete);
-        }
-        if (pending.empty()) return VK_SUCCESS;
-
-        const VkResult result = vkWaitForFences(
-            device_, static_cast<uint32_t>(pending.size()), pending.data(),
-            VK_TRUE, kReleaseFenceWatchdogNs);
-        if (result == VK_SUCCESS) {
-            for (Frame& frame : frames_) frame.submitted = false;
-        }
-        return result;
-    }
-
-    bool CreateDirectResourcesLocked(int& error)
-    {
-        extent_ = {sourceWidth_, sourceHeight_};
-        targetFormat_ = sourceFormat_;
-        canBlit_ = true;
-        useBlit_ = false;
-
-        VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = queueFamily_;
-        VkResult result = vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool_);
-        if (result != VK_SUCCESS) {
-            error = -EIO;
-            return false;
-        }
-
-        frames_.resize(3);
-        std::vector<VkCommandBuffer> commands(frames_.size());
-        VkCommandBufferAllocateInfo allocate{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-        allocate.commandPool = commandPool_;
-        allocate.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocate.commandBufferCount = static_cast<uint32_t>(commands.size());
-        result = vkAllocateCommandBuffers(device_, &allocate, commands.data());
-        if (result != VK_SUCCESS) {
-            error = -ENOMEM;
-            return false;
-        }
-
-        VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        VkSemaphoreCreateInfo semaphoreInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        for (size_t i = 0; i < frames_.size(); ++i) {
-            Frame& frame = frames_[i];
-            frame.command = commands[i];
-            if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr,
-                                  &frame.acquired) != VK_SUCCESS ||
-                vkCreateSemaphore(device_, &semaphoreInfo, nullptr,
-                                  &frame.released) != VK_SUCCESS ||
-                vkCreateFence(device_, &fenceInfo, nullptr,
-                              &frame.complete) != VK_SUCCESS) {
-                error = -ENOMEM;
-                return false;
-            }
-        }
-
-        // DP1 measures CPU queue/request/flush cost. Timestamp queries remain
-        // on the WSI comparison path until delayed query collection is added;
-        // Direct must not reintroduce a post-present CPU fence wait for metrics.
-        gpuTimingRequested_ = GpuFrameProfileEnabled();
-        gpuTimingEnabled_ = false;
-        directReady_ = true;
-        OH_LOG_INFO(LOG_APP,
-                    "[VENUS-PRESENT][NCP] transport=direct-native-buffer "
-                    "key=%{public}llu size=%{public}ux%{public}u frames=%{public}zu "
-                    "post_present_cpu_wait=0",
-                    static_cast<unsigned long long>(surfaceKey_), sourceWidth_,
-                    sourceHeight_, frames_.size());
-        return true;
-    }
-
     bool EnsureVulkanLocked(uint32_t contextId,
                             VkInstance instance,
                             VkPhysicalDevice physicalDevice,
@@ -1056,33 +767,7 @@ private:
             device_ == device && queue_ == queue && queueFamily_ == queueFamily &&
             sourceWidth_ == width && sourceHeight_ == height &&
             sourceFormat_ == sourceFormat;
-        if (transport_ == VulkanPresentTransport::DirectNativeBuffer &&
-            directReady_ && sameSource) {
-            return true;
-        }
-        if (transport_ == VulkanPresentTransport::Wsi && swapchain_ &&
-            sameSource && !swapchainDirty_) {
-            return true;
-        }
-
-        if ((transport_ == VulkanPresentTransport::DirectNativeBuffer ||
-             transport_ == VulkanPresentTransport::DirectFallbackPending) &&
-            device_ && queue_) {
-            const VkResult idleResult = vkQueueWaitIdle(queue_);
-            if (idleResult != VK_SUCCESS) {
-                error = idleResult == VK_ERROR_DEVICE_LOST ? -ENODEV : -EIO;
-                return false;
-            }
-        }
-
-        if (transport_ == VulkanPresentTransport::Wsi && device_) {
-            const VkResult waitResult = WaitForOutstandingFramesLocked();
-            if (waitResult != VK_SUCCESS) {
-                error = waitResult == VK_TIMEOUT ? -EAGAIN
-                    : waitResult == VK_ERROR_DEVICE_LOST ? -ENODEV : -EIO;
-                return false;
-            }
-        }
+        if (swapchain_ && sameSource && !swapchainDirty_) return true;
 
         /* A WSI error can leave the platform present queue waiting forever.
          * The dirty path has already waited for the per-frame fence and has
@@ -1103,55 +788,6 @@ private:
         if (!instance_ || !physicalDevice_ || !device_ || !queue_) {
             error = -EINVAL;
             return false;
-        }
-
-        if (transport_ == VulkanPresentTransport::DirectFallbackPending) {
-            transport_ = VulkanPresentTransport::Wsi;
-            OH_LOG_WARN(LOG_APP,
-                        "[VENUS-PRESENT][NCP] transport fallback latched "
-                        "key=%{public}llu reason=%{public}s selected=wsi",
-                        static_cast<unsigned long long>(surfaceKey_), transportReason_);
-        }
-
-        if (transport_ == VulkanPresentTransport::Unprobed) {
-            const NativeWindowVkConfigureResult directResult = vkDirect_.Configure(
-                surfaceKey_, windowLease_.Get(), width, height, physicalDevice_,
-                device_, sourceFormat_);
-            if (directResult == NativeWindowVkConfigureResult::Ready) {
-                transport_ = VulkanPresentTransport::DirectNativeBuffer;
-                transportReason_ = "capability-ready";
-            } else {
-                transport_ = VulkanPresentTransport::Wsi;
-                transportReason_ = NativeWindowVkConfigureResultName(directResult);
-                OH_LOG_WARN(LOG_APP,
-                            "[VENUS-PRESENT][NCP] transport fallback latched "
-                            "key=%{public}llu reason=%{public}s selected=wsi",
-                            static_cast<unsigned long long>(surfaceKey_),
-                            transportReason_);
-            }
-        }
-
-        if (transport_ == VulkanPresentTransport::DirectNativeBuffer) {
-            if (!vkDirect_.Ready()) {
-                const NativeWindowVkConfigureResult directResult = vkDirect_.Configure(
-                    surfaceKey_, windowLease_.Get(), width, height,
-                    physicalDevice_, device_, sourceFormat_);
-                if (directResult != NativeWindowVkConfigureResult::Ready) {
-                    transport_ = VulkanPresentTransport::Wsi;
-                    transportReason_ = NativeWindowVkConfigureResultName(directResult);
-                    OH_LOG_WARN(LOG_APP,
-                                "[VENUS-PRESENT][NCP] transport fallback latched "
-                                "key=%{public}llu reason=%{public}s selected=wsi",
-                                static_cast<unsigned long long>(surfaceKey_),
-                                transportReason_);
-                }
-            }
-            if (transport_ == VulkanPresentTransport::DirectNativeBuffer) {
-                if (CreateDirectResourcesLocked(error)) return true;
-                transport_ = VulkanPresentTransport::DirectFallbackPending;
-                transportReason_ = "direct-resource-create-failed";
-                return false;
-            }
         }
 
         OH_NativeWindow_NativeWindowHandleOpt(
@@ -1188,6 +824,28 @@ private:
             return false;
         }
 
+        const VkPresentModeKHR requestedPresentMode = RequestedPresentMode();
+        presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
+        uint32_t presentModeCount = 0;
+        result = vkGetPhysicalDeviceSurfacePresentModesKHR(
+            physicalDevice_, surface_, &presentModeCount, nullptr);
+        if (result == VK_SUCCESS && presentModeCount) {
+            std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+            result = vkGetPhysicalDeviceSurfacePresentModesKHR(
+                physicalDevice_, surface_, &presentModeCount, presentModes.data());
+            if (result == VK_SUCCESS &&
+                std::find(presentModes.begin(), presentModes.end(),
+                          requestedPresentMode) != presentModes.end()) {
+                presentMode_ = requestedPresentMode;
+            }
+        }
+        if (requestedPresentMode != presentMode_) {
+            OH_LOG_WARN(LOG_APP,
+                        "[VENUS-PRESENT][NCP] requested present mode=%{public}s "
+                        "unsupported; using fifo",
+                        PresentModeName(requestedPresentMode));
+        }
+
         uint32_t formatCount = 0;
         result = vkGetPhysicalDeviceSurfaceFormatsKHR(
             physicalDevice_, surface_, &formatCount, nullptr);
@@ -1221,7 +879,9 @@ private:
             extent_.height = std::clamp(height, capabilities.minImageExtent.height,
                                        capabilities.maxImageExtent.height);
         }
-        uint32_t imageCount = std::max(2u, capabilities.minImageCount);
+        uint32_t imageCount = std::max(
+            presentMode_ == VK_PRESENT_MODE_MAILBOX_KHR ? 3u : 2u,
+            capabilities.minImageCount);
         if (capabilities.maxImageCount)
             imageCount = std::min(imageCount, capabilities.maxImageCount);
 
@@ -1236,11 +896,22 @@ private:
         create.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         create.preTransform = capabilities.currentTransform;
         create.compositeAlpha = ChooseCompositeAlpha(capabilities.supportedCompositeAlpha);
-        // FIFO is guaranteed by Vulkan WSI and is the single product queue
-        // discipline for both VirGL and Vulkan routes.
-        create.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        create.presentMode = presentMode_;
         create.clipped = VK_TRUE;
         result = vkCreateSwapchainKHR(device_, &create, nullptr, &swapchain_);
+        if (result != VK_SUCCESS && presentMode_ == VK_PRESENT_MODE_MAILBOX_KHR) {
+            OH_LOG_WARN(LOG_APP,
+                        "[VENUS-PRESENT][NCP] mailbox swapchain failed result=%{public}d; "
+                        "retrying fifo",
+                        static_cast<int32_t>(result));
+            presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
+            create.presentMode = presentMode_;
+            create.minImageCount = std::max(2u, capabilities.minImageCount);
+            if (capabilities.maxImageCount)
+                create.minImageCount = std::min(create.minImageCount,
+                                                capabilities.maxImageCount);
+            result = vkCreateSwapchainKHR(device_, &create, nullptr, &swapchain_);
+        }
         if (result != VK_SUCCESS) {
             error = -ENOTSUP;
             return false;
@@ -1370,14 +1041,17 @@ private:
                     "source=%{public}ux%{public}u target=%{public}ux%{public}u "
                     "source_format=%{public}u target_format=%{public}u images=%{public}u "
                     "blit_supported=%{public}d transfer=%{public}s "
-                    "queue_family=%{public}u present_mode=fifo release_mode=wait "
+                    "queue_family=%{public}u present_mode=%{public}s "
+                    "requested_mode=%{public}s release_mode=%{public}s "
                     "gpu_timing=%{public}s timestamp_period_ps=%{public}llu",
                     static_cast<unsigned long long>(surfaceKey_),
                     width, height, extent_.width, extent_.height,
                     static_cast<uint32_t>(sourceFormat_),
                     static_cast<uint32_t>(targetFormat_), imageCount,
                     canBlit_, useBlit_ ? "blit" : "copy", queueFamily_,
-                    gpuTimingEnabled_ ? "enabled" : "off",
+                    PresentModeName(presentMode_),
+                    PresentModeName(requestedPresentMode),
+                    ReleaseModeName(), gpuTimingEnabled_ ? "enabled" : "off",
                     static_cast<unsigned long long>(timestampPeriodNs_ * 1000.0f));
         return true;
     }
@@ -1395,13 +1069,11 @@ private:
                 if (frame.gpuTiming) vkDestroyQueryPool(device_, frame.gpuTiming, nullptr);
                 if (frame.complete) vkDestroyFence(device_, frame.complete, nullptr);
                 if (frame.acquired) vkDestroySemaphore(device_, frame.acquired, nullptr);
-                if (frame.released) vkDestroySemaphore(device_, frame.released, nullptr);
             }
             for (const VkSemaphore semaphore : renderFinished_) {
                 if (semaphore) vkDestroySemaphore(device_, semaphore, nullptr);
             }
             if (commandPool_) vkDestroyCommandPool(device_, commandPool_, nullptr);
-            vkDirect_.Reset();
             if (swapchain_) {
                 OH_LOG_INFO(LOG_APP, "[VENUS-PRESENT][NCP] destroy swapchain begin key=%{public}llu",
                             static_cast<unsigned long long>(surfaceKey_));
@@ -1439,6 +1111,7 @@ private:
         sourceHeight_ = 0;
         sourceFormat_ = VK_FORMAT_UNDEFINED;
         targetFormat_ = VK_FORMAT_UNDEFINED;
+        presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
         extent_ = {};
         frameIndex_ = 0;
         canBlit_ = false;
@@ -1447,7 +1120,6 @@ private:
         gpuTimingEnabled_ = false;
         timestampPeriodNs_ = 0.0f;
         swapchainDirty_ = false;
-        directReady_ = false;
     }
 
     void ReleaseWindowLocked()
@@ -1473,14 +1145,10 @@ private:
 
     std::mutex mutex_;
     NativeWindowLease windowLease_;
-    NativeWindowVkTarget vkDirect_;
     uint64_t surfaceKey_ = 0;
     uint32_t contextId_ = 0;
     bool surfaceAttached_ = false;
     bool deviceReleasing_ = false;
-    PresenterRuntimePolicy policy_;
-    VulkanPresentTransport transport_ = VulkanPresentTransport::Unprobed;
-    const char* transportReason_ = "not-probed";
     VkInstance instance_ = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
@@ -1497,25 +1165,20 @@ private:
     VkExtent2D extent_{};
     VkFormat sourceFormat_ = VK_FORMAT_UNDEFINED;
     VkFormat targetFormat_ = VK_FORMAT_UNDEFINED;
+    VkPresentModeKHR presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
     uint32_t sourceWidth_ = 0;
     uint32_t sourceHeight_ = 0;
     bool canBlit_ = false;
     bool useBlit_ = false;
-    bool directReady_ = false;
     bool swapchainDirty_ = false;
-    uint64_t displayPeriodNs_ = kDefaultPresentFramePeriodNs;
-    uint64_t framePeriodNs_ = kDefaultPresentFramePeriodNs;
+    uint64_t displayPeriodNs_ = kDefaultFramePeriodNs;
+    uint64_t framePeriodNs_ = kDefaultFramePeriodNs;
     uint64_t lastPresentNs_ = 0;
     uint64_t framesPresented_ = 0;
-    bool guestDeadlinePacingLogged_ = false;
     uint32_t lastSerial_ = 0;
     uint64_t serialRegressions_ = 0;
     uint64_t failures_ = 0;
     uint64_t throttled_ = 0;
-    uint64_t clockDeferred_ = 0;
-    uint64_t acquireDeferred_ = 0;
-    uint64_t fenceDeferred_ = 0;
-    uint64_t guestDeadlineFrames_ = 0;
     uint64_t firstPresentedNs_ = 0;
     uint64_t totalPresentUs_ = 0;
     uint64_t maxPresentUs_ = 0;
@@ -1524,6 +1187,7 @@ private:
     uint64_t totalSubmitUs_ = 0;
     uint64_t totalQueuePresentUs_ = 0;
     uint64_t totalReleaseWaitUs_ = 0;
+    uint64_t totalReleasePolls_ = 0;
     uint64_t totalGpuPresentWorkUs_ = 0;
     uint64_t maxGpuPresentWorkUs_ = 0;
     uint64_t gpuTimingSamples_ = 0;

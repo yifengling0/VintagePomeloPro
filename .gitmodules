@@ -1,11 +1,11 @@
 [submodule "thirdparty/wine"]
 	path = thirdparty/wine
 	url = git@github.com:winehua/wine.git
-	branch = master
+	branch = feature/arm64-heaven-port
 [submodule "thirdparty/box64"]
 	path = thirdparty/box64
 	url = git@github.com:winehua/box64.git
-	branch = main
+	branch = ohos-wow64-smc-fs
 [submodule "thirdparty/wayland"]
 	path = thirdparty/wayland
 	url = https://gitlab.freedesktop.org/wayland/wayland.git
@@ -46,7 +46,7 @@
 [submodule "thirdparty/dxvk"]
 	path = thirdparty/dxvk
 	url = https://github.com/winehua/dxvk.git
-	branch = dxvk-legacy-1.10.3
+	branch = feature/arm64-legacy
 [submodule "thirdparty/dxvk-modern"]
 	path = thirdparty/dxvk-modern
 	url = https://github.com/winehua/dxvk.git
@@ -71,10 +71,17 @@
 	url = https://gitlab.com/gnutls/gnutls.git
 [submodule "thirdparty/pcre2"]
 	path = thirdparty/pcre2
-	url = https://github.com/winehua/pcre2.git
+	url = https://github.com/PCRE2Project/pcre2.git
 [submodule "thirdparty/glib"]
 	path = thirdparty/glib
-	url = https://github.com/winehua/glib.git
+	url = https://github.com/GNOME/glib.git
 [submodule "thirdparty/gstreamer"]
 	path = thirdparty/gstreamer
 	url = https://gitlab.freedesktop.org/gstreamer/gstreamer.git
+[submodule "thirdparty/fex"]
+	path = thirdparty/fex
+	url = https://github.com/FEX-Emu/FEX
+[submodule "thirdparty/wine-valve"]
+	path = thirdparty/wine-valve
+	url = git@github.com:winehua/wine.git
+	branch = ohos-port-steam-win64

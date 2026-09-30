@@ -2,10 +2,10 @@
 // 测试 (make test)。不依赖 OHOS SDK, 用宿主 g++ 编译 (x86_64, __aarch64__
 // 未定义 — Box64 表为空、WINEDLLPATH 带 bundle libs 尾巴, 即 x86_64 形态)。
 // 基线收口前, 这些键在 wine_env.cpp / wine_child.cpp 两处各自手写维护。
-#include "wine/wine_env_baseline.h"
+#include "wine_env_baseline.h"
 
-#include <cstdio>
 #include <cstdlib>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -52,7 +52,7 @@ int main()
               findValue(lines, "WINEDLLDIR2"), "WINEDLLDIR0..2 present");
         const std::string* dllPath = findValue(lines, "WINEDLLPATH");
         CHECK(dllPath && dllPath->find(binDir + "/x86_64-windows:" + binDir +
-                                       "/i386-windows:" + binDir) != std::string::npos,
+              "/i386-windows:" + binDir) != std::string::npos,
               "WINEDLLPATH has wine PE dirs");
 #ifdef __aarch64__
         CHECK(dllPath && dllPath->find("bundle/libs") == std::string::npos,
@@ -84,18 +84,16 @@ int main()
     }
 
     // 3. 分歧键不在公共表内 (XDG_RUNTIME_DIR / WAYLAND_DISPLAY / LD_LIBRARY_PATH /
-    // WINEDEBUG / LANG / WINEBINDIR 等由各调用点自行处理)
+    //    WINEDEBUG / LANG / WINEBINDIR 等由各调用点自行处理)
     {
         std::vector<std::string> lines = winehua::BuildWineBaselineLines(
             {binDir, "/home/u", "/pfx"});
         CHECK(!findValue(lines, "XDG_RUNTIME_DIR"), "XDG_RUNTIME_DIR stays per-site");
         CHECK(!findValue(lines, "WAYLAND_DISPLAY"), "WAYLAND_DISPLAY stays per-site");
         CHECK(!findValue(lines, "LD_LIBRARY_PATH"), "LD_LIBRARY_PATH stays per-site");
-        CHECK(!findValue(lines, "BOX64_LD_LIBRARY_PATH"), "BOX64_LD_LIBRARY_PATH stays per-site");
         CHECK(!findValue(lines, "WINEDEBUG"), "WINEDEBUG stays per-site");
         CHECK(!findValue(lines, "LANG"), "LANG stays per-site");
         CHECK(!findValue(lines, "WINEBINDIR"), "WINEBINDIR stays per-site");
-        CHECK(!findValue(lines, "WINEHUA_DESKTOP_MODE"), "WINEHUA_* stays per-site");
     }
 
     // 4. 同一次构建内 key 唯一 (重复 key 会让 "后写胜出" 依赖调用顺序, 违反表意)
@@ -114,10 +112,10 @@ int main()
     {
         winehua::ApplyEnvLinesToEnviron({
             "WINEHUA_BASELINE_TEST_A=1",
-            "WINEHUA_BASELINE_TEST_B=x=y", // 值含 '=' 合法 (按首个 '=' 切分)
-            "no-equals-sign", // 非法行忽略
-            "=empty-key", // 空 key 忽略
-            "WINEHUA_BASELINE_TEST_A=2", // 后写胜出
+            "WINEHUA_BASELINE_TEST_B=x=y",   // 值含 '=' 合法 (按首个 '=' 切分)
+            "no-equals-sign",                // 非法行忽略
+            "=empty-key",                    // 空 key 忽略
+            "WINEHUA_BASELINE_TEST_A=2",     // 后写胜出
         });
         const char* a = getenv("WINEHUA_BASELINE_TEST_A");
         const char* b = getenv("WINEHUA_BASELINE_TEST_B");
@@ -126,7 +124,7 @@ int main()
     }
 
     // 6. Box64 单表双 emitter 一致性 (aarch64): 两 emitter 同源同序
-    // x86_64 宿主上两 emitter 均为空操作, 仅验证不崩
+    //    x86_64 宿主上两 emitter 均为空操作, 仅验证不崩
     {
         std::vector<std::string> env;
         winehua::AppendBox64PerfStrings(env);
@@ -134,63 +132,13 @@ int main()
         CHECK(!env.empty(), "Box64 perf lines non-empty on aarch64");
         CHECK(env.front() == "BOX64_LOG=0", "Box64 first entry");
         bool hasVolatile = false;
-        bool hasWeak = false;
-        for (const std::string& line : env) {
+        for (const std::string& line : env)
             if (line == "BOX64_DYNAREC_VOLATILE_METADATA=0") hasVolatile = true;
-            if (line == "BOX64_DYNAREC_WEAKBARRIER=2") hasWeak = true;
-        }
         CHECK(hasVolatile, "Box64 table carries VOLATILE_METADATA=0");
-        CHECK(hasWeak, "Box64 table carries WEAKBARRIER=2 factory default");
 #else
         CHECK(env.empty(), "Box64 perf lines empty on x86_64 host");
 #endif
-        winehua::SetBox64PerfEnv(); // 不崩即可 (x86_64 为空操作)
-    }
-
-    // 7. 窗口模式契约: 取值单源; 父进程写出完整对; 子进程只补缺键
-    {
-        const winehua::WindowingModeEnv fusion = winehua::WindowingModeFor(false);
-        const winehua::WindowingModeEnv desktop = winehua::WindowingModeFor(true);
-        CHECK(std::string(fusion.desktopMode) == "0" &&
-              std::string(fusion.simulateResolution) == "1",
-              "fusion: independent window + CDS simulate");
-        CHECK(std::string(desktop.desktopMode) == "1" &&
-              std::string(desktop.simulateResolution) == "0",
-              "desktop: subsurface + no CDS simulate");
-
-        std::vector<std::string> lines;
-        winehua::AppendWindowingModeLines(lines, false);
-        CHECK(lines.size() == 2, "parent always emits both windowing keys");
-        CHECK(lines[0] == "WINEHUA_DESKTOP_MODE=0", "fusion DESKTOP_MODE line");
-        CHECK(lines[1] == "WINEHUA_SIMULATE_RESOLUTION=1", "fusion SIMULATE line");
-        lines.clear();
-        winehua::AppendWindowingModeLines(lines, true);
-        CHECK(lines[0] == "WINEHUA_DESKTOP_MODE=1", "desktop DESKTOP_MODE line");
-        CHECK(lines[1] == "WINEHUA_SIMULATE_RESOLUTION=0", "desktop SIMULATE line");
-
-        unsetenv("WINEHUA_DESKTOP_MODE");
-        unsetenv("WINEHUA_SIMULATE_RESOLUTION");
-        winehua::EnsureWindowingModeEnv();
-        CHECK(std::string(getenv("WINEHUA_DESKTOP_MODE")) == "0",
-              "missing keys → fusion DESKTOP_MODE=0");
-        CHECK(std::string(getenv("WINEHUA_SIMULATE_RESOLUTION")) == "1",
-              "missing keys → fusion SIMULATE=1");
-
-        setenv("WINEHUA_DESKTOP_MODE", "1", 1);
-        unsetenv("WINEHUA_SIMULATE_RESOLUTION");
-        winehua::EnsureWindowingModeEnv();
-        CHECK(std::string(getenv("WINEHUA_DESKTOP_MODE")) == "1", "desktop DESKTOP_MODE kept");
-        CHECK(std::string(getenv("WINEHUA_SIMULATE_RESOLUTION")) == "0",
-              "desktop missing SIMULATE → 0");
-
-        setenv("WINEHUA_DESKTOP_MODE", "0", 1);
-        setenv("WINEHUA_SIMULATE_RESOLUTION", "1", 1);
-        winehua::EnsureWindowingModeEnv();
-        CHECK(std::string(getenv("WINEHUA_DESKTOP_MODE")) == "0", "parent fusion DESKTOP_MODE kept");
-        CHECK(std::string(getenv("WINEHUA_SIMULATE_RESOLUTION")) == "1", "parent SIMULATE kept");
-
-        unsetenv("WINEHUA_DESKTOP_MODE");
-        unsetenv("WINEHUA_SIMULATE_RESOLUTION");
+        winehua::SetBox64PerfEnv();  // 不崩即可 (x86_64 为空操作)
     }
 
     std::printf("env_baseline_test: %d checks, %d failures\n", g_checks, g_failures);

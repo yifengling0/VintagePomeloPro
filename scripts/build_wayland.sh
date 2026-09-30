@@ -13,32 +13,26 @@ SCANNER="$WAYLAND_SCANNER"
 build_scanner() {
     if [ -x "$SCANNER" ]; then return 0; fi
     log "--- 编译 wayland-scanner (native) ---"
-    if [ "$HOST_OS" = "Darwin" ] || [ "$HOST_OS" = "HarmonyOS" ]; then
-        local host_build="$BUILD_DIR/wayland_native"
-        local host_prefix="$BUILD_DIR/host-tools"
-        mkdir -p "$host_build" "$host_prefix"
-        meson setup "$host_build" "$WL_SRC" \
-            --prefix "$host_prefix" \
-            -Dlibraries=false -Dscanner=true -Ddtd_validation=false \
-            -Ddocumentation=false -Dtests=false --buildtype=release
-        ninja -C "$host_build"
-        ninja -C "$host_build" install
+    # 装到项目内 build/host-tools，与 env.sh 的 WAYLAND_SCANNER 默认值一致；不写 /usr/local，无需 root
+    local host_build="$BUILD_DIR/wayland_native"
+    local host_prefix="$BUILD_DIR/host-tools"
+    mkdir -p "$host_build" "$host_prefix"
+    meson setup "$host_build" "$WL_SRC" \
+        --prefix "$host_prefix" \
+        --libdir lib \
+        -Dlibraries=false -Dscanner=true -Ddtd_validation=false \
+        -Ddocumentation=false -Dtests=false --buildtype=release
+    ninja -C "$host_build"
+    ninja -C "$host_build" install
 
-        # 安装时的 strip 操作破坏了 OHOS SDK clang 的自动签名，所以在 HarmonyOS 上需要重新签名才能运行
-        if [ "$HOST_OS" = "HarmonyOS" ]; then
-            "$SCRIPT_DIR/ohos-sign-elf.py" "$host_prefix"
-        fi
-    else
-        mkdir -p /tmp/wayland_native
-        meson setup /tmp/wayland_native "$WL_SRC" \
-            --prefix /usr/local -Ddocumentation=false -Dtests=false --buildtype=release
-        ninja -C /tmp/wayland_native
-        ninja -C /tmp/wayland_native install
+    # 安装时的 strip 操作破坏了 OHOS SDK clang 的自动签名，所以在 HarmonyOS 上需要重新签名才能运行
+    if [ "$HOST_OS" = "HarmonyOS" ]; then
+        "$SCRIPT_DIR/ohos-sign-elf.py" "$host_prefix"
     fi
-    log "wayland-scanner: $(which wayland-scanner)"
+    log "wayland-scanner: $SCANNER"
 }
 
-log "=== 构建 Wayland (x86_64) ==="
+log "=== 构建 Wayland ($WINE_ARCH) ==="
 
 if [ -f "$SYSROOT_EXT_LIB/libwayland-client.so.0" ] \
    && [ -f "$SYSROOT_EXT_LIB/libwayland-client.so" ] \
@@ -50,23 +44,22 @@ fi
 
 build_scanner
 
-if [ "$HOST_OS" = "Darwin" ] || [ "$HOST_OS" = "HarmonyOS" ]; then
-    export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    export PKG_CONFIG_PATH_FOR_BUILD="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH_FOR_BUILD:+:$PKG_CONFIG_PATH_FOR_BUILD}"
-fi
+# 项目内 host-tools 前缀加入构建期 pkg-config 搜索路径（wayland-scanner 的 native 依赖经此解析）
+export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export PKG_CONFIG_PATH_FOR_BUILD="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH_FOR_BUILD:+:$PKG_CONFIG_PATH_FOR_BUILD}"
 
 mkdir -p "$SYSROOT_EXT_INC" "$SYSROOT_EXT_LIB" "$SYSROOT_EXT_PC" "$SYSROOT_EXT_SHARE"
 mkdir -p "$WL_BUILD"
 
 # 1. 交叉编译 wayland (client + egl)
-meson_build "$WL_BUILD/x86_64" "$WL_SRC" \
+meson_build "$WL_BUILD/$WINE_ARCH" "$WL_SRC" \
     -Ddocumentation=false -Dtests=false -Dscanner=false
-ninja -C "$WL_BUILD/x86_64"
+ninja -C "$WL_BUILD/$WINE_ARCH"
 
 # 安装 .so (文件名 = SONAME)
-cp "$WL_BUILD/x86_64/src/libwayland-client.so.0.22.0" "$SYSROOT_EXT_LIB/libwayland-client.so.0"
-cp "$WL_BUILD/x86_64/src/libwayland-server.so.0.22.0" "$SYSROOT_EXT_LIB/libwayland-server.so.0"
-cp "$WL_BUILD/x86_64/egl/libwayland-egl.so.1.22.0" "$SYSROOT_EXT_LIB/libwayland-egl.so.1" 2>/dev/null || true
+cp "$WL_BUILD/$WINE_ARCH/src/libwayland-client.so.0.22.0" "$SYSROOT_EXT_LIB/libwayland-client.so.0"
+cp "$WL_BUILD/$WINE_ARCH/src/libwayland-server.so.0.22.0" "$SYSROOT_EXT_LIB/libwayland-server.so.0"
+cp "$WL_BUILD/$WINE_ARCH/egl/libwayland-egl.so.1.22.0" "$SYSROOT_EXT_LIB/libwayland-egl.so.1" 2>/dev/null || true
 ln -sf libwayland-client.so.0 "$SYSROOT_EXT_LIB/libwayland-client.so"
 ln -sf libwayland-server.so.0 "$SYSROOT_EXT_LIB/libwayland-server.so"
 ln -sf libwayland-egl.so.1 "$SYSROOT_EXT_LIB/libwayland-egl.so" 2>/dev/null || true
@@ -75,8 +68,8 @@ ln -sf libwayland-egl.so.1 "$SYSROOT_EXT_LIB/libwayland-egl.so" 2>/dev/null || t
 cp "$WL_SRC/src/wayland-client.h" \
    "$WL_SRC/src/wayland-client-core.h" \
    "$WL_SRC/src/wayland-util.h" \
-   "$WL_BUILD/x86_64/src/wayland-client-protocol.h" \
-   "$WL_BUILD/x86_64/src/wayland-version.h" \
+   "$WL_BUILD/$WINE_ARCH/src/wayland-client-protocol.h" \
+   "$WL_BUILD/$WINE_ARCH/src/wayland-version.h" \
    "$SYSROOT_EXT_INC/"
 cp "$WL_SRC/egl/wayland-egl.h" "$SYSROOT_EXT_INC/" 2>/dev/null || true
 cp "$WL_SRC/egl/wayland-egl-core.h" "$SYSROOT_EXT_INC/" 2>/dev/null || true
@@ -96,7 +89,7 @@ cp "$WL_SRC/protocol/wayland.xml" "$SYSROOT_EXT_SHARE/wayland/"
 cat > "$SYSROOT_EXT_PC/wayland-client.pc" << EOF
 prefix=$SYSROOT_EXT/usr
 includedir=\${prefix}/include
-libdir=\${prefix}/lib/x86_64-linux-ohos
+libdir=\${prefix}/lib/$TARGET
 
 Name: Wayland Client
 Description: Wayland client side library
@@ -109,7 +102,7 @@ EOF
 cat > "$SYSROOT_EXT_PC/wayland-egl.pc" << EOF
 prefix=$SYSROOT_EXT/usr
 includedir=\${prefix}/include
-libdir=\${prefix}/lib/x86_64-linux-ohos
+libdir=\${prefix}/lib/$TARGET
 
 Name: Wayland EGL
 Description: Wayland EGL platform library

@@ -6,11 +6,12 @@
 #include <unordered_set>
 #include <vector>
 
-#include "compositor/frame/display_policy.h"
-#include "compositor/frame/geometry.h"
-#include "compositor/frame/presented_frame.h"
-#include "compositor/frame/zc_bridge.h"  // ZC 层几何/状态类型与 ZcBridge (原 ZeroCopyLayerInfo/ZeroCopyOccluderRect)
-#include "compositor/frame/compositor_layer.h"  // CompositorLayer / SubsurfaceLayer 模块级数据契约
+#include "compositor_layer.h"
+#include "display_policy.h"
+#include "geometry.h"
+#include "presented_frame.h"
+#include "compositor/frame/gpu_desktop_scene.h"
+#include "zc_bridge.h"  // ZC 层几何/状态类型与 ZcBridge (原 ZeroCopyLayerInfo/ZeroCopyOccluderRect)
 
 class ToplevelManager;
 
@@ -34,6 +35,16 @@ class ToplevelManager;
 //   CompositorLayer 列表 (BuildLayerListLocked), 合成与输入遍历同一个
 //   按 zIndex 升序的列表; 各层的合成/命中特判逻辑原样保留 (等价形式),
 //   阶段 2 起 ZC 层入列参与层序。
+
+// Immutable geometry copied under the window-tree lock. Direct content uses
+// the explicit owner surface, and its empty-input client subsurface, rather
+// than the size-based producer binding used by legacy renderers.
+struct DirectDesktopLayout {
+    int x = 0, y = 0, w = 0, h = 0;
+    size_t z = 0;
+    bool fullscreen = false;
+    std::vector<ZeroCopyOccluderRect> occluders;
+};
 
 class DesktopCompositor {
 public:
@@ -77,13 +88,21 @@ public:
     // rootW/rootH 用于 Root 层几何 (输入侧仅作占位, 不参与命中)。
     std::vector<CompositorLayer> BuildLayerListLocked(int rootW, int rootH);
 
-    // 窗口内 Layer 列表 (阶段 3, PC 模式): 单窗口合成数据源, 与
-    // BuildLayerListLocked 对称但用窗口局部坐标:
-    //   zIndex: Root(窗口帧) < Subsurface(窗口内局部坐标) < ZC 层(最顶)
-    // 窗口间层序不在此管理 (系统合成器)。PC 模式 subsurface 全部转 popup
-    // 伪 toplevel (PopupManager::UpdatePopupOnCommit), 窗口内 subsurface 当前恒空 —
-    // 层序结构为窗口内内容扩展预留; ZC 层 (zcActive) 在层序最顶, 合成跳过
-    // (GPU 自绘覆盖, 与 desktop 模式同语义)。调用方须已持有 tmgr mutex。
+    bool GetDirectDesktopLayout(uint32_t pid, uint32_t toplevelId, uint32_t wlSurfaceId,
+                                int imageW, int imageH, DirectDesktopLayout& out);
+
+    bool SnapshotGpuDesktopScene(const std::vector<GpuDesktopDirectSource>& direct,
+                                 GpuDesktopSnapshotCache& cache, GpuDesktopScene& out);
+    void ClearDirectDesktopContentSizes();
+
+    // 窗口内 Layer 列表 (阶段 3, 多窗口模式 — PC 窗口模式与 Pad 多窗口模式
+    // 共用): 单窗口合成数据源, 与 BuildLayerListLocked 对称但用窗口局部坐标:
+    //   zIndex: Root(窗口帧) < 内嵌客户区 Subsurface(窗口局部坐标) < ZC 层(最顶)
+    // 窗口间层序不在此管理 (系统合成器)。只收 route=InlineClient 的子层
+    // (多窗口客户区), Popup 类走伪 toplevel + 独立子窗口 (见
+    // DisplayPolicy::RouteForSubsurface); ZC 层 (zcActive) 在层序最顶,
+    // 合成跳过 (GPU 自绘覆盖, 与 desktop 模式同语义)。
+    // 调用方须已持有 tmgr mutex。
     std::vector<CompositorLayer> BuildWindowLayerListLocked(uint32_t toplevelId,
                                                             int winW, int winH);
 
@@ -94,7 +113,7 @@ public:
     // 2026-07 实测 notepad 被连带标记并压在游戏上), 规则原因/局限见
     // ToplevelState::fsPriority 注释。调用方须已持有 tmgr mutex;
     // 返回 id 对应的 state 由调用方锁内查询 (pick 时已确认非空)。
-    uint32_t PickFullscreenToplevelLocked() const;
+    uint32_t PickFullscreenLayerLocked(const std::vector<CompositorLayer>& layers) const;
 
     // 非主全屏窗口 (显示模式切换时被 winewayland 连带标记的旧窗口) 是否应
     // 跳过合成/命中 — 渲染 blitToplevel/blitSubsurface 与输入
@@ -106,18 +125,20 @@ public:
                                             uint32_t fullscreenId, bool fsOk,
                                             ToplevelManager& tmgr);
 
-    // Fullscreen fit of the current committed window content, shared by CPU,
-    // GPU children, input and cursor warps. Pre-fullscreen sizes are restore
-    // metadata in SurfaceData only; producer image size is not an input space.
-    // 调用方须已持有 tmgr mutex; 找不到 toplevel state 返回 false。
+    // 全屏内容 fit 几何 (渲染/输入共用): 内部做全屏内容尺寸选择
+    // (SelectFullscreenContentSize: ZC 游戏用 zero-copy 层实际内容几何,
+    // SHM 用 buffer 尺寸) + ComputeFitRect — 该规则的唯一实现, 替换两侧
+    // 各自组合。调用方须已持有 tmgr mutex; 找不到 toplevel state 返回 false。
     bool ComputeFullscreenFitLocked(uint32_t toplevelId, int rootW, int rootH,
                                     FitRect& out) const;
 
     // -- Zero-copy layer 管理 (任务 3-A: 已抽离到 ZcBridge, 本类经 zc_ 委托) --
     bool GetZeroCopyLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
                               int fallbackWidth, int fallbackHeight,
-                              ZeroCopyLayerInfo& info) {
-        return zc_.GetLayerInfo(surfaceKey, rendererToplevelId, fallbackWidth, fallbackHeight, info);
+                              ZeroCopyLayerInfo& info,
+                              const char** outReason = nullptr) {
+        return zc_.GetLayerInfo(surfaceKey, rendererToplevelId, fallbackWidth, fallbackHeight,
+                                info, outReason);
     }
     int GetZeroCopyOccluders(uint64_t surfaceKey, uint32_t rendererToplevelId,
                              ZeroCopyOccluderRect* out, int maxOut) {
@@ -145,8 +166,6 @@ public:
 
     // -- 桌面 root dirty 标记 --
     void MarkDesktopRootDirtyLocked();
-    // Geometry-only ZC changes must invalidate the retained CPU base too.
-    void ForceToplevelRedraw(uint32_t id);
 
     // -- Subsurface layer 生命周期 (替代直接操作 subsurfaceLayers_) --
 
@@ -186,9 +205,14 @@ public:
     // toplevel 是否有 zero-copy GL 层 (ZC 游戏判定: 全屏渲染/输入映射分流用,
     // 调用方须已持有 tmgr mutex)
     bool HasZeroCopyLayerForToplevelLocked(uint32_t id) const;
+    // 取 toplevel 的 zero-copy subsurface 层实际内容尺寸 (vpDst 裁剪后,
+    // 与 GetZeroCopyLayerInfo / egl_renderer 渲染视口同规则) — 全屏内容
+    // 尺寸的单一权威源, 输入 fit 与渲染视口同源才保证逆映射严格互逆。
+    // 返回是否有 ZC 层; 无 ZC 层时 outW/outH 保持 0 (SelectFullscreenContentSize
+    // 退化为 buffer 尺寸)。调用方须已持有 tmgr mutex。
+    bool GetZeroCopyContentSizeLocked(uint32_t toplevelId, int& outW, int& outH) const;
 
 private:
-    bool HasFullscreenZeroCopyContentLocked(uint32_t id) { return zc_.HasFullscreenContentLocked(id); }
     // toplevel 的 zero-copy subsurface 层查找 (上面两个查询的单一实现,
     // 同一遍历同一谓词; 返回首个匹配层, 调用方须已持有 tmgr mutex)
     const SubsurfaceLayer* FindZeroCopyLayerForToplevelLocked(uint32_t id) const;
@@ -237,6 +261,7 @@ private:
      * dirty 序号, 各层内容变化判定) 是不同概念, 不合一 — 前者是 root 帧
      * 级"根帧又新了"的全局序号, 后者是 each-toplevel 内容版本号。 */
     std::atomic<uint64_t> desktopRootFrameSerial_{0};
+    std::unordered_map<uint32_t, std::pair<int, int>> directDesktopContentSizes_;
     // TakeToplevelFrame 快照缓冲池 (仅渲染线程访问): 跨帧复用容量,
     // 避免每帧新建多 MB vector 的分配+缺页开销 — 见 cpp 快照阶段注释
     std::vector<std::vector<uint8_t>> snapPool_;

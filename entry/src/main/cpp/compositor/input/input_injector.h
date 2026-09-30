@@ -41,7 +41,7 @@ public:
 
     void InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fixed_t sx, wl_fixed_t sy);
     void InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy);
-    void InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy);
+    void InjectRelativeMotion(wl_fixed_t dx, wl_fixed_t dy);
     void InjectPointerButton(uint32_t button, uint32_t state);
     void InjectPointerAxis(int axis, wl_fixed_t value);
     void InjectPointerLeave();

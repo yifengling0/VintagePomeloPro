@@ -5,9 +5,9 @@
  * env_spec.h — 结构化环境变量 (EnvSpec)
  *
  * 背景: OHOS NCP 子进程不继承主进程 environ, wine 子进程环境唯一权威通道是
- * entryParams 尾部内嵌的 "|__env=K=V" 段 (broker SPAWN 与 wine_child 解析同一格式)。
- * 该文本通道有两条硬规则, 此前散落在多个序列化点各自实现, 此处收口为
- * 全项目唯一实现:
+ * entryParams 尾部内嵌的 "|__env=K=V" 段 (NCP 直启与 broker SPAWN 同一格式,
+ * 见 docs/PROCESS_SPAWNING.md)。该文本通道有两条硬规则, 此前散落在多个
+ * 序列化点各自实现, 此处收口为全项目唯一实现:
  *
  *   1. 不可编码: entryParams 以 '|' 分段、按 '\n' 行解析, 键或值含 '|'/'\n'
  *      的条目无法安全编码, 序列化时丢弃 (见 IsEntryParamsEncodable)。

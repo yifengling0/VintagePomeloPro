@@ -1,10 +1,12 @@
-#include "graphics/egl_renderer.h"
-#include "graphics/graphics_broker.h"
-#include "graphics/present_pacing.h"
+#include "egl_renderer.h"
+#include "graphics_broker.h"
+#include "gl_capability_probe.h"
 #include "common/perf_utils.h"
-#include "graphics/shader_utils.h"
+#include "shader_utils.h"
 #include "compositor/toplevel/desktop_compositor.h"  // DesktopCompositor (6A 构造注入: 取帧/ZC 直连)
 #include "common/fps_counter.h"
+#include "direct/direct_desktop_compositor.h"
+#include "direct/direct_vulkan_desktop_compositor.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -29,6 +31,9 @@
 // -- 共享 EGLDisplay: 整个进程只初始化一次, 避免反复 init/terminate 导致 GPU 驱动竞争 --
 static EGLDisplay gSharedDisplay = EGL_NO_DISPLAY;
 static std::once_flag gDisplayOnce;
+static std::atomic<uint64_t> gAcceptedPresents{0}, gAcceptedGpuPresents{0};
+uint64_t GetEglAcceptedPresents() { return gAcceptedPresents.load(std::memory_order_relaxed); }
+uint64_t GetEglAcceptedGpuPresents() { return gAcceptedGpuPresents.load(std::memory_order_relaxed); }
 
 using winehua::PerfClock;
 using winehua::PerfNowUs;
@@ -49,6 +54,7 @@ static void ComposeZeroCopySamplingTransform(const float* nativeTransform,
 }
 
 EglRenderer::EglRenderer(DesktopCompositor& compositor) : compositor_(compositor) {}
+EglRenderer::~EglRenderer() = default;
 
 void EglRenderer::OnVSync(long long timestamp, void* data)
 {
@@ -65,23 +71,15 @@ void EglRenderer::OnZeroCopyFrameAvailable(void* data)
 {
     auto* renderer = static_cast<EglRenderer*>(data);
     if (!renderer) return;
-    {
-        // Use the wait mutex when publishing the predicate: a background
-        // consumer must not miss a frame between its check and CV wait.
-        std::lock_guard<std::mutex> lock(renderer->vsyncMutex_);
-        renderer->zeroCopyFrameSignals_.fetch_add(1, std::memory_order_relaxed);
-        renderer->zeroCopyFrameAvailable_.store(true, std::memory_order_release);
-    }
-    renderer->vsyncCv_.notify_one();
-}
-
-void EglRenderer::SetRenderPaused(bool paused)
-{
-    {
-        std::lock_guard<std::mutex> lock(vsyncMutex_);
-        renderPaused_.store(paused, std::memory_order_release);
-    }
-    vsyncCv_.notify_one();
+    // 2026-09-20 关键修复: 这是**真实 present** 的唯一来源。旧实现只在这里加计数,
+    // 而"producer 是否还活跃"却由渲染循环的查询刷新 → 失效 producer 永远显示活跃。
+    // 现在同时把时刻写进 ZcBridge 活性表 (只碰它自己的小锁, 不取 tmgr 锁)。
+    const uint64_t nowUs = PerfNowUs();
+    renderer->zeroCopyLastSignalUs_.store(nowUs, std::memory_order_relaxed);
+    renderer->zeroCopyFrameSignals_.fetch_add(1, std::memory_order_relaxed);
+    renderer->zeroCopyFrameAvailable_.store(true, std::memory_order_release);
+    if (renderer->zeroCopySurfaceKey_)
+        renderer->compositor_.zc().NoteProducerPresent(renderer->zeroCopySurfaceKey_, nowUs);
 }
 
 EGLDisplay EglRenderer::GetSharedDisplay() {
@@ -154,13 +152,8 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         {
             if (zeroCopyLayerX_ != layer.x || zeroCopyLayerY_ != layer.y ||
                 zeroCopyLayerW_ != layer.width || zeroCopyLayerH_ != layer.height ||
-                zeroCopyFullscreen_ != (layer.fullscreen && compositor_.Policy().RootCompositing())) {
+                zeroCopyFullscreen_ != (layer.fullscreen && compositor_.Policy().RootCompositing()))
                 zeroCopyGeometryDirty_ = true;
-                // A viewport/position change can expose CPU content without a
-                // new SHM frame. Re-evaluate the base once, not on every present.
-                if (compositor_.zc().IsReadyPublished(zeroCopySurfaceKey_) && compositor_.Policy().RootCompositing())
-                    compositor_.ForceToplevelRedraw(rendererToplevelId);
-            }
             zeroCopyLayerX_ = layer.x;
             zeroCopyLayerY_ = layer.y;
             zeroCopyLayerW_ = layer.width;
@@ -185,71 +178,123 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
     zeroCopyLastQueryUs_ = nowUs;
 
     std::vector<winehua::ZeroCopySurfaceInfo> surfaces;
-    if (!broker.QueryZeroCopySurfaces(surfaces)) return zeroCopyRegistered_;
-    uint64_t promotedSurfaceKey = 0;
-    if (zeroCopyRegistered_)
+    if (!broker.QueryZeroCopySurfaces(surfaces))
     {
-        const auto currentSurface = std::find_if(
-            surfaces.begin(), surfaces.end(), [this](const auto& surface) {
-                return surface.surfaceKey == zeroCopySurfaceKey_;
-            });
-        if (currentSurface != surfaces.end())
+        // 诊断 (2026-09-16): 查询失败时旧实现静默返回, 导致"presenter 一直超时,
+        // app 侧零日志"无法定位。低频打印一次原因侧信息。
+        const uint64_t diagUs = PerfNowUs();
+        if (diagUs - zeroCopyDiagLastUs_ > 2000000)
         {
-            const auto& surface = *currentSurface;
-            if (surface.vulkan != zeroCopyVulkanSource_) {
-                ReleaseZeroCopyBinding();
-            }
-            else
+            zeroCopyDiagLastUs_ = diagUs;
+            OH_LOG_WARN(LOG_APP,
+                        "[VIRGL-ZC][MAIN][DIAG] query_failed tl=%{public}u "
+                        "registered=%{public}d vulkan_mode=%{public}d",
+                        rendererToplevelId, zeroCopyRegistered_ ? 1 : 0,
+                        broker.IsVulkanPresentMode() ? 1 : 0);
+        }
+        return zeroCopyRegistered_;
+    }
+    // 诊断 (2026-09-16): surface 集合变化或每 2s 打印一次候选与 layer 判定原因。
+    {
+        const uint64_t diagUs = PerfNowUs();
+        if (diagUs - zeroCopyDiagLastUs_ > 2000000 ||
+            surfaces.size() != zeroCopyDiagCount_)
+        {
+            zeroCopyDiagLastUs_ = diagUs;
+            zeroCopyDiagCount_ = surfaces.size();
+            OH_LOG_INFO(LOG_APP,
+                        "[VIRGL-ZC][MAIN][DIAG] query tl=%{public}u count=%{public}zu "
+                        "want_vulkan=%{public}d registered=%{public}d",
+                        rendererToplevelId, surfaces.size(),
+                        broker.IsVulkanPresentMode() ? 1 : 0,
+                        zeroCopyRegistered_ ? 1 : 0);
+            uint32_t shown = 0;
+            for (const auto& surface : surfaces)
             {
-                zeroCopySourceW_ = static_cast<int>(surface.width);
-                zeroCopySourceH_ = static_cast<int>(surface.height);
-                zeroCopyVulkanSource_ = surface.vulkan;
-                zeroCopySurfaceSerial_ = surface.serial;
-
-                // Query() orders candidates by their most recent present time.
-                // Keep a binding once it has delivered or published a frame.
-                // A never-producing binding may yield only to a higher-ranked,
-                // compositor-visible producer; `serial` is surface-local and is
-                // deliberately not used as a cross-surface recency comparison.
-                const bool currentHasFrame = zeroCopyFrames_ != 0 || zeroCopyHasFrame_ ||
-                    compositor_.zc().IsReadyPublished(zeroCopySurfaceKey_);
-                if (currentHasFrame) return true;
-
-                const uint64_t staleSurfaceKey = zeroCopySurfaceKey_;
-                const uint32_t staleSurfaceSerial = zeroCopySurfaceSerial_;
-                for (auto candidate = surfaces.begin(); candidate != currentSurface;
-                     ++candidate)
+                if (shown >= 6) break;
+                if (!surface.surfaceKey) continue;
+                ++shown;
+                ZeroCopyLayerInfo diagLayer;
+                const char* reason = "not_evaluated";
+                const bool layerOk = compositor_.GetZeroCopyLayerInfo(
+                    surface.surfaceKey, rendererToplevelId,
+                    static_cast<int>(surface.width), static_cast<int>(surface.height),
+                    diagLayer, &reason);
+                ZcLayerDiag d;
+                compositor_.zc().DiagnoseLayerInfo(surface.surfaceKey, rendererToplevelId, d);
+                OH_LOG_INFO(LOG_APP,
+                            "[VIRGL-ZC][MAIN][DIAG] cand key=%{public}llu pid=%{public}u "
+                            "surface=%{public}u wh=%{public}ux%{public}u attached=%{public}d "
+                            "vulkan=%{public}d layer=%{public}d reason=%{public}s "
+                            "res=%{public}d sd=%{public}d top=%{public}d sub=%{public}d "
+                            "topid=%{public}u ptop=%{public}u root=%{public}u visible=%{public}d "
+                            "sdwh=%{public}dx%{public}d vpdst=%{public}dx%{public}d "
+                            "sub=%{public}d,%{public}d nres=%{public}u",
+                            static_cast<unsigned long long>(surface.surfaceKey),
+                            surface.clientPid, surface.surfaceId, surface.width, surface.height,
+                            surface.attached ? 1 : 0, surface.vulkan ? 1 : 0,
+                            layerOk ? 1 : 0, reason,
+                            d.hasResource ? 1 : 0, d.hasData ? 1 : 0, d.hasToplevel ? 1 : 0,
+                            d.isSubsurface ? 1 : 0, d.toplevelId, d.parentToplevel,
+                            d.desktopRootToplevelId, d.rootVisible ? 1 : 0,
+                            d.surfaceW, d.surfaceH, d.vpDstW, d.vpDstH, d.subX, d.subY,
+                            d.registeredSurfaces);
+                for (uint32_t p = 0; p < d.peerCount; ++p)
                 {
-                    if (!candidate->surfaceKey || candidate->attached) continue;
-                    ZeroCopyLayerInfo candidateLayer;
-                    if (!compositor_.GetZeroCopyLayerInfo(
-                            candidate->surfaceKey, rendererToplevelId,
-                            static_cast<int>(candidate->width),
-                            static_cast<int>(candidate->height), candidateLayer))
-                        continue;
-
-                    promotedSurfaceKey = candidate->surfaceKey;
-                    OH_LOG_INFO(
-                        LOG_APP,
-                        "[VIRGL-ZC][MAIN] promote stale surface tl=%{public}u "
-                        "old_key=%{public}llu old_serial=%{public}u "
-                        "new_key=%{public}llu new_serial=%{public}u",
-                        rendererToplevelId,
-                        static_cast<unsigned long long>(staleSurfaceKey), staleSurfaceSerial,
-                        static_cast<unsigned long long>(candidate->surfaceKey),
-                        candidate->serial);
-                    ReleaseZeroCopyBinding();
-                    break;
+                    OH_LOG_INFO(LOG_APP,
+                                "[VIRGL-ZC][MAIN][DIAG]   peer pid=%{public}u "
+                                "surface=%{public}u top=%{public}u topid=%{public}u "
+                                "sub=%{public}u ptop=%{public}u wh=%{public}dx%{public}d",
+                                surface.clientPid, d.peers[p].surfaceId,
+                                d.peers[p].hasToplevel, d.peers[p].toplevelId,
+                                d.peers[p].isSubsurface, d.peers[p].parentToplevel,
+                                static_cast<int>(d.peers[p].w),
+                                static_cast<int>(d.peers[p].h));
+                }
+                // owner 解析失败时把注册表打全: 找出真正拥有该窗口的 client/toplevel
+                if (!layerOk)
+                {
+                    for (uint32_t r = 0; r < d.regCount; ++r)
+                    {
+                        OH_LOG_INFO(LOG_APP,
+                                    "[VIRGL-ZC][MAIN][DIAG]   reg pid=%{public}u "
+                                    "surface=%{public}u top=%{public}u topid=%{public}u "
+                                    "sub=%{public}u ptop=%{public}u wh=%{public}dx%{public}d "
+                                    "state=%{public}dx%{public}d",
+                                    d.registry[r].clientPid, d.registry[r].surfaceId,
+                                    d.registry[r].hasToplevel, d.registry[r].toplevelId,
+                                    d.registry[r].isSubsurface, d.registry[r].parentToplevel,
+                                    static_cast<int>(d.registry[r].w),
+                                    static_cast<int>(d.registry[r].h),
+                                    static_cast<int>(d.registry[r].stateW),
+                                    static_cast<int>(d.registry[r].stateH));
+                    }
                 }
             }
         }
-        if (zeroCopyRegistered_ || !promotedSurfaceKey) return true;
+    }
+    if (zeroCopyRegistered_)
+    {
+        for (const auto& surface : surfaces)
+        {
+            if (surface.surfaceKey != zeroCopySurfaceKey_) continue;
+            if (surface.vulkan != broker.IsVulkanPresentMode()) {
+                ReleaseZeroCopyBinding();
+                break;
+            }
+            zeroCopySourceW_ = static_cast<int>(surface.width);
+            zeroCopySourceH_ = static_cast<int>(surface.height);
+            zeroCopyVulkanSource_ = surface.vulkan;
+            return true;
+        }
+        return true;
     }
 
+    const bool wantVulkanSurface = broker.IsVulkanPresentMode();
     for (const auto& surface : surfaces)
     {
-        if (promotedSurfaceKey && surface.surfaceKey != promotedSurfaceKey) continue;
         if (!surface.surfaceKey || surface.attached) continue;
+        if (surface.vulkan != wantVulkanSurface) continue;
         ZeroCopyLayerInfo layer;
         if (!compositor_.GetZeroCopyLayerInfo(surface.surfaceKey, rendererToplevelId,
                                               static_cast<int>(surface.width),
@@ -293,20 +338,20 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         if (!zeroCopyProducerWindow_ ||
             !broker.AttachZeroCopyTarget(
                 surface.surfaceKey, zeroCopyProducerWindow_,
-                static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed)),
-                surface.vulkan))
+                static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed))))
         {
             ReleaseZeroCopyBinding();
             continue;
         }
 
         zeroCopySurfaceKey_ = surface.surfaceKey;
-        zeroCopySurfaceSerial_ = surface.serial;
         zeroCopyClientPid_ = surface.clientPid;
         zeroCopySurfaceId_ = surface.surfaceId;
+        zeroCopyAttachUs_ = PerfNowUs();
+        zeroCopyLastSignalUs_.store(0, std::memory_order_relaxed);
         zeroCopySourceW_ = static_cast<int>(surface.width);
         zeroCopySourceH_ = static_cast<int>(surface.height);
-        zeroCopyVulkanSource_ = surface.vulkan;
+        zeroCopyVulkanSource_ = surface.vulkan || broker.IsVulkanPresentMode();
         zeroCopyLayerX_ = layer.x;
         zeroCopyLayerY_ = layer.y;
         zeroCopyLayerW_ = layer.width;
@@ -359,12 +404,13 @@ bool EglRenderer::UpdateZeroCopyFrame(int& width, int& height)
     {
         ++zeroCopyFailures_;
         ++zeroCopyConsecutiveFailures_;
-        if (zeroCopyFailures_ == 1 || zeroCopyFailures_ % 60 == 0)
+        if (zeroCopyFailures_ <= 10 || zeroCopyFailures_ % 60 == 0)
             OH_LOG_WARN(LOG_APP,
                         "[VIRGL-ZC][MAIN] update failed tl=%{public}u update=%{public}d "
-                        "transform=%{public}d failures=%{public}llu",
+                        "transform=%{public}d failures=%{public}llu consecutive=%{public}u",
                         toplevelId_, updateResult, transformResult,
-                        static_cast<unsigned long long>(zeroCopyFailures_));
+                        static_cast<unsigned long long>(zeroCopyFailures_),
+                        zeroCopyConsecutiveFailures_);
         if (compositor_.zc().IsReadyPublished(zeroCopySurfaceKey_) &&
             !compositor_.zc().IsFallbackPending(zeroCopySurfaceKey_) &&
             zeroCopyConsecutiveFailures_ >= 8)
@@ -386,6 +432,22 @@ bool EglRenderer::UpdateZeroCopyFrame(int& width, int& height)
                         zeroCopyConsecutiveFailures_,
                         static_cast<unsigned long long>(
                             compositor_.zc().GetFallbackShmSerial(zeroCopySurfaceKey_)));
+        }
+        // 2026-09-20 关键修复 (ROUND3 §7): 连续失败说明这一代 NativeImage/缓冲队列
+        // 已不可用 (现场: 40601000 之后 producer 也不再交帧, app 这边因为
+        // zeroCopyFrameAvailable_ 已被取走而永远不再重试 → 双方互等)。
+        // 重建消费者即为"归还队列缓冲 + 下轮重新 attach", 是打破该互等的唯一动作。
+        if (zeroCopyConsecutiveFailures_ >= 2)
+        {
+            OH_LOG_WARN(LOG_APP,
+                        "[VIRGL-ZC][MAIN] consumer re-attach after %{public}u consecutive "
+                        "update failures tl=%{public}u key=%{public}llu failures=%{public}llu",
+                        zeroCopyConsecutiveFailures_, toplevelId_,
+                        static_cast<unsigned long long>(zeroCopySurfaceKey_),
+                        static_cast<unsigned long long>(zeroCopyFailures_));
+            zeroCopyLastReattachUs_ = PerfNowUs();
+            ++zeroCopyReattachCount_;
+            ReleaseZeroCopyBinding();
         }
         return false;
     }
@@ -435,6 +497,8 @@ bool EglRenderer::UpdateZeroCopyFrame(int& width, int& height)
     width = zeroCopySourceW_;
     height = zeroCopySourceH_;
     zeroCopyHasFrame_ = true;
+    // 2026-09-20: 记录**真实**消费时刻 (供黑窗归因/活性判定; 旧实现在查询路径里刷)
+    compositor_.zc().NoteLayerConsumed(zeroCopySurfaceKey_, PerfNowUs());
     if (compositor_.zc().IsFallbackPending(zeroCopySurfaceKey_))
     {
         compositor_.zc().CancelFallback(zeroCopySurfaceKey_);
@@ -470,6 +534,71 @@ bool EglRenderer::UpdateZeroCopyFrame(int& width, int& height)
                     static_cast<unsigned long long>(zeroCopyFrameSignals_.load()),
                     static_cast<unsigned long long>(zeroCopyFailures_));
     return width > 0 && height > 0;
+}
+
+// 诊断 (2026-09-20, 默认关): WINEHUA_ZC_PIXEL_DUMP=<path>。在 ZC 层绘制之后立刻
+// 读回该层在画布上的中心条带 → 回答"导入纹理本身是黑的"还是"合成后才黑"。
+// 只在首帧/每 300 帧/自愈重连后 2s 内落盘, 避免常态读回开销。
+void EglRenderer::DumpZeroCopyLayerPixels(int x, int y, int w, int h)
+{
+    if (!zeroCopyDumpFile_)
+    {
+        const char* path = getenv("WINEHUA_ZC_PIXEL_DUMP");
+        // 默认落在 app temp (hdc 可直接取), 环境变量可覆盖; 未设置时用默认路径,
+        // 因为 app 进程拿不到 Want 注入的 env (那是给 wine 子进程的)。
+        if (!path || !path[0]) path = "/data/storage/el2/base/temp/zc-pixel-dump.txt";
+        zeroCopyDumpMax_ = 400;
+        zeroCopyDumpFile_ = fopen(path, "a");
+        if (!zeroCopyDumpFile_)
+        {
+            OH_LOG_WARN(LOG_APP, "[VIRGL-ZC][MAIN] pixel dump open failed path=%{public}s", path);
+            return;
+        }
+        fprintf(zeroCopyDumpFile_,
+                "# frame signals updates failures reattach nonblack sampled mean_luma\n");
+    }
+    if (w <= 0 || h <= 0) return;
+    if (zeroCopyDumpCount_ >= zeroCopyDumpMax_) return;
+    const uint64_t nowUs = PerfNowUs();
+    const bool afterReattach = zeroCopyLastReattachUs_ && nowUs - zeroCopyLastReattachUs_ < 2000000ull;
+    if (!(zeroCopyFrames_ <= 5 || zeroCopyFrames_ % 300 == 0 || afterReattach)) return;
+
+    const int rw = std::min(w, 256);
+    const int rh = std::min(h, 64);
+    const int rx = x + (w - rw) / 2;
+    const int ry = y + (h - rh) / 2;
+    std::vector<uint8_t> buf(static_cast<size_t>(rw) * static_cast<size_t>(rh) * 4u);
+    glReadPixels(rx, ry, rw, rh, GL_RGBA, GL_UNSIGNED_BYTE, buf.data());
+    size_t nonBlack = 0;
+    uint64_t lumaSum = 0;
+    const size_t pixels = buf.size() / 4;
+    for (size_t i = 0; i + 3 < buf.size(); i += 4)
+    {
+        if (buf[i] | buf[i + 1] | buf[i + 2]) ++nonBlack;
+        lumaSum += (buf[i] + buf[i + 1] + buf[i + 2]) / 3;
+    }
+    const uint64_t meanLuma = pixels ? lumaSum / pixels : 0;
+    fprintf(zeroCopyDumpFile_, "%llu %llu %llu %llu %llu %zu %zu %llu\n",
+            static_cast<unsigned long long>(zeroCopyFrames_),
+            static_cast<unsigned long long>(zeroCopyFrameSignals_.load()),
+            static_cast<unsigned long long>(zeroCopyUpdates_),
+            static_cast<unsigned long long>(zeroCopyFailures_),
+            static_cast<unsigned long long>(zeroCopyReattachCount_),
+            nonBlack, pixels, static_cast<unsigned long long>(meanLuma));
+    fflush(zeroCopyDumpFile_);
+    if (zeroCopyDumpCount_++ < 300)
+        OH_LOG_INFO(LOG_APP,
+                    "[VIRGL-ZC][MAIN] pixel dump frame=%{public}llu tl=%{public}u "
+                    "signals=%{public}llu updates=%{public}llu failures=%{public}llu "
+                    "reattach=%{public}llu nonblack=%{public}zu/%{public}zu mean_luma=%{public}llu "
+                    "rect=%{public}dx%{public}d+%{public}d,%{public}d",
+                    static_cast<unsigned long long>(zeroCopyFrames_), toplevelId_,
+                    static_cast<unsigned long long>(zeroCopyFrameSignals_.load()),
+                    static_cast<unsigned long long>(zeroCopyUpdates_),
+                    static_cast<unsigned long long>(zeroCopyFailures_),
+                    static_cast<unsigned long long>(zeroCopyReattachCount_),
+                    nonBlack, pixels, static_cast<unsigned long long>(meanLuma),
+                    rw, rh, rx, ry);
 }
 
 void EglRenderer::ReleaseZeroCopyBinding()
@@ -530,7 +659,6 @@ void EglRenderer::ReleaseZeroCopyBinding()
     zeroCopyCoalescedSignals_ = 0;
     zeroCopyDuplicateTimestamps_ = 0;
     zeroCopySurfaceKey_ = 0;
-    zeroCopySurfaceSerial_ = 0;
     zeroCopyClientPid_ = 0;
     zeroCopySurfaceId_ = 0;
     zeroCopySourceW_ = 0;
@@ -543,6 +671,11 @@ void EglRenderer::ReleaseZeroCopyBinding()
 void EglRenderer::ShutdownZeroCopyConsumer()
 {
     ReleaseZeroCopyBinding();
+    if (zeroCopyDumpFile_)
+    {
+        fclose(zeroCopyDumpFile_);
+        zeroCopyDumpFile_ = nullptr;
+    }
     if (zeroCopyProgram_)
     {
         glDeleteProgram(zeroCopyProgram_);
@@ -554,8 +687,18 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
     window_ = window;
     width_ = w;
     height_ = h;
-    expectW_ = w;
-    expectH_ = h;
+
+    if (compositor_.Policy().RootCompositing() && winehua::direct::DirectDesktopVulkanEnabled()) {
+        vulkanDesktop_ = std::make_unique<winehua::direct::DirectVulkanDesktopCompositor>(compositor_);
+        if (!vulkanDesktop_->Initialize(window)) { vulkanDesktop_.reset(); return false; }
+        running_ = true;
+        thread_ = std::thread(&EglRenderer::VulkanRenderLoop, this);
+        return true;
+    }
+
+    // P0-GL-1: 首个窗口出现时做一次 Host EGL/GLES 能力探测 (后台线程, 单次)。
+    // 放在这里是因为合成器一定会在会话早期走到, 且此时 EGL 已可用。
+    WineHuaProbeHostGlCapability();
 
     OH_LOG_INFO(LOG_APP, "[EGL] Init tl=%{public}u req=%{public}dx%{public}d", toplevelId_, w, h);
 
@@ -613,8 +756,26 @@ FitRect EglRenderer::GetInputLetterbox() const {
     // 800x600), 输入锚仍是桌面逻辑尺寸 (如 1400x920) — 否则逆映射二次缩放
     // (红警2 主菜单点击无效根因)。锚未就绪 (首帧前 contentW/H=0) 或 fit 失败
     // 退回显示 letterbox (与旧 CoordTransform fallback 语义一致)。
-    std::lock_guard<std::mutex> lock(inputFitMutex_);
-    return inputFit_;
+    if (contentW_ > 0 && contentH_ > 0) {
+        FitRect lb;
+        if (ComputeFitRect(width_, height_, contentW_, contentH_, lb)) return lb;
+    }
+    return letterbox_;
+}
+
+FitRect EglRenderer::ComputeFrameDisplayRect(int drawW, int drawH) const {
+    // 常态: 与等比映射锚同值 (整帧按比例显示, 多余部分是黑边)
+    if (!stretchFill_.load() || drawW <= 0 || drawH <= 0) {
+        return letterbox_;
+    }
+    // 拖拽缩放中: 填满 surface — srcW/srcH/scale 沿用映射锚, 只覆盖显示目标
+    // (拖拽的过渡帧不保持比例, Wine 新帧到达后由拖拽结束的 configure 复位)
+    FitRect r = letterbox_;
+    r.offX = 0;
+    r.offY = 0;
+    r.dstW = drawW;
+    r.dstH = drawH;
+    return r;
 }
 
 uint32_t EglRenderer::DirectPassCapabilities() const
@@ -629,6 +790,21 @@ uint32_t EglRenderer::DirectPassCapabilities() const
     //   (直传帧整屏覆盖有效)。
     // 当前实现恒备全部能力 → 合成侧查询恒通过 (无能力位时判定不变)。
     return winehua::kDirectPassCapabilitiesAll;
+}
+
+void EglRenderer::VulkanRenderLoop() {
+    while (running_) {
+        if (!vulkanDesktop_->Render(expectW_ > 0 ? expectW_ : width_, expectH_ > 0 ? expectH_ : height_)) break;
+        width_ = vulkanDesktop_->Width(); height_ = vulkanDesktop_->Height();
+        frameW_ = contentW_ = vulkanDesktop_->ContentWidth();
+        frameH_ = contentH_ = vulkanDesktop_->ContentHeight();
+        ComputeFitRect(width_, height_, frameW_, frameH_, letterbox_);
+        // FIFO present paces active frames. Before the first root exists,
+        // yield instead of spinning while the Wine desktop initializes.
+        if (frameW_ <= 0 || frameH_ <= 0) std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+    vulkanDesktop_.reset(); // drain all GPU reads before XComponent destruction
+    running_ = false;
 }
 
 void EglRenderer::RenderLoop() {
@@ -680,6 +856,7 @@ void EglRenderer::RenderLoop() {
     bool firstFrameLogged = false;
     bool rendered = false;  // 首帧已渲染后, 无新帧时跳过 GPU 绘制
     RendererPerfWindow perf;
+    uint32_t pixSampleN = 0;  // [PIX-SAMPLE] 帧内容白度采样计数 (诊断)
 
     static constexpr long long kFallbackPeriodNs = 16666667;
     static constexpr auto kVSyncTimeout = std::chrono::milliseconds(100);
@@ -699,8 +876,6 @@ void EglRenderer::RenderLoop() {
     long long loggedPeriodNs = 0;
     unsigned int vsyncFailures = 0;
     auto fallbackDeadline = PerfClock::now();
-    bool backgroundConsumer = false;
-    uint64_t backgroundFrames = 0;
 
     auto waitForFrameTick = [&]() -> bool {
         if (!running_) return false;
@@ -717,13 +892,11 @@ void EglRenderer::RenderLoop() {
             if (requestResult == 0) {
                 std::unique_lock<std::mutex> lock(vsyncMutex_);
                 const bool signaled = vsyncCv_.wait_for(lock, kVSyncTimeout, [&]() {
-                    return !running_ || renderPaused_.load(std::memory_order_acquire) ||
-                        vsyncSequence_ != requestedSequence;
+                    return !running_ || vsyncSequence_ != requestedSequence;
                 });
                 lock.unlock();
 
                 if (!running_) return false;
-                if (renderPaused_.load(std::memory_order_acquire)) return true;
                 if (signaled) {
                     long long period = 0;
                     if (OH_NativeVSync_GetPeriod(nativeVsync, &period) == 0 && period > 0) {
@@ -770,76 +943,18 @@ void EglRenderer::RenderLoop() {
         fallbackDeadline += period;
         if (fallbackDeadline <= now || fallbackDeadline - now > period * 2)
             fallbackDeadline = now + period;
-        std::unique_lock<std::mutex> lock(vsyncMutex_);
-        vsyncCv_.wait_until(lock, fallbackDeadline, [&]() {
-            return !running_ || renderPaused_.load(std::memory_order_acquire);
-        });
+        std::this_thread::sleep_until(fallbackDeadline);
         return running_;
     };
 
     OH_LOG_INFO(LOG_APP, "[MW-RNDR] tl=%{public}u render loop started pacing=%{public}s",
                 toplevelId_, nativeVsync ? "NativeVSync" : "deadline-60Hz");
 
-    auto lastHeartbeat = PerfClock::now();
-    while (running_) {
-        // 1Hz 心跳: 供"卡顿"分析 — 前台期间有 HB 说明渲染线程存活, 无 HB 说明
-        // 渲染线程卡住; 与 ArkTS onForeground/onBackground 日志配合可区分
-        // "后台挂起(正常)" 与 "前台真冻结(bug)"。
-        const auto hbNow = PerfClock::now();
-        if (hbNow - lastHeartbeat >= std::chrono::seconds(1)) {
-            lastHeartbeat = hbNow;
-            OH_LOG_INFO(LOG_APP, "[HB] render tl=%{public}u alive loop=%{public}d paused=%{public}s",
-                        toplevelId_, loopCount,
-                        renderPaused_.load(std::memory_order_acquire) ? "yes" : "no");
-        }
-        if (renderPaused_.load(std::memory_order_acquire)) {
-            if (!backgroundConsumer) {
-                backgroundConsumer = true;
-                backgroundFrames = zeroCopyFrames_;
-                // Keep the existing protocol and its supported 30 Hz lower
-                // rate bound. Do not let draining the queue run the hidden
-                // producer at the foreground display rate.
-                if (zeroCopySurfaceKey_)
-                    winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(
-                        zeroCopySurfaceKey_, winehua::kMaxPresentFramePeriodNs);
-                OH_LOG_INFO(LOG_APP,
-                            "[VIRGL-ZC][MAIN] background consume begin tl=%{public}u "
-                            "key=%{public}llu period_ns=%{public}llu",
-                            toplevelId_, static_cast<unsigned long long>(zeroCopySurfaceKey_),
-                            static_cast<unsigned long long>(winehua::kMaxPresentFramePeriodNs));
-            }
-            // Stop drawing/swapping the hidden XComponent, but still release
-            // queued NativeImage buffers on their owning EGL thread. Pausing
-            // this consumer fills its 3-buffer queue in two producer frames;
-            // the EGL driver then reports NO_BUFFER as GL_OUT_OF_MEMORY.
-            // SetDropBufferMode alone does not consume anything. Stay on the
-            // UpdateSurfaceImage API (never mix manual Acquire/Release with it).
-            int backgroundWidth = 0, backgroundHeight = 0;
-            if (UpdateZeroCopyFrame(backgroundWidth, backgroundHeight))
-                zeroCopyGeometryDirty_ = true; // redraw latest texture on resume
-            std::unique_lock<std::mutex> lock(vsyncMutex_);
-            vsyncCv_.wait_for(lock, kVSyncTimeout, [&]() {
-                return !running_ || !renderPaused_.load(std::memory_order_acquire) ||
-                    zeroCopyFrameAvailable_.load(std::memory_order_acquire);
-            });
-            continue;
-        }
-        if (backgroundConsumer) {
-            // Restore the last measured foreground period even if the next
-            // VSync reports the same value (its delta check would skip it).
-            if (zeroCopySurfaceKey_)
-                winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(
-                    zeroCopySurfaceKey_, static_cast<uint64_t>(vsyncPeriodNs_.load()));
-            OH_LOG_INFO(LOG_APP,
-                        "[VIRGL-ZC][MAIN] background consume end tl=%{public}u "
-                        "key=%{public}llu frames=%{public}llu",
-                        toplevelId_, static_cast<unsigned long long>(zeroCopySurfaceKey_),
-                        static_cast<unsigned long long>(zeroCopyFrames_ >= backgroundFrames
-                            ? zeroCopyFrames_ - backgroundFrames : 0));
-            backgroundConsumer = false;
-            fallbackDeadline = PerfClock::now();
-        }
+    std::unique_ptr<winehua::direct::DirectDesktopCompositor> directDesktop;
+    if (compositor_.Policy().RootCompositing())
+        directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(compositor_, display_);
 
+    while (running_) {
         const uint64_t frameStartedUs = PerfNowUs();
         const uint64_t takeStartedUs = frameStartedUs;
         uint64_t uploadUs = 0;
@@ -853,10 +968,45 @@ void EglRenderer::RenderLoop() {
         // (6A: 配置经构造注入的 DesktopCompositor 引用直读 — 与旧
         // WaylandServer::Policy()/GetDesktopRootToplevelId() 同一引用成员, 同值)
         if (compositor_.Policy().RootCompositing()) useToplevel = compositor_.DesktopRootToplevelId();
+        const bool directFrame = directDesktop && directDesktop->Update();
         TryAttachZeroCopySurface(useToplevel);
         const bool zeroCopyGeometryFrame = zeroCopyGeometryDirty_;
         zeroCopyGeometryDirty_ = false;
         zeroCopyFrame = UpdateZeroCopyFrame(zeroCopyWidth, zeroCopyHeight);
+        // 2026-09-20 自愈 (ROUND3 §7): 已 attach 但真实 present 长时间不来, 且当前
+        // 消费者侧"没有可用内容"(从未消费成功)或"已经出现过失败" → 这一代
+        // NativeImage/队列很可能已被 producer 弃用, 重建消费者归还缓冲,
+        // 下一轮 TryAttachZeroCopySurface 重新 attach。保守条件是为了不打扰
+        // 正常的静态窗口 (静止但健康的窗口会一直 frames>0/failures==0)。
+        if (zeroCopyRegistered_ && zeroCopySurfaceKey_)
+        {
+            const uint64_t idleNowUs = PerfNowUs();
+            const uint64_t lastSignalUs = zeroCopyLastSignalUs_.load(std::memory_order_relaxed);
+            const uint64_t baseUs = lastSignalUs ? lastSignalUs : zeroCopyAttachUs_;
+            const uint64_t idleMs = baseUs && idleNowUs > baseUs ? (idleNowUs - baseUs) / 1000 : 0;
+            const bool neverConsumed = (zeroCopyFrames_ == 0 && idleMs > 5000);
+            const bool failedBefore = (zeroCopyFailures_ > 0 && idleMs > 8000);
+            if ((neverConsumed || failedBefore) &&
+                idleNowUs - zeroCopyLastReattachUs_ > 3000000ull)
+            {
+                zeroCopyLastReattachUs_ = idleNowUs;
+                ++zeroCopyReattachCount_;
+                OH_LOG_WARN(LOG_APP,
+                            "[VIRGL-ZC][MAIN] stale consumer re-attach tl=%{public}u "
+                            "key=%{public}llu idleMs=%{public}llu signals=%{public}llu "
+                            "frames=%{public}llu failures=%{public}llu reattach=%{public}llu "
+                            "reason=%{public}s",
+                            toplevelId_,
+                            static_cast<unsigned long long>(zeroCopySurfaceKey_),
+                            static_cast<unsigned long long>(idleMs),
+                            static_cast<unsigned long long>(zeroCopyFrameSignals_.load()),
+                            static_cast<unsigned long long>(zeroCopyFrames_),
+                            static_cast<unsigned long long>(zeroCopyFailures_),
+                            static_cast<unsigned long long>(zeroCopyReattachCount_),
+                            neverConsumed ? "never-consumed" : "update-failed");
+                ReleaseZeroCopyBinding();
+            }
+        }
         if (useToplevel != 0) {
             // 帧交付契约 (presented_frame.h): TakeToplevelFrame 返回 PresentedFrame。
             // fw/fh 从帧 buffer 尺寸 (frame.w/h) 取 — 直传帧是游戏内容尺寸
@@ -874,7 +1024,7 @@ void EglRenderer::RenderLoop() {
                 contentH_ = frame.contentH;
             }
         }
-        haveFrame = cpuFrame || zeroCopyFrame || zeroCopyGeometryFrame;
+        haveFrame = cpuFrame || zeroCopyFrame || zeroCopyGeometryFrame || directFrame;
         const uint64_t takeUs = PerfNowUs() - takeStartedUs;
 
         if (cpuFrame && fw > 0 && fh > 0) {
@@ -914,6 +1064,25 @@ void EglRenderer::RenderLoop() {
             }
             uploadUs = PerfNowUs() - uploadStartedUs;
             rendered = true;
+            // [PIX-SAMPLE] 帧内容白度采样: 区分"帧本身是白的" (guest/wine
+            // 侧渲染或回读) vs "帧有内容但显示白" (宿主 EGL/WMS 侧)。
+            // 每 30 帧对 px 采样 (中心像素 RGB + 全宽白像素占比)。
+            if (++pixSampleN % 30 == 1) {
+                size_t whitePixels = 0, totalPx = px.size() / 4;
+                // 采样: 每 16 像素取 1 个像素
+                if (totalPx > 0) {
+                    for (size_t i = 0; i < totalPx; i += 16) {
+                        const uint8_t* p = &px[i * 4];
+                        if (p[0] == 255 && p[1] == 255 && p[2] == 255) ++whitePixels;
+                    }
+                    const uint8_t* mid = &px[(totalPx / 2) * 4];
+                    OH_LOG_INFO(LOG_APP,
+                                "[PIX-SAMPLE] tl=%{public}u fw=%{public}d fh=%{public}d "
+                                "whitePx=%{public}zu/%{public}zu midRGB=(%{public}u,%{public}u,%{public}u)",
+                                useToplevel, fw, fh, whitePixels, totalPx / 16 + 1,
+                                mid[0], mid[1], mid[2]);
+                }
+            }
         }
         if (zeroCopyFrame && !firstFrameLogged) {
             OH_LOG_INFO(LOG_APP,
@@ -928,7 +1097,8 @@ void EglRenderer::RenderLoop() {
         // 最后一帧留在旧尺寸 buffer 上, 静止窗口再无新帧触发重绘, 系统把旧
         // buffer 拉伸显示导致缩放错误 (2026-09-14 全屏桌面左右黑边根因)。
         // 判据必须是 lastDrawW_/lastDrawH_ (= 上次实际上屏的矩形): 用
-        // width_/height_ 会被 SetSize 写成 ArkTS 的"声明尺寸"而误判。
+        // width_/height_ 会被 SetSize 写成 ArkTS 的"声明尺寸"而误判 — 系统把
+        // buffer 切到 1840 后, "实测 1840 == 声明的 1840" 成立就永不重绘了。
         if (!haveFrame && rendered) {
             EGLint curW = 0, curH = 0;
             eglQuerySurface(display_, surface_, EGL_WIDTH, &curW);
@@ -948,6 +1118,9 @@ void EglRenderer::RenderLoop() {
         EGLint surfW = 0, surfH = 0;
         eglQuerySurface(display_, surface_, EGL_WIDTH, &surfW);
         eglQuerySurface(display_, surface_, EGL_HEIGHT, &surfH);
+        // [MW-RNDR] 声明尺寸 (ArkTS SetSize) 与实际 surface 不一致时告警 — 系统侧
+        // 没采纳声明的信号; 此时画面按实际尺寸 letterbox (几何正确), 但若它长期
+        // 不收敛, 说明上游声明值本身可疑。限频: 数值变化才打, 否则未落地稳态每帧刷。
         if (surfW > 0 && surfH > 0 && expectW_ > 0 && expectH_ > 0 &&
             (surfW != expectW_ || surfH != expectH_) &&
             (surfW != lastWarnSurfW_ || surfH != lastWarnSurfH_)) {
@@ -960,30 +1133,24 @@ void EglRenderer::RenderLoop() {
             width_ = surfW;
             height_ = surfH;
         }
-        // 本次绘制的尺寸快照: letterbox / viewport / 上屏记录 / 输入 fit
-        // 必须共用这一份, 避免绘制期间 NAPI SetSize 改写声明值造成"画的"
-        // 与"记的"不一致。
+        // 本次绘制的尺寸快照: 绘制期间 width_/height_ 可能被 NAPI 线程的 SetSize
+        // 改写 (日志实证: swap 后 w=2800 h=1840 而 lb 仍是按 1683 算的), 所以
+        // letterbox / viewport / 上屏记录三者必须共用这一份快照, 保证"画的"
+        // 与"记的"是同一个值
         const int drawW = width_, drawH = height_;
 
-        // Letterbox 视口: 保持 Wine 帧宽高比, 居中渲染, 左右或上下黑边。
-        // 几何统一由 ComputeFitRect 计算 (与 desktop 合成/输入命中同源;
-        // 历史实现此处独立手写, 截断取整与合成的 lround 不一致曾有 1px 偏差)
-        if (ComputeFitRect(drawW, drawH, frameW_, frameH_, letterbox_)) {
-            glViewport(letterbox_.offX, letterbox_.offY, letterbox_.dstW, letterbox_.dstH);
-        } else {
+        // 等比映射锚: 帧坐标空间 → surface 的保比例 fit。几何统一由
+        // ComputeFitRect 计算 (与 desktop 合成/输入命中同源; 历史实现此处
+        // 独立手写, 截断取整与合成的 lround 不一致曾有 1px 偏差)。
+        // 消费方: ZC 层映射/遮挡重绘/输入逆映射, 以及常态下的整帧显示 —
+        // 拖拽缩放中的整帧显示矩形另见 ComputeFrameDisplayRect。
+        if (!ComputeFitRect(drawW, drawH, frameW_, frameH_, letterbox_)) {
             letterbox_ = FitRect{};
-            glViewport(0, 0, drawW, drawH);
         }
-        {
-            FitRect inputFit = letterbox_;
-            if (contentW_ > 0 && contentH_ > 0) {
-                FitRect logicalFit;
-                if (ComputeFitRect(drawW, drawH, contentW_, contentH_, logicalFit))
-                    inputFit = logicalFit;
-            }
-            std::lock_guard<std::mutex> lock(inputFitMutex_);
-            inputFit_ = inputFit;
-        }
+        // [DBG-FIT] 几何变化时打印一条 (surface/frame/letterbox 任一变化)。
+        // 采样式 %60 对"绘制次数"取模会吞掉关键那次绘制, 故改为变化即打;
+        // 记录值必须是本实例成员 — 每个 toplevel 一个渲染器, 函数内 static 会被
+        // 多个渲染线程互相覆盖 (2026-09-14 审查发现)。
         if (drawW != lastFitLogW_ || drawH != lastFitLogH_ ||
             frameW_ != lastFitLogFw_ || frameH_ != lastFitLogFh_ ||
             letterbox_.dstW != lastFitLogLbW_ || letterbox_.dstH != lastFitLogLbH_ ||
@@ -1033,7 +1200,8 @@ void EglRenderer::RenderLoop() {
         glActiveTexture(GL_TEXTURE0);
 
         if (rendered) {
-            glViewport(letterbox_.offX, letterbox_.offY, letterbox_.dstW, letterbox_.dstH);
+            const FitRect disp = ComputeFrameDisplayRect(drawW, drawH);
+            glViewport(disp.offX, disp.offY, disp.dstW, disp.dstH);
             glUseProgram(program_);
             glBindTexture(GL_TEXTURE_2D, texture_);
             glUniform1i(glGetUniformLocation(program_, "uTex"), 0);
@@ -1050,13 +1218,31 @@ void EglRenderer::RenderLoop() {
                             zeroCopyLayerX_, zeroCopyLayerY_, zeroCopyFullscreen_,
                             zeroCopySourceW_, zeroCopySourceH_);
             int layerViewportX, layerViewportY, layerViewportW, layerViewportH;
-            // The compositor resolves fullscreen/windowed child placement using
-            // the same parent fit as input. Image dimensions never define a
-            // separate fullscreen coordinate space (e.g. a video subregion).
-            layerViewportX = FitMapDisplayX(letterbox_, zeroCopyLayerX_);
-            layerViewportY = FitMapDisplayY(letterbox_, frameH_ - zeroCopyLayerY_ - zeroCopyLayerH_);
-            layerViewportW = std::max(1, FitSizeDisplayW(letterbox_, zeroCopyLayerW_));
-            layerViewportH = std::max(1, FitSizeDisplayH(letterbox_, zeroCopyLayerH_));
+            if (zeroCopyFullscreen_) {
+                // ZC 游戏全屏: 层内容保比例缩放进桌面帧的显示区, 而非按帧比例
+                // 映射 — 全屏后 buffer 被 Wine 扩到输出尺寸, 但层几何仍是游戏
+                // 内部分辨率, 直接映射会把画面缩到左上角一块。CPU 侧整帧已填黑
+                // (TakeToplevelFrame ZC 分支), 这里的 letterbox 与 SHM 全屏同效
+                FitRect zcFit;
+                if (ComputeFitRect(letterbox_.dstW, letterbox_.dstH,
+                                   zeroCopyLayerW_, zeroCopyLayerH_, zcFit)) {
+                    layerViewportX = letterbox_.offX + zcFit.offX;
+                    layerViewportY = letterbox_.offY + zcFit.offY;
+                    layerViewportW = zcFit.dstW;
+                    layerViewportH = zcFit.dstH;
+                } else {
+                    layerViewportX = letterbox_.offX;
+                    layerViewportY = letterbox_.offY;
+                    layerViewportW = letterbox_.dstW;
+                    layerViewportH = letterbox_.dstH;
+                }
+            } else {
+                // 帧内坐标 → surface 视口: 与 letterbox 同一映射 (GL 坐标系 Y 向上, 翻转)
+                layerViewportX = FitMapDisplayX(letterbox_, zeroCopyLayerX_);
+                layerViewportY = FitMapDisplayY(letterbox_, frameH_ - zeroCopyLayerY_ - zeroCopyLayerH_);
+                layerViewportW = std::max(1, FitSizeDisplayW(letterbox_, zeroCopyLayerW_));
+                layerViewportH = std::max(1, FitSizeDisplayH(letterbox_, zeroCopyLayerH_));
+            }
             glViewport(layerViewportX, layerViewportY, layerViewportW, layerViewportH);
             glUseProgram(zeroCopyProgram_);
             glBindTexture(GL_TEXTURE_EXTERNAL_OES, zeroCopyTexture_);
@@ -1064,6 +1250,8 @@ void EglRenderer::RenderLoop() {
             glUniformMatrix4fv(zeroCopyTransformLocation_, 1, GL_FALSE,
                                zeroCopySamplingTransform_);
             glDrawArrays(GL_TRIANGLES, 0, 6);
+            DumpZeroCopyLayerPixels(layerViewportX, layerViewportY,
+                                    layerViewportW, layerViewportH);
 
             // Desktop 模式 z-order 修复: GL overlay 不参与 CPU 合成的层序,
             // 画完 overlay 后, 把压在 GL 窗口之上的区域 (z-order 更高的窗口/
@@ -1118,15 +1306,21 @@ void EglRenderer::RenderLoop() {
             }
         }
 
+        if (directDesktop) directDesktop->Draw(useToplevel, frameW_, frameH_, letterbox_);
+
         const uint64_t swapStartedUs = PerfNowUs();
         const bool swapOk = eglSwapBuffers(display_, surface_) == EGL_TRUE;
         // 记录"这次真正上屏的绘制尺寸" — 无帧循环据此判断当前 surface 是否已经
         // 与画面不一致 (不一致就重绘)。swap 失败时不记录, 下一轮会再试。
         if (swapOk) {
+            gAcceptedPresents.fetch_add(1, std::memory_order_relaxed);
+            if (zeroCopyFrame) gAcceptedGpuPresents.fetch_add(1, std::memory_order_relaxed);
             lastDrawW_ = drawW;
             lastDrawH_ = drawH;
             swapFailStreak_ = 0;
         } else if (++swapFailStreak_ == 1 || swapFailStreak_ % 120 == 0) {
+            // swap 失败: 画面没上屏, 循环会持续重试绘制 — 首次 + 每 120 次低频
+            // 告警, 便于发现 surface 失效/buffer 饥饿这类持续失败
             OH_LOG_WARN(LOG_APP,
                         "[MW-RNDR] tl=%{public}u eglSwapBuffers failed x%{public}d (draw=%{public}dx%{public}d)",
                         toplevelId_, swapFailStreak_, drawW, drawH);
@@ -1141,29 +1335,25 @@ void EglRenderer::RenderLoop() {
                             "[MW-SWAP] tl=%{public}u loop=%{public}llu f=%{public}d/%{public}d/%{public}d skip=%{public}llu take=%{public}lluus swap=%{public}lluus",
                             useToplevel, static_cast<unsigned long long>(loopCount),
                             cpuFrame ? 1 : 0, zeroCopyFrame ? 1 : 0, zeroCopyGeometryFrame ? 1 : 0,
-                            static_cast<unsigned long long>(skipFrames_),
-                            static_cast<unsigned long long>(takeUs),
-                            static_cast<unsigned long long>(frameEndedUs - swapStartedUs));
+                            static_cast<unsigned long long>(skipFrames_), takeUs,
+                            frameEndedUs - swapStartedUs);
             }
             skipFrames_ = 0;
             perf.Add(useToplevel, takeUs, uploadUs, frameEndedUs - swapStartedUs,
                      frameEndedUs - frameStartedUs, cpuFrame ? px.size() : 0, swapOk);
         }
-        if (swapOk) fps.Tick(toplevelId_);
+        fps.Tick();
         loopCount++;
         if (!waitForFrameTick()) break;
     }
 
-    DisplayFpsRegistry::Instance().Remove(toplevelId_);
+    directDesktop.reset();
     ShutdownZeroCopyConsumer();
     if (nativeVsync) OH_NativeVSync_Destroy(nativeVsync);
 }
 
 void EglRenderer::Shutdown() {
-    {
-        std::lock_guard<std::mutex> lock(vsyncMutex_);
-        running_ = false;
-    }
+    running_ = false;
     vsyncCv_.notify_all();
     if (thread_.joinable()) thread_.join();
     if (display_ != EGL_NO_DISPLAY) {

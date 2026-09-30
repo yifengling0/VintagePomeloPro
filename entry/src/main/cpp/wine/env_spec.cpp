@@ -1,4 +1,4 @@
-#include "wine/env_spec.h"
+#include "env_spec.h"
 
 namespace winehua {
 

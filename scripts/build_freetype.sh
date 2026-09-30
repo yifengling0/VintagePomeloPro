@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/env.sh"
 FT_SRC="$ROOT/thirdparty/freetype"
 FT_BUILD="$BUILD_DIR/freetype_build"
 
-log "=== 构建 FreeType (x86_64) ==="
+log "=== 构建 FreeType ($WINE_ARCH) ==="
 
 if [ -f "$SYSROOT_EXT_LIB/libfreetype.so.6" ] \
    && [ -f "$SYSROOT_EXT_LIB/libfreetype.so" ] \
@@ -26,7 +26,7 @@ cd "$FT_BUILD"
 cmake "$FT_SRC" \
     -GNinja \
     -DCMAKE_TOOLCHAIN_FILE="$OHOS_SDK/native/build/cmake/ohos.toolchain.cmake" \
-    -DOHOS_ARCH=x86_64 \
+    -DOHOS_ARCH=$OHOS_ARCH \
     -DOHOS_PLATFORM=OHOS \
     -DCMAKE_BUILD_TYPE=Release \
     -DFT_DISABLE_BROTLI=ON \
@@ -46,7 +46,7 @@ cp -r "$FT_BUILD"/install/include/freetype2 "$SYSROOT_EXT_INC/"
 cat > "$SYSROOT_EXT_PC/freetype2.pc" << EOF
 prefix=$SYSROOT_EXT/usr
 includedir=\${prefix}/include
-libdir=\${prefix}/lib/x86_64-linux-ohos
+libdir=\${prefix}/lib/$TARGET
 
 Name: FreeType 2
 Description: A free, high-quality, and portable font engine.

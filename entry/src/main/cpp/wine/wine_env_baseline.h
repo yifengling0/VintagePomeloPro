@@ -4,22 +4,16 @@
 /**
  * wine_env_baseline.h — Wine 环境基线单源 (header-only)
  *
- * 主进程 (wine_env.cpp BuildWineEnv) 与子进程 (wine_child.cpp setup_wine_env)
- * 从同一张表生成公共键, 各自只保留真分歧键:
+ * 主进程 (wine_env.cpp BuildWineEnv, vector<string> 形态) 与子进程
+ * (wine_child.cpp setup_wine_env, setenv 形态) 从同一张表生成公共键,
+ * 各自只保留真分歧键:
  *   - XDG_RUNTIME_DIR / WAYLAND_DISPLAY (主: 合成器 socket 参数; 子: prefix/固定名)
  *   - LD_LIBRARY_PATH 系 (主: 按图形后端拼 runtimeLibPath; 子: 系统原生路径)
- *   - 仅主进程序列化: LANG/LC_ALL/GST_PLUGIN_PATH
- *   - 仅子进程: WINEBINDIR/WINEUNIXDIR、PROCESSBROKER、WINEDEBUG profile
- *   - 窗口模式 (WINEHUA_DESKTOP_MODE / SIMULATE_RESOLUTION): 取值只在
- *     WindowingModeFor; 父进程 BuildWineEnv Layer 4 写出 (与 master 同层);
- *     子进程不进基线表, 只在 __env 缺键时 EnsureWindowingModeEnv 补同一对值
- *   (WINEDEBUG 不再是主进程基线: __env 下发会盖掉子进程的 profile 选择,
- *    唯一决策点是 wine_child.cpp 的 select_winedebug_profile)
+ *   - 仅主进程: LANG/LC_ALL, GST_PLUGIN_PATH
+ *   - 仅子进程: WINEBINDIR/WINEUNIXDIR (dladdr 路径修正), WINEDEBUG profile 选择
  *
- * header-only: wine_child 是独立 libwine_child.so, 不链 entry obj。
- *
- * Box64 出厂表是安全底 (无 ArkTS 的路径也靠它)。兼容档位键清单与取值的
- * policy 在 ArkTS AppModels.resolveBox64PresetEnv; native 只留本表 + 前缀门。
+ * header-only 的原因: wine_child 是独立 lib (libwine_child.so, 不链 entry
+ * 的 obj), 只能 include 纯头文件; 与 wine_constants.h 同一约定。
  */
 
 #include <cstdlib>
@@ -27,33 +21,57 @@
 #include <utility>
 #include <vector>
 
-#include "wine/wine_constants.h"
+#include "wine_constants.h"
 
 namespace winehua {
 
+// -- Box64 性能调优表 (单源, 仅 ARM64 有内容) --
+// 历史: 曾是 SetBox64PerfEnv (setenv 版) 与 AppendBox64PerfStrings (字符串版)
+// 两份手写拷贝, 增删键时容易只改一侧。现在键值只在这张表出现一次。
+// 定位: 本表只是"出厂默认值需要偏离 box64 编译默认"的安全底 (automation/
+// broker 等无 ArkTS 参与路径也靠它); 兼容档位的键清单与取值唯一来源是
+// ArkTS Box64Dynarec.ets, DYNAREC 可调键默认不进本表。
 #ifdef __aarch64__
 inline const std::vector<std::pair<std::string, std::string>>& Box64PerfTable() {
     static const std::vector<std::pair<std::string, std::string>> kTable = {
         {"BOX64_LOG", "0"},
         {"BOX64_NOBANNER", "1"},
         {"BOX64_SHOWSEGV", "1"},
+        // Keep Box64's compatibility default. Forcing 0 breaks code that
+        // observes x86 flags across translated blocks, including protected
+        // startup code.
         {"BOX64_DYNAREC_SAFEFLAGS", "1"},
         {"BOX64_DYNAREC_BIGBLOCK", "3"},
         {"BOX64_DYNAREC_CALLRET", "2"},
         {"BOX64_DYNAREC_FORWARD", "1024"},
         {"BOX64_DYNAREC_WEAKBARRIER", "2"},
         {"BOX64_AVX", "0"},
-        // Box64 0.4.3 dynarec 对 AES-NI/PCLMULQDQ 翻译有误; 关 cpuid 位后
-        // GnuTLS 回退纯 C。详见原 SetBox64PerfEnv 注释。
+        // Box64 0.4.3 的 dynarec 对 AES-NI/PCLMULQDQ (GnuTLS AES-GCM 加速路径)
+        // 的翻译有误: 解密得到乱码 (HTTPS 12152/400) 或 access violation。
+        // 关闭模拟 cpuid 中的这两个特性位后, GnuTLS/nettle 回退纯 C 实现,
+        // dynarec 对普通标量代码翻译正确, TLS 即恢复正常。与构建期
+        // --disable-assembler/--disable-assembly 构成双保险。
         {"BOX64_AES", "0"},
         {"BOX64_PCLMULQDQ", "0"},
-        // DOS MZ exe 无 PE 边界检查 → explorer 浏览目录 SIGSEGV。
+        // 关闭 box64 的 PE Volatile Metadata 解析 (默认开启), 原因:
+        // box64 的 my_mmap64 (wrappedlibc.c) 对 Wine 每个首次 mmap 的文件调用
+        // ParseVolatileMetadata (src/tools/pe_tools.c), 该函数只校验 MZ 魔数、
+        // 不校验 e_lfanew 边界。DOS/16位 MZ 可执行文件 (非 PE, 如仙剑 DOS 版的
+        // PAL!.EXE / DJGPP 工具 exe) 的 0x3C 处是 DOS stub 文本 (" by "/"mail"),
+        // 被当作 e_lfanew 偏移 → base+~545MB 越界解引用 → 宿主侧 SIGSEGV →
+        // 被 Wine SEH 当客体异常恢复, 撕裂 my_mmap64 宿主调用栈 → explorer
+        // 浏览含 DOS exe 的目录 (图标提取逐个 mmap) 连炸后挂死 (2026-07 实测)。
+        // 副作用≈0: 本项目 STRONGMEM=0, 该元数据唯一生效消费点是给新 MSVC
+        // (2019 16.10+) 编译的 PE 标注点额外加 DMB_ISHST 屏障 (正确性增强,
+        // 非性能优化); 老游戏无此元数据, lock/原子指令走独立路径不受影响。
+        // 若日后 fork 内给 pe_tools.c 补上边界检查, 可移除此行重新启用。
         {"BOX64_DYNAREC_VOLATILE_METADATA", "0"},
     };
     return kTable;
 }
 #endif
 
+// setenv emitter: 子进程 (wine_child) 侧用
 inline void SetBox64PerfEnv() {
 #ifdef __aarch64__
     for (const auto& kv : Box64PerfTable())
@@ -61,6 +79,7 @@ inline void SetBox64PerfEnv() {
 #endif
 }
 
+// K=V 行 emitter: 主进程 (BuildWineEnv) 侧用
 inline void AppendBox64PerfStrings(std::vector<std::string>& env) {
 #ifdef __aarch64__
     for (const auto& kv : Box64PerfTable())
@@ -70,32 +89,46 @@ inline void AppendBox64PerfStrings(std::vector<std::string>& env) {
 #endif
 }
 
+// -- 公共基线 --
+
 struct WineBaselinePaths {
     std::string binDir;
-    std::string homeDir;
-    std::string prefixDir;
+    std::string homeDir;    // 空 = 不产生 HOME 行 (子进程允许不传 homeDir)
+    std::string prefixDir;  // 空 = 回落 WINE_PREFIX
 };
 
+// 公共基线 K=V 行 (有序)。调用方各自追加分歧键; 覆盖语义由调用方保证
+// (主进程 UpsertEnvLine 后写胜出 / 子进程 __env overrides 最后 apply)。
 inline std::vector<std::string> BuildWineBaselineLines(const WineBaselinePaths& p) {
     const std::string& binDir = p.binDir;
     const std::string shareDir = binDir + "/../share";
     const std::string prefix = p.prefixDir.empty() ? std::string(WINE_PREFIX) : p.prefixDir;
-    std::string dllPath = binDir + "/x86_64-windows:" + binDir + "/i386-windows:" + binDir;
-#ifndef __aarch64__
+    // Match BuiltinWineDllPath / 29778f7: PE dirs, then unixlib dir, then HAP
+    // native libs so load_unixlib_by_name() can find wineohos.so even before
+    // AppendD3dBackendEnv / reassert_arch_wine_runtime_env overlays run.
+    std::string dllPath = binDir + "/" WINE_PE_SUBDIR ":" + binDir + "/i386-windows:" + binDir;
+#if !defined(__aarch64__) || !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    // 方案①③: unixlib + bundled libs。方案② (box64 转译) 不加 el1 arm64
+    // 原生库 (与 wine_env.cpp BuildWineEnv 的 Layer 2 一致)。
+    dllPath += ":" + binDir + "/" WINE_UNIX_SUBDIR;
+#ifdef __aarch64__
+    dllPath += ":/data/storage/el1/bundle/libs/arm64";
+#else
     dllPath += ":/data/storage/el1/bundle/libs/x86_64";
+#endif
 #endif
 
     std::vector<std::string> lines = {
         "WINEPREFIX=" + prefix,
         "WINEDATADIR=" + shareDir + "/wine",
-        "WINEDLLDIR=" + binDir + "/x86_64-unix",
-        "WINEDLLDIR0=" + binDir + "/x86_64-windows",
+        "WINEDLLDIR=" + binDir + "/" WINE_UNIX_SUBDIR,
+        "WINEDLLDIR0=" + binDir + "/" WINE_PE_SUBDIR,
         "WINEDLLDIR1=" + binDir + "/i386-windows",
         "WINEDLLDIR2=" + binDir,
         "WINEDLLPATH=" + dllPath,
         "XKB_CONFIG_ROOT=" + shareDir + "/X11/xkb",
         "PATH=/usr/local/bin:/data/app/bin:/usr/bin:/vendor/bin:" + binDir +
-            "/x86_64-windows:" + binDir + "/i386-windows:" + binDir,
+            "/" WINE_PE_SUBDIR ":" + binDir + "/i386-windows:" + binDir,
         "TMPDIR=" WINE_TMPDIR,
         "MIDI_SOUNDFONT_PATH=" + binDir + "/../audio/winehua-gm.sf2",
     };
@@ -104,41 +137,13 @@ inline std::vector<std::string> BuildWineBaselineLines(const WineBaselinePaths& 
     return lines;
 }
 
+// setenv emitter: 把 K=V 行逐条写入当前进程 environ (后者胜出靠调用顺序保证)
 inline void ApplyEnvLinesToEnviron(const std::vector<std::string>& lines) {
     for (const std::string& line : lines) {
         const size_t sep = line.find('=');
         if (sep == std::string::npos || sep == 0) continue;
         setenv(line.substr(0, sep).c_str(), line.substr(sep + 1).c_str(), 1);
     }
-}
-
-// 窗口模式契约 (winewayland.drv + win32u CDS)。与 master BuildWineEnv Layer 4
-// 同一对键; 本仓始终显式写出 SIMULATE=0|1 (master 桌面会话省略该键, 语义等同 off)。
-struct WindowingModeEnv {
-    const char* desktopMode;          // "0" 融合独立窗口 / "1" 桌面 subsurface
-    const char* simulateResolution;   // "1" 融合 CDS 全屏适配 / "0" 桌面合成器缩放
-};
-
-inline WindowingModeEnv WindowingModeFor(bool desktopMode) {
-    return desktopMode ? WindowingModeEnv{"1", "0"} : WindowingModeEnv{"0", "1"};
-}
-
-inline void AppendWindowingModeLines(std::vector<std::string>& env, bool desktopMode) {
-    const WindowingModeEnv m = WindowingModeFor(desktopMode);
-    env.push_back(std::string("WINEHUA_DESKTOP_MODE=") + m.desktopMode);
-    env.push_back(std::string("WINEHUA_SIMULATE_RESOLUTION=") + m.simulateResolution);
-}
-
-// 子进程 __env 之后: 只补缺键, 不改已有值。缺省按融合 (独立窗口 + CDS)。
-inline void EnsureWindowingModeEnv() {
-    const char* dm = getenv("WINEHUA_DESKTOP_MODE");
-    const bool desktop = dm && dm[0] && atoi(dm) != 0;
-    const WindowingModeEnv m = WindowingModeFor(desktop);
-    if (!dm || !dm[0])
-        setenv("WINEHUA_DESKTOP_MODE", m.desktopMode, 1);
-    const char* sim = getenv("WINEHUA_SIMULATE_RESOLUTION");
-    if (!sim || !sim[0])
-        setenv("WINEHUA_SIMULATE_RESOLUTION", m.simulateResolution, 1);
 }
 
 } // namespace winehua

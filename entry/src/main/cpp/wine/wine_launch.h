@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <napi/native_api.h>
 
 struct LaunchParams {
@@ -11,16 +12,15 @@ struct LaunchParams {
     std::string sockDir;
     std::string sockName;
     std::string winehuaBin;
+    std::string containerId;
     std::string prefixDir;
     std::string d3dBackend = "dxvk_legacy";
-    // Keep the WineHua control-plane contract even though the product
-    // graphics resolver derives its concrete runtime from d3dBackend.
     std::string dxvkBackend = "dxvk_legacy";
+    // Wine locale 语言 ("zh_CN"/"en_US"), 来自设置页, 决定桌面会话的 LANG
     std::string wineLang = "zh_CN";
-    // Box64 dynarec 全局档位 ("K=V;K=V;..."), 来自设置页兼容预设; 空 = 出厂基线。
-    // native 只放行 BOX64_DYNAREC_* 行, 经 wineboot/wineserver __env= 与会话 env 注入。
-    std::string compatEnvStr;
-    bool automationMode = false;
+    bool directNcpSession = false;
+    bool desktopVulkanCompositor = false;
+    int desktopStallSeconds = 0; // opt-in startup diagnostic, never persisted
 };
 
 void LaunchThreadFunc(LaunchParams* p);

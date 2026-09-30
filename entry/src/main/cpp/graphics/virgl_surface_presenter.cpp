@@ -1,13 +1,9 @@
-#include "graphics/virgl_surface_presenter.h"
-#include "graphics/venus_surface_presenter.h"
-#include "graphics/native_window_lease.h"
-#include "graphics/present_pacing.h"
-#include "graphics/present_policy.h"
-#include "graphics/present_timing.h"
-#include "graphics/native_window_gles_target.h"
-#include "graphics/present_target.h"
-#include "graphics/presenter_common.h"
-#include "graphics/shader_utils.h"
+#include "virgl_surface_presenter.h"
+#include "venus_surface_presenter.h"
+#include "native_window_lease.h"
+#include "present_target.h"
+#include "presenter_common.h"
+#include "shader_utils.h"
 
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
@@ -19,6 +15,7 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -33,6 +30,11 @@ namespace {
 // 帧周期常量与工具函数收编于 presenter_common.h (行为平价 — 逻辑与返回值不变)
 using winehua::SteadyClock;
 using winehua::kDefaultFramePeriodNs;
+using winehua::kMinFramePeriodNs;
+using winehua::kVirglMaxFramePeriodNs;
+using winehua::kDispatchLeadNs;
+using winehua::NormalizeVirglFramePeriodNs;
+using winehua::VirglQueuePacingPeriodNs;
 using winehua::NowUs;
 using winehua::NowNs;
 using winehua::PresentPerfSummaryEnabled;
@@ -50,6 +52,7 @@ using winehua::kPresentFenceSyncFailed;
 using winehua::kPresentInvalid;
 
 constexpr auto kVenusTargetAttachTimeout = std::chrono::milliseconds(2500);
+constexpr auto kVirglTargetAttachTimeout = std::chrono::milliseconds(500);
 
 GLuint CompilePresentShader(GLenum type, const char* source)
 {
@@ -78,7 +81,7 @@ public:
     {
         if (!surfaceKey || !window) return -1;
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!ResetGlLocked()) return -EAGAIN;
+        ResetGlLocked();
         windowLease_.Adopt(
             window, releaseWindowWithUnreference
                 ? winehua::NativeWindowReleaseMode::UnreferenceNativeObject
@@ -91,14 +94,8 @@ public:
         timestampFailures_ = 0;
         throttled_ = 0;
         lastPresentNs_ = 0;
-        failureBackoff_.Reset();
-        timing_.Reset();
-        directDisabled_ = !winehua::kGlesDirectQualified;
-        directFallbackPending_ = false;
-        ++generation_;
-        policy_ = winehua::ReadPresenterRuntimePolicyFromEnvironment();
-        displayPeriodNs_ = winehua::NormalizePresentFramePeriodNs(framePeriodNs);
-        framePeriodNs_ = winehua::QueuePresentPacingPeriodNs(displayPeriodNs_);
+        displayPeriodNs_ = NormalizeVirglFramePeriodNs(framePeriodNs);
+        framePeriodNs_ = VirglQueuePacingPeriodNs(displayPeriodNs_);
         OH_LOG_INFO(LOG_APP,
                     "[VIRGL-ZC][NCP] target attached surface_key=%{public}llu "
                     "window=%{public}p display_period_us=%{public}llu "
@@ -112,11 +109,10 @@ public:
     int SetFramePeriod(uint64_t framePeriodNs) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        const uint64_t displayPeriodNs =
-            winehua::NormalizePresentFramePeriodNs(framePeriodNs);
+        const uint64_t displayPeriodNs = NormalizeVirglFramePeriodNs(framePeriodNs);
         if (displayPeriodNs_ == displayPeriodNs) return 0;
         displayPeriodNs_ = displayPeriodNs;
-        framePeriodNs_ = winehua::QueuePresentPacingPeriodNs(displayPeriodNs_);
+        framePeriodNs_ = VirglQueuePacingPeriodNs(displayPeriodNs_);
         OH_LOG_INFO(LOG_APP,
                     "[VIRGL-ZC][NCP] frame period surface_key=%{public}llu "
                     "display_period_us=%{public}llu pace_period_us=%{public}llu",
@@ -130,7 +126,7 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (surfaceKey_ && surfaceKey && surfaceKey_ != surfaceKey) return -1;
-        if (!ResetLocked()) return -EAGAIN;
+        ResetLocked();
         OH_LOG_INFO(LOG_APP, "[VIRGL-ZC][NCP] target detached surface_key=%{public}llu",
                     static_cast<unsigned long long>(surfaceKey));
         return 0;
@@ -154,40 +150,23 @@ public:
         if (!windowLease_) return kPresentNoTarget;
         if (!sourceVisible) return kPresentSourceInvisible;
         const uint64_t nowNs = NowNs();
-        const uint64_t startedUs = nowNs / 1000;
-        if (const uint64_t retry = failureBackoff_.PendingDeadline(nowNs)) {
-            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
-            ++throttled_;
-            return 1;
-        }
-        const winehua::PresentPacingDecision pacing =
-            winehua::EvaluatePresentPacing(nowNs, lastPresentNs_, framePeriodNs_);
-        if (width_ == width && height_ == height && !pacing.presentNow &&
-            (!glesDirect_.Ready() || !winehua::DirectPresentUsesGuestDeadline(frames_))) {
+        if (width_ == width && height_ == height && lastPresentNs_ &&
+            nowNs - lastPresentNs_ < framePeriodNs_)
+        {
             if (nextPresentDeadlineNs)
-                *nextPresentDeadlineNs = pacing.nextDeadlineNs;
+                *nextPresentDeadlineNs = lastPresentNs_ + framePeriodNs_;
             ++throttled_;
             return kPresentThrottled;
         }
+        lastPresentNs_ = nowNs;
         sourceReady = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        if (!sourceReady) {
-            const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
-            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
-            return kPresentFenceSyncFailed;
-        }
+        if (!sourceReady) return kPresentFenceSyncFailed;
         glFlush();
         if (!EnsureGlLocked(sourceDisplay, sourceContext, width, height))
         {
             eglMakeCurrent(sourceDisplay, sourceDraw, sourceRead, sourceContext);
             glDeleteSync(sourceReady);
-            if (resetDeferred_) {
-                if (nextPresentDeadlineNs) *nextPresentDeadlineNs =
-                    winehua::RetryPresentDeadlineNs(NowNs(), lastPresentNs_, framePeriodNs_);
-                return 1;
-            }
             ++failures_;
-            const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
-            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
             return kPresentGlSetupFailed;
         }
         if (eglMakeCurrent(display_, surface_, surface_, context_) != EGL_TRUE)
@@ -195,25 +174,11 @@ public:
             eglMakeCurrent(sourceDisplay, sourceDraw, sourceRead, sourceContext);
             glDeleteSync(sourceReady);
             ++failures_;
-            const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
-            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
             return kPresentMakeCurrentFailed;
         }
         glWaitSync(sourceReady, 0, GL_TIMEOUT_IGNORED);
         glDeleteSync(sourceReady);
 
-        if (glesDirect_.Ready()) {
-            const auto begin = glesDirect_.BeginFrame(frames_, NowNs());
-            if (begin != winehua::GlesBeginResult::Ready) {
-                if (begin == winehua::GlesBeginResult::Failed) LockDirectFallback();
-                eglMakeCurrent(sourceDisplay, sourceDraw, sourceRead, sourceContext);
-                if (nextPresentDeadlineNs) *nextPresentDeadlineNs =
-                    winehua::RetryPresentDeadlineNs(NowNs(), lastPresentNs_, framePeriodNs_);
-                ++throttled_;
-                return 1;
-            }
-        }
-        const uint64_t drawStartedUs = policy_.perfSummary ? NowUs() : 0;
         glViewport(0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
         glDisable(GL_BLEND);
         glDisable(GL_DEPTH_TEST);
@@ -224,9 +189,8 @@ public:
         glBindTexture(GL_TEXTURE_2D, texture);
         glBindSampler(0, sampler_);
         glUniform1i(textureLocation_, 0);
-        const bool direct = glesDirect_.Ready();
         const uint64_t frameTimestamp = NowNs();
-        const int32_t timestampResult = direct ? 0 : OH_NativeWindow_NativeWindowHandleOpt(
+        const int32_t timestampResult = OH_NativeWindow_NativeWindowHandleOpt(
             windowLease_.Get(), SET_UI_TIMESTAMP, frameTimestamp);
         if (timestampResult != 0)
         {
@@ -240,64 +204,28 @@ public:
         }
         glDrawArrays(GL_TRIANGLES, 0, 3);
         const GLenum glError = glGetError();
-        const uint64_t publishStartedUs = policy_.perfSummary ? NowUs() : 0;
         const EGLBoolean swapped = glError == GL_NO_ERROR
-            ? (direct ? (glesDirect_.Publish() ? EGL_TRUE : EGL_FALSE)
-                      : eglSwapBuffers(display_, surface_)) : EGL_FALSE;
-        if (direct && swapped != EGL_TRUE) {
-            glesDirect_.AbortFrame();
-            LockDirectFallback();
-        }
+            ? eglSwapBuffers(display_, surface_) : EGL_FALSE;
         const EGLint eglError = swapped == EGL_TRUE ? EGL_SUCCESS : eglGetError();
-        const uint64_t restoreStartedUs = policy_.perfSummary ? NowUs() : 0;
         const EGLBoolean restored = eglMakeCurrent(
             sourceDisplay, sourceDraw, sourceRead, sourceContext);
 
         if (swapped != EGL_TRUE || restored != EGL_TRUE)
         {
             ++failures_;
-            const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
-            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
             if (failures_ == 1 || failures_ % 120 == 0)
                 OH_LOG_WARN(LOG_APP,
                             "[VIRGL-ZC][NCP] blit dropped serial=%{public}u gl=0x%{public}x "
-                            "egl=0x%{public}x restore=%{public}d drops=%{public}llu "
-                            "retry_deadline_ns=%{public}llu",
+                            "egl=0x%{public}x restore=%{public}d drops=%{public}llu",
                             serial, glError, eglError, restored,
-                            static_cast<unsigned long long>(failures_),
-                            static_cast<unsigned long long>(retry));
+                            static_cast<unsigned long long>(failures_));
             return kPresentBlitFailed;
         }
 
-        lastPresentNs_ = frameTimestamp;
-        failureBackoff_.Reset();
         ++frames_;
-        if (policy_.perfSummary) {
-            const uint64_t endedUs = NowUs();
-            if (timing_.Add(endedUs - startedUs, frameTimestamp,
-                            drawStartedUs - startedUs,
-                            publishStartedUs - drawStartedUs,
-                            restoreStartedUs - publishStartedUs,
-                            endedUs - restoreStartedUs)) {
-                OH_LOG_INFO(LOG_APP,
-                    "[VIRGL-ZC][TIMING] key=%{public}llu frames=%{public}llu "
-                    "transport=%{public}s count=120 request_us=%{public}llu "
-                    "draw_us=%{public}llu publish_us=%{public}llu restore_us=%{public}llu "
-                    "cpu_us=%{public}s interval_us=%{public}s",
-                    static_cast<unsigned long long>(surfaceKey_),
-                    static_cast<unsigned long long>(frames_),
-                    direct ? "gles-direct" : "egl-window",
-                    static_cast<unsigned long long>(timing_.RequestUs()),
-                    static_cast<unsigned long long>(timing_.DrawUs()),
-                    static_cast<unsigned long long>(timing_.PublishUs()),
-                    static_cast<unsigned long long>(timing_.RestoreUs()),
-                    timing_.CpuCsv().c_str(), timing_.IntervalCsv().c_str());
-            }
-        }
         if (nextPresentDeadlineNs)
-            *nextPresentDeadlineNs =
-                winehua::NextPresentDeadlineNs(lastPresentNs_, framePeriodNs_);
-        if (policy_.perfSummary &&
+            *nextPresentDeadlineNs = lastPresentNs_ + framePeriodNs_;
+        if (PresentPerfSummaryEnabled() &&
             (frames_ == 1 || frames_ % 120 == 0))
         {
             OH_LOG_INFO(LOG_APP,
@@ -333,50 +261,28 @@ public:
     bool PrepareDeviceRelease(uint32_t, uintptr_t) override { return false; }
     bool FinishDeviceRelease(uint32_t, uintptr_t, int32_t) override { return false; }
 
+    void Reset()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ResetLocked();
+    }
+
 private:
-    bool RetryWithEgl(EGLDisplay display, EGLContext sourceContext,
-                      uint32_t width, uint32_t height, const char* reason)
-    {
-        if (directDisabled_) return false;
-        OH_LOG_WARN(LOG_APP, "[GLES-DIRECT] fallback key=%{public}llu reason=%{public}s",
-            static_cast<unsigned long long>(surfaceKey_), reason);
-        directDisabled_ = true; // A capability failure is sticky until reattach.
-        directFallbackPending_ = false;
-        return EnsureGlLocked(display, sourceContext, width, height);
-    }
-
-    void LockDirectFallback()
-    {
-        if (!directFallbackPending_) {
-            OH_LOG_WARN(LOG_APP,
-                "[GLES-DIRECT] fallback key=%{public}llu reason=%{public}s error=%{public}d slots=%{public}zu",
-                static_cast<unsigned long long>(surfaceKey_),
-                glesDirect_.Reason(), glesDirect_.Error(), glesDirect_.ImportedSlots());
-        }
-        directFallbackPending_ = true;
-        directDisabled_ = true;
-    }
-
     bool EnsureGlLocked(EGLDisplay sourceDisplay, EGLContext sourceContext,
                         uint32_t width, uint32_t height)
     {
-        resetDeferred_ = false;
         if (display_ == sourceDisplay && sourceContext_ == sourceContext &&
             context_ != EGL_NO_CONTEXT && surface_ != EGL_NO_SURFACE &&
-            directDisabled_ && !glesDirect_.Ready() && !directFallbackPending_ &&
             (width_ != width || height_ != height)) {
-            // A window-surface resize only changes subsequent buffer requests.
-            // Destroying EGL here disconnects/cleans the same producer queue
-            // while NativeImage may still own its previously acquired buffer.
-            // Keep the context, surface and consumer queue for geometry-only
-            // changes. Source-context/transport changes still use full reset.
-            const int32_t resized = OH_NativeWindow_NativeWindowHandleOpt(
-                windowLease_.Get(), SET_BUFFER_GEOMETRY,
-                static_cast<int32_t>(width), static_cast<int32_t>(height));
-            if (resized != 0) return false;
+            // Resizing a window surface only changes future buffer requests.
+            // Recreating EGL here also tears down the producer queue while the
+            // NativeImage consumer may still own an acquired buffer.
+            if (OH_NativeWindow_NativeWindowHandleOpt(
+                    windowLease_.Get(), SET_BUFFER_GEOMETRY,
+                    static_cast<int32_t>(width), static_cast<int32_t>(height)) != 0)
+                return false;
             width_ = width;
             height_ = height;
-            timing_.Reset();
             OH_LOG_INFO(LOG_APP,
                         "[VIRGL-ZC][NCP] window resized size=%{public}ux%{public}u "
                         "surface_key=%{public}llu retained_egl=1",
@@ -385,12 +291,8 @@ private:
         }
         if (display_ != EGL_NO_DISPLAY &&
             (display_ != sourceDisplay || sourceContext_ != sourceContext ||
-             width_ != width || height_ != height || directFallbackPending_)) {
-            if (!ResetGlLocked()) { resetDeferred_ = true; return false; }
-            timing_.Reset(); // Never label a mixed-generation/transport window.
-            directFallbackPending_ = false;
-            ++generation_;
-        }
+             width_ != width || height_ != height))
+            ResetGlLocked();
         if (context_ != EGL_NO_CONTEXT && surface_ != EGL_NO_SURFACE) return true;
 
         if (OH_NativeWindow_NativeWindowHandleOpt(
@@ -413,7 +315,7 @@ private:
                     width, height, queueSize, timeoutResult);
 
         const EGLint configAttributes[] = {
-            EGL_SURFACE_TYPE, directDisabled_ ? EGL_WINDOW_BIT : EGL_PBUFFER_BIT,
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
             EGL_BLUE_SIZE, 8,
@@ -425,45 +327,25 @@ private:
         EGLConfig config = nullptr;
         if (!eglChooseConfig(sourceDisplay, configAttributes, &config, 1, &configCount) ||
             configCount == 0)
-            return RetryWithEgl(sourceDisplay, sourceContext, width, height, "pbuffer-config");
+            return false;
 
         const EGLint contextAttributes[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
         EGLContext context = eglCreateContext(
             sourceDisplay, config, sourceContext, contextAttributes);
-        if (context == EGL_NO_CONTEXT)
-            return RetryWithEgl(sourceDisplay, sourceContext, width, height, "shared-context");
-        const EGLint pbufferAttributes[] = {EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE};
-        EGLSurface surface = directDisabled_ ? eglCreateWindowSurface(
+        if (context == EGL_NO_CONTEXT) return false;
+        EGLSurface surface = eglCreateWindowSurface(
             sourceDisplay, config,
-            reinterpret_cast<EGLNativeWindowType>(windowLease_.Get()), nullptr)
-            : eglCreatePbufferSurface(sourceDisplay, config, pbufferAttributes);
+            reinterpret_cast<EGLNativeWindowType>(windowLease_.Get()), nullptr);
         if (surface == EGL_NO_SURFACE)
         {
             eglDestroyContext(sourceDisplay, context);
-            return RetryWithEgl(sourceDisplay, sourceContext, width, height, "pbuffer-surface");
+            return false;
         }
         if (eglMakeCurrent(sourceDisplay, surface, surface, context) != EGL_TRUE)
         {
             eglDestroySurface(sourceDisplay, surface);
             eglDestroyContext(sourceDisplay, context);
-            return RetryWithEgl(sourceDisplay, sourceContext, width, height, "pbuffer-current");
-        }
-
-        if (!directDisabled_) {
-            winehua::GlesBufferOwner owner{surfaceKey_, generation_,
-                reinterpret_cast<uintptr_t>(sourceDisplay), reinterpret_cast<uintptr_t>(context),
-                width, height, NATIVEBUFFER_PIXEL_FMT_RGBA_8888};
-            if (!glesDirect_.Configure(owner, windowLease_.Get())) {
-                LockDirectFallback();
-                directFallbackPending_ = false;
-                eglMakeCurrent(sourceDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-                eglDestroySurface(sourceDisplay, surface);
-                eglDestroyContext(sourceDisplay, context);
-                return EnsureGlLocked(sourceDisplay, sourceContext, width, height);
-            }
-            OH_LOG_INFO(LOG_APP, "[GLES-DIRECT] ready key=%{public}llu generation=%{public}llu size=%{public}ux%{public}u",
-                static_cast<unsigned long long>(surfaceKey_),
-                static_cast<unsigned long long>(generation_), width, height);
+            return false;
         }
 
         // 全屏 quad GLSL 收编于 shader_utils (重构第 3 步, 行为平价 — 逐字搬移,
@@ -494,11 +376,10 @@ private:
         if (fragment) glDeleteShader(fragment);
         if (!program)
         {
-            glesDirect_.Reset(); // no draws/imports yet
             eglMakeCurrent(sourceDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
             eglDestroySurface(sourceDisplay, surface);
             eglDestroyContext(sourceDisplay, context);
-            return RetryWithEgl(sourceDisplay, sourceContext, width, height, "present-program");
+            return false;
         }
 
         GLuint sampler = 0;
@@ -510,8 +391,8 @@ private:
         eglSwapInterval(sourceDisplay, 0);
 
         display_ = sourceDisplay;
-        context_ = context;
         sourceContext_ = sourceContext;
+        context_ = context;
         surface_ = surface;
         program_ = program;
         sampler_ = sampler;
@@ -521,7 +402,7 @@ private:
         return true;
     }
 
-    bool ResetGlLocked()
+    void ResetGlLocked()
     {
         if (display_ != EGL_NO_DISPLAY)
         {
@@ -532,18 +413,11 @@ private:
             const bool cleanupCurrent = context_ != EGL_NO_CONTEXT &&
                 surface_ != EGL_NO_SURFACE &&
                 eglMakeCurrent(display_, surface_, surface_, context_) == EGL_TRUE;
-            if (glesDirect_.Ready() && (!cleanupCurrent || !glesDirect_.Reset())) {
-                if (previousDisplay != EGL_NO_DISPLAY && previousContext != context_)
-                    eglMakeCurrent(previousDisplay, previousDraw, previousRead, previousContext);
-                else
-                    eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-                return false;
-            }
             if (cleanupCurrent)
             {
                 if (sampler_) glDeleteSamplers(1, &sampler_);
                 if (program_) glDeleteProgram(program_);
-                if (previousDisplay != EGL_NO_DISPLAY && previousContext != context_)
+                if (previousDisplay != EGL_NO_DISPLAY)
                     eglMakeCurrent(previousDisplay, previousDraw, previousRead, previousContext);
                 else
                     eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -552,23 +426,21 @@ private:
             if (context_ != EGL_NO_CONTEXT) eglDestroyContext(display_, context_);
         }
         display_ = EGL_NO_DISPLAY;
-        context_ = EGL_NO_CONTEXT;
         sourceContext_ = EGL_NO_CONTEXT;
+        context_ = EGL_NO_CONTEXT;
         surface_ = EGL_NO_SURFACE;
         program_ = 0;
         sampler_ = 0;
         textureLocation_ = -1;
         width_ = 0;
         height_ = 0;
-        return true;
     }
 
-    bool ResetLocked()
+    void ResetLocked()
     {
-        if (!ResetGlLocked()) return false;
+        ResetGlLocked();
         ReleaseWindowLocked();
         surfaceKey_ = 0;
-        return true;
     }
 
     void ReleaseWindowLocked()
@@ -580,8 +452,8 @@ private:
     winehua::NativeWindowLease windowLease_;
     uint64_t surfaceKey_ = 0;
     EGLDisplay display_ = EGL_NO_DISPLAY;
-    EGLContext context_ = EGL_NO_CONTEXT;
     EGLContext sourceContext_ = EGL_NO_CONTEXT;
+    EGLContext context_ = EGL_NO_CONTEXT;
     EGLSurface surface_ = EGL_NO_SURFACE;
     GLuint program_ = 0;
     GLuint sampler_ = 0;
@@ -592,17 +464,9 @@ private:
     uint64_t failures_ = 0;
     uint64_t timestampFailures_ = 0;
     uint64_t throttled_ = 0;
-    winehua::PresenterRuntimePolicy policy_;
-    winehua::PresentTimingWindow timing_;
-    winehua::NativeWindowGlesTarget glesDirect_;
-    uint64_t generation_ = 0;
-    bool directDisabled_ = !winehua::kGlesDirectQualified;
-    bool directFallbackPending_ = false;
-    bool resetDeferred_ = false;
     uint64_t lastPresentNs_ = 0;
-    winehua::GlPresentFailureBackoff failureBackoff_;
-    uint64_t displayPeriodNs_ = winehua::kDefaultPresentFramePeriodNs;
-    uint64_t framePeriodNs_ = winehua::kDefaultPresentFramePeriodNs;
+    uint64_t displayPeriodNs_ = kDefaultFramePeriodNs;
+    uint64_t framePeriodNs_ = kDefaultFramePeriodNs;
 };
 
 class SurfaceQueuePresenterManager {
@@ -612,23 +476,10 @@ public:
     {
         if (!surfaceKey || !window) return -1;
         std::lock_guard<std::mutex> lock(mutex_);
-        CollectRetiredVirglTargetsLocked();
-        const bool releaseWindowWithUnreference =
-            (flags & winehua::virgl_ipc::kSurfaceNativeObjectReference) != 0;
-        // Stop admitting GL generations after a hung GPU has filled quarantine.
-        // Active targets can still detach safely; never destroy their live writes.
-        size_t liveGlTargets = retiredVirglTargets_.size();
-        for (const auto& item : surfaces_) if (item.second.target && !item.second.target->IsVulkan()) ++liveGlTargets;
-        if (!(flags & winehua::virgl_ipc::kSurfaceVulkan) &&
-            winehua::kGlesDirectQualified &&
-            liveGlTargets >= 2 * winehua::virgl_ipc::kMaxSurfaces) {
-            // Attach transfers ownership only on success; the caller releases
-            // this incoming window on failure (both IPC and in-process paths).
-            return -EAGAIN;
-        }
         auto& entry = surfaces_[surfaceKey];
         entry.missingTargetLogged = false;
-        RetireTargetLocked(surfaceKey, entry.target);
+        const bool releaseWindowWithUnreference =
+            (flags & winehua::virgl_ipc::kSurfaceNativeObjectReference) != 0;
         entry.info.flags =
             (entry.info.flags & ~(winehua::virgl_ipc::kSurfaceVulkan |
                                   winehua::virgl_ipc::kSurfaceAttached)) |
@@ -638,16 +489,30 @@ public:
             (entry.info.flags & winehua::virgl_ipc::kSurfaceVulkan) != 0;
         if (vulkan)
         {
+            // 旧 virgl (GL) target: detach + 立即释放 (无延迟释放机制)。
+            if (entry.target && !entry.target->IsVulkan()) {
+                entry.target->Detach(surfaceKey);
+                entry.target.reset();
+            }
+            // 旧 venus target: detach + (有 device → 延迟释放 / 否则立即)。
+            RetireTargetLocked(surfaceKey, entry.target);
             entry.target = std::make_unique<winehua::VenusSurfaceQueueTarget>();
+            result = entry.target->Attach(surfaceKey, framePeriodNs, window,
+                                          releaseWindowWithUnreference);
         }
         else
         {
-            entry.target = std::make_unique<SurfaceQueueTarget>();
+            // 旧 venus target: detach + 延迟/立即释放; virgl target 复用。
+            RetireTargetLocked(surfaceKey, entry.target);
+            if (!entry.target)
+                entry.target = std::make_unique<SurfaceQueueTarget>();
+            result = entry.target->Attach(surfaceKey, framePeriodNs, window,
+                                          releaseWindowWithUnreference);
         }
-        result = entry.target->Attach(surfaceKey, framePeriodNs, window,
-                                      releaseWindowWithUnreference);
         if (result == 0) {
             entry.info.flags |= winehua::virgl_ipc::kSurfaceAttached;
+            entry.attachWaitGaveUp = false;
+            entry.attachSkipLogged = false;
             targetCondition_.notify_all();
         }
         return result;
@@ -658,8 +523,13 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = surfaces_.find(surfaceKey);
         if (it == surfaces_.end()) return 0;
-        RetireTargetLocked(surfaceKey, it->second.target);
-        CollectRetiredVirglTargetsLocked();
+        if (it->second.target) {
+            it->second.target->Detach(surfaceKey);
+            // venus 持 device 时延迟释放 (待 device-owner callback); 否则随
+            // entry 析构立即释放 (virgl 无延迟释放机制)。
+            if (it->second.target->HasVulkanDevice())
+                retiredVenusTargets_.push_back(std::move(it->second.target));
+        }
         ++surfaceGenerations_[surfaceKey];
         surfaces_.erase(it);
         targetCondition_.notify_all();
@@ -737,8 +607,7 @@ public:
         if (!clientPid || !surfaceId) return kPresentNoTarget;
         const uint64_t surfaceKey =
             (static_cast<uint64_t>(clientPid) << 32) | surfaceId;
-        std::lock_guard<std::mutex> lock(mutex_);
-        CollectRetiredVirglTargetsLocked();
+        std::unique_lock<std::mutex> lock(mutex_);
         auto& entry = surfaces_[surfaceKey];
         // 防御: GL 帧送达 venus (vulkan) target — 错误通道。原按 info.flags
         // 判断, 现改按 target 类型 (kind 一致)。无 target 时无法判断, 先
@@ -751,8 +620,60 @@ public:
         entry.info.height = height;
         entry.info.serial = serial;
         entry.lastPresentUs = NowUs();
-        if (!entry.target) return kPresentNoTarget;
-        return entry.target->Present(
+        const auto targetReady = [this, surfaceKey]() {
+            const auto it = surfaces_.find(surfaceKey);
+            return it != surfaces_.end() && it->second.target &&
+                   !it->second.target->IsVulkan() &&
+                   (it->second.info.flags & winehua::virgl_ipc::kSurfaceAttached);
+        };
+        if (!targetReady())
+        {
+            const bool firstMissingTarget = !entry.missingTargetLogged;
+            if (firstMissingTarget)
+            {
+                entry.missingTargetLogged = true;
+                OH_LOG_WARN(LOG_APP,
+                            "[VIRGL-ZC][NCP] target missing key=%{public}llu "
+                            "pid=%{public}u surface=%{public}u",
+                            static_cast<unsigned long long>(surfaceKey),
+                            clientPid, surfaceId);
+            }
+            if (!firstMissingTarget) return kPresentNoTarget;
+            const uint64_t generation = surfaceGenerations_[surfaceKey];
+            const auto waitStart = SteadyClock::now();
+            targetCondition_.wait_for(
+                lock, kVirglTargetAttachTimeout,
+                [this, surfaceKey, generation, &targetReady]() {
+                    return targetReady() ||
+                           surfaceGenerations_[surfaceKey] != generation;
+                });
+            const uint64_t waitedUs = static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    SteadyClock::now() - waitStart).count());
+            if (!targetReady())
+            {
+                const auto it = surfaces_.find(surfaceKey);
+                if (it != surfaces_.end() && it->second.target &&
+                    it->second.target->IsVulkan())
+                    return kPresentInvalid;
+                OH_LOG_WARN(LOG_APP,
+                            "[VIRGL-ZC][NCP] target wait ended key=%{public}llu "
+                            "pid=%{public}u waited_us=%{public}llu reason=%{public}s",
+                            static_cast<unsigned long long>(surfaceKey), clientPid,
+                            static_cast<unsigned long long>(waitedUs),
+                            surfaceGenerations_[surfaceKey] != generation
+                                ? "detached" : "timeout");
+                return kPresentNoTarget;
+            }
+            OH_LOG_INFO(LOG_APP,
+                        "[VIRGL-ZC][NCP] target ready key=%{public}llu "
+                        "pid=%{public}u waited_us=%{public}llu",
+                        static_cast<unsigned long long>(surfaceKey), clientPid,
+                        static_cast<unsigned long long>(waitedUs));
+        }
+        auto it = surfaces_.find(surfaceKey);
+        if (it == surfaces_.end() || !it->second.target) return kPresentNoTarget;
+        return it->second.target->Present(
             texture, width, height, drawable, serial, nextPresentDeadlineNs);
     }
 
@@ -775,9 +696,64 @@ public:
                      void* queueSyncData)
     {
         if (!clientPid || !surfaceId) return kPresentInvalid;
-        const uint64_t surfaceKey =
+        uint64_t surfaceKey =
             (static_cast<uint64_t>(clientPid) << 32) | surfaceId;
         std::unique_lock<std::mutex> lock(mutex_);
+
+        /* DIAG(2026-09-16): cross-process HWND surface identity.
+         * The guest builds surfaceKey from getpid() of the process that *submits* the present,
+         * while the Venus target is attached under the pid of the process that *owns* the
+         * window surface. For a foreign HWND these differ, the lookup below misses, the host
+         * waits kVenusTargetAttachTimeout, returns -EAGAIN, and Wine maps that to
+         * VK_SUBOPTIMAL_KHR which makes DXVK 1.10.3 rebuild the swapchain forever.
+         * This fallback (same surfaceId, different pid) exists ONLY to confirm that contract
+         * break: it is loud on purpose and is not the intended final fix. */
+        const auto isVulkanTargetReady = [this](uint64_t key) {
+            const auto it = surfaces_.find(key);
+            return it != surfaces_.end() && it->second.target && it->second.target->IsVulkan() &&
+                   (it->second.info.flags & winehua::virgl_ipc::kSurfaceAttached);
+        };
+        if (!isVulkanTargetReady(surfaceKey)) {
+            /* DIAG(2026-09-16): dump what targets actually exist, so the correct owner
+             * identity contract can be designed from data instead of guesses. */
+            {
+                unsigned listed = 0;
+                for (const auto& kv : surfaces_) {
+                    if (listed >= 8) break;
+                    OH_LOG_WARN(LOG_APP,
+                                "[VENUS-PRESENT][NCP][DIAG] available key=%{public}llu pid=%{public}u "
+                                "surface=%{public}u hasTarget=%{public}d isVulkan=%{public}d attached=%{public}d",
+                                static_cast<unsigned long long>(kv.first),
+                                static_cast<uint32_t>(kv.first >> 32),
+                                static_cast<uint32_t>(kv.first),
+                                kv.second.target ? 1 : 0,
+                                kv.second.target ? (kv.second.target->IsVulkan() ? 1 : 0) : -1,
+                                (kv.second.info.flags & winehua::virgl_ipc::kSurfaceAttached) ? 1 : 0);
+                    listed++;
+                }
+                if (!listed) {
+                    OH_LOG_WARN(LOG_APP,
+                                "[VENUS-PRESENT][NCP][DIAG] no surfaces registered at all "
+                                "requested_key=%{public}llu pid=%{public}u surface=%{public}u",
+                                static_cast<unsigned long long>(surfaceKey), clientPid, surfaceId);
+                }
+            }
+            for (const auto& candidate : surfaces_) {
+                if (static_cast<uint32_t>(candidate.first) == surfaceId &&
+                    candidate.first != surfaceKey && isVulkanTargetReady(candidate.first)) {
+                    OH_LOG_WARN(LOG_APP,
+                                "[VENUS-PRESENT][NCP][DIAG] owner-pid fallback "
+                                "requested_key=%{public}llu requested_pid=%{public}u "
+                                "resolved_key=%{public}llu resolved_pid=%{public}u surface=%{public}u",
+                                static_cast<unsigned long long>(surfaceKey), clientPid,
+                                static_cast<unsigned long long>(candidate.first),
+                                static_cast<uint32_t>(candidate.first >> 32), surfaceId);
+                    surfaceKey = candidate.first;
+                    break;
+                }
+            }
+        }
+
         auto& entry = surfaces_[surfaceKey];
         // 防御: Vulkan 帧送达 virgl (GL) target — 错误通道。
         if (entry.target && !entry.target->IsVulkan()) return kPresentInvalid;
@@ -804,6 +780,23 @@ public:
                             static_cast<unsigned long long>(surfaceKey),
                             contextId, clientPid, surfaceId);
             }
+            // 退化尺寸 (1x1 占位/哑 surface) 不可能对应任何窗口, 不值得等
+            const bool degenerate = width <= 64 && height <= 64;
+            if (entry.attachWaitGaveUp || degenerate)
+            {
+                if (!entry.attachSkipLogged)
+                {
+                    entry.attachSkipLogged = true;
+                    OH_LOG_WARN(LOG_APP,
+                                "[VENUS-PRESENT][NCP] target wait skipped key=%{public}llu "
+                                "ctx=%{public}u pid=%{public}u surface=%{public}u "
+                                "size=%{public}ux%{public}u reason=%{public}s",
+                                static_cast<unsigned long long>(surfaceKey), contextId,
+                                clientPid, surfaceId, width, height,
+                                degenerate ? "degenerate-size" : "attach-gave-up");
+                }
+                return -EAGAIN;
+            }
             const uint64_t generation = surfaceGenerations_[surfaceKey];
             const auto waitStart = SteadyClock::now();
             targetCondition_.wait_for(
@@ -816,6 +809,7 @@ public:
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     SteadyClock::now() - waitStart).count());
             if (!targetReady()) {
+                entry.attachWaitGaveUp = true;
                 OH_LOG_WARN(LOG_APP,
                             "[VENUS-PRESENT][NCP] target wait ended key=%{public}llu "
                             "ctx=%{public}u waited_us=%{public}llu reason=%{public}s",
@@ -841,10 +835,9 @@ public:
             nextPresentDeadlineNs, releaseQueue, queueSyncData);
     }
 
-    winehua::virgl_ipc::SurfaceQueryReply Query()
+    winehua::virgl_ipc::SurfaceQueryReply Query() const
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        CollectRetiredVirglTargetsLocked();
         winehua::virgl_ipc::SurfaceQueryReply reply;
         const uint64_t nowUs = NowUs();
         std::vector<const Entry*> candidates;
@@ -885,37 +878,26 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         for (auto& [surfaceKey, entry] : surfaces_)
         {
-            RetireTargetLocked(surfaceKey, entry.target);
+            if (entry.target) {
+                entry.target->Detach(surfaceKey);
+                if (entry.target->HasVulkanDevice())
+                    retiredVenusTargets_.push_back(std::move(entry.target));
+            }
             ++surfaceGenerations_[surfaceKey];
         }
         surfaces_.clear();
-        CollectRetiredVirglTargetsLocked();
         targetCondition_.notify_all();
     }
 
 private:
-    void CollectRetiredVirglTargetsLocked()
-    {
-        // Each target polls its fences once, with zero timeout. The regular
-        // surface query also retires targets while the game is backgrounded.
-        retiredVirglTargets_.erase(
-            std::remove_if(retiredVirglTargets_.begin(), retiredVirglTargets_.end(),
-                [](const auto& target) { return target->Detach(0) == 0; }),
-            retiredVirglTargets_.end());
-    }
-
-    // Preserve deferred GL fence retirement as well as Vulkan device ownership.
+    // 退役一个 venus (IsVulkan) 目标: detach 后若持有 Vk device 则延迟释放
+    // (移入 retiredVenusTargets_, 待 device-owner callback), 否则立即释放。
+    // virgl (非 vulkan) 目标不在本函数处理 — 其无延迟释放机制, 调用方按需
+    // Detach + reset。
     void RetireTargetLocked(uint64_t surfaceKey, std::unique_ptr<PresentTarget>& target)
     {
-        if (!target) return;
-        const int result = target->Detach(surfaceKey);
-        if (!target->IsVulkan()) {
-            if (result == -EAGAIN)
-                retiredVirglTargets_.push_back(std::move(target));
-            else
-                target.reset();
-            return;
-        }
+        if (!target || !target->IsVulkan()) return;
+        target->Detach(surfaceKey);
         if (target->HasVulkanDevice())
             retiredVenusTargets_.push_back(std::move(target));
         else
@@ -927,13 +909,21 @@ private:
         std::unique_ptr<PresentTarget> target;
         uint64_t lastPresentUs = 0;
         bool missingTargetLogged = false;
+        // 2026-09-17: present 目标解析失败退避。
+        // 旧实现每次 miss 都等满 kVenusTargetAttachTimeout —— 对"永远不会被 attach"
+        // 的 surface (CEF 的 1x1 占位/哑 surface, 或 app 侧判定 owner 歧义的窗口)
+        // 会让调用线程每帧阻塞 2.5s, 直接把 CEF 的 UI 线程拖到 "unresponsive" 被杀。
+        // 现在: 首次 miss 仍等一次; 超时后置位, 后续 present 立即返回;
+        // Attach 成功/Detach 生成新 generation 时清位 (目标可能已经就绪)。
+        bool attachWaitGaveUp = false;
+        bool attachSkipLogged = false;
     };
 
     mutable std::mutex mutex_;
     std::condition_variable targetCondition_;
     std::unordered_map<uint64_t, Entry> surfaces_;
     std::unordered_map<uint64_t, uint64_t> surfaceGenerations_;
-    std::vector<std::unique_ptr<PresentTarget>> retiredVirglTargets_;
+    // 仅存 venus (has Vk device) 目标; 类型为通用 present_target 接口
     std::vector<std::unique_ptr<PresentTarget>> retiredVenusTargets_;
 };
 

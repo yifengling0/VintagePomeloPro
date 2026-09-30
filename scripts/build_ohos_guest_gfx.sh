@@ -4,15 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/env.sh"
-source "$SCRIPT_DIR/build_cache.sh"
 BUILD_DIR="$ROOT/build"
 SDK_LINK_DIR="$ROOT/build/sdk-links"
 HOST_TOOLS_DIR="$BUILD_DIR/host-tools"
 WRAPPER_DIR="$BUILD_DIR/tool-wrappers"
 SYSROOT_EXT="$BUILD_DIR/sysroot-ext"
 SYSROOT_EXT_INC="$SYSROOT_EXT/usr/include"
-SYSROOT_EXT_LIB="$SYSROOT_EXT/usr/lib/x86_64-linux-ohos"
-SYSROOT_EXT_PC="$SYSROOT_EXT/usr/lib/pkgconfig"
+SYSROOT_EXT_LIB="$SYSROOT_EXT/usr/lib/$TARGET"
+# pkgconfig 按架构隔离 (与 env.sh 一致), 避免跨架构切换残留旧架构 .pc
+SYSROOT_EXT_PC="$SYSROOT_EXT/usr/lib/$TARGET/pkgconfig"
 
 MODE="${GUEST_GFX_MODE:-virpipe}"
 PLATFORM="${WINEHUA_GUEST_GFX_PLATFORM:-wayland}"
@@ -22,8 +22,11 @@ LIBDRM_SOURCE_ROOT="${WINEHUA_OHOS_LIBDRM_SOURCE_ROOT:-$ROOT/thirdparty/libdrm}"
 WAYLAND_PROTOCOLS_SOURCE_ROOT="${WINEHUA_WAYLAND_PROTOCOLS_SOURCE_ROOT:-}"
 WAYLAND_PROTOCOLS_URL="${WINEHUA_WAYLAND_PROTOCOLS_URL:-https://gitlab.freedesktop.org/wayland/wayland-protocols.git}"
 WAYLAND_PROTOCOLS_TAG="${WINEHUA_WAYLAND_PROTOCOLS_TAG:-1.39}"
-BUILD_ROOT="${WINEHUA_GUEST_GFX_BUILD_ROOT:-$ROOT/build/guest_gfx_build/${NATIVE_ARCH:-x86_64}/$PLATFORM-$MODE}"
-INSTALL_ROOT="${WINEHUA_GUEST_GFX_INSTALL_ROOT:-$ROOT/build/guest_gfx_install/${NATIVE_ARCH:-x86_64}}"
+# guest 构建目录按 WINE_ARCH 隔离: 方案② (arm64 设备 + x86_64 guest) 与方案③
+# (aarch64 guest) 的 NATIVE_ARCH 都是 arm64-v8a, 共享 build 目录会复用旧架构 meson
+# 配置 → "EGL requires DRI" / 检测到旧 aarch64 target。NATIVE_ARCH 是设备, 不能作 guest 键。
+BUILD_ROOT="${WINEHUA_GUEST_GFX_BUILD_ROOT:-$ROOT/build/guest_gfx_build/${WINE_ARCH}/$PLATFORM-$MODE}"
+INSTALL_ROOT="${WINEHUA_GUEST_GFX_INSTALL_ROOT:-$ROOT/build/guest_gfx_install/${WINE_ARCH}}"
 PACKAGE_BUNDLE=1
 FETCH_IF_MISSING=1
 CLEAN=0
@@ -49,8 +52,8 @@ What it does:
     --no-package is passed.
 
 Notes:
-  - This path is currently implemented for x86_64 only, which matches the
-    active Wine userland on the HarmonyOS PC emulator.
+  - Builds the guest Mesa receiver for the active WINE_ARCH (aarch64-linux-ohos
+    for arm64 native wine, x86_64-linux-ohos for the x86_64 target).
   - The resulting bundle is intended for Step 1 VirGL/vtest smoke:
       MESA_LOADER_DRIVER_OVERRIDE=swrast
       GALLIUM_DRIVER=virpipe
@@ -273,6 +276,7 @@ setup_build_env() {
     sdk_source="$(normalize_host_path_input "$sdk_source")"
     if [ -z "$sdk_source" ]; then
         sdk_source="$(find_first_existing_dir \
+            '/apps/harmony/sdk/default/openharmony' \
             '/mnt/c/Program Files/Huawei/DevEco Studio/sdk/default/openharmony' \
             '/mnt/d/Program Files/Huawei/DevEco Studio/sdk/default/openharmony' \
             || true)"
@@ -290,12 +294,11 @@ setup_build_env() {
 
     export OHOS_SDK="$sdk_source"
     export SYSROOT="$OHOS_SDK/native/sysroot"
-    export TARGET="x86_64-linux-ohos"
+    # TARGET / SYSROOT_EXT_LIB 由 env.sh 按 WINE_ARCH 推导 (aarch64|x86_64-linux-ohos)
 
     [ -d "$SYSROOT" ] || err "OHOS sysroot does not exist: $SYSROOT"
-    [ -d "$SYSROOT_EXT_LIB" ] || err "sysroot-ext lib directory is missing: $SYSROOT_EXT_LIB"
-    [ -d "$SYSROOT_EXT_INC" ] || err "sysroot-ext include directory is missing: $SYSROOT_EXT_INC"
-    [ -d "$SYSROOT_EXT_PC" ] || err "sysroot-ext pkg-config directory is missing: $SYSROOT_EXT_PC"
+    # sysroot-ext 架构子目录由 ensure_target_libdrm 创建 (aarch64 首次构建时不存在)
+    mkdir -p "$SYSROOT_EXT_LIB" "$SYSROOT_EXT_INC" "$SYSROOT_EXT_PC"
 
     clang_root="$OHOS_SDK/native/llvm/bin"
     CLANG_REAL="$(resolve_first_executable "$clang_root/clang.exe" "$clang_root/clang" || true)"
@@ -323,17 +326,11 @@ setup_build_env() {
         if [ -f "$wayland_src/meson.build" ]; then
             log "wayland-scanner not found, building from thirdparty/wayland..."
             local wl_build="$BUILD_DIR/wayland-scanner-build"
-            local wl_scanner=""
             rm -rf "$wl_build"
             meson setup "$wl_build" "$wayland_src" -Ddocumentation=false -Dtests=false
             meson compile -C "$wl_build"
-            wl_scanner="$(resolve_first_executable \
-                "$wl_build/wayland-scanner" \
-                "$wl_build/src/wayland-scanner" \
-                || true)"
-            [ -n "$wl_scanner" ] || err "built wayland-scanner not found under $wl_build"
             mkdir -p "$HOST_TOOLS_DIR/bin"
-            cp "$wl_scanner" "$HOST_TOOLS_DIR/bin/wayland-scanner"
+            cp "$wl_build/src/wayland-scanner" "$HOST_TOOLS_DIR/bin/"
             export WAYLAND_SCANNER="$HOST_TOOLS_DIR/bin/wayland-scanner"
         fi
     fi
@@ -362,7 +359,7 @@ setup_build_env() {
 }
 
 gen_guest_gfx_cross_file() {
-    local cross="$BUILD_DIR/guest-gfx-x86_64-cross.txt"
+    local cross="$BUILD_DIR/guest-gfx-${WINE_ARCH}-cross.txt"
     local guest_system="linux"
     if [ "$VULKAN_ONLY" = "1" ]; then
         # Describe the real target OS so Mesa does not assume Linux KMS/DRM
@@ -388,8 +385,8 @@ pkg_config_path = ['$SYSROOT_EXT_PC', '$SYSROOT/usr/lib/pkgconfig']
 
 [host_machine]
 system = '$guest_system'
-cpu_family = 'x86_64'
-cpu = 'x86_64'
+cpu_family = '$WINE_ARCH'
+cpu = '$WINE_ARCH'
 endian = 'little'
 XEOF
     printf '%s\n' "$cross"
@@ -450,8 +447,9 @@ fetch_modern_wayland_protocols_root() {
 }
 
 ensure_target_libdrm() {
-    local build_root="$ROOT/build/libdrm_build/${NATIVE_ARCH}"
-    local arch_pc_dir="$SYSROOT_EXT/usr/lib/x86_64-linux-ohos/pkgconfig"
+    # libdrm 按 WINE_ARCH 隔离 (guest 库架构), 与 BUILD_ROOT 一致; NATIVE_ARCH 是设备架构不能作 guest 键
+    local build_root="$ROOT/build/libdrm_build/${WINE_ARCH}"
+    local arch_pc_dir="$SYSROOT_EXT/usr/lib/$TARGET/pkgconfig"
     local meson_args=()
 
     if [ -f "$SYSROOT_EXT_LIB/libdrm.so" ] \
@@ -481,7 +479,7 @@ ensure_target_libdrm() {
     meson_args=(
         "--cross-file=$CROSS_FILE"
         "--prefix=$SYSROOT_EXT/usr"
-        "--libdir=lib/x86_64-linux-ohos"
+        "--libdir=lib/$TARGET"
         "-Dbuildtype=release"
         "-Dtests=false"
         "-Dinstall-test-programs=false"
@@ -517,7 +515,10 @@ ensure_target_libdrm() {
 
     if [ -f "$arch_pc_dir/libdrm.pc" ]; then
         mkdir -p "$SYSROOT_EXT_PC"
-        cp "$arch_pc_dir/libdrm.pc" "$SYSROOT_EXT_PC/libdrm.pc"
+        # SYSROOT_EXT_PC 按架构隔离后与 arch_pc_dir 同目录 (meson install 已就位), 跳过自复制
+        if [ "$arch_pc_dir/libdrm.pc" != "$SYSROOT_EXT_PC/libdrm.pc" ]; then
+            cp "$arch_pc_dir/libdrm.pc" "$SYSROOT_EXT_PC/libdrm.pc"
+        fi
     fi
 
     [ -f "$SYSROOT_EXT_LIB/libdrm.so" ] || err "libdrm build finished but libdrm.so is missing from sysroot-ext"
@@ -563,27 +564,14 @@ ensure_modern_wayland_protocols() {
     log "wayland-protocols source: $WAYLAND_PROTOCOLS_SOURCE_ROOT"
     log "wayland-protocols build: $build_root"
 
-    # wayland-protocols declares wayland-scanner as a native (build-machine)
-    # dependency; meson resolves native deps through the native file's
-    # pkg_config_path, not the cross file or the ambient environment.
-    NATIVE_FILE="$BUILD_DIR/host-tools-native.txt"
-    if [ ! -f "$NATIVE_FILE" ]; then
-        cat > "$NATIVE_FILE" << EOF
-[binaries]
-pkg-config = '$PKG_CONFIG_BIN'
-[built-in options]
-pkg_config_path = ['$BUILD_DIR/host-tools/lib/pkgconfig']
-EOF
-    fi
-
     if [ -f "$build_root/build.ninja" ]; then
         meson setup "$build_root" "$WAYLAND_PROTOCOLS_SOURCE_ROOT" --reconfigure \
             "--prefix=$SYSROOT_EXT/usr" \
-            "-Dtests=false" --native-file "$NATIVE_FILE"
+            "-Dtests=false"
     else
         meson setup "$build_root" "$WAYLAND_PROTOCOLS_SOURCE_ROOT" \
             "--prefix=$SYSROOT_EXT/usr" \
-            "-Dtests=false" --native-file "$NATIVE_FILE"
+            "-Dtests=false"
     fi
 
     meson compile -C "$build_root"
@@ -610,7 +598,7 @@ ensure_wayland_pkgconfig_metadata() {
         cat > "$SYSROOT_EXT_PC/wayland-server.pc" <<EOF
 prefix=$prefix_path
 includedir=\${prefix}/include
-libdir=\${prefix}/lib/x86_64-linux-ohos
+libdir=\${prefix}/lib/$TARGET
 datarootdir=\${prefix}/share
 pkgdatadir=\${datarootdir}/wayland
 
@@ -636,8 +624,8 @@ EOF
     fi
 
     # wayland-scanner host tool .pc for PKG_CONFIG_LIBDIR isolation
-    if [ -x "${WAYLAND_SCANNER:-}" ]; then
-        local wlscan_prefix="$(dirname "$(dirname "$WAYLAND_SCANNER")")"
+    if [ ! -f "$SYSROOT_EXT_PC/wayland-scanner.pc" ] && command -v wayland-scanner >/dev/null 2>&1; then
+        local wlscan_prefix="$(dirname "$(dirname "$(command -v wayland-scanner)")")"
         cat > "$SYSROOT_EXT_PC/wayland-scanner.pc" <<EOF
 prefix=$wlscan_prefix
 includedir=\${prefix}/include
@@ -667,7 +655,7 @@ copy_if_missing() {
 ensure_wayland_dev_headers() {
     local wl_src="$ROOT/thirdparty/wayland/src"
     local wl_egl="$ROOT/thirdparty/wayland/egl"
-    local wl_build="$BUILD_DIR/wayland_build/x86_64/src"
+    local wl_build="$BUILD_DIR/wayland_build/$WINE_ARCH/src"
 
     mkdir -p "$SYSROOT_EXT_INC"
 
@@ -693,7 +681,8 @@ ensure_wayland_dev_headers() {
 
 setup_build_env
 
-# guest_gfx 始终编译为 x86_64-linux-ohos (Wine 是 x86_64 程序, 即使在 arm64 设备上也通过 Box64 运行)
+# guest_gfx 按 WINE_ARCH 编译: arm64 原生 wine → aarch64-linux-ohos (guest 库与 wine 同架构, 系统 linker 直接 dlopen);
+# x86_64 → x86_64-linux-ohos。mesa venus/virgl 驱动架构无关, cross file 的 cpu_family/cpu 决定目标。
 
 case "$PLATFORM" in
     wayland) ;;
@@ -721,44 +710,7 @@ INSTALL_ROOT="$(normalize_host_path_input "$INSTALL_ROOT")"
 [ -d "$SOURCE_ROOT" ] || err "Mesa source root does not exist: $SOURCE_ROOT (check thirdparty/mesa submodule)"
 [ -f "$SOURCE_ROOT/meson.build" ] || err "Mesa source root is not valid (meson.build missing): $SOURCE_ROOT"
 ensure_mesa_source_layout "$SOURCE_ROOT"
-
-CACHE_COMPONENT="guest-gfx-${NATIVE_ARCH}-${PLATFORM}-${MODE}-vulkan-${VULKAN_ONLY}-package-${PACKAGE_BUNDLE}"
-CACHE_MANIFEST="$BUILD_DIR/.cache-manifests/$CACHE_COMPONENT.manifest"
-if [ "$PACKAGE_BUNDLE" -eq 1 ]; then
-    CACHE_OUTPUT_ROOT="${WINEHUA_GUEST_GFX_OUTPUT_ROOT:-$ROOT/build/guest_gfx/$NATIVE_ARCH}"
-else
-    CACHE_OUTPUT_ROOT="$INSTALL_ROOT"
-fi
-CACHE_WAYLAND_PROTOCOLS_SOURCE="$WAYLAND_PROTOCOLS_SOURCE_ROOT"
-if [ -z "$CACHE_WAYLAND_PROTOCOLS_SOURCE" ]; then
-    CACHE_WAYLAND_PROTOCOLS_SOURCE="$ROOT/thirdparty/wayland-protocols"
-fi
-CACHE_FILES_DIGEST="$(winehua_cache_files_digest \
-    "$SCRIPT_DIR/build_ohos_guest_gfx.sh" "$SCRIPT_DIR/build_guest_gfx.sh" \
-    "$SCRIPT_DIR/build_cache.sh" "$SCRIPT_DIR/env.sh")"
-CACHE_OHOS_CLANG="$("$CLANG" --version 2>&1 | head -n 1 || printf 'missing')"
-CACHE_INPUT_KEY="$(winehua_cache_input_key \
-    "$CACHE_COMPONENT" "$SOURCE_ROOT" "$CACHE_FILES_DIGEST" \
-    "libdrm=$(winehua_cache_git_digest "$LIBDRM_SOURCE_ROOT")" \
-    "wayland=$(winehua_cache_git_digest "$ROOT/thirdparty/wayland")" \
-    "wayland-protocols=$(winehua_cache_git_digest "$CACHE_WAYLAND_PROTOCOLS_SOURCE")" \
-    "ohos-clang=$CACHE_OHOS_CLANG" \
-    "target-sdk=${TARGET_SDK_VERSION:-unknown}" \
-    "compatible-sdk=${COMPATIBLE_SDK_VERSION:-unknown}" \
-    "ambient-cflags=${CFLAGS:-}" "ambient-cxxflags=${CXXFLAGS:-}")"
-mapfile -d '' -t CACHE_ARTIFACTS < <(
-    find "$CACHE_OUTPUT_ROOT" -type f -print0 2>/dev/null | sort -z)
-
-if [ "$CLEAN" -eq 0 ] && \
-   winehua_cache_verify "$CACHE_MANIFEST" "$CACHE_COMPONENT" "$CACHE_INPUT_KEY" \
-       "${CACHE_ARTIFACTS[@]}"; then
-    log "guest_gfx content cache hit: ${CACHE_INPUT_KEY:0:12}"
-    exit 0
-fi
-if [ "$CLEAN" -eq 1 ]; then
-    WINEHUA_CACHE_MISS_REASON="clean-requested"
-fi
-log "guest_gfx content cache miss: $WINEHUA_CACHE_MISS_REASON"
+bash "$SCRIPT_DIR/apply_mesa_ohos_patches.sh" "$SOURCE_ROOT"
 
 if [ "$CLEAN" -eq 1 ]; then
     remove_tree "$BUILD_ROOT"
@@ -867,11 +819,5 @@ if [ "$PACKAGE_BUNDLE" -eq 1 ]; then
     NATIVE_ARCH="$NATIVE_ARCH" \
     bash "$SCRIPT_DIR/build_guest_gfx.sh" --install-root "$INSTALL_ROOT" --mode "$MODE"
 fi
-
-mapfile -d '' -t CACHE_ARTIFACTS < <(
-    find "$CACHE_OUTPUT_ROOT" -type f -print0 2>/dev/null | sort -z)
-[ "${#CACHE_ARTIFACTS[@]}" -gt 0 ] || err "guest_gfx cache output is empty: $CACHE_OUTPUT_ROOT"
-winehua_cache_write "$CACHE_MANIFEST" "$CACHE_COMPONENT" "$CACHE_INPUT_KEY" \
-    "${CACHE_ARTIFACTS[@]}" || err "failed to record guest_gfx content cache"
 
 log "guest_gfx Mesa build complete"

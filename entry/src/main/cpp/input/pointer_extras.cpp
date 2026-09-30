@@ -1,4 +1,4 @@
-#include "input/pointer_extras.h"
+#include "pointer_extras.h"
 
 #include "protocols/pointer-constraints-unstable-v1-server-protocol.h"
 #include "protocols/pointer-warp-v1-server-protocol.h"
@@ -8,7 +8,6 @@
 // wl_core.cpp RegisterWlCoreGlobals。6A: 也不再 include wayland_server.h —
 // surface→toplevel 反查与 root 判定经 BindWaylandRefs 注入引用 (见头注释)。
 #include "compositor/toplevel/toplevel_manager.h"
-#include "compositor/input/input_resolver.h"
 
 #include <algorithm>
 #include <chrono>
@@ -50,18 +49,12 @@ void PointerExtras::SetPointerWarpSink(PointerWarpSink sink) {
     warpSink_ = std::move(sink);
 }
 
-void PointerExtras::SetRelativeBaselineSink(RelativeBaselineSink sink) {
-    relativeBaselineSink_ = std::move(sink);
-}
-
 // 6A 会话引用装配: 见头注释。装配于 Server Start 阶段 (wl 事件循环启动前)
 // 一次性, 之后只在 Wayland 线程读 tmgr_/rootId 引用 — 无锁。
 void PointerExtras::BindWaylandRefs(ToplevelManager* tmgr,
                                     const uint32_t* desktopRootToplevelId,
-                                    InputResolver* resolver,
                                     const bool* desktopMode) {
     tmgr_ = tmgr;
-    resolver_ = resolver;
     desktopRootToplevelId_ = desktopRootToplevelId;
     desktopMode_ = desktopMode;
 }
@@ -268,18 +261,19 @@ void PointerExtras::relmgr_get_relative_pointer(wl_client* client, wl_resource*,
     wl_resource* res = wl_resource_create(client, &zwp_relative_pointer_v1_interface, 1, id);
     wl_resource_set_implementation(res, &kRelativeImpl, nullptr,
         [](wl_resource* r) { OnRelativePointerDestroyed(r); });
+    // 相对模式与 Lock 约束同 hwnd: 取当前 Lock 约束的 toplevelId 传给 ArkTS
+    // 门禁 — 若该 toplevel == 桌面 root, 说明是"桌面 shell 自身藏光标"(启动
+    // 瞬时), 而非游戏真相对模式 (后者是子窗口 toplevel)。0 = 未找到 (保守按
+    // 游戏处理, 允许被门禁拦的场景只有明确的桌面 root)。
     uint32_t tl = 0;
-    size_t total = 0;
     {
         std::lock_guard<std::mutex> lk(self->mutex_);
-        self->relativePointers_.push_back({res, pointer, client});
-        total = self->relativePointers_.size();
+        self->relativePointers_.push_back(res);
         for (const auto& c : self->constraints_)
             if (c.type == ConstraintType::Lock) { tl = c.toplevelId; break; }
     }
     OH_LOG_INFO(LOG_APP, "[PtrExt] relative_pointer created (bind ptr=%{public}p, total=%{public}zu) tl=%{public}u",
-                static_cast<void*>(pointer), total, tl);
-    if (self->relativeBaselineSink_) self->relativeBaselineSink_("relative-pointer-created");
+                static_cast<void*>(pointer), self->relativePointers_.size(), tl);
     // 冻结/隐藏 host 光标改挂在这里 (原挂 constr_lock_pointer — Lock 约束
     // 存在 ≠ 相对模式: 红警2 主菜单光标可见也挂约束, 误冻结 6.5 分钟)。
     // relative_pointer 对象是 wine 侧 needs_relative 判定 (光标隐藏+约束+
@@ -290,33 +284,20 @@ void PointerExtras::relmgr_get_relative_pointer(wl_client* client, wl_resource*,
 
 void PointerExtras::OnRelativePointerDestroyed(wl_resource* r) {
     auto* self = GetInstance();
-    size_t remaining = 0;
+    bool remaining = false;
     {
         std::lock_guard<std::mutex> lk(self->mutex_);
         auto& v = self->relativePointers_;
-        v.erase(std::remove_if(v.begin(), v.end(),
-                               [r](const RelativePointer& entry) {
-                                   return entry.resource == r;
-                               }), v.end());
-        remaining = v.size();
+        v.erase(std::remove(v.begin(), v.end(), r), v.end());
+        remaining = !v.empty();
+        OH_LOG_INFO(LOG_APP, "[PtrExt] relative_pointer destroyed (remaining=%{public}zu)", v.size());
     }
-    OH_LOG_INFO(LOG_APP, "[PtrExt] relative_pointer destroyed (remaining=%{public}zu)", remaining);
-    if (self->relativeBaselineSink_) self->relativeBaselineSink_("relative-pointer-destroyed");
-    // 锁外调用。仅当全部 relative_pointer 对象都销毁时才解锁
-    // (20260822 review #4: wine 可为多 surface 各建一个对象)。
-    if (remaining == 0) {
-        self->ApplyHostCursorLock(false, 0);
-    }
-}
-
-bool PointerExtras::HasRelativePointerForSurface(wl_resource* surface) const {
-    if (!surface || !resolver_ || !resolver_->IsSurfaceAlive(surface)) return false;
-    wl_client* client = wl_resource_get_client(surface);
-    std::lock_guard<std::mutex> lk(mutex_);
-    return std::any_of(relativePointers_.begin(), relativePointers_.end(),
-                       [client](const RelativePointer& entry) {
-                           return entry.client == client;
-                       });
+    // 锁外调用 (ApplyHostCursorLock 自持 mutex_, 锁内调会死锁);
+    // 相对模式退出 → 还原 host 光标。仅当全部 relative_pointer 对象都
+    // 销毁时才解锁 (20260822 review #4: wine 可为多 surface 各建一个
+    // 对象, 销毁其中任何一个就解锁会让系统光标提前恢复, 与游戏自绘
+    // 光标并排漂移)。
+    if (!remaining) self->ApplyHostCursorLock(false, 0);
 }
 
 bool PointerExtras::HasRelativePointer() const {
@@ -324,19 +305,24 @@ bool PointerExtras::HasRelativePointer() const {
     return !relativePointers_.empty();
 }
 
-void PointerExtras::SendRelativeMotion(wl_resource* surface, double dx, double dy) {
-    if (!surface || !resolver_ || !resolver_->IsSurfaceAlive(surface)) return;
-    wl_client* client = wl_resource_get_client(surface);
+void PointerExtras::SendRelativeMotion(double dx, double dy) {
     std::lock_guard<std::mutex> lk(mutex_);
+    if (relativePointers_.empty()) return;
+    // 系统性链路日志 (断点 5): 相对增量广播 — 确认增量实际发到 wine (对象数
+    // >0), 与 input_manager 差分 (断点 4) 配对; 高频抽样 120:1 (拖动只看趋势,
+    // 防刷爆 hilog — 测试需全量时改这里)
+    static uint32_t sRelMvLogN = 0;
+    if (++sRelMvLogN % 120 == 0)
+        OH_LOG_INFO(LOG_APP, "[PtrExt] rel_motion d=(%{public}.1f,%{public}.1f) objs=%{public}zu",
+                    dx, dy, relativePointers_.size());
     // 无加速输入设备: unaccel = accel 同值; utime 用单调时钟微秒 (wine 侧
     // 只读增量, 不读时间戳, 发 0 亦可 — 保留时间供诊断)
     const uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
     const wl_fixed_t fdx = wl_fixed_from_double(dx);
     const wl_fixed_t fdy = wl_fixed_from_double(dy);
-    for (const auto& entry : relativePointers_) {
-        if (entry.client != client) continue;
-        zwp_relative_pointer_v1_send_relative_motion(entry.resource,
+    for (auto* res : relativePointers_) {
+        zwp_relative_pointer_v1_send_relative_motion(res,
             static_cast<uint32_t>(us >> 32), static_cast<uint32_t>(us & 0xffffffffu),
             fdx, fdy, fdx, fdy);
     }
@@ -381,14 +367,18 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
                 doLock = true;
                 ids = hostWindowIds_;
             }
-            // "锁定成功"与"已通知 ets"是两件事: 无获焦窗口时 LockCursor 失败
-            // 也必须能再发 false, 否则 pointerLocked 永真。
+            // "锁定成功"与"已通知 ets"是两件事: LockCursor 可能全部失败
+            // (无获焦窗口/系统 <API22), 而隐藏照常下发 — 解锁补发靠本标记
             etsLockNotified_ = true;
-            lockedToplevelId_ = toplevelId;
+            lockedToplevelId_ = toplevelId;   // 供 ReleaseLockForToplevel 匹配
         } else {
+            // 解锁: 只要曾通知过 ets 就必发 false。旧实现以 lockedWindowId_
+            // 为条件, 从未锁定成功时 (该值恒 0) 这里直接 return → cb(false)
+            // 丢失 → ets pointerLocked 永真 → 系统光标不恢复 (2026-09-13)
             if (etsLockNotified_) {
                 doUnlock = true;
                 if (lockedWindowId_) ids.push_back(lockedWindowId_);
+                // 受理即清位: 解锁已排入工作线程, 后续 lock 快照不被旧状态吞掉
                 lockedWindowId_ = 0;
                 etsLockNotified_ = false;
                 lockedToplevelId_ = 0;
@@ -405,18 +395,19 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
     // 表现为"可见但动不了", 且 relative 对象不销毁则永不解锁。
     // toplevelId==0 (约束 surface 未映射成 toplevel) 与 root==0 同属身份未知,
     // 一并按不冻结处理。
-    const bool desktopNotReady = desktopMode_ && desktopRootToplevelId_ &&
-        *desktopMode_ && *desktopRootToplevelId_ == 0;
-    const bool isShell = desktopNotReady || toplevelId == 0 ||
-        (desktopRootToplevelId_ && toplevelId == *desktopRootToplevelId_);
+    const bool desktopNotReady = *desktopMode_ && *desktopRootToplevelId_ == 0;
+    const bool isShell = desktopNotReady || toplevelId == *desktopRootToplevelId_;
     // IPC 挪入独立线程执行 (20260822 review #3): OH_WindowManager_LockCursor
     // 是同步 Binder 往返, 在调用点 (wl 事件循环线程) 执行会停摆整个
     // Wayland 循环 — 进游戏瞬间的相对模式切换恰是最高频时刻。工作线程按
     // ipcMutex 串行保证窗口服务侧重入序; 状态写入与 lockCallback_ 通知在
     // IPC 完成后进行。
     std::thread([this, doLock, doUnlock, ids, toplevelId, isShell, cb = std::move(cb)]() mutable {
+        // Lock/Unlock IPC 序列彼此串行 (窗口服务侧重入序), 与 mutex_ 无关
         static std::mutex ipcMutex;
         if (doUnlock) {
+            // ids 为空 = 从未锁定成功 (LockCursor 全失败): 无 IPC 可发,
+            // 但仍必须通知 ets 恢复光标 (隐藏当初照常下发过)
             if (!ids.empty()) {
                 std::lock_guard<std::mutex> ipc(ipcMutex);
                 const int32_t ret = OH_WindowManager_UnlockCursor(ids[0]);
@@ -425,7 +416,7 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
             } else {
                 OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor never locked, notify ets only");
             }
-            if (cb) cb(false, toplevelId);
+            cb(false, toplevelId);
             return;
         }
         if (doLock) {
@@ -457,7 +448,7 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
             // 全部失败 (无获焦窗口/系统 <API22) 不阻断: rawDelta 相对位移
             // 通道 (InputManager) 不依赖冻结仍工作; 光标照常隐藏 (相对模式下
             // 游戏自绘光标, 可见的系统光标只剩干扰)
-            if (cb) cb(true, toplevelId);
+            cb(true, toplevelId);
         }
     }).detach();
 }
@@ -466,9 +457,12 @@ void PointerExtras::ReleaseLockForToplevel(uint32_t toplevelId) {
     bool release = false;
     {
         std::lock_guard<std::mutex> lk(mutex_);
+        // 未通知过 ets / 锁定来源不是本 toplevel → 不是本次要清的锁定
         release = etsLockNotified_ && lockedToplevelId_ == toplevelId;
     }
     if (!release) return;
     OH_LOG_INFO(LOG_APP, "[PtrExt] release lock for destroyed toplevel %{public}u", toplevelId);
+    // 锁外调用 (ApplyHostCursorLock 自持 mutex_): 走正常解锁路径 —
+    // UnlockCursor(已销毁窗口 id 返回错误无害) + cb(false) 通知 ets 恢复光标
     ApplyHostCursorLock(false, 0);
 }

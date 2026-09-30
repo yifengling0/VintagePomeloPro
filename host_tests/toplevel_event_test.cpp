@@ -1,7 +1,7 @@
 // ============================================================================
 // toplevel_event_test — ToplevelEventBus 纯函数对账 (重构第 5D 步, 行为平价)
 //
-// 测试对象: compositor/toplevel_event_bus.h 的事件名映射与 JSON 构造单点。
+// 测试对象: compositor/toplevel/toplevel_event_bus.h 的事件名映射与 JSON 构造单点。
 // 黄金值 = 重构前各调用点 (wl_core.cpp / xdg_shell.cpp / wayland_server.cpp /
 // plugin_manager.cpp) 的 snprintf 模板逐字 — 事件名/键名/值/顺序不变是
 // 红线 (ArkTS 侧 WineWindowManager.ets / PopupWindowManager.ets 按事件名与
@@ -25,7 +25,7 @@ static void eq_str(const char* what, const std::string& got, const std::string& 
     }
 }
 
-// ---- ToplevelEventName: 事件名与 ArkTS 消费字符串逐字 ----
+// ---- ToplevelEventName: 22 种事件名与旧字符串逐字 ----
 static void test_event_names() {
     eq_str("name(Created)", ToplevelEventName(ToplevelEventType::Created), "created");
     eq_str("name(ArgbCreated)", ToplevelEventName(ToplevelEventType::ArgbCreated), "argb_created");
@@ -46,10 +46,8 @@ static void test_event_names() {
     eq_str("name(Fullscreen)", ToplevelEventName(ToplevelEventType::Fullscreen), "fullscreen");
     eq_str("name(Unfullscreen)", ToplevelEventName(ToplevelEventType::Unfullscreen), "unfullscreen");
     eq_str("name(Minimized)", ToplevelEventName(ToplevelEventType::Minimized), "minimized");
-    eq_str("name(Restored)", ToplevelEventName(ToplevelEventType::Restored), "restored");
     eq_str("name(MoveStart)", ToplevelEventName(ToplevelEventType::MoveStart), "move_start");
     eq_str("name(MoveEnd)", ToplevelEventName(ToplevelEventType::MoveEnd), "move_end");
-    eq_str("name(Modal)", ToplevelEventName(ToplevelEventType::Modal), "modal");
     eq_str("name(DesktopRoot)", ToplevelEventName(ToplevelEventType::DesktopRoot), "desktop_root");
 }
 
@@ -94,11 +92,6 @@ static void test_json_templates() {
            "{\"minW\":320,\"minH\":200,\"maxW\":1400,\"maxH\":920}");
     // surface
     eq_str("JsonSurface", ToplevelEventBus::JsonSurface(1280, 800), "{\"w\":1280,\"h\":800}");
-    // modal (winehua_toplevel.set_modal → PC 融合子窗口)
-    eq_str("JsonModal on", ToplevelEventBus::JsonModal(12, 7, 1, 40, -16, 420, 240),
-           "{\"modal\":1,\"owner\":7,\"tl\":12,\"dx\":40,\"dy\":-16,\"w\":420,\"h\":240}");
-    eq_str("JsonModal off", ToplevelEventBus::JsonModal(12, 0, 0, 0, 0, 0, 0),
-           "{\"modal\":0,\"owner\":0,\"tl\":12,\"dx\":0,\"dy\":0,\"w\":0,\"h\":0}");
 }
 
 // 无 payload 事件的 "{}" 语义: 旧调用点传字面量 "{}" 或省略 jsonData 参数
@@ -107,10 +100,10 @@ static void test_json_templates() {
 // 不属 host 可编译面; 默认参数值在此声明为契约)。
 
 static void test_full_coverage() {
-    // 枚举全在 EventName 映射内 (编译器已保证 switch 完整性; 此处
-    // 再逐一遍历确认名字均为非空且长度>0；含产品 Raise 与 WineHua Modal)
+    // 22 种枚举全在 EventName 映射内 (编译器已保证 switch 完整性; 此处
+    // 再逐一遍历确认 22 个名字均为非空且长度>0)
     int n = 0;
-    for (uint32_t i = 0; i <= static_cast<uint32_t>(ToplevelEventType::DesktopRoot); i++) {
+    for (uint32_t i = 0; i < 22; i++) {
         const char* name = ToplevelEventName(static_cast<ToplevelEventType>(i));
         checks++;
         if (name == nullptr || name[0] == '\0' || strcmp(name, "unknown") == 0) {
@@ -124,13 +117,6 @@ static void test_full_coverage() {
 
 int main() {
     test_event_names();
-    eq_str("product raise", ToplevelEventName(ToplevelEventType::Raise), "raise");
-    eq_str("product session association",
-           ToplevelEventBus::JsonCreatedForSession(800, 600, "session-17", 1024),
-           "{\"w\":800,\"h\":600,\"sessionId\":\"session-17\",\"clientPid\":1024}");
-    eq_str("product unknown session",
-           ToplevelEventBus::JsonCreatedForSession(640, 480, "", 0),
-           "{\"w\":640,\"h\":480,\"sessionId\":\"\",\"clientPid\":0}");
     test_json_templates();
     test_full_coverage();
     printf("toplevel_event_test: %d checks, %d failures\n", checks, failures);

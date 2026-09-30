@@ -7,7 +7,6 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
-source "$SCRIPT_DIR/build_cache.sh"
 
 PATCH_ROOT="$ROOT/patches/vkd3d-proton"
 SOURCE_ROOT="$VKD3D_PROTON_BUILD_ROOT/limited-500k-source"
@@ -54,31 +53,6 @@ patch_series_sha="$(sha256sum "${patches[@]}" | sha256sum | awk '{print $1}')"
 patch_head="$(sed -n '1s/^From \([0-9a-f]\{40\}\) .*/\1/p' "${patches[${#patches[@]}-1]}")"
 [ -n "$patch_head" ] || err "Cannot read VKD3D-Proton patch-series head"
 source_id="$base_commit-$patch_series_sha"
-deterministic_build_id="${base_commit:0:15}"
-
-CACHE_COMPONENT="vkd3d-proton-limited-500k"
-CACHE_MANIFEST="$BUILD_DIR/.cache-manifests/$CACHE_COMPONENT.manifest"
-CACHE_ARTIFACTS=(
-    "$OUTPUT_X64/d3d12.dll"
-    "$OUTPUT_X64/winehua-d3d12-smoke.exe"
-    "$OUTPUT_X64/triangle.exe"
-    "$OUTPUT_X64/gears.exe"
-    "$OUTPUT_ROOT/manifest.json"
-)
-CACHE_FILES_DIGEST="$(winehua_cache_files_digest \
-    "$SCRIPT_DIR/build_vkd3d_proton.sh" "$SCRIPT_DIR/build_cache.sh" \
-    "$SCRIPT_DIR/env.sh" "${patches[@]}")"
-CACHE_INPUT_KEY="$(winehua_cache_input_key \
-    "$CACHE_COMPONENT" "$VKD3D_PROTON_SRC" "$CACHE_FILES_DIGEST" \
-    'buildtype=release' 'architecture=x86_64' 'limited-resource-view-heaps=1' \
-    'trace=0' 'tests=1' 'extras=1' "build-id=$deterministic_build_id")"
-
-if winehua_cache_verify "$CACHE_MANIFEST" "$CACHE_COMPONENT" "$CACHE_INPUT_KEY" \
-    "${CACHE_ARTIFACTS[@]}"; then
-    log "VKD3D-Proton content cache hit: ${CACHE_INPUT_KEY:0:12}"
-    exit 0
-fi
-log "VKD3D-Proton content cache miss: $WINEHUA_CACHE_MISS_REASON"
 
 if [ ! -f "$SOURCE_STAMP" ] || [ "$(cat "$SOURCE_STAMP")" != "$source_id" ]; then
     log "Refreshing isolated VKD3D-Proton source"
@@ -93,18 +67,29 @@ if [ ! -f "$SOURCE_STAMP" ] || [ "$(cat "$SOURCE_STAMP")" != "$source_id" ]; the
         patch -d "$SOURCE_ROOT" -p1 --forward --batch < "$patch_file"
     done
     printf '%s\n' "$source_id" > "$SOURCE_STAMP"
-fi
 
-# Meson's vcs_tag falls back to project_version ("2.6") when the isolated
-# source intentionally has no .git directory. The upstream template prefixes
-# that value with 0x, producing invalid C (0x2.6). Materialize a stable numeric
-# build id from the locked upstream commit before Meson/Ninja sees the template.
-build_id_template="$SOURCE_ROOT/vkd3d_build.h.in"
-expected_build_id_line="static const uint64_t vkd3d_build = 0x$deterministic_build_id;"
-if grep -Fq 'static const uint64_t vkd3d_build = 0x@VCS_TAG@;' "$build_id_template"; then
-    sed_i "s/0x@VCS_TAG@/0x$deterministic_build_id/" "$build_id_template"
-elif ! grep -Fqx "$expected_build_id_line" "$build_id_template"; then
-    err "unexpected VKD3D build-id template: $build_id_template"
+    # force replace vcs_tag: isolated tree has no .git so meson falls back to
+    # PACKAGE_VERSION "2.6" -> invalid C literal 0x2.6
+    SOURCE_ROOT="$SOURCE_ROOT" python3 - <<'PY'
+from pathlib import Path
+import re, os
+root = Path(os.environ["SOURCE_ROOT"])
+mb = root / "meson.build"
+text = mb.read_text()
+newt, n = re.subn(
+    r"vkd3d_build\s*=\s*vcs_tag\([\s\S]*?\)",
+    "vkd3d_build = configure_file(input: 'vkd3d_build.h.in', output: 'vkd3d_build.h', copy: true)",
+    text,
+    count=1,
+)
+if n != 1:
+    raise SystemExit(f"failed to rewrite vcs_tag, n={n}")
+(root / "vkd3d_build.h.in").write_text(
+    "#include <stdint.h>\n\nstatic const uint64_t vkd3d_build = 0x3e5aab6fb3e18f81ull;\n"
+)
+mb.write_text(newt)
+print("rewrote isolated meson.build vcs_tag")
+PY
 fi
 
 meson_args=(
@@ -161,11 +146,10 @@ cat > "$OUTPUT_ROOT/manifest.json" <<EOF
 {
   "schemaVersion": 1,
   "profile": "limited-500k",
-  "defaultEnabled": true,
+  "defaultEnabled": false,
   "architecture": "x86_64-windows",
   "version": "2.6",
   "upstreamCommit": "$base_commit",
-  "buildId": "$deterministic_build_id",
   "patchSeriesHead": "$patch_head",
   "patchSeriesSha256": "$patch_series_sha",
   "maximumShaderVisibleResourceDescriptors": 500000,
@@ -178,8 +162,5 @@ cat > "$OUTPUT_ROOT/manifest.json" <<EOF
   }
 }
 EOF
-
-winehua_cache_write "$CACHE_MANIFEST" "$CACHE_COMPONENT" "$CACHE_INPUT_KEY" \
-    "${CACHE_ARTIFACTS[@]}" || err "failed to record VKD3D-Proton content cache"
 
 log "VKD3D-Proton ready: base=${base_commit:0:8} patch=${patch_head:0:8} dll=$dll_sha"

@@ -1,16 +1,14 @@
-#include "wine/wine_env.h"
-#include "wine/env_spec.h"
-#include "wine/wine_constants.h"
+#include "wine_env.h"
+#include "wine_scheme.h"
+#include "wine_constants.h"
 #include "audio/audio_broker.h"
-#include "common/app_log.h"
-#include "protocols/audio_ipc_protocol.h"
+#include "audio_ipc_protocol.h"
+#include "env_spec.h"
 #include "graphics/graphics_broker.h"
-#include "graphics/graphics_profile.h"
 #include "compositor/wayland_server.h"
 #include "input/controller/controller_runtime.h"
 
 #include <unistd.h>
-#include <cstdlib>
 #include <algorithm>
 #include <cstring>
 #include <string>
@@ -22,27 +20,29 @@
 #define LOG_TAG "WL_NAPI"
 #include <hilog/log.h>
 
-#ifndef __aarch64__
-namespace {
-constexpr const char* X86_BUNDLED_GUEST_GFX_DIR = "/data/storage/el1/bundle/libs/x86_64";
-}
+#ifdef __aarch64__
+static constexpr const char kNativeLibDirName[] = "arm64";
+#else
+static constexpr const char kNativeLibDirName[] = "x86_64";
 #endif
 
-namespace {
-
-// 设置页 "Windows 系统语言" 的取值白名单 (ArkTS WineLanguage 枚举)。
-// Wine 的 ntdll 用这套 unix locale 反查 LCID / ACP:
-//   zh_CN → 0x0804 / ACP 936    zh_TW → 0x0404 / ACP 950
-//   ja_JP → 0x0411 / ACP 932    en_US → 0x0409 / ACP 1252
-// 未知值一律回中文, 避免把任意字符串拼进 LANG 造成解析失败。
-std::string WineLocaleFor(const std::string& wineLang) {
-    if (wineLang == "en_US" || wineLang == "ja_JP" ||
-        wineLang == "zh_CN" || wineLang == "zh_TW")
-        return wineLang;
-    return "zh_CN";
+static std::string BundleNativeLibsDir()
+{
+    return std::string("/data/storage/el1/bundle/libs/") + kNativeLibDirName;
 }
 
-}  // namespace
+static std::string UnixlibSearchPath(const std::string& binDir)
+{
+    return binDir + "/" WINE_UNIX_SUBDIR ":" + BundleNativeLibsDir();
+}
+
+static std::string BuiltinWineDllPath(const std::string& binDir)
+{
+    return binDir + "/" WINE_PE_SUBDIR ":" +
+           binDir + "/i386-windows:" +
+           binDir + ":" +
+           UnixlibSearchPath(binDir);
+}
 
 int CreateAudioBootstrapFd(const std::string& runtimeDir) {
     if (!winehua::AudioBroker::GetInstance().EnsureStarted(runtimeDir)) {
@@ -66,77 +66,112 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
                                       const std::string& homeDir,
                                       const std::string& prefixDir,
                                       const std::string& wineLang) {
-    std::string runtimeLibPath = binDir + ":" + binDir + "/x86_64-unix:" + binDir + "/../lib/x86_64";
+    (void)libPath;
+    LogWineScheme("BuildWineEnv");
+    // 库搜索路径基座 (不含 el1)。方案①③ 的系统 linker 路径 (runtimeLibPath) 在其后
+    // 追加 el1 bundle libs; 方案② (box64+wine) 的 BOX64_LD_LIBRARY_PATH 不含 el1
+    // arm64 目录 (x86_64 搜索路径里放 arm64 库无意义, 与基线 b6c65a0 一致)。
+    std::string libPathBase = binDir + ":" + binDir + "/" WINE_UNIX_SUBDIR;
     winehua::GraphicsBackendState graphicsState = winehua::GraphicsBroker::GetInstance().GetState();
     std::string guestReceiverLibDir;
     bool useGuestReceiverRuntime = graphicsState.active == winehua::GraphicsBackend::Virgl;
 
     if (useGuestReceiverRuntime && graphicsState.guestReceiverPresent && !graphicsState.guestReceiverRuntimeDir.empty()) {
-#ifdef __aarch64__
         guestReceiverLibDir = graphicsState.guestReceiverRuntimeDir + "/lib";
-#else
-        const std::string bundledGuestLibDir = X86_BUNDLED_GUEST_GFX_DIR;
-        if (access((bundledGuestLibDir + "/libwinehua_guest_EGL.so").c_str(), R_OK) == 0 &&
-            access((bundledGuestLibDir + "/libgallium-25.0.1.so").c_str(), R_OK) == 0) {
-            guestReceiverLibDir = bundledGuestLibDir;
-        } else {
-            guestReceiverLibDir = graphicsState.guestReceiverRuntimeDir + "/lib";
-        }
-#endif
         if (access(guestReceiverLibDir.c_str(), F_OK) == 0) {
-            runtimeLibPath = guestReceiverLibDir + ":" + runtimeLibPath;
+            libPathBase = guestReceiverLibDir + ":" + libPathBase;
+        } else {
+            guestReceiverLibDir.clear();
         }
     }
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    /* Harmony musl may reject the entire LD_LIBRARY_PATH when it contains
+     * el2 data-area dirs (check ns accessible failed). el2 libvulkan.so.1
+     * can also open() then fail mmap, which skips later el1 entries.
+     * Guest GL/Vulkan .so are already copied to HAP native libs; keep
+     * native dlopen on that el1 directory only. WINEDLLPATH still lists
+     * el2 Wine PE/unix dirs because ntdll opens those by full path. */
+    const std::string runtimeLibPath = BundleNativeLibsDir();
+#else
+    std::string runtimeLibPath = libPathBase + ":" + BundleNativeLibsDir();
+#endif
 
-    const std::string prefix = prefixDir.empty() ? std::string(WINE_PREFIX) : prefixDir;
-    std::vector<std::string> env = winehua::BuildWineBaselineLines({binDir, homeDir, prefix});
-    env.insert(env.begin(), {
+    // ==== Layer 0: 硬基线 ====
+    // 分歧键 (合成器 socket 参数) 主进程侧自行给定; 公共键与子进程
+    // setup_wine_env 同一张表 (wine_env_baseline.h), 增键只改一处。
+    // NOTE: WINEDLLDIR0/1, WINEDLLPATH 在 DXVK 路径下会被 AppendD3dBackendEnv 覆盖
+    std::vector<std::string> env = {
         "XDG_RUNTIME_DIR=" + sockDir,
         "WAYLAND_DISPLAY=" + sockName,
-    });
-    /* Front-load WHGP so NativeChildProcess truncation cannot drop it. */
-    winehua::controller::EnsureBridgeForWineLaunch(prefix);
+    };
+    {
+        std::vector<std::string> baseline = winehua::BuildWineBaselineLines(
+            {binDir, homeDir, prefixDir});
+        env.insert(env.end(), baseline.begin(), baseline.end());
+    }
+    // Start the WHGP socket before spawning Wine and keep its contract near
+    // the front of the NCP environment list.
+    winehua::controller::EnsureBridgeForWineLaunch(prefixDir);
     winehua::controller::AppendWineGamepadEnv(env);
     // locale / GStreamer 插件路径。WINEDEBUG 不在此注入: 本列表经 __env 通道
     // 下发, 在 wine 侧晚于 setup_wine_env 应用, 会盖掉 select_winedebug_profile
     // 的选择 — wine 进程 WINEDEBUG 的唯一决策点是 wine_child.cpp。
-    const std::string locale = WineLocaleFor(wineLang);
-    env.push_back("LANG=" + locale + ".UTF-8");
+    env.push_back("LANG=" + wineLang + ".UTF-8");
     // OHOS musl 无 locale 数据, setlocale 激活失败返回 "C";
     // Wine 的 unix_to_win_locale 遇 "C" 只读 LC_ALL 兜底 (ntdll/unix/env.c),
-    // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (见 WineLocaleFor),
-    // 与 LANG 同取设置页 wineLang (zh_CN / zh_TW / ja_JP / en_US)。
-    env.push_back("LC_ALL=" + locale + ".UTF-8");
+    // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (0x0804 zh-CN),
+    // 与 LANG 同取设置页 wineLang (zh_CN/en_US)
+    env.push_back("LC_ALL=" + wineLang + ".UTF-8");
     // winegstreamer 运行时加载 GStreamer 插件 (gst-plugins-base/good/libav)
-    env.push_back("GST_PLUGIN_PATH=" + binDir + "/x86_64-unix/gstreamer-1.0");
-    env.push_back("GST_PLUGIN_SYSTEM_PATH=" + binDir + "/x86_64-unix/gstreamer-1.0");
+    env.push_back("GST_PLUGIN_PATH=" + binDir + "/" WINE_UNIX_SUBDIR "/gstreamer-1.0");
+    env.push_back("GST_PLUGIN_SYSTEM_PATH=" + binDir + "/" WINE_UNIX_SUBDIR "/gstreamer-1.0");
+    // ==== Layer 1: Box64 性能调优 (仅方案②有实际消费者, 键值表见 wine_env_baseline.h) ====
+    // NOTE: BOX64_DYNAREC_WEAKBARRIER=2 在桌面 DXVK 下会被 AppendStableDxvkEnv 覆盖为 0
     winehua::AppendBox64PerfStrings(env);
-#ifdef __aarch64__
-    env.push_back("LD_LIBRARY_PATH=" + libPath);
-    env.push_back("BOX64_LD_LIBRARY_PATH=" + runtimeLibPath);
+    // ==== Layer 2: 运行时库路径 ====
+    // NOTE: BOX64_LD_LIBRARY_PATH 在 DXVK 路径下会被 AppendD3dBackendEnv 覆盖
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    // 方案② (box64 宿主): LD_LIBRARY_PATH 只含 arm64 原生系统库; x86_64 wine/guest
+    // .so 由 box64 的 BOX64_LD_LIBRARY_PATH 加载 (不含 el1 arm64 目录 — x86_64
+    // 搜索路径里放 arm64 库无意义)。
+    env.push_back("LD_LIBRARY_PATH=/data/app/bin:/usr/local/lib:/system/lib64/module:/system/lib64");
+    env.push_back("BOX64_LD_LIBRARY_PATH=" + libPathBase);
 #else
+    // ==== Layer 2: 运行时库路径 (方案①③: Wine 与设备同架构, 系统 linker 加载) ====
     env.push_back("LD_LIBRARY_PATH=" + runtimeLibPath);
 #endif
+    // ==== Layer 3: 音频 bootstrap (条件) ====
     if (audioBootstrapFd >= 0) {
         env.push_back("WINE_OHOS_AUDIO_ENABLE=1");
         env.push_back("WINE_OHOS_AUDIO_BOOTSTRAP_FD=" + std::to_string(audioBootstrapFd));
         env.push_back("WINE_OHOS_AUDIO_PROTOCOL_VERSION=" + std::to_string(WINEHUA_AUDIO_PROTOCOL_VERSION));
     }
+    // ==== Layer 4: 桌面模式标记 ====
     winehua::GraphicsBroker::GetInstance().SetWineRuntimeBinaryDir(binDir);
-    // Layer 4: 窗口模式。与 master 同层; 取值只来自 WindowingModeFor。
-    // NOTE: 桌面模式下 wine_child 仍可通过 __winehua_desktop__ token 设 DESKTOP_MODE=1 (冗余保险)
-    winehua::AppendWindowingModeLines(env, WaylandServer::GetInstance()->IsDesktopMode());
+    // 告知 winewayland.drv 当前是桌面模式还是独立窗口模式
+    // NOTE: 桌面模式下 wine_child.cpp 也会通过 __winehua_desktop__ token 设置同值（冗余保险）
+    env.push_back(std::string("WINEHUA_DESKTOP_MODE=") +
+                  (WaylandServer::GetInstance()->IsDesktopMode() ? "1" : "0"));
+    // WINEHUA_SIMULATE_RESOLUTION: win32u per-process 模拟 ChangeDisplaySettings
+    // (记录游戏主动 CDS 请求的分辨率, 查询时返回 — DDraw 全屏游戏依赖)。
+    // 仅 PC 多窗口模式注入: Pad 模拟桌面 (RootCompositing) 由合成器缩放绘制,
+    // 不需要分辨率模拟。
+    if (!WaylandServer::GetInstance()->IsDesktopMode())
+        env.push_back("WINEHUA_SIMULATE_RESOLUTION=1");
+    // 相对模式 enter 静默校准 (方向 A) 启用开关: wine 侧只在显式 "1" 时启用。
+    // 默认注入 "1" (静默校准 = 默认行为, 三游戏验证通过); 排查问题时改 "0"
+    // (或删除本行 = 未设置) 回退硬件绝对移动路径。
+    env.push_back("WINEWAYLAND_ENTER_SILENT=1");
     // ==== Layer 5: 图形状态 ====
     // NOTE: BOX64_EMULATED_LIBS (ARM64) 在 DXVK 路径下会被 AppendD3dBackendEnv 覆盖
     winehua::GraphicsBroker::GetInstance().AppendWineEnv(env);
 
     OH_LOG_INFO(LOG_APP,
-                "[WineEnv] backend=%{public}s guestMode=%{public}s guestLib=%{public}s runtimeLibPath=%{public}s audio=%{public}d",
+                "[WineEnv] backend=%{public}s guestMode=%{public}s guestLib=%{public}s runtimeLibPath=%{public}s",
                 winehua::GraphicsBroker::BackendName(graphicsState.active),
                 graphicsState.guestReceiverMode.empty() ? "stock-egl" : graphicsState.guestReceiverMode.c_str(),
                 guestReceiverLibDir.empty() ? "(none)" : guestReceiverLibDir.c_str(),
-                runtimeLibPath.c_str(),
-                audioBootstrapFd >= 0 ? 1 : 0);
+                runtimeLibPath.c_str());
     return env;
 }
 
@@ -145,9 +180,8 @@ void UpsertEnvLine(std::vector<std::string>& env, const std::string& line)
     const size_t sep = line.find('=');
     if (sep == std::string::npos || sep == 0) return;
     const std::string key = line.substr(0, sep);
-    // 清理所有同 key 的旧条目, 然后追加新值 — 避免预填充 vector 上
-    // push_back 路径 (如 AppendProductDxvkEnv 覆盖 WEAKBARRIER) 产生重复 key。
-    // (与上游 bb617a4 收敛语义一致)
+    // 清理所有同 key 的旧条目, 然后追加新值 (与旧 UpsertEnv 行为一致,
+    // 避免 AppendStableDxvkEnv 等 push_back 路径产生重复 key)
     env.erase(std::remove_if(env.begin(), env.end(), [&](const std::string& existing) {
         return existing.compare(0, key.size(), key) == 0 &&
                existing.size() > key.size() && existing[key.size()] == '=';
@@ -155,135 +189,43 @@ void UpsertEnvLine(std::vector<std::string>& env, const std::string& line)
     env.push_back(line);
 }
 
-static bool EnvHasKey(const std::vector<std::string>& env, const char* key)
+void AppendVulkanRuntimeEnv(std::vector<std::string>& env,
+                            const std::string& binDir)
 {
-    if (!key || !key[0]) return false;
-    const size_t length = std::strlen(key);
-    for (const std::string& line : env) {
-        if (line.size() > length && line.compare(0, length, key) == 0 &&
-            line[length] == '=')
-            return true;
-    }
-    return false;
-}
-
-void AppendD3dBackendEnv(std::vector<std::string>& env,
-                         const std::string& d3dBackend,
-                         const std::string& binDir)
-{
-    const winehua::D3dBackendKind backend = winehua::ParseD3dBackend(d3dBackend);
-    if (backend == winehua::D3dBackendKind::WineD3d) {
-        const std::vector<std::string> managed = {
-            "WINEHUA_D3D_BACKEND=wined3d",
-            /* Compatibility mode must be deterministic even when a game
-             * directory contains a copied DXVK DLL. Wine's built-in D3D
-             * modules render through WineD3D -> OpenGL -> VirGL. */
-            "WINEDLLOVERRIDES=d3d8=b;d3d9=b;d3d10core=b;d3d10=b;d3d10_1=b;d3d11=b;dxgi=b",
-        };
-        for (const std::string& line : managed) UpsertEnvLine(env, line);
-        return;
-    }
-    if (!winehua::IsDxvkBackend(backend)) return;
-
-    winehua::DxvkRuntimeProfile dxvkRuntime;
-    if (!winehua::ResolveDxvkRuntimeProfile(backend, &dxvkRuntime)) return;
-    const std::string runtimeProfile(dxvkRuntime.directory);
-    const std::string overlayRoot = std::string(WINE_RUNTIME_ROOT) +
-        "/dxvk/" + runtimeProfile;
-    const std::string overlay64 = overlayRoot + "/x64";
-    const std::string overlay86 = overlayRoot + "/x86";
     const std::string guestVulkanRoot = binDir + "/guest_vulkan";
-    const std::string guestVulkanLib = guestVulkanRoot + "/lib";
     const std::string guestVulkanIcd = guestVulkanRoot +
-        "/share/vulkan/icd.d/venus_icd.x86_64.json";
+        "/share/vulkan/icd.d/venus_icd." WINE_WINE_ARCH ".json";
+
+    UpsertEnvLine(env, "WINEHUA_VULKAN_RUNTIME=1");
+    UpsertEnvLine(env, "WINEHUA_VULKAN_LOADER_ARCH=" WINE_WINE_ARCH);
+    UpsertEnvLine(env, "WINEHUA_VENUS_ICD_ARCH=" WINE_WINE_ARCH);
+    UpsertEnvLine(env, "VN_DEBUG=vtest");
+    UpsertEnvLine(env,
+        "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring");
+    UpsertEnvLine(env, "VN_WINEHUA_STRONG_RING_BARRIER=1");
+    UpsertEnvLine(env, "VN_WINEHUA_REMOTE_MEMORY_SYNC=1");
+
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    const std::string guestVulkanLib = guestVulkanRoot + "/lib";
     const std::string box64LibraryPath = guestVulkanLib + ":" +
         binDir + "/guest_gfx/lib:" + binDir + ":" +
-        binDir + "/x86_64-unix:" + std::string(WINE_RUNTIME_ROOT) + "/lib/x86_64";
-    const std::string wineDllPath = overlay64 + ":" + overlay86 + ":" +
-        binDir + "/x86_64-windows:" + binDir + "/i386-windows:" + binDir;
-
-    const std::vector<std::string> managed = {
-        "WINEHUA_D3D_BACKEND=" + d3dBackend,
-        "WINEHUA_DXVK_ROOT=" + overlayRoot,
-        "WINEHUA_DXVK_PROFILE=" + runtimeProfile,
-        "WINEHUA_DXVK_VERSION=" + std::string(dxvkRuntime.version),
-        "WINEHUA_VULKAN_RUNTIME=1",
-        "WINEHUA_VULKAN_LOADER_ARCH=x86_64",
-        "WINEHUA_VENUS_ICD_ARCH=x86_64",
-#ifdef __aarch64__
-        "USE_LIBBOX64=1",
+        binDir + "/" WINE_UNIX_SUBDIR + ":" +
+        std::string(WINE_RUNTIME_ROOT) + "/lib/x86_64";
+    UpsertEnvLine(env, "USE_LIBBOX64=1");
+    UpsertEnvLine(env, "BOX64_LD_LIBRARY_PATH=" + box64LibraryPath);
+    UpsertEnvLine(env,
+        "BOX64_EMULATED_LIBS=libvulkan.so:libvulkan.so.1:"
+        "libEGL.so:libEGL.so.1:libGLESv2.so:libGLESv2.so.2:"
+        "libwayland-client.so:libwayland-client.so.0:libdrm.so:libdrm.so.2:libffi.so:libffi.so.8");
 #endif
+
 #ifdef __aarch64__
-        "BOX64_LD_LIBRARY_PATH=" + box64LibraryPath,
-        "BOX64_EMULATED_LIBS=" + Box64EmulatedLibs(),
+    if (access(guestVulkanIcd.c_str(), F_OK) == 0)
 #endif
-        "VK_DRIVER_FILES=" + guestVulkanIcd,
-        "VK_ICD_FILENAMES=" + guestVulkanIcd,
-        "VN_DEBUG=vtest",
-        /* DX9 仍走 Wine 内建 WineD3D → OpenGL → VirGL。
-         * legacy DXVK 1.10.3 自带 d3d10/d3d10_1/d3d10core, 必须整套纯 native
-         * (`=n`, 不能 `n,b`): builtin d3d10core 要调 DXVK dxgi 没有的
-         * DXGID3D10CreateDevice, 再叠加 dxgi=n 会直接 abort
-         * (WarThunderLauncher)。modern 2.x 已移除 d3d10, 只接管 D3D11。 */
-        "WINEDLLOVERRIDES=" + std::string(
-            backend == winehua::D3dBackendKind::DxvkModern26
-                ? "d3d11=n;dxgi=n"
-                : "d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n"),
-        "WINEDLLPATH=" + wineDllPath,
-        "WINEDLLDIR0=" + overlay64,
-        "WINEDLLDIR1=" + overlay86,
-        /* Keep the Wine PE directories contiguous after the DXVK overlays.
-         * ntdll stops scanning at the first missing WINEDLLDIR index. */
-        "WINEDLLDIR2=" + binDir + "/x86_64-windows",
-        "WINEDLLDIR3=" + binDir + "/i386-windows",
-        "WINEDLLDIR4=" + binDir,
-    };
-    for (const std::string& line : managed) UpsertEnvLine(env, line);
-
-    /* Product DXVK sessions also expose VKD3D-Proton for D3D12. Keep the
-     * existing 3-arg signature: there is no separate render-mode button.
-     *
-     * WINEDLLDIR0 stays the DXVK overlay (d3d11/dxgi). d3d12.dll is loaded
-     * from WINEDLLPATH. Do not copy it into DIR0 (stray d3d12 next to d3d11
-     * made cube's first present white) and do not set
-     * VN_WINEHUA_DIRECT_FENCE_WAIT on the shared session — that flag
-     * deadlocks Venus when cube and gears share one ring (cube 0.4 FPS,
-     * gears white/stuck). GPU_UPLOAD=0 stays vkd3d-prefixed only. */
-    const std::string vkd3dRoot = std::string(WINE_RUNTIME_ROOT) +
-        "/vkd3d/limited-500k";
-    const std::string vkd3d64 = vkd3dRoot + "/x64";
-    if (access((vkd3d64 + "/d3d12.dll").c_str(), R_OK) == 0) {
-        const std::string overlayD3d12 = overlay64 + "/d3d12.dll";
-        if (access(overlayD3d12.c_str(), F_OK) == 0 &&
-            unlink(overlayD3d12.c_str()) == 0) {
-            OH_LOG_INFO(LOG_APP,
-                "[D3D] removed staged d3d12.dll from DXVK overlay %{public}s",
-                overlay64.c_str());
-        }
-        const std::string wineDllPathWithVkd3d = vkd3d64 + ":" + wineDllPath;
-        const std::vector<std::string> vkd3dOverlay = {
-            "WINEHUA_VKD3D_ROOT=" + vkd3dRoot,
-            "WINEHUA_VKD3D_PROFILE=limited-500k",
-            "WINEHUA_VKD3D_VERSION=2.6",
-            "VKD3D_WINEHUA_GPU_UPLOAD=0",
-            "WINEDLLOVERRIDES=" + std::string(
-                backend == winehua::D3dBackendKind::DxvkModern26
-                    ? "d3d12=n;d3d11=n;dxgi=n"
-                    : "d3d12=n;d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n"),
-            "WINEDLLPATH=" + wineDllPathWithVkd3d,
-        };
-        for (const std::string& line : vkd3dOverlay) UpsertEnvLine(env, line);
+    {
+        UpsertEnvLine(env, "VK_DRIVER_FILES=" + guestVulkanIcd);
+        UpsertEnvLine(env, "VK_ICD_FILENAMES=" + guestVulkanIcd);
     }
-
-    if (dxvkRuntime.relaxedFeatureCompatibility) {
-        UpsertEnvLine(env, "WINEHUA_DXVK_RELAXED_FEATURES=1");
-        /* Prefer the native RGBA8 SNORM render-target path. On devices such
-         * as Maleoon where sampling is supported but color attachment usage
-         * is not, DXVK may substitute its qualified RGBA16F backing image. */
-        UpsertEnvLine(env, "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT=auto");
-    }
-    if (dxvkRuntime.commandQueryReset)
-        UpsertEnvLine(env, "DXVK_WINEHUA_COMMAND_QUERY_RESET=1");
 }
 
 void AppendD3dBackendEnv(std::vector<std::string>& env,
@@ -291,160 +233,317 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
                          const std::string& dxvkBackend,
                          const std::string& binDir)
 {
-    if (winehua::ParseD3dBackend(d3dBackend) ==
-        winehua::D3dBackendKind::Vkd3dLimited500k) {
-        // Product qualification binds VKD3D to the modern DXGI companion.
-        // Keep the upstream field visible in diagnostics while retaining that
-        // single Native policy instead of accepting an unqualified pairing.
-        if (!dxvkBackend.empty() && dxvkBackend != "dxvk_modern_2_6") {
-            OH_LOG_WARN(LOG_APP,
-                        "[D3D] product VKD3D overrides requested DXVK=%{public}s with modern-2.6",
-                        dxvkBackend.c_str());
+    if (d3dBackend == "vkd3d_limited_500k")
+    {
+        OH_LOG_WARN(LOG_APP, "[WineEnv] VKD3D profile is packaged but disabled");
+        return;
+    }
+    if (d3dBackend == "vkd3d_limited_500k")
+    {
+        const bool modern26 = dxvkBackend == "dxvk_modern_2_6";
+        const std::string dxvkRuntimeProfile = modern26 ? "modern-2.6" : "legacy";
+        const std::string overlayRoot = std::string(WINE_RUNTIME_ROOT) +
+            "/vkd3d/limited-500k";
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+        // 方案③ arm64 原生 wine + FEX: d3d12.dll 走 ARM64X 双图 (FEX native view)
+        const std::string overlay64 = overlayRoot + "/arm64x";
+#else
+        const std::string overlay64 = overlayRoot + "/x64";
+#endif
+        const std::string dxvkRoot = std::string(WINE_RUNTIME_ROOT) +
+            "/dxvk/" + dxvkRuntimeProfile;
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+        // 方案③ arm64 原生 wine + FEX: x64 guest 的 d3d11/dxgi 走 ARM64X 双图
+        // DLL (FEX native view 执行), 不再逐条 x64 指令转译
+        const std::string dxvk64 = dxvkRoot + "/arm64x";
+#else
+        const std::string dxvk64 = dxvkRoot + "/x64";
+#endif
+        const std::string dxvk86 = dxvkRoot + "/x86";
+        const std::string guestVulkanRoot = binDir + "/guest_vulkan";
+        const std::string guestVulkanLib = guestVulkanRoot + "/lib";
+        const std::string guestVulkanIcd = guestVulkanRoot +
+            "/share/vulkan/icd.d/venus_icd." WINE_WINE_ARCH ".json";
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+        // 方案② box64+wine: box64 的 x86_64 guest 库搜索路径 (wine .so + guest gfx/vulkan)
+        const std::string box64LibraryPath = guestVulkanLib + ":" +
+            binDir + "/guest_gfx/lib:" + binDir + ":" +
+            binDir + "/" WINE_UNIX_SUBDIR ":" + std::string(WINE_RUNTIME_ROOT) +
+            "/lib/x86_64";
+#endif
+        /* Keep VKD3D first for d3d12, then the independently selected DXVK
+         * overlays for d3d11/dxgi. The Wine loader gives both overlay
+         * families priority over an application's private DLL directory. */
+        const std::string wineDllPath = overlay64 + ":" + dxvk64 + ":" +
+            dxvk86 + ":" + BuiltinWineDllPath(binDir);
+        const std::vector<std::string> managed = {
+            "WINEHUA_D3D_BACKEND=" + d3dBackend,
+            "WINEHUA_VKD3D_ROOT=" + overlayRoot,
+            "WINEHUA_VKD3D_PROFILE=limited-500k",
+            "WINEHUA_VKD3D_VERSION=2.6",
+            "WINEHUA_DXVK_ROOT=" + dxvkRoot,
+            "WINEHUA_DXVK_PROFILE=" + dxvkRuntimeProfile,
+            "WINEHUA_DXVK_VERSION=" + std::string(modern26 ? "2.6.2" : "1.10.3"),
+            /* Product sessions use the qualified precise mapping contract
+             * without enabling the Gate C trace selector. Direct fence waits
+             * remain enabled explicitly below. */
+            "WINEHUA_PERF_PROFILE=shadow-precise",
+            "WINEHUA_VULKAN_RUNTIME=1",
+            "WINEHUA_VULKAN_LOADER_ARCH=" WINE_WINE_ARCH,
+            "WINEHUA_VENUS_ICD_ARCH=" WINE_WINE_ARCH,
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+            /* 方案② 才注入 box64 桥接 env (曾用 #ifdef __aarch64__, 方案③
+             * 误带 USE_LIBBOX64 → ntdll ohos_broker_spawn_child 省 "|wine"
+             * loader token → wine 内部子进程 (winehua_keep 等) __wine_main
+             * argc=1 打印 Usage 秒退 → explorer GUI 线程卡死 → 桌面白屏) */
+            "USE_LIBBOX64=1",
+            "BOX64_LD_LIBRARY_PATH=" + box64LibraryPath,
+            "BOX64_EMULATED_LIBS=libvulkan.so:libvulkan.so.1:"
+                "libEGL.so:libEGL.so.1:libGLESv2.so:libGLESv2.so.2:"
+                "libGLESv1_CM.so:libGLESv1_CM.so.1:libGL.so:libGL.so.1:"
+                "libwayland-client.so:libwayland-client.so.0:libwayland-server.so:"
+                "libwayland-server.so.0:libwayland-egl.so:libwayland-egl.so.1:"
+                "libdrm.so:libdrm.so.2:libffi.so:libffi.so.8:"
+                "libglib-2.0.so:libglib-2.0.so.0:"
+                "libgobject-2.0.so:libgobject-2.0.so.0:"
+                "libgio-2.0.so:libgio-2.0.so.0:"
+                "libgmodule-2.0.so:libgmodule-2.0.so.0:"
+                "libgstreamer-1.0.so:libgstreamer-1.0.so.0:"
+                "libgstbase-1.0.so:libgstbase-1.0.so.0:"
+                "libgstvideo-1.0.so:libgstvideo-1.0.so.0:"
+                "libgstaudio-1.0.so:libgstaudio-1.0.so.0:"
+                "libgsttag-1.0.so:libgsttag-1.0.so.0:"
+                "libgstpbutils-1.0.so:libgstpbutils-1.0.so.0:"
+                "libgstallocators-1.0.so:libgstallocators-1.0.so.0:"
+                "libgstapp-1.0.so:libgstapp-1.0.so.0:"
+                "libgstcontroller-1.0.so:libgstcontroller-1.0.so.0:"
+                "libgstfft-1.0.so:libgstfft-1.0.so.0:"
+                "libgstnet-1.0.so:libgstnet-1.0.so.0:"
+                "libgstriff-1.0.so:libgstriff-1.0.so.0:"
+                "libgstrtp-1.0.so:libgstrtp-1.0.so.0:"
+                "libgstrtsp-1.0.so:libgstrtsp-1.0.so.0:"
+                "libgstsdp-1.0.so:libgstsdp-1.0.so.0:"
+                "libgstcodecparsers-1.0.so:libgstcodecparsers-1.0.so.0:"
+                "libgstmpegts-1.0.so:libgstmpegts-1.0.so.0:"
+                "libxml2.so:libxml2.so.2:libz.so:libz.so.1",
+            "BOX64_DYNAREC_WEAKBARRIER=0",
+#endif
+#ifdef __aarch64__
+            // arm64 宿主 (方案②③): venus ICD 是否打包由下方 for 循环后运行时检测
+#else
+            "VK_DRIVER_FILES=" + guestVulkanIcd,
+            "VK_ICD_FILENAMES=" + guestVulkanIcd,
+#endif
+            "VN_DEBUG=vtest",
+            /* no_semaphore_feedback 必须始终带: venus semaphore feedback 在 vtest
+             * 下会 stuck in semaphore wait (iter 1024) → d3d12 白屏。此开关
+             * 不能跟随 dxvk 档位 (modern26) 派生 — 曾默认 vkd3d+dxvk_legacy
+             * 组合下白屏、先切 dxvk2.6 再切回 vkd3d 才正常 (残留档位掩盖了 bug)。 */
+            "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring",
+            "VN_WINEHUA_STRONG_RING_BARRIER=1",
+            "VN_WINEHUA_REMOTE_MEMORY_SYNC=1",
+            /* VN_WINEHUA_PERSISTENT_MAP_SYNC 两难（2026-09-18 实测）：
+             * vkd3d 常驻 map 上传（Map 后每帧直写、无 Unmap，如 gears 的
+             * instance buffer）必须靠它发布，去掉后 D3D12 渲染不出图；
+             * 但它每次队列提交前整段 to-host flush 会破坏 DXVK 的 staging
+             * 回读（compute UAV 拿旧数据）。500k 档两种消费者共用档位
+             * env，先保 D3D12 出图。 */
+            "VN_WINEHUA_PERSISTENT_MAP_SYNC=1",
+            "VN_WINEHUA_DIRECT_FENCE_WAIT=1",
+            "VKR_WINEHUA_SHADOW_FROM_HOST=precise",
+            "VKD3D_WINEHUA_FORCE_COHERENT_MAP_SYNC=1",
+            /* vulkan-1=b 必须带: 本运行时的 venus ICD 是 OHOS 侧 .so
+             * (libvulkan_virtio.so), 只有 Wine 的 winevulkan 加载器能解析。
+             * 缺这一项时, exe 同目录里的原生 loader (Steam CEF 自带
+             * cef.win64\vulkan-1.dll) 会被优先探测并导致 DXVK 的
+             * vkCreateInstance 失败 (见 wine_child.cpp 的遮蔽自愈)。 */
+            "WINEDLLOVERRIDES=d3d12=n;d3d11=n;dxgi=n;vulkan-1=b",
+            "WINEDLLPATH=" + wineDllPath,
+            "WINEDLLDIR0=" + overlay64,
+            "WINEDLLDIR1=" + dxvk64,
+            "WINEDLLDIR2=" + dxvk86,
+            /* ntdll stops scanning WINEDLLDIRn at the first missing index.
+             * Keep Wine's PE runtime directories contiguous after the D3D
+             * overlays so their imports can still resolve system DLLs. */
+            "WINEDLLDIR3=" + binDir + "/" WINE_PE_SUBDIR,
+            "WINEDLLDIR4=" + binDir + "/i386-windows",
+            "WINEDLLDIR5=" + binDir,
+        };
+        for (const std::string& line : managed) UpsertEnvLine(env, line);
+#ifdef __aarch64__
+        // arm64 宿主: 若对应架构 venus ICD 已打包 (guest_vulkan bundle 存在
+        // icd json) 则走 venus→vtest 硬件加速; 否则回退宿主 Vulkan。
+        if (access(guestVulkanIcd.c_str(), F_OK) == 0)
+        {
+            UpsertEnvLine(env, "VK_DRIVER_FILES=" + guestVulkanIcd);
+            UpsertEnvLine(env, "VK_ICD_FILENAMES=" + guestVulkanIcd);
         }
-        AppendVkd3dDemoPresentEnv(env, d3dBackend, binDir);
+#endif
+        if (!modern26)
+        {
+            const std::vector<std::string> legacyCompatibility = {
+                "WINEHUA_DXVK_RELAXED_FEATURES=1",
+                "DXVK_WINEHUA_COMMAND_QUERY_RESET=1",
+                "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1",
+                "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT=auto",
+                "DXVK_WINEHUA_BATCH_MAPPED_FLUSH=1",
+            };
+            for (const std::string& line : legacyCompatibility) UpsertEnvLine(env, line);
+        }
         return;
     }
-    AppendD3dBackendEnv(env, d3dBackend, binDir);
-}
+    if (d3dBackend.rfind("dxvk_", 0) != 0) return;
 
-bool IsVkd3dSmokeDemo(const std::string& exePath)
-{
-    std::string lower = exePath;
-    for (char& c : lower) {
-        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-        if (c == '/') c = '\\';
-    }
-    const size_t slash = lower.find_last_of("\\/");
-    const std::string name = slash == std::string::npos ? lower : lower.substr(slash + 1);
-    if (name != "gears.exe" && name != "triangle.exe") return false;
-    return lower.find("smoke") != std::string::npos || lower == name;
-}
+    std::string profile = d3dBackend.substr(strlen("dxvk_"));
+    if (profile.empty()) profile = "legacy";
+    const bool legacy = profile == "legacy";
+    const bool modern26 = profile == "modern_2_6";
+    if (!legacy && !modern26) return;
+    const std::string runtimeProfile = modern26 ? "modern-2.6" : "legacy";
+    const std::string overlayRoot = std::string(WINE_RUNTIME_ROOT) +
+        "/dxvk/" + runtimeProfile;
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    // 方案③ arm64 原生 wine + FEX: x64 guest 的 d3d11/dxgi 走 ARM64X 双图
+    // DLL (FEX native view 执行), 不再逐条 x64 指令转译
+    const std::string overlay64 = overlayRoot + "/arm64x";
+#else
+    const std::string overlay64 = overlayRoot + "/x64";
+#endif
+    const std::string overlay86 = overlayRoot + "/x86";
+    const std::string guestVulkanRoot = binDir + "/guest_vulkan";
+    const std::string guestVulkanLib = guestVulkanRoot + "/lib";
+    const std::string guestVulkanIcd = guestVulkanRoot +
+        "/share/vulkan/icd.d/venus_icd." WINE_WINE_ARCH ".json";
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    // 方案② box64+wine: box64 的 x86_64 guest 库搜索路径 (wine .so + guest gfx/vulkan)
+    const std::string box64LibraryPath = guestVulkanLib + ":" +
+        binDir + "/guest_gfx/lib:" + binDir + ":" +
+        binDir + "/" WINE_UNIX_SUBDIR ":" +
+        std::string(WINE_RUNTIME_ROOT) + "/lib/x86_64";
+#endif
+    /* DXVK overlays must stay first so d3d11/dxgi resolve to the managed PE
+     * copies. Keep unixlib search dirs after that: wineohos.so is packaged in
+     * HAP native libs, not wine/bin/aarch64-unix, and ntdll redirects dll_dir
+     * to WINEUNIXDIR (wine/bin). Without these tails, mmdevapi cannot load
+     * wineohos.drv's unixlib and GetDefaultAudioEndpoint returns E_NOTFOUND. */
+    const std::string wineDllPath = overlay64 + ":" + overlay86 + ":" +
+        BuiltinWineDllPath(binDir);
 
-void AppendVkd3dDemoPresentEnv(std::vector<std::string>& env,
-                               const std::string& d3dBackend,
-                               const std::string& binDir)
-{
-    const winehua::D3dBackendKind selectedBackend =
-        winehua::ParseD3dBackend(d3dBackend);
-    winehua::DxvkRuntimeProfile dxvkRuntime;
-    if (!winehua::ResolveDxvkRuntimeProfile(
-            winehua::D3dBackendKind::Vkd3dLimited500k, &dxvkRuntime))
-        return;
-    if (selectedBackend != winehua::D3dBackendKind::DxvkModern26) {
-        OH_LOG_WARN(LOG_APP,
-                    "[D3D] vkd3d_limited_500k requires DXVK %{public}s DXGI "
-                    "(selected=%{public}s); using %{public}s",
-                    dxvkRuntime.version.data(), d3dBackend.c_str(),
-                    dxvkRuntime.directory.data());
-    }
-
-    const std::string runtimeProfile(dxvkRuntime.directory);
-    const std::string vkd3dRoot = std::string(WINE_RUNTIME_ROOT) +
-        "/vkd3d/limited-500k";
-    const std::string vkd3d64 = vkd3dRoot + "/x64";
-    if (access((vkd3d64 + "/d3d12.dll").c_str(), R_OK) != 0) return;
-
-    // Reuse the qualified modern DXVK/Venus transport setup, then put VKD3D
-    // first for d3d12. This also makes VKD3D smoke deterministic when the
-    // user's normal session backend is WineD3D or DXVK 1.10.
-    AppendD3dBackendEnv(env, "dxvk_modern_2_6", binDir);
-    std::vector<std::string> productGuestEnvironment;
-    if (!winehua::BuildProductGuestGraphicsEnvironment(
-            winehua::D3dBackendKind::Vkd3dLimited500k,
-            &productGuestEnvironment)) {
-        OH_LOG_ERROR(LOG_APP,
-                     "[D3D] failed to resolve VKD3D product graphics route");
-        return;
-    }
-    const std::string dxvk64 = std::string(WINE_RUNTIME_ROOT) + "/dxvk/" +
-        runtimeProfile + "/x64";
-    const std::string dxvk86 = std::string(WINE_RUNTIME_ROOT) + "/dxvk/" +
-        runtimeProfile + "/x86";
-
-    const std::string wineDllPath = vkd3d64 + ":" + dxvk64 + ":" + dxvk86 + ":" +
-        binDir + "/x86_64-windows:" + binDir + "/i386-windows:" + binDir;
-    /* Master 13236b5 vkd3d_limited_500k (qualified gears/triangle). Do not
-     * copy b2437a3 explorer-inject (PERSISTENT_MAP_SYNC=0 / FORCE_COHERENT=0 /
-     * GPU_UPLOAD=0): that presents a black rotating window. Cube stays on the
-     * DXVK DIR0 session; these overrides apply only to this process. */
-    env.erase(std::remove_if(env.begin(), env.end(), [](const std::string& existing) {
-        return existing.rfind("VKD3D_WINEHUA_GPU_UPLOAD=", 0) == 0;
-    }), env.end());
-    const std::vector<std::string> demo = {
-        "WINEHUA_D3D_BACKEND=vkd3d_limited_500k",
-        "WINEHUA_VKD3D_ROOT=" + vkd3dRoot,
-        "WINEHUA_VKD3D_PROFILE=limited-500k",
-        "WINEHUA_VKD3D_VERSION=2.6",
-        "WINEHUA_DXVK_ROOT=" + std::string(WINE_RUNTIME_ROOT) + "/dxvk/" + runtimeProfile,
-        "WINEHUA_DXVK_PROFILE=" + runtimeProfile,
-        "WINEHUA_DXVK_VERSION=" + std::string(dxvkRuntime.version),
-        "WINEDLLDIR0=" + vkd3d64,
-        "WINEDLLDIR1=" + dxvk64,
-        "WINEDLLDIR2=" + dxvk86,
-        "WINEDLLDIR3=" + binDir + "/x86_64-windows",
-        "WINEDLLDIR4=" + binDir + "/i386-windows",
-        "WINEDLLDIR5=" + binDir,
-        "WINEDLLPATH=" + wineDllPath,
-        "WINEDLLOVERRIDES=d3d12=n;d3d11=n;dxgi=n",
-        "VKR_WINEHUA_SHADOW_FROM_HOST=precise",
-    };
-    for (const std::string& line : demo) UpsertEnvLine(env, line);
-    for (const std::string& line : productGuestEnvironment)
-        UpsertEnvLine(env, line);
-    if (!EnvHasKey(env, "VN_WINEHUA_PERSISTENT_MAP_SYNC"))
-        UpsertEnvLine(env, "VN_WINEHUA_PERSISTENT_MAP_SYNC=1");
-    if (!EnvHasKey(env, "VKD3D_WINEHUA_FORCE_COHERENT_MAP_SYNC"))
-        UpsertEnvLine(env, "VKD3D_WINEHUA_FORCE_COHERENT_MAP_SYNC=1");
-    OH_LOG_INFO(LOG_APP,
-        "[D3D] vkd3d demo present DIR0=%{public}s route=product-vulkan "
-        "persistent=managed coherent=managed dxgi=%{public}s selected=%{public}s",
-        vkd3d64.c_str(), dxvkRuntime.version.data(), d3dBackend.c_str());
-}
-
-void AppendProductDxvkEnv(std::vector<std::string>& env,
-                          const std::string& d3dBackend,
-                          const std::string& graphicsExperiment)
-{
-    const winehua::D3dBackendKind backend = winehua::ParseD3dBackend(d3dBackend);
-    if (!winehua::IsDxvkBackend(backend)) return;
-
-    winehua::DxvkRuntimeProfile dxvkRuntime;
-    if (!winehua::ResolveDxvkRuntimeProfile(backend, &dxvkRuntime)) return;
-
-    std::vector<std::string> policyEnvironment;
-    const bool resolved = graphicsExperiment.empty()
-        ? winehua::BuildProductGuestGraphicsEnvironment(
-              backend, &policyEnvironment)
-        : winehua::BuildLabGuestGraphicsEnvironment(
-              graphicsExperiment, backend, &policyEnvironment);
-    if (!resolved) {
-        OH_LOG_ERROR(LOG_APP,
-                     "[D3D] rejected unresolved Guest graphics policy=%{public}s "
-                     "backend=%{public}s",
-                     graphicsExperiment.empty() ? "(product)" :
-                         graphicsExperiment.c_str(),
-                     d3dBackend.c_str());
-        return;
-    }
     const std::vector<std::string> managed = {
-        // Retain actionable DXVK failures without filling a user's game
-        // directory with the informational startup stream.
-        "DXVK_LOG_LEVEL=warn",
-        "DXVK_LOG_PATH=C:\\windows\\temp",
+        "WINEHUA_D3D_BACKEND=" + d3dBackend,
+        "WINEHUA_DXVK_ROOT=" + overlayRoot,
+        "WINEHUA_DXVK_PROFILE=" + runtimeProfile,
+        "WINEHUA_DXVK_VERSION=" + std::string(modern26 ? "2.6.2" : "1.10.3"),
+        "WINEHUA_VULKAN_RUNTIME=1",
+        "WINEHUA_VULKAN_LOADER_ARCH=" WINE_WINE_ARCH,
+        "WINEHUA_VENUS_ICD_ARCH=" WINE_WINE_ARCH,
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+        // 方案② box64+wine: box64 转译加载 x86_64 venus guest, 注入 box64 桥接 env
+        "USE_LIBBOX64=1",
+        "BOX64_LD_LIBRARY_PATH=" + box64LibraryPath,
+        "BOX64_EMULATED_LIBS=libvulkan.so:libvulkan.so.1:"
+            "libEGL.so:libEGL.so.1:libGLESv2.so:libGLESv2.so.2:"
+            "libGLESv1_CM.so:libGLESv1_CM.so.1:libGL.so:libGL.so.1:"
+            "libwayland-client.so:libwayland-client.so.0:libwayland-server.so:"
+            "libwayland-server.so.0:libwayland-egl.so:libwayland-egl.so.1:"
+            "libdrm.so:libdrm.so.2:libffi.so:libffi.so.8:"
+            // GStreamer 链 (winegstreamer): glib + gst core/base + bad/ugly 依赖库。
+            // box64 优先 dlopen 宿主 (aarch64 系统) 版本, 避免转译 glib 的
+            // TLS/原子/线程代码 (OHOS musl 下 box64 转译这些易崩); 宿主无则回退转译。
+            "libglib-2.0.so:libglib-2.0.so.0:"
+            "libgobject-2.0.so:libgobject-2.0.so.0:"
+            "libgio-2.0.so:libgio-2.0.so.0:"
+            "libgmodule-2.0.so:libgmodule-2.0.so.0:"
+            "libgstreamer-1.0.so:libgstreamer-1.0.so.0:"
+            "libgstbase-1.0.so:libgstbase-1.0.so.0:"
+            "libgstvideo-1.0.so:libgstvideo-1.0.so.0:"
+            "libgstaudio-1.0.so:libgstaudio-1.0.so.0:"
+            "libgsttag-1.0.so:libgsttag-1.0.so.0:"
+            "libgstpbutils-1.0.so:libgstpbutils-1.0.so.0:"
+            "libgstallocators-1.0.so:libgstallocators-1.0.so.0:"
+            "libgstapp-1.0.so:libgstapp-1.0.so.0:"
+            "libgstcontroller-1.0.so:libgstcontroller-1.0.so.0:"
+            "libgstfft-1.0.so:libgstfft-1.0.so.0:"
+            "libgstnet-1.0.so:libgstnet-1.0.so.0:"
+            "libgstriff-1.0.so:libgstriff-1.0.so.0:"
+            "libgstrtp-1.0.so:libgstrtp-1.0.so.0:"
+            "libgstrtsp-1.0.so:libgstrtsp-1.0.so.0:"
+            "libgstsdp-1.0.so:libgstsdp-1.0.so.0:"
+            // bad/ugly 插件依赖: videoparsersbad 需 codecparsers, mpegtsdemux 需 mpegts
+            "libgstcodecparsers-1.0.so:libgstcodecparsers-1.0.so.0:"
+            "libgstmpegts-1.0.so:libgstmpegts-1.0.so.0:"
+            "libxml2.so:libxml2.so.2:libz.so:libz.so.1",
+#endif
+#ifdef __aarch64__
+        // arm64 原生 wine: venus ICD 是否打包由下方 for 循环后运行时检测
+#else
+        "VK_DRIVER_FILES=" + guestVulkanIcd,
+        "VK_ICD_FILENAMES=" + guestVulkanIcd,
+#endif
+        "VN_DEBUG=vtest",
+        /* Host GPU writes to Venus feedback buffers are not automatically
+         * visible through WineHua's explicit Guest/Host shadow mapping.
+         * Query the real Host objects instead of polling stale Guest words. */
+        /* This Guest Mesa/Host virglrenderer runtime uses WineHua's remote
+         * shared-ring transport. Per-thread Venus rings can corrupt that
+         * transport (the Host decoder observes an invalid command length),
+         * so advertise the runtime capability here for every DXVK version.
+         * Re-enable multi-ring only after a replacement Venus runtime passes
+         * the x86/x64 command-stream qualification gate. */
+        "VN_PERF=" + std::string(modern26
+            ? "no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring"
+            : "no_fence_feedback,no_query_feedback,no_multi_ring"),
+        /* legacy 1.10.3 自带整套 DXVK d3d10 链 (d3d10/d3d10_1/d3d10core, 见
+         * scripts/assemble.sh), 用 D3D10 的程序必须整套走 native —— 且**不能**
+         * 写成 "n,b" 兜底: 一旦回退到 wine builtin 的 d3d10core, 它建设备要调
+         * dxgi 的私有导出 DXGID3D10CreateDevice (DXVK 的 dxgi 没有该导出, 又因
+         * dxgi=n 禁止回退 builtin) → import 解析失败直接 abort。两条链不兼容,
+         * builtin 兜底等于退回一条必崩的路 (实测 WarThunderLauncher: n,b 卡死,
+         * 纯 n 后正常出界面)。modern 2.x 已移除 d3d10, 不设。
+         *
+         * vulkan-1=b: 让 DXVK 走 winevulkan 而不是 exe 同目录的原生 loader。 */
+        "WINEDLLOVERRIDES=" + std::string(modern26
+            ? "d3d11=n;dxgi=n;vulkan-1=b"
+            : "d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n;vulkan-1=b"),
+        "VN_WINEHUA_REMOTE_MEMORY_SYNC=1",
+        "WINEDLLPATH=" + wineDllPath,
+        "WINEDLLDIR0=" + overlay64,
+        "WINEDLLDIR1=" + overlay86,
+        /* Preserve the contiguous Wine PE runtime search path after the
+         * selected DXVK overlays. */
+        "WINEDLLDIR2=" + binDir + "/" WINE_PE_SUBDIR,
+        "WINEDLLDIR3=" + binDir + "/i386-windows",
+        "WINEDLLDIR4=" + binDir,
     };
     for (const std::string& line : managed) UpsertEnvLine(env, line);
-    if (dxvkRuntime.batchMappedFlush) {
-        /* This capability is qualified by command-list ownership and
-         * continuous Heaven gates. Per-range statistics remain LAB-only. */
-        UpsertEnvLine(env, "DXVK_WINEHUA_BATCH_MAPPED_FLUSH=1");
-    }
-    for (const std::string& line : policyEnvironment) UpsertEnvLine(env, line);
+    OH_LOG_INFO(LOG_APP, "[WineEnv] DXVK WINEDLLPATH=%{public}s", wineDllPath.c_str());
 #ifdef __aarch64__
-    // BOX64 变量仅在 ARM64 生效; x86_64 主机设置它会破坏 broker entryParams。
-    UpsertEnvLine(env, "BOX64_DYNAREC_WEAKBARRIER=0");
+    // arm64: 若 aarch64 venus ICD 已打包 (guest_vulkan bundle 存在 icd json) 则 DXVK
+    // 走 venus→vtest 硬件加速; 否则回退宿主 Vulkan (旧 HAP / venus 未构建)。
+    if (access(guestVulkanIcd.c_str(), F_OK) == 0)
+    {
+        UpsertEnvLine(env, "VK_DRIVER_FILES=" + guestVulkanIcd);
+        UpsertEnvLine(env, "VK_ICD_FILENAMES=" + guestVulkanIcd);
+    }
 #endif
+    if (!legacy) return;
+
+    const std::vector<std::string> legacyCompatibility = {
+        "WINEHUA_DXVK_RELAXED_FEATURES=1",
+        "DXVK_WINEHUA_COMMAND_QUERY_RESET=1",
+        "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1",
+        /* Prefer the native RGBA8 SNORM render-target path. On devices such
+         * as Maleoon where sampling is supported but color attachment usage
+         * is not, DXVK may substitute its qualified RGBA16F backing image. */
+        "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT=auto",
+        "DXVK_WINEHUA_BATCH_MAPPED_FLUSH=1",
+    };
+    for (const std::string& line : legacyCompatibility) UpsertEnvLine(env, line);
 }
 
+// 迁移期 shim: 新代码请直接用 winehua::EnvSpec (env_spec.h)。
+// 序列化规则 (fd 变量禁入 / 不可编码字符过滤) 已收口到 env_spec.cpp;
+// fromLines 对同 key 行取最后值, 与子进程逐条 setenv 覆盖语义一致。
 std::string SerializeEnvToEntryParams(const std::vector<std::string>& env) {
     return winehua::EnvSpec::fromLines(env).serializeEntryParams();
 }

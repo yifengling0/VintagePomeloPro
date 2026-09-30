@@ -17,7 +17,7 @@
 #include <cstring>
 
 #include "protocols/winehua-toplevel-server-protocol.h"
-#include "compositor/wayland_server.h"
+#include "wayland_server.h"
 #include "compositor/frame/surface_data.h"
 #include "compositor/toplevel/toplevel_manager.h"
 #include "compositor/toplevel/toplevel_event_bus.h"

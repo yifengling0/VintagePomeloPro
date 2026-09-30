@@ -3,61 +3,28 @@
  *
  * 在主进程中运行，接收来自 spawn_process (ntdll.so) 的子进程创建请求。
  * 每个请求包含 entryParams 字符串 + N 个命名 fd (SCM_RIGHTS, 可选 FDS 命名行)。
- * Broker 在主进程上下文调用 OH_Ability_StartNativeChildProcess，
- * 从而绕过 appspawn 子进程中无法嵌套调用 NCP API 的限制。
+ * Broker 在主进程上下文调用 NCP API，从而绕过 appspawn 子进程中
+ * 无法嵌套调用 NCP API 的限制。默认使用 Start；显式会话/进程开关走 Create。
  *
  * 协议 (简单二进制):
  *   请求: "SPAWN\n{entryParams}\n[FDS:name0,name1,...\n]" + SCM_RIGHTS{N fd, N<=16}
  *   响应: [childPid: int32_le] [status: int32_le]   (8 字节)
  */
-#include "proc/broker.h"
+#include "broker.h"
 #include "common/wait_utils.h"
 #include "wine/wine_constants.h"
 #include "audio/audio_broker.h"
-#include "proc/wine_process.h"
+#include "wine_process.h"
+#include "wine_child_ipc_launcher.h"
+#include "phone_adapter/phone_adapter.h"
+#include "phone_adapter/phone_process.h"
+#include "cef_utility_probe.h"
 // 由 LaunchPadMode 在启动 Broker 前设置
 std::string gBrokerHomeDir;
 std::string gBrokerPrefixDir;
 
-// -- 从 entryParams 解析进程名 (登记到任务列表用) --
-// entryParams 形如 "homeDir|binDir|[wine]|argv0|argv1|...|__env=K=V|..."
-// 或 guest/host ELF / desktop 标记路径。跳过 homeDir/binDir (前两个 '/' 段) 与
-// wine/__winehua_* 标记段, 取第一个可执行段 basename (兼容 '/' 与 '\\')。
-// 取不到时回退 "wine"。
-static std::string ParseProcessName(const char* entryParams) {
-    std::string name = "wine";
-    const std::string params = entryParams ? entryParams : "";
-    size_t pos = 0;
-    int slashSegsLeft = 2;  // homeDir + binDir, 均以 '/' 开头
-    bool guestElfNext = false;
-    while (pos < params.size()) {
-        size_t end = params.find('|', pos);
-        std::string seg = params.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
-        if (!seg.empty()) {
-            if (seg.rfind("__env=", 0) == 0) break;  // env 段结束 argv
-            if (guestElfNext) {  // __winehua_guest_elf__ 后的绝对路径即 exe
-                auto slash = seg.find_last_of("/\\");
-                if (slash != std::string::npos) seg = seg.substr(slash + 1);
-                if (!seg.empty()) name = seg;
-                break;
-            }
-            if (seg[0] == '/' && slashSegsLeft > 0) { --slashSegsLeft; }
-            else if (seg == "wine" || seg == "__winehua_desktop__") { /* 标记段 */ }
-            else if (seg == "__winehua_guest_elf__" || seg == "__winehua_host_elf__") { guestElfNext = true; }
-            else {
-                auto slash = seg.find_last_of("/\\");
-                if (slash != std::string::npos) seg = seg.substr(slash + 1);
-                if (!seg.empty()) name = seg;
-                break;
-            }
-        }
-        if (end == std::string::npos) break;
-        pos = end + 1;
-    }
-    return name;
-}
-
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <cstdio>
@@ -75,47 +42,110 @@ static std::string ParseProcessName(const char* entryParams) {
 #define LOG_TAG "WL_Broker"
 #include <hilog/log.h>
 
-static const char* kBrokerSocketPath = WINE_BROKER_SOCKET;
+// SO_PEERCRED: 取出连接方 (调用 CreateProcess 的那个 Wine 进程) 的本机 pid。
+// 这是 "父子关系" 的权威来源 —— broker 自己只知道它替谁启了子进程, 日志里
+// [PROC-SPAWN] parentHostPid 打的是 broker 自身 pid, 不能用来画进程树。
+// OHOS 走 Linux 内核, 常量固定为 17; 头文件缺失时兜底。
+#ifndef SO_PEERCRED
+#define SO_PEERCRED 17
+#endif
 
-static std::atomic<bool> gBrokerRunning{false};
-static std::atomic<bool> gBrokerListening{false};
+struct WineHuaUCred {
+    pid_t pid;
+    uid_t uid;
+    gid_t gid;
+};
 
-static bool BrokerSocketConnectable()
-{
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) return false;
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strcpy(addr.sun_path, kBrokerSocketPath);
-    const bool ok = connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0;
-    close(fd);
-    return ok;
+static int32_t QueryPeerPid(int connFd) {
+    WineHuaUCred cred;
+    socklen_t len = sizeof(cred);
+    memset(&cred, 0, sizeof(cred));
+    if (getsockopt(connFd, SOL_SOCKET, SO_PEERCRED, &cred, &len) != 0) return -1;
+    return (int32_t)cred.pid;
 }
 
-/**
- * Wine 的 win32u (winstation.c get_desktop_window) 在每次会话中，当默认
- * 桌面还没有窗口时，会自动以 "explorer.exe /desktop" 启动 shell。这个
- * 无路径的自启在 PC/受管窗口模式下每次引擎启动都会多弹一个 explorer
- * 窗口。这里抑制它：用户需要文件管理时通过"文件资源管理器"卡片手动
- * 打开（带 Z:\ 路径，不匹配本条件）。
- */
-static bool IsAutoShellExplorerRequest(const char* entryParamsRaw)
-{
-    if (!entryParamsRaw || !entryParamsRaw[0]) return false;
-    if (ParseProcessName(entryParamsRaw) != "explorer.exe") return false;
+static const char* kBrokerSocketPath = WINE_BROKER_SOCKET;
+static std::atomic<bool> gDirectNcpSessionDefault{false};
 
-    const std::string params = entryParamsRaw;
-    size_t exePos = params.find("explorer.exe");
-    if (exePos == std::string::npos) return false;
-    size_t p = exePos + strlen("explorer.exe");
-    while (p < params.size() && params[p] == '|') p++;
-    size_t end = params.find('|', p);
-    std::string arg = params.substr(p, end == std::string::npos ? std::string::npos : end - p);
-    // 自动 shell 参数是裸 /desktop（无 = 无路径）；带路径的是用户打开文件夹。
-    if (arg == "/desktop") return true;
-    return arg.rfind("/desktop", 0) == 0 && arg.find('=') == std::string::npos &&
-        arg.size() <= 16;
+void SetBrokerDirectNcpSessionDefault(bool enabled) {
+    // Phone sessions use the fork backend; never turn a session request into
+    // an unsupported Create NCP route for all of their children.
+    if (PhoneAdapter_IsPhoneMode()) enabled = false;
+    gDirectNcpSessionDefault.store(enabled, std::memory_order_release);
+    OH_LOG_WARN(LOG_APP, "[Broker] Create NCP session default=%{public}d", enabled ? 1 : 0);
+}
+
+// A session can opt in to Create NCP; the serialized environment can override
+// it for one child. Without either opt-in, all clients continue to use Start.
+static bool WantsDirectWineIpc(const std::string& params) {
+    bool enabled = gDirectNcpSessionDefault.load(std::memory_order_acquire);
+    size_t pos = 0;
+    while (pos < params.size()) {
+        const size_t end = params.find('|', pos);
+        const std::string token = params.substr(pos, end == std::string::npos ?
+            std::string::npos : end - pos);
+        if (token == "__env=WINEHUA_DIRECT_NCP=1") enabled = true;
+        else if (token == "__env=WINEHUA_DIRECT_NCP=0") enabled = false;
+        if (end == std::string::npos) break;
+        pos = end + 1;
+    }
+    return enabled;
+}
+
+static bool PhoneSpawnFlag(const std::string& params, const char* key) {
+    bool enabled = false;
+    const std::string flag = std::string("__env=") + key + "=";
+    size_t pos = 0;
+    while (pos < params.size()) {
+        const size_t end = params.find('|', pos);
+        const std::string token = params.substr(pos, end == std::string::npos ?
+            std::string::npos : end - pos);
+        if (token == flag + "1") enabled = true;
+        else if (token == flag + "0") enabled = false;
+        if (end == std::string::npos) break;
+        pos = end + 1;
+    }
+    return PhoneAdapter_IsPhoneMode() && enabled;
+}
+
+static void CloseOwnedFdIfRetained(int fd, const struct stat& original, bool haveOriginal) {
+    struct stat current{};
+    if (haveOriginal && fstat(fd, &current) == 0 &&
+        current.st_dev == original.st_dev && current.st_ino == original.st_ino)
+        close(fd);
+}
+
+static std::atomic<bool> gBrokerRunning{false};
+
+// -- 从 entryParams 解析进程 exe 路径 (登记到任务列表用) --
+// broker 加了 homeDir 前缀后 entryParams 形如
+//   "homeDir|binDir|[wine]|argv0|argv1|...|__env=K=V|..."
+// 或 desktop 标记路径。跳过 homeDir/binDir (前两个 '/' 段) 与
+// wine/__winehua_desktop__ 标记段, 取第一个可执行段的完整形式 (Windows 路径
+// C:\... / native 绝对路径; AddProcess 自取 basename 作显示名)。早期版本只存
+// basename, 任务列表拿不到真实路径, 无法按路径匹配应用库图标或按需提取图标。
+// 取不到时回退 "wine"。
+static std::string ParseProcessPath(const char* entryParams) {
+    std::string path = "wine";
+    const std::string params = entryParams ? entryParams : "";
+    size_t pos = 0;
+    int slashSegsLeft = 2;  // homeDir + binDir, 均以 '/' 开头
+    while (pos < params.size()) {
+        size_t end = params.find('|', pos);
+        std::string seg = params.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+        if (!seg.empty()) {
+            if (seg.rfind("__env=", 0) == 0) break;  // env 段结束 argv
+            if (seg[0] == '/' && slashSegsLeft > 0) { --slashSegsLeft; }
+            else if (seg == "wine" || seg == "__winehua_desktop__") { /* 标记段 */ }
+            else {
+                path = seg;
+                break;
+            }
+        }
+        if (end == std::string::npos) break;
+        pos = end + 1;
+    }
+    return path;
 }
 
 // 处理单个请求: recvmsg(entryParams + fd) → StartNativeChildProcess → sendmsg(childPid, status)
@@ -146,7 +176,8 @@ static void HandleRequest(int conn_fd)
 
     ssize_t n = recvmsg(conn_fd, &msg, 0);
     if (n <= 0) {
-        // n==0: 对端 connect 后立即 close (StartBrokerServer 就绪探测), 非错误
+        // n==0: 对端 connect 后立即 close (StartBrokerServer 的就绪探测),
+        // 属正常探测流量, 非错误; n<0 才是真的 recvmsg 失败
         if (n == 0)
             OH_LOG_INFO(LOG_APP, "[Broker] probe connection (readiness check), ignoring");
         else
@@ -155,6 +186,10 @@ static void HandleRequest(int conn_fd)
         return;
     }
     buf[n] = '\0';
+
+    // 连接方 = 发起 CreateProcess 的 Wine 进程 (broker 只是代跑 NCP API)。
+    // CEF utility 生命周期观测需要它来回答 "谁创建了这个子进程"。
+    const int32_t peerPid = QueryPeerPid(conn_fd);
 
     // 2) 解析 "SPAWN\n{entryParams}\n[FDS:name0,name1,...\n]"
     //    entryParams 到第一个 '\n' 为止; 其后是可选段: FDS: (逗号分隔 fd 名)。
@@ -183,16 +218,6 @@ static void HandleRequest(int conn_fd)
 
     OH_LOG_INFO(LOG_APP, "[Broker] request entryParams=%{public}s fds=%{public}s",
                 entryParamsRaw, fdsLine ? fdsLine : "(none)");
-
-    // 抑制 Wine 自动启动的 explorer shell（无路径 /desktop），避免 PC/受管
-    // 窗口模式每次引擎启动都多弹一个 explorer 窗口。
-    if (IsAutoShellExplorerRequest(entryParamsRaw)) {
-        OH_LOG_INFO(LOG_APP, "[Broker] suppress auto explorer shell request (desktop-less host)");
-        int32_t suppressed[2] = { -1, -1 };
-        send(conn_fd, suppressed, sizeof(suppressed), MSG_NOSIGNAL);
-        close(conn_fd);
-        return;
-    }
 
     // 3) 提取 fd (SCM_RIGHTS, 可能多个)
     int recvFds[kMaxFds];
@@ -226,8 +251,8 @@ static void HandleRequest(int conn_fd)
 
     // 5) 构造 NativeChildProcess 参数。
     // Wine 服务进程会把创建者的环境重新序列化给 broker，但 NCP 不会继承
-    // LaunchPad 的环境。把会话 prefix 放在最后，使 clean smoke 的
-    // .wine-smoke 覆盖可能残留的默认 .wine 值。
+    // LaunchPad 的环境。把会话 prefix 放在最后 (后写胜出), 覆盖 entryParams
+    // 里可能残留的默认 .wine 值。
     std::string fullParams = gBrokerHomeDir.empty() ? entryParamsRaw
                             : (gBrokerHomeDir + "|" + entryParamsRaw);
     if (!gBrokerPrefixDir.empty())
@@ -278,40 +303,54 @@ static void HandleRequest(int conn_fd)
     NativeChildProcess_Options options = {};
     options.isolationMode = NCP_ISOLATION_MODE_NORMAL;
 
-    // 5) 调用 StartNativeChildProcess (在主进程上下文，可以调用多次)。
-    // 全部走 Main: wineserver 由 wine_child Main 截获 argv[0] 转入本体
-    // (纯 Unix ELF 不能走 wine loader 的 PE 解析)。
-    int32_t childPid = -1;
-    int32_t ret = OH_Ability_StartNativeChildProcess(
-        "libwine_child.so:Main", args, options, &childPid);
+    // SCM_RIGHTS and AudioBroker return descriptors owned by this parent.
+    // Both NCP APIs copy them for the child; device evidence showed Start
+    // leaves the parent originals open. Keep identities to avoid closing a
+    // number already recycled by an API or another thread.
+    struct stat recvIdentity[kMaxFds]{};
+    bool haveRecvIdentity[kMaxFds]{};
+    for (int i = 0; i < nFds; ++i)
+        haveRecvIdentity[i] = fstat(recvFds[i], &recvIdentity[i]) == 0;
+    struct stat audioIdentity{};
+    const bool haveAudioIdentity = audioBootstrapFd >= 0 &&
+        fstat(audioBootstrapFd, &audioIdentity) == 0;
 
-    OH_LOG_INFO(LOG_APP, "[Broker] StartNativeChildProcess ret=%{public}d childPid=%{public}d",
-                ret, childPid);
+    const bool directIpc = WantsDirectWineIpc(fullParams);
+    const bool phoneForkServer = !directIpc && PhoneSpawnFlag(fullParams, "WINEHUA_PHONE_DIRECT_FORK");
+    int32_t childPid = -1;
+    int32_t ret = directIpc ?
+        (PhoneAdapter_IsPhoneMode() ? NCP_ERR_NOT_SUPPORTED :
+         StartWineChildViaIpc(args, &childPid)) : phoneForkServer ?
+        Phone_StartViaDirectForkServer("libwine_child.so:Main", args, &childPid) :
+        OH_Ability_StartNativeChildProcess(
+            const_cast<char*>("libwine_child.so:Main"), args, options, &childPid);
+
+    OH_LOG_INFO(LOG_APP, "[Broker] launch mode=%{public}s ret=%{public}d childPid=%{public}d",
+                directIpc ? "create-ipc" : phoneForkServer ? "phone-fork-server" : "start", ret, childPid);
+    // TEMP-DIAG(PROC-SPAWN): 谁 fork 了谁。Steam/CEF 这类多进程客户端只有一个父进程
+    // 会拉起一串子进程, 崩溃归属必须能对上 parentHostPid -> childHostPid。
+    OH_LOG_INFO(LOG_APP,
+                "[PROC-SPAWN] parentHostPid=%{public}d childHostPid=%{public}d createStatus=%{public}d exe=%{public}s",
+                getpid(), childPid, ret, ParseProcessPath(fullParams.c_str()).c_str());
 
     if (ret == 0 && childPid > 0) {
-        // 子进程继承请求方会话：Wine 的 CreateProcess 由游戏进程连上 broker
-        // 发起，SO_PEERCRED 拿到请求方 pid 并解析其 sessionId。多进程游戏
-        // （launcher 拉起真正进程）建窗的往往是子进程，若不继承会话，窗口
-        // 的 created 事件会以 wine-<子pid> 自注册，ArkTS 的 associateToplevel
-        // 匹配不到卡片启动会话 → 自动拉起缺失（程序能跑但跳不到桌面）。
-        std::string inheritedSession;
-        {
-            struct ucred cred;
-            socklen_t credLen = sizeof(cred);
-            if (getsockopt(conn_fd, SOL_SOCKET, SO_PEERCRED, &cred, &credLen) == 0 &&
-                cred.pid > 1) {
-                inheritedSession = FindSessionIdForClientPid(cred.pid);
-            }
-        }
         // 全量登记: App 侧主动启动 (SpawnViaBroker) 与 wine 内部自启
         // (ohos_broker_spawn_child / loader.c 自启 wineserver) 都汇到 broker。
         // 统一登记使 explorer 里双击的 exe 出现在任务列表; App 侧调用者随后
         // 会用更准确的路径 AddProcess 覆盖 (AddProcess 同 pid 幂等)。
-        AddProcess(childPid, ParseProcessName(entryParamsRaw), -1, inheritedSession);
+        AddProcess(childPid, ParseProcessPath(fullParams.c_str()), -1);
+        if (phoneForkServer) Phone_MarkDirectForkChildRegistered(childPid);
+        // CEF 子进程生命周期观测: 记录这个 pid 是谁 (browser/network.mojom.*/…) 与
+        // 谁创建的, 等 NCP 退出回调回来时配对算 lifetimeMs/signal。
+        WineHuaCefUtilityProbeNoteSpawn(childPid, peerPid, fullParams.c_str());
+        if (directIpc) MarkWineIpcChildRegistered(childPid);
     }
 
     free(entryParamsCopy);
-    // 注意: 所有 fd 的所有权已转移给 StartNativeChildProcess，不要在这里 close
+    for (int i = 0; i < nFds; ++i)
+        CloseOwnedFdIfRetained(recvFds[i], recvIdentity[i], haveRecvIdentity[i]);
+    if (audioBootstrapFd >= 0)
+        CloseOwnedFdIfRetained(audioBootstrapFd, audioIdentity, haveAudioIdentity);
 
     // 6) 发送响应: childPid + status (8 字节，小端序)
     int32_t response[2];
@@ -335,11 +374,11 @@ static void BrokerThreadFunc()
     int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server_fd < 0) {
         OH_LOG_ERROR(LOG_APP, "[Broker] socket() failed: %{public}s", strerror(errno));
-        gBrokerRunning.store(false, std::memory_order_release);
         return;
     }
 
     // 2) 绑定到已知路径
+    unlink(kBrokerSocketPath);  // 清理残留
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
@@ -349,7 +388,6 @@ static void BrokerThreadFunc()
         OH_LOG_ERROR(LOG_APP, "[Broker] bind(%{public}s) failed: %{public}s",
                      kBrokerSocketPath, strerror(errno));
         close(server_fd);
-        gBrokerRunning.store(false, std::memory_order_release);
         return;
     }
 
@@ -357,11 +395,9 @@ static void BrokerThreadFunc()
     if (listen(server_fd, 8) < 0) {
         OH_LOG_ERROR(LOG_APP, "[Broker] listen() failed: %{public}s", strerror(errno));
         close(server_fd);
-        gBrokerRunning.store(false, std::memory_order_release);
         return;
     }
 
-    gBrokerListening.store(true, std::memory_order_release);
     OH_LOG_INFO(LOG_APP, "[Broker] listening on %{public}s", kBrokerSocketPath);
 
     // 4) Accept 循环
@@ -372,14 +408,11 @@ static void BrokerThreadFunc()
             OH_LOG_ERROR(LOG_APP, "[Broker] accept() failed: %{public}s", strerror(errno));
             break;
         }
-        // 每个连接独立线程处理：一个 appspawn 慢请求不再阻塞其它程序启动，
-        // 客户端 recv 总能等到自己这条请求的回应（成功或明确失败）。
-        std::thread([](int fd) { HandleRequest(fd); }, conn_fd).detach();
+        // 处理请求（同步：每个请求一个接一个处理）
+        HandleRequest(conn_fd);
     }
 
     close(server_fd);
-    gBrokerListening.store(false, std::memory_order_release);
-    gBrokerRunning.store(false, std::memory_order_release);
     unlink(kBrokerSocketPath);
     OH_LOG_INFO(LOG_APP, "[Broker] thread exiting");
 }
@@ -387,31 +420,29 @@ static void BrokerThreadFunc()
 int StartBrokerServer()
 {
     if (gBrokerRunning.load(std::memory_order_acquire)) {
-        const bool ready = WaitFor("broker listening", []() {
-            return gBrokerListening.load(std::memory_order_acquire) &&
-                   BrokerSocketConnectable();
-        }, 2000, 20);
-        OH_LOG_WARN(LOG_APP, "[Broker] already running, listening=%{public}s",
-                    ready ? "yes" : "no");
-        return ready ? 0 : -1;
+        OH_LOG_WARN(LOG_APP, "[Broker] already running");
+        return 0;
     }
 
-    // Remove a socket left by a previously killed application before the
-    // worker is published as running. Waiting on file existence alone races
-    // this unlink and can make Wine launch into a stale, refused socket.
-    unlink(kBrokerSocketPath);
-    gBrokerListening.store(false, std::memory_order_release);
     gBrokerRunning.store(true, std::memory_order_release);
     std::thread(BrokerThreadFunc).detach();
 
-    // listen() 完成仍不够: bind 成功后 socket 文件已存在, listen 未完成时
-    // connect 会 ECONNREFUSED。再加真实 connect, 与 winehua f9aaaaed 对齐。
-    if (!WaitFor("broker listening", []() {
-        return gBrokerListening.load(std::memory_order_acquire) &&
-               BrokerSocketConnectable();
-    }, 2000, 20)) {
-        OH_LOG_ERROR(LOG_APP, "[Broker] failed to become ready");
-        return -1;
+    // 就绪判定必须真实 connect: bind() 一成功 socket 文件就存在, 但 listen()
+    // 尚未完成时 connect 会拿 ECONNREFUSED — 曾致紧随其后的 wineserver
+    // broker spawn 失败 (state:failed:wineserver → "启动失败")。探测连接在
+    // HandleRequest 的 recvmsg 处拿 EOF 被忽略, 无副作用。
+    if (!WaitFor("broker socket", []() {
+            int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+            if (fd < 0) return false;
+            struct sockaddr_un addr;
+            memset(&addr, 0, sizeof(addr));
+            addr.sun_family = AF_UNIX;
+            strcpy(addr.sun_path, kBrokerSocketPath);
+            const bool ok = connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0;
+            close(fd);
+            return ok;
+        }, 2000, 50)) {
+        OH_LOG_WARN(LOG_APP, "[Broker] socket creation slow, continuing anyway");
     }
     return 0;
 }

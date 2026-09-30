@@ -3,11 +3,11 @@
 #include <cstdint>
 #include <vector>
 
-#include "compositor/frame/blit_clip.h"
-#include "compositor/toplevel/desktop_compositor.h"
-#include "compositor/frame/geometry.h"
-#include "compositor/frame/presented_frame.h"
-#include "compositor/toplevel/toplevel_manager.h"
+#include "blit_clip.h"
+#include "desktop_compositor.h"
+#include "geometry.h"
+#include "presented_frame.h"
+#include "toplevel_manager.h"
 
 // 帧合成管线 (重构第 2A 步: TakeToplevelFrame 纯结构拆分, 行为平价)。
 // 桌面合成按"锁内规划 / 锁外绘制"分两阶段:

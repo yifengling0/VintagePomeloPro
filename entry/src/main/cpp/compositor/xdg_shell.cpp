@@ -1,9 +1,9 @@
 #include <wayland-server-core.h>
 #include "protocols/xdg-shell-server-protocol.h"
-#include "compositor/wayland_server.h"
-#include "compositor/xdg_shell.h"
-#include "proc/wine_process.h"
-#include "compositor/xdg_configure.h"
+#include "wayland_server.h"
+#include "xdg_shell.h"
+#include "xdg_configure.h"
+#include "direct/direct_wine_surface_controller.h"
 #include <algorithm>
 #include <cstring>
 #include <string>
@@ -56,6 +56,9 @@ static void tl_set_title(wl_client*, wl_resource* tlRes, const char* title) {
     WaylandServer::GetInstance()->PostToplevelEvent(
         sd->toplevelId, ToplevelEventType::Title,
         ToplevelEventBus::JsonTitle(sd->title));
+    // title 与 commit 是独立的协议请求, 可能晚于首个 commit 到达 —— 补一次
+    // 识别机会 (理由见 WaylandServer::RecheckDesktopRootOnTitle)。
+    WaylandServer::GetInstance()->RecheckDesktopRootOnTitle(sd);
 }
 static void tl_set_app_id(wl_client*, wl_resource* tlRes, const char* appId) {
     auto* td = static_cast<ToplevelData*>(wl_resource_get_user_data(tlRes));
@@ -305,10 +308,14 @@ static void xs_destroy(wl_client*, wl_resource* r) {
     if (d && d->wlSurface) {
         auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(d->wlSurface));
         if (sd && sd->hasToplevel) {
-            RemoveToplevelAssociation(sd->toplevelId);
-            OH_LOG_INFO(LOG_APP, "[MW-Life] xs_destroy → OnToplevelDestroyed tl=%{public}u", sd->toplevelId);
-            WaylandServer::GetInstance()->OnToplevelDestroyed(sd->toplevelId);
-            WaylandServer::GetInstance()->PostToplevelEvent(sd->toplevelId,
+            const uint32_t toplevelId = sd->toplevelId;
+            OH_LOG_INFO(LOG_APP, "[MW-Life] xs_destroy → OnToplevelDestroyed tl=%{public}u", toplevelId);
+            WaylandServer::GetInstance()->OnToplevelDestroyed(toplevelId);
+            sd->hasToplevel = false;
+            sd->toplevelId = 0;
+            sd->committed.role = RoleFor(sd->hasToplevel, sd->isSubsurface);
+            sd->committed.hasWindowGeometry = false;
+            WaylandServer::GetInstance()->PostToplevelEvent(toplevelId,
                                                             ToplevelEventType::Destroyed);
         }
     }
@@ -339,9 +346,8 @@ static void xs_get_toplevel(wl_client* client, wl_resource* xsRes, uint32_t id) 
             sd->toplevelId = gTmgr->AllocateToplevelId();
             d->toplevelId = sd->toplevelId;
             td->toplevelId = sd->toplevelId;
-            AssociateToplevelWithSession(FindSessionIdForClientPid(sd->clientPid),
-                                         sd->clientPid, sd->toplevelId);
             WaylandServer::GetInstance()->RegisterToplevelResource(sd->toplevelId, tl);
+            DirectWineSurfaceCreated(sd->clientPid, sd->toplevelId, sd->protocolId);
             // WineHua: 应用暂存的 modal 关系 (set_modal 早于 get_toplevel 到达)。
             // 在 created 事件之前执行 — PC 模式 ArkTS 据此把 modal 窗口接入
             // owner 的子窗口路径而非启动独立 Ability (事件顺序红线)
@@ -351,8 +357,7 @@ static void xs_get_toplevel(wl_client* client, wl_resource* xsRes, uint32_t id) 
             if (!WaylandServer::GetInstance()->Policy().OhosWindowPerToplevel()) {
                 WaylandServer::GetInstance()->PostToplevelEvent(
                     sd->toplevelId, ToplevelEventType::Created,
-                    ToplevelEventBus::JsonCreatedForSession(640, 480,
-                        FindSessionIdForClientPid(sd->clientPid), sd->clientPid));
+                    ToplevelEventBus::JsonCreatedDefault());
             }
         }
     }
@@ -391,17 +396,20 @@ static const struct xdg_surface_interface kSurfaceImpl = {
 };
 
 static void xs_resource_destroy(wl_resource* r) {
-    // client 断开时 libwayland-server 走此路径, 不会触发 xs_destroy。
-    // 必须在此处也做 compositor 清理 (等价于 xs_destroy 的逻辑),
-    // 否则已断开进程的窗口像素永久滞留。
+    // Client disconnect can bypass xs_destroy; explicit xs_destroy clears the
+    // role before reaching this callback, so cleanup and notification run once.
     auto* d = static_cast<XdgSurface*>(wl_resource_get_user_data(r));
     if (d && d->wlSurface) {
         auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(d->wlSurface));
         if (sd && sd->hasToplevel) {
-            RemoveToplevelAssociation(sd->toplevelId);
-            OH_LOG_INFO(LOG_APP, "[MW-Life] xs_resource_destroy → OnToplevelDestroyed tl=%{public}u (client disconnect)", sd->toplevelId);
-            WaylandServer::GetInstance()->OnToplevelDestroyed(sd->toplevelId);
-            WaylandServer::GetInstance()->PostToplevelEvent(sd->toplevelId,
+            const uint32_t toplevelId = sd->toplevelId;
+            OH_LOG_INFO(LOG_APP, "[MW-Life] xs_resource_destroy → OnToplevelDestroyed tl=%{public}u (client disconnect)", toplevelId);
+            WaylandServer::GetInstance()->OnToplevelDestroyed(toplevelId);
+            sd->hasToplevel = false;
+            sd->toplevelId = 0;
+            sd->committed.role = RoleFor(sd->hasToplevel, sd->isSubsurface);
+            sd->committed.hasWindowGeometry = false;
+            WaylandServer::GetInstance()->PostToplevelEvent(toplevelId,
                                                             ToplevelEventType::Destroyed);
         }
     }

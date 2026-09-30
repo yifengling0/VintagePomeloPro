@@ -251,25 +251,6 @@ int main()
         CHECK(t.NextSerial() == 6, "session reset keeps serial monotonic");
     }
 
-    { // Coordinate changes must not become relative mouse movement.
-        FitRect fit, display;
-        ComputeFitRect(800, 600, 400, 300, fit);
-        ComputeFitRect(1280, 720, 800, 600, display);
-        auto* surface = FakeRes(0x3000);
-        t.UpdateLastLocal(10, 20);
-        auto epoch = t.RelativeSpaceEpoch();
-        t.TrackRelativeSpace(2, surface, epoch, fit, display);
-        CHECK(t.SameRelativeSpace(2, surface, epoch, fit, display), "stable relative space reuses baseline");
-        FitRect changed = fit; changed.srcW++;
-        CHECK(!t.SameRelativeSpace(2, surface, epoch, changed, display), "content resize resets relative delta");
-        changed = display; changed.offX++;
-        CHECK(!t.SameRelativeSpace(2, surface, epoch, fit, changed), "display mapping resets relative delta");
-        CHECK(!t.SameRelativeSpace(2, FakeRes(0x4000), epoch, fit, display), "new surface has no prior relative delta");
-        t.InvalidateRelativeBaseline();
-        CHECK(!t.SameRelativeSpace(2, surface, t.RelativeSpaceEpoch(), fit, display), "focus/overlay invalidation resets relative delta");
-        t.ResetRelativeSpace();
-        CHECK(!t.SameRelativeSpace(2, surface, epoch, fit, display), "absolute mode drops prior relative owner");
-    }
     std::printf("input_state_test: %d checks / %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

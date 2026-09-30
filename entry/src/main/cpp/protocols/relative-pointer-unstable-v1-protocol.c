@@ -26,7 +26,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#include "protocols/wayland-util.h"
+#include "wayland-util.h"
 
 extern const struct wl_interface wl_pointer_interface;
 extern const struct wl_interface zwp_relative_pointer_v1_interface;

@@ -1,6 +1,5 @@
-#include "compositor/frame/compositor_blit.h"
+#include "compositor_blit.h"
 #include <algorithm>
-#include <cstdint>
 #include <cstring>
 #include <vector>
 

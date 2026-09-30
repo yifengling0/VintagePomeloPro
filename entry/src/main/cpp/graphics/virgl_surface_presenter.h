@@ -1,6 +1,6 @@
 #pragma once
 
-#include "graphics/virgl_ipc_protocol.h"
+#include "virgl_ipc_protocol.h"
 
 #include <native_window/external_window.h>
 

@@ -17,7 +17,7 @@ MODE="${GUEST_GFX_MODE:-virpipe}"
 INSTALL_ROOT="${WINEHUA_GUEST_GFX_INSTALL_ROOT:-${GUEST_GFX_INSTALL_ROOT:-}}"
 MESA_SOURCE_ROOT="${WINEHUA_OHOS_MESA_SOURCE_ROOT:-${GUEST_GFX_MESA_SOURCE_ROOT:-}}"
 LIBDRM_SOURCE_ROOT="${WINEHUA_OHOS_LIBDRM_SOURCE_ROOT:-${GUEST_GFX_LIBDRM_SOURCE_ROOT:-}}"
-OUTPUT_ROOT="${WINEHUA_GUEST_GFX_OUTPUT_ROOT:-$ROOT/build/guest_gfx/$NATIVE_ARCH}"
+OUTPUT_ROOT="${WINEHUA_GUEST_GFX_OUTPUT_ROOT:-$ROOT/build/guest_gfx/${GUEST_ARCH:-$WINE_ARCH}}"
 CLEAN=0
 
 usage() {
@@ -285,7 +285,7 @@ copy_tree_if_present "$RUNTIME_LIB_DIR/egl_vendor.d" "$OUTPUT_ROOT/lib/egl_vendo
 copy_tree_if_present "$RUNTIME_LIB_DIR/gallium" "$OUTPUT_ROOT/lib/gallium"
 
 # 所有支撑库由 build_ohos_guest_gfx.sh provision 到 sysroot-ext, 单一来源
-SYSROOT_EXT_LIB="$ROOT/build/sysroot-ext/usr/lib/x86_64-linux-ohos"
+SYSROOT_EXT_LIB="$ROOT/build/sysroot-ext/usr/lib/$TARGET"
 copy_support_lib_if_present "libdrm.so.2" \
     "$SYSROOT_EXT_LIB/libdrm.so.2" \
     "$SYSROOT_EXT_LIB/libdrm.so.2.4.0"
@@ -315,18 +315,18 @@ copy_support_lib_if_present "libffi.so" \
     "$SYSROOT_EXT_LIB/libffi.so.8"
 copy_guest_runtime_lib_if_present "libz.so" \
     "$SYSROOT_EXT_LIB/libz.so" \
-    "$SYSROOT/usr/lib/x86_64-linux-ohos/libz.so" \
-    "$ROOT/build/staging/wine-data/bin/x86_64-unix/libz.so" \
-    "$ROOT/build/merged_wine_data/bin/x86_64-unix/libz.so" \
+    "$SYSROOT/usr/lib/$TARGET/libz.so" \
+    "$ROOT/build/staging/wine-data/bin/${WINE_ARCH}-unix/libz.so" \
+    "$ROOT/build/merged_wine_data/bin/${WINE_ARCH}-unix/libz.so" \
     "$ROOT/build/merged_wine_data/bin/guest_gfx/lib/libz.so"
 copy_guest_runtime_lib_if_present "libc++_shared.so" \
     "$SYSROOT_EXT_LIB/libc++_shared.so" \
-    "$SYSROOT/usr/lib/x86_64-linux-ohos/libc++_shared.so" \
-    "$OHOS_SDK/native/llvm/lib/x86_64-linux-ohos/libc++_shared.so" \
-    "$TOOL_HOME/sdk/default/openharmony/native/llvm/lib/x86_64-linux-ohos/libc++_shared.so" \
-    "$TOOL_HOME/sdk/default/hms/native/BiSheng/lib/x86_64-linux-ohos/libc++_shared.so" \
-    "$ROOT/build/staging/wine-data/bin/x86_64-unix/libc++_shared.so" \
-    "$ROOT/build/merged_wine_data/bin/x86_64-unix/libc++_shared.so" \
+    "$SYSROOT/usr/lib/$TARGET/libc++_shared.so" \
+    "$OHOS_SDK/native/llvm/lib/$TARGET/libc++_shared.so" \
+    "$TOOL_HOME/sdk/default/openharmony/native/llvm/lib/$TARGET/libc++_shared.so" \
+    "$TOOL_HOME/sdk/default/hms/native/BiSheng/lib/$TARGET/libc++_shared.so" \
+    "$ROOT/build/staging/wine-data/bin/${WINE_ARCH}-unix/libc++_shared.so" \
+    "$ROOT/build/merged_wine_data/bin/${WINE_ARCH}-unix/libc++_shared.so" \
     "$ROOT/build/merged_wine_data/bin/guest_gfx/lib/libc++_shared.so"
 if [ -d "$INSTALL_ROOT/share/glvnd/egl_vendor.d" ]; then
     copy_tree_if_present "$INSTALL_ROOT/share/glvnd/egl_vendor.d" "$OUTPUT_ROOT/lib/egl_vendor.d"

@@ -10,10 +10,28 @@ set(NATIVERENDER_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(
     ${NATIVERENDER_ROOT_PATH}
     ${NATIVERENDER_ROOT_PATH}/protocols
+    # 合成器按域分组 (frame/toplevel/input) + 协议 C 头 (protocols/): 域内互引
+    # 保持裸名 include 经本路径解析。cpp 根下各功能域 (wine/proc/graphics/…)
+    # 的新头不注册到此 — 跨域引用一律显式域前缀 (#include "wine/wine_env.h"),
+    # 裸名只在同域内合法。同目录优先搜索不变。
     ${NATIVERENDER_ROOT_PATH}/compositor/frame
     ${NATIVERENDER_ROOT_PATH}/compositor/toplevel
     ${NATIVERENDER_ROOT_PATH}/compositor/input
 )
+
+# WINEHUA_WINE_ARCH_IS_X86_64: 方案② (arm64 设备 + x86_64 wine + box64 转译) 的
+# 编译期标记。由 package.sh 写入 entry/.wine_arch 的文件读取 (hvigor daemon 环境快照
+# 丢失 make 的 WINE_ARCH env, ENV{WINE_ARCH} 不可靠 — 实测 daemon 里读不到)。
+# 方案③ (arm64 原生, .wine_arch=aarch64) 不定义 → C++ 走原生 wine 路径。
+# 注意: 方案① (x86_64 设备) 时 .wine_arch=x86_64 也定义此宏, 但 __aarch64__ 未定义,
+# C++ 侧 `__aarch64__ && WINEHUA_WINE_ARCH_IS_X86_64` 组合仍准确锁定方案②。
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../.wine_arch")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../../../.wine_arch" _wine_arch)
+    string(STRIP "${_wine_arch}" _wine_arch)
+    if(_wine_arch STREQUAL "x86_64")
+        add_definitions(-DWINEHUA_WINE_ARCH_IS_X86_64)
+    endif()
+endif()
 
 if(DEFINED PACKAGE_FIND_FILE)
     include(${PACKAGE_FIND_FILE})
@@ -23,38 +41,57 @@ endif()
 set(WAYLAND_LIBS_DIR ${NATIVERENDER_ROOT_PATH}/../../../libs/${OHOS_ARCH})
 
 add_library(entry SHARED
+    # ---- VintagePomeloPro 产品增量 (UI 侧依赖的 native 设施) ----
     common/app_log.cpp
-    audio/audio_broker.cpp
-    audio/audio_ipc_server.cpp
     audio/audio_pcm_capture.cpp
     audio/audio_pcm_metrics.cpp
+    graphics/graphics_profile.cpp
+    wine/experiment_payload.cpp
+    common/font_zip.cpp
+    graphics/host_vulkan_probe.cpp
+    common/performance_monitor.cpp
+    bridge/performance_monitor_napi.cpp
+    # ---- WineHua proton 方案③ 基线 ----
+    direct/vulkan_probe_launcher.cpp
+    direct/direct_wine_ipc_probe.cpp
+    direct/direct_wine_surface_ipc_probe.cpp
+    direct/direct_wine_surface_controller.cpp
+    direct/direct_desktop_compositor.cpp
+    direct/direct_vulkan_desktop_compositor.cpp
+    direct/direct_surface_probe_launcher.cpp
+    direct/direct_buffer_import_probe.cpp
+    direct/direct_vulkan_context.cpp
+    direct/direct_vulkan_presenter.cpp
+    direct/direct_shared_buffer_probe.cpp
+    direct/native_buffer_socket.cpp
+    direct/native_buffer_parcel.cpp
+    direct/direct_output_probe.cpp
+    audio/audio_broker.cpp
+    audio/audio_ipc_server.cpp
     audio/audio_stream.cpp
     graphics/graphics_broker.cpp
-    graphics/graphics_profile.cpp
+    graphics/gl_capability_probe.cpp
+    graphics/virgl_host_config.cpp
     input/game_controller_bridge.cpp
     input/controller/controller_hub.cpp
     input/controller/controller_napi.cpp
     input/controller/controller_runtime.cpp
     input/controller/gamepad_bridge.cpp
     input/controller/physical_gamepad.cpp
-    graphics/virgl_host_config.cpp
     bridge/napi_init.cpp
-    wine/experiment_payload.cpp
     proc/wine_process.cpp
     wine/wine_env.cpp
     wine/env_spec.cpp
     wine/env_profiles.cpp
+    wine/container_session.cpp
     proc/spawner.cpp
     wine/wine_launch.cpp
     wine/wine_exe.cpp
-    common/font_zip.cpp
-    wine/wine_mmap_test.cpp
-    graphics/host_vulkan_probe.cpp
     proc/broker.cpp
+    proc/wine_child_ipc_launcher.cpp
     proc/ncp_dispatch.cpp
+    proc/cef_utility_probe.cpp
     common/perf_utils.cpp
-    common/performance_monitor.cpp
-    bridge/performance_monitor_napi.cpp
     phone_adapter/phone_process.cpp
     phone_adapter/phone_virgl_relay.cpp
     compositor/wayland_server.cpp
@@ -87,16 +124,16 @@ add_library(entry SHARED
     common/string_utils.cpp
     input/input_manager.cpp
     input/pointer_extras.cpp
-    input/text_input.cpp
-    protocols/text-input-unstable-v3-protocol.c
     compositor/xdg_shell.cpp
     compositor/winehua_toplevel.cpp
+    input/text_input.cpp
     protocols/xdg-shell-protocol.c
     protocols/winehua-toplevel-protocol.c
     protocols/viewporter-server-protocol.c
     protocols/pointer-warp-v1-protocol.c
     protocols/pointer-constraints-unstable-v1-protocol.c
     protocols/relative-pointer-unstable-v1-protocol.c
+    protocols/text-input-unstable-v3-protocol.c
 )
 
 # 应用日志文件 sink：force-include app_log.h，让所有 OH_LOG_* 调用在保持
@@ -112,7 +149,12 @@ if(NOT WINEHUA_AUDIO_GIT_COMMIT)
     set(WINEHUA_AUDIO_GIT_COMMIT "unknown")
 endif()
 target_compile_definitions(entry PRIVATE WINEHUA_AUDIO_GIT_COMMIT="${WINEHUA_AUDIO_GIT_COMMIT}")
-# BlitScaled 热路径单独 -O2，其余保持 -O0 便于调试。
+
+# BlitScaled (双线性缩放 blit) 是桌面合成热路径: 全屏游戏 800x600→1400x920
+# fit 放大在 -O0 调试构建实测 ~70ms/帧 (440 万输出像素 × 4 采样插值)。
+# 单独 -O2 该源文件 (其余保持 -O0 便于调试), 合成崩溃时该文件仍可栈回溯。
+# 注意: compositor_blit.cpp 迁移自 compositor_utils.cpp (2026-08-22 拆分),
+# -O2 属性必须跟着代码走 — 漏挂曾致 blit 段从 26ms 劣化到 ~240ms。
 set_source_files_properties(compositor/frame/compositor_blit.cpp PROPERTIES COMPILE_OPTIONS "-O2")
 
 target_link_libraries(entry PUBLIC
@@ -121,6 +163,7 @@ target_link_libraries(entry PUBLIC
     libace_ndk.z.so
     libnative_window.so
     libnative_image.so
+    libnative_buffer.so
     libnative_vsync.so
     libEGL.so
     libGLESv3.so
@@ -136,17 +179,70 @@ target_link_libraries(entry PUBLIC
 
 add_library(wine_child SHARED
     proc/wine_child.cpp
-    proc/wine_mmap_child.cpp
+    proc/wine_child_ipc.cpp
 )
-target_link_libraries(wine_child PUBLIC libhilog_ndk.z.so libchild_process.so)
+target_link_libraries(wine_child PUBLIC libhilog_ndk.z.so libchild_process.so libipc_capi.so libnative_window.so)
+
+# D0 is an independent native NCP. It resolves the system Vulkan loader with
+# dlopen at runtime and deliberately does not link Wine, Mesa or libvulkan.
+add_library(direct_vulkan_probe SHARED
+    direct/ncp_vulkan_probe.cpp
+)
+target_link_libraries(direct_vulkan_probe PUBLIC
+    libhilog_ndk.z.so
+    libchild_process.so
+    libipc_capi.so
+)
+
+# Phone P0: shared image memory and sync fds, no remote GPU command stream.
+add_library(direct_shared_buffer_probe SHARED
+    direct/direct_shared_buffer_child.cpp
+    direct/direct_native_read_watchdog.cpp
+    direct/native_buffer_socket.cpp
+    direct/native_buffer_parcel.cpp
+)
+target_link_libraries(direct_shared_buffer_probe PUBLIC
+    libhilog_ndk.z.so libchild_process.so libipc_capi.so
+    libnative_window.so libnative_buffer.so libvulkan.so
+)
+
+# D1 BufferQueue handoff remains isolated from the Wine/VirGL renderer.
+add_library(direct_surface_probe SHARED
+    direct/direct_surface_probe_child.cpp
+)
+target_link_libraries(direct_surface_probe PUBLIC
+    libhilog_ndk.z.so
+    libchild_process.so
+    libipc_capi.so
+    libnative_window.so
+    libnative_buffer.so
+)
+
+# D2 WSI experiment: a separate Vulkan producer NCP uses the D1 parcel contract.
+add_library(direct_gpu_surface_probe SHARED
+    direct/direct_gpu_surface_probe_child.cpp
+)
+target_link_libraries(direct_gpu_surface_probe PUBLIC
+    libhilog_ndk.z.so libchild_process.so libipc_capi.so
+    libnative_window.so libnative_buffer.so libvulkan.so
+)
+
+# smoke 测试设施的原生侧 (与 ets/smoke/ 物理隔离对应): 测试专用查询/注入
+# 原语, 产品代码不引用。符号来自 entry (同进程运行时解析), 必须与 entry 同包。
+add_library(smoke_napi SHARED
+    smoke/smoke_napi.cpp
+)
+target_link_libraries(smoke_napi PRIVATE
+    entry
+    libace_napi.z.so
+    libhilog_ndk.z.so
+)
 
 add_library(virgl_child SHARED
     graphics/virgl_child.cpp
     graphics/virgl_host_config.cpp
     graphics/virgl_surface_presenter.cpp
     graphics/venus_surface_presenter.cpp
-    graphics/native_window_vk_target.cpp
-    graphics/native_window_gles_target.cpp
     graphics/shader_utils.cpp
     phone_adapter/phone_virgl_dispatch.cpp
 )
@@ -155,7 +251,6 @@ target_link_libraries(virgl_child PUBLIC
     libGLESv3.so
     libvulkan.so
     libnative_window.so
-    libnative_buffer.so
     libhilog_ndk.z.so
     libchild_process.so
     libipc_capi.so

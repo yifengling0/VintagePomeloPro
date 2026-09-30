@@ -2,6 +2,7 @@
 
 #include "input/controller/controller_hub.h"
 #include "input/controller/gamepad_bridge.h"
+#include "input/game_controller_bridge.h"
 
 #include <mutex>
 
@@ -42,6 +43,10 @@ bool EnsureBridgeForWineLaunch(const std::string& runtimeDir)
     std::string sock = runtimeDir.empty() ? std::string("/data/storage/el2/base/files/.wine") : runtimeDir;
     if (!sock.empty() && sock.back() != '/') sock += '/';
     sock += "whgp.sock";
+    // master has no product GamepadManager lifecycle. Keep the Native Host
+    // functional on its own; devices without the Kit degrade to touch input.
+    EnsurePhysicalGamepadInitialized();
+    ControllerHub::Instance().SetEnabled(true);
     GamepadBridge::Instance().AttachToHub();
     return GamepadBridge::Instance().Start(sock);
 }
