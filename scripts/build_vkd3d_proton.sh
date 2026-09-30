@@ -64,7 +64,7 @@ if [ ! -f "$SOURCE_STAMP" ] || [ "$(cat "$SOURCE_STAMP")" != "$source_id" ]; the
     fi
     for patch_file in "${patches[@]}"; do
         log "Applying $(basename "$patch_file")"
-        patch -d "$SOURCE_ROOT" -p1 --forward --batch < "$patch_file"
+        patch -d "$SOURCE_ROOT" -p1 --forward --batch --ignore-whitespace < "$patch_file"
     done
     printf '%s\n' "$source_id" > "$SOURCE_STAMP"
 
