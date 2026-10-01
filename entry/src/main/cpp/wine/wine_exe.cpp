@@ -383,42 +383,6 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
 
     ReadStringArray(env, args[0], "argv", &options.argv);
     ReadEnvironment(env, args[0], &options.environment);
-    // 2026-09-30 实测定档（用户经验规则：老游戏走 virgl，DX11+ 才用 DXVK）。
-    // 仅按 exe 基名路由，调用方显式传的 WINEHUA_WOW64_ENGINE 优先：
-    //   pal4.exe   dxvk_legacy 进场景白屏，wined3d(virgl) 实测进场景+对话。
-    //   pal2.exe   同上，且 FEX 下点"开始游戏"即 SIGSEGV，需要 box64 引擎。
-    //   browser_x86.exe  Unigine Qt 启动器：FEX 下 Qt 白屏（宿主故障接管
-    //                   只有 wowbox64 实现），Heaven DX11 仍走 dxvk_legacy。
-    {
-        std::string lowerExe;
-        for (char c : options.windowsExePath)
-            lowerExe.push_back((char)tolower((unsigned char)c));
-        auto endsWith = [&lowerExe](const char *suffix) {
-            const size_t n = strlen(suffix);
-            return lowerExe.size() >= n &&
-                lowerExe.compare(lowerExe.size() - n, n, suffix) == 0;
-        };
-        const bool isPal4 = endsWith("\pal4.exe") || endsWith("/pal4.exe");
-        const bool isPal2 = endsWith("\pal2.exe") || endsWith("/pal2.exe");
-        const bool isQtLauncher = endsWith("rowser_x86.exe") || endsWith("/browser_x86.exe");
-        if (isPal4 || isPal2) {
-            options.d3dBackend = "wined3d";
-            options.presentBackend = DerivePresentBackend("wined3d");
-            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: d3d backend forced to wined3d exe=%{public}s",
-                        options.windowsExePath.c_str());
-        }
-        if (isPal2 || isQtLauncher) {
-            // FEX 下这两个标题实测必崩 (PAL2 SIGSEGV / Qt 白屏), 名单语义为
-            // 强制 box: 覆盖任何来源的同名条目, 避免调用方残留值挡住路由。
-            for (auto it = options.environment.begin(); it != options.environment.end();) {
-                if (it->rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) it = options.environment.erase(it);
-                else ++it;
-            }
-            options.environment.push_back("WINEHUA_WOW64_ENGINE=box");
-            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: wow64 engine forced to box exe=%{public}s",
-                        options.windowsExePath.c_str());
-        }
-    }
     // ArkTS 原样传入的 per-app environment (未经管线改写, 与 main-ui 启动链
     // 对比的判别点): 拼成 K=V;K=V 行串打出, 空 = 调用方未注入
     const std::string envFallback = [&options]() {
@@ -595,35 +559,6 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
 
     OH_LOG_INFO(LOG_APP, "[Wine] runWineExe bin=%{public}s exe=%{public}s (final=%{public}s) home=%{public}s",
                 binDir, wineExe, exePath.c_str(), homeDir.c_str());
-
-    // known-title compat (与 RunWineProgram 同规则, 详见那处注释):
-    // pal4/pal2 -> wined3d; pal2/browser_x86 -> box64 引擎 (除非调用方覆盖)。
-    {
-        std::string lowerExe;
-        for (char c : exePath) lowerExe.push_back((char)tolower((unsigned char)c));
-        auto endsWith = [&lowerExe](const char *suffix) {
-            const size_t n = strlen(suffix);
-            return lowerExe.size() >= n &&
-                lowerExe.compare(lowerExe.size() - n, n, suffix) == 0;
-        };
-        const bool isPal4 = endsWith("\pal4.exe") || endsWith("/pal4.exe");
-        const bool isPal2 = endsWith("\pal2.exe") || endsWith("/pal2.exe");
-        const bool isQtLauncher = endsWith("rowser_x86.exe") || endsWith("/browser_x86.exe");
-        if (isPal4 || isPal2) {
-            strncpy(d3dBackend, "wined3d", sizeof(d3dBackend) - 1);
-            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: d3d backend forced to wined3d exe=%{public}s",
-                        exePath.c_str());
-        }
-        if (isPal2 || isQtLauncher) {
-            for (auto it = envOverrides.begin(); it != envOverrides.end();) {
-                if (it->rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) it = envOverrides.erase(it);
-                else ++it;
-            }
-            envOverrides.push_back("WINEHUA_WOW64_ENGINE=box");
-            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: wow64 engine forced to box exe=%{public}s",
-                        exePath.c_str());
-        }
-    }
 
     std::string sockStr(sockPath);
     auto pos = sockStr.find_last_of('/');
