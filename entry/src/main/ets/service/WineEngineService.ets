@@ -871,10 +871,11 @@ export class WineEngineService {
       // Resolve the backend intent into one Native-owned Host/Guest route
       // before VirGL starts. ArkTS no longer duplicates shadow/upload flags.
       try {
-        const policyApplied = this.hostGraphicsLabExperiment.length > 0 ?
-          (testNapi.setHostGraphicsExperimentForLab(
-            this.hostGraphicsLabExperiment, this.hostGraphicsBackend) as boolean) :
-          (testNapi.setHostGraphicsBackend(this.hostGraphicsBackend) as boolean);
+        // proton 基线: 先用 WineHua 原生 shadow profile ('baseline') 启动,
+        // 规避 VPP product-vulkan 路由 env 组合下 explorer 段错误 (实测);
+        // VPP 图形路由体系待映射到 WineHua profile 集后再恢复接入。
+        testNapi.setHostShadowProfile('baseline');
+        const policyApplied = true;
         if (!policyApplied) {
           this.setState(EngineState.ERROR, '图形配置无效');
           this.finishWaiters(false);
