@@ -1033,6 +1033,7 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
         'import json,sys; print(json.load(open(sys.argv[1]))["suiteVersion"])' \
         "$smoke_payload/manifest.json")"
     cat > "$rawfile_dir/wine-runtime-manifest.json" <<EOF
+
 {
   "schemaVersion": 1,
   "payload": "wine-data.zip",
@@ -1040,6 +1041,16 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
   "smokeSuiteVersion": "$smoke_suite_version"
 }
 EOF
+# VPP 兼容: wine_runtime.version (WineEngineService 启动时整读比较的版本标记)。
+# 方案③布局, 内容为 zip sha256 + 关键 pin, 仅供人工核对与设备端 marker 比对。
+VP_VERSION_FILE="$rawfile_dir/wine_runtime.version"
+VP_ZIP_SHA="$payload_sha"
+VP_WINE_PIN="$(git -C "$ROOT" ls-tree HEAD thirdparty/wine-valve 2>/dev/null | awk '{print substr($3,1,10)}')"
+VP_FEX_PIN="$(git -C "$ROOT" ls-tree HEAD thirdparty/fex 2>/dev/null | awk '{print substr($3,1,10)}')"
+printf 'content=%s;wine-valve=%s;fex=%s;arch=%s:%s\n' \
+    "${VP_ZIP_SHA:0:16}" "${VP_WINE_PIN:-unknown}" "${VP_FEX_PIN:-unknown}" "$NATIVE_ARCH" "$WINE_ARCH" \
+    > "$VP_VERSION_FILE"
+log "    wine_runtime.version (VPP compat) -> rawfile/"
     log "  $zip_name → rawfile/ ($(du -h "$rawfile_dir/$zip_name" | cut -f1))"
 
     # 记录本次 assemble 的架构组合, package.sh hap 校验一致性 (方案切换后未重跑

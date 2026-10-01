@@ -304,21 +304,15 @@ function registryHasObsoleteGameFontSubstitutes(registry: string): boolean {
 const REQUIRED_RUNTIME_PATHS: RuntimePathRequirement[] = [
   { path: PREFIX_MARKER, label: 'share/wine/wine.inf' },
   { path: WINE_BIN + '/explorer.exe', label: 'bin/explorer.exe' },
-  { path: WINE_BIN + '/Alarm01.wav', label: 'bin/Alarm01.wav' },
   { path: WINE_BIN + '/guest_gfx/winehua-guest-gfx.env', label: 'bin/guest_gfx/winehua-guest-gfx.env' },
   { path: WINE_BIN + '/guest_gfx/lib/libEGL.so', label: 'bin/guest_gfx/lib/libEGL.so' },
   { path: WINE_BIN + '/guest_gfx/lib/dri/virtio_gpu_dri.so', label: 'bin/guest_gfx/lib/dri/virtio_gpu_dri.so' },
   { path: WINE_BIN + '/guest_vulkan/lib/libvulkan.so.1', label: 'bin/guest_vulkan/lib/libvulkan.so.1' },
-  { path: WINE_BIN + '/guest_vulkan/share/vulkan/icd.d/venus_icd.x86_64.json',
+  { path: WINE_BIN + '/guest_vulkan/share/vulkan/icd.d/venus_icd.aarch64.json',
     label: 'bin/guest_vulkan/share/vulkan/icd.d/venus_icd.x86_64.json' },
   { path: WINE_ROOT + '/dxvk/manifest.json', label: 'dxvk/manifest.json' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d9.dll', label: 'dxvk/legacy/x64/d3d9.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d10core.dll', label: 'dxvk/legacy/x64/d3d10core.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d10.dll', label: 'dxvk/legacy/x64/d3d10.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d10_1.dll', label: 'dxvk/legacy/x64/d3d10_1.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x64/d3d11.dll', label: 'dxvk/legacy/x64/d3d11.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x64/dxgi.dll', label: 'dxvk/legacy/x64/dxgi.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x86/d3d9.dll', label: 'dxvk/legacy/x86/d3d9.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d10core.dll', label: 'dxvk/legacy/x86/d3d10core.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d10.dll', label: 'dxvk/legacy/x86/d3d10.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d10_1.dll', label: 'dxvk/legacy/x86/d3d10_1.dll' },
@@ -329,7 +323,7 @@ const REQUIRED_RUNTIME_PATHS: RuntimePathRequirement[] = [
     label: 'smoke/x64/winehua_d3d_switch_cube.exe' },
   { path: WINE_ROOT + '/smoke/x86/winehua_d3d_switch_cube.exe',
     label: 'smoke/x86/winehua_d3d_switch_cube.exe' },
-  { path: WINE_BIN + '/x86_64-windows', label: 'bin/x86_64-windows', directory: true },
+  { path: WINE_BIN + '/aarch64-windows', label: 'bin/aarch64-windows', directory: true },
   { path: WINE_BIN + '/i386-windows', label: 'bin/i386-windows', directory: true }
 ];
 
