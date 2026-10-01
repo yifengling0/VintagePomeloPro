@@ -871,14 +871,13 @@ export class WineEngineService {
       // Resolve the backend intent into one Native-owned Host/Guest route
       // before VirGL starts. ArkTS no longer duplicates shadow/upload flags.
       try {
-        // proton 基线: 先用 WineHua 原生 shadow profile ('baseline') 启动,
-        // 规避 VPP product-vulkan 路由 env 组合下 explorer 段错误 (实测);
-        // VPP 图形路由体系待映射到 WineHua profile 集后再恢复接入。
-        // WineHua 标准 DXVK 1.10.3 档位 (与 WineEnvService.updateLaunchRequest 一致);
-        // wined3d/virgl 路由时退回 baseline。
-        testNapi.setHostShadowProfile(this.hostGraphicsBackend === 'wined3d' ?
-          'baseline' : 'shadow-precise-dirty-ring-inline-upload-coverage-sort');
-        const policyApplied = true;
+        // VPP product-vulkan 图形路由 (注入 virgl/guest_gfx/vulkan/dxvk 会话 env)。
+        // 注: explorer 等进程 exit=11 是 wine SEH 正常形态 (fault-forensics:
+        // "宿主返回码不等于失败"), 不作为路由回归的依据。
+        const policyApplied = this.hostGraphicsLabExperiment.length > 0 ?
+          (testNapi.setHostGraphicsExperimentForLab(
+            this.hostGraphicsLabExperiment, this.hostGraphicsBackend) as boolean) :
+          (testNapi.setHostGraphicsBackend(this.hostGraphicsBackend) as boolean);
         if (!policyApplied) {
           this.setState(EngineState.ERROR, '图形配置无效');
           this.finishWaiters(false);
