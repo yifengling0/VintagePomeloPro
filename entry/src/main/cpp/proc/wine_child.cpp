@@ -521,10 +521,16 @@ static void select_wow64_backend(int argc, char **argv)
 
     const char *wow64_engine = getenv("WINEHUA_WOW64_ENGINE");
 
-    if (wow64_engine && strcmp(wow64_engine, "box") == 0)
-        setenv("HODLL", "wowbox64.dll", 1);
-    else
+    /* 2026-09-30 设备实测 (vpp-proton.3/5 + WineHua 原生双包对照, fresh prefix):
+     * FEX 32 位路径对老游戏 SMC 故障 (CEGUI 自检写代码段) 无解保护,
+     * PAL4 exit=53/CPK 错, PAL2 SIGSEGV, Heaven Qt 白屏; wowbox64 的宿主
+     * 故障接管完整, 三者全通。Steam 客户端上方仍强制 FEX (专门调教)。
+     * libwow64fex 补齐 SMC 解保护后可回切 (见 docs/
+     * ARM64_SCHEME3_HEAVEN_CRASH_FIX.md)。WINEHUA_WOW64_ENGINE=fex 显式回退。 */
+    if (wow64_engine && strcmp(wow64_engine, "fex") == 0)
         setenv("HODLL", "libwow64fex.dll", 1);
+    else
+        setenv("HODLL", "wowbox64.dll", 1);
     OH_LOG_INFO(LOG_APP, "[WineChild] HODLL=%{public}s (WINEHUA_WOW64_ENGINE=%{public}s)",
                 getenv("HODLL") ? getenv("HODLL") : "?", wow64_engine ? wow64_engine : "(unset)");
 #endif
