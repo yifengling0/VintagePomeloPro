@@ -72,9 +72,41 @@ export function smokeDriveC(prefixMode: string): string {
   return `${prefixRoot(prefixMode)}/drive_c`;
 }
 
+
+/* 整目录装载 smoke-payload (app 自身 uid, 绕开 hdc shell 的 SELinux 限制)。 */
+function syncPayloadSmokeTree(source: string, target: string, prefixMode: string): boolean {
+  try {
+    if (!readSmokeText(`${source}/suites.json`)) {
+      hilog.error(DOMAIN, 'ManagedSmokePayload', 'payload smoke suites.json missing: %{public}s', source);
+      return false;
+    }
+    if (readSmokeText(`${target}/manifest.json`) !== readSmokeText(`${source}/manifest.json`) ||
+        !smokePathExists(`${target}/suites.json`)) {
+      removeRecursive(target);
+      ensureSmokeDirectory(target);
+      for (const entry of ['manifest.json', 'suites.json', 'x64', 'x86', 'x64-fex', 'assets']) {
+        if (smokePathExists(`${source}/${entry}`)) copyRecursive(`${source}/${entry}`, `${target}/${entry}`);
+      }
+    }
+    ensureSmokeDirectory(`${target}/results`);
+    hilog.info(DOMAIN, 'ManagedSmokePayload', 'payload smoke tree synchronized prefix=%{public}s', prefixMode);
+    return true;
+  } catch (error) {
+    hilog.error(DOMAIN, 'ManagedSmokePayload', 'payload smoke tree sync failed: %{public}s', JSON.stringify(error));
+    return false;
+  }
+}
+
 export function syncManagedSmoke(prefixMode: string): boolean {
-  const source = `${WINE_ROOT}/smoke`;
   const target = `${prefixRoot(prefixMode)}/drive_c/smoke`;
+  /* smoke.py 编排推送的完整用例集 (files/smoke-payload, 170+ exe) 优先:
+   * 存在则以整目录同步装载 (WineHua SmokeRunner 同源行为), 运行时 zip 的
+   * 精简 smoke 集仅作无编排载荷时的兜底。 */
+  const payloadRoot = `${FILES_BASE}/smoke-payload`;
+  if (readSmokeText(`${payloadRoot}/manifest.json`)) {
+    return syncPayloadSmokeTree(payloadRoot, target, prefixMode);
+  }
+  const source = `${WINE_ROOT}/smoke`;
   const sourceManifest = readSmokeText(`${source}/manifest.json`);
   if (!sourceManifest) {
     hilog.error(DOMAIN, 'ManagedSmokePayload', 'managed smoke manifest missing: %{public}s', source);
