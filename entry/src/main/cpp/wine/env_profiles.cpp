@@ -140,8 +140,6 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
     if (FindEnvValue(p.extraEnv, "WINEHUA_VULKAN_RUNTIME") == "1" &&
         d3dBackend != "dxvk_legacy" && d3dBackend != "dxvk_modern_2_6")
         AppendVulkanRuntimeEnv(env, p.binDir);
-    // [DIAG] 临时诊断档位: 打开 wine SEH/err 日志抓 explorer/graphics_smoke 段错误现场
-    UpsertEnvLine(env, "WINEHUA_WINEDEBUG=-all,+err,+winediag,+seh,+loaddll");
     // per-app 覆盖最后写入, 优先级最高
     for (const std::string& line : p.extraEnv) {
         // These keys are owned by the normalized backend policy above. A

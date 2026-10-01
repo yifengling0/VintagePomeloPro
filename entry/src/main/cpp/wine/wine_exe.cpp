@@ -380,8 +380,42 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
     options.presentBackend = GetString(env, args[0], "presentBackend");
     if (options.presentBackend.empty())
         options.presentBackend = DerivePresentBackend(options.d3dBackend);
+
     ReadStringArray(env, args[0], "argv", &options.argv);
     ReadEnvironment(env, args[0], &options.environment);
+    // 2026-09-30 实测定档（用户经验规则：老游戏走 virgl，DX11+ 才用 DXVK）。
+    // 仅按 exe 基名路由，调用方显式传的 WINEHUA_WOW64_ENGINE 优先：
+    //   pal4.exe   dxvk_legacy 进场景白屏，wined3d(virgl) 实测进场景+对话。
+    //   pal2.exe   同上，且 FEX 下点"开始游戏"即 SIGSEGV，需要 box64 引擎。
+    //   browser_x86.exe  Unigine Qt 启动器：FEX 下 Qt 白屏（宿主故障接管
+    //                   只有 wowbox64 实现），Heaven DX11 仍走 dxvk_legacy。
+    {
+        std::string lowerExe;
+        for (char c : options.windowsExePath)
+            lowerExe.push_back((char)tolower((unsigned char)c));
+        auto endsWith = [&lowerExe](const char *suffix) {
+            const size_t n = strlen(suffix);
+            return lowerExe.size() >= n &&
+                lowerExe.compare(lowerExe.size() - n, n, suffix) == 0;
+        };
+        const bool isPal4 = endsWith("\pal4.exe") || endsWith("/pal4.exe");
+        const bool isPal2 = endsWith("\pal2.exe") || endsWith("/pal2.exe");
+        const bool isQtLauncher = endsWith("rowser_x86.exe") || endsWith("/browser_x86.exe");
+        if (isPal4 || isPal2) {
+            options.d3dBackend = "wined3d";
+            options.presentBackend = DerivePresentBackend("wined3d");
+            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: d3d backend forced to wined3d exe=%{public}s",
+                        options.windowsExePath.c_str());
+        }
+        bool engineOverridePresent = false;
+        for (const std::string &kv : options.environment)
+            if (kv.rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) engineOverridePresent = true;
+        if (!engineOverridePresent && (isPal2 || isQtLauncher)) {
+            options.environment.push_back("WINEHUA_WOW64_ENGINE=box");
+            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: wow64 engine forced to box exe=%{public}s",
+                        options.windowsExePath.c_str());
+        }
+    }
     // ArkTS 原样传入的 per-app environment (未经管线改写, 与 main-ui 启动链
     // 对比的判别点): 拼成 K=V;K=V 行串打出, 空 = 调用方未注入
     const std::string envFallback = [&options]() {
