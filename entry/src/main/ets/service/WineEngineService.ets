@@ -898,9 +898,13 @@ export class WineEngineService {
       }
       // Native runs wineboot --init only for a new prefix. Existing prefixes
       // are migrated above before any wineserver process starts.
-      testNapi.launchClient(BOX64, [], SOCK, WINE_BIN + ':' + WINE_LIB,
-        homeDirectory, requestedPrefixMode === 'clean', requestedPrefixMode, this.d3dBackend,
-        box64PresetEnvString(settings.box64Preset), this.activeWineLanguage);
+      // proton 方案③ launchClient 12 参布局 (containerSession 语义):
+      // exe, argv, sock, libPath, home, d3d, dxvk, lang, containerId,
+      // directNcp, desktopVulkanCompositor, desktopStallSeconds
+      const wineUnixSubdir = pathExists(`${WINE_BIN}/aarch64-unix`) ? 'aarch64-unix' : 'x86_64-unix';
+      testNapi.launchClient(BOX64, [], SOCK, WINE_BIN + ':' + WINE_BIN + '/' + wineUnixSubdir,
+        homeDirectory, this.d3dBackend, this.d3dBackend, this.activeWineLanguage,
+        'default', false, false, 0);
       return this.waitForReady();
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', JSON.stringify(error));
