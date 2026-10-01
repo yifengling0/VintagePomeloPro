@@ -1266,10 +1266,18 @@ export class WineEngineService {
     const processScoped = separator > 0;
     const value = separator >= 0 ? raw.substring(separator + 1) : raw;
     // proton 方案③事件值映射: theirs 发 state:ready/ready-degraded/stopped/failed:<stage>
-    const scheme3Ready = value === 'ready' || value === 'ready-degraded';
+    if (raw === 'state:ready-degraded') {
+      if (this.state !== EngineState.READY) {
+        this.setState(EngineState.PREPARING, '正在准备 Wine 桌面');
+      }
+      return;
+    }
+    const desktopReady = raw === 'evt:desktop-ready' &&
+      (this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING);
+    const scheme3Ready = raw === 'state:ready' || desktopReady;
     if (value === 'wine-ready' || value === 'wine-running' || scheme3Ready) {
       const becomingReady = this.state !== EngineState.READY;
-      if (value === 'wine-ready' && this.prefixRefreshRequired) {
+      if ((value === 'wine-ready' || scheme3Ready) && this.prefixRefreshRequired) {
         // Do not claim a refreshed prefix until native wineboot completed and
         // the marker is durable. A failed write deliberately leaves the
         // marker stale so the next launch retries the refresh.

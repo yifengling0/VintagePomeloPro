@@ -584,7 +584,21 @@ test-wine-surface-region-lock:
 test-wine-patch-detection:
 	python3 $(ROOT)/host_tests/wine_patch_detection_test.py
 
-test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection
+.PHONY: test-prefix-registry
+test-prefix-registry:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/prefix_registry_test $(ROOT)/host_tests/prefix_registry_test.cpp
+	$(HOST_TEST_DIR)/prefix_registry_test
+
+.PHONY: test-steam-client-args
+test-steam-client-args:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
+	$(HOST_TEST_DIR)/steam_client_args_test
+
+test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-prefix-registry test-steam-client-args
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \
 	    -o $(HOST_TEST_DIR)/geometry_test \

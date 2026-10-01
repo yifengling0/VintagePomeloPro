@@ -18,6 +18,8 @@ def main():
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--label", required=True)
     parser.add_argument("--exe", required=True)
+    parser.add_argument("--bundle", default="app.hackeris.winehua")
+    parser.add_argument("--d3d-backend", default=None)
     parser.add_argument("--container", default="default")
     parser.add_argument("--arg", action="append", default=[])
     parser.add_argument("--env", action="append", default=[])
@@ -40,7 +42,9 @@ def main():
     }
     if args.direct_ncp_session:
         values["winehua.direct_ncp_session"] = "1"
-    command = "aa start -b app.hackeris.winehua -a EntryAbility"
+    if args.d3d_backend:
+        values["winehua.d3d_backend"] = quote(args.d3d_backend, safe="")
+    command = f"aa start -b {args.bundle} -a EntryAbility"
     for key, value in values.items():
         command += f" --ps {key} {value}"
     return subprocess.call([

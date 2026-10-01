@@ -32,6 +32,8 @@
 #include "wine/wine_constants.h"
 #include "wine_scheme.h"
 #include "wine/wine_env.h"
+#include "wine/prefix_registry_io.h"
+#include "wine/steam_client_args.h"
 #include <fcntl.h>
 #include <dirent.h>
 #include <pthread.h>
@@ -324,6 +326,14 @@ static bool derive_launch_cwd(int argc, char *argv[], const char *homeDir, std::
     const char *program;
 
     if (argc <= 0 || !argv[0]) return false;
+    // Scheme 1/3 argv retains the loader token until __wine_main is called.
+    // Derive the program directory from the executable, not from "wine".
+    if (!strcasecmp(basename_of_path(argv[0]), "wine"))
+    {
+        ++argv;
+        --argc;
+        if (argc <= 0 || !argv[0]) return false;
+    }
     program = basename_of_path(argv[0]);
 
     if (!strcasecmp(program, "wineboot") ||
@@ -410,10 +420,8 @@ static void setup_wine_env(const char* binDir, const char* homeDir, const char *
     // 方案③ arm64 原生 wine: 指定 FEX 模拟器 DLL (HODLL64), 由 ntdll loader 加载转译 x86_64 应用
     setenv("HODLL64", "libarm64ecfex.dll", 1);
     // 32 位 x86 应用: HODLL 由 wow64.dll get_cpu_dll_name() 读取, 转译 i386 PE。
-    // 引擎可选: box=Box64 wowbox64.dll (默认), fex=FEX libwow64fex.dll。
-    // Box64 是 arm64 产品基线，Steam/CEF 等高负载 Win32 子进程先走这条
-    // 已验证路径；FEX 保留为显式诊断覆盖，避免把未完成的 FEX JIT fault
-    // 路由作为所有用户进程的默认行为。
+    // Default: FEX libwow64fex.dll, including games launched by Steam.
+    // wowbox64.dll is selected only by an explicit engine override.
     // 注: HODLL 的最终选择放在 apply_entry_param_env_overrides() 之后
     // (见 select_wow64_backend)，否则从 Want 传入的 WINEHUA_WOW64_ENGINE
     // 会被这里的默认值覆盖。
@@ -521,16 +529,12 @@ static void select_wow64_backend(int argc, char **argv)
 
     const char *wow64_engine = getenv("WINEHUA_WOW64_ENGINE");
 
-    /* 2026-09-30 设备实测 (vpp-proton.3/5 + WineHua 原生双包对照, fresh prefix):
-     * FEX 32 位路径对老游戏 SMC 故障 (CEGUI 自检写代码段) 无解保护,
-     * PAL4 exit=53/CPK 错, PAL2 SIGSEGV, Heaven Qt 白屏; wowbox64 的宿主
-     * 故障接管完整, 三者全通。Steam 客户端上方仍强制 FEX (专门调教)。
-     * libwow64fex 补齐 SMC 解保护后可回切 (见 docs/
-     * ARM64_SCHEME3_HEAVEN_CRASH_FIX.md)。WINEHUA_WOW64_ENGINE=fex 显式回退。 */
-    if (wow64_engine && strcmp(wow64_engine, "fex") == 0)
-        setenv("HODLL", "libwow64fex.dll", 1);
-    else
+    // Keep the Proton baseline on FEX. A partial prefix or a failed launch
+    // does not establish an emulator failure and must not change this default.
+    if (wow64_engine && strcmp(wow64_engine, "box") == 0)
         setenv("HODLL", "wowbox64.dll", 1);
+    else
+        setenv("HODLL", "libwow64fex.dll", 1);
     OH_LOG_INFO(LOG_APP, "[WineChild] HODLL=%{public}s (WINEHUA_WOW64_ENGINE=%{public}s)",
                 getenv("HODLL") ? getenv("HODLL") : "?", wow64_engine ? wow64_engine : "(unset)");
 #endif
@@ -563,24 +567,27 @@ static bool is_steam_bootstrap_exe(int argc, char **argv)
 static void apply_steam_client_default_args(int &argc, char **argv)
 {
     if (!is_steam_bootstrap_exe(argc, argv)) return;
-    if (argc > 61) return;   // argv[64], 末尾保留 nullptr 槽位
 
     static char kForceGpu[] = "-cef-force-gpu";
     static char kDisableGpu[] = "-cef-disable-gpu";
     static char kNoSandbox[] = "-no-cef-sandbox";
 
-    bool hasSandboxSwitch = arg_equals(argc, argv, kNoSandbox) ||
-                            arg_equals(argc, argv, "-cef-disable-sandbox");
+    // Keep client flags ahead of -applaunch; Steam otherwise passes them to
+    // RPGXP.exe and every other game launched through that command.
+    auto injectClientArg = [&](char* flag) {
+        if (winehua::InsertSteamClientArg(argc, argv, 64, flag))
+            OH_LOG_INFO(LOG_APP, "[WineChild] steam default arg injected: %{public}s", flag);
+    };
+    bool hasSandboxSwitch = winehua::HasSteamClientArg(argc, argv, kNoSandbox) ||
+                            winehua::HasSteamClientArg(argc, argv, "-cef-disable-sandbox");
     if (!hasSandboxSwitch)
     {
-        argv[argc++] = kNoSandbox;
-        OH_LOG_INFO(LOG_APP, "[WineChild] steam default arg injected: %{public}s", kNoSandbox);
+        injectClientArg(kNoSandbox);
     }
     const char* forceGpu = getenv("WINEHUA_CEF_FORCE_GPU");
-    if (forceGpu && forceGpu[0] == '1' && !arg_equals(argc, argv, kForceGpu))
+    if (forceGpu && forceGpu[0] == '1' && !winehua::HasSteamClientArg(argc, argv, kForceGpu))
     {
-        argv[argc++] = kForceGpu;
-        OH_LOG_INFO(LOG_APP, "[WineChild] steam default arg injected: %{public}s", kForceGpu);
+        injectClientArg(kForceGpu);
     }
     /* WINEHUA_CEF_STEAM_DISABLE_GPU=1 -> Steam 自己的 -cef-disable-gpu。
      * 32 位客户端当初能出画面时的 GPU 进程命令行就是 `--use-gl=disabled`
@@ -588,10 +595,9 @@ static void apply_steam_client_default_args(int &argc, char **argv)
      * 只加这一条 Steam 原生开关, 不再叠 WineHua 的 --disable-gpu-compositing
      * (实测二者叠加会把 CEF 推成半 GPU 状态: 窗口整体黑 + renderer 反复崩)。 */
     const char* disableGpu = getenv("WINEHUA_CEF_STEAM_DISABLE_GPU");
-    if (disableGpu && disableGpu[0] == '1' && !arg_equals(argc, argv, kDisableGpu))
+    if (disableGpu && disableGpu[0] == '1' && !winehua::HasSteamClientArg(argc, argv, kDisableGpu))
     {
-        argv[argc++] = kDisableGpu;
-        OH_LOG_INFO(LOG_APP, "[WineChild] steam default arg injected: %{public}s", kDisableGpu);
+        injectClientArg(kDisableGpu);
     }
     argv[argc] = nullptr;
 }
@@ -649,40 +655,11 @@ static const char* const kWineUiFontFamilies[] = {
 
 struct WineHuaRegEntry { const char* key; const char* value; };
 
-static bool winehua_read_text_file(const char* path, std::string& out)
-{
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) return false;
-    char buf[65536];
-    ssize_t n;
-    out.clear();
-    while ((n = read(fd, buf, sizeof(buf))) > 0) out.append(buf, (size_t)n);
-    close(fd);
-    return !out.empty();
-}
-
-static bool winehua_write_text_file(const char* path, const std::string& data)
-{
-    int fd = open(path, O_WRONLY | O_TRUNC);
-    if (fd < 0) return false;
-    size_t off = 0;
-    while (off < data.size())
-    {
-        ssize_t w = write(fd, data.data() + off, data.size() - off);
-        if (w <= 0) break;
-        off += (size_t)w;
-    }
-    close(fd);
-    return off == data.size();
-}
-
 // 已知"指向不存在 family"的值: 这些目标名在本 runtime 里没有对应字体。
 static bool winehua_font_target_is_broken(const std::string& value)
 {
     return value.find("HarmonyOS Sans") != std::string::npos ||
-           value.find("Noto Sans CJK") != std::string::npos ||
-           value.find("Noto Serif") != std::string::npos ||
-           value.find("Noto Sans Mono") != std::string::npos;
+           value.find("Noto Sans CJK") != std::string::npos;
 }
 
 // 在 [section] 段内补齐缺失项 / 纠正失效目标; 段不存在且 add_missing 时追加该段。
@@ -738,7 +715,8 @@ static int winehua_patch_reg_section(std::string& text, const char* section,
     return changed;
 }
 
-// 会话启动时自愈 prefix: 字体替换链 + 中文代码页。幂等, 只在有改动时写回。
+// Run once under wineserver's session lock, before it reads the registry.
+// Ordinary Wine children must never edit hives behind the active server.
 static void ensure_prefix_fonts_and_codepage()
 {
     const char* prefix = getenv("WINEPREFIX");
@@ -754,16 +732,13 @@ static void ensure_prefix_fonts_and_codepage()
 
     std::string path = std::string(prefix) + "/user.reg";
     std::string text;
-    if (winehua_read_text_file(path.c_str(), text))
+    if (winehua::ReadPrefixRegistry(path.c_str(), text))
     {
         int n = winehua_patch_reg_section(text, "Software\\\\Wine\\\\Fonts\\\\Replacements",
                                          font_entries, font_count, true, true);
         if (n > 0)
         {
-            std::string backup = path + ".winehua.bak";
-            int bfd = open(backup.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
-            if (bfd >= 0) close(bfd);
-            if (winehua_write_text_file(path.c_str(), text))
+            if (winehua::WritePrefixRegistry(path.c_str(), text))
                 OH_LOG_INFO(LOG_APP, "[WineChild] font Replacements patched (%{public}d entries)", n);
             else
                 OH_LOG_WARN(LOG_APP, "[WineChild] font Replacements write failed");
@@ -775,7 +750,7 @@ static void ensure_prefix_fonts_and_codepage()
     };
     path = std::string(prefix) + "/system.reg";
     text.clear();
-    if (winehua_read_text_file(path.c_str(), text))
+    if (winehua::ReadPrefixRegistry(path.c_str(), text))
     {
         int n = winehua_patch_reg_section(
             text, "Software\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\FontSubstitutes",
@@ -786,10 +761,7 @@ static void ensure_prefix_fonts_and_codepage()
                                        true, false);
         if (n > 0)
         {
-            std::string backup = path + ".winehua.bak";
-            int bfd = open(backup.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
-            if (bfd >= 0) close(bfd);
-            if (winehua_write_text_file(path.c_str(), text))
+            if (winehua::WritePrefixRegistry(path.c_str(), text))
                 OH_LOG_INFO(LOG_APP, "[WineChild] system.reg font/codepage patched (%{public}d entries)", n);
             else
                 OH_LOG_WARN(LOG_APP, "[WineChild] system.reg write failed");
@@ -1895,9 +1867,6 @@ extern "C" void Main(NativeChildProcess_Args args)
     // value is known, and avoid a "prefix/../" path whose intermediate prefix
     // may not exist after a clean install.
     refresh_wine_session_paths();
-    // 前缀字体/代码页自愈 (必须在 Wine 起来之前): 新装/重置 prefix 后 UI 字体链是断的,
-    // 会让 win64/32 位 Steam 的 VGUI2 断言 surface_gdiwin32.cpp:1336 winFont 并卡在启动画面。
-    ensure_prefix_fonts_and_codepage();
     // Migrate the old file-hiding workaround before Steam verifies its files.
     if (is_steam_bootstrap_exe(argc, argv)) restore_shadowed_vulkan_loaders();
 
@@ -2182,6 +2151,12 @@ static void RunWineserver(char* binDir, int argc2, char** argv2,
         dlclose(h);
         return;
     }
+    auto* set_registry_hook = (void (*)(void (*)(void)))dlsym(h, "winehua_set_registry_startup_hook");
+    if (!set_registry_hook) {
+        OH_LOG_ERROR(LOG_APP, "[WineChild] wineserver missing locked registry startup hook");
+        return;
+    }
+    set_registry_hook(ensure_prefix_fonts_and_codepage);
     OH_LOG_INFO(LOG_APP, "[WineChild] ws step7: calling ws_main(%{public}d, [...]), WINEPREFIX=%{public}s",
                 argc2, getenv("WINEPREFIX"));
     int wsRc = ws_main(argc2, argv2);

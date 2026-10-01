@@ -2,15 +2,16 @@
 
 > 维护口径：本文汇总"跑得起来需要知道的事"与"当前还没解决的事"，供后续接手/回归时直接对照。
 > 证据与逐轮细节见 `docs/steam-win64/` 下的交接与复核文档；本文只保留结论与操作要点。
-> 最近更新：2026-09-22（32 位运行基座由 box64 改为 FEX）
+> 最近更新：2026-10-01（VPP 合并后的 prefix/cwd 启动回归修复，保持 FEX）
+> 本轮修复与真机验收见 [合并启动回归记录](STARTUP_MERGE_REGRESSION_20261001.md)，下一调查入口见 [AI 交接](AI_HANDOFF_STEAM_DRM_20261001.md)。下方旧问题清单属于历史记录，本轮状态以当日报告为准。
 
 ## 1. Proton 注意事项（native / Wine 侧）
 
-### 1.1 受支持的 Wine 基线是 Proton，不是注册子模块
+### 1.1 当前 Wine 构建基线与补丁
 
-- 构建实际使用 `scripts/env.sh` 的 `WINE_SRC`，默认 `thirdparty/wine-valve`（分支 `ohos-port`）。
-- 主仓库 `.gitmodules` 里注册的是 `thirdparty/wine`（`git@github.com:winehua/wine.git`），**不是**当前编译树；
-  提交 Wine 侧改动要落到 `thirdparty/wine-valve` 自己的仓库（远端 `fork` = `https://github.com/winehua/wine.git`）。
+- 构建实际使用 `scripts/env.sh` 的 `WINE_SRC`，默认已注册子模块 `thirdparty/wine-valve`，当前 pin 为 `cd547f7a0ee9d3d59b3ec47317a7852dedf0443b`。
+- `.gitmodules` 同时注册 `thirdparty/wine` 与 `thirdparty/wine-valve`，默认构建使用后者；不要误改另一棵树。
+- 本轮 Wine 改动保存为主仓库 `0011` / `0012` 补丁，由 `scripts/build_wine.sh` 幂等应用，gitlink 保持不变。补丁已验证能从 pin 完整复现当前构建内容。
 
 ### 1.2 `need_override_large_address_aware()` 默认 true
 
@@ -27,6 +28,8 @@
 | --- | --- |
 | `patches/wine/0001-win32u-repair-external-font-registration.patch` | 外部字体注册修复；Steam 中文字体依赖它，不要为了排查白屏整体回滚 |
 | `patches/wine/0002-ntdll-ohos-signal-safe-stack-read.patch` | 信号处理器用 `process_vm_readv` 读栈；FEX 的 SP 可能正好落在 guard 页，直接读会二次 SIGSEGV |
+| `patches/wine/0011-wineboot-durable-prefix-completion.patch` | init/update 与 RegFlushKey 完成后原子发布 prefix 完成标记 |
+| `patches/wine/0012-wineserver-locked-registry-migration.patch` | 会话锁内、加载 registry 之前迁移字体/代码页，避免 child 与 server 竞争 hive |
 
 ### 1.4 ntdll unix 侧改动是"一整块"，不要切碎回滚
 
@@ -85,7 +88,7 @@ box64 侧遗留问题：v33 给 `dynarec_native_pass.c` 的跨页 guard / `ninst
 
 ### 2.4 FEX 二进制要对齐（重要）
 
-同一时间点存在三个不同 SHA：设备上的 `libarm64ecfex.dll` 是 **v21 返回缓存绕过诊断版**
+以下是 2026-09-21 的历史快照，不代表本轮产物。该时间点存在三个不同 SHA：设备上的 `libarm64ecfex.dll` 是 **v21 返回缓存绕过诊断版**
 （`a9b75e5e…`），容器 `build/fex-ec/Bin` strip 后是 `a42eb333…`，文档记载的"原版"是 `8aba586e…`。
 把 FEX 当基座做性能/稳定性结论前，先确定并部署**非诊断版**，否则结论会混入诊断补丁本身的行为。
 

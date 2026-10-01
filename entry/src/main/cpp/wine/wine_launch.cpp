@@ -5,6 +5,7 @@
 #include "env_profiles.h"
 #include "proc/spawner.h"
 #include "wine_constants.h"
+#include "prefix_registry.h"
 #include "compositor/wayland_server.h"
 #include "audio_ipc_protocol.h"
 #include "graphics/graphics_broker.h"
@@ -74,7 +75,8 @@ bool IsWinePrefixInitialized(const std::string& prefixDir) {
            FileHasData((prefix + "/user.reg").c_str()) &&
            DirExists((prefix + "/drive_c/windows/system32").c_str()) &&
            DirExists((prefix + "/drive_c/windows/temp").c_str()) &&
-           DirExists((prefix + "/drive_c/users").c_str());
+           DirExists((prefix + "/drive_c/users").c_str()) &&
+           winehua::HasPrefixShellRegistrations(prefix + "/system.reg");
 }
 
 bool IsWinePrefixInitialized() {
@@ -409,7 +411,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd, bool* desktopDe
         && access(initMarker.c_str(), F_OK) != 0;
 
     if (!prefixReady) {
-        OH_LOG_WARN(LOG_APP, "[Launch-Async] prefix not initialized, preparing WoW64 and running wineboot --init...");
+        OH_LOG_WARN(LOG_APP, "[Launch-Async] prefix incomplete, preparing WoW64 and running wineboot --init --update...");
         if (FILE* marker = fopen(initMarker.c_str(), "w")) {
             fputs("wineboot\n", marker);
             fclose(marker);
@@ -455,6 +457,9 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd, bool* desktopDe
         // (argv/兼容档位由 Spawner 按 kind 注入; wine 加载器 token 按方案判定 —
         // 方案② box64 不带, 方案①③ 原生 __wine_main 带, 见 spawner.cpp)
         winehua::SpawnRequest wbReq{winehua::SpawnKind::Wineboot};
+        // An interrupted install may already have .update-timestamp. Force
+        // wine.inf registration without deleting the user's existing prefix.
+        wbReq.argv = {"--update"};
         wbReq.desktopSurface = ws->IsDesktopMode();
         wbReq.env = {"LANG=" + p->wineLang + ".UTF-8",
                      "LC_ALL=" + p->wineLang + ".UTF-8"};

@@ -493,13 +493,6 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
     if (argc >= 7) {
         napi_get_value_string_utf8(env, args[6], workingDirectoryPath,
                                    sizeof(workingDirectoryPath), nullptr);
-        // NOTE: cwd on the proton baseline is derived natively by wine_child's
-        // derive_launch_cwd() from the launchable argv path; the explicit VPP
-        // workingDirectory is accepted but not forwarded (logged for parity check).
-        if (workingDirectoryPath[0]) {
-            OH_LOG_INFO(LOG_APP, "[Wine] workingDirectory accepted (derived cwd policy): %{public}s",
-                        workingDirectoryPath);
-        }
     }
     if (argc >= 8) {
         char requestedBackend[64] = {};
@@ -547,15 +540,8 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
     if (homeDir.empty()) homeDir = gBrokerHomeDir;
     if (homeDir.empty()) homeDir = "/storage/Users/currentUser/Download";
 
-    std::string exePath(wineExe);
-    {
-        std::string lower = exePath;
-        for (auto& c : lower) c = tolower(c);
-        if (lower.find("/drive_c/") != std::string::npos) {
-            auto slash = exePath.find_last_of('/');
-            if (slash != std::string::npos) exePath = exePath.substr(slash + 1);
-        }
-    }
+    const winehua::ContainerSession session = winehua::GetActiveContainerSession();
+    const std::string exePath = NativePathToWindows(wineExe, session.prefixDir);
 
     OH_LOG_INFO(LOG_APP, "[Wine] runWineExe bin=%{public}s exe=%{public}s (final=%{public}s) home=%{public}s",
                 binDir, wineExe, exePath.c_str(), homeDir.c_str());
@@ -572,11 +558,15 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
     policy.libPath = libPath;
     policy.binDir = binDir;
     policy.homeDir = homeDir;
+    policy.prefixDir = session.prefixDir;
     policy.desktopShellFlag = WaylandServer::GetInstance()->IsDesktopMode();
     policy.d3dBackend = d3dBackend;
     policy.dxvkBackend = d3dBackend;
+    policy.applyStableOverlay = true;
     policy.wineLang = wineLang;
     policy.extraEnv = envOverrides;
+    if (workingDirectoryPath[0])
+        policy.extraEnv.push_back("WINEHUA_WORKING_DIRECTORY=" + std::string(workingDirectoryPath));
     std::vector<std::string> wineEnv = winehua::BuildSessionEnv(policy);
 
     winehua::SpawnRequest req{winehua::SpawnKind::WineExe};

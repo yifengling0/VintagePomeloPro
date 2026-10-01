@@ -64,3 +64,6 @@ prebuilt/
 __pycache__/
 *.pyc
 thirdparty/wine-proton/
+
+# Local HAP build packages
+*.hap

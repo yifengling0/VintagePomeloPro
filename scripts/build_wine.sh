@@ -43,6 +43,10 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0009-direct-ohos-wsi-and-resize-s
 # the same change in thirdparty/wine f6492f8.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0010-winewayland-decoration-owner-floating.patch" \
     "Owner-attached decoration float not managed"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0011-wineboot-durable-prefix-completion.patch" \
+    "Durable wineboot prefix completion handshake"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0012-wineserver-locked-registry-migration.patch" \
+    "Prefix migration under wineserver session lock"
 
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \

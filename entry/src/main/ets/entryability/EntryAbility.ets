@@ -315,7 +315,7 @@ export default class EntryAbility extends UIAbility {
       await this.runSmokeLaunch(want);
       return;
     }
-    const executable = String(parameters['winehua.game_path'] ?? '');
+    const executable = this.decodeAutomationPayload(String(parameters['winehua.game_path'] ?? ''));
     if (!executable) throw new Error('winehua.game_path is empty');
 
     const backend = String(parameters['winehua.d3d_backend'] ?? 'dxvk_legacy');
