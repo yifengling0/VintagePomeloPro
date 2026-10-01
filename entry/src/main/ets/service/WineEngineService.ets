@@ -874,7 +874,10 @@ export class WineEngineService {
         // proton 基线: 先用 WineHua 原生 shadow profile ('baseline') 启动,
         // 规避 VPP product-vulkan 路由 env 组合下 explorer 段错误 (实测);
         // VPP 图形路由体系待映射到 WineHua profile 集后再恢复接入。
-        testNapi.setHostShadowProfile('baseline');
+        // WineHua 标准 DXVK 1.10.3 档位 (与 WineEnvService.updateLaunchRequest 一致);
+        // wined3d/virgl 路由时退回 baseline。
+        testNapi.setHostShadowProfile(this.hostGraphicsBackend === 'wined3d' ?
+          'baseline' : 'shadow-precise-dirty-ring-inline-upload-coverage-sort');
         const policyApplied = true;
         if (!policyApplied) {
           this.setState(EngineState.ERROR, '图形配置无效');
