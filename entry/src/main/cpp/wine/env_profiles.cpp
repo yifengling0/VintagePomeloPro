@@ -140,6 +140,12 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
     if (FindEnvValue(p.extraEnv, "WINEHUA_VULKAN_RUNTIME") == "1" &&
         d3dBackend != "dxvk_legacy" && d3dBackend != "dxvk_modern_2_6")
         AppendVulkanRuntimeEnv(env, p.binDir);
+    // 2026-09-30: PAL4 (FEX) 的 CEGUI 自检 SMC 故障依赖此 WINEDEBUG 档位
+    // 才能被正确处理 (写自身代码段 code=2 → CEGUI 初始化失败 → CPK
+    // CE_CANNOT_OPEN_FILE)。+seh 通道改变了 SEH 分发时序, 绕开竞态窗口。
+    // 移除即复现白屏 (proton.2/3 实测)。根修需 wine 侧 SMC 解保护补齐,
+    // 见 docs/ARM64_SCHEME3_HEAVEN_CRASH_FIX.md; 此处保持 v9 已验证档位。
+    UpsertEnvLine(env, "WINEHUA_WINEDEBUG=-all,+err,+winediag,+seh,+loaddll");
     // per-app 覆盖最后写入, 优先级最高
     for (const std::string& line : p.extraEnv) {
         // These keys are owned by the normalized backend policy above. A
