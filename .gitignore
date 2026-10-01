@@ -63,3 +63,4 @@ prebuilt/
 # Python caches
 __pycache__/
 *.pyc
+thirdparty/wine-proton/
