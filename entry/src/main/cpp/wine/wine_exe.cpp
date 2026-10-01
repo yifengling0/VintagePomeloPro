@@ -593,6 +593,34 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
     OH_LOG_INFO(LOG_APP, "[Wine] runWineExe bin=%{public}s exe=%{public}s (final=%{public}s) home=%{public}s",
                 binDir, wineExe, exePath.c_str(), homeDir.c_str());
 
+    // known-title compat (与 RunWineProgram 同规则, 详见那处注释):
+    // pal4/pal2 -> wined3d; pal2/browser_x86 -> box64 引擎 (除非调用方覆盖)。
+    {
+        std::string lowerExe;
+        for (char c : exePath) lowerExe.push_back((char)tolower((unsigned char)c));
+        auto endsWith = [&lowerExe](const char *suffix) {
+            const size_t n = strlen(suffix);
+            return lowerExe.size() >= n &&
+                lowerExe.compare(lowerExe.size() - n, n, suffix) == 0;
+        };
+        const bool isPal4 = endsWith("\pal4.exe") || endsWith("/pal4.exe");
+        const bool isPal2 = endsWith("\pal2.exe") || endsWith("/pal2.exe");
+        const bool isQtLauncher = endsWith("rowser_x86.exe") || endsWith("/browser_x86.exe");
+        if (isPal4 || isPal2) {
+            strncpy(d3dBackend, "wined3d", sizeof(d3dBackend) - 1);
+            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: d3d backend forced to wined3d exe=%{public}s",
+                        exePath.c_str());
+        }
+        bool engineOverridePresent = false;
+        for (const std::string &kv : envOverrides)
+            if (kv.rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) engineOverridePresent = true;
+        if (!engineOverridePresent && (isPal2 || isQtLauncher)) {
+            envOverrides.push_back("WINEHUA_WOW64_ENGINE=box");
+            OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: wow64 engine forced to box exe=%{public}s",
+                        exePath.c_str());
+        }
+    }
+
     std::string sockStr(sockPath);
     auto pos = sockStr.find_last_of('/');
     std::string sockDir = (pos == std::string::npos) ? "/tmp" : sockStr.substr(0, pos);
