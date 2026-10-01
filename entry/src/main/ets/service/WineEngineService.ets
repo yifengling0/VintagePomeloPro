@@ -1425,7 +1425,9 @@ export class WineEngineService {
       const registry = fs.readTextSync(PREFIX_SYSTEM_REG);
       const sectionHeader = '[Software\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\FontSubstitutes]';
       const sectionStart = registry.indexOf(sectionHeader);
-      if (sectionStart < 0) throw new Error('FontSubstitutes registry section missing');
+      // proton 方案③ 的 system.reg 节名转义/结构与方案②不同时, 节可能找不到;
+      // 字体替换是增强项, 缺节直接跳过而不是阻塞引擎 (实测阻塞 smoke 启动)。
+      if (sectionStart < 0) return true;
       let sectionEnd = registry.indexOf('\n[', sectionStart + sectionHeader.length);
       if (sectionEnd < 0) sectionEnd = registry.length;
       const replacements: Map<string, FontSubstitute> = new Map<string, FontSubstitute>();
