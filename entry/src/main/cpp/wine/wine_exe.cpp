@@ -407,10 +407,13 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
             OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: d3d backend forced to wined3d exe=%{public}s",
                         options.windowsExePath.c_str());
         }
-        bool engineOverridePresent = false;
-        for (const std::string &kv : options.environment)
-            if (kv.rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) engineOverridePresent = true;
-        if (!engineOverridePresent && (isPal2 || isQtLauncher)) {
+        if (isPal2 || isQtLauncher) {
+            // FEX 下这两个标题实测必崩 (PAL2 SIGSEGV / Qt 白屏), 名单语义为
+            // 强制 box: 覆盖任何来源的同名条目, 避免调用方残留值挡住路由。
+            for (auto it = options.environment.begin(); it != options.environment.end();) {
+                if (it->rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) it = options.environment.erase(it);
+                else ++it;
+            }
             options.environment.push_back("WINEHUA_WOW64_ENGINE=box");
             OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: wow64 engine forced to box exe=%{public}s",
                         options.windowsExePath.c_str());
@@ -611,10 +614,11 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
             OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: d3d backend forced to wined3d exe=%{public}s",
                         exePath.c_str());
         }
-        bool engineOverridePresent = false;
-        for (const std::string &kv : envOverrides)
-            if (kv.rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) engineOverridePresent = true;
-        if (!engineOverridePresent && (isPal2 || isQtLauncher)) {
+        if (isPal2 || isQtLauncher) {
+            for (auto it = envOverrides.begin(); it != envOverrides.end();) {
+                if (it->rfind("WINEHUA_WOW64_ENGINE=", 0) == 0) it = envOverrides.erase(it);
+                else ++it;
+            }
             envOverrides.push_back("WINEHUA_WOW64_ENGINE=box");
             OH_LOG_INFO(LOG_APP, "[WineExe] known-title compat: wow64 engine forced to box exe=%{public}s",
                         exePath.c_str());
