@@ -1263,7 +1263,9 @@ export class WineEngineService {
     const separator = raw.indexOf(':');
     const processScoped = separator > 0;
     const value = separator >= 0 ? raw.substring(separator + 1) : raw;
-    if (value === 'wine-ready' || value === 'wine-running') {
+    // proton 方案③事件值映射: theirs 发 state:ready/ready-degraded/stopped/failed:<stage>
+    const scheme3Ready = value === 'ready' || value === 'ready-degraded';
+    if (value === 'wine-ready' || value === 'wine-running' || scheme3Ready) {
       const becomingReady = this.state !== EngineState.READY;
       if (value === 'wine-ready' && this.prefixRefreshRequired) {
         // Do not claim a refreshed prefix until native wineboot completed and
@@ -1289,6 +1291,13 @@ export class WineEngineService {
       hilog.warn(DOMAIN, TAG, 'Windows program launch failed while engine remains ready: %{public}s', raw);
     } else if (value === 'wine-failed' || value === 'wineboot-failed' || value === 'wineserver-failed') {
       this.setState(EngineState.ERROR, 'Wine 启动失败');
+      this.finishWaiters(false);
+    } else if (value === 'stopped') {
+      if (this.state !== EngineState.STOPPED) {
+        this.setState(EngineState.STOPPED, 'Wine 引擎已停止');
+      }
+    } else if (value.startsWith('failed')) {
+      this.setState(EngineState.ERROR, 'Wine 启动失败：' + value);
       this.finishWaiters(false);
     } else if (value === 'exited' && (testNapi.getProcessList() as NativeProcessInfo[]).length === 0) {
       if (this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING) {
