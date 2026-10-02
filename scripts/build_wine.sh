@@ -47,6 +47,17 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0011-wineboot-durable-prefix-comp
     "Durable wineboot prefix completion handshake"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0012-wineserver-locked-registry-migration.patch" \
     "Prefix migration under wineserver session lock"
+# RPGXP 取证诊断组 ([WOW-TEB]/[SMC-ANOMALY]/SEH 链/EXIT-FAULT): 仅日志, 但会
+# 扰动信号路径时序, 合并前需加运行期开关。
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013a-ntdll-ohos-rpgxp-diagnostics.patch" \
+    "RPGXP forensic diagnostics"
+# wow64 分发帧候选校验 (未验证; 含"帧不可写即立即终止"的有意策略, 需单独设计与测试)。
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013b-wow64-exception-dispatch-frame-guard.patch" \
+    "Wow64 exception dispatch frame guard"
+# 32 位栈顶容忍页 pad (EXPERIMENTAL, 收益未证明): 独立成包 —— 撤除即删本行与
+# 对应补丁文件 (top_pad 参数及调用点全部包含在该补丁内, 一并消失)。
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013c-ntdll-wow32-stack-top-pad.patch" \
+    "Wow32 stack top pad (experimental)"
 
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \

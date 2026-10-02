@@ -1,0 +1,360 @@
+From: WineHua port
+Subject: [PATCH] ntdll/ohos: RPGXP forensic diagnostics (SMC-ANOMALY / WOW-TEB / SEH chain / EXIT-FAULT)
+
+Diagnostics only, all reads kernel-mediated (process_vm_readv). NOTE: these
+probes perturb SIGSEGV-path timing (p18/p19 runs diverged) - gate before any
+real-behavior comparison or upstream submission.
+
+- [WOW-TEB] wow stack bounds + pad self-proof (vma_top) + live CPU area
+  (get_cpu_area alignment) + bounded SEH chain walk.
+- [SMC-ANOMALY]: first fault that jumps out of the decrypt address family,
+  with exact-address PC instruction bytes, full register file, guest
+  EIP/ESP and page mapping (ohos_smc_read_mem, no 8-byte down-alignment).
+- [EXIT-FAULT]: abort_thread prints status/caller/tid/last fault seq.
+---
+diff --git a/dlls/ntdll/unix/ohos_virtual.c b/dlls/ntdll/unix/ohos_virtual.c
+index aa900ec681a..bc46e648213 100644
+--- a/dlls/ntdll/unix/ohos_virtual.c
++++ b/dlls/ntdll/unix/ohos_virtual.c
+@@ -446,6 +446,26 @@ static void ohos_smc_dump_stack( uint64_t sp )
+     }
+ }
+ 
++/* WineHua (2026-10-02, 专家): 精确地址读取 —— ohos_smc_read_stack 会把地址
++ * 向下 8 字节对齐 (适合栈字转储), 但用于读取**指令字节/4 字节结构**时会把
++ * 结果整体偏移且不报警。新诊断一律走本函数: 地址原样传递, 返回实际读取
++ * 字节数, 坏页由内核安全失败。
++ * 说明: 本函数放在此处是为了避开 0002 补丁 (signal-safe stack read) 的
++ * hunk 上下文区 —— 插在 ohos_smc_read_stack 之后会破坏其反向校验。 */
++static size_t ohos_smc_read_mem( uint64_t addr, void *dst, size_t len )
++{
++    const int saved_errno = errno;
++    ssize_t bytes = -1;
++
++#ifdef SYS_process_vm_readv
++    struct iovec local = { dst, len };
++    struct iovec remote = { (void *)(uintptr_t)addr, len };
++    if (addr) bytes = syscall( SYS_process_vm_readv, getpid(), &local, 1UL, &remote, 1UL, 0UL );
++#endif
++    errno = saved_errno;
++    return bytes > 0 ? (size_t)bytes : 0;
++}
++
+ /* TEMP-DIAG(FAULT-MAP): 故障地址归属查询 (2026-09-18)
+  * CEF renderer 在 win64 下每 7~8 秒吃一颗 SIGSEGV(SEGV_ACCERR) 之后被 NS 回调
+  * 报 signal=11 退出, 但 [SMC] 行只有裸地址 —— 是 guest PE、FEX 代码缓存还是
+@@ -997,6 +1017,199 @@ void ohos_prof_sampler_init( void )
+     }
+ }
+ 
++/* WineHua (2026-10-01): 32 位 SEH 分发死亡螺旋的现场补充。
++ * RPGXP (SteamStub) 现场: 首个被分发的 AV 来自 esp=StackBase+4 的栈顶写入,
++ * 且 32 位 SEH 链头 handler=0 → 615 级 NULL 执行递归, 最终栈底不可写页把
++ * 分发拖进无限嵌套。在每进程前 16 次 SIGSEGV 现场顺带打出 wow TEB 栈三元组
++ * 与 ExceptionList 链头两字, 供定位初始 Esp / SEH 链初始化问题。
++ * 只做原始读; 链头读取前限定在 32 位用户区间, 避免在 signal handler 里踩坑。 */
++static void ohos_dump_wow_teb_state( void *teb_ptr )
++{
++    char buf[512];
++    int n;
++    TEB *teb = teb_ptr;
++    WOW_TEB *wow_teb;
++
++    if (!teb) return;
++    n = snprintf( buf, sizeof(buf), "[WOW-TEB] pid=%d teb=%p stack64=%p-%p-%p",
++                  getpid(), teb, teb->DeallocationStack, teb->Tib.StackLimit,
++                  teb->Tib.StackBase );
++    if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++    wow_teb = get_wow_teb( teb );
++    if (!wow_teb)
++    {
++        n = snprintf( buf, sizeof(buf), " wow=none\n" );
++        if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++        return;
++    }
++    n = snprintf( buf, sizeof(buf), " wow=%p wowstack=%08x-%08x-%08x seh_head=%08x",
++                  wow_teb, wow_teb->DeallocationStack, wow_teb->Tib.StackLimit,
++                  wow_teb->Tib.StackBase, wow_teb->Tib.ExceptionList );
++    if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++    /* WineHua (2026-10-01 r4, 专家): pad 自证 —— 查询 StackBase-0x1000 所在
++     * VMA, 打印其完整范围; 结束地址高于报告 StackBase 即说明栈顶之上仍属
++     * 同一栈视图 (pad 生效), 否则栈视图在 StackBase 处截止 (pad 未生效)。
++     * 让每份私有日志都能独立证明 pad 状态, 不必跨日志对照。 */
++    ohos_smc_map_lookup( "vma_top", (uint64_t)(uintptr_t)(wow_teb->Tib.StackBase - 0x1000) );
++    /* WineHua (2026-10-01 d, 专家复核后修正): CPU 区基址必须用 get_cpu_area()
++     * 的对齐 (TYPE_ALIGNMENT(I386_CONTEXT)=4)。此前手写 16 对齐多偏 12 字节,
++     * 把真实 Esp 读成了 "Eip", 由此得出的 "CPU 区字段错位" 结论不成立。
++     * 指令字节通过 ohos_smc_read_stack (process_vm_readv, 内核中介) 安全读取,
++     * 不可读页安全返回 0, 不会在 SIGSEGV 路径上制造嵌套异常。 */
++    {
++        I386_CONTEXT *x = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
++        if (x)
++        {
++            uintptr_t code[2];
++            n = snprintf( buf, sizeof(buf), " cpu_eip=%08x cpu_esp=%08x cpu_ebp=%08x bytes=",
++                          x->Eip, x->Esp, x->Ebp );
++            if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++            if (x->Eip >= 0x10000 && x->Eip < 0x7fff0000 &&
++                ohos_smc_read_mem( x->Eip, code, 16 ) == 16)
++            {
++                const unsigned char *b = (const unsigned char *)code;
++                int i;
++                for (i = 0; i < 16; i++)
++                {
++                    n = snprintf( buf, sizeof(buf), "%02x", b[i] );
++                    if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++                }
++            }
++            else
++            {
++                n = snprintf( buf, sizeof(buf), "(unreadable)" );
++                if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++            }
++        }
++    }
++    /* WineHua (2026-10-01 d): 有界遍历 SEH 链 (至多 16 节点), 找第一个
++     * Handler=0 的节点及其位置。每个节点的 8 字节都经 process_vm_readv
++     * 安全读取 (内核对坏页安全失败), 不会在信号处理器里触发嵌套异常。 */
++    {
++        ULONG list = wow_teb->Tib.ExceptionList;
++        int node_i;
++        for (node_i = 0; node_i < 16 && list >= 0x10000 && list < 0x7fff0000; node_i++)
++        {
++            uintptr_t node[2];
++            /* EXCEPTION_REGISTRATION_RECORD: [0]=next, [4]=handler */
++            if (ohos_smc_read_mem( list, node, 8 ) != 8)
++            {
++                n = snprintf( buf, sizeof(buf), " seh%d[%08x]=(unreadable)", node_i, list );
++                if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++                break;
++            }
++            n = snprintf( buf, sizeof(buf), " seh%d[%08x]=%08x,%08x", node_i, list,
++                          (ULONG)node[0], (ULONG)node[1] );
++            if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++            if (node[0] == 0xffffffff) break;
++            if (node[0] <= list) break;  /* 链必须向高地址走 */
++            list = (ULONG)node[0];
++        }
++    }
++    n = snprintf( buf, sizeof(buf), "\n" );
++    if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++}
++
++/* WineHua (2026-10-01 r4, 专家): 最后一次故障现场 —— 供 abort_thread 等退出
++ * 路径回带, 补上 "seq905 后只有 QUIT-PROBE, 没有 status/caller/故障序号"
++ * 缺失的最后一环。 */
++static unsigned long ohos_last_fault_seq;
++static unsigned long ohos_last_fault_addr;
++static unsigned long ohos_last_fault_pc;
++static unsigned long ohos_last_fault_x9;
++
++void ohos_report_last_fault( const char *who, int status, const void *caller )
++{
++    char buf[256];
++    int n = snprintf( buf, sizeof(buf),
++                      "[EXIT-FAULT] who=%s status=%08x tid=%ld last_seq=%lu last_addr=%08lx "
++                      "last_pc=%08lx last_x9=%08lx caller=%p\n",
++                      who, (unsigned)status, (long)syscall( SYS_gettid ),
++                      ohos_last_fault_seq, ohos_last_fault_addr,
++                      ohos_last_fault_pc, ohos_last_fault_x9, caller );
++    if (n > 0) write( 2, buf, (size_t)(n < (int)sizeof(buf) ? n : (int)sizeof(buf) - 1) );
++}
++
++/* WineHua (2026-10-01 r4, 专家定向取证): "首次跳出正常解密地址区间"的故障
++ * 现场快照。RPGXP (SteamStub) 解密期故障呈固定规律 (addr 每次 -4、host pc
++ * +0x320); 第 905 次突然跳到 0x5c8cb17e 且 host pc 规律偏离一条 ARM64 指令。
++ * 对这类跳变打印: PC 与 PC+4 两条 ARM64 指令原始码、全寄存器、FEX CPU 区
++ * guest EIP/ESP 与故障页/P C 页映射, 供离线反汇编重算地址生成路径。
++ * 所有内存读取经 process_vm_readv (内核对坏页安全失败), 不会在信号处理器里
++ * 制造嵌套异常。 */
++static void ohos_dump_anomaly( unsigned int seq, int sig, const siginfo_t *info,
++                               const ucontext_t *uc, uint64_t pc_in, uint64_t lr, uint64_t sp )
++{
++    char buf[512];
++    uintptr_t code[2];
++    int n, j;
++
++    n = snprintf( buf, sizeof(buf),
++                  "[SMC-ANOMALY] pid=%d tid=%ld seq=%u sig=%d code=%d addr=%08lx pc=%08lx "
++                  "lr=%08lx sp=%08lx\n",
++                  getpid(), (long)syscall( SYS_gettid ), seq, sig,
++                  info ? info->si_code : 0,
++                  (unsigned long)(uintptr_t)(info ? info->si_addr : NULL),
++                  (unsigned long)pc_in, (unsigned long)lr, (unsigned long)sp );
++    if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++
++    if (ohos_smc_read_mem( pc_in, code, 16 ) == 16)
++        n = snprintf( buf, sizeof(buf),
++                      "[SMC-ANOMALY-CODE] pc=%08lx instr: %08lx (pc+0) %08lx (pc+4)\n",
++                      (unsigned long)pc_in, (unsigned long)code[0], (unsigned long)code[1] );
++    else
++        n = snprintf( buf, sizeof(buf), "[SMC-ANOMALY-CODE] pc=%08lx (unreadable)\n",
++                      (unsigned long)pc_in );
++    if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++
++#ifdef __aarch64__
++    if (uc)
++    {
++        n = snprintf( buf, sizeof(buf), "[SMC-ANOMALY-REGS] x0..x15:" );
++        if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++        for (j = 0; j < 16; j++)
++        {
++            n = snprintf( buf, sizeof(buf), " %08lx",
++                          (unsigned long)uc->uc_mcontext.regs[j] );
++            if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++        }
++        n = snprintf( buf, sizeof(buf), "\n" );
++        if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++        n = snprintf( buf, sizeof(buf), "[SMC-ANOMALY-REGS2] x16..x30:" );
++        if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++        for (j = 16; j <= 30; j++)
++        {
++            n = snprintf( buf, sizeof(buf), " %08lx",
++                          (unsigned long)uc->uc_mcontext.regs[j] );
++            if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++        }
++        n = snprintf( buf, sizeof(buf), "\n" );
++        if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++    }
++#endif
++    {
++        I386_CONTEXT *x = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
++        if (x)
++            n = snprintf( buf, sizeof(buf),
++                          "[SMC-ANOMALY-GUEST] cpu_eip=%08x cpu_esp=%08x cpu_ebp=%08x (may lag fault)\n",
++                          x->Eip, x->Esp, x->Ebp );
++        else
++            n = snprintf( buf, sizeof(buf), "[SMC-ANOMALY-GUEST] cpu_area=none\n" );
++        if (n > 0) ohos_smc_write( buf, sizeof(buf), n );
++    }
++    /* maps 缓存与其它信号处理器共享 —— 重读前先拿 busy 标志串行化;
++     * 拿不到就跳过归属行 (快照本身已足够定位). 该路径不在 ohos_smc_log_enter
++     * 的保护区内执行, 之前是裸重读 (自查发现, 2026-10-02)。 */
++    if (!__atomic_test_and_set( &ohos_maps_busy, __ATOMIC_ACQUIRE ))
++    {
++        ohos_map_dump_count = 0;
++        ohos_smc_reload_maps();
++        ohos_smc_map_lookup( "addr", (uint64_t)(uintptr_t)(info ? info->si_addr : NULL) );
++        ohos_smc_map_lookup( "pc", pc_in );
++        __atomic_clear( &ohos_maps_busy, __ATOMIC_RELEASE );
++    }
++}
++
+ static void ohos_smc_log_enter( int sig, const siginfo_t *info, uint64_t pc_in,
+                                 uint64_t xrip_in, uint64_t emu, uint64_t lr, uint64_t sp,
+                                 uint64_t x16, uint64_t x17, void *teb, void *fn )
+@@ -1022,6 +1235,7 @@ static void ohos_smc_log_enter( int sig, const siginfo_t *info, uint64_t pc_in,
+         ohos_fatal_dump_count++;
+         /* 归属查询自身也有 256 行上限; 致命现场要保证打得出来 → 先复位该计数。 */
+         ohos_map_dump_count = 0;
++        ohos_dump_wow_teb_state( teb );
+         ohos_smc_reload_maps();
+         ohos_smc_map_lookup( "addr", (uint64_t)(uintptr_t)(info ? info->si_addr : NULL) );
+         ohos_smc_map_lookup( "x27", xrip_in );
+@@ -1032,6 +1246,44 @@ static void ohos_smc_log_enter( int sig, const siginfo_t *info, uint64_t pc_in,
+         ohos_smc_attribute_stack( sp );
+     }
+ 
++    /* WineHua (2026-10-01 b): RPGXP 死亡螺旋三类现场的独立小配额诊断, 不占用
++     * 上面 16 次通用配额 (实测会被解密期 SMC fault 吃光):
++     * A) 写入落在 wow 栈顶 StackBase 之上 —— 首发 AV 现场 (初始 Esp 高于栈顶,
++     *    第一次压栈即越界, 2026-10-01 现场 esp=StackBase+4 写 0x330000)。
++     * B) 在地址 0 执行 —— 风暴传播现场 (handler=NULL 的帧被调用)。
++     * C) 写入落在 wow 栈视图内但低于 StackLimit —— 递归放大现场 (分发写帧
++     *    目标页不可写, guest ESP 不变, 反复 fault)。C 同时补打 pc/lr 的 maps
++     *    归属, 用于确认直接向 32 位栈拷贝异常帧、绕过 virtual_setup_exception
++     *    的递归写入者到底是哪个模块。 */
++    if (sig == SIGSEGV && info && teb)
++    {
++        static unsigned int spin_quota = 8;
++        uint64_t spin_addr = (uint64_t)(uintptr_t)info->si_addr;
++        WOW_TEB *spin_wow = get_wow_teb( (TEB *)teb );
++        int spin_hit = (spin_addr == 0);                              /* B */
++
++        if (spin_wow)
++        {
++            uint64_t wbase  = spin_wow->Tib.StackBase;
++            uint64_t wlimit = spin_wow->Tib.StackLimit;
++            uint64_t wdeal  = spin_wow->DeallocationStack;
++            if (spin_addr >= wbase && spin_addr < wbase + 0x2000)    /* A */
++                spin_hit = 1;
++            else if (wlimit && spin_addr >= wdeal && spin_addr < wlimit) /* C */
++                spin_hit = 1;
++        }
++        if (spin_hit && spin_quota)
++        {
++            spin_quota--;
++            ohos_dump_wow_teb_state( teb );
++            ohos_map_dump_count = 0;
++            ohos_smc_reload_maps();
++            ohos_smc_map_lookup( "pc", pc_in );
++            ohos_smc_map_lookup( "lr", lr );
++            ohos_smc_dump_vma_neighbors( sp );
++        }
++    }
++
+     /* 故障归属先打: 它与后面的 [SMC] enter 行同源, 但即使 enter 行被限流
+      * (count>64 时每 32 颗才打一条) 归属信息也不会跟着丢。
+      * 2026-09-20: 改成对**所有**信号的首次 N 次都打归属 —— 之前只对 SIGSEGV 打、
+@@ -1215,6 +1467,28 @@ static int ohos_route_host_fault( int sig, siginfo_t *info, void *uctx )
+             ohos_signal_log_emit( &log );
+             errno = saved_errno;
+         }
++        /* WineHua (2026-10-01 r4, 专家): 记录最后故障现场 (退出路径回带) +
++         * 首次跳出正常解密地址区间的跳变快照。解密族 = 故障地址落在镜像
++         * 区间 [0x10000000, 0x11000000) (SteamStub 就地解密缓冲区所在);
++         * 解密族累计 >= 64 后, 首个落在区间外的故障即视为跳变, 每次进程
++         * 最多 4 份快照。 */
++        {
++            static unsigned long decrypt_family;
++            static int anomaly_quota = 4;
++            uint64_t fa = (uint64_t)(uintptr_t)(info ? info->si_addr : NULL);
++
++            ohos_last_fault_seq = seq;
++            ohos_last_fault_addr = (unsigned long)fa;
++            ohos_last_fault_pc = (unsigned long)pc_in;
++            ohos_last_fault_x9 = (unsigned long)(uc ? uc->uc_mcontext.regs[9] : 0);
++            if (fa >= 0x10000000 && fa < 0x11000000)
++                decrypt_family++;
++            else if (decrypt_family >= 64 && anomaly_quota > 0)
++            {
++                anomaly_quota--;
++                ohos_dump_anomaly( seq, sig, info, uc, pc_in, lr, sp );
++            }
++        }
+     }
+     ohos_smc_log_enter( sig, info, pc_in, xrip_in, emu, lr, sp, x16, x17, teb, fn );
+ 
+diff --git a/dlls/ntdll/unix/thread.c b/dlls/ntdll/unix/thread.c
+index bf5582b8de8..5a18d88bf30 100644
+--- a/dlls/ntdll/unix/thread.c
++++ b/dlls/ntdll/unix/thread.c
+@@ -1679,8 +1736,14 @@ done:
+  */
+ void abort_thread( int status )
+ {
++    const void *caller = __builtin_extract_return_addr( __builtin_return_address(0) );
+     write( 2, "[QUIT-PROBE] abort-thread\n", sizeof("[QUIT-PROBE] abort-thread\n") - 1 );
+-    steam_trace_thread( "abort", status, __builtin_extract_return_addr( __builtin_return_address(0) ) );
++    /* WineHua (2026-10-01 r4, 专家): 退出链路补证据 —— status/caller/tid +
++     * 最后一次故障序号, 不受 WINEHUA_STEAM_BOUNDARY_TRACE 门控。 */
++#ifdef __OHOS__
++    ohos_report_last_fault( "abort_thread", status, caller );
++#endif
++    steam_trace_thread( "abort", status, caller );
+     pthread_sigmask( SIG_BLOCK, &server_block_set, NULL );
+     if (InterlockedDecrement( &nb_threads ) <= 0) abort_process( status );
+     pthread_exit_wrapper( status );
+diff --git a/dlls/ntdll/unix/unix_private.h b/dlls/ntdll/unix/unix_private.h
+index 398be4da03b..542f3ccad05 100644
+--- a/dlls/ntdll/unix/unix_private.h
++++ b/dlls/ntdll/unix/unix_private.h
+@@ -287,6 +287,8 @@ extern void steam_trace_stack_overflow( const void *fault, const void *frame_sp,
+                                         size_t frame_size, size_t page_size, unsigned int code, int is_wow );
+ extern void steam_trace_fault_sample( const void *pc, const void *sp, const void *fault,
+                                       const void *lr, int signal_code );
++/* WineHua (2026-10-01 r4): 退出路径回带最后一次故障现场 (ohos_virtual.c)。 */
++extern void ohos_report_last_fault( const char *who, int status, const void *caller );
+ extern void DECLSPEC_NORETURN abort_process( int status );
+ extern void DECLSPEC_NORETURN exit_process( int status );
+ extern void wait_suspend( CONTEXT *context );
