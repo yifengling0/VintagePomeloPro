@@ -173,6 +173,7 @@ export class SteamService {
   private qrClientId: string = '';
   private qrRequestId: string = '';
   private qrGeneration: number = 0;
+  private qrPollCount: number = 0;
   private clientQrClientId: string = '';
   private clientQrRequestId: Uint8Array = new Uint8Array(0);
   private clientQrCmClient: SteamCmAuthClient | null = null;
@@ -189,6 +190,80 @@ export class SteamService {
 
   async clearClientRefreshToken(): Promise<void> {
     if (this.steamId64) await this.store.removeSecret(this.steamId64, 'client_refresh_token');
+  }
+
+  /**
+   * 免扫码获取 CM 下载所需 client 令牌:
+   * 1) 已存 client_refresh_token 直接复用;
+   * 2) 否则用当前登录的 Community refresh token 走 BeginAuthSessionViaCredentials
+   *    (platform_type=SteamClient) 静默换取 client 受众令牌 —— Steam 可能要求手机
+   *    点一次"允许"(验证类确认), 但无需扫码;
+   * 3) 都不行返回 '' (调用方回落到扫码流程)。
+   */
+  async ensureClientAuthorization(): Promise<string> {
+    const stored = await this.getClientRefreshToken();
+    if (stored) return stored;
+    const communityRefresh = await this.getRefreshToken();
+    if (!communityRefresh) return '';
+    const transport = new SteamHttpTransport();
+    try {
+      const beginResponse = await transport.postForm(SteamAuthEndpoint.BEGIN_AUTH_SESSION, [
+        new SteamFormField('refresh_token', communityRefresh),
+        new SteamFormField('platform_type', '1'),
+        new SteamFormField('remember_login', '1'),
+        new SteamFormField('persistence', '1'),
+        new SteamFormField('website_id', 'Client')
+      ]);
+      if (beginResponse.statusCode !== 200 || beginResponse.keystoneError().length > 0) {
+        hilog.warn(DOMAIN, TAG,
+          'client token upgrade begin rejected: http=%{public}d keystone=%{public}s bodyHead=%{public}s',
+          beginResponse.statusCode, beginResponse.keystoneError(), beginResponse.body.substring(0, 200));
+        return '';
+      }
+      const beginBody = (JSON.parse(beginResponse.body) as QrBeginEnvelope)?.response;
+      if (!beginBody?.client_id || !beginBody.request_id) {
+        hilog.warn(DOMAIN, TAG, 'client token upgrade begin malformed: bodyHead=%{public}s',
+          beginResponse.body.substring(0, 200));
+        return '';
+      }
+      hilog.info(DOMAIN, TAG, 'client token upgrade session started; polling');
+      const intervalMs = Math.max(2, Math.min(beginBody.interval ?? 5, 10)) * 1000;
+      // 最多等 ~60s: Steam 对 refresh-token 换平台通常免确认或只需手机允许一次。
+      for (let attempt = 0; attempt < 12; attempt++) {
+        await new Promise<void>((resolve: () => void): void => {
+          setTimeout((): void => { resolve(); }, attempt === 0 ? 500 : intervalMs);
+        });
+        const pollResponse = await transport.postForm(SteamAuthEndpoint.POLL_AUTH_SESSION, [
+          new SteamFormField('client_id', beginBody.client_id),
+          new SteamFormField('request_id', beginBody.request_id)
+        ]);
+        if (pollResponse.statusCode !== 200) {
+          hilog.warn(DOMAIN, TAG, 'client token upgrade poll http=%{public}d', pollResponse.statusCode);
+          return '';
+        }
+        const pollBody = (JSON.parse(pollResponse.body) as QrPollEnvelope)?.response;
+        const refreshToken = pollBody?.refresh_token ?? '';
+        if (refreshToken.length === 0) continue;
+        if (!SteamJwt.hasAudience(refreshToken, 'client')) {
+          hilog.warn(DOMAIN, TAG, 'client token upgrade returned non-client audience');
+          return '';
+        }
+        const steamId = SteamJwt.subjectClaim(refreshToken);
+        if (steamId && steamId !== this.steamId64) {
+          hilog.warn(DOMAIN, TAG, 'client token upgrade steamid mismatch');
+          return '';
+        }
+        await this.store.storeSecret(this.steamId64, 'client_refresh_token', refreshToken);
+        hilog.info(DOMAIN, TAG, 'client token upgrade completed without QR');
+        return refreshToken;
+      }
+      hilog.warn(DOMAIN, TAG, 'client token upgrade timed out (no confirmation)');
+      return '';
+    } catch (error) {
+      const failure = error instanceof Error ? error.message : String(error);
+      hilog.warn(DOMAIN, TAG, 'client token upgrade failed: %{public}s', failure);
+      return '';
+    }
   }
 
   async beginClientQrLogin(): Promise<string> {
@@ -289,22 +364,29 @@ export class SteamService {
     const generation = this.qrGeneration;
     this.qrClientId = '';
     this.qrRequestId = '';
+    this.qrPollCount = 0;
     const transport = new SteamHttpTransport();
     // website_id 与 PC 实测一致; 空 body 在 @ohos http 上行为不确定, 显式带一个字段
     const response = await transport.postForm(SteamAuthEndpoint.BEGIN_QR_SESSION,
       [new SteamFormField('website_id', 'Community')]);
     if (generation !== this.qrGeneration) throw new Error('扫码会话已取消');
-    if (response.keystoneError().length > 0) throw new Error('Steam 拒绝扫码请求');
-    if (response.statusCode !== 200) {
-      throw new Error('HTTP ' + response.statusCode);
+    if (response.keystoneError().length > 0 || response.statusCode !== 200) {
+      // 2026-10-02: 此路径此前完全无日志, 扫码登录问题无法定位; 现场全量记录。
+      hilog.warn(DOMAIN, TAG,
+        'QR begin rejected: http=%{public}d keystone=%{public}s bodyHead=%{public}s',
+        response.statusCode, response.keystoneError(),
+        response.body.substring(0, 200));
+      throw new Error('Steam 拒绝扫码请求');
     }
     const parsed = JSON.parse(response.body) as QrBeginEnvelope;
     const body = parsed?.response;
     if (!body || !body.client_id || !body.challenge_url || !body.request_id) {
+      hilog.warn(DOMAIN, TAG, 'QR begin malformed: bodyHead=%{public}s', response.body.substring(0, 200));
       throw new Error('Steam 未返回扫码会话');
     }
     this.qrClientId = body.client_id;
     this.qrRequestId = body.request_id;
+    hilog.info(DOMAIN, TAG, 'QR begin ok; interval=%{public}d', body.interval ?? 0);
     return body.challenge_url;
   }
 
@@ -319,6 +401,10 @@ export class SteamService {
     ]);
     if (generation !== this.qrGeneration) return 'invalid';
     if (response.statusCode !== 200 || response.keystoneError().length > 0) {
+      // 2026-10-02: pending/过期/限流此前全部静默归为 invalid, 现场区分记录。
+      hilog.warn(DOMAIN, TAG,
+        'QR poll non-OK: http=%{public}d keystone=%{public}s bodyHead=%{public}s',
+        response.statusCode, response.keystoneError(), response.body.substring(0, 200));
       return 'invalid';
     }
     const parsed = JSON.parse(response.body) as QrPollEnvelope;
@@ -326,11 +412,18 @@ export class SteamService {
     const refreshToken = body?.refresh_token ?? '';
     const accessToken = body?.access_token ?? '';
     if (refreshToken.length === 0) {
+      // 2026-10-02: pending 也留痕 (每 6 次一条), 否则"扫了码没反应"无从查起。
+      this.qrPollCount++;
+      if (this.qrPollCount === 1 || this.qrPollCount % 6 === 0) {
+        hilog.info(DOMAIN, TAG, 'QR poll pending #%{public}d; bodyHead=%{public}s',
+          this.qrPollCount, response.body.substring(0, 120));
+      }
       return 'pending';
     }
     // 手机已确认: 与密码登录成功路径同款落库
     const steamId = SteamJwt.subjectClaim(refreshToken);
     if (steamId.length === 0) {
+      hilog.warn(DOMAIN, TAG, 'QR token unparsable; tokenHead=%{public}s', refreshToken.substring(0, 60));
       this.setState(SteamUiState.ERROR, '扫码已确认但令牌解析失败');
       return 'invalid';
     }

@@ -1,6 +1,14 @@
 From: WineHua port
 Subject: [PATCH] wow64: validate 32-bit exception dispatch frame target (UNVERIFIED)
 
+QUARANTINED REVIEW ARTIFACT. This patch is not registered by build_wine.sh
+and must not be treated as production behavior or an RPGXP fix. Any future
+normal-chain proposal needs a separate accepted contract and proof of all of:
+overflow-safe bounds before pointer formation; initialized variables and
+checked context-length/frame-size arithmetic; the original SegSs-selected
+candidate first; valid guard-page growth; and a guaranteed non-return failure
+policy with defined exit status and debugger/client behavior.
+
 call_user_exception_dispatcher: candidate esp (ctx.Esp, then
 SystemReserved1[0]) whose whole frame lies inside [StackLimit, StackBase) is
 used; otherwise "immediate terminate" via GetCurrentProcess+STATUS_STACK_OVERFLOW.
@@ -15,8 +23,8 @@ index 2f5d80738fd..eb43649cb50 100644
 +++ b/dlls/wow64/syscall.c
 @@ -193,6 +193,24 @@ static NTSTATUS get_context_return_value( void *wow_context )
  }
- 
- 
+
+
 +/* WineHua (2026-10-02): WINEDEBUG=-all 实测会吞掉 ERR 通道 (游戏私日志 0 条
 + * err:), 本文件的分发诊断必须直写 —— __wine_dbg_output 与 FEX 启动横幅同机制,
 + * 不受 WINEDEBUG 门控; _vsnprintf 来自 ntdll 导出 (本 dll 只 import ntdll,
@@ -39,9 +47,9 @@ index 2f5d80738fd..eb43649cb50 100644
   *           call_user_exception_dispatcher
   */
 @@ -241,8 +259,75 @@ static void __attribute__((used)) call_user_exception_dispatcher( EXCEPTION_RECO
- 
+
              RtlGetExtendedContextLength( flags, &context_length );
- 
+
 -            esp = LOWORD(ctx.SegSs) != ss32_sel ? NtCurrentTeb32()->SystemReserved1[0] : ctx.Esp;
 -            stack = (struct exc_stack_layout32 *)ULongToPtr( (esp - offsetof(struct exc_stack_layout32, context) - context_length) & ~3 );
 +            /* WineHua (2026-10-01 r3, 专家复核后收敛): SegSs 甄别在 FEX 下

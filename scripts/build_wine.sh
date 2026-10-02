@@ -20,6 +20,31 @@ ensure_wine_patch() {
     fi
 }
 
+reject_quarantined_wine_patch() {
+    local patch_file="$1" description="$2"
+    # Removing an ensure_wine_patch registration cannot undo a patch that was
+    # already written into a persistent WINE_SRC.  Refuse that sticky state
+    # instead of resetting or modifying a possibly user-owned dirty tree.
+    if patch -d "$WINE_SRC" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1; then
+        printf 'error: quarantined Wine patch is already applied: %s\n' "$description" >&2
+        printf 'use a clean isolated wine-valve checkout and replay the normal patch chain\n' >&2
+        return 1
+    fi
+    if ! patch -d "$WINE_SRC" -p1 --batch --force --dry-run < "$patch_file" >/dev/null 2>&1; then
+        printf 'error: cannot prove quarantined Wine patch absent: %s\n' "$description" >&2
+        printf 'use a clean isolated wine-valve checkout; this script will not reset the tree\n' >&2
+        return 1
+    fi
+    log "$description quarantined (not applied)"
+}
+
+# Refuse persistent sources contaminated by quarantined experiments before any
+# normal ensure_wine_patch call can write to that source tree.
+reject_quarantined_wine_patch "$SCRIPT_DIR/../patches/wine/0013b-wow64-exception-dispatch-frame-guard.patch" \
+    "Wow64 exception dispatch frame guard"
+reject_quarantined_wine_patch "$SCRIPT_DIR/../patches/wine/0013c-ntdll-wow32-stack-top-pad.patch" \
+    "Wow32 stack top pad experiment"
+
 # Keep prefix font registration repair reproducible after refreshing Wine.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0001-win32u-repair-external-font-registration.patch" \
     "External-font registration repair"
@@ -47,18 +72,9 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0011-wineboot-durable-prefix-comp
     "Durable wineboot prefix completion handshake"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0012-wineserver-locked-registry-migration.patch" \
     "Prefix migration under wineserver session lock"
-# RPGXP 取证诊断组 ([WOW-TEB]/[SMC-ANOMALY]/SEH 链/EXIT-FAULT): 仅日志, 但会
-# 扰动信号路径时序, 合并前需加运行期开关。
+# RPGXP 取证诊断组默认关闭，仅在 WINEHUA_RPGXP_DIAGNOSTICS=1 时启用。
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013a-ntdll-ohos-rpgxp-diagnostics.patch" \
     "RPGXP forensic diagnostics"
-# wow64 分发帧候选校验 (未验证; 含"帧不可写即立即终止"的有意策略, 需单独设计与测试)。
-ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013b-wow64-exception-dispatch-frame-guard.patch" \
-    "Wow64 exception dispatch frame guard"
-# 32 位栈顶容忍页 pad (EXPERIMENTAL, 收益未证明): 独立成包 —— 撤除即删本行与
-# 对应补丁文件 (top_pad 参数及调用点全部包含在该补丁内, 一并消失)。
-ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013c-ntdll-wow32-stack-top-pad.patch" \
-    "Wow32 stack top pad (experimental)"
-
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

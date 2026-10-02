@@ -97,9 +97,12 @@ export class SteamCmWebSocketTransport implements ISteamCmWireTransport {
   }
 
   send(payload: Uint8Array): Promise<void> {
-    if (this.sentFrames++ < 8) {
+    // 2026-10-02: 首次 8 帧上限把下载期收发全部藏住 (现场 8 帧恰好打满),
+    // 真实卡点无法定位; 放宽到 400 帧, 之后每 50 帧一条。
+    if (this.sentFrames < 400 || (this.sentFrames % 50) === 0) {
       hilog.info(DOMAIN, TAG, 'cm send: bytes=%{public}d', payload.length);
     }
+    this.sentFrames++;
     const copy = payload.slice();
     const data = copy.buffer.slice(copy.byteOffset, copy.byteOffset + copy.byteLength) as ArrayBuffer;
     return new Promise<void>((resolve: () => void, reject: (e: Error) => void): void => {
@@ -159,13 +162,14 @@ export class SteamCmWebSocketTransport implements ISteamCmWireTransport {
         hilog.warn(DOMAIN, TAG, 'cm text frame ignored: chars=%{public}d', value.length);
         return;
       }
-      if (this.receivedFrames++ < 8) {
+      if (this.receivedFrames < 400 || (this.receivedFrames % 50) === 0) {
         const bytes = new Uint8Array(value);
         const rawType = bytes.length >= 4
           ? (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) >>> 0 : 0;
         hilog.info(DOMAIN, TAG, 'cm receive: bytes=%{public}d, type=%{public}d',
           value.byteLength, rawType & 0x7fffffff);
       }
+      this.receivedFrames++;
       const copy = new Uint8Array(value.slice(0));
       this.messageListeners.forEach((l: SteamCmWireMessageListener): void => l(copy));
     });

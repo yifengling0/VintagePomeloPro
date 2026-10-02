@@ -1,12 +1,17 @@
 From: WineHua port
 Subject: [PATCH] ntdll: wow32 stack top pad (EXPERIMENTAL, benefit unproven)
 
+QUARANTINED MANUAL EXPERIMENT. This patch is not registered by build_wine.sh.
+It intentionally changes committed layout above the reported StackBase, has
+no established RPGXP benefit, and previously regressed Steam startup. Apply
+only to a clean isolated source for a separately reviewed experiment.
+
 Reserve one extra 64K committed granule above the reported wow StackBase,
 gated by WINEHUA_WOW_STACK_TOP_PAD (exe-name matched). Observed to shift stack
 layout and absorb the StackBase+0x14 first push, but the storm at seq905 is
 unaffected; unconditional use broke Steam startup. Includes the top_pad
 parameter on virtual_alloc_thread_stack and all call-site updates so the whole
-experiment can be dropped by removing this patch file + its build_wine.sh line.
+experiment remains mechanically isolated from the normal chain.
 ---
 diff --git a/dlls/ntdll/unix/thread.c b/dlls/ntdll/unix/thread.c
 index bf5582b8de8..5a18d88bf30 100644
@@ -14,24 +19,24 @@ index bf5582b8de8..5a18d88bf30 100644
 +++ b/dlls/ntdll/unix/thread.c
 @@ -1410,7 +1410,7 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR limit, SIZE_T reserve_size, SIZE
      }
- 
+
      /* kernel stack */
 -    if ((status = virtual_alloc_thread_stack( &stack, limit_4g, 0, kernel_stack_size, kernel_stack_size, FALSE )))
 +    if ((status = virtual_alloc_thread_stack( &stack, limit_4g, 0, kernel_stack_size, kernel_stack_size, FALSE, 0 )))
          return status;
      thread_data->kernel_stack = stack.DeallocationStack;
- 
+
 @@ -1421,7 +1421,7 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR limit, SIZE_T reserve_size, SIZE
              ((get_machine_context_size( main_image_info.Machine ) + 7) & ~7) + sizeof(ULONG64);
- 
+
          /* 64-bit stack */
 -        if ((status = virtual_alloc_thread_stack( &stack, limit_4g, 0, 0x40000, 0x40000, TRUE ))) return status;
 +        if ((status = virtual_alloc_thread_stack( &stack, limit_4g, 0, 0x40000, 0x40000, TRUE, 0 ))) return status;
          cpu = (WOW64_CPURESERVED *)(((ULONG_PTR)stack.StackBase - cpusize) & ~15);
          cpu->Machine = main_image_info.Machine;
- 
+
 @@ -1432,9 +1432,66 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR limit, SIZE_T reserve_size, SIZE
- 
+
          /* 32-bit stack */
          if (!limit || limit > user_space_wow_limit) limit = user_space_wow_limit;
 -        if ((status = virtual_alloc_thread_stack( &stack, 0, limit, reserve_size, commit_size, TRUE )))
@@ -102,16 +107,16 @@ index bf5582b8de8..5a18d88bf30 100644
          return STATUS_SUCCESS;
 @@ -1455,7 +1512,7 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR limit, SIZE_T reserve_size, SIZE
          const SIZE_T chpev2_stack_size = emu_stack_size ? emu_stack_size : 0x40000;
- 
+
          /* emulator stack */
 -        if ((status = virtual_alloc_thread_stack( &stack, limit_4g, 0, chpev2_stack_size, chpev2_stack_size, FALSE )))
 +        if ((status = virtual_alloc_thread_stack( &stack, limit_4g, 0, chpev2_stack_size, chpev2_stack_size, FALSE, 0 )))
              return status;
- 
+
          cpu_area = (CHPE_V2_CPU_AREA_INFO *)((char*)stack.DeallocationStack + kernel_stack_guard_size);
 @@ -1467,7 +1524,7 @@ NTSTATUS init_thread_stack( TEB *teb, ULONG_PTR limit, SIZE_T reserve_size, SIZE
  #endif
- 
+
      /* native stack */
 -    if ((status = virtual_alloc_thread_stack( &stack, 0, limit, reserve_size, commit_size, TRUE )))
 +    if ((status = virtual_alloc_thread_stack( &stack, 0, limit, reserve_size, commit_size, TRUE, 0 )))
@@ -139,9 +144,9 @@ index f2d46f36b2c..b5c6b38e8a2 100644
 +    /* WineHua (2026-10-01): 顶端容忍页 —— 在常规尺寸之外追加, 供调用方把
 +     * 报告的 StackBase 回调到未追加的位置 (见 thread.c 的 32 位栈说明)。 */
 +    if (top_pad) size += top_pad;
- 
+
      server_enter_uninterrupted_section( &virtual_mutex, &sigset );
- 
+
 diff --git a/dlls/ntdll/unix/unix_private.h b/dlls/ntdll/unix/unix_private.h
 index 398be4da03b..542f3ccad05 100644
 --- a/dlls/ntdll/unix/unix_private.h

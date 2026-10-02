@@ -67,3 +67,4 @@ thirdparty/wine-proton/
 
 # Local HAP build packages
 *.hap
+thirdparty/wine-valve-rpgxp-alpha/

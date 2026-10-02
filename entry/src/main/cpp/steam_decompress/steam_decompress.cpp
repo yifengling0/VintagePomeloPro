@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <zlib.h>
+#include "zlib.h" /* zlib_vendored (Z_SOLO, 静态内置) */
 
 extern "C" {
 #include "LzmaDec.h"
@@ -141,6 +141,21 @@ static uint32_t Read32(const uint8_t *data) {
 
 // Steam CDN manifests are single-entry ZIP archives. Parse the central
 // directory so data-descriptor archives work, and never extract a filename.
+
+// 内置 zlib 以 Z_SOLO 编译: inflateInit2 在该模式下不安装默认分配器,
+// zalloc/zfree 为空时直接返回 Z_STREAM_ERROR(-2) (2026-10-02 真机现场)。
+// 这里提供静态分配器包装 calloc/free。
+static void *ZlibSoloCalloc(voidpf opaque, uInt items, uInt size) {
+    (void)opaque;
+    if (items == 0 || size == 0) return nullptr;
+    return calloc(items, size);
+}
+
+static void ZlibSoloFree(voidpf opaque, voidpf address) {
+    (void)opaque;
+    free(address);
+}
+
 static napi_value UnzipManifest(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value argv[1] = {nullptr};
@@ -204,14 +219,27 @@ static napi_value UnzipManifest(napi_env env, napi_callback_info info) {
         stream.avail_in = static_cast<uInt>(compressed);
         stream.next_out = static_cast<Bytef *>(destination);
         stream.avail_out = static_cast<uInt>(expanded);
-        if (inflateInit2(&stream, -MAX_WBITS) != Z_OK) {
-            napi_throw_error(env, nullptr, "Steam manifest inflater init failed");
+        stream.zalloc = ZlibSoloCalloc;
+        stream.zfree = ZlibSoloFree;
+        // 2026-10-02: 真机 695630 现场卡在此处; inflateInit2 与输入无关, 返回码
+        // 必须带出来才能区分 Z_MEM_ERROR / Z_VERSION_ERROR(ABI) / Z_STREAM_ERROR。
+        char detail[128];
+        const int initResult = inflateInit2(&stream, -MAX_WBITS);
+        if (initResult != Z_OK) {
+            snprintf(detail, sizeof(detail),
+                     "Steam manifest inflater init failed (ret=%d zipSize=%zu comp=%zu expand=%zu)",
+                     initResult, size, compressed, expanded);
+            napi_throw_error(env, nullptr, detail);
             return nullptr;
         }
         const int result = inflate(&stream, Z_FINISH);
         inflateEnd(&stream);
         if (result != Z_STREAM_END || stream.total_out != expanded) {
-            napi_throw_error(env, nullptr, "Steam manifest ZIP decompression failed");
+            snprintf(detail, sizeof(detail),
+                     "Steam manifest ZIP decompression failed (ret=%d out=%lu want=%zu in=%lu)",
+                     result, static_cast<unsigned long>(stream.total_out), expanded,
+                     static_cast<unsigned long>(stream.total_in));
+            napi_throw_error(env, nullptr, detail);
             return nullptr;
         }
     } else {

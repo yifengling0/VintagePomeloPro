@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { promptAction, router, window } from '@kit.ArkUI';
+import { hilog } from '../service/LogService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { applyStatusOnlyImmersiveShell, getStatusOnlyWindowInsets,
   observeStatusOnlyWindowInsets } from '../common/StatusOnlyImmersiveShell';
@@ -17,6 +18,19 @@ import { describeSteamError } from '../steam/SteamErrorText';
 
 interface SteamGameDetailParams {
   appId?: string;
+}
+
+/** 一个待下载 depot: 共享 depot 解析后按归属 app 申请 key/token。 */
+class DownloadPlanEntry {
+  appId: number = 0;
+  depotId: number = 0;
+  manifestGid: string = '';
+
+  constructor(appId: number, depotId: number, manifestGid: string) {
+    this.appId = appId;
+    this.depotId = depotId;
+    this.manifestGid = manifestGid;
+  }
 }
 
 /** Steam library details describe ownership; launching requires a real local game. */
@@ -135,7 +149,9 @@ struct SteamGameDetail {
       const service = SteamService.getInstance();
       await service.initialize(this.context);
       if (!service.steamId64) throw new Error('请先登录 Steam 账号');
-      const clientToken = await service.getClientRefreshToken();
+      // 2026-10-02: 优先免扫码 —— 用已登录 refresh token 静默换取 client 令牌,
+      // 换不到才出二维码 (首次或令牌被撤销时)。
+      const clientToken = await service.ensureClientAuthorization();
       if (!clientToken) {
         await this.beginClientQr();
         return;
@@ -244,6 +260,10 @@ struct SteamGameDetail {
     });
   }
 
+  /** 常见 redistributable 归属 app (depotfromapp 指向它们时仅为运行库安装器, 跳过)。 */
+  private static readonly REDIST_OWNER_APPS: Set<number> =
+    new Set<number>([228986, 228987, 228988, 228990]);
+
   private async performDownload(appId: number, title: string, clientToken: string, writer: SteamDepotWriter,
     downloader: SteamDownloadService): Promise<void> {
     try {
@@ -254,21 +274,45 @@ struct SteamGameDetail {
       if (this.pageAlive) this.downloadMessage = '正在查询游戏内容';
       const info = await downloader.fetchAppInfo(appId);
       if (info.depots.length === 0) throw new Error('Steam 未返回可下载的游戏内容');
-      if (info.depots.some((depot): boolean => depot.sharedDepot)) {
-        throw new Error('此游戏包含共享 depot，当前下载器尚不支持完整安装');
-      }
-      await writer.begin(appId, title);
+      // 共享 depot 不再整体报错: redist 归属直接跳过; 引擎等内容从归属 app 解析
+      // manifest 后照常下载 (depot key / CDN token 按归属 app 申请)。
+      const plan: Array<DownloadPlanEntry> = [];
+      let skippedRedist = 0;
       for (const depot of info.depots) {
-        if (this.pageAlive) this.downloadMessage = '正在下载 depot ' + depot.depotId;
-        await downloader.downloadDepot(appId, depot.depotId, depot.manifestGid, writer);
+        if (!depot.sharedDepot) {
+          if (depot.manifestGid.length === 0) continue;
+          plan.push(new DownloadPlanEntry(appId, depot.depotId, depot.manifestGid));
+          continue;
+        }
+        if (SteamGameDetail.REDIST_OWNER_APPS.has(depot.depotFromApp)) {
+          skippedRedist++;
+          continue;
+        }
+        if (!depot.depotFromApp) {
+          throw new Error('共享 depot 缺少归属应用 (depot ' + depot.depotId + ')');
+        }
+        if (this.pageAlive) this.downloadMessage = '正在解析共享 depot ' + depot.depotId;
+        const ownerInfo = await downloader.fetchAppInfo(depot.depotFromApp);
+        const ownerDepot = ownerInfo.depots.find((entry): boolean => entry.depotId === depot.depotId);
+        if (!ownerDepot || ownerDepot.sharedDepot || ownerDepot.manifestGid.length === 0) {
+          throw new Error('共享 depot ' + depot.depotId + ' 无法从归属 app ' +
+            depot.depotFromApp + ' 解析出 manifest');
+        }
+        plan.push(new DownloadPlanEntry(depot.depotFromApp, depot.depotId, ownerDepot.manifestGid));
+      }
+      if (plan.length === 0) throw new Error('Steam 未返回可下载的游戏内容');
+      await writer.begin(appId, title);
+      for (const entry of plan) {
+        if (this.pageAlive) this.downloadMessage = '正在下载 depot ' + entry.depotId;
+        await downloader.downloadDepot(entry.appId, entry.depotId, entry.manifestGid, writer);
       }
       const path = await writer.publish();
       let catalogUpdated = true;
       try { await AppCatalogService.getInstance().scan(); }
       catch (_) { catalogUpdated = false; }
       if (this.pageAlive) {
-        this.downloadMessage = catalogUpdated ? '下载完成：' + path :
-          '下载完成；请在首页手动刷新游戏库：' + path;
+        this.downloadMessage = (catalogUpdated ? '下载完成：' : '下载完成；请在首页手动刷新游戏库：') + path +
+          (skippedRedist > 0 ? '（已跳过 ' + skippedRedist + ' 个运行库 depot）' : '');
         this.downloadPercent = 100;
         this.refreshLocalApp();
         promptAction.showToast({ message: 'Steam 游戏已加入游戏库' });
@@ -276,6 +320,9 @@ struct SteamGameDetail {
     } catch (error) {
       await writer.discard();
       const message = describeSteamError(error as Object);
+      // 2026-10-02: 失败原因此前只写 UI, 日志里表现为"无声停滞", 现场必须可查。
+      hilog.warn(0x0000, 'SteamDownload', 'download failed: app=%{public}d message=%{public}s',
+        appId, message);
       if (message.indexOf('Steam 客户端授权被拒') >= 0) {
         await SteamService.getInstance().clearClientRefreshToken();
       }

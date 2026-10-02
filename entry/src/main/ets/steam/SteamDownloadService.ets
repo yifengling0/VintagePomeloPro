@@ -1,5 +1,6 @@
 import { hilog } from '../service/LogService';
 import { http } from '@kit.NetworkKit';
+import { fileIo } from '@kit.CoreFileKit';
 import native from 'libsteamdecompress.so';
 import { SteamCmClient } from './vendor/cm/SteamCmClient';
 import { SteamCmClientOptions } from './vendor/contracts/SteamCmContracts';
@@ -419,7 +420,32 @@ export class SteamDownloadService {
     const token = await this.cdnToken(depotId, appId, server.host);
     const zipped = await this.fetchCdnBytes(server,
       `depot/${depotId}/manifest/${manifestGid}/5/${code}`, token, 64 * 1024 * 1024);
-    const body = new Uint8Array(native.unzipManifest(zipped) as ArrayBuffer);
+    let body: Uint8Array;
+    try {
+      body = new Uint8Array(native.unzipManifest(zipped) as ArrayBuffer);
+    } catch (error) {
+      // 2026-10-02: 解压失败时把原始 zip 落盘, 离线检查真实内容 (错误页/截断/
+      // 非常规 zip); 文件含 Steam 公开 manifest 数据, 不含凭据。
+      const detail = error instanceof Error ? error.message : String(error);
+      hilog.warn(DOMAIN, TAG,
+        'manifest unzip failed: app=%{public}d depot=%{public}d gid=%{public}s zipBytes=%{public}d head=%{public}s reason=%{public}s',
+        appId, depotId, manifestGid, zipped.length,
+        Array.from(zipped.slice(0, 16)).map((b: number): string => b.toString(16).padStart(2, '0')).join(' '),
+        detail);
+      try {
+        const sink = '/storage/Users/currentUser/Download/com.vintage.pomelopro/logs/' +
+          'manifest-' + depotId + '-fail.zip';
+        const file = fileIo.openSync(sink, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+        fileIo.writeSync(file.fd, zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.length));
+        fileIo.closeSync(file);
+        hilog.warn(DOMAIN, TAG, 'failed manifest zip dumped: %{public}s', sink);
+      } catch (dumpError) {
+        hilog.warn(DOMAIN, TAG, 'manifest dump failed: %{public}s',
+          dumpError instanceof Error ? dumpError.message : String(dumpError));
+      }
+      if (error instanceof Error) throw error;
+      throw new Error('Steam manifest 解压失败');
+    }
     const manifest = DepotManifest.decode(body);
     if (manifest.filenamesEncrypted) {
       await manifest.decryptFilenames(await this.depotKey(appId, depotId));

@@ -257,9 +257,19 @@ target_link_libraries(virgl_child PUBLIC
 )
 
 # Steam depot chunk decoder: separate NAPI library, independent of Wine runtime.
+# 2026-10-02: zlib 1.3.1 静态内置 (zlib_vendored/, Z_SOLO)。此前动态链 libz.so,
+# 但 NDK sysroot 的 libz.so 是桩库 (全部符号同地址), 运行时由设备系统 libz 解析,
+# 真机实测 inflateInit2_ 被绑到错误函数 (返回垃圾值 369726384 而非 Z_* 小整数,
+# 695630 现场证据); 内置后不再依赖运行时符号解析。
 add_library(steamdecompress SHARED
     steam_decompress/steam_decompress.cpp
     steam_decompress/LzmaDec.c
+    steam_decompress/zlib_vendored/adler32.c
+    steam_decompress/zlib_vendored/crc32.c
+    steam_decompress/zlib_vendored/inflate.c
+    steam_decompress/zlib_vendored/inftrees.c
+    steam_decompress/zlib_vendored/inffast.c
+    steam_decompress/zlib_vendored/zutil.c
     steam_decompress/zstd/zstd_decompress.c
     steam_decompress/zstd/zstd_decompress_block.c
     steam_decompress/zstd/zstd_ddict.c
@@ -272,6 +282,10 @@ add_library(steamdecompress SHARED
     steam_decompress/zstd/hist.c
     steam_decompress/zstd/xxhash.c
 )
-target_include_directories(steamdecompress PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/steam_decompress ${CMAKE_CURRENT_SOURCE_DIR}/steam_decompress/zstd)
-target_compile_options(steamdecompress PRIVATE -O2 -Wno-everything)
-target_link_libraries(steamdecompress PUBLIC libhilog_ndk.z.so libace_napi.z.so libz.so)
+target_include_directories(steamdecompress PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/steam_decompress
+    ${CMAKE_CURRENT_SOURCE_DIR}/steam_decompress/zstd
+    ${CMAKE_CURRENT_SOURCE_DIR}/steam_decompress/zlib_vendored)
+target_compile_definitions(steamdecompress PRIVATE Z_SOLO)
+target_compile_options(steamdecompress PRIVATE -O2 -Wno-everything -fvisibility=hidden)
+target_link_libraries(steamdecompress PUBLIC libhilog_ndk.z.so libace_napi.z.so)
