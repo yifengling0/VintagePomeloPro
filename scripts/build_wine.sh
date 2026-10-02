@@ -75,6 +75,10 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0012-wineserver-locked-registry-m
 # RPGXP 取证诊断组默认关闭，仅在 WINEHUA_RPGXP_DIAGNOSTICS=1 时启用。
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013a-ntdll-ohos-rpgxp-diagnostics.patch" \
     "RPGXP forensic diagnostics"
+# 旧 CJK 游戏文字二值化遮罩兼容: WINEHUA_FONT_AA=bitmap 让游戏进程拿到双电平字形,
+# 修梦幻群侠传/XYQ 系"乱码" (从 main 分支 ad7bdd7f092 迁移; 应用侧已注入该变量)。
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0014-win32u-font-aa-override.patch" \
+    "Per-process GDI font antialiasing override"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \
