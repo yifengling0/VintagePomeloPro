@@ -35,8 +35,8 @@ struct SpawnRequest {
     // DesktopShell: explorer 的参数; WineExe: [exePath, args...];
     // Wineserver/Wineboot: 忽略 (argv 由 kind 固定)
     std::vector<std::string> argv;
-    // K=V 增量行 (BuildSessionEnv 成品或极简集); 经 SpawnViaBroker 序列化
-    // 为 __env= 段 (fd 变量/不可编码条目由 EnvSpec 契约过滤)
+    // K=V 增量行 (BuildSessionEnv 成品或极简集); Broker v2 独立编码，
+    // 保留分隔符/换行，过滤 per-process fd 变量；非法/超限请求报错。
     std::vector<std::string> env;
     // __winehua_desktop__ token (explorer 桌面 / wineboot 首启的桌面 surface 路由)
     bool desktopSurface = false;

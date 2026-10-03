@@ -1,3 +1,4 @@
+#include "spawn_codec.h"
 #include "wine_child_ipc_launcher.h"
 #include "wine_child_ipc.h"
 #include "wine_process.h"
@@ -152,12 +153,19 @@ int32_t StartWineChildViaIpc(const NativeChildProcess_Args& args, int32_t* child
 {
     if (!childPid || !args.entryParams) return NCP_ERR_INVALID_PARAM;
     *childPid = -1;
-    if (std::strlen(args.entryParams) > 16384) return NCP_ERR_INVALID_PARAM;
+    if (strnlen(args.entryParams, VP_ENTRY_CAP) >= VP_ENTRY_CAP) return NCP_ERR_INVALID_PARAM;
     int32_t count = 0;
     for (auto* node = args.fdList.head; node; node = node->next) {
         if (++count > winehua::wineipc::kMaxFds || !node->fdName ||
             !node->fdName[0] || std::strlen(node->fdName) > 20 || node->fd < 0)
             return NCP_ERR_INVALID_PARAM;
+    }
+    if (!winehua::wineipc::IsProbeParams(args.entryParams)) {
+        winehua::spawn::Request startup;
+        std::vector<std::string> names;
+        for (auto* node = args.fdList.head; node; node = node->next) names.emplace_back(node->fdName);
+        if (!winehua::spawn::DecodeEntry(args.entryParams, startup) || startup.home.empty() ||
+            !winehua::spawn::MatchNames(startup, names)) return NCP_ERR_INVALID_PARAM;
     }
     LaunchWork work;
     {
@@ -191,11 +199,16 @@ int32_t StartWineChildViaIpc(const NativeChildProcess_Args& args, int32_t* child
     auto record = std::make_shared<ChildRecord>();
     record->proxy = work.proxy;
     {
-        const char* marker = std::strstr(args.entryParams,
-            "|__env=WINEHUA_VULKAN_BACKEND=direct");
-        record->directVulkan = marker &&
-            (marker[sizeof("|__env=WINEHUA_VULKAN_BACKEND=direct") - 1] == '|' ||
-             marker[sizeof("|__env=WINEHUA_VULKAN_BACKEND=direct") - 1] == '\0');
+        winehua::spawn::Request startup;
+        if (winehua::spawn::DecodeEntry(args.entryParams, startup)) {
+            for (const auto& env : startup.env)
+                if (env.rfind("WINEHUA_VULKAN_BACKEND=", 0) == 0)
+                    record->directVulkan = env == "WINEHUA_VULKAN_BACKEND=direct";
+        } else {
+            // Standalone Direct surface probes still use their existing literal envelope.
+            record->directVulkan = std::strstr(args.entryParams,
+                "|__env=WINEHUA_VULKAN_BACKEND=direct") != nullptr;
+        }
     }
     auto* holder = new std::shared_ptr<ChildRecord>(record);
     record->recipient = OH_IPCDeathRecipient_Create(OnChildDeath, OnRecipientDestroyed, holder);

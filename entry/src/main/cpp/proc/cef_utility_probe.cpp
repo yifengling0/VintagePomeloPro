@@ -1,3 +1,4 @@
+#include "spawn_codec.h"
 /**
  * cef_utility_probe.cpp — CEF utility 子进程生命周期观测 (只诊断, 不改行为)
  *
@@ -74,47 +75,18 @@ bool ContainsCI(const char *hay, const char *needle) {
     return false;
 }
 
-// entryParams 是 '|' 分隔的 token 串: homeDir|binDir|[wine]|argv...|__env=K=V|...
+// Tokens are decoded fields from the Broker v2 startup envelope.
 // 返回以 prefix 开头的那一段 (去掉 prefix); 没有则空串。只认整段前缀匹配,
 // 避免 "…x--type=utility" 这类粘连误判。
-std::string TokenValue(const std::string &params, const char *prefix) {
-    size_t pl = strlen(prefix);
-    size_t pos = 0;
-    while (pos <= params.size()) {
-        size_t end = params.find('|', pos);
-        if (end == std::string::npos) end = params.size();
-        const std::string seg = params.substr(pos, end - pos);
-        if (seg.compare(0, pl, prefix) == 0) return seg.substr(pl);
-        if (end == params.size()) break;
-        pos = end + 1;
-    }
-    return std::string();
+std::string TokenValue(const std::vector<std::string>& params, const char* prefix) {
+    const size_t length = strlen(prefix);
+    for (const auto& token : params)
+        if (token.compare(0, length, prefix) == 0) return token.substr(length);
+    return {};
 }
-
-bool HasToken(const std::string &params, const char *prefix) {
-    size_t pl = strlen(prefix);
-    size_t pos = 0;
-    while (pos <= params.size()) {
-        size_t end = params.find('|', pos);
-        if (end == std::string::npos) end = params.size();
-        if (params.compare(pos, pl, prefix) == 0) return true;
-        if (end == params.size()) break;
-        pos = end + 1;
-    }
-    return false;
-}
-
-std::string FindTokenContaining(const std::string &params, const char *needle) {
-    size_t pos = 0;
-    while (pos <= params.size()) {
-        size_t end = params.find('|', pos);
-        if (end == std::string::npos) end = params.size();
-        std::string seg = params.substr(pos, end - pos);
-        if (ContainsCI(seg.c_str(), needle)) return seg;
-        if (end == params.size()) break;
-        pos = end + 1;
-    }
-    return std::string();
+std::string FindTokenContaining(const std::vector<std::string>& params, const char* needle) {
+    for (const auto& token : params) if (ContainsCI(token.c_str(), needle)) return token;
+    return {};
 }
 
 // 从 "...\Steam\bin\cef\cef.win64\steamwebhelper.exe" 取 "cef.win64"。
@@ -187,11 +159,12 @@ void WineHuaCefUtilityProbeNoteSpawn(int32_t childPid, int32_t parentHostPid,
     // steamservice.exe 是 Steam 的客户端服务 (/RunAsService), 观测轮实测它每
     // 1.5s 上下就被重新拉起一次 —— 与 CEF 无关但同属 "客户端子进程不断重启" 家族,
     // 顺手一起观测 (同一份 create/exit 记录即可算出它的 lifetime/signal 分布)。
-    const bool isWebHelper = ContainsCI(entryParams, "steamwebhelper");
-    const bool isSteamService = ContainsCI(entryParams, "steamservice");
+    winehua::spawn::Request startup;
+    if (!winehua::spawn::DecodeEntry(entryParams, startup)) return;
+    const bool isWebHelper = !FindTokenContaining(startup.argv, "steamwebhelper").empty();
+    const bool isSteamService = !FindTokenContaining(startup.argv, "steamservice").empty();
     if (!isWebHelper && !isSteamService) return;
-
-    const std::string params(entryParams);
+    const auto& params = startup.argv;
     UtilityEntry e;
     e.createMs = NowMs();
     e.parentHostPid = parentHostPid;
@@ -200,8 +173,10 @@ void WineHuaCefUtilityProbeNoteSpawn(int32_t childPid, int32_t parentHostPid,
     e.subtype = TokenValue(params, "--utility-sub-type=");
     e.sandboxType = TokenValue(params, "--service-sandbox-type=");
     e.mojoHandle = TokenValue(params, "--mojo-platform-channel-handle=");
-    e.hodll = TokenValue(params, "__env=HODLL=");
-    e.hodll64 = TokenValue(params, "__env=HODLL64=");
+    for (const auto& env : startup.env) {
+        if (env.rfind("HODLL=", 0) == 0) e.hodll = env.substr(6);
+        if (env.rfind("HODLL64=", 0) == 0) e.hodll64 = env.substr(8);
+    }
     e.cefDir = CefDirOf(e.image);
 
     // 主 steamwebhelper (CEF browser 进程) 没有 --type=, 但它正是所有 utility 的父进程,

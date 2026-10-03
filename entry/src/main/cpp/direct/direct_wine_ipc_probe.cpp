@@ -1,3 +1,4 @@
+#include "proc/spawn_protocol.h"
 #include "direct_wine_ipc_probe.h"
 #include "proc/wine_child_ipc.h"
 #include "proc/broker.h"
@@ -212,47 +213,22 @@ void ExecuteBroker(napi_env, void* data)
             work.stage = "write_token";
             break;
         }
-        broker = socket(AF_UNIX, SOCK_STREAM, 0);
-        sockaddr_un addr{};
-        addr.sun_family = AF_UNIX;
-        if (broker < 0 || std::strlen(WINE_BROKER_SOCKET) >= sizeof(addr.sun_path)) {
-            work.stage = "broker_socket";
-            break;
+        const int64_t deadline = vp_now_ms() + 45000;
+        broker = vp_connect_path(WINE_BROKER_SOCKET, deadline);
+        if (broker < 0) { work.stage = "broker_connect"; break; }
+        const char* argv[] = {wineipc::kProbeParams};
+        const char* env[] = {"WINEHUA_DIRECT_NCP=1"};
+        const char* names[] = {"probe_input", "probe_output"};
+        const int passed[] = {input[0], output[1]};
+        vp_spawn_spec request{"", ".", argv, env, names, 1, 1, 2};
+        if (vp_send_request(broker, &request, passed, deadline)) {
+            work.stage = "broker_send"; break;
         }
-        std::strcpy(addr.sun_path, WINE_BROKER_SOCKET);
-        if (connect(broker, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-            work.stage = "broker_connect";
-            break;
+        int pid = -1, status = -1;
+        if (vp_recv_reply(broker, &pid, &status, deadline)) {
+            work.stage = "broker_reply"; break;
         }
-        const std::string message = std::string("SPAWN\n") + wineipc::kProbeParams +
-            "|__env=WINEHUA_DIRECT_NCP=1\nFDS:probe_input,probe_output\n";
-        iovec iov{const_cast<char*>(message.data()), message.size()};
-        union {
-            char bytes[CMSG_SPACE(sizeof(int) * 2)];
-            cmsghdr align;
-        } control{};
-        msghdr msg{};
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-        msg.msg_control = control.bytes;
-        msg.msg_controllen = sizeof(control.bytes);
-        cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_SOCKET;
-        cmsg->cmsg_type = SCM_RIGHTS;
-        cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
-        int passed[2] = {input[0], output[1]};
-        std::memcpy(CMSG_DATA(cmsg), passed, sizeof(passed));
-        if (sendmsg(broker, &msg, MSG_NOSIGNAL) != static_cast<ssize_t>(message.size())) {
-            work.stage = "broker_send";
-            break;
-        }
-        int32_t response[2] = {-1, -1};
-        if (recv(broker, response, sizeof(response), MSG_WAITALL) != sizeof(response)) {
-            work.stage = "broker_reply";
-            break;
-        }
-        work.replyPid = response[0];
-        work.launchCode = response[1];
+        work.replyPid = pid; work.launchCode = status;
         work.parentFdsOpen = fcntl(input[0], F_GETFD) >= 0 &&
                              fcntl(output[1], F_GETFD) >= 0;
         if (work.launchCode != 0 || work.replyPid <= 0) {

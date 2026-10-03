@@ -1,3 +1,4 @@
+#include "proc/spawn_codec.h"
 #include "wine_exe.h"
 
 #include "proc/broker.h"
@@ -37,10 +38,9 @@ extern napi_threadsafe_function gStateTsfn;
 
 namespace {
 
-static bool HasUnsafeProtocolChar(const std::string& value)
+static bool HasEmbeddedNul(const std::string& value)
 {
-    return value.find('|') != std::string::npos || value.find('\n') != std::string::npos ||
-           value.find('\r') != std::string::npos;
+    return value.find('\0') != std::string::npos;
 }
 
 static std::string ReadString(napi_env env, napi_value value)
@@ -121,7 +121,7 @@ static void ReadEnvironment(napi_env env, napi_value object, std::vector<std::st
             napi_typeof(env, value, &valueType) != napi_ok || valueType != napi_string)
             continue;
         std::string line = key + "=" + ReadString(env, value);
-        if (!HasUnsafeProtocolChar(line)) out->push_back(std::move(line));
+        if (!HasEmbeddedNul(line)) out->push_back(std::move(line));
     }
 }
 
@@ -182,8 +182,8 @@ static napi_value MakeProcessObject(napi_env env, const WineProcessEntry* entry,
 
 static int SpawnWineProgramImpl(const ProgramOptions& options)
 {
-    if (options.windowsExePath.empty() || HasUnsafeProtocolChar(options.windowsExePath)) return -1;
-    for (const std::string& arg : options.argv) if (HasUnsafeProtocolChar(arg)) return -1;
+    if (options.windowsExePath.empty() || HasEmbeddedNul(options.windowsExePath)) return -1;
+    for (const std::string& arg : options.argv) if (HasEmbeddedNul(arg)) return -1;
 
     const winehua::ContainerSession session = options.containerId.empty()
         ? winehua::GetActiveContainerSession()
@@ -290,55 +290,35 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
 // 经 broker Unix socket 发送 SPAWN 请求, 返回子进程 pid, <= 0 表示失败。
 // 调用方收口在 spawner.cpp (SpawnKind::DesktopShell/WineExe 等);
 // 保留全局函数只因 broker 协议实现不应复制第二份。
-pid_t SpawnViaBroker(const std::string& entryParams,
+pid_t SpawnViaBroker(const std::string& binDir, const std::vector<std::string>& argv,
                      const std::vector<std::string>& environment)
 {
-    const char* brokerPath = getenv("PROCESSBROKER");
-    if (!brokerPath || !brokerPath[0]) brokerPath = WINE_BROKER_SOCKET;
-    int brokerFd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (brokerFd < 0) return -1;
-
-    sockaddr_un address = {};
-    address.sun_family = AF_UNIX;
-    if (strlen(brokerPath) >= sizeof(address.sun_path))
-    {
-        close(brokerFd);
+    winehua::spawn::Request request{"", binDir, argv, {}, {}};
+    for (const auto& line : environment)
+        if (!vp_is_process_env(line.c_str())) request.env.push_back(line);
+    std::vector<unsigned char> bytes;
+    if (!winehua::spawn::Encode(request, bytes)) {
+        OH_LOG_ERROR(LOG_APP, "[Program] invalid or oversized startup request");
         return -1;
     }
-    strcpy(address.sun_path, brokerPath);
-    if (connect(brokerFd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0)
-    {
-        OH_LOG_ERROR(LOG_APP, "[Program] broker connect failed: %{public}s", strerror(errno));
-        close(brokerFd);
+    const char* path = getenv("PROCESSBROKER");
+    if (!path || !path[0]) path = WINE_BROKER_SOCKET;
+    const int64_t deadline = vp_now_ms() + 45000;
+    int fd = vp_connect_path(path, deadline);
+    if (fd < 0) return -1;
+    vp_spawn_spec spec{};
+    int pid = -1, status = -1;
+    bool ok = vp_decode(bytes.data(), bytes.size(), &spec) == 0 &&
+        vp_send_request(fd, &spec, nullptr, deadline) == 0 &&
+        vp_recv_reply(fd, &pid, &status, deadline) == 0;
+    vp_free_spec(&spec);
+    const int error = errno;
+    close(fd);
+    if (!ok || status || pid <= 0) {
+        OH_LOG_ERROR(LOG_APP, "[Program] broker request failed errno=%{public}d status=%{public}d", error, status);
         return -1;
     }
-
-    /* The broker protocol has one authoritative environment channel:
-     * |__env=KEY=VALUE segments embedded in entryParams.  The old ENV blob
-     * trailer was removed with the broker-global session environment; leaving
-     * it here makes children silently inherit only Wine's baseline and causes
-     * DXVK/Venus 程序错误地解析到内置 d3d11.dll。 */
-    const std::string requestParams = entryParams + SerializeEnvToEntryParams(environment);
-    static constexpr char header[] = "SPAWN\n";
-    std::string requestTail = requestParams + "\n";
-    iovec iov[2] = {
-        {const_cast<char*>(header), sizeof(header) - 1},
-        {const_cast<char*>(requestTail.data()), requestTail.size()},
-    };
-    msghdr message = {};
-    message.msg_iov = iov;
-    message.msg_iovlen = 2;
-    if (sendmsg(brokerFd, &message, MSG_NOSIGNAL) < 0)
-    {
-        close(brokerFd);
-        return -1;
-    }
-
-    int32_t response[2] = {-1, -1};
-    ssize_t received = recv(brokerFd, response, sizeof(response), MSG_WAITALL);
-    close(brokerFd);
-    if (received != sizeof(response) || response[1] != 0 || response[0] <= 0) return -1;
-    return response[0];
+    return pid;
 }
 
 
@@ -383,21 +363,11 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
 
     ReadStringArray(env, args[0], "argv", &options.argv);
     ReadEnvironment(env, args[0], &options.environment);
-    // ArkTS 原样传入的 per-app environment (未经管线改写, 与 main-ui 启动链
-    // 对比的判别点): 拼成 K=V;K=V 行串打出, 空 = 调用方未注入
-    const std::string envFallback = [&options]() {
-        std::string joined;
-        for (const std::string& line : options.environment) {
-            if (!joined.empty()) joined += ";";
-            joined += line;
-        }
-        return joined;
-    }();
     OH_LOG_INFO(LOG_APP,
-                "[WineProgram] parsed options exe=%{public}s argc=%{public}zu env=%{public}zu [%{public}s] "
+                "[WineProgram] parsed options exeBytes=%{public}zu argc=%{public}zu envCount=%{public}zu "
                 "d3d=%{public}s dxvk=%{public}s",
-                options.windowsExePath.c_str(), options.argv.size(), options.environment.size(),
-                envFallback.c_str(), options.d3dBackend.c_str(), options.dxvkBackend.c_str());
+                options.windowsExePath.size(), options.argv.size(), options.environment.size(),
+                options.d3dBackend.c_str(), options.dxvkBackend.c_str());
 
     const pid_t pid = SpawnWineProgram(options);
     WineProcessEntry entry;

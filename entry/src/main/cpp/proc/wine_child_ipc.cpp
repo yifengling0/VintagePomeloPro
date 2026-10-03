@@ -1,3 +1,4 @@
+#include "spawn_codec.h"
 // CreateNativeChildProcess bootstrap for a future opt-in Direct Wine path.
 // The existing StartNativeChildProcess Main(NativeChildProcess_Args) entry is unchanged.
 #include "wine_child_ipc.h"
@@ -165,7 +166,7 @@ int OnRequest(uint32_t code, const OHIPCParcel* request, OHIPCParcel* reply, voi
     if (code != winehua::wineipc::kBootstrap)
         return OH_IPC_CHECK_PARAM_ERROR;
     const char* params = OH_IPCParcel_ReadString(request);
-    if (!params || std::strlen(params) > 16384 ||
+    if (!params || strnlen(params, VP_ENTRY_CAP) >= VP_ENTRY_CAP ||
         OH_IPCParcel_ReadInt32(request, &count) != OH_IPC_SUCCESS ||
         count < 0 || count > winehua::wineipc::kMaxFds)
         return OH_IPC_CHECK_PARAM_ERROR;
@@ -181,6 +182,15 @@ int OnRequest(uint32_t code, const OHIPCParcel* request, OHIPCParcel* reply, voi
             return OH_IPC_CHECK_PARAM_ERROR;
         }
         received.push_back({name, fd});
+    }
+
+    if (!winehua::wineipc::IsProbeParams(params)) {
+        winehua::spawn::Request startup;
+        std::vector<std::string> actualNames;
+        for (const auto& item : received) actualNames.push_back(item.name);
+        bool valid = winehua::spawn::DecodeEntry(params, startup) && !startup.home.empty() &&
+            winehua::spawn::MatchNames(startup, actualNames);
+        if (!valid) { CloseFds(received); return OH_IPC_CHECK_PARAM_ERROR; }
     }
 
     // Do not release MainProc until the PID reply is ready. A short-lived
@@ -285,7 +295,12 @@ extern "C" __attribute__((visibility("default"))) void NativeChildProcess_MainPr
         fds = std::move(g_fds);
     }
     if (params == winehua::wineipc::kProbeParams ||
-        params.rfind(std::string(winehua::wineipc::kProbeParams) + "|__env=WINEHUA_DIRECT_NCP=1", 0) == 0) {
+        params == std::string(winehua::wineipc::kProbeParams) + "|__env=WINEHUA_DIRECT_NCP=1" ||
+        [&] {
+            winehua::spawn::Request startup;
+            return winehua::spawn::DecodeEntry(params.c_str(), startup) &&
+                startup.argv == std::vector<std::string>{winehua::wineipc::kProbeParams};
+        }()) {
         RunProbe(fds);
         return;
     }

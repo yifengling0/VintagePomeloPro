@@ -216,14 +216,14 @@ export class SteamService {
       ]);
       if (beginResponse.statusCode !== 200 || beginResponse.keystoneError().length > 0) {
         hilog.warn(DOMAIN, TAG,
-          'client token upgrade begin rejected: http=%{public}d keystone=%{public}s bodyHead=%{public}s',
-          beginResponse.statusCode, beginResponse.keystoneError(), beginResponse.body.substring(0, 200));
+          'client token upgrade begin rejected: http=%{public}d keystone=%{public}s bodyChars=%{public}d',
+          beginResponse.statusCode, beginResponse.keystoneError(), beginResponse.body.length);
         return '';
       }
       const beginBody = (JSON.parse(beginResponse.body) as QrBeginEnvelope)?.response;
       if (!beginBody?.client_id || !beginBody.request_id) {
-        hilog.warn(DOMAIN, TAG, 'client token upgrade begin malformed: bodyHead=%{public}s',
-          beginResponse.body.substring(0, 200));
+        hilog.warn(DOMAIN, TAG, 'client token upgrade begin malformed: bodyChars=%{public}d',
+          beginResponse.body.length);
         return '';
       }
       hilog.info(DOMAIN, TAG, 'client token upgrade session started; polling');
@@ -260,8 +260,9 @@ export class SteamService {
       hilog.warn(DOMAIN, TAG, 'client token upgrade timed out (no confirmation)');
       return '';
     } catch (error) {
-      const failure = error instanceof Error ? error.message : String(error);
-      hilog.warn(DOMAIN, TAG, 'client token upgrade failed: %{public}s', failure);
+      const failure = SteamAuthErrorSupport.normalize(error, SteamAuthErrorKind.UNKNOWN,
+        'client_token_upgrade', 'Client token upgrade failed');
+      hilog.warn(DOMAIN, TAG, 'client token upgrade failed: %{public}s', SteamAuthErrorSupport.diagnosticLabel(failure));
       return '';
     }
   }
@@ -371,17 +372,17 @@ export class SteamService {
       [new SteamFormField('website_id', 'Community')]);
     if (generation !== this.qrGeneration) throw new Error('扫码会话已取消');
     if (response.keystoneError().length > 0 || response.statusCode !== 200) {
-      // 2026-10-02: 此路径此前完全无日志, 扫码登录问题无法定位; 现场全量记录。
+      // 2026-10-02: 此路径此前完全无日志, 扫码登录问题无法定位; 仅记录状态码和响应长度。
       hilog.warn(DOMAIN, TAG,
-        'QR begin rejected: http=%{public}d keystone=%{public}s bodyHead=%{public}s',
+        'QR begin rejected: http=%{public}d keystone=%{public}s bodyChars=%{public}d',
         response.statusCode, response.keystoneError(),
-        response.body.substring(0, 200));
+        response.body.length);
       throw new Error('Steam 拒绝扫码请求');
     }
     const parsed = JSON.parse(response.body) as QrBeginEnvelope;
     const body = parsed?.response;
     if (!body || !body.client_id || !body.challenge_url || !body.request_id) {
-      hilog.warn(DOMAIN, TAG, 'QR begin malformed: bodyHead=%{public}s', response.body.substring(0, 200));
+      hilog.warn(DOMAIN, TAG, 'QR begin malformed: bodyChars=%{public}d', response.body.length);
       throw new Error('Steam 未返回扫码会话');
     }
     this.qrClientId = body.client_id;
@@ -403,8 +404,8 @@ export class SteamService {
     if (response.statusCode !== 200 || response.keystoneError().length > 0) {
       // 2026-10-02: pending/过期/限流此前全部静默归为 invalid, 现场区分记录。
       hilog.warn(DOMAIN, TAG,
-        'QR poll non-OK: http=%{public}d keystone=%{public}s bodyHead=%{public}s',
-        response.statusCode, response.keystoneError(), response.body.substring(0, 200));
+        'QR poll non-OK: http=%{public}d keystone=%{public}s bodyChars=%{public}d',
+        response.statusCode, response.keystoneError(), response.body.length);
       return 'invalid';
     }
     const parsed = JSON.parse(response.body) as QrPollEnvelope;
@@ -415,15 +416,15 @@ export class SteamService {
       // 2026-10-02: pending 也留痕 (每 6 次一条), 否则"扫了码没反应"无从查起。
       this.qrPollCount++;
       if (this.qrPollCount === 1 || this.qrPollCount % 6 === 0) {
-        hilog.info(DOMAIN, TAG, 'QR poll pending #%{public}d; bodyHead=%{public}s',
-          this.qrPollCount, response.body.substring(0, 120));
+        hilog.info(DOMAIN, TAG, 'QR poll pending #%{public}d; bodyChars=%{public}d',
+          this.qrPollCount, response.body.length);
       }
       return 'pending';
     }
     // 手机已确认: 与密码登录成功路径同款落库
     const steamId = SteamJwt.subjectClaim(refreshToken);
     if (steamId.length === 0) {
-      hilog.warn(DOMAIN, TAG, 'QR token unparsable; tokenHead=%{public}s', refreshToken.substring(0, 60));
+      hilog.warn(DOMAIN, TAG, 'QR token unparsable; tokenChars=%{public}d', refreshToken.length);
       this.setState(SteamUiState.ERROR, '扫码已确认但令牌解析失败');
       return 'invalid';
     }

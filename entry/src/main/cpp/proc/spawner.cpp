@@ -30,14 +30,16 @@ constexpr bool kNeedsWineLoaderToken = false;
 constexpr bool kNeedsWineLoaderToken = true;
 #endif
 
-pid_t SpawnLogged(const SpawnRequest& req, const std::string& params) {
-    const pid_t pid = SpawnViaBroker(params, req.env);
+pid_t SpawnLogged(const SpawnRequest& req, const std::string& binDir, const std::vector<std::string>& argv) {
+    size_t paramsBytes = binDir.size();
+    for (const auto& arg : argv) paramsBytes += arg.size();
+    const pid_t pid = SpawnViaBroker(binDir, argv, req.env);
     if (pid <= 0)
-        OH_LOG_ERROR(LOG_APP, "[Spawner] broker spawn FAILED kind=%{public}d params=%{public}s",
-                     (int)req.kind, params.c_str());
+        OH_LOG_ERROR(LOG_APP, "[Spawner] broker spawn FAILED kind=%{public}d paramsBytes=%{public}zu argvCount=%{public}zu envCount=%{public}zu",
+                     (int)req.kind, paramsBytes, req.argv.size(), req.env.size());
     else
-        OH_LOG_INFO(LOG_APP, "[Spawner] broker spawn kind=%{public}d pid=%{public}d params=%{public}s",
-                    (int)req.kind, (int)pid, params.c_str());
+        OH_LOG_INFO(LOG_APP, "[Spawner] broker spawn kind=%{public}d pid=%{public}d paramsBytes=%{public}zu argvCount=%{public}zu envCount=%{public}zu",
+                    (int)req.kind, (int)pid, paramsBytes, req.argv.size(), req.env.size());
     return pid;
 }
 
@@ -61,47 +63,30 @@ pid_t Spawner::Spawn(const SpawnRequest& req) {
     (void)schemeLogged;
     const std::string& binDir = req.binDir.empty() ? gBinDir : req.binDir;
 
-    // token 布局: binDir|[desktop]|[wine]|argv... (broker 收到后再补
-    // homeDir 前缀; __env 段由 SpawnViaBroker 序列化追加)。
+    // Broker v2 keeps binDir, argv and environment in separate fields.
     // wine_child Main 按此解析; wineserver 由 Main 截获转入本体。
-    std::string params = binDir;
+    std::vector<std::string> argv;
     switch (req.kind) {
     case SpawnKind::Wineserver:
-        params += "|wineserver|-f|-p";
+        argv = {"wineserver", "-f", "-p"};
         break;
     case SpawnKind::Wineboot:
-        if (req.desktopSurface) params += "|__winehua_desktop__";
-        if (kNeedsWineLoaderToken) params += "|wine";
-        params += "|wineboot|--init";
+        if (req.desktopSurface) argv.emplace_back("__winehua_desktop__");
+        if (kNeedsWineLoaderToken) argv.emplace_back("wine");
+        argv.insert(argv.end(), {"wineboot", "--init"});
         break;
     case SpawnKind::DesktopShell:
-        params += "|__winehua_desktop__";
-        if (kNeedsWineLoaderToken) params += "|wine";
-        params += "|explorer";
+        argv.emplace_back("__winehua_desktop__");
+        if (kNeedsWineLoaderToken) argv.emplace_back("wine");
+        argv.emplace_back("explorer");
         break;
     case SpawnKind::WineExe:
-        if (kNeedsWineLoaderToken) params += "|wine";
+        if (kNeedsWineLoaderToken) argv.emplace_back("wine");
         break;
     }
-    for (const std::string& arg : req.argv) {
-        params += "|";
-        params += arg;
-    }
+    argv.insert(argv.end(), req.argv.begin(), req.argv.end());
 
-    // 全路径 env 收口打点: 所有 kind (wineserver/wineboot/desktop shell/wine exe)
-    // 都经过本节唯一 spawn 通道, 此处打出送入 broker 的最终 env (基线+overlay+
-    // extraEnv 已合流), 与 wine_exe.cpp 的 "parsed options" 原样注入对照。
-    if (!req.env.empty()) {
-        std::string envJoined;
-        for (const std::string& line : req.env) {
-            if (!envJoined.empty()) envJoined += ";";
-            envJoined += line;
-        }
-        OH_LOG_INFO(LOG_APP, "[Spawner] env kind=%{public}d count=%{public}zu [%{public}s]",
-                    (int)req.kind, req.env.size(), envJoined.c_str());
-    }
-
-    return SpawnLogged(req, params);
+    return SpawnLogged(req, binDir, argv);
 }
 
 } // namespace winehua

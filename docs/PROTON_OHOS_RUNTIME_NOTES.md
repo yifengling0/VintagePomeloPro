@@ -270,3 +270,149 @@ Steam/PAL4 场景性能与实际 NativeImage 帧验证。
 生成 3 秒确定性测试音并写入 `C:\smoke\results\builtin-audio-smoke.json`，
 不再依赖未打包的 Alarm01 媒体文件。资源 catalog 与 fallback catalog 保持一致。
 在仙剑四运行期间，x86 音频自检通过，宿主读完 144000 帧，用户确认能听到测试音。
+
+## 10. 第一批稳定性修复（2026-10-03）
+
+基于本地 `feature/main_proton` 的 `24b7f4aa`，新增三个构建补丁；仍由
+`scripts/build_wine.sh` 在所选 Wine 源上幂等重放，gitlink 不变。
+
+- 0017：configure 在释放 `wayland_win_data` 锁前完成 rect 快照，避免
+  DestroyWindow 或 USER 回调在解锁后释放对象而使后续坐标读取悬空。
+- 0018：私有 present 每个 wait semaphore 均有对应 stage mask；超过
+  16 项时以一次分配容纳两组数组。acquire 的有限超时只计算一次绝对
+  deadline，继续使用与现有 cond 一致的 CLOCK_REALTIME。
+- 0018 同时在 dispatch 前检查全部 swapchain。混合私有/普通 WSI 或
+  无效对象沿用原私有路径的 `VK_ERROR_INITIALIZATION_FAILED`，填写
+  全部 pResults，并在消费 semaphore 或更改 image 状态前返回。
+  本次不增加混合批次呈现能力。
+- 0019：移除 Broker argv 的默认 stderr 内容 dump；OHOS 的进程 TRACE
+  也仅记录长度/数量。其他平台保留原 Wine TRACE。
+- 应用侧 Broker、Spawner、Wine child 和入口环境日志改为长度、数量、
+  PID 与状态码；两个 Wine stderr 重定向入口不再写完整 entryParams。
+  PROC-SPAWN 分别标识 broker 和实际 creator host PID。
+- Steam HTTP/QR 日志保留状态、响应长度、token 长度和轮询计数，删除
+  body/token 前缀；异常路径使用现有 diagnosticLabel。
+
+`make test-proton-stability` 接入完整补丁链重放/幂等性验证，以及实际
+configure/acquire/private present 函数的 ASan/UBSan 主机测试。旧 configure
+UAF、stage mask 越界和 timeout 重启都必须能在原代码复现；新实现覆盖
+0/1/2/16/17/64 个 wait semaphore、分配/提交失败、反复唤醒、零/无限
+超时及两个顺序的混合请求。Spawner 测试检查 secret argv/env 原样传递
+且成功/失败日志不包含内容。Steam integration 测试覆盖 HTTP 错误、
+畸形响应、pending 和无效 token 的日志收敛。
+
+本批次验证结果：完整 `make test` 通过，其中稳定性测试 8/8 通过；
+Steam integration 回归通过。使用本机 DevEco SDK 编译器对修改的
+Broker、Spawner、Wine child 和 WineProgram 原生文件进行 OHOS arm64、
+x86_64 的语法/格式检查，均通过；Wine child 的 arm64 + Box64 分支也
+通过检查。`git diff --check` 与 `bash -n scripts/build_wine.sh` 通过。
+
+该批次不解决 source image completion、acquire command buffer/pool
+生命周期、Broker framing/参数容量、Wayland 双缓冲或 CEF binding
+generation。early fault/FEX 诊断信号链仍需独立行为验证；主机测试
+不代表本批次已完成引擎全量构建和设备 GPU/Steam 回归。
+
+## 11. Broker v2 完整启动合同（2026-10-03）
+
+应用 Spawner、Wine 子进程/ wineserver 发送端、Broker、Wine child、Create
+IPC bootstrap 与手机 fork server 已一起迁移。Wine 部分由构建补丁
+`0020-broker-v2-startup-contract.patch` 实现；继续保留当前 Wine gitlink 和
+既有本地修改。应用与 Wine runtime 必须配套构建更新，旧 `SPAWN\n`
+网络协议明确返回 `-EPROTONOSUPPORT`，不尝试按不完整旧请求启动进程。
+
+Unix stream 请求头是 12 字节：`VPBR`、little-endian uint32 版本 2、uint32
+payload 长度。payload 先记录 argv/env/fd-name 项数，再按 uint32 字节长度
+记录 home、bin、argv、env、fd-name 字符串。空参数、`|`、换行和 UTF-8
+均保留；内嵌 NUL、非法环境键值、重复 fd 名称和超限请求明确拒绝。
+响应仍为两个 little-endian int32：child PID、状态（NCP 状态或负 errno）。
+
+NCP entryParams 使用 `VPP2:` + base64(payload)，中间路径保持这个完整
+封套，不再转回分隔符串。Broker 注入会话 home、末尾权威 WINEPREFIX 和
+audio fd 名称后再次校验大小。子进程完整解码并检查命名 fd 集合后才设置
+环境、进入 Wine；argv 动态分配并为既有 Steam 策略参数预留空间。
+应用与 Wine 发送端继续过滤四项 per-process fd 环境变量，由 fdList 传递
+句柄后在子进程中重写本地编号。
+
+| 预算 | 本次实现 |
+| --- | --- |
+| binary payload | 最多 112 KiB；最终封套仍须通过下方限制 |
+| NCP / Create IPC / 手机入口 | 包括 NUL 最多 150000 字节，保守覆盖 SDK 的“150KB”限制 |
+| argv / env | 每组最多 4096 项；同时受总字节预算限制 |
+| fd | 来客最多 15 个，为音频预留 1 个；最终最多 16 个 |
+| fd 名称 | 非空、唯一、最多 20 字节；来客不得占用 wine_audio_bootstrap |
+
+发送端与响应均处理 EINTR、EAGAIN、短读/短写，使用 monotonic 总期限。
+SCM_RIGHTS 只跟随首次成功写出的字节；每个接收片段都使用 recvmsg，
+检查 MSG_TRUNC/MSG_CTRUNC，并在拒绝路径关闭已收到的 fd。
+Broker 使用 4 个读取线程、各 16 项的待读取/待启动队列，读取总期限
+3 秒；NCP 启动由单个 dispatcher 串行执行，队列等待超过 20 秒拒绝，
+响应写出最多 1 秒。客户端连接/发送/等回复合用 45 秒期限。
+手机 SOCK_SEQPACKET 保持原子请求，按实际参数长度发送，不再带固定
+16 KiB 参数数组。CEF 生命周期记录和现有 Broker/Create IPC 探针同步
+识别新版字段。
+
+验证：完整 `make test` 通过；新增 `make test-broker-startup` 使用实际
+Broker、补丁后的 Wine C 发送端、Create IPC 接收函数、手机传输函数，
+在真实 Linux socket/fd 上以 ASan/UBSan 验证 15/16/17/64 KiB 参数、
+0（拒绝）/1/63/64/256 项 argv、后置环境、空字符串、分隔符、UTF-8、
+fd 容量/命名错误、各启动 backend 失败清理与编码后的总容量。
+另覆盖逐字节分片、EINTR/EAGAIN/短写/写失败、控制消息截断及累计
+fd 溢出、版本错误、总期限、三个半包连接下正常请求推进及满队列 busy。
+检查 `/proc/self/fd` 确认这些成功和拒绝路径无 fd 泄漏；完整 Wine 补丁链
+重放/幂等性测试及应用/Wine 协议头字节一致性检查通过。
+
+受影响原生文件的 OHOS arm64、x86_64 语法/格式检查及 Wine child 的
+arm64 + Box64 分支通过。主机测试以 mock 替代系统进程创建和 IPC parcel；
+此后的配套 Wine/HAP 构建与平板回归见 §12。手机 fork 的真实设备回归与
+各机型入口边界、启动延迟仍待验收。GPU source image completion、acquire
+资源生命周期与 Wayland 状态机仍属于后续批次。
+
+
+## 12. 配套构建与平板回归（2026-10-03）
+
+本轮配套 Wine/native/ArkTS/HAP 已完成构建、签名验证和运行时组件闭包
+检查。Wine 候选来自 pinned HEAD 的隔离树，重放完整正常注册补丁链，
+包含 0017–0020，排除隔离实验 0013b/0013c；原 Wine 工作树修改保留。
+完整构建发现 SteamService 的错误处理使用了不匹配的参数类型，已改为
+SteamAuthErrorSupport.normalize。主机 Steam integration 回归通过。
+
+MLR-AL10 平板升级安装成功，版本为 1.4.5-proton.25-alpha / 1004034，
+未卸载或清除数据，首次安装时间保留。候选 signed HAP SHA256：
+`cce77fdcc9346371942381beb367a27fc5edbd09afc8173402f1e8eaa61e2f32`。
+设备 runtime marker 与包内相符。设备 native 库目录读权限不足，库哈希
+核对记为 unavailable，不能把读取失败记为内容不匹配或已经完成核对。
+
+真实 Broker v2 合同 2/2、ARM64/x86 跨架构进程与 IPC 2/2、Vulkan
+acquire/submit/present 2/2 通过；Vulkan 每个用例成功呈现 150 帧。
+新增 Broker 探针覆盖 256 个附加 argv、空值、竖线、换行、中文与 64 KiB
+环境，包含真实 CreateProcessW 子进程再校验。真机发现正常应用入口仍
+拒绝旧分隔符，已在 wine_exe.cpp 改为仅拒绝内嵌 NUL，重新构建升级后
+通过。spawn 日志隐私及 Steam integration 相关主机检查也通过。
+
+OpenGL 套件仍未验收：两例出帧但未拿到 compositor 显示序列，AMD64/FEX
+例超时。前台 GL-PERF 可见成功呈现，但探针还读取无后缀的旧 FPS 文件，
+宿主已按 .toplevelId 发布；统计接口需配套修复后复验。此失败既不算
+OpenGL 已通过，也不能据此认定所有 OpenGL 呈现均不可用。
+
+Steam 大屏实测：屏幕 2560×1600，显示区 2400×1600，Steam 内容
+1200×800（SHM buffer padding 为 1280×896）。默认输出缩放的 2 倍
+系数将桌面尺寸减半，内容再放大 2 倍，解释了清晰度不足。左右连续浏览
+11 个秒级样本为 30.405–34.683 FPS，均值约 32.6；慢切换阶段的
+GL-PERF 窗口约 8.59–26.32 FPS。宿主稳定段合成/上传/交换约 4–10 ms，
+failed_swaps=0；当前大屏使用 SHM，未绑定活动 GPU producer。
+
+Steam 主进程初始 CPU 快照约占单核 77–79%，宿主约 17–21%。两个
+10 秒 CPU profile 无丢样，但 Guest/JIT 归属不完整，均为
+ATTRIBUTION_REVIEW_REQUIRED。大量已处理 SIGBUS 值得量化，不能据其
+断言崩溃或精确热点。当前证据优先指向新画面产生/到达与 Steam/CEF/FEX
+处理；SHM 本身不能证明 CEF 内部软件 GPU，实际 CEF backend 尚未读到。
+上述不同页面的采集不是性能 A/B，也未宣称本轮已经提高 Steam 帧率。
+
+后续应先补固定动作的内容提交帧时、输入到响应帧与 CEF/JIT 归属，再评估
+每帧重复 Wayland 日志及 GPU 呈现路径。清晰度可测现有输出缩放 75%
+（约 1600×1067、像素量增约 78%）；当前范围尚不能达到原生 1:1，
+独立分辨率/DPI 控制需与帧率一起评估，不能直接提高默认值。
+
+本轮真机报告与原始证据仅保留在工作区外部测试目录：
+`F:/VintagePomelo-Workspace/workspace_temp/logs/proton-broker-v2-tablet-20261003/`。
+入口为 tablet-test-report.md。原始截图、layout 和日志未对外发布。

@@ -273,6 +273,40 @@ async function main() {
   qrResolve(new SteamAuthHttpResponse(200, '{}', new Map([['x-error', 'rejected']])));
   await assert.rejects(rejectedQr, /拒绝/);
 
+  // Exercise the real auth error/pending paths with secrets in response bodies.
+  const privateLogs = [];
+  for (const method of ['info', 'warn', 'error']) {
+    log.hilog[method] = (...args) => privateLogs.push(args.map(String).join(' '));
+  }
+  const bodySecret = 'fixture-private-http-body';
+  const tokenSecret = 'fixture-private-refresh-token';
+  const rejectedPrivateQr = service.beginQrLogin();
+  qrResolve(new SteamAuthHttpResponse(503, bodySecret));
+  await assert.rejects(rejectedPrivateQr, /拒绝/);
+  const malformedPrivateQr = service.beginQrLogin();
+  qrResolve(new SteamAuthHttpResponse(200, JSON.stringify({ private: bodySecret })));
+  await assert.rejects(malformedPrivateQr, /未返回/);
+  const validPrivateQr = service.beginQrLogin();
+  qrResolve(new SteamAuthHttpResponse(200, JSON.stringify({ response: {
+    client_id: '1', request_id: '2', challenge_url: 'https://example.invalid/' + bodySecret
+  } })));
+  assert.equal(await validPrivateQr, 'https://example.invalid/' + bodySecret);
+  const rejectedPrivatePoll = service.pollQrLogin();
+  qrResolve(new SteamAuthHttpResponse(503, bodySecret));
+  assert.equal(await rejectedPrivatePoll, 'invalid');
+  const pendingPrivatePoll = service.pollQrLogin();
+  qrResolve(new SteamAuthHttpResponse(200, JSON.stringify({ response: {}, private: bodySecret })));
+  assert.equal(await pendingPrivatePoll, 'pending');
+  const invalidPrivateToken = service.pollQrLogin();
+  qrResolve(new SteamAuthHttpResponse(200, JSON.stringify({ response: {
+    refresh_token: tokenSecret, access_token: bodySecret
+  } })));
+  assert.equal(await invalidPrivateToken, 'invalid');
+  assert(privateLogs.some(line => line.includes('bodyChars=')));
+  assert(privateLogs.some(line => line.includes('tokenChars=')));
+  assert(privateLogs.every(line => !line.includes(bodySecret) && !line.includes(tokenSecret)),
+    'auth diagnostic logs must preserve status metadata without response/token contents');
+
   let initializeCount = 0;
   let initializeResolve;
   const initializing = new SteamService();
@@ -300,7 +334,7 @@ async function main() {
   assert.equal(refreshCount, 1, 'entry and account page must share a pending restore');
   refreshResolve({ session: { state: models.SteamSessionState.IDLE } });
   await Promise.all([restoreFirst, restoreSecond]);
-  console.log('Steam integration regression tests passed (PICS wrappers, encrypted filenames, cache, account isolation, matching, cover race, refresh, challenges, QR cancellation).');
+  console.log('Steam integration regression tests passed (PICS wrappers, encrypted filenames, cache, account isolation, matching, cover race, refresh, challenges, QR cancellation, auth log privacy).');
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

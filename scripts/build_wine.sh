@@ -88,6 +88,15 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0015-ohos-exec-section-eof-pread.
 # Use each image's PE flag instead of forcing all PE32 processes into LAA.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0016-ntdll-honor-pe-large-address-aware-default.patch" \
     "PE large-address-aware default"
+# Keep the first stability fixes reproducible on the selected Wine source.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0017-wayland-configure-window-lifetime.patch" \
+    "Wayland configure window lifetime"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0018-private-vulkan-present-validation.patch" \
+    "Private Vulkan presentation validation"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0019-ntdll-broker-log-metadata.patch" \
+    "Broker argument metadata logging"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0020-broker-v2-startup-contract.patch" \
+    "Broker v2 complete startup contract"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

@@ -1,3 +1,4 @@
+#include "proc/spawn_protocol.h"
 /*
  * phone_process.cpp — 手机适配层：fork 进程创建实现
  *
@@ -224,12 +225,15 @@ int g_cfgSockParent = -1;   // virgl server 同时只有一个
 // Only spawn control data and named descriptors cross these sockets.
 constexpr uint32_t kForkMagic = 0x57484653;
 constexpr size_t kForkMaxFds = 16;
-struct ForkRequest {
+struct ForkHeader {
     uint32_t magic = kForkMagic;
     uint32_t fdCount = 0;
     char entry[128]{};
-    char params[16385]{};
+    uint32_t paramsBytes = 0;
     char names[kForkMaxFds][21]{};
+};
+struct ForkRequest : ForkHeader {
+    std::string params;
 };
 struct ForkReply {
     uint32_t magic = kForkMagic;
@@ -261,10 +265,13 @@ void SetSocketTimeout(int fd, int seconds) {
 
 bool SendForkRequest(int fd, const ForkRequest& request, const std::vector<int>& fds) {
     union { char bytes[CMSG_SPACE(sizeof(int) * kForkMaxFds)]; cmsghdr align; } control{};
-    iovec data{const_cast<ForkRequest*>(&request), sizeof(request)};
+    iovec data[2] = {
+        {const_cast<ForkHeader*>(static_cast<const ForkHeader*>(&request)), sizeof(ForkHeader)},
+        {const_cast<char*>(request.params.data()), request.params.size() + 1}
+    };
     msghdr message{};
-    message.msg_iov = &data;
-    message.msg_iovlen = 1;
+    message.msg_iov = data;
+    message.msg_iovlen = 2;
     if (!fds.empty()) {
         message.msg_control = control.bytes;
         message.msg_controllen = CMSG_SPACE(sizeof(int) * fds.size());
@@ -276,12 +283,13 @@ bool SendForkRequest(int fd, const ForkRequest& request, const std::vector<int>&
     }
     ssize_t sent;
     do { sent = sendmsg(fd, &message, MSG_NOSIGNAL); } while (sent < 0 && errno == EINTR);
-    return sent == sizeof(request);
+    return sent == static_cast<ssize_t>(sizeof(ForkHeader) + request.params.size() + 1);
 }
 
 bool ReceiveForkRequest(int fd, ForkRequest& request, std::vector<int>& fds) {
     union { char bytes[CMSG_SPACE(sizeof(int) * kForkMaxFds)]; cmsghdr align; } control{};
-    iovec data{&request, sizeof(request)};
+    std::vector<char> packet(sizeof(ForkHeader) + VP_ENTRY_CAP);
+    iovec data{packet.data(), packet.size()};
     msghdr message{};
     message.msg_iov = &data;
     message.msg_iovlen = 1;
@@ -297,10 +305,16 @@ bool ReceiveForkRequest(int fd, ForkRequest& request, std::vector<int>& fds) {
         const auto* items = reinterpret_cast<const int*>(CMSG_DATA(header));
         fds.insert(fds.end(), items, items + count);
     }
-    if (received != sizeof(request) || (message.msg_flags & (MSG_TRUNC | MSG_CTRUNC)) ||
-        request.magic != kForkMagic || request.fdCount != fds.size() ||
+    if (received < static_cast<ssize_t>(sizeof(ForkHeader) + 1) ||
+        (message.msg_flags & (MSG_TRUNC | MSG_CTRUNC))) return false;
+    memcpy(static_cast<ForkHeader*>(&request), packet.data(), sizeof(ForkHeader));
+    if (request.magic != kForkMagic || request.fdCount != fds.size() ||
         request.fdCount > kForkMaxFds || !memchr(request.entry, 0, sizeof(request.entry)) ||
-        !memchr(request.params, 0, sizeof(request.params))) return false;
+        request.paramsBytes == 0 || request.paramsBytes > VP_ENTRY_CAP ||
+        sizeof(ForkHeader) + request.paramsBytes != static_cast<size_t>(received)) return false;
+    const char* params = packet.data() + sizeof(ForkHeader);
+    if (params[request.paramsBytes - 1] != 0 || memchr(params, 0, request.paramsBytes - 1)) return false;
+    request.params.assign(params, request.paramsBytes - 1);
     for (uint32_t i = 0; i < request.fdCount; ++i)
         if (!request.names[i][0] || !memchr(request.names[i], 0, sizeof(request.names[i])))
             return false;
@@ -368,7 +382,7 @@ using ForkChildFn = pid_t (*)();
         if (valid && children.size() < 64 && colon != std::string::npos &&
             colon > 0 && colon + 1 < entry.size()) {
             const bool standardProbeFork = entry == "libdirect_shared_buffer_probe.so:Main" &&
-                strcmp(request.params, "shared-buffer-p0-standard-fork") == 0;
+                strcmp(request.params.c_str(), "shared-buffer-p0-standard-fork") == 0;
             auto promoteFd = [](int& fd) {
                 const int higher = fcntl(fd, F_DUPFD_CLOEXEC, 256);
                 if (higher < 0) return false;
@@ -388,7 +402,7 @@ using ForkChildFn = pid_t (*)();
                 nodes[i].next = i + 1 < fds.size() ? &nodes[i + 1] : nullptr;
             }
             NativeChildProcess_Args args{};
-            args.entryParams = request.params;
+            args.entryParams = request.params.data();
             args.fdList.head = fds.empty() ? nullptr : nodes;
             int handshake[2];
             if (pipe(handshake) == 0) {
@@ -543,13 +557,14 @@ void Phone_MarkDirectForkChildRegistered(int32_t pid) {
 
 Ability_NativeChildProcess_ErrCode Phone_StartViaDirectForkServer(
     const char* entry, NativeChildProcess_Args args, int32_t* pid) {
-    if (!entry || !pid || strlen(entry) >= sizeof(ForkRequest::entry) ||
-        !args.entryParams || strlen(args.entryParams) >= sizeof(ForkRequest::params))
+    if (!entry || !pid || strlen(entry) >= sizeof(ForkHeader::entry) ||
+        !args.entryParams || strnlen(args.entryParams, VP_ENTRY_CAP) >= VP_ENTRY_CAP)
         return NCP_ERR_INVALID_PARAM;
     *pid = -1;
     ForkRequest request{};
     strcpy(request.entry, entry);
-    strcpy(request.params, args.entryParams);
+    request.params = args.entryParams;
+    request.paramsBytes = request.params.size() + 1;
     std::vector<int> fds;
     for (auto* node = args.fdList.head; node; node = node->next) {
         if (fds.size() >= kForkMaxFds || !node->fdName || !node->fdName[0] ||
