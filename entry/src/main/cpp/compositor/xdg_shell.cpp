@@ -377,13 +377,18 @@ static void xs_set_window_geometry(wl_client*, wl_resource* xsRes, int32_t x, in
     // 语义 (contentRect=buffer 内内容偏移, toplevel 的"桌面屏幕位置"义另经
     // compute 派生存入 screenPos) 与取值时机与旧"写 geo 字段→commit 时读"
     // 逐点等价, 含"写后未 commit 即被读"窗口期。
+    const bool changed = !sd->committed.hasWindowGeometry ||
+                         sd->committed.contentRect.x != x || sd->committed.contentRect.y != y ||
+                         sd->committed.contentRect.w != w || sd->committed.contentRect.h != h;
     sd->committed.hasWindowGeometry = true;
     sd->committed.contentRect.x = x;
     sd->committed.contentRect.y = y;
     sd->committed.contentRect.w = w;
     sd->committed.contentRect.h = h;
-    OH_LOG_INFO(LOG_APP, "[MW-GEO] window_geometry for surface -> toplevel #%{public}u: (%{public}d,%{public}d %{public}dx%{public}d)",
-                sd->toplevelId, x, y, w, h);
+    if (changed) {
+        OH_LOG_INFO(LOG_APP, "[MW-GEO] window_geometry for surface -> toplevel #%{public}u: (%{public}d,%{public}d %{public}dx%{public}d)",
+                    sd->toplevelId, x, y, w, h);
+    }
 }
 static void xs_ack_configure(wl_client*, wl_resource*, uint32_t) {}
 

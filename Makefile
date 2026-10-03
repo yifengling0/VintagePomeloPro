@@ -597,6 +597,10 @@ test-proton-stability:
 test-broker-startup:
 	python3 $(ROOT)/host_tests/broker_startup_contract_test.py --wine-src $(WINE_SRC)
 
+.PHONY: test-wine-shm-state-cache
+test-wine-shm-state-cache:
+	python3 $(ROOT)/host_tests/wine_shm_state_cache_test.py --wine-src $(WINE_SRC)
+
 .PHONY: test-prefix-registry
 test-prefix-registry:
 	@mkdir -p $(HOST_TEST_DIR)
@@ -611,7 +615,7 @@ test-steam-client-args:
 	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
 	$(HOST_TEST_DIR)/steam_client_args_test
 
-test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps
+test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps
 
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \

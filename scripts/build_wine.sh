@@ -97,6 +97,9 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0019-ntdll-broker-log-metadata.pa
     "Broker argument metadata logging"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0020-broker-v2-startup-contract.patch" \
     "Broker v2 complete startup contract"
+# Persistent Wayland metadata need not be marshalled for every SHM frame.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0021-wayland-shm-state-cache.patch" \
+    "SHM geometry and viewport last-sent state cache"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

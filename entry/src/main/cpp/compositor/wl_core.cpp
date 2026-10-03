@@ -371,6 +371,10 @@ void WaylandServer::viewport_set_source(wl_client*, wl_resource* vpRes,
         wl_resource_post_error(vpRes, WP_VIEWPORT_ERROR_BAD_VALUE, "invalid viewport source");
         return;
     }
+    const bool changed = sd->directViewportPending.x != wl_fixed_to_double(fx) ||
+                         sd->directViewportPending.y != wl_fixed_to_double(fy) ||
+                         sd->directViewportPending.width != wl_fixed_to_double(fw) ||
+                         sd->directViewportPending.height != wl_fixed_to_double(fh);
     sd->directViewportPending.x = wl_fixed_to_double(fx);
     sd->directViewportPending.y = wl_fixed_to_double(fy);
     sd->directViewportPending.width = wl_fixed_to_double(fw);
@@ -379,8 +383,10 @@ void WaylandServer::viewport_set_source(wl_client*, wl_resource* vpRes,
     sd->vpSrcY = wl_fixed_to_int(fy);
     sd->vpSrcW = wl_fixed_to_int(fw);
     sd->vpSrcH = wl_fixed_to_int(fh);
-    OH_LOG_INFO(LOG_APP, "[MW-VP] set_source surf=%{public}p tl=%{public}u src=(%{public}d,%{public}d %{public}dx%{public}d)",
-                surf, sd->toplevelId, sd->vpSrcX, sd->vpSrcY, sd->vpSrcW, sd->vpSrcH);
+    if (changed) {
+        OH_LOG_INFO(LOG_APP, "[MW-VP] set_source surf=%{public}p tl=%{public}u src=(%{public}d,%{public}d %{public}dx%{public}d)",
+                    surf, sd->toplevelId, sd->vpSrcX, sd->vpSrcY, sd->vpSrcW, sd->vpSrcH);
+    }
 }
 
 void WaylandServer::viewport_set_destination(wl_client*, wl_resource* vpRes, int32_t w, int32_t h) {
@@ -606,7 +612,7 @@ bool WaylandServer::BeginShmAccess(SurfaceData* sd, ShmCommitInfo& fi) {
 // 模式另有含义 (虚拟桌面屏幕位置), subsurface 则是相对父 surface 的偏移。
 // 几何计算段已收口到 ShmFrameSource::ComputeContentAreaGeometry (重构第
 // 5A1 步, SurfaceData 字段值语义参数化, 逻辑逐字搬移, 行为平价); 本函数
-// 保留 hilog 日志 (MW-GEO/MW-STRIDE), 条件/文本/顺序与旧实现逐字一致。
+// MW-GEO 逐帧日志只在 frame trace 开启时输出; MW-STRIDE 告警保留。
 // 三义分流显式化 (重构第 5A2 步): 旧代码把 sd->geoX/geoY (三义字段, PLAN
 // §2.4) 原样喂给纯函数, 由函数内 hasToplevel 猜义; 现按命名字段取义 —
 // 角色 = committed.role (显式枚举), 几何值 = contentRect.x/y (写点直写的
@@ -617,7 +623,7 @@ void WaylandServer::ComputeContentArea(SurfaceData* sd, ShmCommitInfo& fi) {
     ComputeContentAreaGeometry(fi, c.hasWindowGeometry, c.contentRect.w, c.contentRect.h,
                                c.role == CommittedSurface::Role::Toplevel,
                                c.contentRect.x, c.contentRect.y);
-    if (c.hasWindowGeometry && c.contentRect.w > 0 && c.contentRect.h > 0) {
+    if (winehua::FrameTraceEnabled() && c.hasWindowGeometry && c.contentRect.w > 0 && c.contentRect.h > 0) {
         OH_LOG_INFO(LOG_APP, "[MW-GEO] using window_geometry: src=%{public}dx%{public}d geo=(%{public}d,%{public}d %{public}dx%{public}d) screen=(%{public}d,%{public}d) vpSrc=(%{public}d,%{public}d %{public}dx%{public}d) vpDst=%{public}dx%{public}d",
                     fi.bufW, fi.bufH, fi.contentOffX, fi.contentOffY, fi.contentW, fi.contentH,
                     fi.screenX, fi.screenY,
@@ -762,8 +768,10 @@ void WaylandServer::UpdateToplevelFrameOnCommit(SurfaceData* sd, wl_resource* su
             toplevelMgr_.EnsureInZOrder(sd->toplevelId);
         }
     }
-    OH_LOG_INFO(LOG_APP, "[MW-COMMIT] toplevel #%{public}u frame %{public}dx%{public}d stride=%{public}d stored=%{public}zu",
-                sd->toplevelId, fi.contentW, fi.contentH, fi.stride, st.Pixels().size());
+    if (winehua::FrameTraceEnabled()) {
+        OH_LOG_INFO(LOG_APP, "[MW-COMMIT] toplevel #%{public}u frame %{public}dx%{public}d stride=%{public}d stored=%{public}zu",
+                    sd->toplevelId, fi.contentW, fi.contentH, fi.stride, st.Pixels().size());
+    }
 
     // 检测尺寸变化 -> 通知 ArkTS 调整子窗口: 尺寸变化判定 + 全屏尺寸漂移
     // 补丁 (war3 D3D 模式切换画面缩左上, PLAN §2.5; 补丁注释完整平移, 见
@@ -1067,9 +1075,11 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
         sd->w = fi.contentW;
         sd->h = fi.contentH;
         fi.shmCommitSerial = sd->shmCommitSerial.fetch_add(1, std::memory_order_release) + 1;
-        OH_LOG_INFO(LOG_APP, "[MW-COMMIT] surface w=%{public}d h=%{public}d stride=%{public}d stored=%{public}zu content=%{public}dx%{public}d geo=%{public}s",
-                    fi.bufW, fi.bufH, fi.stride, sd->pixels.size(), fi.contentW, fi.contentH,
-                    sd->committed.hasWindowGeometry ? "yes" : "no");
+        if (frameTrace) {
+            OH_LOG_INFO(LOG_APP, "[MW-COMMIT] surface w=%{public}d h=%{public}d stride=%{public}d stored=%{public}zu content=%{public}dx%{public}d geo=%{public}s",
+                        fi.bufW, fi.bufH, fi.stride, sd->pixels.size(), fi.contentW, fi.contentH,
+                        sd->committed.hasWindowGeometry ? "yes" : "no");
+        }
 
         // CommittedSurface 快照产出 (重构第 5A2 步): 填入 commit 时点可观察值
         // (screenPos/parentOffset/frame; role 与几何已随协议设置点直写)。
