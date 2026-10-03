@@ -584,6 +584,10 @@ test-wine-surface-region-lock:
 test-wine-patch-detection:
 	python3 $(ROOT)/host_tests/wine_patch_detection_test.py
 
+.PHONY: test-wine-large-address-aware
+test-wine-large-address-aware:
+	python3 $(ROOT)/host_tests/wine_large_address_aware_test.py --wine-src $(WINE_SRC)
+
 .PHONY: test-prefix-registry
 test-prefix-registry:
 	@mkdir -p $(HOST_TEST_DIR)
@@ -598,7 +602,8 @@ test-steam-client-args:
 	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
 	$(HOST_TEST_DIR)/steam_client_args_test
 
-test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-prefix-registry test-steam-client-args
+test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps
+
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \
 	    -o $(HOST_TEST_DIR)/geometry_test \
@@ -718,3 +723,13 @@ hap-unsigned: assemble
 	@echo ""
 	@echo "HAP(unsigned): $(ROOT)/entry/build/default/outputs/default/entry-default-unsigned.hap"
 	@ls -lh $(ROOT)/entry/build/default/outputs/default/entry-default-unsigned.hap 2>/dev/null || true
+
+.PHONY: test-shared-present-dispatch test-displayed-fps
+test-shared-present-dispatch:
+	python3 $(ROOT)/host_tests/shared_present_dispatch_test.py
+
+test-displayed-fps:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -pthread -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/displayed_fps_test $(ROOT)/host_tests/displayed_fps_test.cpp
+	$(HOST_TEST_DIR)/displayed_fps_test

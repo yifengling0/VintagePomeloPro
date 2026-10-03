@@ -1,4 +1,5 @@
 #include "perf_utils.h"
+#include "displayed_fps.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -28,33 +29,13 @@ uint64_t RendererPerfWindow::Percentile(std::array<uint64_t, kSamples> values, s
 
 void RendererPerfWindow::PublishDisplayedFps(uint32_t toplevelId, uint64_t nowUs)
 {
-    static constexpr const char* kPath =
-        "/data/storage/el2/base/files/.wine/drive_c/windows/temp/winehua_display_fps.txt";
     const uint64_t elapsedUs = nowUs - publishStartedUs;
     if (elapsedUs < 1000000) return;
-
     const double fps = static_cast<double>(publishFrames) * 1000000.0 /
                        static_cast<double>(std::max<uint64_t>(1, elapsedUs));
-    char tempPath[192];
-    char payload[128];
-    const unsigned long long nextSequence =
-        static_cast<unsigned long long>(publishSequence + 1);
-    const int payloadLength = std::snprintf(
-        payload, sizeof(payload), "%llu %.3f %u\n", nextSequence, fps, toplevelId);
-    std::snprintf(tempPath, sizeof(tempPath), "%s.tmp.%d.%p",
-                  kPath, getpid(), static_cast<void*>(this));
-
-    const int fd = payloadLength > 0 && payloadLength < static_cast<int>(sizeof(payload))
-        ? open(tempPath, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
-    if (fd >= 0)
-    {
-        const ssize_t written = write(fd, payload, static_cast<size_t>(payloadLength));
-        close(fd);
-        if (written == payloadLength && !rename(tempPath, kPath))
-            publishSequence++;
-        else
-            unlink(tempPath);
-    }
+    if (PublishDisplayedFpsSample(kDisplayedFpsBasePath, toplevelId,
+                                  publishSequence + 1, fps, nowUs))
+        ++publishSequence;
 
     publishFrames = 0;
     publishStartedUs = nowUs;
@@ -63,6 +44,12 @@ void RendererPerfWindow::PublishDisplayedFps(uint32_t toplevelId, uint64_t nowUs
 void RendererPerfWindow::Add(uint32_t toplevelId, uint64_t take, uint64_t upload,
                              uint64_t swap, uint64_t total, size_t bytes, bool swapOk)
 {
+    if (publishToplevelId != toplevelId)
+    {
+        publishToplevelId = toplevelId;
+        publishStartedUs = PerfNowUs();
+        publishFrames = 0;
+    }
     takeUs[count] = take;
     uploadUs[count] = upload;
     swapUs[count] = swap;

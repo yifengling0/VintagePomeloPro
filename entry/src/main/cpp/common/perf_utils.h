@@ -48,6 +48,7 @@ struct RendererPerfWindow {
     uint64_t publishStartedUs = startedUs;
     uint64_t publishFrames = 0;
     uint64_t publishSequence = 0;
+    uint32_t publishToplevelId = 0;
 
     void PublishDisplayedFps(uint32_t toplevelId, uint64_t nowUs);
 

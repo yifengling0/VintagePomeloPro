@@ -69,7 +69,7 @@ public:
 
     void AppendWineEnv(std::vector<std::string>& env) const;
     bool AttachZeroCopyTarget(uint64_t surfaceKey, OHNativeWindow* producerWindow,
-                              uint64_t framePeriodNs);
+                              uint64_t framePeriodNs, bool vulkan);
     void SetZeroCopyFramePeriod(uint64_t surfaceKey, uint64_t framePeriodNs);
     void DetachZeroCopyTarget(uint64_t surfaceKey);
     bool QueryZeroCopySurfaces(std::vector<ZeroCopySurfaceInfo>& surfaces) const;

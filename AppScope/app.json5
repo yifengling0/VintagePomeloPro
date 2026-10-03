@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.vintage.pomelopro",
     "vendor": "example",
-    "versionCode": 1004031,
-    "versionName": "1.4.5-proton.22-alpha",
+    "versionCode": 1004034,
+    "versionName": "1.4.5-proton.25-alpha",
     "icon": "$media:layered_image",
     "label": "$string:app_name"
   }

@@ -204,7 +204,7 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
             zeroCopyDiagCount_ = surfaces.size();
             OH_LOG_INFO(LOG_APP,
                         "[VIRGL-ZC][MAIN][DIAG] query tl=%{public}u count=%{public}zu "
-                        "want_vulkan=%{public}d registered=%{public}d",
+                        "session_vulkan=%{public}d registered=%{public}d",
                         rendererToplevelId, surfaces.size(),
                         broker.IsVulkanPresentMode() ? 1 : 0,
                         zeroCopyRegistered_ ? 1 : 0);
@@ -278,7 +278,7 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         for (const auto& surface : surfaces)
         {
             if (surface.surfaceKey != zeroCopySurfaceKey_) continue;
-            if (surface.vulkan != broker.IsVulkanPresentMode()) {
+            if (surface.vulkan != zeroCopyVulkanSource_) {
                 ReleaseZeroCopyBinding();
                 break;
             }
@@ -290,11 +290,9 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         return true;
     }
 
-    const bool wantVulkanSurface = broker.IsVulkanPresentMode();
     for (const auto& surface : surfaces)
     {
         if (!surface.surfaceKey || surface.attached) continue;
-        if (surface.vulkan != wantVulkanSurface) continue;
         ZeroCopyLayerInfo layer;
         if (!compositor_.GetZeroCopyLayerInfo(surface.surfaceKey, rendererToplevelId,
                                               static_cast<int>(surface.width),
@@ -338,7 +336,8 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         if (!zeroCopyProducerWindow_ ||
             !broker.AttachZeroCopyTarget(
                 surface.surfaceKey, zeroCopyProducerWindow_,
-                static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed))))
+                static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed)),
+                surface.vulkan))
         {
             ReleaseZeroCopyBinding();
             continue;
@@ -351,7 +350,7 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         zeroCopyLastSignalUs_.store(0, std::memory_order_relaxed);
         zeroCopySourceW_ = static_cast<int>(surface.width);
         zeroCopySourceH_ = static_cast<int>(surface.height);
-        zeroCopyVulkanSource_ = surface.vulkan || broker.IsVulkanPresentMode();
+        zeroCopyVulkanSource_ = surface.vulkan;
         zeroCopyLayerX_ = layer.x;
         zeroCopyLayerY_ = layer.y;
         zeroCopyLayerW_ = layer.width;

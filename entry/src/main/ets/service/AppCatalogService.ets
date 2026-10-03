@@ -606,7 +606,11 @@ export class AppCatalogService {
         { id: 'builtin-dxvk-cube', title: 'DXVK 立方体测试', launchKind: 'wine-system', launchParams: {
           executable: 'C:\\smoke\\x64\\winehua_d3d_switch_cube.exe', arguments: ['--d3d11'],
           workingDirectory: 'C:\\smoke\\x64' }, cover: '' },
-        { id: 'builtin-audio-smoke', title: '音频测试', launchKind: 'wine-system', launchParams: { executable: 'winehua_audio_smoke.exe' }, cover: '' }
+        { id: 'builtin-audio-smoke', title: '音频测试', launchKind: 'wine-system', launchParams: {
+          executable: 'C:\\smoke\\x64\\winehua_audio_smoke.exe',
+          arguments: ['--automation', '--seconds', '3', '--test-id', 'builtin-audio-smoke',
+            '--result', 'C:\\smoke\\results\\builtin-audio-smoke.json'],
+          workingDirectory: 'C:\\smoke\\x64' }, cover: '' }
       ]
     };
   }

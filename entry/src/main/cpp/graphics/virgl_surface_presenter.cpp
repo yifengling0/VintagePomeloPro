@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
-#include <condition_variable>
 #include <cstdlib>
 #include <memory>
 #include <mutex>
@@ -50,9 +49,6 @@ using winehua::kPresentMakeCurrentFailed;
 using winehua::kPresentBlitFailed;
 using winehua::kPresentFenceSyncFailed;
 using winehua::kPresentInvalid;
-
-constexpr auto kVenusTargetAttachTimeout = std::chrono::milliseconds(2500);
-constexpr auto kVirglTargetAttachTimeout = std::chrono::milliseconds(500);
 
 GLuint CompilePresentShader(GLenum type, const char* source)
 {
@@ -511,9 +507,6 @@ public:
         }
         if (result == 0) {
             entry.info.flags |= winehua::virgl_ipc::kSurfaceAttached;
-            entry.attachWaitGaveUp = false;
-            entry.attachSkipLogged = false;
-            targetCondition_.notify_all();
         }
         return result;
     }
@@ -530,9 +523,7 @@ public:
             if (it->second.target->HasVulkanDevice())
                 retiredVenusTargets_.push_back(std::move(it->second.target));
         }
-        ++surfaceGenerations_[surfaceKey];
         surfaces_.erase(it);
-        targetCondition_.notify_all();
         return 0;
     }
 
@@ -619,6 +610,7 @@ public:
         entry.info.width = width;
         entry.info.height = height;
         entry.info.serial = serial;
+        entry.info.flags &= ~winehua::virgl_ipc::kSurfaceVulkan;
         entry.lastPresentUs = NowUs();
         const auto targetReady = [this, surfaceKey]() {
             const auto it = surfaces_.find(surfaceKey);
@@ -638,38 +630,11 @@ public:
                             static_cast<unsigned long long>(surfaceKey),
                             clientPid, surfaceId);
             }
-            if (!firstMissingTarget) return kPresentNoTarget;
-            const uint64_t generation = surfaceGenerations_[surfaceKey];
-            const auto waitStart = SteadyClock::now();
-            targetCondition_.wait_for(
-                lock, kVirglTargetAttachTimeout,
-                [this, surfaceKey, generation, &targetReady]() {
-                    return targetReady() ||
-                           surfaceGenerations_[surfaceKey] != generation;
-                });
-            const uint64_t waitedUs = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    SteadyClock::now() - waitStart).count());
-            if (!targetReady())
-            {
-                const auto it = surfaces_.find(surfaceKey);
-                if (it != surfaces_.end() && it->second.target &&
-                    it->second.target->IsVulkan())
-                    return kPresentInvalid;
-                OH_LOG_WARN(LOG_APP,
-                            "[VIRGL-ZC][NCP] target wait ended key=%{public}llu "
-                            "pid=%{public}u waited_us=%{public}llu reason=%{public}s",
-                            static_cast<unsigned long long>(surfaceKey), clientPid,
-                            static_cast<unsigned long long>(waitedUs),
-                            surfaceGenerations_[surfaceKey] != generation
-                                ? "detached" : "timeout");
-                return kPresentNoTarget;
-            }
-            OH_LOG_INFO(LOG_APP,
-                        "[VIRGL-ZC][NCP] target ready key=%{public}llu "
-                        "pid=%{public}u waited_us=%{public}llu",
-                        static_cast<unsigned long long>(surfaceKey), clientPid,
-                        static_cast<unsigned long long>(waitedUs));
+            // vtest dispatch is shared by GL and Venus clients. A window
+            // publication race must not stall commands from other processes.
+            // Keep the entry discoverable; GL can keep its readback fallback
+            // until the consumer attaches and publishes its ready marker.
+            return kPresentNoTarget;
         }
         auto it = surfaces_.find(surfaceKey);
         if (it == surfaces_.end() || !it->second.target) return kPresentNoTarget;
@@ -780,50 +745,10 @@ public:
                             static_cast<unsigned long long>(surfaceKey),
                             contextId, clientPid, surfaceId);
             }
-            // 退化尺寸 (1x1 占位/哑 surface) 不可能对应任何窗口, 不值得等
-            const bool degenerate = width <= 64 && height <= 64;
-            if (entry.attachWaitGaveUp || degenerate)
-            {
-                if (!entry.attachSkipLogged)
-                {
-                    entry.attachSkipLogged = true;
-                    OH_LOG_WARN(LOG_APP,
-                                "[VENUS-PRESENT][NCP] target wait skipped key=%{public}llu "
-                                "ctx=%{public}u pid=%{public}u surface=%{public}u "
-                                "size=%{public}ux%{public}u reason=%{public}s",
-                                static_cast<unsigned long long>(surfaceKey), contextId,
-                                clientPid, surfaceId, width, height,
-                                degenerate ? "degenerate-size" : "attach-gave-up");
-                }
-                return -EAGAIN;
-            }
-            const uint64_t generation = surfaceGenerations_[surfaceKey];
-            const auto waitStart = SteadyClock::now();
-            targetCondition_.wait_for(
-                lock, kVenusTargetAttachTimeout,
-                [this, surfaceKey, generation, &targetReady]() {
-                    return targetReady() ||
-                           surfaceGenerations_[surfaceKey] != generation;
-                });
-            const uint64_t waitedUs = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    SteadyClock::now() - waitStart).count());
-            if (!targetReady()) {
-                entry.attachWaitGaveUp = true;
-                OH_LOG_WARN(LOG_APP,
-                            "[VENUS-PRESENT][NCP] target wait ended key=%{public}llu "
-                            "ctx=%{public}u waited_us=%{public}llu reason=%{public}s",
-                            static_cast<unsigned long long>(surfaceKey), contextId,
-                            static_cast<unsigned long long>(waitedUs),
-                            surfaceGenerations_[surfaceKey] != generation
-                                ? "detached" : "timeout");
-                return -EAGAIN;
-            }
-            OH_LOG_INFO(LOG_APP,
-                        "[VENUS-PRESENT][NCP] target ready key=%{public}llu "
-                        "ctx=%{public}u waited_us=%{public}llu",
-                        static_cast<unsigned long long>(surfaceKey), contextId,
-                        static_cast<unsigned long long>(waitedUs));
+            // Reply immediately. Venus already retries -EAGAIN on the
+            // guest with bounded backoff, leaving this shared dispatcher free
+            // to process foreground GL/Vulkan clients and future presents.
+            return -EAGAIN;
         }
         auto readyIt = surfaces_.find(surfaceKey);
         if (readyIt == surfaces_.end() || !readyIt->second.target ||
@@ -883,10 +808,8 @@ public:
                 if (entry.target->HasVulkanDevice())
                     retiredVenusTargets_.push_back(std::move(entry.target));
             }
-            ++surfaceGenerations_[surfaceKey];
         }
         surfaces_.clear();
-        targetCondition_.notify_all();
     }
 
 private:
@@ -909,20 +832,10 @@ private:
         std::unique_ptr<PresentTarget> target;
         uint64_t lastPresentUs = 0;
         bool missingTargetLogged = false;
-        // 2026-09-17: present 目标解析失败退避。
-        // 旧实现每次 miss 都等满 kVenusTargetAttachTimeout —— 对"永远不会被 attach"
-        // 的 surface (CEF 的 1x1 占位/哑 surface, 或 app 侧判定 owner 歧义的窗口)
-        // 会让调用线程每帧阻塞 2.5s, 直接把 CEF 的 UI 线程拖到 "unresponsive" 被杀。
-        // 现在: 首次 miss 仍等一次; 超时后置位, 后续 present 立即返回;
-        // Attach 成功/Detach 生成新 generation 时清位 (目标可能已经就绪)。
-        bool attachWaitGaveUp = false;
-        bool attachSkipLogged = false;
     };
 
     mutable std::mutex mutex_;
-    std::condition_variable targetCondition_;
     std::unordered_map<uint64_t, Entry> surfaces_;
-    std::unordered_map<uint64_t, uint64_t> surfaceGenerations_;
     // 仅存 venus (has Vk device) 目标; 类型为通用 present_target 接口
     std::vector<std::unique_ptr<PresentTarget>> retiredVenusTargets_;
 };

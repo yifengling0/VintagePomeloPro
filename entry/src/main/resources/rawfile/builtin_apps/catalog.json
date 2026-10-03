@@ -86,7 +86,12 @@
       "id": "builtin-audio-smoke",
       "title": "音频测试",
       "launchKind": "wine-system",
-      "launchParams": { "executable": "winehua_audio_smoke.exe", "arguments": [], "workingDirectory": "" },
+      "launchParams": {
+        "executable": "C:\\smoke\\x64\\winehua_audio_smoke.exe",
+        "arguments": ["--automation", "--seconds", "3", "--test-id", "builtin-audio-smoke",
+          "--result", "C:\\smoke\\results\\builtin-audio-smoke.json"],
+        "workingDirectory": "C:\\smoke\\x64"
+      },
       "cover": ""
     },
     {

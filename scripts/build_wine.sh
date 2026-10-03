@@ -79,6 +79,15 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0013a-ntdll-ohos-rpgxp-diagnostic
 # 修梦幻群侠传/XYQ 系"乱码" (从 main 分支 ad7bdd7f092 迁移; 应用侧已注入该变量)。
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0014-win32u-font-aa-override.patch" \
     "Per-process GDI font antialiasing override"
+# OHOS noexec workaround used exact-size pread for exec sections;
+# SteamStub-style unpadded final sections overrun EOF by a sector and
+# failed image load with c000007b (PAL4 launch.exe). EOF now zero-fills
+# like mmap does.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0015-ohos-exec-section-eof-pread.patch" \
+    "Exec-section EOF-tolerant read"
+# Use each image's PE flag instead of forcing all PE32 processes into LAA.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0016-ntdll-honor-pe-large-address-aware-default.patch" \
+    "PE large-address-aware default"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

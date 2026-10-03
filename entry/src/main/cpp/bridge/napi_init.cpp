@@ -59,6 +59,7 @@
 // ---- VPP product-surface includes (proton baseline merge) ----
 #include "common/fps_counter.h"
 #include "common/perf_utils.h"
+#include "common/displayed_fps.h"
 #include "common/font_zip.h"
 #include "common/app_log.h"
 #include "graphics/host_vulkan_probe.h"
@@ -1522,43 +1523,12 @@ static napi_value GetDisplayFps(napi_env env, napi_callback_info info) {
     uint32_t id = 0;
     if (argc >= 1) napi_get_value_uint32(env, args[0], &id);
     double fps = static_cast<double>(DisplayFpsRegistry::Instance().Get(id));
-    // proton 基线: 渲染器跑在独立 NCP 进程 (virgl_child/egl_renderer), FPS 经
-    // winehua_display_fps.txt 发布 ("seq fps tlid" 三列, 由 RendererPerfWindow
-    // 原子写入); 注册表内无 Publish 调用点 (fps_counter.h 注释), 永远为空。
-    // 这里直接读文件 (200ms 缓存, HUD 每秒轮询足够)。
-    {
-        static constexpr const char* kFpsPath =
-            "/data/storage/el2/base/files/.wine/drive_c/windows/temp/winehua_display_fps.txt";
-        static std::mutex sMu;
-        static uint64_t sLastReadUs = 0;
-        static double sFps = 0.0;
-        static uint32_t sToplevelId = 0;
-        static uint64_t sSeq = 0;
-        static bool sValid = false;
-        std::lock_guard<std::mutex> lock(sMu);
-        const uint64_t nowUs = winehua::PerfNowUs();
-        if (nowUs - sLastReadUs >= 200000) {
-            sLastReadUs = nowUs;
-            sValid = false;
-            FILE* f = fopen(kFpsPath, "re");
-            if (f) {
-                unsigned long long seq = 0;
-                double parsedFps = 0.0;
-                unsigned parsedTl = 0;
-                if (fscanf(f, "%llu %lf %u", &seq, &parsedFps, &parsedTl) == 3) {
-                    sSeq = seq;
-                    sFps = parsedFps;
-                    sToplevelId = parsedTl;
-                    sValid = true;
-                }
-                fclose(f);
-            }
-        }
-        if (sValid && (id == 0 || sToplevelId == id ||
-                       DisplayFpsRegistry::Instance().Get(id) <= 0.0f)) {
-            fps = sFps;
-        }
-    }
+    // Renderers run in a separate process. Read only this window's recent
+    // sample; a Steam/background window must not overwrite the game's HUD.
+    if (!id) id = WaylandServer::GetInstance()->GetDesktopRootToplevelId();
+    winehua::ReadDisplayedFpsSample(winehua::kDisplayedFpsBasePath, id,
+                                   winehua::PerfNowUs(), fps);
+
     napi_value result;
     napi_create_double(env, fps, &result);
     return result;

@@ -197,24 +197,6 @@ static bool arg_equals(int argc, char *argv[], const char *value)
     return false;
 }
 
-static void apply_game_address_space_compatibility(int argc, char **argv)
-{
-    if (getenv("WINE_LARGE_ADDRESS_AWARE")) return;
-    for (int i = 1; i < argc; ++i)
-    {
-        char name[128];
-        if (!argv[i]) continue;
-        normalize_basename(argv[i], name, sizeof(name));
-        if (!program_is(name, "pal4")) continue;
-        // PAL4 does not declare LARGE_ADDRESS_AWARE. Proton's forced 4 GB
-        // override corrupts its UI initialization; honor the PE flag as the
-        // previous Wine runtime did. Keep explicit overrides for diagnosis.
-        setenv("WINE_LARGE_ADDRESS_AWARE", "0", 1);
-        OH_LOG_INFO(LOG_APP, "[WineChild] PAL4: honoring image address-space limit");
-        return;
-    }
-}
-
 static bool arg_starts_with(int argc, char *argv[], const char *prefix)
 {
     size_t prefixLen = prefix ? strlen(prefix) : 0;
@@ -1823,7 +1805,6 @@ extern "C" void Main(NativeChildProcess_Args args)
         unsetenv("VK_ICD_FILENAMES");
         OH_LOG_WARN(LOG_APP, "[WineChild] Direct Vulkan selected; guest ICD overrides cleared");
     }
-    apply_game_address_space_compatibility(argc, argv);
     // entryParams 覆盖之后再选一次 WINEDEBUG 档位: 上一次调用发生在
     // apply_entry_param_env_overrides() 之前, 取不到 entryParams 里的覆盖。
     // 档位来源是 WINEHUA_WINEDEBUG 与内置 profile —— WINEDEBUG 键本身在

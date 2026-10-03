@@ -13,14 +13,19 @@
 - `.gitmodules` 同时注册 `thirdparty/wine` 与 `thirdparty/wine-valve`，默认构建使用后者；不要误改另一棵树。
 - 本轮 Wine 改动保存为主仓库 `0011` / `0012` 补丁，由 `scripts/build_wine.sh` 幂等应用，gitlink 保持不变。补丁已验证能从 pin 完整复现当前构建内容。
 
-### 1.2 `need_override_large_address_aware()` 默认 true
+### 1.2 默认遵守 PE 的大地址空间标志
 
-- Proton 树里该函数默认返回 true，与参考 Wine（按 EXE 自身 LAA 标志）不同：32 位老游戏会被放进
-  LAA（>2 GB）地址空间。
+- Proton 原来的 `need_override_large_address_aware()` 在没有环境覆盖时默认返回 true，
+  将没有声明 LAA 的 32 位程序也放进 >2 GB 地址空间。
 - 实测《仙剑奇侠传四》PAL4 未声明 LAA，LAA=1 时像素复制循环跨界读到未提交区域，LAA=0 才能跑到场景。
-- 现状：[wine_child.cpp](../entry/src/main/cpp/proc/wine_child.cpp) 的 `apply_game_address_space_compatibility()`
-  仅在目标为 `pal4.exe` 且调用方未显式给 `WINE_LARGE_ADDRESS_AWARE` 时置 0；显式 env 仍可覆盖做 A/B。
-- 注意：这是**兼容性判断**，不是"所有 32 位游戏都要 LAA=0"。
+- 2026-10-03 通用修复：`0016-ntdll-honor-pe-large-address-aware-default.patch` 默认遵守
+  主映像的 `IMAGE_FILE_LARGE_ADDRESS_AWARE` 标志，移除 child 中的 PAL4 文件名特判。
+  非 LAA 的 WoW64 程序默认使用 2 GB 范围，声明 LAA 的程序仍使用 4 GB 范围；
+  `WINE_LARGE_ADDRESS_AWARE=1` 仍可显式强制开启，0 表示遵守 PE 标志，不会清除 PE 自身声明的 LAA。
+- 判定在 Wine 映像层完成，适用于直启、重命名的 launcher 和 Steam 创建的子进程。
+  真机复测已能从 Steam 启动 PAL4，用户确认画面、帧率和声音可用。
+- 曾依赖 Proton 强制默认获得 >2 GB 空间的非 LAA 程序需要显式设置
+  `WINE_LARGE_ADDRESS_AWARE=1`。64 位原生程序的地址空间分支不变。
 
 ### 1.3 必须由 `scripts/build_wine.sh` 应用的补丁（幂等）
 
@@ -149,8 +154,9 @@ Windows D3D  →  wined3d 或 DXVK  →  OpenGL/Vulkan(guest Mesa virtio/virgl)
 
 ### 4.2 帧率读数（不要靠肉眼判断）
 
-- `/data/.../files/.wine/drive_c/windows/temp/winehua_display_fps.txt`：`序号 fps toplevel`，
-  由 `perf_utils.cpp::PublishDisplayedFps()` 每秒刷新。
+- proton.24 起，`/data/.../files/.wine/drive_c/windows/temp/winehua_display_fps.txt.<toplevelId>`：
+  `序号 fps toplevel 单调时钟微秒`，由 `perf_utils.cpp::PublishDisplayedFps()` 每秒刷新。
+  HUD 只接受目标窗口的近期样本；旧的单一文件不能用于本版本帧率判断（见 §8）。
 - `hilog -T WL_EGL` 的 `[GL-PERF]`：`take/upload/swap/total` 的 50/95/99/max 分位。
   `total` 分位远小于帧周期时，瓶颈在 guest 侧而不是显示链。
 
@@ -227,3 +233,40 @@ Windows D3D  →  wined3d 或 DXVK  →  OpenGL/Vulkan(guest Mesa virtio/virgl)
   WSL 里要用网关地址：`git -c http.proxy=http://172.17.80.1:8080 <cmd>`。
 - 直连 `https://github.com` 取 ref 可以，但大 pack 上传会超时；推送统一走上面的网关代理。
 - 本机已配置 `url.https://github.com/.insteadOf git@github.com:`，所以 `git@github.com:` 会被改写成 https。
+
+## 8. 共用呈现服务与 FPS（proton.24，2026-10-03）
+
+Steam CEF 与 GL 游戏共用 `--no-fork --multi-clients` vtest 命令线程。
+呈现目标未绑定时，服务端立即返回：GL 为 `kPresentNoTarget`，Venus 为
+`-EAGAIN`。Venus 沿用 Guest 的 8 次指数退避；GL 沿用 readback，后续
+消费者 Attach 发布 ready 后可转入零拷贝。服务端不等待窗口目标，避免
+一个后台窗口拖住其他进程的 GL/Vulkan 提交。目标条目仍参与 Query，
+因此取消等待不等于放弃后续绑定。
+
+零拷贝消费者按每个 `ZeroCopySurfaceInfo.vulkan` 选择目标类型，并把该
+类型显式传给 Attach。全局 D3D/Vulkan 模式只描述会话设置，不能用于
+过滤同一 Steam 会话内的 GL 子游戏。
+
+FPS 文件为 `winehua_display_fps.txt.<toplevelId>`，原子发布
+`sequence fps toplevelId sampled_monotonic_us`。HUD 只读所请求窗口，拒绝
+超过 2.5 秒或时钟重置后的样本；旧的无时间戳文件不再作为 HUD 回退。
+此数值是相应窗口成功交换的显示次数，仍需区别于游戏内部的渲染次数。
+
+`host_tests/shared_present_dispatch_test.py` 编译执行实际 PresenterManager
+代码，以替代 GPU/窗口目标验证连续后台 miss 下前台提交、晚到 Attach、
+GL/Vulkan 类型切换和 Detach。`--baseline --baseline-ref 56bded0e` 使用修复前的实现复现
+2.5 秒服务阻塞。`host_tests/displayed_fps_test.cpp` 验证多窗口并发发布、
+样本新鲜度及错误 ID；两者已接入 `make test`。宿主测试不替代设备端
+Steam/PAL4 场景性能与实际 NativeImage 帧验证。
+
+## 9. proton.25 发布记录（2026-10-03）
+
+版本为 `1.4.5-proton.25-alpha`，versionCode `1004034`，保留 proton.24 的
+共用呈现服务与 FPS 修复，以及通用 PE 执行节 EOF 补零、PE LAA 默认策略。
+设备上用户确认 Steam 启动仙剑四后帧率可用，并在音频排查后确认该版本有声音；
+未取得同场景量化 FPS，未确认此前暂时无声的根因，没有为此改动音频后端。
+
+内置音频测试入口改为包内实际存在的 `C:\smoke\x64\winehua_audio_smoke.exe`，
+生成 3 秒确定性测试音并写入 `C:\smoke\results\builtin-audio-smoke.json`，
+不再依赖未打包的 Alarm01 媒体文件。资源 catalog 与 fallback catalog 保持一致。
+在仙剑四运行期间，x86 音频自检通过，宿主读完 144000 帧，用户确认能听到测试音。
