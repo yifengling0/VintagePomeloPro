@@ -11,6 +11,7 @@
  *   启动→几十毫秒→SIGSEGV/SIGILL (ARM64EC/FEX 翻译故障)。
  */
 #include "cef_utility_probe.h"
+#include "cef_render_switches.h"
 #include "wine/wine_constants.h"
 
 #include <cstdio>
@@ -210,6 +211,15 @@ void WineHuaCefUtilityProbeNoteSpawn(int32_t childPid, int32_t parentHostPid,
                      e.mojoHandle.empty() ? "-" : e.mojoHandle.c_str(),
                      (long long)e.createMs, e.image.c_str());
     if (n > 0) EmitLocked(line);
+
+    if (isWebHelper) {
+        const std::string rendering = winehua::CefRenderSwitchSummary(params, startup.env);
+        char renderLine[2048];
+        snprintf(renderLine, sizeof(renderLine),
+            "CEF-RENDER-REQUEST childHostPid=%d parentHostPid=%d type=%s cefDir=%s switches=%s\n",
+            (int)childPid, (int)parentHostPid, e.type.c_str(), e.cefDir.c_str(), rendering.c_str());
+        EmitLocked(renderLine);
+    }
 
     // 每 25 次给一条累计行: restart loop 的规模不用等分析脚本就能从日志直接看出来。
     if (spawned % 25 == 0) {

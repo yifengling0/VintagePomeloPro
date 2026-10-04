@@ -576,6 +576,18 @@ test-benchmark-statistics:
 	$(HOST_TEST_DIR)/benchmark_statistics_test
 
 .PHONY: test
+.PHONY: test-gamepad-bridge
+test-gamepad-bridge:
+	python3 $(ROOT)/host_tests/gamepad_bridge_test.py
+
+.PHONY: test-zc-binding-lifecycle
+test-zc-binding-lifecycle:
+	python3 $(ROOT)/host_tests/zc_binding_lifecycle_test.py
+
+.PHONY: test-egl-multi-consumer
+test-egl-multi-consumer:
+	python3 $(ROOT)/host_tests/egl_multi_consumer_test.py
+
 .PHONY: test-wine-surface-region-lock
 test-wine-surface-region-lock:
 	python3 $(ROOT)/host_tests/wine_surface_region_lock_test.py
@@ -615,7 +627,7 @@ test-steam-client-args:
 	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
 	$(HOST_TEST_DIR)/steam_client_args_test
 
-test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps
+test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer
 
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \

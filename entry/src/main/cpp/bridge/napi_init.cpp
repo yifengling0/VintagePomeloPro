@@ -59,6 +59,7 @@
 // ---- VPP product-surface includes (proton baseline merge) ----
 #include "common/fps_counter.h"
 #include "common/perf_utils.h"
+#include "common/frame_loop_diagnostics.h"
 #include "common/displayed_fps.h"
 #include "common/font_zip.h"
 #include "common/app_log.h"
@@ -1516,6 +1517,22 @@ static napi_value ClearNativeLog(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
+static napi_value SetFrameLoopDiagnosticsNapi(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    bool enabled = false;
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc != 1 || napi_get_value_bool(env, args[0], &enabled) != napi_ok) {
+        napi_throw_type_error(env, nullptr, "setFrameLoopDiagnostics requires a boolean");
+        return nullptr;
+    }
+    winehua::SetFrameLoopDiagnostics(enabled);
+    OH_LOG_INFO(LOG_APP, "[FRAME-LOOP] diagnostics=%{public}s", enabled ? "on" : "off");
+    napi_value result;
+    napi_get_undefined(env, &result);
+    return result;
+}
+
 static napi_value GetDisplayFps(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1];
@@ -1740,6 +1757,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"initAppLog", nullptr, InitAppLog, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"clearNativeLog", nullptr, ClearNativeLog, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getDisplayFps", nullptr, GetDisplayFps, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setFrameLoopDiagnostics", nullptr, SetFrameLoopDiagnosticsNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"extractFontZipAsync", nullptr, ExtractFontZipAsync, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"readPerformanceCounters", nullptr, ReadPerformanceCounters, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetStick", nullptr, ControllerSetStick, nullptr, nullptr, nullptr, napi_default, nullptr},

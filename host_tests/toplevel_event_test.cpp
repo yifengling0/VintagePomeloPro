@@ -10,6 +10,7 @@
 // 构建: make test (host g++ 直连编译, 零 wayland/hilog 依赖 — 纯函数在头)。
 // ============================================================================
 #include "compositor/toplevel/toplevel_event_bus.h"
+#include "compositor/toplevel/size_limits_event_cache.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -109,10 +110,36 @@ static void test_full_coverage() {
     printf("event-name coverage: %d\n", n);
 }
 
+static void test_limits_notifications() {
+    SizeLimitsEventCache initial;
+    int sent = 0;
+    if (initial.ShouldPublish(7, 0, 0, 0, 0)) ++sent;
+    if (initial.ShouldPublish(7, 0, 0, 0, 0)) ++sent;
+    eq_str("initial unconstrained limits", std::to_string(sent), "1");
+
+    // Replay the tablet's unchanged min/max pairs, followed by a real resize
+    // and removal of the constraints. Each changed state must still publish.
+    SizeLimitsEventCache toolbar;
+    sent = 0;
+    for (int i = 0; i < 42; ++i) {
+        if (toolbar.ShouldPublish(2, 1200, 20, 1200, 20)) ++sent;
+    }
+    if (toolbar.ShouldPublish(2, 1400, 20, 1400, 20)) ++sent;
+    if (toolbar.ShouldPublish(2, 0, 0, 0, 0)) ++sent;
+    eq_str("unchanged limits and subsequent resize/reset", std::to_string(sent), "3");
+
+    SizeLimitsEventCache recreated;
+    eq_str("new role must send identical initial limits",
+           recreated.ShouldPublish(2, 0, 0, 0, 0) ? "sent" : "skipped", "sent");
+    eq_str("replacement toplevel identity must send initial limits",
+           toolbar.ShouldPublish(9, 0, 0, 0, 0) ? "sent" : "skipped", "sent");
+}
+
 int main() {
     test_event_names();
     test_json_templates();
     test_full_coverage();
+    test_limits_notifications();
     printf("toplevel_event_test: %d checks, %d failures\n", checks, failures);
     return failures != 0 ? 1 : 0;
 }

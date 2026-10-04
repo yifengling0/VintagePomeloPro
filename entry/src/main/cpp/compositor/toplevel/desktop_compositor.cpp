@@ -331,7 +331,8 @@ void DesktopCompositor::ClearDirectDesktopContentSizes()
 }
 
 bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDirectSource>& direct,
-                                               GpuDesktopSnapshotCache& cache, GpuDesktopScene& out)
+                                               GpuDesktopSnapshotCache& cache, GpuDesktopScene& out,
+                                               const std::vector<GpuDesktopLayer>& zeroCopy)
 {
     auto lock = tmgr_.Lock();
     out = {};
@@ -387,13 +388,17 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
     for (const auto& layer : layers) {
         if (!layer.visible || ShouldSkipFullscreenCascade(layer, fullscreenId, fullscreenId != 0, tmgr_)) continue;
         GpuDesktopLayer item;
+        item.parentToplevel = layer.type == CompositorLayer::Type::Root ? out.rootId : layer.toplevelId;
         item.x = layer.x; item.y = layer.y; item.w = layer.w; item.h = layer.h;
         const std::vector<uint8_t>* pixels = nullptr;
         if (layer.type == CompositorLayer::Type::Subsurface) {
             auto client = clients.find(layer.toplevelId);
             if (client != clients.end() && layer.sub->surface == client->second.first->surface) continue;
-            if (layer.zcActive) continue;
+            if (layer.zcActive && zeroCopy.empty()) continue;
             const auto& sub = *layer.sub;
+            item.subsurface = true;
+            item.external = sub.isExternal;
+            item.ownerSurfaceKey = sub.surfaceKey;
             item.key = sub.surfaceKey;
             item.serial = sub.shmCommitSerial;
             item.sourceW = sub.w; item.sourceH = sub.h;
@@ -420,7 +425,9 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
             GpuDesktopLayer black;
             black.solidBlack = true; black.w = out.width; black.h = out.height;
             out.layers.push_back(std::move(black));
-        } else if (snapshot(item, *pixels)) out.layers.push_back(std::move(item));
+        } else if (!(layer.zcActive && !zeroCopy.empty()) && snapshot(item, *pixels))
+            out.layers.push_back(std::move(item));
+        else if (!zeroCopy.empty()) out.layers.push_back(std::move(item));
         if (layer.type == CompositorLayer::Type::Toplevel) {
             auto client = clients.find(layer.toplevelId);
             if (client == clients.end()) continue;
@@ -432,6 +439,24 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
             } else { image.x += layer.x; image.y += layer.y; }
             out.layers.push_back(std::move(image));
         }
+    }
+    if (!zeroCopy.empty()) {
+        std::vector<GpuDesktopLayer> native;
+        for (auto source : zeroCopy) {
+            const auto owner = std::find_if(layers.begin(), layers.end(), [&](const auto& layer) {
+                return (layer.type == CompositorLayer::Type::Toplevel &&
+                        layer.toplevelId == source.parentToplevel) ||
+                       (layer.type == CompositorLayer::Type::Root && source.parentToplevel == out.rootId);
+            });
+            if (owner == layers.end() || !owner->visible ||
+                ShouldSkipFullscreenCascade(*owner, fullscreenId, fullscreenId != 0, tmgr_)) continue;
+            const auto* state = fullscreenId && source.parentToplevel == fullscreenId
+                ? tmgr_.FindToplevelLocked(fullscreenId) : nullptr;
+            if (state) FitMapLayerRect(fullscreenFit, source.x - state->X(), source.y - state->Y(),
+                                      source.w, source.h, source.x, source.y, source.w, source.h);
+            native.push_back(std::move(source));
+        }
+        MergeZeroCopySceneLayers(out, native);
     }
     for (auto it = cache.begin(); it != cache.end();)
         if (!used.count(it->first)) it = cache.erase(it); else ++it;

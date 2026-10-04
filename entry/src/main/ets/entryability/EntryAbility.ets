@@ -151,6 +151,11 @@ export default class EntryAbility extends UIAbility {
       if (!parameters || parameters[key] === undefined || parameters[key] === null) return fallback;
       return `${parameters[key]}`;
     };
+    // Explicit host diagnostics, independent of Wine child environment.
+    // Ordinary launches retain the default off state; onNewWant can stop it.
+    if (parameters && parameters['winehua.frameDiagnostics'] !== undefined) {
+      testNapi.setFrameLoopDiagnostics(value('winehua.frameDiagnostics', '0') === '1');
+    }
     // Pad 多窗口承载调试键: winehua.fusionHost (subwindow|ability) 跨设备强制
     const explicitFusionHost = !!parameters && parameters['winehua.fusionHost'] !== undefined &&
       parameters['winehua.fusionHost'] !== null;

@@ -1,5 +1,6 @@
 #pragma once
 #include <wayland-server-core.h>
+#include "toplevel/size_limits_event_cache.h"
 
 // Toplevel 独立的 user_data，不共享 XdgSurface*
 // 解决 wl_client_destroy 时 xs_resource_destroy 先释放 XdgSurface，
@@ -7,6 +8,7 @@
 struct ToplevelData {
     uint32_t toplevelId = 0;
     wl_resource* xdgSurface = nullptr;  // 回指针，供 tl_set_title 等操作
+    SizeLimitsEventCache limitsEvents;
 };
 
 struct XdgSurface {

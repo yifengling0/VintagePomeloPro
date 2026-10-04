@@ -956,8 +956,8 @@ struct Index {
 
   private refreshRunningState(): void {
     const sessionService = AppSessionService.getInstance();
-    const running = resolveRunningAppIds(this.apps, sessionService.getRunningAppIds(),
-      sessionService.getRunningPaths());
+    const snapshot = sessionService.getRunningSnapshot();
+    const running = resolveRunningAppIds(this.apps, snapshot.appIds, snapshot.paths);
     const now = Date.now();
     running.forEach((id: string): void => {
       if (!this.playStartTimes.has(id)) this.playStartTimes.set(id, now);

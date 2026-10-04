@@ -19,10 +19,11 @@ function fixture() {
   let rootThrows = false;
   const starts = [];
   const processes = [];
+  const queries = { processes: 0 };
   const native = {
     getDesktopRootId() { if (rootThrows) throw new Error('native unavailable'); return root; },
     getWineSession() { return null; }, // Explorer is registered as @engine/explorer.
-    getProcessList() { return processes; },
+    getProcessList() { ++queries.processes; return processes.slice(); },
     activateWineSession() {},
     raiseToplevel() {}
   };
@@ -57,7 +58,7 @@ function fixture() {
   const service = new exports.AppSessionService();
   service.initialize({ startAbility: async want => { starts.push(want); } });
   return {
-    service, starts, processes,
+    service, starts, processes, queries,
     setState: next => { state = next; },
     setRoot: next => { root = next; },
     failRootQuery: () => { rootThrows = true; }
@@ -101,5 +102,28 @@ function fixture() {
   deadProcess.service.registerDiagnosticLaunch('C:/game.exe', { pid: 42, sessionId: 'game' },
     models.DisplayMode.DESKTOP, models.WinePresentationMode.DESKTOP);
   assert.equal(deadProcess.service.getSession('game'), null, 'Dead game PID must still be reconciled');
+
+  const running = fixture();
+  running.setState(models.EngineState.READY);
+  running.processes.push({ pid: 42, path: 'C:/game.exe', state: 'running' },
+    { pid: 77, path: 'C:/native-only.exe', state: 'running' },
+    { pid: 78, path: 'C:/windows/system32/services.exe', state: 'running' });
+  running.service.registerDiagnosticLaunch('C:/game.exe', { pid: 42, sessionId: 'game' },
+    models.DisplayMode.DESKTOP, models.WinePresentationMode.DESKTOP);
+  let before = running.queries.processes;
+  const snapshot = running.service.getRunningSnapshot();
+  assert.equal(running.queries.processes - before, 1, 'A UI snapshot must query native processes once');
+  assert.ok(snapshot.paths.has(models.normalizeLaunchPath('C:/game.exe')));
+  assert.ok(snapshot.paths.has(models.normalizeLaunchPath('C:/native-only.exe')),
+    'Native-only launches must remain visible to catalog path matching');
+  assert.ok(!snapshot.paths.has(models.normalizeLaunchPath('C:/windows/system32/services.exe')),
+    'Wine infrastructure must not appear as a catalog game');
+  assert.equal(snapshot.appIds.size, 1);
+  running.processes.splice(0, running.processes.length);
+  before = running.queries.processes;
+  const exited = running.service.getRunningSnapshot();
+  assert.equal(running.queries.processes - before, 1);
+  assert.equal(exited.appIds.size, 0, 'Process exits must be visible on the next snapshot');
+  assert.equal(exited.paths.size, 0, 'Exited native-only launches must not be cached');
   console.log('AppSession startup/root reconciliation: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -78,8 +78,9 @@ static void tl_move(wl_client*, wl_resource* tlRes, wl_resource* /*seat*/, uint3
     WaylandServer::GetInstance()->StartMoveGrab(td->toplevelId, serial);
 }
 static void tl_resize(wl_client*, wl_resource*, wl_resource*, uint32_t, uint32_t) {}
-static void fire_limits_event(SurfaceData* sd) {
-    if (!sd || sd->toplevelId == 0) return;
+static void fire_limits_event(ToplevelData* td, SurfaceData* sd) {
+    if (!td || !sd || !td->limitsEvents.ShouldPublish(
+            sd->toplevelId, sd->minWidth, sd->minHeight, sd->maxWidth, sd->maxHeight)) return;
     std::string json =
         ToplevelEventBus::JsonLimits(sd->minWidth, sd->minHeight, sd->maxWidth, sd->maxHeight);
     OH_LOG_INFO(LOG_APP, "[XDG] fire_limits tl=%{public}u %{public}s maxState=%{public}s",
@@ -100,9 +101,7 @@ static void tl_set_min_size(wl_client*, wl_resource* tlRes, int32_t w, int32_t h
     sd->minWidth = w;
     sd->minHeight = h;
     sd->hasSizeLimits = true;
-    OH_LOG_INFO(LOG_APP, "[XDG] tl_set_min_size toplevel=%{public}u %{public}dx%{public}d",
-                sd->toplevelId, w, h);
-    fire_limits_event(sd);
+    fire_limits_event(td, sd);
 }
 
 // Wine 最大化时不调 xdg_toplevel.set_maximized, 只把 max_size 设为
@@ -141,11 +140,8 @@ static void tl_set_max_size(wl_client* client, wl_resource* tlRes, int32_t w, in
                          {XDG_TOPLEVEL_STATE_MAXIMIZED, XDG_TOPLEVEL_STATE_ACTIVATED});
         OH_LOG_INFO(LOG_APP, "[XDG] max_size→maximize tl=%{public}u → configure(%{public}d,%{public}d)",
                     sd->toplevelId, w, workH);
-    } else {
-        OH_LOG_INFO(LOG_APP, "[XDG] tl_set_max_size toplevel=%{public}u %{public}dx%{public}d",
-                    sd->toplevelId, w, h);
     }
-    fire_limits_event(sd);
+    fire_limits_event(td, sd);
 }
 static void tl_set_maximized(wl_client* client, wl_resource* tlRes) {
     auto* td = static_cast<ToplevelData*>(wl_resource_get_user_data(tlRes));

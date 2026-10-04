@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <algorithm>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -10,6 +11,9 @@
 // its GPU image stays in BufferQueue and is never copied into this structure.
 struct GpuDesktopLayer {
     uint64_t key = 0, serial = 0;
+    uint64_t zeroCopyKey = 0, ownerSurfaceKey = 0;
+    uint32_t parentToplevel = 0;
+    bool subsurface = false, external = false;
     uint32_t directToplevel = 0;
     int x = 0, y = 0, w = 0, h = 0;
     int sourceW = 0, sourceH = 0;
@@ -31,3 +35,55 @@ struct GpuDesktopDirectSource {
 };
 
 using GpuDesktopSnapshotCache = std::unordered_map<uint64_t, GpuDesktopLayer>;
+
+// Preserve the compositor's SHM layer order. Native child surfaces replace
+// their exact SHM slot; native windows draw after their window frame. A child
+// with no SHM commit draws inside its owner's lane, below software menus.
+inline void MergeZeroCopySceneLayers(GpuDesktopScene& scene,
+                                    const std::vector<GpuDesktopLayer>& sources)
+{
+    auto ordered = sources;
+    // A full native window must be beneath its native child, even when the
+    // child was discovered before the parent in the present-query results.
+    std::stable_sort(ordered.begin(), ordered.end(), [](const auto& a, const auto& b) {
+        return a.subsurface < b.subsurface;
+    });
+    for (const auto& source : ordered) {
+        auto exact = scene.layers.end();
+        auto owner = scene.layers.end();
+        for (auto it = scene.layers.begin(); it != scene.layers.end(); ++it) {
+            if (!it->subsurface && it->parentToplevel == source.parentToplevel)
+                owner = it;
+            if (source.subsurface && it->subsurface &&
+                it->ownerSurfaceKey == source.ownerSurfaceKey) exact = it;
+        }
+        if (exact != scene.layers.end()) *exact = source;
+        else if (source.external) scene.layers.push_back(source);
+        else if (owner != scene.layers.end()) {
+            auto position = owner + 1;
+            while (position != scene.layers.end() && position->zeroCopyKey &&
+                   position->subsurface && !position->external &&
+                   position->parentToplevel == source.parentToplevel) ++position;
+            scene.layers.insert(position, source);
+        }
+    }
+    for (auto it = scene.layers.begin(); it != scene.layers.end();)
+        if (!it->zeroCopyKey && !it->pixels && !it->solidBlack && !it->directToplevel)
+            it = scene.layers.erase(it);
+        else ++it;
+}
+
+inline bool SameGpuDesktopScene(const GpuDesktopScene& a, const GpuDesktopScene& b)
+{
+    if (a.rootId != b.rootId || a.width != b.width || a.height != b.height ||
+        a.layers.size() != b.layers.size()) return false;
+    for (size_t i = 0; i < a.layers.size(); ++i) {
+        const auto& x = a.layers[i]; const auto& y = b.layers[i];
+        if (x.key != y.key || x.zeroCopyKey != y.zeroCopyKey || x.serial != y.serial ||
+            x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
+            x.sourceW != y.sourceW || x.sourceH != y.sourceH ||
+            x.opaque != y.opaque || x.solidBlack != y.solidBlack || x.pixels != y.pixels)
+            return false;
+    }
+    return true;
+}

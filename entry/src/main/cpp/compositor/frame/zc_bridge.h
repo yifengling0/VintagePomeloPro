@@ -32,6 +32,8 @@ struct ZeroCopyLayerInfo {
     bool desktopCoordinates = false;
     ZeroCopySource source = ZeroCopySource::ShmLayer;  // 原 protocolOnly 布尔
     bool fullscreen = false;  // 所属 toplevel 全屏: GL 层保比例缩放铺满视口 (ZC 游戏)
+    bool subsurface = false;
+    bool external = false;
 };
 
 struct ZeroCopyOccluderRect {
@@ -215,8 +217,8 @@ public:
     void NoteProducerPresent(uint64_t surfaceKey, uint64_t nowUs);
     // 合成侧真正消费一帧 (渲染线程在 UpdateSurfaceImage 成功后调用)
     void NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs);
-    // 窗口销毁/代际变化时失效所有指向该窗口的绑定
-    void InvalidateBindingsForWindow(uint32_t ownerHostPid, uint32_t wlSurfaceId);
+    // 窗口或 producer surface 销毁时清理绑定；调用方须持有 tmgr 锁。
+    void InvalidateBindingsForSurface(uint32_t hostPid, uint32_t wlSurfaceId);
     size_t PresentBindingCount() const { return presentBindings_.size(); }
     // P0-1 Task A: per-window 黑窗归因快照 (调用方须已持有 tmgr 锁)
     void DumpWindowBindingDiag();

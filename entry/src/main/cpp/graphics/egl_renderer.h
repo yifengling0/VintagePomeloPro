@@ -11,6 +11,8 @@
 #include <mutex>
 #include <memory>
 #include "compositor/frame/geometry.h"
+#include "compositor/frame/gpu_desktop_scene.h"
+#include "compositor/frame/zc_bridge.h"
 #include "compositor/frame/presented_frame.h"
 #include "compositor/frame/direct_pass_policy.h"  // DirectPassPolicy (直传能力位接口, 任务 3)
 
@@ -72,6 +74,7 @@ public:
     uint32_t DirectPassCapabilities() const override;
 
 private:
+    struct ZeroCopyConsumer;
     void RenderLoop();
     void VulkanRenderLoop();
     std::unique_ptr<winehua::direct::DirectVulkanDesktopCompositor> vulkanDesktop_;
@@ -79,11 +82,14 @@ private:
     static void OnZeroCopyFrameAvailable(void* data);
     bool InitZeroCopyConsumer();
     bool TryAttachZeroCopySurface(uint32_t rendererToplevelId);
-    bool UpdateZeroCopyFrame(int& width, int& height);
+    bool UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, int& height);
     // 诊断 (2026-09-20, 默认关): WINEHUA_ZC_PIXEL_DUMP=<path> 时把 ZC 层绘制后
     // 画布上该区域的像素采样落盘, 用于区分"纹理是黑的"与"合成后才是黑的"。
-    void DumpZeroCopyLayerPixels(int x, int y, int w, int h);
-    void ReleaseZeroCopyBinding();
+    void DumpZeroCopyLayerPixels(ZeroCopyConsumer& consumer, int x, int y, int w, int h);
+    void ReleaseZeroCopyBinding(ZeroCopyConsumer& consumer);
+    bool SnapshotZeroCopyScene();
+    void DrawZeroCopyScene();
+    void ClearZeroCopyShmTextures();
     void ShutdownZeroCopyConsumer();
 
     // 整帧的显示矩形 (surface 坐标): 常态 = letterbox_ (等比 fit); 拖拽缩放中
@@ -116,63 +122,76 @@ private:
     GLuint texture_ = 0;
     GLuint program_ = 0;
     GLuint vbo_ = 0;
-    GLuint occluderVbo_ = 0;  // desktop 模式 zero-copy 遮挡区域重绘 (动态 UV quad)
-    OH_NativeImage* zeroCopyImage_ = nullptr;
-    OHNativeWindow* zeroCopyProducerWindow_ = nullptr;
-    GLuint zeroCopyTexture_ = 0;
+    struct ZeroCopyConsumer {
+        EglRenderer* renderer = nullptr;
+        // Identity is set before listener registration and stays immutable.
+        OH_NativeImage* image = nullptr;
+        OHNativeWindow* producerWindow = nullptr;
+        GLuint texture = 0;
+        std::atomic<bool> frameAvailable{false};
+        std::atomic<uint64_t> frameSignals{0};
+        // 2026-09-20: 真实 present 活性 (回调写入) + 消费者自愈簿记
+        std::atomic<uint64_t> lastSignalUs{0};
+        uint64_t attachUs = 0;        // 本代消费者 attach 时刻
+        uint64_t lastReattachUs = 0;  // 最近一次"陈旧消费者重建"
+        uint64_t reattachCount = 0;
+        uint64_t dumpCount = 0;       // WINEHUA_ZC_PIXEL_DUMP 诊断计数
+        uint64_t dumpMax = 400;       // 诊断落盘行数上限 (有界)
+        FILE* dumpFile = nullptr;     // 诊断输出 (默认 nullptr = 关)
+        bool dumpOpenFailed = false; // 无效诊断路径只告警一次
+        uint64_t frames = 0;
+        uint64_t updates = 0;
+        uint64_t lastConsumedSignal = 0;
+        uint64_t coalescedSignals = 0;
+        uint64_t duplicateTimestamps = 0;
+        uint64_t failures = 0;
+        uint64_t timestampRegressions = 0;
+        int64_t lastTimestamp = 0;
+        uint64_t surfaceKey = 0;
+        uint32_t clientPid = 0;
+        uint32_t surfaceId = 0;
+        int sourceW = 0;
+        int sourceH = 0;
+        int layerX = 0;
+        int layerY = 0;
+        int layerW = 0;
+        int layerH = 0;
+        bool registered = false;
+        bool listenerSet = false;
+        bool hasFrame = false;
+        bool vulkanSource = false;
+        bool geometryDirty = false;
+        bool fullscreen = false;  // 所属 toplevel 全屏: ZC 层保比例铺满显示区
+        uint32_t consecutiveFailures = 0;
+        float transform[16] = {
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+        };
+        float samplingTransform[16] = {
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+        };
+        ZeroCopyLayerInfo layer;
+    };
+    std::vector<std::unique_ptr<ZeroCopyConsumer>> zeroCopyConsumers_;
     GLuint zeroCopyProgram_ = 0;
     GLint zeroCopyTransformLocation_ = -1;
-    std::atomic<bool> zeroCopyFrameAvailable_{false};
-    std::atomic<uint64_t> zeroCopyFrameSignals_{0};
-    // 2026-09-20: 真实 present 活性 (回调写入) + 消费者自愈簿记
-    std::atomic<uint64_t> zeroCopyLastSignalUs_{0};
-    uint64_t zeroCopyAttachUs_ = 0;        // 本代消费者 attach 时刻
-    uint64_t zeroCopyLastReattachUs_ = 0;  // 最近一次"陈旧消费者重建"
-    uint64_t zeroCopyReattachCount_ = 0;
-    uint64_t zeroCopyDumpCount_ = 0;       // WINEHUA_ZC_PIXEL_DUMP 诊断计数
-    uint64_t zeroCopyDumpMax_ = 400;       // 诊断落盘行数上限 (有界)
-    FILE* zeroCopyDumpFile_ = nullptr;     // 诊断输出 (默认 nullptr = 关)
-    uint64_t zeroCopyFrames_ = 0;
-    uint64_t zeroCopyUpdates_ = 0;
-    uint64_t zeroCopyLastConsumedSignal_ = 0;
-    uint64_t zeroCopyCoalescedSignals_ = 0;
-    uint64_t zeroCopyDuplicateTimestamps_ = 0;
-    uint64_t zeroCopyFailures_ = 0;
-    uint64_t zeroCopyTimestampRegressions_ = 0;
-    int64_t zeroCopyLastTimestamp_ = 0;
-    uint64_t zeroCopySurfaceKey_ = 0;
     uint64_t zeroCopyLastQueryUs_ = 0;
-    uint64_t zeroCopyDiagLastUs_ = 0;   // 诊断 (2026-09-16): ZC 查询/候选打印节流
-    size_t zeroCopyDiagCount_ = 0;      // 诊断: 上一次打印时的 surface 数量
-    uint32_t zeroCopyClientPid_ = 0;
-    uint32_t zeroCopySurfaceId_ = 0;
-    int zeroCopySourceW_ = 0;
-    int zeroCopySourceH_ = 0;
-    int zeroCopyLayerX_ = 0;
-    int zeroCopyLayerY_ = 0;
-    int zeroCopyLayerW_ = 0;
-    int zeroCopyLayerH_ = 0;
-    bool zeroCopyRegistered_ = false;
-    // 无新帧跳过 swap 的累计次数 (诊断: 帧合成后多久没上屏)
+    uint64_t zeroCopyDiagLastUs_ = 0;
     uint64_t skipFrames_ = 0;
-    bool zeroCopyListenerSet_ = false;
-    bool zeroCopyHasFrame_ = false;
-    bool zeroCopyVulkanSource_ = false;
-    bool zeroCopyGeometryDirty_ = false;
-    bool zeroCopyFullscreen_ = false;  // 所属 toplevel 全屏: ZC 层保比例铺满显示区
-    uint32_t zeroCopyConsecutiveFailures_ = 0;
-    float zeroCopyTransform_[16] = {
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
+    bool zeroCopySceneDirty_ = false;
+    GpuDesktopSnapshotCache zeroCopySnapshots_;
+    GpuDesktopScene zeroCopyScene_;
+    struct ShmLayerTexture {
+        GLuint texture = 0;
+        std::shared_ptr<const std::vector<uint8_t>> pixels;
+        int width = 0, height = 0;
     };
-    float zeroCopySamplingTransform_[16] = {
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
-    };
+    std::unordered_map<uint64_t, ShmLayerTexture> zeroCopyShmTextures_;
 
     int width_ = 0, height_ = 0;   // 实测 surface 尺寸 (每轮 eglQuerySurface 刷新, 只此一处语义)
     int frameW_ = 0, frameH_ = 0;  // Wine 帧内容尺寸 (坐标转换)

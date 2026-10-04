@@ -19,6 +19,7 @@
 #include "direct/direct_wine_surface_controller.h"
 #include "protocols/viewporter-server-protocol.h"
 #include "common/perf_utils.h"
+#include "common/frame_loop_diagnostics.h"
 #include <algorithm>
 #include <cstring>
 #include <ctime>
@@ -121,9 +122,9 @@ void WaylandServer::compositor_create_surface(wl_client* client, wl_resource* co
             if (self->desktopCompositor_.RemoveSubsurfaceLayer(r, removedParent, removedRoute)) {
                 self->MarkLayerHostDirtyLocked(removedParent, removedRoute);
             }
-            // P0-1: 窗口销毁 → 联动失效所有指向它的 PresentBinding (方案 §11)
+            // Invalidate both the window and private producer sides of a binding.
             if (sd)
-                self->desktopCompositor_.zc().InvalidateBindingsForWindow(
+                self->desktopCompositor_.zc().InvalidateBindingsForSurface(
                     sd->clientPid, sd->protocolId);
             // PC popup 记录一并清除 (client 断开时 libwayland 走此路径)
             // (popup 表已迁至 PopupManager — 重构第 5B2 步, 锁域/清理顺序不变)
@@ -1049,6 +1050,8 @@ void WaylandServer::FinishCommit(SurfaceData* sd, wl_resource* surfRes) {
 void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
     auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(surfRes));
     auto* self = GetInstance();  // static 回调无 this, 分段均为实例方法
+    const bool loopDiagnostics = (winehua::FrameLoopDiagnosticState() & 1) != 0;
+    const uint64_t diagnosticStartedUs = loopDiagnostics ? winehua::PerfNowUs() : 0;
     {
         auto lock = self->toplevelMgr_.Lock();
         sd->directViewport = sd->directViewportPending;
@@ -1061,10 +1064,15 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
     const auto wt0 = frameTrace ? std::chrono::steady_clock::now()
                                 : std::chrono::steady_clock::time_point();
     // NULL buffer → surface 无内容 (unmap)
-    if (self->HandleNullBufferCommit(sd, surfRes)) return;
+    if (self->HandleNullBufferCommit(sd, surfRes)) {
+        if (loopDiagnostics) winehua::NoteProducerCommit(false, sd->isSubsurface, true, 0,
+            winehua::PerfNowUs()-diagnosticStartedUs, 0);
+        return;
+    }
 
     ShmCommitInfo fi;
-    if (self->BeginShmAccess(sd, fi)) {
+    const bool shmCommit = self->BeginShmAccess(sd, fi);
+    if (shmCommit) {
         self->ComputeContentArea(sd, fi);
         // sd->pixels 的消费方全部是 subsurface 路径 (desktop layer 合成 / PC popup /
         // ARGB 检测); toplevel 的帧走 UpdateToplevelFrameOnCommit 的内容裁剪拷贝,
@@ -1093,7 +1101,11 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
         wl_shm_buffer_end_access(fi.shm);
     }
 
+    const size_t diagnosticCallbacks = loopDiagnostics ? sd->frameCallbacks.size() : 0;
     self->FinishCommit(sd, surfRes);
+    if (loopDiagnostics) winehua::NoteProducerCommit(shmCommit, sd->isSubsurface, false,
+        shmCommit && fi.stride > 0 && fi.bufH > 0 ? static_cast<uint64_t>(fi.stride)*fi.bufH : 0,
+        winehua::PerfNowUs()-diagnosticStartedUs, diagnosticCallbacks);
 
     // WL-T 临时诊断 (接函数头): commit 占用统计; frameTrace 关闭时整体跳过
     if (frameTrace) {

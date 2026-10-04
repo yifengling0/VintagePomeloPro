@@ -1,5 +1,6 @@
 #include "perf_utils.h"
 #include "displayed_fps.h"
+#include "frame_loop_diagnostics.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -12,6 +13,50 @@
 #define LOG_TAG "WL_EGL"
 
 namespace winehua {
+
+void FrameLoopDiagnosticWindow::MaybePublish(uint32_t rendererId, uint32_t rootId, uint64_t nowUs)
+{
+    if (!Due(nowUs)) return;
+    const auto source = gProducerDiagnostics.Snapshot();
+    auto quantiles = [](const LoopTimingHistogram& histogram) {
+        char value[96];
+        std::snprintf(value, sizeof(value), "%llu/%llu/%llu/%llu",
+            static_cast<unsigned long long>(histogram.UpperPercentile(50)),
+            static_cast<unsigned long long>(histogram.UpperPercentile(95)),
+            static_cast<unsigned long long>(histogram.UpperPercentile(99)),
+            static_cast<unsigned long long>(histogram.maxUs));
+        return std::string(value);
+    };
+    const uint64_t elapsedUs = nowUs - startedUs;
+    char line[2048];
+    std::snprintf(line, sizeof(line),
+        "[FRAME-LOOP] renderer=%u root=%u window_us=%llu loops=%llu no_frame=%llu skipped=%llu "
+        "presents=%llu failed=%llu fps=%.2f cpu_frames=%llu zc_frames=%llu direct_frames=%llu geometry_frames=%llu "
+        "work_sum_us=%llu wait_sum_us=%llu take_us_le=%s work_us_le=%s wait_us_le=%s lock_us_le=%s gap_us_le=%s "
+        "gap_samples=%llu idle_present_us=%llu vsync_requests=%llu vsync_timeouts=%llu vsync_errors=%llu fallbacks=%llu "
+        "global_shm_top=%llu global_shm_sub=%llu global_other=%llu global_unmap=%llu "
+        "global_shm_bytes=%llu global_commit_us=%llu global_callbacks=%llu",
+        rendererId, rootId, (unsigned long long)elapsedUs, (unsigned long long)loops,
+        (unsigned long long)noFrame, (unsigned long long)skipped, (unsigned long long)presents,
+        (unsigned long long)failed, presents * 1000000.0 / elapsedUs,
+        (unsigned long long)cpuFrames, (unsigned long long)zcFrames, (unsigned long long)directFrames,
+        (unsigned long long)geometryFrames, (unsigned long long)work.sumUs, (unsigned long long)wait.sumUs,
+        quantiles(take).c_str(), quantiles(work).c_str(), quantiles(wait).c_str(),
+        quantiles(lockWait).c_str(), quantiles(presentGap).c_str(),
+        (unsigned long long)presentGap.count,
+        (unsigned long long)(lastPresentUs && nowUs >= lastPresentUs ? nowUs-lastPresentUs : elapsedUs),
+        (unsigned long long)vsyncRequests, (unsigned long long)vsyncTimeouts,
+        (unsigned long long)vsyncErrors, (unsigned long long)fallbacks,
+        (unsigned long long)(source.shmTop-producerStart.shmTop),
+        (unsigned long long)(source.shmSub-producerStart.shmSub),
+        (unsigned long long)(source.other-producerStart.other),
+        (unsigned long long)(source.unmap-producerStart.unmap),
+        (unsigned long long)(source.bytes-producerStart.bytes),
+        (unsigned long long)(source.commitUs-producerStart.commitUs),
+        (unsigned long long)(source.callbacks-producerStart.callbacks));
+    OH_LOG_INFO(LOG_APP, "%{public}s", line);
+    ResetWindow(nowUs, source);
+}
 
 uint64_t PerfNowUs()
 {

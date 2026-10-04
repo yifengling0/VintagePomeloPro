@@ -1,4 +1,5 @@
 #include "zc_bridge.h"
+#include "common/perf_utils.h"
 
 #include <string>
 #include <vector>
@@ -214,8 +215,16 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
     auto* sd = wlRes
         ? static_cast<SurfaceData*>(wl_resource_get_user_data(wlRes)) : nullptr;
 
-    // P0-1 L0：已有 PresentBinding → 直接以绑定窗口作为几何来源（不再做几何搜索）。
-    // 绑定建立后 resize/move 只更新窗口几何，identity 不再重猜（方案 §10）。
+    // A binding supplies window geometry, not a replacement producer lifetime.
+    // Keeping it alive after the private wl_surface has been destroyed pins the
+    // renderer to an old target and prevents a rebuilt CEF surface from attaching.
+    if (!wlRes) return reject("no_surface_resource");
+    if (!sd) return reject("no_surface_data");
+
+    // Explicit Wayland roles already identify the window/parent and offset.
+    // Bootstrap a binding only for a role-less private present surface. The
+    // heuristic must not replace a real subsurface with an unrelated window.
+    if (!sd->hasToplevel && !sd->isSubsurface)
     {
         WineHuaPresentBinding binding;
         bool newlyBound = false;
@@ -239,9 +248,6 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
             }
         }
     }
-
-    if (!wlRes) return reject("no_surface_resource");
-    if (!sd) return reject("no_surface_data");
 
     // -- present surface → owner 窗口解析 (2026-09-16, Steam 跨进程黑窗) --
     //
@@ -390,6 +396,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
     info.surfaceId = sd->protocolId;
     if (sd->isSubsurface && sd->parentSurface)
     {
+        info.subsurface = true;
         auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
         if (!parent || !parent->hasToplevel) return reject("parent_without_toplevel");
         info.parentToplevel = parent->toplevelId;
@@ -421,6 +428,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
                 if (const auto* pst = comp_.tmgr_.FindToplevelLocked(layer.parentToplevel))
                     info.fullscreen = pst->IsFullscreen();
                 info.source = ZeroCopySource::ShmLayer;
+                info.external = layer.isExternal;
                 return info.width > 0 && info.height > 0
                     ? true : reject("shm_layer_zero_size");
             }
@@ -438,6 +446,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
             const int compW = parentState ? parentState->Width() : 0;
             const int compH = parentState ? parentState->Height() : 0;
             const bool insideWin = sx >= 0 && sx < compW && sy >= 0 && sy < compH;
+            info.external = !insideWin;
             info.x = (insideWin ? compX : wineX) + sx;
             info.y = (insideWin ? compY : wineY) + sy;
             info.width = DisplaySizeAfterViewport(sd->vpDstW, sd->w);
@@ -872,20 +881,38 @@ bool ZcBridge::ResolvePresentBinding(uint64_t surfaceKey, uint32_t frameWidth,
     return true;
 }
 
-void ZcBridge::InvalidateBindingsForWindow(uint32_t ownerHostPid, uint32_t wlSurfaceId)
+void ZcBridge::InvalidateBindingsForSurface(uint32_t hostPid, uint32_t wlSurfaceId)
 {
-    if (!ownerHostPid || !wlSurfaceId) return;
-    const uint64_t windowKey = (static_cast<uint64_t>(ownerHostPid) << 32) | wlSurfaceId;
-    auto it = windowBindings_.find(windowKey);
-    if (it == windowBindings_.end()) return;
-    const uint64_t producerKey = it->second;
-    windowBindings_.erase(it);
-    presentBindings_.erase(producerKey);
-    bindingRejectedLogged_.erase(producerKey);
-    OH_LOG_INFO(LOG_APP,
-                "BIND-RELEASE: worker=0x%{public}llx window=(%{public}u,%{public}u) "
-                "reason=window-destroyed",
-                static_cast<unsigned long long>(producerKey), ownerHostPid, wlSurfaceId);
+    if (!hostPid || !wlSurfaceId) return;
+    const uint64_t surfaceKey = (static_cast<uint64_t>(hostPid) << 32) | wlSurfaceId;
+    // A surface can be either side of a cross-process binding. Include pending
+    // and retired producers: a window may have more than one during takeover.
+    for (auto it = presentBindings_.begin(); it != presentBindings_.end();) {
+        const uint64_t windowKey =
+            (static_cast<uint64_t>(it->second.window.ownerHostPid) << 32) |
+            it->second.window.wlSurfaceId;
+        if (it->first != surfaceKey && windowKey != surfaceKey) {
+            ++it;
+            continue;
+        }
+        const uint64_t producerKey = it->first;
+        const auto claim = windowBindings_.find(windowKey);
+        if (claim != windowBindings_.end() && claim->second == producerKey)
+            windowBindings_.erase(claim);
+        bindingRejectedLogged_.erase(producerKey);
+        bindDiagProducers_.erase(producerKey);
+        OH_LOG_INFO(LOG_APP,
+                    "BIND-RELEASE: producer=0x%{public}llx surface=0x%{public}llx "
+                    "reason=surface-destroyed",
+                    static_cast<unsigned long long>(producerKey),
+                    static_cast<unsigned long long>(surfaceKey));
+        it = presentBindings_.erase(it);
+    }
+    windowBindings_.erase(surfaceKey);
+    bindingRejectedLogged_.erase(surfaceKey);
+    bindDiagProducers_.erase(surfaceKey);
+    std::lock_guard<std::mutex> lock(presentLivenessMutex_);
+    lastPresentUsByKey_.erase(surfaceKey);
 }
 
 // P0-1 Task A (2026-09-17): per-window 黑窗归因快照。
@@ -896,6 +923,7 @@ void ZcBridge::InvalidateBindingsForWindow(uint32_t ownerHostPid, uint32_t wlSur
 //   CEFBlackContent 两侧都活跃（内容黑 → 属于 CEF/runtime 问题）
 void ZcBridge::DumpWindowBindingDiag()
 {
+    if (!winehua::FrameTraceEnabled()) return;
     const uint64_t nowUs = static_cast<uint64_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count());

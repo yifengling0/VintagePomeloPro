@@ -66,6 +66,12 @@ interface PendingLaunchRequest {
   homeDirectory: string;
   resolve: (result: RuntimeSession | null) => void;
 }
+
+export interface RunningAppSnapshot {
+  appIds: Set<string>;
+  paths: Set<string>;
+}
+
 export class AppSessionService {
   private static instance: AppSessionService | null = null;
   private context: common.UIAbilityContext | null = null;
@@ -578,30 +584,32 @@ export class AppSessionService {
   }
 
   getRunningPaths(): Set<string> {
-    const result: Set<string> = new Set<string>();
-    this.reconcile();
-    this.sessions.forEach((session: RuntimeSession) => {
-      if (session.state !== SessionState.STOPPED && session.state !== SessionState.ERROR) {
-        result.add(normalizeLaunchPath(session.executable));
-      }
-    });
-    this.getNativeProcesses().forEach((process: NativeProcessInfo) => {
-      if (process.state === 'running' && !isWineInfrastructurePath(process.path)) {
-        result.add(normalizeLaunchPath(process.path));
-      }
-    });
-    return result;
+    return this.getRunningSnapshot().paths;
   }
 
   getRunningAppIds(): Set<string> {
-    const result: Set<string> = new Set<string>();
-    this.reconcile();
+    return this.getRunningSnapshot().appIds;
+  }
+
+  // Reconcile and resolve both views from the same fresh process list. No TTL
+  // cache: exits and desktop-root lifecycle changes are visible on every call.
+  getRunningSnapshot(): RunningAppSnapshot {
+    const processes = this.getNativeProcesses();
+    this.reconcile(processes);
+    const appIds: Set<string> = new Set<string>();
+    const paths: Set<string> = new Set<string>();
     this.sessions.forEach((session: RuntimeSession) => {
       if (session.state !== SessionState.STOPPED && session.state !== SessionState.ERROR) {
-        result.add(session.appId);
+        appIds.add(session.appId);
+        paths.add(normalizeLaunchPath(session.executable));
       }
     });
-    return result;
+    processes.forEach((process: NativeProcessInfo) => {
+      if (process.state === 'running' && !isWineInfrastructurePath(process.path)) {
+        paths.add(normalizeLaunchPath(process.path));
+      }
+    });
+    return { appIds, paths };
   }
 
   findByAppId(appId: string): RuntimeSession | null {
@@ -858,7 +866,7 @@ export class AppSessionService {
     return session;
   }
 
-  private reconcile(): void {
+  private reconcile(processes: NativeProcessInfo[] = this.getNativeProcesses()): void {
     const engineState = WineEngineService.getInstance().getState();
     if (engineState === EngineState.READY &&
       WineEngineService.getInstance().getPresentationMode() === WinePresentationMode.DESKTOP) {
@@ -871,7 +879,6 @@ export class AppSessionService {
     if (engineState === EngineState.PREPARING) {
       try { preparingRootId = testNapi.getDesktopRootId() as number; } catch (_) {}
     }
-    const processes = this.getNativeProcesses();
     const activePids: Set<number> = new Set<number>();
     processes.forEach((process: NativeProcessInfo) => activePids.add(process.pid));
     const removed: string[] = [];

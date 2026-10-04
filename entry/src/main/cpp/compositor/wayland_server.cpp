@@ -323,7 +323,7 @@ void WaylandServer::OnToplevelDestroyed(uint32_t toplevelId) {
             if (!resource) continue;
             auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(resource));
             if (sd && sd->hasToplevel && sd->toplevelId == toplevelId)
-                desktopCompositor_.zc().InvalidateBindingsForWindow(sd->clientPid, sd->protocolId);
+                desktopCompositor_.zc().InvalidateBindingsForSurface(sd->clientPid, sd->protocolId);
         }
         toplevelMgr_.EraseToplevelLocked(toplevelId);
         // 会话状态读写经 DesktopSessionState (重构第 6B 步: 旧为宿主私有字段,

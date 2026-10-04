@@ -1,4 +1,5 @@
 export const startServer: (sockPath: string) => boolean;
+export const setFrameLoopDiagnostics: (enabled: boolean) => void;
 export interface NativePerformanceSnapshot {
   pid: number;
   monotonicAvailable: boolean;

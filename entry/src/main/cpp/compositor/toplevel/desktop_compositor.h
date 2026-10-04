@@ -92,7 +92,8 @@ public:
                                 int imageW, int imageH, DirectDesktopLayout& out);
 
     bool SnapshotGpuDesktopScene(const std::vector<GpuDesktopDirectSource>& direct,
-                                 GpuDesktopSnapshotCache& cache, GpuDesktopScene& out);
+                                 GpuDesktopSnapshotCache& cache, GpuDesktopScene& out,
+                                 const std::vector<GpuDesktopLayer>& zeroCopy = {});
     void ClearDirectDesktopContentSizes();
 
     // 窗口内 Layer 列表 (阶段 3, 多窗口模式 — PC 窗口模式与 Pad 多窗口模式

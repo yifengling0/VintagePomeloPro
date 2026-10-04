@@ -681,7 +681,8 @@ public:
         if (!isVulkanTargetReady(surfaceKey)) {
             /* DIAG(2026-09-16): dump what targets actually exist, so the correct owner
              * identity contract can be designed from data instead of guesses. */
-            {
+            const auto requested = surfaces_.find(surfaceKey);
+            if (requested == surfaces_.end() || !requested->second.missingTargetLogged) {
                 unsigned listed = 0;
                 for (const auto& kv : surfaces_) {
                     if (listed >= 8) break;
