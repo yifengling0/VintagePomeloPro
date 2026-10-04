@@ -1,0 +1,6 @@
+[87688131] virgl level=1 vkr: WineHuaPresentImage: layer=host event=present serial=1202 ctx=5 queueId=5 hostQueue=0x5a381b8af0 imageId=266846 hostImage=0x5a3a2a3378 size=1200x800 format=37 layout=1000001002
+[87688146] virgl level=1 vkr: WineHuaPresentImage: layer=host event=present serial=1203 ctx=5 queueId=5 hostQueue=0x5a381b8af0 imageId=266848 hostImage=0x5a3a1bfd68 size=1200x800 format=37 layout=1000001002
+[87688164] virgl level=1 vkr: WineHuaPresentImage: layer=host event=present serial=1204 ctx=5 queueId=5 hostQueue=0x5a381b8af0 imageId=266844 hostImage=0x5a389fe6c8 size=1200x800 format=37 layout=1000001002
+[87951618] virgl level=1 vkr: WineHuaPresentImage: layer=host event=present serial=1 ctx=5 queueId=5 hostQueue=0x5a381b8af0 imageId=756578 hostImage=0x5a3a74cf08 size=1x1 format=37 layout=1000001002
+[87951651] virgl level=1 vkr: WineHuaPresentImage: layer=host event=present serial=1 ctx=5 queueId=5 hostQueue=0x5a381b8af0 imageId=756578 hostImage=0x5a3a74cf08 size=1x1 format=37 layout=1000001002
+[87951716] virgl level=1 vkr: WineHuaPresentImage: layer=host event=present serial=1 ctx=5 queueId=5 hostQueue=0x5a381b8af0 imageId=756578 hostImage=0x5a3a74cf08 size=1x1 format=37 layout=1000001002

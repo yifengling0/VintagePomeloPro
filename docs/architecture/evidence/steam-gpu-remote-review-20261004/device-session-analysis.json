@@ -1,0 +1,404 @@
+{
+  "source": "resumed-observe/current-session-hilog.txt",
+  "attachments": [
+    {
+      "time": "13:52:38.297",
+      "key": "134797548584987",
+      "pid": 31385,
+      "surface": 27
+    },
+    {
+      "time": "13:52:50.091",
+      "key": "134797548585024",
+      "pid": 31385,
+      "surface": 64
+    },
+    {
+      "time": "13:53:49.458",
+      "key": "139397458559034",
+      "pid": 32456,
+      "surface": 58
+    },
+    {
+      "time": "13:57:51.491",
+      "key": "149134149419091",
+      "pid": 34723,
+      "surface": 83
+    },
+    {
+      "time": "13:58:01.124",
+      "key": "149134149419097",
+      "pid": 34723,
+      "surface": 89
+    },
+    {
+      "time": "13:58:45.193",
+      "key": "155241592913943",
+      "pid": 36145,
+      "surface": 23
+    },
+    {
+      "time": "14:00:49.506",
+      "key": "159343286681658",
+      "pid": 37100,
+      "surface": 58
+    },
+    {
+      "time": "14:01:12.010",
+      "key": "134797548585050",
+      "pid": 31385,
+      "surface": 90
+    },
+    {
+      "time": "14:01:35.003",
+      "key": "134797548584995",
+      "pid": 31385,
+      "surface": 35
+    }
+  ],
+  "consumedSamples": {
+    "134797548584987": {
+      "first": {
+        "time": "13:52:39.546",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "last": {
+        "time": "14:00:48.169",
+        "frames": 8400,
+        "signals": 8456,
+        "failures": 0
+      },
+      "sampledConsumeRate": 17.189,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "134797548585024": {
+      "first": {
+        "time": "13:52:50.107",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "last": {
+        "time": "13:52:50.107",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "sampledConsumeRate": null,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "139397458559034": {
+      "first": {
+        "time": "13:53:49.530",
+        "frames": 1,
+        "signals": 2,
+        "failures": 0
+      },
+      "last": {
+        "time": "13:56:38.331",
+        "frames": 7080,
+        "signals": 7082,
+        "failures": 0
+      },
+      "sampledConsumeRate": 41.937,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "149134149419091": {
+      "first": {
+        "time": "13:57:51.538",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "last": {
+        "time": "13:57:51.538",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "sampledConsumeRate": null,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "149134149419097": {
+      "first": {
+        "time": "13:58:01.170",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "last": {
+        "time": "13:58:21.654",
+        "frames": 360,
+        "signals": 361,
+        "failures": 0
+      },
+      "sampledConsumeRate": 17.526,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "155241592913943": {
+      "first": {
+        "time": "13:58:45.210",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "last": {
+        "time": "14:00:03.204",
+        "frames": 2880,
+        "signals": 2910,
+        "failures": 0
+      },
+      "sampledConsumeRate": 36.913,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "159343286681658": {
+      "first": {
+        "time": "14:00:49.619",
+        "frames": 1,
+        "signals": 2,
+        "failures": 0
+      },
+      "last": {
+        "time": "14:01:41.419",
+        "frames": 1200,
+        "signals": 1205,
+        "failures": 0
+      },
+      "sampledConsumeRate": 23.147,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "134797548585050": {
+      "first": {
+        "time": "14:01:12.042",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "last": {
+        "time": "14:01:12.042",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "sampledConsumeRate": null,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    },
+    "134797548584995": {
+      "first": {
+        "time": "14:01:35.034",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "last": {
+        "time": "14:01:35.034",
+        "frames": 1,
+        "signals": 1,
+        "failures": 0
+      },
+      "sampledConsumeRate": null,
+      "note": "NativeImage consumption samples; does not prove the layer was included in the visible scene."
+    }
+  },
+  "segments": {
+    "second-game-behind-steam": {
+      "windowEndRange": [
+        "14:01:02.571",
+        "14:01:40.585"
+      ],
+      "measurementNote": "Each row summarizes the preceding roughly 2 seconds; this is a mixed desktop while the game is occluded, not Steam-only navigation.",
+      "windows": 20,
+      "seconds": 40.015078,
+      "hostSwapFpsWeighted": 18.393,
+      "windowFpsMin": 15.0,
+      "windowFpsMax": 44.49,
+      "loops": 2400,
+      "noFrameLoops": 1664,
+      "presents": 736,
+      "failed": 0,
+      "vsyncErrors": 0,
+      "vsyncTimeouts": 0,
+      "workTimePercent": 6.801,
+      "pacingWaitTimePercent": 92.843,
+      "workMaxUs": 9296,
+      "gapMaxUs": 720205,
+      "lockWaitMaxUs": 0
+    }
+  },
+  "processCompletionsByNameAndExit": [
+    {
+      "name": "GameOverlayUI.exe",
+      "exit": 9,
+      "count": 1
+    },
+    {
+      "name": "GameOverlayUI.exe",
+      "exit": 11,
+      "count": 13
+    },
+    {
+      "name": "SenrenBanka.exe",
+      "exit": 9,
+      "count": 1
+    },
+    {
+      "name": "SenrenBanka.exe",
+      "exit": 11,
+      "count": 1
+    },
+    {
+      "name": "UnityCrashHandler64.exe",
+      "exit": 11,
+      "count": 2
+    },
+    {
+      "name": "explorer.exe",
+      "exit": 0,
+      "count": 1
+    },
+    {
+      "name": "explorer.exe",
+      "exit": 9,
+      "count": 2
+    },
+    {
+      "name": "explorer.exe",
+      "exit": 11,
+      "count": 1
+    },
+    {
+      "name": "launcher.exe",
+      "exit": 0,
+      "count": 2
+    },
+    {
+      "name": "plugplay.exe",
+      "exit": 0,
+      "count": 1
+    },
+    {
+      "name": "plugplay.exe",
+      "exit": 9,
+      "count": 1
+    },
+    {
+      "name": "rpcss.exe",
+      "exit": 0,
+      "count": 1
+    },
+    {
+      "name": "services.exe",
+      "exit": 9,
+      "count": 2
+    },
+    {
+      "name": "shanhelvtan.exe",
+      "exit": 11,
+      "count": 1
+    },
+    {
+      "name": "steam.exe",
+      "exit": 9,
+      "count": 1
+    },
+    {
+      "name": "steamerrorreporter64.exe",
+      "exit": 11,
+      "count": 1
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "exit": 9,
+      "count": 1
+    },
+    {
+      "name": "svchost.exe",
+      "exit": 9,
+      "count": 1
+    },
+    {
+      "name": "tabtip.exe",
+      "exit": 9,
+      "count": 2
+    },
+    {
+      "name": "wallpaperui.exe",
+      "exit": 0,
+      "count": 1
+    },
+    {
+      "name": "wallpaperui.exe",
+      "exit": 11,
+      "count": 7
+    },
+    {
+      "name": "wineboot",
+      "exit": 0,
+      "count": 1
+    },
+    {
+      "name": "wineboot.exe",
+      "exit": 0,
+      "count": 2
+    },
+    {
+      "name": "winedevice.exe",
+      "exit": 0,
+      "count": 4
+    },
+    {
+      "name": "winedevice.exe",
+      "exit": 9,
+      "count": 2
+    },
+    {
+      "name": "wineserver",
+      "exit": 9,
+      "count": 1
+    },
+    {
+      "name": "x64launcher.exe",
+      "exit": 0,
+      "count": 1
+    }
+  ],
+  "interpretation": {
+    "userConfirmed": [
+      "游戏启动到后台了显示不出来了，所以我手动关了",
+      "被steam遮住了"
+    ],
+    "manualGameExitAt": "13:56:45.027",
+    "game2WindowSnapshotCount": 11,
+    "game2InputTargets": {
+      "4": 11
+    },
+    "game2FirstSnapshot": "10-04 14:00:52.577 30320 30842 I A00000/com.vintage.pomelopro/WL_Server: STEAM-WINDOW: window=(37100,27) toplevel=10 geometry=1200x800+0,0 visible=1 binding=none producer=0x0 extent=0x0 producerAgeMs=0 drawAgeMs=0 contentSource=SHM shmFrame=1 inputTarget=4 class=SHM",
+    "game2LastSnapshot": "10-04 14:01:39.147 30320 30842 I A00000/com.vintage.pomelopro/WL_Server: STEAM-WINDOW: window=(37100,27) toplevel=10 geometry=1200x800+0,0 visible=1 binding=none producer=0x0 extent=0x0 producerAgeMs=0 drawAgeMs=0 contentSource=SHM shmFrame=1 inputTarget=4 class=SHM",
+    "coverageLimitation": "No actual drawn layer list or all fullscreen candidate priorities were logged; fullscreen-selection root cause remains unproven. Parent binding=none is not child producer loss."
+  },
+  "venus": {
+    "lastCallbackCounters": {
+      "count": "12203",
+      "ok": "11903",
+      "retry": "0",
+      "fail": "300",
+      "ctx": "5",
+      "serial": "1",
+      "pid": "31385",
+      "surface": "90",
+      "key": "134797548585050",
+      "size": "313x452",
+      "result": "-11",
+      "time": "14:00:59.593"
+    },
+    "targetMissingWarningRecords": 25,
+    "targetMissingDistinctKeys": 24,
+    "swapchainReadyRecords": 18,
+    "firstSwapchainReady": "10-04 13:52:39.543 30865 30865 I A00000/melopro:Native_libvirgl_child0/venus-presenter: [VENUS-PRESENT][NCP] swapchain ready key=134797548584987 source=1200x800 target=1200x800 source_format=37 target_format=37 images=3 blit_supported=1 transfer=copy queue_family=0 present_mode=fifo requested_mode=fifo release_mode=wait gpu_timing=off timestamp_period_ps=0",
+    "nativePrivatePresentTraceObserved": true,
+    "acquireTraceObserved": false,
+    "note": "Warnings and callbacks are sampled; warning count is not total rejected submissions. Missing exact targets return EAGAIN; host swap counters do not include these rejections."
+  }
+}

@@ -1,0 +1,106 @@
+10-04 13:51:56.584 30320 30668 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 21fbb36 335f6b7][ProcReg] complete pid=30914 name=wineboot.exe exit=0 source=ncp-exit
+10-04 13:51:57.601 30320 30668 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3d50a3a 335f6b7][ProcReg] complete pid=31057 name=wineboot.exe exit=0 source=ncp-exit
+10-04 13:51:57.814 30320 30668 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 276a8ae 335f6b7][ProcReg] complete pid=30900 name=wineboot exit=0 source=ncp-exit
+10-04 13:52:00.259 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 6daffd 335f6b7][ProcReg] complete pid=31189 name=explorer.exe exit=0 source=ncp-exit
+10-04 13:52:00.275 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 4f4456 335f6b7][ProcReg] complete pid=31168 name=explorer.exe exit=11 source=ncp-exit
+10-04 13:52:07.864 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3959565 335f6b7][ProcReg] complete pid=31076 name=winedevice.exe exit=0 source=ncp-exit
+10-04 13:52:10.203 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3bb4b00 335f6b7][ProcReg] complete pid=31218 name=rpcss.exe exit=0 source=ncp-exit
+10-04 13:52:18.451 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2a77a9a 335f6b7][ProcReg] complete pid=31294 name=plugplay.exe exit=0 source=ncp-exit
+10-04 13:52:28.980 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 160c550 335f6b7][ProcReg] complete pid=31526 name=winedevice.exe exit=0 source=ncp-exit
+10-04 13:52:35.540 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 211526 335f6b7][ProcReg] complete pid=31476 name=steamerrorreporter64.exe exit=11 source=ncp-exit
+10-04 13:52:38.297 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=134797548584987 pid=31385 surface=27 source=1200x800 layer=1200x800+4,30 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 13:52:49.654 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2da01eb 335f6b7][ProcReg] complete pid=31735 name=winedevice.exe exit=0 source=ncp-exit
+10-04 13:52:50.091 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=134797548585024 pid=31385 surface=64 source=311x78 layer=311x78+891,694 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 13:52:59.946 30320 30699 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 263800 335f6b7][ProcReg] complete pid=31852 name=winedevice.exe exit=0 source=ncp-exit
+10-04 13:53:49.458 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=139397458559034 pid=32456 surface=58 source=1200x800 layer=1200x800+0,0 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 13:53:50.702 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 1a050e1 335f6b7][ProcReg] complete pid=32678 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 13:53:52.530 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 267997a 335f6b7][ProcReg] complete pid=32712 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 13:53:54.277 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2b03c35 335f6b7][ProcReg] complete pid=32777 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 13:53:56.209 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 4a31d7 335f6b7][ProcReg] complete pid=32810 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 13:53:56.388 30320 30320 I A00000/com.vintage.pomelopro/WL_Server: [Input] fs-pick tl=#6 pri=6 zc=1 layer=1200x800 buf=1200x800 → content=1200x800
+10-04 13:53:58.011 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3bedf25 335f6b7][ProcReg] complete pid=32853 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 13:53:59.784 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 404e4d 335f6b7][ProcReg] complete pid=32878 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 13:56:45.027 30320 30699 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 ed38e6 335f6b7][ProcReg] complete pid=32456 name=SenrenBanka.exe exit=11 source=ncp-exit
+10-04 13:56:49.531 30320 30699 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 11c0b49 335f6b7][ProcReg] complete pid=32661 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 13:57:27.677 30320 30699 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2d04394 335f6b7][ProcReg] complete pid=34355 name=wallpaperui.exe exit=11 source=ncp-exit
+10-04 13:57:28.024 30320 30699 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 57d84f 335f6b7][ProcReg] complete pid=34346 name=launcher.exe exit=0 source=ncp-exit
+10-04 13:57:29.074 30320 30699 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 373bae8 335f6b7][ProcReg] complete pid=34378 name=launcher.exe exit=0 source=ncp-exit
+10-04 13:57:51.491 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=149134149419091 pid=34723 surface=83 source=1020x700 layer=1020x700+90,50 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 13:57:57.025 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2b91566 335f6b7][ProcReg] complete pid=35625 name=wallpaperui.exe exit=11 source=ncp-exit
+10-04 13:58:01.124 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=149134149419097 pid=34723 surface=89 source=1020x700 layer=1020x700+90,50 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 13:58:03.717 30320 30320 I A00000/com.vintage.pomelopro/WL_Server: [Input] fs-pick tl=#4 pri=4 zc=0 layer=0x0 buf=1200x800 → content=1200x800
+10-04 13:58:23.358 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 15af0b4 335f6b7][ProcReg] complete pid=35508 name=wallpaperui.exe exit=11 source=ncp-exit
+10-04 13:58:24.168 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 37adb54 335f6b7][ProcReg] complete pid=35495 name=wallpaperui.exe exit=11 source=ncp-exit
+10-04 13:58:24.712 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 137d03d 335f6b7][ProcReg] complete pid=34899 name=wallpaperui.exe exit=11 source=ncp-exit
+10-04 13:58:24.722 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 32f5750 335f6b7][ProcReg] complete pid=34723 name=wallpaperui.exe exit=0 source=ncp-exit
+10-04 13:58:24.747 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 20a15fb 335f6b7][ProcReg] complete pid=35076 name=wallpaperui.exe exit=11 source=ncp-exit
+10-04 13:58:25.022 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 23e038f 335f6b7][ProcReg] complete pid=34416 name=wallpaperui.exe exit=11 source=ncp-exit
+10-04 13:58:34.986 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 340403b 335f6b7][ProcReg] complete pid=36152 name=x64launcher.exe exit=0 source=ncp-exit
+10-04 13:58:45.193 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=155241592913943 pid=36145 surface=23 source=1200x800 layer=1200x800+0,0 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 13:59:14.243 30320 30320 I A00000/com.vintage.pomelopro/WL_Server: [Input] fs-pick tl=#8 pri=136 zc=0 layer=0x0 buf=1200x800 → content=1200x800
+10-04 14:00:06.251 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3f0f962 335f6b7][ProcReg] complete pid=36145 name=shanhelvtan.exe exit=11 source=ncp-exit
+10-04 14:00:06.666 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2c6afd6 335f6b7][ProcReg] complete pid=36167 name=UnityCrashHandler64.exe exit=11 source=ncp-exit
+10-04 14:00:07.397 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 1256e15 335f6b7][ProcReg] complete pid=36894 name=UnityCrashHandler64.exe exit=11 source=ncp-exit
+10-04 14:00:11.839 30320 30320 I A00000/com.vintage.pomelopro/WL_Server: [Input] fs-pick tl=#4 pri=4 zc=0 layer=0x0 buf=1200x800 → content=1200x800
+10-04 14:00:49.506 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=159343286681658 pid=37100 surface=58 source=1200x800 layer=1200x800+0,0 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 14:00:49.619 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] frame=1 tl=1 key=159343286681658 source=1200x800 layer=1200x800+0,0 signals=2 failures=0
+10-04 14:00:50.904 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 27adb5e 335f6b7][ProcReg] complete pid=37316 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 14:00:52.577 30320 30842 I A00000/com.vintage.pomelopro/WL_Server: STEAM-WINDOW: window=(37100,27) toplevel=10 geometry=1200x800+0,0 visible=1 binding=none producer=0x0 extent=0x0 producerAgeMs=0 drawAgeMs=0 contentSource=SHM shmFrame=1 inputTarget=4 class=SHM
+10-04 14:00:53.129 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 198b4af 335f6b7][ProcReg] complete pid=37342 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 14:00:55.142 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 dee03b 335f6b7][ProcReg] complete pid=37366 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 14:00:57.365 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 1cfacc 335f6b7][ProcReg] complete pid=37399 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 14:00:59.307 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 26c372b 335f6b7][ProcReg] complete pid=37429 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 14:01:01.018 30320 30670 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 18c868e 335f6b7][ProcReg] complete pid=37454 name=GameOverlayUI.exe exit=11 source=ncp-exit
+10-04 14:01:12.010 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=134797548585050 pid=31385 surface=90 source=233x801 layer=233x801+0,0 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 14:01:35.003 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] consumer attached tl=1 key=134797548584995 pid=31385 surface=35 source=233x801 layer=233x801+0,0 queue=3 size_ret=0 usage_ret=0 drop_ret=0
+10-04 14:01:39.147 30320 30842 I A00000/com.vintage.pomelopro/WL_Server: STEAM-WINDOW: window=(37100,27) toplevel=10 geometry=1200x800+0,0 visible=1 binding=none producer=0x0 extent=0x0 producerAgeMs=0 drawAgeMs=0 contentSource=SHM shmFrame=1 inputTarget=4 class=SHM
+10-04 14:01:41.419 30320 31182 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] frame=1200 tl=1 key=159343286681658 source=1200x800 layer=1200x800+0,0 signals=1205 failures=0
+10-04 14:01:45.476 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=30897 name=wineserver
+10-04 14:01:45.478 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=30922 name=services.exe
+10-04 14:01:45.478 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=30930 name=winedevice.exe
+10-04 14:01:45.478 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=30946 name=plugplay.exe
+10-04 14:01:45.479 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=30960 name=svchost.exe
+10-04 14:01:45.479 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31008 name=winedevice.exe
+10-04 14:01:45.479 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31065 name=services.exe
+10-04 14:01:45.480 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31101 name=desktop
+10-04 14:01:45.480 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31107 name=explorer.exe
+10-04 14:01:45.480 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31118 name=explorer.exe
+10-04 14:01:45.480 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31157 name=winehua_keep.exe
+10-04 14:01:45.481 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31253 name=steam.exe
+10-04 14:01:45.481 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31271 name=tabtip.exe
+10-04 14:01:45.483 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31316 name=tabtip.exe
+10-04 14:01:45.484 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31385 name=steamwebhelper.exe
+10-04 14:01:45.486 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31515 name=svchost.exe
+10-04 14:01:45.486 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=31643 name=winedevice.exe
+10-04 14:01:45.490 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=34393 name=wallpaper64.exe
+10-04 14:01:45.490 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=37100 name=SenrenBanka.exe
+10-04 14:01:45.491 30320 30320 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll pid=37302 name=GameOverlayUI.exe
+10-04 14:01:45.494 30320 30320 I A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] killAll session descendants=0 tracked=20
+10-04 14:01:45.500 30320 30320 I A00000/com.vintage.pomelopro/WL_Server: [MW] DestroyAllToplevels: 6 toplevel(s) teardown
+10-04 14:01:45.545 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 b4338 335f6b7][ProcReg] complete pid=30922 name=services.exe exit=9 source=ncp-exit
+10-04 14:01:45.563 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 354151b 335f6b7][ProcReg] complete pid=30946 name=plugplay.exe exit=9 source=ncp-exit
+10-04 14:01:45.575 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 a872b9 335f6b7][ProcReg] complete pid=30960 name=svchost.exe exit=9 source=ncp-exit
+10-04 14:01:45.576 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3f81991 335f6b7][ProcReg] complete pid=31008 name=winedevice.exe exit=9 source=ncp-exit
+10-04 14:01:45.576 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3088066 335f6b7][ProcReg] complete pid=31065 name=services.exe exit=9 source=ncp-exit
+10-04 14:01:45.576 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 4badde 335f6b7][ProcReg] complete pid=31107 name=explorer.exe exit=9 source=ncp-exit
+10-04 14:01:45.576 30320 30663 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 7e0d12 335f6b7][ProcReg] complete pid=31118 name=explorer.exe exit=9 source=ncp-exit
+10-04 14:01:45.576 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2cf64b1 335f6b7][ProcReg] complete pid=31271 name=tabtip.exe exit=9 source=ncp-exit
+10-04 14:01:45.585 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 7dd014 335f6b7][ProcReg] complete pid=30897 name=wineserver exit=9 source=ncp-exit
+10-04 14:01:45.590 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 1e2f5fd 335f6b7][ProcReg] complete pid=30930 name=winedevice.exe exit=9 source=ncp-exit
+10-04 14:01:45.591 30320 37993 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 1946d7c 335f6b7][ProcReg] complete pid=31253 name=steam.exe exit=9 source=ncp-exit
+10-04 14:01:45.591 30320 37816 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 defc2a 335f6b7][ProcReg] complete pid=31316 name=tabtip.exe exit=9 source=ncp-exit
+10-04 14:01:45.593 30320 37816 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 29f8be6 335f6b7][ProcReg] complete pid=31385 name=steamwebhelper.exe exit=9 source=ncp-exit
+10-04 14:01:45.593 30320 37816 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 1dc2da1 335f6b7][ProcReg] complete pid=37100 name=SenrenBanka.exe exit=9 source=ncp-exit
+10-04 14:01:45.594 30320 37816 W A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 34bd908 335f6b7][ProcReg] complete pid=37302 name=GameOverlayUI.exe exit=9 source=ncp-exit
+10-04 14:01:45.668 30320 30320 I A00000/com.vintage.pomelopro/WL_Input: [Input] session state reset (focus/buttons/modifiers/position/visible)
+10-04 14:01:45.668 30320 30320 I A00000/com.vintage.pomelopro/WL_Server: [MW] session state reset (firstFrame/grab/input focus+keys)
+10-04 13:52:37.867 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548584987 ctx=5 pid=31385 surface=27
+10-04 13:52:38.609 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548585002 ctx=5 pid=31385 surface=42
+10-04 13:52:38.887 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548585008 ctx=5 pid=31385 surface=48
+10-04 13:52:39.166 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548585014 ctx=5 pid=31385 surface=54
+10-04 14:00:59.858 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548584994 ctx=5 pid=31385 surface=34
+10-04 14:01:14.863 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548585056 ctx=5 pid=31385 surface=96
+10-04 14:01:34.972 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548584995 ctx=5 pid=31385 surface=35
+10-04 14:01:35.906 30865 30865 W A00000/melopro:Native_libvirgl_child0/virgl-presenter: [VENUS-PRESENT][NCP] target missing key=134797548585004 ctx=5 pid=31385 surface=44
+10-04 13:52:39.543 30865 30865 I A00000/melopro:Native_libvirgl_child0/venus-presenter: [VENUS-PRESENT][NCP] swapchain ready key=134797548584987 source=1200x800 target=1200x800 source_format=37 target_format=37 images=3 blit_supported=1 transfer=copy queue_family=0 present_mode=fifo requested_mode=fifo release_mode=wait gpu_timing=off timestamp_period_ps=0
+10-04 14:00:59.593 30865 30865 I A00000/melopro:Native_libvirgl_child0/virgl-child: [VENUS-PRESENT][NCP] callback count=12203 ok=11903 retry=0 fail=300 ctx=5 serial=1 pid=31385 surface=90 key=134797548585050 size=313x452 result=-11

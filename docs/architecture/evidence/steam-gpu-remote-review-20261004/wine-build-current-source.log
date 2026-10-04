@@ -1,0 +1,1622 @@
+[32m[BUILD][0m Wow64 exception dispatch frame guard quarantined (not applied)
+[32m[BUILD][0m Wow32 stack top pad experiment quarantined (not applied)
+[32m[BUILD][0m External-font registration repair already applied
+[32m[BUILD][0m Signal-safe diagnostic stack reader already applied
+[32m[BUILD][0m App-managed desktop lifetime already applied
+[32m[BUILD][0m Client-only window state refresh already applied
+[32m[BUILD][0m Surface region update without USER lock inversion already applied
+[32m[BUILD][0m Direct OHOS WSI and running-window resize smoke already applied
+[32m[BUILD][0m Owner-attached decoration float not managed already applied
+[32m[BUILD][0m Durable wineboot prefix completion handshake already applied
+[32m[BUILD][0m Prefix migration under wineserver session lock already applied
+[32m[BUILD][0m RPGXP forensic diagnostics already applied
+[32m[BUILD][0m Per-process GDI font antialiasing override already applied
+[32m[BUILD][0m Exec-section EOF-tolerant read already applied
+[32m[BUILD][0m PE large-address-aware default already applied
+[32m[BUILD][0m Wayland configure window lifetime already applied
+[32m[BUILD][0m Private Vulkan presentation validation already applied
+[32m[BUILD][0m Broker argument metadata logging already applied
+[32m[BUILD][0m Broker v2 complete startup contract already applied
+[32m[BUILD][0m SHM geometry and viewport last-sent state cache already applied
+[32m[BUILD][0m Private Vulkan signal-only acquire already applied
+[32m[BUILD][0m === 构建 Wine ===
+[32m[BUILD][0m --- Native 构建 (winegcc 等 host 工具) ---
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables...
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... none needed
+checking for g++... g++
+checking whether the compiler supports GNU C++... yes
+checking whether g++ accepts -g... yes
+checking for g++ option to enable C++11 features... none needed
+checking for cpp... cpp
+checking for ld... ld
+checking for the directory containing the Wine tools... none needed
+checking for flex... flex
+checking whether flex is recent enough... yes
+checking for bison... bison
+checking whether bison is recent enough... yes
+checking for strip... strip
+checking whether ln -s works... yes
+checking for pkg-config... pkg-config
+checking for msgfmt... msgfmt
+checking whether msgfmt supports contexts... yes
+checking for x86_64-w64-mingw32-gcc... x86_64-w64-mingw32-gcc
+checking whether x86_64-w64-mingw32-gcc supports -target x86_64-windows -fuse-ld=lld -Wl,-subsystem:console -Wl,-WX --no-default-config... no
+checking whether x86_64-w64-mingw32-gcc supports -target x86_64-windows -fuse-ld=lld -Wl,-subsystem:console -Wl,-WX... no
+checking whether x86_64-w64-mingw32-gcc works... yes
+checking for x86_64-w64-mingw32-gcc option to enable C99 features... none needed
+checking whether x86_64-w64-mingw32-gcc supports SEH directives... yes
+checking whether x86_64-w64-mingw32-gcc supports -fno-strict-aliasing... yes
+checking whether x86_64-w64-mingw32-gcc supports -Werror=unknown-warning-option... no
+checking whether x86_64-w64-mingw32-gcc supports -Werror=unused-command-line-argument... no
+checking whether x86_64-w64-mingw32-gcc supports -Werror=ignored-optimization-argument... no
+checking whether x86_64-w64-mingw32-gcc supports -Werror=unsupported-floating-point-opt... no
+checking whether x86_64-w64-mingw32-gcc supports -Wdeclaration-after-statement... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wempty-body... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wignored-qualifiers... yes
+checking whether x86_64-w64-mingw32-gcc supports -Winit-self... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wpacked-not-aligned... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wmicrosoft-enum-forward-reference... no
+checking whether x86_64-w64-mingw32-gcc supports -Wshift-overflow=2... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wstrict-prototypes... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wtype-limits... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wunused-but-set-parameter... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wvla... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wwrite-strings... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wpointer-arith... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wlogical-op... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wabsolute-value... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wenum-enum-conversion... no
+checking whether x86_64-w64-mingw32-gcc supports -Wenum-conversion... no
+checking whether x86_64-w64-mingw32-gcc supports -ffunction-sections... yes
+checking whether x86_64-w64-mingw32-gcc supports -fasync-exceptions -DMIN_CLANG_VERSION=19... no
+checking whether x86_64-w64-mingw32-gcc supports -ffp-exception-behavior=maytrap... no
+checking whether x86_64-w64-mingw32-gcc supports -fms-hotpatch -DMIN_CLANG_VERSION=18... no
+checking whether x86_64-w64-mingw32-gcc supports -flarge-source-files -Wmisleading-indentation... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wformat-overflow... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wnonnull... yes
+checking whether x86_64-w64-mingw32-gcc supports -mcx16... yes
+checking whether x86_64-w64-mingw32-gcc supports -mcmodel=small... yes
+checking whether x86_64-w64-mingw32-gcc supports -Wl,-debug:dwarf... no
+checking whether x86_64-w64-mingw32-gcc supports -gdwarf-4... yes
+checking for i386_set_ldt in -li386... no
+checking for  option for large files... none needed
+checking for  option for timestamps after 2038... none needed
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking for CL/cl.h... no
+checking for OpenCL/opencl.h... no
+checking for arpa/inet.h... yes
+checking for arpa/nameser.h... yes
+checking for asm/termbits.h... yes
+checking for asm/types.h... yes
+checking for asm/user.h... no
+checking for bluetooth/bluetooth.h... no
+checking for elf.h... yes
+checking for gettext-po.h... no
+checking for link.h... yes
+checking for linux/cdrom.h... yes
+checking for linux/errqueue.h... yes
+checking for linux/filter.h... yes
+checking for linux/fs.h... yes
+checking for linux/futex.h... yes
+checking for linux/hdreg.h... yes
+checking for linux/hidraw.h... yes
+checking for linux/input.h... yes
+checking for linux/ioctl.h... yes
+checking for linux/major.h... yes
+checking for linux/memfd.h... yes
+checking for linux/ntsync.h... yes
+checking for linux/param.h... yes
+checking for linux/seccomp.h... yes
+checking for linux/serial.h... yes
+checking for linux/types.h... yes
+checking for linux/ucdrom.h... no
+checking for linux/userfaultfd.h... yes
+checking for linux/wireless.h... yes
+checking for lwp.h... no
+checking for mach-o/loader.h... no
+checking for mach/mach.h... no
+checking for machine/cpu.h... no
+checking for machine/sysarch.h... no
+checking for mntent.h... yes
+checking for netdb.h... yes
+checking for netinet/in.h... yes
+checking for netinet/in_systm.h... yes
+checking for netinet/tcp.h... yes
+checking for netinet/tcp_fsm.h... no
+checking for pcap/pcap.h... no
+checking for port.h... no
+checking for pwd.h... yes
+checking for sched.h... yes
+checking for scsi/scsi.h... yes
+checking for scsi/scsi_ioctl.h... yes
+checking for scsi/sg.h... yes
+checking for sys/attr.h... no
+checking for sys/auxv.h... yes
+checking for sys/cdio.h... no
+checking for sys/epoll.h... yes
+checking for sys/event.h... no
+checking for sys/eventfd.h... yes
+checking for sys/extattr.h... no
+checking for sys/filio.h... no
+checking for sys/ipc.h... yes
+checking for sys/link.h... no
+checking for sys/modem.h... no
+checking for sys/mtio.h... yes
+checking for sys/param.h... yes
+checking for sys/personality.h... yes
+checking for sys/prctl.h... yes
+checking for sys/ptrace.h... yes
+checking for sys/queue.h... yes
+checking for sys/random.h... yes
+checking for sys/resource.h... yes
+checking for sys/scsiio.h... no
+checking for sys/shm.h... yes
+checking for sys/signal.h... yes
+checking for sys/socketvar.h... yes
+checking for sys/sockio.h... no
+checking for sys/statvfs.h... yes
+checking for sys/strtio.h... no
+checking for sys/syscall.h... yes
+checking for sys/sysinfo.h... yes
+checking for sys/times.h... yes
+checking for sys/uio.h... yes
+checking for sys/user.h... yes
+checking for sys/utsname.h... yes
+checking for sys/vnode.h... no
+checking for sys/xattr.h... yes
+checking for syscall.h... yes
+checking for utime.h... yes
+checking for valgrind/memcheck.h... no
+checking for valgrind/valgrind.h... no
+checking for vosk_api.h... no
+checking for sys/mkdev.h... no
+checking for sys/sysmacros.h... yes
+checking for sys/conf.h... no
+checking for sys/mount.h... yes
+checking for sys/statfs.h... yes
+checking for sys/user.h... (cached) yes
+checking for sys/vfs.h... yes
+checking for sys/sysctl.h... no
+checking for netinet/ip.h... yes
+checking for net/if.h... yes
+checking for net/if_arp.h... yes
+checking for net/if_dl.h... no
+checking for net/if_types.h... no
+checking for net/route.h... yes
+checking for netinet/if_ether.h... yes
+checking for netinet/in_pcb.h... no
+checking for netinet/ip_icmp.h... yes
+checking for netinet/ip_var.h... no
+checking for netinet/udp.h... yes
+checking for netinet6/ip6_var.h... no
+checking for netipx/ipx.h... yes
+checking for sys/un.h... yes
+checking for netinet/udp_var.h... no
+checking for netinet/icmp_var.h... no
+checking for netinet/icmp6.h... yes
+checking for netinet/tcp_var.h... no
+checking for linux/ipx.h... no
+checking for linux/irda.h... no
+checking for linux/rtnetlink.h... yes
+checking for resolv.h... yes
+checking for ifaddrs.h... yes
+checking for sys/ucontext.h... yes
+checking for sys/thr.h... no
+checking for pthread_np.h... no
+checking for linux/videodev2.h... yes
+checking for libprocstat.h... no
+checking for bluetooth/rfcomm.h... no
+checking whether getxattr takes additional arguments... no
+checking for ldd... /usr/bin/ldd
+checking for otool... no
+checking for readelf... readelf
+checking whether -Wl,-z,defs works correctly... yes
+checking whether the compiler supports -Wl,--export-dynamic... yes
+checking whether the compiler supports -static-pie... yes
+checking for pthread_create... yes
+checking how to run the C preprocessor... gcc -m64 -E
+checking for X... disabled
+checking for SCardEstablishContext in -lpcsclite... no
+checking for sys/inotify.h... yes
+checking for inotify_add_watch in -linotify... no
+checking for gnutls/gnutls.h... no
+checking for gmp.h... no
+checking for libusb.h... no
+checking for -lv4l2... not found
+checking for gphoto2-camera.h... no
+checking for gphoto2-port.h... no
+checking for resolver library... -lresolv
+checking for res_getservers... no
+checking for ft2build.h... (cached) yes
+checking for -lfreetype... (cached) libfreetype.so.6
+checking for pthread_getthreadid_np... no
+checking for sys/soundcard.h... yes
+checking for oss_sysinfo.numaudioengines... no
+checking for libudev.h... no
+checking for unw_step... no
+checking for unw_step in libunwind... no
+checking for SDL.h... no
+checking for cups/cups.h... no
+checking for cups/ppd.h... no
+checking for -lodbc... not found
+checking for -lvosk... not found
+checking for piper/piper_c.h... no
+checking whether the compiler supports -Werror=unknown-warning-option... no
+checking whether the compiler supports -Werror=unused-command-line-argument... no
+checking whether the compiler supports -Werror=ignored-optimization-argument... no
+checking whether the compiler supports -fcf-protection=none... yes
+checking whether the compiler supports -fvisibility=hidden... yes
+checking whether the compiler supports -fno-stack-protector... yes
+checking whether the compiler supports -fno-strict-aliasing... yes
+checking whether the compiler supports -Wdeclaration-after-statement... yes
+checking whether the compiler supports -Wempty-body... yes
+checking whether the compiler supports -Wignored-qualifiers... yes
+checking whether the compiler supports -Winit-self... yes
+checking whether the compiler supports -Wlogical-op... yes
+checking whether the compiler supports -Wpacked-not-aligned... yes
+checking whether the compiler supports -Wpointer-arith... yes
+checking whether the compiler supports -Wshift-overflow=2... yes
+checking whether the compiler supports -Wstrict-prototypes... yes
+checking whether the compiler supports -Wtype-limits... yes
+checking whether the compiler supports -Wunused-but-set-parameter... yes
+checking whether the compiler supports -Wvla... yes
+checking whether the compiler supports -Wwrite-strings... yes
+checking whether the compiler supports -flarge-source-files -Wmisleading-indentation... yes
+checking for flags needed for 64-bit compare-and-swap support... none needed
+checking whether the compiler supports -gdwarf-4... yes
+checking whether the compiler supports -fno-builtin... yes
+checking whether the compiler supports -fshort-wchar... yes
+checking whether the compiler supports -Wno-format... yes
+checking for working -mabi=ms... yes
+checking for the need to disable Fortify... yes
+checking whether CFI directives are supported in assembly code... yes
+checking for library containing dlopen... none required
+checking for dladdr1... yes
+checking for dlinfo... yes
+checking for epoll_create... yes
+checking for epoll_pwait2... yes
+checking for fstatfs... yes
+checking for futimens... yes
+checking for futimes... yes
+checking for futimesat... yes
+checking for getaddrinfo... yes
+checking for getattrlist... no
+checking for getauxval... yes
+checking for getifaddrs... yes
+checking for getrandom... yes
+checking for kqueue... no
+checking for memfd_create... yes
+checking for pipe2... yes
+checking for port_create... no
+checking for posix_fadvise... yes
+checking for posix_fallocate... yes
+checking for ppoll... yes
+checking for prctl... yes
+checking for process_vm_readv... yes
+checking for process_vm_writev... yes
+checking for sched_getcpu... yes
+checking for sched_yield... yes
+checking for setproctitle... no
+checking for setprogname... no
+checking for sigprocmask... yes
+checking for sysinfo... yes
+checking for tcdrain... yes
+checking for thr_kill2... no
+checking for library containing clock_gettime... none required
+checking for library containing shm_open... none required
+checking for sched_setaffinity... yes
+checking whether we can use re-entrant gethostbyname_r Linux style... yes
+checking for struct sockaddr_un.sun_len... no
+checking for sg_io_hdr_t.interface_id... yes
+checking for siginfo_t.si_fd... yes
+checking for struct mtget.mt_blksiz... no
+checking for struct mtget.mt_gstat... yes
+checking for struct mtget.mt_blkno... yes
+checking for struct stat.st_mtim... yes
+checking for struct stat.st_mtimespec... no
+checking for struct stat.st_ctim... yes
+checking for struct stat.st_ctimespec... no
+checking for struct stat.st_atim... yes
+checking for struct stat.st_atimespec... no
+checking for struct stat.st_birthtime... no
+checking for struct stat.st_birthtim... no
+checking for struct stat.st_birthtimespec... no
+checking for struct stat.__st_birthtime... no
+checking for struct stat.__st_birthtim... no
+checking for struct sockaddr_in6.sin6_scope_id... yes
+checking for struct __res_state._u._ext.nscount6... yes
+checking for struct in6_pktinfo.ipi6_addr... yes
+checking for struct ipstat.ips_total... no
+checking for struct ip_stats.ips_total... no
+checking for struct ip6stat.ip6s_total... no
+checking for struct icmpstat.icps_error... no
+checking for struct icmp6stat.icp6s_error... no
+checking for struct tcpstat.tcps_connattempt... no
+checking for struct tcp_stats.tcps_connattempt... no
+checking for struct udpstat.udps_ipackets... no
+checking for struct ifreq.ifr_hwaddr... yes
+checking for struct sysinfo.totalram... yes
+checking for struct sysinfo.mem_unit... yes
+checking for __builtin_popcount... yes
+checking for __clear_cache... yes
+checking whether we need to define __x86_64__... no
+creating Makefile rules... done
+configure: creating ./config.status
+config.status: creating include/config.h
+config.status: include/config.h is unchanged
+config.status: executing include/stamp-h commands
+config.status: executing tools/makedep commands
+/data/src/winehua/thirdparty/wine-valve/tools/makedep.c: In function 'output_module':
+/data/src/winehua/thirdparty/wine-valve/tools/makedep.c:3696:16: warning: assignment discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+ 3696 |             (p = strchr( make->module, '.' )) &&
+      |                ^
+config.status: executing Makefile commands
+
+configure: Wayland 64-bit development files not found, the Wayland driver won't be supported.
+configure: pcap 64-bit development files not found, wpcap won't be supported.
+configure: libpcsclite not found, smart cards won't be supported.
+configure: libdbus 64-bit development files not found, no dynamic device support.
+configure: libsane 64-bit development files not found, scanners won't be supported.
+configure: libusb-1.0 64-bit development files not found (or too old), USB devices won't be supported.
+configure: libv4l2 64-bit development files not found.
+configure: libgphoto2 64-bit development files not found, digital cameras won't be supported.
+configure: libgphoto2_port 64-bit development files not found, digital cameras won't be auto-detected.
+configure: libpulse 64-bit development files not found or too old, Pulse won't be supported.
+configure: FFmpeg 64-bit development files not found.
+configure: gstreamer-1.0 base plugins 64-bit development files not found, GStreamer won't be supported.
+configure: OSS sound system found but too old (OSSv4 needed), OSS won't be supported.
+configure: libudev 64-bit development files not found, plug and play won't be supported.
+configure: libSDL2 64-bit development files not found, SDL2 won't be supported.
+configure: libcapi20 64-bit development files not found, ISDN won't be supported.
+configure: libcups 64-bit development files not found, CUPS won't be supported.
+configure: fontconfig 64-bit development files not found, fontconfig won't be supported.
+configure: libkrb5 64-bit development files not found (or too old), Kerberos won't be supported.
+configure: libnetapi not found, Samba NetAPI won't be supported.
+configure: libvosk 64-bit development files not found, speech recognition won't be supported.
+configure: libgcrypt 64-bit development files not found, GCRYPT won't be supported.
+configure: libpiper 64-bit development files not found, protontts won't be supported.
+
+configure: Finished.  Do 'make' to compile Wine.
+
+
+configure: WARNING: libgnutls 64-bit development files not found, no schannel support.
+
+configure: WARNING: No sound system was found. Windows applications will be silent.
+Makefile:466994: warning: overriding recipe for target 'programs/winehua_audio_smoke/x86_64-windows/main.o'
+Makefile:463232: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/x86_64-windows/main.o'
+Makefile:467117: warning: overriding recipe for target 'programs/winehua_audio_smoke/x86_64-windows/winehua_audio_smoke.exe'
+Makefile:463355: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/x86_64-windows/winehua_audio_smoke.exe'
+Makefile:467128: warning: overriding recipe for target 'programs/winehua_dinput_probe/x86_64-windows/main.o'
+Makefile:463366: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/x86_64-windows/main.o'
+Makefile:467245: warning: overriding recipe for target 'programs/winehua_dinput_probe/x86_64-windows/winehua_dinput_probe.exe'
+Makefile:463483: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/x86_64-windows/winehua_dinput_probe.exe'
+Makefile:467257: warning: overriding recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/main.o'
+Makefile:463495: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/main.o'
+Makefile:467375: warning: overriding recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/winehua_graphics_smoke.exe'
+Makefile:463613: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/winehua_graphics_smoke.exe'
+Makefile:467386: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/main.o'
+Makefile:463624: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/main.o'
+Makefile:467510: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/winehua_d3d11_smoke.exe'
+Makefile:463748: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/winehua_d3d11_smoke.exe'
+Makefile:467522: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/main.o'
+Makefile:463893: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/main.o'
+Makefile:467641: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/winehua_vulkan_smoke.exe'
+Makefile:464012: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/winehua_vulkan_smoke.exe'
+Makefile:467652: warning: overriding recipe for target 'programs/winehua_keep/x86_64-windows/main.o'
+Makefile:464023: warning: ignoring old recipe for target 'programs/winehua_keep/x86_64-windows/main.o'
+Makefile:467762: warning: overriding recipe for target 'programs/winehua_keep/x86_64-windows/winehua_keep.exe'
+Makefile:464133: warning: ignoring old recipe for target 'programs/winehua_keep/x86_64-windows/winehua_keep.exe'
+Makefile:467771: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:340958: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:467783: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:340970: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:467888: warning: overriding recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:341075: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:467996: warning: overriding recipe for target 'dlls/wineohos.drv/x86_64-windows/wineohos.drv'
+Makefile:341183: warning: ignoring old recipe for target 'dlls/wineohos.drv/x86_64-windows/wineohos.drv'
+Makefile:468001: warning: overriding recipe for target 'dlls/wineohos.drv/wineohos.so'
+Makefile:341188: warning: ignoring old recipe for target 'dlls/wineohos.drv/wineohos.so'
+make: 'tools/winegcc/winegcc' is up to date.
+make: 'tools/winebuild/winebuild' is up to date.
+make: 'tools/wrc/wrc' is up to date.
+make: 'tools/widl/widl' is up to date.
+make: 'tools/wine/wine' is up to date.
+make: 'tools/makedep' is up to date.
+make: 'tools/make_xftmpl' is up to date.
+make: 'tools/wmc/wmc' is up to date.
+make: 'tools/sfnt2fon/sfnt2fon' is up to date.
+[32m[BUILD][0m --- OHOS 交叉编译 (Unix .so, WINE_ARCH=aarch64) ---
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... aarch64-unknown-linux-ohos
+checking for aarch64-unknown-linux-ohos-gcc... /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables...
+checking whether we are cross compiling... yes
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot accepts -g... yes
+checking for /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot option to enable C11 features... none needed
+checking whether the compiler supports GNU C++... yes
+checking whether /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang++ --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot accepts -g... yes
+checking for /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang++ --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot option to enable C++11 features... none needed
+checking for aarch64-unknown-linux-ohos-cpp... no
+checking for cpp... cpp
+configure: WARNING: using cross tools not prefixed with host triplet
+checking for aarch64-unknown-linux-ohos-ld... no
+checking for ld... ld
+checking for the directory containing the Wine tools... /data/src/winehua/build/wine-native
+checking for flex... flex
+checking whether flex is recent enough... yes
+checking for bison... bison
+checking whether bison is recent enough... yes
+checking for aarch64-unknown-linux-ohos-strip... no
+checking for strip... strip
+checking whether ln -s works... yes
+checking for aarch64-unknown-linux-ohos-pkg-config... /usr/bin/pkg-config
+checking for msgfmt... msgfmt
+checking whether msgfmt supports contexts... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -target arm64ec-windows -fuse-ld=lld -Wl,-subsystem:console -Wl,-WX --no-default-config... yes
+checking for /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang option to enable C99 features... -D__STDC__
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports SEH directives... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fno-strict-aliasing... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unknown-warning-option... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unused-command-line-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=ignored-optimization-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unsupported-floating-point-opt... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wdeclaration-after-statement... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wempty-body... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wignored-qualifiers... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Winit-self... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpacked-not-aligned... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wmicrosoft-enum-forward-reference... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wshift-overflow=2... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wstrict-prototypes... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wtype-limits... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wunused-but-set-parameter... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wvla... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wwrite-strings... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpointer-arith... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wlogical-op... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wabsolute-value... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wenum-enum-conversion... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffunction-sections... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fasync-exceptions -DMIN_CLANG_VERSION=19... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffp-exception-behavior=maytrap... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fms-hotpatch -DMIN_CLANG_VERSION=18... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -flarge-source-files -Wmisleading-indentation... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wl,-debug:dwarf... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -gdwarf-4... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -target aarch64-windows -fuse-ld=lld -Wl,-subsystem:console -Wl,-WX --no-default-config... yes
+checking for /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang option to enable C99 features... -D__STDC__
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports SEH directives... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fno-strict-aliasing... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unknown-warning-option... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unused-command-line-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=ignored-optimization-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unsupported-floating-point-opt... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wdeclaration-after-statement... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wempty-body... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wignored-qualifiers... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Winit-self... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpacked-not-aligned... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wmicrosoft-enum-forward-reference... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wshift-overflow=2... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wstrict-prototypes... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wtype-limits... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wunused-but-set-parameter... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wvla... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wwrite-strings... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpointer-arith... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wlogical-op... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wabsolute-value... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wenum-enum-conversion... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffunction-sections... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fasync-exceptions -DMIN_CLANG_VERSION=19... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffp-exception-behavior=maytrap... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fms-hotpatch -DMIN_CLANG_VERSION=18... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -flarge-source-files -Wmisleading-indentation... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wl,-debug:dwarf... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -gdwarf-4... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -target i686-windows -fuse-ld=lld -Wl,-subsystem:console -Wl,-WX --no-default-config... yes
+checking for /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang option to enable C99 features... -D__STDC__
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fno-strict-aliasing... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unknown-warning-option... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unused-command-line-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=ignored-optimization-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unsupported-floating-point-opt... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wdeclaration-after-statement... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wempty-body... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wignored-qualifiers... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Winit-self... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpacked-not-aligned... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wmicrosoft-enum-forward-reference... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wshift-overflow=2... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wstrict-prototypes... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wtype-limits... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wunused-but-set-parameter... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wvla... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wwrite-strings... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpointer-arith... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wlogical-op... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wabsolute-value... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wenum-enum-conversion... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffunction-sections... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fasync-exceptions -DMIN_CLANG_VERSION=19... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffp-exception-behavior=maytrap... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fms-hotpatch -DMIN_CLANG_VERSION=18... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -flarge-source-files -Wmisleading-indentation... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fno-omit-frame-pointer... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -mpreferred-stack-boundary=2... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wl,--disable-stdcall-fixup... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wl,-debug:dwarf... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -gdwarf-4... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -target x86_64-windows -fuse-ld=lld -Wl,-subsystem:console -Wl,-WX --no-default-config... yes
+checking for /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang option to enable C99 features... -D__STDC__
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports SEH directives... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fno-strict-aliasing... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unknown-warning-option... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unused-command-line-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=ignored-optimization-argument... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Werror=unsupported-floating-point-opt... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wdeclaration-after-statement... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wempty-body... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wignored-qualifiers... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Winit-self... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpacked-not-aligned... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wmicrosoft-enum-forward-reference... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wshift-overflow=2... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wstrict-prototypes... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wtype-limits... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wunused-but-set-parameter... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wvla... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wwrite-strings... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wpointer-arith... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wlogical-op... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wabsolute-value... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wenum-enum-conversion... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffunction-sections... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fasync-exceptions -DMIN_CLANG_VERSION=19... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -ffp-exception-behavior=maytrap... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -fms-hotpatch -DMIN_CLANG_VERSION=18... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -flarge-source-files -Wmisleading-indentation... no
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wformat-overflow... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wnonnull... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -mcx16... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -mcmodel=small... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -Wl,-debug:dwarf... yes
+checking whether /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang supports -gdwarf-4... yes
+checking for i386_set_ldt in -li386... no
+checking for  option for large files... none needed
+checking for  option for timestamps after 2038... none needed
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking for CL/cl.h... no
+checking for OpenCL/opencl.h... no
+checking for arpa/inet.h... yes
+checking for arpa/nameser.h... yes
+checking for asm/termbits.h... yes
+checking for asm/types.h... yes
+checking for asm/user.h... no
+checking for bluetooth/bluetooth.h... no
+checking for elf.h... yes
+checking for gettext-po.h... no
+checking for link.h... yes
+checking for linux/cdrom.h... yes
+checking for linux/errqueue.h... yes
+checking for linux/filter.h... yes
+checking for linux/fs.h... yes
+checking for linux/futex.h... yes
+checking for linux/hdreg.h... yes
+checking for linux/hidraw.h... yes
+checking for linux/input.h... yes
+checking for linux/ioctl.h... yes
+checking for linux/major.h... yes
+checking for linux/memfd.h... yes
+checking for linux/ntsync.h... no
+checking for linux/param.h... yes
+checking for linux/seccomp.h... yes
+checking for linux/serial.h... yes
+checking for linux/types.h... yes
+checking for linux/ucdrom.h... no
+checking for linux/userfaultfd.h... yes
+checking for linux/wireless.h... yes
+checking for lwp.h... no
+checking for mach-o/loader.h... no
+checking for mach/mach.h... no
+checking for machine/cpu.h... no
+checking for machine/sysarch.h... no
+checking for mntent.h... yes
+checking for netdb.h... yes
+checking for netinet/in.h... yes
+checking for netinet/in_systm.h... yes
+checking for netinet/tcp.h... yes
+checking for netinet/tcp_fsm.h... no
+checking for pcap/pcap.h... no
+checking for port.h... no
+checking for pwd.h... yes
+checking for sched.h... yes
+checking for scsi/scsi.h... yes
+checking for scsi/scsi_ioctl.h... yes
+checking for scsi/sg.h... yes
+checking for sys/attr.h... no
+checking for sys/auxv.h... yes
+checking for sys/cdio.h... no
+checking for sys/epoll.h... yes
+checking for sys/event.h... no
+checking for sys/eventfd.h... yes
+checking for sys/extattr.h... no
+checking for sys/filio.h... no
+checking for sys/ipc.h... yes
+checking for sys/link.h... no
+checking for sys/modem.h... no
+checking for sys/mtio.h... yes
+checking for sys/param.h... yes
+checking for sys/personality.h... yes
+checking for sys/prctl.h... yes
+checking for sys/ptrace.h... yes
+checking for sys/queue.h... yes
+checking for sys/random.h... yes
+checking for sys/resource.h... yes
+checking for sys/scsiio.h... no
+checking for sys/shm.h... yes
+checking for sys/signal.h... yes
+checking for sys/socketvar.h... no
+checking for sys/sockio.h... no
+checking for sys/statvfs.h... yes
+checking for sys/strtio.h... no
+checking for sys/syscall.h... yes
+checking for sys/sysinfo.h... yes
+checking for sys/times.h... yes
+checking for sys/uio.h... yes
+checking for sys/user.h... yes
+checking for sys/utsname.h... yes
+checking for sys/vnode.h... no
+checking for sys/xattr.h... yes
+checking for syscall.h... yes
+checking for utime.h... yes
+checking for valgrind/memcheck.h... no
+checking for valgrind/valgrind.h... no
+checking for vosk_api.h... no
+checking for sys/mkdev.h... no
+checking for sys/sysmacros.h... yes
+checking for sys/conf.h... no
+checking for sys/mount.h... yes
+checking for sys/statfs.h... yes
+checking for sys/user.h... (cached) yes
+checking for sys/vfs.h... yes
+checking for sys/sysctl.h... no
+checking for netinet/ip.h... yes
+checking for net/if.h... yes
+checking for net/if_arp.h... yes
+checking for net/if_dl.h... no
+checking for net/if_types.h... no
+checking for net/route.h... yes
+checking for netinet/if_ether.h... yes
+checking for netinet/in_pcb.h... no
+checking for netinet/ip_icmp.h... yes
+checking for netinet/ip_var.h... no
+checking for netinet/udp.h... yes
+checking for netinet6/ip6_var.h... no
+checking for netipx/ipx.h... no
+checking for sys/un.h... yes
+checking for netinet/udp_var.h... no
+checking for netinet/icmp_var.h... no
+checking for netinet/icmp6.h... yes
+checking for netinet/tcp_var.h... no
+checking for linux/ipx.h... yes
+checking for linux/irda.h... no
+checking for linux/rtnetlink.h... yes
+checking for resolv.h... yes
+checking for ifaddrs.h... yes
+checking for sys/ucontext.h... yes
+checking for sys/thr.h... no
+checking for pthread_np.h... no
+checking for linux/videodev2.h... yes
+checking for libprocstat.h... no
+checking for bluetooth/rfcomm.h... no
+checking whether getxattr takes additional arguments... no
+checking for ldd... /usr/bin/ldd
+checking for aarch64-unknown-linux-ohos-otool... no
+checking for otool... no
+checking for aarch64-unknown-linux-ohos-readelf... no
+checking for readelf... readelf
+checking whether -Wl,-z,defs works correctly... yes
+checking whether the compiler supports -Wl,--export-dynamic... yes
+checking whether the compiler supports -static-pie... yes
+checking for pthread_create... yes
+checking for -lEGL... libEGL.so
+checking how to run the C preprocessor... /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -E
+checking for X... disabled
+checking for wayland-client.h... (cached) yes
+checking for wl_display_connect in -lwayland-client... (cached) yes
+checking for wayland-scanner... /data/src/winehua/build/host-tools/bin/wayland-scanner
+checking for xkb_context_new in -lxkbcommon... (cached) yes
+checking for rxkb_context_new in -lxkbregistry... (cached) yes
+checking for wayland-egl.h... yes
+checking for wl_egl_window_create in -lwayland-egl... yes
+checking for SCardEstablishContext in -lpcsclite... no
+checking for sys/inotify.h... yes
+checking for inotify_add_watch in -linotify... no
+checking for gnutls/gnutls.h... (cached) yes
+checking for -lgnutls... (cached) libgnutls.so.30
+checking for gnutls_cipher_init... yes
+checking for xf86drm.h... yes
+checking for -ldrm... libdrm.so.2
+checking for gmp.h... yes
+checking for -lgmp... libgmp.so.10
+checking for libusb.h... no
+checking for -lv4l2... not found
+checking for gphoto2-camera.h... no
+checking for gphoto2-port.h... no
+checking for resolver library... not found
+checking for ft2build.h... (cached) yes
+checking for -lfreetype... (cached) libfreetype.so.6
+checking for pthread_getthreadid_np... no
+checking for libavutil/avutil.h... yes
+checking for libavformat/avformat.h... yes
+checking for libavcodec/avcodec.h... yes
+checking for libavcodec/bsf.h... yes
+checking for av_log_set_callback in -lavutil... yes
+checking for av_find_input_format in -lavformat... yes
+checking for avcodec_get_name in -lavcodec... yes
+checking for gst/gst.h... (cached) yes
+checking whether gint64 defined by gst/gst.h is indeed 64-bit... yes
+checking for gst_pad_new in -lgstreamer-1.0... (cached) yes
+checking for sys/soundcard.h... yes
+checking for oss_sysinfo.numaudioengines... no
+checking for libudev.h... no
+checking for SDL.h... no
+checking for cups/cups.h... no
+checking for cups/ppd.h... no
+checking for -lodbc... not found
+checking for -lvosk... not found
+checking for -lvulkan... (cached) libvulkan.so.1
+checking for piper/piper_c.h... no
+checking whether the compiler supports -Werror=unknown-warning-option... yes
+checking whether the compiler supports -Werror=unused-command-line-argument... yes
+checking whether the compiler supports -Werror=ignored-optimization-argument... yes
+checking whether the compiler supports -fcf-protection=none... yes
+checking whether the compiler supports -fvisibility=hidden... yes
+checking whether the compiler supports -fno-stack-protector... yes
+checking whether the compiler supports -fno-strict-aliasing... yes
+checking whether the compiler supports -Wdeclaration-after-statement... yes
+checking whether the compiler supports -Wempty-body... yes
+checking whether the compiler supports -Wignored-qualifiers... yes
+checking whether the compiler supports -Winit-self... yes
+checking whether the compiler supports -Wlogical-op... no
+checking whether the compiler supports -Wpacked-not-aligned... no
+checking whether the compiler supports -Wpointer-arith... yes
+checking whether the compiler supports -Wshift-overflow=2... no
+checking whether the compiler supports -Wstrict-prototypes... yes
+checking whether the compiler supports -Wtype-limits... yes
+checking whether the compiler supports -Wunused-but-set-parameter... yes
+checking whether the compiler supports -Wvla... yes
+checking whether the compiler supports -Wwrite-strings... yes
+checking whether the compiler supports -flarge-source-files -Wmisleading-indentation... no
+checking for flags needed for 64-bit compare-and-swap support... none needed
+checking whether the compiler supports -gdwarf-4... yes
+checking whether the compiler supports -fno-builtin... yes
+checking whether the compiler supports -fshort-wchar... yes
+checking whether the compiler supports -Wno-format... yes
+checking for the need to disable Fortify... no
+checking whether CFI directives are supported in assembly code... yes
+checking for library containing dlopen... none required
+checking for dladdr1... no
+checking for dlinfo... no
+checking for epoll_create... yes
+checking for epoll_pwait2... no
+checking for fstatfs... yes
+checking for futimens... yes
+checking for futimes... yes
+checking for futimesat... yes
+checking for getaddrinfo... yes
+checking for getattrlist... no
+checking for getauxval... yes
+checking for getifaddrs... yes
+checking for getrandom... yes
+checking for kqueue... no
+checking for memfd_create... yes
+checking for pipe2... yes
+checking for port_create... no
+checking for posix_fadvise... yes
+checking for posix_fallocate... yes
+checking for ppoll... yes
+checking for prctl... yes
+checking for process_vm_readv... yes
+checking for process_vm_writev... yes
+checking for sched_getcpu... yes
+checking for sched_yield... yes
+checking for setproctitle... no
+checking for setprogname... no
+checking for sigprocmask... yes
+checking for sysinfo... yes
+checking for tcdrain... yes
+checking for thr_kill2... no
+checking for library containing clock_gettime... none required
+checking for library containing shm_open... none required
+checking for sched_setaffinity... yes
+checking whether we can use re-entrant gethostbyname_r Linux style... yes
+checking for struct sockaddr_un.sun_len... no
+checking for sg_io_hdr_t.interface_id... yes
+checking for siginfo_t.si_fd... yes
+checking for struct mtget.mt_blksiz... no
+checking for struct mtget.mt_gstat... yes
+checking for struct mtget.mt_blkno... yes
+checking for struct stat.st_mtim... yes
+checking for struct stat.st_mtimespec... no
+checking for struct stat.st_ctim... yes
+checking for struct stat.st_ctimespec... no
+checking for struct stat.st_atim... yes
+checking for struct stat.st_atimespec... no
+checking for struct stat.st_birthtime... no
+checking for struct stat.st_birthtim... no
+checking for struct stat.st_birthtimespec... no
+checking for struct stat.__st_birthtime... no
+checking for struct stat.__st_birthtim... no
+checking for struct sockaddr_in6.sin6_scope_id... yes
+checking for struct __res_state._u._ext.nscount6... yes
+checking for struct in6_pktinfo.ipi6_addr... yes
+checking for struct ipstat.ips_total... no
+checking for struct ip_stats.ips_total... no
+checking for struct ip6stat.ip6s_total... no
+checking for struct icmpstat.icps_error... no
+checking for struct icmp6stat.icp6s_error... no
+checking for struct tcpstat.tcps_connattempt... no
+checking for struct tcp_stats.tcps_connattempt... no
+checking for struct udpstat.udps_ipackets... no
+checking for struct ifreq.ifr_hwaddr... yes
+checking for struct sysinfo.totalram... yes
+checking for struct sysinfo.mem_unit... yes
+checking for __builtin_popcount... yes
+checking for __clear_cache... yes
+checking whether we need to define __aarch64__... no
+creating Makefile rules... done
+configure: creating ./config.status
+config.status: creating include/config.h
+config.status: include/config.h is unchanged
+config.status: executing include/stamp-h commands
+config.status: executing Makefile commands
+
+configure: pcap development files not found, wpcap won't be supported.
+configure: libpcsclite not found, smart cards won't be supported.
+configure: libdbus development files not found, no dynamic device support.
+configure: libsane development files not found, scanners won't be supported.
+configure: libusb-1.0 development files not found (or too old), USB devices won't be supported.
+configure: libv4l2 development files not found.
+configure: libgphoto2 development files not found, digital cameras won't be supported.
+configure: libgphoto2_port development files not found, digital cameras won't be auto-detected.
+configure: libpulse development files not found or too old, Pulse won't be supported.
+configure: OSS sound system found but too old (OSSv4 needed), OSS won't be supported.
+configure: libudev development files not found, plug and play won't be supported.
+configure: libSDL2 development files not found, SDL2 won't be supported.
+configure: libcapi20 development files not found, ISDN won't be supported.
+configure: libcups development files not found, CUPS won't be supported.
+configure: fontconfig development files not found, fontconfig won't be supported.
+configure: libkrb5 development files not found (or too old), Kerberos won't be supported.
+configure: libnetapi not found, Samba NetAPI won't be supported.
+configure: libvosk development files not found, speech recognition won't be supported.
+configure: libgcrypt development files not found, GCRYPT won't be supported.
+configure: libpiper development files not found, protontts won't be supported.
+
+configure: WARNING: No sound system was found. Windows applications will be silent.
+
+configure: Finished.  Do 'make' to compile Wine.
+
+Makefile:614610: warning: overriding recipe for target 'programs/winehua_audio_smoke/aarch64-windows/main.o'
+Makefile:609883: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/aarch64-windows/main.o'
+Makefile:614621: warning: overriding recipe for target 'programs/winehua_audio_smoke/i386-windows/main.o'
+Makefile:609894: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/i386-windows/main.o'
+Makefile:614746: warning: overriding recipe for target 'programs/winehua_audio_smoke/aarch64-windows/winehua_audio_smoke.exe'
+Makefile:610019: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/aarch64-windows/winehua_audio_smoke.exe'
+Makefile:614760: warning: overriding recipe for target 'programs/winehua_audio_smoke/i386-windows/winehua_audio_smoke.exe'
+Makefile:610033: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/i386-windows/winehua_audio_smoke.exe'
+Makefile:614775: warning: overriding recipe for target 'programs/winehua_dinput_probe/aarch64-windows/main.o'
+Makefile:610048: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/aarch64-windows/main.o'
+Makefile:614786: warning: overriding recipe for target 'programs/winehua_dinput_probe/i386-windows/main.o'
+Makefile:610059: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/i386-windows/main.o'
+Makefile:614906: warning: overriding recipe for target 'programs/winehua_dinput_probe/aarch64-windows/winehua_dinput_probe.exe'
+Makefile:610179: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/aarch64-windows/winehua_dinput_probe.exe'
+Makefile:614922: warning: overriding recipe for target 'programs/winehua_dinput_probe/i386-windows/winehua_dinput_probe.exe'
+Makefile:610195: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/i386-windows/winehua_dinput_probe.exe'
+Makefile:614938: warning: overriding recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/main.o'
+Makefile:610211: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/main.o'
+Makefile:614949: warning: overriding recipe for target 'programs/winehua_graphics_smoke/i386-windows/main.o'
+Makefile:610222: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/i386-windows/main.o'
+Makefile:615070: warning: overriding recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/winehua_graphics_smoke.exe'
+Makefile:610343: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/winehua_graphics_smoke.exe'
+Makefile:615085: warning: overriding recipe for target 'programs/winehua_graphics_smoke/i386-windows/winehua_graphics_smoke.exe'
+Makefile:610358: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/i386-windows/winehua_graphics_smoke.exe'
+Makefile:615101: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/main.o'
+Makefile:610374: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/main.o'
+Makefile:615112: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/i386-windows/main.o'
+Makefile:610385: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/i386-windows/main.o'
+Makefile:615238: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/winehua_d3d11_smoke.exe'
+Makefile:610511: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/winehua_d3d11_smoke.exe'
+Makefile:615255: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/i386-windows/winehua_d3d11_smoke.exe'
+Makefile:610528: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/i386-windows/winehua_d3d11_smoke.exe'
+Makefile:615272: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/main.o'
+Makefile:610709: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/main.o'
+Makefile:615283: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/i386-windows/main.o'
+Makefile:610720: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/i386-windows/main.o'
+Makefile:615405: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/winehua_vulkan_smoke.exe'
+Makefile:610842: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/winehua_vulkan_smoke.exe'
+Makefile:615419: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/i386-windows/winehua_vulkan_smoke.exe'
+Makefile:610856: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/i386-windows/winehua_vulkan_smoke.exe'
+Makefile:615435: warning: overriding recipe for target 'programs/winehua_keep/aarch64-windows/main.o'
+Makefile:610872: warning: ignoring old recipe for target 'programs/winehua_keep/aarch64-windows/main.o'
+Makefile:615445: warning: overriding recipe for target 'programs/winehua_keep/i386-windows/main.o'
+Makefile:610882: warning: ignoring old recipe for target 'programs/winehua_keep/i386-windows/main.o'
+Makefile:615557: warning: overriding recipe for target 'programs/winehua_keep/aarch64-windows/winehua_keep.exe'
+Makefile:610994: warning: ignoring old recipe for target 'programs/winehua_keep/aarch64-windows/winehua_keep.exe'
+Makefile:615570: warning: overriding recipe for target 'programs/winehua_keep/i386-windows/winehua_keep.exe'
+Makefile:611007: warning: ignoring old recipe for target 'programs/winehua_keep/i386-windows/winehua_keep.exe'
+Makefile:615583: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:450373: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:615594: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:450384: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:615698: warning: overriding recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:450488: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:615807: warning: overriding recipe for target 'dlls/wineohos.drv/aarch64-windows/wineohos.drv'
+Makefile:450597: warning: ignoring old recipe for target 'dlls/wineohos.drv/aarch64-windows/wineohos.drv'
+Makefile:615818: warning: overriding recipe for target 'dlls/wineohos.drv/i386-windows/wineohos.drv'
+Makefile:450608: warning: ignoring old recipe for target 'dlls/wineohos.drv/i386-windows/wineohos.drv'
+Makefile:615825: warning: overriding recipe for target 'dlls/wineohos.drv/wineohos.so'
+Makefile:450615: warning: ignoring old recipe for target 'dlls/wineohos.drv/wineohos.so'
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/cdrom.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/cdrom.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/debug.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/debug.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/env.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/env.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/file.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/file.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/fsync.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/fsync.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/loader.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/loader.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DBINDIR=\"/opt/winehua/bin\" -DLIBDIR=\"/opt/winehua\" \
+  -DDATADIR=\"/opt/winehua/share\" -DSYSTEMDLLPATH=\"\" -DWINE_UNIX_LIB -Wall -pipe \
+  -fcf-protection=none -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing \
+  -Wdeclaration-after-statement -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith \
+  -Wstrict-prototypes -Wtype-limits -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC \
+  -fasynchronous-unwind-tables -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/loadorder.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/loadorder.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/ohos_broker.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/ohos_broker.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/ohos_broker.c:173:14: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        char sub[1024];
+             ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/ohos_broker.c:200:12: warning: unused variable 'found' [-Wunused-variable]
+    int i, found;
+           ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/fsync.c:60:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+#include "pshpack4.h"
+         ^
+/data/src/winehua/thirdparty/wine-valve/include/pshpack4.h:23:9: note: previous '#pragma pack' directive that modifies alignment is here
+#pragma pack(push,4)
+        ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/fsync.c:61:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+#include "poppack.h"
+         ^
+note: previous '#pragma pack' directive that modifies alignment is here
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/env.c:2063:11: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+    DWORD dllpath_len = 0;
+          ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/loader.c:521:25: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+            const char *wine_bin_dir = getenv( "WINEBINDIR" );
+                        ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/loader.c:711:11: warning: unused variable 'argv' [-Wunused-variable]
+    char *argv[3];
+          ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/loader.c:712:17: warning: unused variable 'debug_flag' [-Wunused-variable]
+    static char debug_flag[] = "-d";
+                ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/loader.c:681:12: warning: unused function 'exec_wineserver' [-Wunused-function]
+static int exec_wineserver( pid_t *pid, char **argv )
+           ^
+2 warnings generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/ohos_virtual.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/ohos_virtual.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/process.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/process.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/registry.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/registry.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+2 warnings generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/security.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/security.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/serial.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/serial.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/ohos_virtual.c:230:19: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        const int rc = mprotect( base, size, rw );
+                  ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/ohos_virtual.c:198:15: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+    const int first_errno = errno;
+              ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/process.c:509:11: warning: variable 'pid' set but not used [-Wunused-but-set-variable]
+    pid_t pid;
+          ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/process.c:474:13: warning: unused function 'set_stdio_fd' [-Wunused-function]
+static void set_stdio_fd( int stdin_fd, int stdout_fd )
+            ^
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/server.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/server.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+4 warnings generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/signal_arm.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/signal_arm.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/signal_arm64.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/signal_arm64.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/signal_i386.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/signal_i386.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/signal_x86_64.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/signal_x86_64.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/socket.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/socket.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+1 warning generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/sync.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/sync.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/system.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/system.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+2 warnings generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/tape.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/tape.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+In file included from /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/signal_arm64.c:48:
+/apps/harmony/sdk/default/openharmony/native/sysroot/usr/include/sys/signal.h:1:2: warning: redirecting incorrect #include <sys/signal.h> to <signal.h> [-W#warnings]
+#warning redirecting incorrect #include <sys/signal.h> to <signal.h>
+ ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/system.c:830:16: warning: assigning to 'char *' from 'const char *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
+        else s = env_override + 1;
+               ^ ~~~~~~~~~~~~~~~~
+1 warning generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/thread.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/thread.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/ntdll/unix/virtual.o /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/virtual.c -Idlls/ntdll \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/ntdll -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DLTC_NO_PROTOTYPES -DLTC_SOURCE \
+  -D_NTSYSTEM_ -D_ACRTIMP= -DWINBASEAPI= -DWINE_UNIX_LIB -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+2 warnings generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/win32u/font.o /data/src/winehua/thirdparty/wine-valve/dlls/win32u/font.c -Idlls/win32u \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/win32u -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -D_WIN32U_ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2 -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/thread.c:1336:34: warning: cast to 'WOW64_CPURESERVED *' (aka 'struct _WOW64_CPURESERVED *') from smaller integer type 'ULONG' (aka 'unsigned int') [-Wint-to-pointer-cast]
+        WOW64_CPURESERVED *cpu = (WOW64_CPURESERVED *)wow_teb->TlsSlots[WOW64_TLS_CPURESERVED];
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/virtual.c:86:
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/uffd_tmp_defs.h:9:9: warning: '__NR_userfaultfd' macro redefined [-Wmacro-redefined]
+#define __NR_userfaultfd 374
+        ^
+/apps/harmony/sdk/default/openharmony/native/sysroot/usr/include/aarch64-linux-ohos/bits/syscall.h:267:9: note: previous definition is here
+#define __NR_userfaultfd 282
+        ^
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/win32u/vulkan.o /data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c -Idlls/win32u \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/win32u -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -D_WIN32U_ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2 -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/virtual.c:2607:15: warning: initializing 'void *' with an expression of type 'const void *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
+        void *end = min( effective_user_space_limit, host_addr_space_limit );
+              ^     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/display.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/display.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/virtual.c:4673:22: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+            WOW_TEB *wow_teb = get_wow_teb( teb );
+                     ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/virtual.c:4692:22: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+            WOW_TEB *wow_teb = get_wow_teb( teb );
+                     ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/virtual.c:5100:14: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        UINT diff = stack_info.start + host_page_size - stack;
+             ^
+/data/src/winehua/thirdparty/wine-valve/dlls/ntdll/unix/virtual.c:2224:21: warning: unused function 'unmap_extra_space' [-Wunused-function]
+static inline void *unmap_extra_space( void *ptr, size_t total_size, size_t wanted_size, size_t align_mask )
+                    ^
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/opengl.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/opengl.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/opengl_readback.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/opengl_readback.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+1 warning generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/vulkan.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/vulkan.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+1 warning generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:2269:29: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+    struct vulkan_instance *instance = vulkan_instance_from_handle( client_instance );
+                            ^
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:2630:24: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        const uint32_t count = min(*format_count, 2u);
+                       ^
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:2660:28: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        VkSurfaceFormatKHR available[2];
+                           ^
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:2715:24: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        const uint32_t count = min(*mode_count, (uint32_t)ARRAY_SIZE(available));
+                       ^
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:2826:24: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        const uint32_t memory_type = winehua_find_memory_type(device->physical_device,
+                       ^
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:3823:18: warning: mixing declarations and code is incompatible with standards before C99 [-Wdeclaration-after-statement]
+        VkResult swapchain_result = present_result == 0 || present_result == 1
+                 ^
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:5106:34: warning: initializer overrides prior initialization of this subobject [-Winitializer-overrides]
+    .p_vkGetSwapchainImagesKHR = win32u_vkGetSwapchainImagesKHR,
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c:5104:34: note: previous initialization is here
+    .p_vkGetSwapchainImagesKHR = win32u_vkGetSwapchainImagesKHR,
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland_data_device.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_data_device.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland_keyboard.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_keyboard.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland_output.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_output.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland_pointer.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_pointer.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/modal.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/modal.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland_surface.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_surface.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland_surface_ohos.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_surface_ohos.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_pointer.c:200:29: warning: unused variable 'surface' [-Wunused-variable]
+    struct wayland_surface *surface;
+                            ^
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/wayland_text_input.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/wayland_text_input.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+1 warning generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/waylanddrv_main.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/waylanddrv_main.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/window.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/window.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/winewayland.drv/window_surface.o /data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv/window_surface.c \
+  -Idlls/winewayland.drv -I/data/src/winehua/thirdparty/wine-valve/dlls/winewayland.drv -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB \
+  -I/data/src/winehua/build/sysroot-ext/usr/include -Wall -pipe -fcf-protection=none \
+  -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing -Wdeclaration-after-statement \
+  -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith -Wstrict-prototypes -Wtype-limits \
+  -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 -fPIC -fasynchronous-unwind-tables \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+6 warnings generated.
+/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang -D__STDC__ -c -o dlls/wow64/aarch64-windows/syscall.o /data/src/winehua/thirdparty/wine-valve/dlls/wow64/syscall.c -Idlls/wow64 \
+  -I/data/src/winehua/thirdparty/wine-valve/dlls/wow64 -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include \
+  -I/data/src/winehua/thirdparty/wine-valve/include/msvcrt -D_MSVCR_VER=0 -D__WINESRC__ \
+  -D__WINE_PE_BUILD -Wall -target aarch64-windows -fuse-ld=lld --no-default-config \
+  -fno-strict-aliasing -Wdeclaration-after-statement -Wempty-body -Wignored-qualifiers -Winit-self \
+  -Wno-microsoft-enum-forward-reference -Wstrict-prototypes -Wtype-limits -Wunused-but-set-parameter \
+  -Wvla -Wwrite-strings -Wpointer-arith -Wabsolute-value -ffunction-sections -fasync-exceptions \
+  -ffp-exception-behavior=maytrap -gdwarf-4 -g -O2
+/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang -D__STDC__ -c -o programs/wineboot/aarch64-windows/wineboot.o /data/src/winehua/thirdparty/wine-valve/programs/wineboot/wineboot.c \
+  -Iprograms/wineboot -I/data/src/winehua/thirdparty/wine-valve/programs/wineboot -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include \
+  -I/data/src/winehua/thirdparty/wine-valve/include/msvcrt -D_UCRT -D__WINESRC__ -D__WINE_PE_BUILD \
+  -Wall -target aarch64-windows -fuse-ld=lld --no-default-config -fno-strict-aliasing \
+  -Wdeclaration-after-statement -Wempty-body -Wignored-qualifiers -Winit-self \
+  -Wno-microsoft-enum-forward-reference -Wstrict-prototypes -Wtype-limits -Wunused-but-set-parameter \
+  -Wvla -Wwrite-strings -Wpointer-arith -Wabsolute-value -ffunction-sections -fasync-exceptions \
+  -ffp-exception-behavior=maytrap -gdwarf-4 -g -O2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o server/main.o /data/src/winehua/thirdparty/wine-valve/server/main.c -Iserver \
+  -I/data/src/winehua/thirdparty/wine-valve/server -Iinclude \
+  -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -DWINE_UNIX_LIB -Wall -pipe \
+  -fcf-protection=none -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing \
+  -Wdeclaration-after-statement -Wempty-body -Wignored-qualifiers -Winit-self -Wpointer-arith \
+  -Wstrict-prototypes -Wtype-limits -Wunused-but-set-parameter -Wvla -Wwrite-strings -gdwarf-4 \
+  -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build/sysroot-ext/usr/include -I/data/src/winehua/build/sysroot-ext/usr/include/freetype2
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/ntdll/ntdll.so -shared -Wl,-Bsymbolic -Wl,-soname,ntdll.so -Wl,-z,defs dlls/ntdll/unix/cdrom.o \
+  dlls/ntdll/unix/debug.o dlls/ntdll/unix/env.o dlls/ntdll/unix/file.o dlls/ntdll/unix/fsync.o \
+  dlls/ntdll/unix/loader.o dlls/ntdll/unix/loadorder.o dlls/ntdll/unix/ohos_broker.o \
+  dlls/ntdll/unix/ohos_file.o dlls/ntdll/unix/ohos_virtual.o dlls/ntdll/unix/process.o \
+  dlls/ntdll/unix/registry.o dlls/ntdll/unix/security.o dlls/ntdll/unix/serial.o \
+  dlls/ntdll/unix/server.o dlls/ntdll/unix/signal_arm.o dlls/ntdll/unix/signal_arm64.o \
+  dlls/ntdll/unix/signal_i386.o dlls/ntdll/unix/signal_x86_64.o dlls/ntdll/unix/socket.o \
+  dlls/ntdll/unix/sync.o dlls/ntdll/unix/system.o dlls/ntdll/unix/tape.o dlls/ntdll/unix/thread.o \
+  dlls/ntdll/unix/virtual.o dlls/ntdll/unix/version.o -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/data/src/winehua/thirdparty/wine-valve/dlls/wow64/syscall.c:105:26: warning: variable 'pBTCpuSimulate' set but not used [-Wunused-but-set-global]
+  105 | static void     (WINAPI *pBTCpuSimulate)(void) __attribute__((used));
+      |                          ^
+1 warning generated.
+/data/src/winehua/build/wine-native/tools/winegcc/winegcc -o dlls/wow64/aarch64-windows/wow64.dll --wine-objdir . --winebuild \
+  /data/src/winehua/build/wine-native/tools/winebuild/winebuild -b aarch64-windows \
+  -Wl,--wine-builtin -shared /data/src/winehua/thirdparty/wine-valve/dlls/wow64/wow64.spec \
+  -nodefaultlibs dlls/wow64/aarch64-windows/file.o dlls/wow64/aarch64-windows/process.o \
+  dlls/wow64/aarch64-windows/registry.o dlls/wow64/aarch64-windows/security.o \
+  dlls/wow64/aarch64-windows/sync.o dlls/wow64/aarch64-windows/syscall.o \
+  dlls/wow64/aarch64-windows/system.o dlls/wow64/aarch64-windows/virtual.o \
+  dlls/ntdll/aarch64-windows/libntdll.a dlls/winecrt0/aarch64-windows/libwinecrt0.a \
+  libs/compiler-rt/aarch64-windows/libcompiler-rt.a --no-default-config -Wl,-debug:dwarf -Wl,--build-id
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o server/wineserver server/async.o server/atom.o server/change.o server/class.o server/clipboard.o \
+  server/completion.o server/console.o server/d3dkmt.o server/debugger.o server/device.o \
+  server/directory.o server/event.o server/fd.o server/file.o server/fsync.o server/handle.o \
+  server/hook.o server/inproc_sync.o server/mach.o server/mailslot.o server/main.o server/mapping.o \
+  server/musl_compat.o server/mutex.o server/named_pipe.o server/object.o server/process.o \
+  server/procfs.o server/ptrace.o server/queue.o server/region.o server/registry.o server/request.o \
+  server/semaphore.o server/serial.o server/signal.o server/sock.o server/symlink.o server/thread.o \
+  server/timer.o server/token.o server/trace.o server/unicode.o server/user.o server/window.o \
+  server/winstation.o -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/avicap32/avicap32.so -shared -Wl,-Bsymbolic -Wl,-soname,avicap32.so -Wl,-z,defs dlls/avicap32/v4l.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/bcrypt/bcrypt.so -shared -Wl,-Bsymbolic -Wl,-soname,bcrypt.so -Wl,-z,defs dlls/bcrypt/gnutls.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/crypt32/crypt32.so -shared -Wl,-Bsymbolic -Wl,-soname,crypt32.so -Wl,-z,defs dlls/crypt32/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/ctapi32/ctapi32.so -shared -Wl,-Bsymbolic -Wl,-soname,ctapi32.so -Wl,-z,defs dlls/ctapi32/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/dnsapi/dnsapi.so -shared -Wl,-Bsymbolic -Wl,-soname,dnsapi.so -Wl,-z,defs dlls/dnsapi/libresolv.o \
+  dlls/dnsapi/libresolv_musl.o dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/dwrite/dwrite.so -shared -Wl,-Bsymbolic -Wl,-soname,dwrite.so -Wl,-z,defs dlls/dwrite/freetype.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/kerberos/kerberos.so -shared -Wl,-Bsymbolic -Wl,-soname,kerberos.so -Wl,-z,defs dlls/kerberos/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/localspl/localspl.so -shared -Wl,-Bsymbolic -Wl,-soname,localspl.so -Wl,-z,defs dlls/localspl/cups.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/mountmgr.sys/mountmgr.so -shared -Wl,-Bsymbolic -Wl,-soname,mountmgr.so -Wl,-z,defs dlls/mountmgr.sys/cred.o \
+  dlls/mountmgr.sys/dbus.o dlls/mountmgr.sys/diskarb.o dlls/mountmgr.sys/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/msv1_0/msv1_0.so -shared -Wl,-Bsymbolic -Wl,-soname,msv1_0.so -Wl,-z,defs dlls/msv1_0/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/netapi32/netapi32.so -shared -Wl,-Bsymbolic -Wl,-soname,netapi32.so -Wl,-z,defs dlls/netapi32/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/nsiproxy.sys/nsiproxy.so -shared -Wl,-Bsymbolic -Wl,-soname,nsiproxy.so -Wl,-z,defs \
+  dlls/nsiproxy.sys/icmp_echo.o dlls/nsiproxy.sys/ip.o dlls/nsiproxy.sys/ndis.o \
+  dlls/nsiproxy.sys/nsi.o dlls/nsiproxy.sys/tcp.o dlls/nsiproxy.sys/udp.o dlls/ntdll/ntdll.so \
+  -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/odbc32/odbc32.so -shared -Wl,-Bsymbolic -Wl,-soname,odbc32.so -Wl,-z,defs dlls/odbc32/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/opencl/opencl.so -shared -Wl,-Bsymbolic -Wl,-soname,opencl.so -Wl,-z,defs dlls/opencl/unix_thunks.o \
+  dlls/opencl/unix_wrappers.o dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/qcap/qcap.so -shared -Wl,-Bsymbolic -Wl,-soname,qcap.so -Wl,-z,defs dlls/qcap/v4l.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/secur32/secur32.so -shared -Wl,-Bsymbolic -Wl,-soname,secur32.so -Wl,-z,defs \
+  dlls/secur32/schannel_gnutls.o dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/windows.media.speech/windows.media.speech.so -shared -Wl,-Bsymbolic -Wl,-soname,windows.media.speech.so -Wl,-z,defs \
+  dlls/windows.media.speech/unixlib.o dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winebth.sys/winebth.so -shared -Wl,-Bsymbolic -Wl,-soname,winebth.so -Wl,-z,defs dlls/winebth.sys/dbus.o \
+  dlls/winebth.sys/unixlib.o dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winebus.sys/winebus.so -shared -Wl,-Bsymbolic -Wl,-soname,winebus.so -Wl,-z,defs dlls/winebus.sys/bus_iohid.o \
+  dlls/winebus.sys/bus_ohos.o dlls/winebus.sys/bus_sdl.o dlls/winebus.sys/bus_udev.o \
+  dlls/winebus.sys/hid.o dlls/winebus.sys/unixlib.o dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winedmo/winedmo.so -shared -Wl,-Bsymbolic -Wl,-soname,winedmo.so -Wl,-z,defs \
+  dlls/winedmo/media-converter/fossilize.o dlls/winedmo/media-converter/murmur3.o \
+  dlls/winedmo/media-converter/lib.o dlls/winedmo/unix_demuxer.o dlls/winedmo/unix_media_type.o \
+  dlls/winedmo/unixlib.o dlls/ntdll/ntdll.so \
+  -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos -lavformat -lavcodec -lavutil \
+  -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winegstreamer/winegstreamer.so -shared -Wl,-Bsymbolic -Wl,-soname,winegstreamer.so -Wl,-z,defs \
+  dlls/winegstreamer/media-converter/audioconv.o dlls/winegstreamer/media-converter/audioconvbin.o \
+  dlls/winegstreamer/media-converter/fossilize.o dlls/winegstreamer/media-converter/lib.o \
+  dlls/winegstreamer/media-converter/murmur3.o dlls/winegstreamer/media-converter/protondemuxer.o \
+  dlls/winegstreamer/media-converter/videoconv.o dlls/winegstreamer/unixlib.o \
+  dlls/winegstreamer/wg_allocator.o dlls/winegstreamer/wg_format.o \
+  dlls/winegstreamer/wg_media_type.o dlls/winegstreamer/wg_muxer.o dlls/winegstreamer/wg_parser.o \
+  dlls/winegstreamer/wg_task_pool.o dlls/winegstreamer/wg_transform.o dlls/ntdll/ntdll.so \
+  -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos -lgstvideo-1.0 -lgstaudio-1.0 \
+  -lgsttag-1.0 -lgstreamer-1.0 -lgstbase-1.0 -lgstpbutils-1.0 -lgmodule-2.0 -lgio-2.0 -lgobject-2.0 \
+  -lglib-2.0 -lintl -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/wineohos.drv/wineohos.so -shared -Wl,-Bsymbolic -Wl,-soname,wineohos.so -Wl,-z,defs \
+  dlls/wineohos.drv/ohos_audio_client.o dlls/wineohos.drv/ohos_midi.o dlls/wineohos.drv/ohos.o \
+  dlls/ntdll/ntdll.so -lm -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winspool.drv/winspool.so -shared -Wl,-Bsymbolic -Wl,-soname,winspool.so -Wl,-z,defs dlls/winspool.drv/cups.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/ws2_32/ws2_32.so -shared -Wl,-Bsymbolic -Wl,-soname,ws2_32.so -Wl,-z,defs dlls/ws2_32/unixlib.o \
+  dlls/ntdll/ntdll.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/data/src/winehua/build/wine-native/tools/winegcc/winegcc -o programs/wineboot/aarch64-windows/wineboot.exe --wine-objdir . --winebuild \
+  /data/src/winehua/build/wine-native/tools/winebuild/winebuild -b aarch64-windows \
+  -Wl,--wine-builtin -mconsole programs/wineboot/aarch64-windows/shutdown.o \
+  programs/wineboot/aarch64-windows/wineboot.o programs/wineboot/wineboot.res \
+  libs/uuid/aarch64-windows/libuuid.a dlls/advapi32/aarch64-windows/libadvapi32.a \
+  dlls/ws2_32/aarch64-windows/libws2_32.a dlls/kernelbase/aarch64-windows/libkernelbase.a \
+  dlls/shell32/aarch64-windows/libshell32.a dlls/shlwapi/aarch64-windows/libshlwapi.a \
+  dlls/version/aarch64-windows/libversion.a dlls/user32/aarch64-windows/libuser32.a \
+  dlls/gdi32/aarch64-windows/libgdi32.a dlls/setupapi/aarch64-windows/libsetupapi.a \
+  dlls/newdev/aarch64-windows/libnewdev.a dlls/wininet/aarch64-windows/libwininet.a \
+  dlls/crypt32/aarch64-windows/libcrypt32.a dlls/winecrt0/aarch64-windows/libwinecrt0.a \
+  libs/compiler-rt/aarch64-windows/libcompiler-rt.a dlls/ucrtbase/aarch64-windows/libucrtbase.a \
+  dlls/kernel32/aarch64-windows/libkernel32.a dlls/ntdll/aarch64-windows/libntdll.a \
+  -Wl,-delayload,shell32.dll -Wl,-delayload,shlwapi.dll -Wl,-delayload,version.dll \
+  -Wl,-delayload,user32.dll -Wl,-delayload,gdi32.dll -Wl,-delayload,setupapi.dll \
+  -Wl,-delayload,newdev.dll -Wl,-delayload,wininet.dll -Wl,-delayload,crypt32.dll --no-default-config -Wl,-debug:dwarf -Wl,--build-id
+7 warnings generated.
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/win32u/win32u.so -shared -Wl,-Bsymbolic -Wl,-soname,win32u.so -Wl,-z,defs dlls/win32u/bitblt.o \
+  dlls/win32u/bitmap.o dlls/win32u/brush.o dlls/win32u/class.o dlls/win32u/clipboard.o \
+  dlls/win32u/clipping.o dlls/win32u/cursoricon.o dlls/win32u/d3dkmt.o dlls/win32u/dc.o \
+  dlls/win32u/dce.o dlls/win32u/defwnd.o dlls/win32u/dib.o dlls/win32u/dibdrv/bitblt.o \
+  dlls/win32u/dibdrv/dc.o dlls/win32u/dibdrv/graphics.o dlls/win32u/dibdrv/objects.o \
+  dlls/win32u/dibdrv/primitives.o dlls/win32u/driver.o dlls/win32u/emfdrv.o dlls/win32u/font.o \
+  dlls/win32u/freetype.o dlls/win32u/gdiobj.o dlls/win32u/hook.o dlls/win32u/imm.o \
+  dlls/win32u/input.o dlls/win32u/mapping.o dlls/win32u/menu.o dlls/win32u/message.o \
+  dlls/win32u/opengl.o dlls/win32u/opengl_diag.o dlls/win32u/winehua_gl_proc_trace.o \
+  dlls/win32u/opentype.o dlls/win32u/painting.o dlls/win32u/palette.o dlls/win32u/path.o \
+  dlls/win32u/pen.o dlls/win32u/printdrv.o dlls/win32u/rawinput.o dlls/win32u/region.o \
+  dlls/win32u/scroll.o dlls/win32u/spy.o dlls/win32u/syscall.o dlls/win32u/sysparams.o \
+  dlls/win32u/systray.o dlls/win32u/vertical.o dlls/win32u/vulkan.o dlls/win32u/window.o \
+  dlls/win32u/winstation.o dlls/ntdll/ntdll.so -lm -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/opengl32/opengl32.so -shared -Wl,-Bsymbolic -Wl,-soname,opengl32.so -Wl,-z,defs dlls/opengl32/unix_thunks.o \
+  dlls/opengl32/unix_wgl.o dlls/ntdll/ntdll.so dlls/win32u/win32u.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/wineps.drv/wineps.so -shared -Wl,-Bsymbolic -Wl,-soname,wineps.so -Wl,-z,defs dlls/wineps.drv/unixlib.o \
+  dlls/ntdll/ntdll.so dlls/win32u/win32u.so -lm -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winevulkan/winevulkan.so -shared -Wl,-Bsymbolic -Wl,-soname,winevulkan.so -Wl,-z,defs dlls/winevulkan/vulkan.o \
+  dlls/winevulkan/vulkan_thunks.o dlls/ntdll/ntdll.so dlls/win32u/win32u.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winewayland.drv/winewayland.so -shared -Wl,-Bsymbolic -Wl,-soname,winewayland.so -Wl,-z,defs \
+  dlls/winewayland.drv/display.o dlls/winewayland.drv/opengl.o dlls/winewayland.drv/opengl_diag.o \
+  dlls/winewayland.drv/opengl_readback.o dlls/winewayland.drv/vulkan.o \
+  dlls/winewayland.drv/wayland.o dlls/winewayland.drv/wayland_data_device.o \
+  dlls/winewayland.drv/wayland_keyboard.o dlls/winewayland.drv/wayland_output.o \
+  dlls/winewayland.drv/wayland_pointer.o dlls/winewayland.drv/modal.o \
+  dlls/winewayland.drv/wayland_surface.o dlls/winewayland.drv/wayland_surface_ohos.o \
+  dlls/winewayland.drv/wayland_text_input.o dlls/winewayland.drv/waylanddrv_main.o \
+  dlls/winewayland.drv/window.o dlls/winewayland.drv/window_surface.o \
+  dlls/winewayland.drv/cursor-shape-v1-protocol.o \
+  dlls/winewayland.drv/pointer-constraints-unstable-v1-protocol.o \
+  dlls/winewayland.drv/relative-pointer-unstable-v1-protocol.o \
+  dlls/winewayland.drv/text-input-unstable-v3-protocol.o dlls/winewayland.drv/viewporter-protocol.o \
+  dlls/winewayland.drv/winehua-toplevel-protocol.o \
+  dlls/winewayland.drv/wlr-data-control-unstable-v1-protocol.o \
+  dlls/winewayland.drv/xdg-output-unstable-v1-protocol.o dlls/winewayland.drv/xdg-shell-protocol.o \
+  dlls/winewayland.drv/xdg-toplevel-icon-v1-protocol.o dlls/ntdll/ntdll.so dlls/win32u/win32u.so \
+  -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos -lwayland-client \
+  -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos -lwayland-egl \
+  -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos -lxkbcommon \
+  -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos -lxkbregistry -lm -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build/sysroot-ext/usr/lib/aarch64-linux-ohos
+Wine build complete.
+[32m[BUILD][0m --- 编译 wineserver (含 OHOS 修复) ---
+[32m[BUILD][0m Wine 构建完成
