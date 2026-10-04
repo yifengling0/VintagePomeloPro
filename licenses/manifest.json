@@ -1,0 +1,1478 @@
+{
+  "audit_baseline": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+  "audit_date": "2026-10-04",
+  "scope": "Selected source-level license and notice copies; not an exhaustive binary SBOM or release clearance. See LICENSING.md and THIRD_PARTY_NOTICES.md.",
+  "files": [
+    {
+      "file": "licenses/third-party/box64/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/winehua/box64/e970ee6f21799724697fc7c5f275f5442e7d035a/LICENSE",
+      "sha256": "18731c3637a3dfc5859be67db7d315d438c531396a4ed15a9c88421b520e7883",
+      "bytes": 1064,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/dxvk-legacy/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/winehua/dxvk/7c5cc47f772b9564af177cea920da81a40ffd47c/LICENSE",
+      "sha256": "240101b852af584ded719e7335a36f9a3aae3ac816774cf3f460c00d2c88c161",
+      "bytes": 980,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/dxvk-modern/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/winehua/dxvk/05a0a66d74cc41e6a90a8cb62d459c1c6a28c783/LICENSE",
+      "sha256": "a5cb1a6ded7d2d7e92d550ba28edd21be2d1d4044662b399887351023e30ce64",
+      "bytes": 1074,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex-cpp-optparse/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/Sonicadvance1/cpp-optparse/9f94388a339fcbb0bc95c17768eb786c85988f6e/LICENSE",
+      "sha256": "d638447635afa6837615553bcebbba60bc80a0e62ed9b158b4ed969e8bb72421",
+      "bytes": 1082,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex-fmt/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/fmtlib/fmt/407c905e45ad75fc29bf0f9bb7c5c2fd3475976f/LICENSE",
+      "sha256": "07580f2a3b35709ce703d523f447b242f6dfec7582a8c0df102c7fa2849375f8",
+      "bytes": 1431,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex-range-v3/LICENSE.txt",
+      "source_url": "https://raw.githubusercontent.com/ericniebler/range-v3/ca1388fb9da8e69314dda222dc7b139ca84e092f/LICENSE.txt",
+      "sha256": "2b74ee37dd1a90b2b385534b7dbc171938409bda468673a123ff25302c9c5739",
+      "bytes": 7233,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex-rpmalloc/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/FEX-Emu/rpmalloc/1f6fb494f2a4237c35494786a3c8f1eba048b217/LICENSE",
+      "sha256": "9fdc653aacc736bef0cd12854f4a8d94f703ec5603fb5dca1be945b7f679918c",
+      "bytes": 606,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex-unordered_dense/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/martinus/unordered_dense/3234af2c03549bc85656bfd3a86993bf1cd8aef1/LICENSE",
+      "sha256": "4f5a62734899ec0ba85d3e8264a7ed1fcb4bcb8f0b4359c0afd627b6314ae599",
+      "bytes": 1078,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex-xxhash/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/Cyan4973/xxHash/e626a72bc2321cd320e953a0ccf1584cad60f363/LICENSE",
+      "sha256": "6ffedbc0f7878612d2b23589f1ff2ab15633e1df7963a5d9fc750ec5500c7e7a",
+      "bytes": 1389,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex/External/SoftFloat-3e/NOTICE.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/External/SoftFloat-3e/src/extF80_lt.c",
+      "sha256": "2973b0b5346073d510a88a484dcd8b676dc3e61313872ec91fc4a0140a459c17",
+      "bytes": 1841,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "External/SoftFloat-3e/src/extF80_lt.c",
+      "source_sha256": "ec21c799b4309b44424a6aad167c62a4f585c426e4b155367c76f3a284448e94",
+      "source_byte_range": [
+        2,
+        1842
+      ],
+      "copy_kind": "complete opening comment, plus final newline"
+    },
+    {
+      "file": "licenses/third-party/fex/External/cephes/LICENSE",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/External/cephes/LICENSE",
+      "sha256": "edf1440b625e6d434a986cdb535c702001afab8959d94ce6275441a58cfd0ebb",
+      "bytes": 4754,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "External/cephes/LICENSE",
+      "source_sha256": "edf1440b625e6d434a986cdb535c702001afab8959d94ce6275441a58cfd0ebb",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex/External/tiny-json/LICENSE",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/External/tiny-json/LICENSE",
+      "sha256": "83c6abf07e7123427303b5f12cd995122c372a5cb96815ec130a18628396fb7c",
+      "bytes": 1068,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "External/tiny-json/LICENSE",
+      "source_sha256": "83c6abf07e7123427303b5f12cd995122c372a5cb96815ec130a18628396fb7c",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex/FEXCore/LICENSE",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/FEXCore/LICENSE",
+      "sha256": "f34a779f56b36d22b20e1b990d23e583a6a7ca071331925fa46156441c77a1ee",
+      "bytes": 1094,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "FEXCore/LICENSE",
+      "source_sha256": "f34a779f56b36d22b20e1b990d23e583a6a7ca071331925fa46156441c77a1ee",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex/LICENSE",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/LICENSE",
+      "sha256": "f34a779f56b36d22b20e1b990d23e583a6a7ca071331925fa46156441c77a1ee",
+      "bytes": 1094,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "LICENSE",
+      "source_sha256": "f34a779f56b36d22b20e1b990d23e583a6a7ca071331925fa46156441c77a1ee",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/__math_divzero.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/__math_divzero.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/__math_divzero.c",
+      "source_sha256": "d2b55f01f6eaf4e9e7059755f5f97ec33bddec6873df689013715d28e6ade211",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/__math_invalid.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/__math_invalid.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/__math_invalid.c",
+      "source_sha256": "0e73df9b4c7a834248aba241f853343bd8ae2a498af3944f755369cf1d960c9f",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/__math_oflow.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/__math_oflow.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/__math_oflow.c",
+      "source_sha256": "5f97d99b4414185c8195a2ae042640054978477e5bd11fdfd621643804b3f773",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/__math_uflow.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/__math_uflow.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/__math_uflow.c",
+      "source_sha256": "90810c6313825313b7871c43b56eb25a192710053b0fecae66b348d57e8454cd",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/__math_xflow.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/__math_xflow.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/__math_xflow.c",
+      "source_sha256": "703ffb96f4e1bc23700922bd37cdf8a2e382258c853d9c98f3922822f3aca771",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/exp2.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/exp2.c",
+      "sha256": "48124bcbcc0e489a4476d6211d8183cc81ff0c2b6ab02c20d15d7e41f1307322",
+      "bytes": 93,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/exp2.c",
+      "source_sha256": "df9d3c55d79e6c561b438c9a1904af5a3bab50e91002290206879a001a2a007e",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/exp_data.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/exp_data.c",
+      "sha256": "48124bcbcc0e489a4476d6211d8183cc81ff0c2b6ab02c20d15d7e41f1307322",
+      "bytes": 93,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/exp_data.c",
+      "source_sha256": "d8c801868cde22bcd041959927043c25b7511ee84bcca19247b70048a9fb3863",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/exp_data.h.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/exp_data.h",
+      "sha256": "48124bcbcc0e489a4476d6211d8183cc81ff0c2b6ab02c20d15d7e41f1307322",
+      "bytes": 93,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/exp_data.h",
+      "source_sha256": "34783eec8994685cf4c8bcb887d38df3c923e7c57b91f055a2d93b9ed5350a8d",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/fmod.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/fmod.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/fmod.c",
+      "source_sha256": "57658c0c877dbcd42c65feb54d5fcc80c14cdfbae1cc6e956889ac0c5b3c7474",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/isnan.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/isnan.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/isnan.c",
+      "source_sha256": "26058275eb5b595ee286a9a99fc06d7fbc74f154ce8fd2f584912c8eb405155b",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/libm.h.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/libm.h",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/libm.h",
+      "source_sha256": "9c5b9ffd738a68ceb996213a376b52d762233e2e04334cc6f232a3aba50059e4",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/log2.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/log2.c",
+      "sha256": "48124bcbcc0e489a4476d6211d8183cc81ff0c2b6ab02c20d15d7e41f1307322",
+      "bytes": 93,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/log2.c",
+      "source_sha256": "1ef8246aa1afc4f42351162c0d941174c9f58faa8d4bd9ed4e3881896194f3f9",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/log2_data.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/log2_data.c",
+      "sha256": "48124bcbcc0e489a4476d6211d8183cc81ff0c2b6ab02c20d15d7e41f1307322",
+      "bytes": 93,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/log2_data.c",
+      "source_sha256": "4b26cc3fe2e3153569564b5f7ea88082dd540e27607ede53a53cb0a40e65823c",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/log2_data.h.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/log2_data.h",
+      "sha256": "48124bcbcc0e489a4476d6211d8183cc81ff0c2b6ab02c20d15d7e41f1307322",
+      "bytes": 93,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/log2_data.h",
+      "source_sha256": "41f2d4d5a4caa25de878c931617d533289b4f06c2e0df8d4db0eb87679ce4bcf",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/remainder.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/remainder.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/remainder.c",
+      "source_sha256": "dbfa3180e9461fe046d66374bbc05951d27fe151c9380ac2716cc9675a33c8ac",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/remquo.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/remquo.c",
+      "sha256": "b2ea9a58bc9b1969467eb79ea6584bf4b382d8be9a1e49cd7551071f7de97b7b",
+      "bytes": 103,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/remquo.c",
+      "source_sha256": "9275b898293bb42550c8fc22b6e078866d16a4835790ff71ea2606bf4adb9997",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/strtoimax.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/strtoimax.c",
+      "sha256": "2aef392709f8662c5f46a76bddf49e4f08328deb4bcb026bf522b795e740d756",
+      "bytes": 163,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/strtoimax.c",
+      "source_sha256": "d3067193958ed47994d681c97dec2bd39613e936c95bbba676bd9c2eb8f9c1aa",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/strtoll.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/strtoll.c",
+      "sha256": "2aef392709f8662c5f46a76bddf49e4f08328deb4bcb026bf522b795e740d756",
+      "bytes": 163,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/strtoll.c",
+      "source_sha256": "58abd5d95dd0eaf835cfb53157f5b50449d106d4988ceef35ff2fdc9edc6ffde",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/strtoull.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/strtoull.c",
+      "sha256": "2aef392709f8662c5f46a76bddf49e4f08328deb4bcb026bf522b795e740d756",
+      "bytes": 163,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/strtoull.c",
+      "source_sha256": "4d462cb690807c9e073a669f04e5826b9c3efcdd447f97f507ba77957bae71c7",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/fex/musl/strtoumax.c.notices.txt",
+      "source_url": "https://github.com/FEX-Emu/FEX/blob/86ff33bbe299cd8959a6610198c169b67ec419db/Source/Windows/Common/CRT/Musl/strtoumax.c",
+      "sha256": "2aef392709f8662c5f46a76bddf49e4f08328deb4bcb026bf522b795e740d756",
+      "bytes": 163,
+      "source_revision": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "source_path": "Source/Windows/Common/CRT/Musl/strtoumax.c",
+      "source_sha256": "197d3571f1ee2fc1fa64c222efd0f4518f8d1945dcecfdcfe9a02af4c54eeec3",
+      "copy_kind": "verbatim leading SPDX/copyright comment lines"
+    },
+    {
+      "file": "licenses/third-party/freetype/LICENSE.TXT",
+      "source_url": "https://raw.githubusercontent.com/freetype/freetype/42608f77f20749dd6ddc9e0536788eaad70ea4b5/LICENSE.TXT",
+      "sha256": "2e3bbb7d7c5c396368dd0853a790ec29ce5b8647163dde42a0493fb0d6556b2b",
+      "bytes": 2074,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/freetype/docs/FTL.TXT",
+      "source_url": "https://raw.githubusercontent.com/freetype/freetype/42608f77f20749dd6ddc9e0536788eaad70ea4b5/docs/FTL.TXT",
+      "sha256": "08c135755dd589039470f1fdbb400daaabaaa50d0b366d19cebff4d22986baa1",
+      "bytes": 6743,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/freetype/docs/GPLv2.TXT",
+      "source_url": "https://raw.githubusercontent.com/freetype/freetype/42608f77f20749dd6ddc9e0536788eaad70ea4b5/docs/GPLv2.TXT",
+      "sha256": "c4120c6752c910c299e3bd9cb3a46ff262c268303ca2069b61f92f10a5656c18",
+      "bytes": 17994,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/glib/COPYING",
+      "source_url": "https://raw.githubusercontent.com/GNOME/glib/3c543ef69ffab7c78e29eaf383e7fe2c7df6cd49/COPYING",
+      "sha256": "65986a89240f59896ce42a3779bbe5ed486a0bca7df636a8eef030fd2e1a0984",
+      "bytes": 30,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/glib/LICENSES/LGPL-2.1-or-later.txt",
+      "source_url": "https://raw.githubusercontent.com/GNOME/glib/3c543ef69ffab7c78e29eaf383e7fe2c7df6cd49/LICENSES/LGPL-2.1-or-later.txt",
+      "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb",
+      "bytes": 25967,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/gmp-6.2.1/AUTHORS",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "da8aca08adb6de17b27a05dfa0757d00f488e37fdb8aab5efbbf8de0ef453511",
+      "bytes": 3945,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/AUTHORS",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gmp-6.2.1/COPYING",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "bytes": 35147,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/COPYING",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gmp-6.2.1/COPYING.LESSERv3",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+      "bytes": 7639,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/COPYING.LESSERv3",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gmp-6.2.1/COPYINGv2",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+      "bytes": 18092,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/COPYINGv2",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gmp-6.2.1/COPYINGv3",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "e6037104443f9a7829b2aa7c5370d0789a7bda3ca65a0b904cdc0c2e285d9195",
+      "bytes": 35150,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/COPYINGv3",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gmp-6.2.1/README",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "5e9f9325fd702bc4bcda27d7a78fea88a2a09fa39b4b15ac7b9b205e0863dc7e",
+      "bytes": 4051,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/README",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnu/GPL-3.0.txt",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "e6037104443f9a7829b2aa7c5370d0789a7bda3ca65a0b904cdc0c2e285d9195",
+      "bytes": 35150,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/COPYINGv3",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnu/LGPL-3.0.txt",
+      "source_url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+      "bytes": 7639,
+      "archive_sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2",
+      "archive_path": "gmp-6.2.1/COPYING.LESSERv3",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnutls-3.8.3/AUTHORS",
+      "source_url": "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.3.tar.xz",
+      "sha256": "a13baf7a36ec910b8c5b752c475aa8e1c0e24a60fd08bdae8506c9cdb53711b1",
+      "bytes": 9818,
+      "archive_sha256": "f74fc5954b27d4ec6dfbb11dea987888b5b124289a3703afcada0ee520f4173e",
+      "archive_path": "gnutls-3.8.3/AUTHORS",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnutls-3.8.3/LICENSE",
+      "source_url": "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.3.tar.xz",
+      "sha256": "3e043d77917e48e262301b8f880812fcd82236482630a421d555a38804eee643",
+      "bytes": 936,
+      "archive_sha256": "f74fc5954b27d4ec6dfbb11dea987888b5b124289a3703afcada0ee520f4173e",
+      "archive_path": "gnutls-3.8.3/LICENSE",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnutls-3.8.3/README.md",
+      "source_url": "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.3.tar.xz",
+      "sha256": "b5bc4c00d2004fd1088ab3f1523576a32c3dcf6612f5ab485479e37f89756e91",
+      "bytes": 8231,
+      "archive_sha256": "f74fc5954b27d4ec6dfbb11dea987888b5b124289a3703afcada0ee520f4173e",
+      "archive_path": "gnutls-3.8.3/README.md",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnutls-3.8.3/doc/COPYING",
+      "source_url": "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.3.tar.xz",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149,
+      "archive_sha256": "f74fc5954b27d4ec6dfbb11dea987888b5b124289a3703afcada0ee520f4173e",
+      "archive_path": "gnutls-3.8.3/doc/COPYING",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnutls-3.8.3/doc/COPYING.LESSER",
+      "source_url": "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.3.tar.xz",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+      "bytes": 26530,
+      "archive_sha256": "f74fc5954b27d4ec6dfbb11dea987888b5b124289a3703afcada0ee520f4173e",
+      "archive_path": "gnutls-3.8.3/doc/COPYING.LESSER",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnutls-3.8.3/doc/examples/tlsproxy/LICENSE",
+      "source_url": "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.3.tar.xz",
+      "sha256": "b42dbe48110754b99f026ad30e69b1069f826fb07e7c616b526bd1090952fb1b",
+      "bytes": 1090,
+      "archive_sha256": "f74fc5954b27d4ec6dfbb11dea987888b5b124289a3703afcada0ee520f4173e",
+      "archive_path": "gnutls-3.8.3/doc/examples/tlsproxy/LICENSE",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gnutls-3.8.3/lib/inih/LICENSE.txt",
+      "source_url": "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.3.tar.xz",
+      "sha256": "9ae3b39e83e9158e44b67733baa3bb2d84e80efdcfb14a5820210a42c7abdf7f",
+      "bytes": 1510,
+      "archive_sha256": "f74fc5954b27d4ec6dfbb11dea987888b5b124289a3703afcada0ee520f4173e",
+      "archive_path": "gnutls-3.8.3/lib/inih/LICENSE.txt",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/gstreamer/subprojects/gst-libav/COPYING",
+      "source_url": "https://raw.githubusercontent.com/GStreamer/gstreamer/9137f539a022ec3f5f7c5ee704198dbf35a41940/subprojects/gst-libav/COPYING",
+      "sha256": "ad2eec519ebd4b5df86ea84dff24ae3bfa2edea846a703b58902dd221ae375db",
+      "bytes": 26431,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/gstreamer/subprojects/gst-plugins-bad/COPYING",
+      "source_url": "https://raw.githubusercontent.com/GStreamer/gstreamer/9137f539a022ec3f5f7c5ee704198dbf35a41940/subprojects/gst-plugins-bad/COPYING",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+      "bytes": 26530,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/gstreamer/subprojects/gst-plugins-base/COPYING",
+      "source_url": "https://raw.githubusercontent.com/GStreamer/gstreamer/9137f539a022ec3f5f7c5ee704198dbf35a41940/subprojects/gst-plugins-base/COPYING",
+      "sha256": "ad2eec519ebd4b5df86ea84dff24ae3bfa2edea846a703b58902dd221ae375db",
+      "bytes": 26431,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/gstreamer/subprojects/gst-plugins-good/COPYING",
+      "source_url": "https://raw.githubusercontent.com/GStreamer/gstreamer/9137f539a022ec3f5f7c5ee704198dbf35a41940/subprojects/gst-plugins-good/COPYING",
+      "sha256": "6095e9ffa777dd22839f7801aa845b31c9ed07f3d6bf8a26dc5d2dec8ccc0ef3",
+      "bytes": 26432,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/gstreamer/subprojects/gst-plugins-ugly/COPYING",
+      "source_url": "https://raw.githubusercontent.com/GStreamer/gstreamer/9137f539a022ec3f5f7c5ee704198dbf35a41940/subprojects/gst-plugins-ugly/COPYING",
+      "sha256": "6095e9ffa777dd22839f7801aa845b31c9ed07f3d6bf8a26dc5d2dec8ccc0ef3",
+      "bytes": 26432,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/gstreamer/subprojects/gstreamer/COPYING",
+      "source_url": "https://raw.githubusercontent.com/GStreamer/gstreamer/9137f539a022ec3f5f7c5ee704198dbf35a41940/subprojects/gstreamer/COPYING",
+      "sha256": "ad2eec519ebd4b5df86ea84dff24ae3bfa2edea846a703b58902dd221ae375db",
+      "bytes": 26431,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/libdrm/LICENSE",
+      "source_url": "https://gitee.com/openharmony/third_party_libdrm/raw/bdd6856d4a488121c120237c2b7c33b17f6a1df1/LICENSE",
+      "sha256": "f37e927601e574b92780af73c3ce83529dc63a0329d65540cc2e9785c0cbd833",
+      "bytes": 1027,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/libepoxy/COPYING",
+      "source_url": "https://raw.githubusercontent.com/winehua/libepoxy/2597254fd42e021225db02734340857cae9a2596/COPYING",
+      "sha256": "8d5144666f9c4df9bbd69b8900086d5979259152a1060421cdcc0fb9061a1c12",
+      "bytes": 2465,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/libffi/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/libffi/libffi/3d0ce1e6fcf19f853894862abcbac0ae78a7be60/LICENSE",
+      "sha256": "67894089811f93fca47a76f85e017da6f8582d4ba0905963c6e0f1ad6df7a195",
+      "bytes": 1132,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/libtasn1-4.20.0/AUTHORS",
+      "source_url": "https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz",
+      "sha256": "cd4895d09bb91e7164ac3515c607367e3f06acd0a60abb0e16766c59bc24460f",
+      "bytes": 456,
+      "archive_sha256": "92e0e3bd4c02d4aeee76036b2ddd83f0c732ba4cda5cb71d583272b23587a76c",
+      "archive_path": "libtasn1-4.20.0/AUTHORS",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libtasn1-4.20.0/COPYING",
+      "source_url": "https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149,
+      "archive_sha256": "92e0e3bd4c02d4aeee76036b2ddd83f0c732ba4cda5cb71d583272b23587a76c",
+      "archive_path": "libtasn1-4.20.0/COPYING",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libtasn1-4.20.0/COPYING.LESSERv2",
+      "source_url": "https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz",
+      "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+      "bytes": 26419,
+      "archive_sha256": "92e0e3bd4c02d4aeee76036b2ddd83f0c732ba4cda5cb71d583272b23587a76c",
+      "archive_path": "libtasn1-4.20.0/COPYING.LESSERv2",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libtasn1-4.20.0/README",
+      "source_url": "https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz",
+      "sha256": "990ef6a87f29a9d3db33698b94ea026a5d0f81bbf9806333d73699a250b7e5d6",
+      "bytes": 3230,
+      "archive_sha256": "92e0e3bd4c02d4aeee76036b2ddd83f0c732ba4cda5cb71d583272b23587a76c",
+      "archive_path": "libtasn1-4.20.0/README",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libtasn1-4.20.0/README.md",
+      "source_url": "https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz",
+      "sha256": "990ef6a87f29a9d3db33698b94ea026a5d0f81bbf9806333d73699a250b7e5d6",
+      "bytes": 3230,
+      "archive_sha256": "92e0e3bd4c02d4aeee76036b2ddd83f0c732ba4cda5cb71d583272b23587a76c",
+      "archive_path": "libtasn1-4.20.0/README.md",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libunistring-1.3/AUTHORS",
+      "source_url": "https://ftp.gnu.org/gnu/libunistring/libunistring-1.3.tar.xz",
+      "sha256": "9877ee5d24b5fa059fcc3ff2f4af36918f7c5676de000b9cb5ec11efa6aac149",
+      "bytes": 444,
+      "archive_sha256": "f245786c831d25150f3dfb4317cda1acc5e3f79a5da4ad073ddca58886569527",
+      "archive_path": "libunistring-1.3/AUTHORS",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libunistring-1.3/COPYING",
+      "source_url": "https://ftp.gnu.org/gnu/libunistring/libunistring-1.3.tar.xz",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "bytes": 35147,
+      "archive_sha256": "f245786c831d25150f3dfb4317cda1acc5e3f79a5da4ad073ddca58886569527",
+      "archive_path": "libunistring-1.3/COPYING",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libunistring-1.3/COPYING.LIB",
+      "source_url": "https://ftp.gnu.org/gnu/libunistring/libunistring-1.3.tar.xz",
+      "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+      "bytes": 7639,
+      "archive_sha256": "f245786c831d25150f3dfb4317cda1acc5e3f79a5da4ad073ddca58886569527",
+      "archive_path": "libunistring-1.3/COPYING.LIB",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libunistring-1.3/README",
+      "source_url": "https://ftp.gnu.org/gnu/libunistring/libunistring-1.3.tar.xz",
+      "sha256": "dc3ae11817579dd7d30041333a7dc5003243b14e6c66a7a673b54bf8d062c870",
+      "bytes": 2977,
+      "archive_sha256": "f245786c831d25150f3dfb4317cda1acc5e3f79a5da4ad073ddca58886569527",
+      "archive_path": "libunistring-1.3/README",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/libxkbcommon/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/xkbcommon/libxkbcommon/7a31e3585edf78be281559377e26d15f8c4bc655/LICENSE",
+      "sha256": "086caee279449369d41c1157911ec7696e707b93feba7280de757d3c470b2dfb",
+      "bytes": 10142,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/libxml2/Copyright",
+      "source_url": "https://raw.githubusercontent.com/GNOME/libxml2/5e9b167dce73bd6a804ab107ae4c4b95e6849597/Copyright",
+      "sha256": "7fb0a66f3989f9bd5c7e5438a3de02cd4a7a47dde0aea2f7ea2ba2ff454ee6a4",
+      "bytes": 1289,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/mesa/docs/license.rst",
+      "source_url": "https://raw.githubusercontent.com/winehua/mesa-ohos/330124bf18f8e135346c3f592c8f8d99121fd343/docs/license.rst",
+      "sha256": "0d1a0472ecc81830e75c20d59b0ea02841e3db21255e0ebad97ab682c54d6615",
+      "bytes": 1816,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/mesa/licenses/Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/winehua/mesa-ohos/330124bf18f8e135346c3f592c8f8d99121fd343/licenses/Apache-2.0",
+      "sha256": "7e4d3fba250d15e9e0afa380d4b611828fa2560cc8fdebe95bcf2f01a487de12",
+      "bytes": 10045,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/mesa/licenses/BSL-1.0",
+      "source_url": "https://raw.githubusercontent.com/winehua/mesa-ohos/330124bf18f8e135346c3f592c8f8d99121fd343/licenses/BSL-1.0",
+      "sha256": "9b9fea7520a816107fcac2598b7c0155222f16bc430e989706b22f4367f1df7d",
+      "bytes": 1649,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/mesa/licenses/GPL-1.0-or-later",
+      "source_url": "https://raw.githubusercontent.com/winehua/mesa-ohos/330124bf18f8e135346c3f592c8f8d99121fd343/licenses/GPL-1.0-or-later",
+      "sha256": "8ff76f1528e6e4e9400c0f6b1f2d19d4979aaac3bcc44bb707a55389132825c4",
+      "bytes": 13047,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/mesa/licenses/GPL-2.0-only",
+      "source_url": "https://raw.githubusercontent.com/winehua/mesa-ohos/330124bf18f8e135346c3f592c8f8d99121fd343/licenses/GPL-2.0-only",
+      "sha256": "6667ad4063569cd53b13500550d93fcd3dc11bcf82c5514296af013a0b720ba5",
+      "bytes": 18424,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/mesa/licenses/MIT",
+      "source_url": "https://raw.githubusercontent.com/winehua/mesa-ohos/330124bf18f8e135346c3f592c8f8d99121fd343/licenses/MIT",
+      "sha256": "323c587d0ccf10e376f8bf9a7f31fb4ca6078105194b42e0b1e0ee2bc9bde71f",
+      "bytes": 1372,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/mesa/licenses/SGI-B-2.0",
+      "source_url": "https://raw.githubusercontent.com/winehua/mesa-ohos/330124bf18f8e135346c3f592c8f8d99121fd343/licenses/SGI-B-2.0",
+      "sha256": "686bf035a1fd22076416fd3b90370ac67771e884bf57f55693d51f8ce7c710a7",
+      "bytes": 1822,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/nettle-3.10.2/AUTHORS",
+      "source_url": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz",
+      "sha256": "6fd91e60caa0c33dd22888b710fcfa36532bbbef00d85c78de385dcd97f7b9ee",
+      "bytes": 4267,
+      "archive_sha256": "fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5",
+      "archive_path": "nettle-3.10.2/AUTHORS",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/nettle-3.10.2/COPYING.LESSERv3",
+      "source_url": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz",
+      "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+      "bytes": 7639,
+      "archive_sha256": "fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5",
+      "archive_path": "nettle-3.10.2/COPYING.LESSERv3",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/nettle-3.10.2/COPYINGv2",
+      "source_url": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz",
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+      "bytes": 18092,
+      "archive_sha256": "fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5",
+      "archive_path": "nettle-3.10.2/COPYINGv2",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/nettle-3.10.2/COPYINGv3",
+      "source_url": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz",
+      "sha256": "e6037104443f9a7829b2aa7c5370d0789a7bda3ca65a0b904cdc0c2e285d9195",
+      "bytes": 35150,
+      "archive_sha256": "fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5",
+      "archive_path": "nettle-3.10.2/COPYINGv3",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/nettle-3.10.2/README",
+      "source_url": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz",
+      "sha256": "02cb98d7b68bd895fe26752c5f10d7eb23623dff90238998e019c26994c6739b",
+      "bytes": 2437,
+      "archive_sha256": "fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5",
+      "archive_path": "nettle-3.10.2/README",
+      "copy_kind": "verbatim archive member"
+    },
+    {
+      "file": "licenses/third-party/openharmony-asf/LICENSE",
+      "source_url": "https://github.com/yifengling0/VintagePomeloPro/blob/e2d001416d94ec01c31d4ffd38be3720d1496b47/entry/src/main/ets/steam/vendor/LICENSE",
+      "sha256": "d5855fa85d587b40ec17c781f9a9131b87208e41220f33765f338e46d6c2a65e",
+      "bytes": 11342,
+      "source_revision": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+      "source_path": "entry/src/main/ets/steam/vendor/LICENSE",
+      "source_sha256": "d5855fa85d587b40ec17c781f9a9131b87208e41220f33765f338e46d6c2a65e",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/openharmony-asf/NOTICE.md",
+      "source_url": "https://github.com/yifengling0/VintagePomeloPro/blob/e2d001416d94ec01c31d4ffd38be3720d1496b47/entry/src/main/ets/steam/vendor/NOTICE.md",
+      "sha256": "5e1b6a78c0c41486373137ed86a79438824d590f5f2cbccf071e2957fb6798d6",
+      "bytes": 2527,
+      "source_revision": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+      "source_path": "entry/src/main/ets/steam/vendor/NOTICE.md",
+      "source_sha256": "5e1b6a78c0c41486373137ed86a79438824d590f5f2cbccf071e2957fb6798d6",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/pcre2/LICENCE",
+      "source_url": "https://raw.githubusercontent.com/PCRE2Project/pcre2/52c08847921a324c804cabf2814549f50bce1265/LICENCE",
+      "sha256": "87d884eceb7fc54611470ce9f74280d28612b0c877adfc767e9676892a638987",
+      "bytes": 3477,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/steam-lzma/NOTICE.txt",
+      "source_url": "https://github.com/yifengling0/VintagePomeloPro/blob/e2d001416d94ec01c31d4ffd38be3720d1496b47/entry/src/main/cpp/steam_decompress/LzmaDec.c",
+      "sha256": "d406d669914643608fb6dff6d9dac198a3833c7581d9025a57fd4af2f7fd6681",
+      "bytes": 62,
+      "source_revision": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+      "source_path": "entry/src/main/cpp/steam_decompress/LzmaDec.c",
+      "source_sha256": "1af93d9798727e77e018315b617fe39f114c31fbac1d0f603d8bdf2e8afe22d2",
+      "source_byte_range": [
+        0,
+        61
+      ],
+      "copy_kind": "complete opening comment, plus final newline"
+    },
+    {
+      "file": "licenses/third-party/steam-xxhash/NOTICE.txt",
+      "source_url": "https://github.com/yifengling0/VintagePomeloPro/blob/e2d001416d94ec01c31d4ffd38be3720d1496b47/entry/src/main/cpp/steam_decompress/hashes/xxhash.h",
+      "sha256": "c1ac3dce03d7380e184f29bec10aae9e7dd3bad080544b8ac6dacfcbba0d0f5b",
+      "bytes": 1661,
+      "source_revision": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+      "source_path": "entry/src/main/cpp/steam_decompress/hashes/xxhash.h",
+      "source_sha256": "6c9192045433c584e985a3785177feb7d0249e9a2608300b5247d4ee6e47bba9",
+      "source_byte_range": [
+        0,
+        1660
+      ],
+      "copy_kind": "complete opening comment, plus final newline"
+    },
+    {
+      "file": "licenses/third-party/steam-zlib/NOTICE.txt",
+      "source_url": "https://github.com/yifengling0/VintagePomeloPro/blob/e2d001416d94ec01c31d4ffd38be3720d1496b47/entry/src/main/cpp/steam_decompress/zlib_vendored/zlib.h",
+      "sha256": "02421fcfbfb1d656ef0b6ff4cd3c39f2946f08c3219fa42db482add7ce1f53ea",
+      "bytes": 1328,
+      "source_revision": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+      "source_path": "entry/src/main/cpp/steam_decompress/zlib_vendored/zlib.h",
+      "source_sha256": "8a5579af72ea4f427ff00a4150f0ccb3fc5c1e4379f726e101133b1ab9fc600c",
+      "source_byte_range": [
+        0,
+        1327
+      ],
+      "copy_kind": "complete opening comment, plus final newline"
+    },
+    {
+      "file": "licenses/third-party/steam-zstd-xxhash/NOTICE.txt",
+      "source_url": "https://github.com/yifengling0/VintagePomeloPro/blob/e2d001416d94ec01c31d4ffd38be3720d1496b47/entry/src/main/cpp/steam_decompress/zstd/xxhash.h",
+      "sha256": "c1ac3dce03d7380e184f29bec10aae9e7dd3bad080544b8ac6dacfcbba0d0f5b",
+      "bytes": 1661,
+      "source_revision": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+      "source_path": "entry/src/main/cpp/steam_decompress/zstd/xxhash.h",
+      "source_sha256": "6c9192045433c584e985a3785177feb7d0249e9a2608300b5247d4ee6e47bba9",
+      "source_byte_range": [
+        0,
+        1660
+      ],
+      "copy_kind": "complete opening comment, plus final newline"
+    },
+    {
+      "file": "licenses/third-party/steam-zstd/LICENSE",
+      "source_url": "https://github.com/yifengling0/VintagePomeloPro/blob/e2d001416d94ec01c31d4ffd38be3720d1496b47/entry/src/main/cpp/steam_decompress/zstd/LICENSE",
+      "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8",
+      "bytes": 1549,
+      "source_revision": "e2d001416d94ec01c31d4ffd38be3720d1496b47",
+      "source_path": "entry/src/main/cpp/steam_decompress/zstd/LICENSE",
+      "source_sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/virglrenderer/COPYING",
+      "source_url": "https://raw.githubusercontent.com/winehua/virglrenderer/bb33e52aa03199926f662e50ff22bd00d19d7e0a/COPYING",
+      "sha256": "3b32caf16e2402c2aff2b716858713f3e1feded85c25e71bf829816ee5009402",
+      "bytes": 1098,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-dxil-spirv/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/HansKristian-Work/dxil-spirv/b537bbb91bccdbc695cb7e5211d608f8d1c205bd/LICENSE",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+      "bytes": 26530,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-dxil-spirv/dxil_spirv_c.cpp.notice.txt",
+      "source_url": "https://raw.githubusercontent.com/HansKristian-Work/dxil-spirv/b537bbb91bccdbc695cb7e5211d608f8d1c205bd/dxil_spirv_c.cpp",
+      "sha256": "2532037e93b33c8fb211f77596327869363e03585080d218a1fced3390d232a4",
+      "bytes": 813,
+      "source_sha256": "044a503c0cdfed8a1b253dc8a0ef14b06de19679d57be650d1bc80dbc8c2096c",
+      "source_byte_range": [
+        0,
+        812
+      ],
+      "copy_kind": "complete opening license comment, plus final newline where needed"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-dxil-spirv/third_party/bc-decoder/llvm_decoder.cpp.notice.txt",
+      "source_url": "https://raw.githubusercontent.com/HansKristian-Work/dxil-spirv/b537bbb91bccdbc695cb7e5211d608f8d1c205bd/third_party/bc-decoder/llvm_decoder.cpp",
+      "sha256": "58b31d0b78038fa00b3358f6564a6e40702c25b22546dd6ec3bd88272d76f357",
+      "bytes": 1307,
+      "source_sha256": "497e6f8c14c8741aeaae1604eee18f798271955d4f3c961108b66ed51cc82387",
+      "source_byte_range": [
+        0,
+        1306
+      ],
+      "copy_kind": "complete opening license comment, plus final newline where needed"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-dxil-spirv/third_party/glslang-spirv/SpvBuilder.cpp.notice.txt",
+      "source_url": "https://raw.githubusercontent.com/HansKristian-Work/dxil-spirv/b537bbb91bccdbc695cb7e5211d608f8d1c205bd/third_party/glslang-spirv/SpvBuilder.cpp",
+      "sha256": "0626336a8dd51f5523791341a671e837ad2e23176a3987ff4a4061bce07e6d81",
+      "bytes": 1738,
+      "source_sha256": "c2a268a471b98106086c63173418d8d2b7842cdec506aacdfc407f6e3d432ba2",
+      "source_byte_range": [
+        0,
+        1738
+      ],
+      "copy_kind": "complete opening license comment, plus final newline where needed"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-proton/COPYING",
+      "source_url": "https://raw.githubusercontent.com/HansKristian-Work/vkd3d-proton/3e5aab6fb3e18f81a71b339be4cb5cdf55140980/COPYING",
+      "sha256": "e60f286725f240bf168bf1b9739ec2ce65cd166e1dba7b74b1d63cb458056adc",
+      "bytes": 800,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-proton/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/HansKristian-Work/vkd3d-proton/3e5aab6fb3e18f81a71b339be4cb5cdf55140980/LICENSE",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+      "bytes": 26530,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-spirv-headers/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/KhronosGroup/SPIRV-Headers/ae217c17809fadb232ec94b29304b4afcd417bb4/LICENSE",
+      "sha256": "9b243f6f0bf44e295ff411a0f7b7642d1d0dff7cdc42507e9f7206f439e51b5a",
+      "bytes": 1309,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vkd3d-vulkan-headers/LICENSE.txt",
+      "source_url": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/83e1a9ed8ce289cebb1c02c8167d663dc1befb24/LICENSE.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vulkan-headers/LICENSE.md",
+      "source_url": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/b379292b2ab6df5771ba9870d53cf8b2c9295daf/LICENSE.md",
+      "sha256": "ac24e5ea920e4318e4d02c4086ae51f53cfb03feed06c18df1019e7ada1ec7bc",
+      "bytes": 458,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vulkan-headers/LICENSES/Apache-2.0.txt",
+      "source_url": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/b379292b2ab6df5771ba9870d53cf8b2c9295daf/LICENSES/Apache-2.0.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vulkan-headers/LICENSES/MIT.txt",
+      "source_url": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/b379292b2ab6df5771ba9870d53cf8b2c9295daf/LICENSES/MIT.txt",
+      "sha256": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227",
+      "bytes": 1084,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/vulkan-loader/LICENSE.txt",
+      "source_url": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/f8616928ee19f6c7fd648c1cf1f456cba3771855/LICENSE.txt",
+      "sha256": "43c0a37e6a0fa7ff3c843b3ec5a4fac84b712558ddac103fbd4c1649662a9ece",
+      "bytes": 11661,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wayland-protocols/COPYING",
+      "source_url": "https://gitlab.freedesktop.org/wayland/wayland-protocols/-/raw/6bcf87d9c17a36bb56943efeb4cbb851bd3734b8/COPYING",
+      "sha256": "f1a2b233e8a9a71c40f4aa885be08a0842ac85bb8588703c1dd7e6e6502e3124",
+      "bytes": 1502,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wayland/COPYING",
+      "source_url": "https://gitlab.freedesktop.org/wayland/wayland/-/raw/b2649cb3ee6bd70828a17e50beb16591e6066288/COPYING",
+      "sha256": "6eefcb023622a463168a5c20add95fd24a38c7482622a9254a23b99b7c153061",
+      "bytes": 1340,
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-legacy/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/f6492f848273ae3f4220151c8049e1202669cd49/AUTHORS",
+      "sha256": "25001ef0487a7aadffc58e9f20b8389c9f6385dd793ff79aaf6cef0fb42e8a33",
+      "bytes": 30668,
+      "source_revision": "f6492f848273ae3f4220151c8049e1202669cd49",
+      "source_path": "AUTHORS",
+      "source_sha256": "25001ef0487a7aadffc58e9f20b8389c9f6385dd793ff79aaf6cef0fb42e8a33",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-legacy/COPYING.LIB",
+      "source_url": "https://github.com/winehua/wine/blob/f6492f848273ae3f4220151c8049e1202669cd49/COPYING.LIB",
+      "sha256": "e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c",
+      "bytes": 26434,
+      "source_revision": "f6492f848273ae3f4220151c8049e1202669cd49",
+      "source_path": "COPYING.LIB",
+      "source_sha256": "e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-legacy/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/f6492f848273ae3f4220151c8049e1202669cd49/LICENSE",
+      "sha256": "ae025f125a5d639f0f7abe5146efa1e3d7453cc10b744b2910806fa3f46626ef",
+      "bytes": 824,
+      "source_revision": "f6492f848273ae3f4220151c8049e1202669cd49",
+      "source_path": "LICENSE",
+      "source_sha256": "ae025f125a5d639f0f7abe5146efa1e3d7453cc10b744b2910806fa3f46626ef",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-legacy/NOTICES.md",
+      "source_url": "https://github.com/winehua/wine/blob/f6492f848273ae3f4220151c8049e1202669cd49/NOTICES.md",
+      "sha256": "fe054636c2b9acbc3e49c51b5319206e77ff1ee3734c3828d6afe79226212159",
+      "bytes": 64734,
+      "source_revision": "f6492f848273ae3f4220151c8049e1202669cd49",
+      "source_path": "NOTICES.md",
+      "source_sha256": "fe054636c2b9acbc3e49c51b5319206e77ff1ee3734c3828d6afe79226212159",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/AUTHORS",
+      "sha256": "4e2f062fd9c658b60ba7c0000f88f08d2b8f1333fa7b1c37ec27859ecb2de59d",
+      "bytes": 29845,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "AUTHORS",
+      "source_sha256": "4e2f062fd9c658b60ba7c0000f88f08d2b8f1333fa7b1c37ec27859ecb2de59d",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/COPYING.LIB",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/COPYING.LIB",
+      "sha256": "e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c",
+      "bytes": 26434,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "COPYING.LIB",
+      "source_sha256": "e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/LICENSE",
+      "sha256": "ae025f125a5d639f0f7abe5146efa1e3d7453cc10b744b2910806fa3f46626ef",
+      "bytes": 824,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "LICENSE",
+      "source_sha256": "ae025f125a5d639f0f7abe5146efa1e3d7453cc10b744b2910806fa3f46626ef",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/audio/tml.h.notice.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/dlls/wineohos.drv/tml.h",
+      "sha256": "617b3facc202f5018aec82f5f86b51a3b12cd565e2ac3cffab3618bb7dabeaf4",
+      "bytes": 1563,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "dlls/wineohos.drv/tml.h",
+      "source_sha256": "e0136a411378f27f20894bf8132f53dcb5240c148cb56ab09283e4c4454b6ae8",
+      "source_byte_range": [
+        0,
+        1562
+      ],
+      "copy_kind": "complete opening comment, plus final newline"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/audio/tsf.h.notice.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/dlls/wineohos.drv/tsf.h",
+      "sha256": "525923d367636683407bbacf352231f80339810516681a159032ba0ed46443fa",
+      "bytes": 2146,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "dlls/wineohos.drv/tsf.h",
+      "source_sha256": "997092e442e930a226080c33ea9f5f7648ac31b8098a8e00d36fc7e7e0568cc3",
+      "source_byte_range": [
+        0,
+        2145
+      ],
+      "copy_kind": "complete opening comment, plus final newline"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/courier.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/courier.sfd",
+      "sha256": "03cb280de8723eeedc8201829789f166d09b3cafd250da0e5e0adc039da4aa82",
+      "bytes": 1012,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/courier.sfd",
+      "source_sha256": "ab712b8cf0682a5dea331b4f518401039099c6426470763da2f8269d0dae6fa8",
+      "source_lines": [
+        6,
+        46
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/fixedsys.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/fixedsys.sfd",
+      "sha256": "9da8259ca7dd7aaa549b46a22445de7e9b0bc1ed92e7c082e396354174451c8f",
+      "bytes": 982,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/fixedsys.sfd",
+      "source_sha256": "9019eab07b9a19f994829e88556a5df4332a6cce9543c1aa83ee2433fb58c07c",
+      "source_lines": [
+        6,
+        44
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/fixedsys_jp.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/fixedsys_jp.sfd",
+      "sha256": "25722ec367fcda0b3e4cb5b01152303b899683460decdc479574d84e10180c28",
+      "bytes": 86,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/fixedsys_jp.sfd",
+      "source_sha256": "bd1982e6cbe4bbe0268b6e014d0521848398c7e2c19b0dc9b6e5e4698c7848fa",
+      "source_lines": [
+        6,
+        45
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/marlett.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/marlett.sfd",
+      "sha256": "ed0a9f84b07e71402e1b19f6bd3f93ec99cc58f7f6e6a5a9e3e5a08c0bb0c104",
+      "bytes": 908,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/marlett.sfd",
+      "source_sha256": "eaaf88567db49cdacac4ec9e61a4ce14648e682f48343d8b9c9056cb5a1d3970",
+      "source_lines": [
+        6,
+        47
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/ms_sans_serif.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/ms_sans_serif.sfd",
+      "sha256": "9e0b23e211fc1b9865f23e777d25c65b7f3c1555b1f04dcada99d1812f463d45",
+      "bytes": 1019,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/ms_sans_serif.sfd",
+      "source_sha256": "d8cc5e8e93d70478e810b9aa3272006da57e819a063c2b34f5cf92a233b0f3f3",
+      "source_lines": [
+        6,
+        50
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/small_fonts.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/small_fonts.sfd",
+      "sha256": "bdb391ca00a58322c6fc723bcd3543cad4befc0be2d41d4ba2e2c1bc7cc08fa9",
+      "bytes": 974,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/small_fonts.sfd",
+      "source_sha256": "9d31cc3988f1d7ecb6a650ff2b312722b0114bfedc86c03f95c4c15d0b680ca5",
+      "source_lines": [
+        6,
+        55
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/small_fonts_jp.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/small_fonts_jp.sfd",
+      "sha256": "87151acbaceb5a5e31bbf609af89bbe4e2bd6e6d00ef24204dd4d6d9abefb08d",
+      "bytes": 988,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/small_fonts_jp.sfd",
+      "source_sha256": "2213f79206358a65a5058287dcd8cd4b41ec3ffb3287639e6f19d5391b1f30ab",
+      "source_lines": [
+        6,
+        55
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/symbol.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/symbol.sfd",
+      "sha256": "297294931a6bd9a20dddf03f04ff2b7e7509c3ec4062ed8e5841f695429a377e",
+      "bytes": 1066,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/symbol.sfd",
+      "source_sha256": "b146fffd2713a55b7f5101f32b3199b47542c2d5234f61cb5626ce2c886193d6",
+      "source_lines": [
+        6,
+        74
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/system.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/system.sfd",
+      "sha256": "587697c7ba0040ab5a370b070a7080840001bb96f04f00bfe5912e596e82aa96",
+      "bytes": 978,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/system.sfd",
+      "source_sha256": "88596900ca3df8dcf6ef257793a3b52baf666cc7f72140598bd2aef4787e9a41",
+      "source_lines": [
+        6,
+        46
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/tahoma.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/tahoma.sfd",
+      "sha256": "9886ff00a09ec1d53db6596cf27c60e7c644a311ea5c06f28091e8bbcf002266",
+      "bytes": 1212,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/tahoma.sfd",
+      "source_sha256": "0c1a3182a3a6b3d444113421121cbacf87322111aff245ee616109bd47479710",
+      "source_lines": [
+        6,
+        105,
+        106
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/tahomabd.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/tahomabd.sfd",
+      "sha256": "661a4fcaa83c616252130376321b2571dff91a88cf6b4856007dadec0a1995c7",
+      "bytes": 1257,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/tahomabd.sfd",
+      "source_sha256": "90e42b98fc092034e6485a7f8f811195ca2ca148b6704e5d2df56a4c97dfca49",
+      "source_lines": [
+        6,
+        105,
+        106
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/webdings.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/webdings.sfd",
+      "sha256": "3792d16c5575c43d9ba5b394d5f11ec9fe55c05a807dbee68c0fbacc8b9a1a16",
+      "bytes": 883,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/webdings.sfd",
+      "source_sha256": "52eea2ba6ea5bb5e5db89ce2a01e578d7bb768e8da04a0e235fa04a1c1821b09",
+      "source_lines": [
+        6,
+        46
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/fonts/wingding.sfd.notices.txt",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/fonts/wingding.sfd",
+      "sha256": "1a37af4ecbaf730ddf11742504737e24d39115c1179248c42ab5696ccd5ed9c4",
+      "bytes": 883,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "fonts/wingding.sfd",
+      "source_sha256": "6d8d42e70c405f41d9a9a3c54479cee0b022b5b0509ab8c9ada0402ac3007478",
+      "source_lines": [
+        6,
+        46
+      ],
+      "copy_kind": "verbatim Copyright and LangName metadata lines; SFD encoding retained"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/capstone/LICENSE.TXT",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/capstone/LICENSE.TXT",
+      "sha256": "65e9ed46a59976eda8f5bd1ea79a680dea38dd299c760bc9a8d87a764ef5029b",
+      "bytes": 1687,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/capstone/LICENSE.TXT",
+      "source_sha256": "65e9ed46a59976eda8f5bd1ea79a680dea38dd299c760bc9a8d87a764ef5029b",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/capstone/LICENSE_LLVM.TXT",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/capstone/LICENSE_LLVM.TXT",
+      "sha256": "dfdca2d7fdbabfd937f9dc41b7f61647b0e6cb1f9ee767ecb4520f979ebe91da",
+      "bytes": 3331,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/capstone/LICENSE_LLVM.TXT",
+      "source_sha256": "dfdca2d7fdbabfd937f9dc41b7f61647b0e6cb1f9ee767ecb4520f979ebe91da",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/compiler-rt/LICENSE.TXT",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/compiler-rt/LICENSE.TXT",
+      "sha256": "09e65c6534e75ec49cdc74fa894bfe4287bfbb1002be41fcad90110e9acd0984",
+      "bytes": 4288,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/compiler-rt/LICENSE.TXT",
+      "source_sha256": "09e65c6534e75ec49cdc74fa894bfe4287bfbb1002be41fcad90110e9acd0984",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/faudio/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/faudio/LICENSE",
+      "sha256": "18325126e220d6898c4a8d1e3896a7b8c0e10e15b9d08bc6630f403bf4981215",
+      "bytes": 1054,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/faudio/LICENSE",
+      "source_sha256": "18325126e220d6898c4a8d1e3896a7b8c0e10e15b9d08bc6630f403bf4981215",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/fluidsynth/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/fluidsynth/AUTHORS",
+      "sha256": "27d6c824ff75c47073d66f4a658a008d2d6f049cb68040b6628290e50411f489",
+      "bytes": 5746,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/fluidsynth/AUTHORS",
+      "source_sha256": "27d6c824ff75c47073d66f4a658a008d2d6f049cb68040b6628290e50411f489",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/fluidsynth/COPYING.md",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/fluidsynth/COPYING.md",
+      "sha256": "db7d88e8584f98b5d393cc4ab60290c3d06cd3947d104b1c91ec95c140df89c6",
+      "bytes": 467,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/fluidsynth/COPYING.md",
+      "source_sha256": "db7d88e8584f98b5d393cc4ab60290c3d06cd3947d104b1c91ec95c140df89c6",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/jpeg/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/jpeg/LICENSE",
+      "sha256": "1cb448f5e2e6d3aca60943f4eee1a04675628dc0266a074a42bc1560ebc28d61",
+      "bytes": 1815,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/jpeg/LICENSE",
+      "source_sha256": "1cb448f5e2e6d3aca60943f4eee1a04675628dc0266a074a42bc1560ebc28d61",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/jxr/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/jxr/LICENSE",
+      "sha256": "a645aa6019f2a0300dd5108b6679afb9fca0620ed06b8efe4bc1eb3d36799ada",
+      "bytes": 1294,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/jxr/LICENSE",
+      "source_sha256": "a645aa6019f2a0300dd5108b6679afb9fca0620ed06b8efe4bc1eb3d36799ada",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/lcms2/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/lcms2/AUTHORS",
+      "sha256": "a119a379ceb8f12b0debdfc111019f8043b01080613abec50f7be5cfd3bf4da7",
+      "bytes": 998,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/lcms2/AUTHORS",
+      "source_sha256": "a119a379ceb8f12b0debdfc111019f8043b01080613abec50f7be5cfd3bf4da7",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/lcms2/COPYING",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/lcms2/COPYING",
+      "sha256": "46d4e05af3bce75332a12d01f19bcce7e32b6bac544be28a64043d0231291e31",
+      "bytes": 1083,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/lcms2/COPYING",
+      "source_sha256": "46d4e05af3bce75332a12d01f19bcce7e32b6bac544be28a64043d0231291e31",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/ldap/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/ldap/LICENSE",
+      "sha256": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569",
+      "bytes": 2214,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/ldap/LICENSE",
+      "source_sha256": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/mpg123/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/mpg123/AUTHORS",
+      "sha256": "aef659cff59b308dcec513e3b2519a4bb3095878bfd1821c006c08ba91914a1b",
+      "bytes": 9320,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/mpg123/AUTHORS",
+      "source_sha256": "aef659cff59b308dcec513e3b2519a4bb3095878bfd1821c006c08ba91914a1b",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/mpg123/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/mpg123/LICENSE",
+      "sha256": "88cfbfd10c2b05905b84819502d8f494c925497507b13b60acd4e99fa85586dc",
+      "bytes": 1067,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/mpg123/LICENSE",
+      "source_sha256": "88cfbfd10c2b05905b84819502d8f494c925497507b13b60acd4e99fa85586dc",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/png/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/png/AUTHORS",
+      "sha256": "43711041a40e642089dd5047646a6d25a161dbdfd1a459c000ce5cfcb438fbda",
+      "bytes": 1565,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/png/AUTHORS",
+      "source_sha256": "43711041a40e642089dd5047646a6d25a161dbdfd1a459c000ce5cfcb438fbda",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/png/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/png/LICENSE",
+      "sha256": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
+      "bytes": 5345,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/png/LICENSE",
+      "source_sha256": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/tomcrypt/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/tomcrypt/LICENSE",
+      "sha256": "1ba8f8006c93ac386e117f5721080192b2b29c1e3e8f75dfe577ff4e2c3459a8",
+      "bytes": 718,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/tomcrypt/LICENSE",
+      "source_sha256": "1ba8f8006c93ac386e117f5721080192b2b29c1e3e8f75dfe577ff4e2c3459a8",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/vkd3d/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/vkd3d/AUTHORS",
+      "sha256": "bdb8193da040d5748b991c9edf53d44895c21e1b6e6069a4c2268e700b442f97",
+      "bytes": 657,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/vkd3d/AUTHORS",
+      "source_sha256": "bdb8193da040d5748b991c9edf53d44895c21e1b6e6069a4c2268e700b442f97",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/vkd3d/COPYING",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/vkd3d/COPYING",
+      "sha256": "ba2942ea4fef8b3f674577cf100a2d44c44f237a6d9514067a776f6979dad1c5",
+      "bytes": 786,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/vkd3d/COPYING",
+      "source_sha256": "ba2942ea4fef8b3f674577cf100a2d44c44f237a6d9514067a776f6979dad1c5",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/xml2/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/xml2/AUTHORS",
+      "sha256": "863cc6d983b8a1c7c22d7a1f40bfeb8a5f33163a2d27711b147bb00dd710ac9b",
+      "bytes": 208,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/xml2/AUTHORS",
+      "source_sha256": "863cc6d983b8a1c7c22d7a1f40bfeb8a5f33163a2d27711b147bb00dd710ac9b",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/xml2/COPYING",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/xml2/COPYING",
+      "sha256": "c5c63674f8a83c4d2e385d96d1c670a03cb871ba2927755467017317878574bd",
+      "bytes": 1289,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/xml2/COPYING",
+      "source_sha256": "c5c63674f8a83c4d2e385d96d1c670a03cb871ba2927755467017317878574bd",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/xslt/AUTHORS",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/xslt/AUTHORS",
+      "sha256": "05bd0eb6e913e96da423efd14013c562e1d77c345c447aea8b67910469d9910d",
+      "bytes": 2080,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/xslt/AUTHORS",
+      "source_sha256": "05bd0eb6e913e96da423efd14013c562e1d77c345c447aea8b67910469d9910d",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/xslt/COPYING",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/xslt/COPYING",
+      "sha256": "7e48e290b6bfccc2ec1b297023a1d77f2fd87417f71fbb9f50aabef40a851819",
+      "bytes": 2968,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/xslt/COPYING",
+      "source_sha256": "7e48e290b6bfccc2ec1b297023a1d77f2fd87417f71fbb9f50aabef40a851819",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/wine-valve/libs/zlib/LICENSE",
+      "source_url": "https://github.com/winehua/wine/blob/cd547f7a0ee9d3d59b3ec47317a7852dedf0443b/libs/zlib/LICENSE",
+      "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+      "bytes": 1002,
+      "source_revision": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "source_path": "libs/zlib/LICENSE",
+      "source_sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+      "copy_kind": "verbatim file"
+    },
+    {
+      "file": "licenses/third-party/xkeyboard-config/COPYING",
+      "source_url": "https://gitlab.freedesktop.org/xkeyboard-config/xkeyboard-config/-/raw/4225e14a2d0fca5a4f9cb8517cf12d96ea290d84/COPYING",
+      "sha256": "fc03f6535d16b3fe9beece45b84214a37e6ca4b6550c03cadaed7e1b951fb294",
+      "bytes": 9495,
+      "copy_kind": "verbatim file"
+    }
+  ]
+}
