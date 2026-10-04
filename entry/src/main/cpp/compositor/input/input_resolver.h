@@ -1,6 +1,8 @@
 #pragma once
 #include <wayland-server-core.h>
 #include <cstdint>
+#include <vector>
+#include "compositor/frame/compositor_layer.h"
 
 class ToplevelManager;
 class DesktopCompositor;
@@ -66,6 +68,13 @@ public:
     // (wayland_pointer.c "bring them within bounds") 夹回窗口内, 菜单收不到。
     // 未命中层时回退 toplevel / desktop root。返回 false = surface 不可用。
     bool FindInputTargetAt(double lx, double ly, InputTarget& out);
+
+    // Pure query of an already-validated snapshot; caller holds tmgr. No input,
+    // focus, raise or diagnostic-cache writes when logSelection is false.
+    bool FindInputTargetInLayersLocked(double lx, double ly, InputTarget& out,
+                                      const std::vector<CompositorLayer>& layers,
+                                      int rootW, int rootH, uint32_t fullscreenId,
+                                      bool logSelection = false);
 
     // Desktop 模式: 在合成帧中查找包含 (x,y) 的 toplevel (用于输入路由)
     uint32_t FindToplevelAt(int x, int y);

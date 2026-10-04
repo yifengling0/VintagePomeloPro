@@ -24,6 +24,8 @@ struct GpuDesktopLayer {
 };
 
 struct GpuDesktopScene {
+    // Sample identity only; deliberately excluded from SameGpuDesktopScene.
+    uint64_t diagnosticSerial = 0, diagnosticUs = 0;
     uint32_t rootId = 0;
     int width = 0, height = 0;
     std::vector<GpuDesktopLayer> layers;

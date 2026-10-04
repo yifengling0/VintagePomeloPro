@@ -3,6 +3,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <utility>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -113,8 +114,8 @@ struct ZcPublishState {
 // 唯一可靠的输入是 (自身 hostPid, present surface id, frame extent, serial)。
 // 因此窗口身份由 Wayland 侧注册表提供，并按方案 §9 分级解析：
 //   L0 已有绑定        → 直接使用 (绝不重新做几何搜索)
-//   L1 同进程显式路径  → presenterHostPid == ownerHostPid
-//   L3 首次几何 bootstrap → 唯一候选 (toplevel + 可见 + 非桌面根 + 尺寸精确相等)
+//   L1 同进程几何路径  → 唯一同 PID 且尺寸匹配 (弱身份)
+//   L3 legacy 跨进程几何 → 无同 PID 匹配且唯一候选 (toplevel + 可见 + 非桌面根 + 尺寸精确相等)
 //   其它               → 拒绝 (不选第二候选 / 不用 Z-order / 焦点 / 标题猜)
 // 绑定建立后 resize/move 不再重新解析 owner；窗口销毁或代际变化才失效。
 // ============================================================================
@@ -219,7 +220,12 @@ public:
     // 而渲染线程此刻可能正持 tmgr 锁) — 锁序单向: tmgr → presentLivenessMutex_。
     void NoteProducerPresent(uint64_t surfaceKey, uint64_t nowUs);
     // 合成侧真正消费一帧 (渲染线程在 UpdateSurfaceImage 成功后调用)
-    bool NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t bindingGeneration);
+    bool NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t bindingGeneration,
+                           int sourceW = 0, int sourceH = 0);
+    // Metadata only; caller holds tmgr. Revalidates live producer/owner roles.
+    bool ActiveOwner(uint64_t producerKey, uint64_t& ownerKey, uint32_t& topId,
+                     int& width, int& height) const;
+    bool HasActiveContent(uint32_t topId) const;
     // 窗口或 producer surface 销毁时清理绑定；调用方须持有 tmgr 锁。
     void InvalidateBindingsForSurface(uint32_t hostPid, uint32_t wlSurfaceId);
     size_t PresentBindingCount() const { return presentBindings_.size(); }
@@ -232,6 +238,8 @@ public:
 
 private:
     DesktopCompositor& comp_;
+    struct ConsumedContent { int width = 0, height = 0; uint64_t bindingGeneration = 0; };
+    std::unordered_map<uint64_t, ConsumedContent> consumedSizes_;
     std::unordered_set<uint64_t> activeKeys_;  // ZC key 权威
     std::unordered_map<uint64_t, ZcPublishState> publishStates_;  // key → ZC 发布状态
     // 真实 present 活性表 (producer key → 最近一次 present 的 steady 时钟 µs)。

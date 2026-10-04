@@ -395,7 +395,8 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
     consumer.layer = layer;
     consumer.hasFrame = true;
     // 2026-09-20: 记录**真实**消费时刻 (供黑窗归因/活性判定; 旧实现在查询路径里刷)
-    if (!compositor_.zc().NoteLayerConsumed(consumer.surfaceKey, PerfNowUs(), layer.bindingGeneration)) {
+    if (!compositor_.zc().NoteLayerConsumed(consumer.surfaceKey, PerfNowUs(), layer.bindingGeneration,
+                                            consumer.sourceW, consumer.sourceH)) {
         ReleaseZeroCopyBinding(consumer);
         return false;
     }
@@ -627,9 +628,23 @@ void EglRenderer::ClearZeroCopyShmTextures()
     zeroCopyShmTextures_.clear();
 }
 
-void EglRenderer::DrawZeroCopyScene()
+void EglRenderer::DrawZeroCopyScene(winehua::TextureUploadStats* uploads)
 {
     std::unordered_set<uint64_t> used;
+    size_t drawn = 0;
+    const bool diagnostic = zeroCopyScene_.diagnosticSerial &&
+        (FrameTraceEnabled() || (winehua::FrameLoopDiagnosticState() & 1));
+    const auto noteDraw = [&](const GpuDesktopLayer& layer) {
+        if (diagnostic && drawn < 16)
+            OH_LOG_INFO(LOG_APP, "[SCENE-DRAW-ISSUED] sample=%{public}llu order=%{public}zu "
+                "at_us=%{public}llu top=%{public}u producer=%{public}llu owner=%{public}llu shm_serial=%{public}llu",
+                static_cast<unsigned long long>(zeroCopyScene_.diagnosticSerial), drawn,
+                static_cast<unsigned long long>(PerfNowUs()), layer.parentToplevel,
+                static_cast<unsigned long long>(layer.zeroCopyKey),
+                static_cast<unsigned long long>(layer.ownerSurfaceKey),
+                static_cast<unsigned long long>(layer.serial));
+        ++drawn;
+    };
     glBindBuffer(GL_ARRAY_BUFFER, vbo_);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
@@ -657,6 +672,7 @@ void EglRenderer::DrawZeroCopyScene()
             glUniform1i(glGetUniformLocation(zeroCopyProgram_, "uTex"), 0);
             glUniformMatrix4fv(zeroCopyTransformLocation_, 1, GL_FALSE, consumer.samplingTransform);
             glDrawArrays(GL_TRIANGLES, 0, 6);
+            noteDraw(layer);
             continue;
         }
         if (!layer.pixels) continue;
@@ -670,6 +686,9 @@ void EglRenderer::DrawZeroCopyScene()
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         } else glBindTexture(GL_TEXTURE_2D, saved.texture);
+        const bool upload = saved.width != layer.sourceW || saved.height != layer.sourceH ||
+                            saved.pixels != layer.pixels;
+        const uint64_t uploadStart = upload && uploads && uploads->timeEnabled ? PerfNowUs() : 0;
         if (saved.width != layer.sourceW || saved.height != layer.sourceH) {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, layer.sourceW, layer.sourceH, 0,
                          GL_RGBA, GL_UNSIGNED_BYTE, layer.pixels->data());
@@ -678,13 +697,19 @@ void EglRenderer::DrawZeroCopyScene()
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, layer.sourceW, layer.sourceH,
                             GL_RGBA, GL_UNSIGNED_BYTE, layer.pixels->data());
         }
+        if (upload && uploads) uploads->Issued(layer.sourceW, layer.sourceH,
+            uploads->timeEnabled ? PerfNowUs() - uploadStart : 0);
         saved.pixels = layer.pixels;
         if (layer.opaque) glDisable(GL_BLEND); else glEnable(GL_BLEND);
         glUseProgram(program_);
         glUniform1i(glGetUniformLocation(program_, "uTex"), 0);
         glUniform1f(glGetUniformLocation(program_, "uForceOpaque"), layer.opaque ? 1.f : 0.f);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+        noteDraw(layer);
     }
+    if (diagnostic) OH_LOG_INFO(LOG_APP,
+        "[SCENE-DRAW-END] sample=%{public}llu issued=%{public}zu truncated=%{public}zu",
+        static_cast<unsigned long long>(zeroCopyScene_.diagnosticSerial), drawn, drawn > 16 ? drawn - 16 : 0);
     glDisable(GL_BLEND);
     glDisable(GL_SCISSOR_TEST);
     for (auto it = zeroCopyShmTextures_.begin(); it != zeroCopyShmTextures_.end();) {
@@ -987,7 +1012,8 @@ void EglRenderer::RenderLoop() {
         const bool loopDiagnostics = loopPerf.Sync(winehua::FrameLoopDiagnosticState(), frameStartedUs);
         winehua::ScopedTakeLockSink lockSink(loopDiagnostics ? &loopPerf.lockWait : nullptr);
         const uint64_t takeStartedUs = frameStartedUs;
-        uint64_t uploadUs = 0;
+        winehua::TextureUploadStats uploads;
+        uploads.timeEnabled = loopDiagnostics || FrameTraceEnabled();
         bool haveFrame = false;
         bool cpuFrame = false;
         bool zeroCopyFrame = false;
@@ -1073,7 +1099,6 @@ void EglRenderer::RenderLoop() {
         loopPerf.NoteTake(takeUs, haveFrame, cpuFrame, zeroCopyFrame, directFrame, zeroCopyGeometryFrame);
 
         if (!zeroCopySceneReady && cpuFrame && fw > 0 && fh > 0) {
-            const uint64_t uploadStartedUs = PerfNowUs();
             // 存储帧尺寸供输入坐标转换
             frameW_ = fw;
             frameH_ = fh;
@@ -1096,6 +1121,7 @@ void EglRenderer::RenderLoop() {
             }
             // 首帧/尺寸变化: glTexImage2D (分配 GPU 内存)
             // 同尺寸: glTexSubImage2D (复用, 仅 memcpy → GPU)
+            const uint64_t uploadStartedUs = uploads.timeEnabled ? PerfNowUs() : 0;
             if (fw != texW_ || fh != texH_) {
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fw, fh, 0,
                              GL_RGBA, GL_UNSIGNED_BYTE, px.data());
@@ -1104,10 +1130,10 @@ void EglRenderer::RenderLoop() {
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, fw, fh,
                                 GL_RGBA, GL_UNSIGNED_BYTE, px.data());
             }
+            uploads.Issued(fw, fh, uploads.timeEnabled ? PerfNowUs() - uploadStartedUs : 0);
             if (rowLen != fw) {
                 glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
             }
-            uploadUs = PerfNowUs() - uploadStartedUs;
             rendered = true;
             // [PIX-SAMPLE] 帧内容白度采样: 区分"帧本身是白的" (guest/wine
             // 侧渲染或回读) vs "帧有内容但显示白" (宿主 EGL/WMS 侧)。
@@ -1258,7 +1284,7 @@ void EglRenderer::RenderLoop() {
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
-        if (zeroCopySceneReady) DrawZeroCopyScene();
+        if (zeroCopySceneReady) DrawZeroCopyScene(&uploads);
         else for (auto& state : zeroCopyConsumers_) {
             auto& consumer = *state;
             glBindBuffer(GL_ARRAY_BUFFER, vbo_);
@@ -1331,6 +1357,11 @@ void EglRenderer::RenderLoop() {
         const uint64_t frameEndedUs = PerfNowUs();
         loopPerf.NoteWork(frameEndedUs - frameStartedUs);
         loopPerf.NotePresent(swapOk, frameEndedUs);
+        if (zeroCopySceneReady && zeroCopyScene_.diagnosticSerial &&
+            (loopDiagnostics || FrameTraceEnabled()))
+            OH_LOG_INFO(LOG_APP, "[SCENE-SWAP] sample=%{public}llu at_us=%{public}llu ok=%{public}d",
+                static_cast<unsigned long long>(zeroCopyScene_.diagnosticSerial),
+                static_cast<unsigned long long>(frameEndedUs), swapOk);
         if (haveFrame) {
             // 诊断: 每帧有帧 swap 都打印 — 对齐合成(MW-TAKE)时刻与上屏(swap)时刻,
             // skip 累计 = 自上次上屏以来跳过多少次无帧循环 (帧被延迟多久)。
@@ -1344,8 +1375,8 @@ void EglRenderer::RenderLoop() {
                             frameEndedUs - swapStartedUs);
             }
             skipFrames_ = 0;
-            perf.Add(useToplevel, takeUs, uploadUs, frameEndedUs - swapStartedUs,
-                     frameEndedUs - frameStartedUs, cpuFrame ? px.size() : 0, swapOk);
+            perf.Add(useToplevel, takeUs, uploads.cpuUs, frameEndedUs - swapStartedUs,
+                     frameEndedUs - frameStartedUs, uploads.bytes, swapOk, uploads.calls, uploads.timeEnabled);
         }
         fps.Tick();
         loopCount++;

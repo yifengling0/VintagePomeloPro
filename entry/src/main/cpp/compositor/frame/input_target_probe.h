@@ -1,23 +1,35 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <mutex>
 
-// P0-1 Task A (2026-09-17): 最近一次输入命中到的 toplevel。
-// 只用于诊断日志（STEAM-WINDOW: 快照里报告 renderWindowKey 与 inputTarget 是否一致），
-// 不参与任何合成/输入决策。定义在头里（inline 变量）以避免 compositor → input 的反向依赖。
 namespace winehua {
-
+// Actual pointer-event history only. Passive hit-tests never update this value.
+struct LastInputTargetSnapshot {
+    uint32_t toplevelId = 0;
+    uint64_t eventUs = 0;
+    double desktopX = 0, desktopY = 0;
+};
 inline std::atomic<uint32_t> g_lastInputTargetToplevel{0};
-
-inline void NoteInputTargetToplevel(uint32_t toplevelId)
+inline std::mutex g_lastInputTargetMutex;
+inline LastInputTargetSnapshot g_lastInputTargetSnapshot;
+inline void NoteInputTargetToplevel(uint32_t toplevelId, double x, double y)
 {
+    const uint64_t now = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+    std::lock_guard<std::mutex> lock(g_lastInputTargetMutex);
+    g_lastInputTargetSnapshot = {toplevelId, now, x, y};
     g_lastInputTargetToplevel.store(toplevelId, std::memory_order_relaxed);
 }
-
+inline LastInputTargetSnapshot LastInputTarget()
+{
+    std::lock_guard<std::mutex> lock(g_lastInputTargetMutex);
+    return g_lastInputTargetSnapshot;
+}
 inline uint32_t LastInputTargetToplevel()
 {
     return g_lastInputTargetToplevel.load(std::memory_order_relaxed);
 }
-
 } // namespace winehua

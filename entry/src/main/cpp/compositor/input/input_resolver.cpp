@@ -39,6 +39,20 @@ uint32_t InputResolver::FindToplevelAt(int x, int y)
 bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTarget& out)
 {
     auto lk = tmgr_.Lock();
+    int rootW, rootH;
+    ResolveRootSize(rootW, rootH);
+    const auto layers = compositor_.BuildLayerListLocked(rootW, rootH);
+    const uint32_t fullscreenId = compositor_.PickFullscreenLayerLocked(layers);
+    return FindInputTargetInLayersLocked(logicalX, logicalY, out, layers,
+                                         rootW, rootH, fullscreenId, true);
+}
+
+bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logicalY, InputTarget& out,
+                                                 const std::vector<CompositorLayer>& layers,
+                                                 int rootW, int rootH, uint32_t fullscreenId,
+                                                 bool logSelection)
+{
+    out = {};
     uint32_t rootId = desktopRootToplevelId_;
 
     // 命中判定用取整桌面坐标 (与旧调用方 lround 后传 int 逐点一致);
@@ -64,17 +78,6 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
     // 全屏窗口作为普通层参与 Z 序, 命中几何用 fit (与渲染 blitToplevel/
     // blitSubsurface 同一变换); "盖在游戏之上的层优先命中"由逆序天然
     // 保证, 不再有独立的前置命中循环。
-    int rootW, rootH;
-    ResolveRootSize(rootW, rootH);
-    const auto layers = compositor_.BuildLayerListLocked(rootW, rootH);
-
-    // 全屏目标选取 + fit 几何 — 与渲染侧 (TakeToplevelFrame) 共用单一实现:
-    // PickFullscreenLayerLocked: 可见全屏窗口中取 fsPriority 最大者 (多窗口
-    // 可同时 fullscreen, 显示模式切换时 Wine 会连带标记旧窗口 — 2026-07 实测
-    // notepad 被连带标记并压在游戏上), 规则原因/局限见 ToplevelState::fsPriority
-    // 注释; ComputeFullscreenFitLocked: ZC 游戏用全屏前尺寸 (游戏分辨率),
-    // SHM 游戏用 buffer 尺寸 (见该函数注释)
-    const uint32_t fullscreenId = compositor_.PickFullscreenLayerLocked(layers);
     const ToplevelManager::ToplevelState* zst =
         fullscreenId ? tmgr_.FindToplevelLocked(fullscreenId) : nullptr;
     FitRect transform;
@@ -84,7 +87,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
         // 诊断: 全屏输入目标选取 (仅目标变化时输出 — 多窗口同时全屏时
         // 选错窗口的点击路由问题靠它定位, 例如旧窗口被连带标记压在游戏上)
         static uint32_t sLastPicked = 0;
-        if (fullscreenId != sLastPicked) {
+        if (logSelection && fullscreenId != sLastPicked) {
             sLastPicked = fullscreenId;
             int layerW = 0, layerH = 0;
             const bool hasZC = compositor_.GetZeroCopyContentSizeLocked(fullscreenId, layerW, layerH);
@@ -157,7 +160,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                     out.originX = layerScrX;
                     out.originY = layerScrY;
                     out.scale = transform.scale;
-                    out.blockedModalId = tmgr_.FirstVisibleModalLocked(layer.toplevelId, desktopRootToplevelId_);
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(layer.toplevelId);
                     finalize();
                     return out.surface != nullptr;
                 }
@@ -174,7 +177,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                     out.originX = layer.x;
                     out.originY = layer.y;
                     // WineHua: 命中 owner 暴露区 (菜单层归属 owner) → 拦
-                    out.blockedModalId = tmgr_.FirstVisibleModalLocked(layer.toplevelId, desktopRootToplevelId_);
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(layer.toplevelId);
                 }
                 // scale 保持默认 1 (恒等变换), content 保持默认 0 (不钳制)
                 finalize();
@@ -192,7 +195,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                     out.scale = transform.scale;
                     contentW = transform.srcW;
                     contentH = transform.srcH;
-                    out.blockedModalId = tmgr_.FirstVisibleModalLocked(fullscreenId, desktopRootToplevelId_);
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(fullscreenId);
                     finalize();
                     return out.surface != nullptr;
                 }
@@ -222,7 +225,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                 out.scale = 1.0;
                 // WineHua: 命中被模态禁用的 owner → 拦截 (吞点击+焦点切 modal)
                 out.blockedModalId = layer.toplevelId != rootId
-                    ? tmgr_.FirstVisibleModalLocked(layer.toplevelId, desktopRootToplevelId_)
+                    ? compositor_.FirstVisibleContentModalLocked(layer.toplevelId)
                     : 0;
                 finalize();
                 return out.surface != nullptr;

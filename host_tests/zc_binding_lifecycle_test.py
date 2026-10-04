@@ -13,6 +13,7 @@ SOURCE = 'entry/src/main/cpp/compositor/frame/zc_bridge.cpp'
 
 STUB = r'''
 #include <cassert>
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <mutex>
@@ -25,7 +26,7 @@ struct SurfaceData { bool hasToplevel = false, isSubsurface = false; };
 struct wl_resource { SurfaceData* data; };
 static void* wl_resource_get_user_data(wl_resource* res) { return res->data; }
 struct ZeroCopyLayerInfo {};
-struct WineHuaPresentBinding { struct { uint32_t ownerHostPid, wlSurfaceId; } window; bool retired = false; uint64_t bindGeneration = 0; };
+struct WineHuaPresentBinding { struct { uint32_t ownerHostPid, wlSurfaceId; } window; bool retired = false; uint64_t bindGeneration = 1; };
 struct Manager {
     std::mutex mutex;
     std::unordered_map<uint64_t, wl_resource*> resources;
@@ -44,6 +45,7 @@ public:
     std::unordered_map<uint64_t, unsigned> bindDiagProducers_;
     std::unordered_set<uint64_t> bindingRejectedLogged_;
     std::mutex presentLivenessMutex_;
+    std::unordered_map<uint64_t,unsigned> consumedSizes_;
     unsigned resolveCalls = 0;
     bool ResolvePresentBinding(uint64_t key, uint32_t, uint32_t,
                                WineHuaPresentBinding* result, bool*) {
@@ -126,7 +128,7 @@ def main():
     end = source.index('\n// P0-1 Task A', start)
     cleanup = source[start:end].replace(name, 'InvalidateBindingsForSurface')
     start = source.index('bool ZcBridge::GetLayerInfo(')
-    end = source.index('    // -- present surface', start)
+    end = source.index('    info = {};', start)
     guard = source[start:end] + '\n    (void)bindingGeneration;\n    return sd != nullptr;\n}\n'
     with tempfile.TemporaryDirectory(prefix='zc-lifecycle-test-') as temp:
         folder = Path(temp)

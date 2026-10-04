@@ -1,4 +1,5 @@
 #pragma once
+#include "common/texture_upload_stats.h"
 #include <ace/xcomponent/native_interface_xcomponent.h>
 #include <native_window/external_window.h>
 #include <EGL/egl.h>
@@ -88,7 +89,7 @@ private:
     void DumpZeroCopyLayerPixels(ZeroCopyConsumer& consumer, int x, int y, int w, int h);
     void ReleaseZeroCopyBinding(ZeroCopyConsumer& consumer);
     bool SnapshotZeroCopyScene();
-    void DrawZeroCopyScene();
+    void DrawZeroCopyScene(winehua::TextureUploadStats* uploads = nullptr);
     void ClearZeroCopyShmTextures();
     void ShutdownZeroCopyConsumer();
 

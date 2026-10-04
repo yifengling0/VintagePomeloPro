@@ -70,6 +70,10 @@ fi
 if [ -z "${LLVM_MINGW}" ] && [ -d "$ROOT/.temp/$LLVM_MINGW_DIRNAME" ]; then
     LLVM_MINGW="$ROOT/.temp/$LLVM_MINGW_DIRNAME"
 fi
+if [ -z "${LLVM_MINGW}" ] && [ "${WINE_IDENTITY_CHECK_ONLY:-0}" = 1 ]; then
+    echo "ERROR: identity check requires the configured llvm-mingw toolchain; no download was attempted" >&2
+    exit 1
+fi
 if [ -z "${LLVM_MINGW}" ]; then
     echo "llvm-mingw 缺失, 自动下载 $LLVM_MINGW_VERSION (CI 同款 release) 到 $ROOT/.temp/  ..." >&2
     mkdir -p "$ROOT/.temp"

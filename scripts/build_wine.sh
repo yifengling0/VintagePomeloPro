@@ -2,7 +2,33 @@
 # build_wine.sh — Wine 交叉编译
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+case "${1:-}" in
+    --check-identity|--check-cached-identity) export WINE_IDENTITY_CHECK_ONLY=1 ;;
+esac
 source "$SCRIPT_DIR/env.sh"
+
+wine_build_identity() {
+    local mode="$1"
+    shift
+    python3 "$SCRIPT_DIR/wine_build_identity.py" "$mode" "$@" \
+        --source "$WINE_SRC" --build "$BUILD_DIR" --repo "$SCRIPT_DIR/.." \
+        --config "WINE_ARCH=$WINE_ARCH" --config "NATIVE_ARCH=$NATIVE_ARCH" \
+        --config "GUEST_ARCH=$GUEST_ARCH" --config "HOST_TRIPLE=$HOST_TRIPLE" \
+        --config "HOST_OS=$HOST_OS" --config "TARGET=$TARGET" \
+        --config "SYSROOT=$SYSROOT" --config "LLVM_MINGW=$LLVM_MINGW" \
+        --config "CFLAGS=${CFLAGS:-}" --config "CXXFLAGS=${CXXFLAGS:-}" \
+        --config "LDFLAGS=${LDFLAGS:-}" --config "CROSSCFLAGS=${CROSSCFLAGS:-}" \
+        --config "CC=${CC:-}" --config "CXX=${CXX:-}" --config "AR=${AR:-}" \
+        --config "PKG_CONFIG_BIN=$PKG_CONFIG_BIN" --tool "$CLANG"
+}
+# Fail before applying overlays or generating files in any source tree. A
+# foreign/stale cache is never repaired by resetting source or deleting cache.
+if [ "${1:-}" = --check-cached-identity ]; then
+    wine_build_identity check --require-manifest
+    exit 0
+fi
+wine_build_identity check
+if [ "${1:-}" = --check-identity ]; then exit 0; fi
 
 ensure_wine_patch() {
     local patch_file="$1" description="$2"
@@ -446,6 +472,8 @@ if [ ! -f "$WINE_SRC/dlls/ntdll/ntsyscalls.h" ] \
     log "--- 生成完成: ntsyscalls.h / include/wine/vulkan.h / include/config.h.in ---"
 fi
 
+# Record the exact effective source after overlays/generated inputs, before make.
+wine_build_identity record
 build_native_tools
 build_ohos_unix
 build_wineserver

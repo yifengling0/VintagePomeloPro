@@ -375,10 +375,12 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
 # → assemble 找不到 wine-ohos-x86_64。方案① (NATIVE_ARCH=x86_64) 无冲突但同样带后缀。
 wine: $(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH)
 
-$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/env.sh $(STAMPS)/deps FORCE | $(STAMPS)
+$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_build_identity.py $(SCRIPTS)/env.sh $(STAMPS)/deps FORCE | $(STAMPS)
+	@if [ -f "$@" ]; then mode=--check-cached-identity; else mode=--check-identity; fi; \
+	    BUILD_DIR="$(BUILD_DIR)" bash "$(SCRIPTS)/build_wine.sh" "$$mode"
 	@if [ -f $@ ] && [ -f $(WINE_SENTINEL) ] && \
 	    ! [ "$(SCRIPTS)/build_wine.sh" -nt $@ ] && \
-        ! find $(WINE_SRC) \
+        ! find "$(WINE_SRC)" \
 	           -newer $@ -type f \
 	           \( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.cc' \
 	              -o -name 'meson.build' -o -name 'CMakeLists.txt' \
@@ -580,6 +582,18 @@ test-benchmark-statistics:
 test-gamepad-bridge:
 	python3 $(ROOT)/host_tests/gamepad_bridge_test.py
 
+.PHONY: test-gpu-followup
+test-gpu-followup:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/host_tests/stubs -I $(ROOT)/entry/src/main/cpp \
+	    $(ROOT)/host_tests/texture_upload_stats_test.cpp $(ROOT)/entry/src/main/cpp/common/perf_utils.cpp \
+	    -o $(HOST_TEST_DIR)/texture_upload_stats_test
+	$(HOST_TEST_DIR)/texture_upload_stats_test
+	python3 $(ROOT)/host_tests/gpu_owner_contract_test.py
+	python3 $(ROOT)/host_tests/gpu_scene_input_test.py
+	python3 $(ROOT)/host_tests/wine_build_identity_test.py
+	python3 $(ROOT)/host_tests/wine_make_identity_test.py
+
 .PHONY: test-steam-gpu-contracts
 test-steam-gpu-contracts:
 	python3 $(ROOT)/host_tests/steam_gpu_contract_test.py
@@ -644,7 +658,7 @@ test-steam-client-args:
 	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
 	$(HOST_TEST_DIR)/steam_client_args_test
 
-test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer test-steam-gpu-contracts test-frame-loop-diagnostics test-cef-render-switches
+test: test-gpu-followup test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer test-steam-gpu-contracts test-frame-loop-diagnostics test-cef-render-switches
 
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \

@@ -87,7 +87,8 @@ void RendererPerfWindow::PublishDisplayedFps(uint32_t toplevelId, uint64_t nowUs
 }
 
 void RendererPerfWindow::Add(uint32_t toplevelId, uint64_t take, uint64_t upload,
-                             uint64_t swap, uint64_t total, size_t bytes, bool swapOk)
+                             uint64_t swap, uint64_t total, size_t bytes, bool swapOk,
+                             uint64_t calls, bool uploadTimed)
 {
     if (publishToplevelId != toplevelId)
     {
@@ -107,6 +108,8 @@ void RendererPerfWindow::Add(uint32_t toplevelId, uint64_t take, uint64_t upload
         ++publishFrames;
     }
     uploadBytes += bytes;
+    uploadCalls += calls;
+    uploadTimedFrames += uploadTimed ? 1 : 0;
     if (!swapOk) ++failedSwaps;
 
     const uint64_t nowUs = PerfNowUs();
@@ -119,6 +122,7 @@ void RendererPerfWindow::Add(uint32_t toplevelId, uint64_t take, uint64_t upload
     OH_LOG_INFO(LOG_APP,
                 "[GL-PERF] tl=%{public}u displayed=%{public}llu fps=%{public}.2f "
                 "upload_bytes=%{public}llu failed_swaps=%{public}llu "
+                "upload_calls_issued=%{public}llu upload_timed_frames=%{public}llu "
                 "take_us=%{public}llu/%{public}llu/%{public}llu/%{public}llu "
                 "upload_us=%{public}llu/%{public}llu/%{public}llu/%{public}llu "
                 "swap_us=%{public}llu/%{public}llu/%{public}llu/%{public}llu "
@@ -126,6 +130,8 @@ void RendererPerfWindow::Add(uint32_t toplevelId, uint64_t take, uint64_t upload
                 toplevelId, static_cast<unsigned long long>(displayed), fps,
                 static_cast<unsigned long long>(uploadBytes),
                 static_cast<unsigned long long>(failedSwaps),
+                static_cast<unsigned long long>(uploadCalls),
+                static_cast<unsigned long long>(uploadTimedFrames),
                 static_cast<unsigned long long>(Percentile(takeUs, count, 50)),
                 static_cast<unsigned long long>(Percentile(takeUs, count, 95)),
                 static_cast<unsigned long long>(Percentile(takeUs, count, 99)),
@@ -146,6 +152,8 @@ void RendererPerfWindow::Add(uint32_t toplevelId, uint64_t take, uint64_t upload
     count = 0;
     windowDisplayed = 0;
     uploadBytes = 0;
+    uploadCalls = 0;
+    uploadTimedFrames = 0;
     failedSwaps = 0;
     startedUs = nowUs;
 }

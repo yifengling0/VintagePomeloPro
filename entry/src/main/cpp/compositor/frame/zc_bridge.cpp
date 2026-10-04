@@ -85,6 +85,7 @@ void ZcBridge::SetEnabled(uint64_t surfaceKey, bool enabled)
 void ZcBridge::RemoveKey(uint64_t surfaceKey)
 {
     activeKeys_.erase(surfaceKey);
+    consumedSizes_.erase(surfaceKey);
 }
 
 // ============================================================================
@@ -234,168 +235,23 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
     {
         WineHuaPresentBinding binding;
         bool newlyBound = false;
-        if (ResolvePresentBinding(surfaceKey, static_cast<uint32_t>(fallbackWidth),
-                                  static_cast<uint32_t>(fallbackHeight), &binding, &newlyBound))
-        {
-            const uint64_t boundWindowKey =
-                (static_cast<uint64_t>(binding.window.ownerHostPid) << 32) | binding.window.wlSurfaceId;
-            auto* boundRes = comp_.tmgr_.FindSurfaceResource(boundWindowKey);
-            auto* boundSd = boundRes
-                ? static_cast<SurfaceData*>(wl_resource_get_user_data(boundRes)) : nullptr;
-            if (boundSd)
-            {
-                wlRes = boundRes;
-                sd = boundSd;
-                bindingGeneration = binding.bindGeneration;
-                if (outReason) *outReason = "present-binding";
-                // 2026-09-20: 这里**不再**写消费时刻。本函数同时服务"每帧查询"与
-                // "真正消费"两条路径, 把查询当消费会让 lastProducerUs/lastDrawUs
-                // 变成"渲染器上次查询时刻"(= 恒为 8ms 的假活跃)。真实消费时刻改由
-                // 渲染线程在 UpdateSurfaceImage 成功后经 NoteLayerConsumed 写入。
-            }
-        }
+        if (!ResolvePresentBinding(surfaceKey, static_cast<uint32_t>(std::max(0, fallbackWidth)),
+                                   static_cast<uint32_t>(std::max(0, fallbackHeight)), &binding, &newlyBound))
+            return reject("present_binding_rejected");
+        const uint64_t boundWindowKey =
+            (static_cast<uint64_t>(binding.window.ownerHostPid) << 32) | binding.window.wlSurfaceId;
+        auto* boundRes = comp_.tmgr_.FindSurfaceResource(boundWindowKey);
+        auto* boundSd = boundRes
+            ? static_cast<SurfaceData*>(wl_resource_get_user_data(boundRes)) : nullptr;
+        if (!boundSd || !binding.bindGeneration)
+            return reject("present_binding_owner_missing");
+        wlRes = boundRes;
+        sd = boundSd;
+        bindingGeneration = binding.bindGeneration;
+        if (outReason) *outReason = "present-binding";
+        // Rejection is terminal. A second geometry search must never bypass
+        // owner claims, pending takeover or retired-producer tombstones.
     }
-
-    // -- present surface → owner 窗口解析 (2026-09-16, Steam 跨进程黑窗) --
-    //
-    // Wine 为 Vulkan present 单独创建一个 role-less wl_surface (guest 侧
-    // winehua_surface_id = 该 host surface 的低 32 位 = 这个 wl_surface 的 id)。
-    // 它既不是 toplevel 也不是 subsurface, 于是旧实现按 "surface_without_toplevel"
-    // 拒绝, app 侧永远不 attach, presenter 侧每次 present 都要等满 2.5s 然后返回
-    // -EAGAIN (=DXVK 眼里的 VK_SUBOPTIMAL_KHR) —— 黑窗 + CEF 卡死即由此而来。
-    //
-    // 解析规则 (保守, 只在唯一可判定时才接管):
-    //   1. 只允许同 client pid 的 surface 作为 owner 候选 (约束: ownerPid + surfaceId);
-    //   2. 候选必须是 toplevel 本身, 或 parent 有 toplevel 的 subsurface;
-    //   3. 若 present 报的尺寸与候选 committed 尺寸一致者唯一 → 取之;
-    //      否则若候选唯一 → 取之; 其余情况一律拒绝 (ambiguous_owner)。
-    // 解析结果只替换"几何来源" (sd/wlRes), 目标 key 仍是 present 侧的 key,
-    // 因此 presenter 侧 attach/呈现契约不变。
-    bool ownerResolved = false;
-    if (!sd->hasToplevel && !sd->isSubsurface)
-    {
-        const uint32_t presentPidForLog = sd->clientPid;
-        struct OwnerCandidate {
-            wl_resource* res = nullptr;
-            SurfaceData* sd = nullptr;
-            bool sizeMatches = false;
-        };
-        OwnerCandidate only{};
-        OwnerCandidate sized{};
-        OwnerCandidate sizedAnyPid{};
-        uint32_t ownerCandidates = 0;
-        uint32_t sizeMatches = 0;
-        uint32_t sizeMatchesAnyPid = 0;
-        for (const auto& [otherKey, otherRes] : comp_.tmgr_.SurfaceResources())
-        {
-            static_cast<void>(otherKey);
-            if (!otherRes || otherRes == wlRes) continue;
-            auto* otherSd = static_cast<SurfaceData*>(wl_resource_get_user_data(otherRes));
-            if (!otherSd) continue;
-            SurfaceData* windowSd = otherSd;
-            if (otherSd->isSubsurface && otherSd->parentSurface)
-                windowSd = static_cast<SurfaceData*>(
-                    wl_resource_get_user_data(otherSd->parentSurface));
-            if (!windowSd || !windowSd->hasToplevel) continue;
-            // 桌面根 toplevel 是合成画布而不是"某个窗口": 尺寸恒等于桌面尺寸,
-            // 会被误当成候选并让真正的窗口变成"歧义", 因此直接排除。
-            if (windowSd->toplevelId == comp_.desktopRootToplevelId_) continue;
-            // 根合成下只接受当前可见窗口 (隐藏/最小化窗口不可能是呈现目标)
-            if (comp_.policy_.RootCompositing() &&
-                !comp_.tmgr_.IsToplevelVisibleLocked(windowSd->toplevelId,
-                                                     comp_.desktopRootToplevelId_))
-                continue;
-            // 匹配尺寸优先用 surface 的 committed 尺寸; 最大化/无 shm 提交的窗口
-            // committed 尺寸为 0, 此时退回该 toplevel 的合成几何 (Width/Height)。
-            int windowW = otherSd->w;
-            int windowH = otherSd->h;
-            if ((windowW <= 0 || windowH <= 0) && windowSd->hasToplevel)
-            {
-                if (const auto* windowState =
-                        comp_.tmgr_.FindToplevelLocked(windowSd->toplevelId))
-                {
-                    windowW = windowState->Width();
-                    windowH = windowState->Height();
-                }
-            }
-            const bool matches = fallbackWidth > 0 && fallbackHeight > 0 &&
-                windowW == fallbackWidth && windowH == fallbackHeight;
-            if (otherSd->clientPid != sd->clientPid)
-            {
-                // 跨进程 owner (CEF 的 GPU 进程为浏览器进程的窗口 present):
-                // 只收尺寸完全一致的候选, 以免误绑到同进程外的无关窗口。
-                if (matches)
-                {
-                    sizedAnyPid = {otherRes, otherSd, true};
-                    ++sizeMatchesAnyPid;
-                }
-                continue;
-            }
-            ++ownerCandidates;
-            only = {otherRes, otherSd, false};
-            if (matches)
-            {
-                sized = {otherRes, otherSd, true};
-                ++sizeMatches;
-            }
-        }
-        if (sizeMatches == 1)
-        {
-            wlRes = sized.res;
-            sd = sized.sd;
-            ownerResolved = true;
-            static std::unordered_set<uint64_t> ownerResolvedLogged;
-            if (ownerResolvedLogged.insert(surfaceKey).second)
-                OH_LOG_WARN(LOG_APP,
-                            "[MW-ZC] present owner by size key=%{public}llu "
-                            "owner_pid=%{public}u owner_surface=%{public}u "
-                            "size=%{public}dx%{public}d top=%{public}u",
-                            static_cast<unsigned long long>(surfaceKey), sd->clientPid,
-                            sd->protocolId, fallbackWidth, fallbackHeight, sd->toplevelId);
-        }
-        else if (ownerCandidates == 1)
-        {
-            wlRes = only.res;
-            sd = only.sd;
-            ownerResolved = true;
-            static std::unordered_set<uint64_t> ownerResolvedLogged;
-            if (ownerResolvedLogged.insert(surfaceKey).second)
-                OH_LOG_WARN(LOG_APP,
-                            "[MW-ZC] present owner by unique window key=%{public}llu "
-                            "owner_pid=%{public}u owner_surface=%{public}u top=%{public}u",
-                            static_cast<unsigned long long>(surfaceKey), sd->clientPid,
-                            sd->protocolId, sd->toplevelId);
-        }
-        else if (sizeMatchesAnyPid == 1)
-        {
-            wlRes = sizedAnyPid.res;
-            sd = sizedAnyPid.sd;
-            ownerResolved = true;
-            static std::unordered_set<uint64_t> ownerResolvedLogged;
-            if (ownerResolvedLogged.insert(surfaceKey).second)
-                OH_LOG_WARN(LOG_APP,
-                            "[MW-ZC] present owner by size (cross-pid) key=%{public}llu "
-                            "present_pid=%{public}u owner_pid=%{public}u "
-                            "owner_surface=%{public}u size=%{public}dx%{public}d top=%{public}u",
-                            static_cast<unsigned long long>(surfaceKey), presentPidForLog,
-                            sd->clientPid, sd->protocolId, fallbackWidth, fallbackHeight,
-                            sd->toplevelId);
-        }
-        else
-        {
-            static std::unordered_set<uint64_t> ownerAmbiguousLogged;
-            if (ownerAmbiguousLogged.insert(surfaceKey).second)
-                OH_LOG_WARN(LOG_APP,
-                            "[MW-ZC] present owner ambiguous key=%{public}llu "
-                            "pid=%{public}u surface=%{public}u candidates=%{public}u "
-                            "size_matches=%{public}u size_any_pid=%{public}u "
-                            "size=%{public}dx%{public}d",
-                            static_cast<unsigned long long>(surfaceKey), sd->clientPid,
-                            sd->protocolId, ownerCandidates, sizeMatches, sizeMatchesAnyPid,
-                            fallbackWidth, fallbackHeight);
-        }
-    }
-    static_cast<void>(ownerResolved);
 
     info = {};
     info.surfaceKey = surfaceKey;
@@ -551,12 +407,16 @@ uint64_t ZcBridge::LastPresentUs(uint64_t surfaceKey) const
     return it == lastPresentUsByKey_.end() ? 0 : it->second;
 }
 
-bool ZcBridge::NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t bindingGeneration)
+bool ZcBridge::NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t bindingGeneration,
+                                 int sourceW, int sourceH)
 {
     if (!surfaceKey) return false;
     auto lk = comp_.tmgr_.Lock();
     if (!comp_.tmgr_.FindSurfaceResource(surfaceKey)) return false;
-    if (!bindingGeneration) return true; // explicit protocol geometry has no binding
+    const auto rememberSize = [&] {
+        if (sourceW > 0 && sourceH > 0) consumedSizes_[surfaceKey] = {sourceW, sourceH, bindingGeneration};
+    };
+    if (!bindingGeneration) { rememberSize(); return true; } // explicit protocol role
     const auto it = presentBindings_.find(surfaceKey);
     if (it == presentBindings_.end() || it->second.retired ||
         it->second.bindGeneration != bindingGeneration) return false;
@@ -567,6 +427,7 @@ bool ZcBridge::NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t b
     const auto claim = windowBindings_.find(windowKey);
     if (binding.pending && (claim == windowBindings_.end() || claim->second != surfaceKey))
         return false;
+    rememberSize();
     binding.lastDrawUs = nowUs;
     if (!binding.pending) return true;
     // Only a validated NativeImage consumption can replace the old last frame.
@@ -730,78 +591,46 @@ bool ZcBridge::ResolvePresentBinding(uint64_t surfaceKey, uint32_t frameWidth,
         return true;
     };
 
-    // L1：同进程显式路径（GTA V / Heaven / 普通 DXVK：presenterHostPid == ownerHostPid）
-    {
-        uint32_t count = 0;
-        SurfaceData* only = nullptr;
-        for (const auto& [key, res] : comp_.tmgr_.SurfaceResources())
-        {
-            static_cast<void>(key);
-            if (!res) continue;
+    // Geometry is a compatibility bootstrap, never explicit identity. Prefer
+    // a uniquely matching same-process owner; only when there is none consider
+    // the legacy cross-process set. Count before applying claims: an occupied
+    // matching window must not make an unrelated peer appear unique.
+    uint32_t sameCount = 0, otherCount = 0;
+    SurfaceData* same = nullptr;
+    SurfaceData* otherPid = nullptr;
+    if (frameWidth && frameHeight) {
+        for (const auto& [key, res] : comp_.tmgr_.SurfaceResources()) {
+            if (!res || key == surfaceKey) continue;
             auto* other = static_cast<SurfaceData*>(wl_resource_get_user_data(res));
-            uint32_t otherTopId = 0;
-            int otherW = 0, otherH = 0;
-            bool otherSizeKnown = false;
-            if (!considerWindow(other, &otherTopId, &otherW, &otherH, &otherSizeKnown)) continue;
-            if (other->clientPid != presenterHostPid) continue;
-            if (windowBindings_.count(windowKeyOf(other))) continue;
-            only = other;
-            ++count;
+            uint32_t topId = 0;
+            int width = 0, height = 0;
+            bool sizeKnown = false;
+            if (!considerWindow(other, &topId, &width, &height, &sizeKnown)) continue;
+            const bool stateMatch = sizeKnown && width > 0 && height > 0 &&
+                static_cast<uint32_t>(width) == frameWidth && static_cast<uint32_t>(height) == frameHeight;
+            const bool bufferMatch = other->w > 0 && other->h > 0 &&
+                static_cast<uint32_t>(other->w) == frameWidth && static_cast<uint32_t>(other->h) == frameHeight;
+            if (!stateMatch && !bufferMatch) continue;
+            if (other->clientPid == presenterHostPid) { same = other; ++sameCount; }
+            else { otherPid = other; ++otherCount; }
         }
-        if (count == 1) { candidate = only; reason = "same-process"; }
     }
-
-    // L3：首次几何 bootstrap —— 必须唯一候选，且 toplevel/可见/非桌面根/尺寸精确相等
-    if (!candidate && frameWidth && frameHeight)
-    {
-        uint32_t count = 0;
-        SurfaceData* only = nullptr;
-        for (const auto& [key, res] : comp_.tmgr_.SurfaceResources())
-        {
-            static_cast<void>(key);
-            if (!res) continue;
-            auto* other = static_cast<SurfaceData*>(wl_resource_get_user_data(res));
-            uint32_t otherTopId = 0;
-            int otherW = 0, otherH = 0;
-            bool otherSizeKnown = false;
-            if (!considerWindow(other, &otherTopId, &otherW, &otherH, &otherSizeKnown)) continue;
-            // Task E (2026-09-17): 占用同一窗口的旧 producer 只有在"已停帧 (>1s)"时才
-            // 允许被接管；仍活跃的占用者保持独占（避免抢窗口导致旧内容立即消失）。
-            bool takeover = false;
-            if (const auto claim = windowBindings_.find(windowKeyOf(other));
-                claim != windowBindings_.end())
-            {
-                const auto claimBinding = presentBindings_.find(claim->second);
-                if (claimBinding == presentBindings_.end())
-                {
-                    // 2026-09-20: claim 指向的 producer 已无绑定 (被 release/销毁) →
-                    // 该占用是残留, 直接清掉并让本 producer 正常竞争该窗口。
-                    windowBindings_.erase(claim);
-                }
-                else
-                {
-                // 活性取自**真实 present** 时间戳 (旧实现取查询刷新值 → 永不超时,
-                // 新 producer 永远无法接管被弃用的窗口)。
-                const uint64_t claimLastUs = LastPresentUs(claim->second);
-                const uint64_t claimAgeMs =
-                    claimLastUs && nowUs > claimLastUs ? (nowUs - claimLastUs) / 1000 : 0;
-                if (claimAgeMs <= 1000) continue;
-                takeover = true;
-                }
+    if (sameCount == 1) { candidate = same; reason = "same-process-geometry"; }
+    else if (sameCount == 0 && otherCount == 1) {
+        candidate = otherPid;
+        reason = "legacy-cross-process-geometry";
+    }
+    if (candidate) {
+        const auto claim = windowBindings_.find(windowKeyOf(candidate));
+        if (claim != windowBindings_.end()) {
+            const auto claimBinding = presentBindings_.find(claim->second);
+            if (claimBinding == presentBindings_.end()) windowBindings_.erase(claim);
+            else {
+                const uint64_t lastUs = LastPresentUs(claim->second);
+                // Unknown activity is not evidence that the old producer stopped.
+                if (!lastUs || nowUs <= lastUs || nowUs - lastUs <= 1000000) candidate = nullptr;
+                else { takeoverCandidate = true; reason = "unique-geometry-takeover"; }
             }
-            const bool sizeMatch = otherSizeKnown &&
-                                   static_cast<uint32_t>(otherW) == frameWidth &&
-                                   static_cast<uint32_t>(otherH) == frameHeight;
-            const bool bufferMatch = static_cast<uint32_t>(other->w) == frameWidth &&
-                                     static_cast<uint32_t>(other->h) == frameHeight;
-            if (!sizeMatch && !bufferMatch) continue;
-            only = other;
-            takeoverCandidate = takeover;
-            ++count;
-        }
-        if (count == 1) {
-            candidate = only;
-            reason = takeoverCandidate ? "unique-geometry-takeover" : "unique-geometry";
         }
     }
 
@@ -913,6 +742,7 @@ void ZcBridge::InvalidateBindingsForSurface(uint32_t hostPid, uint32_t wlSurface
             continue;
         }
         const uint64_t producerKey = it->first;
+        consumedSizes_.erase(producerKey);
         const auto claim = windowBindings_.find(windowKey);
         if (claim != windowBindings_.end() && claim->second == producerKey)
             windowBindings_.erase(claim);
@@ -925,6 +755,7 @@ void ZcBridge::InvalidateBindingsForSurface(uint32_t hostPid, uint32_t wlSurface
                     static_cast<unsigned long long>(surfaceKey));
         it = presentBindings_.erase(it);
     }
+    consumedSizes_.erase(surfaceKey);
     windowBindings_.erase(surfaceKey);
     bindingRejectedLogged_.erase(surfaceKey);
     bindDiagProducers_.erase(surfaceKey);
@@ -991,7 +822,7 @@ void ZcBridge::DumpWindowBindingDiag()
         const auto ageMs = [nowUs](uint64_t thenUs) -> uint64_t {
             return thenUs && nowUs > thenUs ? (nowUs - thenUs) / 1000 : 0;
         };
-        uint64_t producerAgeMs = 0, drawAgeMs = 0;
+        uint64_t producerAgeMs = 0, consumeAgeMs = 0;
         const char* klass = "CEFBlackContent";
         if (!binding)
         {
@@ -1001,10 +832,10 @@ void ZcBridge::DumpWindowBindingDiag()
         else
         {
             producerAgeMs = ageMs(binding->lastProducerUs);
-            drawAgeMs = ageMs(binding->lastDrawUs);
+            consumeAgeMs = ageMs(binding->lastDrawUs);
             if (producerAgeMs > 5000) klass = "ProducerDead";
             else if (producerAgeMs > 1000) klass = "ProducerStall";
-            else if (drawAgeMs > 1000) klass = "CompositeStall";
+            else if (consumeAgeMs > 1000) klass = "CompositeStall";
             else klass = "OK";
         }
 
@@ -1063,8 +894,8 @@ void ZcBridge::DumpWindowBindingDiag()
                     "STEAM-WINDOW: window=(%{public}u,%{public}u) toplevel=%{public}u "
                     "geometry=%{public}dx%{public}d+%{public}d,%{public}d visible=%{public}d "
                     "binding=%{public}s producer=0x%{public}llx extent=%{public}ux%{public}u "
-                    "producerAgeMs=%{public}llu drawAgeMs=%{public}llu contentSource=%{public}s "
-                    "shmFrame=%{public}d inputTarget=%{public}u class=%{public}s",
+                    "producerAgeMs=%{public}llu consumeAgeMs=%{public}llu contentSource=%{public}s "
+                    "shmFrame=%{public}d lastInputTarget=%{public}u class=%{public}s",
                     sd->clientPid, sd->protocolId, sd->toplevelId,
                     st->Width(), st->Height(), st->X(), st->Y(),
                     comp_.tmgr_.IsToplevelVisibleLocked(sd->toplevelId, rootId) ? 1 : 0,
@@ -1072,7 +903,7 @@ void ZcBridge::DumpWindowBindingDiag()
                     static_cast<unsigned long long>(bound != windowBindings_.end() ? bound->second : 0),
                     binding ? binding->frameWidth : 0u, binding ? binding->frameHeight : 0u,
                     static_cast<unsigned long long>(producerAgeMs),
-                    static_cast<unsigned long long>(drawAgeMs),
+                    static_cast<unsigned long long>(consumeAgeMs),
                     binding ? "VenusNative" : (st->HasFrame() ? "SHM" : "none"),
                     st->HasFrame() ? 1 : 0, inputTarget, klass);
     }
@@ -1282,9 +1113,59 @@ int ZcBridge::GetOccluders(uint64_t surfaceKey, uint32_t rendererToplevelId,
     return count;
 }
 
+bool ZcBridge::ActiveOwner(uint64_t producerKey, uint64_t& ownerKey, uint32_t& topId,
+                           int& width, int& height) const
+{
+    if (!activeKeys_.count(producerKey)) return false;
+    const auto size = consumedSizes_.find(producerKey);
+    if (size == consumedSizes_.end()) return false;
+    auto* resource = comp_.tmgr_.FindSurfaceResource(producerKey);
+    auto* sd = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
+    if (!sd) return false;
+    ownerKey = producerKey;
+    if (!sd->hasToplevel && !sd->isSubsurface) {
+        const auto binding = presentBindings_.find(producerKey);
+        if (binding == presentBindings_.end() || binding->second.retired || !binding->second.bindGeneration ||
+            binding->second.bindGeneration != size->second.bindingGeneration)
+            return false;
+        ownerKey = (static_cast<uint64_t>(binding->second.window.ownerHostPid) << 32) |
+                    binding->second.window.wlSurfaceId;
+        resource = comp_.tmgr_.FindSurfaceResource(ownerKey);
+        sd = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
+        if (!sd) return false;
+    }
+    if (ownerKey == producerKey && size->second.bindingGeneration) return false;
+    if (sd->hasToplevel) topId = sd->toplevelId;
+    else if (sd->isSubsurface && sd->parentSurface) {
+        // Parent destruction can precede child cleanup. Check pointer membership
+        // before dereferencing the protocol edge on the input thread.
+        if (!comp_.tmgr_.ContainsSurfaceResource(sd->parentSurface)) return false;
+        auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
+        if (!parent || !parent->hasToplevel ||
+            comp_.tmgr_.FindSurfaceResource(parent->surfaceKey) != sd->parentSurface) return false;
+        topId = parent->toplevelId;
+    } else return false;
+    const auto* state = comp_.tmgr_.FindToplevelLocked(topId);
+    if (state && (state->IsBackground() || state->IsMinimized())) return false;
+    width = DisplaySizeAfterViewport(sd->vpDstW, sd->w > 0 ? sd->w : size->second.width);
+    height = DisplaySizeAfterViewport(sd->vpDstH, sd->h > 0 ? sd->h : size->second.height);
+    return topId && width > 0 && height > 0;
+}
+
+bool ZcBridge::HasActiveContent(uint32_t topId) const
+{
+    for (uint64_t key : activeKeys_) {
+        uint64_t owner = 0;
+        uint32_t top = 0;
+        int w = 0, h = 0;
+        if (ActiveOwner(key, owner, top, w, h) && top == topId) return true;
+    }
+    return false;
+}
+
 bool ZcBridge::HasLayerForToplevel(uint32_t id) const
 {
-    return comp_.FindZeroCopyLayerForToplevelLocked(id) != nullptr;
+    return HasActiveContent(id);
 }
 
 bool ZcBridge::GetContentSize(uint32_t toplevelId, int& outW, int& outH) const
@@ -1295,10 +1176,29 @@ bool ZcBridge::GetContentSize(uint32_t toplevelId, int& outW, int& outH) const
     // 缓存 zeroCopyLayerW_/H_ 的来源) 完全同规则 — 保证输入 fit 与渲染
     // 显示严格互逆。
     const auto* layer = comp_.FindZeroCopyLayerForToplevelLocked(toplevelId);
-    if (!layer) return false;
-    outW = DisplaySizeAfterViewport(layer->vpDstW, layer->w);
-    outH = DisplaySizeAfterViewport(layer->vpDstH, layer->h);
-    return true;
+    uint64_t layerOwner = 0;
+    uint32_t layerTop = 0;
+    int layerW = 0, layerH = 0;
+    if (layer && ActiveOwner(layer->surfaceKey, layerOwner, layerTop, layerW, layerH) &&
+        layerTop == toplevelId) {
+        outW = DisplaySizeAfterViewport(layer->vpDstW, layer->w);
+        outH = DisplaySizeAfterViewport(layer->vpDstH, layer->h);
+        return true;
+    }
+    // A protocol-only child has no SHM layer. Use the same live, consumed
+    // metadata as visibility; choose deterministically when menus coexist.
+    uint64_t bestKey = 0, bestArea = 0;
+    for (uint64_t key : activeKeys_) {
+        uint64_t owner = 0;
+        uint32_t top = 0;
+        int w = 0, h = 0;
+        if (!ActiveOwner(key, owner, top, w, h) || top != toplevelId) continue;
+        const uint64_t area = static_cast<uint64_t>(w) * h;
+        if (area > bestArea || (area == bestArea && key < bestKey)) {
+            bestArea = area; bestKey = key; outW = w; outH = h;
+        }
+    }
+    return bestArea != 0;
 }
 
 // TEMP-DIAG(BIND-PRODUCER, 2026-09-18): observation-only candidate/rejection report.

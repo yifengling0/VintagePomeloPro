@@ -33,6 +33,8 @@ STUB = r'''
 #include <memory>
 #include <unordered_set>
 #include "compositor/frame/geometry.h"
+#include "common/texture_upload_stats.h"
+#include "common/frame_loop_diagnostics.h"
 #include "compositor/frame/gpu_desktop_scene.h"
 #include "compositor/frame/zc_bridge.h"
 using GLuint=unsigned; using GLint=int;
@@ -87,7 +89,8 @@ static int OH_NativeImage_UpdateSurfaceImage(OH_NativeImage* i) { ++i->updates; 
 static int OH_NativeImage_GetTransformMatrixV2(OH_NativeImage* i,float*) { return i->transformResult; }
 static int64_t OH_NativeImage_GetTimestamp(OH_NativeImage* i) { return i->updates*16666667LL; }
 static uint64_t clockUs=1000000;
-static uint64_t PerfNowUs() { return clockUs; }
+static unsigned clockCalls=0;
+static uint64_t PerfNowUs() { ++clockCalls; return clockUs++; }
 static bool FrameTraceEnabled() { return false; }
 template<class... T> void TestLog(T&&...) {}
 #define OH_LOG_INFO(...) TestLog(__VA_ARGS__)
@@ -104,7 +107,7 @@ struct Bridge {
     bool IsFallbackPending(uint64_t) { return false; }
     void BeginFallback(uint64_t,uint64_t,bool,uint32_t) {}
     uint64_t GetFallbackShmSerial(uint64_t) { return 0; }
-    bool NoteLayerConsumed(uint64_t,uint64_t,uint64_t) { ++consumes; return acceptConsume; }
+    bool NoteLayerConsumed(uint64_t,uint64_t,uint64_t,int,int) { ++consumes; return acceptConsume; }
     void CancelFallback(uint64_t) {}
     void Activate(uint64_t k,uint32_t) { active.insert(k); }
     void Release(uint64_t k,uint32_t) { active.erase(k); }
@@ -145,7 +148,7 @@ STATE
     bool TryAttachZeroCopySurface(uint32_t);
     bool UpdateZeroCopyFrame(ZeroCopyConsumer&,int&,int&);
     void ReleaseZeroCopyBinding(ZeroCopyConsumer&);
-    void DrawZeroCopyScene(); void ClearZeroCopyShmTextures();
+    void DrawZeroCopyScene(winehua::TextureUploadStats* uploads=nullptr); void ClearZeroCopyShmTextures();
 };
 '''
 
@@ -192,8 +195,25 @@ int main() {
     auto gpu=base; gpu.pixels.reset(); gpu.zeroCopyKey=content.surfaceKey; gpu.parentToplevel=5; gpu.subsurface=true; gpu.ownerSurfaceKey=163;
     r.zeroCopyScene_.layers={base,win,menu}; MergeZeroCopySceneLayers(r.zeroCopyScene_,{gpu});
     assert(r.zeroCopyScene_.layers.size()==4 && r.zeroCopyScene_.layers[2].zeroCopyKey==163 && r.zeroCopyScene_.layers[3].key==3);
-    r.DrawZeroCopyScene(); assert(framebuffer[0]>0.49f && framebuffer[0]<0.5f && framebuffer[1]>0.5f && framebuffer[2]==0);
-    assert(uploads==3 && !blend); r.DrawZeroCopyScene(); assert(uploads==3);
+    winehua::TextureUploadStats measured;
+    const auto clocksBefore=clockCalls;
+    r.DrawZeroCopyScene(&measured); assert(measured.calls==3 && measured.bytes==12 && measured.cpuUs==0);
+    assert(clockCalls==clocksBefore);
+    assert(framebuffer[0]>0.49f && framebuffer[0]<0.5f && framebuffer[1]>0.5f && framebuffer[2]==0);
+    assert(uploads==3 && !blend); measured={};
+    r.DrawZeroCopyScene(&measured); assert(uploads==3 && measured.calls==0 && measured.bytes==0);
+    assert(clockCalls==clocksBefore);
+    // Changed pixels issue one subimage; resizing issues one allocation.
+    r.zeroCopyScene_.layers.back().pixels=std::make_shared<const std::vector<uint8_t>>(
+        std::initializer_list<uint8_t>{0,128,0,128});
+    measured.timeEnabled=true; r.DrawZeroCopyScene(&measured);
+    assert(measured.calls==1 && measured.bytes==4 && measured.cpuUs==1 && clockCalls==clocksBefore+2);
+    measured={}; r.zeroCopyScene_.layers.back().sourceW=2;
+    r.zeroCopyScene_.layers.back().pixels=std::make_shared<const std::vector<uint8_t>>(8,128);
+    r.DrawZeroCopyScene(&measured);assert(measured.calls==1 && measured.bytes==8 && measured.cpuUs==0);
+    measured={};auto noPixels=base;noPixels.pixels.reset();r.zeroCopyScene_.layers.push_back(noPixels);
+    r.DrawZeroCopyScene(&measured);assert(measured.calls==0 && measured.bytes==0);
+    r.zeroCopyScene_.layers.pop_back();
     auto same=r.zeroCopyScene_; assert(SameGpuDesktopScene(same,r.zeroCopyScene_)); same.layers.back().x=7; assert(!SameGpuDesktopScene(same,r.zeroCopyScene_));
     r.zeroCopyScene_.layers.push_back(upper); r.DrawZeroCopyScene(); assert(framebuffer[2]==1 && framebuffer[0]==0 && framebuffer[3]==1);
     auto popup=gpu; popup.ownerSurfaceKey=300; GpuDesktopScene exact; exact.layers={base,win,menu,upper}; MergeZeroCopySceneLayers(exact,{popup});
@@ -206,6 +226,10 @@ int main() {
     MergeZeroCopySceneLayers(siblings,{gpu,nativeWindow});
     assert(siblings.layers[2].zeroCopyKey==37 && siblings.layers[3].zeroCopyKey==163);
     assert(siblings.layers[4].key==3 && siblings.layers[5].key==4);
+    auto mixed = r.zeroCopyScene_.layers;
+    r.zeroCopyScene_.layers={gpu}; measured={};
+    r.DrawZeroCopyScene(&measured);assert(measured.calls==0 && measured.bytes==0);
+    r.zeroCopyScene_.layers=mixed;
     // The generation captured at attach cannot consume a recreated binding.
     r.compositor_.geometry[163].bindingGeneration=2;
     EglRenderer::OnZeroCopyFrameAvailable(&content);

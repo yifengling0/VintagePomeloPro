@@ -43,7 +43,7 @@ struct RendererPerfWindow {
     uint64_t displayed = 0;
     uint64_t windowDisplayed = 0;
     uint64_t failedSwaps = 0;
-    uint64_t uploadBytes = 0;
+    uint64_t uploadBytes = 0, uploadCalls = 0, uploadTimedFrames = 0;
     uint64_t startedUs = PerfNowUs();
     uint64_t publishStartedUs = startedUs;
     uint64_t publishFrames = 0;
@@ -56,7 +56,7 @@ struct RendererPerfWindow {
                                unsigned int percentile);
 
     void Add(uint32_t toplevelId, uint64_t take, uint64_t upload, uint64_t swap,
-             uint64_t total, size_t bytes, bool swapOk);
+             uint64_t total, size_t bytes, bool swapOk, uint64_t calls = 0, bool uploadTimed = false);
 };
 
 } // namespace winehua

@@ -103,11 +103,13 @@ struct Bridge {
     std::unordered_map<uint64_t,uint64_t> windowBindings_,lastPresentUsByKey_;
     struct Diag { bool bound=false; char lastReject[48]={}; };
     std::unordered_map<uint64_t,Diag> bindDiagProducers_;
+    struct ConsumedContent { int width=0,height=0;uint64_t bindingGeneration=0; };
+    std::unordered_map<uint64_t,ConsumedContent> consumedSizes_;
     uint64_t nextBindingGeneration_=0;
     std::unordered_set<uint64_t> bindingRejectedLogged_;
     std::mutex presentLivenessMutex_;
     uint64_t LastPresentUs(uint64_t) { return 0; }
-    bool NoteLayerConsumed(uint64_t,uint64_t,uint64_t);
+    bool NoteLayerConsumed(uint64_t,uint64_t,uint64_t,int=0,int=0);
     void InvalidateBindingsForSurface(uint32_t,uint32_t);
     bool Create(uint64_t surfaceKey, bool takeoverCandidate, WineHuaPresentBinding* outBinding);
     bool Resolve(uint64_t surfaceKey,uint32_t frameWidth,uint32_t frameHeight,WineHuaPresentBinding* outBinding) {
@@ -219,6 +221,8 @@ def main():
         consume = consume.replace('void Bridge::', 'bool Bridge::').replace('if (!surfaceKey) return;', 'if (!surfaceKey) return false;')
         consume = consume.replace('{', '{\n    (void)bindingGeneration;', 1)
         consume = consume[:-1] + 'return true;\n}'
+        consume = consume.replace('uint64_t bindingGeneration)', 'uint64_t bindingGeneration, int sourceW, int sourceH)')
+        consume = consume.replace('{', '{\n (void)sourceW; (void)sourceH;', 1)
     cleanup = function(bridge, 'void ZcBridge::InvalidateBindingsForSurface(').replace('ZcBridge::','Bridge::')
     resolve = function(bridge, 'bool ZcBridge::ResolvePresentBinding(')
     creation = resolve[resolve.index('    WineHuaPresentBinding binding;'):]
@@ -233,8 +237,11 @@ def main():
     tests = {
         'venus': VENUS + function(presenter, '    int PresentVenus(uint32_t contextId,') + VENUS_END,
         'binding': BIND + bridge[start:end] + '\nreturn false;\n}\n};\n' + consume + cleanup + create + BIND_END,
-        'scene': SCENE + function(scene, 'bool DesktopCompositor::SnapshotGpuDesktopScene(') + SCENE_END,
     }
+    if options.baseline:
+        tests['scene'] = SCENE + function(scene, 'bool DesktopCompositor::SnapshotGpuDesktopScene(') + SCENE_END
+    # Current scene/input behavior is compiled as complete production translation
+    # units by gpu_scene_input_test.py, without a fixed fullscreen-picker stub.
     expected_assertions = {
         'venus': 'present(p,300)==-EAGAIN',
         'binding': 'out.pending && !b.presentBindings_[old].retired',

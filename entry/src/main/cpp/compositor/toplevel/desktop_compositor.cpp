@@ -7,6 +7,9 @@
 #include "geometry.h"
 #include "compositor/frame/surface_data.h"
 #include "common/perf_utils.h"
+#include "common/frame_loop_diagnostics.h"
+#include "compositor/input/input_resolver.h"
+#include "compositor/frame/input_target_probe.h"
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -150,6 +153,25 @@ bool DesktopCompositor::GetZeroCopyContentSizeLocked(uint32_t toplevelId,
     return zc_.GetContentSize(toplevelId, outW, outH);
 }
 
+bool DesktopCompositor::IsContentVisibleLocked(uint32_t id) const
+{
+    if (id == desktopRootToplevelId_) return false;
+    const auto* state = tmgr_.FindToplevelLocked(id);
+    return state && !state->IsBackground() && !state->IsMinimized() &&
+        (state->HasFrame() || zc_.HasActiveContent(id));
+}
+
+uint32_t DesktopCompositor::FirstVisibleContentModalLocked(uint32_t id) const
+{
+    if (!tmgr_.FindToplevelLocked(id)) return 0;
+    const auto& modals = tmgr_.ModalListLocked(id);
+    for (auto it = modals.rbegin(); it != modals.rend(); ++it) {
+        if (IsContentVisibleLocked(*it)) return *it;
+        if (const auto nested = FirstVisibleContentModalLocked(*it)) return nested;
+    }
+    return 0;
+}
+
 std::vector<CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, int rootH)
 {
     std::vector<CompositorLayer> layers;
@@ -182,7 +204,7 @@ std::vector<CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, 
         CompositorLayer subLayer;
         subLayer.type = CompositorLayer::Type::Subsurface;
         subLayer.visible = (sl.parentToplevel == rootId) ||
-                           tmgr_.IsToplevelVisibleLocked(sl.parentToplevel, rootId);
+                           IsContentVisibleLocked(sl.parentToplevel);
         subLayer.zcActive = zc_.IsActive(sl.surfaceKey);
         subLayer.toplevelId = sl.parentToplevel;
         int lx = 0, ly = 0;
@@ -230,7 +252,7 @@ std::vector<CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, 
             mp.seq.itemSeq = item++;
             CompositorLayer& mlayer = mp.layer;
             mlayer.type = CompositorLayer::Type::Toplevel;
-            mlayer.visible = tmgr_.IsToplevelVisibleLocked(modalId, rootId);
+            mlayer.visible = IsContentVisibleLocked(modalId);
             mlayer.toplevelId = modalId;
             mlayer.x = mst->X();
             mlayer.y = mst->Y();
@@ -257,7 +279,7 @@ std::vector<CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, 
         p.seq.itemSeq = 0;  // 父层恒在同 lane 首位, 子层 (itemSeq=li+1) 其后
         CompositorLayer& layer = p.layer;
         layer.type = CompositorLayer::Type::Toplevel;
-        layer.visible = tmgr_.IsToplevelVisibleLocked(childId, rootId);
+        layer.visible = IsContentVisibleLocked(childId);
         layer.toplevelId = childId;
         layer.x = cst->X();
         layer.y = cst->Y();
@@ -356,14 +378,6 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         const auto* state = tmgr_.FindToplevelLocked(source.parentToplevel);
         return !state || (!state->IsBackground() && !state->IsMinimized());
     };
-    for (auto& layer : layers) {
-        if (layer.type != CompositorLayer::Type::Toplevel || layer.visible) continue;
-        const auto* state = tmgr_.FindToplevelLocked(layer.toplevelId);
-        if (state && !state->HasFrame() && std::any_of(zeroCopy.begin(), zeroCopy.end(),
-                [&](const auto& source) { return source.parentToplevel == layer.toplevelId &&
-                                                protocolChild(source); }))
-            layer.visible = true; // retain this owner's existing z-order lane
-    }
     const auto fullscreenId = PickFullscreenLayerLocked(layers);
     std::unordered_map<uint32_t, std::pair<SurfaceData*, GpuDesktopLayer>> clients;
     directDesktopContentSizes_.clear();
@@ -389,6 +403,48 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         image.sourceW = source.width; image.sourceH = source.height;
         directDesktopContentSizes_[source.toplevel] = {image.w, image.h};
         clients.emplace(source.toplevel, std::make_pair(client, image));
+    }
+    // Bounded, opt-in observation of this exact decision. No pointer escapes
+    // the lock and no input event, raise, focus or resolver log cache is changed.
+    if (winehua::FrameTraceEnabled() || (winehua::FrameLoopDiagnosticState() & 1)) {
+        const uint64_t now = winehua::PerfNowUs();
+        if (now >= nextSceneDiagnosticUs_) {
+            nextSceneDiagnosticUs_ = now + 2000000;
+            out.diagnosticSerial = ++sceneDiagnosticSerial_;
+            out.diagnosticUs = now;
+            InputResolver probe(tmgr_, *this, desktopRootToplevelId_, outputW_, outputH_);
+            InputTarget hit;
+            const double cx = out.width / 2.0, cy = out.height / 2.0;
+            const bool hitOk = probe.FindInputTargetInLayersLocked(cx, cy, hit, layers,
+                out.width, out.height, fullscreenId, false);
+            const auto last = winehua::LastInputTarget();
+            OH_LOG_INFO(LOG_APP, "[SCENE-DECISION] sample=%{public}llu at_us=%{public}llu "
+                "fullscreen=%{public}u center=(%{public}.1f,%{public}.1f) currentHit=%{public}u "
+                "hit_ok=%{public}d modal=%{public}u swallow=%{public}d layers=%{public}zu "
+                "lastInputTarget=%{public}u last_event_us=%{public}llu last_xy=(%{public}.1f,%{public}.1f)",
+                static_cast<unsigned long long>(out.diagnosticSerial), static_cast<unsigned long long>(now),
+                fullscreenId, cx, cy, hit.toplevelId, hitOk, hit.blockedModalId, hit.swallow, layers.size(),
+                last.toplevelId, static_cast<unsigned long long>(last.eventUs), last.desktopX, last.desktopY);
+            size_t count = 0;
+            for (const auto& layer : layers) {
+                if (layer.type != CompositorLayer::Type::Toplevel) continue;
+                if (count++ >= 16) continue;
+                const auto* state = tmgr_.FindToplevelLocked(layer.toplevelId);
+                if (!state) continue;
+                const char* reason = !layer.visible ? "not-visible" :
+                    ShouldSkipFullscreenCascade(layer, fullscreenId, fullscreenId != 0, tmgr_)
+                        ? "fullscreen-cascade" : "included";
+                OH_LOG_INFO(LOG_APP, "[SCENE-CANDIDATE] sample=%{public}llu top=%{public}u z=%{public}zu "
+                    "priority=%{public}llu shm=%{public}d gpu=%{public}d fs=%{public}d "
+                    "background=%{public}d minimized=%{public}d modalOwner=%{public}u reason=%{public}s",
+                    static_cast<unsigned long long>(out.diagnosticSerial), layer.toplevelId, layer.zIndex,
+                    static_cast<unsigned long long>(state->FsPriority()), state->HasFrame(),
+                    zc_.HasActiveContent(layer.toplevelId), layer.fullscreen, state->IsBackground(),
+                    state->IsMinimized(), state->ModalOwnerId(), reason);
+            }
+            OH_LOG_INFO(LOG_APP, "[SCENE-CANDIDATES-END] sample=%{public}llu total=%{public}zu truncated=%{public}zu",
+                static_cast<unsigned long long>(out.diagnosticSerial), count, count > 16 ? count - 16 : 0);
+        }
     }
     FitRect fullscreenFit;
     if (fullscreenId) ComputeFullscreenFitLocked(fullscreenId, out.width, out.height, fullscreenFit);
@@ -464,6 +520,11 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
     if (!zeroCopy.empty()) {
         std::vector<GpuDesktopLayer> native;
         for (auto source : zeroCopy) {
+            uint64_t liveOwner = 0;
+            uint32_t liveTop = 0;
+            int liveW = 0, liveH = 0;
+            if (!zc_.ActiveOwner(source.zeroCopyKey, liveOwner, liveTop, liveW, liveH) ||
+                liveOwner != source.ownerSurfaceKey || liveTop != source.parentToplevel) continue;
             const auto owner = std::find_if(layers.begin(), layers.end(), [&](const auto& layer) {
                 return (layer.type == CompositorLayer::Type::Toplevel &&
                         layer.toplevelId == source.parentToplevel) ||

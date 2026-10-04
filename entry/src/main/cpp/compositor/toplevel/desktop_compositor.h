@@ -88,6 +88,9 @@ public:
     // rootW/rootH 用于 Root 层几何 (输入侧仅作占位, 不参与命中)。
     std::vector<CompositorLayer> BuildLayerListLocked(int rootW, int rootH);
 
+    bool IsContentVisibleLocked(uint32_t id) const;
+    uint32_t FirstVisibleContentModalLocked(uint32_t id) const;
+
     bool GetDirectDesktopLayout(uint32_t pid, uint32_t toplevelId, uint32_t wlSurfaceId,
                                 int imageW, int imageH, DirectDesktopLayout& out);
 
@@ -246,6 +249,8 @@ private:
     // ZC 层状态与几何供给 (任务 3-A 抽离): 构造时绑定 *this (friend 访问
     // 本类层容器/tmgr/policy/root/dirty)。
     ZcBridge zc_;
+    uint64_t nextSceneDiagnosticUs_ = 0;
+    uint64_t sceneDiagnosticSerial_ = 0;
 
     std::vector<SubsurfaceLayer> subsurfaceLayers_;
     uint64_t desktopCompositionSignature_ = 0;
