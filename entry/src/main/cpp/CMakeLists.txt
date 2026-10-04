@@ -157,6 +157,21 @@ target_compile_definitions(entry PRIVATE WINEHUA_AUDIO_GIT_COMMIT="${WINEHUA_AUD
 # -O2 属性必须跟着代码走 — 漏挂曾致 blit 段从 26ms 劣化到 ~240ms。
 set_source_files_properties(compositor/frame/compositor_blit.cpp PROPERTIES COMPILE_OPTIONS "-O2")
 
+# Independent hidden copy: font imports must not bind to the SDK's libz.so
+# link stub or to steamdecompress's private symbols. Keep other consumers intact.
+add_library(fontzip_zlib STATIC
+    steam_decompress/zlib_vendored/adler32.c
+    steam_decompress/zlib_vendored/crc32.c
+    steam_decompress/zlib_vendored/inflate.c
+    steam_decompress/zlib_vendored/inftrees.c
+    steam_decompress/zlib_vendored/inffast.c
+    steam_decompress/zlib_vendored/zutil.c)
+set_target_properties(fontzip_zlib PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_definitions(fontzip_zlib PRIVATE Z_SOLO)
+target_compile_options(fontzip_zlib PRIVATE -O2 -fvisibility=hidden)
+set_source_files_properties(common/font_zip.cpp PROPERTIES COMPILE_DEFINITIONS Z_SOLO)
+target_link_libraries(entry PRIVATE fontzip_zlib)
+
 target_link_libraries(entry PUBLIC
     libohhidebug.so
     libace_napi.z.so
@@ -172,7 +187,6 @@ target_link_libraries(entry PUBLIC
     libchild_process.so
     libipc_capi.so
     libohaudio.so
-    libz.so
     libnative_window_manager.so
     ${WAYLAND_LIBS_DIR}/libwayland-server.so.0
 )

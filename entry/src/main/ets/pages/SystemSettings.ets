@@ -1,3 +1,4 @@
+import { FontImportFiles, replaceImportedFonts } from '../service/FontImportTransaction';
 import { skinColor } from '../service/SkinColors';
 /// <reference path="../ohos.systemShare.d.ts" />
 import router from '@ohos.router';
@@ -87,6 +88,8 @@ interface FontZipExtractResult {
   bad: number;
   firstBadExt: string;
   error: string;
+  errorCode: string;
+  zlibCode: number;
 }
 
 const DEVICE_SDK_API_VERSION: number = (() => {
@@ -793,8 +796,11 @@ struct SystemSettingsPage {
       await new Promise<void>((resolve: () => void) => setTimeout(resolve, 30));
       // picker 返回 file:// URI, 先经 fs 打开再复制到应用缓存, 解压用真实路径。
       const srcFile = fs.openSync(selected[0], fs.OpenMode.READ_ONLY);
-      await fs.copyFile(srcFile.fd, cacheZip);
-      fs.closeSync(srcFile);
+      try {
+        await fs.copyFile(srcFile.fd, cacheZip);
+      } finally {
+        fs.closeSync(srcFile);
+      }
       await fs.mkdir(tmpDir, true);
       this.fontImportStage = '正在解压字体包…';
       await new Promise<void>((resolve: () => void) => setTimeout(resolve, 30));
@@ -840,7 +846,7 @@ struct SystemSettingsPage {
         this.fontImporting = false;
         return;
       }
-      // native 落盘的 font-NNN.ext 均为合法字体, 直接列目录即可。
+      // Native has validated every staged font before replacement is offered.
       const fonts: string[] = await fs.listFile(tmpDir);
       if (fonts.length === 0) {
         promptAction.showDialog({
@@ -886,22 +892,44 @@ struct SystemSettingsPage {
     }
   }
 
-  /** 把 native 已改名 (font-NNN.ext) 的字体复制到 C:\windows\Fonts。 */
+  /** Only used for transaction-owned staging/backup paths; never follow links. */
+  private async removeFontImportDir(path: string): Promise<void> {
+    const stat = fs.lstatSync(path);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      await fs.unlink(path);
+      return;
+    }
+    for (const name of await fs.listFile(path)) {
+      await this.removeFontImportDir(path + '/' + name);
+    }
+    await fs.rmdir(path);
+  }
+
+  /** Stage all fonts beside the destination before replacing the old directory. */
   private async applyFontImport(tmpDir: string, cacheZip: string, fonts: string[]): Promise<void> {
     try {
       const fontsDir = this.wineFontsDir();
       this.fontImporting = true;
       this.fontImportProgress = 0;
-      this.fontImportStage = '正在清除旧字体…';
-      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 30));
-      await this.removeDirRecursive(fontsDir);
-      await fs.mkdir(fontsDir, true);
-      for (let index = 0; index < fonts.length; index++) {
-        await fs.copyFile(tmpDir + '/' + fonts[index], fontsDir + '/' + fonts[index]);
-        this.fontImportProgress = Math.round((index + 1) / fonts.length * 100);
-        this.fontImportStage = '正在写入字体 ' + (index + 1) + '/' + fonts.length;
-        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 16));
-      }
+      this.fontImportStage = '正在准备字体…';
+      const files: FontImportFiles = {
+        exists: async (path: string): Promise<boolean> => {
+          return fs.access(path);
+        },
+        mkdir: async (path: string): Promise<void> => { await fs.mkdir(path); },
+        copy: async (source: string, destination: string): Promise<void> => {
+          await fs.copyFile(source, destination);
+        },
+        rename: async (source: string, destination: string): Promise<void> => {
+          await fs.rename(source, destination);
+        },
+        remove: async (path: string): Promise<void> => { await this.removeFontImportDir(path); }
+      };
+      await replaceImportedFonts(files, tmpDir, fontsDir, fonts, Date.now().toString(),
+        (done: number, total: number): void => {
+          this.fontImportProgress = Math.round(done / total * 100);
+          this.fontImportStage = '正在写入字体 ' + done + '/' + total;
+        });
       await this.removeDirRecursive(tmpDir);
       try { fs.unlinkSync(cacheZip); } catch (_) {}
       this.fontImporting = false;
@@ -920,8 +948,9 @@ struct SystemSettingsPage {
           action: (): void => { this.restartAppAfterImport(); }
         }
       });
-    } catch (_) {
-      promptAction.showToast({ message: '字体写入失败' });
+    } catch (error) {
+      const detail = (error as Error).message;
+      promptAction.showToast({ message: detail || '字体写入失败，原有字体未删除' });
       await this.removeDirRecursive(tmpDir);
       try { fs.unlinkSync(cacheZip); } catch (_) {}
       this.fontImporting = false;

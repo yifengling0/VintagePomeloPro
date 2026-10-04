@@ -658,7 +658,7 @@ test-steam-client-args:
 	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
 	$(HOST_TEST_DIR)/steam_client_args_test
 
-test: test-gpu-followup test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer test-steam-gpu-contracts test-frame-loop-diagnostics test-cef-render-switches
+test: test-font-import test-wine-font-compat test-gpu-followup test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer test-steam-gpu-contracts test-frame-loop-diagnostics test-cef-render-switches
 
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \
@@ -789,3 +789,13 @@ test-displayed-fps:
 	g++ -std=c++17 -Wall -Wextra -Werror -pthread -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/displayed_fps_test $(ROOT)/host_tests/displayed_fps_test.cpp
 	$(HOST_TEST_DIR)/displayed_fps_test
+
+.PHONY: test-font-import
+test-font-import:
+	python3 $(ROOT)/host_tests/font_zip_test.py
+	python3 $(ROOT)/host_tests/font_import_transaction_test.py
+	python3 $(ROOT)/host_tests/runtime_library_guard_test.py
+
+.PHONY: test-wine-font-compat
+test-wine-font-compat:
+	python3 $(ROOT)/host_tests/wine_font_compat_test.py --wine-src $(WINE_SRC)

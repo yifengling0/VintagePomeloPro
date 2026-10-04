@@ -284,10 +284,15 @@ with open('$module_json', 'w') as f:
         warn "未找到 $data_arch_marker (旧版 assemble 产物?), 无法校验 wine-data 架构一致性"
     fi
 
+    # A direct hap build may reuse old assemble outputs. Never silently ship a
+    # stale SDK stub; leave unknown/generated inputs intact and require reassembly.
+    python3 "$SCRIPT_DIR/runtime_library_guard.py" \
+        "$WINEHUA/entry/libs" "$WINEHUA/entry/src/main/resources/rawfile"
     cd "$WINEHUA"
     hvigorw assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
+    python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
     if [ "$mode" = unsigned ]; then
         ls -lh "$unsigned_hap"
         log "HAP 构建完成 (unsigned, $NATIVE_ARCH); 安装前必须自行签名"

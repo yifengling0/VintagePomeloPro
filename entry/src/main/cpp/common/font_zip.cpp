@@ -1,12 +1,13 @@
 #include "common/font_zip.h"
 
-#include <zlib.h>
+#include "steam_decompress/zlib_vendored/zlib.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <iconv.h>
 #include <set>
 #include <string>
@@ -29,12 +30,44 @@ constexpr uint32_t kLocalSig = 0x04034b50;
 constexpr size_t kMaxEntryBytes = 128u * 1024u * 1024u;
 constexpr size_t kMaxUncompBytes = 64u * 1024u * 1024u;
 
+enum class FontZipError { None, Archive, Read, Unsupported, Limit, InflateInit, Decompress, InvalidFont, Write };
+
+const char* ErrorCode(FontZipError error) {
+    switch (error) {
+    case FontZipError::None: return "";
+    case FontZipError::Archive: return "archive";
+    case FontZipError::Read: return "read";
+    case FontZipError::Unsupported: return "unsupported";
+    case FontZipError::Limit: return "limit";
+    case FontZipError::InflateInit: return "inflate_init";
+    case FontZipError::Decompress: return "decompress";
+    case FontZipError::InvalidFont: return "invalid_font";
+    case FontZipError::Write: return "write";
+    }
+    return "archive";
+}
+
+const char* ErrorMessage(FontZipError error) {
+    switch (error) {
+    case FontZipError::Read: return "字体数据读取失败，压缩包可能不完整";
+    case FontZipError::Unsupported: return "字体包使用了不支持的压缩方式或加密";
+    case FontZipError::Limit: return "字体文件超过安全大小限制";
+    case FontZipError::InflateInit: return "字体解压器初始化失败，请重启应用后重试";
+    case FontZipError::Decompress: return "字体解压或校验失败，压缩包可能已损坏";
+    case FontZipError::InvalidFont: return "字体文件内容无效或已损坏";
+    case FontZipError::Write: return "字体写入失败，请检查可用存储空间";
+    default: return "字体压缩包结构无效";
+    }
+}
+
 struct FontZipResult {
     bool ok = false;
     int fonts = 0;
     int bad = 0;
     std::string firstBadExt;
     std::string error;
+    FontZipError errorCode = FontZipError::None;
+    int zlibCode = Z_OK;
 };
 
 uint16_t Rd16(const uint8_t* p) {
@@ -51,6 +84,7 @@ bool ReadAt(int fd, uint64_t offset, void* buf, size_t size) {
     size_t done = 0;
     while (done < size) {
         const ssize_t n = pread(fd, dst + done, size - done, static_cast<off_t>(offset + done));
+        if (n < 0 && errno == EINTR) continue;
         if (n <= 0) return false;
         done += static_cast<size_t>(n);
     }
@@ -216,19 +250,29 @@ std::string UniqueBasename(const std::string& base, std::set<std::string>* used)
     }
 }
 
-bool InflateRaw(const uint8_t* src, size_t srcSize, uint32_t expectSize,
-                std::vector<uint8_t>* out) {
-    if (expectSize > kMaxUncompBytes) return false;
+// Z_SOLO deliberately has no default allocator. Keep these callbacks and the
+// hidden vendored inflater local to libentry; never depend on a packaged SDK stub.
+voidpf FontZipAlloc(voidpf, uInt count, uInt size) { return calloc(count, size); }
+void FontZipFree(voidpf, voidpf ptr) { free(ptr); }
+
+FontZipError InflateRaw(const uint8_t* src, size_t srcSize, uint32_t expectSize,
+                        std::vector<uint8_t>* out, int* zlibCode) {
+    if (expectSize > kMaxUncompBytes || srcSize > kMaxEntryBytes) return FontZipError::Limit;
     out->resize(expectSize);
     z_stream strm{};
+    strm.zalloc = FontZipAlloc;
+    strm.zfree = FontZipFree;
     strm.next_in = const_cast<Bytef*>(src);
     strm.avail_in = static_cast<uInt>(srcSize);
     strm.next_out = out->data();
     strm.avail_out = static_cast<uInt>(expectSize);
-    if (inflateInit2(&strm, -15) != Z_OK) return false;
-    const int ret = inflate(&strm, Z_FINISH);
+    *zlibCode = inflateInit2(&strm, -15);
+    if (*zlibCode != Z_OK) return FontZipError::InflateInit;
+    *zlibCode = inflate(&strm, Z_FINISH);
+    const bool complete = *zlibCode == Z_STREAM_END && strm.total_out == expectSize &&
+                          strm.total_in == srcSize;
     inflateEnd(&strm);
-    return ret == Z_STREAM_END && strm.total_out == expectSize;
+    return complete ? FontZipError::None : FontZipError::Decompress;
 }
 
 bool MkdirP(const std::string& path) {
@@ -250,51 +294,63 @@ std::string Pad3(int value) {
 }
 
 /** 提取单个条目到 outPath; 魔数在解压之后校验 (压缩条目的首字节是 deflate 流)。 */
-bool ExtractEntry(int fd, uint32_t localOffset, uint16_t method, uint32_t compSize,
-                  uint32_t uncompSize, const std::string& ext, const std::string& outPath) {
-    if (compSize > kMaxEntryBytes || uncompSize > kMaxUncompBytes) return false;
+FontZipError ExtractEntry(int fd, uint32_t localOffset, uint16_t method, uint16_t flags,
+                          uint32_t compSize, uint32_t uncompSize, uint32_t expectedCrc,
+                          const std::string& ext, const std::string& outPath, int* zlibCode) {
+    if (flags & 1 || (method != 0 && method != 8)) return FontZipError::Unsupported;
+    if (compSize > kMaxEntryBytes || uncompSize > kMaxUncompBytes) return FontZipError::Limit;
     uint8_t lh[30];
-    if (!ReadAt(fd, localOffset, lh, sizeof(lh)) || Rd32(lh) != kLocalSig) return false;
+    if (!ReadAt(fd, localOffset, lh, sizeof(lh))) return FontZipError::Read;
+    if (Rd32(lh) != kLocalSig || Rd16(lh + 8) != method || (Rd16(lh + 6) & 1))
+        return FontZipError::Archive;
     const uint64_t dataOffset = static_cast<uint64_t>(localOffset) + 30 +
                                 Rd16(lh + 26) + Rd16(lh + 28);
     std::vector<uint8_t> raw(compSize);
-    if (!ReadAt(fd, dataOffset, raw.data(), raw.size())) return false;
+    if (!ReadAt(fd, dataOffset, raw.data(), raw.size())) return FontZipError::Read;
 
     std::vector<uint8_t> data;
     if (method == 0) {
         data.swap(raw);
-        if (data.size() != uncompSize) return false;
-    } else if (method == 8) {
-        if (!InflateRaw(raw.data(), raw.size(), uncompSize, &data)) return false;
+        if (data.size() != uncompSize) return FontZipError::Decompress;
     } else {
-        return false; // 不支持的压缩方式
+        const auto error = InflateRaw(raw.data(), raw.size(), uncompSize, &data, zlibCode);
+        if (error != FontZipError::None) return error;
     }
-    if (data.size() < 4 || !MagicOk(data.data(), ext)) return false;
+    if (crc32(0, data.data(), static_cast<uInt>(data.size())) != expectedCrc)
+        return FontZipError::Decompress;
+    if (data.size() < 4 || !MagicOk(data.data(), ext)) return FontZipError::InvalidFont;
 
-    const int outFd = open(outPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (outFd < 0) return false;
+    const int outFd = open(outPath.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0644);
+    if (outFd < 0) return FontZipError::Write;
     size_t done = 0;
     while (done < data.size()) {
         const ssize_t n = write(outFd, data.data() + done, data.size() - done);
+        if (n < 0 && errno == EINTR) continue;
         if (n <= 0) {
             close(outFd);
-            return false;
+            unlink(outPath.c_str());
+            return FontZipError::Write;
         }
         done += static_cast<size_t>(n);
     }
-    close(outFd);
-    return true;
+    if (close(outFd) != 0) {
+        unlink(outPath.c_str());
+        return FontZipError::Write;
+    }
+    return FontZipError::None;
 }
 
 FontZipResult ExtractFontZipImpl(const std::string& zipPath, const std::string& outDir) {
     FontZipResult r;
     const int fd = open(zipPath.c_str(), O_RDONLY);
     if (fd < 0) {
+        r.errorCode = FontZipError::Read;
         r.error = "无法打开压缩包";
         return r;
     }
     struct stat st{};
     if (fstat(fd, &st) != 0 || st.st_size < 22) {
+        r.errorCode = FontZipError::Archive;
         r.error = "压缩包无效";
         close(fd);
         return r;
@@ -317,11 +373,13 @@ FontZipResult ExtractFontZipImpl(const std::string& zipPath, const std::string& 
             if (off == scanStart) break;
         }
         if (!found) {
+            r.errorCode = FontZipError::Archive;
             r.error = "不是有效的 ZIP 压缩包";
             close(fd);
             return r;
         }
         if (!ReadAt(fd, eocdOffset, tail, sizeof(tail))) {
+            r.errorCode = FontZipError::Read;
             r.error = "ZIP 结尾损坏";
             close(fd);
             return r;
@@ -331,11 +389,13 @@ FontZipResult ExtractFontZipImpl(const std::string& zipPath, const std::string& 
     const uint16_t totalEntries = Rd16(tail + 10);
     const uint32_t cdOffset = Rd32(tail + 16);
     if (totalEntries == 0xFFFF || cdOffset == 0xFFFFFFFF) {
+        r.errorCode = FontZipError::Unsupported;
         r.error = "暂不支持 ZIP64 超大压缩包";
         close(fd);
         return r;
     }
     if (!MkdirP(outDir)) {
+        r.errorCode = FontZipError::Write;
         r.error = "无法创建解压目录";
         close(fd);
         return r;
@@ -383,15 +443,18 @@ FontZipResult ExtractFontZipImpl(const std::string& zipPath, const std::string& 
         }
         basename = UniqueBasename(basename, &usedNames);
         const std::string outPath = outDir + "/" + basename;
-        if (!ExtractEntry(fd, localOffset, method, compSize, uncompSize, ext, outPath)) {
-            r.bad++;
-            continue;
+        r.errorCode = ExtractEntry(fd, localOffset, method, flags, compSize, uncompSize,
+                                   Rd32(cd + 16), ext, outPath, &r.zlibCode);
+        if (r.errorCode != FontZipError::None) {
+            r.error = ErrorMessage(r.errorCode);
+            break;
         }
         r.fonts++;
         OH_LOG_INFO(LOG_APP, "[FontZip] extracted %{public}s", basename.c_str());
     }
     close(fd);
-    r.ok = true;
+    r.ok = r.error.empty();
+    if (!r.ok && r.errorCode == FontZipError::None) r.errorCode = FontZipError::Archive;
     return r;
 }
 
@@ -420,6 +483,10 @@ napi_value MakeFontZipResultObject(napi_env env, const FontZipResult& r) {
     napi_set_named_property(env, result, "firstBadExt", val);
     napi_create_string_utf8(env, r.error.c_str(), NAPI_AUTO_LENGTH, &val);
     napi_set_named_property(env, result, "error", val);
+    napi_create_string_utf8(env, ErrorCode(r.errorCode), NAPI_AUTO_LENGTH, &val);
+    napi_set_named_property(env, result, "errorCode", val);
+    napi_create_int32(env, r.zlibCode, &val);
+    napi_set_named_property(env, result, "zlibCode", val);
     return result;
 }
 

@@ -129,6 +129,16 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0021-wayland-shm-state-cache.patc
 # A signal-only batch avoids reusing one pending command buffer across images.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0022-private-vulkan-signal-only-acquire.patch" \
     "Private Vulkan signal-only acquire"
+# Font/locale behaviors from main, adapted to Valve without overriding explicit
+# charsets or non-OHOS defaults. Keep 0014 as the sole GDI bitmap/gray override.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0023-ohos-default-grayscale-font-aa.patch" \
+    "OHOS grayscale font default"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0024-ohos-scan-prefix-fonts.patch" \
+    "OHOS imported prefix font discovery"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0025-ohos-locale-font-fallback.patch" \
+    "OHOS locale-aware default font fallback"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0026-ohos-musl-selected-locale.patch" \
+    "OHOS musl selected locale"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

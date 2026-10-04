@@ -237,3 +237,14 @@ export const termRun: (cols: number, rows: number, cb: (data: ArrayBuffer) => vo
 export const termSend: (data: ArrayBuffer) => void;
 export const termResize: (cols: number, rows: number) => void;
 export const termClose: () => void;
+
+export interface FontZipExtractResult {
+  ok: boolean;
+  fonts: number;
+  bad: number;
+  firstBadExt: string;
+  error: string;
+  errorCode: string;
+  zlibCode: number;
+}
+export const extractFontZipAsync: (zipPath: string, outDir: string) => Promise<FontZipExtractResult>;

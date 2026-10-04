@@ -223,6 +223,12 @@ EOF
         _pick_lib_pad() {
             local name="$1" soname="$2" linker="${3:-}"
             local dest="$NATIVE_LIBS"
+            if [ "$soname" = libz.so ]; then
+                python3 "$SCRIPT_DIR/copy_runtime_library.py" \
+                    --ext "$SYSROOT_EXT_LIB" --sdk "$SYSROOT/usr/lib/$TARGET" \
+                    --dest "$dest" --system "$@"
+                return
+            fi
             if [ -f "$SYSROOT_EXT_LIB/$soname" ]; then
                 cp -L "$SYSROOT_EXT_LIB/$soname" "$dest/$soname"
             elif [ -f "$SYSROOT/usr/lib/$TARGET/$name" ]; then
@@ -345,6 +351,12 @@ EOF
         _pick_lib_pad_rf() {
             local name="$1" soname="$2" linker="${3:-}"
             local dest="$wine_data/bin/x86_64-unix"
+            if [ "$soname" = libz.so ]; then
+                python3 "$SCRIPT_DIR/copy_runtime_library.py" \
+                    --ext "$SYSROOT_EXT_LIB" --sdk "$SYSROOT/usr/lib/$TARGET" \
+                    --dest "$dest" "$@"
+                return
+            fi
             if [ -f "$SYSROOT_EXT_LIB/$soname" ]; then
                 cp -L "$SYSROOT_EXT_LIB/$soname" "$dest/$soname"
             elif [ -f "$SYSROOT/usr/lib/$TARGET/$name" ]; then
@@ -437,6 +449,12 @@ EOF
         _pick_lib_pad() {
             local name="$1" soname="$2" linker="${3:-}"
             local dest="$NATIVE_LIBS"
+            if [ "$soname" = libz.so ]; then
+                python3 "$SCRIPT_DIR/copy_runtime_library.py" \
+                    --ext "$SYSROOT_EXT_LIB" --sdk "$SYSROOT/usr/lib/$TARGET" \
+                    --dest "$dest" --system "$@"
+                return
+            fi
             if [ -f "$SYSROOT_EXT_LIB/$soname" ]; then
                 cp -L "$SYSROOT_EXT_LIB/$soname" "$dest/$soname"
             elif [ -f "$SYSROOT/usr/lib/$TARGET/$name" ]; then
@@ -1014,6 +1032,9 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
     mkdir -p "$wine_data/smoke"
     cp -a "$smoke_payload/." "$wine_data/smoke/"
     log "  smoke payload → wine-data/smoke ($(find "$wine_data/smoke" -name '*.exe' | wc -l) exe)"
+
+    # Catch SDK copies from optional/legacy paths too, before creating payloads.
+    python3 "$SCRIPT_DIR/runtime_library_guard.py" "$NATIVE_LIBS" "$wine_data"
 
     # -- 3. 打包 zip → rawfile (不带 wine-data/ 前缀) --
     local rawfile_dir="$WINEHUA/entry/src/main/resources/rawfile"
