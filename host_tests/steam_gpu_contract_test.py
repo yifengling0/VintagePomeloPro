@@ -11,11 +11,13 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--baseline', action='store_true')
+parser.add_argument('--baseline-ref', default='960bf939835e53494118a6be592bf68bd5f638de',
+                    help='Git revision used by --baseline (defaults to the reviewed pre-fix commit)')
 options = parser.parse_args()
 
 
 def read(path):
-    return (subprocess.check_output(['git', 'show', 'HEAD:' + path], cwd=ROOT).decode()
+    return (subprocess.check_output(['git', 'show', options.baseline_ref + ':' + path], cwd=ROOT).decode()
             if options.baseline else (ROOT / path).read_text())
 
 
