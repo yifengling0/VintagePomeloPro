@@ -342,7 +342,28 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
     out.width = root->Width() > 0 ? root->Width() : outputW_;
     out.height = root->Height() > 0 ? root->Height() : outputH_;
     if (out.width <= 0 || out.height <= 0) return false;
-    const auto layers = BuildLayerListLocked(out.width, out.height);
+    auto layers = BuildLayerListLocked(out.width, out.height);
+    // A GPU child may arrive before its parent's first SHM frame. Validate the
+    // actual protocol edge; a snapshot key alone never establishes ownership.
+    const auto protocolChild = [&](const GpuDesktopLayer& source) {
+        if (!source.subsurface || !source.ownerSurfaceKey) return false;
+        auto* resource = tmgr_.FindSurfaceResource(source.ownerSurfaceKey);
+        auto* child = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
+        auto* parent = child && child->isSubsurface && child->parentSurface
+            ? static_cast<SurfaceData*>(wl_resource_get_user_data(child->parentSurface)) : nullptr;
+        if (!parent || !parent->hasToplevel || parent->toplevelId != source.parentToplevel ||
+            tmgr_.FindSurfaceResource(parent->surfaceKey) != child->parentSurface) return false;
+        const auto* state = tmgr_.FindToplevelLocked(source.parentToplevel);
+        return !state || (!state->IsBackground() && !state->IsMinimized());
+    };
+    for (auto& layer : layers) {
+        if (layer.type != CompositorLayer::Type::Toplevel || layer.visible) continue;
+        const auto* state = tmgr_.FindToplevelLocked(layer.toplevelId);
+        if (state && !state->HasFrame() && std::any_of(zeroCopy.begin(), zeroCopy.end(),
+                [&](const auto& source) { return source.parentToplevel == layer.toplevelId &&
+                                                protocolChild(source); }))
+            layer.visible = true; // retain this owner's existing z-order lane
+    }
     const auto fullscreenId = PickFullscreenLayerLocked(layers);
     std::unordered_map<uint32_t, std::pair<SurfaceData*, GpuDesktopLayer>> clients;
     directDesktopContentSizes_.clear();
@@ -448,8 +469,17 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
                         layer.toplevelId == source.parentToplevel) ||
                        (layer.type == CompositorLayer::Type::Root && source.parentToplevel == out.rootId);
             });
-            if (owner == layers.end() || !owner->visible ||
-                ShouldSkipFullscreenCascade(*owner, fullscreenId, fullscreenId != 0, tmgr_)) continue;
+            if (owner == layers.end()) {
+                // Match BuildLayerListLocked's existing TopAnchored child rule.
+                // Without a parent lane only a real protocol child can enter;
+                // never synthesize an owner or choose an arbitrary z-order.
+                if (!protocolChild(source) || fullscreenId ||
+                    winehua::ZOrderGroupFor(source.parentToplevel == out.rootId, source.external,
+                                           tmgr_.IsInZOrder(source.parentToplevel)) !=
+                        winehua::ZOrderGroup::TopAnchored) continue;
+                source.external = true;
+            } else if (!owner->visible ||
+                       ShouldSkipFullscreenCascade(*owner, fullscreenId, fullscreenId != 0, tmgr_)) continue;
             const auto* state = fullscreenId && source.parentToplevel == fullscreenId
                 ? tmgr_.FindToplevelLocked(fullscreenId) : nullptr;
             if (state) FitMapLayerRect(fullscreenFit, source.x - state->X(), source.y - state->Y(),

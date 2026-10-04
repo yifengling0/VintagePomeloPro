@@ -25,7 +25,7 @@ struct SurfaceData { bool hasToplevel = false, isSubsurface = false; };
 struct wl_resource { SurfaceData* data; };
 static void* wl_resource_get_user_data(wl_resource* res) { return res->data; }
 struct ZeroCopyLayerInfo {};
-struct WineHuaPresentBinding { struct { uint32_t ownerHostPid, wlSurfaceId; } window; };
+struct WineHuaPresentBinding { struct { uint32_t ownerHostPid, wlSurfaceId; } window; bool retired = false; uint64_t bindGeneration = 0; };
 struct Manager {
     std::mutex mutex;
     std::unordered_map<uint64_t, wl_resource*> resources;
@@ -99,6 +99,10 @@ int main() {
     bridge.comp_.tmgr_.resources[old] = &producerResource;
     assert(bridge.GetLayerInfo(old, 1, 1200, 800, layer, &reason));
     assert(bridge.resolveCalls == 1);
+    bridge.presentBindings_[old].retired = true;
+    assert(!bridge.GetLayerInfo(old, 1, 1200, 800, layer, &reason));
+    assert(bridge.resolveCalls == 1);
+    bridge.presentBindings_[old].retired = false;
     data.isSubsurface = true;
     assert(bridge.GetLayerInfo(old, 1, 1200, 800, layer, &reason));
     assert(bridge.resolveCalls == 1);
@@ -123,7 +127,7 @@ def main():
     cleanup = source[start:end].replace(name, 'InvalidateBindingsForSurface')
     start = source.index('bool ZcBridge::GetLayerInfo(')
     end = source.index('    // -- present surface', start)
-    guard = source[start:end] + '\n    return sd != nullptr;\n}\n'
+    guard = source[start:end] + '\n    (void)bindingGeneration;\n    return sd != nullptr;\n}\n'
     with tempfile.TemporaryDirectory(prefix='zc-lifecycle-test-') as temp:
         folder = Path(temp)
         (folder / 'test.cpp').write_text(STUB + cleanup + guard + TEST)

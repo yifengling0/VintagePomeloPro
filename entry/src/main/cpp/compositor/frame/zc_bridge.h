@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 #include <mutex>
+#include <string>
+#include <vector>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -29,6 +31,7 @@ struct ZeroCopyLayerInfo {
     int width = 0;
     int height = 0;
     uint64_t shmCommitSerial = 0;
+    uint64_t bindingGeneration = 0; // role-less producer lifetime token
     bool desktopCoordinates = false;
     ZeroCopySource source = ZeroCopySource::ShmLayer;  // 原 protocolOnly 布尔
     bool fullscreen = false;  // 所属 toplevel 全屏: GL 层保比例缩放铺满视口 (ZC 游戏)
@@ -131,7 +134,7 @@ struct WineHuaProducerKey {
 struct WineHuaPresentBinding {
     WineHuaProducerKey producer;
     WineHuaWindowKey window;
-    uint32_t bindGeneration = 0;
+    uint64_t bindGeneration = 0;
     uint64_t lastSerial = 0;
     const char* reason = "unset";  // "same-process" | "unique-geometry" | ...
     // P0-1 Task A (黑窗归因): producer 侧最新 extent 与"最近被消费"的时刻
@@ -142,7 +145,7 @@ struct WineHuaPresentBinding {
     // 渲染循环的查询路径里刷新, 于是失效 producer 永远显示活跃、新 producer
     // 无法接管其窗口 (参见 ROUND3 文档 §7)。
     uint64_t lastProducerUs = 0;
-    uint64_t lastDrawUs = 0;       // 最近一次绑定路径真的用于取几何(合成消费)
+    uint64_t lastDrawUs = 0;       // 最近一次 NativeImage 成功消费的时刻
     // P0-1 Task E/F (2026-09-17): producer 生命周期
     bool pending = false;          // 新 producer 已绑定但还没出第一帧 (旧 producer 仍显示)
     bool retired = false;          // 已被接替 → 旧 producer 的 layer 应释放
@@ -216,7 +219,7 @@ public:
     // 而渲染线程此刻可能正持 tmgr 锁) — 锁序单向: tmgr → presentLivenessMutex_。
     void NoteProducerPresent(uint64_t surfaceKey, uint64_t nowUs);
     // 合成侧真正消费一帧 (渲染线程在 UpdateSurfaceImage 成功后调用)
-    void NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs);
+    bool NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t bindingGeneration);
     // 窗口或 producer surface 销毁时清理绑定；调用方须持有 tmgr 锁。
     void InvalidateBindingsForSurface(uint32_t hostPid, uint32_t wlSurfaceId);
     size_t PresentBindingCount() const { return presentBindings_.size(); }
@@ -241,6 +244,7 @@ private:
     void PruneStaleWindowBindings();
     // P0-1: producer key ((presenterHostPid<<32)|presentSurfaceId) → 持久绑定
     std::unordered_map<uint64_t, WineHuaPresentBinding> presentBindings_;
+    uint64_t nextBindingGeneration_ = 0;
     // 已被其它 producer 占用的窗口 (防止两个 producer 绑到同一窗口)
     std::unordered_map<uint64_t, uint64_t> windowBindings_;
     std::unordered_set<uint64_t> bindingRejectedLogged_;

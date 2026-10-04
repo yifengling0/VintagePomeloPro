@@ -44,7 +44,7 @@ GL_FALSE=0, GL_TRIANGLES=15, GL_RGBA=16, GL_UNSIGNED_BYTE=17,
 NATIVEBUFFER_USAGE_HW_RENDER=1, NATIVEBUFFER_USAGE_HW_TEXTURE=2, GET_BUFFERQUEUE_SIZE=0;
 struct OHNativeWindow {};
 struct OH_OnFrameAvailableListener { void* context=nullptr; void (*onFrameAvailable)(void*)=nullptr; };
-struct OH_NativeImage { OH_OnFrameAvailableListener listener; OHNativeWindow window; unsigned updates=0; int result=0; };
+struct OH_NativeImage { OH_OnFrameAvailableListener listener; OHNativeWindow window; unsigned updates=0; int result=0,transformResult=0; };
 static unsigned nextTexture=100, boundTexture=0, boundTarget=0, uploads=0;
 static bool blend=false; static float forceOpaque=0;
 static std::array<float,4> framebuffer{};
@@ -84,7 +84,7 @@ static void OH_NativeImage_Destroy(OH_NativeImage** i) { assert(!(*i)->listener.
 static OHNativeWindow* OH_NativeImage_AcquireNativeWindow(OH_NativeImage* i) { return &i->window; }
 static void OH_NativeWindow_NativeWindowHandleOpt(OHNativeWindow*,int,int* s) { *s=3; }
 static int OH_NativeImage_UpdateSurfaceImage(OH_NativeImage* i) { ++i->updates; return i->result; }
-static int OH_NativeImage_GetTransformMatrixV2(OH_NativeImage*,float*) { return 0; }
+static int OH_NativeImage_GetTransformMatrixV2(OH_NativeImage* i,float*) { return i->transformResult; }
 static int64_t OH_NativeImage_GetTimestamp(OH_NativeImage* i) { return i->updates*16666667LL; }
 static uint64_t clockUs=1000000;
 static uint64_t PerfNowUs() { return clockUs; }
@@ -96,6 +96,7 @@ template<class... T> void TestLog(T&&...) {}
 struct Bridge {
     std::unordered_map<uint64_t,uint64_t> signals;
     std::unordered_set<uint64_t> active;
+    unsigned consumes=0; bool acceptConsume=true;
     void NoteProducerPresent(uint64_t k,uint64_t t) { signals[k]=t; }
     void BindSurface(uint64_t,uint64_t) {}
     bool ConfirmFallback(uint64_t,uint64_t) { return false; }
@@ -103,7 +104,7 @@ struct Bridge {
     bool IsFallbackPending(uint64_t) { return false; }
     void BeginFallback(uint64_t,uint64_t,bool,uint32_t) {}
     uint64_t GetFallbackShmSerial(uint64_t) { return 0; }
-    void NoteLayerConsumed(uint64_t,uint64_t) {}
+    bool NoteLayerConsumed(uint64_t,uint64_t,uint64_t) { ++consumes; return acceptConsume; }
     void CancelFallback(uint64_t) {}
     void Activate(uint64_t k,uint32_t) { active.insert(k); }
     void Release(uint64_t k,uint32_t) { active.erase(k); }
@@ -167,12 +168,18 @@ int main() {
     int w=0,h=0; assert(r.UpdateZeroCopyFrame(a,w,h)); assert(r.UpdateZeroCopyFrame(b,w,h));
     assert(a.frames==1 && b.frames==1 && !a.frameAvailable && !b.frameAvailable);
     assert(!r.UpdateZeroCopyFrame(a,w,h));
+    assert(r.compositor_.bridge.consumes==2);
+    a.image->transformResult=-1; EglRenderer::OnZeroCopyFrameAvailable(&a);
+    assert(!r.UpdateZeroCopyFrame(a,w,h) && r.compositor_.bridge.consumes==2);
+    a.image->transformResult=0; EglRenderer::OnZeroCopyFrameAvailable(&a);
+    assert(r.UpdateZeroCopyFrame(a,w,h) && r.compositor_.bridge.consumes==3);
     auto* survivor=b.image; r.compositor_.geometry.erase(37); clockUs+=200000; r.TryAttachZeroCopySurface(1);
     assert(r.zeroCopyConsumers_.size()==1 && r.zeroCopyConsumers_[0]->image==survivor);
     assert(!broker.attached.count(37) && broker.attached.count(163));
     auto& alive=*r.zeroCopyConsumers_[0]; alive.image->result=-1;
     for(int i=0;i<2;++i) { EglRenderer::OnZeroCopyFrameAvailable(&alive); assert(!r.UpdateZeroCopyFrame(alive,w,h)); }
     assert(!alive.registered && !alive.image && !broker.attached.count(163));
+    assert(r.compositor_.bridge.consumes==3);
     clockUs+=200000; r.TryAttachZeroCopySurface(1); assert(r.zeroCopyConsumers_.size()==1 && r.zeroCopyConsumers_[0]->registered);
     auto& content=*r.zeroCopyConsumers_[0]; content.hasFrame=true; colors[content.texture]={1,0,0,1};
     GpuDesktopLayer base; base.key=1; base.parentToplevel=1; base.w=base.h=base.sourceW=base.sourceH=1;
@@ -199,7 +206,16 @@ int main() {
     MergeZeroCopySceneLayers(siblings,{gpu,nativeWindow});
     assert(siblings.layers[2].zeroCopyKey==37 && siblings.layers[3].zeroCopyKey==163);
     assert(siblings.layers[4].key==3 && siblings.layers[5].key==4);
-    r.ReleaseZeroCopyBinding(content); r.ClearZeroCopyShmTextures();
+    // The generation captured at attach cannot consume a recreated binding.
+    r.compositor_.geometry[163].bindingGeneration=2;
+    EglRenderer::OnZeroCopyFrameAvailable(&content);
+    assert(!r.UpdateZeroCopyFrame(content,w,h) && !content.registered);
+    assert(r.compositor_.bridge.consumes==3);
+    clockUs+=200000; assert(r.TryAttachZeroCopySurface(1));
+    auto& reused=*r.zeroCopyConsumers_[0];assert(reused.layer.bindingGeneration==2);
+    r.compositor_.bridge.acceptConsume=false;EglRenderer::OnZeroCopyFrameAvailable(&reused);
+    assert(!r.UpdateZeroCopyFrame(reused,w,h) && !reused.registered && !reused.hasFrame);
+    r.ReleaseZeroCopyBinding(reused); r.ClearZeroCopyShmTextures();
     puts("Production multi-consumer: attach isolation, independent signals, retirement, failure recovery, mixed alpha composition and texture reuse passed");
 }
 '''

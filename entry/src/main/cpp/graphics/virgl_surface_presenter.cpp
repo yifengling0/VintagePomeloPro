@@ -661,65 +661,13 @@ public:
                      void* queueSyncData)
     {
         if (!clientPid || !surfaceId) return kPresentInvalid;
-        uint64_t surfaceKey =
+        const uint64_t surfaceKey =
             (static_cast<uint64_t>(clientPid) << 32) | surfaceId;
         std::unique_lock<std::mutex> lock(mutex_);
 
-        /* DIAG(2026-09-16): cross-process HWND surface identity.
-         * The guest builds surfaceKey from getpid() of the process that *submits* the present,
-         * while the Venus target is attached under the pid of the process that *owns* the
-         * window surface. For a foreign HWND these differ, the lookup below misses, the host
-         * waits kVenusTargetAttachTimeout, returns -EAGAIN, and Wine maps that to
-         * VK_SUBOPTIMAL_KHR which makes DXVK 1.10.3 rebuild the swapchain forever.
-         * This fallback (same surfaceId, different pid) exists ONLY to confirm that contract
-         * break: it is loud on purpose and is not the intended final fix. */
-        const auto isVulkanTargetReady = [this](uint64_t key) {
-            const auto it = surfaces_.find(key);
-            return it != surfaces_.end() && it->second.target && it->second.target->IsVulkan() &&
-                   (it->second.info.flags & winehua::virgl_ipc::kSurfaceAttached);
-        };
-        if (!isVulkanTargetReady(surfaceKey)) {
-            /* DIAG(2026-09-16): dump what targets actually exist, so the correct owner
-             * identity contract can be designed from data instead of guesses. */
-            const auto requested = surfaces_.find(surfaceKey);
-            if (requested == surfaces_.end() || !requested->second.missingTargetLogged) {
-                unsigned listed = 0;
-                for (const auto& kv : surfaces_) {
-                    if (listed >= 8) break;
-                    OH_LOG_WARN(LOG_APP,
-                                "[VENUS-PRESENT][NCP][DIAG] available key=%{public}llu pid=%{public}u "
-                                "surface=%{public}u hasTarget=%{public}d isVulkan=%{public}d attached=%{public}d",
-                                static_cast<unsigned long long>(kv.first),
-                                static_cast<uint32_t>(kv.first >> 32),
-                                static_cast<uint32_t>(kv.first),
-                                kv.second.target ? 1 : 0,
-                                kv.second.target ? (kv.second.target->IsVulkan() ? 1 : 0) : -1,
-                                (kv.second.info.flags & winehua::virgl_ipc::kSurfaceAttached) ? 1 : 0);
-                    listed++;
-                }
-                if (!listed) {
-                    OH_LOG_WARN(LOG_APP,
-                                "[VENUS-PRESENT][NCP][DIAG] no surfaces registered at all "
-                                "requested_key=%{public}llu pid=%{public}u surface=%{public}u",
-                                static_cast<unsigned long long>(surfaceKey), clientPid, surfaceId);
-                }
-            }
-            for (const auto& candidate : surfaces_) {
-                if (static_cast<uint32_t>(candidate.first) == surfaceId &&
-                    candidate.first != surfaceKey && isVulkanTargetReady(candidate.first)) {
-                    OH_LOG_WARN(LOG_APP,
-                                "[VENUS-PRESENT][NCP][DIAG] owner-pid fallback "
-                                "requested_key=%{public}llu requested_pid=%{public}u "
-                                "resolved_key=%{public}llu resolved_pid=%{public}u surface=%{public}u",
-                                static_cast<unsigned long long>(surfaceKey), clientPid,
-                                static_cast<unsigned long long>(candidate.first),
-                                static_cast<uint32_t>(candidate.first >> 32), surfaceId);
-                    surfaceKey = candidate.first;
-                    break;
-                }
-            }
-        }
-
+        // Surface ids are client-local. Never route a missed (pid, id) to an
+        // unrelated process with the same low 32 bits. Attach/Detach owns the
+        // current target lifetime under this mutex; missing identities retry.
         auto& entry = surfaces_[surfaceKey];
         // 防御: Vulkan 帧送达 virgl (GL) target — 错误通道。
         if (entry.target && !entry.target->IsVulkan()) return kPresentInvalid;

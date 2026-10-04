@@ -580,6 +580,10 @@ test-benchmark-statistics:
 test-gamepad-bridge:
 	python3 $(ROOT)/host_tests/gamepad_bridge_test.py
 
+.PHONY: test-steam-gpu-contracts
+test-steam-gpu-contracts:
+	python3 $(ROOT)/host_tests/steam_gpu_contract_test.py
+
 .PHONY: test-zc-binding-lifecycle
 test-zc-binding-lifecycle:
 	python3 $(ROOT)/host_tests/zc_binding_lifecycle_test.py
@@ -587,6 +591,19 @@ test-zc-binding-lifecycle:
 .PHONY: test-egl-multi-consumer
 test-egl-multi-consumer:
 	python3 $(ROOT)/host_tests/egl_multi_consumer_test.py
+
+.PHONY: test-frame-loop-diagnostics test-cef-render-switches
+test-frame-loop-diagnostics:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/frame_loop_diagnostics_test $(ROOT)/host_tests/frame_loop_diagnostics_test.cpp
+	$(HOST_TEST_DIR)/frame_loop_diagnostics_test
+
+test-cef-render-switches:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/cef_render_switches_test $(ROOT)/host_tests/cef_render_switches_test.cpp
+	$(HOST_TEST_DIR)/cef_render_switches_test
 
 .PHONY: test-wine-surface-region-lock
 test-wine-surface-region-lock:
@@ -627,7 +644,7 @@ test-steam-client-args:
 	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
 	$(HOST_TEST_DIR)/steam_client_args_test
 
-test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer
+test: test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer test-steam-gpu-contracts test-frame-loop-diagnostics test-cef-render-switches
 
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \

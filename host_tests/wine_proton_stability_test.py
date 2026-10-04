@@ -181,7 +181,9 @@ struct swapchain {
     VkImage *images; BOOL *acquired; VkCommandBuffer acquire_command;
     pthread_mutex_t mutex; pthread_cond_t cond;
 };
-static int submissions, presents, updates, clock_reads, fail_alloc;
+static int submissions, presents, updates, clock_reads, fail_alloc, verify_acquire;
+static VkSemaphore expected_signal;
+static VkFence expected_fence;
 static VkResult submit_result;
 static void *test_malloc(size_t size) { return fail_alloc ? NULL : malloc(size); }
 static int test_clock_gettime(clockid_t id, struct timespec *value) {
@@ -197,6 +199,12 @@ static int present_image(void) { presents++; return 0; }
 #define winehua_present_image(...) present_image()
 static VkResult submit(VkQueue queue, uint32_t count, const VkSubmitInfo *info, VkFence fence) {
     assert(queue == 19 && count == 1); (void)fence; submissions++;
+    if (verify_acquire) {
+        assert(info->commandBufferCount == 0 && info->pCommandBuffers == NULL);
+        assert(info->waitSemaphoreCount == 0 && fence == expected_fence);
+        assert(info->signalSemaphoreCount == (expected_signal != 0));
+        assert(!expected_signal || *info->pSignalSemaphores == expected_signal);
+    }
     for (uint32_t i = 0; i < info->waitSemaphoreCount; ++i) {
         assert(info->pWaitDstStageMask[i] == VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
         assert(info->pWaitSemaphores[i] == i + 100);
@@ -282,6 +290,31 @@ static void deadline(void) {
     assert(submissions == 1 && !s.acquired[0]); submit_result = 0;
     cleanup(&s); puts("acquire: repeated wakeups, zero/infinite timeout and failed submit passed");
 }
+static void acquire_signals(void) {
+    struct swapchain s; init(&s, TRUE);
+    free(s.images); free(s.acquired); s.image_count = 3;
+    s.images = calloc(3, sizeof(*s.images)); s.acquired = calloc(3, sizeof(*s.acquired));
+    struct semaphore sems[3]; struct fence fences[3];
+    uint32_t indices[3]; verify_acquire = 1; submissions = 0; fail_alloc = 1;
+    for (unsigned i = 0; i < 3; ++i) {
+        sems[i].obj.host.semaphore = 100 + i; fences[i].obj.host.fence = 200 + i;
+        expected_signal = i == 1 ? 0 : sems[i].obj.host.semaphore;
+        expected_fence = i == 0 ? 0 : fences[i].obj.host.fence;
+        assert(winehua_swapchain_acquire(&s, 0, expected_signal ? (uintptr_t)&sems[i] : 0,
+                                        expected_fence ? (uintptr_t)&fences[i] : 0, &indices[i]) == VK_SUCCESS);
+        assert(indices[i] == i && s.acquired[i]);
+    }
+    assert(submissions == 3);
+    uint32_t sentinel = 99;
+    assert(winehua_swapchain_acquire(&s, 0, 0, 0, &sentinel) == VK_TIMEOUT);
+    assert(sentinel == 99 && submissions == 3);
+    s.acquired[1] = FALSE; expected_signal = 101; expected_fence = 201;
+    submit_result = VK_ERROR_DEVICE_LOST;
+    assert(winehua_swapchain_acquire(&s, 0, (uintptr_t)&sems[1], (uintptr_t)&fences[1], &sentinel) == VK_ERROR_DEVICE_LOST);
+    assert(!s.acquired[1] && s.acquired[0] && s.acquired[2]);
+    verify_acquire = fail_alloc = 0; submit_result = 0; cleanup(&s);
+    puts("acquire: three consecutive signal-only batches, semaphore/fence/both, no allocation, timeout and rollback passed");
+}
 static void routes(void) {
     struct swapchain a, b; init(&a, TRUE); init(&b, FALSE);
     VkSwapchainKHR chains[] = {(uintptr_t)&a, (uintptr_t)&b};
@@ -308,6 +341,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[1], "stages")) stages();
     else if (!strcmp(argv[1], "deadline")) deadline();
     else if (!strcmp(argv[1], "routes")) routes();
+    else if (!strcmp(argv[1], "acquire_signals")) acquire_signals();
     else abort();
 }
 '''
@@ -364,6 +398,16 @@ class ProtonStabilityTest(unittest.TestCase):
                         '{\nVkResult res; BOOL private_route;\n' + entry[guard_start:guard_end] +
                         '\n(void)res; (void)private_route; return 77;\n}\n')
             cls.compile(label + '-vulkan', VULKAN_STUBS + functions + dispatch + VULKAN_MAIN)
+
+    def test_signal_only_acquire(self):
+        old = self.run_function('baseline-vulkan', 'acquire_signals')
+        self.assertNotEqual(old.returncode, 0)
+        self.assertIn('commandBufferCount == 0', old.stderr)
+        result = self.run_function('candidate-vulkan', 'acquire_signals')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        source = self.replayed['dlls/win32u/vulkan.c'].decode()
+        self.assertNotIn('acquire_pool', source)
+        self.assertNotIn('acquire_command', source)
 
     @classmethod
     def compile(cls, label, source):

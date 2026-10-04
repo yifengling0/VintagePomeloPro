@@ -142,7 +142,8 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         auto& consumer = **it;
         ZeroCopyLayerInfo layer;
         if (!consumer.registered || !compositor_.GetZeroCopyLayerInfo(
-                consumer.surfaceKey, rendererToplevelId, consumer.sourceW, consumer.sourceH, layer)) {
+                consumer.surfaceKey, rendererToplevelId, consumer.sourceW, consumer.sourceH, layer) ||
+            consumer.layer.bindingGeneration != layer.bindingGeneration) {
             ReleaseZeroCopyBinding(consumer);
             it = zeroCopyConsumers_.erase(it);
             zeroCopySceneDirty_ = true;
@@ -237,6 +238,7 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         consumer.sourceW = static_cast<int>(surface.width);
         consumer.sourceH = static_cast<int>(surface.height);
         consumer.vulkanSource = surface.vulkan;
+        consumer.layer = layer;
         consumer.layerX = layer.x;
         consumer.layerY = layer.y;
         consumer.layerW = layer.width;
@@ -377,7 +379,8 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
     uint32_t rendererToplevelId = toplevelId_;
     if (compositor_.Policy().RootCompositing()) rendererToplevelId = compositor_.DesktopRootToplevelId();
     if (!compositor_.GetZeroCopyLayerInfo(consumer.surfaceKey, rendererToplevelId,
-                                          consumer.sourceW, consumer.sourceH, layer))
+                                          consumer.sourceW, consumer.sourceH, layer) ||
+        consumer.layer.bindingGeneration != layer.bindingGeneration)
     {
         ReleaseZeroCopyBinding(consumer);
         return false;
@@ -392,7 +395,10 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
     consumer.layer = layer;
     consumer.hasFrame = true;
     // 2026-09-20: 记录**真实**消费时刻 (供黑窗归因/活性判定; 旧实现在查询路径里刷)
-    compositor_.zc().NoteLayerConsumed(consumer.surfaceKey, PerfNowUs());
+    if (!compositor_.zc().NoteLayerConsumed(consumer.surfaceKey, PerfNowUs(), layer.bindingGeneration)) {
+        ReleaseZeroCopyBinding(consumer);
+        return false;
+    }
     if (compositor_.zc().IsFallbackPending(consumer.surfaceKey))
     {
         compositor_.zc().CancelFallback(consumer.surfaceKey);

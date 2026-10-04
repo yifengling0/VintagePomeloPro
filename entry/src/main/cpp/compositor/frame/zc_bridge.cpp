@@ -221,6 +221,12 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
     if (!wlRes) return reject("no_surface_resource");
     if (!sd) return reject("no_surface_data");
 
+    // Keep retired bindings as tombstones until surface destruction. Otherwise
+    // the legacy geometry fallback (or a later bootstrap) revives the old image.
+    const auto priorBinding = presentBindings_.find(surfaceKey);
+    if (priorBinding != presentBindings_.end() && priorBinding->second.retired)
+        return reject("retired_producer");
+    uint64_t bindingGeneration = 0;
     // Explicit Wayland roles already identify the window/parent and offset.
     // Bootstrap a binding only for a role-less private present surface. The
     // heuristic must not replace a real subsurface with an unrelated window.
@@ -240,6 +246,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
             {
                 wlRes = boundRes;
                 sd = boundSd;
+                bindingGeneration = binding.bindGeneration;
                 if (outReason) *outReason = "present-binding";
                 // 2026-09-20: 这里**不再**写消费时刻。本函数同时服务"每帧查询"与
                 // "真正消费"两条路径, 把查询当消费会让 lastProducerUs/lastDrawUs
@@ -392,6 +399,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
 
     info = {};
     info.surfaceKey = surfaceKey;
+    info.bindingGeneration = bindingGeneration;
     info.clientPid = sd->clientPid;
     info.surfaceId = sd->protocolId;
     if (sd->isSubsurface && sd->parentSurface)
@@ -543,12 +551,40 @@ uint64_t ZcBridge::LastPresentUs(uint64_t surfaceKey) const
     return it == lastPresentUsByKey_.end() ? 0 : it->second;
 }
 
-void ZcBridge::NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs)
+bool ZcBridge::NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t bindingGeneration)
 {
-    if (!surfaceKey) return;
+    if (!surfaceKey) return false;
     auto lk = comp_.tmgr_.Lock();
+    if (!comp_.tmgr_.FindSurfaceResource(surfaceKey)) return false;
+    if (!bindingGeneration) return true; // explicit protocol geometry has no binding
     const auto it = presentBindings_.find(surfaceKey);
-    if (it != presentBindings_.end()) it->second.lastDrawUs = nowUs;
+    if (it == presentBindings_.end() || it->second.retired ||
+        it->second.bindGeneration != bindingGeneration) return false;
+    auto& binding = it->second;
+    const uint64_t windowKey = (static_cast<uint64_t>(binding.window.ownerHostPid) << 32) |
+                               binding.window.wlSurfaceId;
+    if (!comp_.tmgr_.FindSurfaceResource(windowKey)) return false;
+    const auto claim = windowBindings_.find(windowKey);
+    if (binding.pending && (claim == windowBindings_.end() || claim->second != surfaceKey))
+        return false;
+    binding.lastDrawUs = nowUs;
+    if (!binding.pending) return true;
+    // Only a validated NativeImage consumption can replace the old last frame.
+    // Geometry queries and present attempts must leave the pending state intact.
+    binding.pending = false;
+    for (auto& [producerKey, other] : presentBindings_) {
+        if (producerKey == surfaceKey || other.retired ||
+            other.window.ownerHostPid != binding.window.ownerHostPid ||
+            other.window.wlSurfaceId != binding.window.wlSurfaceId) continue;
+        other.retired = true;
+        OH_LOG_INFO(LOG_APP,
+                    "BIND-RETIRE: window=(%{public}u,%{public}u) old=0x%{public}llx "
+                    "replaced_by=0x%{public}llx (first consumed frame of new producer)",
+                    other.window.ownerHostPid, other.window.wlSurfaceId,
+                    static_cast<unsigned long long>(producerKey),
+                    static_cast<unsigned long long>(surfaceKey));
+    }
+    return true;
 }
 
 void ZcBridge::PruneStaleWindowBindings()
@@ -630,7 +666,8 @@ bool ZcBridge::ResolvePresentBinding(uint64_t surfaceKey, uint32_t frameWidth,
             const auto retiredWindow = windowBindings_.find(retiredWindowKey);
             if (retiredWindow != windowBindings_.end() && retiredWindow->second == surfaceKey)
                 windowBindings_.erase(retiredWindow);
-            presentBindings_.erase(existing);
+            // Do not erase the tombstone: this live producer must never
+            // bootstrap a new binding after its replacement has been consumed.
             return false;
         }
         const uint64_t boundKey = (static_cast<uint64_t>(existing->second.window.ownerHostPid) << 32) |
@@ -643,26 +680,6 @@ bool ZcBridge::ResolvePresentBinding(uint64_t surfaceKey, uint32_t frameWidth,
             existing->second.frameHeight = frameHeight;
             if (const uint64_t lastPresentUs = LastPresentUs(surfaceKey))
                 existing->second.lastProducerUs = lastPresentUs;
-            // Task E/F: 接管者出第一帧后, 才真正退役旧 producer (旧 layer 在此期间继续显示最后帧)
-            if (existing->second.pending)
-            {
-                existing->second.pending = false;
-                const uint64_t windowKey = boundKey;
-                for (auto& [producerKey, other] : presentBindings_)
-                {
-                    if (producerKey == surfaceKey) continue;
-                    const uint64_t otherWindowKey =
-                        (static_cast<uint64_t>(other.window.ownerHostPid) << 32) | other.window.wlSurfaceId;
-                    if (otherWindowKey != windowKey || other.retired) continue;
-                    other.retired = true;
-                    OH_LOG_INFO(LOG_APP,
-                                "BIND-RETIRE: window=(%{public}u,%{public}u) old=0x%{public}llx "
-                                "replaced_by=0x%{public}llx (first frame of new producer)",
-                                other.window.ownerHostPid, other.window.wlSurfaceId,
-                                static_cast<unsigned long long>(producerKey),
-                                static_cast<unsigned long long>(surfaceKey));
-                }
-            }
             *outBinding = existing->second;
             return true;
         }
@@ -842,7 +859,7 @@ bool ZcBridge::ResolvePresentBinding(uint64_t surfaceKey, uint32_t frameWidth,
     binding.window.ownerHostPid = candidate->clientPid;
     binding.window.wlSurfaceId = candidate->protocolId;
     binding.window.windowGeneration = 0;
-    binding.bindGeneration = 0;
+    binding.bindGeneration = ++nextBindingGeneration_;
     binding.reason = reason;
     binding.frameWidth = frameWidth;
     binding.frameHeight = frameHeight;
@@ -869,7 +886,7 @@ bool ZcBridge::ResolvePresentBinding(uint64_t surfaceKey, uint32_t frameWidth,
     snprintf(bindDiagProducers_[surfaceKey].lastReject,
              sizeof(bindDiagProducers_[surfaceKey].lastReject), "bound:%s", reason);
     if (outNewlyBound) *outNewlyBound = true;
-    *outBinding = binding;
+    *outBinding = presentBindings_.at(surfaceKey);
 
     OH_LOG_INFO(LOG_APP,
                 "BIND: producer=0x%{public}llx presenterHostPid=%{public}u presentSurfaceId=%{public}u "
