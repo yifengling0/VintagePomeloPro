@@ -1,0 +1,236 @@
+[
+  {
+    "time": "2026-10-04T15:36:54.186233+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'date; pidof com.vintage.pomelopro; aa dump -l'",
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:16.193394+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'date +%Y-%m-%dT%H:%M:%S%z'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:16.485952+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'aa dump -l'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:16.776412+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'bm dump -n com.vintage.pomelopro'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:16.961294+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'tail -c 4194304 /data/app/el2/100/base/com.vintage.pomelopro/temp/cef-utility-diag.log'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:17.693810+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'tail -c 8388608 /data/app/el2/100/base/com.vintage.pomelopro/temp/wine_stderr_20261004.log'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:18.745918+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'tail -c 8388608 /data/app/el2/100/base/com.vintage.pomelopro/cache/winehua_virgl_host.log'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:19.393384+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'ps -A -o PID,PPID,NAME'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:22.527123+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'hilog -x'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:24.659550+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'uitest screenCap -p /data/local/tmp/proton-remote-review-before-update.png'",
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:39:24.952243+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "file recv /data/local/tmp/proton-remote-review-before-update.png 'F:\\VintagePomelo-Workspace\\workspace_temp\\gpu-followup-review-1936fa6-20261004\\before-update\\screen.png'",
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:02.886595+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'aa force-stop com.vintage.pomelopro; pidof com.vintage.pomelopro'",
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:03.735592+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'pidof com.vintage.pomelopro'",
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:21.483369+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "install -r 'F:\\VintagePomelo-Workspace\\workspace_temp\\gpu-followup-review-1936fa6-20261004\\VintagePomeloPro-proton26-followup-1936fa6-debug-signed.hap'",
+    "timeoutSeconds": 120,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:37.243049+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'pidof com.vintage.pomelopro'",
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:37.536340+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'aa start -b com.vintage.pomelopro -a EntryAbility --ps winehua.mode game --ps winehua.frameDiagnostics 1 --ps winehua.game_path Z%3A%5Cgames%5CSteam-legacy%5CSteam%5Csteam.exe --ps winehua.game_argc 11 --ps winehua.game_args_json %5B%22-nocrashmonitor%22%2C%20%22-noshaders%22%2C%20%22-no-shared-textures%22%2C%20%22-cef-single-process%22%2C%20%22-cef-in-process-gpu%22%2C%20%22-cef-disable-sandbox%22%2C%20%22-disable-winh264%22%2C%20%22-no-cef-sandbox%22%2C%20%22-vrdisable%22%2C%20%22-cef-disable-breakpad%22%2C%20%22-bigpicture%22%5D --ps winehua.d3d_backend dxvk_legacy --ps winehua.graphics_experiment trace-present-image --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_CEF_NO_CRASH_HANDLER%22%2C%20%22value%22%3A%20%221%22%7D%2C%20%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Bseh%22%7D%2C%20%7B%22key%22%3A%20%22WINEHUA_CEF_LOGGING%22%2C%20%22value%22%3A%20%221%22%7D%5D'",
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:38.375630+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'date +%Y-%m-%dT%H:%M:%S%z'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:38.671264+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'aa dump -l'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:38.920115+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'bm dump -n com.vintage.pomelopro'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:39.090537+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'tail -c 4194304 /data/app/el2/100/base/com.vintage.pomelopro/temp/cef-utility-diag.log'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:39.695663+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'tail -c 8388608 /data/app/el2/100/base/com.vintage.pomelopro/temp/wine_stderr_20261004.log'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:40.171838+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'tail -c 8388608 /data/app/el2/100/base/com.vintage.pomelopro/cache/winehua_virgl_host.log'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:40.371840+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'ps -A -o PID,PPID,NAME'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:42.173498+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'hilog -x'",
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:43.970874+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "shell 'uitest screenCap -p /data/local/tmp/proton-remote-review-followup-launch.png'",
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  },
+  {
+    "time": "2026-10-04T15:52:44.086719+08:00",
+    "target": "MatePad Mini USB",
+    "policy": "automation",
+    "command": "file recv /data/local/tmp/proton-remote-review-followup-launch.png 'F:\\VintagePomelo-Workspace\\workspace_temp\\gpu-followup-review-1936fa6-20261004\\followup-launch\\screen.png'",
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "redaction": "credential lines omitted; SteamID and serial masked; local artifacts only"
+  }
+]

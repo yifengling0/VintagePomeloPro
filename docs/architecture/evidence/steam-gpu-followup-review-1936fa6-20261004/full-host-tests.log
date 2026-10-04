@@ -1,0 +1,179 @@
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/host_tests/stubs -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    /home/liufeng/src/vpp-proton/host_tests/texture_upload_stats_test.cpp /home/liufeng/src/vpp-proton/entry/src/main/cpp/common/perf_utils.cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/texture_upload_stats_test
+/home/liufeng/src/vpp-proton/build/host_tests/texture_upload_stats_test
+Upload counters preserve issued work across swap failure; static/native frames add zero uploads
+python3 /home/liufeng/src/vpp-proton/host_tests/gpu_owner_contract_test.py
+PASS owner case 0
+PASS owner case 1
+PASS owner case 2
+PASS owner case 3
+PASS owner case 4
+PASS owner case 5
+PASS owner case 6
+PASS owner case 7
+PASS owner case 8
+python3 /home/liufeng/src/vpp-proton/host_tests/gpu_scene_input_test.py
+PASS full production scene/input case 0
+PASS full production scene/input case 1
+PASS full production scene/input case 2
+PASS full production scene/input case 3
+PASS full production scene/input case 4
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_build_identity_test.py
+Wine cache identity: source/configure/native/OHOS/arch/overlay/source edits/symlinks/spaces, all preservation checks passed
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_make_identity_test.py
+Top-level Wine stamp: foreign srcdir and missing provenance reject despite newer stamp/sentinel; all files preserved
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/direct_viewport_test /home/liufeng/src/vpp-proton/host_tests/direct_viewport_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/direct_viewport_test
+direct_viewport: 87 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -Werror -o /home/liufeng/src/vpp-proton/build/host_tests/benchmark_statistics_test /home/liufeng/src/vpp-proton/host_tests/benchmark_statistics_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/benchmark_statistics_test
+benchmark_statistics: nearest-rank and empty input checks PASS
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_surface_region_lock_test.py
+/home/liufeng/src/vpp-proton/build/direct-surface-lock-20260929/region-fixed.c: In function ‘main’:
+/home/liufeng/src/vpp-proton/build/direct-surface-lock-20260929/region-fixed.c:419:13: warning: ‘icon_small’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+  419 |             user_driver->pSetWindowIcons( hwnd, icon, &ii, icon_small, &ii_small );
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/liufeng/src/vpp-proton/build/direct-surface-lock-20260929/region-fixed.c:240:17: note: ‘icon_small’ was declared here
+  240 |     HICON icon, icon_small;
+      |                 ^~~~~~~~~~
+/home/liufeng/src/vpp-proton/build/direct-surface-lock-20260929/region-fixed.c:416:24: warning: ‘icon’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+  416 |         if (need_icons && (icon = get_window_icon_info( hwnd, ICON_BIG, icon, &ii )))
+      |             ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/liufeng/src/vpp-proton/build/direct-surface-lock-20260929/region-fixed.c:240:11: note: ‘icon’ was declared here
+  240 |     HICON icon, icon_small;
+      |           ^~~~
+{"scope": "Complete production apply_window_pos + update_surface_region extracted verbatim; recursive USER, deterministic Linux lock/lifetime harness with platform stubs, not device or GPU validation.", "cases": {"race": {"exit": 0, "stdout": "REGION user_depth=0\nFLUSH owns_surface_and_win_data; requesting_USER\nUPDATER waiting_surface user_depth=0\nPASS\n", "stderr": ""}, "replacement": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "shape-error": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "clip-error": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "no-clip": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "rtl": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "no-surface": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "caller-race": {"exit": 0, "stdout": "REGION user_depth=0\nFLUSH owns_surface_and_win_data; requesting_USER\nUPDATER waiting_surface user_depth=0\nPASS\n", "stderr": ""}, "caller-parent-race": {"exit": 0, "stdout": "REGION user_depth=0\nFLUSH owns_surface_and_win_data; requesting_USER\nUPDATER waiting_surface user_depth=0\nPASS\n", "stderr": ""}, "caller-shape-error": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "caller-clip-error": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "caller-no-surface": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "caller-server-error": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "entry-contract": {"exit": -6, "stdout": "", "stderr": "region-fixed: /home/liufeng/src/vpp-proton/build/direct-surface-lock-20260929/region-fixed.c:44: user_check_not_lock: Assertion `user_depth == 0' failed.\n"}, "no-shape": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "no-shape-no-clip": {"exit": 0, "stdout": "PASS\n", "stderr": ""}, "caller-swap-race": {"exit": 0, "stdout": "REGION user_depth=0\nFLUSH owns_surface_and_win_data; requesting_USER\nUPDATER waiting_surface user_depth=0\nPASS\n", "stderr": ""}, "caller-swap-clip-error": {"exit": 0, "stdout": "PASS\n", "stderr": ""}}}
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_patch_detection_test.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.020s
+
+OK
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_large_address_aware_test.py --wine-src /home/liufeng/src/vpp-proton/thirdparty/wine-valve
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.771s
+
+OK
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_proton_stability_test.py --wine-src /home/liufeng/src/vpp-proton/thirdparty/wine-valve
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 3.468s
+
+OK
+python3 /home/liufeng/src/vpp-proton/host_tests/spawn_log_metadata_test.py
+spawn logs: argv/env preserved; success and failure logs contain only metadata
+python3 /home/liufeng/src/vpp-proton/host_tests/broker_startup_contract_test.py --wine-src /home/liufeng/src/vpp-proton/thirdparty/wine-valve
+codec: golden wire data, UTF-8, empty/separator arguments, malformed input and caps passed
+launch: Start, real IPC receiver and real phone packets preserve 64 KiB/256 argv; fd and final budgets passed
+broker: three stalled clients allow normal progress; bounded queue rejects busy passed
+Wine: actual patched C sender retains arguments/environ and filters only process-local handles passed
+Broker startup contract PASS (real sockets/fds; mocked OS process creation).
+transport: byte fragments, EINTR/EAGAIN, short/failed writes, ancillary truncation/overflow, versions and total deadline PASS; no fd leaks
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_shm_state_cache_test.py --wine-src /home/liufeng/src/vpp-proton/thirdparty/wine-valve
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 1.295s
+
+OK
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/prefix_registry_test /home/liufeng/src/vpp-proton/host_tests/prefix_registry_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/prefix_registry_test
+prefix registry regression checks passed
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/steam_client_args_test /home/liufeng/src/vpp-proton/host_tests/steam_client_args_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/steam_client_args_test
+Steam client arguments: PASS
+python3 /home/liufeng/src/vpp-proton/host_tests/shared_present_dispatch_test.py
+shared present dispatch: 64 background misses, foreground progress, attach recovery, mixed kinds and detach passed
+g++ -std=c++17 -Wall -Wextra -Werror -pthread -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/displayed_fps_test /home/liufeng/src/vpp-proton/host_tests/displayed_fps_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/displayed_fps_test
+displayed FPS: concurrent windows, freshness, clock reset, wrong ID and malformed samples passed
+python3 /home/liufeng/src/vpp-proton/host_tests/gamepad_bridge_test.py
+gamepad bridge: multiple peers, press/release, rumble, concurrent packets, disconnect, backpressure and restart passed
+python3 /home/liufeng/src/vpp-proton/host_tests/zc_binding_lifecycle_test.py
+ZC lifecycle: destruction, takeover, foreign peer, missing-resource guard and explicit topology passed
+python3 /home/liufeng/src/vpp-proton/host_tests/egl_multi_consumer_test.py
+Production multi-consumer: attach isolation, independent signals, retirement, failure recovery, mixed alpha composition and texture reuse passed
+python3 /home/liufeng/src/vpp-proton/host_tests/steam_gpu_contract_test.py
+Venus exact identity: PID collisions, missing target, detach/reuse, backend guard passed
+Binding: zero-activity queries, first consume, retirement tombstone, disconnect and generation reuse passed
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/frame_loop_diagnostics_test /home/liufeng/src/vpp-proton/host_tests/frame_loop_diagnostics_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/frame_loop_diagnostics_test
+frame_loop_diagnostics_test PASS
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/cef_render_switches_test /home/liufeng/src/vpp-proton/host_tests/cef_render_switches_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/cef_render_switches_test
+cef_render_switches_test PASS
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/geometry_test \
+    /home/liufeng/src/vpp-proton/host_tests/geometry_test.cpp \
+    /home/liufeng/src/vpp-proton/entry/src/main/cpp/compositor/frame/geometry.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/geometry_test
+77 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/blit_scaled_test \
+    /home/liufeng/src/vpp-proton/host_tests/blit_scaled_test.cpp \
+    /home/liufeng/src/vpp-proton/entry/src/main/cpp/compositor/frame/compositor_blit.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/blit_scaled_test
+blit_scaled_test: 402 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/blit_clip_test \
+    /home/liufeng/src/vpp-proton/host_tests/blit_clip_test.cpp \
+    /home/liufeng/src/vpp-proton/entry/src/main/cpp/compositor/frame/compositor_blit.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/blit_clip_test
+blit_clip_test: 47 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/shm_frame_source_test \
+    /home/liufeng/src/vpp-proton/host_tests/shm_frame_source_test.cpp \
+    /home/liufeng/src/vpp-proton/entry/src/main/cpp/compositor/frame/shm_frame_source.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/shm_frame_source_test
+shm_frame_source_test: 39 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/zorder_test \
+    /home/liufeng/src/vpp-proton/host_tests/zorder_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/zorder_test
+zorder_test: 40 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/env_spec_test \
+    /home/liufeng/src/vpp-proton/host_tests/env_spec_test.cpp \
+    /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine/env_spec.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/env_spec_test
+PASS: 21 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/env_baseline_test \
+    /home/liufeng/src/vpp-proton/host_tests/env_baseline_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/env_baseline_test
+env_baseline_test: 88 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/input_state_test \
+    /home/liufeng/src/vpp-proton/host_tests/input_state_test.cpp \
+    /home/liufeng/src/vpp-proton/entry/src/main/cpp/compositor/input/input_state_tracker.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/input_state_test
+input_state_test: 84 checks / 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/toplevel_event_test \
+    /home/liufeng/src/vpp-proton/host_tests/toplevel_event_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/toplevel_event_test
+event-name coverage: 21
+toplevel_event_test: 63 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/presenter_common_test \
+    /home/liufeng/src/vpp-proton/host_tests/presenter_common_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/presenter_common_test
+presenter_common_test PASS
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/controller_merge_test \
+    /home/liufeng/src/vpp-proton/host_tests/controller_merge_test.cpp \
+    /home/liufeng/src/vpp-proton/entry/src/main/cpp/input/controller/controller_hub.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/controller_merge_test
+controller_merge_test: 11 checks, 0 failures
+g++ -std=c++17 -Wall -Wextra -I /home/liufeng/src/vpp-proton/entry/src/main/cpp -I /home/liufeng/src/vpp-proton/entry/src/main/cpp/wine \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/display_policy_test \
+    /home/liufeng/src/vpp-proton/host_tests/display_policy_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/display_policy_test
+display_policy_test: 13 checks, 0 failures

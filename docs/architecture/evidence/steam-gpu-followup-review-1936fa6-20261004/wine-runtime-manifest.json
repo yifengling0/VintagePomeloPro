@@ -1,0 +1,7 @@
+
+{
+  "schemaVersion": 1,
+  "payload": "wine-data.zip",
+  "payloadSha256": "b49506a720394ef227b65835dd62d6f0cf7817b7416854d3a7144a7f6e98777f",
+  "smokeSuiteVersion": "smoke-v2-1ca165210c94"
+}

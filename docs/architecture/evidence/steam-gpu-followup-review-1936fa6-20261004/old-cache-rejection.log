@@ -1,0 +1,2 @@
+error: cached srcdir mismatch in /data/src/winehua/build/wine-ohos-aarch64.protonmerge/Makefile: /data/src/winehua/thirdparty/wine-proton != /data/src/winehua/thirdparty/wine-valve
+Choose a new isolated BUILD_DIR. No source or cache was reset or overwritten.

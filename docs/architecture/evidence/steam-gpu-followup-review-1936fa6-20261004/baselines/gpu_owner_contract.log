@@ -1,0 +1,9 @@
+BASELINE RED (expected assertion): small role-less producer rejected
+BASELINE RED (expected assertion): active owner rejection is terminal
+PASS owner case 2
+BASELINE RED (expected assertion): claimed peer cannot hide ambiguity
+PASS owner case 4
+PASS owner case 5
+PASS owner case 6
+PASS owner case 7
+PASS owner case 8

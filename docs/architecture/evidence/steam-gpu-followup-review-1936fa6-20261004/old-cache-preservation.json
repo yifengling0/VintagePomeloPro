@@ -1,0 +1,13 @@
+{
+  "exit_code": 1,
+  "files_unchanged": true,
+  "hashes": {
+    "build/configure": "89433c14afdafffb8ad62a9f659582b12df94048d95d1b8daa9fa6e88bd95fc2",
+    "build/wine-native/Makefile": "d74f9cc89d88d892ba149945cee284ef88e52a0ce82cf29bbd42ef577cf7845b",
+    "build/wine-native/config.status": "2ff7e76b575614e71e1a9ef95ec251246a7bd5c6e32c5eac41ff0e53e986a9cf",
+    "build/wine-ohos-aarch64/Makefile": "4bca50437ed26ffd626f29a91764c13516dc3acf24f469984c598d5c62b85090",
+    "build/wine-ohos-aarch64/config.status": "3afa44472a5e6230d27da020a1e1110d43d9eb004437614023f2e193e99c85ef",
+    "build/wine-ohos-aarch64.protonmerge/Makefile": "8adaf91ec9f84cca2dcbed778bf7ef5a8bfc5cf5c2388cb27f18b4cf6bac8a92",
+    "build/wine-ohos-aarch64.protonmerge/config.status": "17585210d36c3dd7b78492cca8c64262b5f990afacbaf93bb13bf7f3018a245f"
+  }
+}

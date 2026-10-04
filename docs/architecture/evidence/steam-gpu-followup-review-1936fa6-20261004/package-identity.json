@@ -1,0 +1,75 @@
+{
+  "commit": "1936fa68864dbb0ecda8ed6d571c167e14991842",
+  "bytes": 358167485,
+  "sha256": "9af9a07b0f5c84d2bac68ea70613c9258ec56b69033993dcdd635488bafadd48",
+  "version": "1.4.5-proton.26-alpha (1004035)",
+  "build": "Debug/native O0 diagnostic build",
+  "freshBuildDir": "/data/src/winehua/build-gpu-followup-1936fa6-20261004",
+  "runtime": {
+    "libentry.so": {
+      "hap_sha256": "2325e43db4929d86d4781583c5e317648652660911eb0d88bfbd106da13e2921",
+      "stripped_sha256": "2325e43db4929d86d4781583c5e317648652660911eb0d88bfbd106da13e2921",
+      "current_native_objects": [
+        {
+          "path": "entry\\.cxx\\default\\default\\debug\\arm64-v8a\\CMakeFiles\\entry.dir\\compositor\\frame\\zc_bridge.cpp.o",
+          "sha256": "c23b0c7ab6191123eb682df88ca5597b9563218dab5920611604a339f38fe579"
+        },
+        {
+          "path": "entry\\.cxx\\default\\default\\debug\\arm64-v8a\\CMakeFiles\\entry.dir\\compositor\\toplevel\\desktop_compositor.cpp.o",
+          "sha256": "c761fd4de9d642e74519854a4b3306b94879aba2724b627b283fa0c683b15d00"
+        },
+        {
+          "path": "entry\\.cxx\\default\\default\\debug\\arm64-v8a\\CMakeFiles\\entry.dir\\compositor\\input\\input_resolver.cpp.o",
+          "sha256": "e9174759f9e2c41930bbc3936f68efd82c022e22272ead33604af0cd5c93eaf2"
+        },
+        {
+          "path": "entry\\.cxx\\default\\default\\debug\\arm64-v8a\\CMakeFiles\\entry.dir\\graphics\\egl_renderer.cpp.o",
+          "sha256": "cce7451854c241124fc46cc5c7afcb66e6ae02f77d6f0f6f98cba71c878e55d8"
+        },
+        {
+          "path": "entry\\.cxx\\default\\default\\debug\\arm64-v8a\\CMakeFiles\\entry.dir\\common\\perf_utils.cpp.o",
+          "sha256": "f41b73c58862507ec4511e7630a7dcd80798210eb996d5ac022572c19ee1f9b6"
+        }
+      ]
+    },
+    "libvirgl_child.so": {
+      "hap_sha256": "3a1d78fae6b965b437f6599483f23b8e933b3c4f97941d1f10537a3800fd1046",
+      "stripped_sha256": "3a1d78fae6b965b437f6599483f23b8e933b3c4f97941d1f10537a3800fd1046"
+    },
+    "win32u.so": {
+      "hap_sha256": "7daed12ee1f4106028fa3948c88f3848905cb281175e283ef0c5e8fb36506f68",
+      "stripped_sha256": "7daed12ee1f4106028fa3948c88f3848905cb281175e283ef0c5e8fb36506f68",
+      "fresh_unstripped_sha256": "488494b024fd26a65f8398cac79f33f30217645bf9bd2d57683994ec44b40471"
+    },
+    "winewayland.so": {
+      "hap_sha256": "a504e999714f86211aeffa2d44bf66ed8742b02d6e127822f4c9c616c1146a3f",
+      "stripped_sha256": "a504e999714f86211aeffa2d44bf66ed8742b02d6e127822f4c9c616c1146a3f",
+      "fresh_unstripped_sha256": "4506a0f51e47a7576f2da95ef8032077bebb7e1f8b24f5d5d151e060adf3a453"
+    },
+    "winevulkan.so": {
+      "hap_sha256": "18a701371539fed012f50f852d3fda2941ad24bbacae31f514a6bce05882993a",
+      "stripped_sha256": "18a701371539fed012f50f852d3fda2941ad24bbacae31f514a6bce05882993a",
+      "fresh_unstripped_sha256": "3824c9b407d6b545e2ca829fecf20469f268035d7b7a4e65435184d584eee04a"
+    },
+    "ntdll.so": {
+      "hap_sha256": "4b20461fe0b38cd84e2126809250f1d2d998a2384df78a598c20aeec1b926e57",
+      "stripped_sha256": "4b20461fe0b38cd84e2126809250f1d2d998a2384df78a598c20aeec1b926e57",
+      "fresh_unstripped_sha256": "affea8fb509fba70c4eca061fb6b74bff11ee8e7953e27ddd75a2c6549a9e81b"
+    },
+    "libwineserver.so": {
+      "hap_sha256": "7b7b942407e1f8c43e175bfbfaab0e94a10bb699f21ec7a7819228776f5cf4ac",
+      "stripped_sha256": "7b7b942407e1f8c43e175bfbfaab0e94a10bb699f21ec7a7819228776f5cf4ac",
+      "fresh_unstripped_sha256": "f28ba3537019a180f9a3e1a969d79259d3abfef74a17491456eaa12950e994ce"
+    }
+  },
+  "checks": [
+    "fresh Wine configure and objects",
+    "post-build identity gate PASS",
+    "fresh Wine libraries equal entry/libs inputs",
+    "HAP libraries equal stripped outputs",
+    "new scene/upload markers in libentry",
+    "new native objects recorded",
+    "AArch64 ELF",
+    "HAP signature verified by hap-sign-tool"
+  ]
+}
