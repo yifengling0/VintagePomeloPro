@@ -42,7 +42,7 @@ export async function replaceImportedFonts(files: FontImportFiles, source: strin
           throw new Error('字体替换失败，旧字体已保留在 ' + backup + '，请恢复后重试');
         }
       }
-      throw error;
+      throw (error as Error);
     }
   } finally {
     if (!committed) {

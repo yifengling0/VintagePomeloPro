@@ -1,20 +1,18 @@
-From: VintagePomelo maintainers
-Subject: [PATCH] ntdll: send complete versioned broker startup requests
-
+diff --git a/dlls/ntdll/unix/ohos_broker.c b/dlls/ntdll/unix/ohos_broker.c
 --- a/dlls/ntdll/unix/ohos_broker.c
 +++ b/dlls/ntdll/unix/ohos_broker.c
 @@ -35,6 +35,7 @@
  #include <unistd.h>
- 
+
  #include "wine/debug.h"
 +#include "ohos_spawn_protocol.h"
- 
+
  WINE_DEFAULT_DEBUG_CHANNEL(process);
- 
+
 @@ -45,105 +46,59 @@
      return path ? path : "/data/storage/el2/base/files/.wine_broker";
  }
- 
+
 -/* Send a SPAWN request over an already-connected broker socket.
 - * entry_params may be NULL (treated as empty).
 - * Returns 0 on success (sets *child_pid), -1 on failure. */
@@ -96,7 +94,7 @@ Subject: [PATCH] ntdll: send complete versioned broker startup requests
 +    *child_pid = pid;
      return 0;
  }
- 
+
 -/***********************************************************************
 - *           ohos_broker_spawn
 - *
@@ -164,7 +162,7 @@ Subject: [PATCH] ntdll: send complete versioned broker startup requests
 +too_big:
 +    free(copy); free(argv); free(env); return vp_bad(E2BIG);
 +}
- 
+
  /* Resolve binDir from WINEBINDIR env or fallback. */
  static const char *resolve_bindir(void)
 @@ -157,13 +112,7 @@
@@ -180,9 +178,9 @@ Subject: [PATCH] ntdll: send complete versioned broker startup requests
 -    return 1;
 +    return !vp_is_process_env(env);
  }
+
  
- 
-@@ -173,73 +122,37 @@
+@@ -173,73 +122,53 @@
   * Convenience wrapper to spawn wineserver via the Process Broker.
   * Resolves binDir and sends entry_params "binDir|wineserver|-f|-p".
   */
@@ -212,7 +210,7 @@ Subject: [PATCH] ntdll: send complete versioned broker startup requests
 +    return broker_spawn_spec(&spec, NULL, child_pid);
 +}
 +
-+int ohos_broker_spawn_child(char **argv, int socketfd, int *child_pid)
++int ohos_broker_spawn_child(char **argv, int socketfd, const char *winedebug, int *child_pid)
 +{
      extern char **environ;
 -    char *entryParams = NULL;
@@ -267,29 +265,46 @@ Subject: [PATCH] ntdll: send complete versioned broker startup requests
 +    vp_spawn_spec spec = {0};
 +    uint32_t argc = 0, envc = 0, i, offset = getenv("USE_LIBBOX64") ? 0 : 1;
 +    int result;
++    char *debug_override = NULL;
++    const char *parent_debug = getenv("WINEDEBUG");
 +    if (!argv || socketfd < 0) return vp_bad(EINVAL);
 +    while (argv[argc]) { if (++argc > VP_ITEMS_CAP - offset) return vp_bad(E2BIG); }
++    /* A Windows launcher can change WINEDEBUG in its child environment without
++     * changing Unix environ. The fork/exec path already honors this parameter.
++     * Forward only a changed debug selection to the NCP profile selector; do
++     * not mutate the parent's environment or import arbitrary Windows paths. */
++    if (winedebug && strncmp(winedebug, "WINEDEBUG=", 10)) return vp_bad(EINVAL);
++    if (winedebug && (!parent_debug || strcmp(winedebug + 10, parent_debug))) {
++        if (asprintf(&debug_override, "WINEHUA_WINEDEBUG=%s", winedebug[10] ? winedebug + 10 : "-all") < 0)
++            return vp_bad(ENOMEM);
++    }
 +    if (environ) for (i = 0; environ[i]; ++i)
-+        if (env_forwardable(environ[i]) && ++envc > VP_ITEMS_CAP) return vp_bad(E2BIG);
++        if (env_forwardable(environ[i]) &&
++            !(debug_override && !strncmp(environ[i], "WINEHUA_WINEDEBUG=", 18)) &&
++            ++envc > VP_ITEMS_CAP) { free(debug_override); return vp_bad(E2BIG); }
++    if (debug_override && ++envc > VP_ITEMS_CAP) { free(debug_override); return vp_bad(E2BIG); }
 +    args = calloc(argc + offset + 1, sizeof(*args));
 +    env = calloc(envc + 1, sizeof(*env));
-+    if (!args || !env) { free(args); free(env); return vp_bad(ENOMEM); }
++    if (!args || !env) { free(args); free(env); free(debug_override); return vp_bad(ENOMEM); }
 +    if (offset) args[0] = "wine";
 +    for (i = 0; i < argc; ++i) args[i + offset] = argv[i];
 +    envc = 0;
 +    if (environ) for (i = 0; environ[i]; ++i)
-+        if (env_forwardable(environ[i])) env[envc++] = environ[i];
++        if (env_forwardable(environ[i]) &&
++            !(debug_override && !strncmp(environ[i], "WINEHUA_WINEDEBUG=", 18))) env[envc++] = environ[i];
++    if (debug_override) env[envc++] = debug_override;
 +    spec.home = ""; spec.bin = resolve_bindir(); spec.argv = args; spec.env = env;
 +    spec.argc = argc + offset; spec.envc = envc; spec.names = fd_names; spec.fdc = 1;
 +    result = broker_spawn_spec(&spec, &socketfd, child_pid);
-+    free(args); free(env); return result;
++    free(args); free(env); free(debug_override); return result;
  }
+
  
- 
+diff --git a/dlls/ntdll/unix/ohos_broker.h b/dlls/ntdll/unix/ohos_broker.h
 --- a/dlls/ntdll/unix/ohos_broker.h
 +++ b/dlls/ntdll/unix/ohos_broker.h
 @@ -25,14 +25,14 @@
- 
+
  /* Send a SPAWN request to the Process Broker via Unix socket.
   *
 - * The broker protocol:
@@ -306,21 +321,25 @@ Subject: [PATCH] ntdll: send complete versioned broker startup requests
   * child_pid: output, receives child process PID
   *
   * Returns 0 on success, -1 on failure.
-@@ -42,12 +42,12 @@
+@@ -42,15 +42,15 @@
                        int *child_pid);
- 
+
  /* Convenience: spawn wineserver via broker.
 - * Resolves binDir from WINEBINDIR env, sends "binDir|wineserver|-f|-p".
 + * Resolves binDir from WINEBINDIR env, sends distinct binDir/argv fields.
   * Returns 0 on success (sets *child_pid), -1 on failure. */
  int ohos_broker_spawn_wineserver( int *child_pid );
- 
+
  /* Convenience: spawn a Wine child process via broker.
 - * Builds entryParams from argv + environ (blacklist-filtered),
 + * Sends argv + environ as separate arrays (process-local fd variables filtered),
   * and passes socketfd as "wineserver_sock" via SCM_RIGHTS.
   * Returns 0 on success (sets *child_pid), -1 on failure. */
- int ohos_broker_spawn_child( char **argv, int socketfd, int *child_pid );
+-int ohos_broker_spawn_child( char **argv, int socketfd, int *child_pid );
++int ohos_broker_spawn_child( char **argv, int socketfd, const char *winedebug, int *child_pid );
+
+ /* Scan for wineserver socket in WINEPREFIX/.wineserver/<host>/socket.
+  * poll_sec: 0=single check; >0=poll N seconds (200ms intervals)
 --- /dev/null
 +++ b/dlls/ntdll/unix/ohos_spawn_protocol.h
 @@ -0,0 +1,269 @@

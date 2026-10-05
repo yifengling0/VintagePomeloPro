@@ -155,6 +155,17 @@ copy_guest_runtime_lib_if_present() {
     shift
     local candidate=""
 
+    if [ "$dest_name" = libz.so ]; then
+        local zlib_arch="${GUEST_ARCH:-$WINE_ARCH}"
+        local zlib_ext="$SYSROOT_EXT_LIB"
+        if [ -f "$BUILD_DIR/zlib-runtime/$zlib_arch/lib/libz.so" ]; then
+            zlib_ext="$BUILD_DIR/zlib-runtime/$zlib_arch/lib"
+        fi
+        python3 "$SCRIPT_DIR/copy_runtime_library.py" \
+            --ext "$zlib_ext" --sdk "$SYSROOT/usr/lib/$zlib_arch-linux-ohos" \
+            --dest "$OUTPUT_ROOT/lib" libz.so libz.so
+        return
+    fi
     [ -f "$OUTPUT_ROOT/lib/$dest_name" ] && return 0
 
     candidate="$(find_first_existing_file "$@" || true)"

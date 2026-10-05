@@ -82,6 +82,12 @@ public:
     // surface 指针是否仍存活 (输入注入前的防御校验, 遍历 surfaceResources_)
     bool IsSurfaceAlive(wl_resource* surface);
 
+    // Keyboard focus belongs to the mapped window, even when its render child
+    // was hit. Validate the live protocol ancestry before changing focus.
+    // Called on the Wayland dispatch thread, where resources cannot disappear
+    // between this query and the protocol send.
+    wl_resource* ResolveKeyboardFocusSurface(uint32_t toplevelId, wl_resource* hitSurface);
+
     // surface 局部坐标 → 桌面坐标 (warp 锚点换算, OnPointerWarp 用)。
     // 全屏 toplevel 用与命中/渲染相同的 FitRect 正变换; 普通窗口 = 位置+局部。
     bool SurfaceLocalToDesktop(wl_resource* surface, double lx, double ly,

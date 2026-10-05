@@ -91,7 +91,7 @@ std::vector<NamedFd> g_fds;
 int OnSurfaceRequest(uint32_t, const OHIPCParcel*, OHIPCParcel*) { return -1; }
 '''
 TEST = r'''
-extern "C" int ohos_broker_spawn_child(char**, int, int*);
+extern "C" int ohos_broker_spawn_child(char**, int, const char*, int*);
 extern "C" int ohos_broker_spawn_wineserver(int*);
 
 static int NativeLaunch(NativeChildProcess_Args args, int32_t* pid, int kind) {
@@ -291,13 +291,35 @@ static void WineClient() {
         auto r=Basic(); r.argv.resize(256, ""); r.argv[100]=std::string(64*1024,'x');
         auto args=winehua::spawn::Pointers(r.argv); args.push_back(nullptr);
         int socketFd=open("/dev/null",O_RDONLY), pid=-1;
-        assert(!ohos_broker_spawn_child(const_cast<char**>(args.data()),socketFd,&pid)); assert(pid==123);
+        assert(!ohos_broker_spawn_child(const_cast<char**>(args.data()),socketFd,nullptr,&pid)); assert(pid==123);
         server.join(); close(socketFd);
         auto expected=r.argv; if (!box) expected.insert(expected.begin(),"wine");
         assert(delivered.argv==expected && delivered.bin=="/wine|bin\n中文");
         assert(std::find(delivered.env.begin(),delivered.env.end(),"BROKER_SENTINEL=value|with\nseparator")!=delivered.env.end());
         for (const auto& env : delivered.env) assert(env.rfind("WINESERVERSOCKET=",0)!=0 && env.rfind("WINE_OHOS_AUDIO_BOOTSTRAP_FD=",0)!=0);
     }
+    // A BAT changes the Windows child environment, while Unix environ still
+    // holds the session default. Exercise the real C sender and Broker framing.
+    setenv("WINEDEBUG","-all",1);
+    setenv("WINEHUA_WINEDEBUG","-all,+old",1);
+    for (const char *debug : {"WINEDEBUG=-all,+win,+msg", "WINEDEBUG=-all", "WINEDEBUG="}) {
+        std::thread debugServer([&] { int fd=accept(listener,nullptr,nullptr); BrokerJob job(fd); assert(ReceiveJob(job)); LaunchJob(job); });
+        char *args[] = {const_cast<char*>("war3.exe"),nullptr};
+        int fd=open("/dev/null",O_RDONLY), child=-1;
+        assert(!ohos_broker_spawn_child(args,fd,debug,&child) && child==123);
+        debugServer.join(); close(fd);
+        std::vector<std::string> overrides;
+        for (const auto &line : delivered.env) if (line.rfind("WINEHUA_WINEDEBUG=",0)==0) overrides.push_back(line);
+        const char *expected = !strcmp(debug,"WINEDEBUG=-all") ? "WINEHUA_WINEDEBUG=-all,+old" :
+            !strcmp(debug,"WINEDEBUG=") ? "WINEHUA_WINEDEBUG=-all" : "WINEHUA_WINEDEBUG=-all,+win,+msg";
+        assert(overrides.size()==1 && overrides[0]==expected);
+        assert(!strcmp(getenv("WINEDEBUG"),"-all") && !strcmp(getenv("WINEHUA_WINEDEBUG"),"-all,+old"));
+    }
+    char *invalidArgs[] = {const_cast<char*>("war3.exe"),nullptr};
+    int invalidFd=open("/dev/null",O_RDONLY), invalidPid=-1;
+    assert(ohos_broker_spawn_child(invalidArgs,invalidFd,"X",&invalidPid)==-1 && errno==EINVAL);
+    close(invalidFd);
+    unsetenv("WINEHUA_WINEDEBUG"); unsetenv("WINEDEBUG");
     std::thread server([&] { int fd=accept(listener,nullptr,nullptr); BrokerJob job(fd); assert(ReceiveJob(job)); LaunchJob(job); });
     int pid=-1; assert(!ohos_broker_spawn_wineserver(&pid)); server.join();
     assert((delivered.argv==std::vector<std::string>{"wineserver","-f","-p"}));
@@ -343,7 +365,10 @@ def main():
         path.write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + relative], cwd=options.wine_src))
         public_header = 'dlls/ntdll/unix/ohos_broker.h'
         (wine / public_header).write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + public_header], cwd=options.wine_src))
+        process_relative = 'dlls/ntdll/unix/process.c'
+        (wine / process_relative).write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + process_relative], cwd=options.wine_src))
         subprocess.run(['patch', '-s', '-p1', '-i', str(ROOT / 'patches/wine/0020-broker-v2-startup-contract.patch')], cwd=wine, check=True)
+        subprocess.run(['patch', '-s', '-p1', '-i', str(ROOT / 'patches/wine/0028-ohos-child-winedebug-environment.patch')], cwd=wine, check=True)
         assert (path.parent / 'ohos_spawn_protocol.h').read_bytes() == (ROOT / 'entry/src/main/cpp/proc/spawn_protocol.h').read_bytes()
         flags = ['-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-no-pie']
         obj = folder / 'wine.o'

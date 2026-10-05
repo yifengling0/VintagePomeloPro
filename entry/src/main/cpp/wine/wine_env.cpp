@@ -44,6 +44,19 @@ static std::string BuiltinWineDllPath(const std::string& binDir)
            UnixlibSearchPath(binDir);
 }
 
+namespace {
+
+// 与设置页 WineLanguage 一致；Wine 用 unix locale 选择 LCID / ANSI 代码页。
+// zh_CN: 0804/936, zh_TW: 0404/950, ja_JP: 0411/932, en_US: 0409/1252。
+std::string WineLocaleFor(const std::string& wineLang) {
+    if (wineLang == "en_US" || wineLang == "ja_JP" ||
+        wineLang == "zh_CN" || wineLang == "zh_TW")
+        return wineLang;
+    return "zh_CN";
+}
+
+}  // namespace
+
 int CreateAudioBootstrapFd(const std::string& runtimeDir) {
     if (!winehua::AudioBroker::GetInstance().EnsureStarted(runtimeDir)) {
         OH_LOG_ERROR(LOG_APP, "[AudioBroker] failed to start for runtimeDir=%{public}s", runtimeDir.c_str());
@@ -116,12 +129,13 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     // locale / GStreamer 插件路径。WINEDEBUG 不在此注入: 本列表经 __env 通道
     // 下发, 在 wine 侧晚于 setup_wine_env 应用, 会盖掉 select_winedebug_profile
     // 的选择 — wine 进程 WINEDEBUG 的唯一决策点是 wine_child.cpp。
-    env.push_back("LANG=" + wineLang + ".UTF-8");
+    const std::string locale = WineLocaleFor(wineLang);
+    env.push_back("LANG=" + locale + ".UTF-8");
     // OHOS musl 无 locale 数据, setlocale 激活失败返回 "C";
     // Wine 的 unix_to_win_locale 遇 "C" 只读 LC_ALL 兜底 (ntdll/unix/env.c),
-    // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (0x0804 zh-CN),
-    // 与 LANG 同取设置页 wineLang (zh_CN/en_US)
-    env.push_back("LC_ALL=" + wineLang + ".UTF-8");
+    // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (见 WineLocaleFor),
+    // 与 LANG 同取设置页 wineLang (zh_CN / zh_TW / ja_JP / en_US)。
+    env.push_back("LC_ALL=" + locale + ".UTF-8");
     // winegstreamer 运行时加载 GStreamer 插件 (gst-plugins-base/good/libav)
     env.push_back("GST_PLUGIN_PATH=" + binDir + "/" WINE_UNIX_SUBDIR "/gstreamer-1.0");
     env.push_back("GST_PLUGIN_SYSTEM_PATH=" + binDir + "/" WINE_UNIX_SUBDIR "/gstreamer-1.0");

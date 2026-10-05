@@ -18,6 +18,9 @@ with tempfile.TemporaryDirectory() as directory:
     body = source[source.index(signature):]
     javascript = body.replace(signature,
         'export async function replaceImportedFonts(files, source, destination, names, token, progress) {', 1)
+    # Erase this explicit catch-value type assertion; keep the rethrow unchanged.
+    assert javascript.count('throw (error as Error);') == 1
+    javascript = javascript.replace('throw (error as Error);', 'throw (error);')
     (work / 'transaction.mjs').write_text(javascript)
     (work / 'test.mjs').write_text(r'''
 import assert from 'node:assert/strict';

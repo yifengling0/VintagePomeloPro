@@ -657,10 +657,28 @@ void EglRenderer::DrawZeroCopyScene(winehua::TextureUploadStats* uploads)
     glScissor(letterbox_.offX, letterbox_.offY, letterbox_.dstW, letterbox_.dstH);
     for (const auto& layer : zeroCopyScene_.layers) {
         if (layer.w <= 0 || layer.h <= 0) continue;
-        glViewport(FitMapDisplayX(letterbox_, layer.x),
-                   FitMapDisplayY(letterbox_, frameH_ - layer.y - layer.h),
-                   std::max(1, FitSizeDisplayW(letterbox_, layer.w)),
-                   std::max(1, FitSizeDisplayH(letterbox_, layer.h)));
+        const int x = FitMapDisplayX(letterbox_, layer.x);
+        const int y = FitMapDisplayY(letterbox_, frameH_ - layer.y - layer.h);
+        const int w = std::max(1, FitSizeDisplayW(letterbox_, layer.w));
+        const int h = std::max(1, FitSizeDisplayH(letterbox_, layer.h));
+        glViewport(x, y, w, h);
+        if (layer.solidBlack) {
+            // glClear honors scissor, not viewport. Clear this backing at its
+            // exact z-order, leaving later game content and popups untouched.
+            const int left = std::max(x, letterbox_.offX);
+            const int bottom = std::max(y, letterbox_.offY);
+            const int right = std::min(x + w, letterbox_.offX + letterbox_.dstW);
+            const int top = std::min(y + h, letterbox_.offY + letterbox_.dstH);
+            if (right > left && top > bottom) {
+                glDisable(GL_BLEND);
+                glScissor(left, bottom, right - left, top - bottom);
+                glClearColor(0, 0, 0, 1);
+                glClear(GL_COLOR_BUFFER_BIT);
+                noteDraw(layer);
+            }
+            glScissor(letterbox_.offX, letterbox_.offY, letterbox_.dstW, letterbox_.dstH);
+            continue;
+        }
         if (layer.zeroCopyKey) {
             const auto found = std::find_if(zeroCopyConsumers_.begin(), zeroCopyConsumers_.end(),
                 [&](const auto& consumer) { return consumer->surfaceKey == layer.zeroCopyKey; });

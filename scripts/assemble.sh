@@ -224,8 +224,12 @@ EOF
             local name="$1" soname="$2" linker="${3:-}"
             local dest="$NATIVE_LIBS"
             if [ "$soname" = libz.so ]; then
+                local zlib_ext="$SYSROOT_EXT_LIB"
+                if [ -f "$BUILD_DIR/zlib-runtime/$WINE_ARCH/lib/libz.so" ]; then
+                    zlib_ext="$BUILD_DIR/zlib-runtime/$WINE_ARCH/lib"
+                fi
                 python3 "$SCRIPT_DIR/copy_runtime_library.py" \
-                    --ext "$SYSROOT_EXT_LIB" --sdk "$SYSROOT/usr/lib/$TARGET" \
+                    --ext "$zlib_ext" --sdk "$SYSROOT/usr/lib/$TARGET" \
                     --dest "$dest" --system "$@"
                 return
             fi
@@ -352,8 +356,12 @@ EOF
             local name="$1" soname="$2" linker="${3:-}"
             local dest="$wine_data/bin/x86_64-unix"
             if [ "$soname" = libz.so ]; then
+                local zlib_ext="$SYSROOT_EXT_LIB"
+                if [ -f "$BUILD_DIR/zlib-runtime/$WINE_ARCH/lib/libz.so" ]; then
+                    zlib_ext="$BUILD_DIR/zlib-runtime/$WINE_ARCH/lib"
+                fi
                 python3 "$SCRIPT_DIR/copy_runtime_library.py" \
-                    --ext "$SYSROOT_EXT_LIB" --sdk "$SYSROOT/usr/lib/$TARGET" \
+                    --ext "$zlib_ext" --sdk "$SYSROOT/usr/lib/$TARGET" \
                     --dest "$dest" "$@"
                 return
             fi
@@ -450,8 +458,12 @@ EOF
             local name="$1" soname="$2" linker="${3:-}"
             local dest="$NATIVE_LIBS"
             if [ "$soname" = libz.so ]; then
+                local zlib_ext="$SYSROOT_EXT_LIB"
+                if [ -f "$BUILD_DIR/zlib-runtime/$WINE_ARCH/lib/libz.so" ]; then
+                    zlib_ext="$BUILD_DIR/zlib-runtime/$WINE_ARCH/lib"
+                fi
                 python3 "$SCRIPT_DIR/copy_runtime_library.py" \
-                    --ext "$SYSROOT_EXT_LIB" --sdk "$SYSROOT/usr/lib/$TARGET" \
+                    --ext "$zlib_ext" --sdk "$SYSROOT/usr/lib/$TARGET" \
                     --dest "$dest" --system "$@"
                 return
             fi

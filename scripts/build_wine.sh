@@ -139,6 +139,24 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0025-ohos-locale-font-fallback.pa
     "OHOS locale-aware default font fallback"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0026-ohos-musl-selected-locale.patch" \
     "OHOS musl selected locale"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0027-arm64ec-seh-exit-thunk.patch" \
+    "ARM64EC implicit SEH handler exit thunk"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0028-ohos-child-winedebug-environment.patch" \
+    "OHOS per-child Windows debug environment"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0029-wayland-minimize-restore-handshake.patch" \
+    "Wayland minimize and explicit restore handshake"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0030-ohos-transient-activation-return.patch" \
+    "OHOS transient fullscreen activation return and explicit activation restore"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0031-wayland-client-only-remap.patch" \
+    "Wayland client-only window role recreation on remap"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0032-wayland-readback-content-diagnostics.patch" \
+    "Wayland bounded readback content and framebuffer diagnostics"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0033-ohos-fshack-context-capability.patch" \
+    "OHOS fullscreen framebuffer context capability gate"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0034-opengl-zero-texture-not-reserved.patch" \
+    "OpenGL default/detached texture zero is not an internal texture"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0035-opengl-wow64-explicit-buffer-flush.patch" \
+    "WOW64 shadow-buffer publication before explicit GL flush"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

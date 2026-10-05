@@ -69,6 +69,25 @@ import {
   ScrollEffectType
 } from '@kit.UIDesignKit';
 
+/** ArkTS requires a concrete implementation for the method-based interface. */
+class FontImportFileAdapter implements FontImportFiles {
+  private removeDirectory: (path: string) => Promise<void>;
+
+  constructor(removeDirectory: (path: string) => Promise<void>) {
+    this.removeDirectory = removeDirectory;
+  }
+
+  async exists(path: string): Promise<boolean> { return fs.access(path); }
+  async mkdir(path: string): Promise<void> { await fs.mkdir(path); }
+  async copy(source: string, destination: string): Promise<void> {
+    await fs.copyFile(source, destination);
+  }
+  async rename(source: string, destination: string): Promise<void> {
+    await fs.rename(source, destination);
+  }
+  async remove(path: string): Promise<void> { await this.removeDirectory(path); }
+}
+
 const DOMAIN = 0x0000;
 
 type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'about';
@@ -912,19 +931,8 @@ struct SystemSettingsPage {
       this.fontImporting = true;
       this.fontImportProgress = 0;
       this.fontImportStage = '正在准备字体…';
-      const files: FontImportFiles = {
-        exists: async (path: string): Promise<boolean> => {
-          return fs.access(path);
-        },
-        mkdir: async (path: string): Promise<void> => { await fs.mkdir(path); },
-        copy: async (source: string, destination: string): Promise<void> => {
-          await fs.copyFile(source, destination);
-        },
-        rename: async (source: string, destination: string): Promise<void> => {
-          await fs.rename(source, destination);
-        },
-        remove: async (path: string): Promise<void> => { await this.removeFontImportDir(path); }
-      };
+      const files: FontImportFiles = new FontImportFileAdapter(
+        async (path: string): Promise<void> => { await this.removeFontImportDir(path); });
       await replaceImportedFonts(files, tmpDir, fontsDir, fonts, Date.now().toString(),
         (done: number, total: number): void => {
           this.fontImportProgress = Math.round(done / total * 100);

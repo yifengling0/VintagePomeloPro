@@ -338,6 +338,32 @@ static bool derive_launch_cwd(int argc, char *argv[], const char *homeDir, std::
     return false;
 }
 
+static void apply_process_font_aa_default(int argc, char *argv[])
+{
+    // main's legacy GDI fix is process-scoped. ArkTS launches already supply
+    // it, but Explorer/CreateProcess launches arrive through the NCP broker
+    // without going through WineEngineService::launchExecutable.
+    // Apply the same default before Wine loads win32u; explicit values win.
+    if (getenv("WINEHUA_FONT_AA") || argc <= 0 || !argv || !argv[0]) return;
+    std::string image = trim_quotes(argv[0]);
+    if (!strcasecmp(basename_of_path(image.c_str()), "wine")) {
+        if (argc < 2 || !argv[1]) return;
+        image = trim_quotes(argv[1]);
+    }
+    const char *program = basename_of_path(image.c_str());
+    if (!program || !program[0]) return;
+    // Desktop/bootstrap helpers keep the normal grayscale font appearance.
+    const char *desktopPrograms[] = {
+        "explorer", "explorer.exe", "wineboot", "wineboot.exe", "wineserver",
+        "services.exe", "winedevice.exe", "rpcss.exe", "plugplay.exe",
+        "svchost.exe", "conhost.exe", "winemenubuilder.exe"
+    };
+    for (const char *desktop : desktopPrograms)
+        if (!strcasecmp(program, desktop)) return;
+    setenv("WINEHUA_FONT_AA", "bitmap", 1);
+    OH_LOG_INFO(LOG_APP, "[WineChild] GDI font AA=bitmap (game process default)");
+}
+
 static const char *select_winedebug_profile(int argc, char *argv[])
 {
     const char *override = getenv("WINEHUA_WINEDEBUG");
@@ -1794,6 +1820,7 @@ extern "C" void Main(NativeChildProcess_Args args)
 
     // Step B: entryParams 中的环境覆盖应用。
     apply_entry_param_env_overrides(envOverrides);
+    apply_process_font_aa_default(argc, argv);
     const char* vulkanBackend = getenv("WINEHUA_VULKAN_BACKEND");
     if (vulkanBackend && strcmp(vulkanBackend, "direct") == 0) {
         // Wine's Direct Vulkan loader must discover the system driver, not the

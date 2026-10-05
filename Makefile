@@ -643,6 +643,11 @@ test-broker-startup:
 .PHONY: test-wine-shm-state-cache
 test-wine-shm-state-cache:
 	python3 $(ROOT)/host_tests/wine_shm_state_cache_test.py --wine-src $(WINE_SRC)
+	python3 $(ROOT)/host_tests/wayland_minimize_restore_test.py --wine-src $(WINE_SRC)
+	python3 $(ROOT)/host_tests/wayland_client_remap_test.py --wine-src $(WINE_SRC)
+	python3 $(ROOT)/host_tests/opengl_fshack_capability_test.py --wine-src $(WINE_SRC)
+	python3 $(ROOT)/host_tests/opengl_reserved_texture_test.py --wine-src $(WINE_SRC)
+	python3 $(ROOT)/host_tests/wine_activation_return_test.py --wine-src $(WINE_SRC)
 
 .PHONY: test-prefix-registry
 test-prefix-registry:
@@ -658,7 +663,7 @@ test-steam-client-args:
 	    -o $(HOST_TEST_DIR)/steam_client_args_test $(ROOT)/host_tests/steam_client_args_test.cpp
 	$(HOST_TEST_DIR)/steam_client_args_test
 
-test: test-font-import test-wine-font-compat test-gpu-followup test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer test-steam-gpu-contracts test-frame-loop-diagnostics test-cef-render-switches
+test: test-dll-overrides test-font-import test-wine-font-compat test-gpu-followup test-direct-viewport test-benchmark-statistics test-wine-surface-region-lock test-wine-patch-detection test-wine-large-address-aware test-proton-stability test-broker-startup test-wine-shm-state-cache test-prefix-registry test-steam-client-args test-shared-present-dispatch test-displayed-fps test-gamepad-bridge test-zc-binding-lifecycle test-egl-multi-consumer test-steam-gpu-contracts test-frame-loop-diagnostics test-cef-render-switches
 
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \
@@ -790,11 +795,38 @@ test-displayed-fps:
 	    -o $(HOST_TEST_DIR)/displayed_fps_test $(ROOT)/host_tests/displayed_fps_test.cpp
 	$(HOST_TEST_DIR)/displayed_fps_test
 
-.PHONY: test-font-import
+.PHONY: test-dll-overrides test-font-import test-arm64ec-seh
+test-arm64ec-seh:
+	python3 $(ROOT)/host_tests/seh_exit_thunk_test.py --wine-src $(WINE_SRC) \
+	    --toolchain $(if $(LLVM_MINGW),$(LLVM_MINGW),$(ROOT)/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64)/bin
+
+test-dll-overrides:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp/wine \
+	    -o $(HOST_TEST_DIR)/dll_overrides_test $(ROOT)/host_tests/dll_overrides_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/wine/dll_overrides.cpp \
+	    $(ROOT)/entry/src/main/cpp/wine/env_profiles.cpp
+	$(HOST_TEST_DIR)/dll_overrides_test
+
 test-font-import:
 	python3 $(ROOT)/host_tests/font_zip_test.py
 	python3 $(ROOT)/host_tests/font_import_transaction_test.py
 	python3 $(ROOT)/host_tests/runtime_library_guard_test.py
+
+.PHONY: test-wine-process-font-aa
+test: test-wine-process-font-aa
+test-wine-process-font-aa:
+	python3 $(ROOT)/host_tests/wine_process_font_aa_test.py
+
+.PHONY: test-wine-language-launch
+test: test-wine-language-launch
+test-wine-language-launch:
+	python3 $(ROOT)/host_tests/wine_language_launch_test.py
+
+.PHONY: test-opengl-wow64-buffer-flush
+test: test-opengl-wow64-buffer-flush
+test-opengl-wow64-buffer-flush:
+	python3 $(ROOT)/host_tests/opengl_wow64_buffer_flush_test.py --wine-src $(WINE_SRC)
 
 .PHONY: test-wine-font-compat
 test-wine-font-compat:

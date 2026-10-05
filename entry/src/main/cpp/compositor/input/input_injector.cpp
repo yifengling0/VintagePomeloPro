@@ -206,18 +206,40 @@ void InputInjector::InjectKeyboardEnter(uint32_t tl, wl_resource* surface) {
         return;
     }
 
-    // 防御: surface 可能在入队后到 flush 前被 Wine 销毁
-    // 6A: 直呼注入的 ToplevelManager (原 WaylandServer::GetSurfaceForToplevel 转发)
-    if (!tmgr_->GetSurfaceForToplevel(tl)) {
-        OH_LOG_WARN(LOG_APP, "[Input] InjectKbdEnter DROP tl=%{public}u: surface no longer in map (destroyed before flush?)", tl);
+    // A GL/client subsurface can name a different HWND from its owning
+    // window. Wine uses keyboard enter to activate that HWND. Keep pointer
+    // coordinates on the hit child, but send keyboard/IME enter to its live
+    // mapped owner; validating only the toplevel map leaves stale queued
+    // child pointers unchecked.
+    auto* keyboardSurface = resolver_->ResolveKeyboardFocusSurface(tl, surface);
+    if (!keyboardSurface) {
+        OH_LOG_WARN(LOG_APP, "[Input] InjectKbdEnter DROP tl=%{public}u: stale or unrelated focus surface", tl);
         gDropEnter.fetch_add(1); MaybeReportDrops();
         return;
     }
+    if (keyboardSurface != surface)
+        OH_LOG_INFO(LOG_APP, "[Input] InjectKbdEnter owner tl=%{public}u child=%{public}p owner=%{public}p",
+                    tl, surface, keyboardSurface);
+    surface = keyboardSurface;
 
-    tracker_->SetKeyboardFocus(tl, surface);
+    // Validate the destination before releasing the actual previous focus.
+    // A stale queued target must not deactivate a still-live game window.
+    struct wl_client* surfClient = wl_resource_get_client(surface);
+    bool hasKeyboard = false;
+    for (auto* kbd : kbds)
+        if (kbd && wl_resource_get_client(kbd) == surfClient) hasKeyboard = true;
+    if (!hasKeyboard) {
+        gDropEnter.fetch_add(1); MaybeReportDrops();
+        return;
+    }
+    if (tracker_->KeyboardEntered() && tracker_->KeyboardFocusedSurface() == surface &&
+        tracker_->KeyboardFocusedToplevel() == tl) return;
+    const auto previousTl = tracker_->KeyboardFocusedToplevel();
+    InjectKeyboardLeave();
+    OH_LOG_INFO(LOG_APP, "[Input] KbdFocus oldTl=%{public}u newTl=%{public}u owner=%{public}p",
+                previousTl, tl, surface);
     uint32_t s = tracker_->NextSerial();
     int nSent = 0;
-    struct wl_client* surfClient = wl_resource_get_client(surface);
     OH_LOG_INFO(LOG_APP, "[Input] InjectKbdEnter tl=%{public}u serial=%{public}u mods=0x%{public}x nKbds=%{public}zu t=%{public}u",
                 tl, s, tracker_->ModifiersDepressed(), kbds.size(), NowMs());
 
@@ -236,6 +258,7 @@ void InputInjector::InjectKeyboardEnter(uint32_t tl, wl_resource* surface) {
                                    tracker_->ModifiersGroup());
         nSent++;
     }
+    tracker_->SetKeyboardFocus(tl, surface);
     OH_LOG_INFO(LOG_APP, "[Input] InjectKbdEnter OK sent=%{public}d", nSent);
     // IME: keyboard enter → text-input enter (Wine 收到后 enable, 等待文本框
     // SetIMECompositionRect → 非零光标矩形 → TextInput 判定激活)
@@ -251,8 +274,13 @@ void InputInjector::InjectKeyboardKey(uint32_t key, uint32_t state) {
     }
     uint32_t s = tracker_->NextSerial();
     int nSent = 0;
-    struct wl_client* focusClient = tracker_->KeyboardFocusedSurface()
-        ? wl_resource_get_client(tracker_->KeyboardFocusedSurface()) : nullptr;
+    auto* focusSurface = tracker_->KeyboardFocusedSurface();
+    if (!tracker_->KeyboardEntered() || !resolver_->IsSurfaceAlive(focusSurface)) {
+        tracker_->ClearKeyboardFocus();
+        gDropKey.fetch_add(1); MaybeReportDrops();
+        return;
+    }
+    struct wl_client* focusClient = wl_resource_get_client(focusSurface);
     for (auto* kbd : kbds) {
         if (kbd) {
             // 只发给已 enter 的 client (与 InjectKbdEnter 一致), 避免无 focused_hwnd 的 client 收到无效 key
@@ -274,7 +302,7 @@ void InputInjector::InjectKeyboardKey(uint32_t key, uint32_t state) {
 void InputInjector::InjectKeyboardLeave() {
     auto kbds = Seat::GetInstance()->GetAllKeyboardResources();
     wl_resource* surf = tracker_->KeyboardFocusedSurface();
-    if (kbds.empty() || !tracker_->KeyboardEntered() || !surf) return;
+    if (!tracker_->KeyboardEntered() || !surf) return;
     // 防御: 同 InjectPointerLeave — 对已销毁/复用的对象 id 发 leave 会断开 client
     if (!resolver_->IsSurfaceAlive(surf)) {
         OH_LOG_WARN(LOG_APP, "[Input] InjectKbdLeave SKIP surf=%{public}p: destroyed before flush", surf);

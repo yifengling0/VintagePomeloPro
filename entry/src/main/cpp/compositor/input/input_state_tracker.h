@@ -19,15 +19,14 @@ struct wl_resource;  // 只存指针做身份比较, 不做任何操作 (宿主�
 //
 // 线程模型 (与旧 InputManager 字段声明逐字对应, 不收紧竞态窗口):
 //   - NAPI/JS 线程写: buttons/modifiers/baseline/pressMs/visible
-//     (Send*Event 路径); SetPointerFocus/SetKeyboardFocus 有 NAPI 线程写入
-//     (PRESS/SendKeyEvent 的"立即设置状态"段), 与 Wayland 线程 (Inject*)
-//     写入同一批 atomic 字段 — atomic 保留旧语义 (见各字段注释)。
+//     (Send*Event 路径); pointer 焦点仍有立即写入。
+//     Keyboard focus records delivered protocol events, never queued requests.
 //   - Wayland 线程写: SetPointerFocus/ClearPointerFocus (Inject*Enter/Leave)、
 //     SetKeyboardFocus/ClearKeyboardFocus、NextSerial。
 //   - 无内部锁 (visibleMutex_ 除外 — 可见性表旧实现自带互斥锁, 保持原锁边界)。
 //
-// 行为平价承诺: 本类方法体 = 旧 InputManager 内联状态逻辑逐字平移, 不引入
-// 任何新语义 (toggle/查找首按下位/skip 判定/comparison 全部原样)。
+// 按钮/修饰键/指针语义沿用原实现。Keyboard focus 仅由 dispatch 线程提交,
+// 使 leave 始终指向此前实际 enter 的窗口。
 // ============================================================================
 
 class InputStateTracker {
@@ -78,11 +77,11 @@ public:
     void SetPointerFocus(uint32_t tl, wl_resource* surface, uint32_t serial);
     void ClearPointerFocus();
 
-    // -- keyboard 焦点 (kbdFocusTL/surface/entered — 与旧字段同非 atomic 性:
-    //    仅有 NAPI/Wayland 双线程写, 旧代码同样无锁) --
+    // -- Delivered keyboard focus: written on the Wayland dispatch thread.
+    // Atomic snapshots also support NAPI/UI diagnostic readers. --
     bool KeyboardEntered() const { return keyboardEntered_.load(); }
     uint32_t KeyboardFocusedToplevel() const { return keyboardFocusedToplevel_.load(); }
-    wl_resource* KeyboardFocusedSurface() const { return keyboardFocusedSurface_; }
+    wl_resource* KeyboardFocusedSurface() const { return keyboardFocusedSurface_.load(); }
     void SetKeyboardFocus(uint32_t tl, wl_resource* surface);
     void ClearKeyboardFocus();
 
@@ -125,7 +124,7 @@ private:
     std::atomic<uint32_t> serial_{1};
 
     std::atomic<uint32_t> keyboardFocusedToplevel_{0};
-    wl_resource* keyboardFocusedSurface_ = nullptr;
+    std::atomic<wl_resource*> keyboardFocusedSurface_{nullptr};
     std::atomic<bool> keyboardEntered_{false};
 
     // 窗口可见性表 (原 InputManager 自带互斥锁, 保持原锁边界; mutable —

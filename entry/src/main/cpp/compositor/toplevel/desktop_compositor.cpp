@@ -496,15 +496,22 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         if (fsState && layer.toplevelId == fullscreenId)
             FitMapLayerRect(fullscreenFit, item.x - fsState->X(), item.y - fsState->Y(),
                             item.w, item.h, item.x, item.y, item.w, item.h);
-        const bool fullscreenDirect = layer.type == CompositorLayer::Type::Toplevel &&
-                                      layer.toplevelId == fullscreenId && clients.count(fullscreenId);
-        if (fullscreenDirect) {
+        const bool fullscreenWindow = layer.type == CompositorLayer::Type::Toplevel &&
+                                      layer.toplevelId == fullscreenId &&
+                                      fullscreenFit.dstW > 0 && fullscreenFit.dstH > 0;
+        if (fullscreenWindow) {
+            // The fitted content covers only its aspect-preserving rectangle.
+            // Put an opaque backing in this window's lane for SHM, Direct and
+            // zero-copy alike; later menus/popups retain their normal order.
             GpuDesktopLayer black;
+            black.key = (1ULL << 62) | fullscreenId;
             black.solidBlack = true; black.w = out.width; black.h = out.height;
             out.layers.push_back(std::move(black));
-        } else if (!(layer.zcActive && !zeroCopy.empty()) && snapshot(item, *pixels))
+        }
+        const bool fullscreenDirect = fullscreenWindow && clients.count(fullscreenId);
+        if (!fullscreenDirect && !(layer.zcActive && !zeroCopy.empty()) && snapshot(item, *pixels))
             out.layers.push_back(std::move(item));
-        else if (!zeroCopy.empty()) out.layers.push_back(std::move(item));
+        else if (!fullscreenDirect && !zeroCopy.empty()) out.layers.push_back(std::move(item));
         if (layer.type == CompositorLayer::Type::Toplevel) {
             auto client = clients.find(layer.toplevelId);
             if (client == clients.end()) continue;

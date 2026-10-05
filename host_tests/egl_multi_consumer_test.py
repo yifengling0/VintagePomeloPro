@@ -42,7 +42,7 @@ constexpr int GL_TEXTURE_EXTERNAL_OES=1, GL_TEXTURE_2D=2, GL_LINEAR=3,
 GL_CLAMP_TO_EDGE=4, GL_TEXTURE_MIN_FILTER=5, GL_TEXTURE_MAG_FILTER=6,
 GL_TEXTURE_WRAP_S=7, GL_TEXTURE_WRAP_T=8, GL_ONE=9, GL_ONE_MINUS_SRC_ALPHA=10,
 GL_SCISSOR_TEST=11, GL_BLEND=12, GL_ARRAY_BUFFER=13, GL_FLOAT=14,
-GL_FALSE=0, GL_TRIANGLES=15, GL_RGBA=16, GL_UNSIGNED_BYTE=17,
+GL_FALSE=0, GL_TRIANGLES=15, GL_RGBA=16, GL_UNSIGNED_BYTE=17, GL_COLOR_BUFFER_BIT=18,
 NATIVEBUFFER_USAGE_HW_RENDER=1, NATIVEBUFFER_USAGE_HW_TEXTURE=2, GET_BUFFERQUEUE_SIZE=0;
 struct OHNativeWindow {};
 struct OH_OnFrameAvailableListener { void* context=nullptr; void (*onFrameAvailable)(void*)=nullptr; };
@@ -50,6 +50,11 @@ struct OH_NativeImage { OH_OnFrameAvailableListener listener; OHNativeWindow win
 static unsigned nextTexture=100, boundTexture=0, boundTarget=0, uploads=0;
 static bool blend=false; static float forceOpaque=0;
 static std::array<float,4> framebuffer{};
+static std::array<float,4> clearColor{};
+static bool raster=false, scissored=false;
+static std::array<int,4> viewport{}, scissor{};
+static std::array<std::array<float,4>,160> rasterPixels;
+static unsigned clears=0;
 static std::unordered_map<unsigned,std::array<float,4>> colors;
 static void glGenTextures(int n,GLuint* p) { while(n--) *p++=nextTexture++; }
 static void glDeleteTextures(int n,const GLuint* p) { while(n--) colors.erase(*p++); }
@@ -58,11 +63,20 @@ static void glTexParameteri(int,int,int) {}
 static void glBindBuffer(int,GLuint) {}
 static void glEnableVertexAttribArray(int) {}
 static void glVertexAttribPointer(int,int,int,int,int,const void*) {}
-static void glViewport(int,int,int,int) {}
-static void glScissor(int,int,int,int) {}
+static void glViewport(int x,int y,int w,int h) { viewport={x,y,w,h}; }
+static void glScissor(int x,int y,int w,int h) { scissor={x,y,w,h}; }
 static void glBlendFunc(int a,int b) { assert(a==GL_ONE && b==GL_ONE_MINUS_SRC_ALPHA); }
-static void glEnable(int c) { if(c==GL_BLEND) blend=true; }
-static void glDisable(int c) { if(c==GL_BLEND) blend=false; }
+static void glEnable(int c) { if(c==GL_BLEND) blend=true; if(c==GL_SCISSOR_TEST)scissored=true; }
+static void glDisable(int c) { if(c==GL_BLEND) blend=false; if(c==GL_SCISSOR_TEST)scissored=false; }
+static bool inside(const std::array<int,4>& rect,int x,int y) {
+    return x>=rect[0]&&y>=rect[1]&&x<rect[0]+rect[2]&&y<rect[1]+rect[3];
+}
+[[maybe_unused]] static void glClearColor(float r,float g,float b,float a) { clearColor={r,g,b,a}; }
+[[maybe_unused]] static void glClear(int mask) {
+    assert(mask==GL_COLOR_BUFFER_BIT);++clears;framebuffer=clearColor;
+    if(raster)for(int y=0;y<10;y++)for(int x=0;x<16;x++)
+        if(!scissored||inside(scissor,x,y))rasterPixels[y*16+x]=clearColor;
+}
 static void glUseProgram(GLuint) {}
 static GLint glGetUniformLocation(GLuint,const char*) { return 0; }
 static void glUniform1i(int,int) {}
@@ -75,6 +89,9 @@ static void glDrawArrays(int,int,int) {
     auto c=colors.at(boundTexture);
     if(boundTarget==GL_TEXTURE_2D && forceOpaque>0.5f) c[3]=1.f;
     for(int i=0;i<4;++i) framebuffer[i]=c[i]+(blend ? framebuffer[i]*(1.f-c[3]) : 0.f);
+    if(raster)for(int y=0;y<10;y++)for(int x=0;x<16;x++)
+        if(inside(viewport,x,y)&&(!scissored||inside(scissor,x,y)))
+            for(int i=0;i<4;i++)rasterPixels[y*16+x][i]=c[i]+(blend?rasterPixels[y*16+x][i]*(1.f-c[3]):0.f);
 }
 static OH_NativeImage* OH_NativeImage_Create(GLuint,int) { return new OH_NativeImage; }
 static int OH_ConsumerSurface_SetDefaultSize(OH_NativeImage*,int,int) { return 0; }
@@ -230,6 +247,31 @@ int main() {
     r.zeroCopyScene_.layers={gpu}; measured={};
     r.DrawZeroCopyScene(&measured);assert(measured.calls==0 && measured.bytes==0);
     r.zeroCopyScene_.layers=mixed;
+    // Execute the real EGL layer loop against spatial GL boundaries. Clearing
+    // honors scissor, not viewport; both black bars and upper menus are checked.
+    raster=true;r.frameH_=8;
+    r.letterbox_={};r.letterbox_.srcW=r.letterbox_.dstW=12;
+    r.letterbox_.srcH=r.letterbox_.dstH=8;r.letterbox_.offX=2;r.letterbox_.offY=1;r.letterbox_.scale=1;
+    auto desktop=base;desktop.w=12;desktop.h=8;
+    desktop.pixels=std::make_shared<const std::vector<uint8_t>>(std::initializer_list<uint8_t>{255,0,0,255});
+    GpuDesktopLayer black;black.solidBlack=true;black.w=12;black.h=8;
+    auto fitted=gpu;fitted.x=1;fitted.y=0;fitted.w=10;fitted.h=8;
+    auto popupMenu=menu;popupMenu.x=5;popupMenu.y=3;popupMenu.w=2;popupMenu.h=2;
+    r.zeroCopyScene_.layers={desktop,black,fitted,popupMenu};
+    rasterPixels.fill({1,0,1,1});measured={};
+    const auto clearsBefore=clears;r.DrawZeroCopyScene(&measured);
+    assert(clears==clearsBefore+1&&"EGL must draw solidBlack layers without a texture upload");
+    assert((rasterPixels[4*16+2]==std::array<float,4>{0,0,0,1})); // left bar
+    assert((rasterPixels[4*16+13]==std::array<float,4>{0,0,0,1})); // right bar
+    assert((rasterPixels[2*16+4]==std::array<float,4>{1,0,0,1})); // game
+    assert(rasterPixels[4*16+7][0]>0.49f&&rasterPixels[4*16+7][1]>0.5f); // menu blends above
+    assert((rasterPixels[0]==std::array<float,4>{1,0,1,1})); // outer display border retained
+    assert(!scissored&&!blend);
+    content.hasFrame=false;r.DrawZeroCopyScene();
+    assert((rasterPixels[2*16+4]==std::array<float,4>{0,0,0,1})); // no frame leaks desktop
+    content.hasFrame=true;r.zeroCopyScene_.layers={desktop,fitted};r.DrawZeroCopyScene();
+    assert((rasterPixels[4*16+2]==std::array<float,4>{0,0,1,1})); // leaving fullscreen restores desktop
+    raster=false;
     // The generation captured at attach cannot consume a recreated binding.
     r.compositor_.geometry[163].bindingGeneration=2;
     EglRenderer::OnZeroCopyFrameAvailable(&content);

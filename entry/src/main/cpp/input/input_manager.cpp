@@ -283,17 +283,11 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
                 // 时数组重分配/悬垂指针)。userInitiated=true 与 ArkTS 点击 raise
                 // 同语义: 任务栏 PinToTop + 桌面 dirty 保持一致
                 WaylandServer::GetInstance()->RaiseToplevel(target.blockedModalId, true);
-                if (!tracker_.KeyboardEntered() ||
-                    tracker_.KeyboardFocusedToplevel() != target.blockedModalId) {
-                    wl_resource* kbdSurf = tmgr_->GetSurfaceForToplevel(target.blockedModalId);
-                    if (kbdSurf) {
-                        if (tracker_.KeyboardEntered())
-                            queue_.Enqueue(InputQueue::Event::KBD_LEAVE, 0, nullptr, 0, 0, 0, 0);
-                        tracker_.SetKeyboardFocus(target.blockedModalId, kbdSurf);
-                        queue_.Enqueue(InputQueue::Event::KBD_ENTER, target.blockedModalId,
-                                       kbdSurf, 0, 0, 0, 0);
-                        EnqueueModifiers();
-                    }
+                wl_resource* kbdSurf = tmgr_->GetSurfaceForToplevel(target.blockedModalId);
+                if (kbdSurf) {
+                    queue_.Enqueue(InputQueue::Event::KBD_ENTER, target.blockedModalId,
+                                   kbdSurf, 0, 0, 0, 0);
+                    EnqueueModifiers();
                 }
                 return;
             }
@@ -465,6 +459,16 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
             }
             if (!skipEnter)
                 queue_.Enqueue(InputQueue::Event::PTR_MOTION, 0, nullptr, wx, wy, 0, 0);
+            // Request focus before the click. Only the dispatch thread may
+            // change the delivered keyboard focus: pre-setting it here made
+            // the queued leave target the NEW window instead of the old one.
+            // Always queue the request, including A -> B -> A before a flush.
+            // The injector validates the new owner and skips unchanged focus.
+            wl_resource* kbdSurf = tmgr_->GetSurfaceForToplevel(tl);
+            if (kbdSurf) {
+                queue_.Enqueue(InputQueue::Event::KBD_ENTER, tl, kbdSurf, 0, 0, 0, 0);
+                EnqueueModifiers();
+            }
             if (button) {
                 unsigned bit = tracker_.ButtonToBit(button);
                 if (bit < 32) {
@@ -477,21 +481,6 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
                                WL_POINTER_BUTTON_STATE_PRESSED);
             }
 
-            //  键盘焦点跟随点击 (P0-1 + P0-3)
-            // winewayland.drv: keyboard_enter → WM_WAYLAND_SET_FOREGROUND
-            // → NtUserSetForegroundWindowInternal → Wine 前台窗口切换
-            if (!tracker_.KeyboardEntered() || tracker_.KeyboardFocusedToplevel() != tl) {
-                wl_resource* kbdSurf = tmgr_->GetSurfaceForToplevel(tl);
-                if (kbdSurf) {
-                    if (tracker_.KeyboardEntered() && tracker_.KeyboardFocusedToplevel() != tl)
-                        queue_.Enqueue(InputQueue::Event::KBD_LEAVE, 0, nullptr, 0, 0, 0, 0);
-                    // 立即设置状态, 避免 NAPI 线程在 flush 前又发一次 enter
-                    tracker_.SetKeyboardFocus(tl, kbdSurf);
-                    queue_.Enqueue(InputQueue::Event::KBD_ENTER, tl, kbdSurf, 0, 0, 0, 0);
-                    EnqueueModifiers();
-                    OH_LOG_INFO(LOG_APP, "[Input] PTR PRESS + KBD ENTER tl=%{public}u (focus follows click)", tl);
-                }
-            }
             break;
         }
         case ACT_RELEASE: {
@@ -571,18 +560,12 @@ void InputManager::SendKeyEvent(uint32_t tl, int evdevCode, bool pressed) {
                 seat->GetKeyboardResource() ? 1 : 0,
                 tracker_.KeyboardEntered());
 
-    // 键盘 enter 管理: 立即设置状态防止重复 enter (参考旧代码)
+    // Focus is committed by the injector, after validating the queued target.
     // 桌面模式: 键盘事件永远发到 root, 不应覆盖点击建立的子窗口焦点
     // 6A: 策略/surface 查询经装配注入引用直调 (同值)
-    if (pressed && !policy_->CompositorRoutesInput()
-        && (!tracker_.KeyboardEntered() || tracker_.KeyboardFocusedToplevel() != tl)) {
+    if (pressed && !policy_->CompositorRoutesInput()) {
         wl_resource* surf = tmgr_->GetSurfaceForToplevel(tl);
         if (surf) {
-            if (tracker_.KeyboardEntered() && tracker_.KeyboardFocusedToplevel() != tl) {
-                queue_.Enqueue(InputQueue::Event::KBD_LEAVE, 0, nullptr, 0, 0, 0, 0);
-            }
-            // 立即设置状态, 避免 NAPI 线程在 flush 前又发一次 enter
-            tracker_.SetKeyboardFocus(tl, surf);
             queue_.Enqueue(InputQueue::Event::KBD_ENTER, tl, surf, 0, 0, 0, 0);
             // 发送初始 modifier 状态
             EnqueueModifiers();

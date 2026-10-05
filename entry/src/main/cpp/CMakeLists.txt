@@ -83,6 +83,7 @@ add_library(entry SHARED
     wine/wine_env.cpp
     wine/env_spec.cpp
     wine/env_profiles.cpp
+    wine/dll_overrides.cpp
     wine/container_session.cpp
     proc/spawner.cpp
     wine/wine_launch.cpp

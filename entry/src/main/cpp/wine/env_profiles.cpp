@@ -1,7 +1,9 @@
 #include "env_profiles.h"
 #include "wine_env.h"
+#include "dll_overrides.h"
 
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 
 namespace winehua {
@@ -151,6 +153,15 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
             line.rfind("WINEHUA_DXVK_VERSION=", 0) == 0 ||
             line.rfind("WINEHUA_VKD3D_", 0) == 0)
             continue;
+        if (line.rfind("WINEDLLOVERRIDES=", 0) == 0) {
+            std::string merged;
+            if (MergeDllOverrides(FindEnvValue(env, "WINEDLLOVERRIDES"),
+                                  line.substr(std::strlen("WINEDLLOVERRIDES=")), merged))
+                UpsertEnvLine(env, "WINEDLLOVERRIDES=" + merged);
+            else
+                std::fprintf(stderr, "[WineEnv] invalid DLL overrides; keeping previous rules\n");
+            continue;
+        }
         UpsertEnvLine(env, line);
     }
     return env;

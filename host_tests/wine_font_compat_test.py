@@ -138,7 +138,7 @@ class WineFontCompatTest(unittest.TestCase):
     def test_complete_chain_is_idempotent(self):
         self.assertEqual(self.once, self.twice)
         names = [p.name for p in self.patches]
-        self.assertEqual(names[-4:], ['0023-ohos-default-grayscale-font-aa.patch',
+        self.assertEqual([n for n in names if n.startswith(('0023-', '0024-', '0025-', '0026-'))], ['0023-ohos-default-grayscale-font-aa.patch',
             '0024-ohos-scan-prefix-fonts.patch', '0025-ohos-locale-font-fallback.patch',
             '0026-ohos-musl-selected-locale.patch'])
         source = self.once['dlls/win32u/font.c'].decode()

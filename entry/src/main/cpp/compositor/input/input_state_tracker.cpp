@@ -129,16 +129,16 @@ void InputStateTracker::ClearPointerFocus() {
 }
 
 void InputStateTracker::SetKeyboardFocus(uint32_t tl, wl_resource* surface) {
-    // 旧代码两处写入此三元组 (PRESS 立即 / SendKeyEvent 立即) — 逐字搬移
+    // Record a successfully delivered enter, on the dispatch thread.
     keyboardFocusedToplevel_.store(tl);
-    keyboardFocusedSurface_ = surface;
+    keyboardFocusedSurface_.store(surface);
     keyboardEntered_.store(true);
 }
 
 void InputStateTracker::ClearKeyboardFocus() {
     keyboardEntered_.store(false);
     keyboardFocusedToplevel_.store(0);
-    keyboardFocusedSurface_ = nullptr;
+    keyboardFocusedSurface_.store(nullptr);
 }
 
 // ============================================================================

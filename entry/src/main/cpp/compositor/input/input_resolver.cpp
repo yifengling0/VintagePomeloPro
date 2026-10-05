@@ -242,6 +242,25 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
     return out.surface != nullptr;
 }
 
+wl_resource* InputResolver::ResolveKeyboardFocusSurface(uint32_t toplevelId,
+                                                       wl_resource* hitSurface)
+{
+    auto* owner = tmgr_.GetSurfaceForToplevel(toplevelId);
+    if (!owner || !IsSurfaceAlive(owner) || !IsSurfaceAlive(hitSurface)) return nullptr;
+    // Never infer ownership from a process ID or a recycled protocol ID.
+    // Each edge must still refer to its registered resource.
+    auto* current = hitSurface;
+    for (unsigned depth = 0; current && depth < 32; ++depth) {
+        if (!IsSurfaceAlive(current)) return nullptr;
+        auto* data = static_cast<SurfaceData*>(wl_resource_get_user_data(current));
+        if (!data || tmgr_.FindSurfaceResource(data->surfaceKey) != current) return nullptr;
+        if (current == owner) return owner;
+        if (!data->isSubsurface || !data->parentSurface) return nullptr;
+        current = data->parentSurface;
+    }
+    return nullptr;
+}
+
 bool InputResolver::IsSurfaceAlive(wl_resource* surface)
 {
     if (!surface) return false;

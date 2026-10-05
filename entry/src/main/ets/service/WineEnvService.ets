@@ -5,6 +5,7 @@ import testNapi from 'libentry.so';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { ProcessService, ProcessInfo } from './ProcessService';
+import { normalizeWineLanguage } from '../model/AppModels';
 import { WineWindowManager } from './WineWindowManager';
 // [[SMOKE]] 合并到 main-ui: 删本行与 init 内的 attach 调用 (均为此标记)
 import { SmokeHook } from '../smoke/SmokeHook';
@@ -182,7 +183,7 @@ export class WineEnvService {
   // -- 启动参数 (EntryAbility 发布的 AppStorage 生效值, init 时读取) --
   private d3dBackend: string = 'dxvk_legacy';
   private dxvkBackend: string = 'dxvk_legacy';
-  // Wine locale 语言 ("zh_CN"/"en_US"), 设置页可切, 重启引擎后生效。
+  // Wine locale 语言 (zh_CN / zh_TW / ja_JP / en_US), 重启引擎后生效。
   // 持久化走 preferences API (同 DisplaySettingsService) — 不用 PersistentStorage:
   // 实测本应用 persistProp 在冷启动时不从磁盘恢复值 (haps/entry/files/
   // persistent_storage 明明有值仍返回默认值), 原因未查明, 绕开
@@ -292,7 +293,7 @@ export class WineEnvService {
   // 设置页"Wine 语言"切换: 持久化 (preferences API, putSync+flush 直写磁盘)。
   // 仅写入配置 — 已在运行的 Wine 进程不受影响, 重启引擎后生效 (UI 负责提示)
   setWineLangPreference(lang: string): void {
-    const selected = lang === 'en_US' ? 'en_US' : 'zh_CN';
+    const selected = normalizeWineLanguage(lang);
     this.wineLang = selected;
     if (this.settingsStore) {
       try {
@@ -362,7 +363,7 @@ export class WineEnvService {
     try {
       this.settingsStore = preferences.getPreferencesSync(ctx, { name: 'wine_settings' });
       const savedLang = this.settingsStore.getSync('lang', 'zh_CN') as string;
-      this.wineLang = savedLang === 'en_US' ? 'en_US' : 'zh_CN';
+      this.wineLang = normalizeWineLanguage(savedLang);
       this.skippedUpgradeSha = this.settingsStore.getSync('skipped_upgrade_sha', '') as string;
     } catch (e) {
       hilog.error(DOMAIN, 'wine', 'lang settings load fail: %{public}s', JSON.stringify(e));
