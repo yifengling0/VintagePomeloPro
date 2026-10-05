@@ -1,0 +1,461 @@
+--- a/dlls/opengl32/unix_wgl.c
++++ b/dlls/opengl32/unix_wgl.c
+@@ -27,6 +27,8 @@
+ #include <stdarg.h>
+ #include <stdlib.h>
+ #include <assert.h>
++#include <stdio.h>
++#include <time.h>
+ 
+ #include <pthread.h>
+ 
+@@ -48,6 +50,142 @@
+ #include "wine/vulkan_driver.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(opengl);
++
++/* winehua_perf implementation begin */
++enum winehua_perf_metric
++{
++    WINEHUA_PERF_MAP_DRIVER,
++    WINEHUA_PERF_MAP_SHADOW,
++    WINEHUA_PERF_MAP_DIRECT,
++    WINEHUA_PERF_MAP_PINNED,
++    WINEHUA_PERF_MAP_VK,
++    WINEHUA_PERF_MAP_FAILED,
++    WINEHUA_PERF_SHADOW_IN,
++    WINEHUA_PERF_SHADOW_FLUSH,
++    WINEHUA_PERF_SHADOW_UNMAP,
++    WINEHUA_PERF_GL_FLUSH,
++    WINEHUA_PERF_GL_UNMAP,
++    WINEHUA_PERF_READPIXELS,
++    WINEHUA_PERF_FINISH,
++    WINEHUA_PERF_WGL_SWAP,
++    WINEHUA_PERF_COUNT
++};
++WINE_DECLARE_DEBUG_CHANNEL(winehua_perf);
++
++static const char *const winehua_perf_names[] =
++{
++    "map_driver",
++    "map_shadow",
++    "map_direct",
++    "map_pinned",
++    "map_vk",
++    "map_failed",
++    "shadow_in",
++    "shadow_flush",
++    "shadow_unmap",
++    "gl_flush",
++    "gl_unmap",
++    "readpixels",
++    "finish",
++    "wgl_swap",
++};
++
++static uint64_t winehua_perf_now(void)
++{
++    struct timespec time;
++    if (clock_gettime(CLOCK_MONOTONIC, &time)) return 0;
++    return (uint64_t)time.tv_sec * 1000000 + time.tv_nsec / 1000;
++}
++
++struct winehua_perf_counter
++{
++    uint64_t count, total_us, max_us, requested, copied, results[5];
++};
++
++struct winehua_perf_state
++{
++    uint64_t window_start;
++    struct winehua_perf_counter counters[WINEHUA_PERF_COUNT];
++};
++
++static __thread struct winehua_perf_state winehua_perf_state;
++
++static uint64_t winehua_perf_add(uint64_t a, uint64_t b)
++{
++    return ~(uint64_t)0 - a < b ? ~(uint64_t)0 : a + b;
++}
++
++static void DECLSPEC_NOINLINE winehua_perf_report(struct winehua_perf_state *state, uint64_t now)
++{
++    unsigned int i;
++
++    /* Wine's debug formatter has a 1024-byte buffer. Emit one bounded
++     * aggregate row per active metric, all in this once-per-second batch.
++     * Even saturated 64-bit fields fit comfortably in each row.
++     * n/us/max_us/requested/copied/ok/waiting/not_started/wrong_thread/error. */
++    for (i = 0; i < WINEHUA_PERF_COUNT; ++i)
++    {
++        const struct winehua_perf_counter *c = &state->counters[i];
++        if (!c->count) continue;
++        TRACE_(winehua_perf)("scope=opengl_unix pid=%lu tid=%lu window_us=%llu %s=%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu\n",
++                (unsigned long)HandleToULong(NtCurrentTeb()->ClientId.UniqueProcess), (unsigned long)HandleToULong(NtCurrentTeb()->ClientId.UniqueThread),
++                (unsigned long long)(now - (state->window_start - 1)), winehua_perf_names[i],
++                (unsigned long long)c->count, (unsigned long long)c->total_us,
++                (unsigned long long)c->max_us, (unsigned long long)c->requested,
++                (unsigned long long)c->copied, (unsigned long long)c->results[0],
++                (unsigned long long)c->results[1], (unsigned long long)c->results[2],
++                (unsigned long long)c->results[3], (unsigned long long)c->results[4]);
++    }
++}
++
++static uint64_t winehua_perf_begin(void)
++{
++    uint64_t now;
++
++    /* Do not even read the clock or TLS when the channel is disabled. */
++    if (!TRACE_ON(winehua_perf)) return 0;
++    now = winehua_perf_now();
++    return now ? now + 1 : 0;
++}
++
++static void winehua_perf_end(enum winehua_perf_metric metric, uint64_t start,
++        uint64_t requested, uint64_t copied, unsigned int result)
++{
++    struct winehua_perf_state *state;
++    struct winehua_perf_counter *counter;
++    uint64_t now, elapsed;
++
++    if (!start) return;
++    state = &winehua_perf_state;
++    now = winehua_perf_now();
++    --start;
++    /* Guard a failed/backwards clock without underflow or a log storm. */
++    if (!now || now < start) return;
++    if (!state->window_start) state->window_start = start + 1;
++    elapsed = now - start;
++    counter = &state->counters[metric];
++    counter->count = winehua_perf_add(counter->count, 1);
++    counter->total_us = winehua_perf_add(counter->total_us, elapsed);
++    if (elapsed > counter->max_us) counter->max_us = elapsed;
++    counter->requested = winehua_perf_add(counter->requested, requested);
++    counter->copied = winehua_perf_add(counter->copied, copied);
++    if (result > 4) result = 4;
++    counter->results[result] = winehua_perf_add(counter->results[result], 1);
++    if (now < state->window_start - 1 || now - (state->window_start - 1) < 1000000) return;
++
++    winehua_perf_report(state, now);
++    memset(state->counters, 0, sizeof(state->counters));
++    state->window_start = now + 1;
++}
++static void *winehua_perf_copy(enum winehua_perf_metric metric, void *dst, const void *src, size_t size)
++{
++    uint64_t perf_start = winehua_perf_begin();
++    void *ret = memcpy(dst, src, size);
++    winehua_perf_end(metric, perf_start, size, size, 0);
++    return ret;
++}
++/* winehua_perf implementation end */
++
+ 
+ static const BOOL is_win64 = (sizeof(void *) > sizeof(int));
+ 
+@@ -1873,8 +2011,10 @@
+ 
+ void wrap_glFinish( TEB *teb )
+ {
++    uint64_t perf_start = winehua_perf_begin();
+     const struct opengl_funcs *funcs = teb->glTable;
+     flush_context( teb, funcs->p_glFinish );
++    winehua_perf_end(WINEHUA_PERF_FINISH, perf_start, 0, 0, 0);
+ }
+ 
+ void wrap_glFlush( TEB *teb )
+@@ -1899,9 +2039,11 @@
+ 
+ void wrap_glReadPixels( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels )
+ {
++    uint64_t perf_start = winehua_perf_begin();
+     const struct opengl_funcs *funcs = teb->glTable;
+     flush_context( teb, NULL );
+     funcs->p_glReadPixels( x, y, width, height, format, type, pixels );
++    winehua_perf_end(WINEHUA_PERF_READPIXELS, perf_start, 0, 0, 0);
+ }
+ 
+ void wrap_glViewport( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height )
+@@ -1913,6 +2055,7 @@
+ 
+ BOOL wrap_wglSwapBuffers( TEB *teb, HDC hdc )
+ {
++    uint64_t perf_start = winehua_perf_begin();
+     const struct opengl_funcs *funcs = get_dc_funcs( hdc );
+     BOOL ret;
+ 
+@@ -1928,6 +2071,7 @@
+         pop_default_fbo_buffers( teb );
+     }
+ 
++    winehua_perf_end(WINEHUA_PERF_WGL_SWAP, perf_start, 0, 0, ret ? 0 : 4);
+     return ret;
+ }
+ 
+@@ -2930,6 +3074,8 @@
+     return TRUE;
+ }
+ 
++/* Keep the 0035 publication block intact for reverse-patch detection. */
++#define memcpy(dst, src, size) winehua_perf_copy(WINEHUA_PERF_SHADOW_FLUSH, dst, src, size)
+ static void flush_buffer( TEB *teb, struct buffer *buffer, size_t offset, size_t length )
+ {
+     VkMappedMemoryRange memory_range =
+@@ -2954,6 +3100,7 @@
+     vr = buffer->vk_device->p_vkFlushMappedMemoryRanges( buffer->vk_device->vk_device, 1, &memory_range );
+     if (vr) ERR( "vkFlushMappedMemoryRanges failed: %x\n", vr );
+ }
++#undef memcpy
+ 
+ static int find_vk_memory_type( struct vk_device *vk_device, uint32_t flags, uint32_t mask )
+ {
+@@ -3088,11 +3235,17 @@
+ }
+ 
+ static void *wow64_map_buffer( TEB *teb, struct buffer *buffer, GLenum target, GLuint name, GLintptr offset,
+-                               size_t length, GLbitfield access, void *ptr )
+-{
++                               GLsizeiptr requested_length, GLbitfield access, void *ptr )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    size_t length = requested_length;
++    /* Keep the original unsigned map operations, but do not count a signed
++     * invalid request as a huge transfer. The driver sees the original size. */
++    size_t perf_requested = requested_length < 0 ? 0 : length ? length : (buffer ? buffer->size : 0);
+     if (buffer && buffer->map_ptr)
+     {
+         set_gl_error( teb, GL_INVALID_OPERATION );
++        winehua_perf_end(WINEHUA_PERF_MAP_FAILED, perf_start, perf_requested, 0, 4);
+         return NULL;
+     }
+ 
+@@ -3114,17 +3267,23 @@
+         struct context *ctx = get_current_context( teb, NULL, NULL );
+         struct vk_device *vk_device = ctx->buffers->vk_device;
+ 
+-        if (!buffer_vm_alloc( teb, buffer, buffer->size )) return NULL;
++        if (!buffer_vm_alloc( teb, buffer, buffer->size ))
++        {
++            winehua_perf_end(WINEHUA_PERF_MAP_FAILED, perf_start, perf_requested, 0, 4);
++            return NULL;
++        }
+         placed_info.pPlacedAddress = buffer->vm_ptr;
+         vr = vk_device->p_vkMapMemory2KHR( vk_device->vk_device, &map_info, &buffer->host_ptr );
+         if (vr)
+         {
+             ERR( "vkMapMemory2KHR failed: %d\n", vr );
++            winehua_perf_end(WINEHUA_PERF_MAP_FAILED, perf_start, perf_requested, 0, 4);
+             return NULL;
+         }
+         assert( buffer->host_ptr == buffer->vm_ptr );
+         buffer->map_ptr = (char *)buffer->vm_ptr + offset;
+         TRACE( "returning vk mapping %p\n", buffer->map_ptr );
++        winehua_perf_end(WINEHUA_PERF_MAP_VK, perf_start, perf_requested, 0, 0);
+         return buffer->map_ptr;
+     }
+ 
+@@ -3132,18 +3291,28 @@
+     {
+         buffer->map_ptr = (char *)buffer->vm_ptr + offset;
+         TRACE( "returning pinned ptr %p\n", buffer->map_ptr );
++        winehua_perf_end(WINEHUA_PERF_MAP_PINNED, perf_start, perf_requested, 0, 0);
+         return buffer->map_ptr;
+     }
+ 
+-    if (!ptr) return NULL;
++    if (!ptr)
++    {
++        winehua_perf_end(WINEHUA_PERF_MAP_FAILED, perf_start, perf_requested, 0, 4);
++        return NULL;
++    }
+ 
+     if (!buffer)
+     {
+         struct context *ctx = get_current_context( teb, NULL, NULL );
+ 
+-        if (!(buffer = calloc( 1, sizeof(*buffer) ))) return NULL;
++        if (!(buffer = calloc( 1, sizeof(*buffer) )))
++        {
++            winehua_perf_end(WINEHUA_PERF_MAP_FAILED, perf_start, perf_requested, 0, 4);
++            return NULL;
++        }
+         buffer->name = name ? name : get_target_name( teb, target );
+         buffer->size = name ? get_named_buffer_param( teb, name, GL_BUFFER_SIZE ) : get_buffer_param( teb, target, GL_BUFFER_SIZE );
++        if (!requested_length && !offset) perf_requested = buffer->size;
+         rb_put( &ctx->buffers->map, &buffer->name, &buffer->entry );
+         TRACE( "allocated buffer %p for %u\n", buffer, buffer->name );
+     }
+@@ -3155,6 +3324,7 @@
+     {
+         buffer->map_ptr = ptr;
+         TRACE( "returning %p\n", buffer->map_ptr );
++        winehua_perf_end(WINEHUA_PERF_MAP_DIRECT, perf_start, perf_requested, 0, 0);
+         return buffer->map_ptr;
+     }
+ 
+@@ -3175,9 +3345,14 @@
+ 
+         TRACE( "Copying %#zx from buffer at %p to wow64 buffer %p\n", length, buffer->host_ptr,
+                buffer->map_ptr );
+-        memcpy( buffer->map_ptr, buffer->host_ptr, length );
++        {
++            uint64_t perf_start = winehua_perf_begin();
++            memcpy( buffer->map_ptr, buffer->host_ptr, length );
++            winehua_perf_end(WINEHUA_PERF_SHADOW_IN, perf_start, length, length, 0);
++        }
+     }
+     TRACE( "returning copy buffer %p\n", buffer->map_ptr );
++    winehua_perf_end(WINEHUA_PERF_MAP_SHADOW, perf_start, perf_requested, 0, 0);
+     return buffer->map_ptr;
+ 
+ unmap:
+@@ -3185,6 +3360,7 @@
+         unmap_named_buffer( teb, name );
+     else
+         unmap_buffer( teb, target );
++    winehua_perf_end(WINEHUA_PERF_MAP_FAILED, perf_start, perf_requested, 0, 4);
+     return 0;
+ }
+ 
+@@ -3313,7 +3489,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     buffer = get_target_buffer( teb, target );
+-    if (use_driver_buffer_map( buffer )) ptr = gl_map_buffer64( target, access );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        ptr = gl_map_buffer64( target, access );
++        winehua_perf_end(WINEHUA_PERF_MAP_DRIVER, perf_start, 0, 0, ptr ? 0 : 4);
++    }
+     ptr = wow64_map_buffer( teb, buffer, target, 0, 0, 0, range_access, ptr );
+     pthread_mutex_unlock( &wgl_lock );
+     return ptr;
+@@ -3339,7 +3520,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     buffer = get_target_buffer( teb, target );
+-    if (use_driver_buffer_map( buffer )) ptr = funcs->p_glMapBufferRange( target, offset, length, access );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        ptr = funcs->p_glMapBufferRange( target, offset, length, access );
++        winehua_perf_end(WINEHUA_PERF_MAP_DRIVER, perf_start, 0, 0, ptr ? 0 : 4);
++    }
+     ptr = wow64_map_buffer( teb, buffer, target, 0, offset, length, access, ptr );
+     pthread_mutex_unlock( &wgl_lock );
+     return ptr;
+@@ -3353,7 +3539,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     buffer = get_named_buffer( teb, name );
+-    if (use_driver_buffer_map( buffer )) ptr = gl_map_named_buffer64( name, access );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        ptr = gl_map_named_buffer64( name, access );
++        winehua_perf_end(WINEHUA_PERF_MAP_DRIVER, perf_start, 0, 0, ptr ? 0 : 4);
++    }
+     ptr = wow64_map_buffer( teb, buffer, 0, name, 0, 0, range_access, ptr );
+     pthread_mutex_unlock( &wgl_lock );
+     return ptr;
+@@ -3379,7 +3570,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     buffer = get_named_buffer( teb, name );
+-    if (use_driver_buffer_map( buffer )) ptr = gl_map_named_buffer_range64( name, offset, length, access );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        ptr = gl_map_named_buffer_range64( name, offset, length, access );
++        winehua_perf_end(WINEHUA_PERF_MAP_DRIVER, perf_start, 0, 0, ptr ? 0 : 4);
++    }
+     ptr = wow64_map_buffer( teb, buffer, 0, name, offset, length, access, ptr );
+     pthread_mutex_unlock( &wgl_lock );
+     return ptr;
+@@ -3397,6 +3593,8 @@
+     return wow64_gl_map_named_buffer_range( teb, buffer, offset, length, access, funcs->p_glMapNamedBufferRangeEXT );
+ }
+ 
++/* Keep the 0035 publication block intact for reverse-patch detection. */
++#define memcpy(dst, src, size) winehua_perf_copy(WINEHUA_PERF_SHADOW_UNMAP, dst, src, size)
+ static BOOL wow64_unmap_buffer( TEB *teb, struct buffer *buffer )
+ {
+     if (buffer->vk_memory)
+@@ -3421,6 +3619,7 @@
+     buffer->host_ptr = buffer->map_ptr = NULL;
+     return TRUE;
+ }
++#undef memcpy
+ 
+ static GLboolean wow64_unmap_target_buffer( TEB *teb, GLenum target, PFN_glUnmapBuffer gl_unmap )
+ {
+@@ -3429,7 +3628,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     if ((buffer = get_target_buffer( teb, target ))) ret = wow64_unmap_buffer( teb, buffer );
+-    if (use_driver_buffer_map( buffer )) ret = gl_unmap( target );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        ret = gl_unmap( target );
++        winehua_perf_end(WINEHUA_PERF_GL_UNMAP, perf_start, 0, 0, ret ? 0 : 4);
++    }
+     pthread_mutex_unlock( &wgl_lock );
+     return ret;
+ }
+@@ -3453,7 +3657,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     if ((buffer = get_named_buffer( teb, name ))) ret = wow64_unmap_buffer( teb, buffer );
+-    if (use_driver_buffer_map( buffer )) ret = gl_unmap( name );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        ret = gl_unmap( name );
++        winehua_perf_end(WINEHUA_PERF_GL_UNMAP, perf_start, 0, 0, ret ? 0 : 4);
++    }
+     pthread_mutex_unlock( &wgl_lock );
+     return ret;
+ }
+@@ -3477,7 +3686,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     if ((buffer = get_target_buffer( teb, target ))) flush_buffer( teb, buffer, offset, length );
+-    if (use_driver_buffer_map( buffer )) funcs->p_glFlushMappedBufferRange( target, offset, length );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        funcs->p_glFlushMappedBufferRange( target, offset, length );
++        winehua_perf_end(WINEHUA_PERF_GL_FLUSH, perf_start, length > 0 ? length : 0, 0, 0);
++    }
+     pthread_mutex_unlock( &wgl_lock );
+ }
+ 
+@@ -3488,7 +3702,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
+-    if (use_driver_buffer_map( buffer )) funcs->p_glFlushMappedNamedBufferRange( name, offset, length );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        funcs->p_glFlushMappedNamedBufferRange( name, offset, length );
++        winehua_perf_end(WINEHUA_PERF_GL_FLUSH, perf_start, length > 0 ? length : 0, 0, 0);
++    }
+     pthread_mutex_unlock( &wgl_lock );
+ }
+ 
+@@ -3499,7 +3718,12 @@
+ 
+     pthread_mutex_lock( &wgl_lock );
+     if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
+-    if (use_driver_buffer_map( buffer )) funcs->p_glFlushMappedNamedBufferRangeEXT( name, offset, length );
++    if (use_driver_buffer_map( buffer ))
++    {
++        uint64_t perf_start = winehua_perf_begin();
++        funcs->p_glFlushMappedNamedBufferRangeEXT( name, offset, length );
++        winehua_perf_end(WINEHUA_PERF_GL_FLUSH, perf_start, length > 0 ? length : 0, 0, 0);
++    }
+     pthread_mutex_unlock( &wgl_lock );
+ }
+ 

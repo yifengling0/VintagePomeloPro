@@ -831,3 +831,13 @@ test-opengl-wow64-buffer-flush:
 .PHONY: test-wine-font-compat
 test-wine-font-compat:
 	python3 $(ROOT)/host_tests/wine_font_compat_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-wined3d-pixel-format test-winehua-perf test-wine-performance-summary
+test-wined3d-pixel-format:
+	python3 $(ROOT)/host_tests/wined3d_pixel_format_test.py --wine-src $(WINE_SRC)
+
+test-winehua-perf: test-wine-performance-summary
+
+test-wine-performance-summary:
+	python3 $(ROOT)/host_tests/winehua_perf_test.py --wine-src $(WINE_SRC)
+	python3 $(ROOT)/host_tests/winehua_perf_boundary_test.py --wine-src $(WINE_SRC)

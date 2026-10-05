@@ -157,6 +157,10 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0034-opengl-zero-texture-not-rese
     "OpenGL default/detached texture zero is not an internal texture"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0035-opengl-wow64-explicit-buffer-flush.patch" \
     "WOW64 shadow-buffer publication before explicit GL flush"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0036-wined3d-pixel-format-id-lookup.patch" \
+    "WineD3D bounded WGL pixel-format ID lookup"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0037-wine-opengl-performance-summary.patch" \
+    "Opt-in bounded Unix OpenGL API wall-time summaries"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

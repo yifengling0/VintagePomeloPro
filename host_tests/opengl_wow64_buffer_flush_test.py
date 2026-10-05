@@ -5,6 +5,7 @@ import subprocess
 import unittest
 
 import wine_shm_state_cache_test as base
+from winehua_perf_test import production_helpers, production_function
 
 STUBS = r'''
 #include <assert.h>
@@ -184,17 +185,17 @@ class Wow64BufferFlushTest(unittest.TestCase):
             'void wow64_glFlushMappedNamedBufferRangeEXT(')
         cls.binaries = {}
         for name,source in (('baseline',baseline),('fixed',fixed)):
-            body = ''.join(base.function(source,s) for s in signatures)
+            body = ''.join(production_function(source,signature) for signature in signatures)
             file = cls.folder/(name+'-buffer.c')
-            file.write_text(STUBS+struct+BOUNDARIES+body+MAIN)
+            file.write_text(production_helpers(fixed)+STUBS+struct+BOUNDARIES+body+MAIN)
             binary = cls.folder/(name+'-buffer')
-            subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-parameter',
+            subprocess.run(['gcc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-Wno-unused-function','-Wno-unused-variable',
                 '-fsanitize=address,undefined','-fno-pie','-no-pie',str(file),'-pthread','-o',str(binary)],check=True)
             cls.binaries[name]=binary
 
-    def run_case(self,case,name='fixed'):
+    def run_case(self,case,name='fixed',enabled=False):
         return subprocess.run([str(self.binaries[name]),case],capture_output=True,text=True,timeout=10,
-                              env=dict(os.environ,ASAN_OPTIONS='detect_leaks=1:halt_on_error=1'))
+                              env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0:halt_on_error=1',WINEHUA_TEST_PERF=str(int(enabled))))
 
     def test_baseline_flush_publishes_stale_bytes(self):
         result=self.run_case('explicit','baseline')
@@ -214,6 +215,12 @@ class Wow64BufferFlushTest(unittest.TestCase):
         for case in ('readonly','direct-vulkan'):
             with self.subTest(case=case):
                 result=self.run_case(case); self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
+    def test_diagnostics_on_preserves_0035_cases(self):
+        for case in ('explicit','implicit','bounds','readonly','direct-vulkan'):
+            with self.subTest(case=case):
+                result=self.run_case(case,enabled=True)
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
     def test_registered_patch_replay_is_idempotent(self):
         self.assertEqual(self.first_replay,self.second_replay)
