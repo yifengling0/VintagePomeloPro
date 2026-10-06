@@ -1,0 +1,194 @@
+diff --git a/FEXCore/Source/Interface/Context/Context.h b/FEXCore/Source/Interface/Context/Context.h
+index 1e2fc44..beca688 100644
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -275,6 +275,9 @@ public:
+   FEXCore::ThunkHandler* ThunkHandler {};
+ #if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE)
+   bool WindowsExactFloatStoreEnabled {};
++#if defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++  bool WindowsExactFloatStoreStatsEnabled {};
++#endif
+ #endif
+   fextl::unique_ptr<FEXCore::CPU::Dispatcher> Dispatcher;
+   CodeCache CodeCache;
+diff --git a/FEXCore/Source/Interface/Core/Core.cpp b/FEXCore/Source/Interface/Core/Core.cpp
+index 9545477..144756f 100644
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -60,6 +60,9 @@ $end_info$
+ #include <algorithm>
+ #include <array>
+ #include <atomic>
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++#include <cstdio>
++#endif
+ #include <chrono>
+ #include <condition_variable>
+ #include <fcntl.h>
+@@ -77,6 +80,26 @@ $end_info$
+ #include <utility>
+ #include <xxhash.h>
+ 
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++extern "C" { alignas(8) uint64_t FEXExactStoreCounters[6] {}; }
++static std::atomic<bool> FEXExactStoreStatsEverEnabled {};
++namespace {
++struct ExactStoreStatsReporter {
++  ~ExactStoreStatsReporter() {
++    if (!FEXExactStoreStatsEverEnabled.load(std::memory_order_relaxed)) return;
++    std::fprintf(stderr,
++      "FEX_EXACTSTORE_STATS f32 attempt=%llu hit=%llu fallback=%llu f64 attempt=%llu hit=%llu fallback=%llu\n",
++      static_cast<unsigned long long>(__atomic_load_n(&FEXExactStoreCounters[0], __ATOMIC_RELAXED)),
++      static_cast<unsigned long long>(__atomic_load_n(&FEXExactStoreCounters[1], __ATOMIC_RELAXED)),
++      static_cast<unsigned long long>(__atomic_load_n(&FEXExactStoreCounters[2], __ATOMIC_RELAXED)),
++      static_cast<unsigned long long>(__atomic_load_n(&FEXExactStoreCounters[3], __ATOMIC_RELAXED)),
++      static_cast<unsigned long long>(__atomic_load_n(&FEXExactStoreCounters[4], __ATOMIC_RELAXED)),
++      static_cast<unsigned long long>(__atomic_load_n(&FEXExactStoreCounters[5], __ATOMIC_RELAXED)));
++  }
++} ExactStoreStatsReporterInstance;
++}
++#endif
++
+ namespace FEXCore::Context {
+ ContextImpl::ContextImpl(const FEXCore::HostFeatures& Features)
+   : HostFeatures {Features}
+@@ -104,6 +127,13 @@ ContextImpl::ContextImpl(const FEXCore::HostFeatures& Features)
+ #if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE)
+   const char* ExactStore = std::getenv("FEX_EXACTSTORE");
+   WindowsExactFloatStoreEnabled = ExactStore && std::strcmp(ExactStore, "1") == 0;
++#if defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++  const char* ExactStoreStats = std::getenv("FEX_EXACTSTORE_STATS");
++  WindowsExactFloatStoreStatsEnabled = ExactStoreStats && std::strcmp(ExactStoreStats, "1") == 0;
++  if (WindowsExactFloatStoreStatsEnabled) {
++    FEXExactStoreStatsEverEnabled.store(true, std::memory_order_relaxed);
++  }
++#endif
+ #endif
+ 
+   // Track atomic TSO emulation configuration.
+diff --git a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+index bd1349a..2d499aa 100644
+--- a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
++++ b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+@@ -25,9 +25,16 @@
+ #endif
+ 
+ #include <array>
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++#include <atomic>
++#endif
+ #include <bit>
+ #include <cstring>
+ 
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++extern "C" { extern uint64_t FEXExactStoreCounters[6]; }
++#endif
++
+ namespace FEXCore::CPU {
+ 
+ static void SleepThread(FEXCore::Context::ContextImpl* CTX, FEXCore::Core::CpuStateFrame* Frame) {
+@@ -1844,6 +1851,23 @@ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+     // vtmp1 (v0/v16): source
+ #if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE)
+     ARMEmitter::ForwardLabel ExactDone;
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++    auto CountExactStore = [&](size_t Index) {
++      if (!CTX->WindowsExactFloatStoreStatsEnabled) return;
++      LoadConstant(ARMEmitter::Size::i64Bit, TMP2, reinterpret_cast<uintptr_t>(&FEXExactStoreCounters[Index]));
++      if (CTX->HostFeatures.SupportsAtomics) {
++        mov(ARMEmitter::Size::i64Bit, TMP3, 1);
++        ldaddal(ARMEmitter::SubRegSize::i64Bit, TMP3, TMP1, TMP2);
++      } else {
++        ARMEmitter::BackwardLabel Retry;
++        (void)Bind(&Retry);
++        ldaxr(ARMEmitter::SubRegSize::i64Bit, TMP1, TMP2);
++        add(ARMEmitter::Size::i64Bit, TMP1, TMP1, 1);
++        stlxr(ARMEmitter::SubRegSize::i64Bit, TMP3, TMP1, TMP2);
++        (void)cbnz(ARMEmitter::Size::i32Bit, TMP3, &Retry);
++      }
++    };
++#endif
+     if (CTX->WindowsExactFloatStoreEnabled) {
+       ARMEmitter::ForwardLabel Fallback;
+       // Exact normal values only: no discarded bits, rounding, exception,
+@@ -1851,6 +1875,9 @@ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+       // TMP4 is the fallback function pointer and must remain untouched.
+       mrs(TMP1, ARMEmitter::SystemRegister::NZCV);
+       str(TMP1.W(), STATE.R(), offsetof(FEXCore::Core::CpuStateFrame, State.flags[24]));
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++      CountExactStore(0);
++#endif
+       fmov(ARMEmitter::Size::i64Bit, TMP1, VTMP1.D());
+       (void)tbz(TMP1, 63, &Fallback);
+       and_(ARMEmitter::Size::i64Bit, TMP3, TMP1, 0xffffffffffULL);
+@@ -1869,10 +1896,17 @@ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+       and_(ARMEmitter::Size::i64Bit, TMP3, TMP3, 0x8000);
+       orr(ARMEmitter::Size::i64Bit, TMP1, TMP1, TMP3, ARMEmitter::ShiftType::LSL, 16);
+       fmov(ARMEmitter::Size::i32Bit, VTMP1.S(), TMP1);
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++      CountExactStore(1);
++#endif
++
+       ldr(TMP1.W(), STATE.R(), offsetof(FEXCore::Core::CpuStateFrame, State.flags[24]));
+       msr(ARMEmitter::SystemRegister::NZCV, TMP1);
+       (void)b(&ExactDone);
+       (void)Bind(&Fallback);
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++      CountExactStore(2);
++#endif
+       ldr(TMP1.W(), STATE.R(), offsetof(FEXCore::Core::CpuStateFrame, State.flags[24]));
+       msr(ARMEmitter::SystemRegister::NZCV, TMP1);
+     }
+@@ -1903,6 +1937,23 @@ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+     // vtmp1 (v0/v16): source
+ #if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE)
+     ARMEmitter::ForwardLabel ExactDone;
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++    auto CountExactStore = [&](size_t Index) {
++      if (!CTX->WindowsExactFloatStoreStatsEnabled) return;
++      LoadConstant(ARMEmitter::Size::i64Bit, TMP2, reinterpret_cast<uintptr_t>(&FEXExactStoreCounters[Index]));
++      if (CTX->HostFeatures.SupportsAtomics) {
++        mov(ARMEmitter::Size::i64Bit, TMP3, 1);
++        ldaddal(ARMEmitter::SubRegSize::i64Bit, TMP3, TMP1, TMP2);
++      } else {
++        ARMEmitter::BackwardLabel Retry;
++        (void)Bind(&Retry);
++        ldaxr(ARMEmitter::SubRegSize::i64Bit, TMP1, TMP2);
++        add(ARMEmitter::Size::i64Bit, TMP1, TMP1, 1);
++        stlxr(ARMEmitter::SubRegSize::i64Bit, TMP3, TMP1, TMP2);
++        (void)cbnz(ARMEmitter::Size::i32Bit, TMP3, &Retry);
++      }
++    };
++#endif
+     if (CTX->WindowsExactFloatStoreEnabled) {
+       ARMEmitter::ForwardLabel Fallback;
+       // Exact normal values only: no discarded bits, rounding, exception,
+@@ -1910,6 +1961,9 @@ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+       // TMP4 is the fallback function pointer and must remain untouched.
+       mrs(TMP1, ARMEmitter::SystemRegister::NZCV);
+       str(TMP1.W(), STATE.R(), offsetof(FEXCore::Core::CpuStateFrame, State.flags[24]));
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++      CountExactStore(3);
++#endif
+       fmov(ARMEmitter::Size::i64Bit, TMP1, VTMP1.D());
+       (void)tbz(TMP1, 63, &Fallback);
+       and_(ARMEmitter::Size::i64Bit, TMP3, TMP1, 0x7ff);
+@@ -1928,10 +1982,17 @@ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+       and_(ARMEmitter::Size::i64Bit, TMP3, TMP3, 0x8000);
+       orr(ARMEmitter::Size::i64Bit, TMP1, TMP1, TMP3, ARMEmitter::ShiftType::LSL, 48);
+       fmov(ARMEmitter::Size::i64Bit, VTMP1.D(), TMP1);
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++      CountExactStore(4);
++#endif
++
+       ldr(TMP1.W(), STATE.R(), offsetof(FEXCore::Core::CpuStateFrame, State.flags[24]));
+       msr(ARMEmitter::SystemRegister::NZCV, TMP1);
+       (void)b(&ExactDone);
+       (void)Bind(&Fallback);
++#if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE_DIAGNOSTICS)
++      CountExactStore(5);
++#endif
+       ldr(TMP1.W(), STATE.R(), offsetof(FEXCore::Core::CpuStateFrame, State.flags[24]));
+       msr(ARMEmitter::SystemRegister::NZCV, TMP1);
+     }

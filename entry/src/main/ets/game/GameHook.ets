@@ -128,6 +128,8 @@ export class GameHook {
       // 要开调试通道用 WINEHUA_WINEDEBUG
       const allowedKey = /^(DXVK_|VN_|VKR_|WINEHUA_DXVK_|WINEHUA_VKR_)[A-Za-z0-9_]*$/.test(key) ||
         key === 'WINEHUA_WOW64_ENGINE' ||
+        key === 'FEX_EXACTSTORE' ||
+        key === 'FEX_EXACTSTORE_STATS' ||
         key === 'WINE_LARGE_ADDRESS_AWARE' ||
         key === 'WINEHUA_FAULT_FREEZE' ||
         key === 'WINEHUA_FAULT_DUMP_MAPS' ||

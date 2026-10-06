@@ -563,6 +563,7 @@ arm64ec-release-gate:
 # test: 宿主机单元测试 (纯函数, 不依赖 OHOS SDK, 用宿主 g++ 编译)
 # ============================================================
 HOST_TEST_DIR := $(BUILD_DIR)/host_tests
+FEX_SRC ?= $(ROOT)/thirdparty/fex
 
 .PHONY: test-direct-viewport
 test-direct-viewport:
@@ -578,6 +579,10 @@ test-benchmark-statistics:
 	$(HOST_TEST_DIR)/benchmark_statistics_test
 
 .PHONY: test
+.PHONY: test-fex-exact-store
+test-fex-exact-store:
+	python3 $(ROOT)/host_tests/fex_exact_store_test.py --fex-src $(FEX_SRC)
+
 .PHONY: test-gamepad-bridge
 test-gamepad-bridge:
 	python3 $(ROOT)/host_tests/gamepad_bridge_test.py

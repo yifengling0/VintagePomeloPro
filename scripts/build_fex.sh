@@ -65,6 +65,8 @@ export PATH="$LLVM_MINGW/bin:$PATH"
 #     ARM64EC SIGBUS 的 opcode、JIT 归属和模拟结果。
 #   fex-windows-unaligned-stderr.patch — 同样覆盖 Steam 32 位 CEF 实际使用的
 #     WoW64 reset 路径，并直接写入 Wine stderr。
+#   fex-wow64-exact-store.patch — 仅在 fex-pe 定义
+#     FEX_WOW64_EXACT_STORE 时编译的 x87 exact-normal store 实验。
 patched_source=0
 # The ARM64EC lookup-cache patch deliberately changes the context of the
 # earlier WOW64 patches. Recognize the complete result when rebuilding the
@@ -97,6 +99,34 @@ for PATCH in \
     patch -d "$FEX_SRC" -p1 -s < "$PATCH"
     log "已应用 patch: $(basename "$PATCH")"
 done
+
+PATCH="$SCRIPT_DIR/patches/fex-wow64-exact-store.patch"
+if grep -Fq 'bool WindowsExactFloatStoreEnabled {}' "$FEX_SRC/FEXCore/Source/Interface/Context/Context.h" &&
+   grep -Fq 'std::getenv("FEX_EXACTSTORE")' "$FEX_SRC/FEXCore/Source/Interface/Core/Core.cpp" &&
+   grep -Fq 'FEX_WOW64_EXACT_STORE' "$FEX_SRC/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp"; then
+    log "已验证 patch: $(basename "$PATCH")"
+elif ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$PATCH" >/dev/null 2>&1; then
+    patch -d "$FEX_SRC" -p1 --dry-run -s < "$PATCH" >/dev/null || \
+        err "FEX WOW64 exact-store patch 无法应用: $PATCH"
+    patch -d "$FEX_SRC" -p1 -s < "$PATCH"
+    log "已应用 patch: $(basename "$PATCH")"
+fi
+
+# Counter instrumentation is deliberately a second overlay and build identity.
+# It is never part of clean OFF/ON timing DLLs.
+if [ "${FEX_EXACTSTORE_DIAGNOSTICS:-0}" = "1" ]; then
+    PATCH="$SCRIPT_DIR/patches/fex-wow64-exact-store-diagnostics.patch"
+    if grep -Fq 'bool WindowsExactFloatStoreStatsEnabled {}' "$FEX_SRC/FEXCore/Source/Interface/Context/Context.h" &&
+       grep -Fq 'FEXExactStoreCounters[6]' "$FEX_SRC/FEXCore/Source/Interface/Core/Core.cpp" &&
+       grep -Fq 'CountExactStore' "$FEX_SRC/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp"; then
+        log "已验证 patch: $(basename "$PATCH")"
+    elif ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$PATCH" >/dev/null 2>&1; then
+        patch -d "$FEX_SRC" -p1 --dry-run -s < "$PATCH" >/dev/null || \
+            err "FEX exact-store diagnostics patch 无法应用: $PATCH"
+        patch -d "$FEX_SRC" -p1 -s < "$PATCH"
+        log "已应用 patch: $(basename "$PATCH")"
+    fi
+fi
 
 if grep -Fq 'const bool deep = (depth >= 0x7000 && depth < 0x90000) ||' \
      "$FEX_SRC/Source/Windows/ARM64EC/Module.cpp"; then
@@ -252,11 +282,33 @@ prepare_build_dir() {
     fi
 }
 
+prepare_exact_store_cache() {
+    local build="$1" expected="$2" flags diagnostics_expected=0 diagnostics_cached=0
+    [ -f "$build/CMakeCache.txt" ] || return 0
+    flags="$(sed -n 's/^CMAKE_CXX_FLAGS:STRING=//p' "$build/CMakeCache.txt" | head -1)"
+    [ "${FEX_EXACTSTORE_DIAGNOSTICS:-0}" = "1" ] && diagnostics_expected=1
+    [[ "$flags" == *FEX_WOW64_EXACT_STORE_DIAGNOSTICS* ]] && diagnostics_cached=1
+    if [ "$expected" = enabled ] && [[ "$flags" != *FEX_WOW64_EXACT_STORE* ]]; then
+        log "fex-pe exact-store 编译标识变化，刷新 CMake 缓存"
+        rm -rf "$build/CMakeFiles"
+        rm -f "$build/CMakeCache.txt" "$build/Makefile" "$build/cmake_install.cmake"
+    elif [ "$expected" = disabled ] && [[ "$flags" == *FEX_WOW64_EXACT_STORE* ]]; then
+        log "fex-ec 检测到 WOW64 exact-store 污染，刷新 CMake 缓存"
+        rm -rf "$build/CMakeFiles"
+        rm -f "$build/CMakeCache.txt" "$build/Makefile" "$build/cmake_install.cmake"
+    elif [ "$expected" = enabled ] && [ "$diagnostics_expected" != "$diagnostics_cached" ]; then
+        log "fex-pe exact-store diagnostics 编译标识变化，刷新 CMake 缓存"
+        rm -rf "$build/CMakeFiles"
+        rm -f "$build/CMakeCache.txt" "$build/Makefile" "$build/cmake_install.cmake"
+    fi
+}
+
 # ---- libarm64ecfex.dll (x86_64 模拟, arm64ec ABI) ----
 build_fex_ec() {
     local build="$BUILD_DIR/fex-ec"
     mkdir -p "$build"
     prepare_build_dir "$build"
+    prepare_exact_store_cache "$build" disabled
     cd "$build"
     if [ ! -f CMakeCache.txt ]; then
         # BUILD_TESTING=False: FEX 用 CTest 的 BUILD_TESTING (非 BUILD_TESTS)
@@ -291,13 +343,18 @@ build_fex_ec() {
 # 与 arm64ecfex 使用不同 MINGW_TRIPLE (aarch64-w64-mingw32), 必须用独立 build
 # 目录 (fex-pe), 避免 CMake 缓存与 arm64ec 配置互相覆盖。
 build_fex_pe() {
-    local build="$BUILD_DIR/fex-pe"
+    local build="$BUILD_DIR/fex-pe" exact_store_flags="-DFEX_WOW64_EXACT_STORE=1"
+    if [ "${FEX_EXACTSTORE_DIAGNOSTICS:-0}" = "1" ]; then
+        exact_store_flags="$exact_store_flags -DFEX_WOW64_EXACT_STORE_DIAGNOSTICS=1"
+    fi
     mkdir -p "$build"
     prepare_build_dir "$build"
+    prepare_exact_store_cache "$build" enabled
     cd "$build"
     if [ ! -f CMakeCache.txt ]; then
         cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_TOOLCHAIN_FILE="$FEX_SRC/Data/CMake/toolchain_mingw.cmake" \
+            -DCMAKE_CXX_FLAGS="$exact_store_flags" \
             -DENABLE_LTO=False \
             -DMINGW_TRIPLE=aarch64-w64-mingw32 \
             -DBUILD_TESTING=False \
@@ -307,6 +364,12 @@ build_fex_pe() {
     require_cmake_flag_var CMakeCache.txt CMAKE_CXX_FLAGS_RELWITHDEBINFO "fex-pe CMAKE_CXX_FLAGS_RELWITHDEBINFO"
     require_ndebug "fex-pe CMAKE_CXX_FLAGS_RELWITHDEBINFO" \
         "$(sed -n 's/^CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=//p' CMakeCache.txt | head -1)"
+    grep -q '^CMAKE_CXX_FLAGS:STRING=.*FEX_WOW64_EXACT_STORE' CMakeCache.txt || \
+        err "fex-pe 缓存缺少 FEX_WOW64_EXACT_STORE"
+    if [ -f "$BUILD_DIR/fex-ec/CMakeCache.txt" ] && \
+       grep -q '^CMAKE_CXX_FLAGS:STRING=.*FEX_WOW64_EXACT_STORE' "$BUILD_DIR/fex-ec/CMakeCache.txt"; then
+        err "fex-ec 缓存被 FEX_WOW64_EXACT_STORE 污染"
+    fi
     make -j"$JOBS" wow64fex
 
     local dll="$build/Bin/libwow64fex.dll"
