@@ -1,0 +1,214 @@
+{
+  "captures": [
+    {
+      "file": "workspace_temp\\fex-fileload-v2-20261006\\cpu-fex-v2.tsv",
+      "winePid": 424,
+      "requestedHodll": "libwow64fex.dll",
+      "loadedBackendConfirmed": false,
+      "cases": {
+        "integer": {
+          "iterations": 5000000,
+          "checksum": "d3683fdf",
+          "wallMs": [
+            7.5375,
+            6.9891,
+            7.0755
+          ],
+          "medianMs": 7.0755,
+          "laterRunsMedianMs": 7.032299999999999
+        },
+        "callret_depth16": {
+          "iterations": 100000,
+          "checksum": "d69d8319",
+          "wallMs": [
+            5.3886,
+            5.3079,
+            5.3063
+          ],
+          "medianMs": 5.3079,
+          "laterRunsMedianMs": 5.3071
+        },
+        "rep_copy_1MiB": {
+          "iterations": 256,
+          "checksum": "5a5a5a5a",
+          "wallMs": [
+            11.3256,
+            8.0307,
+            7.9068
+          ],
+          "medianMs": 8.0307,
+          "laterRunsMedianMs": 7.96875
+        },
+        "sse_mul_add": {
+          "iterations": 2000000,
+          "checksum": "c4877254",
+          "wallMs": [
+            4.4651,
+            4.3672,
+            4.3921
+          ],
+          "medianMs": 4.3921,
+          "laterRunsMedianMs": 4.37965
+        },
+        "x87_mul_add": {
+          "iterations": 200000,
+          "checksum": "3eeb01d2",
+          "wallMs": [
+            14.8266,
+            16.9964,
+            17.2526
+          ],
+          "medianMs": 16.9964,
+          "laterRunsMedianMs": 17.1245
+        },
+        "qpc_boundary": {
+          "iterations": 100000,
+          "checksum": "00000001",
+          "wallMs": [
+            12.0911,
+            11.3359,
+            11.2609
+          ],
+          "medianMs": 11.3359,
+          "laterRunsMedianMs": 11.2984
+        },
+        "sleep0_boundary": {
+          "iterations": 10000,
+          "checksum": "00002710",
+          "wallMs": [
+            31.5203,
+            30.0495,
+            30.5385
+          ],
+          "medianMs": 30.5385,
+          "laterRunsMedianMs": 30.293999999999997
+        }
+      },
+      "caveat": "Wall times include scheduling and translation. No main architecture or game FPS conclusion."
+    },
+    {
+      "file": "workspace_temp\\fex-softfloat-lto-20261006\\cpu-lto.tsv",
+      "winePid": 448,
+      "requestedHodll": "libwow64fex.dll",
+      "loadedBackendConfirmed": false,
+      "cases": {
+        "integer": {
+          "iterations": 5000000,
+          "checksum": "d3683fdf",
+          "wallMs": [
+            7.1302,
+            7.0349,
+            7.0031
+          ],
+          "medianMs": 7.0349,
+          "laterRunsMedianMs": 7.019
+        },
+        "callret_depth16": {
+          "iterations": 100000,
+          "checksum": "d69d8319",
+          "wallMs": [
+            5.3484,
+            5.2818,
+            4.5015
+          ],
+          "medianMs": 5.2818,
+          "laterRunsMedianMs": 4.89165
+        },
+        "rep_copy_1MiB": {
+          "iterations": 256,
+          "checksum": "5a5a5a5a",
+          "wallMs": [
+            10.9484,
+            7.8708,
+            8.2687
+          ],
+          "medianMs": 8.2687,
+          "laterRunsMedianMs": 8.06975
+        },
+        "sse_mul_add": {
+          "iterations": 2000000,
+          "checksum": "c4877254",
+          "wallMs": [
+            4.4266,
+            4.4672,
+            4.361
+          ],
+          "medianMs": 4.4266,
+          "laterRunsMedianMs": 4.4140999999999995
+        },
+        "x87_mul_add": {
+          "iterations": 200000,
+          "checksum": "3eeb01d2",
+          "wallMs": [
+            12.9156,
+            14.0875,
+            13.2745
+          ],
+          "medianMs": 13.2745,
+          "laterRunsMedianMs": 13.681000000000001
+        },
+        "qpc_boundary": {
+          "iterations": 100000,
+          "checksum": "00000001",
+          "wallMs": [
+            10.6792,
+            10.513,
+            10.1463
+          ],
+          "medianMs": 10.513,
+          "laterRunsMedianMs": 10.32965
+        },
+        "sleep0_boundary": {
+          "iterations": 10000,
+          "checksum": "00002710",
+          "wallMs": [
+            32.0666,
+            30.8792,
+            31.1381
+          ],
+          "medianMs": 31.1381,
+          "laterRunsMedianMs": 31.008650000000003
+        }
+      },
+      "caveat": "Wall times include scheduling and translation. No main architecture or game FPS conclusion."
+    }
+  ],
+  "comparison": {
+    "integer": {
+      "checksumsMatch": true,
+      "firstOverSecondMedian": 1.0057712263145175,
+      "firstOverSecondLaterRuns": 1.0018948568172104
+    },
+    "callret_depth16": {
+      "checksumsMatch": true,
+      "firstOverSecondMedian": 1.004941497216858,
+      "firstOverSecondLaterRuns": 1.0849304426931607
+    },
+    "rep_copy_1MiB": {
+      "checksumsMatch": true,
+      "firstOverSecondMedian": 0.9712167571685995,
+      "firstOverSecondLaterRuns": 0.9874841228042999
+    },
+    "sse_mul_add": {
+      "checksumsMatch": true,
+      "firstOverSecondMedian": 0.9922062079248183,
+      "firstOverSecondLaterRuns": 0.9921954645341067
+    },
+    "x87_mul_add": {
+      "checksumsMatch": true,
+      "firstOverSecondMedian": 1.280379675317338,
+      "firstOverSecondLaterRuns": 1.2516994371756451
+    },
+    "qpc_boundary": {
+      "checksumsMatch": true,
+      "firstOverSecondMedian": 1.0782745172643395,
+      "firstOverSecondLaterRuns": 1.0937834292546214
+    },
+    "sleep0_boundary": {
+      "checksumsMatch": true,
+      "firstOverSecondMedian": 0.9807438475693764,
+      "firstOverSecondLaterRuns": 0.9769532049928003
+    }
+  },
+  "comparisonCaveat": "Ratios require separately confirmed backends and matched conditions; checksum agreement is not full correctness proof."
+}

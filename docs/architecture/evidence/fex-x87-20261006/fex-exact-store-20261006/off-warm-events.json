@@ -1,0 +1,17 @@
+[
+  {
+    "character": "money",
+    "requestedAt": "2026-10-06T18:26:11.130548+08:00",
+    "deviceTime": "Tue Oct  6 18:26:11 CST 2026"
+  },
+  {
+    "character": "flower",
+    "requestedAt": "2026-10-06T18:26:18.545853+08:00",
+    "deviceTime": "Tue Oct  6 18:26:18 CST 2026"
+  },
+  {
+    "character": "green",
+    "requestedAt": "2026-10-06T18:26:26.052633+08:00",
+    "deviceTime": "Tue Oct  6 18:26:26 CST 2026"
+  }
+]

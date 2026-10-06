@@ -1,0 +1,84 @@
+ M Makefile
+ M entry/src/main/cpp/input/controller/controller_hub.cpp
+ M entry/src/main/cpp/input/controller/controller_hub.h
+ M entry/src/main/cpp/input/controller/controller_napi.cpp
+ M entry/src/main/cpp/input/controller/controller_types.h
+ M entry/src/main/cpp/input/controller/gamepad_bridge.cpp
+ M entry/src/main/cpp/input/controller/gamepad_ipc_protocol.h
+ M entry/src/main/cpp/input/controller/physical_gamepad.cpp
+ M host_tests/controller_merge_test.cpp
+ M host_tests/gamepad_bridge_test.cpp
+ M patches/wine/0037-wine-opengl-performance-summary.patch
+ M scripts/apply_mesa_ohos_patches.sh
+ M scripts/build_fex.sh
+ M scripts/build_ohos_guest_gfx.sh
+ M scripts/build_wine.sh
+ ? thirdparty/dxvk-modern
+ m thirdparty/vkd3d-proton
+ m thirdparty/wine-valve
+?? build-activation-return-0a877ea3-20261005/
+?? build-activation-return-order-0a877ea3-20261005/
+?? build-client-remap-0a877ea3-20261005/
+?? build-controller-followup-20261006/
+?? build-crt-bridge-0a877ea3-20261004/
+?? build-fex-exact-clean-20261006/
+?? build-fex-exact-store-20261006/
+?? build-fex-fileload-20261006/
+?? build-fex-fileload-v2-20261006/
+?? build-fex-float-diag-20261006/
+?? build-fex-jit-cost-20261006/
+?? build-fex-jit-symbols-20261006/
+?? build-fex-softfloat-lto-20261006/
+?? build-fex-synthetic-return-20261006/
+?? build-gl-capability-0a877ea3-20261005/
+?? build-gpu-followup-1936fa6-20261004/
+?? build-perf-first-batch-284026ce-20261005/
+?? build-richman8-buffer-flush-0a877ea3-20261005/
+?? build-richman8-discard-20261005/
+?? build-richman8-sysmem-20261005/
+?? build-richman8-sysmem-v2-20261005/
+?? build-seh-thunk-0a877ea3-20261004/
+?? build-texture-zero-0a877ea3-20261005/
+?? build-virgl-lowmap-20261006/
+?? build-window-state-0a877ea3-20261005/
+?? docs/architecture/32bit-fex-box-performance-attribution-20261005.md
+?? docs/architecture/32bit-virgl-cold-resource-followup-20261006.md
+?? docs/architecture/controller-main-alignment-20261006.md
+?? docs/architecture/evidence/fex-x87-20261006/
+?? docs/architecture/fex-jit-cost-followup-20261006.md
+?? docs/architecture/fex-jit-crt-diagnostics-20261006.md
+?? docs/architecture/fex-softfloat-lto-automatic-followup-20261006.md
+?? docs/architecture/fex-windows-file-loading-followup-20261006.md
+?? docs/architecture/fex-x87-bottleneck-handoff-20261006.md
+?? docs/architecture/richman8-cold-resource-profile-20261006.md
+?? docs/architecture/richman8-device-performance-research-20261005.md
+?? docs/architecture/richman8-discard-upload-followup-20261005.md
+?? docs/architecture/richman8-dynamic-buffer-followup-20261005.md
+?? docs/architecture/virgl-shared-low-map-20261006.md
+?? host_tests/controller_protocol_test.py
+?? host_tests/fex_crt_file_open_test.py
+?? host_tests/fex_jit_cost_test.py
+?? host_tests/fex_jit_symbols_test.py
+?? host_tests/fex_windows_file_loading_test.py
+?? host_tests/fex_wow64_synthetic_return_test.py
+?? host_tests/virgl_shared_low_map_test.py
+?? host_tests/winebus_ohos_poll_test.py
+?? host_tests/wined3d_discard_map_test.py
+?? host_tests/wined3d_dynamic_sysmem_test.py
+?? host_tests/winehua_upload_perf_test.py
+?? host_tests/winehua_wgl_lock_wait_test.py
+?? patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch
+?? patches/wine/0038-wined3d-discard-map-invalidation.patch
+?? patches/wine/0039-wined3d-opt-in-dynamic-buffer-sysmem.patch
+?? patches/wine/0040-ntdll-owned-virgl-shared-low-map.patch
+?? patches/wine/0041-winebus-ohos-poll-progress.patch
+?? patches/wine/0042-opengl-opt-in-wgl-lock-wait.patch
+?? patches/wine/0043-winebus-canonical-whgp-v2.patch
+?? scripts/patches/fex-windows-crt-file-open.patch
+?? scripts/patches/fex-windows-file-loading.patch
+?? scripts/patches/fex-windows-jit-cost.patch
+?? scripts/patches/fex-windows-jit-symbols.patch
+?? scripts/patches/fex-wow64-synthetic-return.patch
+?? smoke/winehua_pe32_route_probe.c
+?? wine-valve-dirty-backup-20261003.patch
+?? workspace_temp/

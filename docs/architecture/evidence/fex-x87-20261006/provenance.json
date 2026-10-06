@@ -1,0 +1,1075 @@
+{
+  "description": "Original hashes and exact filtering transformations for the curated text snapshot.",
+  "entries": [
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/comparison.json",
+      "published": "main-proton-isolation-20261006/comparison.json",
+      "sourceSha256": "44301371c0644a10a5c4ea8a838a99c7ecd2aa378840983182d65856f3c0c26f",
+      "sourceBytes": 9952,
+      "publishedSha256": "f94c156bb0b60089b53e327f7c10813f53988937576819529e2fd7518234bf25",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "44301371c0644a10a5c4ea8a838a99c7ecd2aa378840983182d65856f3c0c26f",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-summary.json",
+      "published": "main-proton-isolation-20261006/float-summary.json",
+      "sourceSha256": "5010412e42db71c3cde111e5c8220cd0ff8b7eb379b5f31862b3f7efa2d91f6f",
+      "sourceBytes": 4740,
+      "publishedSha256": "855735fcb105e0b879e0139bb6b61e374edfc2c219d1dd5392ebff096382977a",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "5010412e42db71c3cde111e5c8220cd0ff8b7eb379b5f31862b3f7efa2d91f6f",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/fex-float-diagnostics.patch",
+      "published": "main-proton-isolation-20261006/fex-float-diagnostics.patch",
+      "sourceSha256": "424743a9b9eccfbefee5ae282e894bc328837319bff231ff2a14ae3091ee591b",
+      "sourceBytes": 10390,
+      "publishedSha256": "424743a9b9eccfbefee5ae282e894bc328837319bff231ff2a14ae3091ee591b",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/build-validation.json",
+      "published": "main-proton-isolation-20261006/build-validation.json",
+      "sourceSha256": "bb5aab91e1b01c7f2479544fd6deb7559aa24a722983ad17cedae411b26e79c2",
+      "sourceBytes": 4497,
+      "publishedSha256": "bb5aab91e1b01c7f2479544fd6deb7559aa24a722983ad17cedae411b26e79c2",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/package-identity.json",
+      "published": "main-proton-isolation-20261006/package-identity.json",
+      "sourceSha256": "4ce99e2f521a791be040172bd20e7db5a569331d4e1f82faf518739dac90b980",
+      "sourceBytes": 4477,
+      "publishedSha256": "4ce99e2f521a791be040172bd20e7db5a569331d4e1f82faf518739dac90b980",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/source-validation.json",
+      "published": "main-proton-isolation-20261006/source-validation.json",
+      "sourceSha256": "76edfa8a337411523ffc11b138a590b766369cac0f0327a304efeaaf679c993e",
+      "sourceBytes": 370,
+      "publishedSha256": "76edfa8a337411523ffc11b138a590b766369cac0f0327a304efeaaf679c993e",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/summarize-float.py",
+      "published": "main-proton-isolation-20261006/summarize-float.py",
+      "sourceSha256": "66a9b5c776f0c567ec58b0678fe1e85efe20b8be07d85594d90633a45b84068a",
+      "sourceBytes": 1624,
+      "publishedSha256": "66a9b5c776f0c567ec58b0678fe1e85efe20b8be07d85594d90633a45b84068a",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/summarize.py",
+      "published": "main-proton-isolation-20261006/summarize.py",
+      "sourceSha256": "57b303d00680532dd186e2e45668437916df1b44e6a12a049c8d36caac4ac70d",
+      "sourceBytes": 1640,
+      "publishedSha256": "57b303d00680532dd186e2e45668437916df1b44e6a12a049c8d36caac4ac70d",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-cpu-off.tsv",
+      "published": "main-proton-isolation-20261006/float-cpu-off.tsv",
+      "sourceSha256": "8fb48efb61b4d845ca3ae2a2be37852bc96fcfb5dbba223c40f26051e1c016ed",
+      "sourceBytes": 1150,
+      "publishedSha256": "8fb48efb61b4d845ca3ae2a2be37852bc96fcfb5dbba223c40f26051e1c016ed",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-cpu-on.tsv",
+      "published": "main-proton-isolation-20261006/float-cpu-on.tsv",
+      "sourceSha256": "23be99467ddd0506b6a73ff32d5e046c99f718538947883a96198bfdb9b19fdb",
+      "sourceBytes": 1145,
+      "publishedSha256": "23be99467ddd0506b6a73ff32d5e046c99f718538947883a96198bfdb9b19fdb",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/comparison.json",
+      "published": "fex-exact-store-20261006/comparison.json",
+      "sourceSha256": "8e3bcd096f7a2250d4774e530edafd5a83d57ffb54462221bb87101c70ba9fb8",
+      "sourceBytes": 6977,
+      "publishedSha256": "89ccfc061f804f7e5fe4fc4d95380b0251e0b6c264f77dcae3cb1a85f1689eeb",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "8e3bcd096f7a2250d4774e530edafd5a83d57ffb54462221bb87101c70ba9fb8",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/probe-validation.json",
+      "published": "fex-exact-store-20261006/probe-validation.json",
+      "sourceSha256": "d5c321fa3237945f03055d57a33477106d8d349dc11bcb7c6523005ae47eceb5",
+      "sourceBytes": 302,
+      "publishedSha256": "395d4b8184b91d7a67e4eee7f7cead1124f7c5ec5a4955cabf24159770e8eb1d",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "d5c321fa3237945f03055d57a33477106d8d349dc11bcb7c6523005ae47eceb5",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/exact-off.tsv",
+      "published": "fex-exact-store-20261006/exact-off.tsv",
+      "sourceSha256": "1c72de201ddb34aa082da965893caef78b0cf3877010993f09bf61361d10dba8",
+      "sourceBytes": 2540,
+      "publishedSha256": "1c72de201ddb34aa082da965893caef78b0cf3877010993f09bf61361d10dba8",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/exact-on.tsv",
+      "published": "fex-exact-store-20261006/exact-on.tsv",
+      "sourceSha256": "2a2ce032cbd3d37fba8b6b4ccd3f24e6156cdc23dcb1db73d414ea658ff724fd",
+      "sourceBytes": 2534,
+      "publishedSha256": "2a2ce032cbd3d37fba8b6b4ccd3f24e6156cdc23dcb1db73d414ea658ff724fd",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/exact-native.tsv",
+      "published": "fex-exact-store-20261006/exact-native.tsv",
+      "sourceSha256": "dac4d741f53c54cc747f9e1fec507217553b9127eac594ba64841bb5b9d6f8ab",
+      "sourceBytes": 2337,
+      "publishedSha256": "dac4d741f53c54cc747f9e1fec507217553b9127eac594ba64841bb5b9d6f8ab",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/exact-cpu-current.tsv",
+      "published": "fex-exact-store-20261006/exact-cpu-current.tsv",
+      "sourceSha256": "9dc0eaaa44bb429a2e916f6f9469a92c7e140f94ac693cb2f0de5b374125c36e",
+      "sourceBytes": 1142,
+      "publishedSha256": "9dc0eaaa44bb429a2e916f6f9469a92c7e140f94ac693cb2f0de5b374125c36e",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/fex-exact-store.patch",
+      "published": "fex-exact-store-20261006/fex-exact-store.patch",
+      "sourceSha256": "9cd02c1e307eabead21336b6657013bb76e6b20087329c9c835854b7822767d4",
+      "sourceBytes": 6048,
+      "publishedSha256": "9cd02c1e307eabead21336b6657013bb76e6b20087329c9c835854b7822767d4",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/build-validation.json",
+      "published": "fex-exact-store-20261006/build-validation.json",
+      "sourceSha256": "826d14497f8141a0033a713613e0c4566e1882e46f3608401de7b51d0afd8b43",
+      "sourceBytes": 4497,
+      "publishedSha256": "826d14497f8141a0033a713613e0c4566e1882e46f3608401de7b51d0afd8b43",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/package-identity.json",
+      "published": "fex-exact-store-20261006/package-identity.json",
+      "sourceSha256": "8117fc7d21926a37f74afa130b7cd31f6bb9713a95053019c87bf64a7542967c",
+      "sourceBytes": 4850,
+      "publishedSha256": "00a912bf480f07e2ff2be49655d0abb23198d9b572b31915ecc7aa3d1bc2936e",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "8117fc7d21926a37f74afa130b7cd31f6bb9713a95053019c87bf64a7542967c",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/source-validation.json",
+      "published": "fex-exact-store-20261006/source-validation.json",
+      "sourceSha256": "15146b2765fb084fc833088aac853cbac84ae00d7b2a399d7edbf4b4d280f56c",
+      "sourceBytes": 244,
+      "publishedSha256": "15146b2765fb084fc833088aac853cbac84ae00d7b2a399d7edbf4b4d280f56c",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/summarize.py",
+      "published": "fex-exact-store-20261006/summarize.py",
+      "sourceSha256": "561af4ca87d8087682024b2b068e057d303fa922a315128209e2cc974db143d5",
+      "sourceBytes": 1890,
+      "publishedSha256": "561af4ca87d8087682024b2b068e057d303fa922a315128209e2cc974db143d5",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/build-probe.sh",
+      "published": "fex-exact-store-20261006/build-probe.sh",
+      "sourceSha256": "b0ec385e8eb021028c7dac35b901e9407eda3aa4bbf69bab94062a7493bb0984",
+      "sourceBytes": 393,
+      "publishedSha256": "b0ec385e8eb021028c7dac35b901e9407eda3aa4bbf69bab94062a7493bb0984",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/prepare-clean.py",
+      "published": "fex-exact-store-20261006/prepare-clean.py",
+      "sourceSha256": "2aa7119e497b0773bfff9b911c224514972097df72586ba3f6668d6d376ea9dc",
+      "sourceBytes": 4847,
+      "publishedSha256": "2aa7119e497b0773bfff9b911c224514972097df72586ba3f6668d6d376ea9dc",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/comparison.json",
+      "published": "fex-exact-clean-20261006/comparison.json",
+      "sourceSha256": "35e8cd1b7311d6b791d4de971fcbdf97a4c06a4880a4a2965402f5a4da98ec64",
+      "sourceBytes": 4021,
+      "publishedSha256": "d2b163923e48a65ab7f0008874de07607fb71239833e60b70cb1c6a0893b683c",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "35e8cd1b7311d6b791d4de971fcbdf97a4c06a4880a4a2965402f5a4da98ec64",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize text newlines or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/gl-summary.json",
+      "published": "fex-exact-clean-20261006/gl-summary.json",
+      "sourceSha256": "f40f7a8ef5bac5820f2f6d837eb52f6fdc2092c6a492ed9e3e9432f2d5f678bd",
+      "sourceBytes": 3408,
+      "publishedSha256": "89bd6260f92f2973728f1dc9b085219014d4bf28f98865a8e2936da08e591532",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "f40f7a8ef5bac5820f2f6d837eb52f6fdc2092c6a492ed9e3e9432f2d5f678bd",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/fallback-caller-attribution.json",
+      "published": "fex-exact-clean-20261006/fallback-caller-attribution.json",
+      "sourceSha256": "1718d6d2def65f6d3c6f2c5ec954ce635b321f17fbb9b8993265df037a4e857b",
+      "sourceBytes": 37259,
+      "publishedSha256": "34df953e0c6338ef070baf89e205c1ad12f2b64936de6ad0aaf9e2c507c0a8a0",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "1718d6d2def65f6d3c6f2c5ec954ce635b321f17fbb9b8993265df037a4e857b",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/packaged-pe-math.json",
+      "published": "fex-exact-clean-20261006/packaged-pe-math.json",
+      "sourceSha256": "252609d81565165355b2abbb5a18322fbacd51dbc605b98ff8b7b6cbc4b6403a",
+      "sourceBytes": 2929,
+      "publishedSha256": "252609d81565165355b2abbb5a18322fbacd51dbc605b98ff8b7b6cbc4b6403a",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/probe-validation.json",
+      "published": "fex-exact-clean-20261006/probe-validation.json",
+      "sourceSha256": "80eeb82cbca6f516d3b4cc4043de70be7b87c80a5af770382d03e24815686f6d",
+      "sourceBytes": 312,
+      "publishedSha256": "d815240ea5c9fd7dfd88afaff491dfeebfce41895134077e926baaaeeaf2d46b",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "80eeb82cbca6f516d3b4cc4043de70be7b87c80a5af770382d03e24815686f6d",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/exact-off.tsv",
+      "published": "fex-exact-clean-20261006/exact-off.tsv",
+      "sourceSha256": "c933188310d7995e19a17025475b38be0039db17ca438badc30b6c43c916096d",
+      "sourceBytes": 2540,
+      "publishedSha256": "c933188310d7995e19a17025475b38be0039db17ca438badc30b6c43c916096d",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/exact-on.tsv",
+      "published": "fex-exact-clean-20261006/exact-on.tsv",
+      "sourceSha256": "d913433037e562aa996f0b40ac774825194f66df59e1f38ac98b2546ab144271",
+      "sourceBytes": 2534,
+      "publishedSha256": "d913433037e562aa996f0b40ac774825194f66df59e1f38ac98b2546ab144271",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/exact-store-probe.c",
+      "published": "fex-exact-clean-20261006/exact-store-probe.c",
+      "sourceSha256": "2afb579a47735d4fb4174a19ce7f4d372721c5ca605e00fb78adb4b92f70960a",
+      "sourceBytes": 4956,
+      "publishedSha256": "2afb579a47735d4fb4174a19ce7f4d372721c5ca605e00fb78adb4b92f70960a",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/fex-exact-store.patch",
+      "published": "fex-exact-clean-20261006/fex-exact-store.patch",
+      "sourceSha256": "a939477f54dbef833153bb0ba9d0c047eac8eb1c272ae3fb8f39f9189e61fc55",
+      "sourceBytes": 6024,
+      "publishedSha256": "a939477f54dbef833153bb0ba9d0c047eac8eb1c272ae3fb8f39f9189e61fc55",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/build-validation.json",
+      "published": "fex-exact-clean-20261006/build-validation.json",
+      "sourceSha256": "65e3a41621fca3d8eacba0ffbe9768aaf62eaf6697a1b4a9246fd516a383674a",
+      "sourceBytes": 4497,
+      "publishedSha256": "65e3a41621fca3d8eacba0ffbe9768aaf62eaf6697a1b4a9246fd516a383674a",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/source-validation.json",
+      "published": "fex-exact-clean-20261006/source-validation.json",
+      "sourceSha256": "144f417de5ec584d7cb7f8b76d5512f129ebee0ae2efba619812ea2c1b078e46",
+      "sourceBytes": 244,
+      "publishedSha256": "144f417de5ec584d7cb7f8b76d5512f129ebee0ae2efba619812ea2c1b078e46",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/source-basis.json",
+      "published": "fex-exact-clean-20261006/source-basis.json",
+      "sourceSha256": "c879e3c416697a0c68372d68a9008424f4ee323fd286c1f4b6b4fd19abdaf9ea",
+      "sourceBytes": 438,
+      "publishedSha256": "c879e3c416697a0c68372d68a9008424f4ee323fd286c1f4b6b4fd19abdaf9ea",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/package-identity.json",
+      "published": "fex-exact-clean-20261006/package-identity.json",
+      "sourceSha256": "9be59a77ae8f3d51903a1b0a64468cac61e70aeba0d4a09a50e195915ebc2181",
+      "sourceBytes": 4782,
+      "publishedSha256": "10f32fec751a84ff70880b1dbcd065f3869aa5a4bdf2262cddb17c81a955dec4",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "9be59a77ae8f3d51903a1b0a64468cac61e70aeba0d4a09a50e195915ebc2181",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/validate-probe.py",
+      "published": "fex-exact-clean-20261006/validate-probe.py",
+      "sourceSha256": "8531be0259bf0bfcb3dbd3c49e8b024f7fa0378ed738ef1fdff77ad37dc95de1",
+      "sourceBytes": 1091,
+      "publishedSha256": "8531be0259bf0bfcb3dbd3c49e8b024f7fa0378ed738ef1fdff77ad37dc95de1",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/attribute-fallback-callers.py",
+      "published": "fex-exact-clean-20261006/attribute-fallback-callers.py",
+      "sourceSha256": "a3d406f1279142991b02087c60dcc426f392fcaf8c98d3829b2c3bd120a76a12",
+      "sourceBytes": 3514,
+      "publishedSha256": "a3d406f1279142991b02087c60dcc426f392fcaf8c98d3829b2c3bd120a76a12",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/inspect-pe-math.py",
+      "published": "fex-exact-clean-20261006/inspect-pe-math.py",
+      "sourceSha256": "de1a2721876a6490fd20ba6cfa241c4cd89ab11f85f6577931f476a0cad294de",
+      "sourceBytes": 2338,
+      "publishedSha256": "de1a2721876a6490fd20ba6cfa241c4cd89ab11f85f6577931f476a0cad294de",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/summarize.py",
+      "published": "fex-exact-clean-20261006/summarize.py",
+      "sourceSha256": "72a0e9e138c8eea1a2226cbb3feb4e445c3b7d1c0ba91ffeb173dd57b02c1066",
+      "sourceBytes": 1882,
+      "publishedSha256": "51a07e7f2856020797e0550fdfdb437bda7c7c7502882c87981fa259bb7d1000",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "72a0e9e138c8eea1a2226cbb3feb4e445c3b7d1c0ba91ffeb173dd57b02c1066",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize text newlines or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/summarize-gl.py",
+      "published": "fex-exact-clean-20261006/summarize-gl.py",
+      "sourceSha256": "ed219832698cfa34fa9d5ee61d0e7de65fdbe43c713bee5a6fc5a07d1f8263f4",
+      "sourceBytes": 1683,
+      "publishedSha256": "ed219832698cfa34fa9d5ee61d0e7de65fdbe43c713bee5a6fc5a07d1f8263f4",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/build.sh",
+      "published": "fex-exact-clean-20261006/build.sh",
+      "sourceSha256": "fa231376a9e63411643e0fa14c8b848a5dd6a6065fce6aff05f9324426f28393",
+      "sourceBytes": 905,
+      "publishedSha256": "fa231376a9e63411643e0fa14c8b848a5dd6a6065fce6aff05f9324426f28393",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/validate-source.py",
+      "published": "fex-exact-clean-20261006/validate-source.py",
+      "sourceSha256": "b6e29f8556ed2992e51b4c7e13909a2e799a98d3a823323bdfaa18e97a3dc010",
+      "sourceBytes": 1484,
+      "publishedSha256": "b6e29f8556ed2992e51b4c7e13909a2e799a98d3a823323bdfaa18e97a3dc010",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/run.py",
+      "published": "fex-exact-clean-20261006/run.py",
+      "sourceSha256": "5a21393740e94de74a9a9f3534a391a8bd68a3e8a3d61b596381763ee8abe993",
+      "sourceBytes": 1292,
+      "publishedSha256": "5a21393740e94de74a9a9f3534a391a8bd68a3e8a3d61b596381763ee8abe993",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/capture.py",
+      "published": "fex-exact-clean-20261006/capture.py",
+      "sourceSha256": "e36c1437a19d76f6723cd587cb6f2645e25e7c3238ebc695c2ebc2766eeaa01e",
+      "sourceBytes": 2110,
+      "publishedSha256": "e36c1437a19d76f6723cd587cb6f2645e25e7c3238ebc695c2ebc2766eeaa01e",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/navigate.py",
+      "published": "fex-exact-clean-20261006/navigate.py",
+      "sourceSha256": "eec808c7320edb8d819cf62e1f2903138a41c1a77f7fcdd05c05b19a2f44e2fc",
+      "sourceBytes": 656,
+      "publishedSha256": "eec808c7320edb8d819cf62e1f2903138a41c1a77f7fcdd05c05b19a2f44e2fc",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-softfloat-lto-20261006/cpu-lto-comparison.json",
+      "published": "fex-softfloat-lto-20261006/cpu-lto-comparison.json",
+      "sourceSha256": "d6f21ed8c691fc829a509e59d378df761006d4c155229ac954e265c0f73463dd",
+      "sourceBytes": 5988,
+      "publishedSha256": "7176ac2960e813906971e669c76e32b01d1c366a4699389005a935fad3bf7b37",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "d6f21ed8c691fc829a509e59d378df761006d4c155229ac954e265c0f73463dd",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-softfloat-lto-20261006/cpu-lto.tsv",
+      "published": "fex-softfloat-lto-20261006/cpu-lto.tsv",
+      "sourceSha256": "f3e037161989201e9925aabffa81b933d0da0115e0b29f6a6e30b708da7dfcba",
+      "sourceBytes": 1142,
+      "publishedSha256": "f3e037161989201e9925aabffa81b933d0da0115e0b29f6a6e30b708da7dfcba",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-softfloat-lto-20261006/automatic-paired-summary.json",
+      "published": "fex-softfloat-lto-20261006/automatic-paired-summary.json",
+      "sourceSha256": "701a0326e0de97e854af471b5d7153a8c75559b30cbc4b774c483ffb78af9eb7",
+      "sourceBytes": 20079,
+      "publishedSha256": "73dd4655e3ed190876770b45125f5761ceb051a392f6f83b07c46b083ec77a15",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "701a0326e0de97e854af471b5d7153a8c75559b30cbc4b774c483ffb78af9eb7",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-softfloat-lto-20261006/build-validation.json",
+      "published": "fex-softfloat-lto-20261006/build-validation.json",
+      "sourceSha256": "f45b13d75343767c63e7949515c0c677cb43e1641b72625fa02e0fe6f6ee6137",
+      "sourceBytes": 4497,
+      "publishedSha256": "f45b13d75343767c63e7949515c0c677cb43e1641b72625fa02e0fe6f6ee6137",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-softfloat-lto-20261006/package-identity.json",
+      "published": "fex-softfloat-lto-20261006/package-identity.json",
+      "sourceSha256": "e06c84f862a677887d4a121ba5cf21617e81a47c14b8f239bca1499adc5d13bc",
+      "sourceBytes": 4696,
+      "publishedSha256": "e06c84f862a677887d4a121ba5cf21617e81a47c14b8f239bca1499adc5d13bc",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-softfloat-lto-20261006/thinlto-boundaries.patch",
+      "published": "fex-softfloat-lto-20261006/thinlto-boundaries.patch",
+      "sourceSha256": "0ebce020fd41891069a73502eff1dcaaab909c7ed165a142a15fc0c3e8652ea9",
+      "sourceBytes": 1170,
+      "publishedSha256": "0ebce020fd41891069a73502eff1dcaaab909c7ed165a142a15fc0c3e8652ea9",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-softfloat-lto-20261006/reproduce-build.sh",
+      "published": "fex-softfloat-lto-20261006/reproduce-build.sh",
+      "sourceSha256": "655022d7bfe5d6da3deb51edeee38f3f79440e2096c9d3477a2a4165adeb96d9",
+      "sourceBytes": 1257,
+      "publishedSha256": "655022d7bfe5d6da3deb51edeee38f3f79440e2096c9d3477a2a4165adeb96d9",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/fex-jit-symbols-20261006/symbolize_jit_profile.py",
+      "published": "fex-jit-symbols-20261006/symbolize_jit_profile.py",
+      "sourceSha256": "c34acd4c34e5dc16c3f659615b85b859dd4eded6b6dd471a5f495ccdab8447c8",
+      "sourceBytes": 7410,
+      "publishedSha256": "c34acd4c34e5dc16c3f659615b85b859dd4eded6b6dd471a5f495ccdab8447c8",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/box-cold-v2-events.json",
+      "published": "main-proton-isolation-20261006/box-cold-v2-events.json",
+      "sourceSha256": "b65263d8fbc0dfb1c60754f105331c848ca6e7551649911b630c64a63e5bb7b4",
+      "sourceBytes": 438,
+      "publishedSha256": "e0c44ae17fbedba044a7f54a17d168ec9ab4934fb60ab755c81611f765e2b7d7",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "b65263d8fbc0dfb1c60754f105331c848ca6e7551649911b630c64a63e5bb7b4",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/box-cold-v2-fps.txt",
+      "published": "main-proton-isolation-20261006/box-cold-v2-fps.txt",
+      "sourceSha256": "d4e2a45729722d10183974fb6308d204bb4a3b63690d57e3dadea0f963bb2ba7",
+      "sourceBytes": 218830,
+      "publishedSha256": "1ad935fee8b9ccc9078670b29527edf58ff975b2d66315aa698142288ab91183",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/box-cold-v2-profile.txt",
+      "published": "main-proton-isolation-20261006/box-cold-v2-profile.txt",
+      "sourceSha256": "c167a456d0dec76ed9c3763dd976e222068182dfc0b7c56f8c8bbc0b593e5188",
+      "sourceBytes": 320,
+      "publishedSha256": "1366df67d142b1fb1506cd6b8af6a9a524ec7de1f42cbc1fbb98e4e66b0e04d9",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "c167a456d0dec76ed9c3763dd976e222068182dfc0b7c56f8c8bbc0b593e5188",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/box-warm-events.json",
+      "published": "main-proton-isolation-20261006/box-warm-events.json",
+      "sourceSha256": "e0c082c90549706968132e9a8947aefa1adbf16f2c48dc753543533647754b9f",
+      "sourceBytes": 438,
+      "publishedSha256": "be7b73ee810aae19566fe1993af30b40e25441d1d98d6cc2e69411b3168c40ef",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "e0c082c90549706968132e9a8947aefa1adbf16f2c48dc753543533647754b9f",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/box-warm-fps.txt",
+      "published": "main-proton-isolation-20261006/box-warm-fps.txt",
+      "sourceSha256": "30c9bcff3dc9c482d22ee532e9551db692e1a3da62b731606fbc57587428edbd",
+      "sourceBytes": 247854,
+      "publishedSha256": "f052512e59f759d2e13693e324cca8b624af1401d76154c8f165f49878d14527",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/box-warm-profile.txt",
+      "published": "main-proton-isolation-20261006/box-warm-profile.txt",
+      "sourceSha256": "9116ef04b4cc3b71875e29f72338686f0411c1bddadd51010db8afcb6c0ebecb",
+      "sourceBytes": 320,
+      "publishedSha256": "b340e98f57014b2417790b60ae5df7ecc6da0385ecdec831be0d6be90b22848d",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "9116ef04b4cc3b71875e29f72338686f0411c1bddadd51010db8afcb6c0ebecb",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/fex-cold-events.json",
+      "published": "main-proton-isolation-20261006/fex-cold-events.json",
+      "sourceSha256": "465a4647ec7640365ef52f4aa8f4452f01669c9421df53d330cbe74b8688daff",
+      "sourceBytes": 438,
+      "publishedSha256": "0b4dea597ee78ef266881ae2dc27911525991935415a31601a76d9cb7192745d",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "465a4647ec7640365ef52f4aa8f4452f01669c9421df53d330cbe74b8688daff",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/fex-cold-fps.txt",
+      "published": "main-proton-isolation-20261006/fex-cold-fps.txt",
+      "sourceSha256": "2b7c3a83b12789a5f3a7429359a7bc731f5118d0b91d79c3f6991cad8429c95c",
+      "sourceBytes": 141687,
+      "publishedSha256": "01bdb8384f35aa1c586351adbb5cf87e06356cc2d8f9b42e6a49f6f88c16a688",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/fex-cold-profile.txt",
+      "published": "main-proton-isolation-20261006/fex-cold-profile.txt",
+      "sourceSha256": "b1a06abbbd6df4c1f6ec16bb6945d6f9ed27f9683854f2c5350272766253f575",
+      "sourceBytes": 320,
+      "publishedSha256": "f3aa5445ff8f9be78dd7e8d35e3dac3bfab6bf12b8d6d7509fbc9943b0b4ece9",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "b1a06abbbd6df4c1f6ec16bb6945d6f9ed27f9683854f2c5350272766253f575",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/fex-warm-events.json",
+      "published": "main-proton-isolation-20261006/fex-warm-events.json",
+      "sourceSha256": "6512a19e5553be0aef448f9174c2f21684f3ffcedd11462293bc188c1268f0b8",
+      "sourceBytes": 438,
+      "publishedSha256": "b36dae893959371fb6e21076bb97344c7f29a8e595c153e8e84bcb52727fc193",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "6512a19e5553be0aef448f9174c2f21684f3ffcedd11462293bc188c1268f0b8",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/fex-warm-fps.txt",
+      "published": "main-proton-isolation-20261006/fex-warm-fps.txt",
+      "sourceSha256": "cc77e2e632d3e3a6c1de4914c54553ec30bdbc39a1f546e83acae5452d0f8c32",
+      "sourceBytes": 168091,
+      "publishedSha256": "77f95f8dee374eaef10fd1e134d2480216b7dcc4e3d7ef0ee7029aa61cd5bc26",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/fex-warm-profile.txt",
+      "published": "main-proton-isolation-20261006/fex-warm-profile.txt",
+      "sourceSha256": "517600776f1e62ff1d26dbb4546fc3b3c9c4a20f5e62f4eb8dc76febd81cd1a2",
+      "sourceBytes": 320,
+      "publishedSha256": "ba94758759963eb186fe3c39836149742969abbb1845bbc6d1bacd61d48a80d1",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "517600776f1e62ff1d26dbb4546fc3b3c9c4a20f5e62f4eb8dc76febd81cd1a2",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/off-cold-events.json",
+      "published": "fex-exact-store-20261006/off-cold-events.json",
+      "sourceSha256": "a74a83fb630f9691441369422a6ab5f552e6c06924efcb57b75aea76a14714d2",
+      "sourceBytes": 438,
+      "publishedSha256": "f9cd03de777f3489f3565a565f3dd847a67aefde61c562b803a36fa83de30444",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "a74a83fb630f9691441369422a6ab5f552e6c06924efcb57b75aea76a14714d2",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/off-cold-fps.txt",
+      "published": "fex-exact-store-20261006/off-cold-fps.txt",
+      "sourceSha256": "737ae9e9c85718746a70d6691bd40ae74e5f9b2e641ec790c5fa692fe10ea28f",
+      "sourceBytes": 102648,
+      "publishedSha256": "f755af7bdcaf1a11e38c518af4f344e7a17d71ead8200206f0444f8db0db0165",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/off-cold-profile.txt",
+      "published": "fex-exact-store-20261006/off-cold-profile.txt",
+      "sourceSha256": "77945bc82e25ffab5a9d3de27778e40ce68b2ccae7ec0a8c3d7f5e4a7e2ef6a7",
+      "sourceBytes": 320,
+      "publishedSha256": "5cba03b43d338e853ea0b5efe3d044d510b958ee1ae9bfd7b172b914605f0f2d",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "77945bc82e25ffab5a9d3de27778e40ce68b2ccae7ec0a8c3d7f5e4a7e2ef6a7",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/off-warm-events.json",
+      "published": "fex-exact-store-20261006/off-warm-events.json",
+      "sourceSha256": "2c2ddaaa6e5d858dee44adbcb54c56847580adb86ba0ba9abefd05b8fee8d306",
+      "sourceBytes": 438,
+      "publishedSha256": "cfedd6c4da0aa4ca4856d36bf3f28c1eaedc5501caabe73cd6ed9b0cd4d47555",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "2c2ddaaa6e5d858dee44adbcb54c56847580adb86ba0ba9abefd05b8fee8d306",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/off-warm-fps.txt",
+      "published": "fex-exact-store-20261006/off-warm-fps.txt",
+      "sourceSha256": "cb216768198fae859111a02612d8ff9d26d5992833324e7d59721844f0f15fd6",
+      "sourceBytes": 129790,
+      "publishedSha256": "3f069f490c7f585ad0e6549279519bce165eb54ed47ff40589b7775c84a6e049",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/off-warm-profile.txt",
+      "published": "fex-exact-store-20261006/off-warm-profile.txt",
+      "sourceSha256": "2ad6331c46fd9b6720a119ec06c94cf209b010c31cde7dff4fd62a0e7ae63c6f",
+      "sourceBytes": 320,
+      "publishedSha256": "80433181831360768e90a5fc9d62fdbd9cdbb9bcca5703c471f021e25e47f287",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "2ad6331c46fd9b6720a119ec06c94cf209b010c31cde7dff4fd62a0e7ae63c6f",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/on-cold-events.json",
+      "published": "fex-exact-store-20261006/on-cold-events.json",
+      "sourceSha256": "05fb169f6638fe7665ba12928b49b78f2c48c811d5c558733c7e28c5cf2225ac",
+      "sourceBytes": 438,
+      "publishedSha256": "9ba07ecc903180eb46f995b59f95acf7a78854491ad59c35f8be0316ba7f11b5",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "05fb169f6638fe7665ba12928b49b78f2c48c811d5c558733c7e28c5cf2225ac",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/on-cold-fps.txt",
+      "published": "fex-exact-store-20261006/on-cold-fps.txt",
+      "sourceSha256": "f8e69254a01feb892aa1589da9b7bd044b960577cfd26ff7324e68304c0951d7",
+      "sourceBytes": 176856,
+      "publishedSha256": "a2224170a88ab507580f652e00b3b0205c87d66a64ad8217424a3275cc50ee62",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/on-cold-profile.txt",
+      "published": "fex-exact-store-20261006/on-cold-profile.txt",
+      "sourceSha256": "59058b60b2dfaf80d17e64884200b699c74241beb684a30bf2d41194dc0c6556",
+      "sourceBytes": 320,
+      "publishedSha256": "11c847a862821368624f9f115309cbfe202fccd1027c58e03e3da77b0b8bec8f",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "59058b60b2dfaf80d17e64884200b699c74241beb684a30bf2d41194dc0c6556",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/on-warm-events.json",
+      "published": "fex-exact-store-20261006/on-warm-events.json",
+      "sourceSha256": "077df7ba8cb4d600a3f25b09474b9b635470acc7572d9ce6e47e75f7cd6f7a74",
+      "sourceBytes": 438,
+      "publishedSha256": "746bb309d34c6cab136fcf23ab9158099d86f1a49762639d3e3a350078ca4f74",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "077df7ba8cb4d600a3f25b09474b9b635470acc7572d9ce6e47e75f7cd6f7a74",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/on-warm-fps.txt",
+      "published": "fex-exact-store-20261006/on-warm-fps.txt",
+      "sourceSha256": "2ced08b2ade24d4037a588847e70518eecb814f6285b5d94c3cf1f3237bb8348",
+      "sourceBytes": 206809,
+      "publishedSha256": "77fda160073921c69d6d8e7bdaa7472c2617f2a35ec40ec46b714dff6ef262a3",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-store-20261006/on-warm-profile.txt",
+      "published": "fex-exact-store-20261006/on-warm-profile.txt",
+      "sourceSha256": "b0a70680968daba0d85e4840b1c0d5c386bfbfe9955e75b68888dd7acee26c86",
+      "sourceBytes": 320,
+      "publishedSha256": "4fdb25d286e373108aa272667f3a36bd88cedd58d30ec0d88bd6ff98e7b6f956",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "b0a70680968daba0d85e4840b1c0d5c386bfbfe9955e75b68888dd7acee26c86",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-cold-events.json",
+      "published": "fex-exact-clean-20261006/on-cold-events.json",
+      "sourceSha256": "542877421a4fdc3eac1403eb00ade2437e81016180ead0aca076dda6c9ac04f7",
+      "sourceBytes": 438,
+      "publishedSha256": "6dba5bbe1b18988d5eb4e382340e1a9b938cece22368d0e43f46bea21fde81cd",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "542877421a4fdc3eac1403eb00ade2437e81016180ead0aca076dda6c9ac04f7",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-cold-fps.txt",
+      "published": "fex-exact-clean-20261006/on-cold-fps.txt",
+      "sourceSha256": "6d213cc7f044622b4e9ac43969ac5d51c76291432668f4e2168978d46e6a8643",
+      "sourceBytes": 166442,
+      "publishedSha256": "375ac3b070c61196a81f37c079fe9f9ac35a9bbedbdddb036f031d2e41a8c437",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-cold-profile.txt",
+      "published": "fex-exact-clean-20261006/on-cold-profile.txt",
+      "sourceSha256": "193452e76a47badd3672f00ef9c2f1b0372e0ebbe8f689eb9940c60ccc571985",
+      "sourceBytes": 320,
+      "publishedSha256": "1c49176d85ddfb455f1fbe1ba359dcec104e5bb289af392cbd86001de35fd4ae",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "193452e76a47badd3672f00ef9c2f1b0372e0ebbe8f689eb9940c60ccc571985",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-warm-events.json",
+      "published": "fex-exact-clean-20261006/on-warm-events.json",
+      "sourceSha256": "acbd171b2ac1f4ed027ff6ffd7b861d72539d9bcc8fc785ae1d1db5c1c75e197",
+      "sourceBytes": 438,
+      "publishedSha256": "f02f4a8e5583eb1df8355061f33c2aa7122bb8f96dcbb8722ab590e78f7df4f9",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "acbd171b2ac1f4ed027ff6ffd7b861d72539d9bcc8fc785ae1d1db5c1c75e197",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-warm-fps.txt",
+      "published": "fex-exact-clean-20261006/on-warm-fps.txt",
+      "sourceSha256": "f6456199927d6115c99cd711ef77e4a21cb37a6aff849d7e526a21353b9714a3",
+      "sourceBytes": 193259,
+      "publishedSha256": "710e7972e8246720dc7f86a352fe10eb3dd57550349571a76e37bd5cb3dd99e9",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-warm-profile.txt",
+      "published": "fex-exact-clean-20261006/on-warm-profile.txt",
+      "sourceSha256": "36652b76b343a490b7ea7c8df4168400fba11be75ff2db1199ce46a1f88345aa",
+      "sourceBytes": 320,
+      "publishedSha256": "86107a7a15b216ed2d3167733cc30b0d6e0015ee3187f3ea598ebcac47957044",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "36652b76b343a490b7ea7c8df4168400fba11be75ff2db1199ce46a1f88345aa",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-cold-before.txt",
+      "published": "main-proton-isolation-20261006/float-cold-before.txt",
+      "sourceSha256": "5e4312c20d848c2f39095404de77172c60a3937109d83954f9f74b41f10ce8e2",
+      "sourceBytes": 140240,
+      "publishedSha256": "acb5a01b43463e7efb7b6d68eb30f8657660ab851d499548e7ce722cb4bc7cdc",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-cold-after.txt",
+      "published": "main-proton-isolation-20261006/float-cold-after.txt",
+      "sourceSha256": "9678418e63953da71ba636034faa1999a8b13f12026ceaacb67be32376656c23",
+      "sourceBytes": 168322,
+      "publishedSha256": "fde4ac2487e4bdffd51fc6c62f2145e2b42549814932048f54f9189e911f3116",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-warm-before.txt",
+      "published": "main-proton-isolation-20261006/float-warm-before.txt",
+      "sourceSha256": "f3baa696d4b8f72b2fa671b40fc967af5722651f5d853f2cdf9e185a5ba31e73",
+      "sourceBytes": 140266,
+      "publishedSha256": "c59eb261ce7bdb0f5ededd9ad58acdc843ec78c04379be7340b843d917b8c869",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-warm-after.txt",
+      "published": "main-proton-isolation-20261006/float-warm-after.txt",
+      "sourceSha256": "18f6d8812ac8e63d9cc18f9025aba9647eb9e751b1b37bc90c786d01465a5726",
+      "sourceBytes": 168239,
+      "publishedSha256": "62457bee92c475b7ca19c7f2801bd365159552c095680121640ee3d83133d115",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-cold-before.txt",
+      "published": "fex-exact-clean-20261006/on-cold-before.txt",
+      "sourceSha256": "98f438ac77509541a93d1f1ce1c23d049f5673502c5189e3058c0490b56f2024",
+      "sourceBytes": 140952,
+      "publishedSha256": "de6598427e96dff8821dcf44836679a6e97b08061aa05be904f1c95528e3b001",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-cold-after.txt",
+      "published": "fex-exact-clean-20261006/on-cold-after.txt",
+      "sourceSha256": "c64b9082191fd78455933b228d70d31140aa9ee4fbf40e97fc941c752eef1ef5",
+      "sourceBytes": 168865,
+      "publishedSha256": "b1266f8905c6aeb6c0c4c6abed1651849d460d9008beb5ca5a476a6955c398a1",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-warm-before.txt",
+      "published": "fex-exact-clean-20261006/on-warm-before.txt",
+      "sourceSha256": "49ba6d524f2f58c3f166fba5a821e5fc6d0212b87090157f4b30b84b2b9a9b0e",
+      "sourceBytes": 140771,
+      "publishedSha256": "f652554ac6cf8346a9539abd1ce78cb44dde68d1e87dbe27a0656b21ff89e3d8",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/on-warm-after.txt",
+      "published": "fex-exact-clean-20261006/on-warm-after.txt",
+      "sourceSha256": "b488b8f46252740b1b623f74b0a81d27a900debc56db9b229ccdc97e43bc60ff",
+      "sourceBytes": 168799,
+      "publishedSha256": "c39ffa02edf9664ac2c86802eaabf72d24e52c7946fdac37b97ed2c9bf147f8f",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/fex-exact-clean-20261006/automate.py",
+      "published": "fex-exact-clean-20261006/automate.py",
+      "sourceSha256": "ce8168c77037db3aa3a968e10403cb359373339183c4b0247c25554531ef92bf",
+      "sourceBytes": 4827,
+      "publishedSha256": "f50fada053e30548e7e39115d9e1f9fc250863aaea7ab16fa8e9660a34b3c1aa",
+      "transformed": true
+    },
+    {
+      "source": "scripts/patches/fex-wow64-synthetic-return.patch",
+      "published": "lineage/scripts/patches/fex-wow64-synthetic-return.patch",
+      "sourceSha256": "aba3b803fb25ae5d1e971792a9539cd60f48a1391a9e79cc0845737b16fde401",
+      "sourceBytes": 2556,
+      "publishedSha256": "aba3b803fb25ae5d1e971792a9539cd60f48a1391a9e79cc0845737b16fde401",
+      "transformed": false
+    },
+    {
+      "source": "scripts/patches/fex-windows-jit-symbols.patch",
+      "published": "lineage/scripts/patches/fex-windows-jit-symbols.patch",
+      "sourceSha256": "1769aa1547880535e8659be52db3b149fe4b37cc0a13bffafc9a834369336119",
+      "sourceBytes": 2600,
+      "publishedSha256": "1769aa1547880535e8659be52db3b149fe4b37cc0a13bffafc9a834369336119",
+      "transformed": false
+    },
+    {
+      "source": "scripts/patches/fex-windows-crt-file-open.patch",
+      "published": "lineage/scripts/patches/fex-windows-crt-file-open.patch",
+      "sourceSha256": "d8a4bb640d8cf534e8c3213f96ab87ca367573d678103e5c7a66e7ab78c7a63c",
+      "sourceBytes": 929,
+      "publishedSha256": "d8a4bb640d8cf534e8c3213f96ab87ca367573d678103e5c7a66e7ab78c7a63c",
+      "transformed": false
+    },
+    {
+      "source": "scripts/patches/fex-windows-jit-cost.patch",
+      "published": "lineage/scripts/patches/fex-windows-jit-cost.patch",
+      "sourceSha256": "e0e589966d395e534f0d6880d3f8b4eff2065ba30e16baa9cc89e1756391818e",
+      "sourceBytes": 14487,
+      "publishedSha256": "e0e589966d395e534f0d6880d3f8b4eff2065ba30e16baa9cc89e1756391818e",
+      "transformed": false
+    },
+    {
+      "source": "scripts/patches/fex-windows-file-loading.patch",
+      "published": "lineage/scripts/patches/fex-windows-file-loading.patch",
+      "sourceSha256": "32b6c09eb8ae342d7d072ff14f349d8b3402b3a0868e60e280376eeee80a608b",
+      "sourceBytes": 8042,
+      "publishedSha256": "32b6c09eb8ae342d7d072ff14f349d8b3402b3a0868e60e280376eeee80a608b",
+      "transformed": false
+    },
+    {
+      "source": "patches/wine/0037-wine-opengl-performance-summary.patch",
+      "published": "lineage/patches/wine/0037-wine-opengl-performance-summary.patch",
+      "sourceSha256": "f24331031b68edbcb8b9a98a8efef47c74e397b790b5ea89eaae3dadc0bc3933",
+      "sourceBytes": 34936,
+      "publishedSha256": "f24331031b68edbcb8b9a98a8efef47c74e397b790b5ea89eaae3dadc0bc3933",
+      "transformed": false
+    },
+    {
+      "source": "patches/wine/0038-wined3d-discard-map-invalidation.patch",
+      "published": "lineage/patches/wine/0038-wined3d-discard-map-invalidation.patch",
+      "sourceSha256": "9ddda1ab4e282bc01a63e19476b0f027fb832700af44193e517b15f258550dec",
+      "sourceBytes": 660,
+      "publishedSha256": "9ddda1ab4e282bc01a63e19476b0f027fb832700af44193e517b15f258550dec",
+      "transformed": false
+    },
+    {
+      "source": "patches/wine/0039-wined3d-opt-in-dynamic-buffer-sysmem.patch",
+      "published": "lineage/patches/wine/0039-wined3d-opt-in-dynamic-buffer-sysmem.patch",
+      "sourceSha256": "434ba19629951d5d61242aa33f44ef83592ae086ab729beb44690402e209d829",
+      "sourceBytes": 2719,
+      "publishedSha256": "434ba19629951d5d61242aa33f44ef83592ae086ab729beb44690402e209d829",
+      "transformed": false
+    },
+    {
+      "source": "patches/wine/0040-ntdll-owned-virgl-shared-low-map.patch",
+      "published": "lineage/patches/wine/0040-ntdll-owned-virgl-shared-low-map.patch",
+      "sourceSha256": "18a22c06ae3030bd99d3f3fb549fd259add0753122b1baeb255b7805963fd70e",
+      "sourceBytes": 3964,
+      "publishedSha256": "18a22c06ae3030bd99d3f3fb549fd259add0753122b1baeb255b7805963fd70e",
+      "transformed": false
+    },
+    {
+      "source": "patches/wine/0041-winebus-ohos-poll-progress.patch",
+      "published": "lineage/patches/wine/0041-winebus-ohos-poll-progress.patch",
+      "sourceSha256": "01979647c7024baa0727ffdf51579d3d4134b56bf8a19e7606161e08eafc57ac",
+      "sourceBytes": 2024,
+      "publishedSha256": "01979647c7024baa0727ffdf51579d3d4134b56bf8a19e7606161e08eafc57ac",
+      "transformed": false
+    },
+    {
+      "source": "patches/wine/0042-opengl-opt-in-wgl-lock-wait.patch",
+      "published": "lineage/patches/wine/0042-opengl-opt-in-wgl-lock-wait.patch",
+      "sourceSha256": "a864277b2f2f872903bb1e0e0219b984eaf578cafb885fc01413e87b2b052d1b",
+      "sourceBytes": 2550,
+      "publishedSha256": "a864277b2f2f872903bb1e0e0219b984eaf578cafb885fc01413e87b2b052d1b",
+      "transformed": false
+    },
+    {
+      "source": "patches/wine/0043-winebus-canonical-whgp-v2.patch",
+      "published": "lineage/patches/wine/0043-winebus-canonical-whgp-v2.patch",
+      "sourceSha256": "f883f96449550e8b61f7901fd1e2a9772572cc69c0e00ba8e2ba05228d8c4657",
+      "sourceBytes": 5490,
+      "publishedSha256": "f883f96449550e8b61f7901fd1e2a9772572cc69c0e00ba8e2ba05228d8c4657",
+      "transformed": false
+    },
+    {
+      "source": "patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch",
+      "published": "lineage/patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch",
+      "sourceSha256": "6f3f3d53c821b5b5917cde979b7e84a9b88ac3200fdbfd372d510b97d718a380",
+      "sourceBytes": 3704,
+      "publishedSha256": "6f3f3d53c821b5b5917cde979b7e84a9b88ac3200fdbfd372d510b97d718a380",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/32bit-fex-box-performance-attribution-20261005.md",
+      "published": "history/32bit-fex-box-performance-attribution-20261005.md",
+      "sourceSha256": "170f5cd2971961c6281f5541ca47fa2deda0f619ec361d099b8a302c274b6a6f",
+      "sourceBytes": 7010,
+      "publishedSha256": "170f5cd2971961c6281f5541ca47fa2deda0f619ec361d099b8a302c274b6a6f",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/32bit-virgl-cold-resource-followup-20261006.md",
+      "published": "history/32bit-virgl-cold-resource-followup-20261006.md",
+      "sourceSha256": "50993958598eaf988896d43442997f0e0ba05be490e832a61089229faaf89a3b",
+      "sourceBytes": 13395,
+      "publishedSha256": "a28b7196ec6ca2dc49ac86701ff1d30f45d8c4d0616aef4af0ca1507ce68b3b2",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "50993958598eaf988896d43442997f0e0ba05be490e832a61089229faaf89a3b",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "docs/architecture/controller-main-alignment-20261006.md",
+      "published": "history/controller-main-alignment-20261006.md",
+      "sourceSha256": "adc7c9cda9b21e968270d0289ec5a6fe6672580523bd34baef8c9acb378e9cc4",
+      "sourceBytes": 5939,
+      "publishedSha256": "adc7c9cda9b21e968270d0289ec5a6fe6672580523bd34baef8c9acb378e9cc4",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/fex-jit-cost-followup-20261006.md",
+      "published": "history/fex-jit-cost-followup-20261006.md",
+      "sourceSha256": "80b7b676c4621a45be52f8c1b7e397b52da07bdaee6c6868068aeb6b8a4abacf",
+      "sourceBytes": 6445,
+      "publishedSha256": "80b7b676c4621a45be52f8c1b7e397b52da07bdaee6c6868068aeb6b8a4abacf",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/fex-jit-crt-diagnostics-20261006.md",
+      "published": "history/fex-jit-crt-diagnostics-20261006.md",
+      "sourceSha256": "d693f70584a8d131fff2699de3865ac2096140b1f375d1248da4ba5618c947e6",
+      "sourceBytes": 11356,
+      "publishedSha256": "d693f70584a8d131fff2699de3865ac2096140b1f375d1248da4ba5618c947e6",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/fex-softfloat-lto-automatic-followup-20261006.md",
+      "published": "history/fex-softfloat-lto-automatic-followup-20261006.md",
+      "sourceSha256": "1f58816b8ed42903560040f78d97f30f54dd1ffb5269dcc9d86d40a00ba3e439",
+      "sourceBytes": 4342,
+      "publishedSha256": "1f58816b8ed42903560040f78d97f30f54dd1ffb5269dcc9d86d40a00ba3e439",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/fex-windows-file-loading-followup-20261006.md",
+      "published": "history/fex-windows-file-loading-followup-20261006.md",
+      "sourceSha256": "341f8139f9d5403524d26544b001740746d999821df3284e1d96e8adb38a185f",
+      "sourceBytes": 10579,
+      "publishedSha256": "341f8139f9d5403524d26544b001740746d999821df3284e1d96e8adb38a185f",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/richman8-cold-resource-profile-20261006.md",
+      "published": "history/richman8-cold-resource-profile-20261006.md",
+      "sourceSha256": "a4e0bf0fc0a8ac87188a27ad60df3e8903c787f2d6657830ee0aafd13f2f408f",
+      "sourceBytes": 4907,
+      "publishedSha256": "a4e0bf0fc0a8ac87188a27ad60df3e8903c787f2d6657830ee0aafd13f2f408f",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/richman8-device-performance-research-20261005.md",
+      "published": "history/richman8-device-performance-research-20261005.md",
+      "sourceSha256": "af5fa73651afac7bd8840a63ee6864c1239bc61806d782708328cebd9a67b35f",
+      "sourceBytes": 11758,
+      "publishedSha256": "d9e5b7336ebbb330a29dd72df2371eb8c649845730e51e04cb38e96f501d9a9e",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "af5fa73651afac7bd8840a63ee6864c1239bc61806d782708328cebd9a67b35f",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize text newlines or resolve historical Markdown links."
+    },
+    {
+      "source": "docs/architecture/richman8-discard-upload-followup-20261005.md",
+      "published": "history/richman8-discard-upload-followup-20261005.md",
+      "sourceSha256": "1e0705a7f1a93813253e95f619b15f3534b1d131704f305ca00010ffbabd03ec",
+      "sourceBytes": 7964,
+      "publishedSha256": "1e0705a7f1a93813253e95f619b15f3534b1d131704f305ca00010ffbabd03ec",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/richman8-dynamic-buffer-followup-20261005.md",
+      "published": "history/richman8-dynamic-buffer-followup-20261005.md",
+      "sourceSha256": "5331dd8fcf24750ab0c2186fd5eaebc054dc3b3f80fa3d8be6061a51b6ae998b",
+      "sourceBytes": 6182,
+      "publishedSha256": "5331dd8fcf24750ab0c2186fd5eaebc054dc3b3f80fa3d8be6061a51b6ae998b",
+      "transformed": false
+    },
+    {
+      "source": "docs/architecture/virgl-shared-low-map-20261006.md",
+      "published": "history/virgl-shared-low-map-20261006.md",
+      "sourceSha256": "fbd7eb60f749e230c78dee65db144fba12e89de28d3f66f3a03c833bbd6fa28b",
+      "sourceBytes": 13363,
+      "publishedSha256": "fbd7eb60f749e230c78dee65db144fba12e89de28d3f66f3a03c833bbd6fa28b",
+      "transformed": false
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-cold-events.json",
+      "published": "main-proton-isolation-20261006/float-cold-events.json",
+      "sourceSha256": "dd82597c44f59aaff43a0ea6c491e5fb110ed6ee66cc62dc1fe0a22855624525",
+      "sourceBytes": 438,
+      "publishedSha256": "943d29506f482a2afbca9e1e0ed9b0da048055a7a57b35ae6bed841a17805787",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "dd82597c44f59aaff43a0ea6c491e5fb110ed6ee66cc62dc1fe0a22855624525",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-cold-fps.txt",
+      "published": "main-proton-isolation-20261006/float-cold-fps.txt",
+      "sourceSha256": "b493d657a6ab23a0ea3d971f5047b3976d0a876223c9d1cc463ad4c4cfb2de5d",
+      "sourceBytes": 144841,
+      "publishedSha256": "8c182e9da1319d1ba1f080a19d5deb3fe01dee7f0d12e189073c7002994ed92f",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-cold-profile.txt",
+      "published": "main-proton-isolation-20261006/float-cold-profile.txt",
+      "sourceSha256": "63cc7f2e2d24ce360c209a03400f8e1dfbd7cd63682897bf454f4ab80fa33d47",
+      "sourceBytes": 320,
+      "publishedSha256": "469c343db0a2f6f90869531197fe9b3e1fef9149f339d5a50eea97a554ea8c08",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "63cc7f2e2d24ce360c209a03400f8e1dfbd7cd63682897bf454f4ab80fa33d47",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-warm-events.json",
+      "published": "main-proton-isolation-20261006/float-warm-events.json",
+      "sourceSha256": "3b383ddf131abc19c84edd1800df63d13137b41db1704b79dbf9a269ae904a60",
+      "sourceBytes": 438,
+      "publishedSha256": "9e53b382109e281a1d09a5897f04bfa82b8a17565e80cbdaf1878fe036a5ea23",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "3b383ddf131abc19c84edd1800df63d13137b41db1704b79dbf9a269ae904a60",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-warm-fps.txt",
+      "published": "main-proton-isolation-20261006/float-warm-fps.txt",
+      "sourceSha256": "fdd914c1ef7e837cb1d2efb2e07d4c299e277eabe63273a009531f15b0e126e5",
+      "sourceBytes": 169316,
+      "publishedSha256": "1f58e112d48200d55f8249fea746f95bbb873f346d91b6450c9004b20295cd76",
+      "transformed": true
+    },
+    {
+      "source": "workspace_temp/main-proton-isolation-20261006/float-warm-profile.txt",
+      "published": "main-proton-isolation-20261006/float-warm-profile.txt",
+      "sourceSha256": "20d5f90aa65ca074da2544e9020b39489547a1ec0fbaa244258147f36cecb9e0",
+      "sourceBytes": 320,
+      "publishedSha256": "b6e2f9459c70c26a2104ff25e87b316a84c522b26a1e1614996983f191e4ed91",
+      "transformed": true,
+      "copiedSha256BeforeEditorialUpdates": "20d5f90aa65ca074da2544e9020b39489547a1ec0fbaa244258147f36cecb9e0",
+      "editorialUpdate": "Clarify clean off collection incomplete, normalize non-patch text newlines/trailing spaces or resolve historical Markdown links."
+    }
+  ]
+}

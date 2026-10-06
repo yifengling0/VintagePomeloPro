@@ -1,0 +1,25 @@
+probe=pe32-route-v1 pid=448 pointerBits=32 HODLL=libwow64fex.dll frequency=10000000
+x87_saved_cw=037f x87_test_cw=037f extended_precision_check=1
+case	run	iterations	wall_ms	checksum	stable_within_run
+integer	0	5000000	7.130200	d3683fdf	1
+integer	1	5000000	7.034900	d3683fdf	1
+integer	2	5000000	7.003100	d3683fdf	1
+callret_depth16	0	100000	5.348400	d69d8319	1
+callret_depth16	1	100000	5.281800	d69d8319	1
+callret_depth16	2	100000	4.501500	d69d8319	1
+rep_copy_1MiB	0	256	10.948400	5a5a5a5a	1
+rep_copy_1MiB	1	256	7.870800	5a5a5a5a	1
+rep_copy_1MiB	2	256	8.268700	5a5a5a5a	1
+sse_mul_add	0	2000000	4.426600	c4877254	1
+sse_mul_add	1	2000000	4.467200	c4877254	1
+sse_mul_add	2	2000000	4.361000	c4877254	1
+x87_mul_add	0	200000	12.915600	3eeb01d2	1
+x87_mul_add	1	200000	14.087500	3eeb01d2	1
+x87_mul_add	2	200000	13.274500	3eeb01d2	1
+qpc_boundary	0	100000	10.679200	00000001	1
+qpc_boundary	1	100000	10.513000	00000001	1
+qpc_boundary	2	100000	10.146300	00000001	1
+sleep0_boundary	0	10000	32.066600	00002710	1
+sleep0_boundary	1	10000	30.879200	00002710	1
+sleep0_boundary	2	10000	31.138100	00002710	1
+complete=1 precision_and_repeat_checks=1 sink=a5c3b20b

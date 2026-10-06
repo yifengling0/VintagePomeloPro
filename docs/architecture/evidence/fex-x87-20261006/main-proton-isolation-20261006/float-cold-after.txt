@@ -1,0 +1,883 @@
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239926439611300 op=mul calls=1069792 samples=1048 sampled_ns=176600 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239926439611300 op=div calls=4266 samples=5 sampled_ns=1600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239926439611300 op=other calls=185269 samples=182 sampled_ns=35700 max_sample_ns=3100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239925588525300 end_ns=239926616585200 pc=0/0/4740980/0 rc=4740980/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239926616585200 op=store32 calls=854509 samples=837 sampled_ns=170400 max_sample_ns=38000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239926616585200 op=store64 calls=375 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239926616585200 op=add calls=1574713 samples=1543 sampled_ns=327900 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239926616585200 op=sub calls=439512 samples=430 sampled_ns=81500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239926616585200 op=mul calls=1799424 samples=1762 sampled_ns=291900 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239926616585200 op=div calls=105 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239926616585200 op=other calls=72342 samples=70 sampled_ns=8800 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239925959567500 end_ns=239926962410700 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239926962410700 op=store32 calls=190927 samples=187 sampled_ns=50900 max_sample_ns=1600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239926962410700 op=store64 calls=48000 samples=47 sampled_ns=9000 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239926164748800 end_ns=239927167895600 pc=0/0/237906/0 rc=237906/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239927167895600 op=store32 calls=189906 samples=186 sampled_ns=49600 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239927167895600 op=store64 calls=48000 samples=47 sampled_ns=7100 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239926439611300 end_ns=239927439647200 pc=3114452/0/0/0 rc=3051450/0/0/63002 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239927439647200 op=store32 calls=790551 samples=774 sampled_ns=130300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239927439647200 op=store64 calls=2988 samples=3 sampled_ns=1500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239927439647200 op=add calls=873760 samples=856 sampled_ns=166300 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239927439647200 op=sub calls=231823 samples=227 sampled_ns=44500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239927439647200 op=mul calls=1018958 samples=998 sampled_ns=163000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239927439647200 op=div calls=4291 samples=4 sampled_ns=1500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239927439647200 op=other calls=192081 samples=188 sampled_ns=36500 max_sample_ns=4700
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239926616585200 end_ns=239927616610700 pc=0/0/4348566/0 rc=4348566/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239927616610700 op=store32 calls=800290 samples=783 sampled_ns=138800 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239927616610700 op=store64 calls=3219 samples=3 sampled_ns=500 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239927616610700 op=add calls=1439433 samples=1409 sampled_ns=294100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239927616610700 op=sub calls=400702 samples=393 sampled_ns=89100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239927616610700 op=mul calls=1639241 samples=1606 sampled_ns=262300 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239927616610700 op=div calls=89 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239927616610700 op=other calls=65592 samples=65 sampled_ns=6200 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239926962410700 end_ns=239927964745100 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239927964745100 op=store32 calls=190927 samples=187 sampled_ns=43700 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239927964745100 op=store64 calls=48000 samples=47 sampled_ns=8600 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239927167895600 end_ns=239928181537300 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239928181537300 op=store32 calls=195011 samples=191 sampled_ns=44100 max_sample_ns=1000
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239928181537300 op=store64 calls=48960 samples=48 sampled_ns=11700 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239927439647200 end_ns=239928444282100 pc=3194476/0/0/0 rc=3129615/0/0/64861 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239928444282100 op=store32 calls=805102 samples=789 sampled_ns=133300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239928444282100 op=store64 calls=84 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239928444282100 op=add calls=896531 samples=878 sampled_ns=180900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239928444282100 op=sub calls=240056 samples=235 sampled_ns=52600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239928444282100 op=mul calls=1051630 samples=1030 sampled_ns=162300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239928444282100 op=div calls=4348 samples=4 sampled_ns=1500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239928444282100 op=other calls=196725 samples=193 sampled_ns=35700 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239927616610700 end_ns=239928644797200 pc=0/0/5223900/0 rc=5223900/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239928644797200 op=store32 calls=947527 samples=928 sampled_ns=146700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239928644797200 op=store64 calls=408 samples=1 sampled_ns=600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239928644797200 op=add calls=1732500 samples=1697 sampled_ns=330900 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239928644797200 op=sub calls=484562 samples=474 sampled_ns=103200 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239928644797200 op=mul calls=1979719 samples=1939 sampled_ns=311100 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239928644797200 op=div calls=115 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239928644797200 op=other calls=79069 samples=77 sampled_ns=12000 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239927964745100 end_ns=239928967005000 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239928967005000 op=store32 calls=190927 samples=187 sampled_ns=44000 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239928967005000 op=store64 calls=48000 samples=47 sampled_ns=7600 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239928181537300 end_ns=239929183544600 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239929183544600 op=store32 calls=190927 samples=187 sampled_ns=37100 max_sample_ns=1000
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239929183544600 op=store64 calls=48000 samples=47 sampled_ns=6600 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239928444282100 end_ns=239929444315900 pc=2755602/0/0/0 rc=2695216/0/0/60386 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239929444315900 op=store32 calls=710807 samples=696 sampled_ns=106400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239929444315900 op=store64 calls=60 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239929444315900 op=add calls=760085 samples=745 sampled_ns=135200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239929444315900 op=sub calls=204560 samples=200 sampled_ns=41800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239929444315900 op=mul calls=895259 samples=876 sampled_ns=140100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239929444315900 op=div calls=4216 samples=4 sampled_ns=2100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239929444315900 op=other calls=180615 samples=177 sampled_ns=36600 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239928644797200 end_ns=239929656365400 pc=0/0/5115115/0 rc=5115115/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239929656365400 op=store32 calls=933223 samples=914 sampled_ns=156900 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239929656365400 op=store64 calls=969 samples=1 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239929656365400 op=add calls=1694697 samples=1660 sampled_ns=331500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239929656365400 op=sub calls=474350 samples=465 sampled_ns=108000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239929656365400 op=mul calls=1934795 samples=1895 sampled_ns=296200 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239929656365400 op=div calls=105 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239929656365400 op=other calls=76976 samples=75 sampled_ns=11400 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239928967005000 end_ns=239929983700300 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239929983700300 op=store32 calls=193990 samples=190 sampled_ns=40000 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239929983700300 op=store64 calls=48960 samples=48 sampled_ns=12900 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239929183544600 end_ns=239930185487800 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239930185487800 op=store32 calls=190927 samples=187 sampled_ns=45200 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239930185487800 op=store64 calls=48000 samples=47 sampled_ns=8200 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239929444315900 end_ns=239930460546200 pc=3167200/0/0/0 rc=3102933/0/0/64267 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239930460546200 op=store32 calls=796703 samples=781 sampled_ns=130000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239930460546200 op=store64 calls=84 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239930460546200 op=add calls=889907 samples=871 sampled_ns=190500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239930460546200 op=sub calls=238239 samples=234 sampled_ns=46000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239930460546200 op=mul calls=1043237 samples=1022 sampled_ns=178200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239930460546200 op=div calls=4290 samples=4 sampled_ns=600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239930460546200 op=other calls=194740 samples=190 sampled_ns=38600 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239929656365400 end_ns=239930656486300 pc=0/0/4907908/0 rc=4907908/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239930656486300 op=store32 calls=889904 samples=872 sampled_ns=141700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239930656486300 op=store64 calls=381 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239930656486300 op=add calls=1627536 samples=1594 sampled_ns=306500 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239930656486300 op=sub calls=455446 samples=446 sampled_ns=90100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239930656486300 op=mul calls=1860262 samples=1822 sampled_ns=298200 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239930656486300 op=div calls=103 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239930656486300 op=other calls=74276 samples=73 sampled_ns=16400 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239929983700300 end_ns=239930985596700 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239930985596700 op=store32 calls=190927 samples=187 sampled_ns=43800 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239930985596700 op=store64 calls=48000 samples=47 sampled_ns=8800 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239930185487800 end_ns=239931187973200 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239931187973200 op=store32 calls=190927 samples=187 sampled_ns=35200 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239931187973200 op=store64 calls=48000 samples=47 sampled_ns=5000 max_sample_ns=500
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239930460546200 end_ns=239931460604000 pc=3184221/0/0/0 rc=3124727/0/0/59494 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239931460604000 op=store32 calls=788533 samples=772 sampled_ns=137700 max_sample_ns=14000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239931460604000 op=store64 calls=96 samples=1 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239931460604000 op=add calls=901253 samples=883 sampled_ns=174500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239931460604000 op=sub calls=246745 samples=242 sampled_ns=97900 max_sample_ns=47400
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239931460604000 op=mul calls=1058582 samples=1037 sampled_ns=164200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239931460604000 op=div calls=4344 samples=5 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239931460604000 op=other calls=184668 samples=181 sampled_ns=37700 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239930656486300 end_ns=239931667324800 pc=0/0/4645058/0 rc=4645058/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239931667324800 op=store32 calls=843860 samples=827 sampled_ns=133700 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239931667324800 op=store64 calls=942 samples=1 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239931667324800 op=add calls=1540489 samples=1509 sampled_ns=311100 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239931667324800 op=sub calls=430186 samples=421 sampled_ns=82300 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239931667324800 op=mul calls=1759101 samples=1722 sampled_ns=284100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239931667324800 op=div calls=100 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239931667324800 op=other calls=70380 samples=69 sampled_ns=14200 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239930985596700 end_ns=239931998844100 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239931998844100 op=store32 calls=195011 samples=191 sampled_ns=43600 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239931998844100 op=store64 calls=48960 samples=48 sampled_ns=6900 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239931187973200 end_ns=239932200242000 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239932200242000 op=store32 calls=193990 samples=190 sampled_ns=42900 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239932200242000 op=store64 calls=48960 samples=48 sampled_ns=8700 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239931460604000 end_ns=239932468481000 pc=2876405/0/0/0 rc=2807702/0/0/68703 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239932468481000 op=store32 calls=758798 samples=743 sampled_ns=128900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239932468481000 op=store64 calls=48 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239932468481000 op=add calls=782781 samples=767 sampled_ns=170700 max_sample_ns=12000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239932468481000 op=sub calls=206680 samples=202 sampled_ns=45300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239932468481000 op=mul calls=922165 samples=903 sampled_ns=149900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239932468481000 op=div calls=4560 samples=4 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239932468481000 op=other calls=201373 samples=197 sampled_ns=40100 max_sample_ns=3100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239931667324800 end_ns=239932667359200 pc=0/0/5555179/0 rc=5555179/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239932667359200 op=store32 calls=1008124 samples=987 sampled_ns=166400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239932667359200 op=store64 calls=432 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239932667359200 op=add calls=1841730 samples=1804 sampled_ns=337400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239932667359200 op=sub calls=515429 samples=505 sampled_ns=91100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239932667359200 op=mul calls=2105384 samples=2063 sampled_ns=313600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239932667359200 op=div calls=112 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239932667359200 op=other calls=83968 samples=82 sampled_ns=11500 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239931998844100 end_ns=239933000955500 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239933000955500 op=store32 calls=190927 samples=187 sampled_ns=39600 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239933000955500 op=store64 calls=48000 samples=47 sampled_ns=8900 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239932200242000 end_ns=239933201867500 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239933201867500 op=store32 calls=190927 samples=187 sampled_ns=43800 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239933201867500 op=store64 calls=48000 samples=47 sampled_ns=7900 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239932468481000 end_ns=239933477588900 pc=2545055/0/0/0 rc=2481829/0/0/63226 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239933477588900 op=store32 calls=684575 samples=671 sampled_ns=96200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239933477588900 op=store64 calls=36 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239933477588900 op=add calls=682520 samples=668 sampled_ns=122000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239933477588900 op=sub calls=181425 samples=178 sampled_ns=36500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239933477588900 op=mul calls=808514 samples=792 sampled_ns=129300 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239933477588900 op=div calls=4329 samples=4 sampled_ns=600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239933477588900 op=other calls=183656 samples=180 sampled_ns=29700 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239932667359200 end_ns=239933667426400 pc=0/0/5229027/0 rc=5229027/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239933667426400 op=store32 calls=950476 samples=931 sampled_ns=125500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239933667426400 op=store64 calls=1560 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239933667426400 op=add calls=1734407 samples=1699 sampled_ns=322100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239933667426400 op=sub calls=483812 samples=474 sampled_ns=87300 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239933667426400 op=mul calls=1979347 samples=1938 sampled_ns=282300 max_sample_ns=2100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239933667426400 op=div calls=109 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239933667426400 op=other calls=79316 samples=78 sampled_ns=11600 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239933000955500 end_ns=239934004321200 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239934004321200 op=store32 calls=190927 samples=187 sampled_ns=36300 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239934004321200 op=store64 calls=48000 samples=47 sampled_ns=7800 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239933201867500 end_ns=239934204695100 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239934204695100 op=store32 calls=190927 samples=187 sampled_ns=35800 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239934204695100 op=store64 calls=48000 samples=47 sampled_ns=6700 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239933477588900 end_ns=239934481245600 pc=2925732/0/0/0 rc=2864128/0/0/61604 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239934481245600 op=store32 calls=743051 samples=727 sampled_ns=105800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239934481245600 op=store64 calls=72 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239934481245600 op=add calls=816175 samples=799 sampled_ns=149700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239934481245600 op=sub calls=218549 samples=214 sampled_ns=45300 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239934481245600 op=mul calls=958192 samples=939 sampled_ns=159300 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239934481245600 op=div calls=4178 samples=4 sampled_ns=1000 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239934481245600 op=other calls=185515 samples=182 sampled_ns=29700 max_sample_ns=600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239933667426400 end_ns=239934686639900 pc=0/0/4883755/0 rc=4883755/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239934686639900 op=store32 calls=884885 samples=867 sampled_ns=133700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239934686639900 op=store64 calls=2109 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239934686639900 op=add calls=1622108 samples=1588 sampled_ns=310500 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239934686639900 op=sub calls=450953 samples=442 sampled_ns=92200 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239934686639900 op=mul calls=1848964 samples=1811 sampled_ns=271100 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239934686639900 op=div calls=100 samples=1 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239934686639900 op=other calls=74636 samples=73 sampled_ns=12700 max_sample_ns=1000
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239934004321200 end_ns=239935020831000 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239935020831000 op=store32 calls=193990 samples=190 sampled_ns=39200 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239935020831000 op=store64 calls=48960 samples=48 sampled_ns=7700 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239934204695100 end_ns=239935205455000 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239935205455000 op=store32 calls=190927 samples=187 sampled_ns=44400 max_sample_ns=1000
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239935205455000 op=store64 calls=48000 samples=47 sampled_ns=10300 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239934481245600 end_ns=239935485338900 pc=3471818/0/0/0 rc=3413061/0/0/58757 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239935485338900 op=store32 calls=838478 samples=822 sampled_ns=119100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239935485338900 op=store64 calls=1272 samples=1 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239935485338900 op=add calls=1000644 samples=980 sampled_ns=182900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239935485338900 op=sub calls=271864 samples=266 sampled_ns=49500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239935485338900 op=mul calls=1167708 samples=1143 sampled_ns=187500 max_sample_ns=7800
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239935485338900 op=div calls=4194 samples=5 sampled_ns=1000 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239935485338900 op=other calls=187658 samples=184 sampled_ns=31600 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239934686639900 end_ns=239935695351900 pc=0/0/4589979/0 rc=4589979/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239935695351900 op=store32 calls=835136 samples=817 sampled_ns=124600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239935695351900 op=store64 calls=2664 samples=2 sampled_ns=1000 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239935695351900 op=add calls=1523486 samples=1492 sampled_ns=309500 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239935695351900 op=sub calls=423490 samples=414 sampled_ns=77400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239935695351900 op=mul calls=1735118 samples=1700 sampled_ns=265600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239935695351900 op=div calls=97 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239935695351900 op=other calls=69988 samples=69 sampled_ns=11800 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239935020831000 end_ns=239936025009700 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239936025009700 op=store32 calls=190927 samples=187 sampled_ns=41200 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239936025009700 op=store64 calls=48000 samples=47 sampled_ns=9700 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239935205455000 end_ns=239936221463300 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239936221463300 op=store32 calls=195011 samples=191 sampled_ns=40700 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239936221463300 op=store64 calls=48960 samples=48 sampled_ns=10600 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239935485338900 end_ns=239936485363300 pc=6201067/0/0/8 rc=6058329/0/0/142746 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239936485363300 op=store32 calls=2120140 samples=2076 sampled_ns=265000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239936485363300 op=store64 calls=1824 samples=2 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239936485363300 op=add calls=1163676 samples=1140 sampled_ns=194500 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239936485363300 op=sub calls=216552 samples=212 sampled_ns=46900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239936485363300 op=mul calls=2372099 samples=2324 sampled_ns=277400 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239936485363300 op=div calls=70702 samples=69 sampled_ns=7300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239936485363300 op=other calls=256082 samples=251 sampled_ns=38000 max_sample_ns=1100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239935695351900 end_ns=239936695389900 pc=0/0/4834266/0 rc=4834266/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239936695389900 op=store32 calls=883207 samples=866 sampled_ns=146300 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239936695389900 op=store64 calls=2103 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239936695389900 op=add calls=1601778 samples=1569 sampled_ns=331100 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239936695389900 op=sub calls=446979 samples=438 sampled_ns=98000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239936695389900 op=mul calls=1827024 samples=1789 sampled_ns=399800 max_sample_ns=86400
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239936695389900 op=div calls=103 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239936695389900 op=other calls=73072 samples=71 sampled_ns=13200 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239936025009700 end_ns=239937041939400 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239937041939400 op=store32 calls=195011 samples=191 sampled_ns=47200 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239937041939400 op=store64 calls=48960 samples=48 sampled_ns=11000 max_sample_ns=1100
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239936221463300 end_ns=239937239405000 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239937239405000 op=store32 calls=193990 samples=190 sampled_ns=49200 max_sample_ns=1600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239937239405000 op=store64 calls=48960 samples=48 sampled_ns=11700 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239936485363300 end_ns=239937485396200 pc=38823723/0/0/8 rc=38384847/0/0/438884 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239937485396200 op=store32 calls=16572187 samples=16231 sampled_ns=1266200 max_sample_ns=49500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239937485396200 op=store64 calls=12 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239937485396200 op=add calls=7571728 samples=7416 sampled_ns=541500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239937485396200 op=sub calls=758 samples=1 sampled_ns=600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239937485396200 op=mul calls=13843739 samples=13559 sampled_ns=996100 max_sample_ns=15100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239937485396200 op=div calls=396236 samples=388 sampled_ns=34300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239937485396200 op=other calls=439071 samples=430 sampled_ns=28100 max_sample_ns=600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239936695389900 end_ns=239937695520100 pc=0/0/5979796/0 rc=5979796/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239937695520100 op=store32 calls=1087002 samples=1064 sampled_ns=246800 max_sample_ns=21900
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239937695520100 op=store64 calls=465 samples=1 sampled_ns=500 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239937695520100 op=add calls=1982198 samples=1942 sampled_ns=516800 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239937695520100 op=sub calls=554617 samples=543 sampled_ns=158000 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239937695520100 op=mul calls=2265144 samples=2219 sampled_ns=464800 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239937695520100 op=div calls=126 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239937695520100 op=other calls=90244 samples=89 sampled_ns=26500 max_sample_ns=1600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239937041939400 end_ns=239938058872700 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239938058872700 op=store32 calls=193990 samples=190 sampled_ns=52100 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239938058872700 op=store64 calls=48960 samples=48 sampled_ns=13000 max_sample_ns=1100
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239937239405000 end_ns=239938246614400 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239938246614400 op=store32 calls=190927 samples=187 sampled_ns=85400 max_sample_ns=39600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239938246614400 op=store64 calls=48000 samples=47 sampled_ns=12500 max_sample_ns=1600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239937485396200 end_ns=239938485424800 pc=34560729/0/0/8 rc=34453245/0/0/107492 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239938485424800 op=store32 calls=14872859 samples=14567 sampled_ns=1065200 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239938485424800 op=store64 calls=93 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239938485424800 op=add calls=8424464 samples=8251 sampled_ns=605900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239938485424800 op=sub calls=662 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239938485424800 op=mul calls=10989023 samples=10763 sampled_ns=789300 max_sample_ns=5800
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239938485424800 op=div calls=165631 samples=162 sampled_ns=11600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239938485424800 op=other calls=108005 samples=105 sampled_ns=13000 max_sample_ns=600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239937695520100 end_ns=239938701489400 pc=0/0/6004691/0 rc=6004691/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239938701489400 op=store32 calls=1087728 samples=1066 sampled_ns=237700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239938701489400 op=store64 calls=468 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239938701489400 op=add calls=1991674 samples=1950 sampled_ns=546000 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239938701489400 op=sub calls=556866 samples=546 sampled_ns=148700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239938701489400 op=mul calls=2276615 samples=2229 sampled_ns=501900 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239938701489400 op=div calls=172 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239938701489400 op=other calls=91168 samples=89 sampled_ns=20900 max_sample_ns=1600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239938058872700 end_ns=239939065257100 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239939065257100 op=store32 calls=190927 samples=187 sampled_ns=50400 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239939065257100 op=store64 calls=48000 samples=47 sampled_ns=7200 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239938246614400 end_ns=239939263536800 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239939263536800 op=store32 calls=195011 samples=191 sampled_ns=51700 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239939263536800 op=store64 calls=48960 samples=48 sampled_ns=13700 max_sample_ns=1100
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239938485424800 end_ns=239939485471200 pc=36697978/0/0/0 rc=36284465/0/0/413513 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239939485471200 op=store32 calls=15699085 samples=15377 sampled_ns=1135300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239939485471200 op=add calls=6874015 samples=6733 sampled_ns=465700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239939485471200 op=sub calls=4909 samples=5 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239939485471200 op=mul calls=13296433 samples=13022 sampled_ns=920600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239939485471200 op=div calls=407749 samples=399 sampled_ns=31200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239939485471200 op=other calls=415787 samples=408 sampled_ns=27800 max_sample_ns=600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239938701489400 end_ns=239939718437300 pc=0/0/5829008/0 rc=5829008/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239939718437300 op=store32 calls=1056227 samples=1034 sampled_ns=211400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239939718437300 op=store64 calls=1608 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239939718437300 op=add calls=1933906 samples=1894 sampled_ns=488300 max_sample_ns=17700
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239939718437300 op=sub calls=539224 samples=528 sampled_ns=135400 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239939718437300 op=mul calls=2208638 samples=2164 sampled_ns=439100 max_sample_ns=2100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239939718437300 op=div calls=249 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239939718437300 op=other calls=89156 samples=87 sampled_ns=22300 max_sample_ns=2000
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239939065257100 end_ns=239940081105000 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239940081105000 op=store32 calls=195011 samples=191 sampled_ns=67200 max_sample_ns=1600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239940081105000 op=store64 calls=48960 samples=48 sampled_ns=17200 max_sample_ns=1100
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239939263536800 end_ns=239940267163900 pc=0/0/237906/0 rc=237906/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239940267163900 op=store32 calls=189906 samples=186 sampled_ns=221900 max_sample_ns=171400
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239940267163900 op=store64 calls=48000 samples=47 sampled_ns=14300 max_sample_ns=1000
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239939485471200 end_ns=239940490811300 pc=17672191/0/0/4 rc=17655794/0/0/16401 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239940490811300 op=store32 calls=7328219 samples=7177 sampled_ns=601900 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239940490811300 op=store64 calls=54 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239940490811300 op=add calls=4962553 samples=4860 sampled_ns=443800 max_sample_ns=1600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239940490811300 op=sub calls=110884 samples=109 sampled_ns=16300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239940490811300 op=mul calls=5193877 samples=5088 sampled_ns=457400 max_sample_ns=2100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239940490811300 op=div calls=15976 samples=16 sampled_ns=2500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239940490811300 op=other calls=60632 samples=59 sampled_ns=9500 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239939718437300 end_ns=239940718548200 pc=0/0/5339964/0 rc=5339964/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239940718548200 op=store32 calls=990672 samples=970 sampled_ns=128200 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239940718548200 op=store64 calls=5019 samples=5 sampled_ns=1600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239940718548200 op=add calls=1764294 samples=1729 sampled_ns=265600 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239940718548200 op=sub calls=491119 samples=481 sampled_ns=75800 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239940718548200 op=mul calls=2008239 samples=1966 sampled_ns=252900 max_sample_ns=12000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239940718548200 op=div calls=210 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239940718548200 op=other calls=80411 samples=79 sampled_ns=11500 max_sample_ns=1000
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239940081105000 end_ns=239941085361800 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239941085361800 op=store32 calls=190927 samples=187 sampled_ns=36800 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239941085361800 op=store64 calls=48000 samples=47 sampled_ns=6600 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239940267163900 end_ns=239941281980000 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239941281980000 op=store32 calls=195011 samples=191 sampled_ns=32600 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239941281980000 op=store64 calls=48960 samples=48 sampled_ns=11400 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239940490811300 end_ns=239941494041500 pc=3548265/0/0/0 rc=3482287/0/0/65978 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239941494041500 op=store32 calls=928437 samples=909 sampled_ns=118900 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239941494041500 op=store64 calls=1212 samples=1 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239941494041500 op=add calls=968962 samples=950 sampled_ns=147900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239941494041500 op=sub calls=265744 samples=260 sampled_ns=45900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239941494041500 op=mul calls=1146961 samples=1123 sampled_ns=164000 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239941494041500 op=div calls=18922 samples=19 sampled_ns=2700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239941494041500 op=other calls=218027 samples=214 sampled_ns=35300 max_sample_ns=1100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239940718548200 end_ns=239941735471200 pc=0/0/5011494/0 rc=5011494/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239941735471200 op=store32 calls=932608 samples=914 sampled_ns=134100 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239941735471200 op=store64 calls=2106 samples=2 sampled_ns=600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239941735471200 op=add calls=1652509 samples=1618 sampled_ns=294900 max_sample_ns=2100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239941735471200 op=sub calls=463577 samples=454 sampled_ns=74300 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239941735471200 op=mul calls=1886574 samples=1848 sampled_ns=250700 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239941735471200 op=div calls=115 samples=1 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239941735471200 op=other calls=74005 samples=73 sampled_ns=13100 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239941085361800 end_ns=239942088283700 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239942088283700 op=store32 calls=190927 samples=187 sampled_ns=35800 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239942088283700 op=store64 calls=48000 samples=47 sampled_ns=6400 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239941281980000 end_ns=239942287004000 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239942287004000 op=store32 calls=190927 samples=187 sampled_ns=40800 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239942287004000 op=store64 calls=48000 samples=47 sampled_ns=8900 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239941494041500 end_ns=239942494079000 pc=3391443/0/0/0 rc=3331244/0/0/60199 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239942494079000 op=store32 calls=844538 samples=828 sampled_ns=138600 max_sample_ns=13000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239942494079000 op=store64 calls=674 samples=1 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239942494079000 op=add calls=957791 samples=938 sampled_ns=173100 max_sample_ns=14100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239942494079000 op=sub calls=264795 samples=259 sampled_ns=46000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239942494079000 op=mul calls=1125077 samples=1102 sampled_ns=153900 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239942494079000 op=div calls=7097 samples=7 sampled_ns=2600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239942494079000 op=other calls=191471 samples=187 sampled_ns=35700 max_sample_ns=3700
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239941735471200 end_ns=239942735486800 pc=0/0/4931576/0 rc=4931576/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239942735486800 op=store32 calls=926976 samples=908 sampled_ns=147700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239942735486800 op=store64 calls=3834 samples=4 sampled_ns=1000 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239942735486800 op=add calls=1622859 samples=1590 sampled_ns=298000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239942735486800 op=sub calls=454685 samples=445 sampled_ns=91000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239942735486800 op=mul calls=1850716 samples=1813 sampled_ns=280700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239942735486800 op=div calls=94 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239942735486800 op=other calls=72412 samples=70 sampled_ns=14100 max_sample_ns=1000
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239942088283700 end_ns=239943105639400 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239943105639400 op=store32 calls=193990 samples=190 sampled_ns=36000 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239943105639400 op=store64 calls=48960 samples=48 sampled_ns=10000 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239942287004000 end_ns=239943303976400 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239943303976400 op=store32 calls=195011 samples=191 sampled_ns=41300 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239943303976400 op=store64 calls=48960 samples=48 sampled_ns=8200 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239942494079000 end_ns=239943496067000 pc=2950597/0/0/0 rc=2883768/0/0/66829 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239943496067000 op=store32 calls=769253 samples=753 sampled_ns=99800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239943496067000 op=store64 calls=60 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239943496067000 op=add calls=811602 samples=795 sampled_ns=157700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239943496067000 op=sub calls=213619 samples=210 sampled_ns=30400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239943496067000 op=mul calls=954241 samples=934 sampled_ns=137400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239943496067000 op=div calls=4257 samples=4 sampled_ns=1500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239943496067000 op=other calls=197565 samples=194 sampled_ns=41800 max_sample_ns=2100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239942735486800 end_ns=239943746732100 pc=0/0/5526127/0 rc=5526127/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239943746732100 op=store32 calls=1031772 samples=1010 sampled_ns=146000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239943746732100 op=store64 calls=3297 samples=3 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239943746732100 op=add calls=1821748 samples=1784 sampled_ns=306900 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239943746732100 op=sub calls=510299 samples=500 sampled_ns=98800 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239943746732100 op=mul calls=2077373 samples=2035 sampled_ns=302300 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239943746732100 op=div calls=110 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239943746732100 op=other calls=81528 samples=80 sampled_ns=12300 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239943105639400 end_ns=239944119923200 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239944119923200 op=store32 calls=195011 samples=191 sampled_ns=31100 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239944119923200 op=store64 calls=48960 samples=48 sampled_ns=10700 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239943303976400 end_ns=239944318847700 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239944318847700 op=store32 calls=193990 samples=190 sampled_ns=42700 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239944318847700 op=store64 calls=48960 samples=48 sampled_ns=13100 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239943496067000 end_ns=239944574282600 pc=16648299/0/0/20 rc=16484262/0/0/164057 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239944574282600 op=store32 calls=6858201 samples=6717 sampled_ns=512900 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239944574282600 op=store64 calls=147 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239944574282600 op=add calls=3583417 samples=3509 sampled_ns=301100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239944574282600 op=sub calls=118980 samples=116 sampled_ns=21200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239944574282600 op=mul calls=5722786 samples=5606 sampled_ns=452300 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239944574282600 op=div calls=133238 samples=130 sampled_ns=11600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239944574282600 op=other calls=231550 samples=226 sampled_ns=25600 max_sample_ns=600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239943746732100 end_ns=239944750824800 pc=0/0/5723119/0 rc=5723119/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239944750824800 op=store32 calls=1048176 samples=1027 sampled_ns=222100 max_sample_ns=31200
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239944750824800 op=store64 calls=2745 samples=3 sampled_ns=1100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239944750824800 op=add calls=1895359 samples=1856 sampled_ns=419500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239944750824800 op=sub calls=528768 samples=518 sampled_ns=118400 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239944750824800 op=mul calls=2161457 samples=2117 sampled_ns=397200 max_sample_ns=7300
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239944750824800 op=div calls=155 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239944750824800 op=other calls=86459 samples=85 sampled_ns=16400 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239944119923200 end_ns=239945128378400 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239945128378400 op=store32 calls=190927 samples=187 sampled_ns=51200 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239945128378400 op=store64 calls=48000 samples=47 sampled_ns=10700 max_sample_ns=1000
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239944318847700 end_ns=239945327152900 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239945327152900 op=store32 calls=190927 samples=187 sampled_ns=53200 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239945327152900 op=store64 calls=48000 samples=47 sampled_ns=11300 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239944574282600 end_ns=239945574335700 pc=32220978/0/0/0 rc=31787018/0/0/433960 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239945574335700 op=store32 calls=13756370 samples=13474 sampled_ns=1058300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239945574335700 op=add calls=5583739 samples=5469 sampled_ns=414400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239945574335700 op=sub calls=5017 samples=5 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239945574335700 op=mul calls=12031181 samples=11783 sampled_ns=928400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239945574335700 op=div calls=408421 samples=400 sampled_ns=33200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239945574335700 op=other calls=436250 samples=428 sampled_ns=26000 max_sample_ns=600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239944750824800 end_ns=239945750835200 pc=0/0/5682034/0 rc=5682034/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239945750835200 op=store32 calls=1037518 samples=1016 sampled_ns=233800 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239945750835200 op=store64 calls=3906 samples=3 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239945750835200 op=add calls=1883078 samples=1845 sampled_ns=503000 max_sample_ns=9400
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239945750835200 op=sub calls=523472 samples=513 sampled_ns=143500 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239945750835200 op=mul calls=2146898 samples=2102 sampled_ns=434100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239945750835200 op=div calls=243 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239945750835200 op=other calls=86919 samples=85 sampled_ns=23100 max_sample_ns=2600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239945128378400 end_ns=239946144870600 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239946144870600 op=store32 calls=193990 samples=190 sampled_ns=55600 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239946144870600 op=store64 calls=48960 samples=48 sampled_ns=14400 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239945327152900 end_ns=239946342845600 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239946342845600 op=store32 calls=195011 samples=191 sampled_ns=50700 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239946342845600 op=store64 calls=48960 samples=48 sampled_ns=10400 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239945574335700 end_ns=239946574358600 pc=22926074/0/0/4 rc=22899285/0/0/26793 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239946574358600 op=store32 calls=9651038 samples=9452 sampled_ns=697800 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239946574358600 op=store64 calls=18 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239946574358600 op=add calls=6289412 samples=6160 sampled_ns=508800 max_sample_ns=50500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239946574358600 op=sub calls=87314 samples=86 sampled_ns=14500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239946574358600 op=mul calls=6785849 samples=6647 sampled_ns=543500 max_sample_ns=33800
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239946574358600 op=div calls=35627 samples=35 sampled_ns=3900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239946574358600 op=other calls=76820 samples=75 sampled_ns=12600 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239945750835200 end_ns=239946769790400 pc=0/0/5812586/0 rc=5812586/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239946769790400 op=store32 calls=1048755 samples=1027 sampled_ns=182600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239946769790400 op=store64 calls=453 samples=1 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239946769790400 op=add calls=1930369 samples=1890 sampled_ns=399400 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239946769790400 op=sub calls=538939 samples=528 sampled_ns=130200 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239946769790400 op=mul calls=2205321 samples=2160 sampled_ns=376000 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239946769790400 op=div calls=139 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239946769790400 op=other calls=88610 samples=87 sampled_ns=12100 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239946144870600 end_ns=239947158735200 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239947158735200 op=store32 calls=195011 samples=191 sampled_ns=41700 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239947158735200 op=store64 calls=48960 samples=48 sampled_ns=6600 max_sample_ns=1100
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239946342845600 end_ns=239947345795100 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239947345795100 op=store32 calls=190927 samples=187 sampled_ns=41700 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239947345795100 op=store64 calls=48000 samples=47 sampled_ns=10200 max_sample_ns=1100
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239946574358600 end_ns=239947574870100 pc=4161169/0/0/0 rc=4094352/0/0/66817 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239947574870100 op=store32 calls=1025108 samples=1004 sampled_ns=128900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239947574870100 op=store64 calls=96 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239947574870100 op=add calls=1178585 samples=1155 sampled_ns=196700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239947574870100 op=sub calls=306764 samples=300 sampled_ns=54500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239947574870100 op=mul calls=1407536 samples=1378 sampled_ns=181100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239947574870100 op=div calls=20440 samples=20 sampled_ns=4600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239947574870100 op=other calls=222640 samples=218 sampled_ns=36400 max_sample_ns=1100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239946769790400 end_ns=239947769884700 pc=0/0/4777580/0 rc=4777580/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239947769884700 op=store32 calls=860625 samples=843 sampled_ns=152700 max_sample_ns=6800
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239947769884700 op=store64 calls=375 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239947769884700 op=add calls=1586864 samples=1554 sampled_ns=272000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239947769884700 op=sub calls=443106 samples=433 sampled_ns=76600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239947769884700 op=mul calls=1813600 samples=1777 sampled_ns=261600 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239947769884700 op=div calls=102 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239947769884700 op=other calls=72908 samples=71 sampled_ns=7300 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239947158735200 end_ns=239948162685700 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239948162685700 op=store32 calls=190927 samples=187 sampled_ns=32700 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239948162685700 op=store64 calls=48000 samples=47 sampled_ns=6900 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239947345795100 end_ns=239948360295100 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239948360295100 op=store32 calls=193990 samples=190 sampled_ns=34900 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239948360295100 op=store64 calls=48960 samples=48 sampled_ns=9200 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239947574870100 end_ns=239948579694600 pc=3657741/0/0/0 rc=3598047/0/0/59694 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239948579694600 op=store32 calls=917143 samples=898 sampled_ns=122300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239948579694600 op=store64 calls=72 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239948579694600 op=add calls=1022235 samples=1001 sampled_ns=169500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239948579694600 op=sub calls=268473 samples=263 sampled_ns=44200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239948579694600 op=mul calls=1230728 samples=1206 sampled_ns=169200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239948579694600 op=div calls=19670 samples=19 sampled_ns=4200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239948579694600 op=other calls=199420 samples=195 sampled_ns=35700 max_sample_ns=2100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239947769884700 end_ns=239948791773200 pc=0/0/4696124/0 rc=4696124/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239948791773200 op=store32 calls=845794 samples=828 sampled_ns=120800 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239948791773200 op=store64 calls=372 samples=1 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239948791773200 op=add calls=1560121 samples=1528 sampled_ns=257500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239948791773200 op=sub calls=435297 samples=427 sampled_ns=75600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239948791773200 op=mul calls=1782666 samples=1746 sampled_ns=240100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239948791773200 op=div calls=106 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239948791773200 op=other calls=71768 samples=71 sampled_ns=11800 max_sample_ns=600
+I 1E0 [FEX-FLOAT-PERF] schema=1 pid=424 tid=480 begin_ns=239832733845600 end_ns=239948965873200 pc=0/0/1021/0 rc=1021/0/0/0 sample_stride=1021
+I 1E0 [FEX-FLOAT-OP] schema=1 pid=424 tid=480 end_ns=239948965873200 op=store64 calls=1021 samples=1 sampled_ns=0 max_sample_ns=0
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239948162685700 end_ns=239949165835200 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239949165835200 op=store32 calls=190927 samples=187 sampled_ns=42500 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239949165835200 op=store64 calls=48000 samples=47 sampled_ns=7300 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239948360295100 end_ns=239949361705500 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239949361705500 op=store32 calls=190927 samples=187 sampled_ns=34700 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239949361705500 op=store64 calls=48000 samples=47 sampled_ns=8500 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239948579694600 end_ns=239949582487800 pc=3664106/0/0/0 rc=3604241/0/0/59865 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239949582487800 op=store32 calls=901388 samples=883 sampled_ns=123100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239949582487800 op=store64 calls=98 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239949582487800 op=add calls=1038834 samples=1017 sampled_ns=165600 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239949582487800 op=sub calls=277075 samples=271 sampled_ns=47100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239949582487800 op=mul calls=1235410 samples=1210 sampled_ns=164300 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239949582487800 op=div calls=13319 samples=13 sampled_ns=2700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239949582487800 op=other calls=197982 samples=194 sampled_ns=36000 max_sample_ns=1500
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239948791773200 end_ns=239949792283100 pc=0/0/4813357/0 rc=4813357/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239949792283100 op=store32 calls=885423 samples=868 sampled_ns=127700 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239949792283100 op=store64 calls=2673 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239949792283100 op=add calls=1592915 samples=1561 sampled_ns=255100 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239949792283100 op=sub calls=444582 samples=435 sampled_ns=71600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239949792283100 op=mul calls=1815338 samples=1778 sampled_ns=240000 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239949792283100 op=div calls=102 samples=1 sampled_ns=600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239949792283100 op=other calls=72324 samples=70 sampled_ns=9900 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239949165835200 end_ns=239950180664900 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239950180664900 op=store32 calls=193990 samples=190 sampled_ns=39500 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239950180664900 op=store64 calls=48960 samples=48 sampled_ns=8300 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239949361705500 end_ns=239950367233600 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239950367233600 op=store32 calls=190927 samples=187 sampled_ns=32900 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239950367233600 op=store64 calls=48000 samples=47 sampled_ns=4100 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239949582487800 end_ns=239950582562800 pc=2891120/0/0/0 rc=2821450/0/0/69670 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239950582562800 op=store32 calls=770155 samples=755 sampled_ns=115500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239950582562800 op=store64 calls=1200 samples=1 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239950582562800 op=add calls=783278 samples=767 sampled_ns=148700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239950582562800 op=sub calls=207408 samples=204 sampled_ns=43000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239950582562800 op=mul calls=921411 samples=902 sampled_ns=156100 max_sample_ns=9300
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239950582562800 op=div calls=4693 samples=5 sampled_ns=1000 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239950582562800 op=other calls=202975 samples=199 sampled_ns=35000 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239949792283100 end_ns=239950830953400 pc=0/0/5315650/0 rc=5315650/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239950830953400 op=store32 calls=980537 samples=960 sampled_ns=159900 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239950830953400 op=store64 calls=2136 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239950830953400 op=add calls=1756640 samples=1720 sampled_ns=319100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239950830953400 op=sub calls=491638 samples=482 sampled_ns=84300 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239950830953400 op=mul calls=2005244 samples=1964 sampled_ns=286700 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239950830953400 op=div calls=115 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239950830953400 op=other calls=79340 samples=78 sampled_ns=11300 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239950180664900 end_ns=239951183896700 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239951183896700 op=store32 calls=190927 samples=187 sampled_ns=35200 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239951183896700 op=store64 calls=48000 samples=47 sampled_ns=9200 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239950367233600 end_ns=239951381622200 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239951381622200 op=store32 calls=195011 samples=191 sampled_ns=39400 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239951381622200 op=store64 calls=48960 samples=48 sampled_ns=9200 max_sample_ns=1100
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239950582562800 end_ns=239951582574800 pc=5169076/0/0/16 rc=5053800/0/0/115292 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239951582574800 op=store32 calls=1675461 samples=1641 sampled_ns=204800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239951582574800 op=store64 calls=108 samples=1 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239951582574800 op=add calls=1059917 samples=1038 sampled_ns=174900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239951582574800 op=sub calls=220628 samples=216 sampled_ns=36700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239951582574800 op=mul calls=1933147 samples=1893 sampled_ns=252400 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239951582574800 op=div calls=49503 samples=49 sampled_ns=7900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239951582574800 op=other calls=230328 samples=226 sampled_ns=42200 max_sample_ns=2100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239950830953400 end_ns=239952164711800 pc=0/0/4084441/0 rc=4084441/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239952164711800 op=store32 calls=733521 samples=719 sampled_ns=115500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239952164711800 op=store64 calls=1479 samples=2 sampled_ns=500 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239952164711800 op=add calls=1359108 samples=1331 sampled_ns=247400 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239952164711800 op=sub calls=377404 samples=369 sampled_ns=78500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239952164711800 op=mul calls=1549809 samples=1517 sampled_ns=236600 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239952164711800 op=div calls=95 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239952164711800 op=other calls=63025 samples=62 sampled_ns=9400 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239951183896700 end_ns=239952188550300 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239952188550300 op=store32 calls=190927 samples=187 sampled_ns=78300 max_sample_ns=1600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239952188550300 op=store64 calls=48000 samples=47 sampled_ns=20300 max_sample_ns=1100
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239951381622200 end_ns=239952385626400 pc=0/0/237906/0 rc=237906/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239952385626400 op=store32 calls=189906 samples=186 sampled_ns=77300 max_sample_ns=2000
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239952385626400 op=store64 calls=48000 samples=47 sampled_ns=97800 max_sample_ns=79200
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239951582574800 end_ns=239952582577400 pc=33890732/0/0/4 rc=33450061/0/0/440675 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239952582577400 op=store32 calls=14452255 samples=14155 sampled_ns=1086700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239952582577400 op=store64 calls=111 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239952582577400 op=add calls=6137063 samples=6011 sampled_ns=461200 max_sample_ns=14600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239952582577400 op=sub calls=6334 samples=6 sampled_ns=1000 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239952582577400 op=mul calls=12452176 samples=12196 sampled_ns=893800 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239952582577400 op=div calls=399320 samples=391 sampled_ns=34400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239952582577400 op=other calls=443477 samples=434 sampled_ns=38000 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239952164711800 end_ns=239953164863900 pc=0/0/6139506/0 rc=6139506/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239953164863900 op=store32 calls=1130737 samples=1107 sampled_ns=233400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239953164863900 op=store64 calls=5082 samples=5 sampled_ns=500 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239953164863900 op=add calls=2031705 samples=1990 sampled_ns=535900 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239953164863900 op=sub calls=564935 samples=554 sampled_ns=155800 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239953164863900 op=mul calls=2313655 samples=2267 sampled_ns=488800 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239953164863900 op=div calls=248 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239953164863900 op=other calls=93144 samples=91 sampled_ns=19100 max_sample_ns=1100
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239952188550300 end_ns=239953205714400 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239953205714400 op=store32 calls=195011 samples=191 sampled_ns=54300 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239953205714400 op=store64 calls=48960 samples=48 sampled_ns=10600 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239952385626400 end_ns=239953403791500 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239953403791500 op=store32 calls=195011 samples=191 sampled_ns=54300 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239953403791500 op=store64 calls=48960 samples=48 sampled_ns=11400 max_sample_ns=1000
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239952582577400 end_ns=239953582635200 pc=30737016/0/0/4 rc=30679469/0/0/57551 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239953582635200 op=store32 calls=13126997 samples=12857 sampled_ns=900500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239953582635200 op=store64 calls=18 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239953582635200 op=add calls=7898131 samples=7736 sampled_ns=608100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239953582635200 op=sub calls=50480 samples=49 sampled_ns=6800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239953582635200 op=mul calls=9473488 samples=9279 sampled_ns=678400 max_sample_ns=14100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239953582635200 op=div calls=104151 samples=102 sampled_ns=5800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239953582635200 op=other calls=83755 samples=82 sampled_ns=10900 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239953164863900 end_ns=239954166072200 pc=0/0/5294436/0 rc=5294436/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239954166072200 op=store32 calls=961292 samples=942 sampled_ns=152300 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239954166072200 op=store64 calls=411 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239954166072200 op=add calls=1755373 samples=1719 sampled_ns=375000 max_sample_ns=26100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239954166072200 op=sub calls=491193 samples=481 sampled_ns=97400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239954166072200 op=mul calls=2005938 samples=1964 sampled_ns=308200 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239954166072200 op=div calls=141 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239954166072200 op=other calls=80088 samples=79 sampled_ns=17200 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239953205714400 end_ns=239954220802400 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239954220802400 op=store32 calls=193990 samples=190 sampled_ns=42200 max_sample_ns=2100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239954220802400 op=store64 calls=48960 samples=48 sampled_ns=11700 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239953403791500 end_ns=239954406735200 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239954406735200 op=store32 calls=190927 samples=187 sampled_ns=35700 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239954406735200 op=store64 calls=48000 samples=47 sampled_ns=8100 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239953582635200 end_ns=239954582872700 pc=2968181/0/0/0 rc=2909203/0/0/58978 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239954582872700 op=store32 calls=790072 samples=773 sampled_ns=120300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239954582872700 op=store64 calls=48 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239954582872700 op=add calls=802018 samples=786 sampled_ns=149000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239954582872700 op=sub calls=220875 samples=217 sampled_ns=42000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239954582872700 op=mul calls=949720 samples=930 sampled_ns=159500 max_sample_ns=10400
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239954582872700 op=div calls=16548 samples=16 sampled_ns=3600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239954582872700 op=other calls=188900 samples=185 sampled_ns=33500 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239954166072200 end_ns=239955175877900 pc=0/0/5098930/0 rc=5098930/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239955175877900 op=store32 calls=928170 samples=909 sampled_ns=121800 max_sample_ns=1500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239955175877900 op=store64 calls=972 samples=1 sampled_ns=600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239955175877900 op=add calls=1690020 samples=1656 sampled_ns=282500 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239955175877900 op=sub calls=472636 samples=463 sampled_ns=86000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239955175877900 op=mul calls=1930017 samples=1891 sampled_ns=282900 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239955175877900 op=div calls=111 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239955175877900 op=other calls=77004 samples=75 sampled_ns=12600 max_sample_ns=1500
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239954220802400 end_ns=239955224180500 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239955224180500 op=store32 calls=190927 samples=187 sampled_ns=42600 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239955224180500 op=store64 calls=48000 samples=47 sampled_ns=9300 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239954406735200 end_ns=239955418706000 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239955418706000 op=store32 calls=195011 samples=191 sampled_ns=41200 max_sample_ns=1100
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239955418706000 op=store64 calls=48960 samples=48 sampled_ns=7200 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239954582872700 end_ns=239955585162300 pc=3603335/0/0/0 rc=3534973/0/0/68362 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239955585162300 op=store32 calls=939142 samples=920 sampled_ns=127400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239955585162300 op=store64 calls=72 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239955585162300 op=add calls=988328 samples=968 sampled_ns=152100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239955585162300 op=sub calls=271183 samples=265 sampled_ns=58200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239955585162300 op=mul calls=1165148 samples=1141 sampled_ns=153800 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239955585162300 op=div calls=18805 samples=18 sampled_ns=2700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239955585162300 op=other calls=220657 samples=216 sampled_ns=37200 max_sample_ns=2600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239955175877900 end_ns=239956175936300 pc=0/0/5246810/0 rc=5246810/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239956175936300 op=store32 calls=951816 samples=932 sampled_ns=133200 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239956175936300 op=store64 calls=411 samples=1 sampled_ns=600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239956175936300 op=add calls=1739405 samples=1703 sampled_ns=294800 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239956175936300 op=sub calls=486780 samples=477 sampled_ns=77100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239956175936300 op=mul calls=1988908 samples=1948 sampled_ns=266900 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239956175936300 op=div calls=111 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239956175936300 op=other calls=79379 samples=78 sampled_ns=13800 max_sample_ns=1000
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239955224180500 end_ns=239956239311300 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239956239311300 op=store32 calls=195011 samples=191 sampled_ns=42100 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239956239311300 op=store64 calls=48960 samples=48 sampled_ns=7200 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239955418706000 end_ns=239956423728400 pc=0/0/237906/0 rc=237906/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239956423728400 op=store32 calls=189906 samples=186 sampled_ns=36900 max_sample_ns=1000
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239956423728400 op=store64 calls=48000 samples=47 sampled_ns=7800 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239955585162300 end_ns=239956589644100 pc=3260664/0/0/0 rc=3192990/0/0/67674 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239956589644100 op=store32 calls=876294 samples=858 sampled_ns=109400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239956589644100 op=store64 calls=626 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239956589644100 op=add calls=878060 samples=860 sampled_ns=152200 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239956589644100 op=sub calls=237833 samples=233 sampled_ns=39000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239956589644100 op=mul calls=1036293 samples=1015 sampled_ns=149300 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239956589644100 op=div calls=18366 samples=18 sampled_ns=4100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239956589644100 op=other calls=213192 samples=209 sampled_ns=38200 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239956175936300 end_ns=239957175939400 pc=0/0/5088198/0 rc=5088198/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239957175939400 op=store32 calls=921897 samples=903 sampled_ns=128000 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239957175939400 op=store64 calls=396 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239957175939400 op=add calls=1688040 samples=1654 sampled_ns=306000 max_sample_ns=9400
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239957175939400 op=sub calls=472003 samples=462 sampled_ns=95700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239957175939400 op=mul calls=1928669 samples=1889 sampled_ns=271000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239957175939400 op=div calls=106 samples=1 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239957175939400 op=other calls=77087 samples=75 sampled_ns=13400 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239956239311300 end_ns=239957244879000 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239957244879000 op=store32 calls=190927 samples=187 sampled_ns=39000 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239957244879000 op=store64 calls=48000 samples=47 sampled_ns=10300 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239956423728400 end_ns=239957428106000 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239957428106000 op=store32 calls=190927 samples=187 sampled_ns=43300 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239957428106000 op=store64 calls=48000 samples=47 sampled_ns=10300 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239956589644100 end_ns=239957590723200 pc=3001569/0/0/0 rc=2938088/0/0/63481 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239957590723200 op=store32 calls=764256 samples=749 sampled_ns=112800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239957590723200 op=store64 calls=72 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239957590723200 op=add calls=835976 samples=818 sampled_ns=142400 max_sample_ns=1600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239957590723200 op=sub calls=225286 samples=221 sampled_ns=39800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239957590723200 op=mul calls=981295 samples=962 sampled_ns=144100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239957590723200 op=div calls=4375 samples=5 sampled_ns=1000 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239957590723200 op=other calls=190309 samples=186 sampled_ns=33800 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239957175939400 end_ns=239958175987800 pc=0/0/5266090/0 rc=5266090/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239958175987800 op=store32 calls=953925 samples=934 sampled_ns=145100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239958175987800 op=store64 calls=408 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239958175987800 op=add calls=1747190 samples=1711 sampled_ns=309500 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239958175987800 op=sub calls=488622 samples=478 sampled_ns=89600 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239958175987800 op=mul calls=1996055 samples=1955 sampled_ns=304400 max_sample_ns=17700
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239958175987800 op=div calls=109 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239958175987800 op=other calls=79781 samples=78 sampled_ns=11500 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239957244879000 end_ns=239958259257100 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239958259257100 op=store32 calls=193990 samples=190 sampled_ns=41400 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239958259257100 op=store64 calls=48960 samples=48 sampled_ns=8800 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239957428106000 end_ns=239958441802400 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239958441802400 op=store32 calls=195011 samples=191 sampled_ns=42000 max_sample_ns=7300
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239958441802400 op=store64 calls=48960 samples=47 sampled_ns=9100 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239957590723200 end_ns=239958590960700 pc=2852786/0/0/0 rc=2783161/0/0/69625 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239958590960700 op=store32 calls=755076 samples=740 sampled_ns=103400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239958590960700 op=store64 calls=48 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239958590960700 op=add calls=775360 samples=760 sampled_ns=131300 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239958590960700 op=sub calls=203453 samples=199 sampled_ns=36600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239958590960700 op=mul calls=912510 samples=893 sampled_ns=137500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239958590960700 op=div calls=4504 samples=4 sampled_ns=1000 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239958590960700 op=other calls=201835 samples=198 sampled_ns=32600 max_sample_ns=1100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239958175987800 end_ns=239959181495100 pc=0/0/5324736/0 rc=5324736/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239959181495100 op=store32 calls=965652 samples=946 sampled_ns=146600 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239959181495100 op=store64 calls=1566 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239959181495100 op=add calls=1767468 samples=1731 sampled_ns=352800 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239959181495100 op=sub calls=492447 samples=483 sampled_ns=102700 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239959181495100 op=mul calls=2016475 samples=1975 sampled_ns=308000 max_sample_ns=2100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239959181495100 op=div calls=111 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239959181495100 op=other calls=81017 samples=80 sampled_ns=14400 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239958259257100 end_ns=239959264569600 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239959264569600 op=store32 calls=190927 samples=187 sampled_ns=35500 max_sample_ns=1500
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239959264569600 op=store64 calls=48000 samples=47 sampled_ns=9600 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239958441802400 end_ns=239959446467500 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239959446467500 op=store32 calls=190927 samples=187 sampled_ns=42000 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239959446467500 op=store64 calls=48000 samples=47 sampled_ns=10000 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239958590960700 end_ns=239959601474800 pc=2690204/0/0/0 rc=2626989/0/0/63215 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239959601474800 op=store32 calls=709833 samples=695 sampled_ns=103600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239959601474800 op=store64 calls=48 samples=1 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239959601474800 op=add calls=731538 samples=716 sampled_ns=129000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239959601474800 op=sub calls=194502 samples=191 sampled_ns=37400 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239959601474800 op=mul calls=864030 samples=847 sampled_ns=126200 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239959601474800 op=div calls=4279 samples=4 sampled_ns=1500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239959601474800 op=other calls=185974 samples=182 sampled_ns=30100 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239959181495100 end_ns=239960193433600 pc=0/0/4749443/0 rc=4749443/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239960193433600 op=store32 calls=865327 samples=847 sampled_ns=127200 max_sample_ns=2100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239960193433600 op=store64 calls=2682 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239960193433600 op=add calls=1575090 samples=1543 sampled_ns=286000 max_sample_ns=1600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239960193433600 op=sub calls=437952 samples=429 sampled_ns=87300 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239960193433600 op=mul calls=1795939 samples=1759 sampled_ns=267900 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239960193433600 op=div calls=105 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239960193433600 op=other calls=72348 samples=71 sampled_ns=11600 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239959264569600 end_ns=239960268272200 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239960268272200 op=store32 calls=190927 samples=187 sampled_ns=38900 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239960268272200 op=store64 calls=48000 samples=47 sampled_ns=8900 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239959446467500 end_ns=239960459199300 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239960459199300 op=store32 calls=193990 samples=190 sampled_ns=44400 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239960459199300 op=store64 calls=48960 samples=48 sampled_ns=10400 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239959601474800 end_ns=239960601534200 pc=3561604/0/0/0 rc=3499617/0/0/61987 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239960601534200 op=store32 calls=861486 samples=844 sampled_ns=123300 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239960601534200 op=store64 calls=696 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239960601534200 op=add calls=1025568 samples=1005 sampled_ns=188100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239960601534200 op=sub calls=277804 samples=272 sampled_ns=62400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239960601534200 op=mul calls=1195953 samples=1171 sampled_ns=180900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239960601534200 op=div calls=4293 samples=4 sampled_ns=1100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239960601534200 op=other calls=195804 samples=192 sampled_ns=36400 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239960193433600 end_ns=239961193461300 pc=0/0/4299576/0 rc=4299576/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239961193461300 op=store32 calls=776360 samples=761 sampled_ns=136900 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239961193461300 op=store64 calls=1488 samples=2 sampled_ns=500 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239961193461300 op=add calls=1428716 samples=1399 sampled_ns=302700 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239961193461300 op=sub calls=397546 samples=389 sampled_ns=88600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239961193461300 op=mul calls=1629516 samples=1596 sampled_ns=285800 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239961193461300 op=div calls=95 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239961193461300 op=other calls=65855 samples=64 sampled_ns=12900 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239960268272200 end_ns=239961284530000 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239961284530000 op=store32 calls=195011 samples=191 sampled_ns=40400 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239961284530000 op=store64 calls=48960 samples=48 sampled_ns=9200 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239960459199300 end_ns=239961464769600 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239961464769600 op=store32 calls=190927 samples=187 sampled_ns=45300 max_sample_ns=1500
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239961464769600 op=store64 calls=48000 samples=47 sampled_ns=8200 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239960601534200 end_ns=239961626464400 pc=3329837/0/0/0 rc=3270737/0/0/59100 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239961626464400 op=store32 calls=815683 samples=798 sampled_ns=137300 max_sample_ns=8800
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239961626464400 op=store64 calls=1260 samples=1 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239961626464400 op=add calls=952434 samples=933 sampled_ns=198100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239961626464400 op=sub calls=256812 samples=251 sampled_ns=55900 max_sample_ns=1600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239961626464400 op=mul calls=1113221 samples=1090 sampled_ns=177700 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239961626464400 op=div calls=4102 samples=4 sampled_ns=2100 max_sample_ns=1600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239961626464400 op=other calls=186325 samples=183 sampled_ns=32000 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239961193461300 end_ns=239962193492000 pc=0/0/4917652/0 rc=4917652/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239962193492000 op=store32 calls=905922 samples=887 sampled_ns=130200 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239962193492000 op=store64 calls=3840 samples=4 sampled_ns=1000 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239962193492000 op=add calls=1627474 samples=1594 sampled_ns=331700 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239962193492000 op=sub calls=453046 samples=444 sampled_ns=99400 max_sample_ns=1100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239962193492000 op=mul calls=1853115 samples=1815 sampled_ns=293200 max_sample_ns=1000
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239962193492000 op=div calls=106 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239962193492000 op=other calls=74149 samples=73 sampled_ns=14400 max_sample_ns=2100
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239961284530000 end_ns=239962299420100 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239962299420100 op=store32 calls=193990 samples=190 sampled_ns=50000 max_sample_ns=1000
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239962299420100 op=store64 calls=48960 samples=48 sampled_ns=10700 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239961464769600 end_ns=239962479998800 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239962479998800 op=store32 calls=195011 samples=191 sampled_ns=36600 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239962479998800 op=store64 calls=48960 samples=48 sampled_ns=9400 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239961626464400 end_ns=239962632615400 pc=2913908/0/0/0 rc=2853831/0/0/60077 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239962632615400 op=store32 calls=738668 samples=724 sampled_ns=117600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239962632615400 op=store64 calls=72 samples=1 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239962632615400 op=add calls=812603 samples=795 sampled_ns=168800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239962632615400 op=sub calls=221650 samples=217 sampled_ns=45900 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239962632615400 op=mul calls=954963 samples=936 sampled_ns=157000 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239962632615400 op=div calls=4334 samples=5 sampled_ns=1100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239962632615400 op=other calls=181618 samples=177 sampled_ns=35000 max_sample_ns=1500
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239962193492000 end_ns=239963199141500 pc=0/0/4633319/0 rc=4633319/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239963199141500 op=store32 calls=841560 samples=824 sampled_ns=131600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239963199141500 op=store64 calls=360 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239963199141500 op=add calls=1536398 samples=1505 sampled_ns=320500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239963199141500 op=sub calls=429792 samples=421 sampled_ns=84100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239963199141500 op=mul calls=1755099 samples=1719 sampled_ns=277800 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239963199141500 op=div calls=102 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239963199141500 op=other calls=70008 samples=68 sampled_ns=8600 max_sample_ns=1000
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239962299420100 end_ns=239963303031600 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239963303031600 op=store32 calls=190927 samples=187 sampled_ns=43300 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239963303031600 op=store64 calls=48000 samples=47 sampled_ns=10000 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239962479998800 end_ns=239963482149800 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239963482149800 op=store32 calls=190927 samples=187 sampled_ns=34400 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239963482149800 op=store64 calls=48000 samples=47 sampled_ns=9900 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239962632615400 end_ns=239963632687300 pc=3276333/0/0/0 rc=3213735/0/0/62598 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239963632687300 op=store32 calls=811181 samples=794 sampled_ns=130100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239963632687300 op=store64 calls=96 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239963632687300 op=add calls=930240 samples=912 sampled_ns=172400 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239963632687300 op=sub calls=250667 samples=246 sampled_ns=48200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239963632687300 op=mul calls=1087957 samples=1065 sampled_ns=171800 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239963632687300 op=div calls=4224 samples=4 sampled_ns=500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239963632687300 op=other calls=191968 samples=188 sampled_ns=36600 max_sample_ns=1600
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239963199141500 end_ns=239964203483600 pc=0/0/5076364/0 rc=5076364/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239964203483600 op=store32 calls=923058 samples=904 sampled_ns=139100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239964203483600 op=store64 calls=1548 samples=2 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239964203483600 op=add calls=1683452 samples=1649 sampled_ns=332000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239964203483600 op=sub calls=469664 samples=460 sampled_ns=95400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239964203483600 op=mul calls=1921522 samples=1882 sampled_ns=276400 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239964203483600 op=div calls=112 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239964203483600 op=other calls=77008 samples=76 sampled_ns=14700 max_sample_ns=2100
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239963303031600 end_ns=239964307912300 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239964307912300 op=store32 calls=190927 samples=187 sampled_ns=47500 max_sample_ns=1100
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239964307912300 op=store64 calls=48000 samples=47 sampled_ns=7900 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239963482149800 end_ns=239964486243500 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239964486243500 op=store32 calls=190927 samples=187 sampled_ns=38000 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239964486243500 op=store64 calls=48000 samples=47 sampled_ns=8800 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239963632687300 end_ns=239964636808100 pc=3323123/0/0/0 rc=3258920/0/0/64203 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239964636808100 op=store32 calls=826114 samples=810 sampled_ns=129100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239964636808100 op=store64 calls=96 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239964636808100 op=add calls=940654 samples=921 sampled_ns=160200 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239964636808100 op=sub calls=251786 samples=246 sampled_ns=45600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239964636808100 op=mul calls=1102299 samples=1080 sampled_ns=165600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239964636808100 op=div calls=4277 samples=4 sampled_ns=1600 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239964636808100 op=other calls=197897 samples=194 sampled_ns=38000 max_sample_ns=1000
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239964203483600 end_ns=239965203547700 pc=0/0/4438577/0 rc=4438577/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239965203547700 op=store32 calls=801282 samples=785 sampled_ns=138600 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239965203547700 op=store64 calls=342 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239965203547700 op=add calls=1474174 samples=1444 sampled_ns=310900 max_sample_ns=16100
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239965203547700 op=sub calls=411856 samples=403 sampled_ns=78300 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239965203547700 op=mul calls=1683324 samples=1648 sampled_ns=284200 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239965203547700 op=div calls=90 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239965203547700 op=other calls=67509 samples=66 sampled_ns=16800 max_sample_ns=5200
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239964307912300 end_ns=239965322850300 pc=0/0/243971/0 rc=243971/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239965322850300 op=store32 calls=195011 samples=191 sampled_ns=46000 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239965322850300 op=store64 calls=48960 samples=47 sampled_ns=9100 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239964486243500 end_ns=239965501424800 pc=0/0/242950/0 rc=242950/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239965501424800 op=store32 calls=193990 samples=190 sampled_ns=46800 max_sample_ns=1000
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239965501424800 op=store64 calls=48960 samples=48 sampled_ns=10300 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239964636808100 end_ns=239965636868000 pc=3266531/0/0/0 rc=3204671/0/0/61860 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239965636868000 op=store32 calls=812989 samples=796 sampled_ns=138800 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239965636868000 op=store64 calls=1248 samples=1 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239965636868000 op=add calls=925506 samples=906 sampled_ns=188100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239965636868000 op=sub calls=249152 samples=244 sampled_ns=51500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239965636868000 op=mul calls=1082049 samples=1060 sampled_ns=163500 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239965636868000 op=div calls=4267 samples=4 sampled_ns=1500 max_sample_ns=500
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239965636868000 op=other calls=191320 samples=188 sampled_ns=36500 max_sample_ns=2100
+I 22C [FEX-FLOAT-PERF] schema=1 pid=424 tid=556 begin_ns=239965203547700 end_ns=239966203680000 pc=0/0/4754889/0 rc=4754889/0/0/0 sample_stride=1021
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239966203680000 op=store32 calls=880418 samples=862 sampled_ns=130500 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239966203680000 op=store64 calls=3828 samples=4 sampled_ns=500 max_sample_ns=500
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239966203680000 op=add calls=1571319 samples=1539 sampled_ns=300100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239966203680000 op=sub calls=437827 samples=429 sampled_ns=96000 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239966203680000 op=mul calls=1790106 samples=1753 sampled_ns=277100 max_sample_ns=600
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239966203680000 op=div calls=100 samples=0 sampled_ns=0 max_sample_ns=0
+I 22C [FEX-FLOAT-OP] schema=1 pid=424 tid=556 end_ns=239966203680000 op=other calls=71291 samples=70 sampled_ns=11900 max_sample_ns=600
+I 228 [FEX-FLOAT-PERF] schema=1 pid=424 tid=552 begin_ns=239965322850300 end_ns=239966326956600 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239966326956600 op=store32 calls=190927 samples=187 sampled_ns=38100 max_sample_ns=600
+I 228 [FEX-FLOAT-OP] schema=1 pid=424 tid=552 end_ns=239966326956600 op=store64 calls=48000 samples=47 sampled_ns=12400 max_sample_ns=600
+I 23C [FEX-FLOAT-PERF] schema=1 pid=424 tid=572 begin_ns=239965501424800 end_ns=239966504223800 pc=0/0/238927/0 rc=238927/0/0/0 sample_stride=1021
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239966504223800 op=store32 calls=190927 samples=187 sampled_ns=39500 max_sample_ns=600
+I 23C [FEX-FLOAT-OP] schema=1 pid=424 tid=572 end_ns=239966504223800 op=store64 calls=48000 samples=47 sampled_ns=10000 max_sample_ns=600
+I 1AC [FEX-FLOAT-PERF] schema=1 pid=424 tid=428 begin_ns=239965636868000 end_ns=239966637176400 pc=3062834/0/0/0 rc=3002937/0/0/59897 sample_stride=1021
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239966637176400 op=store32 calls=767613 samples=752 sampled_ns=115200 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239966637176400 op=store64 calls=84 samples=0 sampled_ns=0 max_sample_ns=0
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239966637176400 op=add calls=862973 samples=846 sampled_ns=155500 max_sample_ns=1000
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239966637176400 op=sub calls=233028 samples=229 sampled_ns=47100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239966637176400 op=mul calls=1012005 samples=991 sampled_ns=151100 max_sample_ns=1100
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239966637176400 op=div calls=4092 samples=4 sampled_ns=1100 max_sample_ns=600
+I 1AC [FEX-FLOAT-OP] schema=1 pid=424 tid=428 end_ns=239966637176400 op=other calls=183039 samples=179 sampled_ns=54500 max_sample_ns=17200

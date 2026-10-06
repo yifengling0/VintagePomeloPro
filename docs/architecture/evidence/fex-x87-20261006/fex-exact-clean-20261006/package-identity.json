@@ -1,0 +1,89 @@
+{
+  "baselineCommit": "284026ce64c631961394f2aee6fadb3a4380e579",
+  "fexPin": "86ff33bbe2",
+  "baselineHapSha256": "41faf76f605ca9969557ebf8974ec11bb61c313f9d1c4db8e982e3723aa40550",
+  "buildDir": "/data/src/winehua/build-fex-exact-clean-20261006",
+  "sourceDir": "/data/src/winehua/workspace_temp/fex-exact-clean-20261006/source",
+  "changedHapEntries": [
+    "resources/rawfile/wine-data.zip",
+    "resources/rawfile/wine_runtime.version",
+    "resources/rawfile/wine-runtime-manifest.json"
+  ],
+  "changedPayloadEntries": [
+    "bin/aarch64-windows/libwow64fex.dll"
+  ],
+  "fexOldSha256": "d945129d1fe7cf8ff48de3af4d6cbc85724e5900432fc9b8d397dc9362102627",
+  "fexNewSha256": "fe24f844ba4481c313ec715653a24c2c0f8f3547d13b9bfe16b4e949537911f7",
+  "compilerOutputSha256": "626d834123c39be01c7f435d8f3217e44a99079f2b9955b1dee7cc7fb5732989",
+  "exactStorePatchSha256": "a939477f54dbef833153bb0ba9d0c047eac8eb1c272ae3fb8f39f9189e61fc55",
+  "patchSha256": "32b6c09eb8ae342d7d072ff14f349d8b3402b3a0868e60e280376eeee80a608b",
+  "jitCostPatchSha256": "e0e589966d395e534f0d6880d3f8b4eff2065ba30e16baa9cc89e1756391818e",
+  "symbolPatchSha256": "1769aa1547880535e8659be52db3b149fe4b37cc0a13bffafc9a834369336119",
+  "crtPatchSha256": "d8a4bb640d8cf534e8c3213f96ab87ca367573d678103e5c7a66e7ab78c7a63c",
+  "payloadSha256": "1be2e1e055c742cd8d1caf59858eea40f2315561e050242bcf667b37cfc3b608",
+  "inheritedNativeLibraries": {
+    "libentry.so": {
+      "source": "/data/src/winehua/entry/build/default/intermediates/cmake/default/obj/arm64-v8a/libentry.so",
+      "compilerSha256": "e298e3b159a32944827ecadafa34902ce8aef25b4983cc510776650333ad455e",
+      "strippedSha256": "421b932d916291f2671dc629908c655d9472a2c9bc9529f466837b0ffcbf24b2",
+      "needed": [
+        "libohhidebug.so",
+        "libace_napi.z.so",
+        "libace_ndk.z.so",
+        "libnative_window.so",
+        "libnative_image.so",
+        "libnative_buffer.so",
+        "libnative_vsync.so",
+        "libEGL.so",
+        "libGLESv3.so",
+        "libvulkan.so",
+        "libhilog_ndk.z.so",
+        "libchild_process.so",
+        "libipc_capi.so",
+        "libohaudio.so",
+        "libnative_window_manager.so",
+        "libwayland-server.so.0",
+        "libc++_shared.so",
+        "libc.so"
+      ],
+      "validation": "All SHF_ALLOC section addresses, flags, sizes and bytes match fresh compiler output"
+    },
+    "winebus.so": {
+      "source": "/data/src/winehua/build-controller-followup-20261006/wine-ohos-aarch64/dlls/winebus.sys/winebus.so",
+      "compilerSha256": "b97883e75a35159e408a3f758e1e718cfaba2f323b67bfed4635edf59c975ece",
+      "strippedSha256": "eec545c1c48cc46a5ea5ded3b0aa8162f49c81038aceba2346768726ad031762",
+      "needed": [
+        "ntdll.so",
+        "libc.so"
+      ],
+      "validation": "All SHF_ALLOC section addresses, flags, sizes and bytes match fresh compiler output"
+    },
+    "opengl32.so": {
+      "source": "/data/src/winehua/build-controller-followup-20261006/wine-ohos-aarch64/dlls/opengl32/opengl32.so",
+      "compilerSha256": "04a37b25e7208edf4148b2a516339c9034d0b9971ebdd49768e338b91f04b46d",
+      "strippedSha256": "cc923a2fd4862528a2bcabfaca5f73a619993f09df9107a39b6fa858e695e8e0",
+      "needed": [
+        "ntdll.so",
+        "win32u.so",
+        "libc.so"
+      ],
+      "validation": "All SHF_ALLOC section addresses, flags, sizes and bytes match fresh compiler output"
+    }
+  },
+  "runtimeVersion": "content=1be2e1e055c742cd;wine-valve=cd547f7a0e;fex=86ff33bbe2;arch=arm64-v8a:aarch64",
+  "unsignedHap": {
+    "filename": "entry-default-fex-exact-clean-unsigned.hap",
+    "sha256": "5cebae8b9ee7426c23db6c371a330b55bc7e238f40f8501013e34767922820d5",
+    "bytes": 357074932
+  },
+  "versionName": "1.4.5-proton.26-alpha",
+  "versionCode": 1004035,
+  "validation": "Only WOW64 FEX payload entry changed; non-discardable PE sections match fresh compiler output; all HAP native, Wine, Mesa, ARM64EC and ArkTS contents inherited byte for byte; float diagnostic code absent; inherited JIT diagnostics disabled by default",
+  "deviceAcceptance": "Installed and on-device WOW64 DLL hash verified; exact-store probe on/off agrees on 367680 cases. Clean source has no float diagnostic code. Game on cold/warm complete; off capture NOT completed, paused at user request. Sprite holes and long intro remain unresolved. Not integrated into production build defaults.",
+  "hap": {
+    "filename": "entry-default-fex-exact-clean-debug-signed.hap",
+    "sha256": "1ef71d635275f6eaeefc739a9a9517a7593ceb58377e5d1612b2e477e62bff33",
+    "bytes": 358904129
+  },
+  "signatureValidation": "Official hap-sign-tool verify-app succeeded; all existing archive content unchanged; only .pages.info added"
+}

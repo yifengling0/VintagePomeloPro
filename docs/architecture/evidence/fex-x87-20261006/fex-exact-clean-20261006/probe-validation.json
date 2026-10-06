@@ -1,0 +1,16 @@
+{
+  "cases": 367680,
+  "offOnResultsAndIEAndFlagsMatch": true,
+  "previousCandidateResultsMatch": true,
+  "inheritedNoncanonicalDifferences": true,
+  "bench": {
+    "bench32": {
+      "off": 30.3526,
+      "on": 9.1614
+    },
+    "bench64": {
+      "off": 34.0318,
+      "on": 9.1745
+    }
+  }
+}

@@ -1,0 +1,1812 @@
+diff --git a/Makefile b/Makefile
+index 01e83f3a..334ea94d 100644
+--- a/Makefile
++++ b/Makefile
+@@ -105,6 +105,7 @@ ARCHES := $(NATIVE_ARCH)
+ DEPS_SENTINEL   := $(BUILD_DIR)/sysroot-ext/usr/lib/$(WINE_ARCH)-linux-ohos/libfreetype.so.6
+ WINE_SENTINEL   := $(BUILD_DIR)/wine-native/tools/winegcc/winegcc
+ GUEST_GFX_SENTINEL := $(BUILD_DIR)/guest_gfx/$(GUEST_ARCH)/winehua-guest-gfx.env
++MESA_OHOS_PATCH_INPUTS := $(SCRIPTS)/apply_mesa_ohos_patches.sh $(wildcard $(ROOT)/patches/mesa/*.patch)
+ GUEST_VULKAN_SENTINEL := $(BUILD_DIR)/guest_vulkan/$(GUEST_ARCH)/manifest.json
+ WINE_MONO_SENTINEL := $(BUILD_DIR)/wine-mono/wine-mono-11.1.0-x86.msi
+ HOST_VULKAN_SOURCE := $(ROOT)/smoke/venus_heaven_material_replay.c
+@@ -264,6 +265,7 @@ $(foreach a,arm64-v8a x86_64,$(eval $(call host_vulkan_rule,$(a))))
+ deps: $(STAMPS)/deps
+ 
+ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/build_gstreamer.sh \
++	$(MESA_OHOS_PATCH_INPUTS) \
+ 	$(SCRIPTS)/build_ohos_guest_gfx.sh \
+ 	$(SCRIPTS)/build_ohos_guest_vulkan.sh $(ROOT)/smoke/guest_vulkan_smoke.c \
+ 	$(ROOT)/smoke/venus_sampled_image_probe.c \
+@@ -309,6 +311,8 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
+ 	if [ -f $@ ] && [ -f $(DEPS_SENTINEL) ] && [ "$$guest_gfx_ready" = "1" ] && \
+ 	    [ "$$guest_vulkan_ready" = "1" ] && [ "$$mono_ready" = "1" ] && \
+ 	    ! [ "$(SCRIPTS)/build_ohos_guest_gfx.sh" -nt $@ ] && \
++	    ! [ "$(SCRIPTS)/apply_mesa_ohos_patches.sh" -nt $@ ] && \
++	    ! find $(ROOT)/patches/mesa -type f -name '*.patch' -newer $@ 2>/dev/null | grep -q . && \
+ 	    ! [ "$(SCRIPTS)/build_ohos_guest_vulkan.sh" -nt $@ ] && \
+ 	    ! [ "$(SCRIPTS)/build_gnutls.sh" -nt $@ ] && \
+ 	    ! [ "$(SCRIPTS)/build_gstreamer.sh" -nt $@ ] && \
+@@ -402,13 +406,19 @@ $(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_
+ # fex → assemble 缺 libarm64ecfex.dll。skip-touch 分支同样不落共享 stamp。
+ fex: $(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH)
+ 
+-$(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_fex.sh $(SCRIPTS)/env.sh FORCE | $(STAMPS)
++$(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_fex.sh $(SCRIPTS)/env.sh $(SCRIPTS)/patches/fex-wow64-synthetic-return.patch $(SCRIPTS)/patches/fex-windows-jit-symbols.patch $(SCRIPTS)/patches/fex-windows-crt-file-open.patch $(SCRIPTS)/patches/fex-windows-jit-cost.patch $(SCRIPTS)/patches/fex-windows-file-loading.patch FORCE | $(STAMPS)
+ 	@if [ "$(WINE_ARCH)" = "x86_64" ]; then \
+ 	    echo "  [fex] skip (x86_64)"; \
+ 	    mkdir -p $(dir $@) && touch $@; \
+ 	elif [ -f $@ ] && \
+ 	    [ -f $(BUILD_DIR)/fex-ec/Bin/libarm64ecfex.dll ] && \
++	    [ -f $(BUILD_DIR)/fex-pe/Bin/libwow64fex.dll ] && \
+ 	    ! [ "$(SCRIPTS)/build_fex.sh" -nt $@ ] && \
++	    ! [ "$(SCRIPTS)/patches/fex-wow64-synthetic-return.patch" -nt $@ ] && \
++	    ! [ "$(SCRIPTS)/patches/fex-windows-jit-symbols.patch" -nt $@ ] && \
++	    ! [ "$(SCRIPTS)/patches/fex-windows-crt-file-open.patch" -nt $@ ] && \
++	    ! [ "$(SCRIPTS)/patches/fex-windows-jit-cost.patch" -nt $@ ] && \
++	    ! [ "$(SCRIPTS)/patches/fex-windows-file-loading.patch" -nt $@ ] && \
+ 	    ! find $(ROOT)/thirdparty/fex \
+ 	           -newer $@ -type f \
+ 	           \( -name '*.c' -o -name '*.cpp' -o -name '*.h' -o -name '*.S' \
+@@ -841,3 +851,59 @@ test-winehua-perf: test-wine-performance-summary
+ test-wine-performance-summary:
+ 	python3 $(ROOT)/host_tests/winehua_perf_test.py --wine-src $(WINE_SRC)
+ 	python3 $(ROOT)/host_tests/winehua_perf_boundary_test.py --wine-src $(WINE_SRC)
++	python3 $(ROOT)/host_tests/winehua_upload_perf_test.py --wine-src $(WINE_SRC)
++
++.PHONY: test-wined3d-discard-map
++test: test-wined3d-discard-map
++test-wined3d-discard-map:
++	python3 $(ROOT)/host_tests/wined3d_discard_map_test.py --wine-src $(WINE_SRC)
++
++.PHONY: test-wined3d-dynamic-sysmem
++test: test-wined3d-dynamic-sysmem
++test-wined3d-dynamic-sysmem:
++	python3 $(ROOT)/host_tests/wined3d_dynamic_sysmem_test.py --wine-src $(WINE_SRC)
++
++.PHONY: test-virgl-shared-low-map
++test: test-virgl-shared-low-map
++test-virgl-shared-low-map:
++	python3 $(ROOT)/host_tests/virgl_shared_low_map_test.py --wine-src $(WINE_SRC)
++
++.PHONY: test-fex-wow64-synthetic-return
++test-fex-wow64-synthetic-return:
++	python3 $(ROOT)/host_tests/fex_wow64_synthetic_return_test.py
++
++.PHONY: test-fex-jit-symbols
++test-fex-jit-symbols:
++	python3 $(ROOT)/host_tests/fex_jit_symbols_test.py
++
++.PHONY: test-fex-crt-file-open
++test-fex-crt-file-open:
++	python3 $(ROOT)/host_tests/fex_crt_file_open_test.py
++
++.PHONY: test-winebus-ohos-poll
++test: test-winebus-ohos-poll
++test-winebus-ohos-poll:
++	python3 $(ROOT)/host_tests/winebus_ohos_poll_test.py --wine-src $(WINE_SRC)
++
++.PHONY: test-winehua-wgl-lock-wait
++test: test-winehua-wgl-lock-wait
++test-winehua-wgl-lock-wait:
++	python3 $(ROOT)/host_tests/winehua_wgl_lock_wait_test.py --wine-src $(WINE_SRC)
++
++.PHONY: test-controller-canonical
++test: test-controller-canonical
++test-controller-canonical:
++	@mkdir -p $(HOST_TEST_DIR)
++	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
++	    $(ROOT)/host_tests/controller_merge_test.cpp $(ROOT)/entry/src/main/cpp/input/controller/controller_hub.cpp \
++	    -o $(HOST_TEST_DIR)/controller_merge_test
++	$(HOST_TEST_DIR)/controller_merge_test
++	python3 $(ROOT)/host_tests/controller_protocol_test.py --wine-src $(WINE_SRC)
++
++.PHONY: test-fex-jit-cost
++test-fex-jit-cost:
++	python3 $(ROOT)/host_tests/fex_jit_cost_test.py
++
++.PHONY: test-fex-windows-file-loading
++test-fex-windows-file-loading:
++	python3 $(ROOT)/host_tests/fex_windows_file_loading_test.py
+diff --git a/entry/src/main/cpp/input/controller/controller_hub.cpp b/entry/src/main/cpp/input/controller/controller_hub.cpp
+index a2c58323..48243c89 100644
+--- a/entry/src/main/cpp/input/controller/controller_hub.cpp
++++ b/entry/src/main/cpp/input/controller/controller_hub.cpp
+@@ -65,6 +65,7 @@ void ControllerHub::SetButton(ControllerSourceId source, uint32_t slot, LogicalB
+ 
+     StateListener cb;
+     LogicalGamepadState snap;
++    bool changed = false;
+     {
+         std::lock_guard<std::mutex> lock(mutex_);
+         if (!enabled_) return;
+@@ -72,63 +73,106 @@ void ControllerHub::SetButton(ControllerSourceId source, uint32_t slot, LogicalB
+         const uint32_t bit = 1u << src;
+         if (pressed) owners |= bit;
+         else owners &= ~bit;
+-        RecomputeLocked(slot);
++        changed = RecomputeLocked(slot);
+         cb = listener_;
+         snap = slots_[slot].logical;
+     }
+-    if (cb) cb(slot, snap);
++    if (changed && cb) cb(slot, snap);
+ }
+ 
++// Compatibility for the legacy single-axis NAPI. Paired callers use SetStick.
+ void ControllerHub::SetAxis(ControllerSourceId source, uint32_t slot, LogicalAxis axis, float value)
+ {
+     const uint32_t src = static_cast<uint32_t>(source);
+     const uint32_t ax = static_cast<uint32_t>(axis);
+-    if (src >= kSourceCount || ax >= kAxisCount || slot >= kMaxControllerSlots) return;
+-
++    if (src >= kSourceCount || ax >= static_cast<uint32_t>(LogicalAxis::Count) || slot >= kMaxControllerSlots) return;
++    if (axis == LogicalAxis::LT || axis == LogicalAxis::RT) {
++        SetTrigger(source, slot, axis == LogicalAxis::LT ? LogicalTrigger::Left : LogicalTrigger::Right, value);
++        return;
++    }
++    if (!std::isfinite(value)) value = 0.f;
++    value = std::clamp(value, -1.f, 1.f);
++    const uint32_t stIdx = ax / 2;
+     StateListener cb;
+     LogicalGamepadState snap;
++    bool changed;
+     {
+         std::lock_guard<std::mutex> lock(mutex_);
+         if (!enabled_) return;
++        auto& st = slots_[slot];
++        auto& stick = st.sticks[src][stIdx];
++        if (ax % 2) stick.y = value;
++        else stick.x = value;
++        stick.active = std::sqrt(stick.x * stick.x + stick.y * stick.y) > innerDeadzone_;
++        if (stick.active) {
++            stick.activitySequence = st.nextActivitySequence++;
++            st.stickOwner[stIdx] = source;
++        } else if (st.stickOwner[stIdx] == source) {
++            st.stickOwner[stIdx] = PickStickOwner(st, stIdx);
++        }
++        changed = RecomputeLocked(slot);
++        cb = listener_;
++        snap = st.logical;
++    }
++    if (changed && cb) cb(slot, snap);
++}
+ 
+-        float v = value;
+-        if (axis == LogicalAxis::LT || axis == LogicalAxis::RT) {
+-            v = std::clamp(v, 0.f, 1.f);
+-            slots_[slot].axisValues[src][ax] = v;
+-            slots_[slot].axisActive[src][ax] = v > 0.02f;
+-        } else {
+-            v = std::clamp(v, -1.f, 1.f);
+-            slots_[slot].axisValues[src][ax] = v;
+-            const bool isLeft = (axis == LogicalAxis::LX || axis == LogicalAxis::LY);
+-            const uint32_t axX = static_cast<uint32_t>(isLeft ? LogicalAxis::LX : LogicalAxis::RX);
+-            const uint32_t axY = static_cast<uint32_t>(isLeft ? LogicalAxis::LY : LogicalAxis::RY);
+-            const float dx = slots_[slot].axisValues[src][axX];
+-            const float dy = slots_[slot].axisValues[src][axY];
+-            const float mag = std::sqrt(dx * dx + dy * dy);
+-            const bool active = mag > innerDeadzone_;
+-            slots_[slot].axisActive[src][axX] = active;
+-            slots_[slot].axisActive[src][axY] = active;
+-            if (active) {
+-                slots_[slot].axisOwner[axX] = source;
+-                slots_[slot].axisOwner[axY] = source;
+-            } else if (slots_[slot].axisOwner[axX] == source) {
+-                slots_[slot].axisOwner[axX] = ControllerSourceId::Touch;
+-                slots_[slot].axisOwner[axY] = ControllerSourceId::Touch;
+-                for (uint32_t s = 0; s < kSourceCount; ++s) {
+-                    if (slots_[slot].axisActive[s][axX] || slots_[slot].axisActive[s][axY]) {
+-                        slots_[slot].axisOwner[axX] = static_cast<ControllerSourceId>(s);
+-                        slots_[slot].axisOwner[axY] = static_cast<ControllerSourceId>(s);
+-                        break;
+-                    }
+-                }
+-            }
++void ControllerHub::SetStick(ControllerSourceId source, uint32_t slot, LogicalStick stick, float x, float y)
++{
++    const uint32_t src = static_cast<uint32_t>(source);
++    const uint32_t stIdx = static_cast<uint32_t>(stick);
++    if (src >= kSourceCount || stIdx >= kStickCount || slot >= kMaxControllerSlots) return;
++    if (!std::isfinite(x)) x = 0.f;
++    if (!std::isfinite(y)) y = 0.f;
++    x = std::clamp(x, -1.f, 1.f);
++    y = std::clamp(y, -1.f, 1.f);
++
++    StateListener cb;
++    LogicalGamepadState snap;
++    bool changed = false;
++    {
++        std::lock_guard<std::mutex> lock(mutex_);
++        if (!enabled_) return;
++        auto& st = slots_[slot];
++        auto& srcStick = st.sticks[src][stIdx];
++        srcStick.x = x;
++        srcStick.y = y;
++        const float mag = std::sqrt(x * x + y * y);
++        const bool active = mag > innerDeadzone_;
++        srcStick.active = active;
++        if (active) {
++            srcStick.activitySequence = st.nextActivitySequence++;
++            st.stickOwner[stIdx] = source;
++        } else if (st.stickOwner[stIdx] == source) {
++            st.stickOwner[stIdx] = PickStickOwner(st, stIdx);
+         }
++        changed = RecomputeLocked(slot);
++        cb = listener_;
++        snap = st.logical;
++    }
++    if (changed && cb) cb(slot, snap);
++}
+ 
+-        RecomputeLocked(slot);
++void ControllerHub::SetTrigger(ControllerSourceId source, uint32_t slot, LogicalTrigger trigger, float value)
++{
++    const uint32_t src = static_cast<uint32_t>(source);
++    const uint32_t tr = static_cast<uint32_t>(trigger);
++    if (src >= kSourceCount || tr >= kTriggerCount || slot >= kMaxControllerSlots) return;
++    if (!std::isfinite(value)) value = 0.f;
++    value = std::clamp(value, 0.f, 1.f);
++
++    StateListener cb;
++    LogicalGamepadState snap;
++    bool changed = false;
++    {
++        std::lock_guard<std::mutex> lock(mutex_);
++        if (!enabled_) return;
++        slots_[slot].triggers[src][tr] = value;
++        changed = RecomputeLocked(slot);
+         cb = listener_;
+         snap = slots_[slot].logical;
+     }
+-    if (cb) cb(slot, snap);
++    if (changed && cb) cb(slot, snap);
+ }
+ 
+ void ControllerHub::SetHat(ControllerSourceId source, uint32_t slot, int8_t x, int8_t y)
+@@ -140,16 +184,17 @@ void ControllerHub::SetHat(ControllerSourceId source, uint32_t slot, int8_t x, i
+ 
+     StateListener cb;
+     LogicalGamepadState snap;
++    bool changed = false;
+     {
+         std::lock_guard<std::mutex> lock(mutex_);
+         if (!enabled_) return;
+         slots_[slot].hatXBySource[src] = x;
+         slots_[slot].hatYBySource[src] = y;
+-        RecomputeLocked(slot);
++        changed = RecomputeLocked(slot);
+         cb = listener_;
+         snap = slots_[slot].logical;
+     }
+-    if (cb) cb(slot, snap);
++    if (changed && cb) cb(slot, snap);
+ }
+ 
+ void ControllerHub::ResetSource(ControllerSourceId source)
+@@ -160,34 +205,50 @@ void ControllerHub::ResetSource(ControllerSourceId source)
+ 
+     StateListener cb;
+     LogicalGamepadState snaps[kMaxControllerSlots];
++    bool anyChanged = false;
++    bool slotChanged[kMaxControllerSlots] = {};
+     {
+         std::lock_guard<std::mutex> lock(mutex_);
+         cb = listener_;
+         for (uint32_t slot = 0; slot < kMaxControllerSlots; ++slot) {
+             auto& st = slots_[slot];
+             for (uint32_t b = 0; b < kButtonCount; ++b) st.buttonOwners[b] &= ~bit;
+-            for (uint32_t a = 0; a < kAxisCount; ++a) {
+-                st.axisValues[src][a] = 0.f;
+-                st.axisActive[src][a] = false;
+-                if (st.axisOwner[a] == source) {
+-                    st.axisOwner[a] = ControllerSourceId::Touch;
+-                    for (uint32_t s = 0; s < kSourceCount; ++s) {
+-                        if (st.axisActive[s][a]) {
+-                            st.axisOwner[a] = static_cast<ControllerSourceId>(s);
+-                            break;
+-                        }
+-                    }
++            for (uint32_t stick = 0; stick < kStickCount; ++stick) {
++                st.sticks[src][stick] = SourceStickState{};
++                if (st.stickOwner[stick] == source) {
++                    st.stickOwner[stick] = PickStickOwner(st, stick);
+                 }
+             }
++            for (uint32_t t = 0; t < kTriggerCount; ++t) st.triggers[src][t] = 0.f;
+             st.hatXBySource[src] = 0;
+             st.hatYBySource[src] = 0;
+-            RecomputeLocked(slot);
++            slotChanged[slot] = RecomputeLocked(slot);
++            anyChanged = anyChanged || slotChanged[slot];
+             snaps[slot] = st.logical;
+         }
+     }
+-    if (cb) {
+-        for (uint32_t slot = 0; slot < kMaxControllerSlots; ++slot) cb(slot, snaps[slot]);
++    if (cb && anyChanged) {
++        for (uint32_t slot = 0; slot < kMaxControllerSlots; ++slot) {
++            if (slotChanged[slot]) cb(slot, snaps[slot]);
++        }
++    }
++}
++
++ControllerSourceId ControllerHub::PickStickOwner(const SlotState& st, uint32_t stickIndex)
++{
++    ControllerSourceId owner = ControllerSourceId::Touch;
++    uint64_t bestSeq = 0;
++    bool found = false;
++    for (uint32_t s = 0; s < kSourceCount; ++s) {
++        const auto& srcStick = st.sticks[s][stickIndex];
++        if (!srcStick.active) continue;
++        if (!found || srcStick.activitySequence >= bestSeq) {
++            found = true;
++            bestSeq = srcStick.activitySequence;
++            owner = static_cast<ControllerSourceId>(s);
++        }
+     }
++    return owner;
+ }
+ 
+ float ControllerHub::ApplyRadialDeadzone(float x, float y, float inner, float* outX, float* outY)
+@@ -207,7 +268,7 @@ float ControllerHub::ApplyRadialDeadzone(float x, float y, float inner, float* o
+     return t;
+ }
+ 
+-void ControllerHub::RecomputeLocked(uint32_t slot)
++bool ControllerHub::RecomputeLocked(uint32_t slot)
+ {
+     auto& st = slots_[slot];
+     LogicalGamepadState next = st.logical;
+@@ -219,28 +280,26 @@ void ControllerHub::RecomputeLocked(uint32_t slot)
+         next.buttons |= (1u << 10);
+     }
+ 
+-    auto emitStick = [&](LogicalAxis axX, LogicalAxis axY, int16_t* outX, int16_t* outY) {
+-        const uint32_t aX = static_cast<uint32_t>(axX);
+-        const uint32_t owner = static_cast<uint32_t>(st.axisOwner[aX]);
++    auto emitStick = [&](LogicalStick stick, int16_t* outX, int16_t* outY) {
++        const uint32_t idx = static_cast<uint32_t>(stick);
++        const uint32_t owner = static_cast<uint32_t>(st.stickOwner[idx]);
+         float ox = 0.f, oy = 0.f;
+-        ApplyRadialDeadzone(st.axisValues[owner][aX],
+-                            st.axisValues[owner][static_cast<uint32_t>(axY)],
++        ApplyRadialDeadzone(st.sticks[owner][idx].x, st.sticks[owner][idx].y,
+                             innerDeadzone_, &ox, &oy);
+         *outX = FloatToStick(ox);
+         *outY = FloatToStick(oy);
+     };
+-    emitStick(LogicalAxis::LX, LogicalAxis::LY, &next.lx, &next.ly);
+-    emitStick(LogicalAxis::RX, LogicalAxis::RY, &next.rx, &next.ry);
++    emitStick(LogicalStick::Left, &next.lx, &next.ly);
++    emitStick(LogicalStick::Right, &next.rx, &next.ry);
+ 
+     float lt = 0.f, rt = 0.f;
+     for (uint32_t s = 0; s < kSourceCount; ++s) {
+-        lt = std::max(lt, st.axisValues[s][static_cast<uint32_t>(LogicalAxis::LT)]);
+-        rt = std::max(rt, st.axisValues[s][static_cast<uint32_t>(LogicalAxis::RT)]);
++        lt = std::max(lt, st.triggers[s][static_cast<uint32_t>(LogicalTrigger::Left)]);
++        rt = std::max(rt, st.triggers[s][static_cast<uint32_t>(LogicalTrigger::Right)]);
+     }
+     next.lt = FloatToTrigger(lt);
+     next.rt = FloatToTrigger(rt);
+ 
+-    // DPad: merge hat sources OR button dpad ownership into hat.
+     int hx = 0, hy = 0;
+     for (uint32_t s = 0; s < kSourceCount; ++s) {
+         if (st.hatXBySource[s] != 0) hx = st.hatXBySource[s];
+@@ -250,7 +309,6 @@ void ControllerHub::RecomputeLocked(uint32_t slot)
+     if (st.buttonOwners[static_cast<uint32_t>(LogicalButton::DpadRight)]) hx = 1;
+     if (st.buttonOwners[static_cast<uint32_t>(LogicalButton::DpadUp)]) hy = 1;
+     if (st.buttonOwners[static_cast<uint32_t>(LogicalButton::DpadDown)]) hy = -1;
+-    // If both left+right, prefer last non-zero from hats already; clamp conflict to 0.
+     if (st.buttonOwners[static_cast<uint32_t>(LogicalButton::DpadLeft)] &&
+         st.buttonOwners[static_cast<uint32_t>(LogicalButton::DpadRight)]) {
+         hx = 0;
+@@ -267,7 +325,9 @@ void ControllerHub::RecomputeLocked(uint32_t slot)
+         next.rt != st.logical.rt || next.hatX != st.logical.hatX || next.hatY != st.logical.hatY) {
+         next.sequence = st.logical.sequence + 1;
+         st.logical = next;
++        return true;
+     }
++    return false;
+ }
+ 
+ }  // namespace controller
+diff --git a/entry/src/main/cpp/input/controller/controller_hub.h b/entry/src/main/cpp/input/controller/controller_hub.h
+index f5f0ba84..bc207cf5 100644
+--- a/entry/src/main/cpp/input/controller/controller_hub.h
++++ b/entry/src/main/cpp/input/controller/controller_hub.h
+@@ -2,15 +2,14 @@
+ 
+ #include "input/controller/controller_types.h"
+ 
+-#include <atomic>
+ #include <functional>
+ #include <mutex>
+ 
+ namespace winehua {
+ namespace controller {
+ 
+-// Slot merge + logical state. Thread-safe; Physical kit callbacks and NAPI
+-// (Touch) may call from different threads.
++// Slot merge + logical canonical state. Thread-safe; Physical kit callbacks
++// and NAPI (Touch) may call from different threads.
+ class ControllerHub {
+ public:
+     using StateListener = std::function<void(uint32_t slot, const LogicalGamepadState&)>;
+@@ -21,34 +20,43 @@ public:
+     bool IsEnabled() const;
+ 
+     void SetButton(ControllerSourceId source, uint32_t slot, LogicalButton button, bool pressed);
+-    // value in [-1,1] for sticks, [0,1] for triggers. +Y = Up.
+     void SetAxis(ControllerSourceId source, uint32_t slot, LogicalAxis axis, float value);
++    void SetStick(ControllerSourceId source, uint32_t slot, LogicalStick stick, float x, float y);
++    void SetTrigger(ControllerSourceId source, uint32_t slot, LogicalTrigger trigger, float value);
+     void SetHat(ControllerSourceId source, uint32_t slot, int8_t x, int8_t y);
+     void ResetSource(ControllerSourceId source);
+ 
+     LogicalGamepadState GetState(uint32_t slot) const;
+     void SetStateListener(StateListener listener);
+ 
+-    // Deadzone applied to physical/touch stick axes before merge (radial).
++    // Deadzone applied to stick vectors before merge (radial).
+     void SetInnerDeadzone(float inner);
+ 
+ private:
+     ControllerHub() = default;
+ 
++    struct SourceStickState {
++        float x = 0.0f;
++        float y = 0.0f;
++        bool active = false;
++        uint64_t activitySequence = 0;
++    };
++
+     struct SlotState {
+         uint32_t buttonOwners[kButtonCount] = {};
+-        float axisValues[kSourceCount][kAxisCount] = {};
+-        bool axisActive[kSourceCount][kAxisCount] = {};
+-        ControllerSourceId axisOwner[kAxisCount] = {
+-            ControllerSourceId::Touch, ControllerSourceId::Touch, ControllerSourceId::Touch,
+-            ControllerSourceId::Touch, ControllerSourceId::Touch, ControllerSourceId::Touch};
++        SourceStickState sticks[kSourceCount][kStickCount] = {};
++        ControllerSourceId stickOwner[kStickCount] = {
++            ControllerSourceId::Touch, ControllerSourceId::Touch};
++        uint64_t nextActivitySequence = 1;
++        float triggers[kSourceCount][kTriggerCount] = {};
+         int8_t hatXBySource[kSourceCount] = {};
+         int8_t hatYBySource[kSourceCount] = {};
+         LogicalGamepadState logical;
+     };
+ 
+-    void RecomputeLocked(uint32_t slot);
++    bool RecomputeLocked(uint32_t slot);
+     static float ApplyRadialDeadzone(float x, float y, float inner, float* outX, float* outY);
++    static ControllerSourceId PickStickOwner(const SlotState& st, uint32_t stickIndex);
+ 
+     mutable std::mutex mutex_;
+     bool enabled_ = false;
+diff --git a/entry/src/main/cpp/input/controller/controller_napi.cpp b/entry/src/main/cpp/input/controller/controller_napi.cpp
+index 41bdb245..9b5cc327 100644
+--- a/entry/src/main/cpp/input/controller/controller_napi.cpp
++++ b/entry/src/main/cpp/input/controller/controller_napi.cpp
+@@ -11,6 +11,8 @@ using winehua::controller::ControllerHub;
+ using winehua::controller::ControllerSourceId;
+ using winehua::controller::GamepadBridge;
+ using winehua::controller::LogicalAxis;
++using winehua::controller::LogicalStick;
++using winehua::controller::LogicalTrigger;
+ using winehua::controller::LogicalButton;
+ using winehua::controller::LogicalGamepadState;
+ 
+@@ -221,7 +223,7 @@ napi_value ControllerGetOutputMode(napi_env env, napi_callback_info)
+     return result;
+ }
+ 
+-// ---- VPP additions: stick/trigger mapped onto the proton SetAxis model ----
++// ---- VPP additions: paired stick/trigger canonical updates ----
+ napi_value ControllerSetStick(napi_env env, napi_callback_info info)
+ {
+     size_t argc = 5;
+@@ -235,15 +237,13 @@ napi_value ControllerSetStick(napi_env env, napi_callback_info info)
+     napi_get_value_int32(env, args[2], &stick);
+     napi_get_value_double(env, args[3], &x);
+     napi_get_value_double(env, args[4], &y);
+-    if (source < 0 || slot < 0) return nullptr;
+-    const LogicalAxis ax = (stick == 0) ? LogicalAxis::LX : LogicalAxis::RX;
+-    const LogicalAxis ay = (stick == 0) ? LogicalAxis::LY : LogicalAxis::RY;
+-    ControllerHub::Instance().SetAxis(static_cast<ControllerSourceId>(source),
+-                                      static_cast<uint32_t>(slot), ax,
+-                                      static_cast<float>(x));
+-    ControllerHub::Instance().SetAxis(static_cast<ControllerSourceId>(source),
+-                                      static_cast<uint32_t>(slot), ay,
+-                                      static_cast<float>(y));
++    if (source < 0 || source >= static_cast<int32_t>(winehua::controller::kSourceCount) ||
++        slot < 0 || slot >= static_cast<int32_t>(winehua::controller::kMaxControllerSlots) ||
++        stick < 0 || stick >= static_cast<int32_t>(LogicalStick::Count)) return nullptr;
++    ControllerHub::Instance().SetStick(static_cast<ControllerSourceId>(source),
++                                        static_cast<uint32_t>(slot),
++                                        static_cast<LogicalStick>(stick),
++                                        static_cast<float>(x), static_cast<float>(y));
+     return nullptr;
+ }
+ 
+@@ -259,10 +259,11 @@ napi_value ControllerSetTrigger(napi_env env, napi_callback_info info)
+     napi_get_value_int32(env, args[1], &slot);
+     napi_get_value_int32(env, args[2], &trigger);
+     napi_get_value_double(env, args[3], &value);
+-    if (source < 0 || slot < 0) return nullptr;
+-    const LogicalAxis axis = (trigger == 0) ? LogicalAxis::LT : LogicalAxis::RT;
+-    ControllerHub::Instance().SetAxis(static_cast<ControllerSourceId>(source),
+-                                      static_cast<uint32_t>(slot), axis,
++    if (source < 0 || source >= static_cast<int32_t>(winehua::controller::kSourceCount) ||
++        slot < 0 || slot >= static_cast<int32_t>(winehua::controller::kMaxControllerSlots) ||
++        trigger < 0 || trigger >= static_cast<int32_t>(LogicalTrigger::Count)) return nullptr;
++    ControllerHub::Instance().SetTrigger(static_cast<ControllerSourceId>(source),
++                                      static_cast<uint32_t>(slot), static_cast<LogicalTrigger>(trigger),
+                                       static_cast<float>(value));
+     return nullptr;
+ }
+diff --git a/entry/src/main/cpp/input/controller/controller_types.h b/entry/src/main/cpp/input/controller/controller_types.h
+index 4386d1b8..345dc87a 100644
+--- a/entry/src/main/cpp/input/controller/controller_types.h
++++ b/entry/src/main/cpp/input/controller/controller_types.h
+@@ -1,12 +1,17 @@
+ #pragma once
+ 
+ #include <cstdint>
+-#include <string>
+ 
+-// WineHua Controller Hub — logical gamepad types.
+-// Stick: int16 [-32768, 32767], +Y = Up.
+-// Trigger: uint16 [0, 32767].
+-// Hat: int8 -1 / 0 / +1.
++// Canonical Controller Space (platform-independent):
++//   Stick X: right positive, range [-1, 1]
++//   Stick Y: up positive, range [-1, 1]
++//   Hat X:   right positive, values -1 / 0 / +1
++//   Hat Y:   up positive, values -1 / 0 / +1
++//   Trigger: 0..1
++// LogicalGamepadState sticks use int16 [-32768, 32767] with the same signs.
++// Source adapters normalize platform raw input into this space. Hub and WHGP
++// never invert based on source. Wine bus_ohos maps canonical sticks to
++// XInput without analog Y inversion.
+ 
+ namespace winehua {
+ namespace controller {
+@@ -30,13 +35,17 @@ enum class LogicalButton : uint8_t {
+     Count
+ };
+ 
+-enum class LogicalAxis : uint8_t {
+-    LX = 0,
+-    LY,
+-    RX,
+-    RY,
+-    LT,
+-    RT,
++enum class LogicalAxis : uint8_t { LX = 0, LY, RX, RY, LT, RT, Count };
++
++enum class LogicalStick : uint8_t {
++    Left = 0,
++    Right,
++    Count
++};
++
++enum class LogicalTrigger : uint8_t {
++    Left = 0,
++    Right,
+     Count
+ };
+ 
+@@ -47,7 +56,6 @@ enum class ControllerSourceType : uint8_t {
+     Macro = 3,
+ };
+ 
+-// Fixed source ids for MVP (bit indices in ownership masks).
+ enum class ControllerSourceId : uint8_t {
+     Touch = 0,
+     Physical = 1,
+@@ -55,9 +63,15 @@ enum class ControllerSourceId : uint8_t {
+     Count = 3,
+ };
+ 
++struct Stick2D {
++    float x = 0.0f;
++    float y = 0.0f;
++};
++
+ static constexpr uint32_t kMaxControllerSlots = 4;
+ static constexpr uint32_t kButtonCount = static_cast<uint32_t>(LogicalButton::Count);
+-static constexpr uint32_t kAxisCount = static_cast<uint32_t>(LogicalAxis::Count);
++static constexpr uint32_t kStickCount = static_cast<uint32_t>(LogicalStick::Count);
++static constexpr uint32_t kTriggerCount = static_cast<uint32_t>(LogicalTrigger::Count);
+ static constexpr uint32_t kSourceCount = static_cast<uint32_t>(ControllerSourceId::Count);
+ 
+ struct LogicalGamepadState {
+diff --git a/entry/src/main/cpp/input/controller/gamepad_bridge.cpp b/entry/src/main/cpp/input/controller/gamepad_bridge.cpp
+index e2d83bcb..3a9cb535 100644
+--- a/entry/src/main/cpp/input/controller/gamepad_bridge.cpp
++++ b/entry/src/main/cpp/input/controller/gamepad_bridge.cpp
+@@ -235,11 +235,16 @@ void GamepadBridge::RecvLoop(const std::shared_ptr<Client>& client)
+     while (true) {
+         whgp_header hdr{};
+         if (!ReadExact(fd, &hdr, sizeof(hdr))) break;
+-        if (hdr.magic != WHGP_MAGIC || hdr.version != WHGP_VERSION) {
++        if (hdr.magic != WHGP_MAGIC) {
+             OH_LOG_WARN(LOG_APP, "[WHGP] bad header from winebus magic=%{public}u ver=%{public}u",
+                         hdr.magic, hdr.version);
+             break;
+         }
++        if (!whgp_version_matches(hdr.version)) {
++            OH_LOG_WARN(LOG_APP, "[WHGP] protocol mismatch: peer=%{public}u expected=%{public}u",
++                        hdr.version, WHGP_VERSION);
++            break;
++        }
+         if (hdr.payload_size > 4096) {
+             OH_LOG_WARN(LOG_APP, "[WHGP] payload too large %{public}u", hdr.payload_size);
+             break;
+@@ -289,9 +294,9 @@ void GamepadBridge::WriteState(const std::shared_ptr<Client>& client, uint32_t s
+     hdr.version = WHGP_VERSION;
+     hdr.msg_type = WHGP_MSG_STATE;
+     hdr.slot = slot;
+-    hdr.payload_size = sizeof(whgp_state_v1);
++    hdr.payload_size = sizeof(whgp_state_v2);
+ 
+-    whgp_state_v1 body{};
++    whgp_state_v2 body{};
+     body.buttons = state.buttons;
+     body.lx = state.lx;
+     body.ly = state.ly;
+diff --git a/entry/src/main/cpp/input/controller/gamepad_ipc_protocol.h b/entry/src/main/cpp/input/controller/gamepad_ipc_protocol.h
+index ecd638dc..cbf797b2 100644
+--- a/entry/src/main/cpp/input/controller/gamepad_ipc_protocol.h
++++ b/entry/src/main/cpp/input/controller/gamepad_ipc_protocol.h
+@@ -6,12 +6,21 @@
+ extern "C" {
+ #endif
+ 
+-/* WineHua Gamepad Protocol (WHGP) v1 — host <-> winebus bus_ohos.
+- * Keep in sync with thirdparty/wine/dlls/winebus.sys/winehua_gamepad_protocol.h
++/* >>> WHGP_PROTOCOL_BEGIN */
++/* WineHua Gamepad Protocol (WHGP) v2 — host <-> winebus bus_ohos.
++ * Canonical Controller Space on the wire (source-independent):
++ *   lx/rx: left negative, right positive
++ *   ly/ry: down negative, up positive
++ *   hat_x: left negative, right positive
++ *   hat_y: down negative, up positive
++ *   lt/rt: 0..32767
++ * Host: entry/src/main/cpp/input/controller/gamepad_ipc_protocol.h
++ * Wine: thirdparty/wine/dlls/winebus.sys/winehua_gamepad_protocol.h
++ * Keep this marked protocol block byte-identical in both files.
+  */
+ 
+ #define WHGP_MAGIC 0x50474857u /* 'WHGP' LE */
+-#define WHGP_VERSION 1
++#define WHGP_VERSION 2
+ #define WHGP_MSG_STATE 1
+ #define WHGP_MSG_RESET 2
+ #define WHGP_MSG_RUMBLE 3
+@@ -25,20 +34,20 @@ struct whgp_header {
+     uint32_t payload_size;
+ };
+ 
+-struct whgp_state_v1 {
+-    uint32_t buttons; /* bit0=A ... bit9=R3 */
+-    int16_t lx;
+-    int16_t ly;
++struct whgp_state_v2 {
++    uint32_t buttons; /* bit0=A ... bit9=R3, bit10=Guide */
++    int16_t lx; /* right + */
++    int16_t ly; /* up + */
+     int16_t rx;
+     int16_t ry;
+     uint16_t lt; /* 0..32767 */
+     uint16_t rt;
+-    int8_t hat_x; /* -1/0/+1 */
+-    int8_t hat_y;
++    int8_t hat_x; /* -1/0/+1, right + */
++    int8_t hat_y; /* -1/0/+1, up + */
+     uint8_t reserved[2];
+ };
+ 
+-/* Wine → host. duration_ms 0 means "until next update"; host uses a short pulse. */
++/* Wine → host. duration_ms 0 means "until next update". */
+ struct whgp_rumble_v1 {
+     uint16_t low;  /* left / rumble motor, 0..65535 */
+     uint16_t high; /* right / buzz motor, 0..65535 */
+@@ -46,6 +55,24 @@ struct whgp_rumble_v1 {
+ };
+ #pragma pack(pop)
+ 
++static inline int whgp_version_matches(uint16_t version)
++{
++    return version == (uint16_t)WHGP_VERSION;
++}
++
++/* Stick Y is already canonical (+Y=Up), matching XInput/GIP. Do not invert. */
++static inline int32_t whgp_stick_y_to_hid(int16_t y)
++{
++    return (int32_t)y;
++}
++
++/* HID hatswitch helper is +Y=Down; WHGP hat_y is canonical +Y=Up. */
++static inline int32_t whgp_hat_y_to_hid(int8_t y)
++{
++    return -(int32_t)y;
++}
++/* <<< WHGP_PROTOCOL_END */
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/entry/src/main/cpp/input/controller/physical_gamepad.cpp b/entry/src/main/cpp/input/controller/physical_gamepad.cpp
+index e6cb10bf..9422165b 100644
+--- a/entry/src/main/cpp/input/controller/physical_gamepad.cpp
++++ b/entry/src/main/cpp/input/controller/physical_gamepad.cpp
+@@ -1,13 +1,21 @@
+ #include "input/controller/physical_gamepad.h"
+ 
+ #include "input/controller/controller_hub.h"
+-#include "input/controller/controller_runtime.h"
+ #include "input/controller/controller_types.h"
++#include "input/controller/ohos_gamepad_adapter.h"
+ 
+ namespace winehua {
+ namespace controller {
+ namespace {
+ 
++enum class PhysicalControlAxis {
++    LeftStick = 0,
++    RightStick = 1,
++    Dpad = 2,
++    LeftTrigger = 3,
++    RightTrigger = 4,
++};
++
+ LogicalButton MapOhButton(int code)
+ {
+     switch (code) {
+@@ -17,7 +25,7 @@ LogicalButton MapOhButton(int code)
+         case 2305: return LogicalButton::Y;
+         case 2307: return LogicalButton::LB;
+         case 2308: return LogicalButton::RB;
+-        case 2309: return LogicalButton::LB; // L2 button → also drive LT via SetAxis below
++        case 2309: return LogicalButton::LB; // L2 digital → LT via SetTrigger
+         case 2310: return LogicalButton::RB;
+         case 2311: return LogicalButton::Back;
+         case 2312: return LogicalButton::Start;
+@@ -37,15 +45,14 @@ LogicalButton MapOhButton(int code)
+ void PhysicalFeedButton(int ohButtonCode, bool pressed)
+ {
+     if (!ControllerHub::Instance().IsEnabled()) return;
+-    // Trigger buttons: prefer axis; also set axis 1.0/0 as fallback.
+     if (ohButtonCode == 2309) {
+-        ControllerHub::Instance().SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LT,
+-                                          pressed ? 1.f : 0.f);
++        ControllerHub::Instance().SetTrigger(ControllerSourceId::Physical, 0,
++                                              LogicalTrigger::Left, pressed ? 1.f : 0.f);
+         return;
+     }
+     if (ohButtonCode == 2310) {
+-        ControllerHub::Instance().SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::RT,
+-                                          pressed ? 1.f : 0.f);
++        ControllerHub::Instance().SetTrigger(ControllerSourceId::Physical, 0,
++                                              LogicalTrigger::Right, pressed ? 1.f : 0.f);
+         return;
+     }
+     const LogicalButton btn = MapOhButton(ohButtonCode);
+@@ -57,32 +64,29 @@ void PhysicalFeedAxis(int axisType, double x, double y)
+ {
+     if (!ControllerHub::Instance().IsEnabled()) return;
+     auto& hub = ControllerHub::Instance();
+-    const float fx = static_cast<float>(x);
+-    const float fy = static_cast<float>(y);
+-    auto feedThumb = [&](LogicalAxis axisX, LogicalAxis axisY) {
+-        hub.SetAxis(ControllerSourceId::Physical, 0, axisX, fx);
+-        hub.SetAxis(ControllerSourceId::Physical, 0, axisY, fy);
+-    };
+-    switch (axisType) {
+-        case 0: // left stick
+-            feedThumb(LogicalAxis::LX, LogicalAxis::LY);
++    switch (static_cast<PhysicalControlAxis>(axisType)) {
++        case PhysicalControlAxis::LeftStick: {
++            const Stick2D stick = NormalizeOhosThumb(x, y);
++            hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Left, stick.x, stick.y);
+             break;
+-        case 1: // right stick
+-            feedThumb(LogicalAxis::RX, LogicalAxis::RY);
++        }
++        case PhysicalControlAxis::RightStick: {
++            const Stick2D stick = NormalizeOhosThumb(x, y);
++            hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Right, stick.x, stick.y);
+             break;
+-        case 2: { // hat / dpad axis — values typically -1..1
+-            const int8_t hx = (x < -0.5) ? -1 : (x > 0.5 ? 1 : 0);
+-            // Hat: Kit +Y is Down → Hub +Y=Up. Analog thumbs are not flipped:
+-            // left and right share feedThumb; winebus already inverts stick Y.
+-            const int8_t hy = (y > 0.5) ? -1 : (y < -0.5 ? 1 : 0);
+-            hub.SetHat(ControllerSourceId::Physical, 0, hx, hy);
++        }
++        case PhysicalControlAxis::Dpad: {
++            const CanonicalHat hat = NormalizeOhosHat(x, y);
++            hub.SetHat(ControllerSourceId::Physical, 0, hat.x, hat.y);
+             break;
+         }
+-        case 3: // LT brake [0,1]
+-            hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LT, static_cast<float>(x));
++        case PhysicalControlAxis::LeftTrigger:
++            hub.SetTrigger(ControllerSourceId::Physical, 0, LogicalTrigger::Left,
++                           NormalizeOhosTrigger(x));
+             break;
+-        case 4: // RT gas
+-            hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::RT, static_cast<float>(x));
++        case PhysicalControlAxis::RightTrigger:
++            hub.SetTrigger(ControllerSourceId::Physical, 0, LogicalTrigger::Right,
++                           NormalizeOhosTrigger(x));
+             break;
+         default:
+             break;
+diff --git a/host_tests/controller_merge_test.cpp b/host_tests/controller_merge_test.cpp
+index 860c1a87..961cdc52 100644
+--- a/host_tests/controller_merge_test.cpp
++++ b/host_tests/controller_merge_test.cpp
+@@ -1,14 +1,23 @@
+-// controller_merge_test.cpp — ControllerHub source ownership (make test)
++// controller_merge_test.cpp — Canonical Controller Space + Hub merge (make test)
+ #include "input/controller/controller_hub.h"
++#include "input/controller/controller_types.h"
+ #include "input/controller/gamepad_ipc_protocol.h"
++#include "input/controller/ohos_gamepad_adapter.h"
+ 
+ #include <cstdio>
++#include <limits>
+ 
+ using winehua::controller::ButtonBit;
+ using winehua::controller::ControllerHub;
+ using winehua::controller::ControllerSourceId;
+-using winehua::controller::LogicalAxis;
+ using winehua::controller::LogicalButton;
++using winehua::controller::LogicalGamepadState;
++using winehua::controller::LogicalStick;
++using winehua::controller::LogicalTrigger;
++using winehua::controller::NormalizeOhosHat;
++using winehua::controller::NormalizeOhosThumb;
++using winehua::controller::NormalizeOhosTrigger;
++using winehua::controller::NormalizeScreenThumb;
+ 
+ static int g_checks = 0;
+ static int g_failures = 0;
+@@ -21,15 +30,78 @@ static int g_failures = 0;
+     } \
+ } while (0)
+ 
++static whgp_state_v2 SerializeCanonical(const LogicalGamepadState& state)
++{
++    whgp_state_v2 body{};
++    body.buttons = state.buttons;
++    body.lx = state.lx;
++    body.ly = state.ly;
++    body.rx = state.rx;
++    body.ry = state.ry;
++    body.lt = state.lt;
++    body.rt = state.rt;
++    body.hat_x = state.hatX;
++    body.hat_y = state.hatY;
++    return body;
++}
++
+ int main()
+ {
+     static_assert(sizeof(whgp_header) == 16, "whgp_header packed size");
+-    static_assert(sizeof(whgp_state_v1) == 20, "whgp_state_v1 packed size");
++    static_assert(sizeof(whgp_state_v2) == 20, "whgp_state_v2 packed size");
+     static_assert(sizeof(whgp_rumble_v1) == 8, "whgp_rumble_v1 packed size");
++    static_assert(WHGP_VERSION == 2, "WHGP v2");
++
++    const float inf = std::numeric_limits<float>::infinity();
++    const float nan = std::numeric_limits<float>::quiet_NaN();
++
++    // OHOS adapter: Kit/SDL raw up is negative Y → canonical +Y.
++    auto up = NormalizeOhosThumb(0.0, -1.0);
++    CHECK(up.x == 0.f && up.y == 1.f, "OH raw up → canonical up");
++    auto down = NormalizeOhosThumb(0.0, 1.0);
++    CHECK(down.x == 0.f && down.y == -1.f, "OH raw down → canonical down");
++    auto right = NormalizeOhosThumb(1.0, 0.0);
++    CHECK(right.x == 1.f && right.y == 0.f, "OH raw right");
++    auto left = NormalizeOhosThumb(-1.0, 0.0);
++    CHECK(left.x == -1.f && left.y == 0.f, "OH raw left");
++    auto diag = NormalizeOhosThumb(0.5, -0.5);
++    CHECK(diag.x == 0.5f && diag.y == 0.5f, "OH raw diagonal up-right");
++    auto clamped = NormalizeOhosThumb(2.0, -3.0);
++    CHECK(clamped.x == 1.f && clamped.y == 1.f, "OH thumb clamp");
++    auto nanThumb = NormalizeOhosThumb(nan, -1.0);
++    CHECK(nanThumb.x == 0.f && nanThumb.y == 1.f, "OH thumb NaN X");
++    auto infThumb = NormalizeOhosThumb(0.0, -inf);
++    CHECK(infThumb.y == 0.f, "OH thumb Inf Y");
++
++    auto hatUp = NormalizeOhosHat(0.0, -1.0);
++    CHECK(hatUp.x == 0 && hatUp.y == 1, "OH hat raw up → canonical up");
++    auto hatDown = NormalizeOhosHat(0.0, 1.0);
++    CHECK(hatDown.x == 0 && hatDown.y == -1, "OH hat raw down → canonical down");
++    auto hatIdle = NormalizeOhosHat(0.2, 0.2);
++    CHECK(hatIdle.x == 0 && hatIdle.y == 0, "OH hat threshold");
++
++    CHECK(NormalizeOhosTrigger(0.25) == 0.25f, "OH trigger pass");
++    CHECK(NormalizeOhosTrigger(-0.2) == 0.f, "OH trigger clamp low");
++    CHECK(NormalizeOhosTrigger(1.5) == 1.f, "OH trigger clamp high");
++    CHECK(NormalizeOhosTrigger(nan) == 0.f, "OH trigger NaN");
++
++    // Touch / screen adapter: finger up is negative screen dy → canonical +Y.
++    auto touchUp = NormalizeScreenThumb(0.f, -40.f, 50.f);
++    CHECK(touchUp.x == 0.f && touchUp.y > 0.f, "touch up → canonical up");
++    auto touchDown = NormalizeScreenThumb(0.f, 40.f, 50.f);
++    CHECK(touchDown.y < 0.f, "touch down → canonical down");
++    auto touchCenter = NormalizeScreenThumb(0.f, 0.f, 50.f);
++    CHECK(touchCenter.x == 0.f && touchCenter.y == 0.f, "touch center");
++    auto touchClamp = NormalizeScreenThumb(100.f, 0.f, 50.f);
++    CHECK(touchClamp.x == 1.f, "touch radius clamp");
++    auto touchBad = NormalizeScreenThumb(1.f, 1.f, 0.f);
++    CHECK(touchBad.x == 0.f && touchBad.y == 0.f, "touch zero radius");
+ 
+     auto& hub = ControllerHub::Instance();
++    hub.SetEnabled(false);
+     hub.SetEnabled(true);
+     hub.SetInnerDeadzone(0.10f);
++    hub.SetStateListener(nullptr);
+ 
+     // Button ownership: Touch A down, Physical A down, Touch A up → still down
+     hub.SetButton(ControllerSourceId::Touch, 0, LogicalButton::A, true);
+@@ -41,11 +113,12 @@ int main()
+     CHECK(!(hub.GetState(0).buttons & ButtonBit(LogicalButton::A)), "both released");
+ 
+     // Trigger max
+-    hub.SetAxis(ControllerSourceId::Touch, 0, LogicalAxis::LT, 0.4f);
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LT, 0.8f);
++    hub.SetTrigger(ControllerSourceId::Touch, 0, LogicalTrigger::Left, 0.4f);
++    hub.SetTrigger(ControllerSourceId::Physical, 0, LogicalTrigger::Left, 0.8f);
+     CHECK(hub.GetState(0).lt > 20000, "trigger max physical");
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LT, 0.f);
++    hub.SetTrigger(ControllerSourceId::Physical, 0, LogicalTrigger::Left, 0.f);
+     CHECK(hub.GetState(0).lt > 10000, "trigger remains touch");
++    hub.SetTrigger(ControllerSourceId::Touch, 0, LogicalTrigger::Left, 0.f);
+ 
+     // ResetSource clears only that source
+     hub.SetButton(ControllerSourceId::Touch, 0, LogicalButton::B, true);
+@@ -55,26 +128,96 @@ int main()
+     hub.ResetSource(ControllerSourceId::Physical);
+     CHECK(!(hub.GetState(0).buttons & ButtonBit(LogicalButton::B)), "all clear");
+ 
+-    // Stick deadzone
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LX, 0.05f);
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LY, 0.05f);
++    // Stick deadzone on the 2D vector
++    hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Left, 0.05f, 0.05f);
+     CHECK(hub.GetState(0).lx == 0 && hub.GetState(0).ly == 0, "inside deadzone");
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LX, 1.0f);
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LY, 0.0f);
++    hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Left, 1.0f, 0.0f);
+     CHECK(hub.GetState(0).lx > 20000, "full stick X");
++    hub.ResetSource(ControllerSourceId::Physical);
++
++    // Touch Up and Physical normalized Up both yield ly > 0.
++    hub.SetStick(ControllerSourceId::Touch, 0, LogicalStick::Left, touchUp.x, touchUp.y);
++    CHECK(hub.GetState(0).ly > 0, "touch up → hub ly > 0");
++    hub.ResetSource(ControllerSourceId::Touch);
++    hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Left, up.x, up.y);
++    CHECK(hub.GetState(0).ly > 0, "physical normalized up → hub ly > 0");
++    hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Right, 0.f, 1.f);
++    CHECK(hub.GetState(0).ry > 0, "right stick up → hub ry > 0");
++    hub.ResetSource(ControllerSourceId::Physical);
++
++    // SetStick is atomic: one call publishes a complete x/y pair once.
++    int publishes = 0;
++    LogicalGamepadState last{};
++    hub.SetStateListener([&](uint32_t, const LogicalGamepadState& st) {
++        ++publishes;
++        last = st;
++    });
++    hub.SetStick(ControllerSourceId::Touch, 0, LogicalStick::Left, 0.6f, 0.8f);
++    CHECK(publishes == 1, "SetStick publishes once");
++    CHECK(last.lx != 0 && last.ly > 0, "atomic x and y");
++    const uint64_t seq = last.sequence;
++    hub.SetStick(ControllerSourceId::Touch, 0, LogicalStick::Left, 0.6f, 0.8f);
++    CHECK(publishes == 1, "unchanged stick does not republish");
++    CHECK(hub.GetState(0).sequence == seq, "sequence unchanged");
+ 
+     // Last-active stick: Touch after Physical takes ownership; Touch release falls back.
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LX, 1.0f);
+-    hub.SetAxis(ControllerSourceId::Physical, 0, LogicalAxis::LY, 0.0f);
+-    hub.SetAxis(ControllerSourceId::Touch, 0, LogicalAxis::LX, 0.5f);
+-    hub.SetAxis(ControllerSourceId::Touch, 0, LogicalAxis::LY, 0.0f);
++    hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Left, 1.0f, 0.0f);
++    hub.SetStick(ControllerSourceId::Touch, 0, LogicalStick::Left, 0.5f, 0.0f);
+     CHECK(hub.GetState(0).lx > 10000 && hub.GetState(0).lx < 20000, "touch last-active");
+-    hub.SetAxis(ControllerSourceId::Touch, 0, LogicalAxis::LX, 0.0f);
+-    hub.SetAxis(ControllerSourceId::Touch, 0, LogicalAxis::LY, 0.0f);
++    hub.SetStick(ControllerSourceId::Touch, 0, LogicalStick::Left, 0.0f, 0.0f);
+     CHECK(hub.GetState(0).lx > 20000, "physical fallback after touch");
++
++    // Left and right stick owners are independent.
++    hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Left, 1.0f, 0.0f);
++    hub.SetStick(ControllerSourceId::Touch, 0, LogicalStick::Right, 0.0f, 1.0f);
++    CHECK(hub.GetState(0).lx > 20000, "left owner physical");
++    CHECK(hub.GetState(0).ry > 20000, "right owner touch");
+     hub.ResetSource(ControllerSourceId::Physical);
+     hub.ResetSource(ControllerSourceId::Touch);
++    CHECK(hub.GetState(0).lx == 0 && hub.GetState(0).ry == 0, "reset both sticks");
++
++    // Hat up is canonical +1.
++    hub.SetHat(ControllerSourceId::Touch, 0, 0, 1);
++    CHECK(hub.GetState(0).hatY == 1, "hat up");
++    hub.SetHat(ControllerSourceId::Physical, 0, hatUp.x, hatUp.y);
++    CHECK(hub.GetState(0).hatY == 1, "physical hat up");
++    hub.SetButton(ControllerSourceId::Touch, 0, LogicalButton::DpadUp, true);
++    CHECK(hub.GetState(0).hatY == 1, "dpad up button → hatY +1");
++    hub.SetButton(ControllerSourceId::Touch, 0, LogicalButton::DpadUp, false);
++    hub.SetHat(ControllerSourceId::Touch, 0, 0, 0);
++    hub.SetHat(ControllerSourceId::Physical, 0, 0, 0);
++
++    // WHGP serialization copies canonical ly; no source-based invert.
++    hub.SetStick(ControllerSourceId::Touch, 0, LogicalStick::Left, 0.f, 1.f);
++    const LogicalGamepadState hubUp = hub.GetState(0);
++    const whgp_state_v2 wire = SerializeCanonical(hubUp);
++    CHECK(hubUp.ly > 0, "hub canonical up");
++    CHECK(wire.ly == hubUp.ly && wire.ly > 0, "WHGP ly stays canonical up");
++    CHECK(wire.lx == hubUp.lx && wire.ry == hubUp.ry, "WHGP copies remaining axes");
++
++    // Wine bus_ohos mapping: analog Y passthrough; hat Y inverted for HID helper.
++    CHECK(whgp_stick_y_to_hid(12345) == 12345, "wine analog Y passthrough +");
++    CHECK(whgp_stick_y_to_hid(-12345) == -12345, "wine analog Y passthrough -");
++    CHECK(whgp_stick_y_to_hid(wire.ly) == wire.ly, "wine HID stick Y == WHGP ly");
++    CHECK(whgp_hat_y_to_hid(1) == -1, "wine HID hat up");
++    CHECK(whgp_hat_y_to_hid(-1) == 1, "wine HID hat down");
++    CHECK(whgp_version_matches(2), "accept WHGP v2");
++    CHECK(!whgp_version_matches(1), "reject WHGP v1");
++    CHECK(!whgp_version_matches(3), "reject unknown WHGP");
++
++    // The retained single-axis API deduplicates and preserves the other axis.
++    hub.ResetSource(ControllerSourceId::Touch);
++    const int beforeLegacy = publishes;
++    hub.SetAxis(ControllerSourceId::Touch, 0, winehua::controller::LogicalAxis::LX, 0.6f);
++    hub.SetAxis(ControllerSourceId::Touch, 0, winehua::controller::LogicalAxis::LY, 0.8f);
++    CHECK(publishes == beforeLegacy + 2, "legacy axis updates publish changed states");
++    CHECK(hub.GetState(0).lx != 0 && hub.GetState(0).ly > 0, "legacy axis preserves its pair");
++    hub.SetAxis(ControllerSourceId::Touch, 0, winehua::controller::LogicalAxis::LY, 0.8f);
++    CHECK(publishes == beforeLegacy + 2, "unchanged legacy axis does not republish");
++    hub.SetAxis(ControllerSourceId::Touch, 0, winehua::controller::LogicalAxis::LT, 0.5f);
++    CHECK(hub.GetState(0).lt > 0, "legacy trigger API remains available");
+ 
++    hub.SetStateListener(nullptr);
+     hub.SetEnabled(false);
+     std::printf("controller_merge_test: %d checks, %d failures\n", g_checks, g_failures);
+     return g_failures ? 1 : 0;
+diff --git a/host_tests/gamepad_bridge_test.cpp b/host_tests/gamepad_bridge_test.cpp
+index 3b7ac37f..6ed07ea0 100644
+--- a/host_tests/gamepad_bridge_test.cpp
++++ b/host_tests/gamepad_bridge_test.cpp
+@@ -28,14 +28,14 @@ static void ReadExact(int fd, void* buffer, size_t length)
+     }
+ }
+ 
+-static whgp_state_v1 ReadState(int fd)
++static whgp_state_v2 ReadState(int fd)
+ {
+     whgp_header header{};
+     ReadExact(fd, &header, sizeof(header));
+     assert(header.magic == WHGP_MAGIC && header.version == WHGP_VERSION);
+     assert(header.msg_type == WHGP_MSG_STATE && header.slot == 0);
+-    assert(header.payload_size == sizeof(whgp_state_v1));
+-    whgp_state_v1 state{};
++    assert(header.payload_size == sizeof(whgp_state_v2));
++    whgp_state_v2 state{};
+     ReadExact(fd, &state, sizeof(state));
+     return state;
+ }
+diff --git a/patches/wine/0037-wine-opengl-performance-summary.patch b/patches/wine/0037-wine-opengl-performance-summary.patch
+index 0e74adf0..149eb1a3 100644
+--- a/patches/wine/0037-wine-opengl-performance-summary.patch
++++ b/patches/wine/0037-wine-opengl-performance-summary.patch
+@@ -9,7 +9,7 @@
+  
+  #include <pthread.h>
+  
+-@@ -48,6 +50,142 @@
++@@ -48,6 +50,158 @@
+  #include "wine/vulkan_driver.h"
+  
+  WINE_DEFAULT_DEBUG_CHANNEL(opengl);
+@@ -31,6 +31,14 @@
+ +    WINEHUA_PERF_READPIXELS,
+ +    WINEHUA_PERF_FINISH,
+ +    WINEHUA_PERF_WGL_SWAP,
+++    WINEHUA_PERF_BUFFER_SUBDATA,
+++    WINEHUA_PERF_TEX_IMAGE,
+++    WINEHUA_PERF_TEX_SUBIMAGE,
+++    WINEHUA_PERF_COMPRESSED_TEX_SUBIMAGE,
+++    WINEHUA_PERF_COMPILE_SHADER,
+++    WINEHUA_PERF_LINK_PROGRAM,
+++    WINEHUA_PERF_SHADER_STATUS,
+++    WINEHUA_PERF_PROGRAM_STATUS,
+ +    WINEHUA_PERF_COUNT
+ +};
+ +WINE_DECLARE_DEBUG_CHANNEL(winehua_perf);
+@@ -51,6 +59,14 @@
+ +    "readpixels",
+ +    "finish",
+ +    "wgl_swap",
+++    "buffer_subdata",
+++    "tex_image",
+++    "tex_subimage",
+++    "compressed_tex_subimage",
+++    "compile_shader",
+++    "link_program",
+++    "shader_status",
+++    "program_status",
+ +};
+ +
+ +static uint64_t winehua_perf_now(void)
+@@ -152,8 +168,85 @@
+  
+  static const BOOL is_win64 = (sizeof(void *) > sizeof(int));
+  
+-@@ -1873,8 +2011,10 @@
++@@ -1871,10 +2025,87 @@
++     }
++ }
+  
+++/* API wall time includes driver-side CPU work and waits, not GPU duration.
+++ * Texture bytes are intentionally unknown without inspecting unpack state.
+++ * Completion here does not imply GL success; never consume the error queue. */
+++void wrap_glBufferSubData( TEB *teb, GLenum target, GLintptr offset, GLsizeiptr size, const void *data )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glBufferSubData( target, offset, size, data );
+++    winehua_perf_end(WINEHUA_PERF_BUFFER_SUBDATA, perf_start, size > 0 ? size : 0, 0, 0);
+++}
+++
+++void wrap_glBufferSubDataARB( TEB *teb, GLenum target, GLintptrARB offset, GLsizeiptrARB size, const void *data )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glBufferSubDataARB( target, offset, size, data );
+++    winehua_perf_end(WINEHUA_PERF_BUFFER_SUBDATA, perf_start, size > 0 ? size : 0, 0, 0);
+++}
+++
+++void wrap_glTexImage2D( TEB *teb, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glTexImage2D( target, level, internalformat, width, height, border, format, type, pixels );
+++    winehua_perf_end(WINEHUA_PERF_TEX_IMAGE, perf_start, 0, 0, 0);
+++}
+++
+++void wrap_glTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glTexSubImage2D( target, level, xoffset, yoffset, width, height, format, type, pixels );
+++    winehua_perf_end(WINEHUA_PERF_TEX_SUBIMAGE, perf_start, 0, 0, 0);
+++}
+++
+++void wrap_glCompressedTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glCompressedTexSubImage2D( target, level, xoffset, yoffset, width, height, format, imageSize, data );
+++    winehua_perf_end(WINEHUA_PERF_COMPRESSED_TEX_SUBIMAGE, perf_start, imageSize > 0 ? imageSize : 0, 0, 0);
+++}
+++
+++void wrap_glCompileShader( TEB *teb, GLuint shader )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glCompileShader( shader );
+++    winehua_perf_end(WINEHUA_PERF_COMPILE_SHADER, perf_start, 0, 0, 0);
+++}
+++
+++void wrap_glLinkProgram( TEB *teb, GLuint program )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glLinkProgram( program );
+++    winehua_perf_end(WINEHUA_PERF_LINK_PROGRAM, perf_start, 0, 0, 0);
+++}
+++
+++void wrap_glGetShaderiv( TEB *teb, GLuint shader, GLenum pname, GLint *params )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glGetShaderiv( shader, pname, params );
+++    winehua_perf_end(WINEHUA_PERF_SHADER_STATUS, perf_start, 0, 0, 0);
+++}
+++
+++void wrap_glGetProgramiv( TEB *teb, GLuint program, GLenum pname, GLint *params )
+++{
+++    uint64_t perf_start = winehua_perf_begin();
+++    const struct opengl_funcs *funcs = teb->glTable;
+++    funcs->p_glGetProgramiv( program, pname, params );
+++    winehua_perf_end(WINEHUA_PERF_PROGRAM_STATUS, perf_start, 0, 0, 0);
+++}
+++
+  void wrap_glFinish( TEB *teb )
+  {
+ +    uint64_t perf_start = winehua_perf_begin();
+@@ -163,7 +256,7 @@
+  }
+  
+  void wrap_glFlush( TEB *teb )
+-@@ -1899,9 +2039,11 @@
++@@ -1899,9 +2130,11 @@
+  
+  void wrap_glReadPixels( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels )
+  {
+@@ -175,7 +268,7 @@
+  }
+  
+  void wrap_glViewport( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height )
+-@@ -1913,6 +2055,7 @@
++@@ -1913,6 +2146,7 @@
+  
+  BOOL wrap_wglSwapBuffers( TEB *teb, HDC hdc )
+  {
+@@ -183,7 +276,7 @@
+      const struct opengl_funcs *funcs = get_dc_funcs( hdc );
+      BOOL ret;
+  
+-@@ -1928,6 +2071,7 @@
++@@ -1928,6 +2162,7 @@
+          pop_default_fbo_buffers( teb );
+      }
+  
+@@ -191,7 +284,7 @@
+      return ret;
+  }
+  
+-@@ -2930,6 +3074,8 @@
++@@ -2930,6 +3165,8 @@
+      return TRUE;
+  }
+  
+@@ -200,7 +293,7 @@
+  static void flush_buffer( TEB *teb, struct buffer *buffer, size_t offset, size_t length )
+  {
+      VkMappedMemoryRange memory_range =
+-@@ -2954,6 +3100,7 @@
++@@ -2954,6 +3191,7 @@
+      vr = buffer->vk_device->p_vkFlushMappedMemoryRanges( buffer->vk_device->vk_device, 1, &memory_range );
+      if (vr) ERR( "vkFlushMappedMemoryRanges failed: %x\n", vr );
+  }
+@@ -208,7 +301,7 @@
+  
+  static int find_vk_memory_type( struct vk_device *vk_device, uint32_t flags, uint32_t mask )
+  {
+-@@ -3088,11 +3235,17 @@
++@@ -3088,11 +3326,17 @@
+  }
+  
+  static void *wow64_map_buffer( TEB *teb, struct buffer *buffer, GLenum target, GLuint name, GLintptr offset,
+@@ -228,7 +321,7 @@
+          return NULL;
+      }
+  
+-@@ -3114,17 +3267,23 @@
++@@ -3114,17 +3358,23 @@
+          struct context *ctx = get_current_context( teb, NULL, NULL );
+          struct vk_device *vk_device = ctx->buffers->vk_device;
+  
+@@ -253,7 +346,7 @@
+          return buffer->map_ptr;
+      }
+  
+-@@ -3132,18 +3291,28 @@
++@@ -3132,18 +3382,28 @@
+      {
+          buffer->map_ptr = (char *)buffer->vm_ptr + offset;
+          TRACE( "returning pinned ptr %p\n", buffer->map_ptr );
+@@ -284,7 +377,7 @@
+          rb_put( &ctx->buffers->map, &buffer->name, &buffer->entry );
+          TRACE( "allocated buffer %p for %u\n", buffer, buffer->name );
+      }
+-@@ -3155,6 +3324,7 @@
++@@ -3155,6 +3415,7 @@
+      {
+          buffer->map_ptr = ptr;
+          TRACE( "returning %p\n", buffer->map_ptr );
+@@ -292,7 +385,7 @@
+          return buffer->map_ptr;
+      }
+  
+-@@ -3175,9 +3345,14 @@
++@@ -3175,9 +3436,14 @@
+  
+          TRACE( "Copying %#zx from buffer at %p to wow64 buffer %p\n", length, buffer->host_ptr,
+                 buffer->map_ptr );
+@@ -308,7 +401,7 @@
+      return buffer->map_ptr;
+  
+  unmap:
+-@@ -3185,6 +3360,7 @@
++@@ -3185,6 +3451,7 @@
+          unmap_named_buffer( teb, name );
+      else
+          unmap_buffer( teb, target );
+@@ -316,7 +409,7 @@
+      return 0;
+  }
+  
+-@@ -3313,7 +3489,12 @@
++@@ -3313,7 +3580,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      buffer = get_target_buffer( teb, target );
+@@ -330,7 +423,7 @@
+      ptr = wow64_map_buffer( teb, buffer, target, 0, 0, 0, range_access, ptr );
+      pthread_mutex_unlock( &wgl_lock );
+      return ptr;
+-@@ -3339,7 +3520,12 @@
++@@ -3339,7 +3611,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      buffer = get_target_buffer( teb, target );
+@@ -344,7 +437,7 @@
+      ptr = wow64_map_buffer( teb, buffer, target, 0, offset, length, access, ptr );
+      pthread_mutex_unlock( &wgl_lock );
+      return ptr;
+-@@ -3353,7 +3539,12 @@
++@@ -3353,7 +3630,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      buffer = get_named_buffer( teb, name );
+@@ -358,7 +451,7 @@
+      ptr = wow64_map_buffer( teb, buffer, 0, name, 0, 0, range_access, ptr );
+      pthread_mutex_unlock( &wgl_lock );
+      return ptr;
+-@@ -3379,7 +3570,12 @@
++@@ -3379,7 +3661,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      buffer = get_named_buffer( teb, name );
+@@ -372,7 +465,7 @@
+      ptr = wow64_map_buffer( teb, buffer, 0, name, offset, length, access, ptr );
+      pthread_mutex_unlock( &wgl_lock );
+      return ptr;
+-@@ -3397,6 +3593,8 @@
++@@ -3397,6 +3684,8 @@
+      return wow64_gl_map_named_buffer_range( teb, buffer, offset, length, access, funcs->p_glMapNamedBufferRangeEXT );
+  }
+  
+@@ -381,7 +474,7 @@
+  static BOOL wow64_unmap_buffer( TEB *teb, struct buffer *buffer )
+  {
+      if (buffer->vk_memory)
+-@@ -3421,6 +3619,7 @@
++@@ -3421,6 +3710,7 @@
+      buffer->host_ptr = buffer->map_ptr = NULL;
+      return TRUE;
+  }
+@@ -389,7 +482,7 @@
+  
+  static GLboolean wow64_unmap_target_buffer( TEB *teb, GLenum target, PFN_glUnmapBuffer gl_unmap )
+  {
+-@@ -3429,7 +3628,12 @@
++@@ -3429,7 +3719,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      if ((buffer = get_target_buffer( teb, target ))) ret = wow64_unmap_buffer( teb, buffer );
+@@ -403,7 +496,7 @@
+      pthread_mutex_unlock( &wgl_lock );
+      return ret;
+  }
+-@@ -3453,7 +3657,12 @@
++@@ -3453,7 +3748,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      if ((buffer = get_named_buffer( teb, name ))) ret = wow64_unmap_buffer( teb, buffer );
+@@ -417,7 +510,7 @@
+      pthread_mutex_unlock( &wgl_lock );
+      return ret;
+  }
+-@@ -3477,7 +3686,12 @@
++@@ -3477,7 +3777,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      if ((buffer = get_target_buffer( teb, target ))) flush_buffer( teb, buffer, offset, length );
+@@ -431,7 +524,7 @@
+      pthread_mutex_unlock( &wgl_lock );
+  }
+  
+-@@ -3488,7 +3702,12 @@
++@@ -3488,7 +3793,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
+@@ -445,7 +538,7 @@
+      pthread_mutex_unlock( &wgl_lock );
+  }
+  
+-@@ -3499,7 +3718,12 @@
++@@ -3499,7 +3809,12 @@
+  
+      pthread_mutex_lock( &wgl_lock );
+      if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
+@@ -459,3 +552,225 @@
+      pthread_mutex_unlock( &wgl_lock );
+  }
+  
++--- a/dlls/opengl32/make_opengl
+++++ b/dlls/opengl32/make_opengl
++@@ -188,6 +188,15 @@
++     );
++ my %manual_unix_thunks =
++     (
+++     "glBufferSubData" => 1,
+++     "glBufferSubDataARB" => 1,
+++     "glTexImage2D" => 1,
+++     "glTexSubImage2D" => 1,
+++     "glCompressedTexSubImage2D" => 1,
+++     "glCompileShader" => 1,
+++     "glLinkProgram" => 1,
+++     "glGetShaderiv" => 1,
+++     "glGetProgramiv" => 1,
++      "glBlitFramebuffer" => 1,
++      "glBlitFramebufferEXT" => 1,
++      "glBlitNamedFramebuffer" => 1,
++@@ -470,6 +479,8 @@
++     my $need_wrap = $manual_wow64_wrapper || needs_wrapper( $name, $func );
++     my $need_lock = $func_ret =~ /HGLRC|HPBUFFERARB/;
++     my $need_funcs = !$need_wrap || ($prefix eq "ext" && $name !~ /^wgl/);
+++    # Timing wrappers must keep the original native/WOW64 availability checks.
+++    $need_funcs = 1 if $name eq "glTexImage2D" || $name eq "glTexSubImage2D";
++     my $teb = $is_wow64 ? "teb" : "params->teb";
++     my $ret_stat = "return STATUS_SUCCESS;";
++     my $invalidation = "";
++--- a/dlls/opengl32/unix_thunks.c
+++++ b/dlls/opengl32/unix_thunks.c
++@@ -3086,7 +3086,7 @@
++     struct glTexImage2D_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glTexImage2D) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glTexImage2D( params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, params->pixels );
+++    wrap_glTexImage2D( params->teb, params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, params->pixels );
++     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -3146,7 +3146,7 @@
++     struct glTexSubImage2D_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, params->pixels );
+++    wrap_glTexSubImage2D( params->teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, params->pixels );
++     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -4880,7 +4880,7 @@
++     struct glBufferSubData_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glBufferSubData) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glBufferSubData( params->target, params->offset, params->size, params->data );
+++    wrap_glBufferSubData( params->teb, params->target, params->offset, params->size, params->data );
++     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -4890,7 +4890,7 @@
++     struct glBufferSubDataARB_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glBufferSubDataARB) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glBufferSubDataARB( params->target, params->offset, params->size, params->data );
+++    wrap_glBufferSubDataARB( params->teb, params->target, params->offset, params->size, params->data );
++     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -5834,7 +5834,7 @@
++     struct glCompileShader_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glCompileShader) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glCompileShader( params->shader );
+++    wrap_glCompileShader( params->teb, params->shader );
++     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -6004,7 +6004,7 @@
++     struct glCompressedTexSubImage2D_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glCompressedTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glCompressedTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, params->data );
+++    wrap_glCompressedTexSubImage2D( params->teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, params->data );
++     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -12046,7 +12046,7 @@
++     struct glGetProgramiv_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glGetProgramiv) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glGetProgramiv( params->program, params->pname, params->params );
+++    wrap_glGetProgramiv( params->teb, params->program, params->pname, params->params );
++     return STATUS_SUCCESS;
++ }
++ 
++@@ -12334,7 +12334,7 @@
++     struct glGetShaderiv_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glGetShaderiv) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glGetShaderiv( params->shader, params->pname, params->params );
+++    wrap_glGetShaderiv( params->teb, params->shader, params->pname, params->params );
++     return STATUS_SUCCESS;
++ }
++ 
++@@ -14703,7 +14703,7 @@
++     struct glLinkProgram_params *params = args;
++     const struct opengl_funcs *funcs = params->teb->glTable;
++     if (!funcs->p_glLinkProgram) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glLinkProgram( params->program );
+++    wrap_glLinkProgram( params->teb, params->program );
++     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -38870,7 +38870,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glTexImage2D) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glTexImage2D( params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, ULongToPtr(params->pixels) );
+++    wrap_glTexImage2D( teb, params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, ULongToPtr(params->pixels) );
++     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -38982,7 +38982,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, ULongToPtr(params->pixels) );
+++    wrap_glTexSubImage2D( teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, ULongToPtr(params->pixels) );
++     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -41975,7 +41975,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glBufferSubData) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glBufferSubData( params->target, (GLintptr)ULongToPtr(params->offset), (GLsizeiptr)ULongToPtr(params->size), ULongToPtr(params->data) );
+++    wrap_glBufferSubData( teb, params->target, (GLintptr)ULongToPtr(params->offset), (GLsizeiptr)ULongToPtr(params->size), ULongToPtr(params->data) );
++     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -41993,7 +41993,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glBufferSubDataARB) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glBufferSubDataARB( params->target, (GLintptrARB)ULongToPtr(params->offset), (GLsizeiptrARB)ULongToPtr(params->size), ULongToPtr(params->data) );
+++    wrap_glBufferSubDataARB( teb, params->target, (GLintptrARB)ULongToPtr(params->offset), (GLsizeiptrARB)ULongToPtr(params->size), ULongToPtr(params->data) );
++     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -43643,7 +43643,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glCompileShader) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glCompileShader( params->shader );
+++    wrap_glCompileShader( teb, params->shader );
++     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -44017,7 +44017,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glCompressedTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glCompressedTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, ULongToPtr(params->data) );
+++    wrap_glCompressedTexSubImage2D( teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, ULongToPtr(params->data) );
++     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++@@ -54688,7 +54688,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glGetProgramiv) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glGetProgramiv( params->program, params->pname, ULongToPtr(params->params) );
+++    wrap_glGetProgramiv( teb, params->program, params->pname, ULongToPtr(params->params) );
++     return STATUS_SUCCESS;
++ }
++ 
++@@ -55215,7 +55215,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glGetShaderiv) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glGetShaderiv( params->shader, params->pname, ULongToPtr(params->params) );
+++    wrap_glGetShaderiv( teb, params->shader, params->pname, ULongToPtr(params->params) );
++     return STATUS_SUCCESS;
++ }
++ 
++@@ -59401,7 +59401,7 @@
++     TEB *teb = get_teb64( params->teb );
++     const struct opengl_funcs *funcs = teb->glTable;
++     if (!funcs->p_glLinkProgram) return STATUS_NOT_IMPLEMENTED;
++-    funcs->p_glLinkProgram( params->program );
+++    wrap_glLinkProgram( teb, params->program );
++     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
++     return STATUS_SUCCESS;
++ }
++--- a/dlls/opengl32/unix_thunks.h
+++++ b/dlls/opengl32/unix_thunks.h
++@@ -22,10 +22,16 @@
++ extern const GLubyte *wrap_glGetString( TEB *teb, GLenum name );
++ extern void wrap_glReadBuffer( TEB *teb, GLenum src );
++ extern void wrap_glReadPixels( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels );
+++extern void wrap_glTexImage2D( TEB *teb, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels );
+++extern void wrap_glTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels );
++ extern void wrap_glViewport( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height );
++ extern void wrap_glBlitFramebuffer( TEB *teb, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter );
++ extern void wrap_glBlitFramebufferEXT( TEB *teb, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter );
++ extern void wrap_glBlitNamedFramebuffer( TEB *teb, GLuint readFramebuffer, GLuint drawFramebuffer, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter );
+++extern void wrap_glBufferSubData( TEB *teb, GLenum target, GLintptr offset, GLsizeiptr size, const void *data );
+++extern void wrap_glBufferSubDataARB( TEB *teb, GLenum target, GLintptrARB offset, GLsizeiptrARB size, const void *data );
+++extern void wrap_glCompileShader( TEB *teb, GLuint shader );
+++extern void wrap_glCompressedTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data );
++ extern void wrap_glDebugMessageCallback( TEB *teb, GLDEBUGPROC callback, const void *userParam );
++ extern void wrap_glDebugMessageCallbackAMD( TEB *teb, GLDEBUGPROCAMD callback, void *userParam );
++ extern void wrap_glDebugMessageCallbackARB( TEB *teb, GLDEBUGPROCARB callback, const void *userParam );
++@@ -35,8 +41,11 @@
++ extern void wrap_glFramebufferReadBufferEXT( TEB *teb, GLuint framebuffer, GLenum mode );
++ extern void wrap_glGetFramebufferParameterivEXT( TEB *teb, GLuint framebuffer, GLenum pname, GLint *params );
++ extern void wrap_glGetInteger64v( TEB *teb, GLenum pname, GLint64 *data );
+++extern void wrap_glGetProgramiv( TEB *teb, GLuint program, GLenum pname, GLint *params );
+++extern void wrap_glGetShaderiv( TEB *teb, GLuint shader, GLenum pname, GLint *params );
++ extern const GLubyte *wrap_glGetStringi( TEB *teb, GLenum name, GLuint index );
++ extern void wrap_glGetUnsignedBytevEXT( TEB *teb, GLenum pname, GLubyte *data );
+++extern void wrap_glLinkProgram( TEB *teb, GLuint program );
++ extern void wrap_glNamedFramebufferDrawBuffer( TEB *teb, GLuint framebuffer, GLenum buf );
++ extern void wrap_glNamedFramebufferDrawBuffers( TEB *teb, GLuint framebuffer, GLsizei n, const GLenum *bufs );
++ extern void wrap_glNamedFramebufferReadBuffer( TEB *teb, GLuint framebuffer, GLenum src );
+diff --git a/scripts/apply_mesa_ohos_patches.sh b/scripts/apply_mesa_ohos_patches.sh
+index 5a6abb69..ea9fd169 100644
+--- a/scripts/apply_mesa_ohos_patches.sh
++++ b/scripts/apply_mesa_ohos_patches.sh
+@@ -9,25 +9,34 @@ set -euo pipefail
+ 
+ MESA_SOURCE="$1"
+ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+-PATCH="$SCRIPT_DIR/../patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch"
++PATCHES=(
++    "$SCRIPT_DIR/../patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch"
++    "$SCRIPT_DIR/../patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch"
++)
+ 
+ [ -f "$MESA_SOURCE/meson.build" ] || {
+     echo "Mesa source root is invalid: $MESA_SOURCE" >&2
+     exit 1
+ }
+-[ -f "$PATCH" ] || {
+-    echo "Mesa OHOS patch is missing: $PATCH" >&2
+-    exit 1
+-}
+-
+-if git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" \
+-    apply --reverse --check "$PATCH" >/dev/null 2>&1; then
+-    exit 0
++MESA_SOURCE="$(cd "$MESA_SOURCE" && pwd)"
++for PATCH in "${PATCHES[@]}"; do
++    [ -f "$PATCH" ] || {
++        echo "Mesa OHOS patch is missing: $PATCH" >&2
++        exit 1
++    }
++    if git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" \
++        apply --reverse --check "$PATCH" >/dev/null 2>&1; then
++        continue
++    fi
++    git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply --check "$PATCH" || {
++        echo "Mesa source does not match the pinned OHOS patch: $MESA_SOURCE ($PATCH)" >&2
++        exit 1
++    }
++    git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply "$PATCH"
++done
++# Mounted linked worktrees can lack their external Git metadata. git apply
++# still validates every hunk there; only the repository diff needs metadata.
++if git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" rev-parse \
++    --show-toplevel >/dev/null 2>&1; then
++    git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" diff --check
+ fi
+-
+-git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply --check "$PATCH" || {
+-    echo "Mesa source does not match the pinned OHOS patch: $MESA_SOURCE" >&2
+-    exit 1
+-}
+-git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply "$PATCH"
+-git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" diff --check
+diff --git a/scripts/build_fex.sh b/scripts/build_fex.sh
+index 801056f1..e92ae8b7 100644
+--- a/scripts/build_fex.sh
++++ b/scripts/build_fex.sh
+@@ -98,6 +98,54 @@ for PATCH in \
+     log "已应用 patch: $(basename "$PATCH")"
+ done
+ 
++# Keep this separate from patched_source: an already staged older patch set
++# must still acquire the synthetic-return fix.
++callret_patch="$SCRIPT_DIR/patches/fex-wow64-synthetic-return.patch"
++if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$callret_patch" >/dev/null 2>&1; then
++    patch -d "$FEX_SRC" -p1 --dry-run -s < "$callret_patch" >/dev/null || \
++        err "FEX WOW64 synthetic return patch 无法应用"
++    patch -d "$FEX_SRC" -p1 -s < "$callret_patch"
++    log "已应用 patch: $(basename "$callret_patch")"
++fi
++
++# POSIX read-only is zero. Preserve the explicit share and create modes
++# when the Windows CRT forwards an ANSI path to its Unicode implementation.
++crt_open_patch="$SCRIPT_DIR/patches/fex-windows-crt-file-open.patch"
++if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$crt_open_patch" >/dev/null 2>&1; then
++    patch -d "$FEX_SRC" -p1 --dry-run -s < "$crt_open_patch" >/dev/null || \
++        err "FEX Windows CRT file open patch 无法应用"
++    patch -d "$FEX_SRC" -p1 -s < "$crt_open_patch"
++    log "已应用 patch: $(basename "$crt_open_patch")"
++fi
++
++# Diagnose Windows JIT output without depending on the game's DOS drive.
++# Apply separately so an older, already staged patch set receives this fix.
++jit_symbols_patch="$SCRIPT_DIR/patches/fex-windows-jit-symbols.patch"
++if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$jit_symbols_patch" >/dev/null 2>&1; then
++    patch -d "$FEX_SRC" -p1 --dry-run -s < "$jit_symbols_patch" >/dev/null || \
++        err "FEX Windows JIT symbols patch 无法应用"
++    patch -d "$FEX_SRC" -p1 -s < "$jit_symbols_patch"
++    log "已应用 patch: $(basename "$jit_symbols_patch")"
++fi
++
++# Opt-in JIT cost accounting and dispatcher/helper symbol ranges.
++jit_cost_patch="$SCRIPT_DIR/patches/fex-windows-jit-cost.patch"
++if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$jit_cost_patch" >/dev/null 2>&1; then
++    patch -d "$FEX_SRC" -p1 --dry-run -s < "$jit_cost_patch" >/dev/null || \
++        err "FEX Windows JIT cost patch 无法应用"
++    patch -d "$FEX_SRC" -p1 -s < "$jit_cost_patch"
++    log "已应用 patch: $(basename "$jit_cost_patch")"
++fi
++
++# Checked Windows config/cache reads and native exceptions before FEX init.
++file_loading_patch="$SCRIPT_DIR/patches/fex-windows-file-loading.patch"
++if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$file_loading_patch" >/dev/null 2>&1; then
++    patch -d "$FEX_SRC" -p1 --dry-run -s < "$file_loading_patch" >/dev/null || \
++        err "FEX Windows file loading patch 无法应用"
++    patch -d "$FEX_SRC" -p1 -s < "$file_loading_patch"
++    log "已应用 patch: $(basename "$file_loading_patch")"
++fi
++
+ if grep -Fq 'const bool deep = (depth >= 0x7000 && depth < 0x90000) ||' \
+      "$FEX_SRC/Source/Windows/ARM64EC/Module.cpp"; then
+     patch -d "$FEX_SRC" -p1 --dry-run -s < "$SCRIPT_DIR/patches/fex-steam-recursion-entry-limit.patch" >/dev/null || \
+diff --git a/scripts/build_ohos_guest_gfx.sh b/scripts/build_ohos_guest_gfx.sh
+index 14b8d63d..cc881630 100644
+--- a/scripts/build_ohos_guest_gfx.sh
++++ b/scripts/build_ohos_guest_gfx.sh
+@@ -4,7 +4,9 @@ set -euo pipefail
+ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ source "$SCRIPT_DIR/env.sh"
+-BUILD_DIR="$ROOT/build"
++# env.sh already honors the caller's independent BUILD_DIR. Keep its runtime
++# provenance (notably zlib-runtime) when building and packaging the Mesa bundle.
++BUILD_DIR="${BUILD_DIR:-$ROOT/build}"
+ SDK_LINK_DIR="$ROOT/build/sdk-links"
+ HOST_TOOLS_DIR="$BUILD_DIR/host-tools"
+ WRAPPER_DIR="$BUILD_DIR/tool-wrappers"
+diff --git a/scripts/build_wine.sh b/scripts/build_wine.sh
+index 61602636..eaf467b6 100644
+--- a/scripts/build_wine.sh
++++ b/scripts/build_wine.sh
+@@ -161,6 +161,18 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0036-wined3d-pixel-format-id-look
+     "WineD3D bounded WGL pixel-format ID lookup"
+ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0037-wine-opengl-performance-summary.patch" \
+     "Opt-in bounded Unix OpenGL API wall-time summaries"
++ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0038-wined3d-discard-map-invalidation.patch" \
++    "Propagate nonpersistent D3D discard to OpenGL shadow maps"
++ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0039-wined3d-opt-in-dynamic-buffer-sysmem.patch" \
++    "Opt-in WOW64 nonpersistent dynamic buffer sysmem staging"
++ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0040-ntdll-owned-virgl-shared-low-map.patch" \
++    "Opt-in Wine-owned VirGL shared low-address buffer mappings"
++ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0041-winebus-ohos-poll-progress.patch" \
++    "OHOS gamepad socket polling always makes progress"
++ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0042-opengl-opt-in-wgl-lock-wait.patch" \
++    "Opt-in WGL mutex acquisition timing"
++ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0043-winebus-canonical-whgp-v2.patch" \
++    "Canonical WHGP v2 controller axes from main"
+ # Wine 编译标志 (Unix .so + wineserver)
+ WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
+     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

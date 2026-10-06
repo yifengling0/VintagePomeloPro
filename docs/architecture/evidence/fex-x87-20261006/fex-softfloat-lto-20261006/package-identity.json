@@ -1,0 +1,89 @@
+{
+  "baselineCommit": "284026ce64c631961394f2aee6fadb3a4380e579",
+  "fexPin": "86ff33bbe2",
+  "baselineHapSha256": "e1a3acb23830fc9d8fc6dd7f9cdd5977b9855e6a298cd4ec4432153e43e33846",
+  "buildDir": "/data/src/winehua/build-fex-softfloat-lto-20261006",
+  "sourceDir": "/data/src/winehua/workspace_temp/fex-softfloat-lto-20261006/source",
+  "changedHapEntries": [
+    "resources/rawfile/wine-data.zip",
+    "resources/rawfile/wine_runtime.version",
+    "resources/rawfile/wine-runtime-manifest.json"
+  ],
+  "changedPayloadEntries": [
+    "bin/aarch64-windows/libwow64fex.dll"
+  ],
+  "fexOldSha256": "6c0df6e2c3056f1d4cbf2eeb6fee365087a605898df108ec810f9791bdfd6354",
+  "fexNewSha256": "5d73a6df74e39cab427ffb305de2a1209b4031ba580fa4d6435f9cdc4c3c2fc8",
+  "compilerOutputSha256": "3b258520ba5575718c4424f3c3b694ab27383ad122a3dbc02d15476648b4563d",
+  "patchSha256": "32b6c09eb8ae342d7d072ff14f349d8b3402b3a0868e60e280376eeee80a608b",
+  "jitCostPatchSha256": "e0e589966d395e534f0d6880d3f8b4eff2065ba30e16baa9cc89e1756391818e",
+  "symbolPatchSha256": "1769aa1547880535e8659be52db3b149fe4b37cc0a13bffafc9a834369336119",
+  "crtPatchSha256": "d8a4bb640d8cf534e8c3213f96ab87ca367573d678103e5c7a66e7ab78c7a63c",
+  "payloadSha256": "366fad73860d4841f00eb1fb0995fc369f30a7cae2274dfcc2b1ec806422f6ac",
+  "inheritedNativeLibraries": {
+    "libentry.so": {
+      "source": "/data/src/winehua/entry/build/default/intermediates/cmake/default/obj/arm64-v8a/libentry.so",
+      "compilerSha256": "e298e3b159a32944827ecadafa34902ce8aef25b4983cc510776650333ad455e",
+      "strippedSha256": "421b932d916291f2671dc629908c655d9472a2c9bc9529f466837b0ffcbf24b2",
+      "needed": [
+        "libohhidebug.so",
+        "libace_napi.z.so",
+        "libace_ndk.z.so",
+        "libnative_window.so",
+        "libnative_image.so",
+        "libnative_buffer.so",
+        "libnative_vsync.so",
+        "libEGL.so",
+        "libGLESv3.so",
+        "libvulkan.so",
+        "libhilog_ndk.z.so",
+        "libchild_process.so",
+        "libipc_capi.so",
+        "libohaudio.so",
+        "libnative_window_manager.so",
+        "libwayland-server.so.0",
+        "libc++_shared.so",
+        "libc.so"
+      ],
+      "validation": "All SHF_ALLOC section addresses, flags, sizes and bytes match fresh compiler output"
+    },
+    "winebus.so": {
+      "source": "/data/src/winehua/build-controller-followup-20261006/wine-ohos-aarch64/dlls/winebus.sys/winebus.so",
+      "compilerSha256": "b97883e75a35159e408a3f758e1e718cfaba2f323b67bfed4635edf59c975ece",
+      "strippedSha256": "eec545c1c48cc46a5ea5ded3b0aa8162f49c81038aceba2346768726ad031762",
+      "needed": [
+        "ntdll.so",
+        "libc.so"
+      ],
+      "validation": "All SHF_ALLOC section addresses, flags, sizes and bytes match fresh compiler output"
+    },
+    "opengl32.so": {
+      "source": "/data/src/winehua/build-controller-followup-20261006/wine-ohos-aarch64/dlls/opengl32/opengl32.so",
+      "compilerSha256": "04a37b25e7208edf4148b2a516339c9034d0b9971ebdd49768e338b91f04b46d",
+      "strippedSha256": "cc923a2fd4862528a2bcabfaca5f73a619993f09df9107a39b6fa858e695e8e0",
+      "needed": [
+        "ntdll.so",
+        "win32u.so",
+        "libc.so"
+      ],
+      "validation": "All SHF_ALLOC section addresses, flags, sizes and bytes match fresh compiler output"
+    }
+  },
+  "runtimeVersion": "content=366fad73860d4841;wine-valve=cd547f7a0e;fex=86ff33bbe2;arch=arm64-v8a:aarch64",
+  "unsignedHap": {
+    "filename": "entry-default-fex-softfloat-lto-unsigned.hap",
+    "sha256": "824f8aa11188aa226f5c26c6b533062a383e94de7f8b0b882663ab3b7bc3eeee",
+    "bytes": 357073930
+  },
+  "versionName": "1.4.5-proton.26-alpha",
+  "versionCode": 1004035,
+  "validation": "Only WOW64 FEX payload entry changed; non-discardable PE sections match fresh compiler output; all HAP native, Wine, Mesa, ARM64EC and ArkTS contents inherited byte for byte; naming remains disabled by default",
+  "deviceAcceptance": "Installed successfully; device DLL SHA256 matches payload. Automatically launched CPU probe completed all 25 lines with extended precision and identical seven checksums. One-session x87 median about 22% lower; RichMan8 still stutters and has missing parts. Three valid same-process cold/warm avatars; first index excluded. Not a strict cross-build A/B.",
+  "hap": {
+    "filename": "entry-default-fex-softfloat-lto-debug-signed.hap",
+    "sha256": "fa619a0652a27e1184370e195c271d164ab4469cdc94565e4fd23e5faaca7790",
+    "bytes": 358900029
+  },
+  "signatureValidation": "Official hap-sign-tool verify-app succeeded; all existing archive content unchanged; only .pages.info added",
+  "installedHapSha256": "fa619a0652a27e1184370e195c271d164ab4469cdc94565e4fd23e5faaca7790"
+}

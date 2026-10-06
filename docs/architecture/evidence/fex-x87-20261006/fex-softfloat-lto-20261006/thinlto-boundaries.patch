@@ -1,0 +1,26 @@
+--- a/Source/Windows/Common/CMakeLists.txt
++++ b/Source/Windows/Common/CMakeLists.txt
+@@ -17,3 +17,7 @@
+ 
+ target_link_libraries(CommonWindows FEXCore_Base)
+ target_include_directories(CommonWindows PRIVATE "${CMAKE_SOURCE_DIR}/Source/Windows/include/")
++
++# Native compiler-rt references these WinAPI symbols after bitcode resolution.
++# Preserve the Wine runtime boundary as native COFF; FEXCore stays ThinLTO.
++set_property(TARGET CommonWindowsRuntime PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+--- a/Source/Windows/WOW64/CMakeLists.txt
++++ b/Source/Windows/WOW64/CMakeLists.txt
+@@ -24,3 +24,13 @@
+ install(TARGETS wow64fex RUNTIME
+   DESTINATION ${CMAKE_INSTALL_LIBDIR}
+   COMPONENT Runtime)
++
++# compiler-rt is a native archive, loaded after ThinLTO internalization.
++# Keep its Windows instruction-cache entry point resolvable.
++if (ENABLE_LTO)
++  target_link_options(wow64fex PRIVATE -Wl,--undefined=FlushInstructionCache)
++endif()
++
++# Inline assembly calls BTCpuSimulateImpl by name. Keep this boundary native.
++# FEXCore_object and SoftFloat keep their independent ThinLTO settings.
++set_property(TARGET wow64fex PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
