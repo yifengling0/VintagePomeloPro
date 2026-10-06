@@ -58,6 +58,7 @@ SYSROOT="$OHOS_SDK/native/sysroot"
 #      (标准布局 = CI 同款, 不是"约定用户手工放这里");
 #   3. 无网络 → 显式报错 + 设置指引。
 # 均需通过双图库校验 (libc++.a 含 obj.arm64ec/ 成员, 旧版会失败)。
+if [ "${WINEHUA_MESA_ONLY_ENV:-0}" != 1 ]; then
 LLVM_MINGW_VERSION="${LLVM_MINGW_VERSION:-20260826}"
 LLVM_MINGW_DIRNAME="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-22.04-x86_64"
 LLVM_MINGW="${LLVM_MINGW:-}"
@@ -97,6 +98,7 @@ if ! "$LLVM_MINGW/bin/llvm-ar" t "$LLVM_MINGW/aarch64-w64-mingw32/lib/libc++.a" 
     exit 1
 fi
 export LLVM_MINGW
+fi
 
 # ── Native 层架构 (鸿蒙设备 CPU, HAP .so 的目标) ──
 # arm64-v8a: 真机 (AArch64)

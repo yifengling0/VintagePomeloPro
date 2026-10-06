@@ -6,7 +6,36 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export WINEHUA_MESA_ONLY_ENV=1
 source "$SCRIPT_DIR/env.sh"
+
+SOURCE_ROOT="${WINEHUA_OHOS_MESA_SOURCE_ROOT:-$ROOT/thirdparty/mesa}"
+BUILD_ROOT="${WINEHUA_GUEST_VULKAN_BUILD_ROOT:-$ROOT/build/guest_vulkan_build/${WINE_ARCH}}"
+INSTALL_ROOT="${WINEHUA_GUEST_VULKAN_INSTALL_ROOT:-$ROOT/build/guest_vulkan/${WINE_ARCH}}"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --source-root) [ $# -ge 2 ] || err "--source-root requires a value"; SOURCE_ROOT="$2"; shift ;;
+        --build-root) [ $# -ge 2 ] || err "--build-root requires a value"; BUILD_ROOT="$2"; shift ;;
+        --install-root) [ $# -ge 2 ] || err "--install-root requires a value"; INSTALL_ROOT="$2"; shift ;;
+        -h|--help)
+            echo "Usage: $0 --source-root <mesa> --build-root <dir> --install-root <dir>"
+            exit 0
+            ;;
+        *) err "unknown option: $1" ;;
+    esac
+    shift
+done
+
+case "$SOURCE_ROOT:$BUILD_ROOT:$INSTALL_ROOT" in
+    /*:/*:/*) ;;
+    *) err "guest Vulkan source, build, and install roots must be absolute paths" ;;
+esac
+SOURCE_ROOT="$(cd "$SOURCE_ROOT" 2>/dev/null && pwd -P)" || err "Mesa source root does not exist: $SOURCE_ROOT"
+if [ "$SOURCE_ROOT" = "$BUILD_ROOT" ] || [ "$SOURCE_ROOT" = "$INSTALL_ROOT" ] || \
+   [ "$BUILD_ROOT" = "$INSTALL_ROOT" ]; then
+    err "guest Vulkan source, build, and install roots must be distinct"
+fi
 
 # guest 栈架构与 Wine 对齐, 值域 aarch64|x86_64 (不是 NATIVE_ARCH 的 arm64-v8a)
 GUEST_ARCH="${GUEST_ARCH:-$WINE_ARCH}"
@@ -28,10 +57,9 @@ HEADERS_COMMIT="b379292b2ab6df5771ba9870d53cf8b2c9295daf"
 
 LOADER_SOURCE="$ROOT/tmp/Vulkan-Loader-$LOADER_TAG"
 HEADERS_SOURCE="$ROOT/tmp/Vulkan-Headers-$HEADERS_TAG"
-BUILD_ROOT="$ROOT/build/guest_vulkan_build/$GUEST_ARCH"
 HEADERS_INSTALL="$BUILD_ROOT/headers-install"
 LOADER_INSTALL="$BUILD_ROOT/loader-install"
-OUTPUT_ROOT="$ROOT/build/guest_vulkan/$GUEST_ARCH"
+OUTPUT_ROOT="$INSTALL_ROOT"
 MESA_INSTALL="$BUILD_ROOT/mesa-venus-install"
 LOADER_PATCH="$ROOT/patches/vulkan-loader-v1.3.290-ohos.patch"
 
@@ -69,8 +97,9 @@ WINEHUA_GUEST_VULKAN_ONLY=1 \
 WINEHUA_GUEST_GFX_PLATFORM=wayland \
 WINEHUA_GUEST_GFX_BUILD_ROOT="$BUILD_ROOT/mesa-venus-offscreen-v2" \
 WINEHUA_GUEST_GFX_INSTALL_ROOT="$MESA_INSTALL" \
+WINEHUA_OHOS_MESA_SOURCE_ROOT="$SOURCE_ROOT" \
 NATIVE_ARCH="$NATIVE_ARCH" \
-    bash "$SCRIPT_DIR/build_ohos_guest_gfx.sh" --platform wayland --no-package
+    bash "$SCRIPT_DIR/build_ohos_guest_gfx.sh" --platform wayland --source-root "$SOURCE_ROOT" --no-package
 [ -f "$MESA_INSTALL/lib/libvulkan_virtio.so" ] || \
     err "Mesa Venus ICD build did not produce libvulkan_virtio.so"
 

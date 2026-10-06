@@ -263,6 +263,32 @@ $(foreach a,arm64-v8a x86_64,$(eval $(call host_vulkan_rule,$(a))))
 .PHONY: deps
 deps: $(STAMPS)/deps
 
+# Isolated Mesa migration entry points. Callers must supply fresh absolute
+# roots so candidate builds cannot bind to the pinned Mesa-25 artifacts.
+.PHONY: mesa-private-protocol-test mesa-build-isolation-test mesa-guest-gfx mesa-guest-vulkan
+mesa-private-protocol-test:
+	python3 $(ROOT)/host_tests/mesa_private_protocol_test.py --mesa-source "$(MESA_SOURCE_ROOT)"
+
+mesa-build-isolation-test:
+	python3 $(ROOT)/host_tests/mesa_build_isolation_test.py --root "$(ROOT)"
+
+mesa-guest-gfx: mesa-private-protocol-test mesa-build-isolation-test
+	@test -n "$(MESA_SOURCE_ROOT)" -a -n "$(MESA_BUILD_ROOT)" -a -n "$(MESA_INSTALL_ROOT)" || \
+	  { echo "set absolute MESA_SOURCE_ROOT, MESA_BUILD_ROOT, and MESA_INSTALL_ROOT" >&2; exit 2; }
+	@case "$(MESA_SOURCE_ROOT):$(MESA_BUILD_ROOT):$(MESA_INSTALL_ROOT)" in /*:/*:/*) ;; \
+	  *) echo "Mesa source/build/install roots must be absolute" >&2; exit 2;; esac
+	bash $(SCRIPTS)/build_ohos_guest_gfx.sh --platform wayland --mode virpipe --no-package \
+	  --source-root "$(MESA_SOURCE_ROOT)" --build-root "$(MESA_BUILD_ROOT)" \
+	  --install-root "$(MESA_INSTALL_ROOT)"
+
+mesa-guest-vulkan: mesa-private-protocol-test mesa-build-isolation-test
+	@test -n "$(MESA_SOURCE_ROOT)" -a -n "$(MESA_BUILD_ROOT)" -a -n "$(MESA_INSTALL_ROOT)" || \
+	  { echo "set absolute MESA_SOURCE_ROOT, MESA_BUILD_ROOT, and MESA_INSTALL_ROOT" >&2; exit 2; }
+	@case "$(MESA_SOURCE_ROOT):$(MESA_BUILD_ROOT):$(MESA_INSTALL_ROOT)" in /*:/*:/*) ;; \
+	  *) echo "Mesa source/build/install roots must be absolute" >&2; exit 2;; esac
+	bash $(SCRIPTS)/build_ohos_guest_vulkan.sh --source-root "$(MESA_SOURCE_ROOT)" \
+	  --build-root "$(MESA_BUILD_ROOT)" --install-root "$(MESA_INSTALL_ROOT)"
+
 $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/build_gstreamer.sh \
 	$(SCRIPTS)/build_ohos_guest_gfx.sh \
 	$(SCRIPTS)/build_ohos_guest_vulkan.sh $(ROOT)/smoke/guest_vulkan_smoke.c \

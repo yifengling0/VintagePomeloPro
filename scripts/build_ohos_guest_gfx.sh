@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export WINEHUA_MESA_ONLY_ENV=1
 source "$SCRIPT_DIR/env.sh"
 BUILD_DIR="$ROOT/build"
 SDK_LINK_DIR="$ROOT/build/sdk-links"
@@ -21,7 +22,7 @@ SOURCE_ROOT="${WINEHUA_OHOS_MESA_SOURCE_ROOT:-$ROOT/thirdparty/mesa}"
 LIBDRM_SOURCE_ROOT="${WINEHUA_OHOS_LIBDRM_SOURCE_ROOT:-$ROOT/thirdparty/libdrm}"
 WAYLAND_PROTOCOLS_SOURCE_ROOT="${WINEHUA_WAYLAND_PROTOCOLS_SOURCE_ROOT:-}"
 WAYLAND_PROTOCOLS_URL="${WINEHUA_WAYLAND_PROTOCOLS_URL:-https://gitlab.freedesktop.org/wayland/wayland-protocols.git}"
-WAYLAND_PROTOCOLS_TAG="${WINEHUA_WAYLAND_PROTOCOLS_TAG:-1.39}"
+WAYLAND_PROTOCOLS_TAG="${WINEHUA_WAYLAND_PROTOCOLS_TAG:-1.41}"
 # guest 构建目录按 WINE_ARCH 隔离: 方案② (arm64 设备 + x86_64 guest) 与方案③
 # (aarch64 guest) 的 NATIVE_ARCH 都是 arm64-v8a, 共享 build 目录会复用旧架构 meson
 # 配置 → "EGL requires DRI" / 检测到旧 aarch64 target。NATIVE_ARCH 是设备, 不能作 guest 键。
@@ -46,7 +47,7 @@ What it does:
     the current tree goes through winewayland.drv + EGL_WAYLAND_KHR.
   - Auto-provisions OHOS libdrm into sysroot-ext when libdrm is missing,
     because the guest Mesa virgl build needs a target-side libdrm.pc + headers.
-  - Auto-provisions a newer wayland-protocols bundle (>= 1.38) into sysroot-ext
+  - Auto-provisions a newer wayland-protocols bundle (>= 1.41) into sysroot-ext
     when the repo's pinned copy is too old for the current Mesa tree.
   - Packages the install tree into build/guest_gfx/<arch>/ unless
     --no-package is passed.
@@ -529,7 +530,7 @@ ensure_target_libdrm() {
 ensure_modern_wayland_protocols() {
     local current_pc="$SYSROOT_EXT_PC/wayland-protocols.pc"
     local current_version=""
-    local required_version="1.38"
+    local required_version="1.41"
     local required_xml="$SYSROOT_EXT/usr/share/wayland-protocols/staging/linux-drm-syncobj/linux-drm-syncobj-v1.xml"
     local build_root="$ROOT/build/wayland_protocols_build/$WAYLAND_PROTOCOLS_TAG"
     local share_pc_dir="$SYSROOT_EXT/usr/share/pkgconfig"
@@ -707,6 +708,27 @@ WAYLAND_PROTOCOLS_SOURCE_ROOT="$(normalize_host_path_input "$WAYLAND_PROTOCOLS_S
 BUILD_ROOT="$(normalize_host_path_input "$BUILD_ROOT")"
 INSTALL_ROOT="$(normalize_host_path_input "$INSTALL_ROOT")"
 
+SOURCE_ROOT="$(cd "$SOURCE_ROOT" 2>/dev/null && pwd -P)" || \
+    err "Mesa source root does not exist: $SOURCE_ROOT"
+case "$BUILD_ROOT:$INSTALL_ROOT" in
+    /*:/*) ;;
+    *) err "guest Mesa build and install roots must be absolute paths" ;;
+esac
+if [ "$SOURCE_ROOT" = "$BUILD_ROOT" ] || [ "$SOURCE_ROOT" = "$INSTALL_ROOT" ] || \
+   [ "$BUILD_ROOT" = "$INSTALL_ROOT" ]; then
+    err "Mesa source, build, and install roots must be distinct"
+fi
+
+build_identity="source=$SOURCE_ROOT
+target=$TARGET
+platform=$PLATFORM
+mode=$MODE
+vulkan_only=$VULKAN_ONLY"
+identity_file="$BUILD_ROOT/.winehua-mesa-build-identity"
+if [ -f "$identity_file" ] && [ "$(cat "$identity_file")" != "$build_identity" ]; then
+    err "Mesa build root belongs to different inputs; choose a fresh --build-root: $BUILD_ROOT"
+fi
+
 [ -d "$SOURCE_ROOT" ] || err "Mesa source root does not exist: $SOURCE_ROOT (check thirdparty/mesa submodule)"
 [ -f "$SOURCE_ROOT/meson.build" ] || err "Mesa source root is not valid (meson.build missing): $SOURCE_ROOT"
 ensure_mesa_source_layout "$SOURCE_ROOT"
@@ -718,6 +740,7 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 mkdir -p "$BUILD_ROOT" "$INSTALL_ROOT"
+printf '%s\n' "$build_identity" > "$identity_file"
 
 CROSS_FILE="$(gen_guest_gfx_cross_file)"
 ensure_target_libdrm
@@ -735,7 +758,6 @@ if [ "$VULKAN_ONLY" = "1" ]; then
         "--libdir=lib"
         "-Dbuildtype=release"
         "-Dplatforms=wayland"
-        "-Degl-native-platform=wayland"
         "-Dgallium-drivers="
         "-Dvulkan-drivers=virtio"
         "-Degl=disabled"
@@ -761,7 +783,6 @@ else
         "--libdir=lib"
         "-Dbuildtype=release"
         "-Dplatforms=wayland"
-        "-Degl-native-platform=wayland"
         "-Dgallium-drivers=virgl,softpipe"
         "-Dvulkan-drivers="
         "-Degl=enabled"
