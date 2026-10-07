@@ -1,0 +1,21 @@
+{
+  "inputCases": 367680,
+  "conversions": "Every input stores both F32 and F64",
+  "offOnRowsMatch": true,
+  "exactNormalNativeRowsMatch": true,
+  "stickyIEAndFlagsPreserved": true,
+  "nativeSpecialEncodingDivergentRows": 24,
+  "bench": {
+    "bench32": {
+      "off": 32.8484,
+      "on": 11.5969,
+      "ratioOffOn": 2.8325155860617923
+    },
+    "bench64": {
+      "off": 31.8432,
+      "on": 9.6073,
+      "ratioOffOn": 3.3144796144598376
+    }
+  },
+  "limitations": "One fresh process per switch, OFF then ON, same clean O2/no-LTO DLL. Microbenchmark only; no game FPS conclusion. Native special-encoding differences are inherited in both switch states."
+}

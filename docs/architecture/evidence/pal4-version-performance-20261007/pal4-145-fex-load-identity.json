@@ -1,0 +1,27 @@
+{
+  "pids": [
+    27475,
+    27986,
+    27999,
+    28019,
+    28028,
+    28042,
+    28059,
+    28073,
+    28107,
+    28136,
+    28142,
+    28152,
+    28203,
+    28246,
+    28265,
+    28272,
+    28303,
+    28343,
+    28458
+  ],
+  "path": "F:\\VintagePomelo-Workspace\\workspace_temp\\fex-perf-followup-20261006\\pal4-145-fex-load.data",
+  "seconds": 30,
+  "frequencyHz": 100,
+  "diagnosticNotFPSBenchmark": true
+}

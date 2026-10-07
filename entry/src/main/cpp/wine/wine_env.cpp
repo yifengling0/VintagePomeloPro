@@ -1,6 +1,7 @@
 #include "wine_env.h"
 #include "wine_scheme.h"
 #include "wine_constants.h"
+#include "wine_d3d_policy.h"
 #include "audio/audio_broker.h"
 #include "audio_ipc_protocol.h"
 #include "env_spec.h"
@@ -516,9 +517,7 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
          * 纯 n 后正常出界面)。modern 2.x 已移除 d3d10, 不设。
          *
          * vulkan-1=b: 让 DXVK 走 winevulkan 而不是 exe 同目录的原生 loader。 */
-        "WINEDLLOVERRIDES=" + std::string(modern26
-            ? "d3d11=n;dxgi=n;vulkan-1=b"
-            : "d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n;vulkan-1=b"),
+        "WINEDLLOVERRIDES=" + std::string(winehua::DxvkDllOverrides(modern26)),
         "VN_WINEHUA_REMOTE_MEMORY_SYNC=1",
         "WINEDLLPATH=" + wineDllPath,
         "WINEDLLDIR0=" + overlay64,

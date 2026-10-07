@@ -1,0 +1,61 @@
+{
+  "baseCommit": "62ca61faa87351307daa18b59c7d6fd26cbc0db6",
+  "pin": "86ff33bbe299cd8959a6610198c169b67ec419db",
+  "builds": {
+    "clean": {
+      "pe": {
+        "sha256": "3c1bb5f807a4429e2e44690c10b2d3e367c6dfdaee2e999a5fd472d59d75aaf4",
+        "format": "COFF-ARM64",
+        "flags": "-DFEX_WOW64_EXACT_STORE=1"
+      },
+      "ec": {
+        "sha256": "38e9d59cdfd84b836b6733dae82b8a8e701ffc4a37cb66cff6af104d995f7190",
+        "format": "COFF-ARM64EC",
+        "flags": ""
+      }
+    },
+    "diagnostic": {
+      "pe": {
+        "sha256": "f84c6632fcf8733d1ebfbb805c00d54ec22e581054e3044f0b97bfe971102d3e",
+        "format": "COFF-ARM64",
+        "flags": "-DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_EXACT_STORE_DIAGNOSTICS=1"
+      },
+      "ec": {
+        "sha256": "8645d878c2b7345dedd25a58388f8866807b0f9342c8e2e07c626d222337a670",
+        "format": "COFF-ARM64EC",
+        "flags": ""
+      }
+    }
+  },
+  "patches": {
+    "fex-arm64ec-threadterm-context.patch": "3c9d967bf947aa87df08b0b878e55c6a6949eb9b3788458ed2e23da09f7b39b9",
+    "fex-windows-jit-symbols.patch": "1769aa1547880535e8659be52db3b149fe4b37cc0a13bffafc9a834369336119",
+    "fex-arm64ec-threadterm-get-context-right.patch": "b525534370e4ce1ce9df453bab519097fde4cd3d428ae68b275212b5eddedf4e",
+    "fex-windows-crt-file-open.patch": "d8a4bb640d8cf534e8c3213f96ab87ca367573d678103e5c7a66e7ab78c7a63c",
+    "fex-windows-file-loading.patch": "32b6c09eb8ae342d7d072ff14f349d8b3402b3a0868e60e280376eeee80a608b",
+    "fex-arm64ec-callret-bypass-probe.patch": "f38cb0ee2a477e34e8c58246a8712178b4e6c761617786fd796a0a5f9913b984",
+    "fex-steam-recursion-entry-limit.patch": "643259f65c0f650ff7659d5faf1fbed95c22804a7a55e53c592d831d986742b8",
+    "fex-steam-recursion-tail.patch": "46ce211390e0bf7bfdefbf5da2d1866adf0b932d9257abe63c47bff21ef2681e",
+    "fex-wow64-exact-store.patch": "78157572a389bfdd63a40f559b2d8c45b7308209e54ee7f91b5bd11c5e3bf371",
+    "fex-steam-recursion-contiguous.patch": "28f4cf47ff62db54147664f3d050339bbf5fe4ce2cf4f657bc0a6b3df6cd3fe9",
+    "fex-steam-recursion-entry-window.patch": "0d8495136a67daa803cbe999adfbcab6cb650cac8c6448edbd1d609f290b56c4",
+    "fex-wow64-dynamic-l1-recommit.patch": "1746da57573b77b91cdbb3f66abf7c677679bd48c758dd8a0df0c9211a411872",
+    "fex-arm64ec-lookup-cache-commit.patch": "43a33e8417cacdefd5ee90964a888fc1bbdb98448f58aed10ee37eebefea83aa",
+    "fex-missing-includes.patch": "c1eebabd4eb05c8ae5c5df52bdb23f21865809817b94d2a83a694f43576e1771",
+    "fex-arm64ec-unaligned-diagnostics.patch": "2a9ae7c10cf362790a31bba5096f36dc9f40ac4ee0782646dd41e095a12a4809",
+    "fex-steam-recursion-transition.patch": "110fc69c17142e65994805b235d698ae22d38bc580f3cccb4cb0ede0e0e042bc",
+    "fex-wow64-synthetic-return.patch": "aba3b803fb25ae5d1e971792a9539cd60f48a1391a9e79cc0845737b16fde401",
+    "fex-steam-deferred-call-trace.patch": "81301e8310762727fbcd23c368312bfc6721363c31679ea8037c2af4768812bd",
+    "fex-steam-deep-call-trace.patch": "f7aa606e091dd92471d19e9ed2460b2a2c4a882cc0942a435d9f381fc1ebbb20",
+    "fex-arm64ec-rwx-probe.patch": "f1f264e8b1b883ec90893474a0e29ed8fd777e0b7b787729cc00458b4e61b6b7",
+    "fex-wow64-lookup-cache-commit.patch": "4b86fc2eaeee92d008a5895ceb4c7cc4d1be9fcb5c4e9df024c435be5230a210",
+    "fex-steam-boundary-trace.patch": "6c67a3148a4ea07ce31f851a7efbf5fa73833f75c16a32b378a2ad4133997f1b",
+    "fex-wow64-exact-store-diagnostics.patch": "53d3110f4f3283148481a90d3a613a751fe01eb82c286899326216c61b8ccbce",
+    "fex-steam-recursion-depth-window.patch": "427deb62477501cb49a05fbd9f5ce5df1d92df3eee98550288b48737adc70388",
+    "fex-windows-jit-cost.patch": "e0e589966d395e534f0d6880d3f8b4eff2065ba30e16baa9cc89e1756391818e",
+    "fex-windows-unaligned-stderr.patch": "06c068f1eb75798c53db824a256b27f68b54a46a368d3894c1b14b9b909bd50a",
+    "fex-steam-recursion-window.patch": "d9190115985ae4a10c0da491bd492ce43d6ce4f7c1f66d2ae743998adfec41f0",
+    "fex-winapi-locale-stubs.patch": "c6d15f50e97075c93c6fc60de576cd6b93b664eaea2f6046d635a914dd7f786b"
+  },
+  "validation": "Both DLL architectures built with pinned version and full existing initialization patches; clean has no stats/float-diagnostic marker; diagnostic is separate; all overlay/exit/stamp regressions passed"
+}

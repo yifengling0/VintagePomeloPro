@@ -28,14 +28,14 @@ static void ReadExact(int fd, void* buffer, size_t length)
     }
 }
 
-static whgp_state_v1 ReadState(int fd)
+static whgp_state_v2 ReadState(int fd)
 {
     whgp_header header{};
     ReadExact(fd, &header, sizeof(header));
     assert(header.magic == WHGP_MAGIC && header.version == WHGP_VERSION);
     assert(header.msg_type == WHGP_MSG_STATE && header.slot == 0);
-    assert(header.payload_size == sizeof(whgp_state_v1));
-    whgp_state_v1 state{};
+    assert(header.payload_size == sizeof(whgp_state_v2));
+    whgp_state_v2 state{};
     ReadExact(fd, &state, sizeof(state));
     return state;
 }

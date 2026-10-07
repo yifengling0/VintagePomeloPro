@@ -1,0 +1,355 @@
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -275,6 +275,9 @@
+   FEXCore::ThunkHandler* ThunkHandler {};
+ #if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE)
+   bool WindowsExactFloatStoreEnabled {};
++#ifdef FEX_WOW64_X87_PROFILE
++  bool WindowsX87ProfileEnabled {};
++#endif
+ #endif
+   fextl::unique_ptr<FEXCore::CPU::Dispatcher> Dispatcher;
+   bool WindowsJITDiagnosticsEnabled {};
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -138,6 +138,10 @@
+ #if defined(_WIN32) && defined(FEX_WOW64_EXACT_STORE)
+   const char* ExactStore = std::getenv("FEX_EXACTSTORE");
+   WindowsExactFloatStoreEnabled = ExactStore && std::strcmp(ExactStore, "1") == 0;
++#ifdef FEX_WOW64_X87_PROFILE
++  const char* X87Profile = std::getenv("FEX_X87PROFILE");
++  WindowsX87ProfileEnabled = X87Profile && std::strcmp(X87Profile, "1") == 0;
++#endif
+ #endif
+ 
+   // Track atomic TSO emulation configuration.
+--- a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
++++ b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+@@ -1845,6 +1845,51 @@
+     FillForABICall(CTX->HostFeatures.SupportsPreserveAllABI, true);
+   };
+ 
++#ifdef FEX_WOW64_X87_PROFILE
++  // First diagnostic scope is actual two-operand F80 C helpers only. Inline
++  // conversions have a different implementation and are not charged here.
++  const bool ProfileF80 = CTX->WindowsX87ProfileEnabled && ABI == FABI_F80_I16_F80_F80_PTR;
++  auto ProfileGate = [&](ARMEmitter::ForwardLabel& Skip) {
++    ldr(TMP2, STATE_PTR(CpuStateFrame, X87Profile));
++    (void)cbz(ARMEmitter::Size::i64Bit, TMP2, &Skip);
++    ldr(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Depth));
++    sub(ARMEmitter::Size::i32Bit, TMP3, TMP3, 1);
++    (void)cbnz(ARMEmitter::Size::i32Bit, TMP3, &Skip);
++    ldr(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Active));
++    (void)cbz(ARMEmitter::Size::i32Bit, TMP3, &Skip);
++  };
++  auto ProfileTime = [&](size_t Offset) {
++    // ISB/CNTVCT are the same source used by FEX's RDTSC implementation.
++    // Neither instruction changes NZCV or FP state. TMP3 is existing ABI scratch.
++    isb();
++    mrs(TMP3, ARMEmitter::SystemRegister::CNTVCT_EL0);
++    str(TMP3, TMP2.R(), Offset);
++  };
++  if (ProfileF80) {
++    ARMEmitter::ForwardLabel Skip;
++    ldr(TMP2, STATE_PTR(CpuStateFrame, X87Profile));
++    (void)cbz(ARMEmitter::Size::i64Bit, TMP2, &Skip);
++    ldr(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Depth));
++    add(ARMEmitter::Size::i32Bit, TMP3, TMP3, 1);
++    str(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Depth));
++    sub(ARMEmitter::Size::i32Bit, TMP3, TMP3, 1);
++    (void)cbnz(ARMEmitter::Size::i32Bit, TMP3, &Skip);
++    str(ARMEmitter::WReg::zr, TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Active));
++    ldr(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Countdown));
++    (void)cbz(ARMEmitter::Size::i32Bit, TMP3, &Skip);
++    sub(ARMEmitter::Size::i32Bit, TMP3, TMP3, 1);
++    str(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Countdown));
++    (void)cbnz(ARMEmitter::Size::i32Bit, TMP3, &Skip);
++    mov(TMP3.W(), 1);
++    str(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Active));
++    ProfileTime(offsetof(FEXCore::Core::X87ProfileScratch, T0));
++    str(FallbackPointerReg, TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Handler));
++    str(ARMEmitter::XReg::x30, TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Caller));
++    str(VTMP1.Q(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Source1));
++    str(VTMP2.Q(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Source2));
++    (void)Bind(&Skip);
++  }
++#endif
+   switch (ABI) {
+   case FABI_F80_I16_F32_PTR: {
+     // Save NZCV - it's a static register (guest x86 flags) and the inline code clobbers it
+@@ -2156,14 +2201,55 @@
+       mov(VABI2.Q(), VTMP2.Q());
+     }
+     mov(ARMEmitter::XReg::x1, STATE);
+-
++#ifdef FEX_WOW64_X87_PROFILE
++    if (ProfileF80) {
++      ARMEmitter::ForwardLabel Skip;
++      ProfileGate(Skip);
++      ProfileTime(offsetof(FEXCore::Core::X87ProfileScratch, T1));
++      (void)Bind(&Skip);
++      // WOW64 uses the ordinary ARM64 layout: TMP2 is x1, also Frame's
++      // ABI argument. ARM64EC uses x11. Restore the argument in both layouts.
++      mov(ARMEmitter::XReg::x1, STATE);
++    }
++#endif
+     if (!CTX->Config.DisableVixlIndirectCalls) [[unlikely]] {
+       GenerateIndirectRuntimeCall<FEXCore::VectorRegType, uint16_t, FEXCore::VectorRegType, FEXCore::VectorRegType, uint64_t>(FallbackPointerReg);
+     } else {
+       blr(FallbackPointerReg);
+     }
+-
++#ifdef FEX_WOW64_X87_PROFILE
++    if (ProfileF80) {
++      ARMEmitter::ForwardLabel Skip;
++      ProfileGate(Skip);
++      ProfileTime(offsetof(FEXCore::Core::X87ProfileScratch, T2));
++      (void)Bind(&Skip);
++    }
++#endif
+     FillF80Result();
++#ifdef FEX_WOW64_X87_PROFILE
++    if (ProfileF80) {
++      ARMEmitter::ForwardLabel Skip, DepthDone;
++      ProfileGate(Skip);
++      ProfileTime(offsetof(FEXCore::Core::X87ProfileScratch, T3));
++      str(VTMP1.Q(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Result));
++      // The recorder is outside t0..t3 and uses the original full spill/fill.
++      // It cannot clobber the newly returned VTMP1 or any live guest register.
++      SpillForABICall(CTX->HostFeatures.SupportsPreserveAllABI, TMP3, true);
++      mov(ARMEmitter::XReg::x0, STATE);
++      ldr(FallbackPointerReg, TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Recorder));
++      blr(FallbackPointerReg);
++      FillForABICall(CTX->HostFeatures.SupportsPreserveAllABI, true);
++      ldr(TMP2, STATE_PTR(CpuStateFrame, X87Profile));
++      ldr(VTMP1.Q(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Result));
++      (void)Bind(&Skip);
++      ldr(TMP2, STATE_PTR(CpuStateFrame, X87Profile));
++      (void)cbz(ARMEmitter::Size::i64Bit, TMP2, &DepthDone);
++      ldr(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Depth));
++      sub(ARMEmitter::Size::i32Bit, TMP3, TMP3, 1);
++      str(TMP3.W(), TMP2.R(), offsetof(FEXCore::Core::X87ProfileScratch, Depth));
++      (void)Bind(&DepthDone);
++    }
++#endif
+   } break;
+   case FABI_F80x2_I16_F80_PTR: {
+     // Linux Reg/Win32 Reg:
+--- a/FEXCore/include/FEXCore/Core/CoreState.h
++++ b/FEXCore/include/FEXCore/Core/CoreState.h
+@@ -390,6 +390,14 @@
+ };
+ 
+ // Each guest JIT frame has one of these
++#ifdef FEX_WOW64_X87_PROFILE
++struct X87ProfileScratch {
++  uint64_t T0 {}, T1 {}, T2 {}, T3 {};
++  uint64_t Handler {}, Caller {}, Source1[2] {}, Source2[2] {}, Result[2] {};
++  uint64_t Recorder {}, Storage {};
++  uint32_t Countdown {}, Active {}, Depth {}, Reserved {};
++};
++#endif
+ struct CpuStateFrame {
+   CPUState State;
+ 
+@@ -429,6 +437,11 @@
+ 
+   // Pointers that the JIT needs to load to remove relocations
+   JITPointers Pointers;
++#ifdef FEX_WOW64_X87_PROFILE
++  // Only a pointer fits before the existing interrupt page. Scratch is owned
++  // by the frontend and allocated before JIT execution, never in a sample.
++  X87ProfileScratch* X87Profile {};
++#endif
+ };
+ static_assert(offsetof(CpuStateFrame, State) == 0, "CPUState must be first member in CpuStateFrame");
+ static_assert(offsetof(CpuStateFrame, Pointers) % 8 == 0, "JITPointers need to be aligned to 8 bytes");
+--- a/Source/Windows/WOW64/Module.cpp
++++ b/Source/Windows/WOW64/Module.cpp
+@@ -54,6 +54,9 @@
+ #include <mutex>
+ #include <optional>
+ #include <utility>
++#ifdef FEX_WOW64_X87_PROFILE
++#include "X87Profile.h"
++#endif
+ #include <unordered_map>
+ #include <ntstatus.h>
+ #include <windef.h>
+@@ -435,6 +438,9 @@
+   }
+ 
+   static uint64_t HandleSyscallImpl(FEXCore::Core::CpuStateFrame* Frame, FEXCore::HLE::SyscallArguments* Args) {
++#ifdef FEX_WOW64_X87_PROFILE
++    X87ProfileReport(Frame, false);
++#endif
+     const uint64_t ReturnRIP = *(uint32_t*)(Frame->State.gregs[FEXCore::X86State::REG_RSP]); // Return address from the stack
+     uint64_t ReturnRSP = Frame->State.gregs[FEXCore::X86State::REG_RSP] + 4;                 // Stack pointer after popping return address
+     uint64_t ReturnRAX = 0;
+@@ -626,6 +632,9 @@
+ 
+   // Default segment setup.
+   auto Frame = Thread->CurrentFrame;
++#ifdef FEX_WOW64_X87_PROFILE
++  X87ProfileInit(Frame);
++#endif
+   auto NewSegments = new FEXCore::Core::CPUState::gdt_segment[32]();
+ 
+   // Setup initial code-segment GDT
+@@ -696,6 +705,9 @@
+   auto ThreadState = TLS.ThreadState();
+   TLS.ThreadState() = nullptr;
+ 
++#ifdef FEX_WOW64_X87_PROFILE
++  X87ProfileDestroy(ThreadState->CurrentFrame);
++#endif
+   delete GetFrontendThreadData(ThreadState);
+ 
+   // GDT and LDT are mirrored, only free one.
+--- /dev/null
++++ b/Source/Windows/WOW64/X87Profile.h
+@@ -0,0 +1,144 @@
++// SPDX-License-Identifier: MIT
++// Compile-time-only D0 tracing. No logger, allocation or clock API in Record.
++#pragma once
++#include <cstdlib>
++#include <cstring>
++#include <new>
++#include <windows.h>
++#include <wine/debug.h>
++
++struct X87ProfileRecord {
++  uint64_t T[4], Handler, Caller, A[2], B[2];
++  uint16_t FCW;
++};
++
++struct X87ProfileStorage {
++  static constexpr uint32_t Capacity = 2048;
++  uint64_t Frequency {}, Start {}, End {}, LastReport {}, ClockCalibration {};
++  uint32_t Count {}, Reported {}, Dropped {}, Random {}, Span {}, ThreadID {};
++  FEXCore::Core::X87ProfileScratch Scratch;
++  X87ProfileRecord Records[Capacity];
++};
++
++static uint64_t X87ReadCounter() {
++  uint64_t Value;
++  asm volatile("isb; mrs %0, cntvct_el0" : "=r"(Value) :: "memory");
++  return Value;
++}
++
++static void X87ProfileRecordSample(FEXCore::Core::CpuStateFrame* Frame) noexcept {
++  auto& S = *Frame->X87Profile;
++  auto* D = reinterpret_cast<X87ProfileStorage*>(S.Storage);
++  if (!D) return;
++  uint32_t Random = D->Random;
++  Random ^= Random << 13;
++  Random ^= Random >> 17;
++  Random ^= Random << 5;
++  D->Random = Random;
++  S.Countdown = 1 + (Random & (D->Span - 1));
++  if (S.T0 < D->Start) return;
++  if (S.T3 >= D->End || D->Count == X87ProfileStorage::Capacity) {
++    S.Countdown = 0;
++    return;
++  }
++  if (!(S.T0 <= S.T1 && S.T1 <= S.T2 && S.T2 <= S.T3)) {
++    ++D->Dropped;
++    return;
++  }
++  auto& R = D->Records[D->Count++];
++  R.T[0]=S.T0; R.T[1]=S.T1; R.T[2]=S.T2; R.T[3]=S.T3;
++  R.Handler=S.Handler; R.Caller=S.Caller;
++  R.A[0]=S.Source1[0]; R.A[1]=S.Source1[1];
++  R.B[0]=S.Source2[0]; R.B[1]=S.Source2[1];
++  R.FCW=Frame->State.FCW;
++}
++
++static uint32_t X87ProfileOption(const char* Name, uint32_t Fallback, uint32_t Min, uint32_t Max) {
++  const char* Value=std::getenv(Name);
++  if (!Value || !*Value) return Fallback;
++  char* End;
++  unsigned long Result = std::strtoul(Value, &End, 10);
++  return *End || Result<Min || Result>Max ? Fallback : Result;
++}
++
++static void X87ProfileInit(FEXCore::Core::CpuStateFrame* Frame) {
++  const char* Enabled=std::getenv("FEX_X87PROFILE");
++  if (!Enabled || std::strcmp(Enabled,"1")) return;
++  auto* D = new (std::nothrow) X87ProfileStorage {};
++  if (!D) return;
++  asm volatile("mrs %0, cntfrq_el0" : "=r"(D->Frequency));
++  if (!D->Frequency) { delete D; return; }
++  const auto Now = X87ReadCounter();
++  D->Start = Now + D->Frequency * X87ProfileOption("FEX_X87PROFILE_DELAY",15,0,300);
++  D->End = D->Start + D->Frequency * X87ProfileOption("FEX_X87PROFILE_SECONDS",45,1,120);
++  D->ThreadID=GetCurrentThreadId();
++  D->Random=0x9e3779b9U ^ D->ThreadID;
++  D->Span=X87ProfileOption("FEX_X87PROFILE_SPAN",8192,1024,1048576);
++  if (D->Span & (D->Span-1)) D->Span=8192;
++  // Minimum adjacent-read cost; raw timestamps are always retained separately.
++  D->ClockCalibration=~uint64_t {};
++  for (unsigned I=0;I<128;++I) {
++    const auto A=X87ReadCounter(); const auto B=X87ReadCounter();
++    if (B>=A && B-A<D->ClockCalibration) D->ClockCalibration=B-A;
++  }
++  Frame->X87Profile=&D->Scratch;
++  Frame->X87Profile->Storage=reinterpret_cast<uint64_t>(D);
++  Frame->X87Profile->Recorder=reinterpret_cast<uint64_t>(&X87ProfileRecordSample);
++  Frame->X87Profile->Countdown=1+(D->Random & (D->Span-1));
++  const auto Text=fextl::fmt::format(
++    "[FEX-X87-INIT] tid={} frequency={} expected_interval={} capacity={} calibration_ticks={} begin={} end={}\n",
++    D->ThreadID,D->Frequency,(D->Span+1)/2.0,D->Capacity,D->ClockCalibration,D->Start,D->End);
++  __wine_dbg_output(Text.c_str());
++  static std::atomic<bool> Dumped {};
++  if (!Dumped.exchange(true)) {
++    const char* Names[]={"add","sub","mul","div"};
++    const unsigned Indices[]={FEXCore::Core::OPINDEX_F80ADD,FEXCore::Core::OPINDEX_F80SUB,
++      FEXCore::Core::OPINDEX_F80MUL,FEXCore::Core::OPINDEX_F80DIV};
++    for (unsigned I=0;I<4;++I) {
++      const auto& P=Frame->Pointers.FallbackHandlerPointers[Indices[I]];
++      const auto Message=fextl::fmt::format("[FEX-X87-HANDLER] op={} address=0x{:x} abi=0x{:x}\n",Names[I],P.Func,P.ABIHandler);
++      __wine_dbg_output(Message.c_str());
++    }
++    const auto Address=Frame->Pointers.FallbackHandlerPointers[Indices[0]].ABIHandler;
++    // Bounded read of our own generated dispatcher at initialization. This is
++    // never performed in the sampled helper path and stops at its final RET.
++    if (Address) {
++      const auto* Words=reinterpret_cast<const uint32_t*>(Address);
++      for (unsigned I=0;I<512;++I) {
++        const auto Message=fextl::fmt::format("[FEX-X87-CODE] offset={} word={:08x}\n",I*4,Words[I]);
++        __wine_dbg_output(Message.c_str());
++        if (Words[I]==0xd65f03c0U) break;
++      }
++    }
++  }
++}
++
++static void X87ProfileReport(FEXCore::Core::CpuStateFrame* Frame, bool Final) {
++  if (!Frame->X87Profile) return;
++  auto* D=reinterpret_cast<X87ProfileStorage*>(Frame->X87Profile->Storage);
++  if (!D) return;
++  if (!Final && D->Count==D->Reported) return;
++  const auto Now=X87ReadCounter();
++  if (!Final && (D->Count==D->Reported || Now-D->LastReport < D->Frequency*2)) return;
++  D->LastReport=Now;
++  unsigned Limit=Final ? D->Count : D->Reported+128;
++  if (Limit>D->Count) Limit=D->Count;
++  for (;D->Reported<Limit;++D->Reported) {
++    const auto& R=D->Records[D->Reported];
++    const auto Text=fextl::fmt::format(
++      "[FEX-X87-SAMPLE] tid={} index={} t0={} t1={} t2={} t3={} handler=0x{:x} caller=0x{:x} fcw=0x{:x} a={:x}:{:x} b={:x}:{:x}\n",
++      D->ThreadID,D->Reported,R.T[0],R.T[1],R.T[2],R.T[3],R.Handler,R.Caller,R.FCW,R.A[1],R.A[0],R.B[1],R.B[0]);
++    __wine_dbg_output(Text.c_str());
++  }
++  if (Final || D->Count==D->Capacity || !Frame->X87Profile->Countdown) {
++    const auto Text=fextl::fmt::format("[FEX-X87-END] tid={} collected={} reported={} dropped={} final={}\n",D->ThreadID,D->Count,D->Reported,D->Dropped,Final);
++    __wine_dbg_output(Text.c_str());
++  }
++}
++
++static void X87ProfileDestroy(FEXCore::Core::CpuStateFrame* Frame) {
++  X87ProfileReport(Frame,true);
++  if (!Frame->X87Profile) return;
++  delete reinterpret_cast<X87ProfileStorage*>(Frame->X87Profile->Storage);
++  Frame->X87Profile=nullptr;
++}

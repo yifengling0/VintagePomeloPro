@@ -1,0 +1,94 @@
+{
+  "captures": {},
+  "unavailableCaptures": {
+    "diag-extended-cold": "The 600 live-report limit was already reached before character selection. No valid interval data was captured.",
+    "diag-extended-warm": "The 600 live-report limit was already reached before character selection. No valid interval data was captured."
+  },
+  "cumulativeSnapshots": [
+    {
+      "source": "diag-syscall-early-stats.json",
+      "phase": "early startup",
+      "readDeviceEpoch": "1791296702.993220276",
+      "newRows": 33,
+      "pid": 464,
+      "final": false,
+      "consistent": true,
+      "f32": {
+        "attempt": 176177285,
+        "hit": 53415773,
+        "fallback": 122761512,
+        "hitRatio": 0.3031933032683527
+      },
+      "f64": {
+        "attempt": 2529670,
+        "hit": 2528360,
+        "fallback": 1310,
+        "hitRatio": 0.9994821458925472
+      }
+    },
+    {
+      "source": "diag-syscall-before-navigation-stats.json",
+      "phase": "300-report cumulative endpoint",
+      "readDeviceEpoch": "1791296973.580102006",
+      "newRows": 300,
+      "pid": 464,
+      "final": false,
+      "consistent": true,
+      "f32": {
+        "attempt": 1034728255,
+        "hit": 606237084,
+        "fallback": 428491171,
+        "hitRatio": 0.5858901417551413
+      },
+      "f64": {
+        "attempt": 33692998,
+        "hit": 33543320,
+        "fallback": 149678,
+        "hitRatio": 0.9955575933017299
+      }
+    },
+    {
+      "source": "diag-extended-intro-stats.json",
+      "phase": "extended-build startup",
+      "readDeviceEpoch": "1791297413.997131105",
+      "newRows": 79,
+      "pid": 452,
+      "final": false,
+      "consistent": true,
+      "f32": {
+        "attempt": 341086642,
+        "hit": 103878691,
+        "fallback": 237207951,
+        "hitRatio": 0.3045522111065258
+      },
+      "f64": {
+        "attempt": 7826374,
+        "hit": 7821938,
+        "fallback": 4436,
+        "hitRatio": 0.9994331985667948
+      }
+    },
+    {
+      "source": "resume-stats.json",
+      "phase": "600-report cumulative endpoint before character selection",
+      "readDeviceEpoch": "1791298062.293637256",
+      "newRows": 600,
+      "pid": 452,
+      "final": false,
+      "consistent": true,
+      "f32": {
+        "attempt": 1893615956,
+        "hit": 1125048129,
+        "fallback": 768567827,
+        "hitRatio": 0.5941268742667903
+      },
+      "f64": {
+        "attempt": 63267347,
+        "hit": 62584631,
+        "fallback": 682716,
+        "hitRatio": 0.9892090306868724
+      }
+    }
+  ],
+  "limitations": "Diagnostic DLL only. Consistent counters from the same Wine PID; all process threads, not CPU time. Counter snapshots can lag by about one reporting period. Cumulative snapshots cannot substitute for missing character intervals."
+}

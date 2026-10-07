@@ -235,9 +235,14 @@ void GamepadBridge::RecvLoop(const std::shared_ptr<Client>& client)
     while (true) {
         whgp_header hdr{};
         if (!ReadExact(fd, &hdr, sizeof(hdr))) break;
-        if (hdr.magic != WHGP_MAGIC || hdr.version != WHGP_VERSION) {
+        if (hdr.magic != WHGP_MAGIC) {
             OH_LOG_WARN(LOG_APP, "[WHGP] bad header from winebus magic=%{public}u ver=%{public}u",
                         hdr.magic, hdr.version);
+            break;
+        }
+        if (!whgp_version_matches(hdr.version)) {
+            OH_LOG_WARN(LOG_APP, "[WHGP] protocol mismatch: peer=%{public}u expected=%{public}u",
+                        hdr.version, WHGP_VERSION);
             break;
         }
         if (hdr.payload_size > 4096) {
@@ -289,9 +294,9 @@ void GamepadBridge::WriteState(const std::shared_ptr<Client>& client, uint32_t s
     hdr.version = WHGP_VERSION;
     hdr.msg_type = WHGP_MSG_STATE;
     hdr.slot = slot;
-    hdr.payload_size = sizeof(whgp_state_v1);
+    hdr.payload_size = sizeof(whgp_state_v2);
 
-    whgp_state_v1 body{};
+    whgp_state_v2 body{};
     body.buttons = state.buttons;
     body.lx = state.lx;
     body.ly = state.ly;

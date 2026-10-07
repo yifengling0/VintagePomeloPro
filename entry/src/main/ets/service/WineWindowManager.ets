@@ -31,6 +31,12 @@ export class WineWindowManager {
   private displayScale: number = 1.0;
   private scaleBoost: number = 1.0;  // 放大系数, 使 effectiveScale = displayScale × boost = 2.0
   private outputScalePercent: number = 100;
+  // Accepted desktop geometry, independent of the library window/display.
+  // Index finishes loading settings asynchronously, often before the desktop
+  // Ability has rotated. Re-reading that portrait display must not overwrite
+  // the landscape output used by Explorer's fixed-resolution /desktop shell.
+  private outputHostWidth: number = 0;
+  private outputHostHeight: number = 0;
   // 标题栏 + 边框总高度 (VP), 用于窗口 resize
   // = getWindowDecorHeight() + decorBorderOffset
   private measuredTitleBarH: number = 56;
@@ -269,8 +275,17 @@ export class WineWindowManager {
   }
 
   setOutputScalePercent(value: number): void {
-    this.outputScalePercent = Math.max(75, Math.min(150, value));
+    const nextScale = Math.max(75, Math.min(150, value));
+    if (nextScale === this.outputScalePercent && this.outputHostWidth > 0 && this.outputHostHeight > 0) {
+      return;
+    }
+    this.outputScalePercent = nextScale;
     try {
+      if (this.presentationMode === WinePresentationMode.DESKTOP &&
+        this.outputHostWidth > 0 && this.outputHostHeight > 0) {
+        this.syncOutputSize(this.outputHostWidth, this.outputHostHeight);
+        return;
+      }
       const currentDisplay = display.getDefaultDisplaySync();
       const safe = this.desktopDisplaySafeSize(currentDisplay.width, currentDisplay.height);
       this.syncOutputSize(safe.width, safe.height);
@@ -279,9 +294,23 @@ export class WineWindowManager {
     }
   }
 
-  syncOutputSize(widthPx: number, heightPx: number, forceToplevelResize: boolean = false): void {
-    if (widthPx <= 0 || heightPx <= 0) return;
+  syncOutputSize(widthPx: number, heightPx: number, forceToplevelResize: boolean = false): boolean {
+    if (widthPx <= 0 || heightPx <= 0) return false;
     try {
+      // Phone orientation transactions can first expose the old rectangle.
+      // Keep renderer sizing separate: a transient host surface can resize,
+      // but must not redefine the Wine desktop's resolution or configure it.
+      if (DeviceCapabilityPolicy.isPhoneDevice() &&
+        this.presentationMode === WinePresentationMode.DESKTOP) {
+        const orientation = AppSettingsStore.getInstance().getGlobalSettings().desktopOrientation
+          ?? ScreenOrientationSetting.SENSOR_LANDSCAPE;
+        const wantsLandscape = orientation !== ScreenOrientationSetting.PORTRAIT;
+        if (wantsLandscape ? widthPx < heightPx : heightPx < widthPx) {
+          hilog.info(DOMAIN, TAG, '[MW] skip transient output %{public}dx%{public}d requested=%{public}s',
+            widthPx, heightPx, orientation);
+          return false;
+        }
+      }
       const currentDisplay = display.getDefaultDisplaySync();
       this.displayScale = Math.max(0.1, currentDisplay.densityPixels);
       const effectiveScale = 2.0 * this.outputScalePercent / 100;
@@ -290,6 +319,8 @@ export class WineWindowManager {
       const outH = Math.max(1, Math.round(heightPx / effectiveScale));
       testNapi.setDisplayScale(effectiveScale);
       testNapi.setOutputSize(outW, outH);
+      this.outputHostWidth = widthPx;
+      this.outputHostHeight = heightPx;
       // setOutputSize updates compositor bookkeeping, but an existing Wine
       // Explorer desktop also needs an xdg configure. Some phone rotations do
       // not deliver a reliable XComponent surface-change callback, leaving the
@@ -307,8 +338,10 @@ export class WineWindowManager {
       hilog.info(DOMAIN, TAG,
         '[MW] host size=%{public}dx%{public}d output=%{public}dx%{public}d scale=%{public}s',
         widthPx, heightPx, outW, outH, effectiveScale.toFixed(2));
+      return true;
     } catch (error) {
       hilog.warn(DOMAIN, TAG, '[MW] syncOutputSize failed: %{public}s', JSON.stringify(error));
+      return false;
     }
   }
 

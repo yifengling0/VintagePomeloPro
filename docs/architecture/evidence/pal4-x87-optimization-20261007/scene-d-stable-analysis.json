@@ -1,0 +1,263 @@
+{
+  "source": "workspace_temp\\fex-perf-followup-20261006\\x87-scene-d-stable-log.log",
+  "threadMeta": {
+    "484": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528440094783,
+      "end": 528670494783
+    },
+    "492": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528441557681,
+      "end": 528671957681
+    },
+    "496": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528441564204,
+      "end": 528671964204
+    },
+    "516": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528445237331,
+      "end": 528675637331
+    },
+    "520": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528445413947,
+      "end": 528675813947
+    },
+    "608": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528456930123,
+      "end": 528687330123
+    },
+    "612": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528456950522,
+      "end": 528687350522
+    },
+    "616": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528456960403,
+      "end": 528687360403
+    },
+    "620": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528456997991,
+      "end": 528687397991
+    },
+    "624": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528456999751,
+      "end": 528687399751
+    },
+    "628": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528457033998,
+      "end": 528687433998
+    },
+    "632": {
+      "frequency": 1920000,
+      "interval": 32768.5,
+      "begin": 528458796407,
+      "end": 528689196407
+    }
+  },
+  "handlerAddresses": {
+    "0x6ffc4cb970": "add",
+    "0x6ffc4cba10": "sub",
+    "0x6ffc4cbab0": "mul",
+    "0x6ffc4cbb50": "div"
+  },
+  "stats": [
+    {
+      "tid": 484,
+      "op": "add",
+      "samples": 771,
+      "over10us": 0,
+      "bothNormalPercent": 74.57846952010377,
+      "precisionRoundingCounts": {
+        "PC0/RC0": 771
+      },
+      "totalNS": {
+        "mean": 140.5101599654129,
+        "standardError": 8.330765226422251
+      },
+      "helperNS": {
+        "mean": 70.25507998270645,
+        "standardError": 6.411780070481923
+      },
+      "boundaryNS": {
+        "mean": 70.25507998270645,
+        "standardError": 6.411780070481923
+      }
+    },
+    {
+      "tid": 484,
+      "op": "div",
+      "samples": 21,
+      "over10us": 0,
+      "bothNormalPercent": 95.23809523809523,
+      "precisionRoundingCounts": {
+        "PC0/RC0": 21
+      },
+      "totalNS": {
+        "mean": 173.61111111111111,
+        "standardError": 54.9006538223677
+      },
+      "helperNS": {
+        "mean": 124.00793650793652,
+        "standardError": 49.60317460317461
+      },
+      "boundaryNS": {
+        "mean": 49.60317460317461,
+        "standardError": 34.18662884943012
+      }
+    },
+    {
+      "tid": 484,
+      "op": "mul",
+      "samples": 957,
+      "over10us": 0,
+      "bothNormalPercent": 81.40020898641588,
+      "precisionRoundingCounts": {
+        "PC0/RC0": 957
+      },
+      "totalNS": {
+        "mean": 125.17415534656915,
+        "standardError": 7.1976216005437585
+      },
+      "helperNS": {
+        "mean": 49.5254266805991,
+        "standardError": 4.941257989388454
+      },
+      "boundaryNS": {
+        "mean": 75.64872866597005,
+        "standardError": 5.935289942330344
+      }
+    },
+    {
+      "tid": 484,
+      "op": "sub",
+      "samples": 299,
+      "over10us": 0,
+      "bothNormalPercent": 86.62207357859532,
+      "precisionRoundingCounts": {
+        "PC0/RC0": 299
+      },
+      "totalNS": {
+        "mean": 142.83723522853958,
+        "standardError": 13.460346632909161
+      },
+      "helperNS": {
+        "mean": 67.93478260869566,
+        "standardError": 10.161046256715531
+      },
+      "boundaryNS": {
+        "mean": 74.90245261984393,
+        "standardError": 10.587018241674805
+      }
+    },
+    {
+      "tid": 628,
+      "op": "add",
+      "samples": 854,
+      "over10us": 0,
+      "bothNormalPercent": 94.84777517564403,
+      "precisionRoundingCounts": {
+        "PC2/RC0": 854
+      },
+      "totalNS": {
+        "mean": 206.13778298204528,
+        "standardError": 8.72066464602218
+      },
+      "helperNS": {
+        "mean": 100.62939110070258,
+        "standardError": 7.040734505288206
+      },
+      "boundaryNS": {
+        "mean": 105.5083918813427,
+        "standardError": 7.1674222829055925
+      }
+    },
+    {
+      "tid": 628,
+      "op": "div",
+      "samples": 1,
+      "over10us": 0,
+      "bothNormalPercent": 100.0,
+      "precisionRoundingCounts": {
+        "PC2/RC0": 1
+      },
+      "totalNS": {
+        "mean": 0.0,
+        "standardError": null
+      },
+      "helperNS": {
+        "mean": 0.0,
+        "standardError": null
+      },
+      "boundaryNS": {
+        "mean": 0.0,
+        "standardError": null
+      }
+    },
+    {
+      "tid": 628,
+      "op": "mul",
+      "samples": 981,
+      "over10us": 0,
+      "bothNormalPercent": 93.47604485219165,
+      "precisionRoundingCounts": {
+        "PC2/RC0": 981
+      },
+      "totalNS": {
+        "mean": 204.4045191980972,
+        "standardError": 8.124005723386043
+      },
+      "helperNS": {
+        "mean": 74.85983690112131,
+        "standardError": 5.836680563920135
+      },
+      "boundaryNS": {
+        "mean": 129.54468229697588,
+        "standardError": 7.191928865119281
+      }
+    },
+    {
+      "tid": 628,
+      "op": "sub",
+      "samples": 212,
+      "over10us": 0,
+      "bothNormalPercent": 90.09433962264151,
+      "precisionRoundingCounts": {
+        "PC2/RC0": 212
+      },
+      "totalNS": {
+        "mean": 221.10849056603774,
+        "standardError": 17.722412988358876
+      },
+      "helperNS": {
+        "mean": 105.64072327044026,
+        "standardError": 14.417808830962807
+      },
+      "boundaryNS": {
+        "mean": 115.4677672955975,
+        "standardError": 14.894042329541936
+      }
+    }
+  ],
+  "resolutionNS": 520.8333333333334,
+  "limitation": "Raw wall-time ticks include timestamp and gate overhead. Not calibrated ABI self time. Long tails retained separately. Diagnostic FPS is not production performance. Counts may be capped or partially reported."
+}

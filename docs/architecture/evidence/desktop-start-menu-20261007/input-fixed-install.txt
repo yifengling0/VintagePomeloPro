@@ -1,0 +1,2 @@
+[Info]App install path:F:\VintagePomelo-Workspace\workspace_temp\desktop-start-menu-20261007\entry-desktop-input-fixed-debug-signed.hap msg:install bundle successfully.
+AppMod finish

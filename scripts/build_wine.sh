@@ -161,6 +161,20 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0036-wined3d-pixel-format-id-look
     "WineD3D bounded WGL pixel-format ID lookup"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0037-wine-opengl-performance-summary.patch" \
     "Opt-in bounded Unix OpenGL API wall-time summaries"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0038-wined3d-discard-map-invalidation.patch" \
+    "Propagate nonpersistent D3D discard to OpenGL shadow maps"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0039-wined3d-opt-in-dynamic-buffer-sysmem.patch" \
+    "Opt-in WOW64 nonpersistent dynamic buffer sysmem staging"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0040-ntdll-owned-virgl-shared-low-map.patch" \
+    "Opt-in Wine-owned VirGL shared low-address buffer mappings"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0041-winebus-ohos-poll-progress.patch" \
+    "OHOS gamepad socket polling always makes progress"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0042-opengl-opt-in-wgl-lock-wait.patch" \
+    "Opt-in WGL mutex acquisition timing"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0043-winebus-canonical-whgp-v2.patch" \
+    "Canonical WHGP v2 controller axes from main"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0044-wayland-input-thread-desktop.patch" \
+    "Wayland input thread follows the focused window desktop"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \
@@ -256,6 +270,7 @@ build_ohos_unix() {
        || ! grep -q '#define SONAME_LIBFREETYPE' include/config.h 2>/dev/null \
        || ! grep -q '#define SONAME_LIBVULKAN "libvulkan.so.1"' include/config.h 2>/dev/null \
        || ! grep -q '#define SONAME_LIBGNUTLS' include/config.h 2>/dev/null \
+       || ! grep -q '^#define HAVE_LIBWAYLAND_EGL 1$' include/config.h 2>/dev/null \
        || ! grep -q -- "--host=$HOST_TRIPLE" config.status 2>/dev/null; then
         export FREETYPE_CFLAGS="-I$SYSROOT_EXT_INC/freetype2"
         export FREETYPE_LIBS="-L$SYSROOT_EXT_LIB -lfreetype"
@@ -288,6 +303,10 @@ build_ohos_unix() {
         export ac_cv_lib_soname_gstreamer_1_0="libgstreamer-1.0.so.0"
         export WAYLAND_CLIENT_CFLAGS="-I$SYSROOT_EXT_INC"
         export WAYLAND_CLIENT_LIBS="-L$SYSROOT_EXT_LIB -lwayland-client"
+        # Required on every build host; missing pkg-config metadata must not
+        # silently compile winewayland.drv without its OpenGL implementation.
+        export WAYLAND_EGL_CFLAGS="-I$SYSROOT_EXT_INC"
+        export WAYLAND_EGL_LIBS="-L$SYSROOT_EXT_LIB -lwayland-egl"
         export XKBCOMMON_CFLAGS="-I$SYSROOT_EXT_INC"
         export XKBCOMMON_LIBS="-L$SYSROOT_EXT_LIB -lxkbcommon"
         export XKBREGISTRY_CFLAGS="-I$SYSROOT_EXT_INC"
@@ -298,8 +317,6 @@ build_ohos_unix() {
             export EGL_CFLAGS="-I$guest_gfx_prefix/include"
             export EGL_LIBS="-L$guest_gfx_prefix/lib -lEGL"
             export ac_cv_lib_soname_EGL="libEGL.so.1"
-            export WAYLAND_EGL_CFLAGS="-I$SYSROOT_EXT_INC"
-            export WAYLAND_EGL_LIBS="-L$SYSROOT_EXT_LIB -lwayland-egl"
             pkg_config="$PKG_CONFIG_BIN"
         fi
         if [ "$HOST_OS" = "HarmonyOS" ]; then
@@ -353,6 +370,8 @@ build_ohos_unix() {
         fi
     fi
 
+    python3 "$SCRIPT_DIR/wine_graphics_capabilities.py" --build "$wine_build_dir"
+
     # arm64 用 llvm-mingw clang: aarch64-windows target 的默认 include 路径不含
     # generic-w64-mingw32 的 GL/gl.h (x86_64 用 GNU mingw gcc 自带 GL 头)。
     # winehua_graphics_smoke 需要 <GL/gl.h> → 从 llvm-mingw 复制到 build 树
@@ -373,6 +392,10 @@ build_ohos_unix() {
         CXX="$OHOS_SDK/native/llvm/bin/clang++ --target=$TARGET --sysroot=$SYSROOT" \
         CFLAGS="$WINE_CFLAGS -I$SYSROOT_EXT_INC -I$SYSROOT_EXT_INC/freetype2" \
         LDFLAGS="-fuse-ld=lld --sysroot=$SYSROOT --target=$TARGET -L$SYSROOT_EXT_LIB"
+
+    python3 "$SCRIPT_DIR/wine_graphics_capabilities.py" --build "$wine_build_dir" \
+        --driver "$wine_build_dir/dlls/winewayland.drv/winewayland.so" \
+        --readelf "$OHOS_SDK/native/llvm/bin/llvm-readelf"
 
     # 验证关键 .so 已成功链接（make -k 可能静默跳过链接失败）
     for pair in "winewayland.drv/winewayland.so" "wineohos.drv/wineohos.so" \

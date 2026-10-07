@@ -1,0 +1,7 @@
+{
+  "policy": "1",
+  "observed": "reduced-f64",
+  "runtimeDLL": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+  "output": "pid=492 requested=1 test=(1+2^-60)-1 pc64=1 result=0000000000000000:0000\n\nobserved=reduced-f64 complete=1\n",
+  "probeSHA256": "4e5db2b19e78f5310a3877b1acb58b7d46a74962db6af4f3f57c9866d3bc7541"
+}

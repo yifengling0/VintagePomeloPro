@@ -1,6 +1,7 @@
 #pragma once
 
 #include <napi/native_api.h>
+#include <sys/types.h>
 #include <string>
 #include <vector>
 #include <memory>
@@ -25,6 +26,10 @@ struct WineProcessEntry {
     std::string exitCodeSource;
     int stdoutFd;
     std::shared_ptr<std::atomic<bool>> readerActive;
+    // Only the app's directly forked children are waitable here. NCP and
+    // early-server children keep their existing authoritative exit callbacks.
+    bool waitPending = false;
+    uint64_t generation = 0;
 };
 
 // -- NAPI threadsafe 回调 (由 napi_init.cpp 设置) --
@@ -47,7 +52,12 @@ extern napi_threadsafe_function gStateTsfn;
 extern std::string gSockPath;
 
 // -- 进程注册表 --
-WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd);
+enum class ProcessRegistration { Relabel, NativeChild, ForkChild };
+WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd,
+                            ProcessRegistration registration = ProcessRegistration::Relabel);
+// Installs a signal-safe wakeup and a single worker that reaps only registered
+// fork children. Call before fork and register immediately in the parent.
+bool EnsureChildReaper();
 void RemoveProcess(pid_t pid, int exitCode = -1,
                    const std::string& exitCodeSource = "unknown");
 void KillAllProcesses();
@@ -86,8 +96,8 @@ void NoteCreateNcpDeath(int32_t pid);
 // The early phone server owns waitpid for these grandchildren and forwards
 // the real wait status after broker registration, including fast child exits.
 void NotePhoneForkServerChildExit(int32_t pid, int waitStatus);
-// 启动编排等待子进程退出 (wineboot 等待用), 按设备模式分流:
-// 手机 fork 模式走 /proc 判活 (可见有效); NCP 模式查退出回调标记
+// 启动编排等待真实退出通知 (fork waitpid / NCP 回调 / server waitpid)。
+// /proc 不可读不代表退出，不能据此提前完成 wineboot。
 bool IsLaunchChildExited(pid_t pid);
 // 查询进程是否已由 NCP 退出回调确认退出
 bool IsPidExited(pid_t pid);

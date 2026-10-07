@@ -136,7 +136,9 @@ static void LaunchJob(BrokerJob& job) {
     OH_LOG_INFO(LOG_APP, "[PROC-SPAWN] brokerHostPid=%{public}d creatorHostPid=%{public}d childHostPid=%{public}d createStatus=%{public}d mode=%{public}s",
                 getpid(), job.peerPid, childPid, status, direct ? "create-ipc" : phoneFork ? "phone-fork-server" : "start");
     if (!status && childPid > 0) {
-        AddProcess(childPid, winehua::spawn::ProcessPath(request), -1);
+        AddProcess(childPid, winehua::spawn::ProcessPath(request), -1,
+            !direct && !phoneFork && PhoneAdapter_IsPhoneMode()
+                ? ProcessRegistration::Relabel : ProcessRegistration::NativeChild);
         if (phoneFork) Phone_MarkDirectForkChildRegistered(childPid);
         WineHuaCefUtilityProbeNoteSpawn(childPid, job.peerPid, entry.c_str());
         if (direct) MarkWineIpcChildRegistered(childPid);

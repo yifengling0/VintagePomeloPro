@@ -8,6 +8,8 @@
 #include <signal.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <dirent.h>
 #include <cstdlib>
 #include <cstdio>
@@ -59,11 +61,14 @@ static uint64_t TimestampMs() {
 
 // 前向声明
 static void EnsureMonitorRunning();
+static void NotifyChildReaper();
+static void HandleProcessDeath(pid_t pid, int reason = -1,
+                               const char* source = "unknown", uint64_t generation = 0);
 
 // -- 进程后端: fork (手机) vs NCP (Pad/真机) --
 // 两种设备模式的进程操作差异集中在同一处:
-//   fork 后端 (手机): 子进程是 App 直系 fork, /proc 可见 — 判活/kill 用
-//                     POSIX 原语 (1.0.5 方案); 不触发 NCP 退出回调
+//   fork 后端 (手机): kill 用 POSIX，退出由注册子进程的 waitpid 确认;
+//                     沙箱内 /proc 也可能不可读，不触发 NCP 退出回调
 //   NCP 后端 (Pad/真机): appspawn 托管, 沙箱 /proc 对 NCP 不可见 — 判活/
 //                     kill 走系统 NCP API, 退出检测用 NCP 退出回调
 // 所有「判活/杀/等退出/注册回调」的分支都经 IsForkBackend() 选择,
@@ -91,10 +96,8 @@ void KillChildProcess(pid_t pid) {
 static std::atomic<bool> gNcpExitCbRegistered{false};
 static std::atomic<bool> gProcHiddenLogged{false};
 
-// -- 进程退出标记 (NCP 退出回调记录, wine_launch 等 wineboot 退出用) --
-// 沙箱 /proc 对 NCP 不可见, 进程存活轮询不可用; NCP 退出回调是唯一权威
-// 退出信号。回调触发时记录 pid, IsPidExited 查询 (IsLaunchChildExited 的
-// NCP 分支)。手机 fork 模式不依赖此集合 (回调不触发, 走 /proc 判活)。
+// -- 权威退出标记 (fork reaper / NCP 回调 / fork server 共用) --
+// 沙箱 /proc 不可见不代表退出。完成真实退出时记录，新的 PID 代次登记时清除。
 static std::mutex gExitWaitMutex;
 static std::set<pid_t> gExitedPids;
 
@@ -104,43 +107,37 @@ bool IsPidExited(pid_t pid) {
 }
 
 bool IsProcessAliveNotZombie(pid_t pid) {
+    if (pid <= 0 || IsPidExited(pid)) return false;
+    WineProcessEntry entry{};
+    if (QueryProcessSnapshot(pid, &entry)) {
+        // Preserve the real wait status: ProcMon must not race the reaper by
+        // completing a zombie with an unknown reason first.
+        if (entry.waitPending) return true;
+        if (!entry.running) return false;
+    }
     char path[64];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
     FILE* f = fopen(path, "r");
     if (f) {
-        // stat 可读: 僵尸感知判定 (两种模式通用 — fork 子进程退出变僵尸,
-        // NCP 可见场景同理)
         char buf[512];
         size_t n = fread(buf, 1, sizeof(buf) - 1, f);
         fclose(f);
         buf[n] = 0;
-        char* rp = strrchr(buf, ')');           // state 字段在最后一个 ')' 之后
-        return !(rp && rp[2] == 'Z');           // 僵尸 = 已退出
+        char* rp = strrchr(buf, ')');
+        return !(rp && strlen(rp) >= 3 && (rp[2] == 'Z' || rp[2] == 'X'));
     }
-    // stat 不可读, 按进程后端分流:
-    if (IsForkBackend()) {
-        // fork 后端 (手机): 子进程是 App 直系, /proc 可见 —
-        // fopen 失败 = 目录消失 = 已退出 (1.0.5 原判活)
-        return false;
-    }
-    // NCP 模式 (Pad/真机): 沙箱 /proc 对 NCP 进程完全不可见 (实测 errno=ENOENT),
-    // 绝不能据此判死, 活进程会被误判为已退出 (误弹初始化失败/闪退)。
-    // 一律按存活处理: 真实退出由 NCP 退出回调 (RegisterNativeChildProcessExitCallback)
-    // 权威上报。轮询只保留 stat 可读时的 zombie 感知。宁可僵尸短暂误判为活,
-    // 不可活进程误判为死。首次不可见时打一条诊断日志。
+    const int error = errno;
+    // ENOENT can also mean a hidden PID namespace, including on phones.
+    // Unknown visibility is not evidence that a live process has exited.
     if (!gProcHiddenLogged.exchange(true)) {
         OH_LOG_WARN(LOG_APP, "[Alive] /proc/%{public}d/stat unreadable errno=%{public}d; "
-                    "NCP visibility limited, rely on exit callback", pid, errno);
+                    "backend=%{public}s, await authoritative exit", pid, error,
+                    IsForkBackend() ? "fork" : "ncp");
     }
     return true;
 }
 
-// 启动编排等待子进程退出: 按进程后端分流 —
-// fork 后端用 /proc 判活 (可见有效), NCP 后端用退出回调标记
 bool IsLaunchChildExited(pid_t pid) {
-    if (IsForkBackend()) {
-        return !IsProcessAliveNotZombie(pid);
-    }
     return IsPidExited(pid);
 }
 
@@ -159,11 +156,14 @@ void RegisterWineserver(pid_t pid) {
         AddProcess(pid, "wineserver", -1);
         return;
     }
-    gWineserverPid.store(pid);
+    AddProcess(pid, "wineserver", -1);
     gShutdownRequested.store(false);
     gDesktopSessionEnded.store(false);
+    gWineserverPid.store(pid);
     OH_LOG_WARN(LOG_APP, "[ProcReg] wineserver %{public}d registered as session anchor", pid);
-    AddProcess(pid, "wineserver", -1);
+    WineProcessEntry entry{};
+    if (QueryProcessSnapshot(pid, &entry) && !entry.running)
+        HandleProcessDeath(pid, entry.exitCode, entry.exitCodeSource.c_str(), entry.generation);
 }
 
 pid_t GetWineserverPid() {
@@ -253,59 +253,70 @@ static std::vector<pid_t> SnapshotProcessDescendants(pid_t root)
 }
 
 // -- 注册表辅助函数 --
-WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd) {
-    std::lock_guard<std::mutex> lock(gProcMutex);
-    std::string basename = exeFullPath;
-    // 兼容 Windows 反斜杠路径 (C:\game\game.exe), 否则完整路径会显示为进程名
-    auto slash = basename.find_last_of("/\\");
-    if (slash != std::string::npos) basename = basename.substr(slash + 1);
-    gProcRegistry.erase(std::remove_if(gProcRegistry.begin(), gProcRegistry.end(),
-        [pid](const WineProcessEntry& entry) { return entry.pid == pid; }), gProcRegistry.end());
-    while (gProcRegistry.size() >= 128) {
-        auto ended = std::find_if(gProcRegistry.begin(), gProcRegistry.end(),
-            [](const WineProcessEntry& entry) { return !entry.running; });
-        if (ended == gProcRegistry.end()) break;
-        gProcRegistry.erase(ended);
+WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd,
+                             ProcessRegistration registration) {
+    if (pid <= 0) return nullptr;
+    WineProcessEntry* result = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(gProcMutex);
+        std::string basename = exeFullPath;
+        auto slash = basename.find_last_of("/\\");
+        if (slash != std::string::npos) basename = basename.substr(slash + 1);
+        // Broker and app labels do not create a new process incarnation or
+        // resurrect a child that exited during its startup handshake.
+        if (registration == ProcessRegistration::Relabel) {
+            for (auto& entry : gProcRegistry) {
+                if (entry.pid != pid) continue;
+                entry.exeBasename = basename;
+                entry.exeFullPath = exeFullPath;
+                if (stdoutFd >= 0 && entry.stdoutFd < 0) entry.stdoutFd = stdoutFd;
+                result = &entry;
+                break;
+            }
+        }
+        if (!result) {
+            gProcRegistry.erase(std::remove_if(gProcRegistry.begin(), gProcRegistry.end(),
+                [pid](const WineProcessEntry& entry) { return entry.pid == pid; }), gProcRegistry.end());
+            while (gProcRegistry.size() >= 128) {
+                auto ended = std::find_if(gProcRegistry.begin(), gProcRegistry.end(),
+                    [](const WineProcessEntry& entry) { return !entry.running && !entry.waitPending; });
+                if (ended == gProcRegistry.end()) break;
+                gProcRegistry.erase(ended);
+            }
+            {
+                std::lock_guard<std::mutex> exitLock(gExitWaitMutex);
+                gExitedPids.erase(pid);
+            }
+            static uint64_t nextGeneration = 0;
+            gProcRegistry.push_back({
+                .pid = pid,
+                .exeBasename = basename,
+                .exeFullPath = exeFullPath,
+                .running = true,
+                .startTimestampMs = TimestampMs(),
+                .endTimestampMs = 0,
+                .exitCode = -1,
+                .exitCodeSource = "unknown",
+                .stdoutFd = stdoutFd,
+                .readerActive = std::make_shared<std::atomic<bool>>(true),
+                .waitPending = registration == ProcessRegistration::ForkChild,
+                .generation = ++nextGeneration
+            });
+            result = &gProcRegistry.back();
+            OH_LOG_WARN(LOG_APP, "[ProcReg] add pid=%{public}d name=%{public}s total=%{public}zu",
+                        pid, basename.c_str(), gProcRegistry.size());
+        }
     }
-    gProcRegistry.push_back({
-        .pid = pid,
-        .exeBasename = basename,
-        .exeFullPath = exeFullPath,
-        .running = true,
-        .startTimestampMs = TimestampMs(),
-        .endTimestampMs = 0,
-        .exitCode = -1,
-        .exitCodeSource = "unknown",
-        .stdoutFd = stdoutFd,
-        .readerActive = std::make_shared<std::atomic<bool>>(true)
-    });
-    OH_LOG_WARN(LOG_APP, "[ProcReg] add pid=%{public}d name=%{public}s total=%{public}zu",
-                pid, basename.c_str(), gProcRegistry.size());
     EnsureMonitorRunning();
-    // 通知 ArkTS 刷新进程列表: wine 内部自启的子进程 (走 broker 登记) 没有
-    // 调用者发 evt:launch-accepted, 必须在这里统一发一次, 否则新程序不出现在任务列表。
-    // ArkTS 侧对 proc-updated 做了节流, 高频进出的系统进程不会触发大量刷新。
-    if (gStateTsfn) {
+    if (registration == ProcessRegistration::ForkChild) NotifyChildReaper();
+    // NAPI callbacks can reenter the registry. Never notify with its lock held.
+    if (gStateTsfn)
         napi_call_threadsafe_function(gStateTsfn, strdup("evt:proc-updated"), napi_tsfn_blocking);
-    }
-    return &gProcRegistry.back();
+    return result;
 }
 
 void RemoveProcess(pid_t pid, int exitCode, const std::string& exitCodeSource) {
-    std::lock_guard<std::mutex> lock(gProcMutex);
-    for (auto& entry : gProcRegistry) {
-        if (entry.pid == pid) {
-            OH_LOG_WARN(LOG_APP,
-                        "[ProcReg] complete pid=%{public}d name=%{public}s exit=%{public}d source=%{public}s",
-                        pid, entry.exeBasename.c_str(), exitCode, exitCodeSource.c_str());
-            entry.running = false;
-            entry.endTimestampMs = TimestampMs();
-            entry.exitCode = exitCode;
-            entry.exitCodeSource = exitCodeSource;
-            if (entry.stdoutFd >= 0) { close(entry.stdoutFd); entry.stdoutFd = -1; }
-            return;
-        }
-    }
+    HandleProcessDeath(pid, exitCode, exitCodeSource.c_str());
 }
 
 void KillAllProcesses() {
@@ -321,7 +332,6 @@ void KillAllProcesses() {
             *(entry.readerActive) = false;
             trackedPids.push_back(entry.pid);
             KillChildProcess(entry.pid);
-            if (entry.stdoutFd >= 0) { close(entry.stdoutFd); entry.stdoutFd = -1; }
         }
     }
 
@@ -368,13 +378,10 @@ void NotifyWhenSessionDrained() {
         int waitedMs = 0;
         while (waitedMs < kDrainTimeoutMs) {
             bool anyAlive = false;
-            {
-                std::lock_guard<std::mutex> lock(gProcMutex);
-                for (const auto& entry : gProcRegistry) {
-                    if (entry.running && IsProcessAliveNotZombie(entry.pid)) {
-                        anyAlive = true;
-                        break;
-                    }
+            for (const auto& entry : GetProcessListSnapshot()) {
+                if (entry.running && IsProcessAliveNotZombie(entry.pid)) {
+                    anyAlive = true;
+                    break;
                 }
             }
             if (!anyAlive) break;
@@ -424,67 +431,140 @@ void CloseInheritedFds(std::initializer_list<int> keepFds) {
     closedir(d);
 }
 
-// -- SIGCHLD handler: reap NCP child processes spawned by broker --
-void sigchld_handler(int) {
-    int status;
-    pid_t pid;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-        const char* source = "sigchld";
-        LogProcessExit("broker-child", pid, status);
-        RemoveProcess(pid, exitCode, source);
+// Process-lifetime self-pipe. The signal path only writes a wake byte;
+// registered child ownership and status publication belong to the worker.
+static volatile sig_atomic_t gReaperWriteFd = -1;
+
+static void NotifyChildReaper() {
+    const int savedErrno = errno;
+    const int fd = gReaperWriteFd;
+    if (fd >= 0) {
+        const char byte = 1;
+        ssize_t written;
+        do { written = write(fd, &byte, 1); } while (written < 0 && errno == EINTR);
+        // EAGAIN means a wake is already queued. No locks, NAPI or logging.
+    }
+    errno = savedErrno;
+}
+
+void sigchld_handler(int) { NotifyChildReaper(); }
+
+struct ProcessDeathNotification {
+    pid_t pid = -1;
+    int reason = -1;
+    bool updated = false;
+    bool anchor = false;
+};
+
+// Caller holds gProcMutex. Reaping and publishing share this critical section
+// so a reused PID cannot receive a previous incarnation's status.
+static ProcessDeathNotification CompleteProcessLocked(pid_t pid, int reason,
+                                                       const char* source, uint64_t generation) {
+    ProcessDeathNotification result;
+    auto it = std::find_if(gProcRegistry.begin(), gProcRegistry.end(),
+        [pid](const WineProcessEntry& entry) { return entry.pid == pid; });
+    if (generation && (it == gProcRegistry.end() || it->generation != generation)) return result;
+    const bool waitResult = !strcmp(source, "waitpid") || !strcmp(source, "signal");
+    if (it != gProcRegistry.end()) {
+        const bool haveWaitResult = it->exitCodeSource == "waitpid" || it->exitCodeSource == "signal";
+        result.updated = it->running || (waitResult && !haveWaitResult) ||
+                         (!haveWaitResult && it->exitCode < 0 && reason >= 0);
+        if (result.updated) {
+            it->running = false;
+            if (!it->endTimestampMs) it->endTimestampMs = TimestampMs();
+            it->exitCode = reason;
+            it->exitCodeSource = source;
+            OH_LOG_WARN(LOG_APP, "[ProcReg] complete pid=%{public}d name=%{public}s exit=%{public}d source=%{public}s",
+                        pid, it->exeBasename.c_str(), reason, source);
+        }
+        if (waitResult) it->waitPending = false;
+    }
+    {
+        std::lock_guard<std::mutex> exitLock(gExitWaitMutex);
+        gExitedPids.insert(pid);
+    }
+    result.pid = pid;
+    result.reason = reason;
+    pid_t expected = pid;
+    result.anchor = gWineserverPid.compare_exchange_strong(expected, -1);
+    return result;
+}
+
+static void DispatchProcessDeath(const ProcessDeathNotification& result) {
+    if (result.pid <= 0) return;
+    if (result.updated) {
+        WineHuaCefUtilityProbeNoteExit(result.pid, result.reason);
         if (gStateTsfn) {
             char msg[64];
-            snprintf(msg, sizeof(msg), "evt:proc-exited:%d", pid);
+            snprintf(msg, sizeof(msg), "evt:proc-exited:%d", result.pid);
             napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
         }
     }
+    if (!result.anchor || gShutdownRequested.load(std::memory_order_acquire)) return;
+    if (gDesktopSessionEnded.load(std::memory_order_acquire)) {
+        OH_LOG_WARN(LOG_APP, "[ProcMon] wineserver exited after desktop session end, clean stop");
+        KillAllProcesses();
+        NotifyWhenSessionDrained();
+    } else if (gStateTsfn) {
+        OH_LOG_ERROR(LOG_APP, "[ProcMon] wineserver died unexpectedly, emit state:failed:wineserver");
+        napi_call_threadsafe_function(gStateTsfn, strdup("state:failed:wineserver"), napi_tsfn_blocking);
+    }
 }
 
-// -- 进程死亡收口 (ProcMon 轮询与 NCP 退出回调共用) --
-// 主 wineserver 死亡, 按死法分三种收口:
-// 1) gShutdownRequested (stopAll/reset 主动停止): StopAll 末尾的
-//    drain 会发 state:stopped, 这里不动
-// 2) gDesktopSessionEnded (桌面主动退出带动 wineserver 跟随退出,
-//    explorer 先走 wineserver 后走): 正常会话终结不是崩溃 — 扫尾
-//    残余进程 (winehua_keep 等) 后按正常停止发 state:stopped
-// 3) 其余 = 非预期死亡: 报 state:failed:wineserver (引擎故障)
-static void HandleProcessDeath(pid_t pid, int reason = -1, const char* source = "unknown") {
-    // CEF 子进程生命周期观测: NCP 回调带来的 signal (或 ProcMon 的 -1) 就是
-    // "exit 0 还是被信号打死" 的答案, 与创建侧配对写 CEF-UTILITY-EXIT。
-    WineHuaCefUtilityProbeNoteExit((int32_t)pid, reason);
+static void HandleProcessDeath(pid_t pid, int reason, const char* source, uint64_t generation) {
+    ProcessDeathNotification result;
     {
-        std::lock_guard<std::mutex> lock(gExitWaitMutex);
-        gExitedPids.insert(pid);
+        std::lock_guard<std::mutex> lock(gProcMutex);
+        result = CompleteProcessLocked(pid, reason, source, generation);
     }
-    WineProcessEntry entry;
-    if (QueryProcessSnapshot(pid, &entry)) {
-        OH_LOG_WARN(LOG_APP, "[ProcMon] pid=%{public}d no longer alive name=%{public}s reason=%{public}d(0x%{public}x) source=%{public}s",
-                    pid, entry.exeBasename.c_str(), reason, (unsigned int)reason, source);
-    } else {
-        OH_LOG_WARN(LOG_APP, "[ProcMon] pid=%{public}d no longer alive (not in registry) reason=%{public}d(0x%{public}x) source=%{public}s",
-                    pid, reason, (unsigned int)reason, source);
-    }
-    RemoveProcess(pid, reason, source);
-    if (gStateTsfn) {
-        char msg[64];
-        snprintf(msg, sizeof(msg), "evt:proc-exited:%d", pid);
-        napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
-    }
-    if (pid == gWineserverPid.load(std::memory_order_acquire)) {
-        gWineserverPid.store(-1, std::memory_order_release);
-        if (gShutdownRequested.load(std::memory_order_acquire)) {
-            // 主动停止编排中, state:stopped 由 StopAll 的 drain 发
-        } else if (gDesktopSessionEnded.load(std::memory_order_acquire)) {
-            OH_LOG_WARN(LOG_APP, "[ProcMon] wineserver exited after desktop session end, clean stop");
-            KillAllProcesses();
-            NotifyWhenSessionDrained();
-        } else if (gStateTsfn) {
-            OH_LOG_ERROR(LOG_APP, "[ProcMon] wineserver died unexpectedly, emit state:failed:wineserver");
-            napi_call_threadsafe_function(gStateTsfn, strdup("state:failed:wineserver"),
-                                          napi_tsfn_blocking);
+    DispatchProcessDeath(result);
+}
+
+static void ReapRegisteredChildren() {
+    std::vector<ProcessDeathNotification> notifications;
+    {
+        std::lock_guard<std::mutex> lock(gProcMutex);
+        for (auto& entry : gProcRegistry) {
+            if (!entry.waitPending) continue;
+            int status = 0;
+            pid_t waited;
+            do { waited = waitpid(entry.pid, &status, WNOHANG); }
+            while (waited < 0 && errno == EINTR);
+            if (waited != entry.pid) continue;
+            LogProcessExit("broker-child", entry.pid, status);
+            notifications.push_back(CompleteProcessLocked(entry.pid,
+                WIFEXITED(status) ? WEXITSTATUS(status) : -1,
+                WIFSIGNALED(status) ? "signal" : "waitpid", entry.generation));
         }
     }
+    for (const auto& notification : notifications) DispatchProcessDeath(notification);
+}
+
+bool EnsureChildReaper() {
+    static const bool started = [] {
+        int fds[2];
+        if (pipe2(fds, O_CLOEXEC | O_NONBLOCK) != 0) return false;
+        struct sigaction action{};
+        action.sa_handler = sigchld_handler;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+        if (sigaction(SIGCHLD, &action, nullptr) != 0) {
+            close(fds[0]); close(fds[1]); return false;
+        }
+        gReaperWriteFd = fds[1];
+        std::thread([readFd = fds[0]] {
+            for (;;) {
+                pollfd pfd{readFd, POLLIN, 0};
+                int result = poll(&pfd, 1, 1000);
+                if (result < 0 && errno == EINTR) continue;
+                char bytes[256];
+                while (read(readFd, bytes, sizeof(bytes)) > 0) {}
+                ReapRegisteredChildren();
+            }
+        }).detach();
+        return true;
+    }();
+    return started;
 }
 
 // -- NCP 子进程退出回调 (系统级, 绕开沙箱 /proc 不可见问题) --
@@ -541,27 +621,18 @@ static void ProcessMonitorLoop() {
     while (gMonitorRunning.load(std::memory_order_relaxed)) {
         sleep(1);
 
-        std::vector<pid_t> exitedPids;
-        {
-            std::lock_guard<std::mutex> lock(gProcMutex);
-            for (const auto& entry : gProcRegistry) {
-                if (!entry.running) continue;
-                if (!IsProcessAliveNotZombie(entry.pid)) {
-                    exitedPids.push_back(entry.pid);
-                }
-            }
-        }
-
-        for (pid_t pid : exitedPids) {
-            HandleProcessDeath(pid);
+        for (const auto& entry : GetProcessListSnapshot()) {
+            if (!entry.running || entry.waitPending) continue;
+            if (!IsProcessAliveNotZombie(entry.pid))
+                HandleProcessDeath(entry.pid, -1, "proc-zombie", entry.generation);
         }
     }
     OH_LOG_WARN(LOG_APP, "[ProcMon] stopped");
 }
 
 static void EnsureMonitorRunning() {
-    if (!gMonitorRunning.load(std::memory_order_acquire)) {
-        gMonitorRunning.store(true, std::memory_order_release);
+    bool expected = false;
+    if (gMonitorRunning.compare_exchange_strong(expected, true)) {
         gMonitorThread = std::thread(ProcessMonitorLoop);
         gMonitorThread.detach();
     }
@@ -569,10 +640,13 @@ static void EnsureMonitorRunning() {
 
 // -- 客户端 stdout/stderr 读取线程 (每个进程独立) --
 void ReaderThread(int fd, pid_t pid, std::shared_ptr<std::atomic<bool>> active) {
-    const bool forkServerChild = Phone_IsDirectForkServerChild(pid);
     char buf[2048];
     std::string pending;
     while (*active) {
+        pollfd pfd{fd, POLLIN, 0};
+        int ready = poll(&pfd, 1, 100);
+        if (ready == 0 || (ready < 0 && errno == EINTR)) continue;
+        if (ready < 0) break;
         ssize_t n = read(fd, buf, sizeof(buf) - 1);
         if (n > 0) {
             buf[n] = 0;
@@ -595,21 +669,12 @@ void ReaderThread(int fd, pid_t pid, std::shared_ptr<std::atomic<bool>> active) 
     }
     close(fd);
 
-    // These Wine processes are grandchildren. The server owns waitpid and
-    // delivers their exit status; an App waitpid would fail with ECHILD.
-    if (forkServerChild) return;
-
-    int status;
-    waitpid(pid, &status, 0);
-    LogProcessExit("wine", pid, status);
-    int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    RemoveProcess(pid, exitCode, "process");
-
-    if (gStateTsfn) {
-        char msg[64];
-        snprintf(msg, sizeof(msg), "evt:proc-exited:%d", pid);
-        napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
-    }
+    // EOF is not process exit. The registered reaper/callback owns status;
+    // only this reader closes its fd, including when the number is reused.
+    std::lock_guard<std::mutex> lock(gProcMutex);
+    for (auto& entry : gProcRegistry)
+        if (entry.pid == pid && entry.readerActive == active && entry.stdoutFd == fd)
+            entry.stdoutFd = -1;
 }
 
 // -- stderr pipe reader (后台线程, 逐行日志) --

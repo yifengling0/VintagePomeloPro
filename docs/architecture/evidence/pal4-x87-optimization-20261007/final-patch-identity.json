@@ -1,0 +1,34 @@
+{
+  "mul24": {
+    "changedFiles": [
+      "FEXCore/Source/Common/SoftFloat.h",
+      "FEXCore/Source/Common/StrictMul24.h"
+    ],
+    "patchSHA256": "02489f11b5c49261d49d6225bd4df39879373cd4f25090df54ab9b444647f2b4",
+    "sourceSHA256": {
+      "FEXCore/Source/Common/SoftFloat.h": "6780485a0e83583b4dfc0c8a1ab4432986f35235687c575fbf6e66d3b5a81cd9",
+      "FEXCore/Source/Common/StrictMul24.h": "9d697bc45ba386bb90265b2f08d165fbe5bf1de2fdd94773a111c09e1c51c66e"
+    },
+    "replay": "exact source bytes; reverse dry run succeeds"
+  },
+  "diagnostic": {
+    "changedFiles": [
+      "FEXCore/Source/Interface/Context/Context.h",
+      "FEXCore/Source/Interface/Core/Core.cpp",
+      "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+      "FEXCore/include/FEXCore/Core/CoreState.h",
+      "Source/Windows/WOW64/Module.cpp",
+      "Source/Windows/WOW64/X87Profile.h"
+    ],
+    "patchSHA256": "c95d750af78f86cb41a6a62177a49bc0489a41417d7e973e32638849258e11ea",
+    "sourceSHA256": {
+      "FEXCore/Source/Interface/Context/Context.h": "b55edea9c285ceeb42fcb6ffa8c3232493951b23eadb6043f9f00bc543cf4d5d",
+      "FEXCore/Source/Interface/Core/Core.cpp": "e01ffdfff338385614a2ec91230453788e3d90395e2d52bef52b297e84bc9d76",
+      "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp": "ce729b8a9a48c36253abaccaa7350919ee37306c0c350d5dfd4ef67f7ad139fe",
+      "FEXCore/include/FEXCore/Core/CoreState.h": "a72fa25d9f3427c46b609d76496c6471e2d77cbc72d229181fbf870391d15cc6",
+      "Source/Windows/WOW64/Module.cpp": "f8121a67c87905fad7075ba64bbcb24e1f6d45702f0c42869841fb0ead8050e3",
+      "Source/Windows/WOW64/X87Profile.h": "1a7cb6910fcfc8dbf4141fdafbb04080963d59f2ac2c2929d46160ad65dc5bc9"
+    },
+    "replay": "exact source bytes; reverse dry run succeeds"
+  }
+}

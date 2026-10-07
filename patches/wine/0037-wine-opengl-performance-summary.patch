@@ -9,7 +9,7 @@
  
  #include <pthread.h>
  
-@@ -48,6 +50,142 @@
+@@ -48,6 +50,158 @@
  #include "wine/vulkan_driver.h"
  
  WINE_DEFAULT_DEBUG_CHANNEL(opengl);
@@ -31,6 +31,14 @@
 +    WINEHUA_PERF_READPIXELS,
 +    WINEHUA_PERF_FINISH,
 +    WINEHUA_PERF_WGL_SWAP,
++    WINEHUA_PERF_BUFFER_SUBDATA,
++    WINEHUA_PERF_TEX_IMAGE,
++    WINEHUA_PERF_TEX_SUBIMAGE,
++    WINEHUA_PERF_COMPRESSED_TEX_SUBIMAGE,
++    WINEHUA_PERF_COMPILE_SHADER,
++    WINEHUA_PERF_LINK_PROGRAM,
++    WINEHUA_PERF_SHADER_STATUS,
++    WINEHUA_PERF_PROGRAM_STATUS,
 +    WINEHUA_PERF_COUNT
 +};
 +WINE_DECLARE_DEBUG_CHANNEL(winehua_perf);
@@ -51,6 +59,14 @@
 +    "readpixels",
 +    "finish",
 +    "wgl_swap",
++    "buffer_subdata",
++    "tex_image",
++    "tex_subimage",
++    "compressed_tex_subimage",
++    "compile_shader",
++    "link_program",
++    "shader_status",
++    "program_status",
 +};
 +
 +static uint64_t winehua_perf_now(void)
@@ -152,8 +168,85 @@
  
  static const BOOL is_win64 = (sizeof(void *) > sizeof(int));
  
-@@ -1873,8 +2011,10 @@
+@@ -1871,10 +2025,87 @@
+     }
+ }
  
++/* API wall time includes driver-side CPU work and waits, not GPU duration.
++ * Texture bytes are intentionally unknown without inspecting unpack state.
++ * Completion here does not imply GL success; never consume the error queue. */
++void wrap_glBufferSubData( TEB *teb, GLenum target, GLintptr offset, GLsizeiptr size, const void *data )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glBufferSubData( target, offset, size, data );
++    winehua_perf_end(WINEHUA_PERF_BUFFER_SUBDATA, perf_start, size > 0 ? size : 0, 0, 0);
++}
++
++void wrap_glBufferSubDataARB( TEB *teb, GLenum target, GLintptrARB offset, GLsizeiptrARB size, const void *data )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glBufferSubDataARB( target, offset, size, data );
++    winehua_perf_end(WINEHUA_PERF_BUFFER_SUBDATA, perf_start, size > 0 ? size : 0, 0, 0);
++}
++
++void wrap_glTexImage2D( TEB *teb, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glTexImage2D( target, level, internalformat, width, height, border, format, type, pixels );
++    winehua_perf_end(WINEHUA_PERF_TEX_IMAGE, perf_start, 0, 0, 0);
++}
++
++void wrap_glTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glTexSubImage2D( target, level, xoffset, yoffset, width, height, format, type, pixels );
++    winehua_perf_end(WINEHUA_PERF_TEX_SUBIMAGE, perf_start, 0, 0, 0);
++}
++
++void wrap_glCompressedTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glCompressedTexSubImage2D( target, level, xoffset, yoffset, width, height, format, imageSize, data );
++    winehua_perf_end(WINEHUA_PERF_COMPRESSED_TEX_SUBIMAGE, perf_start, imageSize > 0 ? imageSize : 0, 0, 0);
++}
++
++void wrap_glCompileShader( TEB *teb, GLuint shader )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glCompileShader( shader );
++    winehua_perf_end(WINEHUA_PERF_COMPILE_SHADER, perf_start, 0, 0, 0);
++}
++
++void wrap_glLinkProgram( TEB *teb, GLuint program )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glLinkProgram( program );
++    winehua_perf_end(WINEHUA_PERF_LINK_PROGRAM, perf_start, 0, 0, 0);
++}
++
++void wrap_glGetShaderiv( TEB *teb, GLuint shader, GLenum pname, GLint *params )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glGetShaderiv( shader, pname, params );
++    winehua_perf_end(WINEHUA_PERF_SHADER_STATUS, perf_start, 0, 0, 0);
++}
++
++void wrap_glGetProgramiv( TEB *teb, GLuint program, GLenum pname, GLint *params )
++{
++    uint64_t perf_start = winehua_perf_begin();
++    const struct opengl_funcs *funcs = teb->glTable;
++    funcs->p_glGetProgramiv( program, pname, params );
++    winehua_perf_end(WINEHUA_PERF_PROGRAM_STATUS, perf_start, 0, 0, 0);
++}
++
  void wrap_glFinish( TEB *teb )
  {
 +    uint64_t perf_start = winehua_perf_begin();
@@ -163,7 +256,7 @@
  }
  
  void wrap_glFlush( TEB *teb )
-@@ -1899,9 +2039,11 @@
+@@ -1899,9 +2130,11 @@
  
  void wrap_glReadPixels( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels )
  {
@@ -175,7 +268,7 @@
  }
  
  void wrap_glViewport( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height )
-@@ -1913,6 +2055,7 @@
+@@ -1913,6 +2146,7 @@
  
  BOOL wrap_wglSwapBuffers( TEB *teb, HDC hdc )
  {
@@ -183,7 +276,7 @@
      const struct opengl_funcs *funcs = get_dc_funcs( hdc );
      BOOL ret;
  
-@@ -1928,6 +2071,7 @@
+@@ -1928,6 +2162,7 @@
          pop_default_fbo_buffers( teb );
      }
  
@@ -191,7 +284,7 @@
      return ret;
  }
  
-@@ -2930,6 +3074,8 @@
+@@ -2930,6 +3165,8 @@
      return TRUE;
  }
  
@@ -200,7 +293,7 @@
  static void flush_buffer( TEB *teb, struct buffer *buffer, size_t offset, size_t length )
  {
      VkMappedMemoryRange memory_range =
-@@ -2954,6 +3100,7 @@
+@@ -2954,6 +3191,7 @@
      vr = buffer->vk_device->p_vkFlushMappedMemoryRanges( buffer->vk_device->vk_device, 1, &memory_range );
      if (vr) ERR( "vkFlushMappedMemoryRanges failed: %x\n", vr );
  }
@@ -208,7 +301,7 @@
  
  static int find_vk_memory_type( struct vk_device *vk_device, uint32_t flags, uint32_t mask )
  {
-@@ -3088,11 +3235,17 @@
+@@ -3088,11 +3326,17 @@
  }
  
  static void *wow64_map_buffer( TEB *teb, struct buffer *buffer, GLenum target, GLuint name, GLintptr offset,
@@ -228,7 +321,7 @@
          return NULL;
      }
  
-@@ -3114,17 +3267,23 @@
+@@ -3114,17 +3358,23 @@
          struct context *ctx = get_current_context( teb, NULL, NULL );
          struct vk_device *vk_device = ctx->buffers->vk_device;
  
@@ -253,7 +346,7 @@
          return buffer->map_ptr;
      }
  
-@@ -3132,18 +3291,28 @@
+@@ -3132,18 +3382,28 @@
      {
          buffer->map_ptr = (char *)buffer->vm_ptr + offset;
          TRACE( "returning pinned ptr %p\n", buffer->map_ptr );
@@ -284,7 +377,7 @@
          rb_put( &ctx->buffers->map, &buffer->name, &buffer->entry );
          TRACE( "allocated buffer %p for %u\n", buffer, buffer->name );
      }
-@@ -3155,6 +3324,7 @@
+@@ -3155,6 +3415,7 @@
      {
          buffer->map_ptr = ptr;
          TRACE( "returning %p\n", buffer->map_ptr );
@@ -292,7 +385,7 @@
          return buffer->map_ptr;
      }
  
-@@ -3175,9 +3345,14 @@
+@@ -3175,9 +3436,14 @@
  
          TRACE( "Copying %#zx from buffer at %p to wow64 buffer %p\n", length, buffer->host_ptr,
                 buffer->map_ptr );
@@ -308,7 +401,7 @@
      return buffer->map_ptr;
  
  unmap:
-@@ -3185,6 +3360,7 @@
+@@ -3185,6 +3451,7 @@
          unmap_named_buffer( teb, name );
      else
          unmap_buffer( teb, target );
@@ -316,7 +409,7 @@
      return 0;
  }
  
-@@ -3313,7 +3489,12 @@
+@@ -3313,7 +3580,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      buffer = get_target_buffer( teb, target );
@@ -330,7 +423,7 @@
      ptr = wow64_map_buffer( teb, buffer, target, 0, 0, 0, range_access, ptr );
      pthread_mutex_unlock( &wgl_lock );
      return ptr;
-@@ -3339,7 +3520,12 @@
+@@ -3339,7 +3611,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      buffer = get_target_buffer( teb, target );
@@ -344,7 +437,7 @@
      ptr = wow64_map_buffer( teb, buffer, target, 0, offset, length, access, ptr );
      pthread_mutex_unlock( &wgl_lock );
      return ptr;
-@@ -3353,7 +3539,12 @@
+@@ -3353,7 +3630,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      buffer = get_named_buffer( teb, name );
@@ -358,7 +451,7 @@
      ptr = wow64_map_buffer( teb, buffer, 0, name, 0, 0, range_access, ptr );
      pthread_mutex_unlock( &wgl_lock );
      return ptr;
-@@ -3379,7 +3570,12 @@
+@@ -3379,7 +3661,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      buffer = get_named_buffer( teb, name );
@@ -372,7 +465,7 @@
      ptr = wow64_map_buffer( teb, buffer, 0, name, offset, length, access, ptr );
      pthread_mutex_unlock( &wgl_lock );
      return ptr;
-@@ -3397,6 +3593,8 @@
+@@ -3397,6 +3684,8 @@
      return wow64_gl_map_named_buffer_range( teb, buffer, offset, length, access, funcs->p_glMapNamedBufferRangeEXT );
  }
  
@@ -381,7 +474,7 @@
  static BOOL wow64_unmap_buffer( TEB *teb, struct buffer *buffer )
  {
      if (buffer->vk_memory)
-@@ -3421,6 +3619,7 @@
+@@ -3421,6 +3710,7 @@
      buffer->host_ptr = buffer->map_ptr = NULL;
      return TRUE;
  }
@@ -389,7 +482,7 @@
  
  static GLboolean wow64_unmap_target_buffer( TEB *teb, GLenum target, PFN_glUnmapBuffer gl_unmap )
  {
-@@ -3429,7 +3628,12 @@
+@@ -3429,7 +3719,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      if ((buffer = get_target_buffer( teb, target ))) ret = wow64_unmap_buffer( teb, buffer );
@@ -403,7 +496,7 @@
      pthread_mutex_unlock( &wgl_lock );
      return ret;
  }
-@@ -3453,7 +3657,12 @@
+@@ -3453,7 +3748,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      if ((buffer = get_named_buffer( teb, name ))) ret = wow64_unmap_buffer( teb, buffer );
@@ -417,7 +510,7 @@
      pthread_mutex_unlock( &wgl_lock );
      return ret;
  }
-@@ -3477,7 +3686,12 @@
+@@ -3477,7 +3777,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      if ((buffer = get_target_buffer( teb, target ))) flush_buffer( teb, buffer, offset, length );
@@ -431,7 +524,7 @@
      pthread_mutex_unlock( &wgl_lock );
  }
  
-@@ -3488,7 +3702,12 @@
+@@ -3488,7 +3793,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
@@ -445,7 +538,7 @@
      pthread_mutex_unlock( &wgl_lock );
  }
  
-@@ -3499,7 +3718,12 @@
+@@ -3499,7 +3809,12 @@
  
      pthread_mutex_lock( &wgl_lock );
      if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
@@ -459,3 +552,225 @@
      pthread_mutex_unlock( &wgl_lock );
  }
  
+--- a/dlls/opengl32/make_opengl
++++ b/dlls/opengl32/make_opengl
+@@ -188,6 +188,15 @@
+     );
+ my %manual_unix_thunks =
+     (
++     "glBufferSubData" => 1,
++     "glBufferSubDataARB" => 1,
++     "glTexImage2D" => 1,
++     "glTexSubImage2D" => 1,
++     "glCompressedTexSubImage2D" => 1,
++     "glCompileShader" => 1,
++     "glLinkProgram" => 1,
++     "glGetShaderiv" => 1,
++     "glGetProgramiv" => 1,
+      "glBlitFramebuffer" => 1,
+      "glBlitFramebufferEXT" => 1,
+      "glBlitNamedFramebuffer" => 1,
+@@ -470,6 +479,8 @@
+     my $need_wrap = $manual_wow64_wrapper || needs_wrapper( $name, $func );
+     my $need_lock = $func_ret =~ /HGLRC|HPBUFFERARB/;
+     my $need_funcs = !$need_wrap || ($prefix eq "ext" && $name !~ /^wgl/);
++    # Timing wrappers must keep the original native/WOW64 availability checks.
++    $need_funcs = 1 if $name eq "glTexImage2D" || $name eq "glTexSubImage2D";
+     my $teb = $is_wow64 ? "teb" : "params->teb";
+     my $ret_stat = "return STATUS_SUCCESS;";
+     my $invalidation = "";
+--- a/dlls/opengl32/unix_thunks.c
++++ b/dlls/opengl32/unix_thunks.c
+@@ -3086,7 +3086,7 @@
+     struct glTexImage2D_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glTexImage2D) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glTexImage2D( params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, params->pixels );
++    wrap_glTexImage2D( params->teb, params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, params->pixels );
+     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -3146,7 +3146,7 @@
+     struct glTexSubImage2D_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, params->pixels );
++    wrap_glTexSubImage2D( params->teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, params->pixels );
+     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -4880,7 +4880,7 @@
+     struct glBufferSubData_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glBufferSubData) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glBufferSubData( params->target, params->offset, params->size, params->data );
++    wrap_glBufferSubData( params->teb, params->target, params->offset, params->size, params->data );
+     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -4890,7 +4890,7 @@
+     struct glBufferSubDataARB_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glBufferSubDataARB) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glBufferSubDataARB( params->target, params->offset, params->size, params->data );
++    wrap_glBufferSubDataARB( params->teb, params->target, params->offset, params->size, params->data );
+     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -5834,7 +5834,7 @@
+     struct glCompileShader_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glCompileShader) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glCompileShader( params->shader );
++    wrap_glCompileShader( params->teb, params->shader );
+     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -6004,7 +6004,7 @@
+     struct glCompressedTexSubImage2D_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glCompressedTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glCompressedTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, params->data );
++    wrap_glCompressedTexSubImage2D( params->teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, params->data );
+     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -12046,7 +12046,7 @@
+     struct glGetProgramiv_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glGetProgramiv) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glGetProgramiv( params->program, params->pname, params->params );
++    wrap_glGetProgramiv( params->teb, params->program, params->pname, params->params );
+     return STATUS_SUCCESS;
+ }
+ 
+@@ -12334,7 +12334,7 @@
+     struct glGetShaderiv_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glGetShaderiv) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glGetShaderiv( params->shader, params->pname, params->params );
++    wrap_glGetShaderiv( params->teb, params->shader, params->pname, params->params );
+     return STATUS_SUCCESS;
+ }
+ 
+@@ -14703,7 +14703,7 @@
+     struct glLinkProgram_params *params = args;
+     const struct opengl_funcs *funcs = params->teb->glTable;
+     if (!funcs->p_glLinkProgram) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glLinkProgram( params->program );
++    wrap_glLinkProgram( params->teb, params->program );
+     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -38870,7 +38870,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glTexImage2D) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glTexImage2D( params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, ULongToPtr(params->pixels) );
++    wrap_glTexImage2D( teb, params->target, params->level, params->internalformat, params->width, params->height, params->border, params->format, params->type, ULongToPtr(params->pixels) );
+     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -38982,7 +38982,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, ULongToPtr(params->pixels) );
++    wrap_glTexSubImage2D( teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->type, ULongToPtr(params->pixels) );
+     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -41975,7 +41975,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glBufferSubData) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glBufferSubData( params->target, (GLintptr)ULongToPtr(params->offset), (GLsizeiptr)ULongToPtr(params->size), ULongToPtr(params->data) );
++    wrap_glBufferSubData( teb, params->target, (GLintptr)ULongToPtr(params->offset), (GLsizeiptr)ULongToPtr(params->size), ULongToPtr(params->data) );
+     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -41993,7 +41993,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glBufferSubDataARB) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glBufferSubDataARB( params->target, (GLintptrARB)ULongToPtr(params->offset), (GLsizeiptrARB)ULongToPtr(params->size), ULongToPtr(params->data) );
++    wrap_glBufferSubDataARB( teb, params->target, (GLintptrARB)ULongToPtr(params->offset), (GLsizeiptrARB)ULongToPtr(params->size), ULongToPtr(params->data) );
+     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -43643,7 +43643,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glCompileShader) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glCompileShader( params->shader );
++    wrap_glCompileShader( teb, params->shader );
+     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -44017,7 +44017,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glCompressedTexSubImage2D) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glCompressedTexSubImage2D( params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, ULongToPtr(params->data) );
++    wrap_glCompressedTexSubImage2D( teb, params->target, params->level, params->xoffset, params->yoffset, params->width, params->height, params->format, params->imageSize, ULongToPtr(params->data) );
+     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+@@ -54688,7 +54688,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glGetProgramiv) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glGetProgramiv( params->program, params->pname, ULongToPtr(params->params) );
++    wrap_glGetProgramiv( teb, params->program, params->pname, ULongToPtr(params->params) );
+     return STATUS_SUCCESS;
+ }
+ 
+@@ -55215,7 +55215,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glGetShaderiv) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glGetShaderiv( params->shader, params->pname, ULongToPtr(params->params) );
++    wrap_glGetShaderiv( teb, params->shader, params->pname, ULongToPtr(params->params) );
+     return STATUS_SUCCESS;
+ }
+ 
+@@ -59401,7 +59401,7 @@
+     TEB *teb = get_teb64( params->teb );
+     const struct opengl_funcs *funcs = teb->glTable;
+     if (!funcs->p_glLinkProgram) return STATUS_NOT_IMPLEMENTED;
+-    funcs->p_glLinkProgram( params->program );
++    wrap_glLinkProgram( teb, params->program );
+     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+     return STATUS_SUCCESS;
+ }
+--- a/dlls/opengl32/unix_thunks.h
++++ b/dlls/opengl32/unix_thunks.h
+@@ -22,10 +22,16 @@
+ extern const GLubyte *wrap_glGetString( TEB *teb, GLenum name );
+ extern void wrap_glReadBuffer( TEB *teb, GLenum src );
+ extern void wrap_glReadPixels( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels );
++extern void wrap_glTexImage2D( TEB *teb, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels );
++extern void wrap_glTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels );
+ extern void wrap_glViewport( TEB *teb, GLint x, GLint y, GLsizei width, GLsizei height );
+ extern void wrap_glBlitFramebuffer( TEB *teb, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter );
+ extern void wrap_glBlitFramebufferEXT( TEB *teb, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter );
+ extern void wrap_glBlitNamedFramebuffer( TEB *teb, GLuint readFramebuffer, GLuint drawFramebuffer, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter );
++extern void wrap_glBufferSubData( TEB *teb, GLenum target, GLintptr offset, GLsizeiptr size, const void *data );
++extern void wrap_glBufferSubDataARB( TEB *teb, GLenum target, GLintptrARB offset, GLsizeiptrARB size, const void *data );
++extern void wrap_glCompileShader( TEB *teb, GLuint shader );
++extern void wrap_glCompressedTexSubImage2D( TEB *teb, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data );
+ extern void wrap_glDebugMessageCallback( TEB *teb, GLDEBUGPROC callback, const void *userParam );
+ extern void wrap_glDebugMessageCallbackAMD( TEB *teb, GLDEBUGPROCAMD callback, void *userParam );
+ extern void wrap_glDebugMessageCallbackARB( TEB *teb, GLDEBUGPROCARB callback, const void *userParam );
+@@ -35,8 +41,11 @@
+ extern void wrap_glFramebufferReadBufferEXT( TEB *teb, GLuint framebuffer, GLenum mode );
+ extern void wrap_glGetFramebufferParameterivEXT( TEB *teb, GLuint framebuffer, GLenum pname, GLint *params );
+ extern void wrap_glGetInteger64v( TEB *teb, GLenum pname, GLint64 *data );
++extern void wrap_glGetProgramiv( TEB *teb, GLuint program, GLenum pname, GLint *params );
++extern void wrap_glGetShaderiv( TEB *teb, GLuint shader, GLenum pname, GLint *params );
+ extern const GLubyte *wrap_glGetStringi( TEB *teb, GLenum name, GLuint index );
+ extern void wrap_glGetUnsignedBytevEXT( TEB *teb, GLenum pname, GLubyte *data );
++extern void wrap_glLinkProgram( TEB *teb, GLuint program );
+ extern void wrap_glNamedFramebufferDrawBuffer( TEB *teb, GLuint framebuffer, GLenum buf );
+ extern void wrap_glNamedFramebufferDrawBuffers( TEB *teb, GLuint framebuffer, GLsizei n, const GLenum *bufs );
+ extern void wrap_glNamedFramebufferReadBuffer( TEB *teb, GLuint framebuffer, GLenum src );

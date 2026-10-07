@@ -54,7 +54,8 @@ static int route, audioOpened, launches, nativeStatus;
 static Request delivered;
 static int OpenAudio() { ++audioOpened; return open("/dev/null", O_RDONLY | O_CLOEXEC); }
 bool PhoneAdapter_IsPhoneMode() { return phoneMode; }
-void AddProcess(int32_t, const std::string&, int) {}
+enum class ProcessRegistration { Relabel, NativeChild, ForkChild };
+void AddProcess(int32_t, const std::string&, int, ProcessRegistration) {}
 void Phone_MarkDirectForkChildRegistered(int32_t) {}
 void MarkWineIpcChildRegistered(int32_t) {}
 void WineHuaCefUtilityProbeNoteSpawn(int32_t, int32_t, const char*) {}

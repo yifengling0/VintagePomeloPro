@@ -1,0 +1,28 @@
+{
+  "pids": [
+    31067,
+    31501,
+    31515,
+    31533,
+    31540,
+    31557,
+    31568,
+    31598,
+    31650,
+    31680,
+    31688,
+    31697,
+    31734,
+    31779,
+    31806,
+    31810,
+    31849,
+    31907,
+    32004,
+    32096
+  ],
+  "path": "F:\\VintagePomelo-Workspace\\workspace_temp\\fex-perf-followup-20261006\\pal4-fex-symbol-scene.data",
+  "seconds": 20,
+  "frequencyHz": 100,
+  "diagnosticNotFPSBenchmark": true
+}

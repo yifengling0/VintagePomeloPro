@@ -1,0 +1,32 @@
+--- a/Source/Windows/Common/CRT/IO.cpp
++++ b/Source/Windows/Common/CRT/IO.cpp
+@@ -53,7 +53,7 @@
+ }
+ 
+ DWORD OpenFlagToAccess(int OpenFlag) {
+-  if (OpenFlag & _O_RDONLY) {
++  if ((OpenFlag & (_O_WRONLY | _O_RDWR)) == _O_RDONLY) {
+     return GENERIC_READ;
+   }
+   if (OpenFlag & _O_WRONLY) {
+@@ -132,7 +132,7 @@
+   }
+   auto access = OpenFlagToAccess(OpenFlag);
+   ULONG sharing = FILE_SHARE_READ;
+-  if (access == GENERIC_WRITE) {
++  if (access & GENERIC_WRITE) {
+     sharing |= FILE_SHARE_WRITE;
+   }
+ 
+@@ -185,9 +185,9 @@
+     va_start(VA, ShareFlag);
+     PermMode = va_arg(VA, int);
+     va_end(VA);
+-    ret = _wopen(FilenameW.Buffer, OpenFlag, ShareFlag, PermMode);
++    ret = _wsopen(FilenameW.Buffer, OpenFlag, ShareFlag, PermMode);
+   } else {
+-    ret = _wopen(FilenameW.Buffer, OpenFlag, ShareFlag);
++    ret = _wsopen(FilenameW.Buffer, OpenFlag, ShareFlag);
+   }
+   RtlFreeUnicodeString(&FilenameW);
+   return ret;

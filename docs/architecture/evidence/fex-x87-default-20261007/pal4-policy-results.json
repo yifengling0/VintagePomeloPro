@@ -1,0 +1,79 @@
+[
+  {
+    "tag": "policy-final-1-0",
+    "policy": "0",
+    "loadReadyIntervalSeconds": [
+      28.453000000008615,
+      31.718000000008033
+    ],
+    "fpsMean": 33.559666666666665,
+    "fpsMedian": 33.4695,
+    "fpsMin": 28.79,
+    "fpsMax": 38.319,
+    "samples": 30,
+    "windowSeconds": 35.125,
+    "runtimeDLL": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+    "diagnosticsEnabled": false,
+    "fpsDefinition": "new arriving frames in approximately one-second bins; no diagnostic instrumentation",
+    "loadDefinition": "confirmation input to first recognized wooden-house scene, not interactivity",
+    "cacheState": "same warm prefix; complete process restart; caches and temperature not independently controlled"
+  },
+  {
+    "tag": "policy-final-2-1",
+    "policy": "1",
+    "loadReadyIntervalSeconds": [
+      6.342999999993481,
+      9.5
+    ],
+    "fpsMean": 66.8801935483871,
+    "fpsMedian": 66.441,
+    "fpsMin": 62.953,
+    "fpsMax": 73.914,
+    "samples": 31,
+    "windowSeconds": 35.64100000000326,
+    "runtimeDLL": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+    "diagnosticsEnabled": false,
+    "fpsDefinition": "new arriving frames in approximately one-second bins; no diagnostic instrumentation",
+    "loadDefinition": "confirmation input to first recognized wooden-house scene, not interactivity",
+    "cacheState": "same warm prefix; complete process restart; caches and temperature not independently controlled"
+  },
+  {
+    "tag": "policy-final-3-1",
+    "policy": "1",
+    "loadReadyIntervalSeconds": [
+      6.297000000005937,
+      9.53200000000652
+    ],
+    "fpsMean": 67.18322580645162,
+    "fpsMedian": 67.329,
+    "fpsMin": 63.901,
+    "fpsMax": 70.354,
+    "samples": 31,
+    "windowSeconds": 36.01499999999942,
+    "runtimeDLL": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+    "diagnosticsEnabled": false,
+    "fpsDefinition": "new arriving frames in approximately one-second bins; no diagnostic instrumentation",
+    "loadDefinition": "confirmation input to first recognized wooden-house scene, not interactivity",
+    "cacheState": "same warm prefix; complete process restart; caches and temperature not independently controlled"
+  },
+  {
+    "tag": "policy-final-4-0",
+    "policy": "0",
+    "loadReadyIntervalSeconds": [
+      27.875,
+      31.234000000011292
+    ],
+    "fpsMean": 9.049,
+    "fpsMedian": 8.523499999999999,
+    "fpsMin": 0.36,
+    "fpsMax": 18.544,
+    "samples": 20,
+    "windowSeconds": 35.671999999991385,
+    "runtimeDLL": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+    "diagnosticsEnabled": false,
+    "fpsDefinition": "new arriving frames in approximately one-second bins; no diagnostic instrumentation",
+    "loadDefinition": "confirmation input to first recognized wooden-house scene, not interactivity",
+    "cacheState": "same warm prefix; complete process restart; caches and temperature not independently controlled",
+    "exclusionReason": "End screenshot shows a different tower-defense game, not the fixed PAL4 scene; do not use this FPS sample for PAL4 comparison."
+  }
+]

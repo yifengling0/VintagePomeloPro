@@ -11,22 +11,38 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <string>
 
 napi_threadsafe_function gStateTsfn = reinterpret_cast<void*>(1);
 std::string gSockPath;
 static int checks;
+
+static std::atomic<pid_t> hiddenPid{-1};
+extern "C" FILE* __real_fopen(const char*, const char*);
+extern "C" FILE* __wrap_fopen(const char* path, const char* mode) {
+    const std::string hiddenPath = "/proc/" + std::to_string(hiddenPid.load()) + "/stat";
+    if (hiddenPath == path) { errno = ENOENT; return nullptr; }
+    return __real_fopen(path, mode);
+}
+void WineHuaCefUtilityProbeNoteExit(int32_t, int32_t) {}
+
 static pthread_t mainThread;
 static std::atomic<int> callbacks{0};
+static std::atomic<int> failures{0};
+static std::atomic<int> stopped{0};
 static std::atomic<bool> callbackOnMain{false};
 static std::atomic<bool> interruptRegistration{false};
 static std::atomic<int> registrationInterrupts{0};
 
 int ProcessTestStateCallback(void* data) {
-    if (pthread_equal(pthread_self(), mainThread)) callbackOnMain = true;
+    if (!std::strcmp(static_cast<char*>(data), "state:failed:wineserver")) ++failures;
+    if (!std::strcmp(static_cast<char*>(data), "state:stopped")) ++stopped;
+    const bool exitEvent = std::strstr(static_cast<char*>(data), "evt:proc-exited:") != nullptr;
+    if (exitEvent && pthread_equal(pthread_self(), mainThread)) callbackOnMain = true;
     // Reenter the public registry API: notification must hold no registry lock.
     GetProcessListSnapshot();
     std::free(data);
-    ++callbacks;
+    if (exitEvent) ++callbacks;
     return 0;
 }
 
@@ -60,7 +76,7 @@ static pid_t ExitedChild(int code, int signal = 0) {
     while (result < 0 && errno == EINTR);
     Check(result == 0, "child exited but wait status remains available");
     interruptRegistration = true;
-    AddProcess(child, "C:/windows/system32/wineboot.exe", -1, "", true);
+    AddProcess(child, "C:/windows/system32/wineboot.exe", -1, ProcessRegistration::ForkChild);
     return child;
 }
 
@@ -83,6 +99,24 @@ static WineProcessEntry Snapshot(pid_t pid) {
 int main() {
     mainThread = pthread_self();
     Check(EnsureChildReaper(), "process reaper starts");
+    // Emulate phone sandbox visibility for a genuinely live non-waitable
+    // child. Neither its registry nor wineboot wait may infer exit from ENOENT.
+    const pid_t hidden = fork();
+    Check(hidden > 0 || hidden == 0, "hidden child fork succeeds");
+    if (hidden == 0) { for (;;) pause(); }
+    hiddenPid = hidden;
+    AddProcess(hidden, "C:/hidden.exe", -1, ProcessRegistration::NativeChild);
+    Check(IsProcessAliveNotZombie(hidden), "phone /proc ENOENT is unknown, not dead");
+    Check(!IsLaunchChildExited(hidden), "unreadable phone child does not finish wineboot wait");
+    usleep(1100000);
+    Check(Snapshot(hidden).running, "ProcMon retains a live sandbox-hidden child");
+    kill(hidden, SIGKILL);
+    int hiddenStatus = 0;
+    Check(waitpid(hidden, &hiddenStatus, 0) == hidden, "non-waitable owner retains wait status");
+    std::thread([&] { NotePhoneForkServerChildExit(hidden, hiddenStatus); }).join();
+    Check(IsLaunchChildExited(hidden) && !Snapshot(hidden).running,
+          "authoritative server exit completes hidden child wait");
+    hiddenPid = -1;
     const winehua::WinebootAttempt failedAttempt(GetProcessListSnapshot());
     const pid_t failed = ExitedChild(1);
     errno = EBUSY;
@@ -109,10 +143,10 @@ int main() {
     close(pipeFds[1]);
     ReaderThread(pipeFds[0], failed, std::make_shared<std::atomic<bool>>(true));
     Check(Snapshot(failed).exitCode == 1, "second waitpid consumer preserves reaped status");
-    AddProcess(failed, "@engine/wineboot", -1, "@engine/wineboot");
+    AddProcess(failed, "@engine/wineboot", -1);
     entry = Snapshot(failed);
     Check(!entry.running && entry.exitCode == 1 && entry.endTimestampMs == endedAt &&
-          entry.sessionId == "@engine/wineboot", "engine relabel does not resurrect exited launcher");
+          entry.exeFullPath == "@engine/wineboot", "engine relabel does not resurrect exited launcher");
     Check(failedAttempt.Inspect(GetProcessListSnapshot(), failed).failedPid == failed,
           "failed launcher remains visible after engine relabel");
 
@@ -192,9 +226,9 @@ int main() {
     }
     close(gate[0]);
     close(pipeFds[1]);
-    AddProcess(live, "C:/test.exe", pipeFds[0], "test-session", true);
+    AddProcess(live, "C:/test.exe", pipeFds[0], ProcessRegistration::ForkChild);
     auto active = Snapshot(live).readerActive;
-    RemoveProcess(live); // late/missing-status observer must not close stdout
+    std::thread([&] { RemoveProcess(live); }).join(); // observer does not close stdout
     Check(fcntl(pipeFds[0], F_GETFD) >= 0, "status observer does not close reader-owned fd");
     std::atomic<bool> readerDone{false};
     std::thread reader([&] { ReaderThread(pipeFds[0], live, active); readerDone = true; });
@@ -210,7 +244,7 @@ int main() {
     Check(Snapshot(live).exitCode == 7, "known exit replaces early unknown observation");
     Check(fcntl(replacement, F_GETFD) >= 0, "reaper does not close replacement descriptor");
     close(replacement);
-    AddProcess(live, "Z:/renamed/test.exe", -1, "test-session");
+    AddProcess(live, "Z:/renamed/test.exe", -1);
     Check(Snapshot(live).exitCode == 7 && !Snapshot(live).running,
           "late app label cannot resurrect a fast-exiting fork child");
 
@@ -232,7 +266,7 @@ int main() {
         pid_t child = fork();
         Check(child >= 0, "burst child fork succeeds");
         if (child == 0) _exit(i % 4);
-        AddProcess(child, "C:/burst.exe", -1, "", true);
+        AddProcess(child, "C:/burst.exe", -1, ProcessRegistration::ForkChild);
         children.push_back(child);
     }
     for (size_t i = 0; i < children.size(); ++i) {
@@ -240,11 +274,29 @@ int main() {
         Check(Snapshot(children[i]).exitCode == static_cast<int>(i % 4),
               "each burst child retains its actual exit result");
     }
+    // Fast wineserver exit must be reported even when it precedes anchor labeling.
+    RegisterWineserver(failed);
+    Check(GetWineserverPid() == -1 && failures == 1,
+          "already-exited wineserver anchor reports failure without resurrection");
+    const pid_t server = fork();
+    Check(server >= 0, "live wineserver test child created");
+    if (server == 0) { for (;;) pause(); }
+    AddProcess(server, "wineserver", -1, ProcessRegistration::ForkChild);
+    RegisterWineserver(server);
+    usleep(1100000);
+    Check(GetWineserverPid() == server && Snapshot(server).running && failures == 1,
+          "live wineserver survives monitor and repeated label registration");
+    KillAllProcesses();
+    AwaitExit(server);
+    NotifyWhenSessionDrained();
+    for (int i = 0; i < 500 && stopped == 0; ++i) usleep(2000);
+    Check(stopped == 1 && failures == 1 && GetWineserverPid() == -1,
+          "requested stop drains real children and emits stopped instead of failure");
     // PID reuse is explicitly a new incarnation, not an application relabel.
-    AddProcess(live, "@engine/native-child", -1, "new-session", true);
+    AddProcess(live, "@engine/native-child", -1, ProcessRegistration::NativeChild);
     entry = Snapshot(live);
     Check(entry.exitCode == -1 && entry.readerActive != active &&
-          entry.sessionId == "new-session", "new fork registration resets prior PID incarnation");
+          !IsPidExited(live) && entry.running, "new fork registration resets prior PID incarnation");
     for (int i = 0; i < 100 && callbacks < 28; ++i) usleep(2000);
     Check(callbacks >= 28 && !callbackOnMain, "exit callbacks run outside interrupted main thread");
     Check(registrationInterrupts == 3, "real SIGCHLD delivered while registration holds its mutex");

@@ -11,6 +11,8 @@ using winehua::controller::ControllerHub;
 using winehua::controller::ControllerSourceId;
 using winehua::controller::GamepadBridge;
 using winehua::controller::LogicalAxis;
+using winehua::controller::LogicalStick;
+using winehua::controller::LogicalTrigger;
 using winehua::controller::LogicalButton;
 using winehua::controller::LogicalGamepadState;
 
@@ -221,7 +223,7 @@ napi_value ControllerGetOutputMode(napi_env env, napi_callback_info)
     return result;
 }
 
-// ---- VPP additions: stick/trigger mapped onto the proton SetAxis model ----
+// ---- VPP additions: paired stick/trigger canonical updates ----
 napi_value ControllerSetStick(napi_env env, napi_callback_info info)
 {
     size_t argc = 5;
@@ -235,15 +237,13 @@ napi_value ControllerSetStick(napi_env env, napi_callback_info info)
     napi_get_value_int32(env, args[2], &stick);
     napi_get_value_double(env, args[3], &x);
     napi_get_value_double(env, args[4], &y);
-    if (source < 0 || slot < 0) return nullptr;
-    const LogicalAxis ax = (stick == 0) ? LogicalAxis::LX : LogicalAxis::RX;
-    const LogicalAxis ay = (stick == 0) ? LogicalAxis::LY : LogicalAxis::RY;
-    ControllerHub::Instance().SetAxis(static_cast<ControllerSourceId>(source),
-                                      static_cast<uint32_t>(slot), ax,
-                                      static_cast<float>(x));
-    ControllerHub::Instance().SetAxis(static_cast<ControllerSourceId>(source),
-                                      static_cast<uint32_t>(slot), ay,
-                                      static_cast<float>(y));
+    if (source < 0 || source >= static_cast<int32_t>(winehua::controller::kSourceCount) ||
+        slot < 0 || slot >= static_cast<int32_t>(winehua::controller::kMaxControllerSlots) ||
+        stick < 0 || stick >= static_cast<int32_t>(LogicalStick::Count)) return nullptr;
+    ControllerHub::Instance().SetStick(static_cast<ControllerSourceId>(source),
+                                        static_cast<uint32_t>(slot),
+                                        static_cast<LogicalStick>(stick),
+                                        static_cast<float>(x), static_cast<float>(y));
     return nullptr;
 }
 
@@ -259,10 +259,11 @@ napi_value ControllerSetTrigger(napi_env env, napi_callback_info info)
     napi_get_value_int32(env, args[1], &slot);
     napi_get_value_int32(env, args[2], &trigger);
     napi_get_value_double(env, args[3], &value);
-    if (source < 0 || slot < 0) return nullptr;
-    const LogicalAxis axis = (trigger == 0) ? LogicalAxis::LT : LogicalAxis::RT;
-    ControllerHub::Instance().SetAxis(static_cast<ControllerSourceId>(source),
-                                      static_cast<uint32_t>(slot), axis,
+    if (source < 0 || source >= static_cast<int32_t>(winehua::controller::kSourceCount) ||
+        slot < 0 || slot >= static_cast<int32_t>(winehua::controller::kMaxControllerSlots) ||
+        trigger < 0 || trigger >= static_cast<int32_t>(LogicalTrigger::Count)) return nullptr;
+    ControllerHub::Instance().SetTrigger(static_cast<ControllerSourceId>(source),
+                                      static_cast<uint32_t>(slot), static_cast<LogicalTrigger>(trigger),
                                       static_cast<float>(value));
     return nullptr;
 }

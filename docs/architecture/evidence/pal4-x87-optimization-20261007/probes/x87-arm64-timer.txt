@@ -1,0 +1,4 @@
+cntfrq=1920000 delta_ticks=384359 wall_seconds=0.200198 inferred_hz=1919895
+cntfrq=1920000 delta_ticks=384312 wall_seconds=0.200174 inferred_hz=1919894
+cntfrq=1920000 delta_ticks=384285 wall_seconds=0.200161 inferred_hz=1919880
+complete=1

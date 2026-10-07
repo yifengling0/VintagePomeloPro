@@ -1,0 +1,59 @@
+--- a/FEXCore/Source/Common/JitSymbols.cpp
++++ b/FEXCore/Source/Common/JitSymbols.cpp
+@@ -3,6 +3,7 @@
+ 
+ #include "Common/JitSymbols.h"
+ 
++#include <cstdlib>
+ #include <fcntl.h>
+ #include <unistd.h>
+ 
+@@ -17,7 +18,18 @@
+ 
+ void JITSymbols::InitFile() {
+   // We can't use FILE here since we must be robust against forking processes closing our FD from under us.
+-#ifdef __ANDROID__
++#if defined(_WIN32)
++  // Windows CRT opens DOS paths. Keep profiling output independent of the
++  // game's drive and working directory; naming remains opt-in in ContextImpl.
++  const char* Directory = std::getenv("FEX_JITMAPDIR");
++  if (!Directory || !Directory[0]) {
++    Directory = std::getenv("TEMP");
++  }
++  if (!Directory || !Directory[0]) {
++    Directory = ".";
++  }
++  const auto PerfMap = fextl::fmt::format("{}\\perf-{}.map", Directory, getpid());
++#elif defined(__ANDROID__)
+   // Android simpleperf looks in /data/local/tmp instead of /tmp
+   const auto PerfMap = fextl::fmt::format("/data/local/tmp/perf-{}.map", getpid());
+ #else
+@@ -131,7 +143,7 @@
+ void JITSymbols::WriteBuffer(FEXCore::JITSymbolBuffer* Buffer, bool ForceWrite) {
+   auto Now = std::chrono::steady_clock::now();
+   if (!ForceWrite) {
+-    if (((Buffer->LastWrite - Now) < Buffer->MAXIMUM_THRESHOLD) && Buffer->Offset < Buffer->NEEDS_WRITE_DISTANCE) {
++    if (((Now - Buffer->LastWrite) < Buffer->MAXIMUM_THRESHOLD) && Buffer->Offset < Buffer->NEEDS_WRITE_DISTANCE) {
+       // Still buffering, no need to write.
+       return;
+     }
+--- a/Source/Windows/WOW64/Module.cpp
++++ b/Source/Windows/WOW64/Module.cpp
+@@ -513,6 +513,17 @@
+   const auto ExecutableName = FEX::Windows::BaseName(FEX::Windows::GetExecutableFilePath());
+   FEX::Config::LoadConfig(fextl::string {ExecutableName}, _environ, FEX::ReadPortabilityInformation());
+   FEXCore::Config::ReloadMetaLayer();
++
++  // One line for a manually requested symbol trace; no per-frame logging.
++  if (const char* Directory = std::getenv("FEX_JITMAPDIR"); Directory && Directory[0]) {
++    FEX_CONFIG_OPT(DiagnosticLibraryNaming, LIBRARYJITNAMING);
++    FEX_CONFIG_OPT(DiagnosticGlobalNaming, GLOBALJITNAMING);
++    FEX_CONFIG_OPT(DiagnosticBlockNaming, BLOCKJITNAMING);
++    const auto Output = fextl::fmt::format(
++      "[FEX-JIT-DIAG] wine_pid={} library={} global={} block={} directory={}\n",
++      GetCurrentProcessId(), DiagnosticLibraryNaming(), DiagnosticGlobalNaming(), DiagnosticBlockNaming(), Directory);
++    __wine_dbg_output(Output.c_str());
++  }
+   FEX::Windows::Logging::Init();
+ 
+   FEXCore::Config::Set(FEXCore::Config::CONFIG_INTERPRETER_INSTALLED, "0");

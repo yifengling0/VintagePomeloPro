@@ -1,0 +1,20 @@
+{
+  "mainSHA": "62ca61faa87351307daa18b59c7d6fd26cbc0db6",
+  "sourceSHA256": {
+    "Makefile": "0732bd9fdc5daaa840c3824423e298ee40c9f50a37aabda863446dce6b8a53d0",
+    "scripts/build_fex.sh": "0fafce682b595a100c324df09f0e4ee5cef993beaf9c4308595dca5319f1c7ae",
+    "scripts/check_fex_build_identity.sh": "c56b0fcc8c73092845b3c6e4230d5ca9cd6e30b691d3e8bdfe844f9809ca484e",
+    "scripts/build_fex_x87_probes.sh": "e61ee0e9ab1f2b3548cf4986e9eb4da33ce64ba9957b3a718a61da8d63016e2e",
+    "scripts/patches/fex-wow64-strict-mul24.patch": "02489f11b5c49261d49d6225bd4df39879373cd4f25090df54ab9b444647f2b4",
+    "scripts/patches/fex-wow64-x87-boundary-profile.patch": "c95d750af78f86cb41a6a62177a49bc0489a41417d7e973e32638849258e11ea",
+    "host_tests/fex_build_identity_test.py": "7d3a595070026044fcc3e14076f3df766710f8686a57111ec09bc1d867d43b7e",
+    "host_tests/fex_strict_mul24_test.py": "3049d3f91a3daa9405a7be8a8335807f0e370876f5c971744273acb00fddab57",
+    "smoke/fex_strict_mul24_test.c": "10ef5314268558b45acae89d78294455ae98779c142152e6703257abc1f44fac",
+    "smoke/fex_x87_abi_probe.c": "e980f588d2dbbecfee0664cdcb3cb5b2c914c3740cd3657345c39c3f3e067123",
+    "smoke/fex_x87_abi_probe.S": "427455b0e9c623595e6eded0847c0f3bd34f15f1e73cfc9bbb42ac5d3d39c826",
+    "smoke/fex_x87_threads_probe.c": "7c028b9b2b8f28214ca7a76907ffcb66e9531aba5fc254d898069184898be978",
+    "smoke/fex_arm64_timer_probe.c": "6dbfe68e640e736c34f23c5ce92adfb0944642ba54e75a9ded47e5dc0c48b18e",
+    "smoke/fex_strict_mul24_bench.c": "a62446b4f34a8e442328f523a6963a37018ee9918dc0327083c4df08c97f314d",
+    "smoke/fex_strict_mul24_guest_loop.S": "6fa168eb596c73a230b2f442eab6626d1acaa807f19c63d6c46b6cd181331a80"
+  }
+}

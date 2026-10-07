@@ -21,7 +21,7 @@ export struct WineEngineBlockingOverlay {
       this.state = state;
       this.message = message;
       this.phaseText = WineEngineService.getInstance().getPhaseText();
-      this.elapsedSec = Math.floor(WineEngineService.getInstance().getPhaseElapsedMs() / 1000);
+      this.elapsedSec = Math.floor(WineEngineService.getInstance().getPreparationElapsedMs() / 1000);
       // The input page owns a separate child window above the native Wine
       // surface. Keep that window alive and switch its hit-test state while
       // the engine is preparing, so XComponent frames cannot bypass this UI.
@@ -48,7 +48,7 @@ export struct WineEngineBlockingOverlay {
   private syncPhaseTicker(): void {
     if (this.isBusy() && this.phaseTicker < 0) {
       this.phaseTicker = setInterval(() => {
-        this.elapsedSec = Math.floor(WineEngineService.getInstance().getPhaseElapsedMs() / 1000);
+        this.elapsedSec = Math.floor(WineEngineService.getInstance().getPreparationElapsedMs() / 1000);
       }, 1000);
     } else if (!this.isBusy() && this.phaseTicker >= 0) {
       clearInterval(this.phaseTicker);
@@ -61,9 +61,10 @@ export struct WineEngineBlockingOverlay {
   }
 
   private detail(): string {
-    if (this.state === EngineState.SWITCHING) return '正在关闭旧会话并重新建立 Wayland 显示';
-    if (this.phaseText) return '当前阶段：' + this.phaseText + '（已 ' + this.elapsedSec + ' 秒）';
-    return '首次启动会解压运行环境并初始化 Windows，可能需要几分钟';
+    const elapsed = '（已 ' + this.elapsedSec + ' 秒）';
+    if (this.phaseText) return '当前阶段：' + this.phaseText + elapsed;
+    if (this.state === EngineState.SWITCHING) return '正在关闭旧会话并重新建立 Wayland 显示' + elapsed;
+    return '首次启动会解压运行环境并初始化 Windows，可能需要几分钟' + elapsed;
   }
 
   build() {

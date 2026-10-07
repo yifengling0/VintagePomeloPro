@@ -1,0 +1,14 @@
+{
+  "defaultRoute": "FEX",
+  "pal4Pid": 34808,
+  "pal4RouteVerifiedBySamePidHODLL": true,
+  "hapSHA256": "d6f2340843b1f6c76ea18833b6782697c727a68c2a80f8bf3ded8705d6193b27",
+  "installedWow64FexSHA256": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+  "diagnosticProcessTreeStopped": true,
+  "jitNamingFlagsOmittedFromFreshLaunch": true,
+  "exactStoreEnabled": false,
+  "exactStoreStatsEnabled": false,
+  "originalProductPrefixRestored": true,
+  "scenePerformanceAfterFinalRestart": "not measured; final restart restores normal launch",
+  "finalStateEvidence": "pal4-fex-final-normal-state.txt"
+}

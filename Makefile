@@ -34,6 +34,8 @@ export COMPATIBLE_SDK_VERSION
 # Wine 模拟层架构 (arm64 真机 → aarch64 原生 wine + FEX; x86_64 → x86_64 同目标)
 WINE_ARCH ?= $(if $(filter arm64-v8a,$(NATIVE_ARCH)),aarch64,x86_64)
 export WINE_ARCH
+FEX_EXACTSTORE_DIAGNOSTICS ?= 0
+export FEX_EXACTSTORE_DIAGNOSTICS
 
 CONFIG    := $(NATIVE_ARCH)
 BUILD_DIR := $(ROOT)/build
@@ -105,6 +107,7 @@ ARCHES := $(NATIVE_ARCH)
 DEPS_SENTINEL   := $(BUILD_DIR)/sysroot-ext/usr/lib/$(WINE_ARCH)-linux-ohos/libfreetype.so.6
 WINE_SENTINEL   := $(BUILD_DIR)/wine-native/tools/winegcc/winegcc
 GUEST_GFX_SENTINEL := $(BUILD_DIR)/guest_gfx/$(GUEST_ARCH)/winehua-guest-gfx.env
+MESA_OHOS_PATCH_INPUTS := $(SCRIPTS)/apply_mesa_ohos_patches.sh $(wildcard $(ROOT)/patches/mesa/*.patch)
 GUEST_VULKAN_SENTINEL := $(BUILD_DIR)/guest_vulkan/$(GUEST_ARCH)/manifest.json
 WINE_MONO_SENTINEL := $(BUILD_DIR)/wine-mono/wine-mono-11.1.0-x86.msi
 HOST_VULKAN_SOURCE := $(ROOT)/smoke/venus_heaven_material_replay.c
@@ -264,6 +267,7 @@ $(foreach a,arm64-v8a x86_64,$(eval $(call host_vulkan_rule,$(a))))
 deps: $(STAMPS)/deps
 
 $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/build_gstreamer.sh \
+	$(MESA_OHOS_PATCH_INPUTS) \
 	$(SCRIPTS)/build_ohos_guest_gfx.sh \
 	$(SCRIPTS)/build_ohos_guest_vulkan.sh $(ROOT)/smoke/guest_vulkan_smoke.c \
 	$(ROOT)/smoke/venus_sampled_image_probe.c \
@@ -309,6 +313,8 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
 	if [ -f $@ ] && [ -f $(DEPS_SENTINEL) ] && [ "$$guest_gfx_ready" = "1" ] && \
 	    [ "$$guest_vulkan_ready" = "1" ] && [ "$$mono_ready" = "1" ] && \
 	    ! [ "$(SCRIPTS)/build_ohos_guest_gfx.sh" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/apply_mesa_ohos_patches.sh" -nt $@ ] && \
+	    ! find $(ROOT)/patches/mesa -type f -name '*.patch' -newer $@ 2>/dev/null | grep -q . && \
 	    ! [ "$(SCRIPTS)/build_ohos_guest_vulkan.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_gnutls.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_gstreamer.sh" -nt $@ ] && \
@@ -402,14 +408,22 @@ $(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_
 # fex → assemble 缺 libarm64ecfex.dll。skip-touch 分支同样不落共享 stamp。
 fex: $(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH)
 
-$(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_fex.sh $(SCRIPTS)/env.sh FORCE | $(STAMPS)
+FEX_BUILD_INPUTS := $(SCRIPTS)/build_fex.sh $(SCRIPTS)/env.sh $(SCRIPTS)/check_fex_build_identity.sh $(wildcard $(SCRIPTS)/patches/fex-*.patch)
+$(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH): $(FEX_BUILD_INPUTS) FORCE | $(STAMPS)
 	@if [ "$(WINE_ARCH)" = "x86_64" ]; then \
 	    echo "  [fex] skip (x86_64)"; \
 	    mkdir -p $(dir $@) && touch $@; \
 	elif [ -f $@ ] && \
 	    [ -f $(BUILD_DIR)/fex-ec/Bin/libarm64ecfex.dll ] && \
+	    [ -f $(BUILD_DIR)/fex-pe/Bin/libwow64fex.dll ] && \
+	    BUILD_DIR="$(BUILD_DIR)" FEX_SRC="$(FEX_SRC)" bash "$(SCRIPTS)/check_fex_build_identity.sh" check "$@" && \
 	    ! [ "$(SCRIPTS)/build_fex.sh" -nt $@ ] && \
-	    ! find $(ROOT)/thirdparty/fex \
+	    ! [ "$(SCRIPTS)/patches/fex-wow64-synthetic-return.patch" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/patches/fex-windows-jit-symbols.patch" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/patches/fex-windows-crt-file-open.patch" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/patches/fex-windows-jit-cost.patch" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/patches/fex-windows-file-loading.patch" -nt $@ ] && \
+	    ! find $(FEX_SRC) \
 	           -newer $@ -type f \
 	           \( -name '*.c' -o -name '*.cpp' -o -name '*.h' -o -name '*.S' \
 	              -o -name 'CMakeLists.txt' -o -name '*.cmake' \) \
@@ -417,7 +431,8 @@ $(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_fex.sh $(SCRIPTS)/env.sh 
 	    echo "  [fex] up to date"; \
 	else \
 	    echo "=== fex ==="; \
-	    bash $(SCRIPTS)/build_fex.sh && touch $@; \
+	    BUILD_DIR="$(BUILD_DIR)" FEX_SRC="$(FEX_SRC)" bash $(SCRIPTS)/build_fex.sh && \
+	    BUILD_DIR="$(BUILD_DIR)" FEX_SRC="$(FEX_SRC)" bash $(SCRIPTS)/check_fex_build_identity.sh write "$@" && touch $@; \
 	fi
 
 # ============================================================
@@ -579,9 +594,15 @@ test-benchmark-statistics:
 	$(HOST_TEST_DIR)/benchmark_statistics_test
 
 .PHONY: test
+.PHONY: test-fex-strict-mul24
+test-fex-strict-mul24:
+	python3 $(ROOT)/host_tests/fex_strict_mul24_test.py --fex-src $(FEX_SRC)
+
 .PHONY: test-fex-exact-store
 test-fex-exact-store:
 	python3 $(ROOT)/host_tests/fex_exact_store_test.py --fex-src $(FEX_SRC)
+	python3 $(ROOT)/host_tests/fex_exact_store_diagnostics_test.py
+	python3 $(ROOT)/host_tests/fex_build_identity_test.py
 
 .PHONY: test-gamepad-bridge
 test-gamepad-bridge:
@@ -597,6 +618,7 @@ test-gpu-followup:
 	python3 $(ROOT)/host_tests/gpu_owner_contract_test.py
 	python3 $(ROOT)/host_tests/gpu_scene_input_test.py
 	python3 $(ROOT)/host_tests/wine_build_identity_test.py
+	python3 $(ROOT)/host_tests/wine_graphics_capabilities_test.py
 	python3 $(ROOT)/host_tests/wine_make_identity_test.py
 
 .PHONY: test-steam-gpu-contracts
@@ -846,3 +868,69 @@ test-winehua-perf: test-wine-performance-summary
 test-wine-performance-summary:
 	python3 $(ROOT)/host_tests/winehua_perf_test.py --wine-src $(WINE_SRC)
 	python3 $(ROOT)/host_tests/winehua_perf_boundary_test.py --wine-src $(WINE_SRC)
+	python3 $(ROOT)/host_tests/winehua_upload_perf_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-wined3d-discard-map
+test: test-wined3d-discard-map
+test-wined3d-discard-map:
+	python3 $(ROOT)/host_tests/wined3d_discard_map_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-wined3d-dynamic-sysmem
+test: test-wined3d-dynamic-sysmem
+test-wined3d-dynamic-sysmem:
+	python3 $(ROOT)/host_tests/wined3d_dynamic_sysmem_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-virgl-shared-low-map
+test: test-virgl-shared-low-map
+test-virgl-shared-low-map:
+	python3 $(ROOT)/host_tests/virgl_shared_low_map_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-fex-wow64-synthetic-return
+test-fex-wow64-synthetic-return:
+	python3 $(ROOT)/host_tests/fex_wow64_synthetic_return_test.py
+
+.PHONY: test-fex-jit-symbols
+test-fex-jit-symbols:
+	python3 $(ROOT)/host_tests/fex_jit_symbols_test.py
+
+.PHONY: test-fex-crt-file-open
+test-fex-crt-file-open:
+	python3 $(ROOT)/host_tests/fex_crt_file_open_test.py
+
+.PHONY: test-winebus-ohos-poll
+test: test-winebus-ohos-poll
+test-winebus-ohos-poll:
+	python3 $(ROOT)/host_tests/winebus_ohos_poll_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-winehua-wgl-lock-wait
+test: test-winehua-wgl-lock-wait
+test-winehua-wgl-lock-wait:
+	python3 $(ROOT)/host_tests/winehua_wgl_lock_wait_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-controller-canonical
+test: test-controller-canonical
+test-controller-canonical:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
+	    $(ROOT)/host_tests/controller_merge_test.cpp $(ROOT)/entry/src/main/cpp/input/controller/controller_hub.cpp \
+	    -o $(HOST_TEST_DIR)/controller_merge_test
+	$(HOST_TEST_DIR)/controller_merge_test
+	python3 $(ROOT)/host_tests/controller_protocol_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-fex-jit-cost
+test-fex-jit-cost:
+	python3 $(ROOT)/host_tests/fex_jit_cost_test.py
+
+.PHONY: test-fex-windows-file-loading
+test-fex-windows-file-loading:
+	python3 $(ROOT)/host_tests/fex_windows_file_loading_test.py
+
+
+# Real phone fork/SIGCHLD plus production registry and sandbox liveness.
+.PHONY: test-process-lifecycle
+test-process-lifecycle:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -pthread -I $(ROOT)/host_tests/process_stubs -I $(ROOT)/entry/src/main/cpp \
+	    $(ROOT)/host_tests/process_lifecycle_test.cpp $(ROOT)/entry/src/main/cpp/proc/wine_process.cpp \
+	    -Wl,--wrap=fopen -o $(HOST_TEST_DIR)/process_lifecycle_test
+	$(HOST_TEST_DIR)/process_lifecycle_test

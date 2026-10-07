@@ -550,7 +550,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd, bool* desktopDe
         }
         OH_LOG_WARN(LOG_APP, "[Launch-Async] wineboot --init pid=%{public}d", childPid);
         /* 播种: wineboot 退出即 SetEvent, explorer 即可放行。等待按设备模式
-         * 分流 (IsLaunchChildExited): 手机 fork 走 /proc 判活, NCP 走退出回调。
+         * 分流 (IsLaunchChildExited): 手机 fork 走真实 waitpid, NCP 走退出回调。
          * 3 分钟大超时仅作挂死安全网; 超时未退出必须判失败上报: 缺少这次
          * wineboot, explorer 的 run_wineboot 永远等不到 boot 事件 (静默失败,
          * 不能放行)。 */
@@ -597,6 +597,8 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd, bool* desktopDe
         // 新桌面会话开始: 清除上次会话的桌面 shell 标记守卫, 使本次 root 出现时
         // 重新标记基础进程 (desktop + explorer 等) 为不可由用户结束。
         BeginDesktopSession();
+        if (gStateTsfn)
+            napi_call_threadsafe_function(gStateTsfn, strdup("phase:explorer"), napi_tsfn_blocking);
         int dw = ws->OutputWidth() > 0 ? ws->OutputWidth() : 1280;
         int dh = ws->OutputHeight() > 0 ? ws->OutputHeight() : 720;
         OH_LOG_WARN(LOG_APP, "[Launch-Async] explorer desktop size: outputW=%{public}d outputH=%{public}d → %{public}dx%{public}d",
@@ -665,6 +667,9 @@ void LaunchThreadFunc(LaunchParams* p) {
     OH_LOG_WARN(LOG_APP, "[Launch-Async] wineserver + wineboot + wine starting in background");
     OH_LOG_WARN(LOG_APP, "[Launch-Async] XKB_CONFIG_ROOT=%{public}s",
                 (p->winehuaBin + "/../share/X11/xkb").c_str());
+
+    if (gStateTsfn)
+        napi_call_threadsafe_function(gStateTsfn, strdup("phase:graphics"), napi_tsfn_blocking);
 
     auto& graphicsBroker = winehua::GraphicsBroker::GetInstance();
     graphicsBroker.SetWineRuntimeBinaryDir(p->winehuaBin);

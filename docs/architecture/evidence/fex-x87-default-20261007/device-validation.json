@@ -1,0 +1,21 @@
+{
+  "hapSHA256": "1416cdb026f24b909120f83ef859edf832fc9cb659bc057911da67a7779de4ab",
+  "fexDLLSHA256": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+  "default": {
+    "environmentOverrides": {},
+    "observed": "reduced-f64",
+    "output": "pid=436 requested=1 test=(1+2^-60)-1 pc64=1 result=0000000000000000:0000\n\nobserved=reduced-f64 complete=1\n",
+    "directProbe": true,
+    "wrappedByPolicyLauncher": false
+  },
+  "override": {
+    "environmentOverrides": {
+      "FEX_X87REDUCEDPRECISION": "0"
+    },
+    "observed": "strict-f80",
+    "output": "pid=436 requested=0 test=(1+2^-60)-1 pc64=1 result=8000000000000000:3fc3\n\nobserved=strict-f80 complete=1\n",
+    "directProbe": true,
+    "wrappedByPolicyLauncher": false
+  },
+  "userReady": "Normal EntryAbility launched; no game or Steam launch sent"
+}

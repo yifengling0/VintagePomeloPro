@@ -1,6 +1,7 @@
 #include "dll_overrides.h"
 #include "env_profiles.h"
 #include "wine_env.h"
+#include "wine_d3d_policy.h"
 
 #include <algorithm>
 #include <cassert>
@@ -25,9 +26,10 @@ std::vector<std::string> BuildWineEnv(const std::string&, const std::string&,
 }
 
 void AppendD3dBackendEnv(std::vector<std::string>& env, const std::string&,
-                       const std::string&, const std::string&)
+                       const std::string& backend, const std::string&)
 {
-    UpsertEnvLine(env, "WINEDLLOVERRIDES=d3d11=n;dxgi=n;vulkan-1=b");
+    UpsertEnvLine(env, std::string("WINEDLLOVERRIDES=") +
+        winehua::DxvkDllOverrides(backend == "dxvk_modern_2_6"));
 }
 
 void AppendVulkanRuntimeEnv(std::vector<std::string>&, const std::string&) {}
@@ -69,14 +71,23 @@ int main()
     p.extraEnv = {"WINEDLLOVERRIDES=vcruntime140,vcruntime140_1=b", "WINEHUA_WINEDEBUG=-all,+loaddll"};
     auto env = winehua::BuildSessionEnv(p);
     assert(Value(env, "WINEDLLOVERRIDES") ==
-           "d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=b;vcruntime140_1=b");
+           "ddraw=b;d3d8=b;d3d9=b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=b;vcruntime140_1=b");
     assert(Value(env, "WINEHUA_WINEDEBUG") == "-all,+loaddll");
     p.extraEnv.push_back("WINEDLLOVERRIDES=vcruntime140=n,b");
     assert(Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES") ==
-           "d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
+           "ddraw=b;d3d8=b;d3d9=b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
+    p.d3dBackend = "dxvk_legacy";
+    auto legacy = Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES");
+    assert(legacy == "ddraw=b;d3d8=b;d3d9=b;d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
+    p.extraEnv.push_back("WINEDLLOVERRIDES=d3d9=n,b");
+    legacy = Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES");
+    assert(legacy.find("d3d9=n,b;") != std::string::npos);
+    assert(legacy.find("d3d11=n;dxgi=n;") != std::string::npos);
+    p.extraEnv.pop_back();
+    p.d3dBackend = "dxvk_modern_2_6";
     p.extraEnv.push_back("WINEDLLOVERRIDES=broken");
     assert(Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES") ==
-           "d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
+           "ddraw=b;d3d8=b;d3d9=b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
     p.extraEnv.push_back("WINEDLLOVERRIDES=");
     assert(Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES").empty());
     std::puts("DLL override merge and production environment pipeline passed");

@@ -1,0 +1,162 @@
+
+/data/src/winehua/workspace_temp/pal4-x87-20261007/measured-dispatcher.obj:	file format coff-arm64
+
+Disassembly of section .text:
+
+0000000000000000 <measured_dispatcher>:
+       0: f9472b81     	ldr	x1, [x28, #0xe50]
+       4: b40002a1     	cbz	x1, 0x58 <measured_dispatcher+0x58>
+       8: b9407822     	ldr	w2, [x1, #0x78]
+       c: 11000442     	add	w2, w2, #0x1
+      10: b9007822     	str	w2, [x1, #0x78]
+      14: 51000442     	sub	w2, w2, #0x1
+      18: 35000202     	cbnz	w2, 0x58 <measured_dispatcher+0x58>
+      1c: b900743f     	str	wzr, [x1, #0x74]
+      20: b9407022     	ldr	w2, [x1, #0x70]
+      24: 340001a2     	cbz	w2, 0x58 <measured_dispatcher+0x58>
+      28: 51000442     	sub	w2, w2, #0x1
+      2c: b9007022     	str	w2, [x1, #0x70]
+      30: 35000142     	cbnz	w2, 0x58 <measured_dispatcher+0x58>
+      34: 52800022     	mov	w2, #0x1                // =1
+      38: b9007422     	str	w2, [x1, #0x74]
+      3c: d5033fdf     	isb
+      40: d53be042     	mrs	x2, CNTVCT_EL0
+      44: f9000022     	str	x2, [x1]
+      48: f9001023     	str	x3, [x1, #0x20]
+      4c: f900143e     	str	x30, [x1, #0x28]
+      50: 3d800c20     	str	q0, [x1, #0x30]
+      54: 3d801021     	str	q1, [x1, #0x40]
+      58: d53b4202     	mrs	x2, NZCV
+      5c: b9040b82     	str	w2, [x28, #0x408]
+      60: f9005b99     	str	x25, [x28, #0xb0]
+      64: a9021f84     	stp	x4, x7, [x28, #0x20]
+      68: a9031b85     	stp	x5, x6, [x28, #0x30]
+      6c: a9042788     	stp	x8, x9, [x28, #0x40]
+      70: a9052f8a     	stp	x10, x11, [x28, #0x50]
+      74: 29026f9a     	stp	w26, w27, [x28, #0x10]
+      78: 91070382     	add	x2, x28, #0x1c0
+      7c: 4c9f2c50     	st1	{ v16.2d, v17.2d, v18.2d, v19.2d }, [x2], #64
+      80: 4c9f2c54     	st1	{ v20.2d, v21.2d, v22.2d, v23.2d }, [x2], #64
+      84: d10683ff     	sub	sp, sp, #0x1a0
+      88: 910003e2     	mov	x2, sp
+      8c: 4c9fac42     	st1	{ v2.2d, v3.2d }, [x2], #32
+      90: 4c9f2c44     	st1	{ v4.2d, v5.2d, v6.2d, v7.2d }, [x2], #64
+      94: 4c9f2c48     	st1	{ v8.2d, v9.2d, v10.2d, v11.2d }, [x2], #64
+      98: 4c9f2c4c     	st1	{ v12.2d, v13.2d, v14.2d, v15.2d }, [x2], #64
+      9c: 4c9f2c58     	st1	{ v24.2d, v25.2d, v26.2d, v27.2d }, [x2], #64
+      a0: 4c9f2c5c     	st1	{ v28.2d, v29.2d, v30.2d, v31.2d }, [x2], #64
+      a4: f801044c     	str	x12, [x2], #0x10
+      a8: a881384d     	stp	x13, x14, [x2], #0x10
+      ac: a881404f     	stp	x15, x16, [x2], #0x10
+      b0: a8817851     	stp	x17, x30, [x2], #0x10
+      b4: 79496380     	ldrh	w0, [x28, #0x4b0]
+      b8: aa1c03e1     	mov	x1, x28
+      bc: f9472b81     	ldr	x1, [x28, #0xe50]
+      c0: b4000121     	cbz	x1, 0xe4 <measured_dispatcher+0xe4>
+      c4: b9407822     	ldr	w2, [x1, #0x78]
+      c8: 51000442     	sub	w2, w2, #0x1
+      cc: 350000c2     	cbnz	w2, 0xe4 <measured_dispatcher+0xe4>
+      d0: b9407422     	ldr	w2, [x1, #0x74]
+      d4: 34000082     	cbz	w2, 0xe4 <measured_dispatcher+0xe4>
+      d8: d5033fdf     	isb
+      dc: d53be042     	mrs	x2, CNTVCT_EL0
+      e0: f9000422     	str	x2, [x1, #0x8]
+      e4: aa1c03e1     	mov	x1, x28
+      e8: d63f0060     	blr	x3
+      ec: f9472b81     	ldr	x1, [x28, #0xe50]
+      f0: b4000121     	cbz	x1, 0x114 <measured_dispatcher+0x114>
+      f4: b9407822     	ldr	w2, [x1, #0x78]
+      f8: 51000442     	sub	w2, w2, #0x1
+      fc: 350000c2     	cbnz	w2, 0x114 <measured_dispatcher+0x114>
+     100: b9407422     	ldr	w2, [x1, #0x74]
+     104: 34000082     	cbz	w2, 0x114 <measured_dispatcher+0x114>
+     108: d5033fdf     	isb
+     10c: d53be042     	mrs	x2, CNTVCT_EL0
+     110: f9000822     	str	x2, [x1, #0x10]
+     114: 4cdfafe2     	ld1	{ v2.2d, v3.2d }, [sp], #32
+     118: 4cdf2fe4     	ld1	{ v4.2d, v5.2d, v6.2d, v7.2d }, [sp], #64
+     11c: 4cdf2fe8     	ld1	{ v8.2d, v9.2d, v10.2d, v11.2d }, [sp], #64
+     120: 4cdf2fec     	ld1	{ v12.2d, v13.2d, v14.2d, v15.2d }, [sp], #64
+     124: 4cdf2ff8     	ld1	{ v24.2d, v25.2d, v26.2d, v27.2d }, [sp], #64
+     128: 4cdf2ffc     	ld1	{ v28.2d, v29.2d, v30.2d, v31.2d }, [sp], #64
+     12c: f84107ec     	ldr	x12, [sp], #0x10
+     130: a8c13bed     	ldp	x13, x14, [sp], #0x10
+     134: a8c143ef     	ldp	x15, x16, [sp], #0x10
+     138: a8c17bf1     	ldp	x17, x30, [sp], #0x10
+     13c: f9405b99     	ldr	x25, [x28, #0xb0]
+     140: b9440b84     	ldr	w4, [x28, #0x408]
+     144: d51b4204     	msr	NZCV, x4
+     148: 91070384     	add	x4, x28, #0x1c0
+     14c: 4cdf2c90     	ld1	{ v16.2d, v17.2d, v18.2d, v19.2d }, [x4], #64
+     150: 4cdf2c94     	ld1	{ v20.2d, v21.2d, v22.2d, v23.2d }, [x4], #64
+     154: a9421f84     	ldp	x4, x7, [x28, #0x20]
+     158: a9431b85     	ldp	x5, x6, [x28, #0x30]
+     15c: a9442788     	ldp	x8, x9, [x28, #0x40]
+     160: a9452f8a     	ldp	x10, x11, [x28, #0x50]
+     164: 29426f9a     	ldp	w26, w27, [x28, #0x10]
+     168: f9472b81     	ldr	x1, [x28, #0xe50]
+     16c: b4000761     	cbz	x1, 0x258 <measured_dispatcher+0x258>
+     170: b9407822     	ldr	w2, [x1, #0x78]
+     174: 51000442     	sub	w2, w2, #0x1
+     178: 35000702     	cbnz	w2, 0x258 <measured_dispatcher+0x258>
+     17c: b9407422     	ldr	w2, [x1, #0x74]
+     180: 340006c2     	cbz	w2, 0x258 <measured_dispatcher+0x258>
+     184: d5033fdf     	isb
+     188: d53be042     	mrs	x2, CNTVCT_EL0
+     18c: f9000c22     	str	x2, [x1, #0x18]
+     190: 3d801420     	str	q0, [x1, #0x50]
+     194: d53b4202     	mrs	x2, NZCV
+     198: b9040b82     	str	w2, [x28, #0x408]
+     19c: f9005b99     	str	x25, [x28, #0xb0]
+     1a0: a9021f84     	stp	x4, x7, [x28, #0x20]
+     1a4: a9031b85     	stp	x5, x6, [x28, #0x30]
+     1a8: a9042788     	stp	x8, x9, [x28, #0x40]
+     1ac: a9052f8a     	stp	x10, x11, [x28, #0x50]
+     1b0: 29026f9a     	stp	w26, w27, [x28, #0x10]
+     1b4: 91070382     	add	x2, x28, #0x1c0
+     1b8: 4c9f2c50     	st1	{ v16.2d, v17.2d, v18.2d, v19.2d }, [x2], #64
+     1bc: 4c9f2c54     	st1	{ v20.2d, v21.2d, v22.2d, v23.2d }, [x2], #64
+     1c0: d10683ff     	sub	sp, sp, #0x1a0
+     1c4: 910003e2     	mov	x2, sp
+     1c8: 4c9fac42     	st1	{ v2.2d, v3.2d }, [x2], #32
+     1cc: 4c9f2c44     	st1	{ v4.2d, v5.2d, v6.2d, v7.2d }, [x2], #64
+     1d0: 4c9f2c48     	st1	{ v8.2d, v9.2d, v10.2d, v11.2d }, [x2], #64
+     1d4: 4c9f2c4c     	st1	{ v12.2d, v13.2d, v14.2d, v15.2d }, [x2], #64
+     1d8: 4c9f2c58     	st1	{ v24.2d, v25.2d, v26.2d, v27.2d }, [x2], #64
+     1dc: 4c9f2c5c     	st1	{ v28.2d, v29.2d, v30.2d, v31.2d }, [x2], #64
+     1e0: f801044c     	str	x12, [x2], #0x10
+     1e4: a881384d     	stp	x13, x14, [x2], #0x10
+     1e8: a881404f     	stp	x15, x16, [x2], #0x10
+     1ec: a8817851     	stp	x17, x30, [x2], #0x10
+     1f0: aa1c03e0     	mov	x0, x28
+     1f4: f9403023     	ldr	x3, [x1, #0x60]
+     1f8: d63f0060     	blr	x3
+     1fc: 4cdfafe2     	ld1	{ v2.2d, v3.2d }, [sp], #32
+     200: 4cdf2fe4     	ld1	{ v4.2d, v5.2d, v6.2d, v7.2d }, [sp], #64
+     204: 4cdf2fe8     	ld1	{ v8.2d, v9.2d, v10.2d, v11.2d }, [sp], #64
+     208: 4cdf2fec     	ld1	{ v12.2d, v13.2d, v14.2d, v15.2d }, [sp], #64
+     20c: 4cdf2ff8     	ld1	{ v24.2d, v25.2d, v26.2d, v27.2d }, [sp], #64
+     210: 4cdf2ffc     	ld1	{ v28.2d, v29.2d, v30.2d, v31.2d }, [sp], #64
+     214: f84107ec     	ldr	x12, [sp], #0x10
+     218: a8c13bed     	ldp	x13, x14, [sp], #0x10
+     21c: a8c143ef     	ldp	x15, x16, [sp], #0x10
+     220: a8c17bf1     	ldp	x17, x30, [sp], #0x10
+     224: f9405b99     	ldr	x25, [x28, #0xb0]
+     228: b9440b84     	ldr	w4, [x28, #0x408]
+     22c: d51b4204     	msr	NZCV, x4
+     230: 91070384     	add	x4, x28, #0x1c0
+     234: 4cdf2c90     	ld1	{ v16.2d, v17.2d, v18.2d, v19.2d }, [x4], #64
+     238: 4cdf2c94     	ld1	{ v20.2d, v21.2d, v22.2d, v23.2d }, [x4], #64
+     23c: a9421f84     	ldp	x4, x7, [x28, #0x20]
+     240: a9431b85     	ldp	x5, x6, [x28, #0x30]
+     244: a9442788     	ldp	x8, x9, [x28, #0x40]
+     248: a9452f8a     	ldp	x10, x11, [x28, #0x50]
+     24c: 29426f9a     	ldp	w26, w27, [x28, #0x10]
+     250: f9472b81     	ldr	x1, [x28, #0xe50]
+     254: 3dc01420     	ldr	q0, [x1, #0x50]
+     258: f9472b81     	ldr	x1, [x28, #0xe50]
+     25c: b4000081     	cbz	x1, 0x26c <measured_dispatcher+0x26c>
+     260: b9407822     	ldr	w2, [x1, #0x78]
+     264: 51000442     	sub	w2, w2, #0x1
+     268: b9007822     	str	w2, [x1, #0x78]
+     26c: d65f03c0     	ret

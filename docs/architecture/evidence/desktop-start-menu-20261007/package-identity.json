@@ -1,0 +1,19 @@
+{
+  "baselineHapSHA256": "1416cdb026f24b909120f83ef859edf832fc9cb659bc057911da67a7779de4ab",
+  "changedHapEntries": [
+    "libs/arm64-v8a/winewayland.so"
+  ],
+  "defaultX87ReducedPrecision": 1,
+  "desktopTraceEnabled": false,
+  "driverSHA256": "2f289ae86a19866de40ccb5d97d84f9ee84079c5ecb58323159b14e240731723",
+  "unsignedHap": {
+    "filename": "entry-desktop-input-fixed-unsigned.hap",
+    "sha256": "741d3b2d2b07bcecd92b85f791d25266dd76120354381c19003d5a350f1d9902"
+  },
+  "hap": {
+    "filename": "entry-desktop-input-fixed-debug-signed.hap",
+    "sha256": "11d26c91b3d0a905da1448b9c861f6e1e94421b034edbb6d6f28d1defea8327f",
+    "bytes": 358927327
+  },
+  "signatureValidation": "Official hap-sign-tool verify-app succeeded; all existing archive content unchanged; only .pages.info added or regenerated"
+}

@@ -43,29 +43,6 @@
 
 namespace {
 
-// ---- 僵尸回收：NCP 由 appspawn 收尸，fork 后主进程必须自己 reap ----
-void InstallReaperOnce() {
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, [] {
-        struct sigaction existing{};
-        if (sigaction(SIGCHLD, nullptr, &existing) != 0 ||
-            (existing.sa_flags & SA_SIGINFO) || existing.sa_handler != SIG_DFL) {
-            // The Wine process registry may already own SIGCHLD so it can
-            // preserve a child exit status for automation evidence.
-            return;
-        }
-        struct sigaction sa{};
-        sa.sa_handler = [](int) {
-            int saved = errno;
-            while (waitpid(-1, nullptr, WNOHANG) > 0) {}
-            errno = saved;
-        };
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
-        sigaction(SIGCHLD, &sa, nullptr);
-    });
-}
-
 // ---- 关闭除 keep 外的所有继承 fd ----
 void CloseAllFdsExcept(const std::vector<int>& keep) {
     DIR* d = opendir("/proc/self/fd");
@@ -460,7 +437,7 @@ int Phone_PrepareDirectForkServer() {
     // Do not silently fall back to a late App fork when it is unavailable.
     auto forkChild = reinterpret_cast<ForkChildFn>(dlsym(RTLD_DEFAULT, "_Fork"));
     if (!forkChild) return NCP_ERR_NOT_SUPPORTED;
-    InstallReaperOnce();
+    if (!EnsureChildReaper()) return NCP_ERR_INTERNAL;
     int control[2], events[2], ready[2];
     if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, control) != 0)
         return NCP_ERR_INTERNAL;
@@ -477,7 +454,10 @@ int Phone_PrepareDirectForkServer() {
     close(control[1]); close(events[1]); close(ready[1]);
     if (child < 0 || !ParentWaitHandshake(ready[0])) {
         if (child < 0) close(ready[0]);
-        else kill(child, SIGKILL);
+        else {
+            kill(child, SIGKILL);
+            while (waitpid(child, nullptr, 0) < 0 && errno == EINTR) {}
+        }
         close(control[0]); close(events[0]);
         return NCP_ERR_LIB_LOADING_FAILED;
     }
@@ -511,6 +491,9 @@ int Phone_PrepareDirectForkServer() {
             if (report) NotePhoneForkServerChildExit(event.pid, event.status);
         }
         close(fd);
+        // This early server is outside the Wine registry; its event reader
+        // owns its wait status now that the app no longer reaps waitpid(-1).
+        while (waitpid(child, nullptr, 0) < 0 && errno == EINTR) {}
         std::lock_guard<std::mutex> lock(g_forkMutex);
         if (g_forkPid == child) {
             close(g_forkControl);
@@ -610,7 +593,7 @@ Ability_NativeChildProcess_ErrCode Phone_StartNativeChildProcess(
         return NCP_ERR_INVALID_PARAM;
     }
 
-    InstallReaperOnce();
+    if (!EnsureChildReaper()) return NCP_ERR_INTERNAL;
     int hs[2];
     if (pipe(hs) != 0) return NCP_ERR_INTERNAL;
 
@@ -625,10 +608,11 @@ Ability_NativeChildProcess_ErrCode Phone_StartNativeChildProcess(
         StartChildMain(e.substr(0, pos), e.substr(pos + 1), args, hs[1]);
     }
 
+    AddProcess(child, "@engine/native-child", -1, ProcessRegistration::ForkChild);
     close(hs[1]);
     bool ok = ParentWaitHandshake(hs[0]);
     for (auto* p = args.fdList.head; p; p = p->next) close(p->fd);
-    if (!ok) { *pid = -1; return NCP_ERR_LIB_LOADING_FAILED; }
+    if (!ok) { kill(child, SIGKILL); *pid = -1; return NCP_ERR_LIB_LOADING_FAILED; }
     *pid = child;
     return NCP_NO_ERROR;
 }
@@ -637,7 +621,7 @@ int Phone_CreateNativeChildProcess(
     const char* libName, OH_Ability_OnNativeChildProcessStarted onProcessStarted)
 {
     if (!libName || !onProcessStarted) return NCP_ERR_INVALID_PARAM;
-    InstallReaperOnce();
+    if (!EnsureChildReaper()) return NCP_ERR_INTERNAL;
 
     int hs[2], cfg[2];
     if (pipe(hs) != 0) return NCP_ERR_INTERNAL;
@@ -656,12 +640,14 @@ int Phone_CreateNativeChildProcess(
         CreateChildMain(libName, hs[1], cfg[1]);
     }
 
+    AddProcess(child, "@engine/virgl", -1, ProcessRegistration::ForkChild);
     close(hs[1]); close(cfg[1]);
     bool ok = ParentWaitHandshake(hs[0]);
     if (ok) {
         if (g_cfgSockParent >= 0) close(g_cfgSockParent);
         g_cfgSockParent = cfg[0];
     } else {
+        kill(child, SIGKILL);
         close(cfg[0]);
     }
     int err = ok ? NCP_NO_ERROR : NCP_ERR_LIB_LOADING_FAILED;

@@ -9,25 +9,34 @@ set -euo pipefail
 
 MESA_SOURCE="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PATCH="$SCRIPT_DIR/../patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch"
+PATCHES=(
+    "$SCRIPT_DIR/../patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch"
+    "$SCRIPT_DIR/../patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch"
+)
 
 [ -f "$MESA_SOURCE/meson.build" ] || {
     echo "Mesa source root is invalid: $MESA_SOURCE" >&2
     exit 1
 }
-[ -f "$PATCH" ] || {
-    echo "Mesa OHOS patch is missing: $PATCH" >&2
-    exit 1
-}
-
-if git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" \
-    apply --reverse --check "$PATCH" >/dev/null 2>&1; then
-    exit 0
+MESA_SOURCE="$(cd "$MESA_SOURCE" && pwd)"
+for PATCH in "${PATCHES[@]}"; do
+    [ -f "$PATCH" ] || {
+        echo "Mesa OHOS patch is missing: $PATCH" >&2
+        exit 1
+    }
+    if git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" \
+        apply --reverse --check "$PATCH" >/dev/null 2>&1; then
+        continue
+    fi
+    git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply --check "$PATCH" || {
+        echo "Mesa source does not match the pinned OHOS patch: $MESA_SOURCE ($PATCH)" >&2
+        exit 1
+    }
+    git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply "$PATCH"
+done
+# Mounted linked worktrees can lack their external Git metadata. git apply
+# still validates every hunk there; only the repository diff needs metadata.
+if git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" rev-parse \
+    --show-toplevel >/dev/null 2>&1; then
+    git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" diff --check
 fi
-
-git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply --check "$PATCH" || {
-    echo "Mesa source does not match the pinned OHOS patch: $MESA_SOURCE" >&2
-    exit 1
-}
-git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply "$PATCH"
-git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" diff --check

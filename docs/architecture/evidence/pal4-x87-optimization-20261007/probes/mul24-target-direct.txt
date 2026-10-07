@@ -1,0 +1,11 @@
+pass=0 mode=original-softfloat count=8000000 ns_per_op=10.207 sink=0
+pass=0 mode=strict-mul24 count=8000000 ns_per_op=5.430 sink=0
+pass=1 mode=original-softfloat count=8000000 ns_per_op=8.878 sink=0
+pass=1 mode=strict-mul24 count=8000000 ns_per_op=5.442 sink=0
+pass=2 mode=original-softfloat count=8000000 ns_per_op=8.876 sink=0
+pass=2 mode=strict-mul24 count=8000000 ns_per_op=5.444 sink=0
+pass=3 mode=original-softfloat count=8000000 ns_per_op=8.886 sink=0
+pass=3 mode=strict-mul24 count=8000000 ns_per_op=5.444 sink=0
+pass=4 mode=original-softfloat count=8000000 ns_per_op=8.887 sink=0
+pass=4 mode=strict-mul24 count=8000000 ns_per_op=5.447 sink=0
+complete=1

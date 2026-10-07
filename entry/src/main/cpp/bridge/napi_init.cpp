@@ -461,8 +461,6 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     pos = p->exePath.find_last_of('/');
     p->winehuaBin = (pos != std::string::npos) ? p->exePath.substr(0, pos) : p->exePath;
 
-    signal(SIGCHLD, sigchld_handler);
-
     // 启动后台线程: wineserver -> wineboot --init
     std::thread(LaunchThreadFunc, p).detach();
 
@@ -1617,6 +1615,8 @@ static napi_value Init(napi_env env, napi_value exports) {
     // spawn 之后的判活/杀/等待操作里 (此时 IsForkBackend 已由 setPhoneMode
     // 正确置位)
     RegisterNcpExitCallback();
+    if (!EnsureChildReaper())
+        OH_LOG_ERROR(LOG_APP, "[ProcReg] child reaper initialization failed");
 
     napi_property_descriptor desc[] = {
         {"captureNativePerformance", nullptr, CaptureNativePerformance, nullptr, nullptr, nullptr, napi_default, nullptr},

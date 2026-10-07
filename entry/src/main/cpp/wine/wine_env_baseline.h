@@ -132,6 +132,11 @@ inline std::vector<std::string> BuildWineBaselineLines(const WineBaselinePaths& 
         "TMPDIR=" WINE_TMPDIR,
         "MIDI_SOUNDFONT_PATH=" + binDir + "/../audio/winehua-gm.sf2",
     };
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    // ARM Proton uses the FEX native-F64 x87 policy by default, matching
+    // Valve's ARM configuration. Entry overrides may select strict F80 (0).
+    lines.push_back("FEX_X87REDUCEDPRECISION=1");
+#endif
     if (!p.homeDir.empty())
         lines.insert(lines.begin(), "HOME=" + p.homeDir);
     return lines;

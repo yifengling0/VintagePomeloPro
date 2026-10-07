@@ -1,0 +1,72 @@
+desktop_name=shell pid=452 tid=456
+t=1 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+ window=0000000000030034 class=Shell_TrayWnd pid=272 tid=276 enabled=1 rect=0,780,1200,800 active=0000000000010020 focus=0000000000010020 capture=0000000000000000
+ child=0000000000010040 class=Button id=0 visible=1 enabled=1 rect=0,780,54,800
+ child=00000000000100B6 class=Button id=65716 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000100B8 class=Button id=65708 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000200C6 class=Button id=65744 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000200C4 class=Button id=65736 visible=0 enabled=1 rect=0,780,0,780
+ shell_thread=276 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=280 desktop=0000000000000014 name= ok=0 error=6
+ shell_thread=284 desktop=0000000000000014 name= ok=0 error=6
+ shell_thread=296 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=300 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=304 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=360 desktop=000000000000006C name= ok=0 error=6
+t=2033 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=4028 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=6024 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=8033 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=10033 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=12034 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=14034 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=16041 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+ window=0000000000030034 class=Shell_TrayWnd pid=272 tid=276 enabled=1 rect=0,780,1200,800 active=0000000000010020 focus=0000000000010020 capture=0000000000000000
+ child=0000000000010040 class=Button id=0 visible=1 enabled=1 rect=0,780,54,800
+ child=00000000000100B6 class=Button id=65716 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000100B8 class=Button id=65708 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000200C6 class=Button id=65744 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000200C4 class=Button id=65736 visible=0 enabled=1 rect=0,780,0,780
+ shell_thread=276 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=280 desktop=0000000000000014 name= ok=0 error=6
+ shell_thread=284 desktop=0000000000000014 name= ok=0 error=6
+ shell_thread=296 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=300 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=304 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=360 desktop=000000000000006C name= ok=0 error=6
+t=18104 cursor=0,0 fg=0000000000010020 desktop=0000000000010020 hit=0000000000010020
+t=18436 explorer_spawn=1 error=203
+t=19638 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=20425 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=22428 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=24446 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=26438 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=28440 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+ window=00000000000100E2 class=ExplorerWClass pid=596 tid=600 enabled=1 rect=0,0,640,480 active=00000000000100E2 focus=00000000000100E2 capture=0000000000000000
+ window=0000000000030034 class=Shell_TrayWnd pid=272 tid=276 enabled=1 rect=0,780,1200,800 active=0000000000000000 focus=0000000000000000 capture=0000000000000000
+ child=0000000000010040 class=Button id=0 visible=1 enabled=1 rect=0,780,54,800
+ child=00000000000100B6 class=Button id=65716 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000100B8 class=Button id=65708 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000200C6 class=Button id=65744 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000200C4 class=Button id=65736 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000100EA class=Button id=65768 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000000100EC class=Button id=65762 visible=1 enabled=1 rect=54,780,238,800
+ child=0000000000010110 class=Button id=65806 visible=0 enabled=1 rect=0,780,0,780
+ child=00000000001A013C class=Button id=393522 visible=0 enabled=1 rect=0,780,0,780
+ shell_thread=276 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=280 desktop=0000000000000014 name= ok=0 error=6
+ shell_thread=284 desktop=0000000000000014 name= ok=0 error=6
+ shell_thread=296 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=300 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=304 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=360 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=636 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=648 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=652 desktop=000000000000006C name= ok=0 error=6
+ shell_thread=656 desktop=000000000000006C name= ok=0 error=6
+t=30533 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=32544 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=34547 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=36545 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+t=38554 cursor=0,0 fg=00000000000100E2 desktop=0000000000010020 hit=00000000000100E2
+complete=1

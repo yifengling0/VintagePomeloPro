@@ -10,6 +10,15 @@ does not apply to `libarm64ecfex.dll`, PE64, or Linux builds.
 is therefore compiled out of the ARM64EC DLL. Existing CMake caches are
 invalidated if that identity changes.
 
+`make fex` also checks a content identity beside its stamp before taking the
+up-to-date path. It covers diagnostic mode, selected source, explicit source
+version, build scripts and all FEX overlays; cached WOW64 flags and ARM64EC
+isolation are checked separately. An older stamp without this identity
+rebuilds once. Use separate `BUILD_DIR`/`FEX_SRC` for timing and diagnostic
+artifacts. For a staged source without `.git`, supply its verified pin as
+`FEX_SOURCE_HASH` to prevent the enclosing product Git hash appearing in FEX
+CPUID metadata.
+
 For clean timing builds, run `scripts/build_fex.sh` normally. For one-off hit
 ratio collection, build with `FEX_EXACTSTORE_DIAGNOSTICS=1`; this applies the
 separate diagnostics overlay and adds
@@ -22,9 +31,21 @@ mix diagnostic and clean artifacts in one A/B result.
 
 - `FEX_EXACTSTORE=1` enables the exact-normal fast path
 - unset, empty, `0`, and every other value keep the original helper path
-- in a diagnostic build, `FEX_EXACTSTORE_STATS=1` adds relaxed atomic
-  attempt/hit/fallback counters and emits one bounded F32/F64 summary at
-  process teardown
+- in a diagnostic build, `FEX_EXACTSTORE=1` together with
+  `FEX_EXACTSTORE_STATS=1` adds atomic attempt/hit/fallback counters. WOW64
+  Unix/system-call returns and simulation returns emit cumulative F32/F64
+  snapshots at most once per second, capped at 600 per process, outside the
+  JIT context lock. Normal game syscalls return inside `ExecuteThread`, so
+  relying only on the outer simulation return misses those live snapshots. The
+  before-self-termination callback emits one final snapshot through Wine's
+  stderr bridge. Host force-stop can only preserve snapshots already emitted.
+
+The output includes `pid`, `final` and `consistent`. Live threads can be
+between an attempt and its hit/fallback increment; only `consistent=true`
+snapshots satisfy both `attempt=hit+fallback` relations. For interval ratios,
+subtract matching process snapshots whose consistency flag is true. The
+explicit output path is required because the freestanding Windows CRT has
+no working `atexit` destructor or `fprintf` implementation.
 
 Use the verified pre-Context automation route. For ON, launch with
 `automation/Start-WineHuaGameTest.ps1 -GamePath <path> -D3DEnvironment @{

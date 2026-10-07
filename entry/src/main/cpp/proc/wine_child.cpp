@@ -1820,6 +1820,10 @@ extern "C" void Main(NativeChildProcess_Args args)
 
     // Step B: entryParams 中的环境覆盖应用。
     apply_entry_param_env_overrides(envOverrides);
+#if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    OH_LOG_INFO(LOG_APP, "[WineChild] final FEX_X87REDUCEDPRECISION=%{public}s (after entry env)",
+                getenv("FEX_X87REDUCEDPRECISION"));
+#endif
     apply_process_font_aa_default(argc, argv);
     const char* vulkanBackend = getenv("WINEHUA_VULKAN_BACKEND");
     if (vulkanBackend && strcmp(vulkanBackend, "direct") == 0) {

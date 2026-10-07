@@ -4,7 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/env.sh"
-BUILD_DIR="$ROOT/build"
+# env.sh already honors the caller's independent BUILD_DIR. Keep its runtime
+# provenance (notably zlib-runtime) when building and packaging the Mesa bundle.
+BUILD_DIR="${BUILD_DIR:-$ROOT/build}"
 SDK_LINK_DIR="$ROOT/build/sdk-links"
 HOST_TOOLS_DIR="$BUILD_DIR/host-tools"
 WRAPPER_DIR="$BUILD_DIR/tool-wrappers"

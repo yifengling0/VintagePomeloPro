@@ -54,7 +54,7 @@ class DesktopController extends XComponentController {
         const outH = Math.round(rect.surfaceHeight / s);
         // surface 是真实可见区: 用它同步 Wayland 输出尺寸, 保证桌面 1:1
         // 铺满且触摸坐标对齐 (窗口 rect 在安全区模式下比 surface 大)。
-        WineWindowManager.getInstance().syncOutputSize(rect.surfaceWidth, rect.surfaceHeight);
+        if (!WineWindowManager.getInstance().syncOutputSize(rect.surfaceWidth, rect.surfaceHeight)) return;
         testNapi.notifyToplevelResize(rootId, outW, outH);
       } catch (_) {}
     }

@@ -659,6 +659,7 @@ export class WineEngineService {
   private appliedHostGraphicsLabExperiment: string = '';
   private enginePhase: string = '';
   private phaseStartedAt: number = 0;
+  private preparationStartedAt: number = 0;
   private readySafetyTimer: number = -1;
   // Want 自动化 (winehua.autoStart / winehua.program): 挂在本服务, 不引入 WineEnvService
   autoStartPending: boolean = false;
@@ -726,7 +727,11 @@ export class WineEngineService {
   }
 
   getPhaseElapsedMs(): number {
-    return this.enginePhase ? Date.now() - this.phaseStartedAt : 0;
+    return this.enginePhase ? Math.max(0, Date.now() - this.phaseStartedAt) : this.getPreparationElapsedMs();
+  }
+
+  getPreparationElapsedMs(): number {
+    return this.preparationStartedAt > 0 ? Math.max(0, Date.now() - this.preparationStartedAt) : 0;
   }
 
   private phaseText(phase: string): string {
@@ -1251,6 +1256,12 @@ export class WineEngineService {
   }
 
   private handleNativeState(raw: string): void {
+    // Proton uses state:starting:<stage>; main uses phase:<stage>. Feed both
+    // protocols to the same progress clock and localized stage display.
+    if (raw.startsWith('state:starting:')) {
+      this.handleEnginePhase(raw.substring('state:starting:'.length));
+      return;
+    }
     if (raw.startsWith('phase:')) {
       this.handleEnginePhase(raw.substring('phase:'.length));
       return;
@@ -1323,19 +1334,21 @@ export class WineEngineService {
   }
 
   private handleEnginePhase(phase: string): void {
-    this.enginePhase = phase;
-    this.phaseStartedAt = Date.now();
+    const phaseMessage = '正在初始化 Wine：' + this.phaseText(phase);
+    if (phase !== 'ready' && this.state !== EngineState.PREPARING &&
+      this.state !== EngineState.SWITCHING && this.state !== EngineState.READY) {
+      this.setState(EngineState.PREPARING, phaseMessage);
+    }
+    if (this.enginePhase !== phase) {
+      this.enginePhase = phase;
+      this.phaseStartedAt = Date.now();
+    }
     if (phase === 'ready') {
-      // phase:ready is informational. Only the following wine-ready terminal
-      // event may persist the prefix runtime marker and release callers; doing
-      // it here races past that durable finalization on upgraded prefixes.
+      // Only the terminal ready event persists the prefix marker and releases callers.
       return;
     }
-    const phaseMessage = '正在初始化 Wine：' + this.phaseText(phase);
     if (this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING) {
       this.setState(this.state, phaseMessage);
-    } else if (this.state !== EngineState.READY) {
-      this.setState(EngineState.PREPARING, phaseMessage);
     }
     this.resetReadySafetyNet();
   }
@@ -1355,6 +1368,13 @@ export class WineEngineService {
       hilog.warn(DOMAIN, TAG, 'unexpected engine transition %{public}s -> %{public}s', this.state, state);
     }
     hilog.info(DOMAIN, TAG, 'engine state %{public}s -> %{public}s: %{public}s', this.state, state, message);
+    const wasBusy = this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING;
+    const busy = state === EngineState.PREPARING || state === EngineState.SWITCHING;
+    if (busy && !wasBusy) {
+      this.preparationStartedAt = Date.now();
+      this.enginePhase = '';
+      this.phaseStartedAt = 0;
+    }
     this.state = state;
     this.message = message;
     if (state === EngineState.READY || state === EngineState.STOPPED || state === EngineState.ERROR) {

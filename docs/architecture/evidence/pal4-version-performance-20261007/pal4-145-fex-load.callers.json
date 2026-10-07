@@ -1,0 +1,3649 @@
+{
+  "pid": 28272,
+  "recordSHA256": "d1ee4549aafa033c7891e6889c74da95f6ded98ad82f98dba0e4e98fb1e608cc",
+  "mapsSHA256": "c201d5aac498c3bb931bd43c12b2a5ddfb4dd3071cbe0b69b61d51a69c952bcc",
+  "samples": 10528,
+  "hiddenLeafSamples": 10524,
+  "limitation": "Saved maps precede sampling; caller location is not leaf instruction. PE adjacency labels require binary layout verification. No off-CPU attribution.",
+  "processShares": [
+    {
+      "pid": 28272,
+      "percent": 80.65534914187758
+    },
+    {
+      "pid": 27986,
+      "percent": 10.602999996649464
+    },
+    {
+      "pid": 27475,
+      "percent": 7.0933890007905935
+    },
+    {
+      "pid": 27999,
+      "percent": 1.6287324170595394
+    },
+    {
+      "pid": 28073,
+      "percent": 0.01935202232421773
+    },
+    {
+      "pid": 28028,
+      "percent": 0.00010756444464431394
+    },
+    {
+      "pid": 28142,
+      "percent": 6.985685396876268e-05
+    }
+  ],
+  "threadShares": [
+    {
+      "tid": 28272,
+      "name": "com.vintage.pomelopro:Native_libwine_child19",
+      "percent": 53.35868159829082
+    },
+    {
+      "tid": 28371,
+      "name": "MSS Timer",
+      "percent": 23.904852194454946
+    },
+    {
+      "tid": 28304,
+      "name": "wined3d_cs",
+      "percent": 16.344833009289996
+    },
+    {
+      "tid": 28370,
+      "name": "wine_dsound_mix",
+      "percent": 5.681445004997047
+    },
+    {
+      "tid": 28369,
+      "name": "audio_client_ti",
+      "percent": 0.4206420487715796
+    },
+    {
+      "tid": 28375,
+      "name": "MSS Stream",
+      "percent": 0.27225185538564056
+    },
+    {
+      "tid": 28311,
+      "name": "wine_dinput_wor",
+      "percent": 0.016071548347831758
+    },
+    {
+      "tid": 28388,
+      "name": "wined3d_cs",
+      "percent": 0.0009724546782868222
+    },
+    {
+      "tid": 28275,
+      "name": "wine",
+      "percent": 0.00017061612121278675
+    },
+    {
+      "tid": 28289,
+      "name": "pal4.exe",
+      "percent": 7.966966263488349e-05
+    }
+  ],
+  "callers": [
+    {
+      "tid": 28272,
+      "mode": 2,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "percent": 19.673525450966476
+    },
+    {
+      "tid": 28272,
+      "mode": 2,
+      "source": "caller",
+      "module": "<unmapped>",
+      "percent": 17.033618052520325
+    },
+    {
+      "tid": 28371,
+      "mode": 2,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "percent": 15.337164381911155
+    },
+    {
+      "tid": 28272,
+      "mode": 2,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "percent": 10.81187378023364
+    },
+    {
+      "tid": 28304,
+      "mode": 2,
+      "source": "caller",
+      "module": "<unmapped>",
+      "percent": 10.509307928777666
+    },
+    {
+      "tid": 28371,
+      "mode": 2,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "percent": 5.815750447104301
+    },
+    {
+      "tid": 28272,
+      "mode": 1,
+      "source": "hidden",
+      "module": "<hidden>",
+      "percent": 5.299909152324713
+    },
+    {
+      "tid": 28370,
+      "mode": 2,
+      "source": "caller",
+      "module": "[anon:FEXMemJIT]",
+      "percent": 3.9143817738665354
+    },
+    {
+      "tid": 28304,
+      "mode": 2,
+      "source": "caller",
+      "module": "/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "percent": 3.330096478430401
+    },
+    {
+      "tid": 28371,
+      "mode": 2,
+      "source": "caller",
+      "module": "<unmapped>",
+      "percent": 1.9168889671250557
+    },
+    {
+      "tid": 28304,
+      "mode": 1,
+      "source": "hidden",
+      "module": "<hidden>",
+      "percent": 0.8654839892292013
+    },
+    {
+      "tid": 28370,
+      "mode": 1,
+      "source": "hidden",
+      "module": "<hidden>",
+      "percent": 0.8513791313873211
+    },
+    {
+      "tid": 28371,
+      "mode": 1,
+      "source": "hidden",
+      "module": "<hidden>",
+      "percent": 0.615264547528654
+    },
+    {
+      "tid": 28304,
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.5870066680369433
+    },
+    {
+      "tid": 28370,
+      "mode": 2,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "percent": 0.5274693358951555
+    },
+    {
+      "tid": 28304,
+      "mode": 2,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "percent": 0.5254753865271895
+    },
+    {
+      "tid": 28272,
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.42591912523095843
+    },
+    {
+      "tid": 28304,
+      "mode": 2,
+      "source": "caller",
+      "module": "/data/storage/el1/bundle/libs/arm64/opengl32.so",
+      "percent": 0.3721559334202287
+    },
+    {
+      "tid": 28369,
+      "mode": 1,
+      "source": "hidden",
+      "module": "<hidden>",
+      "percent": 0.3496476014771139
+    },
+    {
+      "tid": 28370,
+      "mode": 2,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "percent": 0.20325920437976824
+    },
+    {
+      "tid": 28375,
+      "mode": 1,
+      "source": "hidden",
+      "module": "<hidden>",
+      "percent": 0.1898935495189786
+    },
+    {
+      "tid": 28371,
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.11865734068961127
+    },
+    {
+      "tid": 28370,
+      "mode": 2,
+      "source": "caller",
+      "module": "<unmapped>",
+      "percent": 0.07073946632835831
+    },
+    {
+      "tid": 28370,
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.06843740751387148
+    }
+  ],
+  "pcs": [
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0xe60",
+      "percent": 1.4399955652876597
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1758",
+      "percent": 1.4376764565341567
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1780",
+      "percent": 1.2644893771643901
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1758",
+      "percent": 1.2344343856786015
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1780",
+      "percent": 1.0392258206676568
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x177c",
+      "percent": 0.8923566011670379
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0xe54",
+      "percent": 0.8371090385815511
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1784",
+      "percent": 0.7965683072194338
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1790",
+      "percent": 0.7500982581673381
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x175c",
+      "percent": 0.7135471361554384
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x10a0",
+      "percent": 0.7093444292283138
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1718",
+      "percent": 0.7064280538045736
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x178c",
+      "percent": 0.6564310610832222
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1788",
+      "percent": 0.628833203451031
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x177c",
+      "percent": 0.5674659679777994
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e128",
+      "percent": 0.5635546606634628
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "[anon:FEXMemJIT]",
+      "offset": "0xf5fb64",
+      "percent": 0.5525642247223157
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0xef0",
+      "percent": 0.5410561557454643
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "[anon:FEXMemJIT]",
+      "offset": "0xf5fbc4",
+      "percent": 0.5041860827105735
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1738",
+      "percent": 0.4885958265724658
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e668",
+      "percent": 0.48746339991543713
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0xe60",
+      "percent": 0.4748450889456781
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x174c",
+      "percent": 0.46347678594681246
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x175c",
+      "percent": 0.45170923249109696
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1784",
+      "percent": 0.4113660662705292
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1790",
+      "percent": 0.38971609088874315
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1764",
+      "percent": 0.3541736836781619
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x1788",
+      "percent": 0.35325813034313563
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "[anon:FEXMem_Misc]",
+      "offset": "0x17a0",
+      "percent": 0.35273574303908434
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4bc",
+      "percent": 0.3341893825685391
+    }
+  ],
+  "pePCs": [
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e128",
+      "percent": 0.5635546606634628
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e668",
+      "percent": 0.48746339991543713
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4bc",
+      "percent": 0.3341893825685391
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e128",
+      "percent": 0.3030643233058816
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e130",
+      "percent": 0.2933905156196986
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dbc8",
+      "percent": 0.24878296524353727
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e344",
+      "percent": 0.22430904813664188
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e668",
+      "percent": 0.21012852695707532
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5764",
+      "percent": 0.207618345326013
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0a0",
+      "percent": 0.20677019768768234
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e084",
+      "percent": 0.2022540981531516
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9874",
+      "percent": 0.1969972651637551
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e088",
+      "percent": 0.18982394466693361
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df44",
+      "percent": 0.18812574278311162
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e13c",
+      "percent": 0.18688483406967313
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e344",
+      "percent": 0.1853199390457005
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa37c",
+      "percent": 0.17803033712893646
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e138",
+      "percent": 0.1687527088641842
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc0c",
+      "percent": 0.1645206664152428
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e570",
+      "percent": 0.15756326665740544
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x57a0",
+      "percent": 0.15445907385540772
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e084",
+      "percent": 0.1469796384277951
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e570",
+      "percent": 0.14622765844059207
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d9c4",
+      "percent": 0.13566098503580853
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e340",
+      "percent": 0.1343063673089142
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e088",
+      "percent": 0.13284428495921208
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dda8",
+      "percent": 0.13094167403557436
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e418",
+      "percent": 0.12911699333780433
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa334",
+      "percent": 0.1279931341634442
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa93b0",
+      "percent": 0.12775963891627795
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd44",
+      "percent": 0.123194940354324
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db80",
+      "percent": 0.12013477245191265
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa37c",
+      "percent": 0.1184394441695105
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e13c",
+      "percent": 0.1157434223824313
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4a8",
+      "percent": 0.11453647664023743
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e094",
+      "percent": 0.11370576083880478
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df3c",
+      "percent": 0.1117055858148038
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbd8",
+      "percent": 0.1030541821675958
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e348",
+      "percent": 0.1029232733382192
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa93c4",
+      "percent": 0.1009917722001061
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd44",
+      "percent": 0.10067614440924853
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e094",
+      "percent": 0.09659241668634827
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e348",
+      "percent": 0.09650819883611003
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc68",
+      "percent": 0.09595171741852264
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9384",
+      "percent": 0.08810473194049577
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c0788",
+      "percent": 0.08767244515518613
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc90",
+      "percent": 0.08705894710441155
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbdc",
+      "percent": 0.0870361845495336
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4bc",
+      "percent": 0.08703333400609906
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dbf8",
+      "percent": 0.0865467586354898
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e514",
+      "percent": 0.08607726923199881
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa48c",
+      "percent": 0.08525059001912032
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dbfc",
+      "percent": 0.08363676162693741
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e08c",
+      "percent": 0.08337695001290656
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e928",
+      "percent": 0.08277415951406254
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbd4",
+      "percent": 0.08256237624231834
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0b4",
+      "percent": 0.08202680841741146
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e138",
+      "percent": 0.08128780575256843
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e080",
+      "percent": 0.08045333294065354
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa93b0",
+      "percent": 0.07930146407863226
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc90",
+      "percent": 0.07910770206353565
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dda4",
+      "percent": 0.07906201698900661
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa98d8",
+      "percent": 0.0743894070557794
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa44c",
+      "percent": 0.07345856051199313
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d6a4",
+      "percent": 0.07178934251571183
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa989c",
+      "percent": 0.07157115200629828
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df60",
+      "percent": 0.06962771980190886
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa394",
+      "percent": 0.06935622643606791
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa95e8",
+      "percent": 0.06886715792079648
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd68",
+      "percent": 0.06822845893319691
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa939c",
+      "percent": 0.06621410180710326
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db78",
+      "percent": 0.06610971542533499
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e100",
+      "percent": 0.0660446385851562
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e320",
+      "percent": 0.06528720970779847
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e080",
+      "percent": 0.06503341766905887
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dda8",
+      "percent": 0.06500501167227513
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa394",
+      "percent": 0.0640529950157217
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e624",
+      "percent": 0.06205635651021839
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df60",
+      "percent": 0.06095006896179222
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa990c",
+      "percent": 0.06018977801200729
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa368",
+      "percent": 0.05933773213303436
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc44",
+      "percent": 0.05853991719439775
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dbfc",
+      "percent": 0.05822915175619344
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e8e8",
+      "percent": 0.05773031241964487
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0dc",
+      "percent": 0.05637449135414193
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd60",
+      "percent": 0.05564967943813607
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19ddb0",
+      "percent": 0.05473961678586293
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19ddb8",
+      "percent": 0.05419021272864309
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbd8",
+      "percent": 0.05391283525317461
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e498",
+      "percent": 0.0531221437908762
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0f0",
+      "percent": 0.052860772880588436
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e5a0",
+      "percent": 0.050251299241388346
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa34c",
+      "percent": 0.050168989439434916
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c07c8",
+      "percent": 0.05012920000352606
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db84",
+      "percent": 0.049622734238334625
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0b0",
+      "percent": 0.049136598410570435
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e668",
+      "percent": 0.04862071634062606
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df34",
+      "percent": 0.04817548826105849
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5834",
+      "percent": 0.04811483999518424
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e09c",
+      "percent": 0.04808123586383608
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e320",
+      "percent": 0.046909408874400746
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd3c",
+      "percent": 0.04668508349976938
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa44c",
+      "percent": 0.046266866408874015
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e144",
+      "percent": 0.0462039109033442
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc80",
+      "percent": 0.04591752640236212
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa935c",
+      "percent": 0.045742542234056265
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e584",
+      "percent": 0.045733418477492016
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa34c",
+      "percent": 0.04406566754552636
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db78",
+      "percent": 0.043695938515499855
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc44",
+      "percent": 0.04188877323982459
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa434",
+      "percent": 0.04183851115521057
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4d4",
+      "percent": 0.04151040467092544
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e140",
+      "percent": 0.0411759125658322
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc04",
+      "percent": 0.040701488753483846
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa48c",
+      "percent": 0.039947368697018794
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0d4",
+      "percent": 0.03971942465981708
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd34",
+      "percent": 0.03953030450538916
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db04",
+      "percent": 0.03915743238373944
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e42c",
+      "percent": 0.03915512658520796
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa368",
+      "percent": 0.038944519270714816
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d8a4",
+      "percent": 0.038852249860229476
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e330",
+      "percent": 0.038598656696613214
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e34c",
+      "percent": 0.038565933092079265
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa390",
+      "percent": 0.03851569406545056
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9354",
+      "percent": 0.03850327157586221
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db94",
+      "percent": 0.03844622323794523
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db80",
+      "percent": 0.038326290009578455
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df48",
+      "percent": 0.03809136516732269
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db7c",
+      "percent": 0.037639506475853034
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e14c",
+      "percent": 0.03758391367325905
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e338",
+      "percent": 0.03734773072967954
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc98",
+      "percent": 0.036915665877478555
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d6a4",
+      "percent": 0.036911336740735705
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4f0",
+      "percent": 0.03634775490479542
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dca4",
+      "percent": 0.036322571261459415
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9608",
+      "percent": 0.03575871128857127
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db8c",
+      "percent": 0.03524810229164358
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e604",
+      "percent": 0.035244016704870616
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dcb8",
+      "percent": 0.03483599989022889
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc7c",
+      "percent": 0.03480424039770591
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e340",
+      "percent": 0.03450942820309128
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e5c4",
+      "percent": 0.03446366386673773
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa935c",
+      "percent": 0.03423860640107262
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa43c",
+      "percent": 0.033597549734474604
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc78",
+      "percent": 0.03345096723958025
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4a0",
+      "percent": 0.03344963564092832
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dbf0",
+      "percent": 0.03331281820281479
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e158",
+      "percent": 0.03315497188209415
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d8c8",
+      "percent": 0.032870623689440194
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4f0",
+      "percent": 0.032433659015359814
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc88",
+      "percent": 0.03230612818083181
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e418",
+      "percent": 0.03168079850134258
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e08c",
+      "percent": 0.0312525007474924
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df34",
+      "percent": 0.03099899549244515
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db7c",
+      "percent": 0.030866004238769788
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e414",
+      "percent": 0.030603777300777218
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd30",
+      "percent": 0.03055139244039015
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e500",
+      "percent": 0.030161121627696328
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4d0",
+      "percent": 0.029815087559828948
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x575c",
+      "percent": 0.029755046007193288
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dcc0",
+      "percent": 0.029033785020925906
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dda4",
+      "percent": 0.02887567353337415
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19ddc8",
+      "percent": 0.02862375639706546
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc14",
+      "percent": 0.028544583922238926
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc80",
+      "percent": 0.028458616547364937
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc00",
+      "percent": 0.027596181604883606
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db84",
+      "percent": 0.02646520615980569
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db4c",
+      "percent": 0.025890137123806393
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd30",
+      "percent": 0.025663030379696427
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa41c",
+      "percent": 0.025422547121855713
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc50",
+      "percent": 0.025368205214965054
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd34",
+      "percent": 0.025142879700220656
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3ec",
+      "percent": 0.024685230572188816
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dcdc",
+      "percent": 0.024386889064696937
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e130",
+      "percent": 0.023889960658681337
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa360",
+      "percent": 0.023685442093435382
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db94",
+      "percent": 0.023661221120986266
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:win32u.dll>",
+      "offset": "0x2dea0",
+      "percent": 0.023138856874920274
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3b0",
+      "percent": 0.023062158810142834
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df18",
+      "percent": 0.022868617287030806
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dad4",
+      "percent": 0.022417066996114735
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e578",
+      "percent": 0.0223652052637695
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc14",
+      "percent": 0.02210038286130493
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4e8",
+      "percent": 0.021817317269084105
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e574",
+      "percent": 0.02168450039142269
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de20",
+      "percent": 0.021540810232561262
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd10",
+      "percent": 0.02141272744750979
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de24",
+      "percent": 0.021324173254908294
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa348",
+      "percent": 0.021287234362433984
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3d4",
+      "percent": 0.02109808106215218
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e960",
+      "percent": 0.021051463580341982
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0cc",
+      "percent": 0.02086921614666196
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e494",
+      "percent": 0.020814042711175887
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x57f4",
+      "percent": 0.020765155458936264
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9cf4",
+      "percent": 0.02030385884585244
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc68",
+      "percent": 0.020220848657595075
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc60",
+      "percent": 0.020025626783803232
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc1c",
+      "percent": 0.01994919100360875
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa991c",
+      "percent": 0.01964964471638417
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e664",
+      "percent": 0.019550169685487954
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa98ec",
+      "percent": 0.019344826797266998
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0ec",
+      "percent": 0.019224005836465604
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db14",
+      "percent": 0.019173108216131347
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1bffac",
+      "percent": 0.019149600600102908
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c0788",
+      "percent": 0.01913303776102647
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3e8",
+      "percent": 0.019076366997619016
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa52c",
+      "percent": 0.019030203469894702
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e890",
+      "percent": 0.01898761969439051
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c07d8",
+      "percent": 0.01898488732313071
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e060",
+      "percent": 0.0189789455685399
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18daf4",
+      "percent": 0.018967240758744473
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbfc",
+      "percent": 0.018945368818549305
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc00",
+      "percent": 0.018922940604458413
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db9c",
+      "percent": 0.018917520536785352
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df44",
+      "percent": 0.01891573066067529
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa955c",
+      "percent": 0.018850561588555255
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa494",
+      "percent": 0.018819333870818602
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9d4c",
+      "percent": 0.018600388212385993
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9890",
+      "percent": 0.01852983510069495
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0e0",
+      "percent": 0.01838926497547143
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5890",
+      "percent": 0.018383696472017905
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa400",
+      "percent": 0.01835008081167709
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df58",
+      "percent": 0.018263917443927927
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa39c",
+      "percent": 0.018192052909322104
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x57fc",
+      "percent": 0.018094565188535208
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e530",
+      "percent": 0.018018555981069048
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4a8",
+      "percent": 0.01801065862109873
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e608",
+      "percent": 0.01797596644106853
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19ddc0",
+      "percent": 0.017947736261422802
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dcb8",
+      "percent": 0.01793936765387761
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa97f8",
+      "percent": 0.01791012292287803
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa97fc",
+      "percent": 0.017821989538508536
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4f8",
+      "percent": 0.017799422976505757
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e2a0",
+      "percent": 0.017631299999955132
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3d4",
+      "percent": 0.01760977969403601
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c0798",
+      "percent": 0.017597409084914622
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de34",
+      "percent": 0.017584557140349785
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d7cc",
+      "percent": 0.01742783633753733
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dafc",
+      "percent": 0.01735388937863276
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dec0",
+      "percent": 0.01733173065474524
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dce4",
+      "percent": 0.017297140794524872
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e618",
+      "percent": 0.0172178501475236
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18daac",
+      "percent": 0.01718457459246618
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de5c",
+      "percent": 0.017145508600846578
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e5c0",
+      "percent": 0.017099035231444598
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dbec",
+      "percent": 0.017072747687061643
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de7c",
+      "percent": 0.017064632717354915
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa98b8",
+      "percent": 0.017042077684344792
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d6bc",
+      "percent": 0.01703423796933776
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa46c",
+      "percent": 0.017032430799738714
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa310",
+      "percent": 0.016977247276384066
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e588",
+      "percent": 0.016972137050388674
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dcb0",
+      "percent": 0.016955506478480372
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e42c",
+      "percent": 0.016868981388586585
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4a8",
+      "percent": 0.01683137237341406
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0fc",
+      "percent": 0.016695859152594895
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db28",
+      "percent": 0.016594196495341936
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4c8",
+      "percent": 0.016580593725130287
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa98c8",
+      "percent": 0.01655027679781357
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c04fc",
+      "percent": 0.01651414637594936
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19f0d8",
+      "percent": 0.016357295871969508
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e330",
+      "percent": 0.01633540519716127
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de44",
+      "percent": 0.016275904066056425
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa93a8",
+      "percent": 0.01626771127564926
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19ddb8",
+      "percent": 0.016203661956941073
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd50",
+      "percent": 0.016163512240011675
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa98d0",
+      "percent": 0.01605949766825661
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db50",
+      "percent": 0.015895875322214616
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dde4",
+      "percent": 0.015724215827166335
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e628",
+      "percent": 0.015719356356761242
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e578",
+      "percent": 0.01569918061961079
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db8c",
+      "percent": 0.015688800202846884
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9360",
+      "percent": 0.01563844300404344
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dcf0",
+      "percent": 0.015614902242161112
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1840c",
+      "percent": 0.015556311901476202
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e104",
+      "percent": 0.015554559494592278
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df18",
+      "percent": 0.01547748385530531
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de84",
+      "percent": 0.015469721960998715
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa464",
+      "percent": 0.015447458035053192
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df48",
+      "percent": 0.015389366323300716
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa334",
+      "percent": 0.015370721059925535
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de4c",
+      "percent": 0.015289100115283387
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9918",
+      "percent": 0.015114761570566342
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e438",
+      "percent": 0.015108930782529862
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e43c",
+      "percent": 0.015031147551318545
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4d8",
+      "percent": 0.014863102395468359
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e494",
+      "percent": 0.014783491818920844
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa93c4",
+      "percent": 0.014760185960263909
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa430",
+      "percent": 0.014757273448493834
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e6bc",
+      "percent": 0.014717034381871342
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df0c",
+      "percent": 0.01468707197107884
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d6d4",
+      "percent": 0.014685367121289627
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa984c",
+      "percent": 0.014637410835207088
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dcb4",
+      "percent": 0.014514444040647338
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df28",
+      "percent": 0.014413333333917854
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc7c",
+      "percent": 0.014393568317130822
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc50",
+      "percent": 0.014326524342579874
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c07c8",
+      "percent": 0.014247949934247444
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e14c",
+      "percent": 0.014227151631493493
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e440",
+      "percent": 0.014211405909771649
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc50",
+      "percent": 0.014181195625637013
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e100",
+      "percent": 0.014083723757215021
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa448",
+      "percent": 0.014015528324522415
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4dc",
+      "percent": 0.014014770293255192
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d6d4",
+      "percent": 0.013891212637821749
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9914",
+      "percent": 0.013859773074845018
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de2c",
+      "percent": 0.01382191474520628
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de34",
+      "percent": 0.013814954115889374
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dae4",
+      "percent": 0.013750449401971218
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9558",
+      "percent": 0.013546237796154766
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18db1c",
+      "percent": 0.01353824820424319
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5760",
+      "percent": 0.013427343618251243
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de8c",
+      "percent": 0.013418425942430744
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd68",
+      "percent": 0.013325130451598895
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c07e8",
+      "percent": 0.013289658623440238
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d9ac",
+      "percent": 0.013162286312561278
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa300",
+      "percent": 0.012928961118036727
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd84",
+      "percent": 0.012689551497637232
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de2c",
+      "percent": 0.012640972645951192
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:wow64.dll>",
+      "offset": "0x1cab4",
+      "percent": 0.012638277743917525
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbec",
+      "percent": 0.012620904993106905
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc04",
+      "percent": 0.012450216815690009
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d894",
+      "percent": 0.012326608720913691
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0f8",
+      "percent": 0.012194503758548868
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c07f0",
+      "percent": 0.012164897305404664
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0d0",
+      "percent": 0.01215927692148418
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa30c",
+      "percent": 0.01214246044456928
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:ntdll.dll>",
+      "offset": "0x66710",
+      "percent": 0.01210686756198772
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19f0b8",
+      "percent": 0.012099330483037945
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e928",
+      "percent": 0.012091342332250449
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc78",
+      "percent": 0.01207262645379524
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd3c",
+      "percent": 0.012013746447169816
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dc44",
+      "percent": 0.012010962195443052
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa474",
+      "percent": 0.011997791762456056
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e410",
+      "percent": 0.011922066456434085
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:ntdll.dll>",
+      "offset": "0x66724",
+      "percent": 0.01187118468846473
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e428",
+      "percent": 0.011607825026943568
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e0f0",
+      "percent": 0.011578279101010815
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dc98",
+      "percent": 0.011444949183176144
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19d1a4",
+      "percent": 0.011217977904729901
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19de54",
+      "percent": 0.011097865976976939
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df28",
+      "percent": 0.011087105103455338
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:ntdll.dll>",
+      "offset": "0x66390",
+      "percent": 0.010924635656679086
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e104",
+      "percent": 0.010842178860069277
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19df3c",
+      "percent": 0.010701675026553538
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa939c",
+      "percent": 0.010657916734922375
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa408",
+      "percent": 0.01056021140439907
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3ac",
+      "percent": 0.010496620363149014
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3c4",
+      "percent": 0.010446927522547453
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5870",
+      "percent": 0.01035541181995709
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd58",
+      "percent": 0.010330529371554256
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5834",
+      "percent": 0.010085974938181396
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c0110",
+      "percent": 0.009996290904299479
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18950",
+      "percent": 0.009946403511946825
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa4dc",
+      "percent": 0.009942598944369883
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e66c",
+      "percent": 0.009851599164200938
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18c34",
+      "percent": 0.009773131399050589
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x58cc",
+      "percent": 0.009760504269842572
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dce4",
+      "percent": 0.009740946774923374
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa3a0",
+      "percent": 0.009722676203809559
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x183ec",
+      "percent": 0.00950039722537488
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dcb8",
+      "percent": 0.00944507967748059
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19ded4",
+      "percent": 0.00939704412957353
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18934",
+      "percent": 0.008965754602128756
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d6c4",
+      "percent": 0.008685956038202223
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4a8",
+      "percent": 0.008638325446162255
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5558",
+      "percent": 0.008582369480299562
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4e8",
+      "percent": 0.008493995428208341
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:ntdll.dll>",
+      "offset": "0x663a4",
+      "percent": 0.008345229630329493
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e8dc",
+      "percent": 0.007551743828435743
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5744",
+      "percent": 0.00752665674041324
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18b80",
+      "percent": 0.007287431583896263
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5870",
+      "percent": 0.007244056631270959
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e570",
+      "percent": 0.006983514367330448
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dcc4",
+      "percent": 0.00693800366881536
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1c07d8",
+      "percent": 0.006877970762924194
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18838",
+      "percent": 0.006832432683051544
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:wow64.dll>",
+      "offset": "0x1dc20",
+      "percent": 0.006803267213876486
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9384",
+      "percent": 0.00675463071722716
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x57fc",
+      "percent": 0.006228028125235491
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x577c",
+      "percent": 0.006147534139625603
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4e8",
+      "percent": 0.005942289247842233
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e880",
+      "percent": 0.005754843679597806
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x15124",
+      "percent": 0.005544583676008465
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4f0",
+      "percent": 0.005422802926568345
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa330",
+      "percent": 0.005252741638127195
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1884c",
+      "percent": 0.00515970699075422
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1889c",
+      "percent": 0.005062242327952639
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18d6d8",
+      "percent": 0.004569121371762143
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e548",
+      "percent": 0.004339767915208066
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9414",
+      "percent": 0.004100405851903283
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e5a0",
+      "percent": 0.004007832364236604
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18950",
+      "percent": 0.003959783846212805
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18da20",
+      "percent": 0.003903189462381709
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e588",
+      "percent": 0.0036983927601878944
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e578",
+      "percent": 0.003671874635951791
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e88c",
+      "percent": 0.0036637351671356664
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e604",
+      "percent": 0.0036508630468336787
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa935c",
+      "percent": 0.003634829100295399
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e614",
+      "percent": 0.0035952933022250087
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbd4",
+      "percent": 0.003518850316410115
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5784",
+      "percent": 0.003375101071461318
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5870",
+      "percent": 0.00332014236346349
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9454",
+      "percent": 0.003277297744500426
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e5b4",
+      "percent": 0.0032688556396270442
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e4d8",
+      "percent": 0.0032688556396270442
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:wow64.dll>",
+      "offset": "0x1bcf8",
+      "percent": 0.0032688556396270442
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e5b0",
+      "percent": 0.003254654802921291
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18bfc",
+      "percent": 0.0032373195213368077
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e5f8",
+      "percent": 0.0032053294489606857
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x58f4",
+      "percent": 0.0031975315265520363
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:ntdll.dll>",
+      "offset": "0x570dc",
+      "percent": 0.003193371001326797
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9394",
+      "percent": 0.0031046179336019645
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18418",
+      "percent": 0.0030178161478843966
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x579c",
+      "percent": 0.003004856119013396
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa93c4",
+      "percent": 0.00289835704934066
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e5c0",
+      "percent": 0.002849188777905011
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e618",
+      "percent": 0.002754874412347065
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e50c",
+      "percent": 0.002754874412347065
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x58a0",
+      "percent": 0.002722333830571552
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:ntdll.dll>",
+      "offset": "0x663a4",
+      "percent": 0.002545053951602788
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xf8a94",
+      "percent": 0.0024370863764903153
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:wow64.dll>",
+      "offset": "0x1cab4",
+      "percent": 0.0020635340442738018
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dbf4",
+      "percent": 0.0019976732325943194
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa39c",
+      "percent": 0.0017306098821819674
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19dd6c",
+      "percent": 0.0015997788735057873
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:wow64.dll>",
+      "offset": "0x1caec",
+      "percent": 0.00137788611632513
+    },
+    {
+      "tid": 28370,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x19e608",
+      "percent": 0.0012913004992198885
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5570",
+      "percent": 0.0011746890618625297
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x152a8",
+      "percent": 0.0008716105795125406
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9838",
+      "percent": 0.0008503295001910617
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x58cc",
+      "percent": 0.0008065092402243648
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1ff4",
+      "percent": 0.0006026694444211143
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x5894",
+      "percent": 0.0005280192169644465
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:wow64.dll>",
+      "offset": "0x1b9d0",
+      "percent": 0.0005280192169644465
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x58ac",
+      "percent": 0.0004056778702563597
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:wow64.dll>",
+      "offset": "0x1caa0",
+      "percent": 0.00027261888374913705
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xaa440",
+      "percent": 0.0002519459587903359
+    },
+    {
+      "tid": 28375,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x1ff4",
+      "percent": 0.00023254410527201317
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x57fc",
+      "percent": 0.00017096343211659096
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18e3f8",
+      "percent": 1.9780869151934784e-05
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0x18dbc8",
+      "percent": 1.5149096351824162e-05
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "<PE-code-adjacent:libwow64fex.dll>",
+      "offset": "0xa9510",
+      "percent": 1.3565300985513778e-05
+    }
+  ],
+  "unmappedPCs": [
+    {
+      "tid": 28304,
+      "source": "caller",
+      "address": "0x7fa95ba3f4",
+      "percent": 0.9376155540395832
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa92f2fcc",
+      "percent": 0.5169456281637579
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa92f314c",
+      "percent": 0.3887073069134688
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa948b114",
+      "percent": 0.3521790814809867
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa96207dc",
+      "percent": 0.3376790530045333
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa92f2c5c",
+      "percent": 0.3256064582554679
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "address": "0x7fa95ba420",
+      "percent": 0.32456661805622267
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa963caf4",
+      "percent": 0.247736846066666
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa9648b30",
+      "percent": 0.23434063649308606
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "address": "0x7fa95b4e08",
+      "percent": 0.2221414101709199
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa92f2cb8",
+      "percent": 0.21957627703748017
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "address": "0x7fa930a948",
+      "percent": 0.20581805853558194
+    }
+  ]
+}
