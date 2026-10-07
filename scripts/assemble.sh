@@ -934,6 +934,9 @@ HKLM,%FontSubStr%,"Courier",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Courier New",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Fixedsys",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/wine.inf"
+    # Preserve identical INF timestamps only when prefix-installed PE builtins
+    # are also identical. Otherwise an FEX/ntdll update can keep old DLLs active.
+    python3 "$SCRIPT_DIR/stamp_wine_builtin_identity.py" "$wine_data"
     # XKB
     if [ -d "$SYSROOT_EXT_SHARE/X11/xkb" ]; then
         cp -r "$SYSROOT_EXT_SHARE/X11/xkb" "$wine_data/share/X11/"

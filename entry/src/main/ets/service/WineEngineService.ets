@@ -821,14 +821,10 @@ export class WineEngineService {
       this.appliedHostGraphicsLabExperiment === this.hostGraphicsLabExperiment) return this.waitForReady();
 
     if (this.state === EngineState.ERROR) {
-      // native 进程仍存活说明协调者可能还在推进 (例如之前 ArkTS 侧瞬态失败):
-      // 不重启 server, 只重新进入等待, 避免双服务竞态。
-      let processes: NativeProcessInfo[] = [];
-      try { processes = testNapi.getProcessList() as NativeProcessInfo[]; } catch (_) {}
-      if (processes.length > 0) {
-        this.setState(EngineState.PREPARING, '正在等待引擎恢复');
-        return this.waitForReady();
-      }
+      // A failed coordinator has no pending ready event. Residual services
+      // cannot recover it; use the existing serialized stop/drain/restart path
+      // so runtime repair runs before a new Wine session starts.
+      return this.restart(mode, presentationMode, homeDirectory, requestedPrefixMode);
     }
 
     if (this.state !== EngineState.STOPPED &&
@@ -1123,9 +1119,9 @@ export class WineEngineService {
    * Concurrent UI requests share one operation so two taps cannot start competing servers.
    */
   async restart(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string): Promise<boolean> {
+    homeDirectory: string, prefixMode: string = 'reuse'): Promise<boolean> {
     if (this.restartPromise) return this.restartPromise;
-    const operation = this.performRestart(mode, presentationMode, homeDirectory);
+    const operation = this.performRestart(mode, presentationMode, homeDirectory, prefixMode);
     this.restartPromise = operation;
     const ready = await operation;
     if (this.restartPromise === operation) this.restartPromise = null;
@@ -1133,12 +1129,12 @@ export class WineEngineService {
   }
 
   private async performRestart(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string): Promise<boolean> {
+    homeDirectory: string, prefixMode: string): Promise<boolean> {
     if (this.state !== EngineState.STOPPED) {
       this.setState(EngineState.SWITCHING, '正在重新启动 Wine 引擎');
     }
     await this.stopSession();
-    return this.startSession(mode, presentationMode, homeDirectory);
+    return this.startSession(mode, presentationMode, homeDirectory, prefixMode);
   }
 
   private async waitForNativeShutdown(): Promise<void> {
@@ -1561,6 +1557,76 @@ export class WineEngineService {
     }
   }
 
+  private binaryFilesMatch(left: string, right: string): boolean {
+    if (!pathExists(right)) return false;
+    if (fs.statSync(left).size !== fs.statSync(right).size) return false;
+    const size = fs.statSync(left).size;
+    let inputLeft: fs.File | null = null;
+    let inputRight: fs.File | null = null;
+    try {
+      inputLeft = fs.openSync(left, fs.OpenMode.READ_ONLY);
+      inputRight = fs.openSync(right, fs.OpenMode.READ_ONLY);
+      const leftBuffer = new ArrayBuffer(64 * 1024);
+      const rightBuffer = new ArrayBuffer(64 * 1024);
+      const leftBytes = new Uint8Array(leftBuffer);
+      const rightBytes = new Uint8Array(rightBuffer);
+      let position = 0;
+      while (position < size) {
+        const requested = Math.min(leftBuffer.byteLength, size - position);
+        const leftRead = fs.readSync(inputLeft.fd, leftBuffer, { offset: position, length: requested });
+        const rightRead = fs.readSync(inputRight.fd, rightBuffer, { offset: position, length: requested });
+        if (leftRead !== requested || rightRead !== requested) {
+          throw new Error('Incomplete managed CPU module comparison');
+        }
+        for (let index = 0; index < requested; index++) {
+          if (leftBytes[index] !== rightBytes[index]) return false;
+        }
+        position += requested;
+      }
+      return true;
+    } finally {
+      if (inputLeft) fs.closeSync(inputLeft);
+      if (inputRight) fs.closeSync(inputRight);
+    }
+  }
+
+  private syncManagedFexModules(): void {
+    // These two CPU modules are paired with the app's Wine runtime. They are
+    // ordinary MinGW PE files, so wineboot's WineFakeDlls update skips them.
+    // Run before starting Wine, including after an interrupted runtime refresh.
+    const system32 = PREFIX_DIR + '/drive_c/windows/system32';
+    const names: string[] = ['libwow64fex.dll', 'libarm64ecfex.dll'];
+    if (!names.some((name: string): boolean => pathExists(WINE_BIN + '/aarch64-windows/' + name))) {
+      return; // Historical x64-only Wine runtime.
+    }
+    // wineboot does not install these ordinary MinGW DLLs. On a fresh prefix
+    // its 32-bit registration workers already need FEX, so create system32
+    // and deploy both CPU modules before the first wineserver/wineboot launch.
+    for (const name of names) {
+      const source = WINE_BIN + '/aarch64-windows/' + name;
+      if (!pathExists(source) || !fs.statSync(source).isFile() || fs.statSync(source).size === 0) {
+        throw new Error('Missing or empty managed CPU module: ' + name);
+      }
+    }
+    if (!pathExists(system32)) fs.mkdirSync(system32, true);
+    for (const name of names) {
+      const source = WINE_BIN + '/aarch64-windows/' + name;
+      const target = system32 + '/' + name;
+      if (this.binaryFilesMatch(source, target)) continue;
+      const temporary = target + '.winehua-update';
+      try {
+        fs.copyFileSync(source, temporary);
+        if (!this.binaryFilesMatch(source, temporary)) {
+          throw new Error('Incomplete managed CPU module copy: ' + name);
+        }
+        fs.renameSync(temporary, target);
+        hilog.info(DOMAIN, TAG, 'updated managed CPU module: %{public}s', name);
+      } finally {
+        if (pathExists(temporary)) fs.unlinkSync(temporary);
+      }
+    }
+  }
+
   private async ensureRuntimeInstalled(bundledVersion: Uint8Array): Promise<boolean> {
     // Recover or reconcile a marker stashed by a previous interrupted extract
     // before deciding whether this runtime is complete.
@@ -1577,6 +1643,7 @@ export class WineEngineService {
     const prefixMatches = this.prefixVersionMatches(bundledVersion);
     const fontSubstitutesCurrent = this.prefixFontSubstitutesCurrent();
     if (missingBefore.length === 0 && versionMatches) {
+      this.syncManagedFexModules();
       if (prefixMatches && fontSubstitutesCurrent) return false;
       // Upgrade path for versions released before the prefix marker existed:
       // when the extracted runtime itself did not change and the prefix is
@@ -1638,6 +1705,7 @@ export class WineEngineService {
       if (missingAfter.length > 0) {
         throw new Error('Wine runtime incomplete after extract: ' + missingAfter.join(', '));
       }
+      this.syncManagedFexModules();
       if (!this.writeVersionMarker(RUNTIME_VERSION_MARKER, bundledVersion)) {
         throw new Error('Unable to persist Wine runtime version marker');
       }

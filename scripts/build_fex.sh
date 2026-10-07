@@ -138,14 +138,41 @@ if [ "${FEX_EXACTSTORE_DIAGNOSTICS:-0}" = "1" ]; then
     fi
 fi
 
-# Keep this separate from patched_source: an already staged older patch set
-# must still acquire the synthetic-return fix.
+# Keep these separate from patched_source: an already staged older patch set
+# must still acquire the synthetic-return and native ABI fault fixes.
 callret_patch="$SCRIPT_DIR/patches/fex-wow64-synthetic-return.patch"
-if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$callret_patch" >/dev/null 2>&1; then
+native_callret_patch="$SCRIPT_DIR/patches/fex-windows-native-callret-fault.patch"
+# The native overlay changes a context line of the earlier synthetic-return
+# patch. Verify both in reverse order on copies; never rewrite staged sources
+# merely to determine whether this combined patch set is already applied.
+callret_already_applied=0
+if patch -d "$FEX_SRC" -p1 --batch --force -R --dry-run -s < "$native_callret_patch" >/dev/null 2>&1; then
+    callret_probe="$(mktemp -d "${TMPDIR:-/tmp}/fex-callret-probe.XXXXXX")"
+    for callret_file in Common/CallRetStack.h WOW64/Module.cpp ARM64EC/Module.cpp; do
+        mkdir -p "$callret_probe/Source/Windows/$(dirname "$callret_file")"
+        cp "$FEX_SRC/Source/Windows/$callret_file" "$callret_probe/Source/Windows/$callret_file"
+    done
+    if patch -d "$callret_probe" -p1 --batch --force -R -s < "$native_callret_patch" >/dev/null 2>&1 &&
+       patch -d "$callret_probe" -p1 --batch --force -R --dry-run -s < "$callret_patch" >/dev/null 2>&1; then
+        callret_already_applied=1
+    fi
+    rm -rf -- "$callret_probe"
+    [ "$callret_already_applied" = 1 ] || err "FEX native call-ret overlay 缺少完整 synthetic-return 基线"
+fi
+if [ "$callret_already_applied" = 0 ] &&
+   ! patch -d "$FEX_SRC" -p1 --batch --force -R --dry-run -s < "$callret_patch" >/dev/null 2>&1; then
     patch -d "$FEX_SRC" -p1 --dry-run -s < "$callret_patch" >/dev/null || \
         err "FEX WOW64 synthetic return patch 无法应用"
     patch -d "$FEX_SRC" -p1 -s < "$callret_patch"
     log "已应用 patch: $(basename "$callret_patch")"
+fi
+
+# Native helpers do not use the JIT's shadow-stack register convention.
+if ! patch -d "$FEX_SRC" -p1 --batch --force -R --dry-run -s < "$native_callret_patch" >/dev/null 2>&1; then
+    patch -d "$FEX_SRC" -p1 --batch --dry-run -s < "$native_callret_patch" >/dev/null || \
+        err "FEX Windows native call-ret fault patch 无法应用"
+    patch -d "$FEX_SRC" -p1 --batch -s < "$native_callret_patch"
+    log "已应用 patch: $(basename "$native_callret_patch")"
 fi
 
 # POSIX read-only is zero. Preserve the explicit share and create modes

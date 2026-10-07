@@ -175,6 +175,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0043-winebus-canonical-whgp-v2.pa
     "Canonical WHGP v2 controller axes from main"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0044-wayland-input-thread-desktop.patch" \
     "Wayland input thread follows the focused window desktop"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0045-ntdll-arm64-invalid-leaf-unwind.patch" \
+    "ARM64 metadata-free unwind rejects non-progressing adjusted return PCs"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \
