@@ -1,0 +1,15 @@
+known-pair-relative	0	0	PASS
+known-pair-absolute	0	0	PASS
+known-pair-case	0	0	PASS
+known-pair-no-fallback	0	0	PASS
+null-name	73	73	PASS
+empty-name	73	73	PASS
+other-client	73	73	PASS
+decoder-as-client	73	73	PASS
+same-hash-other-directory	73	73	PASS
+corrupt-client	73	73	PASS
+corrupt-decoder	73	73	PASS
+missing-decoder	73	73	PASS
+pair-restored	0	0	PASS
+null-verifier-fails	5	5	PASS
+SUMMARY	14 checks	0 failures

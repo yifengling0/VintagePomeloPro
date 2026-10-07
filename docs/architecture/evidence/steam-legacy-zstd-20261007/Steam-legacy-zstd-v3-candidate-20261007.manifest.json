@@ -1,0 +1,74 @@
+{
+  "source_sha256": "6fef7f410bdfcb0df852dd72e46aaa17b8d370caacd0f044f655e1febebc2153",
+  "output_sha256": "3ce4d0b2a730acd0864a2cb786370af4d226c3591ac45935b594a7340216202b",
+  "modified": [
+    {
+      "name": "steamclient.dll",
+      "source_sha256": "95a7e01a64e20f0726b63cfb63b5240e51c7b15940b52d03e8da4c412ca54669",
+      "patched_sha256": "9c45de0b9a5fcc67e6bbfb28f54288da0b19f60332a750944dfc58e6aebddecd",
+      "decoder_rva": "0xa1cb00",
+      "thunk_rva": "0xd9f064",
+      "helper": "vpsteamzstd32.dll",
+      "section": "RW data; existing RX code",
+      "original_signature": "invalidated by the requested binary modification"
+    },
+    {
+      "name": "steamclient64.dll",
+      "source_sha256": "a2ad498763c4822fd4555c2cba4d4475a2ba450e403a774c1366826ad9451dd1",
+      "patched_sha256": "bb7878cf75b3878d3c365572e0985b69d5850b39dd00e2d3e27e0157246324f9",
+      "decoder_rva": "0xb9a1d0",
+      "thunk_rva": "0xf4cb50",
+      "helper": "vpsteamzstd64.dll",
+      "section": "RW data; existing RX code",
+      "original_signature": "invalidated by the requested binary modification"
+    },
+    {
+      "source_sha256": "f08296fb1345e489f97f7d36a2740d899e8a3a3aca0537e300bc9fda0e5e45f1",
+      "patched_sha256": "88004c47d74bf6cd25c2abd191db0eff07d7f5a29cab49b937d6581b73a07600",
+      "client_load_calls": [
+        "0x1a3d74",
+        "0x1a3dce",
+        "0x1a3e63"
+      ],
+      "thunk_rva": "0x9c82cc",
+      "unchanged_shared_verifier": "0x74ed80",
+      "hash_guard": "exact client and decoder SHA256",
+      "name": "SteamUI.dll"
+    }
+  ],
+  "private_user_state_removed": {
+    "config": 7,
+    "userdata": 11,
+    "logs": 32,
+    "appcache": 912,
+    "dumps": 7,
+    "ssfn": 0
+  },
+  "added": [
+    {
+      "path": "Steam/vpsteamzstd32.dll",
+      "bytes": 290856,
+      "sha256": "57c1b0503d131853aa899a896d3a0077b9f62a44ec5545dd6ce58e0b798e0faf"
+    },
+    {
+      "path": "Steam/vpsteamzstd64.dll",
+      "bytes": 184657,
+      "sha256": "e339ce8195a6fdffdd627a1c528fbacc0058fb6d4db7f35e2a2215fecf5c135b"
+    },
+    {
+      "path": "Steam/vpsteamtrust32.dll",
+      "bytes": 92754,
+      "sha256": "6551662acfa1cebab23f82909b0afa6d15289d7d1550f36d0571cb9ff01920b1"
+    },
+    {
+      "path": "Steam/VPP-ZSTD-README.txt",
+      "bytes": 5069,
+      "sha256": "4e42ee75b6fe17619d0abd7d992fd843414b216e2b5f2ad89069b5576ca3f1e2"
+    },
+    {
+      "path": "Steam/VPP-ZSTD-LICENSE.txt",
+      "bytes": 1549,
+      "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "Steam-legacy-zstd-v3-candidate-overlay-20261007.zip",
+  "bytes": 23755582,
+  "sha256": "3b8be6fb6abe1e7073c0ef2255c0923dd78710fef3a4478b86c6fd91ffa7aa27",
+  "members": [
+    {
+      "name": "SteamUI.dll",
+      "sha256": "88004c47d74bf6cd25c2abd191db0eff07d7f5a29cab49b937d6581b73a07600"
+    },
+    {
+      "name": "VPP-ZSTD-LICENSE.txt",
+      "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    },
+    {
+      "name": "VPP-ZSTD-README.txt",
+      "sha256": "4e42ee75b6fe17619d0abd7d992fd843414b216e2b5f2ad89069b5576ca3f1e2"
+    },
+    {
+      "name": "steamclient.dll",
+      "sha256": "9c45de0b9a5fcc67e6bbfb28f54288da0b19f60332a750944dfc58e6aebddecd"
+    },
+    {
+      "name": "steamclient64.dll",
+      "sha256": "bb7878cf75b3878d3c365572e0985b69d5850b39dd00e2d3e27e0157246324f9"
+    },
+    {
+      "name": "vpsteamtrust32.dll",
+      "sha256": "6551662acfa1cebab23f82909b0afa6d15289d7d1550f36d0571cb9ff01920b1"
+    },
+    {
+      "name": "vpsteamzstd32.dll",
+      "sha256": "57c1b0503d131853aa899a896d3a0077b9f62a44ec5545dd6ce58e0b798e0faf"
+    },
+    {
+      "name": "vpsteamzstd64.dll",
+      "sha256": "e339ce8195a6fdffdd627a1c528fbacc0058fb6d4db7f35e2a2215fecf5c135b"
+    }
+  ]
+}

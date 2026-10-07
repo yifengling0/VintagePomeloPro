@@ -1,0 +1,27 @@
+regression	bits=32	pid=852	utc=2026-10-07T10:32:32.501Z
+exact-dll-hash	PASS
+loaded-base=7a640000	reserved-preferred=00000000
+zip-original-route	PASS
+lzma-original-route	PASS
+zstd-new-route	PASS
+zstd-append-cursor	PASS
+large-zstd-block	PASS
+encrypted-unpack	bytes=68224	output=524288	expected=524288	PASS
+large-encrypted-chain	PASS
+empty-zstd	PASS
+encrypted-unpack	bytes=320	output=544	expected=544	PASS
+pkzip-encrypted-chain	PASS
+encrypted-unpack	bytes=304	output=798	expected=798	PASS
+vzip-encrypted-chain	PASS
+encrypted-unpack	bytes=176	output=156	expected=156	PASS
+zstd-encrypted-chain	PASS
+bad-footer	PASS
+header-footer-crc	PASS
+bad-output-crc	PASS
+bad-zstd-frame	PASS
+truncated	PASS
+declared-limit	PASS
+overflow-footer-size	PASS
+worker-create	PASS
+concurrent-completion	PASS
+RESULT	checks=180	failures=0

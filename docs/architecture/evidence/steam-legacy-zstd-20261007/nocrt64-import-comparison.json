@@ -1,0 +1,56 @@
+[
+  {
+    "file": "workspace_temp\\steam-tablet-startup-20261007\\copied\\vpsteamzstd64.dll",
+    "imports": {
+      "KERNEL32.dll": [
+        "DeleteCriticalSection",
+        "EnterCriticalSection",
+        "GetLastError",
+        "GetModuleHandleW",
+        "InitializeCriticalSection",
+        "LeaveCriticalSection",
+        "Sleep",
+        "TlsGetValue",
+        "VirtualProtect",
+        "VirtualQuery"
+      ],
+      "msvcrt.dll": [
+        "__iob_func",
+        "_amsg_exit",
+        "_initterm",
+        "_lock",
+        "_unlock",
+        "abort",
+        "calloc",
+        "fprintf",
+        "free",
+        "malloc",
+        "memcpy",
+        "memmove",
+        "memset",
+        "realloc",
+        "strlen",
+        "strncmp",
+        "vfprintf"
+      ]
+    },
+    "tls": 166560,
+    "entry": "0x1200",
+    "size": 269552
+  },
+  {
+    "file": "workspace_temp\\steam-tablet-startup-20261007\\nocrt64\\vpsteamzstd64.dll",
+    "imports": {
+      "KERNEL32.dll": [
+        "GetModuleHandleW",
+        "GetProcessHeap",
+        "HeapAlloc",
+        "HeapFree",
+        "HeapReAlloc"
+      ]
+    },
+    "tls": 0,
+    "entry": "0x24b00",
+    "size": 184657
+  }
+]

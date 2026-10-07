@@ -1,0 +1,12 @@
+{
+  "name": "vpsteamzstd64.dll",
+  "sha256": "e339ce8195a6fdffdd627a1c528fbacc0058fb6d4db7f35e2a2215fecf5c135b",
+  "imports": [
+    "KERNEL32.dll"
+  ],
+  "exports": [
+    "VPDecodeVSZa"
+  ],
+  "tls_directory": 0,
+  "entry_rva": "0x24b00"
+}

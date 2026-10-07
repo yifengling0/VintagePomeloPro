@@ -1,0 +1,24 @@
+{
+  "unpackFailures": 528,
+  "hosts": {
+    "st.dl.eccdnx.com": 303,
+    "dl.steam.clngaa.com": 30,
+    "xz.pphimalayanrt.com": 195
+  },
+  "depot": {
+    "1942281": 528
+  },
+  "u": {
+    "0": 528
+  },
+  "b": {
+    "0": 528
+  },
+  "cAligned16": 528,
+  "statuses": {
+    "Content unavailable": 3,
+    "Suspended": 1
+  },
+  "successfulDepotAuth": 9,
+  "httpErrorLines": []
+}

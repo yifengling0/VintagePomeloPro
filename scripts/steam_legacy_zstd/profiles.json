@@ -1,0 +1,16 @@
+{
+  "steamclient.dll": {
+    "sha256": "95a7e01a64e20f0726b63cfb63b5240e51c7b15940b52d03e8da4c412ca54669",
+    "machine": 332,
+    "decoder_rva": 10603264,
+    "stolen_bytes": "558bec81ec8c020000",
+    "helper": "vpsteamzstd32.dll"
+  },
+  "steamclient64.dll": {
+    "sha256": "a2ad498763c4822fd4555c2cba4d4475a2ba450e403a774c1366826ad9451dd1",
+    "machine": 34404,
+    "decoder_rva": 12165584,
+    "stolen_bytes": "48895c2418",
+    "helper": "vpsteamzstd64.dll"
+  }
+}

@@ -1,0 +1,12 @@
+probe	bits=64	processArch=9
+cpuid	aes=1	crc32=1	avx=1	osxsave=1
+x86-crc32c	status=0x00000000	PASS
+x86-aes-encrypt	status=0x00000000	PASS
+x86-aes-decrypt	status=0x00000000	PASS
+pkzip-header	bytes=292	magic=504b0304
+pkzip	status=0x00000000	PASS
+vzip-header	bytes=278	magic=565a6110
+vzip	status=0x00000000	PASS
+zstd-header	bytes=157	magic=56535a61
+zstd	status=0x00000000	PASS
+RESULT	failures=0

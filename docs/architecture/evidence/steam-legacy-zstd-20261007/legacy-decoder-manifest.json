@@ -1,0 +1,46 @@
+{
+  "fixtures": [
+    {
+      "format": "pkzip",
+      "source": "depot_440_chunk_bac8e2657470b2eb70d6ddcd6c07004be8738697.bin",
+      "plaintext_sha256": "6eb30f615aeef0708ceb038bcd7cecaf97306af6d476ba5e214f22accdf189e6",
+      "plaintext_length": 292,
+      "output_length": 544,
+      "output_sha1": "bac8e2657470b2eb70d6ddcd6c07004be8738697"
+    },
+    {
+      "format": "vzip",
+      "source": "depot_232250_chunk_7b8567d9b3c09295cdbf4978c32b348d8e76c750.bin",
+      "plaintext_sha256": "6e49994a4855c1ecb93f74f7e29b18c4b6542e318522abe948b958291281fcaa",
+      "plaintext_length": 278,
+      "output_length": 798,
+      "output_sha1": "7b8567d9b3c09295cdbf4978c32b348d8e76c750"
+    },
+    {
+      "format": "zstd",
+      "source": "depot_3441461_chunk_9e72678e305540630a665b93e1463bc3983eb55a.bin",
+      "plaintext_sha256": "e076aa4bc7c20d53e63f5ed25f3e972e741ff327c7a20a062093f3db232c8564",
+      "plaintext_length": 157,
+      "output_length": 156,
+      "output_sha1": "9e72678e305540630a665b93e1463bc3983eb55a"
+    }
+  ],
+  "local_dlls": [
+    {
+      "name": "steamclient.dll",
+      "sha256": "95a7e01a64e20f0726b63cfb63b5240e51c7b15940b52d03e8da4c412ca54669",
+      "bytes": 19253608
+    },
+    {
+      "name": "tier0_s.dll",
+      "sha256": "17e0d81b7105e15fd5940edd579b93559fccdb7b34b6691886bdea975c2b41f3",
+      "bytes": 349544
+    },
+    {
+      "name": "vstdlib_s.dll",
+      "sha256": "5e1620dd41451057ff1625ec2f544edc31b7ccbd42b811ea787acd0222105d84",
+      "bytes": 543080
+    }
+  ],
+  "use": "local diagnostics only; no binary patches"
+}

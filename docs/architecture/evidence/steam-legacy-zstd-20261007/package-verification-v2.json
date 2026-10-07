@@ -1,0 +1,31 @@
+{
+  "full_crc": "PASS",
+  "overlay_crc": "PASS",
+  "same_six_dlls": "PASS",
+  "installed_dlls_match": "PASS",
+  "unchanged_members": 7092,
+  "steam_exe_bat_cfg": "byte-identical",
+  "startup_patch_reproducible": "PASS",
+  "startup_unknown_and_repeat_rejected": "PASS",
+  "private_state_removed": "PASS",
+  "files": {
+    "steamclient.dll": "9c45de0b9a5fcc67e6bbfb28f54288da0b19f60332a750944dfc58e6aebddecd",
+    "vpsteamtrust32.dll": "6551662acfa1cebab23f82909b0afa6d15289d7d1550f36d0571cb9ff01920b1",
+    "steamclient64.dll": "bb7878cf75b3878d3c365572e0985b69d5850b39dd00e2d3e27e0157246324f9",
+    "SteamUI.dll": "88004c47d74bf6cd25c2abd191db0eff07d7f5a29cab49b937d6581b73a07600",
+    "vpsteamzstd32.dll": "57c1b0503d131853aa899a896d3a0077b9f62a44ec5545dd6ce58e0b798e0faf",
+    "vpsteamzstd64.dll": "9d561b3033904e240c89e7eab1d2a9585fa6b4ee3cdaf649bd387d01319b8c84"
+  },
+  "artifacts": [
+    {
+      "name": "Steam-legacy-zstd-v2-20261007.zip",
+      "bytes": 332885091,
+      "sha256": "5199545b2ffd04b9e6582798ef5c4c42e1dfdd943e69872f5f5ab69fbd8787cd"
+    },
+    {
+      "name": "Steam-legacy-zstd-v2-overlay-20261007.zip",
+      "bytes": 23784043,
+      "sha256": "b25e88542d310fd0f12e8882fe68ab159ad004dc132efb4cac79981cb0f93121"
+    }
+  ]
+}
