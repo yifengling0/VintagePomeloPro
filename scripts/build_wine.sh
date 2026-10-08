@@ -177,6 +177,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0044-wayland-input-thread-desktop
     "Wayland input thread follows the focused window desktop"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0045-ntdll-arm64-invalid-leaf-unwind.patch" \
     "ARM64 metadata-free unwind rejects non-progressing adjusted return PCs"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0046-ntdll-ohos-process-exit.patch" \
+    "OHOS Wine process exit avoids the appspawn host CRT interposer"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

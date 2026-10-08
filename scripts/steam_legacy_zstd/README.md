@@ -58,3 +58,13 @@ python scripts/steam_legacy_zstd/patch_client.py --zip /path/to/Steam.zip \
 ```
 
 输出必须为新路径，脚本保存原 ZIP 并生成 SHA256 manifest。测试程序源码为 `decoder_regression.c`，fixture 为 SteamKit 公开样本及 host libzstd／OpenSSL 生成的确定性大块，诊断只使用公开测试密钥，不读取账号凭据。
+
+## 下载仍失败时先核对实际文件
+
+更新旧柚 Pro 的 HAP 不会替换用户游戏目录里的 Steam DLL。`content_log.txt` 中的解包错误也不能证明补丁已经加载。可在电脑对实际 Steam 目录做只读身份检查：
+
+```sh
+python scripts/steam_legacy_zstd/audit_install.py /path/to/Steam
+```
+
+检查只读取六个 DLL，不读取账号、config 或 CDN URL。输出能区分原版缺少 Zstd、完整 v2、完整 v3 候选及混用／缺失／未知文件。目录身份正确之后还应完全退出 Steam／Wine 冷启动，确认进程实际加载这些 DLL；脚本不把磁盘哈希正确当成运行中模块或游戏下载完成的证明。
