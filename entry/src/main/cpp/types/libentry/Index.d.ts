@@ -67,6 +67,14 @@ export interface PhoneSharedBufferProbeResult {
 }
 export const runPhoneSharedBufferProbe: (preserveLowMappings?: boolean, standardFork?: boolean,
   systemStart?: boolean, guestExport?: boolean) => Promise<PhoneSharedBufferProbeResult>;
+export interface ProductDirectProbeResult {
+  supported: boolean;
+  status: string;
+  stage: string;
+  deviceName: string;
+  framesVerified: number;
+}
+export const probeProductDirectSupport: () => Promise<ProductDirectProbeResult>;
 export interface ExternalImageProbeResult {
   handleType: number;
   format: number;

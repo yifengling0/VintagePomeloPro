@@ -352,9 +352,11 @@ int32_t NativeWindowVkTarget::EndFrame(int releaseFenceFd, uint64_t timestampNs)
     lastFlushUs_ = NowUs() - startedUs;
     if (result != 0) {
         CloseFd(&releaseFenceFd);
-        OH_NativeWindow_NativeWindowAbortBuffer(window_, current_->windowBuffer);
+        // Caller must retire GPU work before aborting a failed flush.
+        // Retain current_ so Reset/AbortFrame can return this buffer safely.
+    } else {
+        current_ = nullptr;
     }
-    current_ = nullptr;
     return result;
 }
 

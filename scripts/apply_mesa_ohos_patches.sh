@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch"
     "$SCRIPT_DIR/../patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch"
+    "$SCRIPT_DIR/../patches/mesa/0003-venus-present-retry-single-ring-drain.patch"
+    "$SCRIPT_DIR/../patches/mesa/0004-venus-wine-owned-low-map.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

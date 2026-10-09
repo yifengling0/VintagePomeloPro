@@ -2,6 +2,7 @@
 
 #include "venus_surface_presenter.h"
 #include "native_window_lease.h"
+#include "native_window_vk_target.h"
 #include "presenter_common.h"
 
 #include <hilog/log.h>
@@ -38,6 +39,12 @@ VkPresentModeKHR RequestedPresentMode()
     const char* mode = std::getenv("WINEHUA_VENUS_PRESENT_MODE");
     return mode && !std::strcmp(mode, "mailbox")
         ? VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR;
+}
+
+bool NativePresentEnabled()
+{
+    const char* mode = std::getenv("WINEHUA_VENUS_PRESENT_MODE");
+    return mode && !std::strcmp(mode, "native-buffer");
 }
 
 bool AsyncReleaseEnabled()
@@ -155,6 +162,8 @@ struct VenusSurfaceQueueTarget::Impl {
     struct Frame {
         VkCommandBuffer command = VK_NULL_HANDLE;
         VkSemaphore acquired = VK_NULL_HANDLE;
+        VkSemaphore released = VK_NULL_HANDLE;
+        bool submitted = false;
         VkFence complete = VK_NULL_HANDLE;
         VkQueryPool gpuTiming = VK_NULL_HANDLE;
     };
@@ -173,6 +182,7 @@ struct VenusSurfaceQueueTarget::Impl {
         surfaceKey_ = surfaceKey;
         surfaceAttached_ = true;
         deviceReleasing_ = false;
+        nativeFailed_ = false;
         displayPeriodNs_ = NormalizeVenusFramePeriodNs(framePeriodNs);
         framePeriodNs_ = VenusPacingPeriodNs(displayPeriodNs_);
         lastPresentNs_ = 0;
@@ -264,7 +274,15 @@ struct VenusSurfaceQueueTarget::Impl {
                     "ctx=%{public}u device=%{public}p wait_result=%{public}d",
                     static_cast<unsigned long long>(surfaceKey_), contextId,
                     device_, waitResult);
-        DestroyVulkanLocked();
+        if (waitResult == VK_SUCCESS) {
+            DestroyVulkanLocked();
+        } else {
+            // The owner will destroy the device. Without successful retirement,
+            // do not destroy pending command buffers or return an acquired
+            // NativeBuffer to the consumer while the GPU may still write it.
+            vkDirect_.Abandon();
+            ClearVulkanStateLocked();
+        }
         deviceReleasing_ = false;
         if (!surfaceAttached_) {
             ReleaseWindowLocked();
@@ -331,11 +349,16 @@ struct VenusSurfaceQueueTarget::Impl {
         const bool asyncRelease = AsyncReleaseEnabled();
         VkResult result = vkWaitForFences(
             device_, 1, &frame.complete, VK_TRUE,
-            asyncRelease ? kReleaseFenceWatchdogNs : displayPeriodNs_ * 4);
+            (asyncRelease || nativeReady_) ? kReleaseFenceWatchdogNs : displayPeriodNs_ * 4);
         const uint64_t waitFenceUs = (NowNs() - stageStartNs) / 1000;
         if (result == VK_TIMEOUT) return 1;
         if (result != VK_SUCCESS) return FailLocked("wait fence", result, serial);
+        frame.submitted = false;
         TracePresentStage("source-fence-ready", serial, image);
+        if (nativeReady_)
+            return NativePresentLocked(frame, sourceImage, sourceLayout, serial,
+                                       nextPresentDeadlineNs, releaseQueue, queueSyncData);
+
 
         uint32_t imageIndex = 0;
         stageStartNs = NowNs();
@@ -527,6 +550,7 @@ struct VenusSurfaceQueueTarget::Impl {
         result = vkQueueSubmit(queue_, 1, &submit, frame.complete);
         const uint64_t submitUs = (NowNs() - stageStartNs) / 1000;
         if (result != VK_SUCCESS) return FailLocked("queue submit", result, serial);
+        frame.submitted = true;
         TracePresentStage("copy-submitted", serial, image);
 
         VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
@@ -732,6 +756,7 @@ struct VenusSurfaceQueueTarget::Impl {
                         "[VENUS-PRESENT][NCP] abandoning presenter objects without "
                         "device-owner callback key=%{public}llu ctx=%{public}u device=%{public}p",
                         static_cast<unsigned long long>(surfaceKey_), contextId_, device_);
+            vkDirect_.Abandon();
             ClearVulkanStateLocked();
         }
         ReleaseWindowLocked();
@@ -751,6 +776,307 @@ private:
         return result == VK_ERROR_DEVICE_LOST ? -ENODEV : -EIO;
     }
 
+
+    int NativePresentLocked(Frame& frame, VkImage sourceImage,
+                            VkImageLayout sourceLayout, uint32_t serial,
+                            uint64_t* nextPresentDeadlineNs,
+                            void (*releaseQueue)(void*), void* queueSyncData)
+    {
+        const uint64_t started = NowNs();
+        const auto fallback = [&](const char* reason, VkResult result = VK_SUCCESS) {
+            nativeFailed_ = true;
+            OH_LOG_WARN(LOG_APP,
+                "[VENUS-PRESENT][NCP] native fallback reason=%{public}s result=%{public}d",
+                reason, static_cast<int>(result));
+            return result == VK_ERROR_DEVICE_LOST ? -ENODEV : -EAGAIN;
+        };
+        if (!vkDirect_.SetRequestTimeoutMs(50)) return fallback("request-timeout");
+        const auto begin = vkDirect_.BeginFrame();
+        if (begin == NativeWindowVkBeginResult::Deferred) {
+            ++throttled_;
+            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = NowNs() + displayPeriodNs_;
+            return 1;
+        }
+        if (begin != NativeWindowVkBeginResult::Ready)
+            return fallback(NativeWindowVkBeginResultName(begin));
+        VkResult result = vkDirect_.AcquireGpu(frame.acquired);
+        if (result != VK_SUCCESS) return fallback("acquire", result);
+        result = RecordPresentCopyLocked(frame, sourceImage, sourceLayout,
+            vkDirect_.ColorImage(), vkDirect_.ColorFormat(), sourceWidth_, sourceHeight_,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, false);
+        if (result != VK_SUCCESS) return fallback("record-copy", result);
+        // Reset only after recording succeeds; failures keep a reusable signaled fence.
+        result = vkResetFences(device_, 1, &frame.complete);
+        if (result != VK_SUCCESS) return fallback("reset-fence", result);
+        VkPipelineStageFlags stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+        submit.waitSemaphoreCount = 1;
+        submit.pWaitSemaphores = &frame.acquired;
+        submit.pWaitDstStageMask = &stage;
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &frame.command;
+        submit.signalSemaphoreCount = 1;
+        submit.pSignalSemaphores = &frame.released;
+        result = vkQueueSubmit(queue_, 1, &submit, frame.complete);
+        if (result != VK_SUCCESS) return fallback("submit", result);
+        frame.submitted = true;
+        int releaseFd = -1;
+        result = vkDirect_.SignalRelease(queue_, 1, &frame.released, &releaseFd);
+        if (releaseQueue) releaseQueue(queueSyncData);
+        // On failure the acquired buffer remains owned until rebuild waits the queue.
+        if (result != VK_SUCCESS) return fallback("signal-release", result);
+        const uint64_t timestamp = NowNs();
+        if (vkDirect_.EndFrame(releaseFd, timestamp)) return fallback("flush-buffer");
+        lastPresentNs_ = timestamp;
+        ++framesPresented_;
+        if (lastSerial_ && serial <= lastSerial_) ++serialRegressions_;
+        lastSerial_ = serial;
+        const uint64_t ended = NowNs();
+        const uint64_t elapsedUs = (ended - started) / 1000;
+        totalPresentUs_ += elapsedUs;
+        maxPresentUs_ = std::max(maxPresentUs_, elapsedUs);
+        if (!firstPresentedNs_) firstPresentedNs_ = ended;
+        if (framesPresented_ == 1 || !(framesPresented_ % 120)) {
+            const uint64_t elapsedNs = ended - firstPresentedNs_;
+            const uint64_t fps = elapsedNs && framesPresented_ > 1
+                ? (framesPresented_ - 1) * 100000000000ULL / elapsedNs : 0;
+            OH_LOG_INFO(LOG_APP,
+                "[VENUS-PRESENT][NCP] transport=direct-native-buffer frames=%{public}llu "
+                "size=%{public}ux%{public}u fps=%{public}llu.%{public}02llu "
+                "present_us_avg=%{public}llu post_present_cpu_wait=0 slots=%{public}zu",
+                static_cast<unsigned long long>(framesPresented_), sourceWidth_, sourceHeight_,
+                static_cast<unsigned long long>(fps / 100),
+                static_cast<unsigned long long>(fps % 100),
+                static_cast<unsigned long long>(totalPresentUs_ / framesPresented_),
+                vkDirect_.ImportedSlotCount());
+        }
+        return 0;
+    }
+
+    VkResult RecordPresentCopyLocked(Frame& frame,
+                                     VkImage sourceImage,
+                                     VkImageLayout sourceLayout,
+                                     VkImage targetImage,
+                                     VkFormat targetFormat,
+                                     uint32_t targetWidth,
+                                     uint32_t targetHeight,
+                                     VkImageLayout targetOldLayout,
+                                     VkImageLayout targetFinalLayout,
+                                     bool gpuTiming)
+    {
+        if (!sourceImage || !targetImage || targetFormat == VK_FORMAT_UNDEFINED ||
+            !sourceWidth_ || !sourceHeight_ || !targetWidth || !targetHeight) {
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        const bool useBlit = sourceFormat_ != targetFormat ||
+            sourceWidth_ != targetWidth || sourceHeight_ != targetHeight;
+        if (useBlit) {
+            VkFormatProperties sourceProperties{};
+            VkFormatProperties targetProperties{};
+            vkGetPhysicalDeviceFormatProperties(
+                physicalDevice_, sourceFormat_, &sourceProperties);
+            vkGetPhysicalDeviceFormatProperties(
+                physicalDevice_, targetFormat, &targetProperties);
+            if (!(sourceProperties.optimalTilingFeatures &
+                  VK_FORMAT_FEATURE_BLIT_SRC_BIT) ||
+                !(targetProperties.optimalTilingFeatures &
+                  VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
+                return VK_ERROR_FORMAT_NOT_SUPPORTED;
+            }
+        }
+
+        VkResult result = vkResetCommandBuffer(frame.command, 0);
+        if (result != VK_SUCCESS) return result;
+        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        result = vkBeginCommandBuffer(frame.command, &begin);
+        if (result != VK_SUCCESS) return result;
+
+        if (gpuTiming) {
+            vkCmdResetQueryPool(frame.command, frame.gpuTiming, 0, 2);
+            vkCmdWriteTimestamp(frame.command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                frame.gpuTiming, 0);
+        }
+
+        VkImageMemoryBarrier sourceToTransfer{
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        sourceToTransfer.srcAccessMask = SourceAccess(sourceLayout);
+        sourceToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        sourceToTransfer.oldLayout = sourceLayout;
+        sourceToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        sourceToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceToTransfer.image = sourceImage;
+        sourceToTransfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        sourceToTransfer.subresourceRange.levelCount = 1;
+        sourceToTransfer.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier targetToTransfer{
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        targetToTransfer.srcAccessMask =
+            targetOldLayout == VK_IMAGE_LAYOUT_UNDEFINED ? 0 : VK_ACCESS_MEMORY_READ_BIT;
+        targetToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        targetToTransfer.oldLayout = targetOldLayout;
+        targetToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        targetToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetToTransfer.image = targetImage;
+        targetToTransfer.subresourceRange = sourceToTransfer.subresourceRange;
+        const std::array<VkImageMemoryBarrier, 2> before = {
+            sourceToTransfer, targetToTransfer};
+        const VkPipelineStageFlags targetSourceStage =
+            targetOldLayout == VK_IMAGE_LAYOUT_UNDEFINED
+            ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
+            : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        vkCmdPipelineBarrier(
+            frame.command, SourceStage(sourceLayout) | targetSourceStage,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
+            static_cast<uint32_t>(before.size()), before.data());
+
+        if (useBlit) {
+            VkImageBlit blit{};
+            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.srcSubresource.layerCount = 1;
+            blit.srcOffsets[1] = {
+                static_cast<int32_t>(sourceWidth_),
+                static_cast<int32_t>(sourceHeight_), 1};
+            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstSubresource.layerCount = 1;
+            blit.dstOffsets[1] = {
+                static_cast<int32_t>(targetWidth),
+                static_cast<int32_t>(targetHeight), 1};
+            vkCmdBlitImage(
+                frame.command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+                VK_FILTER_NEAREST);
+        } else {
+            VkImageCopy copy{};
+            copy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.srcSubresource.layerCount = 1;
+            copy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.dstSubresource.layerCount = 1;
+            copy.extent = {sourceWidth_, sourceHeight_, 1};
+            vkCmdCopyImage(
+                frame.command, sourceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+        }
+
+        VkImageMemoryBarrier sourceRestore{
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        sourceRestore.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        sourceRestore.dstAccessMask = SourceAccess(sourceLayout);
+        sourceRestore.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        sourceRestore.newLayout = sourceLayout;
+        sourceRestore.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceRestore.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        sourceRestore.image = sourceImage;
+        sourceRestore.subresourceRange = sourceToTransfer.subresourceRange;
+
+        VkImageMemoryBarrier targetPublish{
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        targetPublish.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        targetPublish.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        targetPublish.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        targetPublish.newLayout = targetFinalLayout;
+        targetPublish.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetPublish.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        targetPublish.image = targetImage;
+        targetPublish.subresourceRange = targetToTransfer.subresourceRange;
+        const std::array<VkImageMemoryBarrier, 2> after = {
+            sourceRestore, targetPublish};
+        vkCmdPipelineBarrier(
+            frame.command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr,
+            static_cast<uint32_t>(after.size()), after.data());
+
+        if (gpuTiming) {
+            vkCmdWriteTimestamp(frame.command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                frame.gpuTiming, 1);
+        }
+        result = vkEndCommandBuffer(frame.command);
+        if (result != VK_SUCCESS) return result;
+        return VK_SUCCESS;
+    }
+
+    VkResult WaitForOutstandingFramesLocked()
+    {
+        std::vector<VkFence> pending;
+        pending.reserve(frames_.size());
+        for (const Frame& frame : frames_) {
+            if (frame.submitted && frame.complete)
+                pending.push_back(frame.complete);
+        }
+        if (pending.empty()) return VK_SUCCESS;
+
+        const VkResult result = vkWaitForFences(
+            device_, static_cast<uint32_t>(pending.size()), pending.data(),
+            VK_TRUE, kReleaseFenceWatchdogNs);
+        if (result == VK_SUCCESS) {
+            for (Frame& frame : frames_) frame.submitted = false;
+        }
+        return result;
+    }
+
+    bool CreateDirectResourcesLocked(int& error)
+    {
+        extent_ = {sourceWidth_, sourceHeight_};
+        targetFormat_ = sourceFormat_;
+        canBlit_ = true;
+        useBlit_ = false;
+
+        VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = queueFamily_;
+        VkResult result = vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool_);
+        if (result != VK_SUCCESS) {
+            error = -EIO;
+            return false;
+        }
+
+        frames_.resize(3);
+        std::vector<VkCommandBuffer> commands(frames_.size());
+        VkCommandBufferAllocateInfo allocate{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+        allocate.commandPool = commandPool_;
+        allocate.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocate.commandBufferCount = static_cast<uint32_t>(commands.size());
+        result = vkAllocateCommandBuffers(device_, &allocate, commands.data());
+        if (result != VK_SUCCESS) {
+            error = -ENOMEM;
+            return false;
+        }
+
+        VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        VkSemaphoreCreateInfo semaphoreInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        for (size_t i = 0; i < frames_.size(); ++i) {
+            Frame& frame = frames_[i];
+            frame.command = commands[i];
+            if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr,
+                                  &frame.acquired) != VK_SUCCESS ||
+                vkCreateSemaphore(device_, &semaphoreInfo, nullptr,
+                                  &frame.released) != VK_SUCCESS ||
+                vkCreateFence(device_, &fenceInfo, nullptr,
+                              &frame.complete) != VK_SUCCESS) {
+                error = -ENOMEM;
+                return false;
+            }
+        }
+
+        // DP1 measures CPU queue/request/flush cost. Timestamp queries remain
+        // on the WSI comparison path until delayed query collection is added;
+        // Direct must not reintroduce a post-present CPU fence wait for metrics.
+        gpuTimingRequested_ = GpuFrameProfileEnabled();
+        gpuTimingEnabled_ = false;
+        nativeReady_ = true;
+        OH_LOG_INFO(LOG_APP,
+                    "[VENUS-PRESENT][NCP] transport=direct-native-buffer "
+                    "key=%{public}llu size=%{public}ux%{public}u frames=%{public}zu "
+                    "post_present_cpu_wait=0",
+                    static_cast<unsigned long long>(surfaceKey_), sourceWidth_,
+                    sourceHeight_, frames_.size());
+        return true;
+    }
+
     bool EnsureVulkanLocked(uint32_t contextId,
                             VkInstance instance,
                             VkPhysicalDevice physicalDevice,
@@ -767,7 +1093,24 @@ private:
             device_ == device && queue_ == queue && queueFamily_ == queueFamily &&
             sourceWidth_ == width && sourceHeight_ == height &&
             sourceFormat_ == sourceFormat;
+        if (nativeReady_ && sameSource && !nativeFailed_) return true;
         if (swapchain_ && sameSource && !swapchainDirty_) return true;
+        if (nativeReady_ && device_ && queue_) {
+            // Geometry/fallback only, never the per-frame successful path.
+            const VkResult idle = vkQueueWaitIdle(queue_);
+            if (idle != VK_SUCCESS) {
+                error = idle == VK_ERROR_DEVICE_LOST ? -ENODEV : -EIO;
+                return false;
+            }
+        }
+
+        if (!nativeReady_ && device_) {
+            const VkResult retired = WaitForOutstandingFramesLocked();
+            if (retired != VK_SUCCESS) {
+                error = retired == VK_TIMEOUT ? -EAGAIN : -EIO;
+                return false;
+            }
+        }
 
         /* A WSI error can leave the platform present queue waiting forever.
          * The dirty path has already waited for the per-frame fence and has
@@ -788,6 +1131,22 @@ private:
         if (!instance_ || !physicalDevice_ || !device_ || !queue_) {
             error = -EINVAL;
             return false;
+        }
+
+        if (NativePresentEnabled() && !nativeFailed_) {
+            const auto configured = vkDirect_.Configure(surfaceKey_, windowLease_.Get(),
+                width, height, physicalDevice_, device_, sourceFormat_);
+            if (configured == NativeWindowVkConfigureResult::Ready) {
+                if (CreateDirectResourcesLocked(error)) return true;
+                nativeReady_ = true; // retire partially created objects before WSI rebuild
+                nativeFailed_ = true;
+                error = -EAGAIN;
+                return false;
+            }
+            nativeFailed_ = true;
+            OH_LOG_WARN(LOG_APP,
+                "[VENUS-PRESENT][NCP] native capability fallback reason=%{public}s",
+                NativeWindowVkConfigureResultName(configured));
         }
 
         OH_NativeWindow_NativeWindowHandleOpt(
@@ -1069,11 +1428,13 @@ private:
                 if (frame.gpuTiming) vkDestroyQueryPool(device_, frame.gpuTiming, nullptr);
                 if (frame.complete) vkDestroyFence(device_, frame.complete, nullptr);
                 if (frame.acquired) vkDestroySemaphore(device_, frame.acquired, nullptr);
+                if (frame.released) vkDestroySemaphore(device_, frame.released, nullptr);
             }
             for (const VkSemaphore semaphore : renderFinished_) {
                 if (semaphore) vkDestroySemaphore(device_, semaphore, nullptr);
             }
             if (commandPool_) vkDestroyCommandPool(device_, commandPool_, nullptr);
+            vkDirect_.Reset();
             if (swapchain_) {
                 OH_LOG_INFO(LOG_APP, "[VENUS-PRESENT][NCP] destroy swapchain begin key=%{public}llu",
                             static_cast<unsigned long long>(surfaceKey_));
@@ -1094,6 +1455,7 @@ private:
 
     void ClearVulkanStateLocked()
     {
+        nativeReady_ = false;
         frames_.clear();
         renderFinished_.clear();
         targetInitialized_.clear();
@@ -1145,6 +1507,9 @@ private:
 
     std::mutex mutex_;
     NativeWindowLease windowLease_;
+    NativeWindowVkTarget vkDirect_;
+    bool nativeReady_ = false;
+    bool nativeFailed_ = false;
     uint64_t surfaceKey_ = 0;
     uint32_t contextId_ = 0;
     bool surfaceAttached_ = false;

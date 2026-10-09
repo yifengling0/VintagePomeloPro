@@ -9,6 +9,7 @@
 #include "wine_constants.h"
 #include "container_session.h"
 #include "graphics/graphics_profile.h"
+#include "direct/direct_vulkan_desktop_compositor.h"
 #include "wine_env.h"
 #include "proc/wine_process.h"
 
@@ -211,9 +212,18 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     winehua::GraphicsBroker::GetInstance().SetWineRuntimeBinaryDir(binDir);
     winehua::GraphicsBroker::GetInstance().SetRequestedBackend(winehua::GraphicsBackend::Virgl);
     if (!winehua::GraphicsBroker::GetInstance().EnsureStarted(prefixDir)) return -1;
+    // Child programs cannot select a different consumer for the active
+    // desktop. Old callers still pass Venus here even in a Direct session.
+    const bool vulkanD3d = winehua::UsesVenusPresent(
+        winehua::ParseD3dBackend(options.d3dBackend));
+    const std::string presentBackend = vulkanD3d
+        ? (winehua::direct::DirectDesktopVulkanEnabled()
+            ? "direct_vulkan_present" : "venus_broker_present")
+        : options.presentBackend;
     winehua::GraphicsBroker::GetInstance().SetVulkanPresentMode(
-        options.presentBackend == "venus_broker_present" ||
-        options.presentBackend == "venus_direct_present");
+        !winehua::direct::DirectDesktopVulkanEnabled() &&
+        (presentBackend == "venus_broker_present" ||
+         presentBackend == "venus_direct_present"));
 
     // 声明式 env 管线 (env_profiles.cpp): 基线+D3D overlay+稳定化 overlay 由
     // policy 字段声明, per-run 覆盖 (options.environment) 与进程标记经 extraEnv
@@ -235,7 +245,7 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     policy.desktopShellFlag = WaylandServer::GetInstance()->IsDesktopMode();
     policy.extraEnv = options.environment;
     policy.extraEnv.push_back("WINEHUA_D3D_BACKEND=" + options.d3dBackend);
-    policy.extraEnv.push_back("WINEHUA_PRESENT_BACKEND=" + options.presentBackend);
+    policy.extraEnv.push_back("WINEHUA_PRESENT_BACKEND=" + presentBackend);
     /* desktop 模式: 将进程接入 explorer 创建的 shell desktop, 使其窗口
      * 出现在任务栏 (与 RunWineExe 路径对称, 重构 runWineProgram 时遗漏). */
     /* DXVK is a managed WineHua runtime overlay, never a game-provided DLL. */
@@ -273,7 +283,7 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     OH_LOG_INFO(LOG_APP,
                 "[WineProgram] pid=%{public}d exe=%{public}s prefix=%{public}s d3d=%{public}s present=%{public}s",
                 pid, exePath.c_str(), prefixDir.c_str(), options.d3dBackend.c_str(),
-                options.presentBackend.c_str());
+                presentBackend.c_str());
     if (gStateTsfn)
     {
         char state[64];
@@ -327,12 +337,11 @@ int SpawnWineProgram(const ProgramOptions& options)
     return SpawnWineProgramImpl(options);
 }
 
-// 呈现后端按 d3d 后端派生 (单一策略点): DXVK/VKD3D (走 GPU 图集) → venus
-// 呈现 (zero-copy), WineD3D → virgl 呈现。调用方不传 presentBackend 时由
-// 此兜底, 避免各调用方手写一份换算 (dev UI 曾各自实现一份)。
+// Default for old callers; SpawnWineProgram pairs Vulkan presentation with
+// the consumer already selected by the session owner.
 static std::string DerivePresentBackend(const std::string& d3dBackend)
 {
-    const bool gpuBackend = d3dBackend == "dxvk_legacy" || d3dBackend == "dxvk_modern_2_6";
+    const bool gpuBackend = winehua::UsesVenusPresent(winehua::ParseD3dBackend(d3dBackend));
     return gpuBackend ? "venus_broker_present" : "virgl_compositor";
 }
 

@@ -305,7 +305,8 @@ static void PrepareDesktopSessionGraphicsEnv(const LaunchParams& params)
     auto& gb = winehua::GraphicsBroker::GetInstance();
     gb.SetWineRuntimeBinaryDir(params.winehuaBin);
     gb.SetRequestedBackend(winehua::GraphicsBackend::Virgl);
-    gb.SetVulkanPresentMode(UsesVulkanD3dBackend(params.d3dBackend));
+    gb.SetVulkanPresentMode(UsesVulkanD3dBackend(params.d3dBackend) &&
+                           !params.desktopVulkanCompositor);
     gb.EnsureStarted(params.sockDir);
 
     winehua::GraphicsBackendState state = gb.GetState();
@@ -673,7 +674,8 @@ void LaunchThreadFunc(LaunchParams* p) {
 
     auto& graphicsBroker = winehua::GraphicsBroker::GetInstance();
     graphicsBroker.SetWineRuntimeBinaryDir(p->winehuaBin);
-    graphicsBroker.SetVulkanPresentMode(UsesVulkanD3dBackend(p->d3dBackend));
+    graphicsBroker.SetVulkanPresentMode(UsesVulkanD3dBackend(p->d3dBackend) &&
+                                       !p->desktopVulkanCompositor);
     graphicsBroker.EnsureStarted(p->sockDir);
 
     int audioBootstrapFd = CreateAudioBootstrapFd(p->sockDir);

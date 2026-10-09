@@ -37,9 +37,11 @@ in vec2 vUV;
 out vec4 oColor;
 uniform samplerExternalOES uTex;
 uniform mat4 uTransform;
+uniform float uForceOpaque;
 void main() {
     vec4 coord = uTransform * vec4(vUV, 0.0, 1.0);
     oColor = texture(uTex, coord.xy);
+    if (uForceOpaque > 0.5) oColor.a = 1.0;
 }
 )";
 

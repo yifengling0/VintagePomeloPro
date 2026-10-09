@@ -1,0 +1,39 @@
+{
+  "mode": "on-diag",
+  "path": "C:\\vp-gumu10-evidence\\direct-dxvk32-smoke.exe",
+  "env": [
+    {
+      "key": "DXVK_LOG_PATH",
+      "value": "C:\\vp-gumu10-evidence"
+    },
+    {
+      "key": "DXVK_LOG_LEVEL",
+      "value": "info"
+    },
+    {
+      "key": "DXVK_WINEHUA_TRACE_FLOW",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_VIRGL_LOW_MAP",
+      "value": "1"
+    },
+    {
+      "key": "WINEHUA_VENUS_LOW_MAP",
+      "value": "1"
+    },
+    {
+      "key": "WINEHUA_VENUS_MAP_DIAG",
+      "value": "1"
+    },
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,err+vulkan"
+    },
+    {
+      "key": "VN_WINEHUA_PERF_SUMMARY",
+      "value": "0"
+    }
+  ],
+  "experiment": "isolate-venus-native-buffer"
+}

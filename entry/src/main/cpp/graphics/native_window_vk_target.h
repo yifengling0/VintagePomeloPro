@@ -66,7 +66,7 @@ public:
 
     // Reset is valid only while the owning VkDevice is alive and idle.
     void Reset();
-    // Used only when the device owner disappeared without its release callback.
+    // Used when the owner disappeared or cannot prove successful GPU retirement.
     void Abandon();
 
     bool Ready() const { return window_ && device_; }

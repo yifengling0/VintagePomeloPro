@@ -1,0 +1,75 @@
+Fri Oct  9 11:41:36 CST 2026
+10-09 11:40:28.002 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:40:28.007 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:40:28.007 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:40:28.007 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:40:35.435 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:40:35.436 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:40:35.436 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:40:35.436 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:40:42.861 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:40:42.861 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:40:42.861 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:40:42.861 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:40:50.334 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:40:50.336 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:40:50.337 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:40:50.337 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:40:57.801 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:40:57.802 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:40:57.802 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:40:57.802 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:41:05.279 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:41:05.279 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:41:05.279 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:41:05.280 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:41:12.770 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:41:12.772 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:41:12.772 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:41:12.772 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:41:20.240 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:41:20.243 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:41:20.243 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:41:20.243 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:41:27.710 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:41:27.711 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:41:27.711 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+10-09 11:41:27.711 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=25 toplevelId=2 role=toplevel geometry=1280x20+0,780 visible=1 desktopRoot=0 fullscreen=0 serial=12 key=147261543677977
+10-09 11:41:35.168 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34392 wlSurfaceId=29 toplevelId=5 role=toplevel geometry=1280x800+0,0 visible=1 desktopRoot=0 fullscreen=1 serial=2 key=147712515244061
+10-09 11:41:35.169 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34287 wlSurfaceId=3 toplevelId=1 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=1 fullscreen=1 serial=2 key=147261543677955
+10-09 11:41:35.169 32883 34103 I A00000/com.vintage.pomelopro/WL_Server: WINDOW-REG: event=snapshot ownerHostPid=34302 wlSurfaceId=3 toplevelId=3 role=toplevel geometry=1280x800+0,0 visible=0 desktopRoot=0 fullscreen=1 serial=1 key=147325968187395
+info:  Game: ROTTR.exe
+
+info:  DXVK: v1.10.3
+
+info:  Found config file: dxvk.conf
+
+info:  Effective configuration:
+
+info:    dxgi.syncInterval = 2
+
+info:    dxgi.maxFrameRate = 30
+
+info:    d3d11.disableMsaa = True
+
+info:  Built-in extension providers:
+
+info:    Win32 WSI
+
+info:    OpenVR
+
+info:    OpenXR
+
+info:  OpenVR: could not open registry key, status 2
+
+warn:  OpenVR: Failed to initialize OpenVR
+
+info:  Enabled instance extensions:
+
+info:    Present mode: VK_PRESENT_MODE_MAILBOX_KHR
+
+info:    Buffer size:  1280x800
+
+info:    Present mode: VK_PRESENT_MODE_FIFO_KHR
+
+info:    Buffer size:  1280x800

@@ -36,6 +36,7 @@ struct HostGraphicsProfile {
     bool deferSharedMemoryUnref = false;
     bool perfSummary = false;
     GpuUploadPolicy gpuUpload = GpuUploadPolicy::Automatic;
+    std::string_view presentMode = "fifo";
 };
 
 struct DxvkRuntimeProfile {
@@ -67,6 +68,11 @@ struct GuestGraphicsPolicy {
     bool deferSharedMemoryUnref = false;
     bool disableGpuUpload = false;
     bool serializeDescriptorUpdates = false;
+    // Direct uses the OHOS driver in the Wine process. Keep transport and
+    // desktop presentation coupled to the same session policy.
+    bool directVulkan = false;
+    // Bridge path paired with legacy DXVK's explicit range copies.
+    bool directPreciseMaps = false;
 };
 
 struct ProductGraphicsPolicy {
@@ -81,6 +87,15 @@ bool UsesVenusPresent(D3dBackendKind backend);
 // Resolves one of the two normal product routes. DXVK generations and the
 // VKD3D DXGI companion may differ in adapter details without becoming routes.
 bool ResolveProductGraphicsPolicy(D3dBackendKind backend,
+                                  ProductGraphicsPolicy* policy);
+// Set only after the native child buffer/fence roundtrip has passed. Unknown
+// or failed capability checks leave product sessions on Venus.
+void SetProductDirectVulkanVerified(bool verified);
+bool IsProductDirectVulkanVerified();
+// A session owns both the guest transport and its desktop consumer. Explicit
+// LAB experiments remain separate from the automatically selected product.
+bool ResolveSessionGraphicsPolicy(std::string_view experiment,
+                                  D3dBackendKind backend,
                                   ProductGraphicsPolicy* policy);
 // VKD3D uses DXVK 2.6.2's DXGI companion. WineD3D and unknown backends do
 // not resolve a DXVK runtime.

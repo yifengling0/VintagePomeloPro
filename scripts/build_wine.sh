@@ -7,6 +7,21 @@ case "${1:-}" in
 esac
 source "$SCRIPT_DIR/env.sh"
 
+# Fresh targeted Unix builds keep the same overlay/identity/configure checks.
+# No Wine objects or generated Makefiles are copied from another build.
+WINE_UNIX_MODULES=""
+if [ "${1:-}" = --unix-modules ]; then
+    shift
+    for module in "$@"; do
+        case "$module" in
+            ntdll|win32u|winevulkan|wineserver) ;;
+            *) echo "unsupported Unix module: $module" >&2; exit 1 ;;
+        esac
+        WINE_UNIX_MODULES="${WINE_UNIX_MODULES:+$WINE_UNIX_MODULES }$module"
+    done
+    [ -n "$WINE_UNIX_MODULES" ] || { echo "--unix-modules needs module names" >&2; exit 1; }
+fi
+
 wine_build_identity() {
     local mode="$1"
     shift
@@ -15,6 +30,7 @@ wine_build_identity() {
         --config "WINE_ARCH=$WINE_ARCH" --config "NATIVE_ARCH=$NATIVE_ARCH" \
         --config "GUEST_ARCH=$GUEST_ARCH" --config "HOST_TRIPLE=$HOST_TRIPLE" \
         --config "HOST_OS=$HOST_OS" --config "TARGET=$TARGET" \
+        --config "WINE_UNIX_MODULES=$WINE_UNIX_MODULES" \
         --config "SYSROOT=$SYSROOT" --config "LLVM_MINGW=$LLVM_MINGW" \
         --config "CFLAGS=${CFLAGS:-}" --config "CXXFLAGS=${CXXFLAGS:-}" \
         --config "LDFLAGS=${LDFLAGS:-}" --config "CROSSCFLAGS=${CROSSCFLAGS:-}" \
@@ -179,6 +195,10 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0045-ntdll-arm64-invalid-leaf-unw
     "ARM64 metadata-free unwind rejects non-progressing adjusted return PCs"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0046-ntdll-ohos-process-exit.patch" \
     "OHOS Wine process exit avoids the appspawn host CRT interposer"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0047-win32u-wow64-vulkan-map-safety.patch" \
+    "WOW64 Vulkan mapped-span safety and explicit copy visibility"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0048-ntdll-opt-in-server-request-timing.patch" \
+    "Opt-in per-thread server request timing without verbose request tracing"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \
@@ -391,11 +411,26 @@ build_ohos_unix() {
         require_makefile_opt_var Makefile i386_CFLAGS
     fi
 
-    make -j$JOBS \
+    local targets=()
+    for module in $WINE_UNIX_MODULES; do
+        [ "$module" = wineserver ] || targets+=("dlls/$module/$module.so")
+    done
+    # A server-only build still configures and validates the same Wine source,
+    # but must not turn an empty target list into a full default make.
+    if [ -n "$WINE_UNIX_MODULES" ] && [ ${#targets[@]} -eq 0 ]; then return; fi
+    make -j$JOBS "${targets[@]}" \
         CC="$CLANG --target=$TARGET --sysroot=$SYSROOT" \
         CXX="$OHOS_SDK/native/llvm/bin/clang++ --target=$TARGET --sysroot=$SYSROOT" \
         CFLAGS="$WINE_CFLAGS -I$SYSROOT_EXT_INC -I$SYSROOT_EXT_INC/freetype2" \
         LDFLAGS="-fuse-ld=lld --sysroot=$SYSROOT --target=$TARGET -L$SYSROOT_EXT_LIB"
+
+    if [ -n "$WINE_UNIX_MODULES" ]; then
+        for module in $WINE_UNIX_MODULES; do
+            [ "$module" = wineserver ] && continue
+            test -s "dlls/$module/$module.so" || return 1
+        done
+        return
+    fi
 
     python3 "$SCRIPT_DIR/wine_graphics_capabilities.py" --build "$wine_build_dir" \
         --driver "$wine_build_dir/dlls/winewayland.drv/winewayland.so" \
@@ -426,16 +461,27 @@ build_wineserver() {
     if [ "$WINE_ARCH" = "x86_64" ] && [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         pie_mode=1
     fi
-    local srv_cflags="--target=$srv_target --sysroot=$SYSROOT -D__MUSL__ -D__ANDROID__ -D__OHOS__ -D_GNU_SOURCE \
-        -DWINE_UNIX_LIB -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \
+    # Use the Unix Wine release flags here as well. The standalone server
+    # compile used to omit -O2 entirely, despite serving thousands of requests
+    # per second. Keep assertions and synchronization semantics unchanged.
+    # Wine's generated EXTRACFLAGS disable strict aliasing: its object/list
+    # casts depend on that contract. The standalone compile bypasses Makefile.
+    local srv_cflags="--target=$srv_target --sysroot=$SYSROOT $WINE_CFLAGS -fno-strict-aliasing \
         -DBINDIR=\"$bindir\" -DDATADIR=\"$datadir\" \
-        -fPIC $wine_include"
+        $wine_include"
+    require_optimization_flags "Wine server CFLAGS" $srv_cflags
+
+    # Source mtimes alone do not invalidate objects after a compiler/flags
+    # change. Old caches without this record also need a full server rebuild.
+    local flags_fingerprint
+    flags_fingerprint="$( { printf '%s\n' "$srv_cflags" "$pie_mode"; "$CLANG" --version; } | sha256sum | cut -d' ' -f1 )"
+    local flags_file="$out/.compile-flags.sha256"
 
     mkdir -p "$out"
     local need_rebuild=0
     local target_binary="$out/libwineserver.so"
     [ "$pie_mode" = "1" ] && target_binary="$out/wineserver"
-    if [ ! -f "$target_binary" ]; then
+    if [ ! -f "$target_binary" ] || [ "$(cat "$flags_file" 2>/dev/null || true)" != "$flags_fingerprint" ]; then
         need_rebuild=1
     else
         for f in $WINE_SRC/server/*.c; do
@@ -443,11 +489,14 @@ build_wineserver() {
         done
     fi
     if [ $need_rebuild -eq 0 ]; then
-        # 确保 libwineserver.so 已复制到 NATIVE_LIBS
-        # (目录可能被其他架构构建清掉, 需重建 — 见 entry/libs/x86_64 缺失 bug)
-        if [ -f "$out/libwineserver.so" ] && [ ! -f "$NATIVE_LIBS/libwineserver.so" ]; then
+        # Publish the selected cache even when another build left a library
+        # at the destination. Existence alone does not establish its identity.
+        if [ "$pie_mode" = "0" ] && [ -f "$out/libwineserver.so" ]; then
             mkdir -p "$NATIVE_LIBS"
-            cp "$out/libwineserver.so" "$NATIVE_LIBS/"
+            local publish_file
+            publish_file="$(mktemp "$NATIVE_LIBS/.wineserver-publish.XXXXXX")"
+            cp -p "$out/libwineserver.so" "$publish_file"
+            mv -f "$publish_file" "$NATIVE_LIBS/libwineserver.so"
         fi
         return
     fi
@@ -470,9 +519,15 @@ build_wineserver() {
             -shared -Wl,-soname,libwineserver.so \
             -o "$out/libwineserver.so" "$out"/*.o -lm
         mkdir -p "$NATIVE_LIBS"
-        cp "$out/libwineserver.so" "$NATIVE_LIBS/"
+        # Replace the directory entry, not a potentially hard-linked old
+        # artifact in another checkout or build cache.
+        local publish_file
+        publish_file="$(mktemp "$NATIVE_LIBS/.wineserver-publish.XXXXXX")"
+        cp -p "$out/libwineserver.so" "$publish_file"
+        mv -f "$publish_file" "$NATIVE_LIBS/libwineserver.so"
         log "  → $NATIVE_LIBS/libwineserver.so"
     fi
+    printf '%s\n' "$flags_fingerprint" > "$flags_file"
 }
 
 # ---- main ----
@@ -519,7 +574,8 @@ fi
 if [ ! -f "$WINE_SRC/dlls/ntdll/ntsyscalls.h" ] \
    || [ ! -f "$WINE_SRC/include/config.h.in" ] \
    || [ ! -f "$WINE_SRC/include/wine/vulkan.h" ] \
-   || [ ! -f "$WINE_SRC/dlls/vulkan-1/vulkan-1.spec" ]; then
+   || [ ! -f "$WINE_SRC/dlls/vulkan-1/vulkan-1.spec" ] \
+   || [ "$WINE_SRC/dlls/winevulkan/make_vulkan" -nt "$WINE_SRC/dlls/winevulkan/vulkan_thunks.c" ]; then
     log "--- 源码树缺少上游生成物 → 运行 autogen.sh 等价的生成步骤 ---"
     (
         cd "$WINE_SRC" &&
@@ -535,6 +591,8 @@ fi
 wine_build_identity record
 build_native_tools
 build_ohos_unix
-build_wineserver
+case " $WINE_UNIX_MODULES " in
+    "  "|*" wineserver "*) build_wineserver ;;
+esac
 
 log "Wine 构建完成"

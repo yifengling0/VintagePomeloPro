@@ -2,17 +2,12 @@ diff --git a/src/virtio/vulkan/vn_renderer_vtest.c b/src/virtio/vulkan/vn_render
 index 3f67f27fdc6..ee3f32d5f9c 100644
 --- a/src/virtio/vulkan/vn_renderer_vtest.c
 +++ b/src/virtio/vulkan/vn_renderer_vtest.c
-@@ -78,7 +78,7 @@ struct vtest_bo {
-    struct vn_renderer_bo base;
- 
+@@ -80,3 +80,3 @@ struct vtest_bo {
     uint32_t blob_flags;
 -   /* might be closed after mmap */
 +   /* Retained on OHOS ARM64 for Wine's WoW64 shared-map alias. */
     int res_fd;
- };
- 
-@@ -814,8 +814,17 @@ vtest_bo_map(struct vn_renderer *renderer, struct vn_renderer_bo *_bo)
-                 bo->res_fd, bo->base.mmap_size, strerror(errno));
+@@ -815,7 +815,16 @@ vtest_bo_map(struct vn_renderer *renderer, struct vn_renderer_bo *_bo)
        } else {
           bo->base.mmap_ptr = ptr;
 -         /* we don't need the fd anymore */

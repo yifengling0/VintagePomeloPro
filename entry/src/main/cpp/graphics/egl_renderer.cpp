@@ -606,8 +606,10 @@ bool EglRenderer::SnapshotZeroCopyScene()
         source.x = info.x; source.y = info.y;
         source.w = info.width; source.h = info.height;
         source.sourceW = consumer->sourceW; source.sourceH = consumer->sourceH;
-        // External/native images preserve alpha; SHM XRGB layers force alpha=1.
-        source.opaque = false;
+        // Wine's private Venus WSI advertises OPAQUE only. Swapchain alpha is
+        // undefined for composition (TR32 writes zero); it must not enter the
+        // premultiplied Wayland blend. GL/CEF native layers still keep alpha.
+        source.opaque = consumer->vulkanSource;
         sources.push_back(std::move(source));
     }
     if (sources.empty()) {
@@ -684,10 +686,11 @@ void EglRenderer::DrawZeroCopyScene(winehua::TextureUploadStats* uploads)
                 [&](const auto& consumer) { return consumer->surfaceKey == layer.zeroCopyKey; });
             if (found == zeroCopyConsumers_.end() || !(*found)->registered || !(*found)->hasFrame) continue;
             auto& consumer = **found;
-            glEnable(GL_BLEND);
+            if (layer.opaque) glDisable(GL_BLEND); else glEnable(GL_BLEND);
             glUseProgram(zeroCopyProgram_);
             glBindTexture(GL_TEXTURE_EXTERNAL_OES, consumer.texture);
             glUniform1i(glGetUniformLocation(zeroCopyProgram_, "uTex"), 0);
+            glUniform1f(glGetUniformLocation(zeroCopyProgram_, "uForceOpaque"), layer.opaque ? 1.f : 0.f);
             glUniformMatrix4fv(zeroCopyTransformLocation_, 1, GL_FALSE, consumer.samplingTransform);
             glDrawArrays(GL_TRIANGLES, 0, 6);
             noteDraw(layer);
@@ -1344,6 +1347,7 @@ void EglRenderer::RenderLoop() {
             glUseProgram(zeroCopyProgram_);
             glBindTexture(GL_TEXTURE_EXTERNAL_OES, consumer.texture);
             glUniform1i(glGetUniformLocation(zeroCopyProgram_, "uTex"), 0);
+            glUniform1f(glGetUniformLocation(zeroCopyProgram_, "uForceOpaque"), consumer.vulkanSource ? 1.f : 0.f);
             glUniformMatrix4fv(zeroCopyTransformLocation_, 1, GL_FALSE,
                                consumer.samplingTransform);
             glDrawArrays(GL_TRIANGLES, 0, 6);

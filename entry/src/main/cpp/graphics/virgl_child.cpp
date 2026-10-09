@@ -155,7 +155,8 @@ int OnVirglIpcRequest(uint32_t code, const OHIPCParcel* data,
             !libraryPath || libraryPath[0] != '/' || !syncMode || !logPath || logPath[0] != '/' ||
             !shadowMode || !shadowTrace || !presentMode || !shadowMergeRanges ||
             !descriptorUpdateSerialize || !gpuUploadWait ||
-            (strcmp(presentMode, "fifo") && strcmp(presentMode, "mailbox") &&
+            (strcmp(presentMode, "native-buffer") &&
+             strcmp(presentMode, "fifo") && strcmp(presentMode, "mailbox") &&
              strcmp(presentMode, "fifo-async") &&
              strcmp(presentMode, "fifo-poll")))
         {

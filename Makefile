@@ -580,7 +580,35 @@ arm64ec-release-gate:
 HOST_TEST_DIR := $(BUILD_DIR)/host_tests
 FEX_SRC ?= $(ROOT)/thirdparty/fex
 
-.PHONY: test-direct-viewport
+.PHONY: test-direct-viewport test-direct-session test-venus-present-retry
+.PHONY: test-venus-low-map
+test-venus-low-map:
+	python3 $(ROOT)/host_tests/venus_low_map_test.py
+
+.PHONY: test-venus-native-present
+test-venus-native-present:
+	python3 $(ROOT)/host_tests/venus_native_present_test.py
+
+test-venus-present-retry:
+	python3 $(ROOT)/host_tests/venus_present_retry_test.py
+
+test-direct-session:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/direct_frame_stats_test $(ROOT)/host_tests/direct_frame_stats_test.cpp
+	$(HOST_TEST_DIR)/direct_frame_stats_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/graphics_policy_test $(ROOT)/host_tests/graphics_policy_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/graphics/graphics_profile.cpp \
+	    $(ROOT)/entry/src/main/cpp/graphics/virgl_host_config.cpp
+	$(HOST_TEST_DIR)/graphics_policy_test
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \
+	    -o $(HOST_TEST_DIR)/direct_session_env_test $(ROOT)/host_tests/direct_session_env_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/wine/env_profiles.cpp \
+	    $(ROOT)/entry/src/main/cpp/wine/dll_overrides.cpp \
+	    $(ROOT)/entry/src/main/cpp/graphics/graphics_profile.cpp
+	$(HOST_TEST_DIR)/direct_session_env_test
+
 test-direct-viewport:
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
@@ -594,6 +622,12 @@ test-benchmark-statistics:
 	$(HOST_TEST_DIR)/benchmark_statistics_test
 
 .PHONY: test
+.PHONY: test-wine-server-build
+test-wine-server-build:
+	python3 $(ROOT)/host_tests/wine_server_build_test.py
+
+test: test-wine-server-build
+
 .PHONY: test-fex-strict-mul24
 test-fex-strict-mul24:
 	python3 $(ROOT)/host_tests/fex_strict_mul24_test.py --fex-src $(FEX_SRC)
@@ -829,10 +863,11 @@ test-arm64ec-seh:
 
 test-dll-overrides:
 	@mkdir -p $(HOST_TEST_DIR)
-	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp/wine \
+	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \
 	    -o $(HOST_TEST_DIR)/dll_overrides_test $(ROOT)/host_tests/dll_overrides_test.cpp \
 	    $(ROOT)/entry/src/main/cpp/wine/dll_overrides.cpp \
-	    $(ROOT)/entry/src/main/cpp/wine/env_profiles.cpp
+	    $(ROOT)/entry/src/main/cpp/wine/env_profiles.cpp \
+	    $(ROOT)/entry/src/main/cpp/graphics/graphics_profile.cpp
 	$(HOST_TEST_DIR)/dll_overrides_test
 
 test-font-import:

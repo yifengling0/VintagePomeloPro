@@ -1,0 +1,57 @@
+info:  Game: ROTTR.exe
+
+info:  DXVK: v1.10.3
+
+info:  Found config file: dxvk.conf
+
+info:  Effective configuration:
+
+info:    dxgi.syncInterval = 2
+
+info:    dxgi.maxFrameRate = 30
+
+info:    d3d11.disableMsaa = True
+
+info:  Built-in extension providers:
+
+info:    Win32 WSI
+
+info:    OpenVR
+
+info:    OpenXR
+
+info:  OpenVR: could not open registry key, status 2
+
+warn:  OpenVR: Failed to initialize OpenVR
+
+info:  Enabled instance extensions:
+
+info:    VK_KHR_get_surface_capabilities2
+
+info:    VK_KHR_surface
+
+info:    VK_KHR_win32_surface
+
+info:  Maleoon 910:
+
+info:    Driver: 292.366.2691
+
+info:    Vulkan: 1.2.309
+
+info:    Device name:     : Maleoon 910
+
+info:    Device name:     : Maleoon 910
+
+info:    Device name:     : Maleoon 910
+
+info:    Device name:     : Maleoon 910
+
+info:    Present mode: VK_PRESENT_MODE_MAILBOX_KHR
+
+info:    Buffer size:  1280x800
+
+info:    Device name:     : Maleoon 910
+
+info:    Present mode: VK_PRESENT_MODE_FIFO_KHR
+
+info:    Buffer size:  1280x800

@@ -1,6 +1,7 @@
 #include "env_profiles.h"
 #include "wine_env.h"
 #include "dll_overrides.h"
+#include "graphics/graphics_profile.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -137,6 +138,19 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
         AppendStableDxvkEnv(env, env, d3dBackend, dxvkBackend);
     if (p.desktopShellFlag)
         UpsertEnvLine(env, "WINEHUA_DESKTOP=shell");
+    // The session owner selects Host before startup. Apply that same product
+    // or LAB policy after the historical stable overlay, for Explorer and games.
+    // A child-only profile override cannot change the session transport.
+    const char* sessionProfile = getenv("WINEHUA_GRAPHICS_PROFILE");
+    std::vector<std::string> graphicsEnvironment;
+    const bool sessionExperiment = sessionProfile &&
+        BuildLabGuestGraphicsEnvironment(sessionProfile,
+            ParseD3dBackend(d3dBackend), &graphicsEnvironment);
+    const bool graphicsPolicyApplied = sessionExperiment ||
+        BuildProductGuestGraphicsEnvironment(ParseD3dBackend(d3dBackend),
+                                             &graphicsEnvironment);
+    if (graphicsPolicyApplied)
+        for (const auto& line : graphicsEnvironment) UpsertEnvLine(env, line);
     // Direct Vulkan programs intentionally keep d3dBackend=wined3d, so the
     // D3D overlay above does not configure Venus.
     if (FindEnvValue(p.extraEnv, "WINEHUA_VULKAN_RUNTIME") == "1" &&
@@ -163,6 +177,17 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
             continue;
         }
         UpsertEnvLine(env, line);
+    }
+    if (graphicsPolicyApplied) {
+        // Transport is immutable for the session: the system loader also
+        // needs Direct producer IPC and the matching desktop consumer.
+        for (const auto& line : graphicsEnvironment)
+            if (line.rfind("WINEHUA_VULKAN_BACKEND=", 0) == 0 ||
+                line.rfind("WINEHUA_GRAPHICS_PROFILE=", 0) == 0 ||
+                line.rfind("WINEHUA_VK_PRECISE_MAP=", 0) == 0 ||
+                line.rfind("DXVK_WINEHUA_PRECISE_SHADOW=", 0) == 0 ||
+                line.rfind("DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=", 0) == 0)
+                UpsertEnvLine(env, line);
     }
     return env;
 }

@@ -8,6 +8,8 @@
 // Opt-in Create NCP launcher. The caller still owns every fd in args after return.
 // On success, call MarkWineIpcChildRegistered after AddProcess to enable death delivery.
 int32_t StartWineChildViaIpc(const NativeChildProcess_Args& args, int32_t* childPid);
+bool WineIpcProbeChildExited(int32_t childPid);
+void ReleaseWineIpcProbeChild(int32_t childPid);
 void MarkWineIpcChildRegistered(int32_t childPid);
 bool WineIpcChildUsesDirectVulkan(int32_t childPid);
 // The caller owns producerWindow. These calls are valid only for a live Create

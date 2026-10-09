@@ -1,0 +1,23 @@
+
+-------------------------------[ability]-------------------------------
+
+
+----------------------------------ThermalService----------------------------------
+Type: Battery
+Temperature: 39000
+Type: ambient
+Temperature: 75992
+Type: charger
+Temperature: 43750
+Type: dot
+Temperature: 39277
+Type: rfboard
+Temperature: 40823
+Type: shell_back
+Temperature: 41729
+Type: shell_frame
+Temperature: 43244
+Type: shell_front
+Temperature: 42875
+Type: system_h
+Temperature: 45625

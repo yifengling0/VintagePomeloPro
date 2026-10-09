@@ -68,11 +68,21 @@ public:
             return Fail("writer_not_system_vulkan", VK_ERROR_INITIALIZATION_FAILED);
         VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
         app.pApplicationName = "WineHua phone shared-buffer P0";
-        app.apiVersion = VK_API_VERSION_1_1;
         VkInstanceCreateInfo create{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
         create.pApplicationInfo = &app;
+        // Exercise the same OHOS WSI-capable loader path as Wine Direct,
+        // even though this small capability image has no display surface.
+        const char* instanceExtensions[]{VK_KHR_SURFACE_EXTENSION_NAME,
+                                        VK_OHOS_SURFACE_EXTENSION_NAME};
+        create.enabledExtensionCount = 2;
+        create.ppEnabledExtensionNames = instanceExtensions;
         Mark("writer_instance");
-        VkResult r = vkCreateInstance(&create, nullptr, &instance_);
+        VkResult r = VK_ERROR_INCOMPATIBLE_DRIVER;
+        for (uint32_t version : {VK_API_VERSION_1_3, VK_API_VERSION_1_2, VK_API_VERSION_1_1}) {
+            app.apiVersion = version;
+            r = vkCreateInstance(&create, nullptr, &instance_);
+            if (r != VK_ERROR_INCOMPATIBLE_DRIVER) break;
+        }
         if (r != VK_SUCCESS) return Fail("writer_instance", r);
         uint32_t count = 0;
         r = vkEnumeratePhysicalDevices(instance_, &count, nullptr);
@@ -521,6 +531,9 @@ extern "C" __attribute__((visibility("default"))) void Main(NativeChildProcess_A
     unsetenv("VK_ICD_FILENAMES");
     unsetenv("VK_DRIVER_FILES");
     const bool passed = Run(fd);
+    // Run's local Vulkan objects have now been destroyed. A completion packet
+    // alone precedes that cleanup and does not qualify a healthy child exit.
+    if (passed) Report(fd, Kind::Stage, "child_cleanup_complete");
     close(fd);
     _exit(passed ? 0 : 1);
 }

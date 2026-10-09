@@ -8,6 +8,7 @@
 #include <hilog/log.h>
 #include <native_window/external_window.h>
 #include <unistd.h>
+#include <dlfcn.h>
 
 #include <chrono>
 #include <condition_variable>
@@ -329,6 +330,16 @@ extern "C" __attribute__((visibility("default"))) void NativeChildProcess_MainPr
     NativeChildProcess_Args args{};
     args.entryParams = const_cast<char*>(params.c_str());
     args.fdList.head = nodes.empty() ? nullptr : &nodes[0];
+    if (params == winehua::wineipc::kBufferProbeParams) {
+        // Qualify Vulkan under the same Create/IPC child context as Direct
+        // games. The Start API's child cannot create a Vulkan instance here.
+        void* probe = dlopen("libdirect_shared_buffer_probe.so", RTLD_NOW | RTLD_LOCAL);
+        auto run = probe ? reinterpret_cast<void (*)(NativeChildProcess_Args)>(
+            dlsym(probe, "Main")) : nullptr;
+        if (!run) { CloseFds(fds); _exit(1); }
+        run(args);
+        _exit(1); // the standalone entry owns cleanup and exits itself
+    }
     Main(args);
     // Main may close or hand off its fds; process exit releases any survivors.
 }

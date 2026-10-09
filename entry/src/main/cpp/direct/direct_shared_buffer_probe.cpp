@@ -2,6 +2,13 @@
 #include "native_buffer_socket.h"
 #include "direct_buffer_import_probe.h"
 #include "phone_adapter/phone_process.h"
+#include "phone_adapter/phone_adapter.h"
+#include "graphics/graphics_profile.h"
+#include "proc/wine_child_ipc.h"
+#include "proc/wine_child_ipc_launcher.h"
+#define LOG_DOMAIN 0x2330
+#define LOG_TAG "DirectAuto"
+#include <hilog/log.h>
 
 #include <native_buffer/native_buffer.h>
 #include <native_buffer/buffer_common.h>
@@ -70,6 +77,8 @@ struct Work {
     bool standardFork = false;
     bool systemStart = false;
     bool guestExport = false;
+    bool automatic = false;
+    bool createIpc = false;
     std::unique_ptr<SystemObserver> observer;
     bool childKilledByProbe = false;
     bool childDeviceCreated = false;
@@ -133,7 +142,7 @@ bool Wait(Work& w, int fd, Kind kind, Message& message) {
 
 void Run(Work& w) {
     w.server = Phone_GetDirectForkServerPid();
-    if (!w.systemStart && w.server <= 0) { w.stage = "early_fork_server_unavailable"; return; }
+    if (!w.createIpc && !w.systemStart && w.server <= 0) { w.stage = "early_fork_server_unavailable"; return; }
     Buffer buffer;
     Message descriptor;
     if (!w.guestExport) {
@@ -171,7 +180,10 @@ void Run(Work& w) {
     args.entryParams = const_cast<char*>(w.standardFork ? "shared-buffer-p0-standard-fork" :
         w.preserveLowMappings ? "shared-buffer-p0-preserve-maps" : "shared-buffer-p0");
     args.fdList.head = &channel;
-    if (w.systemStart) {
+    if (w.createIpc) {
+        args.entryParams = const_cast<char*>(winehua::wineipc::kBufferProbeParams);
+        w.launchCode = StartWineChildViaIpc(args, &w.child);
+    } else if (w.systemStart) {
         { std::lock_guard<std::mutex> lock(systemExitMutex); systemExits.clear(); }
         w.observer.reset(new SystemObserver());
         if (!w.observer->start || w.observer->start == &OH_Ability_StartNativeChildProcess) {
@@ -184,7 +196,7 @@ void Run(Work& w) {
     if (w.launchCode != NCP_NO_ERROR || w.child <= 0) {
         w.stage = w.systemStart ? "system_start_launch" : "fork_server_launch"; return;
     }
-    if (w.systemStart && !w.observer->registered) { w.stage = "system_exit_observer"; return; }
+    if (!w.createIpc && w.systemStart && !w.observer->registered) { w.stage = "system_exit_observer"; return; }
     close(child.value);
     child.value = -1;
     if (!Send(parent.value, descriptor.packet, descriptor.fds)) {
@@ -256,9 +268,22 @@ void Run(Work& w) {
         w.hostFenceImports == w.hostRealFenceImports &&
         w.childRealFenceExports == w.hostRealFenceImports && w.hostRealFenceExports == w.childRealFenceImports;
     w.stage = w.passed ? "complete" : "counter_contract";
+    if (w.passed && w.createIpc) {
+        Message cleaned;
+        w.passed = Receive(parent.value, cleaned, 3000) && cleaned.fds.empty() &&
+            cleaned.packet.pid == w.child && cleaned.packet.kind == Kind::Stage &&
+            !strcmp(cleaned.packet.stage, "child_cleanup_complete");
+        if (!w.passed) w.stage = "child_cleanup";
+    }
 }
 
 bool ObserveExit(Work& w) {
+    if (w.createIpc) {
+        w.exitObserved = WineIpcProbeChildExited(w.child);
+        // An IPC death notification has no exit status. Healthy Vulkan cleanup
+        // is separately required by the packet contract above.
+        return w.exitObserved;
+    }
     if (w.systemStart) {
         std::lock_guard<std::mutex> lock(systemExitMutex);
         auto found = systemExits.find(w.child);
@@ -279,18 +304,34 @@ bool ObserveExit(Work& w) {
 void Execute(napi_env, void* data) {
     std::lock_guard<std::mutex> serialized(probeMutex);
     auto& w = *static_cast<Work*>(data);
+    w.createIpc = w.automatic;
     w.parentFdsBefore = CountFds();
-    Run(w);
+    bool eligible = true;
+    if (w.automatic) {
+#if !defined(__aarch64__) || defined(WINEHUA_WINE_ARCH_IS_X86_64)
+        eligible = false;
+        w.stage = "native_arm64_wine_required";
+#else
+        // Phone Wine children use a different process/permission path. Keep
+        // Venus until the same child export gate is qualified there.
+        if (PhoneAdapter_IsPhoneMode()) {
+            eligible = false;
+            w.stage = "phone_requires_venus";
+        }
+#endif
+    }
+    if (eligible) Run(w);
     if (w.child > 0) {
         if (!ObserveExit(w) && !w.passed) w.childKilledByProbe = kill(w.child, SIGKILL) == 0;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
         while (!w.exitObserved && std::chrono::steady_clock::now() < deadline && !ObserveExit(w))
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         w.childKilledByProbe = w.childKilledByProbe && w.childSignal == SIGKILL;
-        if (w.passed && (!w.exitObserved || (w.systemStart ? w.childSignal != 0 : w.childExit != 0))) {
+        if (w.passed && (!w.exitObserved || (!w.createIpc && (w.systemStart ? w.childSignal != 0 : w.childExit != 0)))) {
             w.passed = false; w.stage = "child_exit";
         }
     }
+    if (w.createIpc && w.child > 0) ReleaseWineIpcProbeChild(w.child);
     w.observer.reset();
     if (w.diagnosticFd >= 0) {
         size_t used = 0;
@@ -302,11 +343,19 @@ void Execute(napi_env, void* data) {
         w.diagnosticFd = -1;
     }
     w.parentFdsAfter = CountFds();
+    if (w.automatic) {
+        winehua::SetProductDirectVulkanVerified(w.passed);
+        OH_LOG_INFO(LOG_APP,
+            "[DirectAuto] verified=%{public}d stage=%{public}s childStage=%{public}s vk=%{public}d launch=%{public}d frames=%{public}u device=%{public}s diagnostic=%{public}s",
+            w.passed ? 1 : 0, w.stage, w.lastChildStage, w.result, w.launchCode,
+            w.frames, w.deviceName, w.childStderr);
+    }
 }
 
 void Complete(napi_env env, napi_status status, void* data) {
     auto* w = static_cast<Work*>(data);
     if (status != napi_ok) { w->passed = false; w->stage = "async_work"; }
+    if (w->automatic && status != napi_ok) winehua::SetProductDirectVulkanVerified(false);
     napi_value result;
     napi_create_object(env, &result);
     auto text = [&](const char* key, const char* value) {
@@ -321,7 +370,8 @@ void Complete(napi_env env, napi_status status, void* data) {
         napi_value item; napi_get_boolean(env, value, &item);
         napi_set_named_property(env, result, key, item);
     };
-    text("gate", w->guestExport ? "P0-PHONE-GUEST-EXPORT" : "P0-PHONE-SHARED-NATIVEBUFFER");
+    text("gate", w->automatic ? "PRODUCT-DIRECT-CAPABILITY" :
+         (w->guestExport ? "P0-PHONE-GUEST-EXPORT" : "P0-PHONE-SHARED-NATIVEBUFFER"));
     text("status", w->passed ? "PASS" : "FAIL");
     text("stage", w->stage);
     text("lastChildStage", w->lastChildStage);
@@ -336,6 +386,7 @@ void Complete(napi_env env, napi_status status, void* data) {
     boolean("preserveLowMappings", w->preserveLowMappings);
     boolean("standardFork", w->standardFork);
     boolean("systemStart", w->systemStart);
+    boolean("supported", w->automatic && w->passed && status == napi_ok);
     boolean("guestExport", w->guestExport);
     boolean("childKilledByProbe", w->childKilledByProbe);
     boolean("childDeviceCreated", w->childDeviceCreated);
@@ -359,6 +410,31 @@ void Complete(napi_env env, napi_status status, void* data) {
 }
 }
 
+static napi_value QueueSharedBufferProbe(napi_env env, Work* work) {
+    napi_value promise, name;
+    if (napi_create_promise(env, &work->deferred, &promise) != napi_ok) {
+        delete work; napi_throw_error(env, nullptr, "shared buffer promise"); return nullptr;
+    }
+    napi_create_string_utf8(env, "WineHuaSharedBufferCapability", NAPI_AUTO_LENGTH, &name);
+    if (napi_create_async_work(env, nullptr, name, Execute, Complete, work, &work->async) != napi_ok ||
+        napi_queue_async_work(env, work->async) != napi_ok) {
+        if (work->async) napi_delete_async_work(env, work->async);
+        delete work; napi_throw_error(env, nullptr, "shared buffer async work"); return nullptr;
+    }
+    return promise;
+}
+
+napi_value ProbeProductDirectSupport(napi_env env, napi_callback_info) {
+    auto* work = new Work();
+    work->automatic = true;
+    work->systemStart = true;
+    work->guestExport = true;
+    // Begin rejected; only a complete child render/export, host import,
+    // bidirectional fence exchange, pixel check and clean exit grant Direct.
+    winehua::SetProductDirectVulkanVerified(false);
+    return QueueSharedBufferProbe(env, work);
+}
+
 napi_value RunPhoneSharedBufferProbe(napi_env env, napi_callback_info info) {
     auto* work = new Work();
     napi_value arguments[4];
@@ -371,16 +447,6 @@ napi_value RunPhoneSharedBufferProbe(napi_env env, napi_callback_info info) {
     }
     if (work->systemStart) work->preserveLowMappings = work->standardFork = false;
     if (work->standardFork) work->preserveLowMappings = true;
-    napi_value promise, name;
-    if (napi_create_promise(env, &work->deferred, &promise) != napi_ok) {
-        delete work; napi_throw_error(env, nullptr, "shared buffer promise"); return nullptr;
-    }
-    napi_create_string_utf8(env, "WineHuaPhoneSharedBufferP0", NAPI_AUTO_LENGTH, &name);
-    if (napi_create_async_work(env, nullptr, name, Execute, Complete, work, &work->async) != napi_ok ||
-        napi_queue_async_work(env, work->async) != napi_ok) {
-        if (work->async) napi_delete_async_work(env, work->async);
-        delete work; napi_throw_error(env, nullptr, "shared buffer async work"); return nullptr;
-    }
-    return promise;
+    return QueueSharedBufferProbe(env, work);
 }
 }

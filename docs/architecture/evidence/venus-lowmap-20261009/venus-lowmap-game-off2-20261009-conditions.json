@@ -1,0 +1,39 @@
+{
+  "mode": "off",
+  "path": "Z:\\games\\Tomb Raider\\TombRaider.exe",
+  "env": [
+    {
+      "key": "DXVK_LOG_PATH",
+      "value": "C:\\vp-gumu10-evidence"
+    },
+    {
+      "key": "DXVK_LOG_LEVEL",
+      "value": "info"
+    },
+    {
+      "key": "DXVK_WINEHUA_TRACE_FLOW",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_VIRGL_LOW_MAP",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_VENUS_LOW_MAP",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_VENUS_MAP_DIAG",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,+err"
+    },
+    {
+      "key": "VN_WINEHUA_PERF_SUMMARY",
+      "value": "0"
+    }
+  ],
+  "experiment": "isolate-venus-native-buffer"
+}

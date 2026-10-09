@@ -87,7 +87,7 @@ static void glTexImage2D(int,int,int,int,int,int,int,int,const void* p) { upload
 static void glTexSubImage2D(int,int,int,int,int,int,int,int,const void* p) { upload(p); }
 static void glDrawArrays(int,int,int) {
     auto c=colors.at(boundTexture);
-    if(boundTarget==GL_TEXTURE_2D && forceOpaque>0.5f) c[3]=1.f;
+    if(forceOpaque>0.5f) c[3]=1.f;
     for(int i=0;i<4;++i) framebuffer[i]=c[i]+(blend ? framebuffer[i]*(1.f-c[3]) : 0.f);
     if(raster)for(int y=0;y<10;y++)for(int x=0;x<16;x++)
         if(inside(viewport,x,y)&&(!scissored||inside(scissor,x,y)))
@@ -244,6 +244,23 @@ int main() {
     assert(siblings.layers[2].zeroCopyKey==37 && siblings.layers[3].zeroCopyKey==163);
     assert(siblings.layers[4].key==3 && siblings.layers[5].key==4);
     auto mixed = r.zeroCopyScene_.layers;
+    // Vulkan's OPAQUE swapchain contract ignores every stored alpha value.
+    // Reproduce TR32: zero-alpha RGB over a white SHM window must not add white.
+    auto opaqueGpu=gpu; opaqueGpu.opaque=true;
+    auto white=base; white.pixels=std::make_shared<const std::vector<uint8_t>>(4,255);
+    for(float alpha : {0.f,0.5f,1.f}) {
+        colors[content.texture]={0.125f,0.5f,0.875f,alpha};
+        r.zeroCopyScene_.layers={white,opaqueGpu}; r.DrawZeroCopyScene();
+        assert(framebuffer[0]==0.125f && framebuffer[1]==0.5f && framebuffer[2]==0.875f && framebuffer[3]==1.f);
+    }
+    // A GL/CEF layer's premultiplied alpha and an upper SHM menu still blend.
+    opaqueGpu.opaque=false; colors[content.texture]={0.25f,0.f,0.f,0.5f};
+    r.zeroCopyScene_.layers={white,opaqueGpu}; r.DrawZeroCopyScene();
+    assert(framebuffer[0]==0.75f && framebuffer[1]==0.5f && framebuffer[2]==0.5f);
+    colors[content.texture]={1,0,0,0}; opaqueGpu.opaque=true;
+    r.zeroCopyScene_.layers={white,opaqueGpu,menu}; r.DrawZeroCopyScene();
+    assert(framebuffer[0]>0.49f && framebuffer[0]<0.5f && framebuffer[1]>0.5f && framebuffer[2]==0);
+    colors[content.texture]={1,0,0,1};
     r.zeroCopyScene_.layers={gpu}; measured={};
     r.DrawZeroCopyScene(&measured);assert(measured.calls==0 && measured.bytes==0);
     r.zeroCopyScene_.layers=mixed;

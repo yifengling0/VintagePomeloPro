@@ -271,6 +271,24 @@ void MarkWineIpcChildRegistered(int32_t childPid)
     }
 }
 
+bool WineIpcProbeChildExited(int32_t childPid)
+{
+    std::lock_guard<std::mutex> lock(g_recordsMutex);
+    const auto it = g_records.find(childPid);
+    return it != g_records.end() && it->second->dead.load(std::memory_order_acquire);
+}
+
+void ReleaseWineIpcProbeChild(int32_t childPid)
+{
+    std::shared_ptr<ChildRecord> record;
+    {
+        std::lock_guard<std::mutex> lock(g_recordsMutex);
+        const auto it = g_records.find(childPid);
+        if (it != g_records.end()) record = it->second;
+    }
+    if (record) CleanupRecord(record);
+}
+
 bool WineIpcChildUsesDirectVulkan(int32_t childPid)
 {
     std::lock_guard<std::mutex> lock(g_recordsMutex);

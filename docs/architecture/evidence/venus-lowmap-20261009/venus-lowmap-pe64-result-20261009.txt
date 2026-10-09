@@ -1,0 +1,79 @@
+Fri Oct  9 09:57:32 CST 2026
+Modify: 2026-10-09 09:56:35.948771416 +0800
+pointer_bits	64
+
+device	0x00000000	level=0xb000
+
+adapter	Virtio-GPU Venus (Maleoon 910)
+
+render_target	0x00000000
+
+buffers	0x00000000
+
+upload_map	0	0x00000000	0000007002e46800
+
+readback_map	0	0x00000000	000000700ae01000
+
+upload_readback	0	bad=0
+
+upload_map	1	0x00000000	0000007002e06800
+
+readback_map	1	0x00000000	000000700ae01000
+
+upload_readback	1	bad=0
+
+upload_map	2	0x00000000	0000007002e46800
+
+readback_map	2	0x00000000	000000700ae01000
+
+upload_readback	2	bad=0
+
+upload_map	3	0x00000000	0000007002e06800
+
+readback_map	3	0x00000000	000000700ae01000
+
+upload_readback	3	bad=0
+
+textures	0x00000000
+
+texture_upload_readback	0	bad=0
+
+texture_upload_readback	1	bad=0
+
+texture_upload_readback	2	bad=0
+
+texture_upload_readback	3	bad=0
+
+present	frames=120	hr=0x00000000	ms=1070.917	fps=112.053
+
+RESULT	PASS
+
+hold_ms	30000
+
+MESA-VIRTIO: debug: winehua venus map: sample=5 fd=125 size=16777216 ptr=0x7f80000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=6 fd=132 size=16777216 ptr=0x9180000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=7 fd=137 size=16777216 ptr=0xa180000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=0 fd=40 size=67108864 ptr=0x7002e01000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=1 fd=46 size=67108864 ptr=0x7006e01000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=2 fd=49 size=67108864 ptr=0x700ae01000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=3 fd=50 size=67108864 ptr=0x700ee01000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=4 fd=51 size=67108864 ptr=0x7012e01000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+info:    Buffer size:  652x486
+
+info:    Image count:  3
+
+info:    Exclusive FS: 2
+
+info:  WineHua: command-list-owned mapped flush batching enabled
+
+info:  Presenter: Actual swap chain properties:
+
+info:    Format:       VK_FORMAT_R8G8B8A8_UNORM
+
+info:    Present mode: VK_PRESENT_MODE_IMMEDIATE_KHR
+
+info:    Buffer size:  652x486
+
+info:    Image count:  3
+
+info:    Exclusive FS: 2

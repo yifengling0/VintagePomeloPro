@@ -1286,7 +1286,8 @@ void GraphicsBroker::StartVirglSocketServerLocked()
         const std::string shadowTrace = requestedShadowTrace && requestedShadowTrace[0]
             ? requestedShadowTrace : "0";
         const std::string presentMode = requestedPresentMode &&
-            (!strcmp(requestedPresentMode, "mailbox") ||
+            (!strcmp(requestedPresentMode, "native-buffer") ||
+             !strcmp(requestedPresentMode, "mailbox") ||
              !strcmp(requestedPresentMode, "fifo-async") ||
              !strcmp(requestedPresentMode, "fifo-poll"))
             ? requestedPresentMode : "fifo";

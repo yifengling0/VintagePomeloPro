@@ -3,6 +3,10 @@
 #include "direct_wine_surface_controller.h"
 #include "direct_composite_spv.h"
 #include "direct_desktop_spv.h"
+#include "direct_frame_stats.h"
+#include "common/displayed_fps.h"
+#include "common/perf_utils.h"
+#include "compositor/wayland_server.h"
 #include "compositor/toplevel/desktop_compositor.h"
 #include <native_buffer/native_buffer.h>
 #include <hilog/log.h>
@@ -51,11 +55,13 @@ class VulkanDesktopRenderer {
         std::shared_ptr<Image> image;
         int acquireFence = -1;
         bool owned = false;
+        DirectFrameAcceptance accepted;
     };
     struct Layer {
         DirectDesktopSource source;
         Buffer current;
         std::unordered_map<uint32_t, std::shared_ptr<Image>> cache;
+        DirectFrameRate rate;
     };
     struct Frame {
         bool inFlight = false;
@@ -130,6 +136,7 @@ public:
     }
 
     bool Render(int expectedW, int expectedH) {
+        PublishFrameRates();
         auto& g = *core_;
         auto& slot = g.Submission(frameIndex_ % 2);
         auto& frame = frames_[frameIndex_ % 2];
@@ -235,7 +242,7 @@ public:
         vkCmdBindPipeline(slot.command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
         FitRect fit;
         ComputeFitRect(g.OutputExtent().width, g.OutputExtent().height, scene_.width, scene_.height, fit);
-        uint64_t frameGameDraws = 0;
+        std::unordered_set<uint32_t> drawnDirect;
         for (const auto& layer : scene_.layers) {
             if (layer.solidBlack) {
                 VkClearAttachment attachment{};
@@ -267,7 +274,7 @@ public:
             vkCmdPushConstants(slot.command, pipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(sampling), &sampling);
             vkCmdDraw(slot.command, 3, 1, 0, 0);
             frame.references.push_back(image);
-            if (layer.directToplevel) { ++draws_; ++frameGameDraws; }
+            if (layer.directToplevel) { ++draws_; drawnDirect.insert(layer.directToplevel); }
         }
         vkCmdEndRenderPass(slot.command);
         if (!Check(vkEndCommandBuffer(slot.command), "scene_command_end")) return false;
@@ -308,7 +315,21 @@ public:
         result = vkQueuePresentKHR(g.Queue(), &present);
         if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
             desktopPresents.fetch_add(1, std::memory_order_relaxed);
-            if (frameGameDraws) desktopGamePresents.fetch_add(1, std::memory_order_relaxed);
+            bool freshGameFrame = false;
+            for (auto& [id, layer] : layers_) {
+                const bool visible = drawnDirect.count(id) != 0;
+                if (layer.current.accepted.Presented(true, visible)) {
+                    layer.rate.Record();
+                    freshGameFrame = true;
+                }
+            }
+            if (freshGameFrame) {
+                desktopGamePresents.fetch_add(1, std::memory_order_relaxed);
+                rootRate_.Record();
+            } else if (direct.empty()) {
+                // With no game source, display actual desktop/UI updates.
+                rootRate_.Record();
+            }
         }
         ++frameIndex_; ++presents_;
         renderedExtent_ = g.OutputExtent();
@@ -399,7 +420,8 @@ private:
                 return false;
             }
             Retire(layer.current);
-            layer.current = {source, windowBuffer, image, fence, false};
+            layer.current = {source, windowBuffer, image, fence, false, {}};
+            layer.current.accepted.Acquired();
             for (auto it = layer.cache.begin(); it != layer.cache.end();)
                 if (it->second && (it->second->width != config.width || it->second->height != config.height))
                     it = layer.cache.erase(it); else ++it;
@@ -411,6 +433,24 @@ private:
         for (auto it = layers_.begin(); it != layers_.end();)
             if (!active.count(it->first)) { Retire(it->second.current); it = layers_.erase(it); } else ++it;
         return true;
+    }
+    void PublishFrameRates() {
+        const uint64_t now = winehua::PerfNowUs();
+        double fps = 0;
+        const uint32_t root = WaylandServer::GetInstance()->GetDesktopRootToplevelId();
+        if (root != statsRoot_) { rootRate_ = {}; statsRoot_ = root; }
+        if (rootRate_.Sample(now, fps) && root) {
+            winehua::PublishDisplayedFpsSample(winehua::kDisplayedFpsBasePath, root,
+                ++fpsSequence_, fps, now);
+            OH_LOG_INFO(LOG_APP, "[DIRECT-FPS] root=%{public}u fps=%{public}.2f gameCpuReadBytes=0 gameCpuUploadBytes=0", root, fps);
+        }
+        for (auto& [id, layer] : layers_)
+            // The root sample belongs to the whole desktop output. Explorer
+            // can also have a layer with this id; its idle rate must not
+            // overwrite the fresh game rate read by the HUD.
+            if (layer.rate.Sample(now, fps) && id != root)
+                winehua::PublishDisplayedFpsSample(winehua::kDisplayedFpsBasePath, id,
+                    ++fpsSequence_, fps, now);
     }
     void Barrier(VkCommandBuffer command, const Buffer& buffer, bool acquire) {
         auto& g = *core_;
@@ -588,6 +628,9 @@ private:
     GpuDesktopScene scene_;
     VkExtent2D renderedExtent_{};
     uint64_t frameIndex_ = 0, presents_ = 0, draws_ = 0;
+    DirectFrameRate rootRate_;
+    uint32_t statsRoot_ = 0;
+    uint64_t fpsSequence_ = 0;
     uint64_t acquireWaits_ = 0, releaseFences_ = 0, producerRetired_ = 0, releaseErrors_ = 0;
     uint64_t imports_ = 0, reuses_ = 0, uiUploadBytes_ = 0;
 };

@@ -54,10 +54,8 @@ bool DirectVulkanContext::Initialize()
     instanceInfo.pApplicationInfo = &app;
     const char* instanceExtensions[] = {
         VK_KHR_SURFACE_EXTENSION_NAME, VK_OHOS_SURFACE_EXTENSION_NAME};
-    if (config_.outputSurfaceId) {
-        instanceInfo.enabledExtensionCount = 2;
-        instanceInfo.ppEnabledExtensionNames = instanceExtensions;
-    }
+    instanceInfo.enabledExtensionCount = 2;
+    instanceInfo.ppEnabledExtensionNames = instanceExtensions;
     VkResult result = vkCreateInstance(&instanceInfo, nullptr, &instance_);
     if (result != VK_SUCCESS) return Fail("import_instance", result);
     if (config_.outputSurfaceId) {

@@ -258,10 +258,12 @@ add_library(virgl_child SHARED
     graphics/virgl_host_config.cpp
     graphics/virgl_surface_presenter.cpp
     graphics/venus_surface_presenter.cpp
+    graphics/native_window_vk_target.cpp
     graphics/shader_utils.cpp
     phone_adapter/phone_virgl_dispatch.cpp
 )
 target_link_libraries(virgl_child PUBLIC
+    libnative_buffer.so
     libEGL.so
     libGLESv3.so
     libvulkan.so

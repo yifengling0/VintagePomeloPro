@@ -1,0 +1,54 @@
+{
+  "mode": "direct-whole",
+  "path": "Z:\\games\\GUMU10\\ROTTR.exe",
+  "args": [
+    "-dx11"
+  ],
+  "env": [
+    {
+      "key": "DXVK_LOG_PATH",
+      "value": "C:\\vp-gumu10-evidence"
+    },
+    {
+      "key": "DXVK_LOG_LEVEL",
+      "value": "info"
+    },
+    {
+      "key": "DXVK_CONFIG_FILE",
+      "value": "C:\\vp-gumu10-evidence\\rottr-720p-30-vsync-20261009.conf"
+    },
+    {
+      "key": "DXVK_WINEHUA_TRACE_FLOW",
+      "value": "0"
+    },
+    {
+      "key": "DXVK_WINEHUA_PERF_DIAGNOSIS",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_SERVER_PERF",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_VIRGL_LOW_MAP",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_VENUS_LOW_MAP",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_VENUS_MAP_DIAG",
+      "value": "0"
+    },
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,+err"
+    },
+    {
+      "key": "VN_WINEHUA_PERF_SUMMARY",
+      "value": "0"
+    }
+  ],
+  "experiment": "isolate-vulkan-direct-whole-map"
+}

@@ -2,7 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { hilog } from './LogService';
-import testNapi from 'libentry.so';
+import testNapi, { ProductDirectProbeResult } from 'libentry.so';
 import {
   D3DRendererPreference,
   DisplayMode,
@@ -657,6 +657,7 @@ export class WineEngineService {
   private appliedHostGraphicsBackend: string = 'dxvk_legacy';
   private hostGraphicsLabExperiment: string = '';
   private appliedHostGraphicsLabExperiment: string = '';
+  private productDirectProbe: Promise<boolean> | null = null;
   private enginePhase: string = '';
   private phaseStartedAt: number = 0;
   private preparationStartedAt: number = 0;
@@ -875,6 +876,9 @@ export class WineEngineService {
         // VPP product-vulkan 图形路由 (注入 virgl/guest_gfx/vulkan/dxvk 会话 env)。
         // 注: explorer 等进程 exit=11 是 wine SEH 正常形态 (fault-forensics:
         // "宿主返回码不等于失败"), 不作为路由回归的依据。
+        if (this.hostGraphicsLabExperiment.length === 0) {
+          await this.ensureProductDirectCapability();
+        }
         const policyApplied = this.hostGraphicsLabExperiment.length > 0 ?
           (testNapi.setHostGraphicsExperimentForLab(
             this.hostGraphicsLabExperiment, this.hostGraphicsBackend) as boolean) :
@@ -905,6 +909,8 @@ export class WineEngineService {
       // proton 方案③ launchClient 12 参布局 (containerSession 语义):
       // exe, argv, sock, libPath, home, d3d, dxvk, lang, containerId,
       // directNcp, desktopVulkanCompositor, desktopStallSeconds
+      // Native derives the automatic product/LAB transport and compositor from the applied
+      // graphics policy; these booleans remain defaults for older callers.
       const wineUnixSubdir = pathExists(`${WINE_BIN}/aarch64-unix`) ? 'aarch64-unix' : 'x86_64-unix';
       testNapi.launchClient(BOX64, [], SOCK, WINE_BIN + ':' + WINE_BIN + '/' + wineUnixSubdir,
         homeDirectory, this.d3dBackend, this.d3dBackend, this.activeWineLanguage,
@@ -1045,6 +1051,26 @@ export class WineEngineService {
     this.hostGraphicsBackend = this.hostGraphicsBackendOverride.length > 0 ?
       this.hostGraphicsBackendOverride : this.selectedD3DBackend();
     return this.hostGraphicsBackend;
+  }
+
+  private ensureProductDirectCapability(): Promise<boolean> {
+    if (!this.productDirectProbe) {
+      this.productDirectProbe = this.probeProductDirectCapability();
+    }
+    return this.productDirectProbe;
+  }
+
+  private async probeProductDirectCapability(): Promise<boolean> {
+    try {
+      const result = await testNapi.probeProductDirectSupport() as ProductDirectProbeResult;
+      hilog.info(DOMAIN, TAG,
+        'Direct capability supported=%{public}s stage=%{public}s device=%{public}s frames=%{public}d',
+        result.supported ? 'true' : 'false', result.stage, result.deviceName, result.framesVerified);
+      return result.supported;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, 'Direct capability unavailable; using Venus: %{public}s', JSON.stringify(error));
+      return false;
+    }
   }
 
   selectHostGraphicsExperimentForLab(experimentId: string): boolean {

@@ -1,0 +1,59 @@
+Fri Oct  9 10:07:22 CST 2026
+info:  WineHua: BC1-BC7 upload-time decompression enabled
+
+info:  WineHua: Cube Dref coordinate path=padded-vec4
+
+info:  WineHua: CubeArray Dref path=2d-array-emulation
+
+info:  WineHua: custom border capability path=shader-emulation customBorderColors=0 customBorderColorWithoutFormat=0
+
+info:  Presenter: Actual swap chain properties:
+
+info:    Format:       VK_FORMAT_R8G8B8A8_UNORM
+
+info:    Present mode: VK_PRESENT_MODE_IMMEDIATE_KHR
+
+info:    Buffer size:  800x600
+
+info:    Image count:  3
+
+info:    Exclusive FS: 1
+
+info:  Presenter: Actual swap chain properties:
+
+info:    Format:       VK_FORMAT_R8G8B8A8_UNORM
+
+info:    Present mode: VK_PRESENT_MODE_FIFO_KHR
+
+info:    Buffer size:  800x600
+
+info:    Image count:  3
+
+info:    Exclusive FS: 1
+
+info:  DXVK: Using 7 compiler threads
+
+info:  Presenter: Actual swap chain properties:
+
+info:    Format:       VK_FORMAT_R8G8B8A8_UNORM
+
+info:    Present mode: VK_PRESENT_MODE_IMMEDIATE_KHR
+
+info:    Buffer size:  800x600
+
+info:    Image count:  3
+
+info:    Exclusive FS: 1
+
+info:  WineHuaFormat: emulating DXGI_FORMAT_R8G8B8A8_SNORM render targets with VK_FORMAT_R16G16B16A16_SFLOAT
+
+10-09 09:29:48.971 48362 49971 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] add pid=50234 name=TombRaider.exe total=19
+10-09 09:37:49.283 50915 50915 I A00000/com.vintage.pomelopro/WL_NAPI: [Wine] runWineExe bin=/data/storage/el2/base/files/wine/bin exe=Z:\games\Tomb Raider\TombRaider.exe (final=Z:\games\Tomb Raider\TombRaider.exe) home=/storage/Users/currentUser/Download/com.vintage.pomelopro
+10-09 09:37:49.345 50915 53178 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] add pid=53497 name=TombRaider.exe total=19
+10-09 09:37:52.411 50915 52893 E A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 3015b4 335f6b7][ProcReg] NCP child pid=53458 terminated signal/reason=11(0xb) name=Segmentation fault
+10-09 09:45:57.031 56135 56135 I A00000/com.vintage.pomelopro/WL_NAPI: [Wine] runWineExe bin=/data/storage/el2/base/files/wine/bin exe=Z:\games\Tomb Raider\TombRaider.exe (final=Z:\games\Tomb Raider\TombRaider.exe) home=/storage/Users/currentUser/Download/com.vintage.pomelopro
+10-09 09:45:57.086 56135 56419 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] add pid=56769 name=TombRaider.exe total=19
+10-09 09:46:00.116 56135 56173 E A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 2e88855 335f6b7][ProcReg] NCP child pid=56722 terminated signal/reason=11(0xb) name=Segmentation fault
+10-09 09:56:35.952 60058 60097 E A00000/com.vintage.pomelopro/WL_NAPI: [5472656e6e49656 dcccd8 335f6b7][ProcReg] NCP child pid=60604 terminated signal/reason=11(0xb) name=Segmentation fault
+10-09 09:57:53.650 61350 61350 I A00000/com.vintage.pomelopro/WL_NAPI: [Wine] runWineExe bin=/data/storage/el2/base/files/wine/bin exe=Z:\games\Tomb Raider\TombRaider.exe (final=Z:\games\Tomb Raider\TombRaider.exe) home=/storage/Users/currentUser/Download/com.vintage.pomelopro
+10-09 09:57:53.705 61350 61612 W A00000/com.vintage.pomelopro/WL_NAPI: [ProcReg] add pid=61877 name=TombRaider.exe total=18

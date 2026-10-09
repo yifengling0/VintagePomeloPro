@@ -1,0 +1,7 @@
+10-09 10:17:03.744   752  2011 I A00000/com.vintage.pomelopro/WL_EGL: [MW-RNDR] tl=1 NativeVSync period=16683072ns rate=59.94Hz
+10-09 10:17:13.319   752  2011 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=3600 fps=9.19 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=13204/36266/78304/90694 upload_us=0/0/0/0 swap_us=1159/1769/2203/2502 total_us=15465/39033/79805/93144
+10-09 10:17:15.278  1638  1638 I A00000/melopro:Native_libvirgl_child0/venus-presenter: [VENUS-PRESENT][NCP] transport=direct-native-buffer frames=3600 size=800x600 fps=18.05 present_us_avg=1002 post_present_cpu_wait=0 slots=3
+10-09 10:17:15.299   752  2011 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] frame=3600 tl=1 key=8955006812191 source=800x600 layer=800x600+150,147 signals=3600 failures=0
+10-09 10:17:28.276   752  2011 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=3720 fps=8.02 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=9401/21519/26175/35769 upload_us=0/0/0/0 swap_us=1181/1554/2196/2310 total_us=11542/24876/27899/38465
+10-09 10:17:30.295  1638  1638 I A00000/melopro:Native_libvirgl_child0/venus-presenter: [VENUS-PRESENT][NCP] transport=direct-native-buffer frames=3720 size=800x600 fps=17.35 present_us_avg=1011 post_present_cpu_wait=0 slots=3
+10-09 10:17:30.328   752  2011 I A00000/com.vintage.pomelopro/WL_EGL: [VIRGL-ZC][MAIN] frame=3720 tl=1 key=8955006812191 source=800x600 layer=800x600+150,147 signals=3720 failures=0

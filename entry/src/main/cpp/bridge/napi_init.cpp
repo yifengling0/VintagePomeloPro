@@ -437,6 +437,15 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
         napi_create_int32(env, -1, &failed);
         return failed;
     }
+    // Current product callers leave legacy Direct booleans false. Resolve
+    // them from the same Native policy that owns the child environment.
+    const char* sessionProfile = getenv("WINEHUA_GRAPHICS_PROFILE");
+    winehua::ProductGraphicsPolicy sessionPolicy;
+    if (winehua::ResolveSessionGraphicsPolicy(sessionProfile ? sessionProfile : "",
+            winehua::ParseD3dBackend(p->d3dBackend), &sessionPolicy)) {
+        p->directNcpSession = sessionPolicy.guest.directVulkan;
+        p->desktopVulkanCompositor = sessionPolicy.guest.directVulkan;
+    }
     // 向后兼容: 旧调用未传 homeDir 时使用默认路径
     if (p->homeDir.empty()) {
         p->homeDir = "/storage/Users/currentUser/Download";
@@ -1288,6 +1297,8 @@ std::string GetStringArgument(napi_env env, napi_callback_info info) {
 static bool ApplyHostGraphicsProfile(const winehua::HostGraphicsProfile& profile) {
     bool applied = true;
     applied &= SetHostGraphicsEnv("WINEHUA_GRAPHICS_PROFILE", profile.name);
+    applied &= SetHostGraphicsEnv("WINEHUA_VENUS_PRESENT_MODE", profile.presentMode);
+    applied &= SetHostGraphicsEnv("WINEHUA_VIRGL_HOST_PRESENT_MODE", profile.presentMode);
     applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_FROM_HOST", profile.shadowMode);
     applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_TRACE", profile.shadowSelector);
     applied &= SetHostGraphicsEnv("VKR_WINEHUA_SHADOW_MERGE_RANGES",
@@ -1358,6 +1369,13 @@ static napi_value SetHostGraphicsExperimentForLab(napi_env env, napi_callback_in
                      experimentId, backendName);
         return BooleanResult(env, false);
     }
+    if (experiment.guest.directVulkan && PhoneAdapter_IsPhoneMode()) {
+        OH_LOG_ERROR(LOG_APP, "[NAPI] Direct LAB route requires tablet NCP support");
+        return BooleanResult(env, false);
+    }
+#if !defined(__aarch64__) || defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    if (experiment.guest.directVulkan) return BooleanResult(env, false);
+#endif
     const bool applied = ApplyHostGraphicsProfile(experiment.host);
     if (applied) gLegacyHostShadowProfile.clear();
     return BooleanResult(env, applied);
@@ -1378,8 +1396,10 @@ static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) 
         return BooleanResult(env, false);
     }
     OH_LOG_INFO(LOG_APP,
-                "[NAPI] graphics backend=%{public}s route=%{public}s",
-                backendName, policy.route.data());
+                "[NAPI] graphics backend=%{public}s route=%{public}s transport=%{public}s verified=%{public}d preciseMaps=%{public}d",
+                backendName, policy.route.data(), policy.guest.directVulkan ? "direct" : "venus",
+                winehua::IsProductDirectVulkanVerified() ? 1 : 0,
+                policy.guest.directPreciseMaps ? 1 : 0);
     const bool applied = ApplyHostGraphicsProfile(policy.host);
     if (applied) gLegacyHostShadowProfile.clear();
     return BooleanResult(env, applied);
@@ -1623,7 +1643,9 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"runDirectVulkanProbe", nullptr, winehua::direct::RunVulkanProbe,
              nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runPhoneSharedBufferProbe", nullptr, winehua::direct::RunPhoneSharedBufferProbe,
-             nullptr, nullptr, nullptr, napi_default, nullptr},
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeProductDirectSupport", nullptr, winehua::direct::ProbeProductDirectSupport,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
         {"preparePhoneDirectForkServer", nullptr, winehua::direct::PreparePhoneDirectForkServer,
              nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runDirectVulkanForkServerProbe", nullptr, winehua::direct::RunVulkanForkServerProbe,

@@ -15,8 +15,9 @@ constexpr uint32_t kResizeSurface = 6;
 constexpr int32_t kMaxFds = 16;
 constexpr char kProbeParams[] = "__winehua_direct_ipc_probe__";
 constexpr char kSurfaceProbeParams[] = "__winehua_direct_surface_ipc_probe__";
+constexpr char kBufferProbeParams[] = "__winehua_direct_buffer_ipc_probe__";
 inline bool IsProbeParams(const std::string& params) {
-    return params == kProbeParams || params == std::string(kProbeParams) + "|__env=WINEHUA_DIRECT_NCP=1" ||
+    return params == kBufferProbeParams || params == kProbeParams || params == std::string(kProbeParams) + "|__env=WINEHUA_DIRECT_NCP=1" ||
         params == kSurfaceProbeParams || params == std::string(kSurfaceProbeParams) + "|__env=WINEHUA_VULKAN_BACKEND=direct";
 }
 constexpr uint32_t kProbeToken = 0x57484950; // WHIP
