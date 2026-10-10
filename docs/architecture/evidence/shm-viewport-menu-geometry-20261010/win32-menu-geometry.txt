@@ -1,0 +1,13 @@
+open-start tray=0000000000030034 button=0000000000010040
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0
+hwnd=00000000000b02ec pid=284 class=#32768 title= window=0,702 103x78 client=103x78 iconic=0

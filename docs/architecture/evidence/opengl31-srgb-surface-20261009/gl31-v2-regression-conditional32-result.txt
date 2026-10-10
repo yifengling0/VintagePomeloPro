@@ -1,0 +1,58 @@
+renderer	3.1 Mesa 25.0.1 (git-330124bf18)	virgl (Maleoon 910)
+
+extension	NV_conditional_render=1	framebuffer_sRGB=1
+
+pixel	draw	mode=8e13	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	clear	mode=8e13	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	blit	mode=8e13	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	draw	mode=8e13	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	clear	mode=8e13	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	blit	mode=8e13	positive=1	0,0,255	expected=0,0,255	pass=1	err=0
+
+pixel	draw	mode=8e14	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	clear	mode=8e14	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	blit	mode=8e14	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	draw	mode=8e14	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	clear	mode=8e14	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	blit	mode=8e14	positive=1	0,0,255	expected=0,0,255	pass=1	err=0
+
+pixel	draw	mode=8e15	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	clear	mode=8e15	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	blit	mode=8e15	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	draw	mode=8e15	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	clear	mode=8e15	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	blit	mode=8e15	positive=1	0,0,255	expected=0,0,255	pass=1	err=0
+
+pixel	draw	mode=8e16	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	clear	mode=8e16	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	blit	mode=8e16	positive=0	0,255,0	expected=0,255,0	pass=1	err=0
+
+pixel	draw	mode=8e16	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	clear	mode=8e16	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	blit	mode=8e16	positive=1	0,0,255	expected=0,0,255	pass=1	err=0
+
+pixel	after_end	mode=0	positive=1	255,0,0	expected=255,0,0	pass=1	err=0
+
+pixel	unconditional_copy	mode=0	positive=0	255,0,0	expected=255,0,0	pass=1	err=0
+
+summary	checks=26	failures=0
+

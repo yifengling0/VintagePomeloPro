@@ -8,6 +8,9 @@
 #include "common/perf_utils.h"
 #include "compositor/wayland_server.h"
 #include "compositor/toplevel/desktop_compositor.h"
+#include "graphics/graphics_broker.h"
+#include "graphics/native_window_lease.h"
+#include "graphics/display_cadence.h"
 #include <native_buffer/native_buffer.h>
 #include <hilog/log.h>
 #include <algorithm>
@@ -56,12 +59,21 @@ class VulkanDesktopRenderer {
         int acquireFence = -1;
         bool owned = false;
         DirectFrameAcceptance accepted;
+        bool glSource = false;
     };
     struct Layer {
         DirectDesktopSource source;
         Buffer current;
         std::unordered_map<uint32_t, std::shared_ptr<Image>> cache;
-        DirectFrameRate rate;
+    };
+    struct GlLayer {
+        uint64_t key = 0;
+        ZeroCopyLayerInfo geometry;
+        winehua::NativeWindowLease window;
+        std::shared_ptr<DirectImageQueue> queue;
+        Buffer current;
+        std::unordered_map<uint32_t, std::shared_ptr<Image>> cache;
+        int width = 0, height = 0;
     };
     struct Frame {
         bool inFlight = false;
@@ -81,6 +93,7 @@ public:
                 // Finish queue ownership transfers before another consumer can
                 // take over. No ordinary frame calls device/queue WaitIdle.
                 for (auto& [id, layer] : layers_) Retire(layer.current);
+                for (auto& [key, layer] : glLayers_) ReleaseGlLayer(*layer);
                 if (!retired_.empty() && g.CommandPool()) {
                     auto& slot = g.Submission(0);
                     vkResetCommandBuffer(slot.command, 0);
@@ -110,7 +123,7 @@ public:
         }
         SetDirectDesktopConsumer(this, false);
         compositor_.ClearDirectDesktopContentSizes();
-        OH_LOG_INFO(LOG_APP, "retire presents=%{public}llu directDraws=%{public}llu acquireWaits=%{public}llu releaseFences=%{public}llu producerRetired=%{public}llu releaseErrors=%{public}llu gameCpuReadBytes=0 gameCpuUploadBytes=0",
+        OH_LOG_INFO(LOG_APP, "retire presents=%{public}llu directDraws=%{public}llu acquireWaits=%{public}llu releaseFences=%{public}llu producerRetired=%{public}llu releaseErrors=%{public}llu directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
             (unsigned long long)presents_, (unsigned long long)draws_, (unsigned long long)acquireWaits_,
             (unsigned long long)releaseFences_, (unsigned long long)producerRetired_, (unsigned long long)releaseErrors_);
     }
@@ -128,9 +141,10 @@ public:
         pool.maxSets = size.descriptorCount; pool.poolSizeCount = 1; pool.pPoolSizes = &size;
         if (!Check(vkCreateDescriptorPool(g.Device(), &pool, nullptr, &pool_), "scene_descriptor_pool")) return false;
         if (!CreatePipeline()) return false;
+        cadence_.Initialize();
         SetDirectDesktopConsumer(this, true);
         desktopVulkanActive.store(true, std::memory_order_relaxed);
-        OH_LOG_INFO(LOG_APP, "Vulkan desktop enabled surface=%{public}llu extent=%{public}ux%{public}u slots=2 preTransform=identity gameCpuReadBytes=0 gameCpuUploadBytes=0",
+        OH_LOG_INFO(LOG_APP, "Vulkan desktop enabled surface=%{public}llu extent=%{public}ux%{public}u slots=2 preTransform=identity directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
                     (unsigned long long)surfaceId, g.OutputExtent().width, g.OutputExtent().height);
         return true;
     }
@@ -155,19 +169,37 @@ public:
             if (!Recreate()) return false;
         }
         if (!UpdateSources()) return false;
+        if (cadence_.Refresh(winehua::PerfNowUs())) {
+            for (const auto& [key, layer] : glLayers_)
+                GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key, cadence_.PeriodNs());
+            OH_LOG_INFO(LOG_APP, "[DISPLAY-CADENCE] period_ns=%{public}llu rate=%{public}.2fHz",
+                (unsigned long long)cadence_.PeriodNs(), 1e9 / cadence_.PeriodNs());
+        }
+        UpdateGlSources();
         std::vector<GpuDesktopDirectSource> direct;
         for (const auto& [id, layer] : layers_) if (layer.current.image)
-            direct.push_back({static_cast<uint32_t>(layer.source.token.clientPid), id, layer.source.token.wlSurfaceId,
-                              layer.current.image->width, layer.current.image->height});
+            direct.push_back({static_cast<uint32_t>(layer.source.token.clientPid), layer.source.token.toplevelId, layer.source.token.wlSurfaceId,
+                              layer.current.image->width, layer.current.image->height, layer.source.token.generation});
         GpuDesktopScene next;
-        if (!compositor_.SnapshotGpuDesktopScene(direct, snapshots_, next)) {
+        std::vector<GpuDesktopLayer> glSources;
+        for (const auto& [key, layer] : glLayers_) {
+            if (!layer->current.image) continue;
+            const auto& info = layer->geometry;
+            auto source = MakeNativeWindowLayer(key, info, layer->width, layer->height);
+            // The GLES producer writes bottom-up framebuffer coordinates.
+            // Vulkan samples the imported NativeBuffer from its top row.
+            source.sampling.v = {1, 0, -1, 0};
+            glSources.push_back(source);
+        }
+        if (!compositor_.SnapshotGpuDesktopScene(direct, snapshots_, next, glSources)) {
             // Present an empty background while Wine prepares its first SHM
             // commit. XComponent startup must not depend on a game/UI frame.
             next.width = g.OutputExtent().width; next.height = g.OutputExtent().height;
         }
         bool pending = !retired_.empty();
         for (const auto& [id, layer] : layers_) pending |= layer.current.image && !layer.current.owned;
-        if (!pending && SameScene(next, scene_) && renderedExtent_.width == g.OutputExtent().width &&
+        for (const auto& [key, layer] : glLayers_) pending |= layer->current.image && !layer->current.owned;
+        if (!pending && SameGpuDesktopScene(next, scene_) && renderedExtent_.width == g.OutputExtent().width &&
             renderedExtent_.height == g.OutputExtent().height) {
             std::this_thread::sleep_for(std::chrono::milliseconds(8));
             return true;
@@ -188,9 +220,8 @@ public:
         std::vector<VkSemaphore> waits{g.OutputAcquired(frameIndex_ % 2)};
         std::vector<VkPipelineStageFlags> waitStages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
         std::vector<Buffer*> newlyOwned;
-        for (auto& [id, layer] : layers_) {
-            auto& buffer = layer.current;
-            if (!buffer.image || buffer.owned) continue;
+        const auto acquireBuffer = [&](Buffer& buffer) {
+            if (!buffer.image || buffer.owned) return true;
             if (buffer.acquireFence >= 0) {
                 size_t index = waits.size() - 1;
                 if (frame.waits.size() <= index) {
@@ -215,7 +246,10 @@ public:
             }
             Barrier(slot.command, buffer, true);
             newlyOwned.push_back(&buffer);
-        }
+            return true;
+        };
+        for (auto& [id, layer] : layers_) if (!acquireBuffer(layer.current)) return false;
+        for (auto& [key, layer] : glLayers_) if (!acquireBuffer(layer->current)) return false;
         for (auto& buffer : retired_) {
             if (buffer.owned) Barrier(slot.command, buffer, false);
             frame.references.push_back(buffer.image);
@@ -242,7 +276,8 @@ public:
         vkCmdBindPipeline(slot.command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
         FitRect fit;
         ComputeFitRect(g.OutputExtent().width, g.OutputExtent().height, scene_.width, scene_.height, fit);
-        std::unordered_set<uint32_t> drawnDirect;
+        std::unordered_set<uint64_t> drawnDirect;
+        std::unordered_set<uint64_t> drawnGl;
         for (const auto& layer : scene_.layers) {
             if (layer.solidBlack) {
                 VkClearAttachment attachment{};
@@ -253,9 +288,12 @@ public:
                 continue;
             }
             std::shared_ptr<Image> image;
-            if (layer.directToplevel) {
-                auto it = layers_.find(layer.directToplevel);
+            if (layer.directSurfaceKey) {
+                auto it = layers_.find(layer.directSurfaceKey);
                 if (it != layers_.end()) image = it->second.current.image;
+            } else if (layer.zeroCopyKey) {
+                auto it = glLayers_.find(layer.zeroCopyKey);
+                if (it != glLayers_.end()) image = it->second->current.image;
             } else if (layer.pixels) image = frame.ui.at(layer.key);
             if (!image) continue;
             const int x = FitMapDisplayX(fit, layer.x), y = FitMapDisplayY(fit, layer.y);
@@ -274,7 +312,8 @@ public:
             vkCmdPushConstants(slot.command, pipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(sampling), &sampling);
             vkCmdDraw(slot.command, 3, 1, 0, 0);
             frame.references.push_back(image);
-            if (layer.directToplevel) { ++draws_; drawnDirect.insert(layer.directToplevel); }
+            if (layer.directSurfaceKey) { ++draws_; drawnDirect.insert(layer.directSurfaceKey); }
+            if (layer.zeroCopyKey) { ++glDraws_; drawnGl.insert(layer.zeroCopyKey); }
         }
         vkCmdEndRenderPass(slot.command);
         if (!Check(vkEndCommandBuffer(slot.command), "scene_command_end")) return false;
@@ -316,17 +355,23 @@ public:
         if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
             desktopPresents.fetch_add(1, std::memory_order_relaxed);
             bool freshGameFrame = false;
+            std::unordered_set<uint32_t> freshWindows;
             for (auto& [id, layer] : layers_) {
                 const bool visible = drawnDirect.count(id) != 0;
                 if (layer.current.accepted.Presented(true, visible)) {
-                    layer.rate.Record();
+                    freshWindows.insert(layer.source.token.toplevelId);
                     freshGameFrame = true;
                 }
             }
+            // Several drawable queues can belong to one window. Publish one
+            // accepted output frame per owning window, never a wl_surface ID.
+            for (const auto top : freshWindows) windowRates_[top].Record();
+            for (auto& [key, layer] : glLayers_)
+                freshGameFrame |= layer->current.accepted.Presented(true, drawnGl.count(key) != 0);
             if (freshGameFrame) {
                 desktopGamePresents.fetch_add(1, std::memory_order_relaxed);
                 rootRate_.Record();
-            } else if (direct.empty()) {
+            } else if (direct.empty() && glSources.empty()) {
                 // With no game source, display actual desktop/UI updates.
                 rootRate_.Record();
             }
@@ -334,10 +379,11 @@ public:
         ++frameIndex_; ++presents_;
         renderedExtent_ = g.OutputExtent();
         if (presents_ == 1 || presents_ % 120 == 0)
-            OH_LOG_INFO(LOG_APP, "scene presents=%{public}llu layers=%{public}zu direct=%{public}zu draws=%{public}llu acquireWaits=%{public}llu releaseFences=%{public}llu producerRetired=%{public}llu releaseErrors=%{public}llu imports=%{public}llu reuses=%{public}llu uiUploadBytes=%{public}llu gameCpuReadBytes=0 gameCpuUploadBytes=0",
+            OH_LOG_INFO(LOG_APP, "scene presents=%{public}llu layers=%{public}zu direct=%{public}zu draws=%{public}llu acquireWaits=%{public}llu releaseFences=%{public}llu producerRetired=%{public}llu releaseErrors=%{public}llu imports=%{public}llu reuses=%{public}llu uiUploadBytes=%{public}llu glSources=%{public}zu glDraws=%{public}llu directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
                 (unsigned long long)presents_, scene_.layers.size(), direct.size(), (unsigned long long)draws_,
                 (unsigned long long)acquireWaits_, (unsigned long long)releaseFences_, (unsigned long long)producerRetired_, (unsigned long long)releaseErrors_,
-                (unsigned long long)imports_, (unsigned long long)reuses_, (unsigned long long)uiUploadBytes_);
+                (unsigned long long)imports_, (unsigned long long)reuses_, (unsigned long long)uiUploadBytes_,
+                glSources.size(), (unsigned long long)glDraws_);
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || suboptimal) return Recreate();
         return Check(result, "scene_present");
     }
@@ -347,17 +393,6 @@ public:
     int ContentHeight() const { return scene_.height; }
 
 private:
-    static bool SameScene(const GpuDesktopScene& a, const GpuDesktopScene& b) {
-        if (a.rootId != b.rootId || a.width != b.width || a.height != b.height || a.layers.size() != b.layers.size()) return false;
-        for (size_t i = 0; i < a.layers.size(); ++i) {
-            const auto& x = a.layers[i]; const auto& y = b.layers[i];
-            if (x.key != y.key || x.serial != y.serial || x.pixels != y.pixels || x.directToplevel != y.directToplevel ||
-                x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h || x.opaque != y.opaque ||
-                x.sourceW != y.sourceW || x.sourceH != y.sourceH || x.sampling != y.sampling ||
-                x.solidBlack != y.solidBlack) return false;
-        }
-        return true;
-    }
     bool Fail(const char* stage, VkResult result) {
         OH_LOG_ERROR(LOG_APP, "stage=%{public}s vk=%{public}d", stage, result); return false;
     }
@@ -377,6 +412,108 @@ private:
         if (buffer.windowBuffer) retired_.push_back(std::move(buffer));
         buffer = {};
     }
+    void ReleaseGlLayer(GlLayer& layer) {
+        // Withdraw the Wine fast-path marker before detaching the producer.
+        // Acquired buffers retain queue ownership until their GPU release.
+        compositor_.zc().Release(layer.key, compositor_.DesktopRootToplevelId());
+        GraphicsBroker::GetInstance().DetachZeroCopyTarget(layer.key);
+        Retire(layer.current);
+        layer.cache.clear();
+    }
+    void UpdateGlSources() {
+        auto& broker = GraphicsBroker::GetInstance();
+        const uint64_t now = winehua::PerfNowUs();
+        const uint32_t root = compositor_.DesktopRootToplevelId();
+        if (now - lastGlQueryUs_ >= 100000) {
+            lastGlQueryUs_ = now;
+            std::vector<ZeroCopySurfaceInfo> sources;
+            if (broker.QueryZeroCopySurfaces(sources)) {
+                std::unordered_set<uint64_t> live;
+                for (const auto& source : sources) {
+                    if (source.vulkan || !source.surfaceKey) continue;
+                    live.insert(source.surfaceKey);
+                    if (glLayers_.count(source.surfaceKey) || source.attached ||
+                        failedGlKeys_.count(source.surfaceKey)) continue;
+                    ZeroCopyLayerInfo geometry;
+                    if (!compositor_.GetZeroCopyLayerInfo(source.surfaceKey, root,
+                            source.width, source.height, geometry)) continue;
+                    OH_NativeImage* consumer = OH_ConsumerSurface_Create();
+                    if (!consumer) continue;
+                    auto layer = std::make_unique<GlLayer>();
+                    layer->key = source.surfaceKey;
+                    layer->geometry = geometry;
+                    layer->width = source.width; layer->height = source.height;
+                    layer->queue = std::make_shared<DirectImageQueue>(consumer);
+                    OH_ConsumerSurface_SetDefaultSize(consumer, source.width, source.height);
+                    OH_ConsumerSurface_SetDefaultUsage(consumer,
+                        NATIVEBUFFER_USAGE_HW_RENDER | NATIVEBUFFER_USAGE_HW_TEXTURE);
+                    OH_NativeImage_SetDropBufferMode(consumer, true);
+                    layer->window.Adopt(OH_NativeImage_AcquireNativeWindow(consumer),
+                                       NativeWindowReleaseMode::UnreferenceNativeObject);
+                    if (!layer->window || !broker.AttachZeroCopyTarget(source.surfaceKey,
+                            layer->window.Get(), cadence_.PeriodNs(), false)) continue;
+                    compositor_.zc().BindSurface(source.surfaceKey, geometry.shmCommitSerial);
+                    OH_LOG_INFO(LOG_APP, "[VIRGL-VK] attached key=%{public}llu size=%{public}ux%{public}u generation=%{public}llu",
+                        (unsigned long long)source.surfaceKey, source.width, source.height,
+                        (unsigned long long)geometry.bindingGeneration);
+                    glLayers_.emplace(source.surfaceKey, std::move(layer));
+                }
+                for (auto it = glLayers_.begin(); it != glLayers_.end();)
+                    if (!live.count(it->first)) { ReleaseGlLayer(*it->second); it = glLayers_.erase(it); }
+                    else ++it;
+                for (auto it = failedGlKeys_.begin(); it != failedGlKeys_.end();)
+                    if (!live.count(*it)) it = failedGlKeys_.erase(it); else ++it;
+            }
+        }
+        for (auto it = glLayers_.begin(); it != glLayers_.end();) {
+            auto& layer = *it->second;
+            ZeroCopyLayerInfo geometry;
+            if (!compositor_.GetZeroCopyLayerInfo(layer.key, root, layer.width, layer.height, geometry) ||
+                geometry.bindingGeneration != layer.geometry.bindingGeneration) {
+                ReleaseGlLayer(layer); it = glLayers_.erase(it); continue;
+            }
+            layer.geometry = geometry;
+            OHNativeWindowBuffer* buffer = nullptr; int fence = -1;
+            if (!layer.queue->Acquire(&buffer, &fence)) {
+                if (fence >= 0) close(fence);
+                ++it; continue;
+            }
+            OH_NativeWindow_NativeObjectReference(buffer);
+            OH_NativeBuffer* native = nullptr;
+            OH_NativeBuffer_Config config{};
+            std::shared_ptr<Image> image;
+            if (OH_NativeBuffer_FromNativeWindowBuffer(buffer, &native) == 0 && native) {
+                OH_NativeBuffer_GetConfig(native, &config);
+                const uint32_t sequence = OH_NativeBuffer_GetSeqNum(native);
+                auto& cached = layer.cache[sequence];
+                if (!cached) { cached = Import(native, config.width, config.height); if (cached) ++imports_; }
+                else ++reuses_;
+                image = cached;
+            }
+            if (!image || !compositor_.zc().NoteLayerConsumed(layer.key, now,
+                    geometry.bindingGeneration, config.width, config.height)) {
+                layer.queue->ReleaseWithStatus(buffer, fence);
+                OH_NativeWindow_NativeObjectUnreference(buffer);
+                failedGlKeys_.insert(layer.key);
+                OH_LOG_WARN(LOG_APP, "[VIRGL-VK] GPU import/identity rejected key=%{public}llu; restoring SHM",
+                    (unsigned long long)layer.key);
+                ReleaseGlLayer(layer); it = glLayers_.erase(it); continue;
+            }
+            Retire(layer.current);
+            DirectDesktopSource source{}; source.queue = layer.queue;
+            layer.current = {source, buffer, image, fence, false, {}, true};
+            layer.current.accepted.Acquired();
+            layer.width = config.width; layer.height = config.height;
+            compositor_.zc().NoteProducerPresent(layer.key, now);
+            compositor_.zc().Activate(layer.key, root);
+            for (auto cache = layer.cache.begin(); cache != layer.cache.end();)
+                if (cache->second && (cache->second->width != config.width || cache->second->height != config.height))
+                    cache = layer.cache.erase(cache); else ++cache;
+            for (auto cache = layer.cache.begin(); layer.cache.size() > 16 && cache != layer.cache.end();)
+                if (cache->second.use_count() == 1) cache = layer.cache.erase(cache); else ++cache;
+            ++it;
+        }
+    }
     void Return(Buffer& buffer, int releaseFd) {
         if (!buffer.windowBuffer) { if (releaseFd >= 0) close(releaseFd); return; }
         if (!buffer.owned && buffer.acquireFence >= 0) {
@@ -392,9 +529,9 @@ private:
     }
     bool UpdateSources() {
         auto sources = GetDirectDesktopSources(this);
-        std::unordered_set<uint32_t> active;
+        std::unordered_set<uint64_t> active;
         for (const auto& source : sources) {
-            uint32_t id = source.token.toplevelId; active.insert(id);
+            const uint64_t id = (uint64_t(uint32_t(source.token.clientPid)) << 32) | source.token.wlSurfaceId; active.insert(id);
             auto& layer = layers_[id];
             if (layer.source.queue != source.queue || layer.source.token.generation != source.token.generation) {
                 Retire(layer.current); layer.cache.clear();
@@ -442,13 +579,17 @@ private:
         if (rootRate_.Sample(now, fps) && root) {
             winehua::PublishDisplayedFpsSample(winehua::kDisplayedFpsBasePath, root,
                 ++fpsSequence_, fps, now);
-            OH_LOG_INFO(LOG_APP, "[DIRECT-FPS] root=%{public}u fps=%{public}.2f gameCpuReadBytes=0 gameCpuUploadBytes=0", root, fps);
+            OH_LOG_INFO(LOG_APP, "[DIRECT-FPS] root=%{public}u fps=%{public}.2f directGameCpuReadBytes=0 directGameCpuUploadBytes=0", root, fps);
         }
-        for (auto& [id, layer] : layers_)
+        std::unordered_set<uint32_t> liveWindows;
+        for (const auto& [key, layer] : layers_) liveWindows.insert(layer.source.token.toplevelId);
+        for (auto it = windowRates_.begin(); it != windowRates_.end();)
+            if (!liveWindows.count(it->first)) it = windowRates_.erase(it); else ++it;
+        for (auto& [id, rate] : windowRates_)
             // The root sample belongs to the whole desktop output. Explorer
             // can also have a layer with this id; its idle rate must not
             // overwrite the fresh game rate read by the HUD.
-            if (layer.rate.Sample(now, fps) && id != root)
+            if (rate.Sample(now, fps) && id != root)
                 winehua::PublishDisplayedFpsSample(winehua::kDisplayedFpsBasePath, id,
                     ++fpsSequence_, fps, now);
     }
@@ -456,8 +597,11 @@ private:
         auto& g = *core_;
         VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         barrier.image = buffer.image->image;
-        barrier.oldLayout = acquire ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barrier.newLayout = acquire ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        // EGL-produced images use GENERAL across the foreign queue boundary;
+        // Wine Vulkan swapchain buffers keep their PRESENT_SRC contract.
+        const VkImageLayout foreign = buffer.glSource ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        barrier.oldLayout = acquire ? foreign : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.newLayout = acquire ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : foreign;
         barrier.srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_FOREIGN_EXT : g.QueueFamily();
         barrier.dstQueueFamilyIndex = acquire ? g.QueueFamily() : VK_QUEUE_FAMILY_FOREIGN_EXT;
         barrier.srcAccessMask = acquire ? 0 : VK_ACCESS_SHADER_READ_BIT;
@@ -622,13 +766,18 @@ private:
     VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline pipeline_ = VK_NULL_HANDLE;
     Frame frames_[2];
-    std::unordered_map<uint32_t, Layer> layers_;
+    std::unordered_map<uint64_t, Layer> layers_;
+    std::unordered_map<uint32_t, DirectFrameRate> windowRates_;
+    std::unordered_map<uint64_t, std::unique_ptr<GlLayer>> glLayers_;
+    std::unordered_set<uint64_t> failedGlKeys_;
+    uint64_t lastGlQueryUs_ = 0, glDraws_ = 0;
     std::vector<Buffer> retired_;
     GpuDesktopSnapshotCache snapshots_;
     GpuDesktopScene scene_;
     VkExtent2D renderedExtent_{};
     uint64_t frameIndex_ = 0, presents_ = 0, draws_ = 0;
     DirectFrameRate rootRate_;
+    winehua::DisplayCadence cadence_;
     uint32_t statsRoot_ = 0;
     uint64_t fpsSequence_ = 0;
     uint64_t acquireWaits_ = 0, releaseFences_ = 0, producerRetired_ = 0, releaseErrors_ = 0;

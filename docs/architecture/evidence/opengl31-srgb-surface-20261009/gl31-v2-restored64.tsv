@@ -1,0 +1,505 @@
+check	130	requested-context	1	glerr=0
+
+context	3.0	3.1 Mesa 25.0.1 (git-330124bf18)	1.40	virgl (Maleoon 910)
+
+check	130	glsl-compile-link	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	srgb-clear-off	64,128,191,255	expect=64,128,191
+
+check	130	srgb-clear-off	1	glerr=0
+
+pixel	130	srgb-draw-off	64,128,191,255	expect=64,128,191
+
+check	130	srgb-draw-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	srgb-sample-off	13,55,133,255	expect=13,55,133
+
+check	130	srgb-sample-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	srgb-clear-on	137,188,225,255	expect=137,188,225
+
+check	130	srgb-clear-on	1	glerr=0
+
+pixel	130	srgb-draw-on	137,188,225,255	expect=137,188,225
+
+check	130	srgb-draw-on	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	srgb-sample-on	64,128,192,255	expect=64,128,191
+
+check	130	srgb-sample-on	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	destination-linearized-blend	165,165,165,191	expect=165,165,165
+
+check	130	destination-linearized-blend	1	glerr=0
+
+pixel	130	upload-after-shadow-blend	96,96,96,96	expect=96,96,96
+
+check	130	upload-after-shadow-blend	1	glerr=0
+
+pixel	130	scissor-written	188,188,188,255	expect=188,188,188
+
+check	130	scissor-written	1	glerr=0
+
+pixel	130	scissor-preserved	137,137,137,255	expect=137,137,137
+
+check	130	scissor-preserved	1	glerr=0
+
+pixel	130	color-mask-preserved	137,225,137,255	expect=137,225,137
+
+check	130	color-mask-preserved	1	glerr=0
+
+pixel	130	dependent-view-switch	132,132,132,191	expect=132,132,132
+
+check	130	dependent-view-switch	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	mipmap-shadow-write	128,128,128,255	expect=128,128,128
+
+check	130	mipmap-shadow-write	1	glerr=0
+
+pixel	130	mipmap-typed-draw	137,137,137,255	expect=137,137,137
+
+check	130	mipmap-typed-draw	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	blit-srgb-to-linear	64,64,64,255	expect=64,64,64
+
+check	130	blit-srgb-to-linear	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	mixed-mrt-srgb	137,188,225,255	expect=137,188,225
+
+check	130	mixed-mrt-srgb	1	glerr=0
+
+pixel	130	mixed-mrt-linear	64,128,191,255	expect=64,128,191
+
+check	130	mixed-mrt-linear	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-0-0-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-0-0-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-0-1-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-0-1-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-0-0-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-0-0-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-0-1-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-0-1-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-0-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-1-0-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-1-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-1-1-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-2-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-1-2-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-3-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-1-3-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-4-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-1-4-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-5-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-1-5-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-0-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-1-0-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-1-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-1-1-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-2-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-1-2-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-3-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-1-3-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-4-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-1-4-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-1-5-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-1-5-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-2-0-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-2-0-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-2-1-off	128,128,128,255	expect=128,128,128
+
+check	130	layer-2-1-off	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-2-0-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-2-0-blend	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	layer-2-1-blend	133,133,133,191	expect=133,133,133
+
+check	130	layer-2-1-blend	1	glerr=0
+
+check	130	msaa-complete	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	msaa-resolve-off	64,128,191,255	expect=64,128,191
+
+check	130	msaa-resolve-off	1	glerr=0
+
+pixel	130	msaa-resolve-on	137,188,225,255	expect=137,188,225
+
+check	130	msaa-resolve-on	1	glerr=0
+
+check	130	gl31-copy-buffer-map	1	glerr=0
+
+check	130	gl30-transform-feedback	1	glerr=0
+
+pixel	130	gl31-instanced-draw	64,128,191,255	expect=64,128,191
+
+check	130	gl31-instanced-draw	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+check	130	shared-context-create	1	glerr=0
+
+check	130	framebuffer-complete	1	glerr=0
+
+pixel	130	shared-context-coherent-blend	143,143,143,191	expect=143,143,143
+
+check	130	shared-context-coherent-blend	1	glerr=0
+
+optional	winsys-srgb-format-unavailable
+
+check	140	requested-context	1	glerr=0
+
+context	3.1	3.1 (Core Profile) Mesa 25.0.1 (git-330124bf18)	1.40	virgl (Maleoon 910)
+
+check	140	glsl-compile-link	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	srgb-clear-off	64,128,191,255	expect=64,128,191
+
+check	140	srgb-clear-off	1	glerr=0
+
+pixel	140	srgb-draw-off	64,128,191,255	expect=64,128,191
+
+check	140	srgb-draw-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	srgb-sample-off	13,55,133,255	expect=13,55,133
+
+check	140	srgb-sample-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	srgb-clear-on	137,188,225,255	expect=137,188,225
+
+check	140	srgb-clear-on	1	glerr=0
+
+pixel	140	srgb-draw-on	137,188,225,255	expect=137,188,225
+
+check	140	srgb-draw-on	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	srgb-sample-on	64,128,192,255	expect=64,128,191
+
+check	140	srgb-sample-on	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	destination-linearized-blend	165,165,165,191	expect=165,165,165
+
+check	140	destination-linearized-blend	1	glerr=0
+
+pixel	140	upload-after-shadow-blend	96,96,96,96	expect=96,96,96
+
+check	140	upload-after-shadow-blend	1	glerr=0
+
+pixel	140	scissor-written	188,188,188,255	expect=188,188,188
+
+check	140	scissor-written	1	glerr=0
+
+pixel	140	scissor-preserved	137,137,137,255	expect=137,137,137
+
+check	140	scissor-preserved	1	glerr=0
+
+pixel	140	color-mask-preserved	137,225,137,255	expect=137,225,137
+
+check	140	color-mask-preserved	1	glerr=0
+
+pixel	140	dependent-view-switch	132,132,132,191	expect=132,132,132
+
+check	140	dependent-view-switch	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	mipmap-shadow-write	128,128,128,255	expect=128,128,128
+
+check	140	mipmap-shadow-write	1	glerr=0
+
+pixel	140	mipmap-typed-draw	137,137,137,255	expect=137,137,137
+
+check	140	mipmap-typed-draw	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	blit-srgb-to-linear	64,64,64,255	expect=64,64,64
+
+check	140	blit-srgb-to-linear	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	mixed-mrt-srgb	137,188,225,255	expect=137,188,225
+
+check	140	mixed-mrt-srgb	1	glerr=0
+
+pixel	140	mixed-mrt-linear	64,128,191,255	expect=64,128,191
+
+check	140	mixed-mrt-linear	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-0-0-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-0-0-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-0-1-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-0-1-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-0-0-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-0-0-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-0-1-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-0-1-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-0-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-1-0-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-1-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-1-1-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-2-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-1-2-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-3-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-1-3-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-4-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-1-4-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-5-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-1-5-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-0-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-1-0-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-1-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-1-1-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-2-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-1-2-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-3-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-1-3-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-4-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-1-4-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-1-5-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-1-5-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-2-0-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-2-0-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-2-1-off	128,128,128,255	expect=128,128,128
+
+check	140	layer-2-1-off	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-2-0-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-2-0-blend	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	layer-2-1-blend	133,133,133,191	expect=133,133,133
+
+check	140	layer-2-1-blend	1	glerr=0
+
+check	140	msaa-complete	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	msaa-resolve-off	64,128,191,255	expect=64,128,191
+
+check	140	msaa-resolve-off	1	glerr=0
+
+pixel	140	msaa-resolve-on	137,188,225,255	expect=137,188,225
+
+check	140	msaa-resolve-on	1	glerr=0
+
+check	140	gl31-copy-buffer-map	1	glerr=0
+
+check	140	gl30-transform-feedback	1	glerr=0
+
+pixel	140	gl31-instanced-draw	64,128,191,255	expect=64,128,191
+
+check	140	gl31-instanced-draw	1	glerr=0
+
+check	140	glsl140-ubo-link	1	glerr=0
+
+pixel	140	glsl140-ubo-draw	64,128,191,255	expect=64,128,191
+
+check	140	glsl140-ubo-draw	1	glerr=0
+
+check	140	glsl140-texbuffer-link	1	glerr=0
+
+pixel	140	glsl140-texbuffer-draw	64,128,191,255	expect=64,128,191
+
+check	140	glsl140-texbuffer-draw	1	glerr=0
+
+pixel	140	gl31-primitive-restart	64,128,191,255	expect=64,128,191
+
+check	140	gl31-primitive-restart	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+check	140	shared-context-create	1	glerr=0
+
+check	140	framebuffer-complete	1	glerr=0
+
+pixel	140	shared-context-coherent-blend	143,143,143,191	expect=143,143,143
+
+check	140	shared-context-coherent-blend	1	glerr=0
+
+optional	winsys-srgb-format-unavailable
+
+summary	checks=163	failures=0

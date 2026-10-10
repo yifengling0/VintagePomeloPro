@@ -1,0 +1,50 @@
+[
+  {
+    "label": "gl-capability-final-conditional32",
+    "architecture": 32,
+    "expectedChecks": 26,
+    "complete": true,
+    "elapsedSeconds": 12.73,
+    "time": "2026-10-09T19:06:14.284901+08:00"
+  },
+  {
+    "label": "gl-capability-final-ubo32",
+    "architecture": 32,
+    "expectedChecks": 9,
+    "complete": true,
+    "elapsedSeconds": 14.89,
+    "time": "2026-10-09T19:06:29.828631+08:00"
+  },
+  {
+    "label": "gl-capability-final-srgb32",
+    "architecture": 32,
+    "expectedChecks": 10,
+    "complete": true,
+    "elapsedSeconds": 14.91,
+    "time": "2026-10-09T19:06:45.401224+08:00"
+  },
+  {
+    "label": "gl-capability-final-conditional64",
+    "architecture": 64,
+    "expectedChecks": 26,
+    "complete": true,
+    "elapsedSeconds": 12.8,
+    "time": "2026-10-09T19:06:58.886440+08:00"
+  },
+  {
+    "label": "gl-capability-final-ubo64",
+    "architecture": 64,
+    "expectedChecks": 9,
+    "complete": true,
+    "elapsedSeconds": 12.77,
+    "time": "2026-10-09T19:07:12.270471+08:00"
+  },
+  {
+    "label": "gl-capability-final-srgb64",
+    "architecture": 64,
+    "expectedChecks": 10,
+    "complete": true,
+    "elapsedSeconds": 12.77,
+    "time": "2026-10-09T19:07:25.662441+08:00"
+  }
+]

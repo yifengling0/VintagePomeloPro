@@ -10,6 +10,14 @@
 #include <string.h>
 #include "zstd.h"
 
+/* Diagnostic builds supply a per-call detail parameter. The normal build
+ * expands every result to the original return and has no logging path. */
+#ifndef VP_DECODER_NAME
+#define VP_DECODER_NAME VPDecodeVSZa
+#define VP_DECODER_DETAILS
+#define VP_DECODE_RESULT(result, stage, detail) return (result)
+#endif
+
 typedef struct {
     uintptr_t element_size;
     unsigned char *memory;
@@ -59,34 +67,34 @@ static uint32_t crc32(const unsigned char *p, size_t size) {
 
 /* Same four-argument cdecl / Windows x64 ABI as Steam's original decoder.
  * Steam EResult: 1=OK, 2=Fail, 25=LimitExceeded, 53=DataCorruption. */
-__declspec(dllexport) int VPDecodeVSZa(const unsigned char *data, unsigned size,
-        steam_buffer *buffer, unsigned max_output) {
-    if (!data || !buffer || size<=23 || memcmp(data,"VSZa",4)) return 2;
-    if (memcmp(data+size-3,"zsv",3)) return 53;
+__declspec(dllexport) int VP_DECODER_NAME(const unsigned char *data, unsigned size,
+        steam_buffer *buffer, unsigned max_output VP_DECODER_DETAILS) {
+    if (!data || !buffer || size<=23 || memcmp(data,"VSZa",4)) { VP_DECODE_RESULT(2,"input",0); }
+    if (memcmp(data+size-3,"zsv",3)) { VP_DECODE_RESULT(53,"footer",0); }
     uint32_t header_crc=u32(data+4), footer_crc=u32(data+size-15);
     uint64_t original_size=(uint64_t)u32(data+size-11) | (uint64_t)u32(data+size-7)<<32;
-    if (header_crc!=footer_crc) return 53;
-    if (original_size>max_output || original_size>(128u<<20)) return 25;
+    if (header_crc!=footer_crc) { VP_DECODE_RESULT(53,"header-footer-crc",0); }
+    if (original_size>max_output || original_size>(128u<<20)) { VP_DECODE_RESULT(25,"limit",original_size); }
     if (buffer->put<0 || original_size>(uint64_t)(INT_MAX-buffer->put) ||
-            (buffer->flags&8) || buffer->element_size!=1) return 2;
+            (buffer->flags&8) || buffer->element_size!=1) { VP_DECODE_RESULT(2,"buffer",0); }
     const unsigned char *frame=data+8;
     size_t frame_size=size-23;
     size_t consumed=ZSTD_findFrameCompressedSize(frame,frame_size);
-    if (ZSTD_isError(consumed) || consumed!=frame_size) return 53;
+    if (ZSTD_isError(consumed) || consumed!=frame_size) { VP_DECODE_RESULT(53,"frame-layout",consumed); }
     unsigned long long declared=ZSTD_getFrameContentSize(frame,frame_size);
     if (declared==ZSTD_CONTENTSIZE_ERROR ||
-            (declared!=ZSTD_CONTENTSIZE_UNKNOWN && declared!=original_size)) return 53;
+            (declared!=ZSTD_CONTENTSIZE_UNKNOWN && declared!=original_size)) { VP_DECODE_RESULT(53,"frame-size",declared); }
     unsigned char *plain=malloc(original_size ? (size_t)original_size : 1);
-    if (!plain) return 2;
+    if (!plain) { VP_DECODE_RESULT(2,"allocation",original_size); }
     size_t written=ZSTD_decompress(plain,(size_t)original_size,frame,frame_size);
     if (ZSTD_isError(written) || written!=original_size || crc32(plain,written)!=footer_crc) {
-        free(plain); return 53;
+        free(plain); VP_DECODE_RESULT(53,"decode-size-crc",written);
     }
-    if (!written) { free(plain); return 1; }
+    if (!written) { free(plain); VP_DECODE_RESULT(1,"empty",0); }
     const unsigned char *module=(const unsigned char *)GetModuleHandleW(MODULE);
     if (!module || memcmp(module+ENSURE_RVA,ensure_prefix,sizeof(ensure_prefix)) ||
             memcmp(module+SEEK_RVA,seek_prefix,sizeof(seek_prefix))) {
-        free(plain); return 2;
+        free(plain); VP_DECODE_RESULT(2,"client-abi",0);
     }
     ensure_fn ensure=(ensure_fn)(module+ENSURE_RVA);
     seek_fn seek=(seek_fn)(module+SEEK_RVA);
@@ -94,10 +102,10 @@ __declspec(dllexport) int VPDecodeVSZa(const unsigned char *data, unsigned size,
     ensure(buffer,start+(int)written);
     if (!buffer->memory || buffer->allocation_count<0 ||
             (size_t)buffer->allocation_count<(size_t)start+written) {
-        free(plain); return 2;
+        free(plain); VP_DECODE_RESULT(2,"buffer-growth",written);
     }
     memcpy(buffer->memory+start,plain,written);
     seek(buffer,1,(int)written);
     free(plain);
-    return buffer->put==start+(int)written && !buffer->error ? 1 : 2;
+    VP_DECODE_RESULT(buffer->put==start+(int)written && !buffer->error ? 1 : 2,"cursor",written);
 }

@@ -136,6 +136,12 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
         if (DesktopCompositor::ShouldSkipFullscreenCascade(layer, fullscreenId, fsOk, tmgr_)) continue;
 
         if (layer.type == CompositorLayer::Type::Subsurface) {
+            // Wine's GPU client surfaces explicitly delegate pointer events to
+            // their parent. Direct queue registration must not turn these
+            // input-transparent drawables into independent input targets.
+            auto* data = layer.sub->surface
+                ? static_cast<SurfaceData*>(wl_resource_get_user_data(layer.sub->surface)) : nullptr;
+            if (data && data->inputRegionEmpty) continue;
             // 内部菜单: enter 层自己的 wl_surface, 坐标以层原点为基。层可伸出
             // 父窗口边界 — 若改走父窗口 surface, 伸出部分产生越界的窗口相对
             // 坐标, 会被 winewayland 的 motion clamp (wayland_pointer.c

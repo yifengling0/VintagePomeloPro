@@ -580,7 +580,21 @@ arm64ec-release-gate:
 HOST_TEST_DIR := $(BUILD_DIR)/host_tests
 FEX_SRC ?= $(ROOT)/thirdparty/fex
 
-.PHONY: test-direct-viewport test-direct-session test-venus-present-retry
+.PHONY: test-direct-viewport test-direct-session test-venus-present-retry test-wine-image-policy
+
+test-wine-image-policy:
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -no-pie -I$(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/wine_image_policy_test $(ROOT)/host_tests/wine_image_policy_test.cpp
+	$(HOST_TEST_DIR)/wine_image_policy_test
+
+test: test-wine-image-policy
+.PHONY: test-wine-broker-argv test-wined3d-legacy-alpha
+test: test-wine-broker-argv test-wined3d-legacy-alpha
+test-wine-broker-argv:
+	python3 $(ROOT)/host_tests/wine_broker_argv_test.py
+test-wined3d-legacy-alpha:
+	python3 $(ROOT)/host_tests/wined3d_legacy_alpha_test.py
 .PHONY: test-venus-low-map
 test-venus-low-map:
 	python3 $(ROOT)/host_tests/venus_low_map_test.py
@@ -594,6 +608,9 @@ test-venus-present-retry:
 
 test-direct-session:
 	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/host_tests/stubs -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/display_cadence_test $(ROOT)/host_tests/display_cadence_test.cpp
+	$(HOST_TEST_DIR)/display_cadence_test
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/direct_frame_stats_test $(ROOT)/host_tests/direct_frame_stats_test.cpp
 	$(HOST_TEST_DIR)/direct_frame_stats_test
@@ -887,6 +904,16 @@ test-wine-language-launch:
 
 .PHONY: test-opengl-wow64-buffer-flush
 test: test-opengl-wow64-buffer-flush
+
+.PHONY: test-opengl-present-storage test-virgl-gl31-contracts
+test: test-opengl-present-storage test-virgl-gl31-contracts
+test-opengl-present-storage:
+	python3 $(ROOT)/host_tests/virgl_explicit_present_test.py
+	python3 $(ROOT)/host_tests/pbuffer_front_storage_test.py
+test-virgl-gl31-contracts:
+	python3 $(ROOT)/host_tests/virgl_ubo_sysval_test.py
+	python3 $(ROOT)/host_tests/virgl_conditional_render_test.py
+	python3 $(ROOT)/host_tests/virgl_socket_transaction_test.py
 test-opengl-wow64-buffer-flush:
 	python3 $(ROOT)/host_tests/opengl_wow64_buffer_flush_test.py --wine-src $(WINE_SRC)
 
@@ -960,6 +987,11 @@ test-fex-jit-cost:
 test-fex-windows-file-loading:
 	python3 $(ROOT)/host_tests/fex_windows_file_loading_test.py
 
+.PHONY: test-fex-fault-boundaries
+test: test-fex-fault-boundaries
+test-fex-fault-boundaries:
+	python3 $(ROOT)/host_tests/fex_fault_boundary_test.py
+
 
 # Real phone fork/SIGCHLD plus production registry and sandbox liveness.
 .PHONY: test-process-lifecycle
@@ -969,3 +1001,18 @@ test-process-lifecycle:
 	    $(ROOT)/host_tests/process_lifecycle_test.cpp $(ROOT)/entry/src/main/cpp/proc/wine_process.cpp \
 	    -Wl,--wrap=fopen -o $(HOST_TEST_DIR)/process_lifecycle_test
 	$(HOST_TEST_DIR)/process_lifecycle_test
+
+.PHONY: test-wine-layered-child
+test: test-wine-layered-child
+test-wine-layered-child:
+	python3 $(ROOT)/host_tests/wine_layered_child_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-wine-direct-early-wsi
+test: test-wine-direct-early-wsi
+test-wine-direct-early-wsi:
+	python3 $(ROOT)/host_tests/wine_direct_early_wsi_test.py --wine-src $(WINE_SRC)
+
+.PHONY: test-direct-drawable-ipc
+test: test-direct-drawable-ipc
+test-direct-drawable-ipc:
+	python3 $(ROOT)/host_tests/direct_drawable_ipc_test.py

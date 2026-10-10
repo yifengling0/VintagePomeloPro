@@ -1151,16 +1151,19 @@ export struct VirtualInputOverlay {
     return InputOverlayWindowCoordinator.getInstance().getSnapshot().session.toplevelId;
   }
 
-  // 性能: 光标移动时缓存目标 toplevel, 避免每次 move 都 native 查询
-  // (findToplevelAt 跨 JSI/NAPI 开销大)。仅当光标明显跨窗口时才重查。
+  // Only coalesce nearby moves briefly. A window can appear beneath a stationary
+  // cursor; presses must query before raising, or the cached background wins.
   private cachedMoveTl: number = -1;
   private cachedMoveTlX: number = -1e9;
   private cachedMoveTlY: number = -1e9;
+  private cachedMoveTlAt: number = 0;
 
-  private tlAtCursor(): number {
+  private tlAtCursor(forceRefresh: boolean = false): number {
     const x = Math.round(this.vcX);
     const y = Math.round(this.vcY);
-    if (this.cachedMoveTl >= 0 &&
+    const now = Date.now();
+    if (!forceRefresh && this.cachedMoveTl >= 0 &&
+      now >= this.cachedMoveTlAt && now - this.cachedMoveTlAt < 32 &&
       Math.abs(x - this.cachedMoveTlX) < 4 && Math.abs(y - this.cachedMoveTlY) < 4) {
       return this.cachedMoveTl;
     }
@@ -1169,11 +1172,12 @@ export struct VirtualInputOverlay {
     this.cachedMoveTl = tl;
     this.cachedMoveTlX = x;
     this.cachedMoveTlY = y;
+    this.cachedMoveTlAt = now;
     return tl;
   }
 
   private clickAtCursor(btn: number): void {
-    let tl = this.tlAtCursor();
+    let tl = this.tlAtCursor(true);
     if (tl <= 0) tl = this.fallbackToplevelId();
     if (tl <= 0) return;
     testNapi.raiseToplevel(tl);
@@ -1305,7 +1309,7 @@ export struct VirtualInputOverlay {
       if (this.tpDragArmed && !this.tpDragging && this.tpMoved) {
         // 拖拽开始: 在光标处按下左键 (拖动窗口/元素)
         this.tpDragging = true;
-        this.tpDragTl = this.tlAtCursor();
+        this.tpDragTl = this.tlAtCursor(true);
         if (this.tpDragTl > 0) {
           testNapi.raiseToplevel(this.tpDragTl);
           testNapi.sendPointerEvent(this.tpDragTl, MouseAction.Press,

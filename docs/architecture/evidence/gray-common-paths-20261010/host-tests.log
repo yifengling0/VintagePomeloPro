@@ -1,0 +1,14 @@
+python3 /home/liufeng/src/vpp-proton/host_tests/virgl_shared_low_map_test.py --wine-src /home/liufeng/src/vpp-proton/thirdparty/wine-valve
+...........
+----------------------------------------------------------------------
+Ran 11 tests in 1.985s
+
+OK
+python3 /home/liufeng/src/vpp-proton/host_tests/virgl_explicit_present_test.py
+PASS: current drawable, driver gating, CPU queue order, one export and failure propagation
+python3 /home/liufeng/src/vpp-proton/host_tests/pbuffer_front_storage_test.py
+PASS: native flip copies, preserving pbuffer does not copy, presentation retained, callback lifetime and fallback
+python3 /home/liufeng/src/vpp-proton/host_tests/fex_fault_boundary_test.py
+old: classifier checks=15 failures=2
+fixed: classifier checks=15 failures=0
+PASS: moffs reads/stores gain fault boundaries; immediate/register operations and existing boundaries retain behavior

@@ -1,0 +1,16 @@
+{
+  "time": "2026-10-10T11:12:03.248946+08:00",
+  "target": "TestPad-Wireless",
+  "game": "Z:\\games\\灰色的果实\\灰色的果实\\灰色的果实_汉化补丁.exe",
+  "backend": "dxvk_legacy",
+  "experiment": "",
+  "env": [
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,+err,+winehua_perf"
+    }
+  ],
+  "args": [],
+  "frameDiagnostics": true,
+  "installedHap": "unified-present-gray-v8-20261010-signed.hap"
+}

@@ -1,0 +1,13 @@
+Fri Oct  9 17:20:06 CST 2026
+winehua_gl_zero_copy: presents=22560 readbacks=2 pid=50484 surface=41 size=1280x720
+winehua_gl_zero_copy: presents=22680 readbacks=2 pid=50484 surface=41 size=1280x720
+winehua_gl_zero_copy: presents=22800 readbacks=2 pid=50484 surface=41 size=1280x720
+winehua_gl_zero_copy: presents=22920 readbacks=2 pid=50484 surface=41 size=1280x720
+winehua_gl_zero_copy: presents=23040 readbacks=2 pid=50484 surface=41 size=1280x720
+winehua_gl_zero_copy: presents=23160 readbacks=2 pid=50484 surface=41 size=1280x720
+winehua_gl_zero_copy: presents=23280 readbacks=2 pid=50484 surface=41 size=1280x720
+winehua_gl_zero_copy: presents=23400 readbacks=2 pid=50484 surface=41 size=1280x720
+10-09 17:19:59.740 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=23040 layers=4 direct=0 draws=0 acquireWaits=23015 releaseFences=23014 producerRetired=0 releaseErrors=0 imports=2 reuses=23013 uiUploadBytes=43062624 glSources=1 glDraws=23016 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:20:01.801 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=23160 layers=4 direct=0 draws=0 acquireWaits=23135 releaseFences=23134 producerRetired=0 releaseErrors=0 imports=2 reuses=23133 uiUploadBytes=43062624 glSources=1 glDraws=23136 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:20:03.831 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=23280 layers=4 direct=0 draws=0 acquireWaits=23255 releaseFences=23254 producerRetired=0 releaseErrors=0 imports=2 reuses=23253 uiUploadBytes=43062624 glSources=1 glDraws=23256 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:20:05.891 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=23400 layers=4 direct=0 draws=0 acquireWaits=23375 releaseFences=23374 producerRetired=0 releaseErrors=0 imports=2 reuses=23373 uiUploadBytes=43062624 glSources=1 glDraws=23376 directGameCpuReadBytes=0 directGameCpuUploadBytes=0

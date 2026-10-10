@@ -135,6 +135,9 @@ int main(int argc,char **argv) {
     HANDLE threads[4];for (int i=0;i<4;++i) threads[i]=CreateThread(NULL,0,concurrent,NULL,0,NULL);
     int valid=threads[0] && threads[1] && threads[2] && threads[3];check("worker-create",valid);
     if (valid) {check("concurrent-completion",WaitForMultipleObjects(4,threads,TRUE,30000)==WAIT_OBJECT_0);for(int i=0;i<4;++i)CloseHandle(threads[i]);}
+    if (GetEnvironmentVariableA("VPP_STEAM_DIAG_CAP_TEST",path,sizeof(path)))
+        for (unsigned j=0;j<600;j++)
+            check("logging-cap-does-not-change-output",decoded(zstd_data,sizeof(zstd_data),ZSTD_OUTPUT,zstd_sha1,0));
     fprintf(out,"RESULT\tchecks=%ld\tfailures=%ld\n",checks,failures);fclose(out);
     return failures?1:0;
 }

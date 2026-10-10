@@ -1,0 +1,33 @@
+{
+  "start": "2026-10-09T17:02:59.785484+08:00",
+  "end": "2026-10-09T17:03:29.790952+08:00",
+  "seconds": 30,
+  "pids": [
+    44858,
+    45834,
+    45848,
+    45870,
+    45880,
+    45906,
+    45918,
+    45932,
+    45966,
+    45989,
+    45997,
+    46014,
+    46038,
+    46153,
+    46298,
+    46369,
+    46470,
+    46587
+  ],
+  "directSamples": 30,
+  "directMean": 54.87433333333333,
+  "directMin": 37.81,
+  "directMax": 59.98,
+  "method": "1s fresh-image publication; GL-PERF has a different interval and is kept raw",
+  "scene": "opening movie; before/after screenshots show different OP frames, not a fixed title",
+  "sceneMatched": false,
+  "interpretation": "Standalone 30s fresh-frame throughput only. Do not use as matched-title A/B."
+}

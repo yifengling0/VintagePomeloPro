@@ -1,0 +1,151 @@
+pointer_bits	32
+
+backbuffer_format	21
+
+texture_format	26
+
+pixel	pool0_alpha0_mode0	00336699	00336699	1	hr=00000000
+
+pixel	pool0_alpha0_mode1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha0_mode2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha0_mode3	00204060	00204060	1	hr=00000000
+
+pixel	pool0_alpha0_cmp1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha0_cmp2	00336699	00336699	1	hr=00000000
+
+pixel	pool0_alpha0_cmp3	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha0_cmp4	00336699	00336699	1	hr=00000000
+
+pixel	pool0_alpha0_cmp5	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha0_cmp6	00336699	00336699	1	hr=00000000
+
+pixel	pool0_alpha0_cmp7	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha0_cmp8	00336699	00336699	1	hr=00000000
+
+pixel	pool0_alpha136_mode0	88336699	88336699	1	hr=00000000
+
+pixel	pool0_alpha136_mode1	c02a547e	c02a547e	1	hr=00000000
+
+pixel	pool0_alpha136_mode2	88336699	88336699	1	hr=00000000
+
+pixel	pool0_alpha136_mode3	882a547e	882a547e	1	hr=00000000
+
+pixel	pool0_alpha136_cmp1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha136_cmp2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha136_cmp3	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha136_cmp4	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha136_cmp5	88336699	88336699	1	hr=00000000
+
+pixel	pool0_alpha136_cmp6	88336699	88336699	1	hr=00000000
+
+pixel	pool0_alpha136_cmp7	88336699	88336699	1	hr=00000000
+
+pixel	pool0_alpha136_cmp8	88336699	88336699	1	hr=00000000
+
+pixel	pool0_alpha255_mode0	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_mode1	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_mode2	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_mode3	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_cmp1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha255_cmp2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha255_cmp3	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha255_cmp4	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha255_cmp5	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_cmp6	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_cmp7	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_cmp8	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha0_mode0	00336699	00336699	1	hr=00000000
+
+pixel	pool1_alpha0_mode1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha0_mode2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha0_mode3	00204060	00204060	1	hr=00000000
+
+pixel	pool1_alpha0_cmp1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha0_cmp2	00336699	00336699	1	hr=00000000
+
+pixel	pool1_alpha0_cmp3	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha0_cmp4	00336699	00336699	1	hr=00000000
+
+pixel	pool1_alpha0_cmp5	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha0_cmp6	00336699	00336699	1	hr=00000000
+
+pixel	pool1_alpha0_cmp7	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha0_cmp8	00336699	00336699	1	hr=00000000
+
+pixel	pool1_alpha136_mode0	88336699	88336699	1	hr=00000000
+
+pixel	pool1_alpha136_mode1	c02a547e	c02a547e	1	hr=00000000
+
+pixel	pool1_alpha136_mode2	88336699	88336699	1	hr=00000000
+
+pixel	pool1_alpha136_mode3	882a547e	882a547e	1	hr=00000000
+
+pixel	pool1_alpha136_cmp1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha136_cmp2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha136_cmp3	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha136_cmp4	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha136_cmp5	88336699	88336699	1	hr=00000000
+
+pixel	pool1_alpha136_cmp6	88336699	88336699	1	hr=00000000
+
+pixel	pool1_alpha136_cmp7	88336699	88336699	1	hr=00000000
+
+pixel	pool1_alpha136_cmp8	88336699	88336699	1	hr=00000000
+
+pixel	pool1_alpha255_mode0	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_mode1	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_mode2	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_mode3	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_cmp1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha255_cmp2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha255_cmp3	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha255_cmp4	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha255_cmp5	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_cmp6	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_cmp7	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_cmp8	ff336699	ff336699	1	hr=00000000
+
+summary	checks=72	failures=0

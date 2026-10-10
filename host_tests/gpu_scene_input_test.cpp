@@ -373,6 +373,118 @@ int main(int argc, char** argv) {
         scene=snapshot();
         assert(std::none_of(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.solidBlack;}));
     }
+    if (mode == 9) {
+        // The SHM bootstrap image stays at 160x100 after a native resize.
+        f.childData.w=160;f.childData.h=100;
+        SubsurfaceLayer bootstrap;bootstrap.surface=&f.child;bootstrap.surfaceKey=Key(25);
+        bootstrap.parentToplevel=5;bootstrap.w=160;bootstrap.h=100;
+        {auto lock=f.tm.Lock();f.comp.UpsertSubsurfaceLayer(std::move(bootstrap),std::vector<uint8_t>(160*100*4,255));}
+        f.consume(Key(25),480,320);
+        ZeroCopyLayerInfo info;
+        assert(f.comp.zc().GetLayerInfo(Key(25),1,480,320,info));
+        assert(info.width==480&&info.height==320);
+        uint64_t owner=0;uint32_t top=0;int w=0,h=0;
+        {auto lock=f.tm.Lock();assert(f.comp.zc().ActiveOwner(Key(25),owner,top,w,h));
+         assert(w==480&&h==320);assert(f.comp.zc().GetContentSize(5,w,h));assert(w==480&&h==320);}
+        InputTarget hit;assert(f.input.FindInputTargetAt(80,50,hit));
+        assert(hit.toplevelId==5&&!hit.swallow&&hit.localX==240&&hit.localY==160);
+        // Explicit viewports are display intent and must survive native resize.
+        f.childData.vpDstW=200;f.childData.vpDstH=150;
+        {auto lock=f.tm.Lock();assert(f.comp.zc().ActiveOwner(Key(25),owner,top,w,h));assert(w==200&&h==150);}
+        assert(f.comp.zc().GetLayerInfo(Key(25),1,480,320,info));assert(info.width==200&&info.height==150);
+        f.childData.vpDstW=f.childData.vpDstH=0;
+        f.childData.w=240;f.childData.h=160;
+        {auto lock=f.tm.Lock();assert(f.comp.zc().ActiveOwner(Key(25),owner,top,w,h));assert(w==240&&h==160);}
+        f.consume(Key(25),240,160);
+        assert(f.comp.zc().GetLayerInfo(Key(25),1,240,160,info));
+        assert(info.width==240&&info.height==160);
+    }
+    if (mode == 10) {
+        GpuDesktopScene scene;
+        assert(f.comp.SnapshotGpuDesktopScene({},f.cache,scene,{f.gpu}));
+        auto next=scene;
+        auto game=std::find_if(next.layers.begin(),next.layers.end(),[](const auto& l){return l.zeroCopyKey==Key(25);});
+        assert(game!=next.layers.end());
+        // A static NativeBuffer remains valid while its view or protocol owner
+        // changes. Both renderers must redraw without waiting for another frame.
+        game->sampling.v={1,0,-1,0};
+        assert(!SameGpuDesktopScene(scene,next));
+        *game=f.gpu; // next geometry is irrelevant to the identity checks below.
+        scene=next;
+        game->ownerSurfaceKey=Key(26);assert(!SameGpuDesktopScene(scene,next));
+        scene=next;
+        game->parentToplevel=6;assert(!SameGpuDesktopScene(scene,next));
+        scene=next;
+        game->external=true;assert(!SameGpuDesktopScene(scene,next));
+        scene=next;
+        game->subsurface=false;assert(!SameGpuDesktopScene(scene,next));
+        scene=next;
+        game->directSurfaceKey=5;assert(!SameGpuDesktopScene(scene,next));
+        scene=next;
+        ++next.diagnosticSerial;++next.diagnosticUs;
+        assert(SameGpuDesktopScene(scene,next));
+    }
+    if (mode == 11) {
+        ZeroCopyLayerInfo info;
+        info.clientPid=100;info.surfaceId=25;info.parentToplevel=5;info.subsurface=true;
+        info.x=0;info.y=0;info.width=160;info.height=100;
+        // A completed RGBA game frame may contain zero/fractional alpha from
+        // separate D3D9 alpha blending. It is still an opaque WGL window.
+        auto native=MakeNativeWindowLayer(Key(25),info,160,100);
+        assert(native.opaque && native.ownerSurfaceKey==Key(25));
+        GpuDesktopScene scene;
+        assert(f.comp.SnapshotGpuDesktopScene({},f.cache,scene,{native}));
+        auto game=std::find_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.zeroCopyKey==Key(25);});
+        assert(game!=scene.layers.end() && game->opaque);
+        // An ARGB menu remains translucent when merged with the opaque game.
+        GpuDesktopLayer menu;
+        menu.key=Key(90);menu.parentToplevel=5;menu.subsurface=true;
+        menu.opaque=false;menu.pixels=std::make_shared<const std::vector<uint8_t>>(4,64);
+        scene.layers.push_back(menu);
+        MergeZeroCopySceneLayers(scene,{native});
+        assert(!scene.layers.back().opaque && scene.layers.back().pixels==menu.pixels);
+        auto next=scene;
+        next.layers.back().opaque=true;
+        assert(!SameGpuDesktopScene(scene,next));
+    }
+    if (mode == 12) {
+        // Device repro: a 103x78 Start menu is stored in a 128x128 SHM buffer.
+        // Compare the actual sampled coordinates, not just the output size.
+        Fixture menuFixture;
+        auto& m=menuFixture;
+        m.gameData.hasToplevel=false;
+        { auto lock=m.tm.Lock(); m.tm.HideToplevelLocked(4);m.tm.HideToplevelLocked(5); }
+        m.menuData.surface=&m.menu;m.menuData.surfaceKey=Key(26);m.menuData.clientPid=100;
+        m.menuData.isSubsurface=true;m.menuData.parentSurface=&m.rootRes;
+        m.tm.RegisterSurfaceResource(Key(26),&m.menu);
+        SubsurfaceLayer menu;menu.surface=&m.menu;menu.surfaceKey=Key(26);menu.parentToplevel=1;
+        menu.x=menu.localX=10;menu.y=menu.localY=5;menu.w=menu.h=128;
+        menu.vpDstW=103;menu.vpDstH=78;menu.shmCommitSerial=1;
+        menu.viewport.width=103;menu.viewport.height=78;
+        auto changed=menu;
+        {auto lock=m.tm.Lock();m.comp.UpsertSubsurfaceLayer(std::move(menu),std::vector<uint8_t>(128*128*4,255));}
+        GpuDesktopScene scene;assert(m.comp.SnapshotGpuDesktopScene({},m.cache,scene));
+        auto layer=std::find_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.ownerSurfaceKey==Key(26);});
+        assert(layer!=scene.layers.end() && layer->w==103 && layer->h==78);
+        assert(layer->sourceW==128 && layer->sourceH==128);
+        assert(std::abs(layer->sampling.u[1]-103.f/128)<0.00001f && "padded menu buffer must be cropped before scaling");
+        assert(std::abs(layer->sampling.v[2]-78.f/128)<0.00001f);
+        InputTarget hit;
+        assert(m.input.FindInputTargetAt(112,20,hit) && hit.surface==&m.menu && hit.originX==10);
+        assert(m.input.FindInputTargetAt(113,20,hit) && hit.surface==&m.rootRes && hit.originX==0);
+        // A viewport-only change needs new sampling, but reuses uploaded pixels.
+        auto before=scene;
+        changed.viewport.x=4;changed.viewport.y=3;
+        changed.viewport.width=99;changed.viewport.height=75;
+        {auto lock=m.tm.Lock();m.comp.UpsertSubsurfaceLayer(std::move(changed),std::vector<uint8_t>(128*128*4,255));}
+        assert(m.comp.SnapshotGpuDesktopScene({},m.cache,scene));
+        assert(!SameGpuDesktopScene(before,scene));
+        layer=std::find_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.ownerSurfaceKey==Key(26);});
+        auto old=std::find_if(before.layers.begin(),before.layers.end(),[](const auto& l){return l.ownerSurfaceKey==Key(26);});
+        assert(layer->pixels==old->pixels);
+        assert(std::abs(layer->sampling.u[0]-4.f/128)<0.00001f);
+        assert(std::abs(layer->sampling.v[0]-3.f/128)<0.00001f);
+    }
     if (mode == 3) {
         winehua::NoteInputTargetToplevel(4, 7, 9);
         const auto before=winehua::LastInputTarget();
@@ -391,5 +503,76 @@ int main(int argc, char** argv) {
         assert(f.input.FindInputTargetAt(80,50,hit));assert(!hit.swallow && hit.localX==50);
     }
 #endif
+    if (mode == 13) {
+        // Two real GPU drawables under one root, with no parent SHM. Exact
+        // protocol identity replaces the previous ambiguous-child rejection.
+        f.comp.zc().RemoveKey(Key(25));
+        f.childData.directOwnerKey=Key(5); f.childData.directGeneration=40;
+        f.childData.directVisible=true;
+        SurfaceData second;wl_resource secondRes{&second};
+        second.surface=&secondRes;second.surfaceKey=Key(26);second.clientPid=100;
+        second.protocolId=26;second.isSubsurface=true;second.parentSurface=&f.game;
+        second.directOwnerKey=Key(5);second.directGeneration=41;second.directVisible=true;
+        second.subsurfaceX=20;second.subsurfaceY=30;
+        f.tm.RegisterSurfaceResource(Key(26),&secondRes);
+        {auto lock=f.tm.Lock();f.tm.FindToplevelLocked(4)->ApplyFullscreen(false);
+         f.tm.FindToplevelLocked(5)->ApplyFullscreen(false);
+         for(auto* sd:{&f.childData,&second}) {
+             SubsurfaceLayer layer;layer.surface=sd->surface;layer.surfaceKey=sd->surfaceKey;
+             layer.parentToplevel=5;layer.localX=sd->subsurfaceX;layer.localY=sd->subsurfaceY;
+             layer.w=160;layer.h=100;f.comp.UpsertSubsurfaceLayer(std::move(layer),{});
+         }}
+        std::vector<GpuDesktopDirectSource> sources{{100,5,25,160,100,40},{100,5,26,80,60,41}};
+        auto snapshot=[&]() {GpuDesktopScene scene;assert(f.comp.SnapshotGpuDesktopScene(sources,f.cache,scene));return scene;};
+        auto count=[](const auto& scene){return std::count_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.directSurfaceKey!=0;});};
+        auto scene=snapshot();assert(count(scene)==2);
+        auto a=std::find_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.directSurfaceKey==Key(25);});
+        auto b=std::find_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.directSurfaceKey==Key(26);});
+        assert(a<b&&b->x==20&&b->y==30);
+        {auto lock=f.tm.Lock();assert(f.comp.ReorderSubsurfaceLayerAbove(&f.child,&secondRes));}
+        scene=snapshot();a=std::find_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.directSurfaceKey==Key(25);});
+        b=std::find_if(scene.layers.begin(),scene.layers.end(),[](const auto& l){return l.directSurfaceKey==Key(26);});assert(b<a);
+        second.directVisible=false;assert(count(snapshot())==1);second.directVisible=true;
+        sources[1].generation=40;assert(count(snapshot())==1);sources[1].generation=41;
+        sources[1].pid=101;assert(count(snapshot())==1);sources[1].pid=100;
+        second.directOwnerKey=Key(4);assert(count(snapshot())==1);second.directOwnerKey=Key(5);
+        second.parentSurface=&f.steam;assert(count(snapshot())==1);second.parentSurface=&f.game;
+        {auto lock=f.tm.Lock();f.tm.FindToplevelLocked(5)->SetMinimized(true);}
+        assert(count(snapshot())==0);
+        f.tm.UnregisterSurfaceResource(Key(26));
+    }
+    if (mode == 14) {
+        f.comp.zc().RemoveKey(Key(25));
+        f.childData.directOwnerKey=Key(5);f.childData.directGeneration=40;
+        f.childData.directVisible=true;
+        {auto lock=f.tm.Lock();
+         SubsurfaceLayer layer;layer.surface=&f.child;layer.surfaceKey=Key(25);
+         layer.parentToplevel=5;layer.w=160;layer.h=100;
+         f.comp.UpsertSubsurfaceLayer(std::move(layer),{});}
+        GpuDesktopScene scene;
+        assert(f.comp.SnapshotGpuDesktopScene({{100,5,25,160,100,40}},f.cache,scene));
+        InputTarget hit;
+        assert(f.input.FindInputTargetAt(80,50,hit));
+        assert(hit.toplevelId==5 && hit.surface==&f.game &&
+               "Direct input-transparent drawable must delegate to visible game parent");
+        // Pointer and keyboard enter use the same owning window. The older
+        // Steam fullscreen must not receive the press or regain priority.
+        assert(f.input.ResolveKeyboardFocusSurface(hit.toplevelId,hit.surface)==&f.game);
+        assert(f.input.FindToplevelAt(80,50)==5);
+        // A real interactive software menu still takes precedence above it.
+        f.menuData.surface=&f.menu;f.menuData.surfaceKey=Key(26);f.menuData.clientPid=100;
+        f.menuData.isSubsurface=true;f.menuData.parentSurface=&f.game;
+        f.tm.RegisterSurfaceResource(Key(26),&f.menu);
+        {auto lock=f.tm.Lock();SubsurfaceLayer menu;menu.surface=&f.menu;
+         menu.surfaceKey=Key(26);menu.parentToplevel=5;menu.localX=60;menu.localY=30;
+         menu.w=40;menu.h=40;
+         f.comp.UpsertSubsurfaceLayer(std::move(menu),std::vector<uint8_t>(40*40*4,255));}
+        assert(f.input.FindInputTargetAt(80,50,hit) && hit.surface==&f.menu);
+        f.menuData.inputRegionEmpty=true;
+        assert(f.input.FindInputTargetAt(80,50,hit) && hit.surface==&f.game);
+        {auto lock=f.tm.Lock();f.tm.FindToplevelLocked(5)->SetMinimized(true);}
+        assert(f.comp.SnapshotGpuDesktopScene({{100,5,25,160,100,40}},f.cache,scene));
+        assert(f.input.FindInputTargetAt(80,50,hit) && hit.toplevelId==4 && hit.surface==&f.steam);
+    }
     std::puts("full production scene/input contract passed");
 }

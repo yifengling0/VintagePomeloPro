@@ -17,6 +17,7 @@ constexpr std::string_view kIsolateVulkanDirect = "isolate-vulkan-direct";
 constexpr std::string_view kIsolateVulkanDirectPrecise = "isolate-vulkan-direct-precise-map";
 constexpr std::string_view kIsolateVulkanDirectWhole = "isolate-vulkan-direct-whole-map";
 constexpr std::string_view kIsolateShadowBoundBuffers = "isolate-shadow-bound-buffers";
+constexpr std::string_view kIsolateProductEglDesktop = "isolate-product-egl-desktop";
 std::atomic<bool> productDirectVerified{false};
 
 void AppendBooleanEnvironment(std::vector<std::string>* environment,
@@ -162,6 +163,7 @@ bool ResolveProductGraphicsPolicy(D3dBackendKind backend,
         policy->guest.directVulkan = true;
         policy->guest.preciseShadow = true;
         policy->guest.directPreciseMaps = true;
+        policy->vulkanDesktop = true;
     }
     return true;
 }
@@ -207,6 +209,15 @@ bool ResolveLabGraphicsExperiment(std::string_view id,
                                   ProductGraphicsPolicy* policy)
 {
     if (!policy || backend == D3dBackendKind::Unknown) return false;
+
+    if (id == kIsolateProductEglDesktop) {
+        // One-variable control: preserve the verified product transport,
+        // mapping, DLL and submission policy; change only the desktop consumer.
+        if (!ResolveProductGraphicsPolicy(backend, policy)) return false;
+        policy->host.name = kIsolateProductEglDesktop;
+        policy->vulkanDesktop = false;
+        return true;
+    }
 
     ProductGraphicsPolicy resolved;
     // Observation/control experiments must keep their declared transport,
@@ -259,6 +270,7 @@ bool ResolveLabGraphicsExperiment(std::string_view id,
         canonicalId = id;
         resolved.guest = {};
         resolved.guest.directVulkan = true;
+        resolved.vulkanDesktop = true;
         if (id != kIsolateVulkanDirect) {
             resolved.guest.preciseShadow = true;
             resolved.guest.directPreciseMaps = id == kIsolateVulkanDirectPrecise;

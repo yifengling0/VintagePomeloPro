@@ -1,0 +1,8 @@
+{
+  "diagnosticOnly": true,
+  "productionCapsUnchanged": true,
+  "productionSourceUnchanged": true,
+  "productionRendererSha256": "165790221a950dda5b032e0c07873302a0780756686885d7dcea4e09fe032030",
+  "diagnosticRendererSha256": "e07301ece5546a8bd3ea5331e9ca98a988690ec90e5d15c35e691e415f42debb",
+  "probeSourceSha256": "d1204c1d8f901691c3803c1fd294e232d9de181b0cf86f6fecc5b25b6b8a936a"
+}

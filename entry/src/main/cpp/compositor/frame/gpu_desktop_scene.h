@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 #include "direct_viewport.h"
+#include "zc_bridge.h"
 
 // Immutable SHM snapshots only. A Direct layer contains identity/geometry;
 // its GPU image stays in BufferQueue and is never copied into this structure.
@@ -14,7 +15,7 @@ struct GpuDesktopLayer {
     uint64_t zeroCopyKey = 0, ownerSurfaceKey = 0;
     uint32_t parentToplevel = 0;
     bool subsurface = false, external = false;
-    uint32_t directToplevel = 0;
+    uint64_t directSurfaceKey = 0;
     int x = 0, y = 0, w = 0, h = 0;
     int sourceW = 0, sourceH = 0;
     DirectImageSampling sampling;
@@ -31,9 +32,31 @@ struct GpuDesktopScene {
     std::vector<GpuDesktopLayer> layers;
 };
 
+// Native producers present completed Wine window drawables, not Wayland
+// premultiplied UI pixels. Wine Vulkan advertises OPAQUE and upstream WGL
+// requests EGL_PRESENT_OPAQUE_EXT. The OHOS pbuffer bridge preserves the same
+// contract even when game draws leave fractional/zero framebuffer alpha.
+// Layered/shaped SHM windows have their own opacity flag and bypass this path.
+inline GpuDesktopLayer MakeNativeWindowLayer(uint64_t key, const ZeroCopyLayerInfo& info,
+                                            int sourceW, int sourceH)
+{
+    GpuDesktopLayer source;
+    source.zeroCopyKey = key;
+    source.ownerSurfaceKey = (static_cast<uint64_t>(info.clientPid) << 32) | info.surfaceId;
+    source.parentToplevel = info.parentToplevel;
+    source.subsurface = info.subsurface;
+    source.external = info.external;
+    source.x = info.x; source.y = info.y;
+    source.w = info.width; source.h = info.height;
+    source.sourceW = sourceW; source.sourceH = sourceH;
+    source.opaque = true;
+    return source;
+}
+
 struct GpuDesktopDirectSource {
     uint32_t pid = 0, toplevel = 0, wlSurface = 0;
     int width = 0, height = 0;
+    uint64_t generation = 0;
 };
 
 using GpuDesktopSnapshotCache = std::unordered_map<uint64_t, GpuDesktopLayer>;
@@ -70,7 +93,7 @@ inline void MergeZeroCopySceneLayers(GpuDesktopScene& scene,
         }
     }
     for (auto it = scene.layers.begin(); it != scene.layers.end();)
-        if (!it->zeroCopyKey && !it->pixels && !it->solidBlack && !it->directToplevel)
+        if (!it->zeroCopyKey && !it->pixels && !it->solidBlack && !it->directSurfaceKey)
             it = scene.layers.erase(it);
         else ++it;
 }
@@ -82,6 +105,9 @@ inline bool SameGpuDesktopScene(const GpuDesktopScene& a, const GpuDesktopScene&
     for (size_t i = 0; i < a.layers.size(); ++i) {
         const auto& x = a.layers[i]; const auto& y = b.layers[i];
         if (x.key != y.key || x.zeroCopyKey != y.zeroCopyKey || x.serial != y.serial ||
+            x.ownerSurfaceKey != y.ownerSurfaceKey || x.parentToplevel != y.parentToplevel ||
+            x.subsurface != y.subsurface || x.external != y.external ||
+            x.directSurfaceKey != y.directSurfaceKey || x.sampling != y.sampling ||
             x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
             x.sourceW != y.sourceW || x.sourceH != y.sourceH ||
             x.opaque != y.opaque || x.solidBlack != y.solidBlack || x.pixels != y.pixels)

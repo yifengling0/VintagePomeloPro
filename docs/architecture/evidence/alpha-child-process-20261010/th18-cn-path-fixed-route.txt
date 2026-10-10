@@ -1,0 +1,12 @@
+10-10 13:47:30.535 12444 13303 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=12444 creatorHostPid=13465 childHostPid=13708 createStatus=0 mode=create-ipc
+10-10 13:47:32.122 12444 13302 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=13511 argc=2 envCount=123 fdCount=1
+10-10 13:47:32.255 12444 13303 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=12444 creatorHostPid=13511 childHostPid=13725 createStatus=0 mode=create-ipc
+10-10 13:47:40.924 12444 13299 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=13465 argc=4 envCount=48 fdCount=1
+10-10 13:47:41.076 12444 13303 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=12444 creatorHostPid=13465 childHostPid=13816 createStatus=0 mode=create-ipc
+10-10 13:47:41.354 12444 13300 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=13465 argc=2 envCount=48 fdCount=1
+10-10 13:47:41.525 12444 13303 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=12444 creatorHostPid=13465 childHostPid=13829 createStatus=0 mode=create-ipc
+10-10 13:47:51.836 12444 13301 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=13465 argc=2 envCount=48 fdCount=1
+10-10 13:47:51.960 12444 13303 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=12444 creatorHostPid=13465 childHostPid=13886 createStatus=0 mode=create-ipc
+10-10 13:48:01.321 12444 13302 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=13609 argc=2 envCount=127 fdCount=1
+10-10 13:48:01.326 12444 13303 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-IMAGE] preferred PE32 range occupied; fresh native process exe=Z:\games\[th18] 东方虹龙洞\th18.exe
+10-10 13:48:01.432 12444 13303 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=12444 creatorHostPid=13609 childHostPid=14101 createStatus=0 mode=start

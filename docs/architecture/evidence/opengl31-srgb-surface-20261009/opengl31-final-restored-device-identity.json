@@ -1,0 +1,26 @@
+{
+  "recordedAt": "2026-10-09T21:40:26.527936+08:00",
+  "bundleName": "com.vintage.pomelopro",
+  "versionName": "1.4.5.29",
+  "versionCode": 1004038,
+  "installedPackage": "opengl31-srgb-surface-v2-signed-20261009.hap",
+  "signedHapSha256": "2cc5348cef113e604e9f5a040d968b7b25f941d4450a4a3c57d5291a1cd3d73d",
+  "installOutputVerified": true,
+  "deviceGalliumSha256": "a5ce84e4a41f4ecaebca10230c4ea4e665ffb6ed4f9626674c4f12e682f01aa0",
+  "deviceGalliumMatchesCandidate": true,
+  "packagedRendererAliasesSha256": {
+    "libs/arm64-v8a/libvirglrenderer.so": "5e77a30ce67bcf99af68862d5a0e222dbc2d6214e3c04e578f18b752bc7e8c8d",
+    "libs/arm64-v8a/libvirglrenderer.so.1": "5e77a30ce67bcf99af68862d5a0e222dbc2d6214e3c04e578f18b752bc7e8c8d"
+  },
+  "packagedVtestSha256": "0557f75591e7d48cf9d3b9fec421351c2edaeb9a27569bd48164d9b30803c0c3",
+  "nativeDeviceHashRead": "denied to HDC shell, including bundle-aware shell",
+  "restoredProbe64": {
+    "checks": 163,
+    "failures": 0,
+    "result": "gl31-v2-restored64.tsv"
+  },
+  "deviceRendererSha256": null,
+  "deviceRendererMatchesCandidate": false,
+  "lastDeviceState": "Wireless Connected; final details in device ledger subset",
+  "boundary": "Candidate installed and Gallium/device context verified. Native hashes verified in installed HAP; direct device renderer/vtest hashing was not available."
+}

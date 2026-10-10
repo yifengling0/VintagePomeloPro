@@ -1,0 +1,39 @@
+pointer_bits	32
+
+pixel	pool0_alpha0_mode0	00336699	00336699	1	hr=00000000
+
+pixel	pool0_alpha0_mode1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha0_mode2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool0_alpha128_mode0	80336699	80336699	1	hr=00000000
+
+pixel	pool0_alpha128_mode1	bf2a537d	bf2a537d	1	hr=00000000
+
+pixel	pool0_alpha128_mode2	80336699	80336699	1	hr=00000000
+
+pixel	pool0_alpha255_mode0	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_mode1	ff336699	ff336699	1	hr=00000000
+
+pixel	pool0_alpha255_mode2	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha0_mode0	00336699	00336699	1	hr=00000000
+
+pixel	pool1_alpha0_mode1	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha0_mode2	ff204060	ff204060	1	hr=00000000
+
+pixel	pool1_alpha128_mode0	80336699	80336699	1	hr=00000000
+
+pixel	pool1_alpha128_mode1	bf2a537d	bf2a537d	1	hr=00000000
+
+pixel	pool1_alpha128_mode2	80336699	80336699	1	hr=00000000
+
+pixel	pool1_alpha255_mode0	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_mode1	ff336699	ff336699	1	hr=00000000
+
+pixel	pool1_alpha255_mode2	ff336699	ff336699	1	hr=00000000
+
+summary	checks=18	failures=0

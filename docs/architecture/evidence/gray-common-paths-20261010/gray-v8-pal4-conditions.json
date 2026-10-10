@@ -1,0 +1,16 @@
+{
+  "time": "2026-10-10T11:43:09.005834+08:00",
+  "target": "TestPad-Wireless",
+  "game": "Z:\\games\\games\\PAL4\\PAL4\\pal4.exe",
+  "backend": "dxvk_legacy",
+  "experiment": "",
+  "env": [
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,+err"
+    }
+  ],
+  "args": [],
+  "frameDiagnostics": true,
+  "installedHap": "(unchanged)"
+}

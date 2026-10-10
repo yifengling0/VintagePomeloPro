@@ -7,6 +7,7 @@
 #include <native_buffer/native_buffer.h>
 #include <hilog/log.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -37,7 +38,9 @@ struct Slot {
     int32_t desiredWidth = 64;
     int32_t desiredHeight = 64;
     uint64_t revision = 1;
+    uint64_t generation = 0;
     bool active = true;
+    bool desktopDrawable = false;
     std::shared_ptr<DirectImageQueue> consumer;
     bool desktopReady = false;
     DirectSurfaceToken attached{};
@@ -49,6 +52,7 @@ struct Slot {
 };
 
 struct ConsumerState {
+    uint32_t top = 0;
     std::unique_ptr<winehua::direct::DirectVulkanPresenter> presenter;
     uint64_t frames = 0;
     uint64_t outputSurfaceId = 0;
@@ -59,21 +63,31 @@ class Controller {
 public:
     Controller() { std::thread(&Controller::Run, this).detach(); }
 
-    void Create(uint32_t pid, uint32_t toplevelId, uint32_t wlSurfaceId)
+    uint64_t Create(uint32_t pid, uint32_t toplevelId, uint32_t wlSurfaceId,
+                    int32_t width = 64, int32_t height = 64, bool drawable = false)
     {
-        if (!pid || !toplevelId || !wlSurfaceId) return;
+        if (!pid || !toplevelId || !wlSurfaceId || width <= 0 || height <= 0) return 0;
         const bool directReady = WineIpcChildUsesDirectVulkan(static_cast<int32_t>(pid));
         std::lock_guard<std::mutex> lock(mutex_);
-        Slot& slot = slots_[toplevelId];
+        const uint64_t key = (uint64_t(pid) << 32) | wlSurfaceId;
+        Slot& slot = slots_[key];
         if (slot.active && slot.pid == pid && slot.wlSurfaceId == wlSurfaceId &&
-            slot.toplevelId == toplevelId) return;
+            slot.toplevelId == toplevelId) {
+            if (slot.desiredWidth != width || slot.desiredHeight != height) {
+                slot.desiredWidth = width; slot.desiredHeight = height;
+                ++slot.revision; EnqueueLocked(key);
+            }
+            return slot.generation;
+        }
         // Toplevel IDs are allocated monotonically by the compositor. A
         // replacement must first detach its previous queue on the worker.
+        slot.desktopDrawable = drawable;
         slot.pid = pid;
         slot.toplevelId = toplevelId;
         slot.wlSurfaceId = wlSurfaceId;
-        slot.desiredWidth = 64;
-        slot.desiredHeight = 64;
+        slot.desiredWidth = width;
+        slot.desiredHeight = height;
+        slot.generation = nextGeneration_.fetch_add(1, std::memory_order_relaxed);
         slot.active = true;
         slot.outputSurfaceId = 0;
         ++slot.outputRevision;
@@ -81,7 +95,8 @@ public:
         slot.outputHeight = 0;
         boundOutputs_.erase(toplevelId);
         ++slot.revision;
-        if (directReady) EnqueueLocked(toplevelId);
+        if (directReady) EnqueueLocked(key);
+        return slot.generation;
     }
 
     void ChildReady(uint32_t pid)
@@ -96,7 +111,7 @@ public:
     {
         if (!toplevelId || width <= 0 || height <= 0) return;
         std::lock_guard<std::mutex> lock(mutex_);
-        auto it = slots_.find(toplevelId);
+        auto it = FindToplevelLocked(toplevelId);
         if (it == slots_.end() || !it->second.active) return;
         Slot& slot = it->second;
         if (slot.desiredWidth == width && slot.desiredHeight == height &&
@@ -105,17 +120,24 @@ public:
         slot.desiredWidth = width;
         slot.desiredHeight = height;
         ++slot.revision;
-        EnqueueLocked(toplevelId);
+        EnqueueLocked(it->first);
     }
 
     void Destroy(uint32_t toplevelId)
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        auto it = slots_.find(toplevelId);
+        for (auto& [key, slot] : slots_) if (slot.toplevelId == toplevelId) {
+            slot.active = false; ++slot.revision; EnqueueLocked(key);
+        }
+    }
+
+    void DestroyDrawable(uint32_t pid, uint32_t surface)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const uint64_t key = (uint64_t(pid) << 32) | surface;
+        auto it = slots_.find(key);
         if (it == slots_.end()) return;
-        it->second.active = false;
-        ++it->second.revision;
-        EnqueueLocked(toplevelId);
+        it->second.active = false; ++it->second.revision; EnqueueLocked(key);
     }
 
     void Reset()
@@ -134,7 +156,7 @@ public:
         uint32_t pid = 0;
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            auto it = slots_.find(id);
+            auto it = FindToplevelLocked(id);
             if (it == slots_.end() || !it->second.active) return false;
             pid = it->second.pid;
         }
@@ -142,7 +164,7 @@ public:
         // Wayland/child-ready paths obtain these locks in the opposite order.
         if (!WineIpcChildUsesDirectVulkan(static_cast<int32_t>(pid))) return false;
         std::lock_guard<std::mutex> lock(mutex_);
-        auto it = slots_.find(id);
+        auto it = FindToplevelLocked(id);
         if (it == slots_.end() || !it->second.active || it->second.pid != pid)
             return false;
         Slot& slot = it->second;
@@ -151,7 +173,7 @@ public:
         slot.outputHeight = 0;
         ++slot.outputRevision;
         boundOutputs_.insert(id);
-        EnqueueLocked(id);
+        EnqueueLocked(it->first);
         OH_LOG_INFO(LOG_APP, "bind output top=%{public}u surface=%{public}llu",
                     id, static_cast<unsigned long long>(surfaceId));
         return true;
@@ -161,13 +183,13 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!boundOutputs_.count(id)) return false;
-        auto it = slots_.find(id);
+        auto it = FindToplevelLocked(id);
         if (it != slots_.end() && it->second.active && width > 0 && height > 0 &&
             (it->second.outputWidth != width || it->second.outputHeight != height)) {
             it->second.outputWidth = width;
             it->second.outputHeight = height;
             ++it->second.outputRevision;
-            EnqueueLocked(id);
+            EnqueueLocked(it->first);
         }
         return true;
     }
@@ -176,18 +198,18 @@ public:
     {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!boundOutputs_.erase(id)) return false;
-        auto it = slots_.find(id);
+        auto it = FindToplevelLocked(id);
         if (it == slots_.end() || !it->second.active) return true;
         Slot& slot = it->second;
         slot.outputSurfaceId = 0;
         ++slot.outputRevision;
         const uint64_t revision = slot.outputRevision;
-        EnqueueLocked(id);
+        EnqueueLocked(it->first);
         if (slot.consumer) {
             // ArkUI may retire the XComponent immediately after this callback.
             // Drain the old Vulkan swapchain on the worker before returning.
             if (!condition_.wait_for(lock, std::chrono::seconds(5), [&] {
-                    auto current = slots_.find(id);
+                    auto current = FindToplevelLocked(id);
                     return current == slots_.end() ||
                            current->second.outputAckRevision >= revision;
                 }))
@@ -221,7 +243,14 @@ public:
     }
 
 private:
-    void EnqueueLocked(uint32_t id)
+    auto FindToplevelLocked(uint32_t top) -> std::unordered_map<uint64_t, Slot>::iterator
+    {
+        return std::find_if(slots_.begin(), slots_.end(), [top](const auto& item) {
+            return item.second.active && !item.second.desktopDrawable && item.second.toplevelId == top;
+        });
+    }
+
+    void EnqueueLocked(uint64_t id)
     {
         if (queued_.insert(id).second) queue_.push_back(id);
         condition_.notify_one();
@@ -230,8 +259,8 @@ private:
     void Run()
     {
         for (;;) {
-            uint32_t id = 0;
-            std::vector<uint32_t> consumers;
+            uint64_t id = 0;
+            std::vector<uint64_t> consumers;
             {
                 std::unique_lock<std::mutex> lock(mutex_);
                 condition_.wait_for(lock, std::chrono::milliseconds(8),
@@ -247,11 +276,11 @@ private:
                 }
             }
             if (id) Process(id);
-            else for (uint32_t top : consumers) Consume(top);
+            else for (uint64_t top : consumers) Consume(top);
         }
     }
 
-    void Consume(uint32_t id)
+    void Consume(uint64_t id)
     {
         // The worker alone replaces/destroys consumer images. Lifecycle
         // callbacks only enqueue work, so this pointer stays valid here.
@@ -269,6 +298,8 @@ private:
             desktop = desktopOwner_ && !outputSurfaceId;
         }
         auto& state = consumers_[id];
+        { std::lock_guard<std::mutex> lock(mutex_);
+          auto it = slots_.find(id); if (it != slots_.end()) state.top = it->second.toplevelId; }
         if (state.outputRevision != outputRevision) {
             // Size changes keep the device/import cache and rebuild output on
             // the next frame. Rebinding/unbinding drains before acknowledging
@@ -317,7 +348,7 @@ private:
             if (!submitted) {
                 OH_LOG_ERROR(LOG_APP,
                              "GPU consumer failed top=%{public}u frame=%{public}llu stage=%{public}s vk=%{public}d",
-                             id, static_cast<unsigned long long>(state.presenter->FrameCount()),
+                             state.top, static_cast<unsigned long long>(state.presenter->FrameCount()),
                              state.presenter->Stage(), state.presenter->VkError());
                 // A failed present may follow a successful GPU submit. Drain
                 // before returning this buffer, including an export failure.
@@ -333,13 +364,13 @@ private:
         }
         const auto releaseStatus = image->ReleaseWithStatus(windowBuffer, releaseFence);
         if (releaseStatus == DirectImageQueue::ReleaseStatus::Error) {
-            OH_LOG_ERROR(LOG_APP, "consumer release failed top=%{public}u", id);
+            OH_LOG_ERROR(LOG_APP, "consumer release failed top=%{public}u", state.top);
         } else if (submitted && releaseStatus == DirectImageQueue::ReleaseStatus::Returned) {
             ++state.frames;
             if (state.frames == 1 || state.frames % 60 == 0)
                 OH_LOG_INFO(LOG_APP,
                             "GPU consumer frames=%{public}llu top=%{public}u size=%{public}dx%{public}d presents=%{public}llu output=%{public}llu presenter=singleImage",
-                            static_cast<unsigned long long>(state.frames), id,
+                            static_cast<unsigned long long>(state.frames), state.top,
                             config.width, config.height,
                             static_cast<unsigned long long>(state.presenter->OutputPresentCount()),
                             static_cast<unsigned long long>(state.outputSurfaceId));
@@ -347,7 +378,7 @@ private:
         OH_NativeWindow_NativeObjectUnreference(windowBuffer);
     }
 
-    void Process(uint32_t id)
+    void Process(uint64_t id)
     {
         Slot snapshot;
         {
@@ -376,7 +407,8 @@ private:
         if (!WineIpcChildUsesDirectVulkan(static_cast<int32_t>(snapshot.pid))) return;
         if (snapshot.attached.generation && snapshot.consumer &&
             snapshot.attached.clientPid == static_cast<int32_t>(snapshot.pid) &&
-            snapshot.attached.wlSurfaceId == snapshot.wlSurfaceId) {
+            snapshot.attached.wlSurfaceId == snapshot.wlSurfaceId &&
+            snapshot.attached.generation == snapshot.generation) {
             if (snapshot.attached.width == snapshot.desiredWidth &&
                 snapshot.attached.height == snapshot.desiredHeight) return;
             // Wine may already have a VkSurfaceKHR for this producer. Replacing
@@ -395,7 +427,7 @@ private:
                     it->second.attached = resized;
                     OH_LOG_INFO(LOG_APP,
                                 "resized in place pid=%{public}u top=%{public}u gen=%{public}llu size=%{public}dx%{public}d",
-                                snapshot.pid, id,
+                                snapshot.pid, snapshot.toplevelId,
                                 static_cast<unsigned long long>(resized.generation),
                                 resized.width, resized.height);
                 }
@@ -403,7 +435,7 @@ private:
                 // A failed metadata update must not destroy a live producer.
                 OH_LOG_ERROR(LOG_APP,
                              "resize in place failed pid=%{public}u top=%{public}u gen=%{public}llu",
-                             snapshot.pid, id,
+                             snapshot.pid, snapshot.toplevelId,
                              static_cast<unsigned long long>(resized.generation));
             }
             return;
@@ -431,14 +463,13 @@ private:
                 return;
             }
         }
-        DirectSurfaceToken token{static_cast<int32_t>(snapshot.pid), id,
-                                 snapshot.wlSurfaceId,
-                                 nextGeneration_.fetch_add(1, std::memory_order_relaxed),
+        DirectSurfaceToken token{static_cast<int32_t>(snapshot.pid), snapshot.toplevelId,
+                                 snapshot.wlSurfaceId, snapshot.generation,
                                  snapshot.desiredWidth, snapshot.desiredHeight};
         if (!AttachWineDirectSurface(token, producer)) {
             OH_LOG_WARN(LOG_APP,
                         "attach failed pid=%{public}u top=%{public}u wl=%{public}u gen=%{public}llu",
-                        snapshot.pid, id, snapshot.wlSurfaceId,
+                        snapshot.pid, snapshot.toplevelId, snapshot.wlSurfaceId,
                         static_cast<unsigned long long>(token.generation));
             OH_NativeImage_Destroy(&image);
             return;
@@ -473,17 +504,17 @@ private:
         oldImage.reset();
         OH_LOG_INFO(LOG_APP,
                     "attached pid=%{public}u top=%{public}u wl=%{public}u gen=%{public}llu size=%{public}dx%{public}d",
-                    snapshot.pid, id, snapshot.wlSurfaceId,
+                    snapshot.pid, snapshot.toplevelId, snapshot.wlSurfaceId,
                     static_cast<unsigned long long>(token.generation),
                     token.width, token.height);
     }
 
     std::mutex mutex_;
     std::condition_variable condition_;
-    std::unordered_map<uint32_t, Slot> slots_;
-    std::deque<uint32_t> queue_;
-    std::unordered_set<uint32_t> queued_;
-    std::unordered_map<uint32_t, ConsumerState> consumers_;
+    std::unordered_map<uint64_t, Slot> slots_;
+    std::deque<uint64_t> queue_;
+    std::unordered_set<uint64_t> queued_;
+    std::unordered_map<uint64_t, ConsumerState> consumers_;
     std::unordered_set<uint32_t> boundOutputs_;
     std::atomic<uint64_t> nextGeneration_{1};
     const void* desktopOwner_ = nullptr;
@@ -552,6 +583,17 @@ void DirectWineSurfaceCreated(uint32_t clientPid, uint32_t toplevelId,
                               uint32_t wlSurfaceId)
 {
     GetController().Create(clientPid, toplevelId, wlSurfaceId);
+}
+
+uint64_t DirectWineDrawableDeclared(uint32_t pid, uint32_t top, uint32_t wl,
+                                   int32_t width, int32_t height)
+{
+    return GetController().Create(pid, top, wl, width, height, true);
+}
+
+void DirectWineDrawableDestroyed(uint32_t pid, uint32_t wl)
+{
+    GetController().DestroyDrawable(pid, wl);
 }
 
 void DirectWineSurfaceResized(uint32_t toplevelId, int32_t width, int32_t height)

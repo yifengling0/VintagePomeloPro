@@ -1,6 +1,7 @@
 /* Broker v2: bounded readers feed one serialized NCP dispatcher. */
 #include "broker.h"
 #include "spawn_codec.h"
+#include "wine_image_policy.h"
 #include "common/wait_utils.h"
 #include "wine/wine_constants.h"
 #include "audio/audio_broker.h"
@@ -124,8 +125,12 @@ static void LaunchJob(BrokerJob& job) {
     NativeChildProcess_Args args{};
     args.entryParams = entry.data(); args.fdList.head = request.names.empty() ? nullptr : nodes;
     NativeChildProcess_Options options{}; options.isolationMode = NCP_ISOLATION_MODE_NORMAL;
-    const bool direct = winehua::spawn::EnvFlag(request, "WINEHUA_DIRECT_NCP",
+    const bool freshImage = winehua::spawn::RequiresFreshWineProcess(request);
+    const bool direct = !freshImage && winehua::spawn::EnvFlag(request, "WINEHUA_DIRECT_NCP",
         gDirectNcpSessionDefault.load(std::memory_order_acquire));
+    if (freshImage)
+        OH_LOG_INFO(LOG_APP, "[PROC-IMAGE] preferred PE32 range occupied; fresh native process exe=%{public}s",
+                    winehua::spawn::ProcessPath(request).c_str());
     const bool phoneFork = !direct && PhoneAdapter_IsPhoneMode() &&
         winehua::spawn::EnvFlag(request, "WINEHUA_PHONE_DIRECT_FORK");
     int32_t childPid = -1;

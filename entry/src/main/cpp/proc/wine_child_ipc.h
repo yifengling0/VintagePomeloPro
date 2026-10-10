@@ -29,8 +29,8 @@ struct ProbeResult {
     int32_t fdCount;
 };
 
-// The Wayland client PID is the Wine NCP host PID. A toplevel may be reused
-// after destruction, so every producer handoff has a strictly newer generation.
+// Each drawable has its own producer. PID + wlSurfaceId identify the queue;
+// toplevelId is the actual protocol owner, and generation prevents reuse.
 struct DirectSurfaceToken {
     int32_t clientPid;
     uint32_t toplevelId;

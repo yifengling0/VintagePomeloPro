@@ -1,0 +1,11 @@
+sample	backbuffer_clear	51,102,153	51,102,153	1	00000000
+sample	linear_rt_clear	51,102,153	51,102,153	1	00000000
+sample	linear_rt_sample	51,102,153	51,102,153	1	00000000
+sample	linear_pingpong_1	51,102,153	51,102,153	1	00000000
+sample	linear_pingpong_2	51,102,153	51,102,153	1	00000000
+sample	linear_pingpong_3	51,102,153	51,102,153	1	00000000
+sample	linear_pingpong_4	51,102,153	51,102,153	1	00000000
+sample	linear_blend_black	26,51,77	26,51,77	1	00000000
+sample	explicit_srgb_read	8,34,81	8,34,81	1	00000000
+sample	linear_read_after_srgb	51,102,153	51,102,153	1	00000000
+summary	failures=0

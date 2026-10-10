@@ -1,0 +1,11 @@
+{
+  "bits": 64,
+  "exeSha256": "b8f1d832948d03503c67d23dd80f02316fbafa02cc1e2c56da00be6678d8542d",
+  "contexts": [
+    "legacy",
+    "desktop3.0",
+    "desktop3.1"
+  ],
+  "pixelChecks": 27,
+  "passed": true
+}

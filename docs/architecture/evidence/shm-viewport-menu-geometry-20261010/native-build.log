@@ -1,0 +1,63 @@
+ninja: Entering directory `entry/.cxx/default/default/debug/arm64-v8a'
+[1/24] Building CXX object CMakeFiles/entry.dir/direct/direct_desktop_compositor.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[2/24] Building CXX object CMakeFiles/entry.dir/wine/wine_env.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[3/24] Building CXX object CMakeFiles/entry.dir/wine/wine_launch.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[4/24] Building CXX object CMakeFiles/entry.dir/compositor/wayland_server.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[5/24] Building CXX object CMakeFiles/entry.dir/wine/wine_exe.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[6/24] Building CXX object CMakeFiles/entry.dir/graphics/graphics_broker.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[7/24] Building CXX object CMakeFiles/entry.dir/bridge/napi_init.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[8/24] Building CXX object CMakeFiles/entry.dir/direct/direct_vulkan_desktop_compositor.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[9/24] Building CXX object CMakeFiles/entry.dir/compositor/frame/frame_composer.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[10/24] Building CXX object CMakeFiles/entry.dir/compositor/wl_core.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[11/24] Building CXX object CMakeFiles/entry.dir/compositor/input/input_resolver.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[12/24] Building CXX object CMakeFiles/entry.dir/compositor/frame/zc_bridge.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[13/24] Building CXX object CMakeFiles/entry.dir/compositor/input/input_injector.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[14/24] Building CXX object CMakeFiles/entry.dir/compositor/frame/frame_pipeline.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[15/24] Building CXX object CMakeFiles/entry.dir/compositor/toplevel/desktop_compositor.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[16/24] Building CXX object CMakeFiles/entry.dir/graphics/shader_utils.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[17/24] Building CXX object CMakeFiles/entry.dir/compositor/input/input_space_mapper.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[18/24] Building CXX object CMakeFiles/entry.dir/graphics/egl_renderer.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+/data/src/winehua/entry/src/main/cpp/graphics/egl_renderer.cpp:1389:75: warning: format specifies type 'unsigned long long' but the argument has type 'uint64_t' (aka 'unsigned long') [-Wformat]
+                            static_cast<unsigned long long>(skipFrames_), takeUs,
+                                                                          ^~~~~~
+/data/src/winehua/entry/src/main/cpp/common/app_log.h:36:67: note: expanded from macro 'OH_LOG_INFO'
+        (void)OH_LOG_Print((type), LOG_INFO, LOG_DOMAIN, LOG_TAG, __VA_ARGS__); \
+                                                                  ^~~~~~~~~~~
+/data/src/winehua/entry/src/main/cpp/graphics/egl_renderer.cpp:1390:29: warning: format specifies type 'unsigned long long' but the argument has type 'unsigned long' [-Wformat]
+                            frameEndedUs - swapStartedUs);
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/data/src/winehua/entry/src/main/cpp/common/app_log.h:36:67: note: expanded from macro 'OH_LOG_INFO'
+        (void)OH_LOG_Print((type), LOG_INFO, LOG_DOMAIN, LOG_TAG, __VA_ARGS__); \
+                                                                  ^~~~~~~~~~~
+2 warnings generated.
+[19/24] Building CXX object CMakeFiles/entry.dir/bridge/plugin_manager.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[20/24] Building CXX object CMakeFiles/entry.dir/input/seat.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[21/24] Building CXX object CMakeFiles/entry.dir/compositor/xdg_shell.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[22/24] Building CXX object CMakeFiles/entry.dir/compositor/winehua_toplevel.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[23/24] Building CXX object CMakeFiles/entry.dir/input/input_manager.cpp.o
+clang++: warning: argument unused during compilation: '--gcc-toolchain=/apps/harmony/sdk/default/hms/native/BiSheng' [-Wunused-command-line-argument]
+[24/24] Linking CXX shared library /data/src/winehua/entry/build/default/intermediates/cmake/default/obj/arm64-v8a/libentry.so
+/apps/harmony/sdk/default/hms/native/BiSheng/bin/ld.lld: /lib/x86_64-linux-gnu/libxml2.so.2: no version information available (required by /apps/harmony/sdk/default/hms/native/BiSheng/bin/ld.lld)
+/apps/harmony/sdk/default/hms/native/BiSheng/bin/ld.lld: /lib/x86_64-linux-gnu/libxml2.so.2: no version information available (required by /apps/harmony/sdk/default/hms/native/BiSheng/bin/ld.lld)

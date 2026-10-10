@@ -238,7 +238,19 @@ public:
 
 private:
     DesktopCompositor& comp_;
-    struct ConsumedContent { int width = 0, height = 0; uint64_t bindingGeneration = 0; };
+    struct ConsumedContent {
+        int width = 0, height = 0;
+        uint64_t bindingGeneration = 0;
+        int protocolWidthAtConsume = 0, protocolHeightAtConsume = 0;
+        // A GPU producer need not commit another SHM frame after resizing.
+        // A later protocol resize still wins until its next GPU frame arrives.
+        int ResolveWidth(int protocolWidth) const {
+            return protocolWidth == protocolWidthAtConsume ? width : protocolWidth;
+        }
+        int ResolveHeight(int protocolHeight) const {
+            return protocolHeight == protocolHeightAtConsume ? height : protocolHeight;
+        }
+    };
     std::unordered_map<uint64_t, ConsumedContent> consumedSizes_;
     std::unordered_set<uint64_t> activeKeys_;  // ZC key 权威
     std::unordered_map<uint64_t, ZcPublishState> publishStates_;  // key → ZC 发布状态

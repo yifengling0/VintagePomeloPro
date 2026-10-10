@@ -1,0 +1,24 @@
+{
+  "baseSha256": "cc9e22188f201e8cf6ab449d079bb8d4fc2789c14f33813ea95636f4e4f2d75a",
+  "unsignedSha256": "86e5e93c559b1bd831383439b9481895c56667c691c9a62b40227059bb5b144f",
+  "rendererSha256": "f7c29c9f985e411c2936b13be2eadf1124eed3fedd37c72e8f6fbe7a0ffa6d35",
+  "changedEntries": [
+    "libs/arm64-v8a/swrast_dri.so",
+    "libs/arm64-v8a/libGLESv2.so.2.0.0",
+    "libs/arm64-v8a/virtio_gpu_dri.so",
+    "libs/arm64-v8a/libEGL.so.1",
+    "libs/arm64-v8a/libGLESv2.so",
+    "libs/arm64-v8a/libvirglrenderer.so",
+    "libs/arm64-v8a/libEGL.so",
+    "libs/arm64-v8a/kms_swrast_dri.so",
+    "libs/arm64-v8a/libGLESv1_CM.so.1",
+    "libs/arm64-v8a/libGLESv2.so.2",
+    "libs/arm64-v8a/libGLESv1_CM.so.1.1.0",
+    "libs/arm64-v8a/libGLESv1_CM.so",
+    "libs/arm64-v8a/libgallium-25.0.1.so",
+    "libs/arm64-v8a/libvirglrenderer.so.1"
+  ],
+  "diagnosticsRemoved": true,
+  "zinkOptIn": true,
+  "note": "Default environment unchanged. Zink needs explicit launch environment. Wine/FEX and rawfile unchanged."
+}

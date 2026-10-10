@@ -1,0 +1,2 @@
+10-10 15:32:57.511 47662 47930 I A00000/com.vintage.pomelopro/WL_Server: [MW-VP] set_source surf=0x5a53c82f00 tl=0 src=(0,0 103x78)
+10-10 15:32:57.515 47662 47930 I A00000/com.vintage.pomelopro/WL_Server: [MW-SUBSURF] stored layer 128x128 at (0,702) parent=#2

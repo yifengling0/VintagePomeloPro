@@ -10,16 +10,30 @@ source "$SCRIPT_DIR/env.sh"
 # Fresh targeted Unix builds keep the same overlay/identity/configure checks.
 # No Wine objects or generated Makefiles are copied from another build.
 WINE_UNIX_MODULES=""
+WINE_PE_MODULES=""
 if [ "${1:-}" = --unix-modules ]; then
     shift
     for module in "$@"; do
         case "$module" in
-            ntdll|win32u|winevulkan|wineserver) ;;
+            ntdll|win32u|opengl32|winevulkan|winewayland.drv|wineserver) ;;
             *) echo "unsupported Unix module: $module" >&2; exit 1 ;;
         esac
         WINE_UNIX_MODULES="${WINE_UNIX_MODULES:+$WINE_UNIX_MODULES }$module"
     done
     [ -n "$WINE_UNIX_MODULES" ] || { echo "--unix-modules needs module names" >&2; exit 1; }
+fi
+
+# Fresh targeted PE builds use the same source, overlay and compiler identity.
+if [ "${1:-}" = --pe-modules ]; then
+    shift
+    for module in "$@"; do
+        case "$module" in
+            wined3d|d3d9) ;;
+            *) echo "unsupported PE module: $module" >&2; exit 1 ;;
+        esac
+        WINE_PE_MODULES="${WINE_PE_MODULES:+$WINE_PE_MODULES }$module"
+    done
+    [ -n "$WINE_PE_MODULES" ] || { echo "--pe-modules needs module names" >&2; exit 1; }
 fi
 
 wine_build_identity() {
@@ -30,7 +44,7 @@ wine_build_identity() {
         --config "WINE_ARCH=$WINE_ARCH" --config "NATIVE_ARCH=$NATIVE_ARCH" \
         --config "GUEST_ARCH=$GUEST_ARCH" --config "HOST_TRIPLE=$HOST_TRIPLE" \
         --config "HOST_OS=$HOST_OS" --config "TARGET=$TARGET" \
-        --config "WINE_UNIX_MODULES=$WINE_UNIX_MODULES" \
+        --config "WINE_UNIX_MODULES=$WINE_UNIX_MODULES" --config "WINE_PE_MODULES=$WINE_PE_MODULES" \
         --config "SYSROOT=$SYSROOT" --config "LLVM_MINGW=$LLVM_MINGW" \
         --config "CFLAGS=${CFLAGS:-}" --config "CXXFLAGS=${CXXFLAGS:-}" \
         --config "LDFLAGS=${LDFLAGS:-}" --config "CROSSCFLAGS=${CROSSCFLAGS:-}" \
@@ -56,8 +70,35 @@ ensure_wine_patch() {
     if patch -d "$WINE_SRC" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1; then
         log "$description already applied"
     else
-        patch -d "$WINE_SRC" -p1 --batch --dry-run < "$patch_file" >/dev/null
-        patch -d "$WINE_SRC" -p1 --batch < "$patch_file" >/dev/null
+        # Later Direct overlays change code introduced by 0009/0056. Prove
+        # the stack on a copy, reversing only overlays actually present there.
+        # Never reverse/reset the caller's possibly dirty source tree.
+        local early_file="${patch_file%/*}/0056-wayland-direct-wsi-before-show.patch"
+        local drawable_file="${patch_file%/*}/0057-wayland-direct-drawable-identity.patch"
+        if [[ "${patch_file##*/}" = 0009-direct-ohos-wsi-and-resize-smoke.patch ||
+              "${patch_file##*/}" = 0056-wayland-direct-wsi-before-show.patch ]]; then
+            if (
+                verify_tree=$(mktemp -d -t wine-overlay-proof-XXXXXXXX)
+                trap 'rm -rf -- "$verify_tree"' EXIT
+                while IFS= read -r relative; do
+                    mkdir -p "$verify_tree/$(dirname "$relative")"
+                    cp "$WINE_SRC/$relative" "$verify_tree/$relative"
+                done < <(awk '$1 == "+++" && $2 ~ /^b\// { print substr($2, 3) }' "$patch_file" "$early_file" "$drawable_file" | sort -u)
+                if patch -d "$verify_tree" -p1 --batch --force --dry-run -R < "$drawable_file" >/dev/null 2>&1; then
+                    patch -d "$verify_tree" -p1 --batch --force -R < "$drawable_file" >/dev/null
+                fi
+                if [ "${patch_file##*/}" != 0056-wayland-direct-wsi-before-show.patch ] &&
+                   patch -d "$verify_tree" -p1 --batch --force --dry-run -R < "$early_file" >/dev/null 2>&1; then
+                    patch -d "$verify_tree" -p1 --batch --force -R < "$early_file" >/dev/null
+                fi
+                patch -d "$verify_tree" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null
+            ); then
+                log "$description already applied below Direct drawable overlays"
+                return
+            fi
+        fi
+        patch -d "$WINE_SRC" -p1 --batch --force --dry-run < "$patch_file" >/dev/null
+        patch -d "$WINE_SRC" -p1 --batch --force < "$patch_file" >/dev/null
         log "$description applied"
     fi
 }
@@ -199,6 +240,24 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0047-win32u-wow64-vulkan-map-safe
     "WOW64 Vulkan mapped-span safety and explicit copy visibility"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0048-ntdll-opt-in-server-request-timing.patch" \
     "Opt-in per-thread server request timing without verbose request tracing"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0049-wined3d-require-srgb-write-control-for-shared-storage.patch" \
+    "Use separate linear and sRGB textures when framebuffer write control is missing"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0050-wayland-explicit-gpu-front-present.patch" \
+    "Explicit GPU front-resource publication with exact surface identity"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0051-opengl-preserve-pbuffer-front-storage.patch" \
+    "Storage-preserving pbuffer front presentation"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0052-ntdll-default-virgl-shared-low-map.patch" \
+    "Default WOW64 Wine-owned VirGL shared mapping with explicit opt-out"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0053-wined3d-restore-legacy-alpha-test-state.patch" \
+    "Restore compatibility-context alpha-test enable and disable state"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0054-ntdll-broker-preserve-resolved-image-path.patch" \
+    "Preserve resolved child image path for PE address-space selection"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0055-layered-child-screen-coordinates-and-root.patch" \
+    "Layered child screen coordinates and Wayland ancestry"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0056-wayland-direct-wsi-before-show.patch" \
+    "Prepare Direct WSI for windows created before ShowWindow"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0057-wayland-direct-drawable-identity.patch" \
+    "Independent Direct producers for exact desktop drawables"
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \
@@ -413,7 +472,12 @@ build_ohos_unix() {
 
     local targets=()
     for module in $WINE_UNIX_MODULES; do
-        [ "$module" = wineserver ] || targets+=("dlls/$module/$module.so")
+        [ "$module" = wineserver ] || targets+=("dlls/$module/${module%.drv}.so")
+    done
+    local pe_archs="i386 x86_64"
+    if [ "$WINE_ARCH" = aarch64 ]; then pe_archs="i386 aarch64"; fi
+    for module in $WINE_PE_MODULES; do
+        for arch in $pe_archs; do targets+=("dlls/$module/$arch-windows/$module.dll"); done
     done
     # A server-only build still configures and validates the same Wine source,
     # but must not turn an empty target list into a full default make.
@@ -424,10 +488,17 @@ build_ohos_unix() {
         CFLAGS="$WINE_CFLAGS -I$SYSROOT_EXT_INC -I$SYSROOT_EXT_INC/freetype2" \
         LDFLAGS="-fuse-ld=lld --sysroot=$SYSROOT --target=$TARGET -L$SYSROOT_EXT_LIB"
 
+    if [ -n "$WINE_PE_MODULES" ]; then
+        for module in $WINE_PE_MODULES; do
+            for arch in $pe_archs; do test -s "dlls/$module/$arch-windows/$module.dll" || return 1; done
+        done
+        return
+    fi
+
     if [ -n "$WINE_UNIX_MODULES" ]; then
         for module in $WINE_UNIX_MODULES; do
             [ "$module" = wineserver ] && continue
-            test -s "dlls/$module/$module.so" || return 1
+            test -s "dlls/$module/${module%.drv}.so" || return 1
         done
         return
     fi
@@ -591,8 +662,8 @@ fi
 wine_build_identity record
 build_native_tools
 build_ohos_unix
-case " $WINE_UNIX_MODULES " in
-    "  "|*" wineserver "*) build_wineserver ;;
+case " $WINE_UNIX_MODULES $WINE_PE_MODULES " in
+    "   "|*" wineserver "*) build_wineserver ;;
 esac
 
 log "Wine 构建完成"

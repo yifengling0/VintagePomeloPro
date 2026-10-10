@@ -1,0 +1,2 @@
+winehua_readback_pixels: pid=31287 hwnd=0x300d8 surface=41 frame=1 rgb_nonzero=0 alpha_nonzero=1024 samples=1024 read_buffer=0x405 saved_read_fbo=1 draw_fbo=0 target=0x5a50174000 current_draw=0x5a50174000 current_read=0x5a50174000 renderer=softpipe
+winehua_readback_pixels: pid=31287 hwnd=0x300d8 surface=41 frame=300 rgb_nonzero=42 alpha_nonzero=1024 samples=1024 read_buffer=0x405 saved_read_fbo=1 draw_fbo=0 target=0x5a50174000 current_draw=0x5a50174000 current_read=0x5a50174000 renderer=softpipe

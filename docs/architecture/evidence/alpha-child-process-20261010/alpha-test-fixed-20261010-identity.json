@@ -1,0 +1,14 @@
+{
+  "base": "unified-present-gray-v8-20261010-unsigned.hap",
+  "unsignedSha256": "65de44af0c03ef82daeb4741bf954a8c78f9f75bf6ce141f9ff589d56a2d247b",
+  "signedSha256": "c4b212b99b7b69afd5f7ed9cfaf2cf0bf9d6fd0375cb1eb11bf63485cc9fac1f",
+  "changedEntries": [
+    "resources/rawfile/wine-data.zip",
+    "resources/rawfile/wine_runtime.version",
+    "resources/rawfile/wine-runtime-manifest.json"
+  ],
+  "payloadChanges": {
+    "bin/i386-windows/wined3d.dll": "996a5eeef62b1e10afcaeca711a41dd9c3787a8b0059f14c96412d2fbdc9077d",
+    "bin/aarch64-windows/wined3d.dll": "b9db32b8db07b83c607373cdd0d5665b6086f159e9d010622bc45b90723584ec"
+  }
+}

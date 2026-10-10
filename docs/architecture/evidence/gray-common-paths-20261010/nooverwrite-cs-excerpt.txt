@@ -1,0 +1,32 @@
+02ec:trace:d3d_perf:wined3d_device_context_emit_map Mapping resource 01F3FDB0 (type 1), flags 0x40001000 through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:trace:d3d_perf:wined3d_device_context_emit_unmap Unmapping resource 01F3FDB0 (type 1) through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:warn:d3d_perf:wined3d_cs_map_upload_bo Not accelerating a NOOVERWRITE map because the sub-resource has no valid address.
+02ec:trace:d3d_perf:wined3d_device_context_emit_map Mapping resource 01F3FDB0 (type 1), flags 0x40001000 through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:trace:d3d_perf:wined3d_device_context_emit_unmap Unmapping resource 01F3FDB0 (type 1) through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:warn:d3d_perf:wined3d_cs_map_upload_bo Not accelerating a NOOVERWRITE map because the sub-resource has no valid address.
+02ec:trace:d3d_perf:wined3d_device_context_emit_map Mapping resource 01F3FDB0 (type 1), flags 0x40001000 through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:trace:d3d_perf:wined3d_device_context_emit_unmap Unmapping resource 01F3FDB0 (type 1) through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:warn:d3d_perf:wined3d_cs_map_upload_bo Not accelerating a NOOVERWRITE map because the sub-resource has no valid address.
+02ec:trace:d3d_perf:wined3d_device_context_emit_map Mapping resource 01F3FDB0 (type 1), flags 0x40001000 through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:trace:d3d_perf:wined3d_device_context_emit_unmap Unmapping resource 01F3FDB0 (type 1) through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:warn:d3d_perf:wined3d_cs_map_upload_bo Not accelerating a NOOVERWRITE map because the sub-resource has no valid address.
+02ec:trace:d3d_perf:wined3d_device_context_emit_map Mapping resource 01F3FDB0 (type 1), flags 0x40001000 through the CS.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Waiting for queue 1 to be empty.
+02ec:trace:d3d_perf:wined3d_cs_mt_finish Queue is now empty.
+02ec:trace:d3d_perf:wined3d_device_context_emit_unmap Unmapping resource 01F3FDB0 (type 1) through the CS.

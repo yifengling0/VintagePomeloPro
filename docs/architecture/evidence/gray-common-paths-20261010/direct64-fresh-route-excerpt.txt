@@ -1,0 +1,1 @@
+10-10 11:37:47.359 20968 22835 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=120 layers=4 direct=1 draws=113 acquireWaits=113 releaseFences=112 producerRetired=0 releaseErrors=0 imports=4 reuses=109 uiUploadBytes=19846400 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0

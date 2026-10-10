@@ -1,0 +1,24 @@
+10-09 17:41:16.512 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=3600 layers=4 direct=1 draws=3587 acquireWaits=3587 releaseFences=3586 producerRetired=0 releaseErrors=0 imports=4 reuses=3583 uiUploadBytes=26029800 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:16.717 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=30.91 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:17.717 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.98 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:18.723 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=28.84 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:19.731 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=30.78 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:20.531 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=3720 layers=4 direct=1 draws=3707 acquireWaits=3707 releaseFences=3706 producerRetired=0 releaseErrors=0 imports=4 reuses=3703 uiUploadBytes=26029800 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:20.734 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.91 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:21.736 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.91 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:22.740 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.90 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:23.755 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=30.53 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:24.522 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=3840 layers=4 direct=1 draws=3827 acquireWaits=3827 releaseFences=3826 producerRetired=0 releaseErrors=0 imports=4 reuses=3823 uiUploadBytes=26029800 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:24.756 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.97 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:25.758 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.96 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:26.765 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.77 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:27.774 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.76 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:28.515 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=3960 layers=4 direct=1 draws=3947 acquireWaits=3947 releaseFences=3946 producerRetired=0 releaseErrors=0 imports=4 reuses=3943 uiUploadBytes=26029800 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:28.776 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.91 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:29.781 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.87 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:30.781 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=30.99 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:31.782 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=28.96 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:32.525 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=4080 layers=4 direct=1 draws=4067 acquireWaits=4067 releaseFences=4066 producerRetired=0 releaseErrors=0 imports=4 reuses=4063 uiUploadBytes=26029800 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:32.790 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.77 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:33.798 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=30.76 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-09 17:41:34.802 56711 59614 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=29.90 directGameCpuReadBytes=0 directGameCpuUploadBytes=0

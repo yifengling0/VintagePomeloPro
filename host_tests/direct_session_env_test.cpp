@@ -74,6 +74,28 @@ int main() {
     assert(Has(env, "DXVK_WINEHUA_PRECISE_SHADOW=1"));
     assert(Has(env, "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1"));
     assert(Has(env, "DXVK_LOG_LEVEL=info"));
+    winehua::ProductGraphicsPolicy policy;
+    assert(winehua::ResolveProductGraphicsPolicy(winehua::D3dBackendKind::DxvkLegacy, &policy));
+    assert(policy.guest.directVulkan && policy.vulkanDesktop);
+    auto productEnv = env;
+    setenv("WINEHUA_GRAPHICS_PROFILE", "isolate-product-egl-desktop", 1);
+    env = winehua::BuildSessionEnv(session);
+    assert(Has(env, "WINEHUA_VULKAN_BACKEND=direct"));
+    assert(winehua::ResolveSessionGraphicsPolicy("isolate-product-egl-desktop",
+        winehua::D3dBackendKind::DxvkLegacy, &policy));
+    assert(policy.guest.directVulkan && !policy.vulkanDesktop);
+    // All guest settings stay identical; only the host consumer changes.
+    const auto removeProfile = [](std::vector<std::string>& values) {
+        values.erase(std::remove_if(values.begin(), values.end(), [](const auto& value) {
+            return value.rfind("WINEHUA_GRAPHICS_PROFILE=", 0) == 0;
+        }), values.end());
+        std::sort(values.begin(), values.end());
+    };
+    auto eglEnv = env;
+    removeProfile(productEnv);
+    removeProfile(eglEnv);
+    assert(productEnv == eglEnv);
+    setenv("WINEHUA_GRAPHICS_PROFILE", "product-vulkan", 1);
     winehua::SetProductDirectVulkanVerified(false);
     env = winehua::BuildSessionEnv(session);
     assert(Has(env, "WINEHUA_VULKAN_BACKEND=venus"));

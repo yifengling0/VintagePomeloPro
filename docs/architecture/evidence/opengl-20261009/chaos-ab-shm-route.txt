@@ -1,0 +1,7 @@
+Fri Oct  9 17:26:57 CST 2026
+10-09 17:26:22.991 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=3840 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=14121966816 gameCpuReadBytes=0 gameCpuUploadBytes=0
+10-09 17:26:31.516 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=3960 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=14564334816 gameCpuReadBytes=0 gameCpuUploadBytes=0
+10-09 17:26:40.351 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=4080 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=15006702816 gameCpuReadBytes=0 gameCpuUploadBytes=0
+10-09 17:26:49.733 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=4200 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=15449070816 gameCpuReadBytes=0 gameCpuUploadBytes=0
+c4db12ecdcbfd4cc87a5c6880bfcd3a2433e4c712d77af003484c5632b1735fc  /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/i386-windows/wined3d.dll
+a9cf10cbd8874f353b0734a5b622175e734e65a46db70f3cc2ddcbcf09bfdf38  /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/aarch64-windows/wined3d.dll

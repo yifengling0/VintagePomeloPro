@@ -4,7 +4,9 @@
 
 v2 已在平板复现网页进程退出和主窗口丢失，暂不作为稳定包推广。前一版四 DLL 包只通过了解包函数测试，Windows 完整启动会提示 “There was a problem with your Steam installation. Please reinstall steam.”；`-noverifyfiles` 无法解决这项 SteamUI 内部检查。
 
-当前 v3 候选仍包含 32／64 位客户端解包支持。仅 64 位解码 DLL 使用精简初始化入口和 Windows 进程堆，移除 MinGW CRT 初始化与 TLS；其余五个 DLL 与 v2 相同。Windows 正常地址／强制重定位各 180／181 项、Proton 平板强制重定位 181 项通过。平板完整客户端已启动、进入大屏，用户反馈本轮启动暂时稳定。尚未完成匹配条件的长时间 A/B 或真实游戏下载；CRT/TLS 是否就是崩溃原因仍未证实。
+当前 v3 候选仍包含 32／64 位客户端解包支持。仅 64 位解码 DLL 使用精简初始化入口和 Windows 进程堆，移除 MinGW CRT 初始化与 TLS；其余五个 DLL 与 v2 相同。Windows 正常地址／强制重定位各 180／181 项、Proton 平板强制重定位 181 项通过。平板完整客户端已启动、进入大屏，用户反馈本轮启动暂时稳定。尚未完成匹配条件的长时间 A/B；CRT/TLS 是否就是崩溃原因仍未证实。
+
+2026-10-08 补充真机结果：平板用独立诊断覆盖包完成 Purrgatory（AppID 1713610）的真实 CDN 下载，210 个块中 56 个为 VSZa，其余为原解包器支持的格式；最终 `Fully Installed`、`result No Error`，没有解包失败。诊断包的 VSZa 解码逻辑与 v3 相同，普通 v3 的两个解码 DLL 已重建确认字节不变。此结果不代替反馈手机的实际文件身份检查，也不证明所有游戏或长时间启动稳定性。详见 `docs/architecture/steam-download-tablet-validation-20261008.md`。
 
 可用 `VPP_STEAM_NOCRT64=1 bash scripts/steam_legacy_zstd/build.sh /absolute/helper-output` 构建此候选。默认构建保留 v2，便于对照。这个实验不降低下载块 CRC、最终内容校验或启动时 32 位客户端／解码器的精确哈希检查。
 
@@ -68,3 +70,24 @@ python scripts/steam_legacy_zstd/audit_install.py /path/to/Steam
 ```
 
 检查只读取六个 DLL，不读取账号、config 或 CDN URL。输出能区分原版缺少 Zstd、完整 v2、完整 v3 候选及混用／缺失／未知文件。目录身份正确之后还应完全退出 Steam／Wine 冷启动，确认进程实际加载这些 DLL；脚本不把磁盘哈希正确当成运行中模块或游戏下载完成的证明。
+
+## 独立解包诊断覆盖包
+
+只有仍失败且六文件已核对的安装需要诊断。普通构建不带记录代码；诊断构建也必须显式设置 `VPP_STEAM_DECODE_DIAG=1` 才写日志。不能单独替换解码 DLL，客户端导入符号与启动哈希守卫必须配套。
+
+1. 对原始 ZIP 中的 `steamclient.dll` 调用 `patch_client.patch(data, 'steamclient.dll', diagnostic=True)`，计算返回文件的 SHA256。
+2. 使用上述哈希构建：
+
+   ```sh
+   VPP_STEAM_NOCRT64=1 VPP_STEAM_DECODE_DIAGNOSTIC=1 \
+   VPP_STEAM_TRUST_CLIENT_SHA256=<诊断版32位客户端的SHA256> \
+   bash scripts/steam_legacy_zstd/build.sh /absolute/diagnostic-output
+   ```
+
+3. 在 `patch_client.py` 的原有 ZIP 构建命令增加 `--diagnostic`，并指定该诊断 helper 目录，产生独立六 DLL 覆盖包。完全退出 Steam／Wine，备份原六 DLL 后一起覆盖。
+4. 通过进程环境传入 `VPP_STEAM_DECODE_DIAG=1` 后冷启动，重试同一下载。日志位于 helper 同目录的 `vp-steam-decode-<PID>-32/64.log`。
+5. 采集完成后退出 Steam／Wine，恢复备份的完整六 DLL 并移除诊断环境设置。
+
+日志记录格式、失败阶段、长度、返回值、缓冲状态和当前客户端路径；不记录数据内容、解密密钥、账号或 URL。每个进程最多尝试写入 512 行，打开／写入失败也计入上限。大下载可能超过此上限；没有记录某个失败不等于它没有发生，必须同时检查 `content_log.txt` 的同期新增段。
+
+32／64 位诊断均测试了原格式、VSZa、Steam 加密解包链路、损坏／超限、缓冲追加、并发、强制重定位和记录上限；诊断关闭时无日志。精确启动守卫继续拒绝异目录、未知、损坏或缺失的 client/helper。

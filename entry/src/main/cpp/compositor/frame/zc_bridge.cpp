@@ -258,6 +258,18 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
     info.bindingGeneration = bindingGeneration;
     info.clientPid = sd->clientPid;
     info.surfaceId = sd->protocolId;
+    const auto consumed = consumedSizes_.find(surfaceKey);
+    const ConsumedContent* nativeSize = activeKeys_.count(surfaceKey) &&
+        consumed != consumedSizes_.end() && consumed->second.bindingGeneration == bindingGeneration
+        ? &consumed->second : nullptr;
+    const auto displayWidth = [nativeSize, sd](int32_t viewport, int protocolWidth) {
+        return DisplaySizeAfterViewport(viewport,
+            nativeSize ? nativeSize->ResolveWidth(sd->w) : protocolWidth);
+    };
+    const auto displayHeight = [nativeSize, sd](int32_t viewport, int protocolHeight) {
+        return DisplaySizeAfterViewport(viewport,
+            nativeSize ? nativeSize->ResolveHeight(sd->h) : protocolHeight);
+    };
     if (sd->isSubsurface && sd->parentSurface)
     {
         info.subsurface = true;
@@ -265,8 +277,8 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
         if (!parent || !parent->hasToplevel) return reject("parent_without_toplevel");
         info.parentToplevel = parent->toplevelId;
         const auto* parentState = comp_.tmgr_.FindToplevelLocked(info.parentToplevel);
-        info.width = DisplaySizeAfterViewport(sd->vpDstW, sd->w);
-        info.height = DisplaySizeAfterViewport(sd->vpDstH, sd->h);
+        info.width = displayWidth(sd->vpDstW, sd->w);
+        info.height = displayHeight(sd->vpDstH, sd->h);
         if (comp_.policy_.RootCompositing())
         {
             if (rendererToplevelId != comp_.desktopRootToplevelId_)
@@ -285,8 +297,8 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
             {
                 if (layer.surface != wlRes) continue;
                 comp_.ResolveSubsurfaceLayerPositionLocked(layer, info.x, info.y);
-                info.width = DisplaySizeAfterViewport(layer.vpDstW, layer.w);
-                info.height = DisplaySizeAfterViewport(layer.vpDstH, layer.h);
+                info.width = displayWidth(nativeSize ? sd->vpDstW : layer.vpDstW, layer.w);
+                info.height = displayHeight(nativeSize ? sd->vpDstH : layer.vpDstH, layer.h);
                 info.shmCommitSerial = layer.shmCommitSerial;
                 info.desktopCoordinates = true;
                 if (const auto* pst = comp_.tmgr_.FindToplevelLocked(layer.parentToplevel))
@@ -313,8 +325,8 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
             info.external = !insideWin;
             info.x = (insideWin ? compX : wineX) + sx;
             info.y = (insideWin ? compY : wineY) + sy;
-            info.width = DisplaySizeAfterViewport(sd->vpDstW, sd->w);
-            info.height = DisplaySizeAfterViewport(sd->vpDstH, sd->h);
+            info.width = displayWidth(sd->vpDstW, sd->w);
+            info.height = displayHeight(sd->vpDstH, sd->h);
             if (info.width <= 0) info.width = fallbackWidth;
             if (info.height <= 0) info.height = fallbackHeight;
             info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
@@ -358,8 +370,8 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
 
     if (!sd->hasToplevel) return reject("surface_without_toplevel");
     info.parentToplevel = sd->toplevelId;
-    info.width = sd->w;
-    info.height = sd->h;
+    info.width = displayWidth(sd->vpDstW, sd->w);
+    info.height = displayHeight(sd->vpDstH, sd->h);
     if (info.width <= 0) info.width = fallbackWidth;
     if (info.height <= 0) info.height = fallbackHeight;
     info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
@@ -414,7 +426,16 @@ bool ZcBridge::NoteLayerConsumed(uint64_t surfaceKey, uint64_t nowUs, uint64_t b
     auto lk = comp_.tmgr_.Lock();
     if (!comp_.tmgr_.FindSurfaceResource(surfaceKey)) return false;
     const auto rememberSize = [&] {
-        if (sourceW > 0 && sourceH > 0) consumedSizes_[surfaceKey] = {sourceW, sourceH, bindingGeneration};
+        if (sourceW <= 0 || sourceH <= 0) return;
+        uint64_t ownerKey = surfaceKey;
+        if (bindingGeneration) {
+            const auto& window = presentBindings_.at(surfaceKey).window;
+            ownerKey = (static_cast<uint64_t>(window.ownerHostPid) << 32) | window.wlSurfaceId;
+        }
+        auto* resource = comp_.tmgr_.FindSurfaceResource(ownerKey);
+        const auto* data = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
+        consumedSizes_[surfaceKey] = {sourceW, sourceH, bindingGeneration,
+                                     data ? data->w : 0, data ? data->h : 0};
     };
     if (!bindingGeneration) { rememberSize(); return true; } // explicit protocol role
     const auto it = presentBindings_.find(surfaceKey);
@@ -1147,8 +1168,8 @@ bool ZcBridge::ActiveOwner(uint64_t producerKey, uint64_t& ownerKey, uint32_t& t
     } else return false;
     const auto* state = comp_.tmgr_.FindToplevelLocked(topId);
     if (state && (state->IsBackground() || state->IsMinimized())) return false;
-    width = DisplaySizeAfterViewport(sd->vpDstW, sd->w > 0 ? sd->w : size->second.width);
-    height = DisplaySizeAfterViewport(sd->vpDstH, sd->h > 0 ? sd->h : size->second.height);
+    width = DisplaySizeAfterViewport(sd->vpDstW, size->second.ResolveWidth(sd->w));
+    height = DisplaySizeAfterViewport(sd->vpDstH, size->second.ResolveHeight(sd->h));
     return topId && width > 0 && height > 0;
 }
 
@@ -1181,8 +1202,8 @@ bool ZcBridge::GetContentSize(uint32_t toplevelId, int& outW, int& outH) const
     int layerW = 0, layerH = 0;
     if (layer && ActiveOwner(layer->surfaceKey, layerOwner, layerTop, layerW, layerH) &&
         layerTop == toplevelId) {
-        outW = DisplaySizeAfterViewport(layer->vpDstW, layer->w);
-        outH = DisplaySizeAfterViewport(layer->vpDstH, layer->h);
+        outW = layerW;
+        outH = layerH;
         return true;
     }
     // A protocol-only child has no SHM layer. Use the same live, consumed

@@ -179,19 +179,25 @@ int main(int argc,char **argv) {
         assert(!winehua_map_shared_buffer_v1(fd,SIZE_MAX));assert(!winehua_map_shared_buffer_v1(fd,0x7fff0000));
         assert(!allocs);
     } else if (!strcmp(argv[1],"environment")) {
-        setenv("WINEHUA_VIRGL_LOW_MAP","1",1);
+        setenv("WINEHUA_VIRGL_LOW_MAP","0",1);
         winehua_init_shared_map_environment(L"OTHER=1\0PATH=bad\0");
-        assert(!getenv("WINEHUA_VIRGL_LOW_MAP"));
+        assert(!strcmp(getenv("WINEHUA_VIRGL_LOW_MAP"),"1"));
+        void *default_map=winehua_map_shared_buffer_v1(fd,4096);
+        assert(default_map && (uintptr_t)default_map<0x80000000);
+        winehua_unmap_shared_buffer_v1(default_map);
         winehua_init_shared_map_environment(L"winehua_virgl_low_map=1\0OTHER=0\0");
         assert(!strcmp(getenv("WINEHUA_VIRGL_LOW_MAP"),"1"));
         winehua_init_shared_map_environment(L"WINEHUA_VIRGL_LOW_MAP=0\0");
         assert(!strcmp(getenv("WINEHUA_VIRGL_LOW_MAP"),"0"));
+        assert(!winehua_map_shared_buffer_v1(fd,4096));
         winehua_init_shared_map_environment(L"WINEHUA_VIRGL_LOW_MAP=1x\0");
         assert(!strcmp(getenv("WINEHUA_VIRGL_LOW_MAP"),"0"));
         winehua_init_shared_map_environment(L"WINEHUA_VIRGL_LOW_MAP=\0");
         assert(!strcmp(getenv("WINEHUA_VIRGL_LOW_MAP"),"0"));
-        winehua_init_shared_map_environment(NULL);assert(!getenv("WINEHUA_VIRGL_LOW_MAP"));
-        assert(!allocs);
+        winehua_init_shared_map_environment(NULL);
+        assert(!strcmp(getenv("WINEHUA_VIRGL_LOW_MAP"),"1"));
+        wow64=0;assert(!winehua_map_shared_buffer_v1(fd,4096));wow64=1;
+        assert(allocs==frees);
     } else {
         setenv("WINEHUA_VIRGL_LOW_MAP","1",1);
         if (!strcmp(argv[1],"shared")) {
@@ -301,17 +307,26 @@ class SharedLowMapTest(unittest.TestCase):
         helpers = wine[start:wine.index('\n#endif', start)]
         env_source = cls.first_replay['dlls/ntdll/unix/env.c'].decode()
         env_helper = base.function(env_source, 'static void winehua_init_shared_map_environment(')
+        default_helper = base.function(env_source, 'static void winehua_default_shared_map_environment(')
+        env_helper = env_helper.replace('winehua_init_shared_map_environment(', 'winehua_import_shared_map_environment(', 1)
+        env_helper += '\n' + default_helper + '''
+static void winehua_init_shared_map_environment(const WCHAR *env) {
+    winehua_import_shared_map_environment(env);
+    winehua_default_shared_map_environment();
+}
+'''
         # Use only the files touched by registered Mesa overlays, from its pin.
         patch_script = (ROOT / 'scripts/apply_mesa_ohos_patches.sh').read_text()
         patches = [ROOT / 'patches/mesa' / name for name in re.findall(
             r'\$SCRIPT_DIR/\.\./patches/mesa/([^"\n]+)', patch_script)]
-        files = set()
+        files, added = set(), set()
         for patch in patches:
             files.update(re.findall(r'^\+\+\+ b/(.+)$', patch.read_text(), re.M))
+            added.update(re.findall(r'^--- /dev/null\n\+\+\+ b/(.+)$', patch.read_text(), re.M))
         tree = cls.folder / 'mesa'
         tree.mkdir()
         (tree / 'meson.build').write_text('# disposable pinned overlay fixture\n')
-        for relative in files:
+        for relative in files - added:
             path = tree / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + relative],
@@ -386,6 +401,10 @@ class SharedLowMapTest(unittest.TestCase):
         source = self.first_replay['dlls/ntdll/unix/env.c'].decode()
         init = base.function(source, 'static void init_peb(')
         self.assertLess(init.index('winehua_init_shared_map_environment('), init.index('peb->'))
+        self.assertLess(init.index('winehua_init_shared_map_environment('),
+                        init.index('winehua_default_shared_map_environment('))
+        self.assertLess(init.index('winehua_default_shared_map_environment('),
+                        init.index('NtCurrentTeb()->WowTebOffset'))
     def test_same_pages_bidirectional_and_after_fd_close(self): self.run_case('wine', 'shared')
     def test_owned_reservation_released_on_failures(self): self.run_case('wine', 'failures')
     def test_parallel_map_release_cycles(self): self.run_case('wine', 'threads')

@@ -444,7 +444,7 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     if (winehua::ResolveSessionGraphicsPolicy(sessionProfile ? sessionProfile : "",
             winehua::ParseD3dBackend(p->d3dBackend), &sessionPolicy)) {
         p->directNcpSession = sessionPolicy.guest.directVulkan;
-        p->desktopVulkanCompositor = sessionPolicy.guest.directVulkan;
+        p->desktopVulkanCompositor = sessionPolicy.vulkanDesktop;
     }
     // 向后兼容: 旧调用未传 homeDir 时使用默认路径
     if (p->homeDir.empty()) {

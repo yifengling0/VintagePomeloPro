@@ -68,8 +68,8 @@ struct GuestGraphicsPolicy {
     bool deferSharedMemoryUnref = false;
     bool disableGpuUpload = false;
     bool serializeDescriptorUpdates = false;
-    // Direct uses the OHOS driver in the Wine process. Keep transport and
-    // desktop presentation coupled to the same session policy.
+    // Direct uses the OHOS driver in the Wine process. This does not imply
+    // which graphics API the game calls or which API composes the desktop.
     bool directVulkan = false;
     // Bridge path paired with legacy DXVK's explicit range copies.
     bool directPreciseMaps = false;
@@ -79,6 +79,9 @@ struct ProductGraphicsPolicy {
     std::string_view route;
     HostGraphicsProfile host;
     GuestGraphicsPolicy guest;
+    // A separate consumer decision, resolved centrally with the transport.
+    // EGL can consume native Direct images without changing the guest driver.
+    bool vulkanDesktop = false;
 };
 
 D3dBackendKind ParseD3dBackend(std::string_view backend);

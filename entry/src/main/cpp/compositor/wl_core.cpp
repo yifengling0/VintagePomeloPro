@@ -110,6 +110,7 @@ void WaylandServer::compositor_create_surface(wl_client* client, wl_resource* co
     wl_resource_set_implementation(surfRes, &kSurfaceImpl, sd, [](wl_resource* r) {
         auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(r));
         auto* self = GetInstance();
+        if (sd) DirectWineDrawableDestroyed(sd->clientPid, sd->protocolId);
         if (sd && sd->hasToplevel) DirectWineSurfaceDestroyed(sd->toplevelId);
         uint32_t removedPopup = 0, popupParent = 0;
         {
@@ -958,6 +959,7 @@ void WaylandServer::UpdateSubsurfaceLayerOnCommit(SurfaceData* sd, wl_resource* 
     layer.shmFormat = fi.shmFormat;
     layer.opaque = opaque;
     layer.vpDstW = sd->vpDstW; layer.vpDstH = sd->vpDstH;
+    layer.viewport = sd->directViewport;
     layer.dmgX = sd->damageX; layer.dmgY = sd->damageY;
     layer.dmgW = sd->damageW; layer.dmgH = sd->damageH;
     layer.route = DisplayPolicy::SubsurfaceRoute::DesktopLayer;
@@ -1009,6 +1011,7 @@ void WaylandServer::UpdateInlineSubsurfaceOnCommit(SurfaceData* sd, wl_resource*
     layer.shmFormat = fi.shmFormat;
     layer.opaque = opaque;
     layer.vpDstW = sd->vpDstW; layer.vpDstH = sd->vpDstH;
+    layer.viewport = sd->directViewport;
     layer.dmgX = sd->damageX; layer.dmgY = sd->damageY;
     layer.dmgW = sd->damageW; layer.dmgH = sd->damageH;
     layer.route = DisplayPolicy::SubsurfaceRoute::InlineClient;

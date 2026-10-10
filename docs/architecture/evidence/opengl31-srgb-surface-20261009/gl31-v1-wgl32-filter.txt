@@ -1,0 +1,73 @@
+requested	profile	flags	created	winerr	actualGL	GLSL	clearRGBA	clearOK	shaderRGBA	shaderOK	glerr
+
+2.1	0	0	1	0	3.1 Mesa 25.0.1 (git-330124bf18)	1.40	51,102,153,255	1	0,0,0,0	0	0
+
+legacyRenderer	virgl (Maleoon 910)
+
+legacyVendor	Mesa
+
+legacyLimits	maxTextureSize=8192	maxUniformBlockSize=65536	maxVertexUniformBlocks=12
+
+sample	RGBA8	51,102,153,255	51,102,153,255	1	0
+
+sample	BGRA8	51,102,153,255	51,102,153,255	1	0
+
+sample	BGRA8_REV	51,102,153,255	51,102,153,255	1	0
+
+sample	RGB565	255,0,0,255	255,0,0,255	1	0
+
+sample	RGBA4444	255,0,0,255	255,0,0,255	1	0
+
+sample	DXT1	255,0,0,255	255,0,0,255	1	0
+
+sample	SRGB8_ALPHA8_decode	8,34,81,255	8,34,81,255	1	0
+
+sample	ALPHA8_blend_black	128,128,128,170	128,128,128,191	1	0
+
+sample	RGBA8_blend_black	128,0,0,170	128,0,0,191	1	0
+
+sample	DXT3_blend_black	136,0,0,170	136,0,0,191	1	0
+
+sample	DXT5_blend_black	128,0,0,170	128,0,0,191	1	0
+
+sample	GLSL120_texture	51,102,153,255	51,102,153,-	1	0
+
+sample	GLSL120_diffuse	25,25,115,170	26,26,115,-	1	0
+
+sample	GLSL120_separate_alpha_blend	13,13,57,255	13,13,57,-	1	0
+
+sample	GLSL120_BGRA_VBO	26,26,115,170	26,26,115,-	1	0
+
+sample	GLSL120_BGRA_mapped_VBO	26,26,115,170	26,26,115,-	1	0
+
+3.0	0	0	1	0	3.1 Mesa 25.0.1 (git-330124bf18)	1.40	51,102,153,255	1	51,102,153,255	1	0
+
+3.1	0	0	1	0	3.1 (Core Profile) Mesa 25.0.1 (git-330124bf18)	1.40	51,102,153,255	1	51,102,153,255	1	0
+
+3.2	0	0	0	0	-	-	-	0	-	0	0
+
+3.2	0	2	0	0	-	-	-	0	-	0	0
+
+3.2	1	0	0	0	-	-	-	0	-	0	0
+
+3.3	1	0	0	0	-	-	-	0	-	0	0
+
+3.3	2	0	0	0	-	-	-	0	-	0	0
+
+4.0	1	0	0	0	-	-	-	0	-	0	0
+
+4.1	1	0	0	0	-	-	-	0	-	0	0
+
+4.2	1	0	0	0	-	-	-	0	-	0	0
+
+4.3	1	0	0	0	-	-	-	0	-	0	0
+
+4.4	1	0	0	0	-	-	-	0	-	0	0
+
+4.5	1	0	0	0	-	-	-	0	-	0	0
+
+4.6	1	0	0	0	-	-	-	0	-	0	0
+
+4.6	2	0	0	0	-	-	-	0	-	0	0
+
+91f33ab3cfcc51b5847d2a253553a77d409527ea6e1475e5e273b0f6c0598299  /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/guest_gfx/lib/libgallium-25.0.1.so

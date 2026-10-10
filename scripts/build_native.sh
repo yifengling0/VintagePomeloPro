@@ -233,7 +233,8 @@ build_wayland() {
 # ── 3. xdg-shell + wayland 协议文件 (架构无关, 只生成一次) ──
 build_protocols() {
     if [ -f "$WINEHUA_INC/xdg-shell-protocol.c" ] \
-       && [ -f "$WINEHUA_INC/winehua-toplevel-protocol.c" ]; then
+       && [ -f "$WINEHUA_INC/winehua-toplevel-protocol.c" ] \
+       && [ "$WINEHUA_INC/winehua-toplevel-protocol.c" -nt "$WINEHUA_INC/winehua-toplevel.xml" ]; then
         log "协议文件已就绪，跳过"
         return 0
     fi
@@ -255,7 +256,7 @@ build_protocols() {
 
     # WineHua 私有协议 (权威源在 winewayland.drv/Makefile.in 同文件, 双端
     # 同一 XML; server 侧只需 server-header + private-code)
-    local wh_xml="$ROOT/thirdparty/wine/dlls/winewayland.drv/winehua-toplevel.xml"
+    local wh_xml="$WINEHUA_INC/winehua-toplevel.xml"
     "$scanner" server-header "$wh_xml" "$WINEHUA_INC/winehua-toplevel-server-protocol.h"
     "$scanner" private-code "$wh_xml" "$WINEHUA_INC/winehua-toplevel-protocol.c"
 
@@ -342,6 +343,9 @@ build_virglrenderer() {
     local python_with_yaml
     local config_stamp="$build/.winehua-config"
     local expected_config="venus=1;render-server-mode=thread;render-server-worker=thread;vulkan-dload=1"
+
+    [ -d "$src" ] || err "thirdparty/virglrenderer is missing"
+    bash "$ROOT/scripts/apply_virglrenderer_ohos_patches.sh" "$src"
 
     rm -f "$NATIVE_LIBS/libvirgl_test_server.so"
 

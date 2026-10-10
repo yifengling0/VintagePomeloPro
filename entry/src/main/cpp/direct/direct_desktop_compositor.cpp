@@ -82,7 +82,7 @@ struct DirectDesktopCompositor::Impl {
     EGLDisplay display;
     bool initialized = false, available = false;
     GLuint program = 0, vbo = 0;
-    std::unordered_map<uint32_t, Layer> layers;
+    std::unordered_map<uint64_t, Layer> layers;
     PFNEGLCREATEIMAGEKHRPROC createImage = nullptr;
     PFNEGLDESTROYIMAGEKHRPROC destroyImage = nullptr;
     PFNGLEGLIMAGETARGETTEXTURE2DOESPROC imageTarget = nullptr;
@@ -251,14 +251,14 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
         auto sources = GetDirectDesktopSources(this);
         for (auto it = layers.begin(); it != layers.end();) {
             auto found = std::find_if(sources.begin(), sources.end(), [&](const auto& s) {
-                return s.token.toplevelId == it->first && s.queue == it->second.source.queue;
+                return ((uint64_t(uint32_t(s.token.clientPid)) << 32) | s.token.wlSurfaceId) == it->first && s.queue == it->second.source.queue;
             });
             if (found == sources.end()) {
                 Retire(it->second); it = layers.erase(it); changed = true;
             } else ++it;
         }
         for (const auto& source : sources) {
-            auto& layer = layers[source.token.toplevelId];
+            auto& layer = layers[(uint64_t(uint32_t(source.token.clientPid)) << 32) | source.token.wlSurfaceId];
             layer.source = source;
             OHNativeWindowBuffer* buffer = nullptr;
             int fence = -1;
@@ -295,7 +295,7 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
             DirectDesktopLayout layout;
             bool visible = layer.current && compositor.GetDirectDesktopLayout(
                 source.token.clientPid, source.token.toplevelId, source.token.wlSurfaceId,
-                layer.width, layer.height, layout);
+                layer.width, layer.height, source.token.generation, layout);
             changed |= visible != layer.visible || (visible && !SameLayout(layout, layer.layout));
             layer.visible = visible;
             layer.layout = std::move(layout);

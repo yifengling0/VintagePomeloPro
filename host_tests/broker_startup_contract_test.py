@@ -241,6 +241,27 @@ static void Routes() {
     assert(audioOpened==before); // final base64+home+prefix budget is checked before launch.
     puts("launch: Start, real IPC receiver and real phone packets preserve 64 KiB/256 argv; fd and final budgets passed");
 }
+static void FixedImageRoute() {
+    // The non-PIE harness occupies the same preferred base used by the fixture.
+    char path[]="/tmp/vp-broker-fixed-image-XXXXXX";
+    int fd=mkstemp(path); assert(fd>=0);
+    unsigned char image[512]{};
+    image[0]='M'; image[1]='Z'; image[60]=64;
+    auto p=image+64; p[0]='P'; p[1]='E'; p[4]=0x4c; p[5]=1;
+    p[20]=224; p[22]=2; p[24]=0x0b; p[25]=1;
+    p[54]=0x40; p[82]=1;
+    assert(write(fd,image,sizeof(image))==sizeof(image)); close(fd);
+    phoneMode=false; SetBrokerDirectNcpSessionDefault(true);
+    auto r=Basic(); r.argv={"wine",path};
+    assert(!RoundTrip(r,0)); assert(route==0);
+    r.env.push_back("WINEHUA_DIRECT_NCP=1");
+    assert(!RoundTrip(r,0)); assert(route==0);
+    // Relocatable PE32 continues using the session's Direct creation path.
+    fd=open(path,O_WRONLY); assert(fd>=0); image[158]=0x40;
+    assert(write(fd,image,sizeof(image))==sizeof(image)); close(fd);
+    assert(!RoundTrip(r,0)); assert(route==1);
+    SetBrokerDirectNcpSessionDefault(false); unlink(path);
+}
 static void Readers() {
     auto queues=std::make_shared<BrokerQueues>();
     std::vector<std::thread> readers;
@@ -335,7 +356,7 @@ static void WineClient() {
 }
 int main() {
     gBrokerHomeDir="/session|home\n中文"; gBrokerPrefixDir="/prefix|with\nseparator";
-    const int baseline=FdCount(); Codec(); Routes(); Readers(); WineClient(); assert(FdCount()==baseline);
+    const int baseline=FdCount(); Codec(); Routes(); FixedImageRoute(); Readers(); WineClient(); assert(FdCount()==baseline);
     puts("Broker startup contract PASS (real sockets/fds; mocked OS process creation).");
 }
 '''

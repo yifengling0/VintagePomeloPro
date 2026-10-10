@@ -1,0 +1,8 @@
+10-10 15:47:41.226 58512 59023 I A00000/com.vintage.pomelopro/WL_Server: [MW-VP] set_source surf=0x5cae098100 tl=1 src=(0,0 1280x800)
+10-10 15:47:41.665 58512 59296 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=1 layers=1 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=4096000 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:47:41.881 58512 59023 I A00000/com.vintage.pomelopro/WL_Server: [MW-VP] set_source surf=0x5cb353cb80 tl=3 src=(0,0 1280x800)
+10-10 15:47:41.957 58512 59023 I A00000/com.vintage.pomelopro/WL_Server: [MW-VP] set_source surf=0x5cae0b4e00 tl=2 src=(0,0 1280x20)
+10-10 15:49:33.758 58512 59023 I A00000/com.vintage.pomelopro/WL_Server: [MW-SUBSURF] subsurface created: child=0x5a5f8e9200 parent=0x5cae0b4e00
+10-10 15:49:33.765 58512 59023 I A00000/com.vintage.pomelopro/WL_Server: [MW-SUBSURF] set_position: child=0x5a5f8e9200 parent=0x5cae0b4e00 pos=(0,-78)
+10-10 15:49:33.765 58512 59023 I A00000/com.vintage.pomelopro/WL_Server: [MW-VP] set_source surf=0x5a5f8e9200 tl=0 src=(0,0 103x78)
+10-10 15:49:33.766 58512 59023 I A00000/com.vintage.pomelopro/WL_Server: [MW-SUBSURF] stored layer 128x128 at (0,702) parent=#2

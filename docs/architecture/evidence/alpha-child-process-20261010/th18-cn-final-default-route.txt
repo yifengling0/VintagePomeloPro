@@ -1,0 +1,10 @@
+Sat Oct 10 14:16:07 CST 2026
+10-10 14:12:12.189 24777 25155 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=25289 argc=2 envCount=48 fdCount=1
+10-10 14:12:12.364 24777 25158 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=24777 creatorHostPid=25289 childHostPid=25660 createStatus=0 mode=create-ipc
+10-10 14:12:22.654 24777 25156 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=25289 argc=2 envCount=48 fdCount=1
+10-10 14:12:22.817 24777 25158 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=24777 creatorHostPid=25289 childHostPid=25709 createStatus=0 mode=create-ipc
+10-10 14:12:33.212 24777 25157 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=25289 argc=2 envCount=48 fdCount=1
+10-10 14:12:33.395 24777 25158 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=24777 creatorHostPid=25289 childHostPid=25760 createStatus=0 mode=create-ipc
+10-10 14:14:29.714 24777 25154 I A02330/com.vintage.pomelopro/WL_Broker: [Broker] request peerPid=25448 argc=2 envCount=127 fdCount=1
+10-10 14:14:29.717 24777 25158 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-IMAGE] preferred PE32 range occupied; fresh native process exe=Z:\games\[th18] 东方虹龙洞\th18.exe
+10-10 14:14:29.817 24777 25158 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=24777 creatorHostPid=25448 childHostPid=26236 createStatus=0 mode=start

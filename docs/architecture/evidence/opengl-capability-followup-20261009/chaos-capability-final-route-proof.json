@@ -1,0 +1,7 @@
+{
+  "sceneSamples": 14,
+  "hasGlSource": true,
+  "hasGlDraws": true,
+  "uiUploadDelta": 0,
+  "method": "fresh GPU image presentation, not GPU execution time"
+}

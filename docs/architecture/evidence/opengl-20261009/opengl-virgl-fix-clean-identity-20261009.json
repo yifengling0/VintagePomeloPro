@@ -1,0 +1,12 @@
+{
+  "baseSha256": "cc9e22188f201e8cf6ab449d079bb8d4fc2789c14f33813ea95636f4e4f2d75a",
+  "unsignedSha256": "942739ed614e8564cf5c96f856657a7be1d6ff733a0d51d28636ead2f2786296",
+  "rendererSha256": "f7c29c9f985e411c2936b13be2eadf1124eed3fedd37c72e8f6fbe7a0ffa6d35",
+  "changedEntries": [
+    "libs/arm64-v8a/libvirglrenderer.so",
+    "libs/arm64-v8a/libvirglrenderer.so.1"
+  ],
+  "diagnosticsRemoved": true,
+  "zinkOptIn": false,
+  "note": "Default environment unchanged. Zink needs explicit launch environment. Wine/FEX and rawfile unchanged."
+}

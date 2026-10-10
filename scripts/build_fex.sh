@@ -366,6 +366,19 @@ if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$mul24_patch" >/dev/null 2>&1; t
     log "Applied patch: $(basename "$mul24_patch")"
 fi
 
+# Precise memory faults are shared by WOW64 and ARM64EC. A protected executable
+# destination can restart a POP, or a moffs MOV, without corrupting guest SP.
+# Keep these narrow fixes enabled rather than forcing global single-step SMC.
+for fault_patch_name in fex-pop-memory-precise-stack.patch fex-memory-offset-fault-boundary.patch; do
+    fault_patch="$SCRIPT_DIR/patches/$fault_patch_name"
+    if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s --fuzz=0 < "$fault_patch" >/dev/null 2>&1; then
+        patch -d "$FEX_SRC" -p1 --dry-run -s --fuzz=0 < "$fault_patch" >/dev/null || \
+            err "FEX precise fault patch cannot be applied: $fault_patch_name"
+        patch -d "$FEX_SRC" -p1 -s --fuzz=0 < "$fault_patch"
+        log "Applied patch: $fault_patch_name"
+    fi
+done
+
 prepare_mul24_cache() {
     local build="$1" expected="$2" flags cached=0
     [ -f "$build/CMakeCache.txt" ] || return 0

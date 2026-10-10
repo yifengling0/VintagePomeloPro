@@ -17,7 +17,7 @@ PROFILES = json.loads((Path(__file__).parent/'profiles.json').read_text())
 def align(value, alignment):
     return (value+alignment-1)//alignment*alignment
 
-def patch(data, name):
+def patch(data, name, diagnostic=False):
     profile=PROFILES[name]
     if hashlib.sha256(data).hexdigest()!=profile['sha256']:
         raise ValueError('Unsupported or already patched '+name)
@@ -52,7 +52,7 @@ def patch(data, name):
         return offset
 
     dll_name=add(profile['helper'].encode()+b'\0')
-    hint_name=add(b'\0\0VPDecodeVSZa\0',2)
+    hint_name=add(b'\0\0'+(b'VPDecodeDispatch' if diagnostic else b'VPDecodeVSZa')+b'\0',2)
     fmt='<Q' if ptr_size==8 else '<I'
     ilt=add(struct.pack(fmt,rva+hint_name)+b'\0'*ptr_size,ptr_size)
     iat=add(struct.pack(fmt,rva+hint_name)+b'\0'*ptr_size,ptr_size)
@@ -61,7 +61,7 @@ def patch(data, name):
     reloc_offset=None
     if ptr_size==4:
         reloc_offset=add(pe.get_data(old_reloc.VirtualAddress,old_reloc.Size),4)
-        # One HIGHLOW relocation for the x86 absolute IAT jump operand.
+        # One HIGHLOW relocation for the x86 absolute IAT operand.
         reloc_extra=add(b'\0'*12,4)
         if reloc_extra!=reloc_offset+old_reloc.Size:
             raise ValueError('Unexpected relocation alignment')
@@ -72,7 +72,29 @@ def patch(data, name):
     code_rva=text.VirtualAddress+text.Misc_VirtualSize
     code=bytearray()
     jumps=[]
-    if ptr_size==4:
+    if diagnostic and ptr_size==4:
+        # Obtain the original trampoline address without another absolute
+        # relocation, then forward all four arguments and the fifth callback.
+        code+=b'\xe8\0\0\0\0\x58\x05'+b'\0'*4
+        original_delta_at=7
+        code+=b'\x50'+bytes.fromhex('ff742414')*4
+        code+=b'\xff\x15'
+        operand_rva=code_rva+len(code)
+        code+=struct.pack('<I',pe.OPTIONAL_HEADER.ImageBase+rva+iat)
+        code+=bytes.fromhex('83c414c3')
+        page=operand_rva&~0xfff
+        struct.pack_into('<IIHH',payload,reloc_extra,page,12,0x3000|(operand_rva&0xfff),0)
+        struct.pack_into('<i',code,original_delta_at,len(code)-5)
+    elif diagnostic:
+        # Windows x64: preserve the caller's four argument registers, provide
+        # shadow space and align RSP before calling the five-argument wrapper.
+        code+=bytes.fromhex('4883ec38488d05')+b'\0'*4
+        original_delta_at=7
+        code+=bytes.fromhex('4889442420')
+        code+=b'\xff\x15'+struct.pack('<i',rva+iat-(code_rva+len(code)+6))
+        code+=bytes.fromhex('4883c438c3')
+        struct.pack_into('<i',code,original_delta_at,len(code)-11)
+    elif ptr_size==4:
         code+=bytes.fromhex('8b442404837c240804')
         code+=b'\x0f\x82'+b'\0'*4; jumps.append(len(code)-4)
         code+=bytes.fromhex('813856535a61')
@@ -132,9 +154,10 @@ def patch(data, name):
     return result, dict(name=name,source_sha256=profile['sha256'],
         patched_sha256=hashlib.sha256(result).hexdigest(),decoder_rva=hex(entry),
         thunk_rva=hex(code_rva),helper=profile['helper'],section='RW data; existing RX code',
+        diagnostic=diagnostic,
         original_signature='invalidated by the requested binary modification')
 
-def patch_zip(source,output,helpers):
+def patch_zip(source,output,helpers,diagnostic=False):
     source=Path(source).resolve(); output=Path(output).resolve()
     if source==output or output.exists():
         raise ValueError('Output must be a new file; original archive is preserved')
@@ -159,7 +182,7 @@ def patch_zip(source,output,helpers):
                 changed,record=patch_startup(archive.read(member))
                 record['name']=name
             else:
-                changed,record=patch(archive.read(member),name)
+                changed,record=patch(archive.read(member),name,diagnostic=diagnostic)
             modified[member]=changed; records.append(record)
         added={parent+'/'+p['helper']: (Path(helpers)/p['helper']).read_bytes() for p in PROFILES.values()}
         added[parent+'/vpsteamtrust32.dll']=(Path(helpers)/'vpsteamtrust32.dll').read_bytes()
@@ -229,9 +252,10 @@ if __name__=='__main__':
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--helpers',required=True,type=Path)
     parser.add_argument('--overlay',type=Path)
+    parser.add_argument('--diagnostic',action='store_true',help='Use matching diagnostic helpers and exact startup hash guard')
     args=parser.parse_args()
     if args.overlay and (args.overlay.exists() or args.overlay.resolve()==args.output.resolve()):
         raise ValueError('Overlay output must be a separate new file')
-    print(json.dumps(patch_zip(args.zip,args.output,args.helpers),indent=2))
+    print(json.dumps(patch_zip(args.zip,args.output,args.helpers,diagnostic=args.diagnostic),indent=2))
     if args.overlay:
         print(json.dumps(make_overlay(args.output,args.overlay),indent=2))

@@ -1,0 +1,52 @@
+pointer_bits	64
+
+device	0x00000000	level=0xb000
+
+adapter	Maleoon 910
+
+render_target	0x00000000
+
+buffers	0x00000000
+
+upload_map	0	0x00000000	00000070d7e9d800
+
+readback_map	0	0x00000000	00000070cbe55000
+
+upload_readback	0	bad=0
+
+upload_map	1	0x00000000	00000070d7e5d800
+
+readback_map	1	0x00000000	00000070cbe55000
+
+upload_readback	1	bad=0
+
+upload_map	2	0x00000000	00000070d7e9d800
+
+readback_map	2	0x00000000	00000070cbe55000
+
+upload_readback	2	bad=0
+
+upload_map	3	0x00000000	00000070d7e5d800
+
+readback_map	3	0x00000000	00000070cbe55000
+
+upload_readback	3	bad=0
+
+textures	0x00000000
+
+texture_upload_readback	0	bad=0
+
+texture_upload_readback	1	bad=0
+
+texture_upload_readback	2	bad=0
+
+texture_upload_readback	3	bad=0
+
+opaque_swapchain_clear_alpha	1.0
+
+present	frames=120	hr=0x00000000	ms=1023.692	fps=117.223
+
+RESULT	PASS
+
+hold_ms	30000
+

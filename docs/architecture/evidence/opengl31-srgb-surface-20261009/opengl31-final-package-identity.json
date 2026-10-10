@@ -1,0 +1,31 @@
+{
+  "baseSha256": "99e2038c766d85c65cdc8f894db9cd7d426219e67c2b5ec5262f321617bd7a13",
+  "galliumSha256": "a5ce84e4a41f4ecaebca10230c4ea4e665ffb6ed4f9626674c4f12e682f01aa0",
+  "rendererSha256": "5e77a30ce67bcf99af68862d5a0e222dbc2d6214e3c04e578f18b752bc7e8c8d",
+  "payloadSha256": "f57e30bc163c829c79cb602c4653c27a2cbe78868590170812a62f042705e32d",
+  "hapSha256": "a0c6116f96aa3e97c28f89456e806d445f3dbbc357012ea2ebe5591ccdc491d4",
+  "build": {
+    "schemaVersion": 1,
+    "arch": "aarch64",
+    "galliumDrivers": [
+      "virgl",
+      "softpipe"
+    ],
+    "platforms": [
+      "wayland"
+    ],
+    "opengl": true,
+    "libraries": {
+      "lib/libgallium-25.0.1.so": "a5ce84e4a41f4ecaebca10230c4ea4e665ffb6ed4f9626674c4f12e682f01aa0"
+    }
+  },
+  "signedHapSha256": "2cc5348cef113e604e9f5a040d968b7b25f941d4450a4a3c57d5291a1cd3d73d",
+  "experiment": {
+    "defaultEnabled": true,
+    "versionOverride": false,
+    "cpuColorConversion": false,
+    "guestScreenCap": "dest_surface_srgb_control",
+    "gpuCopy": "resource_copy_region raw sRGB/linear GL image copies",
+    "requiresHostCopyImage": true
+  }
+}

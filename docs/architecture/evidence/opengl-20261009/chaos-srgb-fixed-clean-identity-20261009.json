@@ -1,0 +1,10 @@
+{
+  "baseSha256": "942739ed614e8564cf5c96f856657a7be1d6ff733a0d51d28636ead2f2786296",
+  "dlls": {
+    "bin/i386-windows/wined3d.dll": "c4db12ecdcbfd4cc87a5c6880bfcd3a2433e4c712d77af003484c5632b1735fc",
+    "bin/aarch64-windows/wined3d.dll": "a9cf10cbd8874f353b0734a5b622175e734e65a46db70f3cc2ddcbcf09bfdf38"
+  },
+  "payloadSha256": "53bea43fcf0908d0e457ca18af719b211515889b06f12fb5a88a74e2d9d444a2",
+  "hapSha256": "46e399daa1b1825d1d864ef8e6955f7a7ade9f992808a0ec6c5e68c0730869ce",
+  "version": "content=53bea43fcf0908d0;wine-valve=cd547f7a0e;fex=86ff33bbe2;arch=arm64-v8a:aarch64"
+}

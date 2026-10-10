@@ -22,8 +22,11 @@ in vec2 vUV;
 out vec4 oColor;
 uniform sampler2D uTex;
 uniform float uForceOpaque;
+uniform vec3 uSampleU;
+uniform vec3 uSampleV;
 void main() {
-    vec4 t = texture(uTex, vUV);
+    vec3 coordinate = vec3(1.0, vUV);
+    vec4 t = texture(uTex, vec2(dot(uSampleU, coordinate), dot(uSampleV, coordinate)));
     // uForceOpaque=1: XRGB 帧 (alpha 字节是垃圾, 强制不透明)
     // uForceOpaque=0: ARGB 帧 (layered/shaped 异型窗口, 透传预乘 alpha)
     oColor = vec4(t.bgr, uForceOpaque > 0.5 ? 1.0 : t.a);

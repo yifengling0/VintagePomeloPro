@@ -14,6 +14,10 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch"
     "$SCRIPT_DIR/../patches/mesa/0003-venus-present-retry-single-ring-drain.patch"
     "$SCRIPT_DIR/../patches/mesa/0004-venus-wine-owned-low-map.patch"
+    "$SCRIPT_DIR/../patches/mesa/0005-zink-ohos-explicit-vulkan-loader.patch"
+    "$SCRIPT_DIR/../patches/mesa/0006-virgl-vtest-serialize-socket-transactions.patch"
+    "$SCRIPT_DIR/../patches/mesa/0007-virgl-gpu-srgb-surface-storage.patch"
+    "$SCRIPT_DIR/../patches/mesa/0008-virgl-explicit-pbuffer-front-present.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

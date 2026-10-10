@@ -1,0 +1,3059 @@
+[
+  {
+    "time": "2026-10-09T20:35:42.139614+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "ls /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/*wgl*"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-probe-files.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:35:58.871736+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-wgl-capability-probe64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v1-wgl64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%22WINEHUA_WINEDEBUG%22%2C%22value%22%3A%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl64.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:36:44.512684+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-wgl-capability-probe64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v1-wgl64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%22WINEHUA_WINEDEBUG%22%2C%22value%22%3A%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl64.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:36:55.898740+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-wgl64.tsv"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl64-read.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:37:09.831986+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "ps -A -o PID,PPID,NAME | grep -E \"pomelo|wine|virgl|vp-\"; tail -c 7000 /data/app/el2/100/base/com.vintage.pomelopro/temp/wine_stderr_20261009.log"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-state.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:37:29.861897+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "tail -c 15000 /data/app/el2/100/base/com.vintage.pomelopro/temp/gl-capability.log; hilog -z 150 -T WL_NAPI | tail -c 8000"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-init-log.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:37:42.057822+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-gl31-v1-launch-screen.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-launch-screen-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:37:42.180062+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-gl31-v1-launch-screen.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\gl31-v1-launch-screen.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-launch-screen-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:38:00.812001+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:38:01.086953+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-wgl-capability-probe32-v4.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v1-wgl32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%2C%20%7B%22key%22%3A%20%22WINEHUA_OPENGL_DIAG%22%2C%20%22value%22%3A%20%221%22%7D%5D"
+    ],
+    "timeoutSeconds": 45,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:38:42.799431+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-wgl32.tsv"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl32-read.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:38:54.643767+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "tail -n 35 /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-wgl32.tsv; sha256sum /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/guest_gfx/lib/libgallium-25.0.1.so"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl32-complete.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:39:09.784078+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "grep -v legacyExtensions /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-wgl32.tsv; sha256sum /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/guest_gfx/lib/libgallium-25.0.1.so"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-wgl32-filter.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:26.227582+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:26.408774+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-srgb-surface32.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-srgb-surface32.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:26.633920+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-srgb-surface32.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v1-srgb32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:28.749123+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:30.866463+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:32.994108+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:35.151435+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:37.294262+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:39.412375+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:41.570874+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:43.730152+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:45.891169+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:48.071343+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:50.232442+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:52.361591+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:54.526580+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:56.692444+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:43:58.855771+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:01.010972+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:03.160156+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:05.310746+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:07.474122+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:09.635370+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:11.793337+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:13.946008+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:16.127912+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:18.298486+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:20.456366+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:22.609440+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:24.772990+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:26.954643+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:29.100946+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:31.265392+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:33.429888+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:35.582695+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:37.740641+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:39.866599+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:44:41.999700+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v1-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:49:30.180953+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "tail -c 10000 /data/app/el2/100/base/com.vintage.pomelopro/temp/wine_stderr_20261009.log | grep -E \"error|Error|CTX|MSAA|CopyImage|srgb|ERR\" | tail -n 30"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-srgb32-error.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:49:50.967423+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "ls -l /data/app/el2/100/base/com.vintage.pomelopro/temp | tail -n 15; hilog -z 400 -T WL_VirGL,WL_Server,WL_NAPI | grep -E \"error|Error|ERR|failed|GL-\" | tail -n 25"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-render-error.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:50:10.461686+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "grep -n -E \"early-fault|Unhandled|Backtrace|SMC.*enter|VIRGL|vrend\" /data/app/el2/100/base/com.vintage.pomelopro/temp/wine_stderr_20261009.log | tail -n 25"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-v1-fault-summary.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:22.241279+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:22.430567+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-srgb-surface64.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-srgb-surface64.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:22.781360+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-srgb-surface64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-srgb64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:24.889473+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:27.009227+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:29.168484+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:31.299764+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:33.448605+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:35.573983+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:37.688642+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:39.851239+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:51:42.016177+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:28.301276+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:28.448786+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-srgb-surface32.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-srgb-surface32.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:28.651766+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-srgb-surface32.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-srgb32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:30.757741+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:32.879388+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:35.010557+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:37.148328+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:39.256045+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:52:41.399520+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:09.754922+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:09.909350+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-srgb-surface64.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-srgb-surface64.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:10.108469+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-srgb-surface64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-winsys64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:12.224544+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-winsys64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:14.355751+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-winsys64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:16.496019+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-winsys64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:18.647495+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-winsys64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:20.769787+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-winsys64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:54:22.941745+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-winsys64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-winsys64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:12.765914+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:12.924269+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-d3d9-write64.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-d3d9-write64.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:13.135601+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-d3d9-write64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-d3d9-write64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:15.261118+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:17.388669+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:19.527990+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:21.695370+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:23.826738+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:56:26.016043+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:01.516124+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:01.733957+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-conditional32.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-regression-conditional32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:03.845170+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:05.961217+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:08.111823+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:10.251763+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:12.377876+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:14.490334+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:16.647598+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:17.100259+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:17.299330+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-ubo-probe32.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-regression-ubo32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:19.419383+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:21.532586+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:23.662424+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:25.817039+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:27.946626+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:30.093068+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:32.245149+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:32.648709+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:32.866436+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-d3d9-srgb-probe32.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-regression-srgb32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:34.971485+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:37.074714+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:39.202973+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:41.369453+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:43.493853+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:45.612905+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:47.761500+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:48.199048+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:48.412659+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-conditional64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-regression-conditional64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:50.522032+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:52.634656+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:54.762321+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:56.912225+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:58:59.022066+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:01.172541+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-conditional64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-conditional64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:01.670155+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:01.869591+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-ubo-probe64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-regression-ubo64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:03.983075+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:06.099304+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:08.236226+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:10.401972+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:12.522946+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:14.688928+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-ubo64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-ubo64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:15.165157+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:15.351455+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-d3d9-srgb-probe64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-regression-srgb64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:17.478186+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:19.600680+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:21.726124+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:23.899340+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:26.035440+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T20:59:28.181333+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-regression-srgb64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-regression-srgb64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:10.851905+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:10.991548+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-srgb-surface64.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-srgb-surface64.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:11.200143+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-srgb-surface64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-final64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:13.322167+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:15.455162+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:17.588757+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:19.734582+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:21.866753+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:00:24.041402+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:30.616276+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:30.753414+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-srgb-surface32.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-srgb-surface32.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:30.940713+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-srgb-surface32.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-final32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:33.046926+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:35.169447+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:37.299947+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:39.441875+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:41.581260+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:43.710236+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:45.861702+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-final32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-final32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:46.422489+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:46.562978+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-d3d9-write32.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-d3d9-write32.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:46.748678+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-d3d9-write32.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-d3d9-write32.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:48.864374+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:50.994559+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:53.122434+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:55.282731+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:57.414511+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:01:59.550447+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:02:01.707263+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-d3d9-write32.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-d3d9-write32-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:03:28.505823+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:03:28.761331+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path Z%3A%5Cgames%5CChaos%3BChild%20R15%5C%E5%90%AF%E5%8A%A8%E6%B8%B8%E6%88%8F.exe --ps winehua.game_args_json %5B%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%2C%20%7B%22key%22%3A%20%22DXVK_LOG_PATH%22%2C%20%22value%22%3A%20%22C%3A%5C%5Cvp-gumu10-evidence%22%7D%5D"
+    ],
+    "timeoutSeconds": 45,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:03:53.250469+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-final-initial.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-initial-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:03:53.404489+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-final-initial.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-final-initial.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-initial-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:04:55.570640+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput click 900 565"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-start.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:05:45.369793+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-final-title.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-title-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:05:45.551307+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-final-title.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-final-title.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-title-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:06:22.726614+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput click 430 525"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-new-game.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:07:13.664820+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-final-story-check.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-story-check-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:07:13.791705+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-final-story-check.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-final-story-check.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-story-check-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:07:45.885262+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "ps -A -o PID,NAME"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-processes.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:07:46.390750+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "hidumper -s ThermalService -a \"-t\""
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-thermal-before.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:07:46.535826+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "date; cat /proc/48342/comm /proc/48342/stat; cat /proc/49610/comm /proc/49610/stat; cat /proc/49623/comm /proc/49623/stat; cat /proc/49646/comm /proc/49646/stat; cat /proc/49657/comm /proc/49657/stat; cat /proc/49682/comm /proc/49682/stat; cat /proc/49693/comm /proc/49693/stat; cat /proc/49707/comm /proc/49707/stat; cat /proc/49741/comm /proc/49741/stat; cat /proc/49763/comm /proc/49763/stat; cat /proc/49771/comm /proc/49771/stat; cat /proc/49791/comm /proc/49791/stat; cat /proc/49819/comm /proc/49819/stat; cat /proc/49902/comm /proc/49902/stat; cat /proc/49999/comm /proc/49999/stat; cat /proc/50047/comm /proc/50047/stat; cat /proc/50138/comm /proc/50138/stat; cat /proc/50389/comm /proc/50389/stat"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-cpu-before.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:07:47.118901+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-final-scene-before.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-before-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:07:47.243275+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-final-scene-before.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-final-scene-before.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-before-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:08:17.408945+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "date; cat /proc/48342/comm /proc/48342/stat; cat /proc/49610/comm /proc/49610/stat; cat /proc/49623/comm /proc/49623/stat; cat /proc/49646/comm /proc/49646/stat; cat /proc/49657/comm /proc/49657/stat; cat /proc/49682/comm /proc/49682/stat; cat /proc/49693/comm /proc/49693/stat; cat /proc/49707/comm /proc/49707/stat; cat /proc/49741/comm /proc/49741/stat; cat /proc/49763/comm /proc/49763/stat; cat /proc/49771/comm /proc/49771/stat; cat /proc/49791/comm /proc/49791/stat; cat /proc/49819/comm /proc/49819/stat; cat /proc/49902/comm /proc/49902/stat; cat /proc/49999/comm /proc/49999/stat; cat /proc/50047/comm /proc/50047/stat; cat /proc/50138/comm /proc/50138/stat; cat /proc/50389/comm /proc/50389/stat"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-cpu-after.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:08:18.013243+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-final-scene-after.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-after-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:08:18.142657+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-final-scene-after.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-final-scene-after.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-after-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:08:18.293559+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "hidumper -s ThermalService -a \"-t\""
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-thermal-after.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:08:18.574911+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "hilog -z 4000 -T DirectVkDesktop,WL_EGL,DirectWineSurface"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-scene-fps-all.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:09:41.468269+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "hilog -z 600 -T WL_Server,WL_EGL,DirectVkDesktop | grep -E \"GPUSCENE|GL-PERF|uiUploadBytes|source=gl|activeBackend|actualGL\" | tail -n 30; tail -c 25000 /data/app/el2/100/base/com.vintage.pomelopro/temp/wine_stderr_20261009.log | grep -E \"err:|error|Error|fail\" | tail -n 10"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-final-route.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:12:23.162011+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:12:23.500408+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path Z%3A%5Cgames%5CChaos%3BChild%20R15%5C%E5%90%AF%E5%8A%A8%E6%B8%B8%E6%88%8F.exe --ps winehua.game_args_json %5B%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%2C%20%7B%22key%22%3A%20%22DXVK_LOG_PATH%22%2C%20%22value%22%3A%20%22C%3A%5C%5Cvp-gumu10-evidence%22%7D%5D"
+    ],
+    "timeoutSeconds": 45,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:13:14.726850+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-launcher.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-launcher-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:13:14.856546+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-launcher.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-launcher.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-launcher-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:13:48.146808+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput click 900 565"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-start.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:14:37.014318+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-title.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-title-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:14:37.195540+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-title.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-title.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-title-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:15:19.067300+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput click 1280 1100"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-enter-title.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:15:58.281886+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-menu.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-menu-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:15:58.448739+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-menu.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-menu.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-menu-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:17:07.910141+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput click 1280 800"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-skip-video.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:17:48.064514+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput keyEvent 2054"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-story-input.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:18:40.029012+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-after-enter.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-after-enter-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:18:40.226768+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-after-enter.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-after-enter.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-after-enter-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:20:11.467975+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput click 1280 1100; for i in 1 2 3 4 5 6; do uitest uiInput keyEvent 2054; sleep 2; done"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-skip.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:22:01.118195+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-skipped.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-skipped-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:22:01.257613+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-skipped.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-skipped.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-skipped-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:23:18.021257+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput keyEvent 2054"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-next-page.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:24:55.547047+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-paragraph.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-paragraph-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:24:55.670077+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-paragraph.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-paragraph.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-paragraph-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:26:14.761761+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest uiInput keyEvent 2054; sleep 2; uitest uiInput keyEvent 2054"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-align-text.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:27:58.480678+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "ps -A -o PID,NAME"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-processes.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:27:59.085481+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "hidumper -s ThermalService -a \"-t\""
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-thermal-before.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:27:59.256777+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "date; cat /proc/52747/comm /proc/52747/stat; cat /proc/53362/comm /proc/53362/stat; cat /proc/53380/comm /proc/53380/stat; cat /proc/53425/comm /proc/53425/stat; cat /proc/53433/comm /proc/53433/stat; cat /proc/53463/comm /proc/53463/stat; cat /proc/53474/comm /proc/53474/stat; cat /proc/53488/comm /proc/53488/stat; cat /proc/53523/comm /proc/53523/stat; cat /proc/53545/comm /proc/53545/stat; cat /proc/53558/comm /proc/53558/stat; cat /proc/53575/comm /proc/53575/stat; cat /proc/53614/comm /proc/53614/stat; cat /proc/53694/comm /proc/53694/stat; cat /proc/53748/comm /proc/53748/stat; cat /proc/53864/comm /proc/53864/stat; cat /proc/53926/comm /proc/53926/stat; cat /proc/54140/comm /proc/54140/stat"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-cpu-before.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:27:59.912432+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-scene-before.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-before-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:28:00.081566+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-scene-before.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-scene-before.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-before-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:28:30.202675+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "date; cat /proc/52747/comm /proc/52747/stat; cat /proc/53362/comm /proc/53362/stat; cat /proc/53380/comm /proc/53380/stat; cat /proc/53425/comm /proc/53425/stat; cat /proc/53433/comm /proc/53433/stat; cat /proc/53463/comm /proc/53463/stat; cat /proc/53474/comm /proc/53474/stat; cat /proc/53488/comm /proc/53488/stat; cat /proc/53523/comm /proc/53523/stat; cat /proc/53545/comm /proc/53545/stat; cat /proc/53558/comm /proc/53558/stat; cat /proc/53575/comm /proc/53575/stat; cat /proc/53614/comm /proc/53614/stat; cat /proc/53694/comm /proc/53694/stat; cat /proc/53748/comm /proc/53748/stat; cat /proc/53864/comm /proc/53864/stat; cat /proc/53926/comm /proc/53926/stat; cat /proc/54140/comm /proc/54140/stat"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-cpu-after.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:28:30.851971+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-scene-after.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-after-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:28:31.022656+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-chaos-gl31-baseline-scene-after.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\chaos-gl31-baseline-scene-after.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-after-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:28:31.164236+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "hidumper -s ThermalService -a \"-t\""
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-thermal-after.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:28:31.473427+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "hilog -z 4000 -T DirectVkDesktop,WL_EGL,DirectWineSurface"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "chaos-gl31-baseline-scene-fps-all.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:31:54.486926+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-final-restore-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:31.350871+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "install",
+      "-r",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\opengl31-srgb-surface-v2-signed-20261009.hap"
+    ],
+    "timeoutSeconds": 180,
+    "exitCode": 0,
+    "artifact": "gl31-final-restore-install.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:43.097876+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:43.293332+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "file",
+      "send",
+      "-b",
+      "com.vintage.pomelopro",
+      "\\\\wsl.localhost\\Ubuntu-22.04\\home\\liufeng\\src\\vpp-proton\\workspace_temp\\vp-srgb-surface64.exe",
+      "/data/storage/el2/base/files/.wine/drive_c/vp-srgb-surface64.exe"
+    ],
+    "timeoutSeconds": 55,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-send.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:43.632089+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-srgb-surface64.exe --ps winehua.game_args_json %5B%22C%3A%5C%5Cgl31-v2-restored64.tsv%22%5D --ps winehua.d3d_env_json %5B%7B%22key%22%3A%20%22WINEHUA_WINEDEBUG%22%2C%20%22value%22%3A%20%22-all%2C%2Berr%22%7D%5D"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:45.743815+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:47.858122+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:50.010056+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:52.152854+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:54.284320+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:56.392126+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:32:58.498248+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:33:00.641369+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:33:02.801411+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "cat /data/app/el2/100/base/com.vintage.pomelopro/files/.wine/drive_c/gl31-v2-restored64.tsv"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-v2-restored64-result.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:33:40.475941+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "sha256sum /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/guest_gfx/lib/libgallium-25.0.1.so /data/app/el1/bundle/public/com.vintage.pomelopro/libs/arm64/libvirglrenderer.so /data/app/el1/bundle/public/com.vintage.pomelopro/libs/arm64/libwinehua_vtest_server.so"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-final-restored-library-hashes.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:33:40.833962+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "bm dump -n com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-final-restored-bundle.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:33:57.950020+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "-b",
+      "com.vintage.pomelopro",
+      "sha256sum /data/storage/el1/bundle/libs/arm64/libvirglrenderer.so /data/storage/el1/bundle/libs/arm64/libwinehua_vtest_server.so"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-final-restored-native-hashes.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:34:55.125447+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-final-native-check-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:34:55.259461+08:00",
+    "target": "TestPad-USB",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-gumu10-evidence%5Ccopy-loaded-libraries.exe --ps winehua.game_args_json %5B%5D --ps winehua.d3d_env_json %5B%5D"
+    ],
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "artifact": "gl31-final-native-check-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:38:10.548017+08:00",
+    "target": "TestPad-Wireless",
+    "args": [
+      "shell",
+      "param get const.product.model"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-final-wireless-device.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:38:12.125896+08:00",
+    "target": "TestPad-Wireless",
+    "args": [
+      "shell",
+      "uitest screenCap -p /data/local/tmp/vp-phone-liveness-gl31-final-wireless-current.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-final-wireless-current-capture.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:38:12.392560+08:00",
+    "target": "TestPad-Wireless",
+    "args": [
+      "file",
+      "recv",
+      "/data/local/tmp/vp-phone-liveness-gl31-final-wireless-current.png",
+      "F:\\VintagePomelo-Workspace\\workspace_temp\\gumu10-dx11-20261008\\gl31-final-wireless-current.png"
+    ],
+    "timeoutSeconds": 30,
+    "exitCode": 0,
+    "artifact": "gl31-final-wireless-current-recv.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:38:13.069707+08:00",
+    "target": "TestPad-Wireless",
+    "args": [
+      "shell",
+      "aa force-stop com.vintage.pomelopro"
+    ],
+    "timeoutSeconds": 35,
+    "exitCode": 0,
+    "artifact": "gl31-final-wireless-stop.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  },
+  {
+    "time": "2026-10-09T21:38:13.579914+08:00",
+    "target": "TestPad-Wireless",
+    "args": [
+      "shell",
+      "aa start -a EntryAbility -b com.vintage.pomelopro --ps winehua.mode game --ps winehua.d3d_backend dxvk_legacy --ps winehua.game_path C%3A%5Cvp-gumu10-evidence%5Ccopy-loaded-libraries.exe --ps winehua.game_args_json %5B%5D --ps winehua.d3d_env_json %5B%5D"
+    ],
+    "timeoutSeconds": 40,
+    "exitCode": 0,
+    "artifact": "gl31-final-wireless-copy-launch.txt",
+    "redaction": "serial/SteamID and credential fields masked; local screenshots"
+  }
+]

@@ -43,6 +43,9 @@ std::vector<DirectDesktopSource> GetDirectDesktopSources(const void* owner);
 // queue belongs to the App; only its producer NativeWindow crosses IPC.
 void DirectWineSurfaceCreated(uint32_t clientPid, uint32_t toplevelId,
                               uint32_t wlSurfaceId);
+uint64_t DirectWineDrawableDeclared(uint32_t clientPid, uint32_t toplevelId,
+                                   uint32_t wlSurfaceId, int32_t width, int32_t height);
+void DirectWineDrawableDestroyed(uint32_t clientPid, uint32_t wlSurfaceId);
 void DirectWineSurfaceResized(uint32_t toplevelId, int32_t width, int32_t height);
 void DirectWineSurfaceDestroyed(uint32_t toplevelId);
 void DirectWineSurfaceChildReady(uint32_t clientPid);

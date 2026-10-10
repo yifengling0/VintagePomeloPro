@@ -1,0 +1,9 @@
+{
+  "bits": 64,
+  "exe": "direct-dxvk64-unified-20261010.exe",
+  "exeSha256": "f9147d383da00c0318d67c3f9b15510651be81d5a82a411cb0040dfff8fab03a",
+  "launchTime": "2026-10-10T14:08:46.012941+08:00",
+  "freshResult": true,
+  "passed": true,
+  "method": "Previous result removed before launch; default product graphics policy."
+}

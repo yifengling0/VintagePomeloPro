@@ -1,0 +1,9 @@
+{
+  "baseSha256": "115522044f40452be048bc24966b25f9af8996cfc05fb36a7bac9b3d2ed87fb5",
+  "hapSha256": "311b02e55dcc87ec3a940027e7054307daada2761adfa89a1fd2ad34a653dc6a",
+  "libraries": {
+    "libs/arm64-v8a/libvirglrenderer.so": "e265d37b9d421e46d7cabfe640907a0fad702b0f49267cfa5c2b90c87026af54",
+    "libs/arm64-v8a/libvirglrenderer.so.1": "e265d37b9d421e46d7cabfe640907a0fad702b0f49267cfa5c2b90c87026af54",
+    "libs/arm64-v8a/libwinehua_vtest_server.so": "0557f75591e7d48cf9d3b9fec421351c2edaeb9a27569bd48164d9b30803c0c3"
+  }
+}

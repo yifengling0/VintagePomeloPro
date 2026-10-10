@@ -1,0 +1,122 @@
+[
+  {
+    "phase": 0,
+    "window": 0,
+    "expected": [
+      255,
+      0,
+      0
+    ],
+    "observed": [
+      255,
+      0,
+      0
+    ],
+    "passed": true
+  },
+  {
+    "phase": 0,
+    "window": 1,
+    "expected": [
+      0,
+      255,
+      0
+    ],
+    "observed": [
+      0,
+      255,
+      0
+    ],
+    "passed": true
+  },
+  {
+    "phase": 1,
+    "window": 0,
+    "expected": [
+      0,
+      255,
+      0
+    ],
+    "observed": [
+      0,
+      255,
+      0
+    ],
+    "passed": true
+  },
+  {
+    "phase": 1,
+    "window": 1,
+    "expected": [
+      0,
+      0,
+      255
+    ],
+    "observed": [
+      0,
+      0,
+      255
+    ],
+    "passed": true
+  },
+  {
+    "phase": 2,
+    "window": 0,
+    "expected": [
+      0,
+      0,
+      255
+    ],
+    "observed": [
+      0,
+      0,
+      255
+    ],
+    "passed": true
+  },
+  {
+    "phase": 2,
+    "window": 1,
+    "expected": [
+      255,
+      255,
+      255
+    ],
+    "observed": [
+      255,
+      255,
+      255
+    ],
+    "passed": true
+  },
+  {
+    "phase": 3,
+    "window": 0,
+    "expected": [
+      255,
+      255,
+      255
+    ],
+    "observed": [
+      255,
+      255,
+      255
+    ],
+    "passed": true
+  },
+  {
+    "phase": 3,
+    "window": 1,
+    "expected": [
+      255,
+      0,
+      0
+    ],
+    "observed": [
+      255,
+      0,
+      0
+    ],
+    "passed": true
+  }
+]

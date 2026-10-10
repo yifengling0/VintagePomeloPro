@@ -1,0 +1,14 @@
+{
+  "path": "Z:\\games\\Chaos;Child R15\\\u542f\u52a8\u6e38\u620f.exe",
+  "env": [
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,+err"
+    },
+    {
+      "key": "DXVK_LOG_PATH",
+      "value": "C:\\vp-gumu10-evidence"
+    }
+  ],
+  "backend": "dxvk_legacy"
+}

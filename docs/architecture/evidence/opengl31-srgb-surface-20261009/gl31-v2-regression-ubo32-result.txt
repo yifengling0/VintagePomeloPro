@@ -1,0 +1,32 @@
+context	legacy	1	3.1 Mesa 25.0.1 (git-330124bf18)	virgl (Maleoon 910)
+
+limits	legacy	vertex=12	fragment=12	bindings=72	align=16
+
+draw	legacy	0	0	53,65,78,255	0.206,0.256,0.306	1	0
+
+draw	legacy	0	1	100,113,126,255	0.394,0.444,0.494	1	0
+
+draw	legacy	0	2	50,63,75,255	0.195,0.245,0.295	1	0
+
+draw	legacy	0	3	63,88,113,255	0.245,0.345,0.445	1	0
+
+limits	legacy	vertex=12	fragment=12	bindings=72	align=16
+
+draw	legacy	1	0	53,65,78,255	0.206,0.256,0.306	1	0
+
+draw	legacy	1	1	100,113,126,255	0.394,0.444,0.494	1	0
+
+draw	legacy	1	2	50,63,75,255	0.195,0.245,0.295	1	0
+
+draw	legacy	1	3	63,88,113,255	0.245,0.345,0.445	1	0
+
+draw	legacy	1	4	66,91,117,255	0.257,0.357,0.457	1	0
+
+context	es3.0	0	winerr=1400
+
+context	es3.1	0	winerr=1400
+
+context	es3.2	0	winerr=1400
+
+totalPassed	9
+

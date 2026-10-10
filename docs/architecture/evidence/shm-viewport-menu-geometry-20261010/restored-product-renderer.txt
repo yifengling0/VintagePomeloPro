@@ -1,0 +1,15 @@
+10-10 16:04:29.128   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:30.132   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:31.133   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:32.133   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:33.133   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:34.133   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:35.141   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:36.146   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:37.148   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:38.156   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:39.166   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:40.169   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:41.174   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:42.174   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 16:04:43.179   825  3239 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=0.00 directGameCpuReadBytes=0 directGameCpuUploadBytes=0

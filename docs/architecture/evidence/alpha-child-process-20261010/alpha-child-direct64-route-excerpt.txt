@@ -1,0 +1,22 @@
+10-10 14:08:48.627 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=21507 childHostPid=23488 createStatus=0 mode=create-ipc
+10-10 14:08:48.693 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=21507 childHostPid=23496 createStatus=0 mode=create-ipc
+10-10 14:08:48.834 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23496 childHostPid=23503 createStatus=0 mode=create-ipc
+10-10 14:08:49.017 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23503 childHostPid=23511 createStatus=0 mode=create-ipc
+10-10 14:08:49.239 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23511 childHostPid=23519 createStatus=0 mode=create-ipc
+10-10 14:08:49.472 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23511 childHostPid=23536 createStatus=0 mode=create-ipc
+10-10 14:08:49.635 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23511 childHostPid=23556 createStatus=0 mode=create-ipc
+10-10 14:08:49.917 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23511 childHostPid=23577 createStatus=0 mode=create-ipc
+10-10 14:08:50.166 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23511 childHostPid=23595 createStatus=0 mode=create-ipc
+10-10 14:08:51.019 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23496 childHostPid=23634 createStatus=0 mode=create-ipc
+10-10 14:08:51.325 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23634 childHostPid=23641 createStatus=0 mode=create-ipc
+10-10 14:08:51.699 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23641 childHostPid=23653 createStatus=0 mode=create-ipc
+10-10 14:08:51.812 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=21507 childHostPid=23660 createStatus=0 mode=create-ipc
+10-10 14:08:52.170 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23660 childHostPid=23670 createStatus=0 mode=create-ipc
+10-10 14:08:52.567 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23670 childHostPid=23687 createStatus=0 mode=create-ipc
+10-10 14:08:52.874 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23670 childHostPid=23703 createStatus=0 mode=create-ipc
+10-10 14:08:52.912 21507 21507 I A02330/com.vintage.pomelopro/DirectVkDesktop: Vulkan desktop enabled surface=6700148986749 extent=2560x1600 slots=2 preTransform=identity directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 14:08:53.105 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23687 childHostPid=23734 createStatus=0 mode=create-ipc
+10-10 14:08:53.193 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23511 childHostPid=23745 createStatus=0 mode=create-ipc
+10-10 14:08:53.638 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=21507 childHostPid=23780 createStatus=0 mode=create-ipc
+10-10 14:08:56.180 21507 23483 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=21507 creatorHostPid=23670 childHostPid=23810 createStatus=0 mode=create-ipc
+10-10 14:08:58.100 21507 23720 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=120 layers=4 direct=1 draws=114 acquireWaits=114 releaseFences=113 producerRetired=0 releaseErrors=0 imports=4 reuses=110 uiUploadBytes=19744000 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0

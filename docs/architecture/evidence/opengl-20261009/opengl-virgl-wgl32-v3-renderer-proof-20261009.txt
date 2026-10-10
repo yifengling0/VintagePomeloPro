@@ -1,0 +1,1 @@
+winehua_readback_pixels: pid=42858 hwnd=0x100c6 surface=33 frame=1 rgb_nonzero=517 alpha_nonzero=1026 samples=1026 read_buffer=0x405 saved_read_fbo=0 draw_fbo=0 target=0x5a4fcb2a00 current_draw=0x5a4fcb2a00 current_read=0x5a4fcb2a00 renderer=virgl (Maleoon 910)

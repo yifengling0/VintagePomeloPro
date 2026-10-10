@@ -1,0 +1,49 @@
+{
+  "full_client": {
+    "rect": [
+      0,
+      0,
+      1277,
+      720
+    ],
+    "meanAbsRgb": [
+      1.8591272948751414,
+      1.8708964152092578,
+      1.8737470634299138
+    ],
+    "medianAbsRgb": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "p95AbsRgb": [
+      3.0,
+      3.0,
+      3.0
+    ]
+  },
+  "background": {
+    "rect": [
+      500,
+      200,
+      1050,
+      600
+    ],
+    "meanAbsRgb": [
+      0.4338909090909091,
+      0.43422272727272726,
+      0.42912727272727275
+    ],
+    "medianAbsRgb": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "p95AbsRgb": [
+      3.0,
+      3.0,
+      3.0
+    ]
+  },
+  "note": "Frames have animated highlights; full client is not an exact-frame comparison. Background is stable. SHM bytes are BGRA, despite temporary capture filename and meanRGBA label."
+}

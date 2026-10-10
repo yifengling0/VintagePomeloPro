@@ -1,0 +1,31 @@
+Excerpt from the default V8 text-scene 25s hiperf oncpu sample.
+This is a callchain, not wall-time attribution. Hidden kernel PCs are excluded from causal claims.
+         |- 52.07% wow64_gl_glGetTexImage
+                   _mesa_GetTexImage
+             |-  0.14% [run in self function]
+             |- 99.86% get_texture_image
+                       st_GetTexSubImage
+                       _mesa_GetTexSubImage_sw
+                 |-  0.54% [run in self function]
+                 |- 93.75% _mesa_format_convert
+                 |-  5.71% st_MapTextureImage
+                     |-  1.93% [run in self function]
+                     |- 98.07% st_texture_image_map
+                               virgl_resource_transfer_map
+                         |-  7.71% [run in self function]
+                         |- 35.45% virgl_vtest_busy_wait
+                         |- 28.71% virgl_flush_eq
+                             |- 19.40% [run in self function]
+                             |- 80.60% virgl_vtest_winsys_submit_cmd
+                                 |- 87.76% virgl_vtest_submit_cmd
+                                 |- 12.24% virgl_vtest_resource_reference
+                                           virgl_resource_cache_add
+                                           virgl_vtest_resource_cache_entry_release
+                                           winehua_unmap_shared_buffer_v1
+                                           NtFreeVirtualMemory
+                                           free_pages
+                                           delete_view
+                         |- 28.14% virgl_vtest_transfer_get_internal
+                             |-  9.20% [run in self function]
+                             |- 82.54% virgl_vtest_busy_wait
+                             |-  8.26% virgl_vtest_send_transfer_get

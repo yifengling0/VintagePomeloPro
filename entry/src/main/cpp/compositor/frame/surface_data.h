@@ -28,6 +28,11 @@ struct SurfaceData {
     int w = 0, h = 0;
     std::atomic<uint64_t> shmCommitSerial{0};
 
+    // Explicit Direct drawable binding, validated against its actual protocol
+    // parent at every snapshot. No cross-process numeric-ID routing.
+    uint64_t directOwnerKey = 0, directGeneration = 0;
+    bool directVisible = false;
+
     // toplevel identity
     uint32_t toplevelId = 0;
     bool hasToplevel = false;

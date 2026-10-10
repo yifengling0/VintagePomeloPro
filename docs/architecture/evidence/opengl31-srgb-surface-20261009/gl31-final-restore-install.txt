@@ -1,0 +1,2 @@
+[Info]App install path:F:\VintagePomelo-Workspace\workspace_temp\gumu10-dx11-20261008\opengl31-srgb-surface-v2-signed-20261009.hap msg:install bundle successfully. 
+AppMod finish

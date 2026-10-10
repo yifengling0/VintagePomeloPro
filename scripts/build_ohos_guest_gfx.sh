@@ -27,8 +27,8 @@ WAYLAND_PROTOCOLS_TAG="${WINEHUA_WAYLAND_PROTOCOLS_TAG:-1.39}"
 # guest 构建目录按 WINE_ARCH 隔离: 方案② (arm64 设备 + x86_64 guest) 与方案③
 # (aarch64 guest) 的 NATIVE_ARCH 都是 arm64-v8a, 共享 build 目录会复用旧架构 meson
 # 配置 → "EGL requires DRI" / 检测到旧 aarch64 target。NATIVE_ARCH 是设备, 不能作 guest 键。
-BUILD_ROOT="${WINEHUA_GUEST_GFX_BUILD_ROOT:-$ROOT/build/guest_gfx_build/${WINE_ARCH}/$PLATFORM-$MODE}"
-INSTALL_ROOT="${WINEHUA_GUEST_GFX_INSTALL_ROOT:-$ROOT/build/guest_gfx_install/${WINE_ARCH}}"
+BUILD_ROOT="${WINEHUA_GUEST_GFX_BUILD_ROOT:-}"
+INSTALL_ROOT="${WINEHUA_GUEST_GFX_INSTALL_ROOT:-}"
 PACKAGE_BUNDLE=1
 FETCH_IF_MISSING=1
 CLEAN=0
@@ -703,6 +703,20 @@ case "$MODE" in
         ;;
 esac
 
+# Zink is an opt-in candidate. Do not install it over the production VirGL
+# receiver just because --mode was supplied after environment initialization.
+BUILD_ROOT="${BUILD_ROOT:-$BUILD_DIR/guest_gfx_build/${WINE_ARCH}/$PLATFORM-$MODE}"
+if [ "$MODE" = "zink" ]; then
+    INSTALL_ROOT="${INSTALL_ROOT:-$BUILD_DIR/guest_gfx_install/${WINE_ARCH}/$PLATFORM-zink}"
+else
+    INSTALL_ROOT="${INSTALL_ROOT:-$BUILD_DIR/guest_gfx_install/${WINE_ARCH}}"
+fi
+GALLIUM_DRIVERS="virgl,softpipe"
+if [ "$MODE" = "zink" ]; then
+    [ "$VULKAN_ONLY" != "1" ] || err "--mode zink is incompatible with Vulkan-only builds"
+    GALLIUM_DRIVERS="zink,virgl,softpipe"
+fi
+
 SOURCE_ROOT="$(normalize_host_path_input "$SOURCE_ROOT")"
 LIBDRM_SOURCE_ROOT="$(normalize_host_path_input "$LIBDRM_SOURCE_ROOT")"
 WAYLAND_PROTOCOLS_SOURCE_ROOT="$(normalize_host_path_input "$WAYLAND_PROTOCOLS_SOURCE_ROOT")"
@@ -764,7 +778,7 @@ else
         "-Dbuildtype=release"
         "-Dplatforms=wayland"
         "-Degl-native-platform=wayland"
-        "-Dgallium-drivers=virgl,softpipe"
+        "-Dgallium-drivers=$GALLIUM_DRIVERS"
         "-Dvulkan-drivers="
         "-Degl=enabled"
         "-Dgles1=enabled"
@@ -814,11 +828,17 @@ meson install -C "$BUILD_ROOT"
 
 [ -d "$INSTALL_ROOT/lib" ] || err "guest_gfx install is missing lib/: $INSTALL_ROOT"
 
+if [ "$VULKAN_ONLY" != "1" ]; then
+    python3 "$SCRIPT_DIR/guest_gfx_build_identity.py" record \
+        --build-root "$BUILD_ROOT" --install-root "$INSTALL_ROOT" --arch "$WINE_ARCH"
+fi
+
 if [ "$PACKAGE_BUNDLE" -eq 1 ]; then
     WINEHUA_OHOS_MESA_SOURCE_ROOT="$SOURCE_ROOT" \
     WINEHUA_OHOS_LIBDRM_SOURCE_ROOT="$LIBDRM_SOURCE_ROOT" \
     WINEHUA_GUEST_GFX_PLATFORM="$PLATFORM" \
     NATIVE_ARCH="$NATIVE_ARCH" \
+    GUEST_ARCH="$WINE_ARCH" \
     bash "$SCRIPT_DIR/build_guest_gfx.sh" --install-root "$INSTALL_ROOT" --mode "$MODE"
 fi
 

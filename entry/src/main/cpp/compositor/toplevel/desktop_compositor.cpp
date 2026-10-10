@@ -158,7 +158,7 @@ bool DesktopCompositor::IsContentVisibleLocked(uint32_t id) const
     if (id == desktopRootToplevelId_) return false;
     const auto* state = tmgr_.FindToplevelLocked(id);
     return state && !state->IsBackground() && !state->IsMinimized() &&
-        (state->HasFrame() || zc_.HasActiveContent(id));
+        (state->HasFrame() || zc_.HasActiveContent(id) || directDesktopContentSizes_.count(id));
 }
 
 uint32_t DesktopCompositor::FirstVisibleContentModalLocked(uint32_t id) const
@@ -211,8 +211,9 @@ std::vector<CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, 
         ResolveSubsurfaceLayerPositionLocked(sl, lx, ly);
         subLayer.x = lx;
         subLayer.y = ly;
-        subLayer.w = sl.w;
-        subLayer.h = sl.h;
+        DirectImageSampling sampling;
+        if (!ComputeSubsurfaceViewport(sl, subLayer.w, subLayer.h, sampling))
+            subLayer.visible = false;
         subLayer.sub = &sl;
         return subLayer;
     };
@@ -364,7 +365,6 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
     out.width = root->Width() > 0 ? root->Width() : outputW_;
     out.height = root->Height() > 0 ? root->Height() : outputH_;
     if (out.width <= 0 || out.height <= 0) return false;
-    auto layers = BuildLayerListLocked(out.width, out.height);
     // A GPU child may arrive before its parent's first SHM frame. Validate the
     // actual protocol edge; a snapshot key alone never establishes ownership.
     const auto protocolChild = [&](const GpuDesktopLayer& source) {
@@ -378,32 +378,42 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         const auto* state = tmgr_.FindToplevelLocked(source.parentToplevel);
         return !state || (!state->IsBackground() && !state->IsMinimized());
     };
-    const auto fullscreenId = PickFullscreenLayerLocked(layers);
-    std::unordered_map<uint32_t, std::pair<SurfaceData*, GpuDesktopLayer>> clients;
+    std::unordered_map<uint32_t, std::vector<std::pair<SurfaceData*, GpuDesktopLayer>>> clients;
     directDesktopContentSizes_.clear();
     for (const auto& source : direct) {
-        auto* owner = tmgr_.FindSurfaceResource((static_cast<uint64_t>(source.pid) << 32) | source.wlSurface);
-        auto* sd = owner ? static_cast<SurfaceData*>(wl_resource_get_user_data(owner)) : nullptr;
-        if (!sd || !sd->hasToplevel || sd->toplevelId != source.toplevel) continue;
-        SurfaceData* client = nullptr;
-        bool ambiguous = false;
-        for (const auto& [key, resource] : tmgr_.SurfaceResources()) {
-            auto* child = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
-            if (!child || !child->isSubsurface || child->parentSurface != owner ||
-                !child->inputRegionEmpty) continue;
-            if (client) { ambiguous = true; break; }
-            client = child;
-        }
-        if (!client || ambiguous) continue;
+        const uint64_t key = (uint64_t(source.pid) << 32) | source.wlSurface;
+        auto* resource = tmgr_.FindSurfaceResource(key);
+        auto* client = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
+        auto* parent = client && client->isSubsurface && client->parentSurface
+            ? static_cast<SurfaceData*>(wl_resource_get_user_data(client->parentSurface)) : nullptr;
+        if (!client || !parent || !parent->hasToplevel || parent->toplevelId != source.toplevel ||
+            client->directOwnerKey != parent->surfaceKey || !client->directVisible ||
+            client->directGeneration != source.generation || !source.generation ||
+            tmgr_.FindSurfaceResource(parent->surfaceKey) != client->parentSurface) continue;
         GpuDesktopLayer image;
-        image.directToplevel = source.toplevel;
+        image.directSurfaceKey = key;
+        image.ownerSurfaceKey = key; image.parentToplevel = source.toplevel;
+        image.subsurface = true;
         image.x = client->subsurfaceX; image.y = client->subsurfaceY;
         if (!ComputeDirectViewport(client->directViewport, source.width, source.height,
                                    image.w, image.h, image.sampling)) continue;
         image.sourceW = source.width; image.sourceH = source.height;
-        directDesktopContentSizes_[source.toplevel] = {image.w, image.h};
-        clients.emplace(source.toplevel, std::make_pair(client, image));
+        // The full client, rather than an auxiliary tiny CEF child, determines
+        // fullscreen/input scaling. All actual drawables remain composited.
+        auto& size = directDesktopContentSizes_[source.toplevel];
+        if (int64_t(image.w) * image.h > int64_t(size.first) * size.second)
+            size = {image.w, image.h};
+        clients[source.toplevel].emplace_back(client, image);
     }
+    for (auto& [top, children] : clients)
+        std::sort(children.begin(), children.end(), [](const auto& a, const auto& b) {
+            return a.first->directGeneration < b.first->directGeneration;
+        });
+    auto layers = BuildLayerListLocked(out.width, out.height);
+    const auto fullscreenId = PickFullscreenLayerLocked(layers);
+    std::unordered_set<uint64_t> orderedDrawables;
+    for (const auto& layer : layers) if (layer.type == CompositorLayer::Type::Subsurface)
+        orderedDrawables.insert(layer.sub->surfaceKey);
     // Bounded, opt-in observation of this exact decision. No pointer escapes
     // the lock and no input event, raise, focus or resolver log cache is changed.
     if (winehua::FrameTraceEnabled() || (winehua::FrameLoopDiagnosticState() & 1)) {
@@ -470,7 +480,20 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         const std::vector<uint8_t>* pixels = nullptr;
         if (layer.type == CompositorLayer::Type::Subsurface) {
             auto client = clients.find(layer.toplevelId);
-            if (client != clients.end() && layer.sub->surface == client->second.first->surface) continue;
+            if (client != clients.end()) {
+                auto drawable = std::find_if(client->second.begin(), client->second.end(),
+                    [&](const auto& entry) { return layer.sub->surface == entry.first->surface; });
+                if (drawable != client->second.end()) {
+                    auto image = drawable->second;
+                    image.x = layer.x; image.y = layer.y;
+                    const auto* state = fullscreenId && layer.toplevelId == fullscreenId
+                        ? tmgr_.FindToplevelLocked(fullscreenId) : nullptr;
+                    if (state) FitMapLayerRect(fullscreenFit, image.x - state->X(), image.y - state->Y(),
+                        image.w, image.h, image.x, image.y, image.w, image.h);
+                    out.layers.push_back(std::move(image));
+                    continue;
+                }
+            }
             if (layer.zcActive && zeroCopy.empty()) continue;
             const auto& sub = *layer.sub;
             item.subsurface = true;
@@ -479,8 +502,7 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
             item.key = sub.surfaceKey;
             item.serial = sub.shmCommitSerial;
             item.sourceW = sub.w; item.sourceH = sub.h;
-            item.w = DisplaySizeAfterViewport(sub.vpDstW, sub.w);
-            item.h = DisplaySizeAfterViewport(sub.vpDstH, sub.h);
+            if (!ComputeSubsurfaceViewport(sub, item.w, item.h, item.sampling)) continue;
             item.opaque = sub.shmFormat != 0;
             pixels = &sub.pixels;
         } else {
@@ -515,13 +537,15 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         if (layer.type == CompositorLayer::Type::Toplevel) {
             auto client = clients.find(layer.toplevelId);
             if (client == clients.end()) continue;
-            auto image = client->second.second;
-            if (layer.toplevelId == fullscreenId) {
-                // Same content fit as input; GPU replaces the SHM client area.
-                image.x = fullscreenFit.offX; image.y = fullscreenFit.offY;
-                image.w = fullscreenFit.dstW; image.h = fullscreenFit.dstH;
-            } else { image.x += layer.x; image.y += layer.y; }
-            out.layers.push_back(std::move(image));
+            for (const auto& drawable : client->second) {
+                if (orderedDrawables.count(drawable.first->surfaceKey)) continue;
+                auto image = drawable.second;
+                if (layer.toplevelId == fullscreenId) {
+                    FitMapLayerRect(fullscreenFit, image.x, image.y, image.w, image.h,
+                                    image.x, image.y, image.w, image.h);
+                } else { image.x += layer.x; image.y += layer.y; }
+                out.layers.push_back(std::move(image));
+            }
         }
     }
     if (!zeroCopy.empty()) {
@@ -562,7 +586,7 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
 }
 
 bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
-                                               uint32_t wlSurfaceId, int imageW, int imageH,
+                                               uint32_t wlSurfaceId, int imageW, int imageH, uint64_t generation,
                                                DirectDesktopLayout& out)
 {
     auto lk = tmgr_.Lock();
@@ -570,21 +594,14 @@ bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
         return false;
     const auto* root = tmgr_.FindToplevelLocked(desktopRootToplevelId_);
     const auto* state = tmgr_.FindToplevelLocked(id);
-    auto* owner = tmgr_.FindSurfaceResource((static_cast<uint64_t>(pid) << 32) | wlSurfaceId);
-    auto* sd = owner ? static_cast<SurfaceData*>(wl_resource_get_user_data(owner)) : nullptr;
-    if (!root || !state || !sd || !sd->hasToplevel || sd->toplevelId != id) return false;
-
-    // Wine's Vulkan client surface delegates all input to this exact owner.
-    // Its viewport/offset places client pixels inside the SHM window frame.
-    SurfaceData* client = nullptr;
-    for (const auto& [key, resource] : tmgr_.SurfaceResources()) {
-        auto* child = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
-        if (!child || !child->isSubsurface || child->parentSurface != owner ||
-            !child->inputRegionEmpty) continue;
-        if (client) return false; // no geometry guessing between two clients
-        client = child;
-    }
-    if (!client) return false;
+    auto* resource = tmgr_.FindSurfaceResource((static_cast<uint64_t>(pid) << 32) | wlSurfaceId);
+    auto* client = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
+    auto* parent = client && client->isSubsurface && client->parentSurface
+        ? static_cast<SurfaceData*>(wl_resource_get_user_data(client->parentSurface)) : nullptr;
+    if (!root || !state || !client || !parent || !parent->hasToplevel || parent->toplevelId != id ||
+        client->directOwnerKey != parent->surfaceKey || !client->directVisible ||
+        client->directGeneration != generation || !generation ||
+        tmgr_.FindSurfaceResource(parent->surfaceKey) != client->parentSurface) return false;
     out = {};
     out.x = state->X() + client->subsurfaceX;
     out.y = state->Y() + client->subsurfaceY;

@@ -1,0 +1,20 @@
+                "nativeLibraryPath": "",
+                "versionCode": 0,
+                "versionName": ""
+                "nativeLibraryPath": "",
+                "versionCode": 0,
+                "versionName": ""
+            "versionCode": 0,
+            "versionName": ""
+        "nativeLibraryPath": "libs/arm64",
+        "versionCode": 1004038,
+        "versionName": "1.4.5.29"
+                "nativeLibraryPath": "",
+            "nativeLibraryPath": "",
+            "versionCode": 1004038,
+    "versionCode": 1004038,
+    "versionName": "1.4.5.29"
+ls: /data/app/el1/bundle/public/com.vintage.pomelopro/libs/arm64/*virgl*: No such file or directory
+GL-CAP virgl layer=ubo-policy plain_sysvals=1 guest_blocks=12 stages=6 host_bindings=72 host_combined=72
+GL-CAP virgl layer=capset-color texture_srgb_decode=1 srgb_write_control=0 egl_image_srgb_import=1 conditional_render=1
+GL-CAP virgl layer=capset-color texture_srgb_decode=1 srgb_write_control=0 egl_image_srgb_import=1 conditional_render=1

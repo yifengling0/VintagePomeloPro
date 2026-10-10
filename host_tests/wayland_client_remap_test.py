@@ -17,8 +17,11 @@ typedef unsigned DWORD, UINT;
 #define GWL_STYLE -16
 #define GWL_EXSTYLE -20
 #define GA_ROOT 2
+#define GA_PARENT 1
+#define MDT_RAW_DPI 2
 #define WINE_SWP_FULLSCREEN 0x10000u
-struct window_rects { RECT window, client; };
+typedef struct { int x, y; } POINT;
+struct window_rects { RECT window, client, visible; };
 struct window_surface { int unused; };
 struct wl_region { int unused; };
 struct wayland_client_surface { HWND toplevel; struct wayland_surface *parent; };
@@ -28,6 +31,7 @@ struct wayland_win_data {
     struct wayland_client_surface *client_surface;
     struct window_rects rects;
     BOOL is_fullscreen, managed, layered_attribs_set;
+    BOOL winehua_direct_early_wsi;
 };
 static struct wayland_win_data wd, parent_wd;
 static HWND root;
@@ -38,7 +42,11 @@ static DWORD NtUserGetWindowLongW(HWND h, int index) {
     assert(h==wd.hwnd); return index==GWL_STYLE ? style : exstyle;
 }
 static BOOL NtUserIsWindowVisible(HWND h) { assert(h==wd.hwnd); return !!(style&WS_VISIBLE); }
-static HWND NtUserGetAncestor(HWND h, int flag) { assert(h==wd.hwnd && flag==GA_ROOT); return root; }
+static HWND NtUserGetAncestor(HWND h, int flag) { assert(h==wd.hwnd && (flag==GA_ROOT || flag==GA_PARENT)); return root; }
+static UINT NtUserGetWinMonitorDpi(HWND h, UINT type) { assert(h==wd.hwnd && type==MDT_RAW_DPI); return 96; }
+static int NtUserMapWindowPoints(HWND from, HWND to, POINT *p, UINT count, UINT dpi) {
+    assert(from==root && !to && p && count==2 && dpi==96); return 0;
+}
 static HWND NtUserGetForegroundWindow(void) { return NULL; }
 static BOOL is_window_managed(HWND h, UINT flags, BOOL fs) { assert(h==wd.hwnd && !lock_held); return managed; }
 static struct wayland_win_data *wayland_win_data_get_nolock(HWND h) {
@@ -79,7 +87,7 @@ static void reset(void) {
     lock_held=0; updates=0;
 }
 static void change(struct window_surface *gdi) {
-    const struct window_rects rects={{0,0,1200,800},{0,0,1200,800}};
+    const struct window_rects rects={{0,0,1200,800},{0,0,1200,800},{0,0,1200,800}};
     WAYLAND_WindowPosChanged(wd.hwnd,NULL,NULL,WINE_SWP_FULLSCREEN,&rects,gdi);
     assert(!lock_held);
 }
@@ -94,6 +102,16 @@ int main(int argc, char **argv) {
         int destroys=toplevel_destroy;
         for (int i=0;i<240;i++) change(NULL);
         assert(toplevel_destroy==destroys && wd.wayland_surface->xdg_surface);
+    } else if (!strcmp(argv[1],"hidden-reservation")) {
+        wd.winehua_direct_early_wsi=TRUE;
+        change(NULL); assert(wd.wayland_surface && wd.wayland_surface->xdg_surface);
+        assert(!client.parent && !wd.wayland_surface->window.visible);
+        int destroys=toplevel_destroy;
+        for (int i=0;i<240;i++) change(NULL);
+        assert(toplevel_destroy==destroys && wd.winehua_direct_early_wsi);
+        style=WS_VISIBLE; change(NULL);
+        assert(!wd.winehua_direct_early_wsi && client.parent==wd.wayland_surface);
+        style=0; change(NULL); assert(!wd.wayland_surface && !client.parent);
     } else if (!strcmp(argv[1],"destroy-show")) {
         style=WS_VISIBLE; change(&gdi); assert(wd.wayland_surface->xdg_surface);
         style=0; change(NULL); assert(!wd.wayland_surface && !client.parent);
@@ -156,7 +174,7 @@ class ClientRemapTest(base.WineShmStateCacheTest):
             '-o',str(cls.remap_binary)],check=True)
 
     def test_client_parent_lifecycle(self):
-        for scenario in ('hidden-show','destroy-show','layered','child','no-client','role-failure'):
+        for scenario in ('hidden-show','hidden-reservation','destroy-show','layered','child','no-client','role-failure'):
             with self.subTest(scenario=scenario):
                 result = subprocess.run([str(self.remap_binary),scenario],text=True,capture_output=True,
                     timeout=10,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0:halt_on_error=1'))

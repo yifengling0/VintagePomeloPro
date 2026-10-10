@@ -1,6 +1,7 @@
 #include "egl_renderer.h"
 #include "graphics_broker.h"
 #include "gl_capability_probe.h"
+#include "display_cadence.h"
 #include "common/perf_utils.h"
 #include "shader_utils.h"
 #include "compositor/toplevel/desktop_compositor.h"  // DesktopCompositor (6A 构造注入: 取帧/ZC 直连)
@@ -597,19 +598,8 @@ bool EglRenderer::SnapshotZeroCopyScene()
     for (const auto& consumer : zeroCopyConsumers_) {
         if (!consumer->registered || !consumer->hasFrame) continue;
         const auto& info = consumer->layer;
-        GpuDesktopLayer source;
-        source.zeroCopyKey = consumer->surfaceKey;
-        source.ownerSurfaceKey = (static_cast<uint64_t>(info.clientPid) << 32) | info.surfaceId;
-        source.parentToplevel = info.parentToplevel;
-        source.subsurface = info.subsurface;
-        source.external = info.external;
-        source.x = info.x; source.y = info.y;
-        source.w = info.width; source.h = info.height;
-        source.sourceW = consumer->sourceW; source.sourceH = consumer->sourceH;
-        // Wine's private Venus WSI advertises OPAQUE only. Swapchain alpha is
-        // undefined for composition (TR32 writes zero); it must not enter the
-        // premultiplied Wayland blend. GL/CEF native layers still keep alpha.
-        source.opaque = consumer->vulkanSource;
+        auto source = MakeNativeWindowLayer(consumer->surfaceKey, info,
+                                            consumer->sourceW, consumer->sourceH);
         sources.push_back(std::move(source));
     }
     if (sources.empty()) {
@@ -725,6 +715,8 @@ void EglRenderer::DrawZeroCopyScene(winehua::TextureUploadStats* uploads)
         glUseProgram(program_);
         glUniform1i(glGetUniformLocation(program_, "uTex"), 0);
         glUniform1f(glGetUniformLocation(program_, "uForceOpaque"), layer.opaque ? 1.f : 0.f);
+        glUniform3fv(glGetUniformLocation(program_, "uSampleU"), 1, layer.sampling.u.data());
+        glUniform3fv(glGetUniformLocation(program_, "uSampleV"), 1, layer.sampling.v.data());
         glDrawArrays(GL_TRIANGLES, 0, 6);
         noteDraw(layer);
     }
@@ -923,8 +915,7 @@ void EglRenderer::RenderLoop() {
     OH_NativeVSync* nativeVsync = OH_NativeVSync_Create(vsyncName, sizeof(vsyncName) - 1);
     if (nativeVsync) {
         OH_NativeVSync_ExpectedRateRange expectedRate = {60, 120, 120};
-        const int rateResult = OH_NativeVSync_SetExpectedFrameRateRange(
-            nativeVsync, &expectedRate);
+        const int rateResult = winehua::RequestDesktopRefreshRange(nativeVsync);
         OH_LOG_INFO(LOG_APP,
                     "[MW-RNDR] tl=%{public}u request frame rate min=%{public}d "
                     "max=%{public}d expected=%{public}d result=%{public}d",
@@ -1299,6 +1290,8 @@ void EglRenderer::RenderLoop() {
             const FitRect disp = ComputeFrameDisplayRect(drawW, drawH);
             glViewport(disp.offX, disp.offY, disp.dstW, disp.dstH);
             glUseProgram(program_);
+            glUniform3f(glGetUniformLocation(program_, "uSampleU"), 0.f, 1.f, 0.f);
+            glUniform3f(glGetUniformLocation(program_, "uSampleV"), 0.f, 0.f, 1.f);
             glBindTexture(GL_TEXTURE_2D, texture_);
             glUniform1i(glGetUniformLocation(program_, "uTex"), 0);
             glUniform1f(glGetUniformLocation(program_, "uForceOpaque"), frameArgb_ ? 0.0f : 1.0f);
