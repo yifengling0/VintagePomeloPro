@@ -1,6 +1,25 @@
 # 旧版 Steam Zstd 下载兼容补丁 v2（2026-10-07）
 
-此补丁针对用户提供的 `Steam.zip`：保留原 Steam 版本、CEF、`Steam.cfg` 和 `1.bat` 参数，为原有下载解包器增加 `VSZa`（Zstd）格式支持，并修复修改版客户端被启动时的模块签名检查拒绝的问题。ZIP / VZip（LZMA）/ gzip 等格式继续进入原代码。下载鉴权、原有解密、CRC 和下载内容校验仍执行。
+## 2026-10-11 完整分发包
+
+本次分发采用 runtime32 方案，磁盘上的 32/64 位客户端均保持原版。完整包构建入口：
+
+```sh
+python scripts/steam_legacy_zstd/package_full_runtime32.py \
+  /path/to/original/Steam /path/to/validated-runtime32-helpers /path/to/new-output
+```
+
+脚本核对冻结版本和已验证 helper 的 SHA256，只复制列出的客户端资源；排除 config、
+userdata、缓存、日志、转储和已安装游戏，保留 `2-perf-gpu-auto.bat`。输出完整 ZIP、
+中文说明、逐文件校验清单和 ZIP SHA256，并逐一读取 ZIP 成员校验解压后内容。
+原目录不修改。已在平板的新目录启动至无账号登录页，runtime32 安装记录为 `install=1`。
+游戏下载/PAL4证据和验证边界见下述报告；按用户要求本轮暂不继续处理窗口稳定性。
+
+下面的 v2/v3 使用与构建部分仅作历史记录，不能拿其中的覆盖文件列表套用 runtime32。
+
+此补丁针对用户提供的 `Steam.zip`：保留原 Steam 版本、CEF、`Steam.cfg` 和启动参数，为原有下载解包器增加 `VSZa`（Zstd）格式支持。ZIP / VZip（LZMA）/ gzip 等格式继续进入原代码。下载鉴权、原有解密、CRC 和下载内容校验仍执行。
+
+**2026-10-11：v3 的磁盘客户端修改已复现 PAL4 错误 51，不应把 v3 当成游戏兼容性通过的正式方案。** 新的 `VPP_STEAM_RUNTIME32=1` 候选保留两个原版客户端，只在精确冻结 Steam 主进程中安装解包扩展，原验证器结果保持不变。新候选已完成一款游戏的真实整包下载，游戏回归及长时间稳定性还在验证。实现、构建、哈希与结果见 [Steam 游戏兼容与下载解包分离](../../docs/architecture/steam-pal4-runtime-decoder-20261011.md)。下面的 v2/v3 说明保留为历史记录，默认构建暂未切换。
 
 v2 已在平板复现网页进程退出和主窗口丢失，暂不作为稳定包推广。前一版四 DLL 包只通过了解包函数测试，Windows 完整启动会提示 “There was a problem with your Steam installation. Please reinstall steam.”；`-noverifyfiles` 无法解决这项 SteamUI 内部检查。
 

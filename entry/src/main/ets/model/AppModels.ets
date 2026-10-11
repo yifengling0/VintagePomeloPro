@@ -315,15 +315,18 @@ export function isUnityCompatPreset(presetId: string): boolean {
 export const GRAPHICS_LAUNCH_PRESET_DEFAULT = 'default';
 export const GRAPHICS_LAUNCH_PRESET_DX11 = 'dx11';
 export const GRAPHICS_LAUNCH_PRESET_OPENGL = 'opengl';
+export const GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2 = 'godot3-gles2';
 
 export const GRAPHICS_LAUNCH_PRESET_IDS: string[] = [
   GRAPHICS_LAUNCH_PRESET_DEFAULT,
   GRAPHICS_LAUNCH_PRESET_DX11,
-  GRAPHICS_LAUNCH_PRESET_OPENGL
+  GRAPHICS_LAUNCH_PRESET_OPENGL,
+  GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2
 ];
 
 export function normalizeGraphicsLaunchPreset(value: string): string {
-  if (value === GRAPHICS_LAUNCH_PRESET_DX11 || value === GRAPHICS_LAUNCH_PRESET_OPENGL) {
+  if (value === GRAPHICS_LAUNCH_PRESET_DX11 || value === GRAPHICS_LAUNCH_PRESET_OPENGL ||
+    value === GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2) {
     return value;
   }
   return GRAPHICS_LAUNCH_PRESET_DEFAULT;
@@ -335,6 +338,8 @@ export function graphicsLaunchPresetLabel(presetId: string): string {
       return 'DX11';
     case GRAPHICS_LAUNCH_PRESET_OPENGL:
       return 'OpenGL';
+    case GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2:
+      return 'Godot 3 · GLES2';
     default:
       return '默认';
   }
@@ -346,6 +351,8 @@ export function graphicsLaunchPresetDescription(presetId: string): string {
       return '追加 -dx11 -force-d3d11，覆盖 Unreal/通用与 Unity Direct3D 11。';
     case GRAPHICS_LAUNCH_PRESET_OPENGL:
       return '追加 -opengl -force-glcore，覆盖 Unreal/旧版与 Unity CoreGL。';
+    case GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2:
+      return '使用 Godot 3 自带的 GLES2 兼容渲染，保留 GPU 加速；部分特效可能不同。不适用于 Godot 4。请在游戏主程序上选择；Steam 游戏请在 Steam 内的该游戏启动选项填写 --video-driver GLES2。';
     default:
       return '不追加图形参数，使用游戏自己的渲染器。';
   }
@@ -357,6 +364,8 @@ export function graphicsLaunchPresetArgs(presetId: string): string[] {
       return ['-dx11', '-force-d3d11'];
     case GRAPHICS_LAUNCH_PRESET_OPENGL:
       return ['-opengl', '-force-glcore'];
+    case GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2:
+      return ['--video-driver', 'GLES2'];
     default:
       return [];
   }
@@ -395,6 +404,37 @@ export function mergeLaunchArguments(base: string[], extras: string[]): string[]
     }
   }
   return result;
+}
+
+function withoutGodotVideoDriver(args: string[]): string[] {
+  const result: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    // Godot passes everything after -- to the project; do not rewrite it.
+    if (arg === '--') {
+      return result.concat(args.slice(index));
+    }
+    if (arg === '--video-driver') {
+      if (index + 1 < args.length && !args[index + 1].startsWith('-')) {
+        index++;
+      }
+      continue;
+    }
+    if (!arg.startsWith('--video-driver=')) {
+      result.push(arg);
+    }
+  }
+  return result;
+}
+
+export function resolveGraphicsLaunchArguments(presetId: string, base: string[], extras: string[]): string[] {
+  if (normalizeGraphicsLaunchPreset(presetId) === GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2) {
+    // Keep the option/value pair together. Token-level de-duplication can leave
+    // a previous GLES3 value behind or eat a GLES2 value belonging to another option.
+    return graphicsLaunchPresetArgs(presetId).concat(mergeLaunchArguments(
+      withoutGodotVideoDriver(base), withoutGodotVideoDriver(extras)));
+  }
+  return mergeLaunchArguments(graphicsLaunchPresetArgs(presetId), mergeLaunchArguments(base, extras));
 }
 
 export interface VirtualMouseConfig {
@@ -448,7 +488,7 @@ export interface AppSettings {
   favorite: boolean;
   /** Box64 兼容性预设；'default' 表示跟随全局设置。 */
   box64Preset: string;
-  /** 图形启动预设：default / dx11 / opengl。只改 argv。 */
+  /** 每游戏图形启动预设，只改 argv；默认不注入参数。 */
   graphicsLaunchPreset: string;
   /** 禁用 MF DXGI Device Manager；默认关。 */
   disableMfDxgiDeviceManager: boolean;

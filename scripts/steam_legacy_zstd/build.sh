@@ -44,6 +44,14 @@ for arch in i686 x86_64; do
     -o "$out/vpsteamzstd$bits.dll"
 done
 trust_args=()
+trust_source="$repo/scripts/steam_legacy_zstd/vpsteamtrust.c"
+if [[ "${VPP_STEAM_RUNTIME32:-0}" == 1 ]]; then
+  [[ "${VPP_STEAM_DECODE_DIAGNOSTIC:-0}" != 1 ]] || {
+    echo 'Runtime32 candidate requires the exact release decoder; diagnostic decoder is incompatible' >&2
+    exit 1
+  }
+  trust_source="$repo/scripts/steam_legacy_zstd/vpsteam_runtime32.c"
+fi
 if [[ "${VPP_STEAM_DECODE_DIAGNOSTIC:-0}" == 1 ]]; then
   python3 - "$out/vpsteamzstd32.dll" "$out/trust_expected.h" "$VPP_STEAM_TRUST_CLIENT_SHA256" <<'PY'
 import hashlib, sys
@@ -58,6 +66,6 @@ PY
   trust_args+=("-DVP_STEAM_TRUST_HASH_HEADER=\"$out/trust_expected.h\"")
 fi
 i686-w64-mingw32-gcc -O2 -Wall -Wextra -Werror -shared -static-libgcc \
-  "${trust_args[@]}" "$repo/scripts/steam_legacy_zstd/vpsteamtrust.c" -lbcrypt \
+  "${trust_args[@]}" "$trust_source" -lbcrypt \
   -Wl,--image-base,0x6fa40000 -Wl,--exclude-all-symbols -Wl,--no-insert-timestamp \
   -o "$out/vpsteamtrust32.dll"
