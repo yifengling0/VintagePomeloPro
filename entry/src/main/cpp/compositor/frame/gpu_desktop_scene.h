@@ -53,6 +53,12 @@ inline GpuDesktopLayer MakeNativeWindowLayer(uint64_t key, const ZeroCopyLayerIn
     return source;
 }
 
+inline void SetNativeProducerSampling(GpuDesktopLayer& layer, bool vulkan)
+{
+    layer.sampling.v = vulkan ? std::array<float, 4>{0, 0, 1, 0} :
+                               std::array<float, 4>{1, 0, -1, 0};
+}
+
 struct GpuDesktopDirectSource {
     uint32_t pid = 0, toplevel = 0, wlSurface = 0;
     int width = 0, height = 0;

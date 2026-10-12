@@ -692,9 +692,7 @@ export class WineWindowManager {
       case 'created':
         try {
           const initial = JSON.parse(data) as Record<string, string | number>;
-          if (this.sessionAssociationCallback &&
-            (this.presentationMode === WinePresentationMode.MANAGED_WINDOWS ||
-              this.isDesktopMode)) {
+          if (this.sessionAssociationCallback) {
             this.sessionAssociationCallback(initial.sessionId as string ?? '', initial.clientPid as number ?? 0, id);
           }
         } catch (_) {
@@ -1511,13 +1509,12 @@ export class WineWindowManager {
   //   光标 (启动瞬时) → 禁止; 子窗口 (真实游戏/程序) → 允许。
   private canHideCursor(fromToplevel: number): boolean {
     if (!this.isDesktopMode) return true;
-    if (DeviceCapabilityPolicy.usesManagedWineWindows()) {
+    if (this.desktopAbilityRunning || DeviceCapabilityPolicy.usesManagedWineWindows()) {
       if (!this.desktopAbilityForeground) return false;
     } else {
       if (this.desktopLauncherVisible) return false;
-      if (this.desktopAbilityRunning && !this.desktopAbilityForeground) return false;
     }
-    return fromToplevel !== this.desktopRootId;
+    return fromToplevel > 0 && fromToplevel !== this.desktopRootId;
   }
 
   // 关窗/锁定失败时清相对模式锁: 与 native ReleaseLockForToplevel 配对,

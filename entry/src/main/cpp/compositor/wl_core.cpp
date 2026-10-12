@@ -726,7 +726,7 @@ void WaylandServer::UpdateToplevelFrameOnCommit(SurfaceData* sd, wl_resource* su
      */
     if (outFirstCommit && Policy().OhosWindowPerToplevel()) {
         PostToplevelEvent(sd->toplevelId, ToplevelEventType::Created,
-                          ToplevelEventBus::JsonCreated(fi.contentW, fi.contentH));
+                          ToplevelEventBus::JsonCreated(fi.contentW, fi.contentH, sd->clientPid));
     }
     // ARGB 窗口位置同步 (argb_move) 随 "ARGB 也走普通窗口" 决定停用: ARGB
     // 窗口位置与 XRGB 窗口同规则 — OHOS 窗口管理器为权威, Wine 后续 commit
@@ -1148,6 +1148,9 @@ extern "C" void RegisterWlCoreGlobals(wl_display* display) {
         [](wl_resource* surface, double x, double y) {
             InputManager::GetInstance()->OnPointerWarp(surface, x, y);
         });
+    PointerExtras::GetInstance()->SetRelativeBaselineSink([](const char* reason) {
+        InputManager::GetInstance()->InvalidateRelativePointerBaseline(reason);
+    });
     // 会话引用装配 (重构第 6A 步): surface→toplevel 反查 (FindToplevelBySurface)
     // 与 isShell 判定直呼 ToplevelManager / root id / 桌面模式标志的共享引用 —
     // 替代 WaylandServer::FindToplevelIdBySurface/GetDesktopRootToplevelId 转发
@@ -1155,7 +1158,7 @@ extern "C" void RegisterWlCoreGlobals(wl_display* display) {
     // (与 warpSink 同模式; 装配出口见 wayland_server.h)。
     PointerExtras::GetInstance()->BindWaylandRefs(
         &WaylandServer::GetInstance()->GetToplevelManager(),
-        &self->DesktopRootToplevelIdRef(),
+        &self->DesktopRootToplevelIdRef(), &self->GetInputResolver(),
         &self->DesktopModeRef());
     // IME 文本输入 (Wine wayland_text_input.c 绑定, 软键盘文字经此注入)
     TextInput::GetInstance()->Register(display);

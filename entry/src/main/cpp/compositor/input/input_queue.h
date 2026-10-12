@@ -28,7 +28,8 @@ struct wl_resource;     // 事件载荷里只存指针做身份比较
 //     队列操作绝不移出锁外 (红线)。
 //
 // 去重规则 (逐字平移, 语义与旧一致):
-//   - PTR_MOTION / REL_MOTION: 同类型连续事件只保留最后一个 (绝对位置/增量)
+//   - PTR_MOTION: 同类型连续事件只保留最后一个绝对位置
+//   - REL_MOTION: 不去重 — 增量需要累加, 必须全部保留
 //   - PTR_BUTTON/KBD_KEY: 同键同状态连续事件合并
 //   - PTR_ENTER: 同 tl+surface 连续事件合并
 //   - PTR_AXIS: 不去重 — 每个值是累积滚动量, 丢中间值 = 丢滚动量

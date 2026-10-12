@@ -129,12 +129,14 @@ public:
     //   JsonCreated:      PC 模式首帧 (wl_core.cpp surface_commit, 值 = 内容尺寸)
     //   JsonCreatedDefault: 桌面模式 xdg_get_toplevel (xdg_shell.cpp, 硬编码 640x480,
     //                    ArkTS 据此预留首窗尺寸 — 首帧后走 resize 修正)
-    static std::string JsonCreated(int32_t w, int32_t h) {
-        char buf[64];
-        snprintf(buf, sizeof(buf), "{\"w\":%d,\"h\":%d}", w, h);
+    static std::string JsonCreated(int32_t w, int32_t h, uint32_t clientPid = 0) {
+        char buf[128];
+        if (clientPid) snprintf(buf, sizeof(buf), "{\"w\":%d,\"h\":%d,\"clientPid\":%u}", w, h, clientPid);
+        else snprintf(buf, sizeof(buf), "{\"w\":%d,\"h\":%d}", w, h);
         return buf;
     }
-    static std::string JsonCreatedDefault() { return "{\"w\":640,\"h\":480}"; }
+    static std::string JsonCreatedDefault(uint32_t clientPid = 0) { return JsonCreated(640, 480, clientPid); }
+
 
     static std::string JsonPopupHide(uint32_t popupId) {
         char buf[64];

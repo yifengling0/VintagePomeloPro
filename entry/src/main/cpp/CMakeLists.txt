@@ -48,6 +48,8 @@ add_library(entry SHARED
     graphics/graphics_profile.cpp
     wine/experiment_payload.cpp
     common/font_zip.cpp
+    common/steam_zip.cpp
+    common/steam_zip_reader.cpp
     graphics/host_vulkan_probe.cpp
     common/performance_monitor.cpp
     bridge/performance_monitor_napi.cpp
@@ -89,6 +91,7 @@ add_library(entry SHARED
     wine/wine_launch.cpp
     wine/wine_exe.cpp
     proc/broker.cpp
+    proc/wine_spawn_compatibility.cpp
     proc/wine_child_ipc_launcher.cpp
     proc/ncp_dispatch.cpp
     proc/cef_utility_probe.cpp
@@ -171,6 +174,7 @@ set_target_properties(fontzip_zlib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(fontzip_zlib PRIVATE Z_SOLO)
 target_compile_options(fontzip_zlib PRIVATE -O2 -fvisibility=hidden)
 set_source_files_properties(common/font_zip.cpp PROPERTIES COMPILE_DEFINITIONS Z_SOLO)
+set_source_files_properties(common/steam_zip_reader.cpp PROPERTIES COMPILE_DEFINITIONS Z_SOLO)
 target_link_libraries(entry PRIVATE fontzip_zlib)
 
 target_link_libraries(entry PUBLIC

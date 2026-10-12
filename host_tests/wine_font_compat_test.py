@@ -117,8 +117,10 @@ class WineFontCompatTest(unittest.TestCase):
         for relative in relatives - added:
             path = cls.tree / relative; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + relative], cwd=options.wine_src))
-        # Use the actual production direction detector, with stricter no-fuzz replay.
-        helper = function(script, 'ensure_wine_patch() {').replace('--batch', '--batch --fuzz=0')
+        # Exercise the actual production detector. Later overlays can change
+        # surrounding context; its direction and copied-stack checks must be
+        # tested with the same flags used by build_wine.sh.
+        helper = function(script, 'ensure_wine_patch() {')
         command = ('set -euo pipefail\nlog() { :; }\n' + helper +
                    '\nWINE_SRC="$1"\nshift\nfor p in "$@"; do ensure_wine_patch "$p" font-test; done\n')
         replay = ['bash', '-c', command, 'replay', str(cls.tree), *map(str, cls.patches)]

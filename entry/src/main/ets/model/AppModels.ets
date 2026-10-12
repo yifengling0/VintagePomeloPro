@@ -6,6 +6,8 @@ export enum AppSource {
 }
 
 export enum LaunchKind {
+  STEAM_CLIENT = 'steam-client',
+  STEAM_GAME = 'steam-game',
   WINE_EXE = 'wine-exe',
   WINE_SYSTEM = 'wine-system',
   WINE_DESKTOP = 'wine-desktop',
@@ -466,6 +468,8 @@ export interface LaunchTarget {
 }
 
 export interface AppDescriptor {
+  /** Stable Steam identity; absent for existing ordinary catalog cards. */
+  steam?: SteamLocalIdentity;
   id: string;
   title: string;
   source: AppSource;
@@ -476,6 +480,12 @@ export interface AppDescriptor {
   available: boolean;
   launchTarget: LaunchTarget;
   displayModeOverride: DisplayMode | null;
+}
+
+export interface SteamLocalIdentity {
+  clientId: string;
+  appId: string;
+  state: string;
 }
 
 export interface AppSettings {

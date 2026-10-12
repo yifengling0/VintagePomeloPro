@@ -82,7 +82,7 @@ public:
     //    wl_core.cpp 首帧 focus 预设直接调用本方法) --
     void InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fixed_t sx, wl_fixed_t sy);
     void InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy);
-    void InjectRelativeMotion(wl_fixed_t dx, wl_fixed_t dy);
+    void InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy);
     void InjectPointerButton(uint32_t button, uint32_t state);
     void InjectPointerAxis(int axis, wl_fixed_t value);
     void InjectPointerLeave();
@@ -93,6 +93,7 @@ public:
 
     // -- 状态重置 (Seat resource destroy 时调用) --
     void ResetPointerEnter();
+    void InvalidateRelativePointerBaseline(const char* reason);
     void ResetKeyboardEnter();
 
     // -- Wine 会话终结统一收口 (WaylandServer::ResetSessionState 调用) --

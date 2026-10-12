@@ -2013,6 +2013,15 @@ extern "C" void Main(NativeChildProcess_Args args)
     return;
 #else
     // Wine 与设备同架构 (方案① x86_64 / 方案③ arm64 原生): dlopen ntdll.so → __wine_main
+    if (getenv("WINEHUA_LAYOUT_DIAGNOSTICS")) {
+        static char layout[512 * 1024];
+        const size_t bytes = OhosReadFullMaps(layout, sizeof(layout));
+        const char marker[] = "[NATIVE-LAYOUT-BEFORE-WINE]\n";
+        (void)write(2, marker, sizeof(marker) - 1);
+        (void)write(2, layout, bytes);
+        const char end[] = "[NATIVE-LAYOUT-END]\n";
+        (void)write(2, end, sizeof(end) - 1);
+    }
     OH_LOG_INFO(LOG_APP, "[WineChild] dlopen ntdll.so...");
     void* ntdll = dlopen("ntdll.so", RTLD_NOW);
     if (!ntdll) {

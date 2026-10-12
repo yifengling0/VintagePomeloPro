@@ -46,6 +46,16 @@ PREFIX = r'''
 #include <thread>
 #include <cstdio>
 #include <cstring>
+#include "wine/wine_env.h"
+#include <algorithm>
+void UpsertEnvLine(std::vector<std::string>& env, const std::string& line) {
+    const auto prefix = line.substr(0, line.find('=') + 1);
+    env.erase(std::remove_if(env.begin(), env.end(), [&](const auto& old) {
+        return old.rfind(prefix, 0) == 0;
+    }), env.end());
+    env.push_back(line);
+}
+void AppendVulkanRuntimeEnv(std::vector<std::string>&, const std::string&) {}
 using winehua::spawn::Request;
 using winehua::spawn::EncodeEntry;
 using winehua::spawn::DecodeEntry;
@@ -256,8 +266,18 @@ static void FixedImageRoute() {
     assert(!RoundTrip(r,0)); assert(route==0);
     r.env.push_back("WINEHUA_DIRECT_NCP=1");
     assert(!RoundTrip(r,0)); assert(route==0);
-    // Relocatable PE32 continues using the session's Direct creation path.
+    // DYNAMIC_BASE cannot promise compatibility with the host's heap.
     fd=open(path,O_WRONLY); assert(fd>=0); image[158]=0x40;
+    assert(write(fd,image,sizeof(image))==sizeof(image)); close(fd);
+    assert(!RoundTrip(r,0)); assert(route==0);
+    const int previousAudio=audioOpened, previousLaunches=launches;
+    r.env.push_back("WINEHUA_VULKAN_BACKEND=direct");
+    assert(RoundTrip(r,0)==-ENOENT);
+    assert(audioOpened==previousAudio && launches==previousLaunches);
+    r.env.pop_back();
+    // A genuine free PE32 range retains the Direct session path.
+    p[54]=0; p[55]=0x70;
+    fd=open(path,O_WRONLY); assert(fd>=0);
     assert(write(fd,image,sizeof(image))==sizeof(image)); close(fd);
     assert(!RoundTrip(r,0)); assert(route==1);
     SetBrokerDirectNcpSessionDefault(false); unlink(path);
@@ -369,7 +389,7 @@ def main():
             'AbilityKit/native_child_process.h': NATIVE_HEADER,
             'hilog/log.h': '#pragma once\n#define LOG_APP 0\ntemplate<class... Args> void TestLog(Args...) {}\n#define OH_LOG_INFO(...) TestLog(__VA_ARGS__)\n#define OH_LOG_WARN(...) TestLog(__VA_ARGS__)\n#define OH_LOG_ERROR(...) TestLog(__VA_ARGS__)\n',
             'common/wait_utils.h': 'template<class F> bool WaitFor(const char*, F, int, int) { return true; }\n',
-            'wine/wine_constants.h': '#define WINE_BROKER_SOCKET "/tmp/vp-unused-broker"\n',
+            'wine/wine_constants.h': '#pragma once\n#undef WINE_BROKER_SOCKET\n#define WINE_BROKER_SOCKET "/tmp/vp-unused-broker"\n',
             'audio/audio_broker.h': 'namespace winehua { class AudioBroker { public: static AudioBroker& GetInstance() { static AudioBroker a; return a; } int CreateBootstrapHandle() { return OpenAudio(); } }; }\n',
             'broker.h': '', 'wine_process.h': '', 'wine_child_ipc_launcher.h': '',
             'phone_adapter/phone_adapter.h': '', 'phone_adapter/phone_process.h': '', 'cef_utility_probe.h': '',
@@ -408,7 +428,8 @@ def main():
         binary = folder / 'test'
         subprocess.run(['g++', '-std=c++17', *flags, '-pthread', '-I' + str(folder),
                         '-I' + str(ROOT / 'entry/src/main/cpp'), '-I' + str(ROOT / 'entry/src/main/cpp/proc'),
-                        str(harness), str(obj), '-o', str(binary)], check=True)
+                        str(harness), str(obj), str(ROOT/'entry/src/main/cpp/proc/wine_spawn_compatibility.cpp'),
+                        str(ROOT/'entry/src/main/cpp/graphics/graphics_profile.cpp'), '-o', str(binary)], check=True)
         subprocess.run([str(binary)], check=True, timeout=30)
         transport = folder / 'transport'
         subprocess.run(['cc', '-std=gnu11', *flags, '-pthread', '-I' + str(ROOT / 'entry/src/main/cpp'),

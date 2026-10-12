@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     assert(Occupied(image, "00400001-00400002 rw-p\n"));
     assert(ImageRangeOccupied(image, nullptr));
     write(Image(true));
-    assert(!ReadWineImagePolicy(name).PreservePreferredBase());
+    assert(ReadWineImagePolicy(name).PreservePreferredBase());
     auto bytes = Image(true); bytes[64 + 22] |= 1; write(bytes);
     assert(ReadWineImagePolicy(name).PreservePreferredBase());
     bytes = Image(); bytes[64 + 5] = 0x86; write(bytes); // x64 stays Direct-eligible
@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     request.argv = {name}; write(Image());
     // The test executable occupies 0x00400000 under -no-pie: real maps + real PE header.
     assert(RequiresFreshWineProcess(request));
-    write(Image(true)); assert(!RequiresFreshWineProcess(request));
+    write(Image(true)); assert(RequiresFreshWineProcess(request));
     unlink(name);
-    std::cout << "PASS: preferred PE32 base, mapped ranges, ASLR/x64, path resolution and malformed headers\n";
+    std::cout << "PASS: preferred PE32 base, mapped ranges, DYNAMIC_BASE/native conflicts/x64, path resolution and malformed headers\n";
 }

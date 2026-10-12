@@ -1,6 +1,7 @@
 import { hilog } from '../service/LogService';
 import testNapi from 'libentry.so';
 import { mapMouseButton } from '../common/MouseMap';
+import { InputDeviceMapper } from '../service/InputDeviceMapper';
 import { FpsHud } from '../components/FpsHud';
 
 const DOMAIN = 0x0000;
@@ -321,7 +322,10 @@ struct WinePopup {
         hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] POPUP-MOUSE popup=%{public}d action=%{public}d px=(%{public}d,%{public}d) btn=%{public}d',
           this.popupId, event.action, Math.round(px), Math.round(py), btn);
       }
-      testNapi.sendPointerEvent(this.popupId, event.action, px, py, btn, event.rawDeltaX, event.rawDeltaY, true);
+      const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+        event.deviceId ?? 0, event.rawDeltaX ?? 0, event.rawDeltaY ?? 0);
+      testNapi.sendPointerEvent(this.popupId, event.action, px, py, btn,
+        motion.rawDx, motion.rawDy, true);
     })
 
     // -- 滚轮事件 (菜单滚动条等) --

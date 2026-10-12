@@ -300,6 +300,16 @@ bool BuildLabGuestGraphicsEnvironment(std::string_view name,
                                              environment);
 }
 
+bool BuildVenusGuestGraphicsEnvironment(
+    D3dBackendKind backend, std::vector<std::string>* environment)
+{
+    if (!environment) return false;
+    environment->clear();
+    ProductGraphicsPolicy policy;
+    if (!ResolveVenusProductGraphicsPolicy(backend, &policy)) return false;
+    return SerializeGuestGraphicsEnvironment(policy.route, policy.guest, backend, environment);
+}
+
 bool BuildProductGuestGraphicsEnvironment(
     D3dBackendKind backend, std::vector<std::string>* environment)
 {

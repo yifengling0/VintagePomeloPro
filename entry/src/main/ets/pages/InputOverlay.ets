@@ -7,7 +7,8 @@ import {
   OH2EVDEV,
   asciiToEvdevKey
 } from '../common/KeyMap';
-import { InputRouter } from '../service/InputRouter';
+import { InputRouter, PointerInput } from '../service/InputRouter';
+import { InputDeviceMapper } from '../service/InputDeviceMapper';
 import { GamepadManager } from '../service/GamepadManager';
 import { WineWindowManager } from '../service/WineWindowManager';
 import {
@@ -806,16 +807,20 @@ struct InputOverlayPage {
     const x = vp2px(event.windowX);
     const y = vp2px(event.windowY);
     const button = mapMouseButton(event.button);
+    // Keep hardware origin and raw motion through the shared dispatcher.
+    // A frozen host cursor has no absolute movement; games still need its
+    // raw delta, and button presses must not warp a self-drawn cursor.
+    const input: PointerInput = { rawDx: 0, rawDy: 0, fromMouse: true };
     if (event.action === MouseAction.Press) {
       if (button === 272) {
         if (this.mouseLeftReleaseTimer >= 0) clearTimeout(this.mouseLeftReleaseTimer);
         this.mouseLeftReleaseTimer = -1;
         this.mouseLeftActive = true;
       }
-      InputDispatcher.getInstance().pointerDown(source, x, y, button);
+      InputDispatcher.getInstance().pointerDown(source, x, y, button, input);
     }
     else if (event.action === MouseAction.Release) {
-      InputDispatcher.getInstance().pointerUp(source, x, y, button);
+      InputDispatcher.getInstance().pointerUp(source, x, y, button, input);
       if (button === 272) {
         if (this.mouseLeftReleaseTimer >= 0) clearTimeout(this.mouseLeftReleaseTimer);
         this.mouseLeftReleaseTimer = setTimeout((): void => {
@@ -825,7 +830,13 @@ struct InputOverlayPage {
       }
       this.hideForExternalInput();
     }
-    else InputDispatcher.getInstance().pointerMove(source, x, y, false);
+    else if (event.action === MouseAction.Move) {
+      const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+        event.deviceId ?? 0, event.rawDeltaX ?? 0, event.rawDeltaY ?? 0);
+      input.rawDx = motion.rawDx;
+      input.rawDy = motion.rawDy;
+      InputDispatcher.getInstance().pointerMove(source, x, y, false, input);
+    }
   }
 
   private handleDirectAxis(event?: AxisEvent): void {

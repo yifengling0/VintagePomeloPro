@@ -2,6 +2,7 @@
 #include "broker.h"
 #include "spawn_codec.h"
 #include "wine_image_policy.h"
+#include "wine_spawn_compatibility.h"
 #include "common/wait_utils.h"
 #include "wine/wine_constants.h"
 #include "audio/audio_broker.h"
@@ -102,6 +103,14 @@ static void LaunchJob(BrokerJob& job) {
     }
     request.home = gBrokerHomeDir;
     if (!gBrokerPrefixDir.empty()) request.env.emplace_back("WINEPREFIX=" + gBrokerPrefixDir);
+    const bool freshImage = winehua::spawn::RequiresFreshWineProcess(request);
+    const auto freshGraphics = winehua::spawn::ConfigureFreshWineGraphics(request, freshImage, request.bin);
+    if (freshGraphics == winehua::spawn::FreshWineGraphics::MissingRuntime) {
+        OH_LOG_ERROR(LOG_APP, "[PROC-IMAGE] clean process requires packaged Venus runtime");
+        Reply(job.conn, -1, -ENOENT); return;
+    }
+    if (freshGraphics == winehua::spawn::FreshWineGraphics::Venus)
+        OH_LOG_INFO(LOG_APP, "[PROC-IMAGE] clean PE32 process uses Venus with the active desktop");
     // Verify the final parameter budget before creating audio resources or a child.
     std::string entry;
     if (!winehua::spawn::EncodeEntry(request, entry)) {
@@ -125,7 +134,6 @@ static void LaunchJob(BrokerJob& job) {
     NativeChildProcess_Args args{};
     args.entryParams = entry.data(); args.fdList.head = request.names.empty() ? nullptr : nodes;
     NativeChildProcess_Options options{}; options.isolationMode = NCP_ISOLATION_MODE_NORMAL;
-    const bool freshImage = winehua::spawn::RequiresFreshWineProcess(request);
     const bool direct = !freshImage && winehua::spawn::EnvFlag(request, "WINEHUA_DIRECT_NCP",
         gDirectNcpSessionDefault.load(std::memory_order_acquire));
     if (freshImage)

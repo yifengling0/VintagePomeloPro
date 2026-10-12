@@ -556,18 +556,10 @@ export struct DesktopLayer {
               hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] MOUSE-MOVE tl=%{public}d px=(%{public}d,%{public}d) n=%{public}d',
                 tl, px, py, this.hoverLogCounter);
             }
-            // rawDelta 按设备校准 (与 WineWindow 同规则: 鼠标 2.5 / 触控板 0.625)
-            // — 收口 ArkTS 时此处漏乘, 桌面模式相对模式增量只有融合窗口的
-            // 1/2.5, 同一鼠标两种手感; 绝对模式有差分自标定, 不受影响
-            let rawDx = ev.rawDeltaX ?? 0;
-            let rawDy = ev.rawDeltaY ?? 0;
-            const devId = ev.deviceId ?? 0;
-            if (devId > 0) {
-              const s = InputDeviceMapper.getInstance().getScale(devId);
-              rawDx *= s;
-              rawDy *= s;
-            }
-            testNapi.sendPointerEvent(tl, MouseAction.Move, px, py, 0, rawDx, rawDy);
+            const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+              ev.deviceId ?? 0, ev.rawDeltaX ?? 0, ev.rawDeltaY ?? 0);
+            testNapi.sendPointerEvent(tl, MouseAction.Move, px, py, 0,
+              motion.rawDx, motion.rawDy, true);
             return;
           }
           if (ev.action !== MouseAction.Press && ev.action !== MouseAction.Release) return;

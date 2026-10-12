@@ -91,19 +91,22 @@ int main() {
 
 BIND = COMMON + r'''
 #include "compositor/frame/zc_bridge.h"
+struct SurfaceData { uint32_t clientPid=100,protocolId=25,toplevelId=5; int w=0,h=0; };
+static void* wl_resource_get_user_data(void* resource) { return resource; }
 struct Manager {
     std::mutex mutex; std::unordered_set<uint64_t> resources;
+    SurfaceData data;
     auto Lock() { return std::unique_lock<std::mutex>(mutex); }
-    void* FindSurfaceResource(uint64_t key) { return resources.count(key)?this:nullptr; }
+    void* FindSurfaceResource(uint64_t key) { return resources.count(key)?&data:nullptr; }
 };
-struct SurfaceData { uint32_t clientPid=100,protocolId=25,toplevelId=5; };
 struct Bridge {
     struct { Manager tmgr_; } comp_;
     std::unordered_map<uint64_t,WineHuaPresentBinding> presentBindings_;
     std::unordered_map<uint64_t,uint64_t> windowBindings_,lastPresentUsByKey_;
     struct Diag { bool bound=false; char lastReject[48]={}; };
     std::unordered_map<uint64_t,Diag> bindDiagProducers_;
-    struct ConsumedContent { int width=0,height=0;uint64_t bindingGeneration=0; };
+    struct ConsumedContent { int width=0,height=0;uint64_t bindingGeneration=0;
+        int protocolWidthAtConsume=0,protocolHeightAtConsume=0; };
     std::unordered_map<uint64_t,ConsumedContent> consumedSizes_;
     uint64_t nextBindingGeneration_=0;
     std::unordered_set<uint64_t> bindingRejectedLogged_;

@@ -251,6 +251,57 @@ int main()
         CHECK(t.NextSerial() == 6, "session reset keeps serial monotonic");
     }
 
+    // Relative deltas may only reuse a baseline from the same coordinate space.
+    {
+        wl_resource* surfA = FakeRes(0x1000);
+        wl_resource* surfB = FakeRes(0x2000);
+        FitRect fit;
+        fit.srcW = 800; fit.srcH = 600; fit.offX = 20; fit.scale = 1;
+        FitRect display;
+        display.srcW = 1920; display.srcH = 1080;
+        display.dstW = 960; display.dstH = 540; display.scale = 0.5;
+        const uint64_t epoch = t.RelativeSpaceEpoch();
+        t.ResetLastLocal();
+        t.TrackRelativeSpace(10, surfA, epoch, fit, display);
+        CHECK(!t.SameRelativeSpace(10, surfA, epoch, fit, display),
+              "space without local baseline cannot produce a differential");
+        t.UpdateLastLocal(100, 100);
+        CHECK(t.SameRelativeSpace(10, surfA, epoch, fit, display),
+              "continuous same-space movement retains its baseline");
+        CHECK(!t.SameRelativeSpace(11, surfA, epoch, fit, display),
+              "toplevel change invalidates differential");
+        CHECK(!t.SameRelativeSpace(10, surfB, epoch, fit, display),
+              "subsurface change invalidates differential");
+        auto resized = fit; resized.srcW += 1;
+        CHECK(!t.SameRelativeSpace(10, surfA, epoch, resized, display),
+              "content size change invalidates differential");
+        auto moved = fit; moved.offX += 1;
+        CHECK(!t.SameRelativeSpace(10, surfA, epoch, moved, display),
+              "content origin change invalidates differential");
+        auto scaled = fit; scaled.scale = 2;
+        CHECK(!t.SameRelativeSpace(10, surfA, epoch, scaled, display),
+              "content scale change invalidates differential");
+        auto letterbox = display; letterbox.offY += 10;
+        CHECK(!t.SameRelativeSpace(10, surfA, epoch, fit, letterbox),
+              "letterbox origin change invalidates differential");
+        letterbox = display; letterbox.dstW += 1;
+        CHECK(!t.SameRelativeSpace(10, surfA, epoch, fit, letterbox),
+              "display size change invalidates differential");
+        const uint64_t next = t.InvalidateRelativeBaseline();
+        CHECK(next > epoch && !t.SameRelativeSpace(10, surfA, next, fit, display),
+              "cross-thread mode invalidation advances epoch");
+        t.TrackRelativeSpace(10, surfA, next, fit, display);
+        CHECK(t.SameRelativeSpace(10, surfA, next, fit, display),
+              "next motion can establish the new mode baseline");
+        t.ResetRelativeSpace();
+        CHECK(!t.SameRelativeSpace(10, surfA, next, fit, display),
+              "leaving relative mode clears space identity");
+        t.TrackRelativeSpace(10, surfA, next, fit, display);
+        t.ResetLastLocal();
+        CHECK(!t.SameRelativeSpace(10, surfA, next, fit, display),
+              "session reset prevents retaining an old local baseline");
+    }
+
     std::printf("input_state_test: %d checks / %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

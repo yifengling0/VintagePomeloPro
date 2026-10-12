@@ -256,3 +256,6 @@ export interface FontZipExtractResult {
   zlibCode: number;
 }
 export const extractFontZipAsync: (zipPath: string, outDir: string) => Promise<FontZipExtractResult>;
+export interface SteamZipProgress { done: number; total: number; }
+export const extractSteamZipAsync: (fd: number, outDir: string) => Promise<void>;
+export const getSteamZipProgress: () => SteamZipProgress;

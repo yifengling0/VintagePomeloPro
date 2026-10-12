@@ -497,7 +497,7 @@ struct SteamAccount {
       .onClick((): void => { router.back(); })
       .id('steam-back-button')
 
-      Text('Steam 账号').fontSize(15).fontWeight(FontWeight.Medium)
+      Text('Steam 封面与资料账号').fontSize(15).fontWeight(FontWeight.Medium)
         .fontColor(skinColor('text_primary')).margin({ left: 10 })
         .layoutWeight(1)
     }
@@ -917,6 +917,8 @@ struct SteamAccount {
   build() {
     Column({ space: 8 }) {
       this.TopBar()
+      Text('此处登录用于游戏库、封面和资料同步；游戏登录与安装由 Steam 客户端管理。')
+        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
       if (this.availableWidth < 600) {
         Scroll() {
           Row({ space: 4 }) {

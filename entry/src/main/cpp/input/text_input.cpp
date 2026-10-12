@@ -202,6 +202,21 @@ void TextInput::OnKeyboardEnter(wl_resource* surface) {
     OH_LOG_INFO(LOG_APP, "[TextInput] enter surface=%{public}p (client=%{public}p)", surface, c);
 }
 
+void TextInput::ResetKeyboardFocus() {
+    bool wasActivated;
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        wasActivated = state_.activated;
+        state_.enabled = false;
+        state_.activated = false;
+        state_.cursorX = state_.cursorY = 0;
+        state_.cursorW = state_.cursorH = 0;
+        state_.res = nullptr;
+        state_.surface = nullptr;
+    }
+    if (wasActivated) NotifyActivated(false);
+}
+
 void TextInput::OnKeyboardLeave(wl_resource* surface) {
     bool wasActivated;
     {

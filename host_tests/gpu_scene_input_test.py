@@ -13,6 +13,7 @@ p.add_argument('--resize-baseline',action='store_true',help='Reproduce stale SHM
 p.add_argument('--resize-baseline-ref',default='f47090663537b1e70ad1ebe2f76bd2c34cfbb6af')
 p.add_argument('--viewport-baseline',action='store_true',help='Reproduce padded SHM menu compression with prior compositor')
 p.add_argument('--input-region-baseline',action='store_true',help='Reproduce Direct GPU child intercepting pointer input')
+p.add_argument('--warp-baseline',action='store_true',help='Reproduce an inactive fullscreen window warping the foreground pointer')
 args=p.parse_args()
 assert not (args.baseline and args.focus_baseline)
 with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
@@ -22,6 +23,7 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
         archive=subprocess.check_output(['git','archive',args.baseline_ref,'entry/src/main/cpp'],cwd=ROOT)
         subprocess.run(['tar','-x','-C',str(source)],input=archive,check=True)
     cpp=source/'entry/src/main/cpp'
+    target_relative_motion = 'HasRelativePointerForSurface' in (cpp/'input/pointer_extras.h').read_text()
     includes=[ROOT/'host_tests/focus_stubs',ROOT/'host_tests/stubs',cpp,cpp/'compositor',
               cpp/'compositor/frame',cpp/'compositor/toplevel',cpp/'compositor/input']
     units=['compositor/toplevel/desktop_compositor.cpp','compositor/toplevel/toplevel_manager.cpp',
@@ -33,8 +35,14 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
     command=['g++','-std=c++17','-Wall','-Wextra','-Werror','-Wno-unused-parameter',
              '-ffunction-sections','-fdata-sections','-pthread']
     if args.baseline:command+=['-DGPU_FOLLOWUP_BASELINE']
+    if target_relative_motion:command+=['-DRELATIVE_POINTER_WITH_SURFACE']
     command += [item for inc in includes for item in ('-I',str(inc))]
     sources=[str(cpp/u) for u in units]
+    if args.warp_baseline:
+        unit='compositor/input/input_resolver.cpp'
+        resolver=temp/'baseline-warp-resolver.cpp'
+        resolver.write_bytes(subprocess.check_output(['git','show','HEAD:entry/src/main/cpp/'+unit],cwd=ROOT))
+        sources[sources.index(str(cpp/unit))]=str(resolver)
     if args.input_region_baseline:
         unit='compositor/input/input_resolver.cpp'
         resolver=temp/'baseline-input-resolver.cpp'
@@ -55,20 +63,34 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
         injector=temp/'baseline-injector.cpp'
         injector.write_bytes(subprocess.check_output(
             ['git','show',args.focus_baseline_ref+':entry/src/main/cpp/'+unit],cwd=ROOT))
+        if target_relative_motion:
+            text=injector.read_text().replace('InjectRelativeMotion(wl_fixed_t dx, wl_fixed_t dy)',
+                'InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy)')
+            text=text.replace('SendRelativeMotion(\n', 'SendRelativeMotion(\n        surface, ')
+            injector.write_text(text)
         sources[sources.index(str(cpp/unit))]=str(injector)
         unit='input/input_manager.cpp'
         manager=temp/'baseline-manager.cpp'
         manager.write_bytes(subprocess.check_output(
             ['git','show',args.focus_baseline_ref+':entry/src/main/cpp/'+unit],cwd=ROOT))
+        if target_relative_motion:
+            text=manager.read_text().replace('InjectRelativeMotion(wl_fixed_t dx, wl_fixed_t dy)',
+                'InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy)')
+            text=text.replace('injector_.InjectRelativeMotion(dx, dy)', 'injector_.InjectRelativeMotion(surface, dx, dy)')
+            text=text.replace('injector_.InjectRelativeMotion(ev.x, ev.y)', 'injector_.InjectRelativeMotion(ev.surface, ev.x, ev.y)')
+            manager.write_text(text)
         sources[sources.index(str(cpp/unit))]=str(manager)
         command+=['-I',str(cpp/'input')]
     command += [str(ROOT/'host_tests/gpu_scene_input_test.cpp')]+sources
     command += ['-Wl,--gc-sections','-o',str(temp/'test')]
     subprocess.run(command,check=True)
-    modes=[14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 15))))
+    modes=[16] if args.warp_baseline else ([14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 17)))))
     for mode in modes:
         result=subprocess.run([str(temp/'test'),str(mode)],capture_output=True,text=True,timeout=20)
-        if args.input_region_baseline:
+        if args.warp_baseline:
+            assert result.returncode!=0 and 'inactive fullscreen window must not warp' in result.stderr,result.stdout+result.stderr
+            print('BASELINE RED: inactive fullscreen window can warp the foreground pointer')
+        elif args.input_region_baseline:
             assert result.returncode!=0 and 'Direct input-transparent drawable must delegate' in result.stderr,result.stdout+result.stderr
             print('BASELINE RED: Direct GPU-only child intercepts parent pointer events')
         elif args.viewport_baseline:

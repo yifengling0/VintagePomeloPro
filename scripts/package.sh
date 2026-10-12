@@ -289,6 +289,7 @@ with open('$module_json', 'w') as f:
     python3 "$SCRIPT_DIR/runtime_library_guard.py" \
         "$WINEHUA/entry/libs" "$WINEHUA/entry/src/main/resources/rawfile"
     cd "$WINEHUA"
+    python3 "$SCRIPT_DIR/prepare_steam_gpu_dependency.py"
     hvigorw assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"

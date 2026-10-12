@@ -57,7 +57,13 @@ struct Diag{uint64_t firstUs=0,lastUs=0;uint32_t frames=0,width=0,height=0;bool 
 class ZcBridge{public:Comp comp_;uint64_t nextBindingGeneration_=0;
 std::unordered_map<uint64_t,WineHuaPresentBinding>presentBindings_;std::unordered_map<uint64_t,uint64_t>windowBindings_;std::unordered_set<uint64_t>bindingRejectedLogged_;std::unordered_map<uint64_t,Diag>bindDiagProducers_;
 std::unordered_map<uint64_t,uint64_t> lastPresentUsByKey_;std::mutex presentLivenessMutex_;
-struct ConsumedContent{int width,height;uint64_t bindingGeneration;};std::unordered_map<uint64_t,ConsumedContent> consumedSizes_;
+struct ConsumedContent{
+ int width=0,height=0;uint64_t bindingGeneration=0;
+ int protocolWidthAtConsume=0,protocolHeightAtConsume=0;
+ int ResolveWidth(int protocolWidth)const{return protocolWidth==protocolWidthAtConsume?width:protocolWidth;}
+ int ResolveHeight(int protocolHeight)const{return protocolHeight==protocolHeightAtConsume?height:protocolHeight;}
+};std::unordered_map<uint64_t,ConsumedContent> consumedSizes_;
+std::unordered_set<uint64_t> activeKeys_;
 uint64_t LastPresentUs(uint64_t k){return lastPresentUsByKey_[k];}
 void PruneStaleWindowBindings();
 bool NoteLayerConsumed(uint64_t,uint64_t,uint64_t,int=0,int=0);

@@ -175,6 +175,8 @@ export struct AppCard {
         Row({ space: 4 }) {
           if (this.app.source === AppSource.BUILTIN) {
             this.CompactBadge('内建', '#E02979B8')
+          } else if (this.app.steam) {
+            this.CompactBadge(this.app.steam.appId ? 'Steam' : '客户端', '#DE2979B8')
           }
         }
         .padding({ left: 8, right: 8, top: 8 })
@@ -188,12 +190,14 @@ export struct AppCard {
         Row({ space: 5 }) {
           if (this.app.source === AppSource.BUILTIN) {
             this.Badge('内建', '#DE2979B8')
+          } else if (this.app.steam) {
+            this.Badge(this.app.steam.appId ? 'Steam' : '客户端', '#DE2979B8')
           }
           if (this.running) {
             this.Badge('运行中', '#CC22A06B')
           }
           if (!this.app.available) {
-            this.Badge('不可用', '#CCD64C4C')
+            this.Badge(this.app.steam ? '安装中' : '不可用', '#CCD64C4C')
           }
         }
         .padding(10)

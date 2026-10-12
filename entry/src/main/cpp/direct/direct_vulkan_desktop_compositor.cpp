@@ -69,6 +69,7 @@ class VulkanDesktopRenderer {
     struct GlLayer {
         uint64_t key = 0;
         ZeroCopyLayerInfo geometry;
+        bool vulkan = false;
         winehua::NativeWindowLease window;
         std::shared_ptr<DirectImageQueue> queue;
         Buffer current;
@@ -186,9 +187,9 @@ public:
             if (!layer->current.image) continue;
             const auto& info = layer->geometry;
             auto source = MakeNativeWindowLayer(key, info, layer->width, layer->height);
-            // The GLES producer writes bottom-up framebuffer coordinates.
-            // Vulkan samples the imported NativeBuffer from its top row.
-            source.sampling.v = {1, 0, -1, 0};
+            // GLES framebuffer rows are bottom-up; Venus output rows are
+            // already top-down. Both use the NativeWindow OPAQUE contract.
+            SetNativeProducerSampling(source, layer->vulkan);
             glSources.push_back(source);
         }
         if (!compositor_.SnapshotGpuDesktopScene(direct, snapshots_, next, glSources)) {
@@ -430,9 +431,19 @@ private:
             if (broker.QueryZeroCopySurfaces(sources)) {
                 std::unordered_set<uint64_t> live;
                 for (const auto& source : sources) {
-                    if (source.vulkan || !source.surfaceKey) continue;
+                    if (!source.surfaceKey) continue;
                     live.insert(source.surfaceKey);
-                    if (glLayers_.count(source.surfaceKey) || source.attached ||
+                    const auto existing = glLayers_.find(source.surfaceKey);
+                    if (existing != glLayers_.end() && existing->second->vulkan != source.vulkan) {
+                        // A renderer change ends this queue's sampling/cache
+                        // lifetime. Wait for a fresh broker snapshot to reattach;
+                        // submitted frames still retain their old queue/image.
+                        ReleaseGlLayer(*existing->second);
+                        glLayers_.erase(existing);
+                        failedGlKeys_.erase(source.surfaceKey);
+                        continue;
+                    }
+                    if (existing != glLayers_.end() || source.attached ||
                         failedGlKeys_.count(source.surfaceKey)) continue;
                     ZeroCopyLayerInfo geometry;
                     if (!compositor_.GetZeroCopyLayerInfo(source.surfaceKey, root,
@@ -441,6 +452,7 @@ private:
                     if (!consumer) continue;
                     auto layer = std::make_unique<GlLayer>();
                     layer->key = source.surfaceKey;
+                    layer->vulkan = source.vulkan;
                     layer->geometry = geometry;
                     layer->width = source.width; layer->height = source.height;
                     layer->queue = std::make_shared<DirectImageQueue>(consumer);
@@ -451,11 +463,11 @@ private:
                     layer->window.Adopt(OH_NativeImage_AcquireNativeWindow(consumer),
                                        NativeWindowReleaseMode::UnreferenceNativeObject);
                     if (!layer->window || !broker.AttachZeroCopyTarget(source.surfaceKey,
-                            layer->window.Get(), cadence_.PeriodNs(), false)) continue;
+                            layer->window.Get(), cadence_.PeriodNs(), source.vulkan)) continue;
                     compositor_.zc().BindSurface(source.surfaceKey, geometry.shmCommitSerial);
-                    OH_LOG_INFO(LOG_APP, "[VIRGL-VK] attached key=%{public}llu size=%{public}ux%{public}u generation=%{public}llu",
+                    OH_LOG_INFO(LOG_APP, "[VIRGL-VK] attached key=%{public}llu size=%{public}ux%{public}u generation=%{public}llu vulkan=%{public}d",
                         (unsigned long long)source.surfaceKey, source.width, source.height,
-                        (unsigned long long)geometry.bindingGeneration);
+                        (unsigned long long)geometry.bindingGeneration, source.vulkan);
                     glLayers_.emplace(source.surfaceKey, std::move(layer));
                 }
                 for (auto it = glLayers_.begin(); it != glLayers_.end();)

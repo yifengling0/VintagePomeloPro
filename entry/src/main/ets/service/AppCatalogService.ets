@@ -14,6 +14,8 @@ import {
   stableAppId
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
+import { SteamLocalService } from '../steam/SteamLocalService';
+import { SteamCatalogScope, steamCatalogPathKind } from '../steam/SteamLocalRules';
 import { DesktopModeService, MODE_VIRTUAL } from './DesktopModeService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
@@ -265,6 +267,8 @@ export class AppCatalogService {
     // returns the app-scoped Download/<bundle> directory and restores its
     // persistent access grant when the directory already exists.
     if (!status.ready) await this.provisionGamesDirectory();
+    try { await SteamLocalService.getInstance().initialize(context, this.libraryRoot); }
+    catch (error) { hilog.warn(DOMAIN, TAG, 'Steam recovery: %{public}s', String(error)); }
   }
 
   getLibraryRoot(): string {
@@ -464,9 +468,14 @@ export class AppCatalogService {
     builtins.forEach((item: AppDescriptor) => merged.push(item));
 
     const directoryStatus = this.ensureGamesDirectory();
+    // Resolve Steam ownership once, then use identical boundaries for both
+    // fresh discovery and old cache entries (including unavailable helpers).
+    const steamScope = SteamLocalService.getInstance().getCatalogScope();
     if (directoryStatus.ready) {
+      const steam = await SteamLocalService.getInstance().scan();
+      steam.forEach((item: AppDescriptor) => merged.push(item));
       const external = await this.scanExternal(directoryStatus.games,
-        AppSettingsStore.getInstance().getCatalogCache());
+        AppSettingsStore.getInstance().getCatalogCache(), steamScope);
       external.forEach((item: AppDescriptor) => merged.push(item));
     }
 
@@ -475,6 +484,8 @@ export class AppCatalogService {
     const cachedCards = AppSettingsStore.getInstance().getCatalogCache();
     for (let cachedIndex = 0; cachedIndex < cachedCards.length; cachedIndex++) {
       const cached = cachedCards[cachedIndex];
+      if (cached.steam) continue;
+      if (steamCatalogPathKind(cached.directory, steamScope) !== 'game') continue;
       if (cached.source !== AppSource.DOWNLOAD || currentIds.has(cached.id)) continue;
       const settings = AppSettingsStore.getInstance().getAppSettings(cached.id);
       cached.title = settings.customTitle || cached.title;
@@ -625,7 +636,7 @@ export class AppCatalogService {
   }
 
   private async scanExternal(gamesPath: string, cachedCards: AppDescriptor[],
-    containerDepth: number = 0): Promise<AppDescriptor[]> {
+    steamScope: SteamCatalogScope, containerDepth: number = 0): Promise<AppDescriptor[]> {
     const result: AppDescriptor[] = [];
     let names: string[] = [];
     try {
@@ -638,13 +649,15 @@ export class AppCatalogService {
       const name = names[index];
       if (containerDepth === 0 && name.toLowerCase() === 'steam-download-staging') continue;
       const path = joinPath(gamesPath, name);
+      const steamKind = steamCatalogPathKind(path, steamScope);
+      if (steamKind === 'excluded') continue;
       if (await isDirectoryAsync(path)) {
         // Some older builds provisioned an extra games/games level. Treat it
         // as a structural container and expose each directory below it as its
         // own card instead of showing one unavailable card named "games".
-        if ((name.toLowerCase() === GAMES_DIRECTORY ||
-          (name.toLowerCase() === 'steam' && containerDepth === 0)) && containerDepth < 2) {
-          const nested = await this.scanExternal(path, cachedCards, containerDepth + 1);
+        if (steamKind === 'container' || ((name.toLowerCase() === GAMES_DIRECTORY ||
+          (name.toLowerCase() === 'steam' && containerDepth === 0)) && containerDepth < 2)) {
+          const nested = await this.scanExternal(path, cachedCards, steamScope, containerDepth + 1);
           nested.forEach((item: AppDescriptor) => result.push(item));
           continue;
         }

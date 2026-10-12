@@ -401,19 +401,12 @@ struct WineWindow {
         hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] MOUSE tl=%{public}d action=%{public}d px=(%{public}d,%{public}d) btn=%{public}d',
           this.toplevelId, event.action, Math.round(px), Math.round(py), btn);
       }
-      // 按输入设备类型缩放 rawDelta (相对模式增量 = rawDx × kSensRel 无标定,
-      // 触控板 raw 单位约为鼠标 5~10 倍, 不缩放则"移动一点点光标跑很多");
-      // 绝对模式有差分自标定, 缩放不影响结果
-      // event.deviceId 类型是 number|undefined (运行时恒有, 类型标注缺省)
-      let rawDx = event.rawDeltaX ?? 0;
-      let rawDy = event.rawDeltaY ?? 0;
-      const devId = event.deviceId ?? 0;
-      if (devId > 0) {
-        const s = InputDeviceMapper.getInstance().getScale(devId);
-        rawDx *= s;
-        rawDy *= s;
-      }
-      testNapi.sendPointerEvent(this.toplevelId, event.action, px, py, btn, rawDx, rawDy, true);
+      // Physical raw motion uses the shared main-branch calibration once.
+      // Absolute coordinates are still mapped by the native input resolver.
+      const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+        event.deviceId ?? 0, event.rawDeltaX ?? 0, event.rawDeltaY ?? 0);
+      testNapi.sendPointerEvent(this.toplevelId, event.action, px, py, btn,
+        motion.rawDx, motion.rawDy, true);
     })
 
     // -- 键盘事件 --

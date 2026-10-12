@@ -121,6 +121,11 @@ bool BuildLabGuestGraphicsEnvironment(std::string_view name,
 
 // Serializes the Guest half of a normal product route. This keeps product
 // operation independent from the historical LAB profile registry.
+// Guest Venus contract for a child whose native process cannot use Direct.
+// The global Direct capability and the active desktop consumer stay intact.
+bool BuildVenusGuestGraphicsEnvironment(
+    D3dBackendKind backend, std::vector<std::string>* environment);
+
 bool BuildProductGuestGraphicsEnvironment(
     D3dBackendKind backend, std::vector<std::string>* environment);
 

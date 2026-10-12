@@ -29,6 +29,7 @@ import {
   ThemeMode,
   SortMode,
   UiSkin,
+  SessionState,
   ViewMode,
   cloneAppSettings,
   normalizeLaunchPath,
@@ -47,6 +48,9 @@ import { WineWindowManager } from '../service/WineWindowManager';
 import { SteamService, SteamUiState } from '../steam/SteamService';
 import { SteamLibraryService } from '../steam/SteamLibrary';
 import { SteamMatch } from '../steam/SteamMatch';
+import { SteamLocalService } from '../steam/SteamLocalService';
+import { STEAM_CLIENT_ID } from '../steam/SteamLocalRules';
+import { SteamClientPanel } from '../components/SteamClientPanel';
 import { InputRouter } from '../service/InputRouter';
 import { EVDEV_KEY_ENTER } from '../common/KeyMap';
 import { GamepadManager, GamepadNavigationListener } from '../service/GamepadManager';
@@ -155,6 +159,8 @@ struct Index {
   @State private steamPopSeconds: number = 30;
   @State private steamMatching: boolean = false;
   private steamPopTimer: number = -1;
+  private steamScanTimer: number = -1;
+  private steamScanBusy: boolean = false;
   @State private searchQuery: string = '';
   @State private filter: CatalogFilter = 'builtin';
   @State private breakpoint: BreakpointType = 'lg';
@@ -727,6 +733,7 @@ struct Index {
     };
     WineEngineService.getInstance().subscribe(this.engineCallback);
     this.refreshTimer = setInterval(() => this.refreshRunningState(), 1500);
+    this.steamScanTimer = setInterval((): void => { void this.pollSteamLibrary(); }, 5000);
     this.artworkListener = (_appId: string, _path: string): void => {
       this.consoleBackgroundCache.delete(_appId);
       this.artworkRevision++;
@@ -742,6 +749,7 @@ struct Index {
     if (this.engineCallback) WineEngineService.getInstance().unsubscribe(this.engineCallback);
     if (this.settingsCallback) ThemeSettingsService.getInstance().unsubscribe(this.settingsCallback);
     if (this.refreshTimer >= 0) clearInterval(this.refreshTimer);
+    if (this.steamScanTimer >= 0) clearInterval(this.steamScanTimer);
     if (this.artworkListener) GameArtworkService.getInstance().unsubscribe(this.artworkListener);
     this.stopWindowInsetObserver();
   }
@@ -765,7 +773,7 @@ struct Index {
       setTimeout((): void => this.focusConsoleLauncher(), 300);
       setTimeout((): void => this.focusConsoleLauncher(), 850);
     }
-    if (this.catalogInitialized && this.settings.uiSkin !== UiSkin.CONSOLE) {
+    if (this.catalogInitialized) {
       // Wine/File Explorer can add, rename or remove programs while this page
       // is hidden. Reconcile the catalog whenever it becomes visible again.
       void this.rescan().then((): void => {
@@ -954,12 +962,22 @@ struct Index {
     }
   }
 
+  private async pollSteamLibrary(): Promise<void> {
+    if (!this.consolePageVisible || !this.catalogInitialized || this.steamScanBusy || this.scanning) return;
+    const steam = SteamLocalService.getInstance();
+    if (!steam.isInstalled() || steam.isImporting() || !steam.hasRunningProcesses()) return;
+    this.steamScanBusy = true;
+    try { if (await steam.libraryChanged()) await this.rescan(); }
+    finally { this.steamScanBusy = false; }
+  }
+
   private refreshRunningState(): void {
     const sessionService = AppSessionService.getInstance();
     const snapshot = sessionService.getRunningSnapshot();
     const running = resolveRunningAppIds(this.apps, snapshot.appIds, snapshot.paths);
     const now = Date.now();
     running.forEach((id: string): void => {
+      if (id === STEAM_CLIENT_ID) return;
       if (!this.playStartTimes.has(id)) this.playStartTimes.set(id, now);
     });
     this.playStartTimes.forEach((startedAt: number, id: string): void => {
@@ -1225,7 +1243,7 @@ struct Index {
   }
 
   private launch(app: AppDescriptor): Promise<void> {
-    if (!app.available) {
+    if (!app.available && !app.steam) {
       this.openAppSettings(app, true);
       return Promise.resolve();
     }
@@ -1275,6 +1293,15 @@ struct Index {
       } else {
         session = await LauncherAdapterRegistry.getInstance().launch(app, this.settings, root);
       }
+      if (app.steam && session?.state === SessionState.STARTING) {
+        promptAction.showToast({ message: app.available ? '正在通过 Steam 启动游戏' : '请在 Steam 中完成安装' });
+        if (app.available) setTimeout((): void => {
+          if (!this.consolePageVisible || AppSessionService.getInstance().getRunningAppIds().has(app.id)) return;
+          promptAction.showDialog({ title: app.title, message: '游戏尚未进入运行状态，可打开 Steam 查看登录、更新或许可提示。',
+            buttons: [{ text: '稍后', color: '#777777' }, { text: '打开 Steam', color: '#5569D8' }] })
+            .then((answer): void => { if (answer.index === 1) void this.launch(SteamLocalService.getInstance().clientCard()); });
+        }, 45000);
+      }
       if (!session && (app.launchTarget.kind === LaunchKind.WINE_EXE ||
         app.launchTarget.kind === LaunchKind.WINE_SYSTEM ||
         app.launchTarget.kind === LaunchKind.WINE_DESKTOP)) {
@@ -1283,8 +1310,8 @@ struct Index {
           message: engineMessage === 'Wine 引擎已就绪' ? '程序启动失败，请稍后重试' : engineMessage
         });
       }
-    } catch (_) {
-      promptAction.showToast({ message: '程序启动异常，请稍后重试' });
+    } catch (error) {
+      promptAction.showToast({ message: app.steam ? (error as Error).message : '程序启动异常，请稍后重试' });
     } finally {
       this.refreshRunningState();
     }
@@ -1303,7 +1330,7 @@ struct Index {
 
   private showAppLongPressMenu(app: AppDescriptor): void {
     const running = this.runningAppIds.has(app.id);
-    if (app.source === AppSource.DOWNLOAD && !app.available) {
+    if (app.source === AppSource.DOWNLOAD && !app.available && !app.steam) {
       promptAction.showDialog({
         title: app.title,
         message: '主程序已不存在，可重新关联或只删除卡片记录（不会删除任何文件）',
@@ -1323,7 +1350,7 @@ struct Index {
       title: app.title,
       message: '请选择操作',
       buttons: [
-        { text: running ? '关闭运行中的程序' : (app.available ? '启动或恢复' : '重新关联'), color: running ? '#D94848' : '#5569D8' },
+        { text: running ? '关闭运行中的程序' : (app.steam && !app.available ? '在 Steam 中查看安装' : app.available ? '启动或恢复' : '重新关联'), color: running ? '#D94848' : '#5569D8' },
         { text: '应用设置', color: $r('sys.color.ohos_id_color_text_primary') },
         { text: '取消', color: $r('sys.color.ohos_id_color_text_secondary') }
       ]
@@ -1332,7 +1359,7 @@ struct Index {
         if (running) {
           AppSessionService.getInstance().stopApp(app);
           this.refreshRunningState();
-        } else if (app.available) this.launch(app); else this.openAppSettings(app, true);
+        } else if (app.available || app.steam) this.launch(app); else this.openAppSettings(app, true);
       } else if (result.index === 1) {
         this.openAppSettings(app);
       }
@@ -1392,6 +1419,7 @@ struct Index {
   private phoneNavigationMenu(): HdsNavigationMenuContentOptions {
     return {
       value: [
+        { content: { label: 'Steam', icon: $r('sys.symbol.gamecontroller'), action: (): void => { this.toggleSteamPop(); } } },
         {
           content: {
             label: '系统设置',
@@ -1452,7 +1480,7 @@ struct Index {
         if (!this.sidebarCollapsed) {
           Column({ space: this.isNarrowPhone() ? 2 : 3 }) {
             Text('旧柚Pro').fontSize(this.isNarrowPhone() ? 16 : 18).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
-            Text(this.apps.length + ' 个程序').fontSize(this.isNarrowPhone() ? 9 : 11).fontColor(skinColor('text_secondary'))
+            Text(this.apps.filter((app: AppDescriptor): boolean => app.id !== STEAM_CLIENT_ID).length + ' 个程序').fontSize(this.isNarrowPhone() ? 9 : 11).fontColor(skinColor('text_secondary'))
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         }
         Button({ type: ButtonType.Circle }) {
@@ -1540,6 +1568,7 @@ struct Index {
           Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : skinColor('text_secondary'))
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Row({ space: 4 }) {
+          this.SteamEntryButton()
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([skinColor('text_primary')]) }
             .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([skinColor('text_primary')]) }
@@ -1594,7 +1623,7 @@ struct Index {
       onSettings: (target: AppDescriptor): void => { this.openAppSettings(target); },
       onLongPress: (target: AppDescriptor): void => { this.showAppLongPressMenu(target); },
       onVisible: (target: AppDescriptor): void => {
-        GameArtworkService.getInstance().enqueueIfMissing(target);
+        this.requestGameArtwork(target);
       }
     })
   }
@@ -2206,7 +2235,7 @@ struct Index {
     this.consoleFocusIndex = real;
     this.consoleSelectedAppId = apps[real].id;
     if (playSound) ConsoleUiSound.getInstance().focus();
-    GameArtworkService.getInstance().enqueueIfMissing(apps[real]);
+    this.requestGameArtwork(apps[real]);
   }
 
   private locateConsoleRing(realIndex: number = this.consoleFocusIndex): void {
@@ -2332,7 +2361,7 @@ struct Index {
     this.consoleFocusIndex = next;
     this.consoleSelectedAppId = apps[next].id;
     ConsoleUiSound.getInstance().focus();
-    GameArtworkService.getInstance().enqueueIfMissing(apps[next]);
+    this.requestGameArtwork(apps[next]);
   }
 
   private focusConsoleCategoryStep(step: number): void {
@@ -2373,7 +2402,7 @@ struct Index {
     if (index >= 0) this.consoleFocusIndex = index;
     this.consoleSelectedAppId = app.id;
     ConsoleUiSound.getInstance().focus();
-    GameArtworkService.getInstance().enqueueIfMissing(app);
+    this.requestGameArtwork(app);
   }
 
   private moveBentoFocus(code: number): void {
@@ -2766,7 +2795,11 @@ struct Index {
   private SteamPopPanel() {
     // 右上角锚定浮层: 顶栏下方, 遮罩之上
     Stack({ alignContent: Alignment.TopEnd }) {
+      Scroll() {
       Column({ space: 10 }) {
+        SteamClientPanel({ onChanged: (): void => { void this.rescan(); },
+          onOpen: (): void => { this.steamPop = false; this.stopSteamPopTimer(); } })
+        Divider().color(skinColor('text_secondary')).opacity(0.2)
         if (this.steamLoggedIn) {
           Row({ space: 10 }) {
             if (this.steamAvatar.length > 0) {
@@ -2807,7 +2840,7 @@ struct Index {
             })
             .id('steam-pop-library')
 
-          Button(this.steamMatching ? '匹配中…' : '匹配本地游戏（封面/时长）')
+          Button(this.steamMatching ? '同步中…' : '同步封面与资料')
             .width('100%').height(36).borderRadius(10)
             .backgroundColor(skinColor('search_background'))
             .fontColor(skinColor('text_primary'))
@@ -2834,7 +2867,7 @@ struct Index {
             .fontColor(skinColor('text_primary')).width('100%')
           Text('登录后可显示手机令牌、游戏库与时长同步。')
             .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-          Button('登录 Steam').width('100%').height(38).borderRadius(10)
+          Button('登录以同步封面与资料').width('100%').height(38).borderRadius(10)
             .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
             .onClick((): void => {
               this.steamPop = false;
@@ -2843,13 +2876,14 @@ struct Index {
             .id('steam-pop-login')
         }
       }
-      .width(240)
+      .width('100%')
       .padding(14)
       .backgroundColor(skinColor('card_glass_background'))
       .backgroundBlurStyle(BlurStyle.COMPONENT_ULTRA_THICK)
       .borderRadius(16)
       .border({ width: 1, color: '#44FFFFFF' })
       .id('steam-pop-panel')
+      }.width(280).constraintSize({ maxHeight: '85%' }).scrollBar(BarState.Auto)
     }
     .width('100%').height('100%')
     .padding({ top: 56, right: 12 })
@@ -2885,7 +2919,7 @@ struct Index {
                 },
                 onDetails: (target: AppDescriptor): void => this.showConsoleDetail(target),
                 onVisible: (target: AppDescriptor): void =>
-                  GameArtworkService.getInstance().enqueueIfMissing(target)
+                  this.requestGameArtwork(target)
               })
             }
             .width(this.consoleRingCellWidth()).height('100%')
@@ -3288,6 +3322,13 @@ struct Index {
   }
 
   /** Steam 库 ↔ 本地目录批量匹配: 补封面 + 写时长 (已有封面跳过, 不覆盖用户自选)。 */
+  private requestGameArtwork(app: AppDescriptor): void {
+    GameArtworkService.getInstance().enqueueIfMissing(app);
+    void SteamLocalService.getInstance().downloadMissingCover(app).then((changed: boolean): void => {
+      if (changed && this.consolePageVisible) void this.rescan();
+    });
+  }
+
   private async matchSteamLibrary(): Promise<void> {
     const service = SteamService.getInstance();
     if (service.steamId64.length === 0) {
@@ -3305,7 +3346,8 @@ struct Index {
       let hit = 0;
       let covers = 0;
       for (const app of this.apps) {
-        const game = SteamMatch.bestMatch(app.title, games);
+        if (app.id === STEAM_CLIENT_ID) continue;
+        const game = app.steam?.appId ? games.find((item) => item.appId === app.steam?.appId) : SteamMatch.bestMatch(app.title, games);
         if (!game) continue;
         hit++;
         if (game.playtimeForeverSeconds > 0) {

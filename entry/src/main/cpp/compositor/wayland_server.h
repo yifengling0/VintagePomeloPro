@@ -55,6 +55,7 @@ public:
     // 引用与成员同生命周期 (单例启动前即构造), 装配在 wl 事件循环启动前
     // (与 4C1 warpSink / 5D bus 装配同模式, 无新锁)。
     ToplevelManager& GetToplevelManager() { return toplevelMgr_; }
+    InputResolver& GetInputResolver() { return inputResolver_; }
     DesktopCompositor& GetDesktopCompositor() { return desktopCompositor_; }
     // root 身份的共享引用装配出口 (与 DesktopCompositor/InputResolver 注入的
     // 引用同源, 重构第 6B 步起指向 session_.desktopRootToplevelId 的 POD 字段)

@@ -81,6 +81,7 @@ static void glUseProgram(GLuint) {}
 static GLint glGetUniformLocation(GLuint,const char*) { return 0; }
 static void glUniform1i(int,int) {}
 static void glUniform1f(int,float f) { forceOpaque=f; }
+static void glUniform3fv(int,int,const float*) {}
 static void glUniformMatrix4fv(int,int,int,const float*) {}
 static void upload(const void* p) { auto* b=static_cast<const uint8_t*>(p); colors[boundTexture]={b[2]/255.f,b[1]/255.f,b[0]/255.f,b[3]/255.f}; ++uploads; }
 static void glTexImage2D(int,int,int,int,int,int,int,int,const void* p) { upload(p); }
