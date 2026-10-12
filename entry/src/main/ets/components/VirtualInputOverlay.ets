@@ -16,6 +16,7 @@ import { AppSettingsStore } from '../service/AppSettingsStore';
 import { ThemeSettingsListener, ThemeSettingsService } from '../service/ThemeSettingsService';
 import { consoleColors } from '../service/SkinColors';
 import { InputDispatcher } from '../service/InputDispatcher';
+import { InputEventGate } from '../service/InputEventGate';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { mapMouseButton } from '../common/MouseMap';
 import { display } from '@kit.ArkUI';
@@ -174,6 +175,10 @@ export struct VirtualInputOverlay {
   private scrHPx: number = 0;
   @State private cursorVpX: number = -100;  // 箭头尖 vp 坐标 (屏外=隐藏)
   @State private cursorVpY: number = -100;
+  // The touchpad indicator belongs to virtual pointing input. A physical
+  // mouse uses the host/game cursor and must not leave this arrow behind.
+  @State private virtualCursorActive: boolean = false;
+  private pointerEventGate: InputEventGate = new InputEventGate();
   // 双指轻点=右键: 两指快速落下又抬起且中点几乎不动
   private tpTwoFingerStartAt: number = 0;
   private tpTwoFingerStartMidX: number = 0;
@@ -1134,6 +1139,7 @@ export struct VirtualInputOverlay {
 
   /** Windows 式：已在边缘且增量朝外则丢弃该轴，出界位移不累加。 */
   private applyCursorDelta(dxPx: number, dyPx: number): void {
+    this.virtualCursorActive = true;
     this.ensureScreenPx();
     let dx = dxPx;
     let dy = dyPx;
@@ -1204,6 +1210,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleTouchpad(ev: TouchEvent): void {
+    this.virtualCursorActive = true;
     this.ensureScreenPx();
     // 虚拟光标初始位置: 屏幕中心 (首次进入触摸板模式)
     if (!this.vcInit) {
@@ -1350,6 +1357,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayTouch(event: TouchEvent): void {
+    if (!this.pointerEventGate.shouldHandleTouch(event.source, event.sourceTool)) return;
     if (event.changedTouches.length === 0) return;
     if (!this.hideToolbar && this.handleToolbarOverlayTouch(event)) return;
     if (this.editMode) {
@@ -1486,6 +1494,8 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayMouse(event: MouseEvent): void {
+    if (!this.pointerEventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
+    this.virtualCursorActive = false;
     if (!this.hideToolbar && this.handleToolbarOverlayMouse(event)) return;
     if (this.editMode) {
       event.stopPropagation();
@@ -2105,6 +2115,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleToolbarButtonTouch(event: TouchEvent, action: () => void): void {
+    if (!this.pointerEventGate.shouldHandleTouch(event.source, event.sourceTool)) return;
     event.stopPropagation();
     this.toolbarAutoHidden = false;
     this.startToolbarAutoHide();
@@ -2113,6 +2124,8 @@ export struct VirtualInputOverlay {
   }
 
   private handleToolbarButtonMouse(event: MouseEvent, action: () => void): void {
+    if (!this.pointerEventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
+    this.virtualCursorActive = false;
     event.stopPropagation();
     this.toolbarAutoHidden = false;
     this.startToolbarAutoHide();
@@ -2400,11 +2413,17 @@ export struct VirtualInputOverlay {
     }
   }
 
+  private shouldShowVirtualCursor(): boolean {
+    return this.touchpadModeVisual && this.showCursor && this.virtualCursorActive &&
+      this.cursorVpX >= 0 && this.cursorVpY >= 0;
+  }
+
   build() {
     Stack() {
       Text(this.renderRevision.toString()).width(0).height(0).opacity(0).hitTestBehavior(HitTestMode.None)
-      if (this.touchpadModeVisual && this.showCursor && this.cursorVpX >= 0 && this.cursorVpY >= 0) {
+      if (this.shouldShowVirtualCursor()) {
         Image($r('app.media.virtual_mouse_arrow'))
+          .id('wine-virtual-mouse-indicator')
           .width(this.cursorSizeVp())
           .height(this.cursorSizeVp())
           .objectFit(ImageFit.Contain)

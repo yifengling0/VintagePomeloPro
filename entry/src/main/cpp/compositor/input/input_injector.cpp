@@ -97,12 +97,13 @@ void InputInjector::InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fix
     OH_LOG_INFO(LOG_APP, "[Input] InjectEnter OK sent=%{public}d", nSent);
 }
 
-void InputInjector::InjectRelativeMotion(wl_fixed_t dx, wl_fixed_t dy) {
+void InputInjector::InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy) {
     // 相对模式增量转发 (zwp_relative_pointer_v1)。wine 侧收到后累积进
     // wineserver 光标位置 (wayland_pointer.c relative_pointer_v1_relative_motion)。
     // 无 relative 对象 (绝对模式) 时 PointerExtras 内部空转。
+    if (!surface || !resolver_->IsSurfaceAlive(surface)) return;
     PointerExtras::GetInstance()->SendRelativeMotion(
-        wl_fixed_to_double(dx), wl_fixed_to_double(dy));
+        surface, wl_fixed_to_double(dx), wl_fixed_to_double(dy));
 }
 
 void InputInjector::InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy) {

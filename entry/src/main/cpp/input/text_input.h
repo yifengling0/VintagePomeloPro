@@ -32,6 +32,9 @@ public:
     // InputManager keyboard enter/leave → 同步 text-input enter/leave
     void OnKeyboardEnter(wl_resource* surface);
     void OnKeyboardLeave(wl_resource* surface);
+    // Reset/disconnect has no live surface to send a protocol leave to.
+    // Clear the local IME session and notify ArkTS after releasing the mutex.
+    void ResetKeyboardFocus();
 
     // ArkTS 桥接: 输入法文本注入 → Wine (UTF-8)
     void SendCommitString(const char* utf8);

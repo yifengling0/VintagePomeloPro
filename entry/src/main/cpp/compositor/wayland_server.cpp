@@ -495,13 +495,17 @@ void WaylandServer::SetToplevelMaximizedState(uint32_t id, bool on) {
 void WaylandServer::SetToplevelFullscreen(uint32_t id, bool on) {
     OH_LOG_INFO(LOG_APP, "[MW] SetToplevelFullscreen id=%{public}u on=%{public}s",
                 id, on ? "yes" : "no");
-    auto lk = toplevelMgr_.Lock();
-    // Ensure 建档语义同 SetToplevelMinimized: pre-commit 全屏同样记录状态。
-    // 状态转换 (置位 + 锚定 + preFs 快照 + 不变式断言) 收在
-    // ToplevelState::ApplyFullscreen
-    auto& st = toplevelMgr_.EnsureToplevelLocked(id);
-    st.ApplyFullscreen(on);
-    MarkDesktopRootDirtyLocked();
+    {
+        auto lk = toplevelMgr_.Lock();
+        // Ensure 建档语义同 SetToplevelMinimized: pre-commit 全屏同样记录状态。
+        // 状态转换 (置位 + 锚定 + preFs 快照 + 不变式断言) 收在
+        // ToplevelState::ApplyFullscreen
+        auto& st = toplevelMgr_.EnsureToplevelLocked(id);
+        st.ApplyFullscreen(on);
+        MarkDesktopRootDirtyLocked();
+    }
+    InputManager::GetInstance()->InvalidateRelativePointerBaseline(
+        on ? "fullscreen-enter" : "fullscreen-exit");
 }
 
 void WaylandServer::ForceToplevelRedraw(uint32_t id) {

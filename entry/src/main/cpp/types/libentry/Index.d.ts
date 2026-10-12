@@ -300,3 +300,6 @@ export const wineTextInputEnabled: () => boolean;
 export const wineTextInputSetArmed: (armed: boolean) => void;
 export const runHostVulkanProbe: (surfaceId: BigInt, runId: string) => boolean;
 export const stopHostVulkanProbe: () => boolean;
+export interface SteamZipProgress { done: number; total: number; }
+export const extractSteamZipAsync: (fd: number, outDir: string) => Promise<void>;
+export const getSteamZipProgress: () => SteamZipProgress;

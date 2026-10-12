@@ -621,6 +621,7 @@ test-direct-session:
 	$(HOST_TEST_DIR)/graphics_policy_test
 	g++ -std=c++17 -Wall -Wextra -I $(ROOT)/entry/src/main/cpp -I $(ROOT)/entry/src/main/cpp/wine \
 	    -o $(HOST_TEST_DIR)/direct_session_env_test $(ROOT)/host_tests/direct_session_env_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/proc/wine_spawn_compatibility.cpp \
 	    $(ROOT)/entry/src/main/cpp/wine/env_profiles.cpp \
 	    $(ROOT)/entry/src/main/cpp/wine/dll_overrides.cpp \
 	    $(ROOT)/entry/src/main/cpp/graphics/graphics_profile.cpp
@@ -733,6 +734,24 @@ test-prefix-registry:
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp \
 	    -o $(HOST_TEST_DIR)/prefix_registry_test $(ROOT)/host_tests/prefix_registry_test.cpp
 	$(HOST_TEST_DIR)/prefix_registry_test
+
+.PHONY: test-relative-pointer
+test-relative-pointer:
+	python3 $(ROOT)/host_tests/relative_pointer_regression_test.py
+	python3 $(ROOT)/host_tests/host_cursor_lock_test.py
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter -pthread \
+	    -I $(ROOT)/host_tests/stubs -I $(ROOT)/entry/src/main/cpp \
+	    $(ROOT)/host_tests/mouse_motion_queue_test.cpp \
+	    $(ROOT)/entry/src/main/cpp/compositor/input/input_queue.cpp \
+	    -o $(HOST_TEST_DIR)/mouse_motion_queue_test
+	$(HOST_TEST_DIR)/mouse_motion_queue_test
+
+.PHONY: test-text-input-focus
+test-text-input-focus:
+	bash $(SCRIPTS)/run_text_input_focus_tests.sh
+
+test: test-relative-pointer test-text-input-focus
 
 .PHONY: test-steam-client-args
 test-steam-client-args:
@@ -1016,3 +1035,18 @@ test-wine-direct-early-wsi:
 test: test-direct-drawable-ipc
 test-direct-drawable-ipc:
 	python3 $(ROOT)/host_tests/direct_drawable_ipc_test.py
+
+.PHONY: test-fex-vm-contract
+test: test-fex-vm-contract
+test-fex-vm-contract:
+	python3 $(ROOT)/host_tests/fex_vm_contract_test.py
+
+.PHONY: test-wine-vm-diagnostics
+test: test-wine-vm-diagnostics
+test-wine-vm-diagnostics:
+	python3 $(ROOT)/host_tests/wine_vm_diagnostics_test.py
+
+.PHONY: test-wine-network-contract
+test: test-wine-network-contract
+test-wine-network-contract:
+	python3 $(ROOT)/host_tests/wine_network_contract_test.py

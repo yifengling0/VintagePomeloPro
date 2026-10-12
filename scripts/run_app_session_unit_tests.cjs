@@ -45,7 +45,9 @@ function fixture() {
       getGlobalSettings: () => ({ desktopWindowMode: 'test-ability-mode' })
     }) } },
     './InputOverlayWindowCoordinator': {},
-    './AppCatalogService': {}
+    './AppCatalogService': {},
+    '../steam/SteamLocalService': { SteamLocalService: { getInstance: () => ({ getCards: () => [], processesFor: () => [] }) } },
+    '../steam/SteamLocalRules': {}
   };
   const exports = {};
   vm.runInNewContext(compiled, {

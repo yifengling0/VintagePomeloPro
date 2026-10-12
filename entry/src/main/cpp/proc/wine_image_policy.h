@@ -17,7 +17,7 @@ struct WineImagePolicy {
     bool PreservePreferredBase() const {
         return pe32 && imageBase >= 0x10000 && imageSize &&
             uint64_t(imageBase) + imageSize <= 0x100000000ULL &&
-            (!dynamicBase || relocationsStripped);
+            (imageBase & 0xffff) == 0;
     }
 };
 
@@ -83,7 +83,7 @@ inline std::string WineImageNativePath(const Request& request) {
 }
 
 inline bool ImageRangeOccupied(const WineImagePolicy& image, FILE* maps) {
-    if (!maps) return true; // Preserve non-ASLR images when occupancy is unknown.
+    if (!maps) return true; // Unknown occupancy requires a clean address space for a valid PE32 range.
     char line[1024];
     unsigned long long begin, end;
     const uint64_t imageEnd = uint64_t(image.imageBase) + image.imageSize;
@@ -97,7 +97,8 @@ inline bool RequiresFreshWineProcess(const Request& request) {
     const auto image = ReadWineImagePolicy(WineImageNativePath(request));
     if (!image.PreservePreferredBase()) return false;
     // Create/IPC children retain ArkTS low-address mappings. Start children
-    // provide a fresh native address space for non-ASLR PE32/protected loaders.
+    // provide a fresh native address space. DYNAMIC_BASE permits guest ASLR;
+    // it does not make unrelated native heap reservations part of that contract.
     FILE* maps = fopen("/proc/self/maps", "r");
     const bool occupied = ImageRangeOccupied(image, maps);
     if (maps) fclose(maps);

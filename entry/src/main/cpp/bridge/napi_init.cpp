@@ -62,6 +62,7 @@
 #include "common/frame_loop_diagnostics.h"
 #include "common/displayed_fps.h"
 #include "common/font_zip.h"
+#include "common/steam_zip.h"
 #include "common/app_log.h"
 #include "graphics/host_vulkan_probe.h"
 #include "graphics/graphics_profile.h"
@@ -1782,6 +1783,8 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"getDisplayFps", nullptr, GetDisplayFps, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setFrameLoopDiagnostics", nullptr, SetFrameLoopDiagnosticsNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"extractFontZipAsync", nullptr, ExtractFontZipAsync, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"extractSteamZipAsync", nullptr, ExtractSteamZipAsync, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getSteamZipProgress", nullptr, GetSteamZipProgress, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"readPerformanceCounters", nullptr, ReadPerformanceCounters, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetStick", nullptr, ControllerSetStick, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetTrigger", nullptr, ControllerSetTrigger, nullptr, nullptr, nullptr, napi_default, nullptr},

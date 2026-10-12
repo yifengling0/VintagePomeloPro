@@ -730,7 +730,7 @@ struct AppSettingsPage {
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               Toggle({ type: ToggleType.Switch, isOn: this.value.favorite }).onChange((value: boolean): void => this.setFavorite(value))
             }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
-            if (this.app && this.app.source === AppSource.DOWNLOAD) {
+            if (this.app && this.app.source === AppSource.DOWNLOAD && !this.app.steam) {
               Column({ space: 6 }) {
                 Text('当前游戏目录').fontSize(13).fontColor(skinColor('text_secondary'))
                 Text(this.app.directory).fontSize(12).fontColor(skinColor('text_primary')).maxLines(2)

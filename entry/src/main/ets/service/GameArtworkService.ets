@@ -180,6 +180,7 @@ export class GameArtworkService {
   retryNow(app: AppDescriptor): void { this.enqueue(app, true); }
 
   private enqueue(app: AppDescriptor, force: boolean): void {
+    if (app.steam && !app.steam.appId) return;
     if (!this.preferences || app.source !== AppSource.DOWNLOAD || !app.title.trim()) return;
     if (AppSettingsStore.getInstance().getAppSettings(app.id).backgroundMode === GameBackgroundMode.MANUAL) return;
     if (this.exists(app.backgroundPath ?? '')) return;
@@ -214,7 +215,9 @@ export class GameArtworkService {
     const signature = this.signature(app);
     let outcome = 'no_match';
     try {
-      const steam = await this.findSteamBackgroundUrl(app.title);
+      const steam: ArtworkLookup = app.steam?.appId ?
+        { url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/' + app.steam.appId + '/library_hero.jpg', transient: false } :
+        await this.findSteamBackgroundUrl(app.title);
       outcome = steam.transient ? 'temporary' : 'no_match';
       if (steam.url) {
         const downloaded = await this.downloadAndCommit(app, steam.url);

@@ -1,6 +1,6 @@
 import testNapi from 'libentry.so';
 import { DisplayMode, InputDiagnostics, WineInputSession } from '../model/AppModels';
-import { InputRouter, PointerPosition } from './InputRouter';
+import { InputRouter, PointerInput, PointerPosition } from './InputRouter';
 import { InputStateTracker, ReleasedInputState } from './InputStateTracker';
 
 export type InputDiagnosticsListener = (diagnostics: InputDiagnostics) => void;
@@ -128,30 +128,30 @@ export class InputDispatcher {
     }
   }
 
-  pointerDown(source: string, x: number, y: number, button: number = 272): void {
+  pointerDown(source: string, x: number, y: number, button: number = 272, input?: PointerInput): void {
     if (!this.session.active) return;
     this.resolveToplevel(x, y);
     this.tracker.markPointer(source);
-    this.buttonDown(source, button, x, y);
+    this.buttonDown(source, button, x, y, input);
     this.publishDiagnostics();
   }
 
-  buttonDown(source: string, button: number, x?: number, y?: number): void {
+  buttonDown(source: string, button: number, x?: number, y?: number, input?: PointerInput): void {
     if (!this.session.active || !this.tracker.pressButton(source, button)) return;
-    if (x !== undefined && y !== undefined) InputRouter.getInstance().sendPointer(MouseAction.Press, x, y, button);
+    if (x !== undefined && y !== undefined) InputRouter.getInstance().sendPointer(MouseAction.Press, x, y, button, input);
     else InputRouter.getInstance().sendPointerButton(MouseAction.Press, button);
     this.injectedEvents++;
     this.publishDiagnostics();
   }
 
-  pointerMove(source: string, x: number, y: number, pointerActive: boolean = true): void {
+  pointerMove(source: string, x: number, y: number, pointerActive: boolean = true, input?: PointerInput): void {
     if (!this.session.active) return;
     if (pointerActive) this.tracker.markPointer(source);
     // 已按下的指针必须保持最初归属。否则拖动越过 popup 边界会触发
     // toplevel 切换并提前释放按键，表现为 Wine 中断拖拽。
     const state = this.tracker.snapshot();
     this.resolveToplevel(x, y, state.heldButtons === 0);
-    InputRouter.getInstance().sendPointer(MouseAction.Move, x, y, 0);
+    InputRouter.getInstance().sendPointer(MouseAction.Move, x, y, 0, input);
     this.injectedEvents++;
     this.publishDiagnostics();
   }
@@ -164,15 +164,15 @@ export class InputDispatcher {
     this.publishDiagnostics();
   }
 
-  pointerUp(source: string, x: number, y: number, button: number = 272): void {
-    this.buttonUp(source, button, x, y);
+  pointerUp(source: string, x: number, y: number, button: number = 272, input?: PointerInput): void {
+    this.buttonUp(source, button, x, y, input);
     this.tracker.clearPointer(source);
     this.publishDiagnostics();
   }
 
-  buttonUp(source: string, button: number, x?: number, y?: number): void {
+  buttonUp(source: string, button: number, x?: number, y?: number, input?: PointerInput): void {
     if (!this.tracker.releaseButton(source, button)) return;
-    if (x !== undefined && y !== undefined) InputRouter.getInstance().sendPointer(MouseAction.Release, x, y, button);
+    if (x !== undefined && y !== undefined) InputRouter.getInstance().sendPointer(MouseAction.Release, x, y, button, input);
     else InputRouter.getInstance().sendPointerButton(MouseAction.Release, button);
     this.injectedEvents++;
     this.publishDiagnostics();

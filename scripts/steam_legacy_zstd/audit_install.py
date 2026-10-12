@@ -23,9 +23,19 @@ V3 = {
     'vpsteamzstd64.dll': 'e339ce8195a6fdffdd627a1c528fbacc0058fb6d4db7f35e2a2215fecf5c135b',
 }
 V2 = dict(V3, **{'vpsteamzstd64.dll': '9d561b3033904e240c89e7eab1d2a9585fa6b4ee3cdaf649bd387d01319b8c84'})
+RUNTIME32 = {
+    'steam.exe': '7d265e5e1d5b02c8bffe51db73aaeac9f86abfe505f0dfc86cd87700802732d3',
+    'steamclient.dll': ORIGINAL['steamclient.dll'],
+    'steamclient64.dll': ORIGINAL['steamclient64.dll'],
+    'SteamUI.dll': V3['SteamUI.dll'],
+    'vpsteamtrust32.dll': '3886be8d6ee354b192552e894c4bd3aa9faae6ff9a9754b03af6a2671ea336a1',
+    'vpsteamzstd32.dll': V3['vpsteamzstd32.dll'],
+}
 
 
 def classify(hashes):
+    if all(hashes.get(n) == h for n, h in RUNTIME32.items()):
+        return 'runtime32-original-clients-candidate'
     if all(hashes.get(n) == h for n, h in V3.items()):
         return 'v3-candidate-complete'
     if all(hashes.get(n) == h for n, h in V2.items()):
@@ -37,7 +47,7 @@ def classify(hashes):
 
 def audit(directory):
     hashes = {}
-    for name in V3:
+    for name in dict.fromkeys([*V3, *RUNTIME32]):
         path = directory/name
         try:
             with path.open('rb') as f:

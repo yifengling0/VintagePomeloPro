@@ -37,7 +37,12 @@ std::vector<wl_resource*> Seat::GetAllPointerResources() { return pointers; }
 wl_resource* Seat::GetKeyboardResource() { return keyboards.empty()?nullptr:keyboards.front(); }
 PointerExtras* PointerExtras::GetInstance() { static PointerExtras extras; return &extras; }
 bool PointerExtras::HasRelativePointer() const { return false; }
+#ifdef RELATIVE_POINTER_WITH_SURFACE
+bool PointerExtras::HasRelativePointerForSurface(wl_resource*) const { return false; }
+void PointerExtras::SendRelativeMotion(wl_resource*, double, double) {}
+#else
 void PointerExtras::SendRelativeMotion(double, double) {}
+#endif
 InputSpaceMapper* InputSpaceMapper::GetInstance() { static InputSpaceMapper mapper;return &mapper; }
 void InputSpaceMapper::CoordTransform(double x,double y,uint32_t,wl_fixed_t* sx,wl_fixed_t* sy,FitRect* fit) {
     *sx=wl_fixed_from_double(x);*sy=wl_fixed_from_double(y);
@@ -63,6 +68,7 @@ static void DrainInput() {
 TextInput* TextInput::GetInstance() { static TextInput text; return &text; }
 void TextInput::OnKeyboardEnter(wl_resource* s) { events.push_back({"ime.enter", nullptr, s}); }
 void TextInput::OnKeyboardLeave(wl_resource* s) { events.push_back({"ime.leave", nullptr, s}); }
+void TextInput::ResetKeyboardFocus() { events.push_back({"ime.reset", nullptr, nullptr}); }
 static void Expect(const char* name, wl_resource* surface, wl_resource* resource = nullptr) {
     assert(!events.empty());
     const auto e = events.front();
@@ -431,6 +437,13 @@ int main(int argc, char** argv) {
         // A completed RGBA game frame may contain zero/fractional alpha from
         // separate D3D9 alpha blending. It is still an opaque WGL window.
         auto native=MakeNativeWindowLayer(Key(25),info,160,100);
+        auto gl = native, venus = native;
+        SetNativeProducerSampling(gl, false);
+        SetNativeProducerSampling(venus, true);
+        assert((gl.sampling.v == std::array<float,4>{1,0,-1,0}));
+        assert((venus.sampling.v == std::array<float,4>{0,0,1,0}));
+        assert(gl.opaque && venus.opaque);
+
         assert(native.opaque && native.ownerSurfaceKey==Key(25));
         GpuDesktopScene scene;
         assert(f.comp.SnapshotGpuDesktopScene({},f.cache,scene,{native}));
@@ -574,5 +587,29 @@ int main(int argc, char** argv) {
         assert(f.comp.SnapshotGpuDesktopScene({{100,5,25,160,100,40}},f.cache,scene));
         assert(f.input.FindInputTargetAt(80,50,hit) && hit.toplevelId==4 && hit.surface==&f.steam);
     }
+#ifndef GPU_FOLLOWUP_BASELINE
+    if (mode == 15) {
+        wl_resource kbd; keyboards={&kbd};
+        auto* manager=InputManager::GetInstance();
+        MoveGrabHandler grab;
+        manager->BindCompositorDeps(f.tm,f.input,grab,f.policy,f.root);
+        manager->Initialize(reinterpret_cast<wl_display*>(1));
+        manager->InjectKeyboardEnter(4,&f.steam);
+        events.clear();
+        manager->ResetKeyboardEnter();
+        Expect("ime.reset",nullptr);
+        assert(events.empty() && !manager->HasKeyboardFocus());
+        manager->Shutdown();
+    }
+    if (mode == 16) {
+        double x=0,y=0;
+        assert(f.input.SurfaceLocalToDesktop(&f.game,40,30,x,y));
+        assert(!f.input.SurfaceLocalToDesktop(&f.steam,40,30,x,y) &&
+               "inactive fullscreen window must not warp the foreground pointer");
+        {auto lock=f.tm.Lock();f.tm.RaiseToplevel(4);f.tm.BumpFsPriorityLocked(4);}
+        assert(f.input.SurfaceLocalToDesktop(&f.steam,40,30,x,y));
+        assert(!f.input.SurfaceLocalToDesktop(&f.game,40,30,x,y));
+    }
+#endif
     std::puts("full production scene/input contract passed");
 }

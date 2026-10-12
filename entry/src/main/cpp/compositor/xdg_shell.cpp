@@ -356,7 +356,7 @@ static void xs_get_toplevel(wl_client* client, wl_resource* xsRes, uint32_t id) 
             if (!WaylandServer::GetInstance()->Policy().OhosWindowPerToplevel()) {
                 WaylandServer::GetInstance()->PostToplevelEvent(
                     sd->toplevelId, ToplevelEventType::Created,
-                    ToplevelEventBus::JsonCreatedDefault());
+                    ToplevelEventBus::JsonCreatedDefault(sd->clientPid));
             }
         }
     }

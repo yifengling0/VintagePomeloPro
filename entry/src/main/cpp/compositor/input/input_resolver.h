@@ -38,6 +38,8 @@ struct InputTarget {
     // 仅输入日志 (TARGET/SCROLL-TARGET 断点 2/4B) 消费, 不参与换算。
     double originX = 0.0, originY = 0.0;
     double scale = 1.0;
+    // Coordinate-space identity for relative-motion baselines.
+    int contentW = 0, contentH = 0;
 };
 
 // 输入命中裁决 (依赖 ToplevelManager + DesktopCompositor)

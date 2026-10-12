@@ -15,7 +15,7 @@ if [ "${1:-}" = --unix-modules ]; then
     shift
     for module in "$@"; do
         case "$module" in
-            ntdll|win32u|opengl32|winevulkan|winewayland.drv|wineserver) ;;
+            ntdll|win32u|opengl32|winevulkan|winewayland.drv|wineohos.drv|wineserver) ;;
             *) echo "unsupported Unix module: $module" >&2; exit 1 ;;
         esac
         WINE_UNIX_MODULES="${WINE_UNIX_MODULES:+$WINE_UNIX_MODULES }$module"
@@ -258,6 +258,16 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0056-wayland-direct-wsi-before-sh
     "Prepare Direct WSI for windows created before ShowWindow"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0057-wayland-direct-drawable-identity.patch" \
     "Independent Direct producers for exact desktop drawables"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0058-ohos-shared-wasapi-float32.patch" \
+    "Advertise shared WASAPI mix format as IEEE float32"
+# Keep native protection diagnostics opt-in and separate from behavior fixes.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0060-ntdll-vm-protect-diagnostics.patch" \
+    "Paired native VM protection diagnostics (default off)"
+
+# Preserve real IPv4 bindings and query permitted kernel routing metadata.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0061-iphlpapi-native-network-contract.patch" \
+    "IPv4 adapter bindings and sandbox-safe native route metadata"
+
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO \

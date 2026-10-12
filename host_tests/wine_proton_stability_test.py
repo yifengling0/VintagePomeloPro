@@ -50,16 +50,23 @@ typedef struct { int left, top, right, bottom; } RECT;
 #define WS_MAXIMIZE 0x100
 #define WM_ENTERSIZEMOVE 1
 #define WM_EXITSIZEMOVE 2
+#define WM_SYSCOMMAND 3
+#define SC_RESTORE 4
 struct config { int width, height; uint32_t state, serial; };
 struct wayland_surface {
     struct config requested, processing, current;
-    BOOL resizing;
-    struct { RECT rect; uint32_t state; } window;
+    BOOL resizing, minimize_requested;
+    void *xdg_surface;
+    struct { RECT rect; uint32_t state; BOOL minimized; } window;
 };
 struct wayland_win_data {
     struct wayland_surface *wayland_surface;
     struct { RECT window; } rects;
 };
+static unsigned acked;
+static void __attribute__((unused)) xdg_surface_ack_configure(void *surface, uint32_t serial) {
+    (void)surface; assert(serial); acked++;
+}
 static struct wayland_win_data *current_data;
 static int released, positioned, xdg_toplevel = 1;
 static struct wayland_win_data *wayland_win_data_get(HWND hwnd) {
