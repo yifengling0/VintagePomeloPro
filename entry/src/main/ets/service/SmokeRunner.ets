@@ -5,7 +5,6 @@ import {
   syncManagedSmoke, writeSmokeText
 } from './ManagedSmokePayloadService';
 import { WineEngineService } from './WineEngineService';
-import { AppSettingsStore } from './AppSettingsStore';
 import { SmokeRequest } from '../common/SmokeTypes';
 
 const DOMAIN = 0x0000;
@@ -150,6 +149,12 @@ export class SmokeRunner {
     hilog.info(DOMAIN, TAG, 'run begin suite=%{public}s runId=%{public}s prefix=%{public}s engineReady=%{public}d',
       request.suite, request.runId, prefixMode, WineEngineService.getInstance().isReady());
     try {
+      // The proton RunWineProgram ABI has no prefix switch. Never report a clean-prefix
+      // test while actually spawning inside the active product container.
+      if (prefixMode === 'clean') {
+        await this.finishSuite(request, [this.unsupported(request, 'clean prefix is not supported by this native ABI')], driveC);
+        return;
+      }
       if (!WineEngineService.getInstance().isReady()) {
         await this.finishSuite(request, [
           this.failure(request, 'suites', 'engine not ready', -1)
@@ -186,7 +191,7 @@ export class SmokeRunner {
         const test: SmokeSuiteTest = tests[i];
         this.currentStatus = `Smoke ${request.suite}: ${i + 1}/${tests.length} ${test.testId}`;
         this.notify();
-        const r = await this.runTest(request, test, resultsDir, prefixMode);
+        const r = await this.runTest(request, test, resultsDir);
         results.push(r);
         hilog.info(DOMAIN, TAG, 'test done suite=%{public}s test=%{public}s status=%{public}s stage=%{public}s',
           request.suite, test.testId, r.status, r.stage);
@@ -210,22 +215,12 @@ export class SmokeRunner {
       this.currentResult = 'ERROR';
       this.currentStatus = `Smoke ${request.suite} ERROR`;
     } finally {
-      if (prefixMode === 'clean') {
-        this.currentStatus += '（正在恢复产品会话）';
-        this.notify();
-        const restored = await WineEngineService.getInstance().restoreProductSession();
-        if (!restored) {
-          hilog.error(DOMAIN, TAG, 'product session restore failed after clean smoke');
-          this.currentStatus += '（恢复失败）';
-        }
-      }
       this.busy = false;
       this.notify();
     }
   }
 
-  private async runTest(request: SmokeRequest, test: SmokeSuiteTest, resultsDir: string,
-    prefixMode: string): Promise<SmokeTestResult> {
+  private async runTest(request: SmokeRequest, test: SmokeSuiteTest, resultsDir: string): Promise<SmokeTestResult> {
     // 结果协议键由 runner 控制; suites 声明的诊断键随后合并 (测试专属, 非产品语义)
     const environment: Record<string, string> = {
       'WINEHUA_SMOKE_RUN_ID': request.runId,
@@ -275,9 +270,13 @@ export class SmokeRunner {
     // d3d 后端: suites 显式声明 (回归跑固定后端), 缺省 = 当前档位 (UI 手动 core)
     const d3dBackend: string = test.d3dBackend ? test.d3dBackend :
       WineEngineService.getInstance().getD3dBackend();
-    const dxvkBackend: string = test.dxvkBackend ? test.dxvkBackend :
-      (d3dBackend === 'dxvk_modern_2_6' || d3dBackend === 'vkd3d_limited_500k' ?
-        'dxvk_modern_2_6' : 'dxvk_legacy');
+    if (!['dxvk_legacy', 'dxvk_modern_2_6', 'wined3d'].includes(d3dBackend)) {
+      return this.unsupported(request, 'native RunWineProgram does not support backend ' + d3dBackend, test.testId);
+    }
+    const derivedDxvk: string = d3dBackend === 'dxvk_modern_2_6' ? 'dxvk_modern_2_6' : 'dxvk_legacy';
+    if (test.dxvkBackend && test.dxvkBackend !== derivedDxvk) {
+      return this.unsupported(request, 'native RunWineProgram derives dxvkBackend from d3dBackend', test.testId);
+    }
     const winPath: string = 'C:\\smoke\\' + test.exe.replace(/\//g, '\\');
     hilog.info(DOMAIN, TAG, 'spawn test=%{public}s exe=%{public}s seconds=%{public}d timeoutMs=%{public}d back=%{public}s',
       test.testId, winPath, seconds, timeoutMs, d3dBackend);
@@ -286,12 +285,9 @@ export class SmokeRunner {
       argv: argv,
       environment: environment,
       workingDirectory: 'C:\\smoke',
-      d3dBackend: d3dBackend,
-      dxvkBackend: dxvkBackend,
-      prefixMode: prefixMode,
-      wineLang: AppSettingsStore.getInstance().getGlobalSettings().wineLanguage,
-      presentToSurface: test.mode !== 'offscreen',
-      automationMode: true
+      d3dBackend: d3dBackend
+      // Presentation is derived by native from d3dBackend; offscreen/automation
+      // are already carried in the smoke executable's supported argv protocol.
     }) as RunProgramResult;
     if (!process || process.pid <= 0) {
       return this.failure(request, 'startup', `runWineProgram failed: ${winPath}`, -1, test.testId);
@@ -326,6 +322,11 @@ export class SmokeRunner {
     return this.failure(request, 'timeout', `轮询超时 ${timeoutMs}ms (结果文件: ${resultPath})`, process.pid, test.testId);
   }
 
+  private unsupported(request: SmokeRequest, message: string, testId?: string): SmokeTestResult {
+    return { schemaVersion: 1, runId: request.runId, testId: testId || request.suite,
+      status: 'UNSUPPORTED', stage: 'native-contract', message: message };
+  }
+
   private failure(request: SmokeRequest, stage: string, message: string, pid: number, testId?: string): SmokeTestResult {
     return {
       schemaVersion: 1,
@@ -345,12 +346,13 @@ export class SmokeRunner {
       schemaVersion: 1,
       runId: request.runId,
       suite: request.suite,
-      status: 'FAIL',
+      status: results.length > 0 && results.every((result: SmokeTestResult): boolean => result.status === 'UNSUPPORTED') ?
+        'UNSUPPORTED' : 'FAIL',
       tests: results
     };
     writeSmokeText(`${resultsDir}/suite-summary.json`, JSON.stringify(summary));
-    this.currentResult = 'FAIL';
-    this.currentStatus = `Smoke ${request.suite} FAIL (${results[0] ? results[0].message : 'unknown'})`;
+    this.currentResult = summary.status;
+    this.currentStatus = `Smoke ${request.suite} ${summary.status} (${results[0] ? results[0].message : 'unknown'})`;
     hilog.error(DOMAIN, TAG, 'suite failed early suite=%{public}s cause=%{public}s',
       request.suite, results[0] ? results[0].message : '');
   }

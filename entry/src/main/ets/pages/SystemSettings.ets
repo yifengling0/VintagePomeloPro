@@ -2521,6 +2521,12 @@ struct SystemSettingsPage {
           }
           .width('100%').padding(14).borderRadius(16)
           .backgroundColor(skinColor('search_background'))
+          if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+            Button('账号与云服务').width('100%').height(48).borderRadius(14)
+              .onClick((): void => {
+                if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) router.pushUrl({ url: 'pages/AccountCloud' });
+              })
+          }
           Button('打开帮助中心').width('100%').height(48).borderRadius(14)
             .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
             .onClick((): void => { router.pushUrl({ url: 'pages/HelpCenter' }); })

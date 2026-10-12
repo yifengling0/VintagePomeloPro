@@ -1079,6 +1079,7 @@ struct Index {
   }
 
   private openSidebarPage(url: string): void {
+    if (url === 'pages/AccountCloud' && !DeviceCapabilityPolicy.supportsValueAddedFeatures()) return;
     this.suspendConsoleRingForPageTransition();
     router.pushUrl({ url });
   }
@@ -1501,6 +1502,12 @@ struct Index {
           .width('100%').height(48).padding({ left: 15 }).borderRadius(12)
           .id('library-open-system-settings')
           .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
+          if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+            Button(this.sidebarCollapsed ? '云' : '账号与云服务').width('100%').height(48)
+              .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
+              .id('library-open-account-cloud')
+              .onClick((): void => this.openSidebarPage('pages/AccountCloud'))
+          }
           Row({ space: 12 }) {
             SymbolGlyph($r('sys.symbol.info_circle')).fontSize(19).fontColor([skinColor('text_secondary')])
             if (!this.sidebarCollapsed) {

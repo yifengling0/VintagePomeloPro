@@ -199,7 +199,15 @@ export const cancelPendingToplevel: (id: number) => void;
 export const getCurrentToplevelId: () => number;
 export const destroyToplevel: (id: number) => void;
 export const sendToplevelClose: (id: number) => void;
-export const runWineExe: (binDir: string, sockPath: string, libPath: string, exePath: string, homeDir: string) => void;
+/** wine/wine_exe.cpp: current ten-argument launch contract. */
+export interface WineLaunchResult {
+  pid: number;
+  sessionId: string;
+  reused: boolean;
+}
+export const runWineExe: (binDir: string, sockPath: string, libPath: string, exePath: string,
+  homeDir?: string, argv?: string[], workingDirectory?: string, d3dBackend?: string,
+  environment?: string[], wineLang?: string) => WineLaunchResult;
 export interface WineProgramOptions {
   windowsExePath: string;
   argv: string[];
@@ -207,8 +215,7 @@ export interface WineProgramOptions {
   workingDirectory: string;
   containerId?: string;
   d3dBackend: string;
-  dxvkBackend?: string;
-  presentBackend: string;
+  presentBackend?: string;
 }
 export interface WineProcessHandle {
   found: boolean;
@@ -256,3 +263,40 @@ export interface FontZipExtractResult {
   zlibCode: number;
 }
 export const extractFontZipAsync: (zipPath: string, outDir: string) => Promise<FontZipExtractResult>;
+
+// Contracts verified against bridge/napi_init.cpp and input/controller/*.cpp.
+export const initAppLog: (path: string) => void;
+export const clearNativeLog: () => void;
+export const controllerSetEnabled: (enabled: boolean) => void;
+export const controllerSetButton: (source: number, slot: number, button: number, pressed: boolean) => void;
+export const controllerSetStick: (source: number, slot: number, stick: number, x: number, y: number) => void;
+export const controllerSetHat: (source: number, slot: number, x: number, y: number) => void;
+export const controllerResetSource: (source: number) => void;
+export const controllerSetOutputMode: (mode: string) => void;
+export const controllerGetOutputMode: () => string;
+export const controllerGetStateText: (slot?: number) => string;
+export const setHostGraphicsExperimentForLab: (experimentId: string, backend: string) => boolean;
+export const setHostGraphicsBackend: (backend: string) => boolean;
+export const getHostGpuName: () => string;
+export const getDesktopRootId: () => number;
+// Proton currently returns inert null/false. These declarations do not restore session functionality.
+export const getWineSession: (sessionId: string) => null;
+export const activateWineSession: (sessionId: string) => boolean;
+export const stopWineSession: (sessionId: string) => boolean;
+export const initGameController: () => number;
+export const isGamepadConnected: () => boolean;
+export const setGamepadButtonCallback: (callback: (buttonCode: number, pressed: boolean) => void) => void;
+export const setGamepadAxisCallback: (callback: (axisType: number, x: number, y: number) => void) => void;
+export const setGamepadDeviceCallback: (callback: (connected: boolean) => void) => void;
+export const setGamepadRumbleCallback: (callback: (low: number, high: number, durationMs: number) => void) => void;
+export const refreshRenderer: (toplevelId: number) => void;
+export const setRendererPaused: (toplevelId: number, paused: boolean) => void;
+export const getDisplayFps: (toplevelId?: number) => number;
+export const readPerformanceCounters: (appCpu: boolean, systemCpu: boolean) => Promise<string>;
+export const wineTextInputCommit: (text: string) => boolean;
+export const wineTextInputPreedit: (text: string) => boolean;
+export const wineTextInputEnabled: () => boolean;
+/** The current native implementation accepts but ignores armed. */
+export const wineTextInputSetArmed: (armed: boolean) => void;
+export const runHostVulkanProbe: (surfaceId: BigInt, runId: string) => boolean;
+export const stopHostVulkanProbe: () => boolean;

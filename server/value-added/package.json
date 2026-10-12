@@ -1,0 +1,26 @@
+{
+  "name": "vintage-pomelo-value-added",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "start": "node src/main.mjs",
+    "probe:clouddb": "node scripts/probe-clouddb.mjs",
+    "test:sdk": "node scripts/test-agc-sdk-transport.mjs",
+    "probe:obs": "node scripts/probe-obs.mjs",
+    "test:obs-signer": "node scripts/test-obs-signer.mjs"
+  },
+  "dependencies": {
+    "@agconnect/common-server": "1.1.0",
+    "@agconnect/database-server": "1.0.7",
+    "esdk-obs-nodejs": "3.26.2"
+  },
+  "overrides": {
+    "axios": "0.34.0",
+    "uuid": "11.1.1"
+  }
+}

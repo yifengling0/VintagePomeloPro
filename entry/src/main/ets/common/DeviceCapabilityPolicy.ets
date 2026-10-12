@@ -1,3 +1,4 @@
+import { isValueAddedVisibleOnDevice } from '../model/ValueAddedModels';
 import deviceInfo from '@ohos.deviceInfo';
 import { window } from '@kit.ArkUI';
 import { hilog } from '../service/LogService';
@@ -8,6 +9,10 @@ const DOMAIN = 0x0000;
 export class DeviceCapabilityPolicy {
   static deviceType(): string {
     return deviceInfo.deviceType;
+  }
+
+  static supportsValueAddedFeatures(): boolean {
+    return isValueAddedVisibleOnDevice(DeviceCapabilityPolicy.deviceType());
   }
 
   static isPhoneDevice(): boolean {
