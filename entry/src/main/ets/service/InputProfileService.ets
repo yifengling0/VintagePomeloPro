@@ -29,6 +29,9 @@ const TAG = 'InputProfile';
  */
 export class InputProfileService {
   private static instance: InputProfileService | null = null;
+  private listeners: Set<(id: string, removed: boolean, source: string) => void> = new Set<(id: string, removed: boolean, source: string) => void>();
+  subscribeChanges(listener: (id: string, removed: boolean, source: string) => void): void { this.listeners.add(listener); }
+  unsubscribeChanges(listener: (id: string, removed: boolean, source: string) => void): void { this.listeners.delete(listener); }
   private store: preferences.Preferences | null = null;
   private profiles: Map<string, InputProfile> = new Map<string, InputProfile>();
 
@@ -136,13 +139,15 @@ export class InputProfileService {
     if (inputTemplateForProfileId(id) || !this.profiles.has(id)) return false;
     this.profiles.delete(id);
     await this.persistProfiles();
+    this.listeners.forEach((listener: (id: string, removed: boolean, source: string) => void): void => listener(id, true, 'local'));
     return true;
   }
 
-  async saveProfile(profile: InputProfile): Promise<void> {
+  async saveProfile(profile: InputProfile, source: string = 'local'): Promise<void> {
     const normalized = this.cloneProfile(profile);
     this.profiles.set(normalized.id, normalized);
     await this.persistProfiles();
+    this.listeners.forEach((listener: (id: string, removed: boolean, source: string) => void): void => listener(normalized.id, false, source));
   }
 
   /**

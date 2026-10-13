@@ -2,6 +2,7 @@ import { randomBytes, createHash, createHmac, timingSafeEqual } from 'node:crypt
 import { requireThat, ServiceError } from './errors.mjs';
 import { deriveMembership, MEMBERSHIP_POLICY } from './membership-policy.mjs';
 import { CloudSaves } from './cloud-saves.mjs';
+import { validatePreferences, preferencesEnvelope } from './preferences.mjs';
 import { validateProfile, profileEnvelope } from './profiles.mjs';
 const digest = value => createHash('sha256').update(value).digest('hex');
 const random = () => randomBytes(32).toString('base64url');
@@ -18,7 +19,7 @@ export class ValueAddedDomain {
   capabilities() {
     const storage = this.store.ready === true;
     return { account: storage && this.accountProvider.ready, commerce: storage && this.purchaseProvider.ready,
-      profiles: storage && this.purchaseProvider.ready, cloudSaves: storage && this.purchaseProvider.ready && this.saves.objects.ready,
+      profiles: storage && this.purchaseProvider.ready, preferences: storage && this.purchaseProvider.ready, cloudSaves: storage && this.purchaseProvider.ready && this.saves.objects.ready,
       reason: storage ? (this.purchaseProvider.ready ? '' : 'IAP_NOT_CONFIGURED') : 'CLOUDDB_NOT_VERIFIED' };
   }
   gate(feature) { requireThat(this.capabilities()[feature], 'NOT_CONFIGURED', 503); }
@@ -143,6 +144,25 @@ export class ValueAddedDomain {
   async requireMembership(userId) {
     this.gate('profiles');
     requireThat((await this.entitlement(userId)).active, 'MEMBERSHIP_REQUIRED', 403);
+  }
+  preferencesKey(userId, deviceClass) {
+    requireThat(['tablet','desktop'].includes(deviceClass),'INVALID_PREFERENCES');
+    return 'preferences:' + digest(userId + '\n' + deviceClass);
+  }
+  async getPreferences(userId, deviceClass) {
+    await this.requireMembership(userId);
+    return {current: await this.store.get(this.preferencesKey(userId,deviceClass))};
+  }
+  async putPreferences(userId, deviceClass, {baseRevision,payload}) {
+    await this.requireMembership(userId);
+    requireThat(Number.isSafeInteger(baseRevision) && baseRevision >= 0,'INVALID_PREFERENCES');
+    const key = this.preferencesKey(userId,deviceClass), clean = validatePreferences(payload);
+    return this.store.transaction(async tx => {
+      const current = await tx.get(key);
+      if ((current?.revision ?? 0) !== baseRevision) return {status:'CONFLICT',current};
+      const next = preferencesEnvelope(clean,deviceClass,baseRevision+1);
+      tx.put(key,next,'preferences'); return {status:'SAVED',current:next};
+    });
   }
   profileKey(userId, deviceClass, id) {
     requireThat(['tablet','desktop'].includes(deviceClass) && /^[a-zA-Z0-9_-]{1,128}$/.test(id), 'INVALID_PROFILE');

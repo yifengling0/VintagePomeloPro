@@ -68,6 +68,12 @@ export function createApiServer(domain) {
           else if(version&&method==='DELETE')result=await domain.saves.deleteVersion(userId,version[1],version[2],await body(request));
           else throw new ServiceError('NOT_FOUND',404);
         }
+        else if (/^\/v1\/settings\/(tablet|desktop)$/.test(path)) {
+          const deviceClass = path.split('/')[3];
+          if (method === 'GET') result = await domain.getPreferences(userId,deviceClass);
+          else if (method === 'PUT') result = await domain.putPreferences(userId,deviceClass,await body(request));
+          else throw new ServiceError('NOT_FOUND',404);
+        }
         else if (path === '/v1/purchases/verify' && method === 'POST') result = await domain.verify(userId, await body(request));
         else {
           const route = /^\/v1\/profiles\/(tablet|desktop)(?:\/([a-zA-Z0-9_-]{1,128}))?$/.exec(path);

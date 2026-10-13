@@ -9,6 +9,7 @@ import { InputProfile } from '../../model/AppModels';
 import { AccountSession, MemberEntitlement, ServiceCapabilities, ValueAddedConfig, ProfileEnvelope,
   ProfileConflict, ProfileSummary, cloudProfilePayload, profileDeviceClass, validateProfileEnvelope,
   validateValueAddedConfig } from '../../model/ValueAddedModels';
+import { PreferencesRead, PreferencesWrite, PreferencesEnvelope, SyncedPreferences, validateSyncedPreferences } from '../../model/AccountSyncModels';
 import { InputProfileService } from '../InputProfileService';
 import { fileIo as fs } from '@kit.CoreFileKit';
 
@@ -42,6 +43,8 @@ export class ValueAddedService {
   private busy: boolean = false;
   private capabilities: ServiceCapabilities = { account: false, commerce: false, profiles: false,
     cloudSaves: false, reason: 'NOT_CONFIGURED' };
+  private accountListeners: Set<(userId: string) => void> = new Set<(userId: string) => void>();
+  subscribeAccount(listener: (userId: string) => void): void { this.accountListeners.add(listener); }
   private profileHeads: Map<string, number> = new Map<string, number>();
   private conflicts: Map<string, ProfileConflict> = new Map<string, ProfileConflict>();
 
@@ -84,6 +87,7 @@ export class ValueAddedService {
     this.session = null;
     this.profileHeads.clear();
     this.conflicts.clear();
+    this.accountListeners.forEach((listener: (userId: string) => void): void => listener(''));
   }
   private async request<T>(path: string, method: http.RequestMethod, body: string | ArrayBuffer, authenticated: boolean = true): Promise<T> {
     this.guard();
@@ -144,6 +148,7 @@ export class ValueAddedService {
       if (epoch !== this.generation || !session.token || !session.userId || !Number.isFinite(session.expiresAt) ||
         session.expiresAt <= Date.now()) throw new Error('INVALID_SESSION');
       this.session = session;
+      this.accountListeners.forEach((listener: (userId: string) => void): void => listener(session.userId));
     } finally { this.busy = false; }
   }
   async signOut(): Promise<void> {
@@ -330,7 +335,47 @@ export class ValueAddedService {
     this.conflicts.delete(profile.id);
     return 'SAVED';
   }
-  async downloadProfile(id: string, copy: boolean = false): Promise<void> {
+  async readCloudProfile(id: string): Promise<ProfileEnvelope> {
+    this.guard();
+    if (!this.capabilities.profiles) throw new Error('NOT_CONFIGURED');
+    const epoch = this.generation;
+    const value = await this.request<ProfileEnvelope>(this.profilePath(id), http.RequestMethod.GET, '');
+    await this.verifyEnvelope(value, id); this.assertGeneration(epoch); return value;
+  }
+  profileRevision(id: string): number { this.guard(); return this.profileHeads.get(id) ?? 0; }
+  setProfileBaseRevision(id: string, revision: number): void {
+    this.guard();
+    if (!this.validSession() || !/^[a-zA-Z0-9_-]{1,128}$/.test(id) || !Number.isSafeInteger(revision) || revision < 0) throw new Error('INVALID_PROFILE');
+    this.profileHeads.set(id, revision);
+  }
+  private async verifyPreferences(value: PreferencesEnvelope): Promise<void> {
+    if (value.schemaVersion !== 1 || value.deviceClass !== profileDeviceClass(DeviceCapabilityPolicy.deviceType()) ||
+      !Number.isSafeInteger(value.revision) || value.revision < 1 || !/^[a-f0-9]{64}$/.test(value.payloadSha256)) throw new Error('INVALID_PREFERENCES');
+    validateSyncedPreferences(value.payload);
+    if (await this.payloadHash(JSON.stringify(value.payload)) !== value.payloadSha256) throw new Error('PROFILE_HASH_MISMATCH');
+  }
+  async payloadHash(json: string): Promise<string> {
+    const md = cryptoFramework.createMd('SHA256');
+    await md.update({ data: new util.TextEncoder().encodeInto(json) });
+    const result = await md.digest();
+    return Array.from(result.data).map((byte: number): string => byte.toString(16).padStart(2, '0')).join('');
+  }
+  async readPreferences(): Promise<PreferencesEnvelope | null> {
+    this.guard(); if (!this.capabilities.preferences) throw new Error('NOT_CONFIGURED');
+    const epoch = this.generation;
+    const result = await this.request<PreferencesRead>('/v1/settings/' + profileDeviceClass(DeviceCapabilityPolicy.deviceType()), http.RequestMethod.GET, '');
+    if (result.current) await this.verifyPreferences(result.current);
+    this.assertGeneration(epoch); return result.current;
+  }
+  async uploadPreferences(payload: SyncedPreferences, baseRevision: number): Promise<PreferencesWrite> {
+    this.guard(); if (!this.capabilities.preferences) throw new Error('NOT_CONFIGURED'); validateSyncedPreferences(payload);
+    const epoch = this.generation;
+    const result = await this.request<PreferencesWrite>('/v1/settings/' + profileDeviceClass(DeviceCapabilityPolicy.deviceType()), http.RequestMethod.PUT,
+      JSON.stringify({ baseRevision: baseRevision, payload: payload }));
+    if (result.status !== 'SAVED' && result.status !== 'CONFLICT') throw new Error('INVALID_PREFERENCES');
+    await this.verifyPreferences(result.current); this.assertGeneration(epoch); return result;
+  }
+  async downloadProfile(id: string, copy: boolean = false, expectedLocal: string = '', shouldApply: () => boolean = (): boolean => true): Promise<ProfileEnvelope> {
     this.guard();
     if (!this.capabilities.profiles) throw new Error('NOT_CONFIGURED');
     const epoch = this.generation;
@@ -342,8 +387,12 @@ export class ValueAddedService {
     this.assertGeneration(epoch);
     const payload = cloudProfilePayload(remote.payload);
     if (copy) { payload.id = 'cloud-' + util.generateRandomUUID(); payload.name += '（云端副本）'; }
-    await profiles.saveProfile(payload);
+    if (!shouldApply()) throw new Error('ACCOUNT_CHANGED');
+    if (expectedLocal && (expectedLocal === '__absent__' ? profiles.hasProfile(id) :
+      !profiles.hasProfile(id) || JSON.stringify(cloudProfilePayload(profiles.getProfile(id))) !== expectedLocal)) throw new Error('PROFILE_LOCAL_CHANGED');
+    await profiles.saveProfile(payload, 'cloud');
     this.assertGeneration(epoch);
     if (!copy) { this.profileHeads.set(id, remote.revision); this.conflicts.delete(id); }
+    return remote;
   }
 }

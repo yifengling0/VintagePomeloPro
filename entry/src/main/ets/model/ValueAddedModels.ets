@@ -47,6 +47,7 @@ export interface ServiceCapabilities {
   account: boolean;
   commerce: boolean;
   profiles: boolean;
+  preferences?: boolean;
   cloudSaves: boolean;
   reason: string;
 }
@@ -179,6 +180,9 @@ export interface SaveManifest {
   rootAlias: string;
   selectedPath: string;
   createdAt: number;
+  origin?: string;
+  gameTitle?: string;
+  gameIdentity?: string;
   files: SaveManifestEntry[];
 }
 export function safeRelativeSavePath(path: string): string {

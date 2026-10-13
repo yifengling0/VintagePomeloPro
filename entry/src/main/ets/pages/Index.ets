@@ -1,3 +1,5 @@
+import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
+import { LocalSaveSnapshotService } from '../service/valueadded/LocalSaveSnapshotService';
 import { skinColor } from '../service/SkinColors';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import router from '@ohos.router';
@@ -918,6 +920,8 @@ struct Index {
     await this.rescan();
     this.preferGamesForConsole();
     this.catalogInitialized = true;
+    LocalSaveSnapshotService.getInstance().initialize(this.context);
+    void AccountAutomaticSyncService.getInstance().initialize(this.context);
     // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标)
     SteamService.getInstance().initialize(this.context).then((): void => {
       SteamService.getInstance().subscribe('LauncherSteamEntry',
@@ -944,6 +948,7 @@ struct Index {
         void AppSettingsStore.getInstance().setBentoState(this.bentoSort, retained);
       }
       this.refreshRunningState();
+      if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) LocalSaveSnapshotService.getInstance().reconcileCatalog(this.context);
     } finally {
       this.scanning = false;
     }
@@ -1530,12 +1535,6 @@ struct Index {
           .width('100%').height(48).padding({ left: 15 }).borderRadius(12)
           .id('library-open-system-settings')
           .onClick((): void => this.openSidebarPage('pages/SystemSettings'))
-          if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
-            Button(this.sidebarCollapsed ? '云' : '账号与云服务').width('100%').height(48)
-              .backgroundColor(skinColor('search_background')).fontColor(skinColor('text_primary'))
-              .id('library-open-account-cloud')
-              .onClick((): void => this.openSidebarPage('pages/AccountCloud'))
-          }
           Row({ space: 12 }) {
             SymbolGlyph($r('sys.symbol.info_circle')).fontSize(19).fontColor([skinColor('text_secondary')])
             if (!this.sidebarCollapsed) {

@@ -11,7 +11,7 @@ const envelope={schemaVersion:1,profileFamily:'input/native-v6',deviceClass:'tab
   payloadSha256:crypto.createHash('sha256').update(JSON.stringify(profile)).digest('hex'),payload:profile};
 let route=async(url,options)=>{
  const endpoint=new URL(url).pathname;
- if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,cloudSaves:false,reason:''};
+ if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,preferences:true,cloudSaves:false,reason:''};
  if(endpoint==='/v1/auth/begin')return {attemptId:'test-attempt',state:'test-state'};
  if(endpoint==='/v1/auth/exchange')return {token:'session-'+user,userId:user,expiresAt:Date.now()+1800000};
  if(endpoint==='/v1/auth/logout')return {};
@@ -41,7 +41,8 @@ const imports={
  TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:crypto.randomUUID}},
  '@kit.CryptoArchitectureKit':{cryptoFramework:md},'@kit.CoreFileKit':{fileIo:adapter},
  '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>visible,deviceType:()=>visible?'tablet':'phone'}},
- '../../model/AppModels':app,'../../model/ValueAddedModels':models,
+ '../../model/AppModels':app,'../../model/AccountSyncModels':require(path.resolve(process.argv[2], 'model/AccountSyncModels.js')),
+  '../../model/ValueAddedModels':models,
  '../InputProfileService':{InputProfileService:{getInstance:()=>({hasProfile:()=>true,getProfile:()=>profile,saveProfile:async()=>{writes++;}})}}
 };
 const source=fs.readFileSync(path.join(__dirname,'../entry/src/main/ets/service/valueadded/ValueAddedService.ets'),'utf8');
@@ -71,5 +72,30 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  const originalHash=envelope.payloadSha256;envelope.payloadSha256='0'.repeat(64);
  await assert.rejects(service.downloadProfile('default'),/PROFILE_HASH_MISMATCH/);envelope.payloadSha256=originalHash;
  assert.equal(writes,1);
- console.log('Value-added services: hidden no-network/no-SDK, authorization state, ack retry, account-switch races, profile hash PASS');
+
+ const preferencesPayload={schemaVersion:1,themeMode:'system',uiSkin:'classic',consolePalette:'violet',consoleCardLayout:'focus3d',
+  viewMode:'grid',useGlassEffect:true,desktopInputProfileId:'default'};
+ let preferenceRevision=1;
+ const preferenceEnvelope=()=>({schemaVersion:1,deviceClass:'tablet',revision:preferenceRevision,
+  payloadSha256:crypto.createHash('sha256').update(JSON.stringify(preferencesPayload)).digest('hex'),payload:preferencesPayload});
+ route=async(url,opts)=>{
+  if(new URL(url).pathname==='/v1/settings/tablet'){
+   if(opts.method==='PUT'){
+    const body=JSON.parse(opts.extraData);assert.equal(body.baseRevision,1);assert.deepEqual(body.payload,preferencesPayload);
+    preferenceRevision=2;return {status:'SAVED',current:preferenceEnvelope()};
+   }
+   return {current:preferenceEnvelope()};
+  }
+  return originalRoute(url,opts);
+ };
+ assert.equal((await service.readPreferences()).revision,1);
+ assert.equal((await service.uploadPreferences(preferencesPayload,1)).current.revision,2);
+ preferencesPayload.absolutePath='/private/wine';
+ await assert.rejects(service.readPreferences(),/INVALID_PREFERENCES/);delete preferencesPayload.absolutePath;
+ let releaseSettings,settingsEntered;
+ const settingsStarted=new Promise(resolve=>settingsEntered=resolve),settingsPaused=new Promise(resolve=>releaseSettings=resolve);
+ const preferenceRoute=route;
+ route=async(url,opts)=>{if(new URL(url).pathname==='/v1/settings/tablet'){settingsEntered();await settingsPaused;}return preferenceRoute(url,opts);};
+ const reading=service.readPreferences();await settingsStarted;await service.signOut();releaseSettings();await assert.rejects(reading,/ACCOUNT_CHANGED/);
+ console.log('Value-added services: hidden guards, auth/ack, account-switch races, profile hash, settings routes/hash/allowlist PASS');
 })().finally(()=>fs.rmSync(directory,{recursive:true,force:true})).catch(error=>{console.error(error);process.exitCode=1;});

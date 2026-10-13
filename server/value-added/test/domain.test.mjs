@@ -107,3 +107,33 @@ test('already finished store orders restore entitlement without requesting anoth
   assert.equal(result.finishAllowed,false); assert.equal(result.status,'ALREADY_FINISHED');
   assert.equal((await d.entitlement(userId)).active,true);
 });
+
+
+const preferences = {schemaVersion:1,themeMode:'system',uiSkin:'classic',consolePalette:'violet',
+  consoleCardLayout:'focus3d',viewMode:'grid',useGlassEffect:true,desktopInputProfileId:'default'};
+test('preferences CAS race, payload digest and account/device isolation',async()=>{
+  const {d,now}=make();const {userId}=await login(d);await verify(d,userId,await receipt(d,userId,now()));
+  assert.equal((await d.getPreferences(userId,'tablet')).current,null);
+  const first=await d.putPreferences(userId,'tablet',{baseRevision:0,payload:preferences});
+  assert.equal(first.current.revision,1);
+  const {createHash}=await import('node:crypto');
+  assert.equal(first.current.payloadSha256,createHash('sha256').update(JSON.stringify(first.current.payload)).digest('hex'));
+  const race=await Promise.all(['light','dark'].map(themeMode=>d.putPreferences(userId,'tablet',{baseRevision:1,payload:{...preferences,themeMode}})));
+  assert.deepEqual(race.map(x=>x.status).sort(),['CONFLICT','SAVED']);assert.deepEqual(race[0].current,race[1].current);
+  assert.equal((await d.getPreferences(userId,'desktop')).current,null);
+  const bob=await login(d,'bob');await verify(d,bob.userId,await receipt(d,bob.userId,now(),'month','bob-order'));
+  assert.equal((await d.getPreferences(bob.userId,'tablet')).current,null);
+  await d.putPreferences(bob.userId,'tablet',{baseRevision:0,payload:{...preferences,themeMode:'dark'}});
+  assert.equal((await d.getPreferences(userId,'tablet')).current.revision,2);
+});
+test('settings allowlist excludes paths, runtime knobs, account data and per-game defaults',async()=>{
+  const {d,now,advance}=make();const {userId}=await login(d);await verify(d,userId,await receipt(d,userId,now()));
+  for(const field of ['token','absolutePath','winePrefix','steamPath','fexOptions','screenResolution'])
+    await assert.rejects(d.putPreferences(userId,'tablet',{baseRevision:0,payload:{...preferences,[field]:'private'}}),/INVALID_PREFERENCES/);
+  for(const bad of [{themeMode:'invalid'},{useGlassEffect:'true'},{desktopInputProfileId:'app-local-id'},{schemaVersion:2},{desktopInputProfileId:'../x'}])
+    await assert.rejects(d.putPreferences(userId,'tablet',{baseRevision:0,payload:{...preferences,...bad}}),/INVALID_PREFERENCES/);
+  await assert.rejects(d.putPreferences(userId,'phone',{baseRevision:0,payload:preferences}),/INVALID_PREFERENCES/);
+  await assert.rejects(d.putPreferences(userId,'tablet',{baseRevision:-1,payload:preferences}),/INVALID_PREFERENCES/);
+  assert.equal((await d.getPreferences(userId,'tablet')).current,null);
+  advance(300001);await assert.rejects(d.getPreferences(userId,'tablet'),/MEMBERSHIP_REQUIRED/);
+});

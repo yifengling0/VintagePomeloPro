@@ -1,3 +1,4 @@
+import { GameBackupSetting } from '../components/GameBackupSetting';
 import { skinColor } from '../service/SkinColors';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
@@ -788,6 +789,10 @@ struct AppSettingsPage {
               }
             }
           }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
+
+          if (this.app && DeviceCapabilityPolicy.supportsValueAddedFeatures() && this.app.source === AppSource.DOWNLOAD && !this.app.steam) {
+            GameBackupSetting({ appId: this.app.id })
+          }
 
           Column({ space: 12 }) {
             Text('启动参数').fontSize(18).fontWeight(FontWeight.Medium).width('100%')

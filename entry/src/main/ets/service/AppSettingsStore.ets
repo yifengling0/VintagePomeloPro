@@ -47,6 +47,10 @@ interface BentoState {
 export class AppSettingsStore {
   private static instance: AppSettingsStore | null = null;
   private store: preferences.Preferences | null = null;
+  private globalListeners: Set<() => void> = new Set<() => void>();
+  subscribeGlobalChanges(listener: () => void): void { this.globalListeners.add(listener); }
+  unsubscribeGlobalChanges(listener: () => void): void { this.globalListeners.delete(listener); }
+
   private appSettings: Map<string, AppSettings> = new Map<string, AppSettings>();
   private globalSettings: GlobalSettings = createDefaultGlobalSettings();
   // 最近启动的 appId 列表 (最新在前), 持久化, 供"最近"分类使用
@@ -353,6 +357,7 @@ export class AppSettingsStore {
     if (!this.store) return;
     await this.store.put(GLOBAL_KEY, JSON.stringify(value));
     await this.store.flush();
+    this.globalListeners.forEach((listener: () => void): void => listener());
   }
 
   async setViewMode(value: ViewMode): Promise<void> {

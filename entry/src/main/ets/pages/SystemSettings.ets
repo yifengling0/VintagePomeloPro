@@ -1,3 +1,4 @@
+import { AccountSyncSettings } from '../components/AccountSyncSettings';
 import { FontImportFiles, replaceImportedFonts } from '../service/FontImportTransaction';
 import { skinColor } from '../service/SkinColors';
 /// <reference path="../ohos.systemShare.d.ts" />
@@ -90,7 +91,7 @@ class FontImportFileAdapter implements FontImportFiles {
 
 const DOMAIN = 0x0000;
 
-type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'about';
+type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'sync' | 'about';
 
 interface SwitchRowOptions {
   title: string;
@@ -304,6 +305,8 @@ struct SystemSettingsPage {
   private disposeWindowInsetObserver: (() => void) | null = null;
   private inputProfilePickerController: CustomDialogController | null = null;
   private hubPollTimer: number = -1;
+  private routeSectionApplied: boolean = false;
+  private sectionJumpTimer: number = -1;
 
   private isNarrowPhone(): boolean {
     return this.breakpoint === 'xs';
@@ -403,9 +406,15 @@ struct SystemSettingsPage {
     this.loadInputProfiles();
     this.loadApplicationVersion();
     this.restoreSettingsWindowChrome();
+    const params = router.getParams() as Record<string, string>;
+    if (!this.routeSectionApplied && params?.section === 'sync' && DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+      this.routeSectionApplied = true;
+      this.sectionJumpTimer = setTimeout((): void => { this.sectionJumpTimer = -1; this.selectSection('sync'); }, 100);
+    }
   }
 
   onPageHide(): void {
+    if (this.sectionJumpTimer !== -1) { clearTimeout(this.sectionJumpTimer); this.sectionJumpTimer = -1; }
     this.stopWindowInsetObserver();
   }
 
@@ -1481,24 +1490,19 @@ struct SystemSettingsPage {
     .onClick((): void => this.selectSection(section))
   }
 
+  private settingsSections(): SettingsSection[] {
+    return DeviceCapabilityPolicy.supportsValueAddedFeatures() ?
+      ['display', 'appearance', 'sync', 'input', 'engine', 'performance', 'logs', 'about'] :
+      ['display', 'appearance', 'input', 'engine', 'performance', 'logs', 'about'];
+  }
+
   private sectionIndex(section: SettingsSection): number {
-    if (section === 'display') return 0;
-    if (section === 'appearance') return 1;
-    if (section === 'input') return 2;
-    if (section === 'engine') return 3;
-    if (section === 'performance') return 4;
-    if (section === 'logs') return 5;
-    return 6;
+    return Math.max(0, this.settingsSections().indexOf(section));
   }
 
   private sectionAt(index: number): SettingsSection {
-    if (index <= 0) return 'display';
-    if (index === 1) return 'appearance';
-    if (index === 2) return 'input';
-    if (index === 3) return 'engine';
-    if (index === 4) return 'performance';
-    if (index === 5) return 'logs';
-    return 'about';
+    const sections = this.settingsSections();
+    return sections[Math.max(0, Math.min(index, sections.length - 1))];
   }
 
   private selectSection(section: SettingsSection): void {
@@ -1886,7 +1890,15 @@ struct SystemSettingsPage {
   @Builder
   private Content(section: SettingsSection) {
     Column({ space: 14 }) {
-      if (section === 'display') {
+      if (section === 'sync') {
+        Column({ space: 18 }) {
+          Text('账号与同步').fontSize(20).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary')).width('100%')
+          AccountSyncSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm' })
+        }.width('100%').padding(this.cardPadding())
+          .backgroundColor(this.groupSurfaceColor())
+          .backgroundBlurStyle(this.settings.useGlassEffect ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
+          .border({ width: 1, color: this.groupBorderColor() }).borderRadius(20)
+      } else if (section === 'display') {
         Column({ space: 16 }) {
           Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。')
@@ -2521,12 +2533,6 @@ struct SystemSettingsPage {
           }
           .width('100%').padding(14).borderRadius(16)
           .backgroundColor(skinColor('search_background'))
-          if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
-            Button('账号与云服务').width('100%').height(48).borderRadius(14)
-              .onClick((): void => {
-                if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) router.pushUrl({ url: 'pages/AccountCloud' });
-              })
-          }
           Button('打开帮助中心').width('100%').height(48).borderRadius(14)
             .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
             .onClick((): void => { router.pushUrl({ url: 'pages/HelpCenter' }); })
@@ -2569,6 +2575,9 @@ struct SystemSettingsPage {
       }
       .width('100%').id('settings-section-display')
       ListItem() { this.Content('appearance') }.width('100%').id('settings-section-appearance')
+      if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+        ListItem() { this.Content('sync') }.width('100%').id('settings-section-sync')
+      }
       ListItem() { this.Content('input') }.width('100%').id('settings-section-input')
       ListItem() { this.Content('engine') }.width('100%').id('settings-section-engine')
       ListItem() { this.Content('performance') }.width('100%').id('settings-section-performance')
@@ -2603,6 +2612,9 @@ struct SystemSettingsPage {
                 .fontColor(skinColor('text_secondary')).width('100%').margin({ left: 8, bottom: 6 })
               this.SectionButton('显示模式', 'display', $r('sys.symbol.rectangle_grid_1x2'))
               this.SectionButton('外观', 'appearance', $r('sys.symbol.square_grid_2x2'))
+              if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+                this.SectionButton('账号与同步', 'sync', $r('sys.symbol.arrow_counterclockwise'))
+              }
               this.SectionButton('输入与手柄', 'input', $r('sys.symbol.list_bullet'))
               this.SectionButton('Wine 引擎', 'engine', $r('sys.symbol.arrow_clockwise'))
               this.SectionButton('性能监控', 'performance', $r('sys.symbol.list_bullet'))

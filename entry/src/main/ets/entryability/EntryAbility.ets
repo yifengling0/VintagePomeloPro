@@ -1,3 +1,4 @@
+import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
 import { AppLog } from '../service/LogService';
@@ -457,12 +458,14 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    AccountAutomaticSyncService.getInstance().setForeground(true);
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
     this.ensureDownloadGamesDirectory('onForeground');
   }
 
   onBackground(): void {
+    AccountAutomaticSyncService.getInstance().setForeground(false);
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
   }

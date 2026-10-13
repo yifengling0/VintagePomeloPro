@@ -15,7 +15,8 @@ fs.mkdirSync(filesDir); fs.mkdirSync(gameDir); fs.mkdirSync(path.join(gameDir, '
 const save = path.join(gameDir, 'save', 'slot.sav'); fs.writeFileSync(save, 'first save');
 let visible = true, engine = appModels.EngineState.STOPPED, processes = [], failRename = false, zeroWrite = false, mutateRead = false;
 const game = { id: 'game-1', title:'Game', available:true, directory:gameDir,
-  launchTarget: {kind:appModels.LaunchKind.WINE_EXE} };
+  launchTarget: {kind:appModels.LaunchKind.WINE_EXE,executable:path.join(gameDir,'game.exe')} };
+fs.writeFileSync(game.launchTarget.executable, 'MZ-game-identity-fixture');
 const stat = input => { const s = typeof input === 'number' ? fs.fstatSync(input) : fs.statSync(input); s.mtime = s.mtimeMs; return s; };
 const adapter = {
   OpenMode: { READ_ONLY:fs.constants.O_RDONLY, WRITE_ONLY:fs.constants.O_WRONLY, DIR:fs.constants.O_DIRECTORY,
@@ -41,6 +42,7 @@ const imports={
   'libentry.so':{default:{getProcessList:()=>processes}},
   '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>visible}},
   '../../model/AppModels':appModels, '../../model/ValueAddedModels':models,
+  '../../model/SaveBackupModels':require(path.resolve(process.argv[2], 'model/SaveBackupModels.js')),
   '../../model/CloudSaveModels':require(path.resolve(process.argv[2], 'model/CloudSaveModels.js')),
   '../WineEngineService':{WineEngineService:{getInstance:()=>({getState:()=>engine})}},
   '../AppCatalogService':{AppCatalogService:{getInstance:()=>({getApps:()=>[game]})}}
@@ -50,7 +52,8 @@ vm.runInNewContext(js,{module:moduleObject,exports:moduleObject.exports,require:
 const service=moduleObject.exports.LocalSaveSnapshotService.getInstance(), context={filesDir};
 const cloudModels=require(path.resolve(process.argv[2], 'model/CloudSaveModels.js'));
 const game2Dir=path.join(base,'game2');fs.mkdirSync(game2Dir);
-const game2={...game,id:'game-2',title:'Second device game',directory:game2Dir};
+const game2={...game,id:'game-2',title:'Second device game',directory:game2Dir,launchTarget:{...game.launchTarget,executable:path.join(game2Dir,'game.exe')}};
+fs.writeFileSync(game2.launchTarget.executable,'MZ-second-device-game');
 imports['../AppCatalogService'].AppCatalogService.getInstance=()=>({getApps:()=>[game,game2]});
 
 (async()=>{
