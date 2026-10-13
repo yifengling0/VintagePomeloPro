@@ -44,6 +44,7 @@ export struct AccountSyncSettings {
   @State private profilesReady: boolean = false;
   @State private autoSyncStatus: string = '';
   @State private syncItems: SyncItemStatus[] = [];
+  @State private profileDetailsExpanded: boolean = false;
   @State private lastSyncTime: number = 0;
   @State private autoProfiles: boolean = true;
   @State private autoPreferences: boolean = true;
@@ -147,6 +148,34 @@ export struct AccountSyncSettings {
     void this.run('automatic', async (): Promise<void> => {
       await AccountAutomaticSyncService.getInstance().setEnabled(family, enabled); this.refreshAutomaticSync();
     });
+  }
+  private inputSyncItems(): SyncItemStatus[] {
+    const items = this.syncItems.filter((item: SyncItemStatus): boolean => item.id !== 'preferences' && item.id !== 'profiles-status');
+    this.profiles.forEach((profile: InputProfile): void => {
+      if (!items.some((item: SyncItemStatus): boolean => item.id === profile.id)) {
+        items.push({ id: profile.id, name: profile.name,
+          state: this.huaweiSignedIn && !this.userId ? '已登录 · 同步尚未连接' : this.autoSyncStatus || '等待登录', lastSyncedAt: 0 });
+      }
+    });
+    return items;
+  }
+  private profileNeedsAttention(item: SyncItemStatus): boolean {
+    return this.conflicts.indexOf(item.id) >= 0 || this.syncItems.some((value: SyncItemStatus): boolean => value.id === item.id) &&
+      ['冲突', '等待', '失败', '异常', '未上传'].some((text: string): boolean => item.state.indexOf(text) >= 0);
+  }
+  private visibleProfileItems(): SyncItemStatus[] {
+    const items = this.inputSyncItems();
+    // Collapsing ordinary details must not hide conflicts or recovery that needs attention.
+    return this.profileDetailsExpanded ? items : items.filter((item: SyncItemStatus): boolean => this.profileNeedsAttention(item));
+  }
+  private profileDetailsSummary(): string {
+    const ids = new Set<string>();
+    this.profiles.forEach((profile: InputProfile): void => { ids.add(profile.id); });
+    const items = this.inputSyncItems();
+    items.forEach((item: SyncItemStatus): void => { ids.add(item.id); });
+    const attention = items.filter((item: SyncItemStatus): boolean => this.profileNeedsAttention(item)).length;
+    return '共 ' + ids.size + ' 个方案' + (attention > 0 ? ' · ' + attention + ' 项待处理' :
+      this.profileDetailsExpanded ? '' : ' · 点击查看备份明细');
   }
   private resolveInputConflict(id: string, useCloud: boolean): void {
     void this.run('automatic', async (): Promise<void> => {
@@ -382,28 +411,7 @@ export struct AccountSyncSettings {
     }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
   }
   @Builder
-  private Profiles() {
-    this.Heading('云端备份', '登录后自动备份当前设备的设置与输入方案，重装应用后登录同一账号恢复。平板与桌面分别保存。')
-    Row({ space: 12 }) {
-      Column({ space: 5 }) {
-        Text(this.huaweiSignedIn && !this.userId ? '已登录 · 同步尚未连接' : this.backupStatus(this.autoSyncStatus || '等待登录')).fontSize(15).fontWeight(FontWeight.Medium)
-          .fontColor(skinColor('text_secondary')).width('100%').id('sync-automatic-status')
-        if (this.lastSyncTime > 0) {
-          Text('最近备份 ' + new Date(this.lastSyncTime).toLocaleString())
-            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-        }
-      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      this.Action('重新检查', 'sync-automatic-check', (): boolean => !!this.userId && !this.busy, (): void => {
-        AccountAutomaticSyncService.getInstance().requestSync(0);
-      })
-    }.width('100%')
-    this.SyncSwitch('设置同步', '自动备份外观、卡片布局与默认输入方案', 'preferences', (): boolean => this.autoPreferences)
-    this.SyncSwitch('输入方案同步', '自动备份按键布局、鼠标参数和手柄映射', 'profiles', (): boolean => this.autoProfiles)
-    if (!this.profilesReady) {
-      Text('云同步暂未接通。未登录或离线时，本地设置与方案仍可正常使用。')
-        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-    }
-    ForEach(this.syncItems, (item: SyncItemStatus) => {
+  private SyncItem(item: SyncItemStatus) {
       Column({ space: 8 }) {
         Row({ space: 12 }) {
           Text(item.name).fontSize(14).fontColor(skinColor('text_primary')).layoutWeight(1)
@@ -428,6 +436,48 @@ export struct AccountSyncSettings {
           }.width('100%')
         }
       }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
+        .id('sync-item-' + item.id)
+  }
+  @Builder
+  private Profiles() {
+    this.Heading('云端备份', '登录后自动备份当前设备的设置与输入方案，重装应用后登录同一账号恢复。平板与桌面分别保存。')
+    Row({ space: 12 }) {
+      Column({ space: 5 }) {
+        Text(this.huaweiSignedIn && !this.userId ? '已登录 · 同步尚未连接' : this.backupStatus(this.autoSyncStatus || '等待登录')).fontSize(15).fontWeight(FontWeight.Medium)
+          .fontColor(skinColor('text_secondary')).width('100%').id('sync-automatic-status')
+        if (this.lastSyncTime > 0) {
+          Text('最近备份 ' + new Date(this.lastSyncTime).toLocaleString())
+            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+        }
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+      this.Action('重新检查', 'sync-automatic-check', (): boolean => !!this.userId && !this.busy, (): void => {
+        AccountAutomaticSyncService.getInstance().requestSync(0);
+      })
+    }.width('100%')
+    this.SyncSwitch('设置同步', '自动备份外观、卡片布局与默认输入方案', 'preferences', (): boolean => this.autoPreferences)
+    this.SyncSwitch('输入方案同步', '自动备份按键布局、鼠标参数和手柄映射', 'profiles', (): boolean => this.autoProfiles)
+    if (!this.profilesReady) {
+      Text('云同步暂未接通。未登录或离线时，本地设置与方案仍可正常使用。')
+        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+    }
+    ForEach(this.syncItems.filter((item: SyncItemStatus): boolean => item.id === 'preferences' || item.id === 'profiles-status'), (item: SyncItemStatus) => {
+      this.SyncItem(item)
+    }, (item: SyncItemStatus): string => item.id + ':' + item.state + ':' + item.lastSyncedAt)
+    Button() {
+      Row({ space: 12 }) {
+        Column({ space: 5 }) {
+          Text('方案备份明细').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
+          Text(this.profileDetailsSummary()).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+        SymbolGlyph(this.profileDetailsExpanded ? $r('sys.symbol.chevron_up') : $r('sys.symbol.chevron_down'))
+          .fontSize(16).fontColor([skinColor('text_secondary')])
+      }.width('100%')
+    }.type(ButtonType.Normal).width('100%').padding(14).borderRadius(14)
+      .backgroundColor(skinColor('search_background')).id('sync-profile-details-expand')
+      .accessibilityText(this.profileDetailsExpanded ? '收起方案备份明细' : '展开方案备份明细')
+      .onClick((): void => { this.profileDetailsExpanded = !this.profileDetailsExpanded; })
+    ForEach(this.visibleProfileItems(), (item: SyncItemStatus) => {
+      this.SyncItem(item)
     }, (item: SyncItemStatus): string => item.id + ':' + item.state + ':' + item.lastSyncedAt)
   }
   @Builder

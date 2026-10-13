@@ -85,11 +85,17 @@ export struct SponsorshipSettings {
   private CoffeeCup(title: string, quantity: number) {
     Button() {
       Column({ space: 10 }) {
+        Stack() {
+          Image($r('app.media.coffee_cup')).width(quantity === 1 ? 28 : quantity === 4 ? 32 : 36)
+            .height(quantity === 1 ? 28 : quantity === 4 ? 32 : 36).objectFit(ImageFit.Contain)
+            .fillColor(skinColor('accent'))
+        }.width(40).height(40)
         Text(title).fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
         Text(this.coffeePrice(quantity)).fontSize(20).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
-      }.width('100%').padding({ top: 20, bottom: 20 })
+      }.width('100%').padding({ top: this.compact ? 16 : 20, bottom: this.compact ? 16 : 20 })
     }.type(ButtonType.Normal).layoutWeight(1).borderRadius(14)
       .backgroundColor(skinColor('search_background')).enabled(!this.busy)
+      .accessibilityText(title + '咖啡，' + this.coffeePrice(quantity))
       .id('sync-coffee-' + quantity).onClick((): void => this.supportDeveloper(quantity))
   }
   build() {
@@ -97,6 +103,10 @@ export struct SponsorshipSettings {
       Column({ space: 16 }) {
         Button() {
           Row({ space: 14 }) {
+            Stack() {
+              Image($r('app.media.coffee_cup')).width(26).height(26).objectFit(ImageFit.Contain)
+                .fillColor(skinColor('accent'))
+            }.width(44).height(44).borderRadius(14).backgroundColor(skinColor('search_background'))
             Column({ space: 6 }) {
               Text('赞助').fontSize(18).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
               Text('喜欢旧柚的话，可以请开发者喝杯咖啡').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
