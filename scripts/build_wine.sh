@@ -70,6 +70,22 @@ ensure_wine_patch() {
     if patch -d "$WINE_SRC" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1; then
         log "$description already applied"
     else
+        # 0062 moves 0058's assignments into the exported format record.
+        # Prove both overlays on a disposable copy before declaring 0058 absent.
+        if [ "${patch_file##*/}" = 0058-ohos-shared-wasapi-float32.patch ]; then
+            if (
+                audio_proof=$(mktemp -d -t wine-audio-proof-XXXXXXXX)
+                trap 'rm -rf -- "$audio_proof"' EXIT
+                mkdir -p "$audio_proof/dlls/wineohos.drv"
+                cp "$WINE_SRC/dlls/wineohos.drv/ohos.c" "$audio_proof/dlls/wineohos.drv/ohos.c"
+                patch -d "$audio_proof" -p1 --batch --force -R \
+                    < "${patch_file%/*}/0062-wineohos-shared-audio-format-contract.patch" >/dev/null 2>&1 &&
+                patch -d "$audio_proof" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1
+            ); then
+                log "$description already applied below audio format contract"
+                return
+            fi
+        fi
         # Later Direct overlays change code introduced by 0009/0056. Prove
         # the stack on a copy, reversing only overlays actually present there.
         # Never reverse/reset the caller's possibly dirty source tree.
@@ -260,6 +276,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0057-wayland-direct-drawable-iden
     "Independent Direct producers for exact desktop drawables"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0058-ohos-shared-wasapi-float32.patch" \
     "Advertise shared WASAPI mix format as IEEE float32"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0062-wineohos-shared-audio-format-contract.patch" \
+    "Export the shared Float32 format used by GetMixFormat for final-package validation"
 # Keep native protection diagnostics opt-in and separate from behavior fixes.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0060-ntdll-vm-protect-diagnostics.patch" \
     "Paired native VM protection diagnostics (default off)"
@@ -509,9 +527,14 @@ build_ohos_unix() {
         for module in $WINE_UNIX_MODULES; do
             [ "$module" = wineserver ] && continue
             test -s "dlls/$module/${module%.drv}.so" || return 1
+            if [ "$module" = wineohos.drv ]; then
+                python3 "$SCRIPT_DIR/runtime_library_guard.py" "dlls/$module/${module%.drv}.so" || return 1
+            fi
         done
         return
     fi
+
+    python3 "$SCRIPT_DIR/runtime_library_guard.py" "$wine_build_dir/dlls/wineohos.drv/wineohos.so"
 
     python3 "$SCRIPT_DIR/wine_graphics_capabilities.py" --build "$wine_build_dir" \
         --driver "$wine_build_dir/dlls/winewayland.drv/winewayland.so" \

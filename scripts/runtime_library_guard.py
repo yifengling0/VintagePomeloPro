@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Reject SDK link stubs in runtime inputs and final archives, without deleting inputs."""
+"""Reject SDK stubs and stale Wine audio in runtime inputs and final archives."""
 import argparse
 import io
 from pathlib import Path
 import struct
 from zipfile import ZipFile
+
+from wine_audio_contract import shared_audio_format
 
 
 class RuntimeLibraryError(RuntimeError):
@@ -42,9 +44,11 @@ def exported_functions(data):
 
 def validate_library(data, label):
     try:
+        if Path(label).name == 'wineohos.so':
+            shared_audio_format(data)
         functions = exported_functions(data)
     except (IndexError, struct.error, ValueError) as error:
-        raise RuntimeLibraryError(f'{label}: malformed ELF: {error}') from error
+        raise RuntimeLibraryError(f'{label}: {error}') from error
     # OHOS SDK link stubs alias their exported functions to one placeholder.
     if len(functions) >= 4 and len(set(functions.values())) == 1:
         raise RuntimeLibraryError(f'{label}: SDK-style link stub, not a runtime library')
