@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import FrozenSet, Iterable, Union
 from zipfile import ZipFile
 
+from runtime_library_guard import RuntimeLibraryError, validate_library
+
 
 GSTREAMER_VERSION = "1.24.4"
 MONO_VERSION = "11.1.0"
@@ -632,6 +634,15 @@ def validate_hap(path: Path) -> RuntimeInfo:
         try:
             info = validate_runtime_payload(payload)
             validate_media_dependency_closure(payload, hap, info.wine_arch)
+            audio_sources = [(archive, name) for archive in (payload, hap) for name in archive.names
+                             if Path(name).name == 'wineohos.so']
+            if not audio_sources:
+                raise ValidationError('missing Wine audio driver wineohos.so')
+            for archive, name in audio_sources:
+                try:
+                    validate_library(archive.read(name), name)
+                except RuntimeLibraryError as error:
+                    raise ValidationError(str(error)) from error
         finally:
             payload.close()
 

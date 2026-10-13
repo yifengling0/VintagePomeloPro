@@ -910,6 +910,7 @@ test-font-import:
 	python3 $(ROOT)/host_tests/font_zip_test.py
 	python3 $(ROOT)/host_tests/font_import_transaction_test.py
 	python3 $(ROOT)/host_tests/runtime_library_guard_test.py
+	python3 $(ROOT)/host_tests/wine_audio_contract_test.py
 
 .PHONY: test-wine-process-font-aa
 test: test-wine-process-font-aa
