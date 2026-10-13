@@ -24,6 +24,7 @@ export class AccountAutomaticSyncService {
   private busy: boolean = false;
   private applying: boolean = false;
   private observedPreferences: string = '';
+  private localRevision: number = 0;
   private epoch: number = 0;
   private timer: number = -1;
   private rerun: boolean = false;
@@ -72,7 +73,7 @@ export class AccountAutomaticSyncService {
           }
           void this.persist().catch((): void => { this.overall = '同步记录保存失败'; this.emit(); });
         }
-        this.requestSync();
+        this.localChanged(id, removed ? id : InputProfileService.getInstance().getProfile(id).name, 'profiles');
       });
       this.observedPreferences = JSON.stringify(preferencesPayload(ThemeSettingsService.getInstance().getSettings()));
       AppSettingsStore.getInstance().subscribeGlobalChanges((): void => {
@@ -81,7 +82,8 @@ export class AccountAutomaticSyncService {
         this.observedPreferences = current;
         if (this.applying) return;
         this.data.preferencesOwner = this.api().getUserId() || this.data.lastOwner;
-        void this.persist().catch((): void => { this.overall = '同步记录保存失败'; this.emit(); }); this.requestSync();
+        void this.persist().catch((): void => { this.overall = '同步记录保存失败'; this.emit(); });
+        this.localChanged('preferences', '外观与默认输入方案', 'preferences');
       });
       this.api().subscribeAccount((userId: string): void => {
         void this.accountChanged(userId).catch((): void => { this.overall = '同步记录保存失败'; this.emit(); });
@@ -109,7 +111,10 @@ export class AccountAutomaticSyncService {
   }
   private async accountChanged(userId: string): Promise<void> {
     this.epoch++; const epoch = this.epoch; this.clearTimer(); this.items = []; this.preferenceConflict = null;
-    if (!userId) { this.overall = '等待登录'; this.emit(); return; }
+    if (!userId) {
+      this.overall = this.api().hasRememberedAccount() ? '正在恢复登录，稍后自动重试' : '等待登录'; this.emit();
+      this.requestSync(this.retryMs); return;
+    }
     if (!/^[a-f0-9]{64}$/.test(userId)) { this.overall = '账号身份无效'; this.emit(); return; }
     let account = this.data.accounts.find((entry: SyncAccountState): boolean => entry.userId === userId);
     if (!account) {
@@ -140,8 +145,18 @@ export class AccountAutomaticSyncService {
     await this.persist(); this.emit(); this.requestSync(0);
   }
   private clearTimer(): void { if (this.timer >= 0) clearTimeout(this.timer); this.timer = -1; }
+  private localChanged(id: string, name: string, family: string): void {
+    this.localRevision++;
+    const account = this.currentAccount();
+    const enabled = family === 'profiles' ? account?.profilesEnabled : account?.preferencesEnabled;
+    if (account && enabled) {
+      this.overall = '检测到本地修改，等待备份';
+      this.state(id, name, this.foreground ? '等待备份' : '返回应用后继续备份');
+    }
+    this.requestSync();
+  }
   requestSync(delay: number = 700): void {
-    if (!this.context || !this.foreground || !this.api().getUserId()) return;
+    if (!this.context || !this.foreground || !this.api().getUserId() && !this.api().hasRememberedAccount()) return;
     if (this.busy) { this.rerun = true; return; }
     this.clearTimer(); this.timer = setTimeout((): void => { this.timer = -1; void this.syncNow(); }, delay);
   }
@@ -160,18 +175,32 @@ export class AccountAutomaticSyncService {
   }
   async syncNow(): Promise<void> {
     if (!this.context || !this.foreground || this.busy || !DeviceCapabilityPolicy.supportsValueAddedFeatures()) return;
-    const account = this.currentAccount(); if (!account) { this.overall = '等待登录'; this.emit(); return; }
+    // Renew the short-lived server session with an already authorized system identity, including after process restart.
+    try { await this.api().resumeAccount(); }
+    catch (_) {
+      this.overall = '登录连接暂不可用，等待自动重试'; this.emit(); this.requestSync(this.retryMs); return;
+    }
+    if (!this.foreground || this.busy) return;
+    const account = this.currentAccount();
+    if (!account) {
+      this.overall = this.api().hasRememberedAccount() ? '正在恢复登录，稍后自动重试' : '等待登录'; this.emit();
+      if (this.api().hasRememberedAccount()) this.requestSync(this.retryMs);
+      return;
+    }
     this.busy = true; this.rerun = false;
-    const epoch = this.epoch, owner = account.userId;
+    const epoch = this.epoch, owner = account.userId, localRevision = this.localRevision;
     this.overall = '正在同步'; this.emit();
     try {
       const api = this.api();
       await api.refreshCapabilities(); this.check(epoch, owner);
       const capabilities = api.getCapabilities();
       const recovery = api.getPurchaseRecoveryStatus();
-      if (capabilities.commerce && recovery && !['RESTORED', 'FINISHED', 'ALREADY_FINISHED'].includes(recovery)) {
+      if (capabilities.commerce && recovery && (!['RESTORED', 'FINISHED', 'ALREADY_FINISHED'].includes(recovery) ||
+        api.getPurchaseRecoveryCheckedAt() + 60000 <= Date.now())) {
         this.reconcilingPurchases = true;
-        try { await api.restorePurchases(); } finally { this.reconcilingPurchases = false; }
+        try { await api.restorePurchases(); }
+        catch (_) { /* The independently verified server entitlement remains authoritative, even if an old receipt cannot finish. */ }
+        finally { this.reconcilingPurchases = false; }
         this.check(epoch, owner);
       }
       this.items = [];
@@ -183,7 +212,7 @@ export class AccountAutomaticSyncService {
       const available = account.profilesEnabled && capabilities.profiles || account.preferencesEnabled && capabilities.preferences;
       if (!available) { this.overall = '已开启的云同步暂未开放'; return; }
       const entitlement = await api.entitlement(); this.check(epoch, owner);
-      if (!entitlement.active || entitlement.expiresAt <= entitlement.serverTime) {
+      if (!entitlement.active || entitlement.refreshRequired || entitlement.expiresAt <= entitlement.serverTime) {
         this.overall = entitlement.refreshRequired ? '会员权益待确认，同步已暂停' :
           entitlement.subscriptionStatus === '2' ? '会员已到期，云端备份已暂停' :
           entitlement.subscriptionStatus === '5' ? '订阅已撤销，云端备份已暂停' :
@@ -198,13 +227,15 @@ export class AccountAutomaticSyncService {
       const held = this.items.some((item: SyncItemStatus): boolean => item.state === '属于其他账号，未上传');
       const waiting = this.items.some((item: SyncItemStatus): boolean => item.state.startsWith('等待'));
       const unavailable = this.items.some((item: SyncItemStatus): boolean => item.state === '云同步暂未开放');
-      this.overall = conflict ? '有冲突，等待处理' : waiting ? '部分内容等待同步' : held ? '其他账号的本地内容未上传' :
+      this.overall = localRevision !== this.localRevision ? '检测到本地修改，等待备份' :
+        conflict ? '有冲突，等待处理' : waiting ? '部分内容等待同步' : held ? '其他账号的本地内容未上传' :
         unavailable ? '部分云同步暂未开放' : this.items.some((item: SyncItemStatus): boolean => item.state === '已恢复') ? '已恢复云端备份' : '已同步';
-      if (!conflict && !waiting && !held && !unavailable) account.lastSyncedAt = Date.now();
+      if (localRevision === this.localRevision && !conflict && !waiting && !held && !unavailable) account.lastSyncedAt = Date.now();
       await this.persist(); this.retryMs = 30000;
     } catch (error) {
       if (this.valid(epoch, owner)) {
         const message = (error as Error).message;
+        console.warn('[AccountAutomaticSync] sync failed: ' + (/^[A-Z][A-Z0-9_]{1,63}$/.test(message) ? message : 'FAILED'));
         this.overall = message === 'SIGN_IN_REQUIRED' ? '登录已过期，等待重新登录' :
           message === 'MEMBERSHIP_REQUIRED' ? '会员权益待确认，同步已暂停' :
           message === 'PROFILE_HASH_MISMATCH' || message === 'INVALID_PREFERENCES' || message === 'INVALID_PROFILE' ? '云端校验失败，本地内容已保留' :
@@ -217,7 +248,7 @@ export class AccountAutomaticSyncService {
       }
     } finally {
       this.busy = false; this.emit();
-      if (this.foreground && this.api().getUserId()) this.requestSync(this.rerun ? 700 : this.retryMs);
+      if (this.foreground) this.requestSync(this.rerun ? 700 : this.retryMs);
     }
   }
   private async syncProfiles(account: SyncAccountState, epoch: number): Promise<void> {

@@ -51,6 +51,8 @@ export struct AccountSyncSettings {
   @State private preferencesConflict: boolean = false;
   private syncListener: (() => void) | null = null;
   private entitlementListener: (() => void) | null = null;
+  private accountListener: ((userId: string) => void) | null = null;
+  private membershipRequest: number = 0;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
   private alive: boolean = false;
 
@@ -67,6 +69,14 @@ export struct AccountSyncSettings {
       }
     };
     ValueAddedService.getInstance().subscribeEntitlement(this.entitlementListener);
+    this.accountListener = (userId: string): void => {
+      if (!this.alive) return;
+      this.membershipRequest++;
+      this.userId = userId; this.refreshHuaweiIdentity(); this.resetVip();
+      this.membership = userId ? '正在更新会员状态' : '等待登录';
+      if (userId) void this.refreshMemberState().catch((): void => {});
+    };
+    ValueAddedService.getInstance().subscribeAccount(this.accountListener);
     void this.run('account', async (): Promise<void> => {
       await InputProfileService.getInstance().initialize(this.context);
       this.profiles = InputProfileService.getInstance().getProfiles();
@@ -81,7 +91,12 @@ export struct AccountSyncSettings {
       if (this.userId) await this.refreshAccount(); else await this.refreshMembershipProducts();
     });
   }
-  aboutToDisappear(): void { this.alive = false; this.resetVip(); if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener); if (this.entitlementListener) ValueAddedService.getInstance().unsubscribeEntitlement(this.entitlementListener); }
+  aboutToDisappear(): void {
+    this.alive = false; this.membershipRequest++; this.resetVip();
+    if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener);
+    if (this.entitlementListener) ValueAddedService.getInstance().unsubscribeEntitlement(this.entitlementListener);
+    if (this.accountListener) ValueAddedService.getInstance().unsubscribeAccount(this.accountListener);
+  }
   private errorMessage(error: Error): string {
     const sdkCode = (error as BusinessError).code;
     const diagnostic = Number.isInteger(sdkCode) ? '' + sdkCode :
@@ -198,8 +213,9 @@ export struct AccountSyncSettings {
   }
   private async refreshMemberState(): Promise<MemberEntitlement> {
     const service = ValueAddedService.getInstance(), owner = service.getUserId();
+    const request = ++this.membershipRequest;
     const entitlement = await service.entitlement();
-    if (!this.alive || owner !== service.getUserId()) return entitlement;
+    if (!this.alive || request !== this.membershipRequest || owner !== service.getUserId()) return entitlement;
     this.applyVip(entitlement, owner);
     this.membership = this.vipActive ?
       '有效期至 ' + new Date(entitlement.expiresAt).toLocaleDateString() +
@@ -236,8 +252,11 @@ export struct AccountSyncSettings {
     if (this.vipOwner !== ValueAddedService.getInstance().getUserId()) { this.resetVip(); return; }
     const remaining = this.vipDeadline - Date.now();
     if (remaining <= 0) {
-      this.resetVip(); this.membership = '会员已到期';
-      void this.refreshMembershipProducts();
+      this.resetVip(); this.membership = '正在更新会员状态';
+      // Check the next paid term before offering another purchase. A renewal may have happened while this page was open.
+      void this.refreshMemberState().then((): void => {
+        if (this.alive && !this.vipActive) void this.refreshMembershipProducts();
+      }).catch((): void => { if (this.alive) this.membership = '会员状态待重新核验'; });
       return;
     }
     this.vipTimer = setTimeout((): void => this.updateVipExpiry(), Math.min(remaining, 60000));

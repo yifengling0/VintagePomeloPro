@@ -5,6 +5,12 @@ const models=require(path.resolve(process.argv[2],'model/ValueAddedModels.js'));
 const app=require(path.resolve(process.argv[2],'model/AppModels.js'));
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'vp-account-service-'));
 let visible=true,requests=0,constructors=0,finishCalls=0,failFinish=true,writes=0,user='alice',authorizationState='', sdkError=0, wrongState=false;
+const identityStores=new WeakMap(),authRequests=[];
+const preferences={getPreferences:async(context,name)=>{
+ if(!identityStores.has(context))identityStores.set(context,new Map());
+ const stores=identityStores.get(context);if(!stores.has(name))stores.set(name,new Map());
+ const store=stores.get(name);return {getSync:(k,d)=>store.has(k)?store.get(k):d,put:async(k,v)=>store.set(k,v),flush:async()=>{}};
+}};
 const config={apiBaseUrl:'https://api.example.com',accountClientId:'client-id',membershipProductId:'month',membershipProductType:3,coffeeProductId:'coffee'};
 const profile=models.cloudProfilePayload(app.createDefaultInputProfile());
 const envelope={schemaVersion:1,profileFamily:'input/native-v6',deviceClass:'tablet',variant:profile.id,revision:1,baseRevision:0,
@@ -27,7 +33,7 @@ let route=async(url,options)=>{
 const http={RequestMethod:{GET:'GET',POST:'POST',PUT:'PUT'},HttpDataType:{STRING:'string'},createHttp(){requests++;return{
  request:async(url,opts)=>({responseCode:200,result:JSON.stringify(await route(url,opts))}),destroy(){}};}};
 const authentication={HuaweiIDProvider:class{constructor(){constructors++;}createLoginWithHuaweiIDRequest(){return {login:true};}createAuthorizationWithHuaweiIDRequest(){return {};}},
- AuthenticationController:class{async executeRequest(request){if(sdkError)throw {code:sdkError};if(request.login){assert.equal(request.forceLogin,true);return {state:wrongState?'wrong':request.state,data:{openID:'sdk-open-id'}};}
+ AuthenticationController:class{async executeRequest(request){authRequests.push({...request});if(sdkError)throw {code:sdkError};if(request.login){assert.equal(typeof request.forceLogin,'boolean');return {state:wrongState?'wrong':request.state,data:{openID:'sdk-open-id'}};}
  if(!request.permissions){assert.deepEqual(Array.from(request.scopes),['profile']);return {state:request.state,data:{openID:'sdk-open-id',nickName:'Test nickname',avatarUri:'https://avatar.example.test/a.png'}};}
  authorizationState=request.state;assert.deepEqual(Array.from(request.scopes),['profile']);assert.deepEqual(Array.from(request.permissions),['serviceauthcode']);return {state:request.state,data:{authorizationCode:'provider-code'}};}}};
 let sandboxActive=true,managedSubscriptions=0,purchaseCalls=0,promotionalOffers=[],latestPurchase,omitOfferSignature=false,createError=0,autoReceipts=[];const subscriptionQueries=[];
@@ -58,7 +64,7 @@ const imports={
  const data=params.data;assert.equal(data.protocol,1);
  return {result:{protocol:1,status:200,body:JSON.stringify(await route('https://cloud.test'+data.path,{method:data.method,extraData:data.body}))}};
  }}},'@ohos.deviceInfo':{default:{sdkApiVersion:23}},
- '@kit.BasicServicesKit':{},'@kit.AccountKit':{authentication},'@kit.IAPKit':{iap},'@ohos.net.http':{default:http},
+ '@kit.BasicServicesKit':{},'@kit.AccountKit':{authentication},'@kit.IAPKit':{iap},'@ohos.net.http':{default:http},'@ohos.data.preferences':{default:preferences},
  '@ohos.util':{default:{TextDecoder:{create:()=>({decodeToString:b=>Buffer.from(b).toString()})},
  TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:crypto.randomUUID}},
  '@kit.CryptoArchitectureKit':{cryptoFramework:md},'@kit.CoreFileKit':{fileIo:adapter},
@@ -270,5 +276,55 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  console.log('Saved Huawei offer: official ¥2/¥5 and cycle text, display while gated, signed checkout, stale/missing/signature/mode safeguards PASS');
  console.log('Automatic subscription: SDK-compatible purchase parameters, current entitlement plus unfinished orders, official management page PASS');
 
+ // A new process keeps only the user's resume intent. Every identity/session/entitlement is verified again.
+ const restartContext={...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,membershipProductType:2}))}};
+ const original=new mod.exports.ValueAddedService();await original.initialize(restartContext);await original.signIn();
+ const ordersBeforeRestart=purchaseCalls,authBefore=authRequests.length;
+ const restarted=new mod.exports.ValueAddedService();await Promise.all([restarted.initialize(restartContext),restarted.initialize(restartContext)]);
+ assert.equal(restarted.getUserId(),user);assert.equal(restarted.getHuaweiProfile().nickname,'Test nickname');
+ assert.equal(authRequests.length-authBefore,3,'concurrent startup performs one identity/profile/code exchange');
+ assert.ok(authRequests.slice(authBefore).every(r=>r.forceLogin===false||r.forceAuthorization===false),'restart never opens login/consent UI');
+ assert.equal(purchaseCalls,ordersBeforeRestart,'restoration cannot create a new payment');
+ assert.deepEqual(Array.from(identityStores.get(restartContext).get('account_identity').entries()),[['resume_login_v1','true']]);
+ restarted.session.expiresAt=Date.now()-1;await restarted.resumeAccount();assert.equal(restarted.getUserId(),user);
+ await restarted.signOut();const afterLogout=authRequests.length;
+ const signedOutProcess=new mod.exports.ValueAddedService();await signedOutProcess.initialize(restartContext);await signedOutProcess.resumeAccount();
+ assert.equal(signedOutProcess.getUserId(),'');assert.equal(authRequests.length,afterLogout,'explicit logout survives restart');
+ const retryIdentity=new mod.exports.ValueAddedService();await retryIdentity.initialize({...context});await retryIdentity.signIn();
+ retryIdentity.session.expiresAt=Date.now()-1;sdkError=1001502005;await retryIdentity.resumeAccount();sdkError=0;
+ assert.equal(retryIdentity.getUserId(),'');assert.equal(retryIdentity.hasRememberedAccount(),true);
+ await retryIdentity.resumeAccount();assert.equal(retryIdentity.getUserId(),user);
+ // Failure on an obsolete receipt must not skip the later current receipt or duplicate restore jobs.
+ const restoreService=new mod.exports.ValueAddedService();await restoreService.initialize({...context});await restoreService.signIn();
+ autoReceipts=['obsolete','current'];restoreService.config.membershipProductType=2;
+ const ordinaryRoute=route;let verifiedCurrent=0;
+ route=async(url,options)=>{
+  if(new URL(url).pathname==='/v1/purchases/verify'){
+   if(JSON.parse(options.extraData).purchaseData==='obsolete')throw Error('ORDER_BINDING_MISMATCH');
+   verifiedCurrent++;return {status:'ALREADY_FINISHED',finishAllowed:false};
+  } return ordinaryRoute(url,options);
+ };
+ const queriesBefore=subscriptionQueries.length;
+ const reconciled=await Promise.allSettled([restoreService.restorePurchases(),restoreService.restorePurchases()]);
+ assert.ok(reconciled.every(r=>r.status==='rejected'));assert.equal(verifiedCurrent,2);
+ assert.equal(subscriptionQueries.length-queriesBefore,2,'one unfinished/current pagination sequence for concurrent callers');
+ route=ordinaryRoute;autoReceipts=[];
+ // A response started before an acknowledged purchase cannot overwrite its new entitlement.
+ let releaseOld,enteredOld,activeAfterPurchase=false,reads=0;
+ const oldEntered=new Promise(r=>enteredOld=r),oldWait=new Promise(r=>releaseOld=r);
+ route=async(url,options)=>{
+  if(new URL(url).pathname==='/v1/entitlement'){
+   reads++;if(reads===1){enteredOld();await oldWait;return {active:false,expiresAt:0,serverTime:Date.now()};}
+   return {active:activeAfterPurchase,expiresAt:Date.now()+10000,serverTime:Date.now(),autoRenew:false};
+  }
+  const result=await ordinaryRoute(url,options);
+  if(new URL(url).pathname==='/v1/purchases/verify')activeAfterPurchase=true;
+  return result;
+ };
+ const entitlementService=new mod.exports.ValueAddedService();await entitlementService.initialize({...context});await entitlementService.signIn();
+ const delayed=entitlementService.entitlement();await oldEntered;
+ await entitlementService.purchase({id:'month',type:3});releaseOld();
+ assert.equal((await delayed).active,true);assert.equal(reads,2);route=ordinaryRoute;
+ console.log('Account restart: silent verified reauthentication, expired session, explicit logout, receipt isolation, coalesced recovery and stale entitlement PASS');
  console.log('Value-added services: hidden guards, auth/ack, account-switch races, profile hash, settings routes/hash/allowlist PASS');
 })().finally(()=>fs.rmSync(directory,{recursive:true,force:true})).catch(error=>{console.error(error);process.exitCode=1;});

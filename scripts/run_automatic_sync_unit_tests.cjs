@@ -32,7 +32,7 @@ function fixture(options={}) {
   const theme={getSettings:()=>clone(settings),subscribe:f=>themeListeners.push(f),update:async p=>{
     if(beforeApply)await beforeApply(); settings=clone(p);calls.settingsApplies++;themeListeners.forEach(f=>f(p));}};
   const api={getUserId:()=>user,getCapabilities:()=>capabilities,
-    initialize:async()=>{},refreshCapabilities:async()=>{if(refreshHook)refreshHook();},getPurchaseRecoveryStatus:()=>recovery,
+    initialize:async()=>{},resumeAccount:async()=>{},hasRememberedAccount:()=>false,refreshCapabilities:async()=>{if(refreshHook)refreshHook();},getPurchaseRecoveryStatus:()=>recovery,getPurchaseRecoveryCheckedAt:()=>Date.now(),
     subscribeEntitlement:f=>entitlementListeners.push(f),restorePurchases:async()=>{
       calls.restores=(calls.restores||0)+1;if(restoreHook)await restoreHook();
       entitlementListeners.forEach(f=>f());if(restoreFailure)throw Error('PROVIDER_UNAVAILABLE');
@@ -67,6 +67,7 @@ function fixture(options={}) {
     setTimeout:(f,ms)=>{timers.set(++seq,{f,ms});return seq;},clearTimeout:id=>timers.delete(id),console});
   const sync=mod.exports.AccountAutomaticSyncService.getInstance();
   return {sync,calls,profiles,journal,timers,api,cloud:{profiles:remotes,preferences:preferencesByOwner},settings:()=>settings,remoteMap,
+    fire:async()=>{const [id,job]=timers.entries().next().value;timers.delete(id);job.f();for(let i=0;i<100;i++){await new Promise(resolve=>setImmediate(resolve));if(!sync.busy)break;}assert.equal(sync.busy,false);},
     initialize:async()=>sync.initialize({}),run:async()=>{sync.clearTimer();await sync.syncNow();},
     edit:p=>{profiles.set(p.id,clone(p));profileListeners.forEach(f=>f(p.id,false,'local'));},
     remove:id=>{profiles.delete(id);profileListeners.forEach(f=>f(id,true,'local'));},
@@ -218,9 +219,9 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
   assert.equal(Array.from(f.timers.values())[0].ms,30000);
   await f.run();assert.equal(f.calls.restores,2);assert.equal(f.calls.settingsUploads,1);assert.equal(Array.from(f.timers.values())[0].ms,30000);
  });
- await test('purchase restoration failures retain backoff even when recovery emits an entitlement notification',async()=>{
+ await test('failed legacy receipts do not block a separately verified active entitlement or cause a fast notification loop',async()=>{
   const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('PROVIDER_UNAVAILABLE');f.restoreFailure(true);
-  await f.run();assert.equal(f.calls.settingsUploads,0);assert.equal(Array.from(f.timers.values())[0].ms,60000);
+  await f.run();assert.equal(f.calls.settingsUploads,1);assert.equal(Array.from(f.timers.values())[0].ms,30000);
   f.restoreFailure(false);f.entitlementEvent();assert.equal(Array.from(f.timers.values())[0].ms,0);await f.run();assert.equal(f.calls.settingsUploads,1);
  });
  await test('changed deployment capabilities are reread before automatic backup',async()=>{
@@ -230,6 +231,31 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
  await test('account switching during subscription restoration never writes the old account backup',async()=>{
   const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('PROVIDER_UNAVAILABLE');
   f.restoreHook(()=>f.user(B));await f.run();assert.equal(f.calls.settingsUploads,0);assert.equal(f.calls.uploads.length,0);
+ });
+ await test('normal saves visibly queue and upload through the timer without visiting the sync page',async()=>{
+  const f=fixture();await f.initialize();await f.run();
+  f.edit({...profile(),cursorSpeed:1.83});assert.match(f.sync.status(),/本地修改/);
+  assert.equal(f.sync.itemStates().find(i=>i.id==='custom').state,'等待备份');assert.equal(f.timers.size,1);
+  await f.fire();assert.equal(f.remoteMap().get('custom').payload.cursorSpeed,1.83);
+  f.changeSettings({...f.settings(),themeMode:'dark'});await f.fire();assert.equal(f.remotePreferences().payload.themeMode,'dark');
+ });
+ await test('expired session is silently resumed before the next scheduled backup, without a page switch',async()=>{
+  const f=fixture();await f.initialize();await f.run();await f.user('');
+  f.api.hasRememberedAccount=()=>true;
+  f.api.resumeAccount=async()=>{await f.user(A);};
+  f.edit({...profile(),cursorSpeed:1.9});await f.fire();assert.equal(f.remoteMap().get('custom').payload.cursorSpeed,1.9);
+ });
+ await test('foreground checks for newly unfinished renewals even after the initial restoration succeeded',async()=>{
+  const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('RESTORED');
+  f.api.getPurchaseRecoveryCheckedAt=()=>Date.now()-60001;await f.run();assert.equal(f.calls.restores,1);
+  f.api.getPurchaseRecoveryCheckedAt=()=>Date.now();f.recovery('RESTORED');await f.run();assert.equal(f.calls.restores,1);
+ });
+ await test('failed legacy receipt still cannot grant backup when the official entitlement is inactive',async()=>{
+  const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('ORDER_BINDING_MISMATCH');
+  f.restoreFailure(true);f.entitlement(false);f.restoreHook(()=>f.entitlement(false));
+  // This fixture's restore mock must leave official inactive state intact on failure.
+  f.api.restorePurchases=async()=>{throw Error('ORDER_BINDING_MISMATCH');};
+  await f.run();assert.equal(f.calls.settingsUploads,0);assert.equal(f.calls.uploads.length,0);assert.match(f.sync.status(),/VIP/);
  });
  console.log(`Automatic account sync: ${count} scenarios PASS (host mocks, no real account/network)`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -12,9 +12,10 @@ import { InputProfile } from '../../model/AppModels';
 import { AccountSession, MemberEntitlement, ServiceCapabilities, ValueAddedConfig, ProfileEnvelope,
   ProfileConflict, ProfileSummary, cloudProfilePayload, profileDeviceClass, validateProfileEnvelope,
   validateValueAddedConfig } from '../../model/ValueAddedModels';
-import { PreferencesRead, PreferencesWrite, PreferencesEnvelope, SyncedPreferences, validateSyncedPreferences } from '../../model/AccountSyncModels';
+import { AutomaticSyncData, PreferencesRead, PreferencesWrite, PreferencesEnvelope, SyncedPreferences, validateSyncedPreferences } from '../../model/AccountSyncModels';
 import { InputProfileService } from '../InputProfileService';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import preferences from '@ohos.data.preferences';
 
 interface AccountAttempt { attemptId: string; state: string; }
 interface AccountExchange { attemptId: string; state: string; code: string; clientId: string; }
@@ -61,16 +62,26 @@ export class ValueAddedService {
   }
   private generation: number = 0;
   private busy: boolean = false;
+  private initializing: Promise<void> | null = null;
+  private identityStore: preferences.Preferences | null = null;
+  private resumeEnabled: boolean = false;
+  private resuming: Promise<void> | null = null;
+  private restoring: Promise<string> | null = null;
+  private entitlementFlight: Promise<MemberEntitlement> | null = null;
+  private entitlementRevision: number = 0;
   private capabilities: ServiceCapabilities = { account: false, commerce: false, profiles: false,
     cloudSaves: false, reason: 'NOT_CONFIGURED' };
   private purchaseRecovery: string = '';
+  private purchaseRecoveryCheckedAt: number = 0;
   getPurchaseRecoveryStatus(): string { this.guard(); return this.purchaseRecovery; }
+  getPurchaseRecoveryCheckedAt(): number { this.guard(); return this.purchaseRecoveryCheckedAt; }
   private entitlementListeners: Set<() => void> = new Set<() => void>();
   subscribeEntitlement(listener: () => void): void { this.entitlementListeners.add(listener); }
   unsubscribeEntitlement(listener: () => void): void { this.entitlementListeners.delete(listener); }
   private entitlementChanged(): void { this.entitlementListeners.forEach((listener: () => void): void => listener()); }
   private accountListeners: Set<(userId: string) => void> = new Set<(userId: string) => void>();
   subscribeAccount(listener: (userId: string) => void): void { this.accountListeners.add(listener); }
+  unsubscribeAccount(listener: (userId: string) => void): void { this.accountListeners.delete(listener); }
   private profileHeads: Map<string, number> = new Map<string, number>();
   private conflicts: Map<string, ProfileConflict> = new Map<string, ProfileConflict>();
 
@@ -83,8 +94,27 @@ export class ValueAddedService {
   }
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.guard();
+    if (this.initializing) return this.initializing;
+    const work = this.initializeAccount(context);
+    this.initializing = work;
+    try { await work; } finally { if (this.initializing === work) this.initializing = null; }
+  }
+  private async initializeAccount(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
     if (this.config && this.availability === 'ready') return;
+    if (!this.identityStore) {
+      this.identityStore = await preferences.getPreferences(context, 'account_identity');
+      const remembered = this.identityStore.getSync('resume_login_v1', '') as string;
+      if (remembered === '') {
+        // Migrate only an existing account journal. This is intent to resume, never proof of identity or VIP.
+        const journal = await preferences.getPreferences(context, 'account_automatic_sync');
+        try {
+          const raw = journal.getSync('state_v1', '') as string;
+          this.resumeEnabled = raw.length <= 524288 && /^[a-f0-9]{64}$/.test((JSON.parse(raw) as AutomaticSyncData).lastOwner);
+        } catch (_) { this.resumeEnabled = false; }
+        await this.rememberLogin(this.resumeEnabled);
+      } else this.resumeEnabled = remembered === 'true';
+    }
     const bytes = await context.resourceManager.getRawFileContent('value_added_config.json');
     const config = JSON.parse(util.TextDecoder.create('utf-8').decodeToString(bytes)) as ValueAddedConfig;
     try { validateValueAddedConfig(config); }
@@ -110,6 +140,39 @@ export class ValueAddedService {
       console.warn('[ValueAddedService] cloud connection failed: ' + diagnostic);
       this.config = null; this.availability = 'unreachable';
     }
+    if (this.availability === 'ready') await this.resumeAccount();
+  }
+  private async rememberLogin(value: boolean): Promise<void> {
+    this.resumeEnabled = value;
+    if (this.identityStore) {
+      await this.identityStore.put('resume_login_v1', value ? 'true' : 'false');
+      await this.identityStore.flush();
+    }
+  }
+  hasRememberedAccount(): boolean { this.guard(); return this.resumeEnabled; }
+  async resumeAccount(): Promise<void> {
+    this.guard();
+    if (this.validSession() || !this.resumeEnabled || !this.context) return;
+    if (!this.config || this.availability !== 'ready') { await this.initialize(this.context); return; }
+    if (this.resuming) return this.resuming;
+    if (this.busy) return;
+    const work = this.resumeAuthorizedAccount();
+    this.resuming = work;
+    try { await work; }
+    finally { if (this.resuming === work) this.resuming = null; }
+  }
+  private async resumeAuthorizedAccount(): Promise<void> {
+    try { await this.authenticate(false); }
+    catch (error) {
+      // Silent requests never open login or consent UI. Retry transient failures in the foreground queue.
+      const code = (error as BusinessError).code;
+      const message = (error as Error).message;
+      if (code === 1001502001 || code === 1001502002 ||
+        message === 'HUAWEI_LOGIN_1001502001' || message === 'HUAWEI_LOGIN_1001502002') {
+        await this.rememberLogin(false);
+      }
+      console.warn('[ValueAddedService] account resume failed: ' + this.safeDiagnostic(error as Error));
+    }
   }
   async refreshCapabilities(): Promise<void> {
     this.guard();
@@ -122,10 +185,14 @@ export class ValueAddedService {
     this.capabilities = capabilities;
   }
   private recoveryFailure(error: Error): string {
+    const diagnostic = this.safeDiagnostic(error);
+    console.warn('[ValueAddedService] purchase recovery failed: ' + diagnostic);
+    return diagnostic;
+  }
+  private safeDiagnostic(error: Error): string {
     const code = (error as BusinessError).code;
     const diagnostic = Number.isInteger(code) ? '' + code :
       (/^[A-Z][A-Z0-9_]{1,63}$/.test(error.message) ? error.message : 'FAILED');
-    console.warn('[ValueAddedService] purchase recovery failed: ' + diagnostic);
     return diagnostic;
   }
   accountAvailability(): string { this.guard(); return this.availability; }
@@ -140,8 +207,10 @@ export class ValueAddedService {
     this.generation++;
     this.session = null;
     this.purchaseRecovery = '';
+    this.purchaseRecoveryCheckedAt = 0;
     this.profileHeads.clear();
     this.conflicts.clear();
+    this.invalidateEntitlement();
     this.accountListeners.forEach((listener: (userId: string) => void): void => listener(''));
   }
   private async request<T>(path: string, method: http.RequestMethod, body: string | ArrayBuffer, authenticated: boolean = true): Promise<T> {
@@ -208,6 +277,10 @@ export class ValueAddedService {
     return this.request<T>(path, method, body);
   }
   async signIn(): Promise<void> {
+    if (this.resuming) await this.resuming.catch((): void => {});
+    await this.authenticate(true);
+  }
+  private async authenticate(interactive: boolean): Promise<void> {
     this.guard();
     if (!this.context) throw new Error('NOT_CONFIGURED');
     if (this.busy) throw new Error('BUSY');
@@ -218,7 +291,7 @@ export class ValueAddedService {
     const epoch = this.generation;
     try {
       const request = new authentication.HuaweiIDProvider().createLoginWithHuaweiIDRequest();
-      request.forceLogin = true;
+      request.forceLogin = interactive;
       request.state = util.generateRandomUUID();
       const controller = new authentication.AuthenticationController(this.context);
       let response: authentication.LoginWithHuaweiIDResponse;
@@ -233,8 +306,9 @@ export class ValueAddedService {
       if (response.state !== request.state || !response.data?.openID) throw new Error('AUTH_STATE_MISMATCH');
       // SDK success describes the system identity only. Cloud access still requires a server-verified session.
       this.huaweiSignedIn = true;
-      await this.loadHuaweiProfile(epoch, response.data.openID);
-      if (this.config && this.capabilities.account && this.availability === 'ready') await this.connectCloud(epoch);
+      await this.loadHuaweiProfile(epoch, response.data.openID, interactive);
+      if (this.config && this.capabilities.account && this.availability === 'ready') await this.connectCloud(epoch, response.data.openID, interactive);
+      if (epoch === this.generation) await this.rememberLogin(true);
     } finally { this.busy = false; }
     // Official unfinished/current purchases survive reinstall; login reconciles them without a new charge.
     if (epoch === this.generation && this.getUserId() && this.capabilities.commerce && this.config?.membershipProductType === 2) {
@@ -245,11 +319,11 @@ export class ValueAddedService {
       }
     }
   }
-  private async loadHuaweiProfile(epoch: number, openID: string): Promise<void> {
+  private async loadHuaweiProfile(epoch: number, openID: string, interactive: boolean): Promise<void> {
     if (!this.context) return;
     try {
       const request = new authentication.HuaweiIDProvider().createAuthorizationWithHuaweiIDRequest();
-      request.scopes = ['profile']; request.forceAuthorization = true; request.state = util.generateRandomUUID();
+      request.scopes = ['profile']; request.forceAuthorization = interactive; request.state = util.generateRandomUUID();
       const controller = new authentication.AuthenticationController(this.context);
       const response = await controller.executeRequest(request) as authentication.AuthorizationWithHuaweiIDResponse;
       if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
@@ -263,19 +337,19 @@ export class ValueAddedService {
       this.huaweiProfile = { nickname: '', avatarUri: '', status: 'unavailable' };
     }
   }
-  private async connectCloud(epoch: number): Promise<void> {
+  private async connectCloud(epoch: number, openID: string, interactive: boolean): Promise<void> {
     if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
     const attempt = await this.request<AccountAttempt>('/v1/auth/begin', http.RequestMethod.POST, '{}', false);
     const provider = new authentication.HuaweiIDProvider();
     const request = provider.createAuthorizationWithHuaweiIDRequest();
-    request.forceAuthorization = true;
+    request.forceAuthorization = interactive;
     request.scopes = ['profile'];
     request.permissions = ['serviceauthcode'];
     request.state = attempt.state;
     const controller = new authentication.AuthenticationController(this.context);
     const response = await controller.executeRequest(request) as authentication.AuthorizationWithHuaweiIDResponse;
     const code = response.data?.authorizationCode;
-    if (!code || response.state !== attempt.state || epoch !== this.generation) throw new Error('AUTH_STATE_MISMATCH');
+    if (!code || response.state !== attempt.state || response.data?.openID && response.data.openID !== openID || epoch !== this.generation) throw new Error('AUTH_STATE_MISMATCH');
     const exchange: AccountExchange = { attemptId: attempt.attemptId, state: attempt.state,
       code: code, clientId: this.config.accountClientId };
     const session = await this.request<AccountSession>('/v1/auth/exchange', http.RequestMethod.POST,
@@ -283,6 +357,7 @@ export class ValueAddedService {
     if (epoch !== this.generation || !session.token || !session.userId || !Number.isFinite(session.expiresAt) ||
       session.expiresAt <= Date.now()) throw new Error('INVALID_SESSION');
     this.session = session;
+    this.purchaseRecovery = this.config.membershipProductType === 2 && this.capabilities.commerce ? 'CHECKING' : '';
     this.accountListeners.forEach((listener: (userId: string) => void): void => listener(session.userId));
 
   }
@@ -293,10 +368,21 @@ export class ValueAddedService {
     this.clearSession();
     this.huaweiSignedIn = false;
     this.huaweiProfile = { nickname: '', avatarUri: '', status: '' };
+    await this.rememberLogin(false);
     if (pending) { try { await pending; } catch (_) { } }
   }
   async entitlement(): Promise<MemberEntitlement> {
+    if (this.entitlementFlight) return this.entitlementFlight;
+    const work = this.readEntitlement(this.generation, this.entitlementRevision);
+    this.entitlementFlight = work;
+    try { return await work; }
+    finally { if (this.entitlementFlight === work) this.entitlementFlight = null; }
+  }
+  private invalidateEntitlement(): void { this.entitlementRevision++; this.entitlementFlight = null; }
+  private async readEntitlement(epoch: number, revision: number): Promise<MemberEntitlement> {
     const result = await this.request<MemberEntitlement>('/v1/entitlement', http.RequestMethod.GET, '');
+    this.assertGeneration(epoch);
+    if (revision !== this.entitlementRevision) return this.entitlement();
     if (typeof result.active !== 'boolean' || !Number.isFinite(result.expiresAt) || !Number.isFinite(result.serverTime)) {
       throw new Error('INVALID_ENTITLEMENT');
     }
@@ -355,6 +441,7 @@ export class ValueAddedService {
     const body: VerifyRequest = { purchaseData: data, productType: type };
     // Client deliberately does not decode a JWS to grant access or choose a finish token.
     const verdict = await this.request<PurchaseVerdict>('/v1/purchases/verify', http.RequestMethod.POST, JSON.stringify(body));
+    this.invalidateEntitlement();
     if (!verdict.finishAllowed) return verdict.status;
     if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
     const allowed = this.config && ((verdict.productId === this.config.coffeeProductId && verdict.productType === 0) ||
@@ -457,6 +544,13 @@ export class ValueAddedService {
     await iap.showManagedSubscriptions(this.context, { windowScreenMode: iap.WindowScreenMode.DIALOG_BOX });
   }
   async restorePurchases(): Promise<string> {
+    if (this.restoring) return this.restoring;
+    const work = this.reconcilePurchases();
+    this.restoring = work;
+    try { return await work; }
+    finally { if (this.restoring === work) this.restoring = null; }
+  }
+  private async reconcilePurchases(): Promise<string> {
     this.guard();
     if (!this.context || !this.config || !this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
     await this.checkPurchaseEnvironment();
@@ -465,6 +559,7 @@ export class ValueAddedService {
     this.busy = true;
     const epoch = this.generation;
     let pending = false;
+    let failure: Error | null = null;
     try {
       // Coffee has its own independent recovery flow and must not block membership restoration.
       const types: number[] = [this.config.membershipProductType];
@@ -480,8 +575,14 @@ export class ValueAddedService {
             const response = await iap.queryPurchases(this.context, { productType: type, queryType: query,
               continuationToken: cursor || undefined });
             for (const receipt of response.purchaseDataList) {
-              const status = await this.verifyAndFinish(receipt, type, epoch);
-              if (status === 'ACK_PENDING') pending = true;
+              try {
+                const status = await this.verifyAndFinish(receipt, type, epoch);
+                if (status === 'ACK_PENDING') pending = true;
+              } catch (error) {
+                this.assertGeneration(epoch);
+                // One obsolete/failed receipt must not prevent verification of a later current subscription.
+                if (!failure) failure = error as Error;
+              }
             }
             cursor = response.continuationToken ?? '';
             if (cursor && cursors.has(cursor)) throw new Error('INVALID_PAGINATION');
@@ -490,11 +591,13 @@ export class ValueAddedService {
         }
       }
       if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      if (failure) throw failure;
       this.purchaseRecovery = pending ? 'ACK_PENDING' : 'RESTORED';
+      this.purchaseRecoveryCheckedAt = Date.now();
       this.entitlementChanged();
       return this.purchaseRecovery;
     } catch (error) {
-      if (epoch === this.generation) this.purchaseRecovery = this.recoveryFailure(error as Error);
+      if (epoch === this.generation) { this.purchaseRecovery = this.recoveryFailure(error as Error); this.entitlementChanged(); }
       throw error as Error;
     } finally { this.busy = false; }
   }

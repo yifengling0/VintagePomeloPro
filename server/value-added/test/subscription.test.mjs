@@ -72,6 +72,22 @@ function domainFixture() {
   return { d, store, now: () => time, queries: () => queries, advance: ms => { time += ms; },
     latest: value => { latest = value; }, outage: value => { outage = value; } };
 }
+test('cancelled renewal keeps the already-paid term across service restart and ends at the official expiry', async () => {
+  const f = domainFixture(), user = 'a'.repeat(64);
+  const { developerPayload } = await f.d.intent(user, { productId: 'monthly', productType: 2 });
+  const receipt = JSON.stringify({ developerPayload });
+  const cancelled = { ...fact({ renewalInfo: { ...current.renewalInfo, autoRenewStatusCode: '0' } }), developerPayload };
+  f.latest(cancelled); await f.d.verify(user, { purchaseData: receipt, productType: 2 });
+  const restarted = new ValueAddedDomain({ store: f.store, purchaseProvider: f.d.purchaseProvider,
+    accountProvider: { ready: true }, config: f.d.config, clock: f.now });
+  const beforeExpiry = await restarted.entitlement(user);
+  assert.equal(beforeExpiry.active, true); assert.equal(beforeExpiry.autoRenew, false);
+  assert.equal(beforeExpiry.expiresAt, current.expiresTime);
+  f.advance(300001); assert.equal((await restarted.entitlement(user)).active, true);
+  assert.equal((await f.store.list('subscriptions:' + user)).length, 1);
+  f.advance(current.expiresTime - f.now());
+  assert.equal((await restarted.entitlement(user)).active, false, 'no extra term is invented after cancellation');
+});
 test('renewal replaces one subscription, automatic recheck sees cancellations and refunds, failure cannot extend membership', async () => {
   const f = domainFixture(), user = 'a'.repeat(64);
   const { developerPayload } = await f.d.intent(user, { productId: 'monthly', productType: 2 });
