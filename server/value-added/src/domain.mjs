@@ -1,6 +1,7 @@
 import { randomBytes, createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { requireThat, ServiceError } from './errors.mjs';
-import { deriveMembership, MEMBERSHIP_POLICY } from './membership-policy.mjs';
+import { deriveMembership, MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY } from './membership-policy.mjs';
+import { sealReceipt, openReceipt } from './subscription.mjs';
 import { CloudSaves } from './cloud-saves.mjs';
 import { validatePreferences, preferencesEnvelope } from './preferences.mjs';
 import { validateProfile, profileEnvelope } from './profiles.mjs';
@@ -15,6 +16,7 @@ export class ValueAddedDomain {
   constructor({ store, accountProvider, purchaseProvider, config, objects = {ready:false}, clock = Date.now }) {
     this.store = store; this.accountProvider = accountProvider; this.purchaseProvider = purchaseProvider;
     this.config = config; this.clock = clock; this.saves = new CloudSaves(this,objects,clock);
+    this.subscriptionRefreshes = new Map();
   }
   capabilities() {
     const storage = this.store.ready === true;
@@ -67,7 +69,7 @@ export class ValueAddedDomain {
     requireThat(product, 'UNKNOWN_PRODUCT');
     return product;
   }
-  async intent(userId, { productId, productType }) {
+  async intent(userId, { productId, productType, promotionalOfferId }) {
     this.gate('commerce');
     const product = this.product(productId, productType);
     if (product.kind === 'membership') {
@@ -77,6 +79,13 @@ export class ValueAddedDomain {
     // 32 + 1 + 64 + 1 + 43 = 141 chars, safely under the IAP 256-character limit.
     const value = randomBytes(16).toString('hex') + '.' + userId;
     const signature = createHmac('sha256', this.config.purchaseBindingSecret).update(value + '\n' + productId).digest('base64url');
+    if (promotionalOfferId !== undefined) {
+      requireThat(productType === 2 && typeof promotionalOfferId === 'string' &&
+        /^[a-zA-Z0-9._-]{1,64}$/.test(promotionalOfferId) && Object.hasOwn(product.promotionalPrices ?? {}, promotionalOfferId),
+        'UNKNOWN_OFFER');
+      return { developerPayload: value + '.' + signature,
+        promotionalPurchase: this.purchaseProvider.signPromotion(productId, promotionalOfferId, userId, this.clock()) };
+    }
     return { developerPayload: value + '.' + signature };
   }
   verifyBinding(binding, userId, productId) {
@@ -90,8 +99,20 @@ export class ValueAddedDomain {
   async verify(userId, { purchaseData, productType }) {
     this.gate('commerce');
     requireThat(typeof purchaseData === 'string' && Buffer.byteLength(purchaseData) < 131072, 'INVALID_ORDER');
+    const observedAt = this.clock();
     const fact = await this.purchaseProvider.verify(purchaseData, productType);
     const product = this.product(fact.productId, fact.productType);
+    if (productType === 2 && !fact.developerPayload && typeof fact.subscriptionId === 'string') {
+      const key = 'subscription:' + digest(this.config.appId + '\n' + fact.subscriptionId);
+      const known = await this.store.get(key);
+      requireThat(known?.userId === userId && known.appId === fact.appId && known.productId === fact.productId &&
+        known.generationId === fact.generationId && known.tokenHash === digest(fact.purchaseToken), 'ORDER_BINDING_MISMATCH', 403);
+      const original = openReceipt(known.receiptCipher, this.config.purchaseBindingSecret, userId + '\n' + key);
+      requireThat(original !== purchaseData, 'ORDER_BINDING_MISMATCH', 403);
+      // Some renewal receipts omit the original payload. Requery with the already bound receipt;
+      // an unknown subscription or another account can never claim it from token possession alone.
+      return this.verify(userId, { purchaseData: original, productType: 2 });
+    }
     requireThat(fact.productType === productType && fact.appId === this.config.appId && fact.quantity === 1 &&
       typeof fact.orderId === 'string' && fact.orderId.length > 0 && fact.orderId.length <= 256 &&
       this.verifyBinding(fact.developerPayload, userId, fact.productId), 'ORDER_BINDING_MISMATCH', 403);
@@ -100,6 +121,7 @@ export class ValueAddedDomain {
     const now = this.clock();
     requireThat(Number.isFinite(fact.purchasedAt) && fact.purchasedAt > 0 && fact.purchasedAt <= now + 60000, 'INVALID_ORDER');
     if (product.kind === 'membership') requireThat(Number.isFinite(fact.expiresAt) && fact.expiresAt > fact.purchasedAt, 'INVALID_ORDER');
+    if (productType === 2) return this.recordSubscription(userId, fact, purchaseData, observedAt);
     const key = 'order:' + digest(this.config.appId + '\n' + fact.orderId);
     const normalized = { userId, appId: fact.appId, productId: fact.productId, productType: fact.productType,
       orderId: fact.orderId, kind: product.kind, status: fact.status, purchasedAt: fact.purchasedAt,
@@ -129,17 +151,78 @@ export class ValueAddedDomain {
           policyVersion: normalized.policyVersion, verifiedAt: now };
       }
       tx.put(key, normalized, 'orders:' + userId);
-      if (product.kind === 'membership') tx.put(entitlementKey, { orders: facts }, 'entitlements');
+      if (product.kind === 'membership') tx.put(entitlementKey, { ...entitlement, orders: facts }, 'entitlements');
     });
     const finishAllowed = fact.status === 'purchased' && fact.needsFinish === true;
     return { status: fact.status === 'purchased' ? (finishAllowed ? 'GRANTED' : 'ALREADY_FINISHED') : fact.status.toUpperCase(), finishAllowed,
       ...(finishAllowed ? { productId: fact.productId, productType: fact.productType,
         purchaseOrderId: fact.orderId, purchaseToken: fact.purchaseToken } : {}) };
   }
-  async entitlement(userId) {
-    const value = await this.store.get('entitlement:' + userId);
+  async recordSubscription(userId, fact, receipt, observedAt) {
+    requireThat(fact.policyVersion === SUBSCRIPTION_POLICY &&
+      ['subscriptionId', 'subscriptionGroupId', 'generationId'].every(field => typeof fact[field] === 'string' &&
+        fact[field].length > 0 && fact[field].length <= 256) &&
+      ['1', '2', '3', '5'].includes(fact.subscriptionStatus) && typeof fact.autoRenew === 'boolean' &&
+      typeof fact.billingRetry === 'boolean' && Number.isSafeInteger(fact.signedAt), 'INVALID_SUBSCRIPTION');
+    const key = 'subscription:' + digest(this.config.appId + '\n' + fact.subscriptionId);
     const now = this.clock();
-    return deriveMembership(value?.orders ?? {}, now, FRESH_MS);
+    const state = { userId, appId: fact.appId, productId: fact.productId, subscriptionId: fact.subscriptionId,
+      subscriptionGroupId: fact.subscriptionGroupId, generationId: fact.generationId, status: fact.status,
+      subscriptionStatus: fact.subscriptionStatus, autoRenew: fact.autoRenew, billingRetry: fact.billingRetry,
+      expiresAt: fact.expiresAt, orderId: fact.orderId, purchasedAt: fact.purchasedAt, signedAt: fact.signedAt,
+      verifiedAt: now, observedAt, policyVersion: SUBSCRIPTION_POLICY, tokenHash: digest(fact.purchaseToken),
+      bindingHash: digest(fact.developerPayload) };
+    const accepted = await this.store.transaction(async tx => {
+      const existing = await tx.get(key), entitlementKey = 'entitlement:' + userId;
+      const entitlement = await tx.get(entitlementKey) ?? { orders: {}, subscriptions: {} };
+      if (existing) {
+        requireThat(existing.userId === userId && existing.appId === state.appId && existing.productId === state.productId &&
+          existing.generationId === state.generationId && existing.tokenHash === state.tokenHash &&
+          existing.bindingHash === state.bindingHash, 'ORDER_OWNER_IMMUTABLE', 403);
+        // An older query completing late cannot roll back a newer renewal/refund snapshot.
+        if (existing.observedAt > observedAt || existing.signedAt > state.signedAt) return false;
+        if (existing.status === 'revoked' && state.status !== 'revoked' &&
+          (existing.orderId === state.orderId || state.purchasedAt <= existing.purchasedAt)) return false;
+      }
+      const subscriptions = entitlement.subscriptions ?? {};
+      requireThat(subscriptions[key] || Object.keys(subscriptions).length < 32, 'ORDER_LIMIT', 409);
+      subscriptions[key] = state;
+      tx.put(key, { ...state, receiptCipher: sealReceipt(receipt, this.config.purchaseBindingSecret, userId + '\n' + key) },
+        'subscriptions:' + userId);
+      tx.put(entitlementKey, { ...entitlement, subscriptions }, 'entitlements');
+      return true;
+    });
+    const finishAllowed = accepted && fact.status === 'purchased' && fact.needsFinish === true;
+    return { status: !accepted ? 'SUPERSEDED' : fact.status === 'purchased' ?
+      (finishAllowed ? 'GRANTED' : 'ALREADY_FINISHED') : fact.status.toUpperCase(), finishAllowed,
+      ...(finishAllowed ? { productId: fact.productId, productType: 2,
+        purchaseOrderId: fact.orderId, purchaseToken: fact.purchaseToken } : {}) };
+  }
+  async refreshSubscriptions(userId, value) {
+    if (this.purchaseProvider.ready !== true) return;
+    if (this.subscriptionRefreshes.has(userId)) return this.subscriptionRefreshes.get(userId);
+    const work = (async () => {
+      for (const [key, state] of Object.entries(value?.subscriptions ?? {})) {
+        if (state.verifiedAt + FRESH_MS > this.clock()) continue;
+        try {
+          const stored = await this.store.get(key);
+          requireThat(stored?.userId === userId, 'ORDER_OWNER_IMMUTABLE', 403);
+          const receipt = openReceipt(stored.receiptCipher, this.config.purchaseBindingSecret, userId + '\n' + key);
+          await this.verify(userId, { purchaseData: receipt, productType: 2 });
+        } catch { /* Keep the old verification time. Provider failure cannot extend access. */ }
+      }
+    })();
+    this.subscriptionRefreshes.set(userId, work);
+    try { await work; } finally { this.subscriptionRefreshes.delete(userId); }
+  }
+  async entitlement(userId) {
+    let value = await this.store.get('entitlement:' + userId);
+    if (Object.keys(value?.subscriptions ?? {}).length) {
+      await this.refreshSubscriptions(userId, value);
+      value = await this.store.get('entitlement:' + userId);
+    }
+    const now = this.clock();
+    return deriveMembership(value?.orders ?? {}, now, FRESH_MS, value?.subscriptions ?? {});
   }
   async requireMembership(userId) {
     this.gate('profiles');

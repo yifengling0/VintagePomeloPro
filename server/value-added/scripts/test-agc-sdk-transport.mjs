@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:https';
-import { CloudDbStore, ValueAddedRecord, LOCK_KEY } from '../src/clouddb-store.mjs';
+import { connectCloudDb, ValueAddedRecord, LOCK_KEY } from '../src/clouddb-store.mjs';
 const root = process.env.VP_TEST_MODULE_ROOT ? resolve(process.env.VP_TEST_MODULE_ROOT, 'package.json') :
   new URL('../package.json', import.meta.url);
 const require = createRequire(root), directory = mkdtempSync(join(tmpdir(), 'vp-agc-transport-'));
@@ -51,12 +51,13 @@ try {
   await assert.rejects(client.get(origin+'/fail',null,{}),error=>error.response.status===409&&error.response.data.errorCodeV2==='synthetic-conflict');
   const fast=agc.getHttpClient({casFile:[join(directory,'cert.pem')],timeout:20});
   await assert.rejects(fast.get(origin+'/slow',null,{}),error=>['ECONNABORTED','ETIMEDOUT'].includes(error.code));
-  const credential={getRegion:()=> 'CN',getClientId:()=> 'synthetic-client',getProjectId:()=> 'synthetic-project',
-    getAccessToken:async()=> 'synthetic-local-token'};
-  const zone=new sdk.CloudDBZone({getCredential:()=>credential},new sdk.CloudDBZoneConfig('SyntheticZone'));
+  const store=await connectCloudDb({zoneName:'SyntheticZone',credentialJson:JSON.stringify({
+    type:'project_client_id',region:'CN',project_id:'synthetic-project',client_id:'synthetic-client',
+    client_secret:'synthetic-private-value',configuration_version:'3.0'})});
+  const zone=store.zone;
+  agc.AGCClient.getInstance().getCredential().getAccessToken=async()=> 'synthetic-local-token';
   zone.requestSender.httpClient=client;
   zone.requestSender.requestTemplate.url=origin+'/';zone.requestSender.requestTemplate.backupUrl=origin+'/';
-  const store=new CloudDbStore(zone,sdk.CloudDBZoneQuery,'synthetic-fingerprint');
   assert.deepEqual(await store.get(LOCK_KEY),{revision:0});
   await store.transaction(async tx=>{
     assert.equal(await tx.get('test:order'),null);

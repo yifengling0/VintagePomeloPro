@@ -1,5 +1,10 @@
 import { readFile } from 'node:fs/promises';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import { requireThat, ServiceError } from './errors.mjs';
 
 export const SDK_VERSION = '1.0.7';
@@ -73,11 +78,26 @@ export class CloudDbStore {
     this.ready = true;
   }
 }
-export async function connectCloudDb({ credentialFile, zoneName }) {
-  const { AGCClient, CredentialParser } = await import('@agconnect/common-server');
-  const { AGConnectCloudDB, CloudDBZoneConfig, CloudDBZoneQuery } = await import('@agconnect/database-server');
-  requireThat(credentialFile && /^[a-zA-Z0-9_-]{1,64}$/.test(zoneName), 'NOT_CONFIGURED', 503);
-  const credential = CredentialParser.toCredential(credentialFile);
+export async function connectCloudDb({ credentialFile, credentialJson, zoneName }) {
+  const { AGCClient, CredentialParser } = require('@agconnect/common-server');
+  const { AGConnectCloudDB, CloudDBZoneConfig, CloudDBZoneQuery } = require('@agconnect/database-server');
+  requireThat((credentialFile || credentialJson) && /^[a-zA-Z0-9_-]{1,64}$/.test(zoneName), 'NOT_CONFIGURED', 503);
+  let directory, credential;
+  try {
+    if (credentialJson) {
+      requireThat(typeof credentialJson === 'string' && Buffer.byteLength(credentialJson) <= 16384,
+        'INVALID_CREDENTIAL_CONFIGURATION', 503);
+      const data = JSON.parse(credentialJson);
+      requireThat(data.type === 'project_client_id' && data.project_id && data.region && data.client_id && data.client_secret,
+        'INVALID_CREDENTIAL_CONFIGURATION', 503);
+      // The pinned CJS SDK accepts a file. Cloud functions supply protected environment
+      // values instead; use a private, short-lived file and remove it after parsing.
+      directory = mkdtempSync(join(tmpdir(), 'vp-agc-credential-'));
+      credentialFile = join(directory, 'credential.json');
+      writeFileSync(credentialFile, credentialJson, { mode: 0o600, flag: 'wx' });
+    }
+    credential = CredentialParser.toCredential(credentialFile);
+  } finally { if (directory) rmSync(directory, { recursive: true, force: true }); }
   AGCClient.initialize(credential);
   const client = AGCClient.getInstance();
   AGConnectCloudDB.initialize(client);

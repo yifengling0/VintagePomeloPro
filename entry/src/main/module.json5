@@ -88,6 +88,12 @@
         "launchType": "multiton",
         "removeMissionAfterTerminate": true
       }
+    ],
+    "metadata": [
+      {
+        "name": "client_id",
+        "value": "6917605913989898754"
+      }
     ]
   }
 }

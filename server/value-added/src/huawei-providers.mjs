@@ -2,8 +2,9 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { createHash, createPrivateKey, sign, verify, X509Certificate } from 'node:crypto';
+import { createHash, createPrivateKey, randomUUID, sign, verify, X509Certificate } from 'node:crypto';
 import { addCalendarMonth, MEMBERSHIP_POLICY } from './membership-policy.mjs';
+import { subscriptionFact } from './subscription.mjs';
 import { requireThat } from './errors.mjs';
 
 async function fetchJson(url, options) {
@@ -71,7 +72,7 @@ export function hasHuaweiIapExtension(certificate) {
     return nonCritical && oid.tag === 6 && bytes.subarray(oid.start, oid.end).equals(expected);
   });
 }
-function verifyPkix(chain, root, now) {
+function verifyPkix(chain, root, now, opensslPath = 'openssl') {
   // OpenSSL's PKIX validator covers path length, CA signing usage and unknown critical extensions.
   // Certificates are public data; temporary files contain no account/payment secret and are always removed.
   const directory = mkdtempSync(join(tmpdir(), 'vp-iap-chain-'));
@@ -79,7 +80,7 @@ function verifyPkix(chain, root, now) {
     writeFileSync(join(directory, 'root.pem'), root.toString(), { mode: 0o600 });
     writeFileSync(join(directory, 'intermediate.pem'), chain[1].toString(), { mode: 0o600 });
     writeFileSync(join(directory, 'leaf.pem'), chain[0].toString(), { mode: 0o600 });
-    execFileSync('openssl', ['verify', '-no-CAfile', '-no-CApath', '-no-CAstore', '-trusted', join(directory, 'root.pem'),
+    execFileSync(opensslPath, ['verify', '-no-CAfile', '-no-CApath', '-no-CAstore', '-trusted', join(directory, 'root.pem'),
       '-untrusted', join(directory, 'intermediate.pem'), '-verify_depth', '2', '-auth_level', '2', '-purpose', 'any',
       '-attime', String(Math.floor(now / 1000)), join(directory, 'leaf.pem')], { timeout: 5000, stdio: 'pipe' });
   } catch { requireThat(false, 'INVALID_CERTIFICATE_CHAIN'); }
@@ -96,7 +97,7 @@ function verifyPkix(chain, root, now) {
     }
   }
 }
-export function verifyHuaweiJws(jws, trustedRootPem, now = Date.now()) {
+export function verifyHuaweiJws(jws, trustedRootPem, now = Date.now(), opensslPath = 'openssl') {
   requireThat(typeof jws === 'string' && jws.length < 131072, 'INVALID_JWS');
   const parts = jws.split('.');
   requireThat(parts.length === 3 && parts.every(part => /^[A-Za-z0-9_-]+$/.test(part)), 'INVALID_JWS');
@@ -114,7 +115,7 @@ export function verifyHuaweiJws(jws, trustedRootPem, now = Date.now()) {
   }
   requireThat(!chain[0].ca && chain[1].ca && chain[0].checkIssued(chain[1]) && chain[0].verify(chain[1].publicKey) &&
     chain[1].checkIssued(root) && chain[1].verify(root.publicKey) && hasHuaweiIapExtension(chain[0]), 'INVALID_CERTIFICATE_CHAIN');
-  verifyPkix(chain, root, now);
+  verifyPkix(chain, root, now, opensslPath);
   requireThat(chain[0].publicKey.asymmetricKeyType === 'ec' &&
     chain[0].publicKey.asymmetricKeyDetails?.namedCurve === 'prime256v1', 'INVALID_JWS');
   const signature = Buffer.from(parts[2], 'base64url');
@@ -137,7 +138,7 @@ export class HuaweiPurchaseProvider {
   constructor(config) { this.config = config; this.ready = false; }
   enableAfterProbe(evidence) {
     let version = '';
-    try { version = execFileSync('openssl', ['version'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+    try { version = execFileSync(this.config.opensslPath ?? 'openssl', ['version'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }); }
     catch { requireThat(false, 'PKIX_NOT_CONFIGURED', 503); }
     requireThat(/^OpenSSL 3\./.test(version), 'PKIX_NOT_CONFIGURED', 503);
     requireThat(evidence?.providerFingerprint === this.fingerprint() && evidence.queryAndSignatureVerified === true,
@@ -150,23 +151,42 @@ export class HuaweiPurchaseProvider {
       ['SANDBOX','NORMAL'].includes(c.environment), 'NOT_CONFIGURED', 503);
     return createHash('sha256').update(JSON.stringify({ appId: c.appId, packageName: c.packageName,
       issuerId: c.issuerId, keyId: c.keyId, root: new X509Certificate(c.rootPem).fingerprint256,
-      environment: c.environment, products: c.products })).digest('hex');
+      environment: c.environment, products: c.products, verifierDigest: c.verifierDigest ?? 'system-openssl3' })).digest('hex');
+  }
+  signPromotion(productId, offerId, userId, now = Date.now()) {
+    requireThat(this.ready, 'NOT_CONFIGURED', 503);
+    const product = this.config.products.find(p => p.id === productId && p.type === 2);
+    requireThat(Object.hasOwn(product?.promotionalPrices ?? {}, offerId) && /^[a-f0-9]{64}$/.test(userId), 'UNKNOWN_OFFER');
+    const c = this.config, iat = Math.floor(now / 1000);
+    const data = JSON.stringify({ productItem: { applicationId: c.appId, productId },
+      offerInfo: { offerId, applicationUserName: userId, nonce: randomUUID() } });
+    const unsigned = segment({ alg: 'ES256', typ: 'JWT', kid: c.keyId }) + '.' +
+      segment({ iss: c.issuerId, aud: 'iap-v1', iat, exp: iat + 300, aid: c.appId, data });
+    return { promotionalOfferId: offerId, applicationUserName: userId,
+      jwsRepresentation: unsigned + '.' + sign('sha256', Buffer.from(unsigned),
+        { key: createPrivateKey(c.privateKeyPem), dsaEncoding: 'ieee-p1363' }).toString('base64url') };
   }
   async verify(purchaseData, productType) {
     // The untrusted order JWS is verified before using its IDs; provider's latest order is verified a second time.
     const data = JSON.parse(purchaseData);
     requireThat(data.type === productType, 'INVALID_ORDER');
-    const candidate = verifyHuaweiJws(data.jwsPurchaseOrder, this.config.rootPem);
+    const candidate = verifyHuaweiJws(data.jwsPurchaseOrder, this.config.rootPem, Date.now(), this.config.opensslPath);
     requireThat(candidate.applicationId === this.config.appId && candidate.environment === this.config.environment &&
       candidate.productType === String(productType), 'INVALID_ORDER');
     requireThat(typeof candidate.purchaseOrderId === 'string' && typeof candidate.purchaseToken === 'string', 'INVALID_ORDER');
-    requireThat(productType !== 2, 'AUTORENEWABLE_NOT_CONFIGURED', 503);
     const body = JSON.stringify({ purchaseOrderId: candidate.purchaseOrderId, purchaseToken: candidate.purchaseToken });
-    const response = await fetchJson('https://iap.cloud.huawei.com/order/harmony/v1/application/order/status/query', {
+    const endpoint = productType === 2 ? '/subscription/harmony/v1/application/subscription/status/query' :
+      '/order/harmony/v1/application/order/status/query';
+    const response = await fetchJson('https://iap.cloud.huawei.com' + endpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8',
         Authorization: 'Bearer ' + iapAuthorization(this.config, body) }, body });
+    if (productType === 2) {
+      requireThat(response.responseCode === '0' && response.jwsSubGroupStatus, 'ORDER_NOT_VERIFIED', 502);
+      return subscriptionFact(verifyHuaweiJws(response.jwsSubGroupStatus, this.config.rootPem, Date.now(), this.config.opensslPath),
+        candidate, this.config, Date.now());
+    }
     requireThat(response.responseCode === '0' && response.jwsPurchaseOrder, 'ORDER_NOT_VERIFIED', 502);
-    const order = verifyHuaweiJws(response.jwsPurchaseOrder, this.config.rootPem);
+    const order = verifyHuaweiJws(response.jwsPurchaseOrder, this.config.rootPem, Date.now(), this.config.opensslPath);
     requireThat(order.applicationId === this.config.appId && order.environment === this.config.environment &&
       order.purchaseOrderId === candidate.purchaseOrderId && order.purchaseToken === candidate.purchaseToken &&
       order.productType === String(productType) && order.productId === candidate.productId, 'INVALID_ORDER');

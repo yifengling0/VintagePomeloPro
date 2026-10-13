@@ -9,13 +9,15 @@ const config={apiBaseUrl:'https://api.example.com',accountClientId:'client-id',m
 const profile=models.cloudProfilePayload(app.createDefaultInputProfile());
 const envelope={schemaVersion:1,profileFamily:'input/native-v6',deviceClass:'tablet',variant:profile.id,revision:1,baseRevision:0,
   payloadSha256:crypto.createHash('sha256').update(JSON.stringify(profile)).digest('hex'),payload:profile};
+let cloudCalls=0, cloudReply=null, functionSupported=true;
 let route=async(url,options)=>{
  const endpoint=new URL(url).pathname;
  if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,preferences:true,cloudSaves:false,reason:''};
  if(endpoint==='/v1/auth/begin')return {attemptId:'test-attempt',state:'test-state'};
  if(endpoint==='/v1/auth/exchange')return {token:'session-'+user,userId:user,expiresAt:Date.now()+1800000};
  if(endpoint==='/v1/auth/logout')return {};
- if(endpoint==='/v1/purchases/intent')return {developerPayload:'bound-intent'};
+ if(endpoint==='/v1/purchases/intent'){const body=JSON.parse(options.extraData);return {developerPayload:'bound-intent',
+ ...(body.promotionalOfferId&&!omitOfferSignature?{promotionalPurchase:{promotionalOfferId:body.promotionalOfferId,applicationUserName:user,jwsRepresentation:'AAA.BBB.CCC'}}:{})};}
  if(endpoint==='/v1/purchases/verify')return {status:'GRANTED',finishAllowed:true,productId:'month',productType:3,purchaseOrderId:'order',purchaseToken:'provider-token'};
  if(endpoint==='/v1/profiles/tablet')return {profiles:[{variant:profile.id,name:profile.name,revision:1,deviceClass:'tablet'}]};
  if(endpoint==='/v1/profiles/tablet/default')return envelope;
@@ -27,11 +29,20 @@ const authentication={HuaweiIDProvider:class{constructor(){constructors++;}creat
  AuthenticationController:class{async executeRequest(request){if(sdkError)throw {code:sdkError};if(request.login){assert.equal(request.forceLogin,true);return {state:wrongState?'wrong':request.state,data:{openID:'sdk-open-id'}};}
  if(!request.permissions){assert.deepEqual(Array.from(request.scopes),['profile']);return {state:request.state,data:{openID:'sdk-open-id',nickName:'Test nickname',avatarUri:'https://avatar.example.test/a.png'}};}
  authorizationState=request.state;assert.deepEqual(Array.from(request.scopes),['profile']);assert.deepEqual(Array.from(request.permissions),['serviceauthcode']);return {state:request.state,data:{authorizationCode:'provider-code'}};}}};
-const iap={ProductType:{CONSUMABLE:0},PurchaseQueryType:{UNFINISHED:1,ALL:0},queryProducts:async(_,{productType,productIds})=>[
-  {id:productIds[0],type:productType,name:productType===0?'Coffee':'Membership',localPrice:'CNY 6.00',price:'6'},
+let managedSubscriptions=0,purchaseCalls=0,promotionalOffers=[],latestPurchase,omitOfferSignature=false;const subscriptionQueries=[];
+const iap={PeriodUnit:{MONTH:2},OfferPaymentMode:{PAY_AS_YOU_GO:2},ProductType:{CONSUMABLE:0,AUTORENEWABLE:2},PurchaseQueryType:{UNFINISHED:1,ALL:0,CURRENT_ENTITLEMENT:2},
+ WindowScreenMode:{DIALOG_BOX:0},showManagedSubscriptions:async(_,options)=>{assert.equal(options.windowScreenMode,0);managedSubscriptions++;},
+ queryProducts:async(_,{productType,productIds})=>[
+  {id:productIds[0],type:productType,name:productType===0?'Coffee':'Membership',localPrice:productType===2?'¥5.00':'CNY 6.00',price:'6',
+   currency:'CNY',microPrice:5000000,subscriptionInfo:{periodUnit:2,periodCount:1},promotionalOffers},
   {id:'unexpected',type:productType,name:'Other product',price:'999'}],
- createPurchase:async()=>({purchaseData:'opaque-provider-receipt'}),
- queryPurchases:async(_,{productType,queryType})=>({purchaseDataList:productType===3&&queryType===1?['opaque-provider-receipt']:[]}),
+ createPurchase:async(_,parameter)=>{
+  purchaseCalls++;latestPurchase=parameter;
+  if(parameter.productType===2)assert.equal(Object.hasOwn(parameter,'quantity'),false,'automatic subscription must omit consumable-only quantity');
+  return {purchaseData:'opaque-provider-receipt'};
+ },
+ queryPurchases:async(_,{productType,queryType})=>{subscriptionQueries.push({productType,queryType});
+  return {purchaseDataList:productType===3&&queryType===1?['opaque-provider-receipt']:[]};},
  finishPurchase:async()=>{finishCalls++;if(failFinish)throw Error('offline');}};
 const adapter={OpenMode:{CREATE:fs.constants.O_CREAT,WRITE_ONLY:fs.constants.O_WRONLY,NOFOLLOW:fs.constants.O_NOFOLLOW},
  accessSync:fs.existsSync,mkdirSync:fs.mkdirSync,openSync:(p,f)=>({fd:fs.openSync(p,f,0o600)}),
@@ -40,6 +51,12 @@ const md={createMd(){const hash=crypto.createHash('sha256');return {update:async
 const imports={
  '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_WITH_HAP_MODULE:2,GET_BUNDLE_INFO_WITH_METADATA:32},
  getBundleInfoForSelfSync:()=>({hapModulesInfo:[{name:'entry',metadata:[{name:'client_id',value:'client-id'}]}]})}},
+ '@kit.CloudFoundationKit':{cloudFunction:{call:async params=>{
+ cloudCalls++;assert.equal(params.name,'vp-account-sync');assert.equal(params.version,'$latest');
+ if(cloudReply)return {result:await cloudReply(params)};
+ const data=params.data;assert.equal(data.protocol,1);
+ return {result:{protocol:1,status:200,body:JSON.stringify(await route('https://cloud.test'+data.path,{method:data.method,extraData:data.body}))}};
+ }}},'@ohos.deviceInfo':{default:{sdkApiVersion:23}},
  '@kit.BasicServicesKit':{},'@kit.AccountKit':{authentication},'@kit.IAPKit':{iap},'@ohos.net.http':{default:http},
  '@ohos.util':{default:{TextDecoder:{create:()=>({decodeToString:b=>Buffer.from(b).toString()})},
  TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:crypto.randomUUID}},
@@ -52,7 +69,7 @@ const imports={
 const source=fs.readFileSync(path.join(__dirname,'../entry/src/main/ets/service/valueadded/ValueAddedService.ets'),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const mod={exports:{}};
-vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n])throw Error(n);return imports[n];},setTimeout,ArrayBuffer,Uint8Array,TextEncoder,console});
+vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n])throw Error(n);return imports[n];},canIUse:()=>functionSupported,setTimeout,ArrayBuffer,Uint8Array,TextEncoder,console});
 const service=mod.exports.ValueAddedService.getInstance();
 const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(config))}};
 (async()=>{
@@ -128,5 +145,85 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  const preferenceRoute=route;
  route=async(url,opts)=>{if(new URL(url).pathname==='/v1/settings/tablet'){settingsEntered();await settingsPaused;}return preferenceRoute(url,opts);};
  const reading=service.readPreferences();await settingsStarted;await service.signOut();releaseSettings();await assert.rejects(reading,/ACCOUNT_CHANGED/);
+
+ route=originalRoute;user='alice';
+ const fnConfig={...config,apiBaseUrl:'',cloudFunctionName:'vp-account-sync',cloudFunctionVersion:'$latest'};
+ const fnContext={resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(fnConfig))},filesDir:directory};
+ const fnService=new mod.exports.ValueAddedService();
+ const beforeHttp=requests;
+ await fnService.initialize(fnContext);await fnService.signIn();
+ assert.equal(fnService.accountAvailability(),'ready');assert.equal(fnService.getUserId(),'alice');
+ assert.equal(requests,beforeHttp);assert.ok(cloudCalls>=3);
+ cloudReply=async()=>({protocol:1,status:401,body:'{"code":"SIGN_IN_REQUIRED"}'});
+ await assert.rejects(fnService.entitlement(),/SIGN_IN_REQUIRED/);assert.equal(fnService.getUserId(),'');
+ cloudReply=async()=>({probe:'wrong-deployed-code'});
+ const wrongFunction=new mod.exports.ValueAddedService();await wrongFunction.initialize(fnContext);
+ assert.equal(wrongFunction.accountAvailability(),'unreachable');
+ cloudReply=null;functionSupported=false;
+ const unsupported=new mod.exports.ValueAddedService();await unsupported.initialize(fnContext);
+ assert.equal(unsupported.accountAvailability(),'unreachable');
+ fnConfig.apiBaseUrl=config.apiBaseUrl;
+ const fallback=new mod.exports.ValueAddedService();await fallback.initialize(fnContext);
+ assert.equal(fallback.accountAvailability(),'ready');assert.ok(requests>beforeHttp);
+ functionSupported=true;
+ // Late function responses after sign-out cannot restore the previous account.
+ await fnService.initialize(fnContext);await fnService.signIn();
+ let resolveCloud,enteredCloud;
+ const cloudEntered=new Promise(resolve=>enteredCloud=resolve);
+ cloudReply=async()=>{enteredCloud();return await new Promise(resolve=>resolveCloud=resolve);};
+ const late=fnService.entitlement();await cloudEntered;
+ fnService.clearSession();resolveCloud({protocol:1,status:200,body:'{"active":true,"expiresAt":9,"serverTime":1}'});
+ await assert.rejects(late,/ACCOUNT_CHANGED/);cloudReply=null;
+ console.log('Cloud transport: SDK login session, no HTTP replay, 401, malformed response, capability fallback and stale response PASS');
+ const autoService=new mod.exports.ValueAddedService();
+ await autoService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,membershipProductType:2}))}});
+ await autoService.signIn();subscriptionQueries.length=0;
+ const autoRoute=route, beforeAutoFinish=finishCalls;
+ route=async(url,opts)=>{
+  if(new URL(url).pathname==='/v1/purchases/verify'){
+   assert.equal(JSON.parse(opts.extraData).productType,2);
+   return {status:'GRANTED',finishAllowed:true,productId:'month',productType:2,purchaseOrderId:'auto-order',purchaseToken:'provider-auto-token'};
+  }
+  return autoRoute(url,opts);
+ };
+ assert.equal(await autoService.purchase({id:'month',type:2}),'FINISHED');assert.equal(finishCalls,beforeAutoFinish+1);
+ route=autoRoute;
+ assert.equal(await autoService.restorePurchases(),'RESTORED');
+ assert.deepEqual(subscriptionQueries,[{productType:0,queryType:1},{productType:2,queryType:1},{productType:2,queryType:2}]);
+ await autoService.manageSubscriptions();assert.equal(managedSubscriptions,1);
+ const offeredService=new mod.exports.ValueAddedService();
+ await offeredService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(
+  {...config,membershipProductType:2,membershipPromotionalOfferId:'vip_2026_year_end'}))}});
+ // Prices remain readable while logged out and commerce is gated; this never grants purchase permission.
+ offeredService.capabilities.commerce=false;
+ promotionalOffers=[{offerId:'vip_2026_year_end',paymentMode:2,periodUnit:2,periodCount:2,microPrice:2000000,localPrice:'¥2.00'}];
+ const offerProduct=(await offeredService.products()).find(p=>p.type===2);
+ assert.equal(offerProduct.price,'¥2.00');assert.equal(offerProduct.regularPrice,'¥5.00');
+ assert.match(offerProduct.priceDescription,/前 2 个计费周期/);assert.match(offerProduct.priceDescription,/之后 ¥5.00／月/);
+ await assert.rejects(offeredService.purchase(offerProduct),/NOT_CONFIGURED/);
+ offeredService.capabilities.commerce=true;await offeredService.signIn();
+ const beforeOfferRoute=route;
+ route=async(url,options)=>new URL(url).pathname==='/v1/purchases/verify'?
+  {status:'GRANTED',finishAllowed:true,productId:'month',productType:2,purchaseOrderId:'offer-order',purchaseToken:'offer-token'}:
+  beforeOfferRoute(url,options);
+ await offeredService.purchase(offerProduct);
+ assert.equal(latestPurchase.promotionalOfferId,'vip_2026_year_end');assert.equal(latestPurchase.applicationUserName,'alice');
+ assert.equal(latestPurchase.jwsRepresentation,'AAA.BBB.CCC');assert.equal(Object.hasOwn(latestPurchase,'quantity'),false);
+ const paidCalls=purchaseCalls;omitOfferSignature=true;
+ await assert.rejects(offeredService.purchase(offerProduct),/INVALID_OFFER/);assert.equal(purchaseCalls,paidCalls);omitOfferSignature=false;
+ promotionalOffers[0].periodCount=3;
+ await assert.rejects(offeredService.purchase(offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
+ promotionalOffers[0].periodCount=2;promotionalOffers[0].microPrice=3000000;
+ await assert.rejects(offeredService.purchase(offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
+ promotionalOffers[0].paymentMode=3;
+ await assert.rejects(offeredService.products(),/INVALID_OFFER/);assert.equal(purchaseCalls,paidCalls);
+ promotionalOffers=[];
+ await assert.rejects(offeredService.purchase(offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
+ const fullPrice=(await offeredService.products()).find(p=>p.type===2);assert.equal(fullPrice.price,'¥5.00');assert.equal(fullPrice.promotion,undefined);
+ await offeredService.purchase(fullPrice);assert.equal(Object.hasOwn(latestPurchase,'promotionalOfferId'),false);
+ route=beforeOfferRoute;
+ console.log('Saved Huawei offer: official ¥2/¥5 and cycle text, display while gated, signed checkout, stale/missing/signature/mode safeguards PASS');
+ console.log('Automatic subscription: SDK-compatible purchase parameters, current entitlement plus unfinished orders, official management page PASS');
+
  console.log('Value-added services: hidden guards, auth/ack, account-switch races, profile hash, settings routes/hash/allowlist PASS');
 })().finally(()=>fs.rmSync(directory,{recursive:true,force:true})).catch(error=>{console.error(error);process.exitCode=1;});

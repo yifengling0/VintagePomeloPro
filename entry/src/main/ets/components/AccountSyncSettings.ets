@@ -39,6 +39,7 @@ export struct AccountSyncSettings {
   @State private statusArea: string = 'account';
   @State private membership: string = '未登录';
   @State private products: StoreProduct[] = [];
+  @State private membershipPriceStatus: string = '正在读取华为商品信息';
   @State private profiles: InputProfile[] = [];
   @State private cloudProfiles: ProfileSummary[] = [];
   @State private conflicts: string[] = [];
@@ -101,7 +102,7 @@ export struct AccountSyncSettings {
       this.userId = service.getUserId();
     this.refreshHuaweiIdentity();
       this.availability = service.accountAvailability();
-      if (this.userId) await this.refreshAccount();
+      if (this.userId) await this.refreshAccount(); else await this.refreshMembershipProducts();
     });
   }
   aboutToDisappear(): void { this.alive = false; if (this.backupListener) LocalSaveSnapshotService.getInstance().unsubscribe(this.backupListener); if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener); if (this.supported) CloudSaveService.getInstance().cancel(); }
@@ -114,6 +115,8 @@ export struct AccountSyncSettings {
       if (code === '1001502001') return '请先登录设备上的华为账号后重试';
       return '华为账号登录未完成（' + code + '），请核对应用配置后重试';
     }
+    if (error.message === 'PRICE_CHANGED') return '商品优惠已变化，请刷新会员价格后重试';
+    if (error.message === 'INVALID_OFFER') return '优惠信息暂不可用，请刷新会员价格后重试';
     if (error.message === 'AUTH_STATE_MISMATCH') return '登录响应校验未通过，请重新登录';
     if (error.message === 'NOT_CONFIGURED') return '云服务暂未接通，本地备份仍可使用';
     if (error.message === 'SIGN_IN_REQUIRED') return '登录已过期，请重新登录';
@@ -146,7 +149,7 @@ export struct AccountSyncSettings {
         this.availability = ValueAddedService.getInstance().accountAvailability();
         this.userId = ValueAddedService.getInstance().getUserId();
     this.refreshHuaweiIdentity();
-        if (!this.userId) { this.membership = '未登录'; this.products = []; this.cloudProfiles = []; this.conflicts = []; this.saveSlots = []; this.selectedSlot = ''; this.cloudBinding = ''; this.cloudQuota = ''; }
+        if (!this.userId) { this.membership = '未登录'; this.cloudProfiles = []; this.conflicts = []; this.saveSlots = []; this.selectedSlot = ''; this.cloudBinding = ''; this.cloudQuota = ''; }
       }
     } finally { if (this.alive) {
       this.busy = false;
@@ -182,11 +185,25 @@ export struct AccountSyncSettings {
     this.membership = '正在向服务器核验权益';
     const entitlement = await service.entitlement();
     this.membership = entitlement.active && entitlement.expiresAt > entitlement.serverTime ?
-      '会员有效至 ' + new Date(entitlement.expiresAt).toLocaleString() :
-      entitlement.refreshRequired ? '会员待重新核验，请使用恢复购买' : '当前没有有效会员';
-    if (this.commerceReady) this.products = await service.products();
+      '会员有效至 ' + new Date(entitlement.expiresAt).toLocaleString() +
+        (entitlement.autoRenew === true ? ' · 自动续费已开启' : entitlement.autoRenew === false ? ' · 到期后不再续费' : '') :
+      entitlement.refreshRequired ? '会员状态待重新核验，请稍后刷新' :
+      entitlement.billingRetry ? '续费扣款待处理，请在华为订阅管理中检查' :
+      entitlement.subscriptionStatus === '5' ? '订阅已撤销' : '当前没有有效会员';
+    await this.refreshMembershipProducts();
     if (this.profilesReady && entitlement.active) this.cloudProfiles = await service.listCloudProfiles();
     if (this.cloudSavesReady) await this.refreshCloudSaves();
+  }
+  private async refreshMembershipProducts(): Promise<void> {
+    this.membershipPriceStatus = '正在读取华为商品信息';
+    try {
+      const products = await ValueAddedService.getInstance().products();
+      if (this.alive) {
+        this.products = products;
+        this.membershipPriceStatus = products.some((product: StoreProduct): boolean => product.purpose === 'membership') ? '' :
+          '暂未查到会员商品，请稍后刷新。';
+      }
+    } catch (_) { if (this.alive) { this.products = []; this.membershipPriceStatus = '价格暂时无法获取，请稍后刷新。'; } }
   }
   private availabilityDetail(): string {
     if (this.availability === 'configuration_missing') return '云同步暂不可用，本地设置与存档备份可正常使用。';
@@ -223,8 +240,9 @@ export struct AccountSyncSettings {
   private logout(): void {
     void this.run('account', async (): Promise<void> => {
       await ValueAddedService.getInstance().signOut();
-      this.huaweiSignedIn = false; this.huaweiAvatar = ''; this.huaweiNickname = ''; this.avatarFailed = false; this.userId = ''; this.membership = '未登录'; this.products = []; this.cloudProfiles = []; this.conflicts = [];
+      this.huaweiSignedIn = false; this.huaweiAvatar = ''; this.huaweiNickname = ''; this.avatarFailed = false; this.userId = ''; this.membership = '未登录'; this.cloudProfiles = []; this.conflicts = [];
       this.saveSlots = []; this.selectedSlot = ''; this.cloudBinding = ''; this.cloudQuota = '';
+      await this.refreshMembershipProducts();
       this.status = '已退出，当前账号的会话和云端状态已清除';
     });
   }
@@ -721,13 +739,57 @@ export struct AccountSyncSettings {
   }
   @Builder
   private Membership() {
-    this.Heading('支持开发', '如果旧柚帮到了你，可以自愿请开发者喝杯咖啡。')
+    this.Heading('同步会员', '按月自动续费，价格与优惠由华为提供。')
+    Text('开通后自动同步设置与输入方案。可随时在华为订阅管理中取消续费，取消后本期权益保留至到期；付款以华为收银台显示为准。')
+      .fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-membership-terms')
+    if (!this.commerceReady) {
+      Text('会员服务正在准备，暂不可开通。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+    }
+    if (this.membershipPriceStatus) {
+      Text(this.membershipPriceStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+        .id('sync-membership-price-status')
+    }
     ForEach(this.products.filter((product: StoreProduct): boolean => product.purpose === 'membership'), (product: StoreProduct) => {
-      Row({ space: 12 }) {
-        Text(product.title).fontSize(14).fontColor(skinColor('text_primary')).layoutWeight(1)
-        this.Action(product.price, 'sync-product-' + product.id, (): boolean => (!this.busy), (): void => this.buy(product), true)
+      Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row,
+        alignItems: this.compact ? ItemAlign.Start : ItemAlign.Center }) {
+        Column({ space: 6 }) {
+          Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center }) {
+            Text(product.title).fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+            if (product.promotion) {
+              Text('限时优惠').fontSize(10).fontColor(skinColor('accent')).padding({ left: 6, right: 6, top: 3, bottom: 3 }).margin({ left: 8, top: 3, bottom: 3 })
+                .backgroundColor(skinColor('card_background')).borderRadius(6).id('sync-membership-offer-badge')
+            }
+          }.width('100%')
+          if (product.regularPrice) {
+            Text('标准价 ' + product.regularPrice + '／月').fontSize(12).fontColor(skinColor('text_secondary'))
+              .id('sync-membership-standard-price').width('100%')
+          }
+          if (product.priceDescription) {
+            Text(product.priceDescription).fontSize(12).fontColor(skinColor('text_secondary'))
+              .id('sync-membership-price-terms').width('100%')
+          }
+        }.layoutWeight(this.compact ? 0 : 1).width(this.compact ? '100%' : undefined).alignItems(HorizontalAlign.Start)
+        Row() {
+          this.Action(product.price + '／月', 'sync-product-' + product.id,
+            (): boolean => (!this.busy && this.commerceReady && !!this.userId), (): void => this.buy(product), true)
+        }.margin({ left: this.compact ? 0 : 12, top: this.compact ? 12 : 0 })
       }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
     }, (product: StoreProduct): string => product.id)
+    Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
+      Row() {
+        this.Action('刷新会员价格', 'sync-membership-refresh', (): boolean => !this.busy, (): void => {
+          void this.run('membership', async (): Promise<void> => { await this.refreshMembershipProducts(); });
+        })
+      }.margin({ left: 8, bottom: 8 })
+      Row() {
+        this.Action('管理订阅', 'sync-manage-subscriptions', (): boolean => !this.busy && this.huaweiSignedIn, (): void => {
+          void this.run('membership', async (): Promise<void> => {
+            await ValueAddedService.getInstance().manageSubscriptions();
+            if (this.userId) await this.refreshAccount();
+          });
+        })
+      }.margin({ left: 8, bottom: 8 })
+    }.width('100%').id('sync-membership-actions')
     Column({ space: 14 }) {
       Text('请开发者喝杯咖啡').fontSize(16).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
         .width('100%')

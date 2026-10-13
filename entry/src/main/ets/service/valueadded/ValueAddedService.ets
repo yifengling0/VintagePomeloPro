@@ -2,6 +2,8 @@ import { bundleManager, common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { authentication } from '@kit.AccountKit';
 import { iap } from '@kit.IAPKit';
+import { cloudFunction } from '@kit.CloudFoundationKit';
+import deviceInfo from '@ohos.deviceInfo';
 import http from '@ohos.net.http';
 import util from '@ohos.util';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
@@ -16,9 +18,12 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 
 interface AccountAttempt { attemptId: string; state: string; }
 interface AccountExchange { attemptId: string; state: string; code: string; clientId: string; }
-interface ApiError { code: string; }
-interface PurchaseIntent { developerPayload: string; }
-interface ProductRequest { productId: string; productType: number; }
+interface ApiError { code: string; diagnosticCode?: string; }
+interface FunctionRequest { protocol: number; method: string; path: string; authorization: string; body: string; }
+interface FunctionResponse { protocol: number; status: number; body: string; }
+interface PromotionalPurchase { promotionalOfferId: string; applicationUserName: string; jwsRepresentation: string; }
+interface PurchaseIntent { developerPayload: string; promotionalPurchase?: PromotionalPurchase; }
+interface ProductRequest { productId: string; productType: number; promotionalOfferId?: string; }
 interface VerifyRequest { purchaseData: string; productType: number; }
 interface PurchaseVerdict {
   status: string;
@@ -32,7 +37,13 @@ interface ProfilePut { baseRevision: number; payload: InputProfile; }
 interface ProfilePutResult { status: string; current: ProfileEnvelope; }
 interface ProfileIndex { profiles: ProfileSummary[]; }
 interface EmptyBody { }
-export interface StoreProduct { id: string; title: string; price: string; type: number; purpose: 'membership' | 'coffee'; }
+export interface StorePromotion {
+  id: string; price: string; microPrice: number; paymentMode: number; periodUnit: number; periodCount: number;
+}
+export interface StoreProduct {
+  id: string; title: string; price: string; type: number; purpose: 'membership' | 'coffee';
+  regularPrice?: string; microPrice?: number; currency?: string; promotion?: StorePromotion; priceDescription?: string;
+}
 export interface HuaweiAccountProfile { nickname: string; avatarUri: string; status: string; }
 
 /** No provider token, purchase token, or internal session is persisted on the device. */
@@ -86,6 +97,11 @@ export class ValueAddedService {
       this.capabilities = await this.request<ServiceCapabilities>('/v1/capabilities', http.RequestMethod.GET, '', false);
       this.availability = this.capabilities.account ? 'ready' : 'service_closed';
     } catch (error) {
+      const sdkCode = (error as BusinessError).code;
+      const message = (error as Error).message ?? '';
+      const diagnostic = Number.isInteger(sdkCode) ? '' + sdkCode :
+        (/^[A-Z_]{2,64}$/.test(message) ? message : 'FAILED');
+      console.warn('[ValueAddedService] cloud connection failed: ' + diagnostic);
       this.config = null; this.availability = 'unreachable';
     }
   }
@@ -110,6 +126,28 @@ export class ValueAddedService {
     const session = authenticated ? this.validSession() : null;
     if (authenticated && !session) throw new Error('SIGN_IN_REQUIRED');
     const epoch = this.generation;
+    if (this.config.cloudFunctionName) {
+      const desktop = DeviceCapabilityPolicy.deviceType() !== 'tablet';
+      const supported = canIUse('SystemCapability.DeviceCloudGateway.CloudFoundation') && (!desktop || deviceInfo.sdkApiVersion >= 23);
+      if (supported) {
+        if (typeof body !== 'string') throw new Error('CLOUD_SAVE_TRANSPORT_UNAVAILABLE');
+        const data: FunctionRequest = { protocol: 1, method: method, path: path,
+          authorization: session ? 'Bearer ' + session.token : '', body: body };
+        const encoded = new util.TextEncoder().encodeInto(JSON.stringify(data));
+        if (encoded.byteLength > 768 * 1024) throw new Error('REQUEST_TOO_LARGE');
+        const value = await cloudFunction.call({ name: this.config.cloudFunctionName,
+          version: this.config.cloudFunctionVersion ?? '$latest', timeout: 60000, data: data });
+        if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+        const response = (typeof value.result === 'string' ? JSON.parse(value.result) : value.result) as FunctionResponse;
+        if (!response || response.protocol !== 1 || !Number.isInteger(response.status) ||
+          response.status < 100 || response.status > 599 || typeof response.body !== 'string' ||
+          new util.TextEncoder().encodeInto(response.body).byteLength > 1048576) throw new Error('INVALID_SERVICE_RESPONSE');
+        return this.decodeResponse<T>(response.status, response.body);
+      }
+      // Older PC systems retain the configured HTTPS transport. Do not retry a failed
+      // cloud mutation through another transport: the first request may have committed.
+      if (!this.config.apiBaseUrl) throw new Error('CLOUD_FUNCTION_UNSUPPORTED');
+    }
     const client = http.createHttp();
     try {
       const headers: Record<string, string> = { 'Content-Type': typeof body === 'string' ? 'application/json' : 'application/octet-stream',
@@ -122,13 +160,19 @@ export class ValueAddedService {
         maxLimit: 1048576
       });
       if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
-      if (response.responseCode === 401) { this.clearSession(); throw new Error('SIGN_IN_REQUIRED'); }
-      if (response.responseCode < 200 || response.responseCode >= 300) {
-        const failure = JSON.parse(response.result as string) as ApiError;
-        throw new Error(/^[A-Z_]{2,64}$/.test(failure.code) ? failure.code : 'SERVICE_ERROR');
-      }
-      return JSON.parse(response.result as string) as T;
+      return this.decodeResponse<T>(response.responseCode, response.result as string);
     } finally { client.destroy(); }
+  }
+  private decodeResponse<T>(status: number, body: string): T {
+    if (status === 401) { this.clearSession(); throw new Error('SIGN_IN_REQUIRED'); }
+    if (status < 200 || status >= 300) {
+      const failure = JSON.parse(body) as ApiError;
+      if (failure.diagnosticCode && /^(?:[A-Z][A-Z0-9_]{1,63}|[0-9]{1,12})$/.test(failure.diagnosticCode)) {
+        console.warn('[ValueAddedService] server diagnostic: ' + failure.diagnosticCode);
+      }
+      throw new Error(/^[A-Z_]{2,64}$/.test(failure.code) ? failure.code : 'SERVICE_ERROR');
+    }
+    return JSON.parse(body) as T;
   }
   cloudEpoch(): number { this.guard(); if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED'); return this.generation; }
   assertCloudEpoch(epoch: number): void { this.guard(); this.assertGeneration(epoch); }
@@ -224,11 +268,36 @@ export class ValueAddedService {
     }
     return result;
   }
+  private storeProduct(product: iap.Product): StoreProduct {
+    const display: StoreProduct = { id: product.id, title: product.name, price: product.localPrice ?? product.price,
+      type: product.type, purpose: product.id === this.config?.coffeeProductId ? 'coffee' : 'membership',
+      microPrice: product.microPrice, currency: product.currency };
+    if (product.type !== iap.ProductType.AUTORENEWABLE) return display;
+    const recurring = display.price + '／月';
+    display.priceDescription = recurring + '，按月自动续费。';
+    const configuredOffer = this.config?.membershipPromotionalOfferId;
+    const offers = product.promotionalOffers?.filter((value: iap.PromotionalOffer): boolean => value.offerId === configuredOffer) ?? [];
+    if (offers.length > 1) throw new Error('INVALID_OFFER');
+    if (offers.length === 0) return display;
+    const offer = offers[0];
+    // This product is a monthly subscription. Unsupported or malformed discounts never become a full-price fallback.
+    if (product.subscriptionInfo?.periodUnit !== iap.PeriodUnit.MONTH || product.subscriptionInfo.periodCount !== 1 ||
+      offer.paymentMode !== iap.OfferPaymentMode.PAY_AS_YOU_GO || offer.periodUnit !== iap.PeriodUnit.MONTH ||
+      !Number.isSafeInteger(offer.periodCount) || offer.periodCount === undefined || offer.periodCount < 1 || offer.periodCount > 12 ||
+      !Number.isSafeInteger(offer.microPrice) || offer.microPrice <= 0 || !Number.isSafeInteger(product.microPrice) ||
+      offer.microPrice >= product.microPrice || !offer.localPrice) throw new Error('INVALID_OFFER');
+    display.regularPrice = display.price; display.price = offer.localPrice;
+    display.promotion = { id: offer.offerId, price: offer.localPrice, microPrice: offer.microPrice,
+      paymentMode: offer.paymentMode, periodUnit: offer.periodUnit, periodCount: offer.periodCount };
+    display.priceDescription = '前 ' + offer.periodCount + ' 个计费周期，每期 ' + offer.localPrice +
+      '；之后 ' + recurring + '自动续费。';
+    return display;
+  }
   async products(): Promise<StoreProduct[]> {
     this.guard();
-    if (!this.context || !this.config || !this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
-    if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
-    const config = this.config;
+    // Official product information is public; displaying prices does not grant paid access.
+    if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
+    const config = this.config, epoch = this.generation;
     const result: StoreProduct[] = [];
     const configured: ProductRequest[] = [
       { productId: config.membershipProductId, productType: config.membershipProductType },
@@ -237,10 +306,10 @@ export class ValueAddedService {
     for (const item of configured) {
       if (!item.productId) continue;
       const products = await iap.queryProducts(this.context, { productType: item.productType, productIds: [item.productId] });
+      if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
       for (const product of products) {
         if (product.id === item.productId && product.type === item.productType) {
-          result.push({ id: product.id, title: product.name, price: product.localPrice ?? product.price, type: product.type,
-            purpose: item.productId === config.coffeeProductId ? 'coffee' : 'membership' });
+          result.push(this.storeProduct(product));
         }
       }
     }
@@ -279,13 +348,42 @@ export class ValueAddedService {
     const epoch = this.generation;
     this.busy = true;
     try {
-      const body: ProductRequest = { productId: product.id, productType: product.type };
+      let selected: StoreProduct = product;
+      if (product.type === iap.ProductType.AUTORENEWABLE) {
+        const fresh = await iap.queryProducts(this.context, { productType: product.type, productIds: [product.id] });
+        const official = fresh.find((value: iap.Product): boolean => value.id === product.id && value.type === product.type);
+        if (!official) throw new Error('PRODUCT_MISSING');
+        selected = this.storeProduct(official);
+        if ((selected.promotion?.id ?? '') !== (product.promotion?.id ?? '') ||
+          (product.microPrice !== undefined && selected.microPrice !== product.microPrice) ||
+          (product.currency !== undefined && selected.currency !== product.currency) ||
+          (product.promotion && (selected.promotion?.microPrice !== product.promotion.microPrice ||
+            selected.promotion.periodCount !== product.promotion.periodCount))) throw new Error('PRICE_CHANGED');
+        if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      }
+      const body: ProductRequest = { productId: product.id, productType: product.type,
+        promotionalOfferId: selected.promotion?.id };
       const intent = await this.request<PurchaseIntent>('/v1/purchases/intent', http.RequestMethod.POST, JSON.stringify(body));
       if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
-      const result = await iap.createPurchase(this.context, { productId: product.id, productType: product.type,
-        developerPayload: intent.developerPayload, quantity: 1 });
+      const parameter: iap.PurchaseParameter = { productId: product.id, productType: product.type,
+        developerPayload: intent.developerPayload };
+      if (selected.promotion) {
+        const signed = intent.promotionalPurchase;
+        if (!signed || signed.promotionalOfferId !== selected.promotion.id || signed.applicationUserName !== this.getUserId() ||
+          typeof signed.jwsRepresentation !== 'string' || signed.jwsRepresentation.length > 16384 ||
+          !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(signed.jwsRepresentation)) throw new Error('INVALID_OFFER');
+        parameter.promotionalOfferId = signed.promotionalOfferId;
+        parameter.applicationUserName = signed.applicationUserName;
+        parameter.jwsRepresentation = signed.jwsRepresentation;
+      } else if (intent.promotionalPurchase) throw new Error('INVALID_OFFER');
+      const result = await iap.createPurchase(this.context, parameter);
       return await this.verifyAndFinish(result.purchaseData, product.type, epoch);
     } finally { this.busy = false; }
+  }
+  async manageSubscriptions(): Promise<void> {
+    this.guard();
+    if (!this.context) throw new Error('NOT_CONFIGURED');
+    await iap.showManagedSubscriptions(this.context, { windowScreenMode: iap.WindowScreenMode.DIALOG_BOX });
   }
   async restorePurchases(): Promise<string> {
     this.guard();
@@ -299,7 +397,8 @@ export class ValueAddedService {
       const types: number[] = [iap.ProductType.CONSUMABLE, this.config.membershipProductType];
       for (const type of types) {
         const queries: number[] = type === 0 ? [iap.PurchaseQueryType.UNFINISHED] :
-          [iap.PurchaseQueryType.UNFINISHED, iap.PurchaseQueryType.ALL];
+          [iap.PurchaseQueryType.UNFINISHED, type === iap.ProductType.AUTORENEWABLE ?
+            iap.PurchaseQueryType.CURRENT_ENTITLEMENT : iap.PurchaseQueryType.ALL];
         for (const query of queries) {
           let cursor = '';
           const cursors = new Set<string>();

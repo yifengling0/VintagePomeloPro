@@ -1,7 +1,10 @@
 {
   "apiBaseUrl": "",
-  "accountClientId": "",
-  "membershipProductId": "",
-  "membershipProductType": 3,
-  "coffeeProductId": ""
+  "accountClientId": "6917605913989898754",
+  "membershipProductId": "vip_monthly_auto",
+  "membershipProductType": 2,
+  "coffeeProductId": "buy_coffe",
+  "cloudFunctionName": "vp-account-sync",
+  "cloudFunctionVersion": "$latest",
+  "membershipPromotionalOfferId": "vip_2026_year_end"
 }

@@ -1,27 +1,42 @@
-# 账号、咖啡与单份备份验证（2026-10-13）
+# 账号、订阅与单份备份验证（2026-10-13）
 
-分支：`feature/account-cloud-membership-mvp`，版本 `1.4.7 / 1004070`。已包含 `feature/main_proton` 的 `e08ca925` 音频修复，2026-10-13 fetch 后确认它是本分支祖先。本次不发布上线。
+分支 `feature/account-cloud-membership-mvp`，版本 `1.4.7 / 1004070`。包含 main_proton `e08ca925` 音频修复，本次不发布上线。
 
-## 主机回归
+## 主机通过
 
-- `scripts/run_model_unit_tests.sh` 通过：实际服务配文件系统适配器，覆盖单份备份替换、校验、旧历史迁移、指针提交失败、恢复交换前后中断、删除/重新导入、最后一份备份清理、Steam 排除、账号退出/换号及自动同步；同时覆盖既有输入/鼠标等模型。
-- 咖啡 SDK mock 覆盖 1/4/10 份及 8/32/80 元、低 API 数量保护、价格变化、旧订单不重复扣款、取消、核销重试、商品隔离。SDK mock 不代表真实付款。
-- 后端 `node --test server/value-added/test/*.test.mjs`：29/29 PASS。包含旧版本清理、额度、冲突和上传失败；尚无真实云部署。
-- `python3 -m unittest host_tests.wine_audio_contract_test`：5/5 PASS。
-- `git diff --check` 通过。构建、签名、逐成员运行时校验结果随开发包保存在外部 artifacts 目录，不提交 HAP 或签名材料。
+- 完整 `scripts/run_model_unit_tests.sh` 通过：账号/换号、SDK 云函数传输、type=2 购买参数与恢复、管理订阅、18 项自动同步场景、单份备份及迁移/恢复/指针失败、Steam 排除、云档主机环路、输入与鼠标回归。
+- 后端 `node --test server/value-added/test/*.test.mjs` 45/45 PASS。覆盖完整证书链、未知关键扩展/用途/根/JWS 拒绝、自动续期事实、取消/退款/过期/核验失败、旧异步查询回滚防护和加密回执绑定。
+- 音频契约 `python3 -m unittest host_tests.wine_audio_contract_test` 5/5 PASS。
+- Coffee SDK mock 覆盖 1/4/10 份、价格/低 API/取消/核销重试/旧订单保护；不是实际付费证据。
 
-## 平板真实验证
+## 实云与平板通过
 
-官方开发 profile 签名的 HAP 保数据覆盖安装，Account Kit 登录成功；profile 授权实际返回头像和昵称。主机皮肤与经典皮肤都已显示真实头像，最终恢复经典界面。业务云未配置，页面明确区分“华为账号已登录”和“云同步尚未接通”。
+CloudDB `PomeloAccountTest` 仅 Administrator 权限，已创建首次事务锁。实际在线并发首次写、重复订单、owner 不可改、callback abort、服务端事务 rollback、Docker 断网失败闭锁均通过；报告保存在外部 `artifacts/huawei-cloud-setup-20261013/clouddb-verification.json`。
 
-咖啡区已显示小杯 ¥8、中杯 ¥32、大杯 ¥80，并接入 `queryProducts/createPurchase/queryPurchases/finishPurchase`。真实商品查询返回 `1001860003`，本地官方 SDK 定义为 `INVALID_PRODUCT`；当前 Pro 应用尚需配置有效商品及沙盒测试账户。未发起、未确认实际付款，不能标记真实支付通过。公开配置见 [ACCOUNT_AND_COFFEE.md](ACCOUNT_AND_COFFEE.md)。
+云函数实际 Node 22.23.2，入口采用单参数 callback，支持 HTTP event.body 包装。最新实际导出包与本地业务 ZIP 逐字节一致：SHA256 `71dd89775b985e409c79fef96de33db42eae6df26ce01ab0869ad02f16c72875`。14 项环境配置刷新后逐项 matches=true；不记录配置值。
 
-隔离目录 `Z:\games\SaveBackupCheck` 测试了旧三份备份迁移为一份；将 `backup-changed` 恢复到实际存档后经 Wine 读回确认，恢复目录无 `.vp-before-*` / `.vp-restore-*` 残留。开启该测试游戏自动备份，写入 `backup-original` 后停止测试 Wine 环境，实际备份自动替换、旧快照目录删除。测试文件、备份及对应索引已清理，没有修改用户游戏存档。
+官方开发 profile 的 appIdentifier 为 `6917605913989898754`，包名 `com.vintage.pomelopro`。平板 Account Kit 登录、profile 头像昵称、服务端授权码换会话、权益查询、退出和再次登录通过；页面实际显示“当前没有有效会员”及“已登录，正在自动检查同步”。两套皮肤已验证头像及共用设置入口。
 
-原始截图、布局、命令账本保存在 `artifacts/account-cloud-dev-1.4.7-20261013/device/`，含用户头像昵称，作为本机证据保留，不提交 Git。
+`buy_coffe` 真实商品查询返回 ¥8，未完成订单查询及产品截图已验证。会员 `vip_monthly_auto` 保存为 type=2、1 月周期、¥5、仅中国大陆，组 ID `055EAC5A781A430B807FEE6DFDC5D173`；保存商品信息不等于提交审核。
 
-## 包装边界与未覆盖项目
+官方 SDK `isSandboxActivated` 实际返回 true。订阅携带 quantity=1 时购买返回 401；移除该不适用于自动续订的参数后，实际官方收银台显示 ¥5.00/月，并说明“当前处于沙盒环境，本次订阅及后续续期不产生扣费”。该次购买已取消，尚无购买回执；没有确认任何真实扣费。官方管理订阅页已可打开，之前显示没有订阅。
 
-开发包保留已验证音频修复 HAP 的运行时成员，仅使用本次编译的 ArkTS、`libentry.so`、配置与新增资源；基础包 SHA-256 为 `2f8a16da947679ec12c3e1ded9478c4603554cb3ed718906416a0497f7a9b8a4`。最终 `package-verification.json` 记录源码提交、逐源码/成员哈希和签名验证；不将普通源码编译视为重新验证所有游戏兼容性。
+临时资格测试只允许官方沙盒、精确 CNY5/type2，绑定实际已验证云账号；没有本地授予会员或提前 finish。测试源码已恢复，交付源码不包含探针、管理测试绑定或测试回执持久化。
 
-仍未完成真实 CloudDB/OBS 部署和跨设备云同步、真实 IAP 付款/退款、手机窄屏真机操作及断电故障实验。本地恢复故障注入和主机云测试不替代上述证据。后端依赖审计沿用 10 月 12 日记录，本轮未升级依赖。
+## 隔离存档已验证
+
+`Z:\games\SaveBackupCheck` 完成三份旧备份迁移为一份、实际恢复并经 Wine 读回、关闭测试 Wine 后自动替换最新备份、旧快照与事务临时目录清理。测试文件、索引及备份已清理，没有改玩家存档。每游戏一份最新备份，Steam 下载游戏不参与。
+
+## 包与未完成项
+
+开发包仅替换本次 ArkTS/libentry/config，保留已验证音频包的其他运行时与资源，基线 SHA256 `2f8a16da947679ec12c3e1ded9478c4603554cb3ed718906416a0497f7a9b8a4`。编译、开发签名验签及逐成员检查记录置于外部 artifacts；源码构建不能替代全部游戏兼容性重测。真实截图含账号信息，仅本机保留，不提交 Git。
+
+未完成：实际订阅回执查询/验签/finish/恢复/续期/退款、付费会员自动同步及跨设备回归、NORMAL 发布验收。未配置 `VP_IAP_VERIFICATION_FILE`，因此 commerce/profiles/preferences 保持关闭。
+
+云函数 JSON 通道拒绝存档接口，cloudSaves=false。实际 OBS 私有桶、二进制传输及云档闭环尚未部署；本地备份与主机模拟不能称为云档成功。手机窄屏真机与断电实验也未完成。
+
+## 现有会员优惠 UI 补测
+
+后台已有 `vip_2026_year_end` 保持不变，不新增日历定价或月份活动。平板实际官方查询返回标准价 ¥5.00/月、前 2 个计费周期每期 ¥2.00；经典与主机皮肤均显示同一规则及禁用购买状态，刷新价格通过，咖啡 ¥8/¥32/¥80 保留。会员工具按钮已合并到右侧，紧凑布局使用纵向卡片并支持换行。最终截图、布局、逐成员哈希与开发签名证据随 HAP 交付。
+
+新增促销签名、未知优惠拒绝和官方金额/期数变化测试均通过，后端总计 45/45。新签名桥接与 catalog 尚未部署；没有真实 ¥2 优惠支付回执。会员与付费同步门禁继续关闭。具体配置边界见 [优惠适配记录](EXISTING_MEMBER_OFFER_20261013.md)。

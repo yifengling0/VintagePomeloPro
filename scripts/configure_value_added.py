@@ -7,7 +7,7 @@ import re
 
 ROOT = Path(__file__).resolve().parent.parent
 FIELDS = {'apiBaseUrl', 'accountClientId', 'membershipProductId',
-          'membershipProductType', 'coffeeProductId'}
+          'membershipProductType', 'membershipPromotionalOfferId', 'coffeeProductId', 'cloudFunctionName', 'cloudFunctionVersion'}
 
 
 def load_json5(path):
@@ -26,18 +26,29 @@ def main():
     args = parser.parse_args()
     incoming = json.loads(args.public_config.read_text(encoding='utf-8'))
     if not isinstance(incoming, dict) or set(incoming) - FIELDS:
-        parser.error('Only the five documented public configuration fields are accepted')
+        parser.error('Only documented public configuration fields are accepted')
     rawfile = ROOT / 'entry/src/main/resources/rawfile/value_added_config.json'
     module_file = ROOT / 'entry/src/main/module.json5'
     config = {**json.loads(rawfile.read_text(encoding='utf-8')), **incoming}
-    if not isinstance(config['apiBaseUrl'], str) or not re.fullmatch(
-            r'https://[a-z0-9][a-z0-9.-]+(?::443)?(?:/[a-zA-Z0-9_-]+)*', config['apiBaseUrl']):
-        parser.error('apiBaseUrl must be the deployed HTTPS API base URL, without a trailing slash or query')
+    function = config.get('cloudFunctionName')
+    if function is not None and (not isinstance(function, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,128}', function)):
+        parser.error('cloudFunctionName must be copied from the deployed Huawei function')
+    version = config.get('cloudFunctionVersion', '$latest')
+    if not isinstance(version, str) or not re.fullmatch(r'\$latest|[1-9][0-9]{0,8}', version):
+        parser.error('cloudFunctionVersion must be $latest or a numeric function version')
+    url = config['apiBaseUrl']
+    valid_url = isinstance(url, str) and re.fullmatch(r'https://[a-z0-9][a-z0-9.-]+(?::443)?(?:/[a-zA-Z0-9_-]+)*', url)
+    if (not valid_url and not function) or (url != '' and not valid_url):
+        parser.error('Provide a deployed HTTPS base URL or a cloudFunctionName')
     if not isinstance(config['accountClientId'], str) or not re.fullmatch(
             r'[a-zA-Z0-9._-]{3,128}', config['accountClientId']):
         parser.error('accountClientId must be the OAuth Client ID copied from this AGC application')
-    if config['membershipProductType'] != 3:
-        parser.error('This MVP backend supports non-renewing membership type 3')
+    if config['membershipProductType'] not in (2, 3):
+        parser.error('Membership must use automatic subscription type 2 or non-renewing type 3')
+    offer_id = config.get('membershipPromotionalOfferId')
+    if offer_id is not None and (config['membershipProductType'] != 2 or not isinstance(offer_id, str) or
+                                 not re.fullmatch(r'[a-zA-Z0-9._-]{1,64}', offer_id)):
+        parser.error('Promotional offer ID must match the saved automatic-subscription offer')
     for key in ('membershipProductId', 'coffeeProductId'):
         if not isinstance(config[key], str) or config[key] and not re.fullmatch(r'[a-zA-Z0-9._-]{1,128}', config[key]):
             parser.error('Product IDs must be public SKU identifiers or empty')

@@ -1,48 +1,48 @@
-# 使用华为托管后端测试登录和同步
+# 华为托管账号与同步服务
 
-不需要自建服务器。可以用华为云函数执行可信的登录换码、权益核验、方案和存档操作，CloudDB 保存记录，OBS 保存存档文件。但“已开通云函数”不等于业务代码已经部署。
+不需要自建服务器。云函数执行授权码换会话和会员核验，CloudDB 保存账号与同步记录。存档文件另需私有对象存储及实际传输验证。
 
-## 本次开发包
+## 实际测试资源
 
-已合并 `main_proton` 的 1.4.7，保留最新 Steam、FEX、Wine、PAL4 和鼠标修复。包名是 `com.vintage.pomelopro`，开发 profile 的 appIdentifier 是 `6917605913989898754`；签名工具自动把该 profile 写入 HAP。
+| 配置 | 实际值 |
+| --- | --- |
+| 应用 / 包名 | 旧柚Pro / `com.vintage.pomelopro` |
+| App ID / OAuth Client ID | `6917605913989898754`（两个官方字段分别核对） |
+| 项目 / 区域 | 旧柚 / `101653523864150887` / CN |
+| 云函数 / 实测运行时 | `vp-account-sync` / `$latest` / Node 22.23.2 |
+| 测试 CloudDB zone | `PomeloAccountTest` |
 
-这个 appIdentifier 不是 OAuth Client ID，也不能据此推定 IAP App ID。本地存档备份不依赖账号。官方华为登录已解耦业务配置并通过开发签名真机测试；业务云同步仍需接入后端。
+官方开发签名平板已完成系统登录、头像昵称授权、云端换码、注销和再次登录。内部会话仅在设备内存保留30分钟；不能用客户端 OpenID 直接访问云数据。
 
-## 先取得应用公开配置
+## 云函数协议
 
-1. 在 AppGallery Connect 的“我的项目”中打开 **旧柚 Pro / com.vintage.pomelopro 对应应用**，不要使用其他应用或元服务的配置。
-2. 在应用的常规/应用信息中记录 App ID、OAuth 2.0 Client ID，以及项目和区域。若页面名称发生变化，核对字段名称，不按数字相似程度替代。
-3. 确认 Account Kit 已开通，并登记本次开发证书的 SHA-256 指纹。上线证书和开发证书分别核对。
-4. Client Secret、Server SDK 凭据、OBS AK/SK、IAP 私钥只进入云端受保护配置，不能放入客户端 JSON、Git 或聊天。
+入口 `handler.myHandler` 使用单参数 `callback(result)`，不返回 Promise。SDK HTTP 触发器将数据放在 `event.body`。适配器同时接受直接协议和有界 body 包装，外层headers不提供业务身份。
 
-基础登录直接调用 Account Kit，由系统校验签名应用身份，不要求先部署业务后端。业务云会话需要真实 Client ID、客户端签名登记，以及已部署并接通 CloudDB 的换码接口。输入方案和云存档目前按会员权益开放，还需要真实 IAP 核验；云存档另外需要 OBS。可先完成登录、本地存档，再按顺序接通后续能力。
+SDK发送 `protocol/method/path/authorization/body`，响应为 `protocol/status/body`，其中body为JSON字符串。事件限768 KiB、业务JSON限512 KiB、响应限1 MiB。旧PC不支持SDK时需配置已验证的HTTPS fallback，目前未配置。失败的修改请求不换通道重发。
 
-## 云函数接入差异
+安装锁定依赖后运行 `server/value-added/scripts/package-cloud-function.py --clouddb-evidence <报告> --pkix-runtime <暂存运行包> --output <ZIP>`。ZIP含源码、依赖、公开商品目录和报告，不含凭据。真实IAP探针完成后才能加 `--iap-evidence`，不可手造报告。
 
-当前 `server/value-added/src/main.mjs` 已把领域初始化拆为 `loadService()`，但生产入口仍是 Node HTTP 服务。它尚无 AGC 云函数事件入口，不能直接上传后声称可用。
+## 保护环境配置
 
-使用已有云函数前，需从当前控制台确认：
+- `VP_AGC_CREDENTIAL_JSON`：旧AGC“项目设置 → Server SDK → 认证凭据”的项目客户端JSON；新后台服务账号公私钥不能替代。
+- `VP_APP_ID`、`VP_PACKAGE_NAME`、`VP_ACCOUNT_CLIENT_ID`：核对的公开应用身份。
+- `VP_ACCOUNT_CLIENT_SECRET`：对应Account OAuth Client的Secret；agconnect-services中另一个SDK Client的Secret不能替代。
+- `VP_AGC_ZONE=PomeloAccountTest`。
+- `VP_CLOUDDB_VERIFICATION_FILE=./config/clouddb-verification.json`，相对服务包根目录解析。
+- `VP_IDENTITY_HMAC_SECRET`、`VP_PURCHASE_HMAC_SECRET`：各自至少32字符、高熵、部署时复用。
 
-- 函数支持的 Node 版本和 OpenSSL 版本：当前代码要求 Node >=22、OpenSSL 3。
-- HTTP 触发器/网关如何提供路径、方法、Authorization、二进制 body；是否提供可供客户端 HTTP 调用的 HTTPS 地址。
-- 请求体、内存和执行超时：当前云存档每块最多 4 MiB，若网关把 body 转为 base64，事件体积还会增加。
-- 函数的区域、CloudDB zone、OBS 桶是否对应本应用；现有账号 session 和存档记录放在 CloudDB，不能改成只存于某个函数实例内存。
+`PROJECT_CREDENTIAL`是平台保留名，手动添加会导致整次保存失败；使用 `VP_AGC_CREDENTIAL_JSON`。保存后刷新核对真实持久化，再用设备请求验证。秘密不进Git、客户端、截图或普通产物。
 
-确认上述实际契约后，再把 HTTP 路由与有界 body 检查适配到函数事件，并生成对应部署包。客户端也可改用 `CloudFoundationKit.cloudFunction.call`，但该 SDK 不等价于现有 HTTP 协议，仍要同时适配客户端、函数入口和分块限制。不能只把函数名称填成 apiBaseUrl。
+## CloudDB权限和真实证据
 
-真实部署及存储探针参见 [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)。这些要求是当前实现的接入条件，不要求购买一台服务器。
+ValueAddedRecord包含key:String主键非空、scope:String及scopeIndex、json:Text。World/Authenticated/Creator全部无权限；Administrator具有Read/Upsert/Delete，官方Server SDK使用该角色。
 
-## 同步写入客户端公开配置
+停机首次预建一次 `internal:transaction-lock`，内容 `{"revision":0}`；以后不能重置。2026-10-13在线并发、重复订单、回调中断、服务端拒绝回滚、所有者不可变和Docker `--network none`断网闭锁探针全部通过。项目/区域/zone/SDK/依赖锁改变后重做。
 
-取得真实 HTTPS 接口地址和 OAuth Client ID 后，在本机创建仅含公开值的 JSON。字段为 `apiBaseUrl` 和 `accountClientId`；购买测试时再加入已配置 SKU。不要填示例 ID 或未部署的地址。
+## 会员和云存档
 
-```sh
-python3 scripts/configure_value_added.py /path/to/public-account-config.json
-python3 scripts/configure_value_added.py /path/to/public-account-config.json --apply
-```
+会员 `vip_monthly_auto`，type=2，¥5/月自动续费；组ID `055EAC5A781A430B807FEE6DFDC5D173`。 已保存的 `vip_2026_year_end` 为前2期每期¥2、之后¥5；页面读取官方期数和价格，本轮不修改活动规则。新增签名桥接与优惠catalog尚未部署，详情见 `EXISTING_MEMBER_OFFER_20261013.md`。期限只取官方签名状态；取消续费保留本期，扣费重试不虚构宽限期，撤销不授权。旧type=3月卡规则保留。
 
-第一条只检查，第二条同时更新 `value_added_config.json` 和 `module.metadata.client_id`，保持设备声明。之后重新构建、开发签名，先验证授权页、换码、退出和过期，再验证同步。
+云函数没有OpenSSL CLI。`package-pkix-runtime.py`暂存锁定的Alpine OpenSSL3.5.9及musl loader，启动逐文件校验SHA256，保留完整PKIX验链。真实IAP查询/验签报告完成前，会员销售和会员同步保持关闭。
 
-开发签名包、构建成功、主机文件系统闭环和 SDK 对 mock 的测试，都不能替代真实华为登录、云函数部署或跨设备云同步结果。
-
-头像昵称、三档咖啡和单份备份的当前实现及配置见 [ACCOUNT_AND_COFFEE.md](ACCOUNT_AND_COFFEE.md)。咖啡直接调用官方 IAP，不以云会员后端为前置条件。
+当前SDK JSON通道拒绝4 MiB二进制存档块，`cloudSaves=false`。必须验证私有存储及实际传输后再开放；账号或CloudDB成功不能代表云存档完成。

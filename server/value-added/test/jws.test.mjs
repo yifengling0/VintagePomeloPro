@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { X509Certificate, sign, createHash } from 'node:crypto';
-import {verifyHuaweiJws,hasHuaweiIapExtension,HuaweiPurchaseProvider} from '../src/huawei-providers.mjs';
+import {verifyHuaweiJws as verifyJws,hasHuaweiIapExtension,HuaweiPurchaseProvider} from '../src/huawei-providers.mjs';
+const verifyHuaweiJws=(jws,root,now)=>verifyJws(jws,root,now??Date.now(),process.env.VP_TEST_OPENSSL_PATH);
 const dir=mkdtempSync(join(tmpdir(),'vp-test-jws-')); const oldFetch=globalThis.fetch;
 const run=(...args)=>execFileSync('openssl',args,{cwd:dir,stdio:'pipe'});
 const pem=name=>readFileSync(join(dir,name+'.pem'),'utf8');
@@ -51,11 +52,32 @@ try {
     assert.equal(auth.digest,createHash('sha256').update(opts.body).digest('hex'));assert.equal(auth.aud,'iap-v1');assert.equal(auth.aid,'test-app');assert.ok(auth.exp-auth.iat<=3600);
     return new Response(JSON.stringify({responseCode:'0',jwsPurchaseOrder:jws(latest)}),{status:200});
   };
-  const provider=new HuaweiPurchaseProvider({appId:'test-app',packageName:'test.package',issuerId:'issuer',keyId:'key-id',environment:'SANDBOX',rootPem:pem('root'),privateKeyPem:key('leaf'),products:[{id:'month',type:3,kind:'membership',policyVersion:'calendar-month-v1',prices:{CNY:[100]}}]});
+  const provider=new HuaweiPurchaseProvider({appId:'test-app',packageName:'test.package',issuerId:'issuer',keyId:'key-id',environment:'SANDBOX',rootPem:pem('root'),privateKeyPem:key('leaf'),opensslPath:process.env.VP_TEST_OPENSSL_PATH,products:[{id:'month',type:3,kind:'membership',policyVersion:'calendar-month-v1',prices:{CNY:[100]}}]});
   const receipt=JSON.stringify({type:3,jwsPurchaseOrder:good});
   assert.equal((await provider.verify(receipt,3)).needsFinish,true);assert.equal(calls,1);
   latest={...payload,needFinish:false,finishStatus:'1'};assert.equal((await provider.verify(receipt,3)).needsFinish,false);
   latest={...payload,revocationTime:now};assert.equal((await provider.verify(receipt,3)).status,'revoked');
   for(const bad of [{...payload,applicationId:'other-app'},{...payload,purchaseToken:'other-token'},{...payload,environment:'NORMAL'},{...payload,price:200}]) {latest=bad;await assert.rejects(provider.verify(receipt,3));}
+  const subscribed={...payload,productId:'monthly',productType:'2',subscriptionId:'sub',subGroupId:'members',
+    subGroupGenerationId:'generation',duration:'P1M',price:500};
+  let subGroup={applicationId:'test-app',packageName:'test.package',environment:'SANDBOX',subGroupId:'members',
+    lastSubscriptionStatus:{subscriptionId:'sub',subGroupGenerationId:'generation',purchaseToken:payload.purchaseToken,
+      status:'1',expiresTime:now+600000,lastPurchaseOrder:subscribed,
+      renewalInfo:{productId:'monthly',subGroupGenerationId:'generation',environment:'SANDBOX',
+        autoRenewStatusCode:'1',hasInBillingRetryPeriod:false}}};
+  globalThis.fetch=async(url,opts)=>{
+    assert.equal(url,'https://iap.cloud.huawei.com/subscription/harmony/v1/application/subscription/status/query');
+    assert.deepEqual(JSON.parse(opts.body),{purchaseOrderId:payload.purchaseOrderId,purchaseToken:payload.purchaseToken});
+    return new Response(JSON.stringify({responseCode:'0',jwsSubGroupStatus:jws(subGroup)}));
+  };
+  const autoProvider=new HuaweiPurchaseProvider({...provider.config,products:[{id:'monthly',type:2,kind:'membership',
+    policyVersion:'huawei-subscription-v1',subscriptionGroupId:'members',prices:{CNY:[500]}}]});
+  const autoReceipt=JSON.stringify({type:2,jwsPurchaseOrder:jws(subscribed)});
+  assert.equal((await autoProvider.verify(autoReceipt,2)).expiresAt,now+600000);
+  const validGroup=subGroup;
+  subGroup={...validGroup,packageName:'another.package'};await assert.rejects(autoProvider.verify(autoReceipt,2),/INVALID_SUBSCRIPTION/);
+  subGroup=validGroup;
+  globalThis.fetch=async()=>new Response(JSON.stringify({responseCode:'0',jwsSubGroupStatus:jws(subGroup,{privateKey:key('wrongoid')})}));
+  await assert.rejects(autoProvider.verify(autoReceipt,2),/INVALID_JWS/);
   console.log('PASS: synthetic JWS valid/alg/signature/OID/noncritical/root/expiry/chain/tamper + provider request digest/latest status/app/token/environment/price/finish/refund');
 } finally {globalThis.fetch=oldFetch;rmSync(dir,{recursive:true,force:true});}

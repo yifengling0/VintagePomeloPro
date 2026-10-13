@@ -11,9 +11,12 @@ export function profileDeviceClass(type: string): string {
 
 export interface ValueAddedConfig {
   apiBaseUrl: string;
+  cloudFunctionName?: string;
+  cloudFunctionVersion?: string;
   accountClientId: string;
   membershipProductId: string;
   membershipProductType: number;
+  membershipPromotionalOfferId?: string;
   coffeeProductId: string;
 }
 
@@ -22,11 +25,19 @@ export function validateValueAddedConfig(config: ValueAddedConfig): void {
     throw new Error('NOT_CONFIGURED');
   }
   // Configuration is shipped with the app, never supplied by a deep link or an order.
-  if (!/^https:\/\/[a-z0-9][a-z0-9.-]+(?::443)?(?:\/[a-zA-Z0-9_-]+)*$/.test(config.apiBaseUrl) ||
+  const https = /^https:\/\/[a-z0-9][a-z0-9.-]+(?::443)?(?:\/[a-zA-Z0-9_-]+)*$/.test(config.apiBaseUrl);
+  const fn = config.cloudFunctionName;
+  if (fn !== undefined && (typeof fn !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(fn))) throw new Error('NOT_CONFIGURED');
+  if (config.cloudFunctionVersion !== undefined && (typeof config.cloudFunctionVersion !== 'string' ||
+    !/^(\$latest|[1-9][0-9]{0,8})$/.test(config.cloudFunctionVersion))) throw new Error('NOT_CONFIGURED');
+  if ((!https && !fn) || (config.apiBaseUrl !== '' && !https) ||
     !/^[a-zA-Z0-9._-]{3,128}$/.test(config.accountClientId)) throw new Error('NOT_CONFIGURED');
   if (config.membershipProductType !== 2 && config.membershipProductType !== 3) {
     throw new Error('NOT_CONFIGURED');
   }
+  if (config.membershipPromotionalOfferId !== undefined &&
+    (config.membershipProductType !== 2 || typeof config.membershipPromotionalOfferId !== 'string' ||
+      !/^[a-zA-Z0-9._-]{1,64}$/.test(config.membershipPromotionalOfferId))) throw new Error('NOT_CONFIGURED');
   if (config.membershipProductId && config.membershipProductId === config.coffeeProductId) {
     throw new Error('NOT_CONFIGURED');
   }
@@ -39,6 +50,9 @@ export interface AccountSession {
 }
 export interface MemberEntitlement {
   refreshRequired?: boolean;
+  subscriptionStatus?: string;
+  autoRenew?: boolean;
+  billingRetry?: boolean;
   active: boolean;
   expiresAt: number;
   serverTime: number;

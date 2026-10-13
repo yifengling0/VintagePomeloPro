@@ -1,0 +1,31 @@
+[
+  {
+    "id": "vip_monthly_auto",
+    "type": 2,
+    "kind": "membership",
+    "subscriptionGroupId": "055EAC5A781A430B807FEE6DFDC5D173",
+    "policyVersion": "huawei-subscription-v1",
+    "prices": {
+      "CNY": [
+        500
+      ]
+    },
+    "promotionalPrices": {
+      "vip_2026_year_end": {
+        "CNY": [
+          200
+        ]
+      }
+    }
+  },
+  {
+    "id": "buy_coffe",
+    "type": 0,
+    "kind": "coffee",
+    "prices": {
+      "CNY": [
+        800
+      ]
+    }
+  }
+]
