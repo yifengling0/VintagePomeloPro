@@ -1,4 +1,3 @@
-import { GameBackupSetting } from '../components/GameBackupSetting';
 import { skinColor } from '../service/SkinColors';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
@@ -27,7 +26,6 @@ import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
-import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { LengthMetrics, window } from '@kit.ArkUI';
 import deviceInfo from '@ohos.deviceInfo';
 import {
@@ -789,10 +787,6 @@ struct AppSettingsPage {
               }
             }
           }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
-
-          if (this.app && DeviceCapabilityPolicy.supportsValueAddedFeatures() && this.app.source === AppSource.DOWNLOAD && !this.app.steam) {
-            GameBackupSetting({ appId: this.app.id })
-          }
 
           Column({ space: 12 }) {
             Text('启动参数').fontSize(18).fontWeight(FontWeight.Medium).width('100%')

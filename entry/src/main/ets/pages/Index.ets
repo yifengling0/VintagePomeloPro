@@ -1,5 +1,4 @@
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
-import { LocalSaveSnapshotService } from '../service/valueadded/LocalSaveSnapshotService';
 import { skinColor } from '../service/SkinColors';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import router from '@ohos.router';
@@ -920,7 +919,6 @@ struct Index {
     await this.rescan();
     this.preferGamesForConsole();
     this.catalogInitialized = true;
-    LocalSaveSnapshotService.getInstance().initialize(this.context);
     void AccountAutomaticSyncService.getInstance().initialize(this.context);
     // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标)
     SteamService.getInstance().initialize(this.context).then((): void => {
@@ -948,7 +946,6 @@ struct Index {
         void AppSettingsStore.getInstance().setBentoState(this.bentoSort, retained);
       }
       this.refreshRunningState();
-      if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) LocalSaveSnapshotService.getInstance().reconcileCatalog(this.context);
     } finally {
       this.scanning = false;
     }
