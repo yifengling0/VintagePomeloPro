@@ -258,7 +258,11 @@ export struct AccountSyncSettings {
     if (!this.alive || !this.vipActive) return;
     if (this.vipOwner !== ValueAddedService.getInstance().getUserId()) { this.resetVip(); return; }
     const remaining = this.vipDeadline - Date.now();
-    if (remaining <= 0) { this.resetVip(); this.membership = '会员已到期'; return; }
+    if (remaining <= 0) {
+      this.resetVip(); this.membership = '会员已到期';
+      void this.refreshMembershipProducts();
+      return;
+    }
     this.vipTimer = setTimeout((): void => this.updateVipExpiry(), Math.min(remaining, 60000));
   }
   private async refreshMembershipProducts(): Promise<void> {
