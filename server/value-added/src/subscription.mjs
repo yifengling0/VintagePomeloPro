@@ -14,7 +14,7 @@ function identity(order, config, candidate) {
 
 /** Input is the verified official group JWS. Client receipt dates never grant subscription time. */
 export function subscriptionFact(group, candidate, config, now) {
-  requireThat(group && group.applicationId === config.appId && group.packageName === config.packageName &&
+  requireThat(group && candidate && group.applicationId === config.appId && group.packageName === config.packageName &&
     group.environment === config.environment && group.subGroupId === candidate.subGroupId &&
     identifier(candidate.subscriptionId) && identifier(candidate.subGroupGenerationId) && identifier(candidate.subGroupId),
     'INVALID_SUBSCRIPTION');

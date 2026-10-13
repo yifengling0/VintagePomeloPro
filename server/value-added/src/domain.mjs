@@ -20,7 +20,9 @@ export class ValueAddedDomain {
   }
   capabilities() {
     const storage = this.store.ready === true;
-    return { account: storage && this.accountProvider.ready, commerce: storage && this.purchaseProvider.ready,
+    const sandbox = storage && this.purchaseProvider.sandboxReady === true && this.purchaseProvider.config?.environment === 'SANDBOX';
+    return { account: storage && this.accountProvider.ready, commerce: storage && this.purchaseProvider.ready || sandbox,
+      ...(sandbox ? { sandboxCommerce: true } : {}),
       profiles: storage && this.purchaseProvider.ready, preferences: storage && this.purchaseProvider.ready, cloudSaves: storage && this.purchaseProvider.ready && this.saves.objects.ready,
       reason: storage ? (this.purchaseProvider.ready ? '' : 'IAP_NOT_CONFIGURED') : 'CLOUDDB_NOT_VERIFIED' };
   }
@@ -199,7 +201,7 @@ export class ValueAddedDomain {
         purchaseOrderId: fact.orderId, purchaseToken: fact.purchaseToken } : {}) };
   }
   async refreshSubscriptions(userId, value) {
-    if (this.purchaseProvider.ready !== true) return;
+    if (!this.capabilities().commerce) return;
     if (this.subscriptionRefreshes.has(userId)) return this.subscriptionRefreshes.get(userId);
     const work = (async () => {
       for (const [key, state] of Object.entries(value?.subscriptions ?? {})) {

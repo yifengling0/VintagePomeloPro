@@ -1,4 +1,5 @@
-import { ConsoleCardLayout, ConsolePalette, GlobalSettings, ThemeMode, UiSkin, ViewMode } from './AppModels';
+import { ConsoleCardLayout, ConsolePalette, ControlElement, GlobalSettings, InputProfile, ThemeMode, UiSkin, ViewMode } from './AppModels';
+import { cloudProfilePayload } from './ValueAddedModels';
 export interface SyncedPreferences {
   schemaVersion: number; themeMode: ThemeMode; uiSkin: UiSkin; consolePalette: ConsolePalette;
   consoleCardLayout: ConsoleCardLayout; viewMode: ViewMode; useGlassEffect: boolean;
@@ -21,6 +22,16 @@ export function validateSyncedPreferences(value: SyncedPreferences): void {
     ['violet','blue','pearl'].indexOf(value.consolePalette) < 0 || ['focus3d','bento_tiles'].indexOf(value.consoleCardLayout) < 0 ||
     ['grid','compact','large','files'].indexOf(value.viewMode) < 0 || typeof value.useGlassEffect !== 'boolean' ||
     !/^[a-zA-Z0-9_-]{1,128}$/.test(value.desktopInputProfileId) || value.desktopInputProfileId.startsWith('app-')) throw new Error('INVALID_PREFERENCES');
+}
+/** Factory layouts generate fresh element IDs on each install. Compare every setting and
+ * ordered control except those IDs, so a fresh layout is not mistaken for a user edit. */
+export function matchesShippedInputTemplate(profile: InputProfile, template: InputProfile): boolean {
+  const normalized = (value: InputProfile): string => {
+    const payload = cloudProfilePayload(value);
+    payload.elements.forEach((element: ControlElement, index: number): void => { element.id = 'template-' + index; });
+    return JSON.stringify(payload);
+  };
+  return normalized(profile) === normalized(template);
 }
 export interface SyncBaseline { id: string; revision: number; hash: string; }
 export interface SyncAccountState {

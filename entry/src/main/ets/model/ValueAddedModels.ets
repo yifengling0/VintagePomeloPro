@@ -60,6 +60,7 @@ export interface MemberEntitlement {
 export interface ServiceCapabilities {
   account: boolean;
   commerce: boolean;
+  sandboxCommerce?: boolean;
   profiles: boolean;
   preferences?: boolean;
   cloudSaves: boolean;

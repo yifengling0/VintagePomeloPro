@@ -137,3 +137,14 @@ test('settings allowlist excludes paths, runtime knobs, account data and per-gam
   assert.equal((await d.getPreferences(userId,'tablet')).current,null);
   advance(300001);await assert.rejects(d.getPreferences(userId,'tablet'),/MEMBERSHIP_REQUIRED/);
 });
+
+test('sandbox checkout accepts only verified facts and keeps paid backup gates closed',async()=>{
+  const {d,provider,now}=make();provider.ready=false;provider.sandboxReady=true;provider.config={environment:'SANDBOX'};
+  const {userId}=await login(d);assert.equal(d.capabilities().commerce,true);assert.equal(d.capabilities().sandboxCommerce,true);
+  assert.equal(d.capabilities().profiles,false);assert.equal(d.capabilities().preferences,false);
+  assert.equal((await d.entitlement(userId)).active,false);
+  const fact=await receipt(d,userId,now());await verify(d,userId,fact);assert.equal((await d.entitlement(userId)).active,true);
+  await assert.rejects(d.getPreferences(userId,'tablet'),/NOT_CONFIGURED/);
+  provider.config.environment='NORMAL';assert.equal(d.capabilities().commerce,false);
+  await assert.rejects(d.intent(userId,{productId:'month',productType:3}),/NOT_CONFIGURED/);
+});

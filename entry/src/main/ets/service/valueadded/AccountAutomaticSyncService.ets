@@ -4,7 +4,7 @@ import { DeviceCapabilityPolicy } from '../../common/DeviceCapabilityPolicy';
 import { InputProfile, createBuiltInInputProfiles, inputTemplateForProfileId } from '../../model/AppModels';
 import { ProfileSummary, cloudProfilePayload } from '../../model/ValueAddedModels';
 import { AutomaticSyncData, SyncAccountState, SyncBaseline, SyncItemStatus, PreferencesEnvelope,
-  ProfileOwner, SyncedPreferences, preferencesPayload, validateSyncedPreferences, validateAutomaticSyncData } from '../../model/AccountSyncModels';
+  ProfileOwner, SyncedPreferences, matchesShippedInputTemplate, preferencesPayload, validateSyncedPreferences, validateAutomaticSyncData } from '../../model/AccountSyncModels';
 import { ValueAddedService } from './ValueAddedService';
 import { InputProfileService } from '../InputProfileService';
 import { ThemeSettingsService } from '../ThemeSettingsService';
@@ -27,6 +27,7 @@ export class AccountAutomaticSyncService {
   private epoch: number = 0;
   private timer: number = -1;
   private rerun: boolean = false;
+  private reconcilingPurchases: boolean = false;
   private retryMs: number = 30000;
   private preferenceConflict: PreferencesEnvelope | null = null;
   static getInstance(): AccountAutomaticSyncService {
@@ -84,6 +85,9 @@ export class AccountAutomaticSyncService {
       });
       this.api().subscribeAccount((userId: string): void => {
         void this.accountChanged(userId).catch((): void => { this.overall = '同步记录保存失败'; this.emit(); });
+      });
+      this.api().subscribeEntitlement((): void => {
+        if (!this.reconcilingPurchases) this.requestSync(0);
       });
       await this.api().initialize(context);
       await this.accountChanged(this.api().getUserId());
@@ -161,7 +165,15 @@ export class AccountAutomaticSyncService {
     const epoch = this.epoch, owner = account.userId;
     this.overall = '正在同步'; this.emit();
     try {
-      const api = this.api(); const capabilities = api.getCapabilities();
+      const api = this.api();
+      await api.refreshCapabilities(); this.check(epoch, owner);
+      const capabilities = api.getCapabilities();
+      const recovery = api.getPurchaseRecoveryStatus();
+      if (capabilities.commerce && recovery && !['RESTORED', 'FINISHED', 'ALREADY_FINISHED'].includes(recovery)) {
+        this.reconcilingPurchases = true;
+        try { await api.restorePurchases(); } finally { this.reconcilingPurchases = false; }
+        this.check(epoch, owner);
+      }
       this.items = [];
       if (!account.profilesEnabled && !account.preferencesEnabled) { this.overall = '自动同步已关闭'; return; }
       if (!account.profilesEnabled) this.state('profiles-status', '输入方案', '自动同步已关闭');
@@ -171,7 +183,13 @@ export class AccountAutomaticSyncService {
       const available = account.profilesEnabled && capabilities.profiles || account.preferencesEnabled && capabilities.preferences;
       if (!available) { this.overall = '已开启的云同步暂未开放'; return; }
       const entitlement = await api.entitlement(); this.check(epoch, owner);
-      if (!entitlement.active || entitlement.expiresAt <= entitlement.serverTime) { this.overall = '会员权益待确认，同步已暂停'; return; }
+      if (!entitlement.active || entitlement.expiresAt <= entitlement.serverTime) {
+        this.overall = entitlement.refreshRequired ? '会员权益待确认，同步已暂停' :
+          entitlement.subscriptionStatus === '2' ? '会员已到期，云端备份已暂停' :
+          entitlement.subscriptionStatus === '5' ? '订阅已撤销，云端备份已暂停' :
+          entitlement.billingRetry ? '续费未完成，云端备份已暂停' : '开通 VIP 后自动备份';
+        return;
+      }
       if (account.profilesEnabled && capabilities.profiles) await this.syncProfiles(account, epoch);
       if (account.preferencesEnabled && capabilities.preferences) await this.syncPreferences(account, epoch);
       this.check(epoch, owner);
@@ -181,7 +199,7 @@ export class AccountAutomaticSyncService {
       const waiting = this.items.some((item: SyncItemStatus): boolean => item.state.startsWith('等待'));
       const unavailable = this.items.some((item: SyncItemStatus): boolean => item.state === '云同步暂未开放');
       this.overall = conflict ? '有冲突，等待处理' : waiting ? '部分内容等待同步' : held ? '其他账号的本地内容未上传' :
-        unavailable ? '部分云同步暂未开放' : '已同步';
+        unavailable ? '部分云同步暂未开放' : this.items.some((item: SyncItemStatus): boolean => item.state === '已恢复') ? '已恢复云端备份' : '已同步';
       if (!conflict && !waiting && !held && !unavailable) account.lastSyncedAt = Date.now();
       await this.persist(); this.retryMs = 30000;
     } catch (error) {
@@ -234,7 +252,7 @@ export class AccountAutomaticSyncService {
           this.state(id, name, '已同步', Date.now()); continue;
         }
         const template = shipped.find((profile: InputProfile): boolean => profile.id === id);
-        const pristine = template && hash === await api.payloadHash(JSON.stringify(cloudProfilePayload(template)));
+        const pristine = !!local && !!template && matchesShippedInputTemplate(local, template);
         this.check(epoch, owner);
         const olderTemplate = !!local && !!inputTemplateForProfileId(id) &&
           (remote.payload.builtInRevision ?? 0) < (local.builtInRevision ?? 0);
@@ -242,7 +260,7 @@ export class AccountAutomaticSyncService {
         if (safeDownload) {
           const applied = await api.downloadProfile(id, false, serialized, (): boolean => this.valid(epoch, owner));
           this.check(epoch, owner); this.base(account, id, applied.revision, applied.payloadSha256); this.ownProfile(id, owner);
-          this.state(id, name, '已同步', Date.now()); continue;
+          this.state(id, name, '已恢复', Date.now()); continue;
         }
       }
       if (!own) { this.state(id, name, '属于其他账号，未上传'); continue; }
@@ -294,7 +312,7 @@ export class AccountAutomaticSyncService {
       }
       await this.applyPreferences(remote, serialized, epoch, owner);
       account.preferences = { id: 'preferences', revision: remote.revision, hash: remote.payloadSha256 };
-      this.preferenceConflict = null; this.state('preferences', '外观与默认输入方案', '已同步', Date.now()); return;
+      this.preferenceConflict = null; this.state('preferences', '外观与默认输入方案', '已恢复', Date.now()); return;
     }
     if (this.data.preferencesOwner !== owner) { this.state('preferences', '外观与默认输入方案', '属于其他账号，未上传'); return; }
     if (remote && (!baseline || remote.revision !== baseline.revision)) {

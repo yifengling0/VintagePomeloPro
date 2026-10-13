@@ -1,3 +1,4 @@
+import { SponsorshipSettings } from '../components/SponsorshipSettings';
 import { AccountSyncSettings } from '../components/AccountSyncSettings';
 import { FontImportFiles, replaceImportedFonts } from '../service/FontImportTransaction';
 import { skinColor } from '../service/SkinColors';
@@ -91,7 +92,7 @@ class FontImportFileAdapter implements FontImportFiles {
 
 const DOMAIN = 0x0000;
 
-type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'sync' | 'about';
+type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'sync' | 'support' | 'about';
 
 interface SwitchRowOptions {
   title: string;
@@ -1492,7 +1493,7 @@ struct SystemSettingsPage {
 
   private settingsSections(): SettingsSection[] {
     return DeviceCapabilityPolicy.supportsValueAddedFeatures() ?
-      ['display', 'appearance', 'sync', 'input', 'engine', 'performance', 'logs', 'about'] :
+      ['display', 'appearance', 'sync', 'input', 'engine', 'performance', 'logs', 'support', 'about'] :
       ['display', 'appearance', 'input', 'engine', 'performance', 'logs', 'about'];
   }
 
@@ -1892,6 +1893,10 @@ struct SystemSettingsPage {
     Column({ space: 14 }) {
       if (section === 'sync') {
         AccountSyncSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm',
+          surfaceColor: this.groupSurfaceColor(), cardBorderColor: this.groupBorderColor(),
+          glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
+      } else if (section === 'support') {
+        SponsorshipSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm',
           surfaceColor: this.groupSurfaceColor(), cardBorderColor: this.groupBorderColor(),
           glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
       } else if (section === 'display') {
@@ -2578,6 +2583,9 @@ struct SystemSettingsPage {
       ListItem() { this.Content('engine') }.width('100%').id('settings-section-engine')
       ListItem() { this.Content('performance') }.width('100%').id('settings-section-performance')
       ListItem() { this.Content('logs') }.width('100%').id('settings-section-logs')
+      if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+        ListItem() { this.Content('support') }.width('100%').id('settings-section-support')
+      }
       ListItem() { this.Content('about') }.width('100%').id('settings-section-about')
     }
     .layoutWeight(1)
@@ -2615,6 +2623,9 @@ struct SystemSettingsPage {
               this.SectionButton('Wine 引擎', 'engine', $r('sys.symbol.arrow_clockwise'))
               this.SectionButton('性能监控', 'performance', $r('sys.symbol.list_bullet'))
               this.SectionButton('日志', 'logs', $r('sys.symbol.doc_text'))
+              if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+                this.SectionButton('赞助', 'support', $r('sys.symbol.heart'))
+              }
               this.SectionButton('关于', 'about', $r('sys.symbol.info_circle'))
             }
             .width(this.breakpoint === 'xl' ? 224 : 204)

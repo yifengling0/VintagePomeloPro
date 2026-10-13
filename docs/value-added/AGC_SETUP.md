@@ -41,8 +41,8 @@ ValueAddedRecord包含key:String主键非空、scope:String及scopeIndex、json:
 
 ## 会员和云存档
 
-会员 `vip_monthly_auto`，type=2，¥5/月自动续费；组ID `055EAC5A781A430B807FEE6DFDC5D173`。 已保存的 `vip_2026_year_end` 为前2期每期¥2、之后¥5；页面读取官方期数和价格，本轮不修改活动规则。新增签名桥接与优惠catalog尚未部署，详情见 `EXISTING_MEMBER_OFFER_20261013.md`。期限只取官方签名状态；取消续费保留本期，扣费重试不虚构宽限期，撤销不授权。旧type=3月卡规则保留。
+会员 `vip_monthly_auto`，type=2，¥5/月自动续费；组ID `055EAC5A781A430B807FEE6DFDC5D173`。 已保存的 `vip_2026_year_end` 为前2期每期¥2、之后¥5；页面读取官方期数和价格，本轮不修改活动规则。签名桥接、优惠catalog及真实沙盒验单报告已部署，详情见 `EXISTING_MEMBER_OFFER_20261013.md`。期限只取官方签名状态；取消续费保留本期，扣费重试不虚构宽限期，撤销不授权。旧type=3月卡规则保留。
 
-云函数没有OpenSSL CLI。`package-pkix-runtime.py`暂存锁定的Alpine OpenSSL3.5.9及musl loader，启动逐文件校验SHA256，保留完整PKIX验链。真实IAP查询/验签报告完成前，会员销售和会员同步保持关闭。
+云函数没有OpenSSL CLI。`package-pkix-runtime.py`暂存锁定的Alpine OpenSSL3.5.9及musl loader，启动逐文件校验SHA256，保留完整PKIX验链。包内 `config/iap-verification.json` 为真实沙盒查询/验签报告，未显式配置 `VP_IAP_VERIFICATION_FILE` 时读取包内报告，仍验证 fingerprint。沙盒首次取证可开放官方测试收银台，但不授予会员同步；只有匹配的真实报告才开放 profiles/preferences。SANDBOX 报告不能开放 NORMAL。
 
 当前SDK JSON通道拒绝4 MiB二进制存档块，`cloudSaves=false`。必须验证私有存储及实际传输后再开放；账号或CloudDB成功不能代表云存档完成。

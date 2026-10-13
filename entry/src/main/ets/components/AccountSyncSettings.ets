@@ -1,5 +1,4 @@
 import { BusinessError } from '@kit.BasicServicesKit';
-import { CoffeePurchaseService } from '../service/valueadded/CoffeePurchaseService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { SyncItemStatus } from '../model/AccountSyncModels';
 import { common } from '@kit.AbilityKit';
@@ -8,7 +7,7 @@ import { BackupGameSummary } from '../model/SaveBackupModels';
 import promptAction from '@ohos.promptAction';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { AppDescriptor, InputProfile } from '../model/AppModels';
-import { ProfileSummary, SaveManifest, SaveManifestEntry } from '../model/ValueAddedModels';
+import { MemberEntitlement, ProfileSummary, SaveManifest, SaveManifestEntry } from '../model/ValueAddedModels';
 import { InputProfileService } from '../service/InputProfileService';
 import { StoreProduct, ValueAddedService } from '../service/valueadded/ValueAddedService';
 import { LocalSaveSnapshotService } from '../service/valueadded/LocalSaveSnapshotService';
@@ -32,14 +31,18 @@ export struct AccountSyncSettings {
   @State private huaweiNickname: string = '';
   @State private huaweiAvatar: string = '';
   @State private avatarFailed: boolean = false;
-  @State private coffeeUnit: number = 8;
-  @State private coffeeCurrency: string = 'CNY';
-  @State private coffeeStatus: string = '通过华为应用内支付';
   @State private status: string = '';
   @State private statusArea: string = 'account';
   @State private membership: string = '未登录';
+  @State private vipActive: boolean = false;
+  @State private renewalKnown: boolean = false;
+  @State private renewalEnabled: boolean = true;
+  @State private membershipExpanded: boolean = false;
+  private vipOwner: string = '';
+  private vipDeadline: number = 0;
+  private vipTimer: number = -1;
   @State private products: StoreProduct[] = [];
-  @State private membershipPriceStatus: string = '正在读取华为商品信息';
+  @State private membershipPriceStatus: string = '正在加载价格';
   @State private profiles: InputProfile[] = [];
   @State private cloudProfiles: ProfileSummary[] = [];
   @State private conflicts: string[] = [];
@@ -64,6 +67,7 @@ export struct AccountSyncSettings {
   @State private preferencesConflict: boolean = false;
   private backupListener: (() => void) | null = null;
   private syncListener: (() => void) | null = null;
+  private entitlementListener: (() => void) | null = null;
   @State private cloudSavesReady: boolean = false;
   @State private saveSlots: CloudSaveSlot[] = [];
   @State private selectedSlot: string = '';
@@ -75,12 +79,17 @@ export struct AccountSyncSettings {
 
   aboutToAppear(): void {
     this.alive = true;
-    if (this.supported) void this.loadCoffee();
     // Registered pages are also directly addressable. Guard before any service or SDK initialization.
     if (!this.supported) return;
     this.syncListener = (): void => this.refreshAutomaticSync();
     AccountAutomaticSyncService.getInstance().subscribe(this.syncListener);
     this.refreshAutomaticSync();
+    this.entitlementListener = (): void => {
+      if (this.alive && ValueAddedService.getInstance().getUserId()) {
+        void this.refreshMemberState().catch((): void => {});
+      }
+    };
+    ValueAddedService.getInstance().subscribeEntitlement(this.entitlementListener);
     this.backupListener = (): void => {
       if (!this.alive) return;
       if (this.selectedGame) this.selectSaveGame(this.selectedGame); else this.refreshBackups();
@@ -100,21 +109,26 @@ export struct AccountSyncSettings {
       this.profilesReady = service.getCapabilities().profiles;
       this.cloudSavesReady = service.getCapabilities().cloudSaves;
       this.userId = service.getUserId();
-    this.refreshHuaweiIdentity();
+      this.refreshHuaweiIdentity();
       this.availability = service.accountAvailability();
       if (this.userId) await this.refreshAccount(); else await this.refreshMembershipProducts();
     });
   }
-  aboutToDisappear(): void { this.alive = false; if (this.backupListener) LocalSaveSnapshotService.getInstance().unsubscribe(this.backupListener); if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener); if (this.supported) CloudSaveService.getInstance().cancel(); }
+  aboutToDisappear(): void { this.alive = false; this.resetVip(); if (this.backupListener) LocalSaveSnapshotService.getInstance().unsubscribe(this.backupListener); if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener); if (this.entitlementListener) ValueAddedService.getInstance().unsubscribeEntitlement(this.entitlementListener); if (this.supported) CloudSaveService.getInstance().cancel(); }
   private errorMessage(error: Error): string {
+    const sdkCode = (error as BusinessError).code;
+    const diagnostic = Number.isInteger(sdkCode) ? '' + sdkCode :
+      (/^[A-Z][A-Z0-9_]{1,63}$/.test(error.message) ? error.message : 'FAILED');
+    console.warn('[AccountSyncSettings] operation failed: ' + diagnostic);
     if (error.message.startsWith('HUAWEI_LOGIN_')) {
       const code = error.message.slice('HUAWEI_LOGIN_'.length);
-      if (code === '1001502012') return '已取消华为账号登录';
-      if (code === '1001502005') return '华为账号登录网络异常，请检查网络后重试';
-      if (code === '1001500001') return '华为账号未通过应用签名校验（1001500001），需核对应用配置与开发证书指纹';
-      if (code === '1001502001') return '请先登录设备上的华为账号后重试';
-      return '华为账号登录未完成（' + code + '），请核对应用配置后重试';
+      if (code === '1001502012') return '已取消登录';
+      if (code === '1001502005') return '登录连接失败，请稍后重试';
+      if (code === '1001500001') return '当前版本暂时无法登录，请更新后重试';
+      if (code === '1001502001') return '请先登录设备账号';
+      return '登录未完成（' + code + '），请稍后重试';
     }
+    if (error.message === 'SANDBOX_REQUIRED') return '当前账号无法进行测试订阅，请检查测试账号配置';
     if (error.message === 'PRICE_CHANGED') return '商品优惠已变化，请刷新会员价格后重试';
     if (error.message === 'INVALID_OFFER') return '优惠信息暂不可用，请刷新会员价格后重试';
     if (error.message === 'AUTH_STATE_MISMATCH') return '登录响应校验未通过，请重新登录';
@@ -130,6 +144,7 @@ export struct AccountSyncSettings {
     if (error.message === 'BUSY') return '另一个备份操作正在进行，请稍后重试';
     if (error.message === 'SAVE_CHANGED') return '存档仍在变化，本次操作已取消，请关闭游戏后重试';
     if (error.message === 'SAVE_RECOVERY_REQUIRED') return '上次恢复中断，请先点击处理恢复中断';
+    if (['INVALID_JWS', 'INVALID_SUBSCRIPTION', 'INVALID_ORDER', 'ORDER_NOT_VERIFIED', 'PROVIDER_UNAVAILABLE', 'SERVICE_ERROR'].includes(error.message)) return '会员确认暂未完成，请点击刷新状态重试，无需重复购买';
     if (error.message === 'MEMBERSHIP_REQUIRED') return '云同步需要有效会员，请刷新权益或恢复购买';
     if (error.message === 'SAVE_BINDING_REQUIRED') return '请先把所选云存档位绑定到本机游戏和存档子目录';
     if (error.message === 'SAVE_RECONCILIATION_REQUIRED') return '对象写入结果不明，服务器保留额度等待管理员核对；不会假报已清理';
@@ -168,6 +183,16 @@ export struct AccountSyncSettings {
     this.conflicts = this.profiles.filter((profile: InputProfile): boolean => !!ValueAddedService.getInstance().getConflict(profile.id))
       .map((profile: InputProfile): string => profile.id);
   }
+  private backupStatus(value: string): string {
+    if (value === '已同步') return '云端备份已更新';
+    if (value === '已恢复') return '已从云端恢复';
+    if (value === '正在同步') return '正在检查云端备份';
+    if (value === '等待同步') return '等待备份';
+    if (value === '返回应用后继续同步') return '返回应用后继续备份';
+    if (value === '已开启的云同步暂未开放' || value === '云同步暂未开放') return '云端备份暂未开放';
+    if (value === '自动同步已关闭') return '自动备份已关闭';
+    return value;
+  }
   private setAutomaticSync(family: string, enabled: boolean): void {
     void this.run('automatic', async (): Promise<void> => {
       await AccountAutomaticSyncService.getInstance().setEnabled(family, enabled); this.refreshAutomaticSync();
@@ -182,20 +207,62 @@ export struct AccountSyncSettings {
     const service = ValueAddedService.getInstance();
     this.userId = service.getUserId();
     this.refreshHuaweiIdentity();
-    this.membership = '正在向服务器核验权益';
-    const entitlement = await service.entitlement();
-    this.membership = entitlement.active && entitlement.expiresAt > entitlement.serverTime ?
-      '会员有效至 ' + new Date(entitlement.expiresAt).toLocaleString() +
-        (entitlement.autoRenew === true ? ' · 自动续费已开启' : entitlement.autoRenew === false ? ' · 到期后不再续费' : '') :
-      entitlement.refreshRequired ? '会员状态待重新核验，请稍后刷新' :
-      entitlement.billingRetry ? '续费扣款待处理，请在华为订阅管理中检查' :
-      entitlement.subscriptionStatus === '5' ? '订阅已撤销' : '当前没有有效会员';
-    await this.refreshMembershipProducts();
+    const owner = this.userId;
+    this.membership = '正在更新会员状态';
+    await service.refreshCapabilities();
+    this.commerceReady = service.getCapabilities().commerce;
+    this.profilesReady = service.getCapabilities().profiles;
+    this.cloudSavesReady = service.getCapabilities().cloudSaves;
+    const entitlement = await this.refreshMemberState();
+    if (!this.alive || owner !== service.getUserId()) return;
+    if (!this.vipActive) await this.refreshMembershipProducts(); else this.products = [];
     if (this.profilesReady && entitlement.active) this.cloudProfiles = await service.listCloudProfiles();
     if (this.cloudSavesReady) await this.refreshCloudSaves();
   }
+  private async refreshMemberState(): Promise<MemberEntitlement> {
+    const service = ValueAddedService.getInstance(), owner = service.getUserId();
+    const entitlement = await service.entitlement();
+    if (!this.alive || owner !== service.getUserId()) return entitlement;
+    this.applyVip(entitlement, owner);
+    this.membership = this.vipActive ?
+      '有效期至 ' + new Date(entitlement.expiresAt).toLocaleDateString() +
+        (entitlement.autoRenew === true ? ' · 自动续费已开启' : entitlement.autoRenew === false ? ' · 到期后不再续费' : '') :
+      entitlement.refreshRequired ? '会员状态待重新核验，请稍后刷新' :
+      entitlement.billingRetry ? '续费未完成，请检查订阅' :
+      entitlement.subscriptionStatus === '5' ? '订阅已撤销' :
+      entitlement.subscriptionStatus === '2' ? '会员已到期，可重新开通' :
+      service.getPurchaseRecoveryStatus() === 'CHECKING' ? '正在确认订阅' :
+      service.getPurchaseRecoveryStatus() && !['RESTORED', 'FINISHED', 'ALREADY_FINISHED'].includes(service.getPurchaseRecoveryStatus()) ?
+        '订阅确认待重试，无需重复购买' : '普通账号';
+    return entitlement;
+  }
+  private resetVip(): void {
+    if (this.vipTimer >= 0) clearTimeout(this.vipTimer);
+    this.vipTimer = -1; this.vipActive = false; this.vipOwner = ''; this.vipDeadline = 0;
+    this.renewalKnown = false; this.renewalEnabled = true;
+  }
+  private applyVip(entitlement: MemberEntitlement, owner: string): void {
+    this.resetVip();
+    if (!this.alive || !owner || owner !== ValueAddedService.getInstance().getUserId() ||
+      !entitlement.active || entitlement.refreshRequired || entitlement.expiresAt <= entitlement.serverTime) return;
+    this.vipOwner = owner;
+    this.vipDeadline = Date.now() + entitlement.expiresAt - entitlement.serverTime;
+    this.vipActive = true;
+    this.renewalKnown = typeof entitlement.autoRenew === 'boolean';
+    this.renewalEnabled = entitlement.autoRenew === true;
+    this.updateVipExpiry();
+  }
+  private updateVipExpiry(): void {
+    if (this.vipTimer >= 0) clearTimeout(this.vipTimer);
+    this.vipTimer = -1;
+    if (!this.alive || !this.vipActive) return;
+    if (this.vipOwner !== ValueAddedService.getInstance().getUserId()) { this.resetVip(); return; }
+    const remaining = this.vipDeadline - Date.now();
+    if (remaining <= 0) { this.resetVip(); this.membership = '会员已到期'; return; }
+    this.vipTimer = setTimeout((): void => this.updateVipExpiry(), Math.min(remaining, 60000));
+  }
   private async refreshMembershipProducts(): Promise<void> {
-    this.membershipPriceStatus = '正在读取华为商品信息';
+    this.membershipPriceStatus = '正在加载价格';
     try {
       const products = await ValueAddedService.getInstance().products();
       if (this.alive) {
@@ -207,9 +274,9 @@ export struct AccountSyncSettings {
   }
   private availabilityDetail(): string {
     if (this.availability === 'configuration_missing') return '云同步暂不可用，本地设置与存档备份可正常使用。';
-    if (this.availability === 'identity_mismatch') return '云同步的应用配置不一致，暂不可连接。华为账号登录仍由系统独立校验。';
-    if (this.availability === 'service_closed') return '云同步暂未开放。本地备份和华为账号登录仍可使用。';
-    if (this.availability === 'unreachable') return '暂时无法连接云同步服务，请检查网络后重试。本地备份和华为账号登录仍可使用。';
+    if (this.availability === 'identity_mismatch') return '同步暂不可用，请更新应用后重试。';
+    if (this.availability === 'service_closed') return '同步暂未开放，本地备份可正常使用。';
+    if (this.availability === 'unreachable') return '同步连接失败，请稍后重试。';
     return '正在检查云同步服务，请稍后重试。';
   }
   private availabilityTitle(): string {
@@ -233,8 +300,8 @@ export struct AccountSyncSettings {
       if (this.userId) {
         await this.refreshAccount();
         AccountAutomaticSyncService.getInstance().requestSync(0);
-        this.status = '已登录，正在自动检查同步';
-      } else this.status = '华为账号登录成功；云同步尚未连接';
+        this.status = '已登录，正在检查云端备份';
+      } else this.status = '已登录，同步尚未连接';
     });
   }
   private logout(): void {
@@ -249,71 +316,26 @@ export struct AccountSyncSettings {
   private buy(product: StoreProduct): void {
     void this.run('membership', async (): Promise<void> => {
       const result = await ValueAddedService.getInstance().purchase(product);
-      this.status = result === 'ACK_PENDING' ? '权益核验已完成，商店确认待重试，请使用恢复购买' :
-        result === 'FINISHED' ? '购买已核验并确认' : '订单状态：' + result;
+      this.status = result === 'CANCELLED' ? '已取消购买' :
+        result === 'VERIFICATION_PENDING' ? '购买已完成，会员确认暂未完成；会自动重试，无需再次付款' :
+        result === 'ACK_PENDING' ? '会员已生效，订单确认稍后自动重试' :
+        result === 'ALREADY_ACTIVE' ? '本期会员已生效，无需重复购买' :
+        result === 'FINISHED' || result === 'RESTORED' || result === 'ALREADY_FINISHED' ? '会员状态已更新' : '订阅状态已更新';
+      if (result !== 'CANCELLED') AccountAutomaticSyncService.getInstance().requestSync(0);
       await this.refreshAccount();
     });
   }
   private refreshHuaweiIdentity(): void {
     const service = ValueAddedService.getInstance(), profile = service.getHuaweiProfile();
+    if (!this.userId || this.vipOwner && this.vipOwner !== this.userId) this.resetVip();
     this.huaweiSignedIn = service.isHuaweiSignedIn(); this.huaweiNickname = profile.nickname;
     if (this.huaweiAvatar !== profile.avatarUri) this.avatarFailed = false;
     this.huaweiAvatar = profile.avatarUri;
   }
-  private async loadCoffee(): Promise<void> {
-    try {
-      const service = CoffeePurchaseService.getInstance(); await service.initialize(this.context);
-      const fallback = service.defaultPrice();
-      if (this.alive) { this.coffeeUnit = fallback.amount; this.coffeeCurrency = fallback.currency; }
-      const price = await service.price();
-      if (this.alive) { this.coffeeUnit = price.amount; this.coffeeCurrency = price.currency; this.coffeeStatus = '通过华为应用内支付'; }
-    } catch (error) {
-      if (this.alive) this.coffeeStatus = this.coffeeError(error as Error);
-    }
-  }
-  private coffeePrice(quantity: number): string {
-    const amount = this.coffeeUnit * quantity;
-    return (this.coffeeCurrency === 'CNY' ? '¥' : this.coffeeCurrency + ' ') +
-      (Number.isInteger(amount) ? '' + amount : amount.toFixed(2));
-  }
-  private coffeeError(error: Error): string {
-    if (error.message === 'COFFEE_PRODUCT_MISSING') return '此应用的咖啡商品尚未在华为商店配置完成';
-    if (error.message === 'COFFEE_PRICE_CHANGED') return '商品价格有变化，请刷新价格后重试';
-    if (error.message === 'COFFEE_QUANTITY_UNSUPPORTED') return '当前系统暂不支持中杯和大杯，可选择小杯';
-    if (error.message.startsWith('COFFEE_CONFIG')) return '咖啡商品配置需要更新';
-    const sdkCode = (error as BusinessError).code;
-    const code = Number.isInteger(sdkCode) ? sdkCode :
-      /^COFFEE_IAP_[0-9]+$/.test(error.message) ? Number(error.message.slice('COFFEE_IAP_'.length)) : 0;
-    if (code === 1001860003) return '此应用的咖啡商品尚未配置完成或商品信息无效（1001860003）';
-    if (code === 1001860058 || error.message === 'COFFEE_IAP_1001860058') return '此开发版本需要在华为商店配置沙盒测试账号';
-    return '暂时无法获取或处理华为支付商品' + (code ? '（' + code + '）' : '') + '，请稍后重试';
-  }
-  private supportDeveloper(quantity: number): void {
-    void this.run('membership', async (): Promise<void> => {
-      const service = CoffeePurchaseService.getInstance();
-      try {
-        await service.initialize(this.context);
-        const result = await service.purchase(quantity, { amount: this.coffeeUnit, currency: this.coffeeCurrency });
-        this.status = result === 'CANCELLED' ? '已取消支付' : result === 'ACK_PENDING' ?
-          '订单确认尚未完成，请使用“检查未完成订单”，无需再次付款' :
-          result === 'RECOVERED' ? '已确认之前的支持订单，感谢你！本次未发起新付款' : '感谢支持，咖啡订单已完成！';
-      } catch (error) { this.status = this.coffeeError(error as Error); }
-    });
-  }
-  private recoverCoffee(): void {
-    void this.run('membership', async (): Promise<void> => {
-      try {
-        const service = CoffeePurchaseService.getInstance(); await service.initialize(this.context);
-        const result = await service.recoverPurchases();
-        this.status = result === 'ACK_PENDING' ? '部分订单还未确认，请稍后再试，无需再次付款' :
-          result === 'RECOVERED' ? '已确认之前的支持订单，感谢你！' : '没有待确认的咖啡订单';
-      } catch (error) { this.status = this.coffeeError(error as Error); }
-    });
-  }
   private refreshBackups(): void {
     const local = LocalSaveSnapshotService.getInstance();
     this.games = local.eligibleGames();
-    this.saveSummaries = local.summaries(this.context);
+    this.saveSummaries = local.summaries(this.context).filter((game: BackupGameSummary): boolean => game.enabled || game.count > 0);
     this.interruptedRestore = local.hasInterruptedRestore(this.context);
     if (this.selectedGame) this.snapshots = local.list(this.context, this.selectedGame);
   }
@@ -469,39 +491,74 @@ export struct AccountSyncSettings {
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
   @Builder
+  private AccountAvatar() {
+    Stack({ alignContent: Alignment.Center }) {
+      if (this.huaweiAvatar && !this.avatarFailed) {
+        Image(this.huaweiAvatar).width(52).height(52).objectFit(ImageFit.Cover).borderRadius(26)
+          .id('sync-account-avatar').onError((): void => { this.avatarFailed = true; })
+      } else {
+        SymbolGlyph($r('sys.symbol.person')).fontSize(28)
+          .fontColor([this.vipActive ? '#B8904B' : skinColor('text_secondary')])
+      }
+      if (this.vipActive) {
+        Text('VIP').fontSize(9).fontWeight(FontWeight.Bold).letterSpacing(1)
+          .fontColor('#352611').padding({ left: 7, right: 7, top: 3, bottom: 3 })
+          .linearGradient({ angle: 120, colors: [['#F4E1B8', 0], ['#D6AE62', 1]] })
+          .borderRadius(6).position({ x: 15, y: 48 }).id('sync-avatar-vip')
+      }
+    }.width(64).height(64).borderRadius(32).backgroundColor(skinColor('search_background'))
+      .border({ width: this.vipActive ? 2 : 1, color: this.vipActive ? '#D1AA65' : this.cardBorderColor })
+      .id('sync-account-avatar-frame')
+  }
+  @Builder
   private Overview() {
-    Row({ space: 14 }) {
-      Stack({ alignContent: Alignment.Center }) {
-        if (this.huaweiAvatar && !this.avatarFailed) {
-          Image(this.huaweiAvatar).width(48).height(48).objectFit(ImageFit.Cover).borderRadius(16)
-            .id('sync-account-avatar').onError((): void => { this.avatarFailed = true; })
-        } else {
-          SymbolGlyph($r('sys.symbol.person')).fontSize(27).fontColor([skinColor('accent')])
+    Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row,
+      alignItems: this.compact ? ItemAlign.Start : ItemAlign.Center }) {
+      Row({ space: 14 }) {
+        this.AccountAvatar()
+        Column({ space: 7 }) {
+          Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center }) {
+            Text(this.huaweiSignedIn ? this.huaweiNickname || '已登录' : '未登录')
+              .fontSize(this.compact ? 18 : 20).fontWeight(FontWeight.Medium)
+              .fontColor(skinColor('text_primary')).margin({ right: 10 }).id('sync-account-name')
+            if (this.huaweiSignedIn) {
+              Row({ space: 4 }) {
+                if (this.vipActive) {
+                  Image($r('app.media.vip_crown')).width(12).height(12).fillColor('#996B24')
+                }
+                Text(this.vipActive ? 'VIP 会员' : '普通账号').fontSize(11).fontWeight(FontWeight.Medium)
+                  .fontColor(this.vipActive ? '#996B24' : skinColor('text_secondary'))
+              }.padding({ left: 9, right: 9, top: 4, bottom: 4 }).borderRadius(7)
+                .backgroundColor(this.vipActive ? '#F6EBD4' : skinColor('search_background'))
+                .id('sync-account-membership-badge')
+            }
+          }.width('100%')
+          Text(this.userId ? (this.membership === '普通账号' ? '开通 VIP，自动备份设置与输入方案' : this.membership) :
+            this.huaweiSignedIn ? '同步尚未连接' : '登录后自动备份设置与输入方案')
+            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-account-detail')
+        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+      }.layoutWeight(this.compact ? 0 : 1).width(this.compact ? '100%' : undefined)
+      Row({ space: 8 }) {
+        Button(this.membershipExpanded ? '收起' : this.vipActive ? '会员详情' : '开通 VIP')
+          .height(36).fontSize(13).fontWeight(FontWeight.Medium).padding({ left: 16, right: 16 }).borderRadius(12)
+          .fontColor('#493413').linearGradient({ angle: 120, colors: [['#F5E5C4', 0], ['#DDC18B', 1]] })
+          .enabled(!this.busy).id('sync-membership-entry')
+          .onClick((): void => { this.membershipExpanded = !this.membershipExpanded; })
+        if (!this.huaweiSignedIn) {
+          this.Action('登录', 'sync-account-login', (): boolean => !this.busy, (): void => this.login())
+        } else if (!this.userId && this.ready) {
+          this.Action('连接同步', 'sync-account-connect', (): boolean => !this.busy, (): void => this.login())
         }
-      }.width(48).height(48).borderRadius(16).backgroundColor(skinColor('selected_background'))
-      Column({ space: 5 }) {
-        Text(this.huaweiSignedIn ? this.huaweiNickname || '已登录华为账号' : '华为账号').fontSize(this.compact ? 16 : 17).fontWeight(FontWeight.Medium)
-          .fontColor(skinColor('text_primary')).width('100%')
-        Text(this.userId ? this.membership : this.ready ? '登录后自动同步设置与输入方案' : this.availabilityTitle()).fontSize(12)
-          .fontColor(skinColor('text_secondary')).width('100%')
-      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      if (!this.huaweiSignedIn) {
-        this.Action('登录华为账号', 'sync-account-login', (): boolean => !this.busy, (): void => this.login(), true)
-      } else if (!this.userId && this.ready) {
-        this.Action('连接云同步', 'sync-account-connect', (): boolean => !this.busy, (): void => this.login(), true)
-      }
-      if (this.huaweiSignedIn || this.userId) {
-        this.Action('退出', 'sync-account-logout', (): boolean => (!this.busy), (): void => this.logout())
-      }
-    }.width('100%').alignItems(VerticalAlign.Center)
-    if (this.userId) {
-      Row() {
-        Text('账号权益由云端核验').fontSize(12).fontColor(skinColor('text_secondary')).layoutWeight(1)
-        this.Action('刷新权益', 'sync-refresh-account', (): boolean => (!this.busy), (): void => {
-          void this.run('account', async (): Promise<void> => { await this.refreshAccount(); });
-        })
-      }.width('100%')
-    }
+        if (this.userId) {
+          this.Action('刷新状态', 'sync-refresh-account', (): boolean => !this.busy, (): void => {
+            void this.run('account', async (): Promise<void> => { await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount(); AccountAutomaticSyncService.getInstance().requestSync(0); });
+          })
+        }
+        if (this.huaweiSignedIn || this.userId) {
+          this.Action('退出', 'sync-account-logout', (): boolean => !this.busy, (): void => this.logout())
+        }
+      }.margin({ left: this.compact ? 0 : 14, top: this.compact ? 12 : 0 })
+    }.width('100%')
     if (!this.ready) {
       Text(this.availabilityDetail()).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
         .id('sync-account-availability')
@@ -520,13 +577,13 @@ export struct AccountSyncSettings {
   }
   @Builder
   private Profiles() {
-    this.Heading('自动同步', '登录后按此账号的开关同步。平板与桌面分别保存；文件路径和运行环境设置不上传。')
+    this.Heading('云端备份', '登录后自动备份当前设备的设置与输入方案，重装应用后登录同一账号恢复。平板与桌面分别保存。')
     Row({ space: 12 }) {
       Column({ space: 5 }) {
-        Text(this.huaweiSignedIn && !this.userId ? '华为账号已登录 · 等待云同步连接' : this.autoSyncStatus || '等待登录').fontSize(15).fontWeight(FontWeight.Medium)
-          .fontColor(skinColor('accent')).width('100%').id('sync-automatic-status')
+        Text(this.huaweiSignedIn && !this.userId ? '已登录 · 同步尚未连接' : this.backupStatus(this.autoSyncStatus || '等待登录')).fontSize(15).fontWeight(FontWeight.Medium)
+          .fontColor(skinColor('text_secondary')).width('100%').id('sync-automatic-status')
         if (this.lastSyncTime > 0) {
-          Text('最近同步 ' + new Date(this.lastSyncTime).toLocaleString())
+          Text('最近备份 ' + new Date(this.lastSyncTime).toLocaleString())
             .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
         }
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
@@ -534,8 +591,8 @@ export struct AccountSyncSettings {
         AccountAutomaticSyncService.getInstance().requestSync(0);
       })
     }.width('100%')
-    this.SyncSwitch('设置同步', '同步外观、卡片布局与默认输入方案', 'preferences', (): boolean => this.autoPreferences)
-    this.SyncSwitch('输入方案同步', '自动同步按键布局、鼠标参数和手柄映射', 'profiles', (): boolean => this.autoProfiles)
+    this.SyncSwitch('设置同步', '自动备份外观、卡片布局与默认输入方案', 'preferences', (): boolean => this.autoPreferences)
+    this.SyncSwitch('输入方案同步', '自动备份按键布局、鼠标参数和手柄映射', 'profiles', (): boolean => this.autoProfiles)
     if (!this.profilesReady) {
       Text('云同步暂未接通。未登录或离线时，本地设置与方案仍可正常使用。')
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
@@ -544,7 +601,7 @@ export struct AccountSyncSettings {
       Column({ space: 8 }) {
         Row({ space: 12 }) {
           Text(item.name).fontSize(14).fontColor(skinColor('text_primary')).layoutWeight(1)
-          Text(item.state).fontSize(12).fontColor(skinColor('text_secondary')).maxLines(2)
+          Text(this.backupStatus(item.state)).fontSize(12).fontColor(skinColor('text_secondary')).maxLines(2)
         }.width('100%')
         if (this.conflicts.indexOf(item.id) >= 0) {
           Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
@@ -565,18 +622,18 @@ export struct AccountSyncSettings {
           }.width('100%')
         }
       }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
-    }, (item: SyncItemStatus): string => item.id)
+    }, (item: SyncItemStatus): string => item.id + ':' + item.state + ':' + item.lastSyncedAt)
   }
   @Builder
   private LocalSaves() {
-    this.Heading('存档备份', '在游戏设置中开启后，自动保留一份最新备份。移除游戏后，备份仍会保留。')
+    this.Heading('本地存档备份', '在游戏设置中开启后，自动保留一份最新备份。移除游戏后，备份仍会保留。')
     if (this.saveSummaries.length > 0) {
       TextInput({ placeholder: '搜索已备份的游戏', text: this.saveSearch }).height(44).fontSize(14)
         .fontColor(skinColor('text_primary')).backgroundColor(skinColor('search_background')).borderRadius(12)
         .id('sync-save-search').onChange((value: string): void => { this.saveSearch = value; })
     }
     if (!this.saveSummaries.length) {
-      Text('还没有游戏开启备份。打开游戏卡片的设置，开启“存档自动备份”；无需选择目录。')
+      Text('还没有存档备份。支持备份的本地游戏会在游戏设置中显示开关，开启后自动备份。')
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
     }
       ForEach(this.saveSummaries.filter((game: BackupGameSummary): boolean =>
@@ -726,94 +783,105 @@ export struct AccountSyncSettings {
     }
   }
   @Builder
-  private CoffeeCup(title: string, quantity: number) {
-    Button() {
-      Column({ space: 10 }) {
-        Text('☕').fontSize(quantity === 10 ? 32 : quantity === 4 ? 28 : 24).height(38)
-        Text(title).fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
-        Text(this.coffeePrice(quantity)).fontSize(20).fontWeight(FontWeight.Bold).fontColor(skinColor('accent'))
-      }.width('100%').padding({ top: 16, bottom: 16 })
-    }.type(ButtonType.Normal).width(this.compact ? 100 : 140).margin({ right: 12, bottom: 8 })
-      .borderRadius(16).backgroundColor(skinColor('search_background')).enabled(!this.busy)
-      .id('sync-coffee-' + quantity).onClick((): void => this.supportDeveloper(quantity))
+  private MembershipBenefit(title: string, detail: string) {
+    Row({ space: 10 }) {
+      Text('✓').fontSize(15).fontWeight(FontWeight.Medium)
+        .fontColor(this.vipActive ? '#B8904B' : skinColor('text_secondary'))
+      Column({ space: 5 }) {
+        Text(title).fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
+        Text(detail).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+    }.width(this.compact ? '100%' : '48%').margin({ bottom: this.compact ? 12 : 0 })
   }
   @Builder
   private Membership() {
-    this.Heading('同步会员', '按月自动续费，价格与优惠由华为提供。')
-    Text('开通后自动同步设置与输入方案。可随时在华为订阅管理中取消续费，取消后本期权益保留至到期；付款以华为收银台显示为准。')
-      .fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-membership-terms')
-    if (!this.commerceReady) {
-      Text('会员服务正在准备，暂不可开通。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-    }
-    if (this.membershipPriceStatus) {
-      Text(this.membershipPriceStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-        .id('sync-membership-price-status')
-    }
-    ForEach(this.products.filter((product: StoreProduct): boolean => product.purpose === 'membership'), (product: StoreProduct) => {
-      Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row,
-        alignItems: this.compact ? ItemAlign.Start : ItemAlign.Center }) {
-        Column({ space: 6 }) {
-          Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center }) {
-            Text(product.title).fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
-            if (product.promotion) {
-              Text('限时优惠').fontSize(10).fontColor(skinColor('accent')).padding({ left: 6, right: 6, top: 3, bottom: 3 }).margin({ left: 8, top: 3, bottom: 3 })
-                .backgroundColor(skinColor('card_background')).borderRadius(6).id('sync-membership-offer-badge')
+    Text('会员权益').fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+      .width('100%').id('sync-membership-title')
+    Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row, justifyContent: FlexAlign.SpaceBetween }) {
+      this.MembershipBenefit('设置备份', '外观与常用设置，重装后自动恢复')
+      this.MembershipBenefit('输入方案备份', '按键布局、鼠标参数与手柄映射')
+    }.width('100%').padding({ top: 4, bottom: 4 }).id('sync-membership-benefits')
+    if (this.vipActive) {
+      Text(this.renewalKnown && !this.renewalEnabled ?
+        '自动续费已关闭，本期权益保留至到期。恢复续订只恢复后续续费。' :
+        '会员权益已生效，可在订阅管理中调整自动续费。')
+        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-member-renewal-status')
+    } else {
+      if (this.membershipPriceStatus) {
+        Text(this.membershipPriceStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+          .id('sync-membership-price-status')
+      }
+      ForEach(this.products.filter((product: StoreProduct): boolean => product.purpose === 'membership'), (product: StoreProduct) => {
+        Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row,
+          alignItems: this.compact ? ItemAlign.Start : ItemAlign.Center }) {
+          Column({ space: 8 }) {
+            Row({ space: 8 }) {
+              Text('连续包月').fontSize(13).fontColor(skinColor('text_secondary'))
+              if (product.promotion) {
+                Text('限时优惠').fontSize(10).fontColor(skinColor('text_secondary'))
+                  .padding({ left: 6, right: 6, top: 3, bottom: 3 }).borderRadius(6)
+                  .backgroundColor(skinColor('search_background')).id('sync-membership-offer-badge')
+              }
             }
-          }.width('100%')
-          if (product.regularPrice) {
-            Text('标准价 ' + product.regularPrice + '／月').fontSize(12).fontColor(skinColor('text_secondary'))
-              .id('sync-membership-standard-price').width('100%')
-          }
-          if (product.priceDescription) {
-            Text(product.priceDescription).fontSize(12).fontColor(skinColor('text_secondary'))
-              .id('sync-membership-price-terms').width('100%')
-          }
-        }.layoutWeight(this.compact ? 0 : 1).width(this.compact ? '100%' : undefined).alignItems(HorizontalAlign.Start)
-        Row() {
-          this.Action(product.price + '／月', 'sync-product-' + product.id,
-            (): boolean => (!this.busy && this.commerceReady && !!this.userId), (): void => this.buy(product), true)
-        }.margin({ left: this.compact ? 0 : 12, top: this.compact ? 12 : 0 })
-      }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
-    }, (product: StoreProduct): string => product.id)
+            Row({ space: 5 }) {
+              Text(product.price).fontSize(28).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
+                .id('sync-membership-current-price')
+              Text('／月').fontSize(12).fontColor(skinColor('text_secondary')).margin({ top: 10 })
+              if (product.regularPrice) {
+                Text('标准价 ' + product.regularPrice + '／月').fontSize(12).fontColor(skinColor('text_secondary'))
+                  .margin({ left: 10, top: 10 }).id('sync-membership-standard-price')
+              }
+            }
+            if (product.priceDescription) {
+              Text(product.priceDescription).fontSize(12).fontColor(skinColor('text_secondary'))
+                .id('sync-membership-price-terms').width('100%')
+            }
+          }.layoutWeight(this.compact ? 0 : 1).width(this.compact ? '100%' : undefined).alignItems(HorizontalAlign.Start)
+          Row() {
+            this.Action('开通 VIP', 'sync-product-' + product.id,
+              (): boolean => (!this.busy && (this.commerceReady)), (): void => {
+                if (!this.userId) { this.login(); } else { this.buy(product); }
+              }, true)
+          }.margin({ left: this.compact ? 0 : 12, top: this.compact ? 12 : 0 })
+        }.width('100%').padding({ top: 8, bottom: 4 }).id('sync-membership-product')
+      }, (product: StoreProduct): string => product.id + ':' + product.price + ':' + (product.priceDescription ?? ''))
+      Text('按月自动续费，可随时取消。取消后本期权益保留至到期。')
+        .fontSize(11).fontColor(skinColor('text_secondary')).width('100%').id('sync-membership-terms')
+      if (!this.commerceReady && !this.vipActive) {
+        Text('暂未开放购买').fontSize(11).fontColor(skinColor('text_secondary')).width('100%').id('sync-membership-unavailable')
+      }
+    }
     Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
-      Row() {
-        this.Action('刷新会员价格', 'sync-membership-refresh', (): boolean => !this.busy, (): void => {
+      if (!this.vipActive) {
+        Row() {
+        this.Action('刷新价格', 'sync-membership-refresh', (): boolean => !this.busy, (): void => {
           void this.run('membership', async (): Promise<void> => { await this.refreshMembershipProducts(); });
         })
-      }.margin({ left: 8, bottom: 8 })
+        }.margin({ left: 8, bottom: 8 })
+      }
       Row() {
-        this.Action('管理订阅', 'sync-manage-subscriptions', (): boolean => !this.busy && this.huaweiSignedIn, (): void => {
+        this.Action(this.vipActive && this.renewalKnown && !this.renewalEnabled ? '恢复续订' : '管理订阅', 'sync-manage-subscriptions', (): boolean => !this.busy && this.huaweiSignedIn, (): void => {
           void this.run('membership', async (): Promise<void> => {
             await ValueAddedService.getInstance().manageSubscriptions();
-            if (this.userId) await this.refreshAccount();
+            if (this.userId) {
+              await ValueAddedService.getInstance().restorePurchases();
+              await this.refreshAccount();
+              AccountAutomaticSyncService.getInstance().requestSync(0);
+            }
           });
         })
       }.margin({ left: 8, bottom: 8 })
-    }.width('100%').id('sync-membership-actions')
-    Column({ space: 14 }) {
-      Text('请开发者喝杯咖啡').fontSize(16).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
-        .width('100%')
-      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-        this.CoffeeCup('小杯', 1)
-        this.CoffeeCup('中杯', 4)
-        this.CoffeeCup('大杯', 10)
-      }.width('100%')
-      Text(this.coffeeStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-coffee-status')
-      Text('自愿支持，不包含会员权益；付款金额以华为收银台为准。')
-        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
-        this.Action('刷新价格', 'sync-coffee-refresh', (): boolean => !this.busy, (): void => { void this.loadCoffee(); })
-        this.Action('检查未完成订单', 'sync-coffee-recover', (): boolean => !this.busy, (): void => this.recoverCoffee())
-      }.width('100%')
-    }.width('100%').alignItems(HorizontalAlign.Start).id('sync-support-development')
-    if (this.commerceReady) {
+      if (this.commerceReady && !this.vipActive) {
+        Row() {
       this.Action('恢复购买', 'sync-restore-purchases', (): boolean => (this.commerceReady && !!this.userId && !this.busy), (): void => {
       void this.run('membership', async (): Promise<void> => {
         const result = await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount();
         this.status = result === 'ACK_PENDING' ? '部分订单确认仍待重试' : '恢复购买核验完成';
       });
       })
-    }
+        }.margin({ left: 8, bottom: 8 })
+      }
+    }.width('100%').id('sync-membership-actions')
   }
   @Builder
   private OperationStatus(area: string) {
@@ -835,10 +903,16 @@ export struct AccountSyncSettings {
         Column({ space: 16 }) {
           this.Overview()
           this.OperationStatus('account')
+          if (this.membershipExpanded) {
+            Divider().color(this.cardBorderColor).margin({ top: 2, bottom: 2 })
+            this.Membership()
+            this.OperationStatus('membership')
+          }
         }.width('100%').padding(this.groupPadding).borderRadius(20)
           .backgroundColor(this.surfaceColor || skinColor('card_background'))
           .backgroundBlurStyle(this.glass ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
-          .border({ width: 1, color: this.cardBorderColor }).id('sync-group-account')
+          .border({ width: this.vipActive ? 1.2 : 1, color: this.vipActive ? '#CBA96A' : this.cardBorderColor }).id('sync-group-account')
+
         Column({ space: 16 }) {
           this.Profiles()
           this.OperationStatus('automatic')
@@ -854,13 +928,8 @@ export struct AccountSyncSettings {
           .backgroundColor(this.surfaceColor || skinColor('card_background'))
           .backgroundBlurStyle(this.glass ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
           .border({ width: 1, color: this.cardBorderColor }).id('sync-group-backups')
-        Column({ space: 16 }) {
-          this.Membership()
-          this.OperationStatus('membership')
-        }.width('100%').padding(this.groupPadding).borderRadius(20)
-          .backgroundColor(this.surfaceColor || skinColor('card_background'))
-          .backgroundBlurStyle(this.glass ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
-          .border({ width: 1, color: this.cardBorderColor }).id('sync-group-membership')
+
+
       }.width('100%').alignItems(HorizontalAlign.Start)
     }
   }

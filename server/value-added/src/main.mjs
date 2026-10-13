@@ -51,8 +51,19 @@ export async function loadService(env = process.env) {
       credentialJson: env.VP_AGC_CREDENTIAL_JSON || env.PROJECT_CREDENTIAL, zoneName: env.VP_AGC_ZONE });
     if (env.VP_CLOUDDB_VERIFICATION_FILE) await store.loadVerification(configFile(env.VP_CLOUDDB_VERIFICATION_FILE));
   }
-  if (keysReady && accountProvider.ready && products.length && env.VP_IAP_VERIFICATION_FILE) {
-    purchaseProvider.enableAfterProbe(JSON.parse(await readFile(configFile(env.VP_IAP_VERIFICATION_FILE), 'utf8')));
+  // Sandbox checkout must be available to obtain the first real verification evidence.
+  // It never marks the provider production-ready or opens paid synchronization.
+  if (keysReady && accountProvider.ready && store.ready === true && products.length && env.VP_IAP_ENVIRONMENT === 'SANDBOX') {
+    purchaseProvider.enableSandboxTesting();
+  }
+  let iapEvidence = '';
+  if (env.VP_IAP_VERIFICATION_FILE) iapEvidence = await readFile(configFile(env.VP_IAP_VERIFICATION_FILE), 'utf8');
+  else {
+    try { iapEvidence = await readFile(configFile('./config/iap-verification.json'), 'utf8'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  if (keysReady && accountProvider.ready && products.length && iapEvidence) {
+    purchaseProvider.enableAfterProbe(JSON.parse(iapEvidence));
   }
   let objects={ready:false};
   if(env.VP_OBS_ENDPOINT&&env.VP_OBS_BUCKET&&env.VP_OBS_CREDENTIAL_FILE){

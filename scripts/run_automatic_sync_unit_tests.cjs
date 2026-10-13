@@ -15,11 +15,12 @@ const payload = () => ({schemaVersion:1,themeMode:'system',uiSkin:'classic',cons
 const profile = (id='custom',name='Custom') => ({id,name,schemaVersion:6,cursorSpeed:1,overlayOpacity:80,elements:[],gamepadMappings:[]});
 function fixture(options={}) {
   let user=A, settings=payload(), offline=false, entitlement=true;
-  const timers=new Map(), journal=new Map(), profiles=new Map(), remotes=new Map(), heads=new Map(), conflicts=new Map();
+  const timers=new Map(), journal=new Map(), profiles=new Map(), remotes=options.cloud?.profiles || new Map(), heads=new Map(), conflicts=new Map();
   const calls={uploads:[],downloads:[],settingsUploads:0,settingsApplies:0,backups:[]};
-  const accountListeners=[], profileListeners=[], themeListeners=[];
+  const accountListeners=[], profileListeners=[], themeListeners=[], entitlementListeners=[];
+  let capabilities={profiles:true,preferences:true,...options.capabilities},recovery='',restoreFailure=false,restoreHook=null,refreshHook=null;
   let seq=0, beforeRead=null, beforeApply=null;
-  const preferencesByOwner=new Map();
+  const preferencesByOwner=options.cloud?.preferences || new Map();
   const remotePreferences=()=>preferencesByOwner.get(user)||null;
   for (const p of (options.profiles || [app.createDefaultInputProfile(),profile()])) profiles.set(p.id,clone(p));
   const remoteMap=()=>{if(!remotes.has(user))remotes.set(user,new Map());return remotes.get(user);};
@@ -30,8 +31,14 @@ function fixture(options={}) {
     subscribeChanges:f=>profileListeners.push(f)};
   const theme={getSettings:()=>clone(settings),subscribe:f=>themeListeners.push(f),update:async p=>{
     if(beforeApply)await beforeApply(); settings=clone(p);calls.settingsApplies++;themeListeners.forEach(f=>f(p));}};
-  const api={getUserId:()=>user,getCapabilities:()=>({profiles:true,preferences:true,...options.capabilities}),
-    initialize:async()=>{},subscribeAccount:f=>accountListeners.push(f),entitlement:async()=>{check();return {active:entitlement,expiresAt:Date.now()+10000,serverTime:Date.now()};},
+  const api={getUserId:()=>user,getCapabilities:()=>capabilities,
+    initialize:async()=>{},refreshCapabilities:async()=>{if(refreshHook)refreshHook();},getPurchaseRecoveryStatus:()=>recovery,
+    subscribeEntitlement:f=>entitlementListeners.push(f),restorePurchases:async()=>{
+      calls.restores=(calls.restores||0)+1;if(restoreHook)await restoreHook();
+      entitlementListeners.forEach(f=>f());if(restoreFailure)throw Error('PROVIDER_UNAVAILABLE');
+      recovery='ACK_PENDING';entitlement=true;return recovery;
+    },
+    subscribeAccount:f=>accountListeners.push(f),entitlement:async()=>{check();return {active:entitlement,expiresAt:Date.now()+10000,serverTime:Date.now()};},
     payloadHash:async s=>hash(s),getConflict:id=>conflicts.get(id),setProfileBaseRevision:(id,r)=>heads.set(id,r),profileRevision:id=>heads.get(id)||0,
     listCloudProfiles:async()=>{check();if(beforeRead)await beforeRead();return Array.from(remoteMap().entries()).map(([id,e])=>({variant:id,name:e.payload.name,revision:e.revision}));},
     readCloudProfile:async id=>{check();return clone(remoteMap().get(id));},
@@ -59,7 +66,7 @@ function fixture(options={}) {
   vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n])throw Error(n);return imports[n];},
     setTimeout:(f,ms)=>{timers.set(++seq,{f,ms});return seq;},clearTimeout:id=>timers.delete(id),console});
   const sync=mod.exports.AccountAutomaticSyncService.getInstance();
-  return {sync,calls,profiles,journal,timers,api,settings:()=>settings,remoteMap,
+  return {sync,calls,profiles,journal,timers,api,cloud:{profiles:remotes,preferences:preferencesByOwner},settings:()=>settings,remoteMap,
     initialize:async()=>sync.initialize({}),run:async()=>{sync.clearTimer();await sync.syncNow();},
     edit:p=>{profiles.set(p.id,clone(p));profileListeners.forEach(f=>f(p.id,false,'local'));},
     remove:id=>{profiles.delete(id);profileListeners.forEach(f=>f(id,true,'local'));},
@@ -68,7 +75,9 @@ function fixture(options={}) {
     setPreferences:(p,r)=>{preferencesByOwner.set(user,{schemaVersion:1,deviceClass:'tablet',revision:r,payloadSha256:hash(JSON.stringify(p)),payload:clone(p)});},
     remotePreferences,
     user:async id=>{user=id;heads.clear();conflicts.clear();await sync.accountChanged(id);},
-    offline:v=>offline=v,entitlement:v=>entitlement=v,beforeRead:f=>beforeRead=f,beforeApply:f=>beforeApply=f};
+    offline:v=>offline=v,entitlement:v=>entitlement=v,recovery:v=>recovery=v,restoreFailure:v=>restoreFailure=v,
+    restoreHook:f=>restoreHook=f,refreshHook:f=>refreshHook=f,capabilities:v=>capabilities=v,
+    entitlementEvent:()=>entitlementListeners.forEach(f=>f()),beforeRead:f=>beforeRead=f,beforeApply:f=>beforeApply=f};
 }
 let count=0;
 async function test(name,run){await run();count++;console.log('PASS '+name);}
@@ -76,6 +85,46 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
  await test('first login uploads automatically; steady state sends no redundant writes',async()=>{
   const f=fixture();await f.initialize();await f.run();assert.equal(f.calls.uploads.length,2);assert.equal(f.calls.settingsUploads,1);
   const last=f.sync.lastSyncedAt();await f.run();assert.equal(f.calls.uploads.length,2);assert.equal(f.calls.settingsUploads,1);assert.ok(last>0);
+ });
+ await test('same device reinstall restores its cloud backup before uploading factory defaults',async()=>{
+  const original=fixture({profiles:[...app.createBuiltInInputProfiles(),profile()]});await original.initialize();await original.run();
+  const saved={...payload(),themeMode:'dark',uiSkin:'console',desktopInputProfileId:'custom'};
+  original.changeSettings(saved);original.edit({...profile(),cursorSpeed:1.75});await original.run();
+  const remoteBefore=clone(original.remotePreferences()),profilesBefore=clone(Array.from(original.remoteMap()));
+  const reinstalled=fixture({cloud:original.cloud,profiles:app.createBuiltInInputProfiles()});
+  assert.equal(reinstalled.journal.size,0);await reinstalled.initialize();await reinstalled.run();
+  assert.deepEqual(reinstalled.settings(),saved);assert.equal(reinstalled.profiles.get('custom').cursorSpeed,1.75);
+  assert.equal(reinstalled.calls.settingsUploads,0);assert.equal(reinstalled.calls.uploads.length,0);
+  assert.deepEqual(original.remotePreferences(),remoteBefore);assert.deepEqual(Array.from(original.remoteMap()),profilesBefore);
+  assert.equal(reinstalled.sync.status(),'已恢复云端备份',JSON.stringify(reinstalled.sync.itemStates()));assert.ok(reinstalled.sync.lastSyncedAt()>0);
+  await reinstalled.run();assert.equal(reinstalled.calls.settingsUploads,0);assert.equal(reinstalled.calls.uploads.length,0);
+ });
+ await test('reinstall while offline retains cloud backup and restores after reconnecting',async()=>{
+  const original=fixture({profiles:[...app.createBuiltInInputProfiles(),profile()]});await original.initialize();await original.run();original.changeSettings({...payload(),viewMode:'large'});await original.run();
+  const saved=clone(original.remotePreferences());
+  const reinstalled=fixture({cloud:original.cloud,profiles:app.createBuiltInInputProfiles()});reinstalled.offline(true);
+  await reinstalled.initialize();await reinstalled.run();assert.equal(reinstalled.settings().viewMode,'grid');
+  assert.equal(reinstalled.calls.settingsUploads,0);assert.equal(reinstalled.sync.lastSyncedAt(),0);
+  assert.deepEqual(original.remotePreferences(),saved);reinstalled.offline(false);await reinstalled.run();
+  assert.equal(reinstalled.settings().viewMode,'large');assert.equal(reinstalled.calls.settingsUploads,0);
+ });
+ await test('settings changed after reinstall restoration update the same backup',async()=>{
+  const original=fixture({profiles:[...app.createBuiltInInputProfiles(),profile()]});await original.initialize();await original.run();original.changeSettings({...payload(),themeMode:'dark'});await original.run();
+  const revision=original.remotePreferences().revision;
+  const reinstalled=fixture({cloud:original.cloud,profiles:app.createBuiltInInputProfiles()});await reinstalled.initialize();await reinstalled.run();
+  reinstalled.changeSettings({...reinstalled.settings(),viewMode:'compact'});await reinstalled.run();
+  assert.equal(original.remotePreferences().revision,revision+1);assert.equal(original.remotePreferences().payload.themeMode,'dark');
+  assert.equal(original.remotePreferences().payload.viewMode,'compact');assert.equal(reinstalled.calls.settingsUploads,1);
+ });
+ await test('fresh built-in IDs permit restore but edited local controls remain a conflict',async()=>{
+  const original=fixture({profiles:app.createBuiltInInputProfiles()});await original.initialize();await original.run();
+  original.edit({...original.profiles.get('default'),cursorSpeed:1.5});await original.run();
+  const reinstalled=fixture({cloud:original.cloud,profiles:app.createBuiltInInputProfiles()});await reinstalled.initialize();await reinstalled.run();
+  assert.equal(reinstalled.profiles.get('default').cursorSpeed,1.5);assert.equal(reinstalled.calls.uploads.length,0);
+  const edited=app.createBuiltInInputProfiles();edited.find(p=>p.id==='default').elements[0].x=0.3;
+  const withLocalEdits=fixture({cloud:original.cloud,profiles:edited});await withLocalEdits.initialize();await withLocalEdits.run();
+  assert.equal(withLocalEdits.profiles.get('default').elements[0].x,0.3);assert.ok(withLocalEdits.api.getConflict('default'));
+  assert.equal(original.remoteMap().get('default').payload.cursorSpeed,1.5);
  });
  await test('local edits coalesce into one pending foreground job',async()=>{
   const f=fixture();await f.initialize();await f.run();for(let i=0;i<5;i++)f.edit(profile('custom','Edit '+i));
@@ -153,7 +202,7 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
  await test('partial capability and expired membership never claim full success',async()=>{
   const f=fixture({capabilities:{preferences:false}});await f.initialize();await f.run();assert.match(f.sync.status(),/部分/);assert.equal(f.sync.lastSyncedAt(),0);
   assert.ok(f.sync.itemStates().some(x=>x.id==='preferences'&&x.state==='云同步暂未开放'));
-  f.entitlement(false);f.edit(profile('custom','No member'));await f.run();assert.match(f.sync.status(),/暂停/);assert.equal(f.calls.uploads.length,2);
+  f.entitlement(false);f.edit(profile('custom','No member'));await f.run();assert.match(f.sync.status(),/VIP/);assert.equal(f.calls.uploads.length,2);
  });
  await test('corrupt owner/baseline journal is rejected before network writes',async()=>{
   const f=fixture();f.journal.set('state_v1',JSON.stringify({schemaVersion:1,lastOwner:'evil',preferencesOwner:'',profileOwners:[],accounts:[]}));
@@ -162,6 +211,25 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
     profiles:[],preferences:null,removedProfiles:[],lastSyncedAt:0}]};syncModels.validateAutomaticSyncData(good);
   assert.throws(()=>syncModels.validateAutomaticSyncData({...good,accounts:[...good.accounts,...good.accounts]}),/INVALID_SYNC_STATE/);
   assert.throws(()=>syncModels.validateAutomaticSyncData({...good,profileOwners:[{id:'x',userId:'unknown'}]}),/INVALID_SYNC_STATE/);
+ });
+ await test('purchase restoration opens backup without another payment and avoids a self-triggered fast loop',async()=>{
+  const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('PROVIDER_UNAVAILABLE');f.entitlement(false);
+  await f.run();assert.equal(f.calls.restores,1);assert.equal(f.calls.settingsUploads,1);assert.equal(f.sync.status(),'已同步');
+  assert.equal(Array.from(f.timers.values())[0].ms,30000);
+  await f.run();assert.equal(f.calls.restores,2);assert.equal(f.calls.settingsUploads,1);assert.equal(Array.from(f.timers.values())[0].ms,30000);
+ });
+ await test('purchase restoration failures retain backoff even when recovery emits an entitlement notification',async()=>{
+  const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('PROVIDER_UNAVAILABLE');f.restoreFailure(true);
+  await f.run();assert.equal(f.calls.settingsUploads,0);assert.equal(Array.from(f.timers.values())[0].ms,60000);
+  f.restoreFailure(false);f.entitlementEvent();assert.equal(Array.from(f.timers.values())[0].ms,0);await f.run();assert.equal(f.calls.settingsUploads,1);
+ });
+ await test('changed deployment capabilities are reread before automatic backup',async()=>{
+  const f=fixture({capabilities:{profiles:false,preferences:false}});await f.initialize();await f.run();assert.equal(f.calls.settingsUploads,0);
+  f.refreshHook(()=>f.capabilities({profiles:true,preferences:true}));await f.run();assert.equal(f.calls.settingsUploads,1);assert.equal(f.sync.status(),'已同步');
+ });
+ await test('account switching during subscription restoration never writes the old account backup',async()=>{
+  const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('PROVIDER_UNAVAILABLE');
+  f.restoreHook(()=>f.user(B));await f.run();assert.equal(f.calls.settingsUploads,0);assert.equal(f.calls.uploads.length,0);
  });
  console.log(`Automatic account sync: ${count} scenarios PASS (host mocks, no real account/network)`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

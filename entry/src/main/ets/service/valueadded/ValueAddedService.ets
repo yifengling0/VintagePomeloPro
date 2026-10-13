@@ -63,6 +63,12 @@ export class ValueAddedService {
   private busy: boolean = false;
   private capabilities: ServiceCapabilities = { account: false, commerce: false, profiles: false,
     cloudSaves: false, reason: 'NOT_CONFIGURED' };
+  private purchaseRecovery: string = '';
+  getPurchaseRecoveryStatus(): string { this.guard(); return this.purchaseRecovery; }
+  private entitlementListeners: Set<() => void> = new Set<() => void>();
+  subscribeEntitlement(listener: () => void): void { this.entitlementListeners.add(listener); }
+  unsubscribeEntitlement(listener: () => void): void { this.entitlementListeners.delete(listener); }
+  private entitlementChanged(): void { this.entitlementListeners.forEach((listener: () => void): void => listener()); }
   private accountListeners: Set<(userId: string) => void> = new Set<(userId: string) => void>();
   subscribeAccount(listener: (userId: string) => void): void { this.accountListeners.add(listener); }
   private profileHeads: Map<string, number> = new Map<string, number>();
@@ -94,7 +100,7 @@ export class ValueAddedService {
     this.config = config;
     try {
       this.availability = 'checking';
-      this.capabilities = await this.request<ServiceCapabilities>('/v1/capabilities', http.RequestMethod.GET, '', false);
+      await this.refreshCapabilities();
       this.availability = this.capabilities.account ? 'ready' : 'service_closed';
     } catch (error) {
       const sdkCode = (error as BusinessError).code;
@@ -104,6 +110,23 @@ export class ValueAddedService {
       console.warn('[ValueAddedService] cloud connection failed: ' + diagnostic);
       this.config = null; this.availability = 'unreachable';
     }
+  }
+  async refreshCapabilities(): Promise<void> {
+    this.guard();
+    if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
+    const capabilities = await this.request<ServiceCapabilities>('/v1/capabilities', http.RequestMethod.GET, '', false);
+    if (capabilities.sandboxCommerce === true) {
+      try { capabilities.commerce = capabilities.commerce && await iap.isSandboxActivated(this.context); }
+      catch (_) { capabilities.commerce = false; }
+    }
+    this.capabilities = capabilities;
+  }
+  private recoveryFailure(error: Error): string {
+    const code = (error as BusinessError).code;
+    const diagnostic = Number.isInteger(code) ? '' + code :
+      (/^[A-Z][A-Z0-9_]{1,63}$/.test(error.message) ? error.message : 'FAILED');
+    console.warn('[ValueAddedService] purchase recovery failed: ' + diagnostic);
+    return diagnostic;
   }
   accountAvailability(): string { this.guard(); return this.availability; }
   getCapabilities(): ServiceCapabilities { this.guard(); return this.capabilities; }
@@ -116,6 +139,7 @@ export class ValueAddedService {
   private clearSession(): void {
     this.generation++;
     this.session = null;
+    this.purchaseRecovery = '';
     this.profileHeads.clear();
     this.conflicts.clear();
     this.accountListeners.forEach((listener: (userId: string) => void): void => listener(''));
@@ -170,7 +194,9 @@ export class ValueAddedService {
       if (failure.diagnosticCode && /^(?:[A-Z][A-Z0-9_]{1,63}|[0-9]{1,12})$/.test(failure.diagnosticCode)) {
         console.warn('[ValueAddedService] server diagnostic: ' + failure.diagnosticCode);
       }
-      throw new Error(/^[A-Z_]{2,64}$/.test(failure.code) ? failure.code : 'SERVICE_ERROR');
+      const code = /^[A-Z_]{2,64}$/.test(failure.code) ? failure.code : 'SERVICE_ERROR';
+      console.warn('[ValueAddedService] server error: ' + code);
+      throw new Error(code);
     }
     return JSON.parse(body) as T;
   }
@@ -210,6 +236,14 @@ export class ValueAddedService {
       await this.loadHuaweiProfile(epoch, response.data.openID);
       if (this.config && this.capabilities.account && this.availability === 'ready') await this.connectCloud(epoch);
     } finally { this.busy = false; }
+    // Official unfinished/current purchases survive reinstall; login reconciles them without a new charge.
+    if (epoch === this.generation && this.getUserId() && this.capabilities.commerce && this.config?.membershipProductType === 2) {
+      this.purchaseRecovery = 'CHECKING';
+      try { await this.restorePurchases(); }
+      catch (error) {
+        if (epoch === this.generation) this.purchaseRecovery = this.recoveryFailure(error as Error);
+      }
+    }
   }
   private async loadHuaweiProfile(epoch: number, openID: string): Promise<void> {
     if (!this.context) return;
@@ -289,7 +323,7 @@ export class ValueAddedService {
     display.regularPrice = display.price; display.price = offer.localPrice;
     display.promotion = { id: offer.offerId, price: offer.localPrice, microPrice: offer.microPrice,
       paymentMode: offer.paymentMode, periodUnit: offer.periodUnit, periodCount: offer.periodCount };
-    display.priceDescription = '前 ' + offer.periodCount + ' 个计费周期，每期 ' + offer.localPrice +
+    display.priceDescription = '前 ' + offer.periodCount + ' 个月，每月 ' + offer.localPrice +
       '；之后 ' + recurring + '自动续费。';
     return display;
   }
@@ -337,9 +371,14 @@ export class ValueAddedService {
       return 'ACK_PENDING';
     }
   }
+  private async checkPurchaseEnvironment(): Promise<void> {
+    if (this.capabilities.sandboxCommerce === true &&
+      (!this.context || !await iap.isSandboxActivated(this.context))) throw new Error('SANDBOX_REQUIRED');
+  }
   async purchase(product: StoreProduct): Promise<string> {
     this.guard();
     if (!this.context || !this.config || !this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
+    await this.checkPurchaseEnvironment();
     if (this.busy) throw new Error('BUSY');
     if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
     const allowed = (product.id === this.config.coffeeProductId && product.type === 0) ||
@@ -348,6 +387,17 @@ export class ValueAddedService {
     const epoch = this.generation;
     this.busy = true;
     try {
+      if (product.type === iap.ProductType.AUTORENEWABLE) {
+        // A cancelled renewal retains the paid current term. Never create another purchase
+        // for an active member, even if the UI has an older entitlement snapshot.
+        const current = await this.entitlement();
+        if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+        if (current.active && !current.refreshRequired && current.expiresAt > current.serverTime) {
+          this.purchaseRecovery = 'RESTORED';
+          this.entitlementChanged();
+          return 'ALREADY_ACTIVE';
+        }
+      }
       let selected: StoreProduct = product;
       if (product.type === iap.ProductType.AUTORENEWABLE) {
         const fresh = await iap.queryProducts(this.context, { productType: product.type, productIds: [product.id] });
@@ -376,8 +426,29 @@ export class ValueAddedService {
         parameter.applicationUserName = signed.applicationUserName;
         parameter.jwsRepresentation = signed.jwsRepresentation;
       } else if (intent.promotionalPurchase) throw new Error('INVALID_OFFER');
-      const result = await iap.createPurchase(this.context, parameter);
-      return await this.verifyAndFinish(result.purchaseData, product.type, epoch);
+      let result: iap.CreatePurchaseResult;
+      try { result = await iap.createPurchase(this.context, parameter); }
+      catch (error) {
+        if ((error as BusinessError).code === iap.IAPErrorCode.USER_CANCELED) return 'CANCELLED';
+        // The store retains already-owned and unfinished orders; do not ask for another payment.
+        if ((error as BusinessError).code === iap.IAPErrorCode.PRODUCT_OWNED) {
+          this.busy = false;
+          return await this.restorePurchases();
+        }
+        throw error as Error;
+      }
+      this.purchaseRecovery = 'CHECKING';
+      let verdict: string;
+      try { verdict = await this.verifyAndFinish(result.purchaseData, product.type, epoch); }
+      catch (error) {
+        if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+        this.purchaseRecovery = this.recoveryFailure(error as Error);
+        return 'VERIFICATION_PENDING';
+      }
+      if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      this.purchaseRecovery = verdict;
+      this.entitlementChanged();
+      return verdict;
     } finally { this.busy = false; }
   }
   async manageSubscriptions(): Promise<void> {
@@ -388,13 +459,15 @@ export class ValueAddedService {
   async restorePurchases(): Promise<string> {
     this.guard();
     if (!this.context || !this.config || !this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
+    await this.checkPurchaseEnvironment();
     if (this.busy) throw new Error('BUSY');
     if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
     this.busy = true;
     const epoch = this.generation;
     let pending = false;
     try {
-      const types: number[] = [iap.ProductType.CONSUMABLE, this.config.membershipProductType];
+      // Coffee has its own independent recovery flow and must not block membership restoration.
+      const types: number[] = [this.config.membershipProductType];
       for (const type of types) {
         const queries: number[] = type === 0 ? [iap.PurchaseQueryType.UNFINISHED] :
           [iap.PurchaseQueryType.UNFINISHED, type === iap.ProductType.AUTORENEWABLE ?
@@ -416,7 +489,13 @@ export class ValueAddedService {
           } while (cursor);
         }
       }
-      return pending ? 'ACK_PENDING' : 'RESTORED';
+      if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      this.purchaseRecovery = pending ? 'ACK_PENDING' : 'RESTORED';
+      this.entitlementChanged();
+      return this.purchaseRecovery;
+    } catch (error) {
+      if (epoch === this.generation) this.purchaseRecovery = this.recoveryFailure(error as Error);
+      throw error as Error;
     } finally { this.busy = false; }
   }
   private profilePath(id: string): string {

@@ -6,7 +6,7 @@ import { DeviceCapabilityPolicy } from '../../common/DeviceCapabilityPolicy';
 
 interface CoffeeConfig { productId: string; appId: string; unitPriceCny: number; }
 interface CoffeeReceipt { jwsPurchaseOrder: string; }
-interface CoffeeOrder { productId: string; appId?: string; quantity?: number; purchaseToken: string; purchaseOrderId: string; }
+interface CoffeeOrder { productId: string; applicationId: string; productType: string; quantity?: number; purchaseToken: string; purchaseOrderId: string; }
 interface CoffeeRecovery { recovered: number; pending: number; }
 export interface CoffeePrice { amount: number; currency: string; }
 
@@ -59,13 +59,38 @@ export class CoffeePurchaseService {
   }
   private async finish(order: CoffeeOrder, quantity: number = 0): Promise<void> {
     if (!this.context || !this.config || order.productId !== this.config.productId ||
-      this.config.appId && order.appId !== this.config.appId ||
+      this.config.appId && order.applicationId !== this.config.appId || order.productType !== '0' ||
       !Number.isInteger(order.quantity ?? 1) || (order.quantity ?? 1) < 1 || (order.quantity ?? 1) > 10 ||
       quantity > 0 && (order.quantity ?? 1) !== quantity) throw new Error('COFFEE_ORDER_INVALID');
     // Decoding only retrieves SDK receipt references. Success requires Huawei to acknowledge the actual order.
     // No externally supplied receipt is accepted and no membership is derived from the decoded payload.
-    await iap.finishPurchase(this.context, { productType: iap.ProductType.CONSUMABLE,
-      purchaseToken: order.purchaseToken, purchaseOrderId: order.purchaseOrderId });
+    try {
+      await iap.finishPurchase(this.context, { productType: iap.ProductType.CONSUMABLE,
+        purchaseToken: order.purchaseToken, purchaseOrderId: order.purchaseOrderId });
+    } catch (error) {
+      const code = (error as BusinessError).code;
+      // Old VintagePomelo treats finalized-order errors as idempotent. Confirm absence from
+      // official UNFINISHED first: a generic order-state error alone is not delivery success.
+      if ((code === 1001860030 || code === 1001860050) && !await this.isUnfinished(order.purchaseOrderId)) return;
+      const diagnostic = Number.isInteger(code) ? '' + code :
+        /^[A-Z_]{2,64}$/.test((error as Error).message) ? (error as Error).message : 'FAILED';
+      console.warn('[CoffeePurchaseService] order confirmation failed: ' + diagnostic);
+      throw error as Error;
+    }
+  }
+  private async isUnfinished(orderId: string): Promise<boolean> {
+    if (!this.context) throw new Error('COFFEE_CONFIG_INVALID');
+    let cursor = '';
+    const cursors = new Set<string>();
+    do {
+      const page = await iap.queryPurchases(this.context, { productType: iap.ProductType.CONSUMABLE,
+        queryType: iap.PurchaseQueryType.UNFINISHED, continuationToken: cursor || undefined });
+      for (const data of page.purchaseDataList) if (this.order(data).purchaseOrderId === orderId) return true;
+      cursor = page.continuationToken ?? '';
+      if (cursor && (cursors.has(cursor) || cursors.size >= 32)) throw new Error('COFFEE_ORDER_INVALID');
+      cursors.add(cursor);
+    } while (cursor);
+    return false;
   }
   private async recover(): Promise<CoffeeRecovery> {
     if (!this.context || !this.config) throw new Error('COFFEE_CONFIG_INVALID');
@@ -117,9 +142,10 @@ export class CoffeePurchaseService {
       } catch (error) {
         const code = (error as BusinessError).code;
         if (code === iap.IAPErrorCode.USER_CANCELED) return 'CANCELLED';
-        if (code === iap.IAPErrorCode.PRODUCT_OWNED) {
+        if (code === iap.IAPErrorCode.PRODUCT_OWNED || code === iap.IAPErrorCode.SYSTEM_ERROR || code === 1001860001) {
           const recovered = await this.recover();
-          return recovered.recovered && !recovered.pending ? 'RECOVERED' : 'ACK_PENDING';
+          if (recovered.recovered && !recovered.pending) return 'RECOVERED';
+          if (recovered.pending || code === iap.IAPErrorCode.PRODUCT_OWNED) return 'ACK_PENDING';
         }
         throw new Error('COFFEE_IAP_' + (Number.isInteger(code) ? code : 'FAILED'));
       }

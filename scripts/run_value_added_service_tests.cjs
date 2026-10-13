@@ -13,6 +13,7 @@ let cloudCalls=0, cloudReply=null, functionSupported=true;
 let route=async(url,options)=>{
  const endpoint=new URL(url).pathname;
  if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,preferences:true,cloudSaves:false,reason:''};
+ if(endpoint==='/v1/entitlement')return {active:false,expiresAt:0,serverTime:Date.now()};
  if(endpoint==='/v1/auth/begin')return {attemptId:'test-attempt',state:'test-state'};
  if(endpoint==='/v1/auth/exchange')return {token:'session-'+user,userId:user,expiresAt:Date.now()+1800000};
  if(endpoint==='/v1/auth/logout')return {};
@@ -29,20 +30,20 @@ const authentication={HuaweiIDProvider:class{constructor(){constructors++;}creat
  AuthenticationController:class{async executeRequest(request){if(sdkError)throw {code:sdkError};if(request.login){assert.equal(request.forceLogin,true);return {state:wrongState?'wrong':request.state,data:{openID:'sdk-open-id'}};}
  if(!request.permissions){assert.deepEqual(Array.from(request.scopes),['profile']);return {state:request.state,data:{openID:'sdk-open-id',nickName:'Test nickname',avatarUri:'https://avatar.example.test/a.png'}};}
  authorizationState=request.state;assert.deepEqual(Array.from(request.scopes),['profile']);assert.deepEqual(Array.from(request.permissions),['serviceauthcode']);return {state:request.state,data:{authorizationCode:'provider-code'}};}}};
-let managedSubscriptions=0,purchaseCalls=0,promotionalOffers=[],latestPurchase,omitOfferSignature=false;const subscriptionQueries=[];
-const iap={PeriodUnit:{MONTH:2},OfferPaymentMode:{PAY_AS_YOU_GO:2},ProductType:{CONSUMABLE:0,AUTORENEWABLE:2},PurchaseQueryType:{UNFINISHED:1,ALL:0,CURRENT_ENTITLEMENT:2},
+let sandboxActive=true,managedSubscriptions=0,purchaseCalls=0,promotionalOffers=[],latestPurchase,omitOfferSignature=false,createError=0,autoReceipts=[];const subscriptionQueries=[];
+const iap={IAPErrorCode:{USER_CANCELED:1,PRODUCT_OWNED:2},isSandboxActivated:async()=>sandboxActive,PeriodUnit:{MONTH:2},OfferPaymentMode:{PAY_AS_YOU_GO:2},ProductType:{CONSUMABLE:0,AUTORENEWABLE:2},PurchaseQueryType:{UNFINISHED:1,ALL:0,CURRENT_ENTITLEMENT:2},
  WindowScreenMode:{DIALOG_BOX:0},showManagedSubscriptions:async(_,options)=>{assert.equal(options.windowScreenMode,0);managedSubscriptions++;},
  queryProducts:async(_,{productType,productIds})=>[
   {id:productIds[0],type:productType,name:productType===0?'Coffee':'Membership',localPrice:productType===2?'¥5.00':'CNY 6.00',price:'6',
    currency:'CNY',microPrice:5000000,subscriptionInfo:{periodUnit:2,periodCount:1},promotionalOffers},
   {id:'unexpected',type:productType,name:'Other product',price:'999'}],
  createPurchase:async(_,parameter)=>{
-  purchaseCalls++;latestPurchase=parameter;
+  purchaseCalls++;latestPurchase=parameter;if(createError)throw {code:createError};
   if(parameter.productType===2)assert.equal(Object.hasOwn(parameter,'quantity'),false,'automatic subscription must omit consumable-only quantity');
   return {purchaseData:'opaque-provider-receipt'};
  },
  queryPurchases:async(_,{productType,queryType})=>{subscriptionQueries.push({productType,queryType});
-  return {purchaseDataList:productType===3&&queryType===1?['opaque-provider-receipt']:[]};},
+  return {purchaseDataList:productType===2?autoReceipts:productType===3&&queryType===1?['opaque-provider-receipt']:[]};},
  finishPurchase:async()=>{finishCalls++;if(failFinish)throw Error('offline');}};
 const adapter={OpenMode:{CREATE:fs.constants.O_CREAT,WRITE_ONLY:fs.constants.O_WRONLY,NOFOLLOW:fs.constants.O_NOFOLLOW},
  accessSync:fs.existsSync,mkdirSync:fs.mkdirSync,openSync:(p,f)=>({fd:fs.openSync(p,f,0o600)}),
@@ -189,8 +190,34 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  assert.equal(await autoService.purchase({id:'month',type:2}),'FINISHED');assert.equal(finishCalls,beforeAutoFinish+1);
  route=autoRoute;
  assert.equal(await autoService.restorePurchases(),'RESTORED');
- assert.deepEqual(subscriptionQueries,[{productType:0,queryType:1},{productType:2,queryType:1},{productType:2,queryType:2}]);
+ assert.deepEqual(subscriptionQueries,[{productType:2,queryType:1},{productType:2,queryType:2}]);
  await autoService.manageSubscriptions();assert.equal(managedSubscriptions,1);
+ const beforeActiveCreate=purchaseCalls;
+ for(const autoRenew of [true,false]){
+  route=async(url,opts)=>new URL(url).pathname==='/v1/entitlement'?
+   {active:true,refreshRequired:false,autoRenew,expiresAt:Date.now()+10000,serverTime:Date.now()}:autoRoute(url,opts);
+  assert.equal(await autoService.purchase({id:'month',type:2}),'ALREADY_ACTIVE');
+  assert.equal(purchaseCalls,beforeActiveCreate,'cancelled renewal must not buy the already-paid current term again');
+ }
+ route=autoRoute;
+
+ const beforeRecoveryPurchase=purchaseCalls;let notices=0;
+ const listener=()=>notices++;autoService.subscribeEntitlement(listener);
+ autoReceipts=['official-signed-group-fixture'];
+ route=async(url,opts)=>new URL(url).pathname==='/v1/purchases/verify'?
+  {status:'ALREADY_FINISHED',finishAllowed:false}:autoRoute(url,opts);
+ await autoService.signIn();assert.equal(autoService.getPurchaseRecoveryStatus(),'RESTORED');
+ assert.equal(purchaseCalls,beforeRecoveryPurchase);assert.equal(notices,1);
+ route=async(url,opts)=>{if(new URL(url).pathname==='/v1/purchases/verify')throw Error('PROVIDER_UNAVAILABLE');return autoRoute(url,opts);};
+ await autoService.signIn();assert.equal(autoService.getUserId(),'alice');assert.equal(autoService.getPurchaseRecoveryStatus(),'PROVIDER_UNAVAILABLE');
+ assert.equal(purchaseCalls,beforeRecoveryPurchase);
+ assert.equal(await autoService.purchase({id:'month',type:2}),'VERIFICATION_PENDING');assert.equal(autoService.getPurchaseRecoveryStatus(),'PROVIDER_UNAVAILABLE');
+ route=async(url,opts)=>new URL(url).pathname==='/v1/purchases/verify'?{status:'ALREADY_FINISHED',finishAllowed:false}:autoRoute(url,opts);
+ await autoService.restorePurchases();assert.equal(autoService.getPurchaseRecoveryStatus(),'RESTORED');
+ createError=1;assert.equal(await autoService.purchase({id:'month',type:2}),'CANCELLED');createError=2;
+ const beforeOwnedFinish=finishCalls;assert.equal(await autoService.purchase({id:'month',type:2}),'RESTORED');assert.equal(finishCalls,beforeOwnedFinish);
+ createError=0;autoReceipts=[];route=autoRoute;autoService.unsubscribeEntitlement(listener);
+ console.log('Membership recovery: automatic login, backend outage without logout, paid order retry, cancellation, owned order reconciliation PASS');
  const offeredService=new mod.exports.ValueAddedService();
  await offeredService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(
   {...config,membershipProductType:2,membershipPromotionalOfferId:'vip_2026_year_end'}))}});
@@ -199,7 +226,7 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  promotionalOffers=[{offerId:'vip_2026_year_end',paymentMode:2,periodUnit:2,periodCount:2,microPrice:2000000,localPrice:'¥2.00'}];
  const offerProduct=(await offeredService.products()).find(p=>p.type===2);
  assert.equal(offerProduct.price,'¥2.00');assert.equal(offerProduct.regularPrice,'¥5.00');
- assert.match(offerProduct.priceDescription,/前 2 个计费周期/);assert.match(offerProduct.priceDescription,/之后 ¥5.00／月/);
+ assert.match(offerProduct.priceDescription,/前 2 个月/);assert.match(offerProduct.priceDescription,/之后 ¥5.00／月/);
  await assert.rejects(offeredService.purchase(offerProduct),/NOT_CONFIGURED/);
  offeredService.capabilities.commerce=true;await offeredService.signIn();
  const beforeOfferRoute=route;
@@ -222,6 +249,24 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  const fullPrice=(await offeredService.products()).find(p=>p.type===2);assert.equal(fullPrice.price,'¥5.00');assert.equal(fullPrice.promotion,undefined);
  await offeredService.purchase(fullPrice);assert.equal(Object.hasOwn(latestPurchase,'promotionalOfferId'),false);
  route=beforeOfferRoute;
+ const sandboxRoute=route;
+ route=async(url,options)=>new URL(url).pathname==='/v1/capabilities'?
+  {account:true,commerce:true,sandboxCommerce:true,profiles:false,preferences:false,cloudSaves:false,reason:'IAP_NOT_CONFIGURED'}:
+  new URL(url).pathname==='/v1/purchases/verify'?
+   {status:'GRANTED',finishAllowed:true,productId:'month',productType:2,purchaseOrderId:'sandbox-order',purchaseToken:'sandbox-token'}:
+   sandboxRoute(url,options);
+ const sandboxContext={...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,membershipProductType:2}))}};
+ const sandboxService=new mod.exports.ValueAddedService();await sandboxService.initialize(sandboxContext);await sandboxService.signIn();
+ assert.equal(sandboxService.getCapabilities().commerce,true);assert.equal(sandboxService.getCapabilities().preferences,false);
+ await sandboxService.purchase((await sandboxService.products()).find(p=>p.type===2));
+ const sandboxPurchaseCalls=purchaseCalls,sandboxFinishCalls=finishCalls,queryCount=subscriptionQueries.length;
+ sandboxActive=false;
+ await assert.rejects(sandboxService.purchase({id:'month',type:2}),/SANDBOX_REQUIRED/);
+ await assert.rejects(sandboxService.restorePurchases(),/SANDBOX_REQUIRED/);
+ assert.equal(purchaseCalls,sandboxPurchaseCalls);assert.equal(finishCalls,sandboxFinishCalls);assert.equal(subscriptionQueries.length,queryCount);
+ const notTester=new mod.exports.ValueAddedService();await notTester.initialize(sandboxContext);assert.equal(notTester.getCapabilities().commerce,false);
+ sandboxActive=true;route=sandboxRoute;
+ console.log('Sandbox checkout: official tester check, recheck before purchase/restore, no normal-mode purchase or paid sync unlock PASS');
  console.log('Saved Huawei offer: official ¥2/¥5 and cycle text, display while gated, signed checkout, stale/missing/signature/mode safeguards PASS');
  console.log('Automatic subscription: SDK-compatible purchase parameters, current entitlement plus unfinished orders, official management page PASS');
 

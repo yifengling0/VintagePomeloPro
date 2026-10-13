@@ -53,6 +53,13 @@ try {
     return new Response(JSON.stringify({responseCode:'0',jwsPurchaseOrder:jws(latest)}),{status:200});
   };
   const provider=new HuaweiPurchaseProvider({appId:'test-app',packageName:'test.package',issuerId:'issuer',keyId:'key-id',environment:'SANDBOX',rootPem:pem('root'),privateKeyPem:key('leaf'),opensslPath:process.env.VP_TEST_OPENSSL_PATH,products:[{id:'month',type:3,kind:'membership',policyVersion:'calendar-month-v1',prices:{CNY:[100]}}]});
+  provider.enableSandboxTesting();assert.equal(provider.sandboxReady,true);assert.equal(provider.ready,false);
+  const normalProvider=new HuaweiPurchaseProvider({...provider.config,environment:'NORMAL'});
+  assert.throws(()=>normalProvider.enableSandboxTesting(),/SANDBOX_REQUIRED/);assert.equal(normalProvider.sandboxReady,false);
+  const incompleteProvider=new HuaweiPurchaseProvider({...provider.config,rootPem:''});
+  assert.throws(()=>incompleteProvider.enableSandboxTesting(),/NOT_CONFIGURED/);assert.equal(incompleteProvider.sandboxReady,false);
+  const wrongMode=JSON.stringify({type:3,jwsPurchaseOrder:jws({...payload,environment:'NORMAL'})});
+  await assert.rejects(provider.verify(wrongMode,3),/INVALID_ORDER/);assert.equal(calls,0);
   const receipt=JSON.stringify({type:3,jwsPurchaseOrder:good});
   assert.equal((await provider.verify(receipt,3)).needsFinish,true);assert.equal(calls,1);
   latest={...payload,needFinish:false,finishStatus:'1'};assert.equal((await provider.verify(receipt,3)).needsFinish,false);
@@ -74,6 +81,14 @@ try {
     policyVersion:'huawei-subscription-v1',subscriptionGroupId:'members',prices:{CNY:[500]}}]});
   const autoReceipt=JSON.stringify({type:2,jwsPurchaseOrder:jws(subscribed)});
   assert.equal((await autoProvider.verify(autoReceipt,2)).expiresAt,now+600000);
+  const currentEntitlementReceipt=JSON.stringify({type:2,jwsSubscriptionStatus:jws(subGroup)});
+  assert.equal((await autoProvider.verify(currentEntitlementReceipt,2)).status,'purchased');
+  assert.equal((await autoProvider.verify(currentEntitlementReceipt,2)).developerPayload,subscribed.developerPayload);
+  await assert.rejects(autoProvider.verify(JSON.stringify({type:2,jwsSubscriptionStatus:jws(subGroup),
+    jwsPurchaseOrder:jws(subscribed)}),2),/INVALID_ORDER/);
+  await assert.rejects(autoProvider.verify(JSON.stringify({type:2,jwsSubscriptionStatus:jws({...subGroup,packageName:'wrong'})}),2),/INVALID_SUBSCRIPTION/);
+  await assert.rejects(autoProvider.verify(JSON.stringify({type:2,jwsSubscriptionStatus:jws(subGroup,{privateKey:key('wrongoid')})}),2),/INVALID_JWS/);
+  await assert.rejects(autoProvider.verify(JSON.stringify({type:2,jwsSubscriptionStatus:jws({...subGroup,lastSubscriptionStatus:undefined})}),2),/INVALID_SUBSCRIPTION/);
   const validGroup=subGroup;
   subGroup={...validGroup,packageName:'another.package'};await assert.rejects(autoProvider.verify(autoReceipt,2),/INVALID_SUBSCRIPTION/);
   subGroup=validGroup;

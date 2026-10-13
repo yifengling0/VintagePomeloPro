@@ -135,12 +135,24 @@ export function iapAuthorization(config, body, now = Date.now()) {
 }
 
 export class HuaweiPurchaseProvider {
-  constructor(config) { this.config = config; this.ready = false; }
-  enableAfterProbe(evidence) {
+  constructor(config) { this.config = config; this.ready = false; this.sandboxReady = false; }
+  checkConfiguration() {
     let version = '';
     try { version = execFileSync(this.config.opensslPath ?? 'openssl', ['version'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }); }
     catch { requireThat(false, 'PKIX_NOT_CONFIGURED', 503); }
     requireThat(/^OpenSSL 3\./.test(version), 'PKIX_NOT_CONFIGURED', 503);
+    const key = createPrivateKey(this.config.privateKeyPem);
+    requireThat(key.asymmetricKeyType === 'ec' && key.asymmetricKeyDetails?.namedCurve === 'prime256v1',
+      'NOT_CONFIGURED', 503);
+    this.fingerprint();
+  }
+  enableSandboxTesting() {
+    requireThat(this.config.environment === 'SANDBOX', 'SANDBOX_REQUIRED', 503);
+    this.checkConfiguration();
+    this.sandboxReady = true;
+  }
+  enableAfterProbe(evidence) {
+    this.checkConfiguration();
     requireThat(evidence?.providerFingerprint === this.fingerprint() && evidence.queryAndSignatureVerified === true,
       'IAP_NOT_VERIFIED', 503);
     this.ready = true;
@@ -154,7 +166,7 @@ export class HuaweiPurchaseProvider {
       environment: c.environment, products: c.products, verifierDigest: c.verifierDigest ?? 'system-openssl3' })).digest('hex');
   }
   signPromotion(productId, offerId, userId, now = Date.now()) {
-    requireThat(this.ready, 'NOT_CONFIGURED', 503);
+    requireThat(this.ready || this.sandboxReady && this.config.environment === 'SANDBOX', 'NOT_CONFIGURED', 503);
     const product = this.config.products.find(p => p.id === productId && p.type === 2);
     requireThat(Object.hasOwn(product?.promotionalPrices ?? {}, offerId) && /^[a-f0-9]{64}$/.test(userId), 'UNKNOWN_OFFER');
     const c = this.config, iat = Math.floor(now / 1000);
@@ -170,7 +182,18 @@ export class HuaweiPurchaseProvider {
     // The untrusted order JWS is verified before using its IDs; provider's latest order is verified a second time.
     const data = JSON.parse(purchaseData);
     requireThat(data.type === productType, 'INVALID_ORDER');
-    const candidate = verifyHuaweiJws(data.jwsPurchaseOrder, this.config.rootPem, Date.now(), this.config.opensslPath);
+    let candidate;
+    if (productType === 2 && typeof data.jwsSubscriptionStatus === 'string') {
+      requireThat(data.jwsPurchaseOrder === undefined, 'INVALID_ORDER');
+      const group = verifyHuaweiJws(data.jwsSubscriptionStatus, this.config.rootPem, Date.now(), this.config.opensslPath);
+      candidate = group.lastSubscriptionStatus?.lastPurchaseOrder;
+      // CURRENT_ENTITLEMENT returns a signed subscription group, not a purchase-order JWS.
+      // Validate its group, package, order and renewal bindings before using any provider IDs.
+      subscriptionFact(group, candidate, this.config, Date.now());
+    } else {
+      requireThat(data.jwsSubscriptionStatus === undefined, 'INVALID_ORDER');
+      candidate = verifyHuaweiJws(data.jwsPurchaseOrder, this.config.rootPem, Date.now(), this.config.opensslPath);
+    }
     requireThat(candidate.applicationId === this.config.appId && candidate.environment === this.config.environment &&
       candidate.productType === String(productType), 'INVALID_ORDER');
     requireThat(typeof candidate.purchaseOrderId === 'string' && typeof candidate.purchaseToken === 'string', 'INVALID_ORDER');
