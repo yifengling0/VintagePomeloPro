@@ -4,7 +4,7 @@ const ts=require(process.argv[3]);
 const models=require(path.resolve(process.argv[2],'model/ValueAddedModels.js'));
 const app=require(path.resolve(process.argv[2],'model/AppModels.js'));
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'vp-account-service-'));
-let visible=true,requests=0,constructors=0,finishCalls=0,failFinish=true,writes=0,user='alice',authorizationState='';
+let visible=true,requests=0,constructors=0,finishCalls=0,failFinish=true,writes=0,user='alice',authorizationState='', sdkError=0, wrongState=false;
 const config={apiBaseUrl:'https://api.example.com',accountClientId:'client-id',membershipProductId:'month',membershipProductType:3,coffeeProductId:'coffee'};
 const profile=models.cloudProfilePayload(app.createDefaultInputProfile());
 const envelope={schemaVersion:1,profileFamily:'input/native-v6',deviceClass:'tablet',variant:profile.id,revision:1,baseRevision:0,
@@ -23,9 +23,13 @@ let route=async(url,options)=>{
 };
 const http={RequestMethod:{GET:'GET',POST:'POST',PUT:'PUT'},HttpDataType:{STRING:'string'},createHttp(){requests++;return{
  request:async(url,opts)=>({responseCode:200,result:JSON.stringify(await route(url,opts))}),destroy(){}};}};
-const authentication={HuaweiIDProvider:class{constructor(){constructors++;}createAuthorizationWithHuaweiIDRequest(){return {};}},
- AuthenticationController:class{async executeRequest(request){authorizationState=request.state;assert.deepEqual(Array.from(request.scopes),['profile']);assert.deepEqual(Array.from(request.permissions),['serviceauthcode']);return {state:request.state,data:{authorizationCode:'provider-code'}};}}};
-const iap={ProductType:{CONSUMABLE:0},PurchaseQueryType:{UNFINISHED:1,ALL:0},queryProducts:async()=>[],
+const authentication={HuaweiIDProvider:class{constructor(){constructors++;}createLoginWithHuaweiIDRequest(){return {login:true};}createAuthorizationWithHuaweiIDRequest(){return {};}},
+ AuthenticationController:class{async executeRequest(request){if(sdkError)throw {code:sdkError};if(request.login){assert.equal(request.forceLogin,true);return {state:wrongState?'wrong':request.state,data:{openID:'sdk-open-id'}};}
+ if(!request.permissions){assert.deepEqual(Array.from(request.scopes),['profile']);return {state:request.state,data:{openID:'sdk-open-id',nickName:'Test nickname',avatarUri:'https://avatar.example.test/a.png'}};}
+ authorizationState=request.state;assert.deepEqual(Array.from(request.scopes),['profile']);assert.deepEqual(Array.from(request.permissions),['serviceauthcode']);return {state:request.state,data:{authorizationCode:'provider-code'}};}}};
+const iap={ProductType:{CONSUMABLE:0},PurchaseQueryType:{UNFINISHED:1,ALL:0},queryProducts:async(_,{productType,productIds})=>[
+  {id:productIds[0],type:productType,name:productType===0?'Coffee':'Membership',localPrice:'CNY 6.00',price:'6'},
+  {id:'unexpected',type:productType,name:'Other product',price:'999'}],
  createPurchase:async()=>({purchaseData:'opaque-provider-receipt'}),
  queryPurchases:async(_,{productType,queryType})=>({purchaseDataList:productType===3&&queryType===1?['opaque-provider-receipt']:[]}),
  finishPurchase:async()=>{finishCalls++;if(failFinish)throw Error('offline');}};
@@ -36,7 +40,7 @@ const md={createMd(){const hash=crypto.createHash('sha256');return {update:async
 const imports={
  '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_WITH_HAP_MODULE:2,GET_BUNDLE_INFO_WITH_METADATA:32},
  getBundleInfoForSelfSync:()=>({hapModulesInfo:[{name:'entry',metadata:[{name:'client_id',value:'client-id'}]}]})}},
- '@kit.AccountKit':{authentication},'@kit.IAPKit':{iap},'@ohos.net.http':{default:http},
+ '@kit.BasicServicesKit':{},'@kit.AccountKit':{authentication},'@kit.IAPKit':{iap},'@ohos.net.http':{default:http},
  '@ohos.util':{default:{TextDecoder:{create:()=>({decodeToString:b=>Buffer.from(b).toString()})},
  TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:crypto.randomUUID}},
  '@kit.CryptoArchitectureKit':{cryptoFramework:md},'@kit.CoreFileKit':{fileIo:adapter},
@@ -54,7 +58,34 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
 (async()=>{
  visible=false;await assert.rejects(service.initialize(context),/FEATURE_HIDDEN/);await assert.rejects(service.signIn(),/FEATURE_HIDDEN/);
  assert.equal(requests,0);assert.equal(constructors,0);visible=true;
- await service.initialize(context);await service.signIn();assert.equal(authorizationState,'test-state');assert.equal(service.getUserId(),'alice');
+ const missing=new mod.exports.ValueAddedService();
+ await missing.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,accountClientId:''}))}});
+ assert.equal(missing.accountAvailability(),'configuration_missing');assert.equal(requests,0);
+ const mismatch=new mod.exports.ValueAddedService();
+ await mismatch.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,accountClientId:'other-client'}))}});
+ assert.equal(mismatch.accountAvailability(),'identity_mismatch');assert.equal(requests,0);
+ const availabilityRoute=route;
+ route=async()=>({account:false,commerce:false,profiles:false,cloudSaves:false,reason:'NOT_CONFIGURED'});
+ const closed=new mod.exports.ValueAddedService();await closed.initialize(context);assert.equal(closed.accountAvailability(),'service_closed');
+ route=async()=>{throw Error('offline');};const unreachable=new mod.exports.ValueAddedService();
+ await unreachable.initialize(context);assert.equal(unreachable.accountAvailability(),'unreachable');
+ // Official SDK login remains available without an API URL, backend capabilities, or matching cloud client ID.
+ const beforeSdkLogin=requests;
+ await missing.signIn();assert.equal(missing.isHuaweiSignedIn(),true);assert.equal(missing.getUserId(),'');
+ assert.equal(missing.getHuaweiProfile().nickname,'Test nickname');assert.equal(missing.getHuaweiProfile().avatarUri,'https://avatar.example.test/a.png');
+ assert.equal(requests,beforeSdkLogin,'independent login makes no business HTTP request');
+ await assert.rejects(missing.entitlement(),/NOT_CONFIGURED/);
+ await missing.signOut();assert.equal(missing.isHuaweiSignedIn(),false);
+ assert.equal(missing.getHuaweiProfile().avatarUri,'');
+ sdkError=1001500001;await assert.rejects(missing.signIn(),/HUAWEI_LOGIN_1001500001/);
+ assert.equal(missing.isHuaweiSignedIn(),false);sdkError=0;
+ wrongState=true;await assert.rejects(missing.signIn(),/AUTH_STATE_MISMATCH/);wrongState=false;
+ await unreachable.signIn();assert.equal(unreachable.isHuaweiSignedIn(),true);assert.equal(unreachable.getUserId(),'');
+ route=availabilityRoute;
+ await service.initialize(context);await service.signIn();assert.equal(service.accountAvailability(),'ready');assert.equal(authorizationState,'test-state');assert.equal(service.getUserId(),'alice');
+ const storeProducts=await service.products();
+ assert.deepEqual(Array.from(storeProducts,p=>({id:p.id,purpose:p.purpose,price:p.price})),[
+  {id:'month',purpose:'membership',price:'CNY 6.00'},{id:'coffee',purpose:'coffee',price:'CNY 6.00'}]);
  assert.equal(await service.purchase({id:'month',type:3}),'ACK_PENDING');assert.equal(finishCalls,1);
  failFinish=false;assert.equal(await service.restorePurchases(),'RESTORED');assert.equal(finishCalls,2);
  await service.downloadProfile('default');assert.equal(writes,1);

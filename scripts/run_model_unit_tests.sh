@@ -21,6 +21,7 @@ done
 
 "$NODE" "$ROOT/scripts/run_local_save_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_value_added_service_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_coffee_unit_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_automatic_sync_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_native_contract_unit_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_cloud_save_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"

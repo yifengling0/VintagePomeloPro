@@ -22,6 +22,15 @@ for (const url of ['', 'http://api.example.com', 'https://user:password@api.exam
   assert.throws(() => m.validateValueAddedConfig({ ...config, apiBaseUrl: url }), /NOT_CONFIGURED/);
 }
 assert.throws(() => m.validateValueAddedConfig({ ...config, coffeeProductId: 'member' }), /NOT_CONFIGURED/);
+// Identical time/random samples must not produce duplicate IDs in a new template.
+const savedNow = Date.now, savedRandom = Math.random;
+try {
+  Date.now = () => 1791850000000; Math.random = () => 0;
+  for (const builtIn of app.createBuiltInInputProfiles()) {
+    assert.equal(new Set(builtIn.elements.map(element => element.id)).size, builtIn.elements.length);
+    m.cloudProfilePayload(builtIn);
+  }
+} finally { Date.now = savedNow; Math.random = savedRandom; }
 for (const p of app.createBuiltInInputProfiles()) {
   const payload = m.cloudProfilePayload(p);
   assert.deepEqual(JSON.parse(JSON.stringify(payload)), JSON.parse(JSON.stringify(p)));

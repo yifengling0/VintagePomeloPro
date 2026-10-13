@@ -1891,13 +1891,9 @@ struct SystemSettingsPage {
   private Content(section: SettingsSection) {
     Column({ space: 14 }) {
       if (section === 'sync') {
-        Column({ space: 18 }) {
-          Text('账号与同步').fontSize(20).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary')).width('100%')
-          AccountSyncSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm' })
-        }.width('100%').padding(this.cardPadding())
-          .backgroundColor(this.groupSurfaceColor())
-          .backgroundBlurStyle(this.settings.useGlassEffect ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
-          .border({ width: 1, color: this.groupBorderColor() }).borderRadius(20)
+        AccountSyncSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm',
+          surfaceColor: this.groupSurfaceColor(), cardBorderColor: this.groupBorderColor(),
+          glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
       } else if (section === 'display') {
         Column({ space: 16 }) {
           Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')

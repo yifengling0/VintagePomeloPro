@@ -15,7 +15,29 @@ export class CloudSaves {
     if (membership) await this.domain.requireMembership(user);
   }
   owned(job,user) { requireThat(job && job.userId === user, 'SAVE_NOT_FOUND',404); return job; }
-  async list(user) { await this.gate(user,false); const index=await this.store.get(indexKey(user))??freshIndex();
+  async retireVersions(tx, user, index, versions) {
+    for (const version of versions) {
+      const job = this.owned(await tx.get(jobKey(version.versionId)), user);
+      requireThat(job.status === 'published', 'STORAGE_INVARIANT', 503);
+      job.status = 'deleting'; job.wasPublished = true;
+      if (!index.jobs.includes(job.id)) index.jobs.push(job.id);
+      tx.put(jobKey(job.id), job, 'save-jobs:' + user);
+    }
+  }
+  async list(user) {
+    await this.gate(user,false);
+    // Migrate old indexes atomically; retain quota until the retired objects are actually deleted.
+    await this.store.transaction(async tx => {
+      const index = await tx.get(indexKey(user)); if (!index) return;
+      for (const slot of index.slots) {
+        if (slot.versions.length <= 1) continue;
+        await this.retireVersions(tx, user, index, slot.versions.slice(1));
+        slot.versions = slot.versions.slice(0, 1); slot.revision++;
+      }
+      tx.put(indexKey(user), index, 'save-index');
+    });
+    try { await this.cleanup(user); } catch (_) { /* Retired objects remain charged and retryable. */ }
+    const index=await this.store.get(indexKey(user))??freshIndex();
     return {slots:index.slots,usedBytes:index.usedBytes,reservedBytes:index.reservedBytes,quotaBytes:ACCOUNT_BYTES}; }
   async createSlot(user,{label}) {
     await this.gate(user); requireThat(typeof label==='string' && label.trim().length>0 && label.length<=80 && !/[\u0000-\u001f]/.test(label),'INVALID_SAVE_SLOT');
@@ -31,7 +53,6 @@ export class CloudSaves {
     return this.store.transaction(async tx=>{const index=await tx.get(indexKey(user))??freshIndex();
       const slot=index.slots.find(s=>s.slotId===slotId); requireThat(slot,'SAVE_NOT_FOUND',404);
       if(slot.revision!==baseRevision)return {status:'CONFLICT',slot};
-      requireThat(slot.versions.length<3,'SAVE_HISTORY_FULL',409);
       requireThat(index.jobs.length<2 && index.usedBytes+index.reservedBytes+clean.totalBytes<=ACCOUNT_BYTES,'SAVE_QUOTA',409);
       const job={id,userId:user,slotId,baseRevision,manifest:clean,status:'uploading',expiresAt:now+TTL, chunks:{}};
       index.jobs.push(id);index.reservedBytes+=clean.totalBytes;
@@ -87,19 +108,21 @@ export class CloudSaves {
   }
   async finalize(user,id) {
     await this.gate(user);requireThat(uuid(id),'INVALID_SAVE_SLOT');
-    return this.store.transaction(async tx=>{const job=this.owned(await tx.get(jobKey(id)),user);
+    const result = await this.store.transaction(async tx=>{const job=this.owned(await tx.get(jobKey(id)),user);
       const index=await tx.get(indexKey(user));const slot=index?.slots.find(s=>s.slotId===job.slotId);
       requireThat(slot,'SAVE_NOT_FOUND',404);
       if(job.status==='published')return {status:'PUBLISHED',slot};
       requireThat(job.status==='uploading'&&!job.cancelled&&job.expiresAt>this.clock(),'SAVE_UPLOAD_EXPIRED',409);
       requireThat(job.manifest.chunks.every(c=>job.chunks[c.index]?.status==='stored'),'SAVE_INCOMPLETE',409);
       if(slot.revision!==job.baseRevision)return {status:'CONFLICT',slot};
-      requireThat(slot.versions.length<3,'SAVE_HISTORY_FULL',409);
-      slot.revision++;slot.versions.unshift({versionId:id,createdAt:this.clock(),totalBytes:job.manifest.totalBytes});
+      await this.retireVersions(tx,user,index,slot.versions);
+      slot.revision++;slot.versions=[{versionId:id,createdAt:this.clock(),totalBytes:job.manifest.totalBytes}];
       job.status='published';index.jobs=index.jobs.filter(value=>value!==id);
       index.reservedBytes-=job.manifest.totalBytes;index.usedBytes+=job.manifest.totalBytes;
       tx.put(jobKey(id),job,'save-jobs:'+user);tx.put(indexKey(user),index,'save-index');
       return {status:'PUBLISHED',slot};});
+    try { await this.cleanup(user); } catch (_) { /* Publishing succeeded; object cleanup is retryable. */ }
+    return result;
   }
   async download(user,slotId,id) {
     await this.gate(user);requireThat(uuid(slotId)&&uuid(id),'INVALID_SAVE_SLOT');

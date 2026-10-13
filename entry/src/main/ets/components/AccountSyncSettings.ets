@@ -1,3 +1,5 @@
+import { BusinessError } from '@kit.BasicServicesKit';
+import { CoffeePurchaseService } from '../service/valueadded/CoffeePurchaseService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { SyncItemStatus } from '../model/AccountSyncModels';
 import { common } from '@kit.AbilityKit';
@@ -14,17 +16,27 @@ import { CloudSaveSlot, CloudSaveVersion } from '../model/CloudSaveModels';
 import { CloudSaveService } from '../service/valueadded/CloudSaveService';
 import { skinColor } from '../service/SkinColors';
 
-type SyncPane = 'overview' | 'profiles' | 'saves' | 'membership';
-
 @Component
 export struct AccountSyncSettings {
   @Prop compact: boolean = false;
-  @State private pane: SyncPane = 'overview';
+  @Prop surfaceColor: string | Resource = '';
+  @Prop cardBorderColor: string = '#14000000';
+  @Prop glass: boolean = false;
+  @Prop groupPadding: number = 22;
+  @State private availability: string = 'checking';
   @State private supported: boolean = DeviceCapabilityPolicy.supportsValueAddedFeatures();
   @State private busy: boolean = false;
   @State private ready: boolean = false;
   @State private userId: string = '';
+  @State private huaweiSignedIn: boolean = false;
+  @State private huaweiNickname: string = '';
+  @State private huaweiAvatar: string = '';
+  @State private avatarFailed: boolean = false;
+  @State private coffeeUnit: number = 8;
+  @State private coffeeCurrency: string = 'CNY';
+  @State private coffeeStatus: string = '通过华为应用内支付';
   @State private status: string = '';
+  @State private statusArea: string = 'account';
   @State private membership: string = '未登录';
   @State private products: StoreProduct[] = [];
   @State private profiles: InputProfile[] = [];
@@ -49,6 +61,7 @@ export struct AccountSyncSettings {
   @State private autoProfiles: boolean = true;
   @State private autoPreferences: boolean = true;
   @State private preferencesConflict: boolean = false;
+  private backupListener: (() => void) | null = null;
   private syncListener: (() => void) | null = null;
   @State private cloudSavesReady: boolean = false;
   @State private saveSlots: CloudSaveSlot[] = [];
@@ -61,18 +74,24 @@ export struct AccountSyncSettings {
 
   aboutToAppear(): void {
     this.alive = true;
+    if (this.supported) void this.loadCoffee();
     // Registered pages are also directly addressable. Guard before any service or SDK initialization.
     if (!this.supported) return;
     this.syncListener = (): void => this.refreshAutomaticSync();
     AccountAutomaticSyncService.getInstance().subscribe(this.syncListener);
     this.refreshAutomaticSync();
-    void this.run(async (): Promise<void> => {
+    this.backupListener = (): void => {
+      if (!this.alive) return;
+      if (this.selectedGame) this.selectSaveGame(this.selectedGame); else this.refreshBackups();
+    };
+    LocalSaveSnapshotService.getInstance().subscribe(this.backupListener);
+    void this.run('account', async (): Promise<void> => {
       await InputProfileService.getInstance().initialize(this.context);
       this.profiles = InputProfileService.getInstance().getProfiles();
       this.games = LocalSaveSnapshotService.getInstance().eligibleGames();
       this.refreshBackups();
       const params = router.getParams() as Record<string, string> | undefined;
-      if (params?.saveAppId) { this.pane = 'saves'; this.selectSaveGame(params.saveAppId); }
+      if (params?.saveAppId) this.selectSaveGame(params.saveAppId);
       const service = ValueAddedService.getInstance();
       await service.initialize(this.context);
       this.ready = service.getCapabilities().account;
@@ -80,12 +99,22 @@ export struct AccountSyncSettings {
       this.profilesReady = service.getCapabilities().profiles;
       this.cloudSavesReady = service.getCapabilities().cloudSaves;
       this.userId = service.getUserId();
-      this.status = this.ready ? '登录后可同步输入方案和存档' : '云服务暂未接通，本地备份仍可使用';
+    this.refreshHuaweiIdentity();
+      this.availability = service.accountAvailability();
       if (this.userId) await this.refreshAccount();
     });
   }
-  aboutToDisappear(): void { this.alive = false; if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener); if (this.supported) CloudSaveService.getInstance().cancel(); }
+  aboutToDisappear(): void { this.alive = false; if (this.backupListener) LocalSaveSnapshotService.getInstance().unsubscribe(this.backupListener); if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener); if (this.supported) CloudSaveService.getInstance().cancel(); }
   private errorMessage(error: Error): string {
+    if (error.message.startsWith('HUAWEI_LOGIN_')) {
+      const code = error.message.slice('HUAWEI_LOGIN_'.length);
+      if (code === '1001502012') return '已取消华为账号登录';
+      if (code === '1001502005') return '华为账号登录网络异常，请检查网络后重试';
+      if (code === '1001500001') return '华为账号未通过应用签名校验（1001500001），需核对应用配置与开发证书指纹';
+      if (code === '1001502001') return '请先登录设备上的华为账号后重试';
+      return '华为账号登录未完成（' + code + '），请核对应用配置后重试';
+    }
+    if (error.message === 'AUTH_STATE_MISMATCH') return '登录响应校验未通过，请重新登录';
     if (error.message === 'NOT_CONFIGURED') return '云服务暂未接通，本地备份仍可使用';
     if (error.message === 'SIGN_IN_REQUIRED') return '登录已过期，请重新登录';
     if (error.message === 'ACCOUNT_CHANGED') return '账号已变更，本次操作已取消';
@@ -100,22 +129,23 @@ export struct AccountSyncSettings {
     if (error.message === 'SAVE_RECOVERY_REQUIRED') return '上次恢复中断，请先点击处理恢复中断';
     if (error.message === 'MEMBERSHIP_REQUIRED') return '云同步需要有效会员，请刷新权益或恢复购买';
     if (error.message === 'SAVE_BINDING_REQUIRED') return '请先把所选云存档位绑定到本机游戏和存档子目录';
-    if (error.message === 'SAVE_HISTORY_FULL') return '此存档位已保留3个版本，请先下载保留并删除不需要的云端版本';
     if (error.message === 'SAVE_RECONCILIATION_REQUIRED') return '对象写入结果不明，服务器保留额度等待管理员核对；不会假报已清理';
     if (error.message === 'SAVE_CANCELLED') return '已取消后续传输。请刷新查看已完成的版本和待清理额度';
     if (error.message === 'UNSAFE_SAVE_PATH') return '请选择游戏目录内的存档子目录，不能使用上层目录或快捷链接';
-    if (error.message === 'SAVE_STORAGE_FULL') return '本地备份已达到 1 GB，请删除不需要的旧版本后重试；当前存档未改变';
+    if (error.message === 'SAVE_STORAGE_FULL') return '本地备份空间不足，请清理不需要的游戏备份；已有备份与当前存档仍保留';
     if (error.message === 'SAVE_QUOTA') return '所选存档超出备份大小或文件数量限制';
     return '操作未完成，请稍后重试；已有存档和备份仍保留';
   }
-  private async run(action: () => Promise<void>): Promise<void> {
+  private async run(area: string, action: () => Promise<void>): Promise<void> {
     if (!this.supported || this.busy) return;
-    this.busy = true;
+    this.busy = true; this.status = ''; this.statusArea = area;
     try { await action(); }
     catch (error) {
       if (this.alive) {
-        this.status = this.errorMessage(error as Error);
+        this.status = (error as Error).message === 'NOT_CONFIGURED' ? '' : this.errorMessage(error as Error);
+        this.availability = ValueAddedService.getInstance().accountAvailability();
         this.userId = ValueAddedService.getInstance().getUserId();
+    this.refreshHuaweiIdentity();
         if (!this.userId) { this.membership = '未登录'; this.products = []; this.cloudProfiles = []; this.conflicts = []; this.saveSlots = []; this.selectedSlot = ''; this.cloudBinding = ''; this.cloudQuota = ''; }
       }
     } finally { if (this.alive) {
@@ -130,23 +160,25 @@ export struct AccountSyncSettings {
     this.autoProfiles = sync.profilesEnabled(); this.autoPreferences = sync.preferencesEnabled();
     this.preferencesConflict = sync.hasPreferencesConflict(); this.lastSyncTime = sync.lastSyncedAt();
     this.userId = ValueAddedService.getInstance().getUserId();
+    this.refreshHuaweiIdentity();
     this.profiles = InputProfileService.getInstance().getProfiles();
     this.conflicts = this.profiles.filter((profile: InputProfile): boolean => !!ValueAddedService.getInstance().getConflict(profile.id))
       .map((profile: InputProfile): string => profile.id);
   }
   private setAutomaticSync(family: string, enabled: boolean): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('automatic', async (): Promise<void> => {
       await AccountAutomaticSyncService.getInstance().setEnabled(family, enabled); this.refreshAutomaticSync();
     });
   }
   private resolveInputConflict(id: string, useCloud: boolean): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('automatic', async (): Promise<void> => {
       await AccountAutomaticSyncService.getInstance().resolveProfile(id, useCloud); this.refreshAutomaticSync();
     });
   }
   private async refreshAccount(): Promise<void> {
     const service = ValueAddedService.getInstance();
     this.userId = service.getUserId();
+    this.refreshHuaweiIdentity();
     this.membership = '正在向服务器核验权益';
     const entitlement = await service.entitlement();
     this.membership = entitlement.active && entitlement.expiresAt > entitlement.serverTime ?
@@ -156,28 +188,108 @@ export struct AccountSyncSettings {
     if (this.profilesReady && entitlement.active) this.cloudProfiles = await service.listCloudProfiles();
     if (this.cloudSavesReady) await this.refreshCloudSaves();
   }
+  private availabilityDetail(): string {
+    if (this.availability === 'configuration_missing') return '云同步暂不可用，本地设置与存档备份可正常使用。';
+    if (this.availability === 'identity_mismatch') return '云同步的应用配置不一致，暂不可连接。华为账号登录仍由系统独立校验。';
+    if (this.availability === 'service_closed') return '云同步暂未开放。本地备份和华为账号登录仍可使用。';
+    if (this.availability === 'unreachable') return '暂时无法连接云同步服务，请检查网络后重试。本地备份和华为账号登录仍可使用。';
+    return '正在检查云同步服务，请稍后重试。';
+  }
+  private availabilityTitle(): string {
+    if (this.availability === 'configuration_missing' || this.availability === 'identity_mismatch') return '云同步尚未接通';
+    if (this.availability === 'unreachable') return '云同步连接失败';
+    if (this.availability === 'service_closed') return '云同步暂未开放';
+    return '正在检查云同步服务';
+  }
   private login(): void {
-    void this.run(async (): Promise<void> => {
-      await ValueAddedService.getInstance().signIn();
-      await this.refreshAccount();
-      AccountAutomaticSyncService.getInstance().requestSync(0);
-      this.status = '已登录，正在自动检查同步';
+    void this.run('account', async (): Promise<void> => {
+      const service = ValueAddedService.getInstance();
+      await service.initialize(this.context);
+      this.ready = service.getCapabilities().account;
+      this.commerceReady = service.getCapabilities().commerce;
+      this.profilesReady = service.getCapabilities().profiles;
+      this.cloudSavesReady = service.getCapabilities().cloudSaves;
+      this.availability = service.accountAvailability();
+      await service.signIn();
+      this.refreshHuaweiIdentity();
+      this.userId = service.getUserId();
+      if (this.userId) {
+        await this.refreshAccount();
+        AccountAutomaticSyncService.getInstance().requestSync(0);
+        this.status = '已登录，正在自动检查同步';
+      } else this.status = '华为账号登录成功；云同步尚未连接';
     });
   }
   private logout(): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('account', async (): Promise<void> => {
       await ValueAddedService.getInstance().signOut();
-      this.userId = ''; this.membership = '未登录'; this.products = []; this.cloudProfiles = []; this.conflicts = [];
+      this.huaweiSignedIn = false; this.huaweiAvatar = ''; this.huaweiNickname = ''; this.avatarFailed = false; this.userId = ''; this.membership = '未登录'; this.products = []; this.cloudProfiles = []; this.conflicts = [];
       this.saveSlots = []; this.selectedSlot = ''; this.cloudBinding = ''; this.cloudQuota = '';
       this.status = '已退出，当前账号的会话和云端状态已清除';
     });
   }
   private buy(product: StoreProduct): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('membership', async (): Promise<void> => {
       const result = await ValueAddedService.getInstance().purchase(product);
       this.status = result === 'ACK_PENDING' ? '权益核验已完成，商店确认待重试，请使用恢复购买' :
         result === 'FINISHED' ? '购买已核验并确认' : '订单状态：' + result;
       await this.refreshAccount();
+    });
+  }
+  private refreshHuaweiIdentity(): void {
+    const service = ValueAddedService.getInstance(), profile = service.getHuaweiProfile();
+    this.huaweiSignedIn = service.isHuaweiSignedIn(); this.huaweiNickname = profile.nickname;
+    if (this.huaweiAvatar !== profile.avatarUri) this.avatarFailed = false;
+    this.huaweiAvatar = profile.avatarUri;
+  }
+  private async loadCoffee(): Promise<void> {
+    try {
+      const service = CoffeePurchaseService.getInstance(); await service.initialize(this.context);
+      const fallback = service.defaultPrice();
+      if (this.alive) { this.coffeeUnit = fallback.amount; this.coffeeCurrency = fallback.currency; }
+      const price = await service.price();
+      if (this.alive) { this.coffeeUnit = price.amount; this.coffeeCurrency = price.currency; this.coffeeStatus = '通过华为应用内支付'; }
+    } catch (error) {
+      if (this.alive) this.coffeeStatus = this.coffeeError(error as Error);
+    }
+  }
+  private coffeePrice(quantity: number): string {
+    const amount = this.coffeeUnit * quantity;
+    return (this.coffeeCurrency === 'CNY' ? '¥' : this.coffeeCurrency + ' ') +
+      (Number.isInteger(amount) ? '' + amount : amount.toFixed(2));
+  }
+  private coffeeError(error: Error): string {
+    if (error.message === 'COFFEE_PRODUCT_MISSING') return '此应用的咖啡商品尚未在华为商店配置完成';
+    if (error.message === 'COFFEE_PRICE_CHANGED') return '商品价格有变化，请刷新价格后重试';
+    if (error.message === 'COFFEE_QUANTITY_UNSUPPORTED') return '当前系统暂不支持中杯和大杯，可选择小杯';
+    if (error.message.startsWith('COFFEE_CONFIG')) return '咖啡商品配置需要更新';
+    const sdkCode = (error as BusinessError).code;
+    const code = Number.isInteger(sdkCode) ? sdkCode :
+      /^COFFEE_IAP_[0-9]+$/.test(error.message) ? Number(error.message.slice('COFFEE_IAP_'.length)) : 0;
+    if (code === 1001860003) return '此应用的咖啡商品尚未配置完成或商品信息无效（1001860003）';
+    if (code === 1001860058 || error.message === 'COFFEE_IAP_1001860058') return '此开发版本需要在华为商店配置沙盒测试账号';
+    return '暂时无法获取或处理华为支付商品' + (code ? '（' + code + '）' : '') + '，请稍后重试';
+  }
+  private supportDeveloper(quantity: number): void {
+    void this.run('membership', async (): Promise<void> => {
+      const service = CoffeePurchaseService.getInstance();
+      try {
+        await service.initialize(this.context);
+        const result = await service.purchase(quantity, { amount: this.coffeeUnit, currency: this.coffeeCurrency });
+        this.status = result === 'CANCELLED' ? '已取消支付' : result === 'ACK_PENDING' ?
+          '订单确认尚未完成，请使用“检查未完成订单”，无需再次付款' :
+          result === 'RECOVERED' ? '已确认之前的支持订单，感谢你！本次未发起新付款' : '感谢支持，咖啡订单已完成！';
+      } catch (error) { this.status = this.coffeeError(error as Error); }
+    });
+  }
+  private recoverCoffee(): void {
+    void this.run('membership', async (): Promise<void> => {
+      try {
+        const service = CoffeePurchaseService.getInstance(); await service.initialize(this.context);
+        const result = await service.recoverPurchases();
+        this.status = result === 'ACK_PENDING' ? '部分订单还未确认，请稍后再试，无需再次付款' :
+          result === 'RECOVERED' ? '已确认之前的支持订单，感谢你！' : '没有待确认的咖啡订单';
+      } catch (error) { this.status = this.coffeeError(error as Error); }
     });
   }
   private refreshBackups(): void {
@@ -205,7 +317,7 @@ export struct AccountSyncSettings {
       this.saveSummaries.find((game: BackupGameSummary): boolean => game.appId === this.selectedGame)?.title ?? '游戏存档';
   }
   private bytesLabel(bytes: number): string {
-    return bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
+    return bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
   }
   private snapshotBytes(snapshot: SaveManifest): number {
     return snapshot.files.reduce((total: number, file: SaveManifestEntry): number => total + file.size, 0);
@@ -215,12 +327,12 @@ export struct AccountSyncSettings {
       (snapshot.files.length > 8 ? '\n另有 ' + (snapshot.files.length - 8) + ' 个文件' : '');
   }
   private backupSave(): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('backups', async (): Promise<void> => {
       const local = LocalSaveSnapshotService.getInstance(), gameId = this.selectedGame, path = this.saveDirectory;
       const preview = await local.preview(this.context, gameId, path);
       const answer = await promptAction.showDialog({ title: '备份 ' + this.saveTitle(),
         message: preview.files.length + ' 个存档文件 · ' + this.bytesLabel(preview.totalBytes) +
-          '\n只保存在此设备，内容未变化时复用已有版本。',
+          '\n只保存在此设备。每个游戏保留一份最新备份，新备份校验完成后替换原备份。',
         buttons: [{ text: '取消', color: '#666666' }, { text: '立即备份', color: '#356BE8' }] });
       if (answer.index !== 1) return;
       const previous = local.list(this.context, gameId).map((entry: SaveManifest): string => entry.snapshotId);
@@ -230,28 +342,28 @@ export struct AccountSyncSettings {
     });
   }
   private restoreSave(snapshot: SaveManifest): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('backups', async (): Promise<void> => {
       const local = LocalSaveSnapshotService.getInstance();
       const preview = await local.preview(this.context, snapshot.appId, snapshot.selectedPath, snapshot.snapshotId);
       const answer = await promptAction.showDialog({ title: '恢复 ' + this.saveTitle(),
         message: new Date(snapshot.createdAt).toLocaleString() + ' · ' + this.bytesLabel(preview.totalBytes) +
           '\n新增 ' + preview.added + ' · 替换 ' + preview.changed + ' · 移出 ' + preview.removed +
-          '\n恢复前会保留当前存档。目标位置：' + snapshot.selectedPath + '\n\n' + this.filesDescription(snapshot),
-        buttons: [{ text: '取消', color: '#666666' }, { text: '备份并恢复', color: '#356BE8' }] });
+          '\n恢复失败会回滚当前存档；成功后清理临时副本。目标位置：' + snapshot.selectedPath + '\n\n' + this.filesDescription(snapshot),
+        buttons: [{ text: '取消', color: '#666666' }, { text: '恢复存档', color: '#356BE8' }] });
       if (answer.index !== 1) return;
       await local.restore(this.context, snapshot.snapshotId, snapshot.appId, preview);
-      this.refreshBackups(); this.status = '存档已恢复，恢复前的版本已保留';
+      this.refreshBackups(); this.status = '存档已恢复，临时副本已清理';
     });
   }
   private deleteLocalSnapshot(snapshot: SaveManifest): void {
-    void this.run(async (): Promise<void> => {
-      const answer = await promptAction.showDialog({ title: '删除这个备份版本？',
+    void this.run('backups', async (): Promise<void> => {
+      const answer = await promptAction.showDialog({ title: '删除这个游戏的备份？',
         message: this.saveTitle() + ' · ' + new Date(snapshot.createdAt).toLocaleString() +
-          '\n删除后无法找回这一版。游戏当前存档和其他备份不会删除。',
-        buttons: [{ text: '取消', color: '#666666' }, { text: '删除此版本', color: '#C43838' }] });
+          '\n删除后无法找回这份备份，游戏当前存档不会删除。',
+        buttons: [{ text: '取消', color: '#666666' }, { text: '删除备份', color: '#C43838' }] });
       if (answer.index !== 1) return;
       LocalSaveSnapshotService.getInstance().deleteSnapshot(this.context, snapshot.snapshotId, snapshot.appId);
-      this.refreshBackups(); this.status = '此备份版本已删除，游戏存档与其他版本仍保留';
+      this.refreshBackups(); this.status = '备份已删除，游戏当前存档仍保留';
     });
   }
   private currentSlot(): CloudSaveSlot | undefined {
@@ -279,7 +391,7 @@ export struct AccountSyncSettings {
     this.showBinding();
   }
   private bindCloudSlot(): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('backups', async (): Promise<void> => {
       const slot = this.currentSlot(); if (!slot) return;
       const game = this.games.find((item: AppDescriptor): boolean => item.id === this.selectedGame);
       const answer = await promptAction.showDialog({ title: '绑定此设备的存档目录？',
@@ -292,11 +404,11 @@ export struct AccountSyncSettings {
     });
   }
   private uploadSave(snapshot: SaveManifest): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('backups', async (): Promise<void> => {
       const slot = this.currentSlot(); if (!slot) return;
       const answer = await promptAction.showDialog({ title: '上传此存档快照？',
         message: '将此快照的游戏存档文件发送到应用配置的私有云存档服务，存入“' + slot.label +
-          '”。不会上传游戏目录路径。成功后保留旧版本；冲突时不覆盖另一设备版本。',
+          '”。不会上传游戏目录路径。成功后替换云端备份；冲突时不覆盖另一设备的备份。',
         buttons: [{ text: '取消', color: '#666666' }, { text: '上传到云端', color: '#356BE8' }] });
       if (answer.index !== 1) return;
       const result = await CloudSaveService.getInstance().upload(this.context, slot, snapshot);
@@ -306,7 +418,7 @@ export struct AccountSyncSettings {
     });
   }
   private downloadSave(slot: CloudSaveSlot, version: CloudSaveVersion): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('backups', async (): Promise<void> => {
       const snapshot = await CloudSaveService.getInstance().download(this.context, slot, version.versionId);
       this.refreshBackups(); this.selectedGame = snapshot.appId; this.saveDirectory = snapshot.selectedPath;
       this.snapshots = LocalSaveSnapshotService.getInstance().list(this.context, snapshot.appId);
@@ -314,20 +426,15 @@ export struct AccountSyncSettings {
     });
   }
   private deleteCloudVersion(slot: CloudSaveSlot, version: CloudSaveVersion): void {
-    void this.run(async (): Promise<void> => {
+    void this.run('backups', async (): Promise<void> => {
       const answer = await promptAction.showDialog({ title: '永久删除此云端版本？',
         message: slot.label + ' · ' + new Date(version.createdAt).toLocaleString() +
           '。删除后云端无法找回；不会删除已下载的本地快照。请先确认保留了需要的副本。',
-        buttons: [{ text: '取消', color: '#666666' }, { text: '永久删除此版本', color: '#C43838' }] });
+        buttons: [{ text: '取消', color: '#666666' }, { text: '永久删除备份', color: '#C43838' }] });
       if (answer.index !== 1) return;
       await CloudSaveService.getInstance().deleteVersion(slot, version.versionId);
       await this.refreshCloudSaves(); this.status = '此云端版本已删除，本地文件未变更';
     });
-  }
-  private openPane(pane: SyncPane): void {
-    if (this.busy) return;
-    this.pane = pane;
-    if (pane === 'saves') { this.selectedGame = ''; this.refreshBackups(); }
   }
   @Builder
   private Action(label: string, id: string, enabled: () => boolean, action: () => void, primary: boolean = false) {
@@ -344,36 +451,28 @@ export struct AccountSyncSettings {
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
   @Builder
-  private Option(title: string, detail: string, icon: Resource, pane: SyncPane) {
-    Button() {
-      Row({ space: 14 }) {
-        SymbolGlyph(icon).fontSize(22).fontColor([skinColor('accent')]).width(28)
-        Column({ space: 4 }) {
-          Text(title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
-          Text(detail).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-        SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([skinColor('text_secondary')])
-      }.width('100%')
-    }.type(ButtonType.Normal).width('100%').constraintSize({ minHeight: 70 })
-      .padding({ left: 14, right: 14, top: 12, bottom: 12 }).borderRadius(14)
-      .backgroundColor(skinColor('search_background')).enabled(!this.busy)
-      .id('sync-open-' + pane).onClick((): void => this.openPane(pane))
-  }
-  @Builder
   private Overview() {
     Row({ space: 14 }) {
       Stack({ alignContent: Alignment.Center }) {
-        SymbolGlyph($r('sys.symbol.person')).fontSize(27).fontColor([skinColor('accent')])
+        if (this.huaweiAvatar && !this.avatarFailed) {
+          Image(this.huaweiAvatar).width(48).height(48).objectFit(ImageFit.Cover).borderRadius(16)
+            .id('sync-account-avatar').onError((): void => { this.avatarFailed = true; })
+        } else {
+          SymbolGlyph($r('sys.symbol.person')).fontSize(27).fontColor([skinColor('accent')])
+        }
       }.width(48).height(48).borderRadius(16).backgroundColor(skinColor('selected_background'))
       Column({ space: 5 }) {
-        Text(this.userId ? '已登录华为账号' : '华为账号').fontSize(this.compact ? 16 : 17).fontWeight(FontWeight.Medium)
+        Text(this.huaweiSignedIn ? this.huaweiNickname || '已登录华为账号' : '华为账号').fontSize(this.compact ? 16 : 17).fontWeight(FontWeight.Medium)
           .fontColor(skinColor('text_primary')).width('100%')
-        Text(this.userId ? this.membership : '登录后在设备间同步方案和存档').fontSize(12)
+        Text(this.userId ? this.membership : this.ready ? '登录后自动同步设置与输入方案' : this.availabilityTitle()).fontSize(12)
           .fontColor(skinColor('text_secondary')).width('100%')
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      if (!this.userId) {
-        this.Action('登录', 'sync-account-login', (): boolean => (this.ready && !this.busy), (): void => this.login(), true)
-      } else {
+      if (!this.huaweiSignedIn) {
+        this.Action('登录华为账号', 'sync-account-login', (): boolean => !this.busy, (): void => this.login(), true)
+      } else if (!this.userId && this.ready) {
+        this.Action('连接云同步', 'sync-account-connect', (): boolean => !this.busy, (): void => this.login(), true)
+      }
+      if (this.huaweiSignedIn || this.userId) {
         this.Action('退出', 'sync-account-logout', (): boolean => (!this.busy), (): void => this.logout())
       }
     }.width('100%').alignItems(VerticalAlign.Center)
@@ -381,15 +480,14 @@ export struct AccountSyncSettings {
       Row() {
         Text('账号权益由云端核验').fontSize(12).fontColor(skinColor('text_secondary')).layoutWeight(1)
         this.Action('刷新权益', 'sync-refresh-account', (): boolean => (!this.busy), (): void => {
-          void this.run(async (): Promise<void> => { await this.refreshAccount(); });
+          void this.run('account', async (): Promise<void> => { await this.refreshAccount(); });
         })
       }.width('100%')
     }
-    this.Option('自动同步', this.autoSyncStatus || '登录后自动同步设置和输入方案',
-      $r('sys.symbol.arrow_counterclockwise'), 'profiles')
-    this.Option('游戏存档', '游戏设置中开启备份 · 在这里查看历史', $r('sys.symbol.doc_text'), 'saves')
-    this.Option('会员与支持', this.userId ? this.membership : '查看会员权益和已购项目',
-      $r('sys.symbol.info_circle'), 'membership')
+    if (!this.ready) {
+      Text(this.availabilityDetail()).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+        .id('sync-account-availability')
+    }
   }
   @Builder
   private SyncSwitch(title: string, detail: string, family: string, value: () => boolean) {
@@ -407,7 +505,7 @@ export struct AccountSyncSettings {
     this.Heading('自动同步', '登录后按此账号的开关同步。平板与桌面分别保存；文件路径和运行环境设置不上传。')
     Row({ space: 12 }) {
       Column({ space: 5 }) {
-        Text(this.autoSyncStatus || '等待登录').fontSize(15).fontWeight(FontWeight.Medium)
+        Text(this.huaweiSignedIn && !this.userId ? '华为账号已登录 · 等待云同步连接' : this.autoSyncStatus || '等待登录').fontSize(15).fontWeight(FontWeight.Medium)
           .fontColor(skinColor('accent')).width('100%').id('sync-automatic-status')
         if (this.lastSyncTime > 0) {
           Text('最近同步 ' + new Date(this.lastSyncTime).toLocaleString())
@@ -441,10 +539,10 @@ export struct AccountSyncSettings {
         if (item.id === 'preferences' && this.autoPreferences && this.preferencesConflict) {
           Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
             this.Action('保留本机设置', 'sync-preferences-keep', (): boolean => !this.busy, (): void => {
-              void this.run(async (): Promise<void> => { await AccountAutomaticSyncService.getInstance().resolvePreferences(false); this.refreshAutomaticSync(); });
+              void this.run('automatic', async (): Promise<void> => { await AccountAutomaticSyncService.getInstance().resolvePreferences(false); this.refreshAutomaticSync(); });
             })
             this.Action('采用云端设置', 'sync-preferences-use', (): boolean => !this.busy, (): void => {
-              void this.run(async (): Promise<void> => { await AccountAutomaticSyncService.getInstance().resolvePreferences(true); this.refreshAutomaticSync(); });
+              void this.run('automatic', async (): Promise<void> => { await AccountAutomaticSyncService.getInstance().resolvePreferences(true); this.refreshAutomaticSync(); });
             })
           }.width('100%')
         }
@@ -453,14 +551,16 @@ export struct AccountSyncSettings {
   }
   @Builder
   private LocalSaves() {
-    if (!this.selectedGame) {
-      this.Heading('存档备份', '在游戏设置中开启自动备份。这里管理已有版本；移除游戏后，备份仍会保留。')
+    this.Heading('存档备份', '在游戏设置中开启后，自动保留一份最新备份。移除游戏后，备份仍会保留。')
+    if (this.saveSummaries.length > 0) {
       TextInput({ placeholder: '搜索已备份的游戏', text: this.saveSearch }).height(44).fontSize(14)
         .fontColor(skinColor('text_primary')).backgroundColor(skinColor('search_background')).borderRadius(12)
         .id('sync-save-search').onChange((value: string): void => { this.saveSearch = value; })
-      if (!this.saveSummaries.length) {
-        this.Heading('还没有游戏开启备份', '打开游戏卡片的设置，开启“存档自动备份”。应用会识别位置，无需选择目录。')
-      }
+    }
+    if (!this.saveSummaries.length) {
+      Text('还没有游戏开启备份。打开游戏卡片的设置，开启“存档自动备份”；无需选择目录。')
+        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+    }
       ForEach(this.saveSummaries.filter((game: BackupGameSummary): boolean =>
         game.title.toLocaleLowerCase().includes(this.saveSearch.trim().toLocaleLowerCase())), (game: BackupGameSummary) => {
         Button() {
@@ -469,7 +569,7 @@ export struct AccountSyncSettings {
             Column({ space: 5 }) {
               Text(game.title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%').maxLines(2)
               Text((game.installed ? (game.enabled ? '自动备份已开启' : '自动备份已关闭') : '游戏已移除 · 备份保留') +
-                ' · ' + game.count + ' 个版本').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+                (game.count ? ' · 已有备份' : ' · 等待备份')).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
               if (game.latestAt > 0) {
                 Text('最近备份 ' + new Date(game.latestAt).toLocaleString()).fontSize(11)
                   .fontColor(skinColor('text_secondary')).width('100%')
@@ -478,17 +578,20 @@ export struct AccountSyncSettings {
             SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([skinColor('text_secondary')])
           }.width('100%')
         }.type(ButtonType.Normal).width('100%').constraintSize({ minHeight: 80 }).padding(14).borderRadius(14)
-          .backgroundColor(skinColor('search_background')).enabled(!this.busy).id('sync-save-game-' + game.appId)
-          .onClick((): void => this.selectSaveGame(game.appId))
+          .backgroundColor(this.selectedGame === game.appId ? skinColor('selected_background') : skinColor('search_background'))
+          .enabled(!this.busy).id('sync-save-game-' + game.appId)
+          .onClick((): void => {
+            if (this.selectedGame === game.appId) this.selectedGame = '';
+            else this.selectSaveGame(game.appId);
+          })
       }, (game: BackupGameSummary): string => game.appId)
-      Text('本地备份最多使用 1 GB，满后暂停并保留已有版本。相同内容不重复保存，旧版本只在确认后删除。')
+      Text('每游戏保留一份最新备份，总计最多 1 GB。新备份验证成功后替换原备份；失败时保留原备份。')
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-    } else {
+    if (this.selectedGame) {
+      Divider().color(skinColor('selected_background')).margin({ top: 4, bottom: 4 })
       Row() {
-        this.Action('所有备份', 'sync-save-all-games', (): boolean => !this.busy, (): void => {
-          this.selectedGame = ''; this.refreshBackups();
-        })
-        Blank()
+        Text('已展开 ' + this.saveTitle()).fontSize(13).fontColor(skinColor('text_secondary')).layoutWeight(1)
+        this.Action('收起', 'sync-save-collapse', (): boolean => !this.busy, (): void => { this.selectedGame = ''; })
         if (this.installedGame) {
           this.Action('游戏设置', 'sync-save-game-settings', (): boolean => !this.busy, (): void => {
             void router.pushUrl({ url: 'pages/AppSettings', params: { appId: this.selectedGame } });
@@ -505,7 +608,7 @@ export struct AccountSyncSettings {
             (): void => this.backupSave(), true)
         }.width('100%')
       }
-      Text('备份历史').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
+      Text('最新备份').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
       if (!this.snapshots.length) { Text('等待首次备份。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%') }
       ForEach(this.snapshots, (snapshot: SaveManifest) => {
         Column({ space: 10 }) {
@@ -522,13 +625,13 @@ export struct AccountSyncSettings {
               (): void => this.restoreSave(snapshot))
           }.width('100%')
           Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
-            this.Action('删除此版本', 'sync-save-delete-' + snapshot.snapshotId, (): boolean => !this.busy,
+            this.Action('删除备份', 'sync-save-delete-' + snapshot.snapshotId, (): boolean => !this.busy,
               (): void => this.deleteLocalSnapshot(snapshot))
           }.width('100%')
           if (this.cloudSavesReady && this.selectedSlot) {
             Row() {
               Blank()
-              this.Action('上传此版本', 'sync-save-upload-' + snapshot.snapshotId,
+              this.Action('上传备份', 'sync-save-upload-' + snapshot.snapshotId,
                 (): boolean => !!this.userId && !this.busy && this.installedGame,
                 (): void => this.uploadSave(snapshot))
             }.width('100%')
@@ -538,7 +641,7 @@ export struct AccountSyncSettings {
     }
     if (this.interruptedRestore) {
       this.Action('检查中断的恢复', 'sync-save-recover', (): boolean => !this.busy, (): void => {
-        void this.run(async (): Promise<void> => {
+        void this.run('backups', async (): Promise<void> => {
           LocalSaveSnapshotService.getInstance().recoverInterrupted(this.context);
           this.refreshBackups(); this.status = '恢复检查完成，原有文件已保留';
         });
@@ -547,7 +650,7 @@ export struct AccountSyncSettings {
   }
   @Builder
   private CloudSaves() {
-    this.Heading('云端副本', '本地备份独立可用。云端版本先下载到备份历史，确认恢复后才写入游戏。')
+    this.Heading('云端副本', '本地备份独立可用。云端版本先下载到最新备份，确认恢复后才写入游戏。')
     if (!this.cloudSavesReady) {
       Text('云服务暂未接通，本地备份不受影响。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
     } else if (this.selectedGame && this.installedGame) {
@@ -555,14 +658,14 @@ export struct AccountSyncSettings {
       Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
         this.Action('为此游戏创建云端副本', 'sync-save-new-slot',
           (): boolean => !!this.userId && !this.busy && this.backupSupported && !this.selectedSlot, (): void => {
-          void this.run(async (): Promise<void> => {
+          void this.run('backups', async (): Promise<void> => {
             const slot = await CloudSaveService.getInstance().createSlot(this.saveTitle());
             CloudSaveService.getInstance().bind(this.context, slot, this.selectedGame, this.saveDirectory);
             this.selectedSlot = slot.slotId; await this.refreshCloudSaves(); this.status = '已关联此游戏，可以上传备份版本';
           });
         }, true)
         this.Action('刷新', 'sync-save-refresh', (): boolean => !!this.userId && !this.busy, (): void => {
-          void this.run(async (): Promise<void> => { await this.refreshCloudSaves(); });
+          void this.run('backups', async (): Promise<void> => { await this.refreshCloudSaves(); });
         })
         if (this.busy) {
           this.Action('取消传输', 'sync-save-cancel', (): boolean => true, (): void => {
@@ -588,7 +691,7 @@ export struct AccountSyncSettings {
                 Text(new Date(version.createdAt).toLocaleString() + ' · ' + this.bytesLabel(version.totalBytes))
                   .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
                 Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
-                  this.Action('下载到备份历史', 'sync-cloud-save-download-' + version.versionId, (): boolean => !this.busy,
+                  this.Action('下载到最新备份', 'sync-cloud-save-download-' + version.versionId, (): boolean => !this.busy,
                     (): void => this.downloadSave(slot, version), true)
                   this.Action('删除云端版本', 'sync-cloud-save-delete-' + version.versionId, (): boolean => !this.busy,
                     (): void => this.deleteCloudVersion(slot, version))
@@ -598,57 +701,104 @@ export struct AccountSyncSettings {
           }
         }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
       }, (slot: CloudSaveSlot): string => slot.slotId)
-      Text('云端每款游戏保留 3 个版本，单份最大 256 MB；冲突时保留两份，满额后由用户决定删除哪一版。')
+      Text('云端每款游戏保留一份最新备份，单份最大 256 MB；上传失败或冲突时保留云端原备份。')
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
     } else if (!this.selectedGame) {
       Text('选择上方游戏后，查看与它关联的云端副本。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
     }
   }
   @Builder
+  private CoffeeCup(title: string, quantity: number) {
+    Button() {
+      Column({ space: 10 }) {
+        Text('☕').fontSize(quantity === 10 ? 32 : quantity === 4 ? 28 : 24).height(38)
+        Text(title).fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+        Text(this.coffeePrice(quantity)).fontSize(20).fontWeight(FontWeight.Bold).fontColor(skinColor('accent'))
+      }.width('100%').padding({ top: 16, bottom: 16 })
+    }.type(ButtonType.Normal).width(this.compact ? 100 : 140).margin({ right: 12, bottom: 8 })
+      .borderRadius(16).backgroundColor(skinColor('search_background')).enabled(!this.busy)
+      .id('sync-coffee-' + quantity).onClick((): void => this.supportDeveloper(quantity))
+  }
+  @Builder
   private Membership() {
-    this.Heading('会员与支持', '会员提供云同步权益，支持开发是独立商品。购买前请核对华为收银台的价格与期限。')
-    if (!this.commerceReady) {
-      Text('购买暂未开放，游戏和本地备份仍可免费使用。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-    }
-    ForEach(this.products, (product: StoreProduct) => {
+    this.Heading('支持开发', '如果旧柚帮到了你，可以自愿请开发者喝杯咖啡。')
+    ForEach(this.products.filter((product: StoreProduct): boolean => product.purpose === 'membership'), (product: StoreProduct) => {
       Row({ space: 12 }) {
         Text(product.title).fontSize(14).fontColor(skinColor('text_primary')).layoutWeight(1)
         this.Action(product.price, 'sync-product-' + product.id, (): boolean => (!this.busy), (): void => this.buy(product), true)
       }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
     }, (product: StoreProduct): string => product.id)
-    this.Action('恢复购买', 'sync-restore-purchases', (): boolean => (this.commerceReady && !!this.userId && !this.busy), (): void => {
-      void this.run(async (): Promise<void> => {
+    Column({ space: 14 }) {
+      Text('请开发者喝杯咖啡').fontSize(16).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
+        .width('100%')
+      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+        this.CoffeeCup('小杯', 1)
+        this.CoffeeCup('中杯', 4)
+        this.CoffeeCup('大杯', 10)
+      }.width('100%')
+      Text(this.coffeeStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-coffee-status')
+      Text('自愿支持，不包含会员权益；付款金额以华为收银台为准。')
+        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
+        this.Action('刷新价格', 'sync-coffee-refresh', (): boolean => !this.busy, (): void => { void this.loadCoffee(); })
+        this.Action('检查未完成订单', 'sync-coffee-recover', (): boolean => !this.busy, (): void => this.recoverCoffee())
+      }.width('100%')
+    }.width('100%').alignItems(HorizontalAlign.Start).id('sync-support-development')
+    if (this.commerceReady) {
+      this.Action('恢复购买', 'sync-restore-purchases', (): boolean => (this.commerceReady && !!this.userId && !this.busy), (): void => {
+      void this.run('membership', async (): Promise<void> => {
         const result = await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount();
         this.status = result === 'ACK_PENDING' ? '部分订单确认仍待重试' : '恢复购买核验完成';
       });
-    })
+      })
+    }
+  }
+  @Builder
+  private OperationStatus(area: string) {
+    if (this.statusArea === area) {
+      if (this.busy) {
+        Row({ space: 8 }) {
+          LoadingProgress().width(18).height(18).color(skinColor('accent'))
+          Text('正在处理…').fontSize(12).fontColor(skinColor('text_secondary'))
+        }.width('100%')
+      }
+      if (this.status) {
+        Text(this.status).fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('account-cloud-status')
+      }
+    }
   }
   build() {
     if (this.supported) {
-      Column({ space: 16 }) {
-        if (this.pane === 'overview') {
+      Column({ space: 14 }) {
+        Column({ space: 16 }) {
           this.Overview()
-        } else {
-          Row() {
-            this.Action('返回同步选项', 'sync-back', (): boolean => (!this.busy), (): void => this.openPane('overview'))
-            Blank()
-          }.width('100%')
-          if (this.pane === 'profiles') { this.Profiles() }
-          else if (this.pane === 'saves') {
-            this.LocalSaves()
-            Divider().color(skinColor('selected_background')).margin({ top: 4, bottom: 4 })
-            this.CloudSaves()
-          } else { this.Membership() }
-        }
-        if (this.busy) {
-          Row({ space: 8 }) {
-            LoadingProgress().width(18).height(18).color(skinColor('accent'))
-            Text('正在处理…').fontSize(12).fontColor(skinColor('text_secondary'))
-          }.width('100%')
-        }
-        if (this.status && !(this.pane === 'saves' && !this.cloudSavesReady && this.status === '云服务暂未接通，本地备份仍可使用')) {
-          Text(this.status).fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('account-cloud-status')
-        }
+          this.OperationStatus('account')
+        }.width('100%').padding(this.groupPadding).borderRadius(20)
+          .backgroundColor(this.surfaceColor || skinColor('card_background'))
+          .backgroundBlurStyle(this.glass ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
+          .border({ width: 1, color: this.cardBorderColor }).id('sync-group-account')
+        Column({ space: 16 }) {
+          this.Profiles()
+          this.OperationStatus('automatic')
+        }.width('100%').padding(this.groupPadding).borderRadius(20)
+          .backgroundColor(this.surfaceColor || skinColor('card_background'))
+          .backgroundBlurStyle(this.glass ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
+          .border({ width: 1, color: this.cardBorderColor }).id('sync-group-automatic')
+        Column({ space: 16 }) {
+          this.LocalSaves()
+          if (this.cloudSavesReady && this.selectedGame) { this.CloudSaves() }
+          this.OperationStatus('backups')
+        }.width('100%').padding(this.groupPadding).borderRadius(20)
+          .backgroundColor(this.surfaceColor || skinColor('card_background'))
+          .backgroundBlurStyle(this.glass ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
+          .border({ width: 1, color: this.cardBorderColor }).id('sync-group-backups')
+        Column({ space: 16 }) {
+          this.Membership()
+          this.OperationStatus('membership')
+        }.width('100%').padding(this.groupPadding).borderRadius(20)
+          .backgroundColor(this.surfaceColor || skinColor('card_background'))
+          .backgroundBlurStyle(this.glass ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE)
+          .border({ width: 1, color: this.cardBorderColor }).id('sync-group-membership')
       }.width('100%').alignItems(HorizontalAlign.Start)
     }
   }

@@ -14,11 +14,21 @@ import { AppCatalogService } from '../AppCatalogService';
 interface SteamMarker { appId: number; source: string; name: string; }
 interface RestoreJournal { appId: string; selectedPath: string; stagedName: string; previousName: string; originalExists: boolean; phase: string; }
 interface CloudImportState { manifest: CloudSaveManifest; appId: string; selectedPath: string; }
+interface BackupHead { appId: string; snapshotId: string; }
+interface BackupHeads { schemaVersion: number; heads: BackupHead[]; }
 interface FileDigest { size: number; modifiedAt: number; sha256: string; }
 
 /** Verified local snapshots of an automatically recognized catalog-game save directory. */
 export class LocalSaveSnapshotService {
   private static instance: LocalSaveSnapshotService | null = null;
+  private listeners: Set<() => void> = new Set();
+  subscribe(listener: () => void): void { this.listeners.add(listener); }
+  unsubscribe(listener: () => void): void { this.listeners.delete(listener); }
+  private notifyChanged(): void {
+    this.listeners.forEach((listener: () => void): void => {
+      try { listener(); } catch (_) { /* A view cannot interrupt a committed backup. */ }
+    });
+  }
   private busy: boolean = false;
   private automaticBusy: boolean = false;
   private automaticContext: common.UIAbilityContext | null = null;
@@ -153,6 +163,7 @@ export class LocalSaveSnapshotService {
     if (index.locations.length >= 256) throw new Error('SAVE_QUOTA');
     index.locations.push(location);
     this.writeJson(this.root(context) + '/locations.json', JSON.stringify(index));
+    this.notifyChanged();
   }
   backupState(context: common.UIAbilityContext, appId: string): GameBackupState {
     this.guard();
@@ -169,7 +180,8 @@ export class LocalSaveSnapshotService {
     if (location?.enabled && location.selectedPath !== paths[0]) return { supported: false, enabled: false, selectedPath: '',
       reason: '游戏的存档位置发生变化，备份已暂停' };
     return { supported: true, enabled: location?.enabled === true, selectedPath: paths[0],
-      reason: location?.lastStatus ?? '' };
+      reason: !location?.enabled && location?.lastStatus === '游戏已移除或不可访问，已有备份仍保留' ?
+        '游戏已重新找到，请在确认后重新开启备份' : location?.lastStatus ?? '' };
   }
   private recognizableFolder(appId: string, selectedPath: string): boolean {
     const root = this.canonicalDirectory(this.game(appId).directory);
@@ -218,7 +230,7 @@ export class LocalSaveSnapshotService {
     this.saveLocation(context, { appId: appId, selectedPath: state.selectedPath, updatedAt: Date.now(),
       gameTitle: this.game(appId).title, gameIdentity: identity, enabled: true, lastStatus: '等待首次备份' });
   }
-  /** Library scans can temporarily lose access. Pause automatic work, retain history, and require explicit re-enabling on return. */
+  /** Library scans can temporarily lose access. Pause automatic work, retain the latest backup, and require explicit re-enabling on return. */
   reconcileCatalog(context: common.UIAbilityContext): void {
     this.guard();
     const installed = this.eligibleGames();
@@ -252,6 +264,8 @@ export class LocalSaveSnapshotService {
     try { this.ensureStopped(); } catch (_) { return; }
     this.automaticBusy = true;
     try {
+      this.busy = true;
+      try { await this.maintainLatest(context); } finally { this.busy = false; }
       this.reconcileCatalog(context);
       for (const entry of this.locations(context).locations) {
         if (!entry.enabled) continue;
@@ -267,13 +281,13 @@ export class LocalSaveSnapshotService {
           entry.lastStatus = message === 'SAVE_ENGINE_RUNNING' || message === 'BUSY' ? '等待运行环境空闲后备份' :
             message === 'SAVE_IDENTITY_CHANGED' ? '游戏主程序已变化，请重新开启备份' :
             message === 'SAVE_NOT_RECOGNIZED' ? '存档位置无法可靠识别，备份已暂停' :
-            message === 'SAVE_STORAGE_FULL' ? '本地备份空间已满，请清理不需要的版本' : '备份未完成，旧版本仍保留';
+            message === 'SAVE_STORAGE_FULL' ? '本地备份空间不足，已有备份仍保留' : '备份未完成，已有备份仍保留';
           if (message === 'SAVE_IDENTITY_CHANGED' || message === 'SAVE_NOT_RECOGNIZED') entry.enabled = false;
         }
         this.saveLocation(context, entry);
       }
     } catch (_) { /* Startup and game launch never depend on backup I/O succeeding. */ }
-    finally { this.automaticBusy = false; }
+    finally { this.automaticBusy = false; this.notifyChanged(); }
   }
   hasInterruptedRestore(context: common.UIAbilityContext): boolean {
     return fs.accessSync(this.root(context) + '/restore-journal.json');
@@ -408,12 +422,12 @@ export class LocalSaveSnapshotService {
           }
         } catch (_) { intact = false; }
         this.ensureStopped();
-        if (intact) return latest;
+        if (intact) { await this.publishLatest(context, latest); return latest; }
       }
     }
     const id = util.generateRandomUUID();
     const base = this.root(context), staging = base + '/pending-' + id;
-    const storedBytes = this.list(context, '').reduce((total: number, version: SaveManifest): number =>
+    const storedBytes = this.allSnapshots(context, '').reduce((total: number, version: SaveManifest): number =>
       total + version.files.reduce((sum: number, file: SaveManifestEntry): number => sum + file.size, 0), 0);
     if (storedBytes + second.reduce((sum: number, file: SaveManifestEntry): number => sum + file.size, 0) > 1073741824) throw new Error('SAVE_STORAGE_FULL');
     fs.mkdirSync(staging);
@@ -436,6 +450,8 @@ export class LocalSaveSnapshotService {
       this.ensureStopped();
       this.writeJson(staging + '/manifest.json', JSON.stringify(manifest));
       fs.renameSync(staging, base + '/' + id);
+      try { await this.publishLatest(context, manifest); }
+      catch (error) { this.removeTransferTree(this.child(base, id, true)); throw new Error((error as Error).message); }
       return manifest;
     } catch (error) {
       try { if (fs.accessSync(staging)) this.removeTransferTree(staging); } catch (_) { }
@@ -446,9 +462,9 @@ export class LocalSaveSnapshotService {
     this.guard();
     if (this.busy) throw new Error('BUSY');
     this.busy = true;
-    try { return await this.snapshotInternal(context, appId, selectedPath, false, expected); } finally { this.busy = false; }
+    try { return await this.snapshotInternal(context, appId, selectedPath, false, expected); } finally { this.busy = false; this.notifyChanged(); }
   }
-  list(context: common.UIAbilityContext, appId: string): SaveManifest[] {
+  private allSnapshots(context: common.UIAbilityContext, appId: string): SaveManifest[] {
     this.guard();
     const base = this.root(context), result: SaveManifest[] = [];
     for (const id of fs.listFileSync(base)) {
@@ -464,14 +480,95 @@ export class LocalSaveSnapshotService {
     }
     return result.sort((a: SaveManifest, b: SaveManifest): number => b.createdAt - a.createdAt);
   }
+  private backupHeads(context: common.UIAbilityContext): BackupHeads {
+    const path = this.root(context) + '/current-backups.json';
+    if (!fs.accessSync(path)) return { schemaVersion: 1, heads: [] };
+    if (fs.lstatSync(path).isSymbolicLink() || fs.statSync(path).size > 262144) throw new Error('INVALID_SAVE_MANIFEST');
+    const index = JSON.parse(fs.readTextSync(path)) as BackupHeads;
+    const ids = new Set<string>();
+    if (index.schemaVersion !== 1 || !Array.isArray(index.heads) || index.heads.length > 256) throw new Error('INVALID_SAVE_MANIFEST');
+    for (const head of index.heads) {
+      if (typeof head.appId !== 'string' || !head.appId || ids.has(head.appId) ||
+        head.snapshotId !== '' && !/^[a-f0-9-]{36}$/.test(head.snapshotId)) throw new Error('INVALID_SAVE_MANIFEST');
+      ids.add(head.appId);
+    }
+    return index;
+  }
+  list(context: common.UIAbilityContext, appId: string): SaveManifest[] {
+    const all = this.allSnapshots(context, appId), heads = this.backupHeads(context).heads;
+    const result: SaveManifest[] = [], seen = new Set<string>();
+    for (const entry of all) {
+      if (seen.has(entry.appId)) continue;
+      const head = heads.find((item: BackupHead): boolean => item.appId === entry.appId);
+      if (head ? entry.snapshotId !== head.snapshotId : entry.origin === 'before-restore' &&
+        all.some((item: SaveManifest): boolean => item.appId === entry.appId && item.origin !== 'before-restore')) continue;
+      result.push(entry); seen.add(entry.appId);
+    }
+    return result;
+  }
+  private async verifySnapshot(context: common.UIAbilityContext, manifest: SaveManifest): Promise<void> {
+    const root = this.canonicalDirectory(this.root(context) + '/' + manifest.snapshotId + '/files');
+    for (const entry of manifest.files) {
+      const digest = await this.digest(this.child(root, entry.relativePath), root);
+      if (digest.sha256 !== entry.sha256 || digest.size !== entry.size) throw new Error('SAVE_HASH_MISMATCH');
+    }
+  }
+  private pruneSnapshots(context: common.UIAbilityContext, appId: string, keep: string): void {
+    for (const entry of this.allSnapshots(context, appId)) {
+      if (entry.snapshotId === keep) continue;
+      try { this.removeTransferTree(this.child(this.root(context), entry.snapshotId, true)); }
+      catch (_) { /* The committed head remains usable; maintenance retries cleanup. */ }
+    }
+  }
+  private async publishLatest(context: common.UIAbilityContext, manifest: SaveManifest, assertCurrent?: () => void): Promise<void> {
+    await this.verifySnapshot(context, manifest);
+    if (assertCurrent) assertCurrent();
+    const index = this.backupHeads(context);
+    index.heads = index.heads.filter((head: BackupHead): boolean => head.appId !== manifest.appId);
+    if (index.heads.length >= 256) throw new Error('SAVE_QUOTA');
+    index.heads.push({ appId: manifest.appId, snapshotId: manifest.snapshotId });
+    // Atomic pointer commit precedes deletion. A crash cannot expose a partially copied backup.
+    this.writeJson(this.root(context) + '/current-backups.json', JSON.stringify(index));
+    try { this.pruneSnapshots(context, manifest.appId, manifest.snapshotId); }
+    catch (_) { /* Nothing after the head commit may invalidate the published backup. */ }
+  }
+  private async maintainLatest(context: common.UIAbilityContext): Promise<void> {
+    if (this.hasInterruptedRestore(context)) return;
+    const all = this.allSnapshots(context, ''), heads = this.backupHeads(context).heads;
+    const ids = new Set<string>(); all.forEach((entry: SaveManifest): void => { ids.add(entry.appId); });
+    for (const appId of ids) {
+      const head = heads.find((entry: BackupHead): boolean => entry.appId === appId);
+      if (head?.snapshotId === '') { this.pruneSnapshots(context, appId, ''); continue; }
+      const candidates = head ? all.filter((entry: SaveManifest): boolean => entry.snapshotId === head.snapshotId) :
+        all.filter((entry: SaveManifest): boolean => entry.appId === appId).sort((a: SaveManifest, b: SaveManifest): number =>
+          Number(a.origin === 'before-restore') - Number(b.origin === 'before-restore') || b.createdAt - a.createdAt);
+      for (const candidate of candidates) {
+        try { await this.publishLatest(context, candidate); break; }
+        catch (_) { /* Legacy migration keeps every copy until one has passed full verification. */ }
+      }
+    }
+    for (const name of fs.listFileSync(this.root(context))) {
+      if (/^pending-[a-f0-9-]{36}$/.test(name)) {
+        try { this.removeTransferTree(this.child(this.root(context), name, true)); } catch (_) { }
+      }
+    }
+  }
   deleteSnapshot(context: common.UIAbilityContext, snapshotId: string, appId: string): void {
     this.guard();
     if (this.busy || this.automaticBusy) throw new Error('BUSY');
     if (this.hasInterruptedRestore(context)) throw new Error('SAVE_RECOVERY_REQUIRED');
     if (!this.list(context, appId).some((entry: SaveManifest): boolean => entry.snapshotId === snapshotId)) throw new Error('INVALID_SAVE_MANIFEST');
-    const directory = this.child(this.root(context), snapshotId, true);
-    // Only private snapshot files are removed. Game installation and active saves are never deletion targets.
-    this.removeTransferTree(directory);
+    const index = this.backupHeads(context);
+    index.heads = index.heads.filter((head: BackupHead): boolean => head.appId !== appId);
+    index.heads.push({ appId: appId, snapshotId: '' });
+    this.writeJson(this.root(context) + '/current-backups.json', JSON.stringify(index));
+    this.pruneSnapshots(context, appId, '');
+    if (!this.eligibleGames().some((app: AppDescriptor): boolean => app.id === appId)) {
+      const locations = this.locations(context);
+      locations.locations = locations.locations.filter((entry: SaveLocation): boolean => entry.appId !== appId);
+      this.writeJson(this.root(context) + '/locations.json', JSON.stringify(locations));
+    }
+    this.notifyChanged();
   }
   recoverInterrupted(context: common.UIAbilityContext): void {
     this.guard(); this.ensureStopped();
@@ -496,8 +593,12 @@ export class LocalSaveSnapshotService {
     } else {
       this.child(root, journal.selectedPath, true);
     }
-    // If both directories exist, a swap had completed. Keep both; no user data is deleted.
+    // A present target plus previous tree means the atomic swap completed. Only transaction trees are cleaned.
+    const staged = parent + '/' + journal.stagedName;
+    if (fs.accessSync(previous)) this.removeTransferTree(this.child(parent, journal.previousName, true));
+    if (fs.accessSync(staged)) this.removeTransferTree(this.child(parent, journal.stagedName, true));
     fs.unlinkSync(journalPath);
+    this.notifyChanged();
   }
   private cloudDirectory(context: common.UIAbilityContext, id: string): string {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error('INVALID_SAVE_MANIFEST');
@@ -632,6 +733,10 @@ export class LocalSaveSnapshotService {
       if (fs.statSync(statePath).size > 524288) throw new Error('INVALID_SAVE_MANIFEST');
       const state = JSON.parse(fs.readTextSync(statePath)) as CloudImportState;
       validateCloudSaveManifest(state.manifest); this.game(state.appId); safeRelativeSavePath(state.selectedPath);
+      if (this.hasInterruptedRestore(context)) throw new Error('SAVE_RECOVERY_REQUIRED');
+      const storedBytes = this.allSnapshots(context, '').reduce((total: number, backup: SaveManifest): number =>
+        total + backup.files.reduce((sum: number, file: SaveManifestEntry): number => sum + file.size, 0), 0);
+      if (storedBytes + state.manifest.totalBytes > 1073741824) throw new Error('SAVE_STORAGE_FULL');
       fs.mkdirSync(directory + '/files');
       let chunkIndex = 0, chunkOffset = 0, packed = new Uint8Array(0);
       const entries: SaveManifestEntry[] = [];
@@ -672,8 +777,11 @@ export class LocalSaveSnapshotService {
       for (const chunk of state.manifest.chunks) fs.unlinkSync(this.child(directory, '' + chunk.index));
       fs.unlinkSync(this.child(directory, 'import.json'));
       this.writeJson(directory + '/manifest.json', JSON.stringify(manifest));
-      fs.renameSync(directory, this.root(context) + '/' + id); return manifest;
-    } finally { this.busy = false; }
+      fs.renameSync(directory, this.root(context) + '/' + id);
+      try { await this.publishLatest(context, manifest, assertCurrent); }
+      catch (error) { this.removeTransferTree(this.child(this.root(context), id, true)); throw new Error((error as Error).message); }
+      return manifest;
+    } finally { this.busy = false; this.notifyChanged(); }
   }
   cleanupCloudTransfer(context: common.UIAbilityContext, transferId: string): void {
     this.guard();
@@ -719,39 +827,48 @@ export class LocalSaveSnapshotService {
       // An unresolved interrupted restore is never overwritten. The intact previous directory stays available.
       const journalPath = this.root(context) + '/restore-journal.json';
       if (fs.accessSync(journalPath)) throw new Error('SAVE_RECOVERY_REQUIRED');
-      const beforeRestore = originalExists ? await this.snapshotInternal(context, appId, manifest.selectedPath, true) : null;
+      const beforeFiles = originalExists ? await this.scan(approvedRoot, manifest.selectedPath) : null;
       const parent = selected.slice(0, selected.lastIndexOf('/'));
       const id = util.generateRandomUUID();
       const stagedName = '.vp-restore-' + id, previousName = '.vp-before-' + id;
       const staged = parent + '/' + stagedName, previous = parent + '/' + previousName;
       fs.mkdirSync(staged);
-      const sourceRoot = this.canonicalDirectory(this.root(context) + '/' + snapshotId + '/files');
-      for (const entry of manifest.files) {
-        this.ensureStopped(); this.ensureParents(staged, entry.relativePath);
-        const source = this.child(sourceRoot, entry.relativePath);
-        const copied = await this.digest(source, sourceRoot, staged + '/' + entry.relativePath);
-        if (copied.sha256 !== entry.sha256 || copied.size !== entry.size) throw new Error('SAVE_HASH_MISMATCH');
-      }
-      this.ensureStopped();
-      if (beforeRestore) {
-        const currentFiles = await this.scan(approvedRoot, manifest.selectedPath);
-        if (JSON.stringify(currentFiles) !== JSON.stringify(beforeRestore.files)) throw new Error('SAVE_CHANGED');
-      } else if (fs.accessSync(selected)) throw new Error('SAVE_CHANGED');
-      const journal: RestoreJournal = { appId: appId, selectedPath: manifest.selectedPath, stagedName: stagedName,
-        previousName: previousName, originalExists: originalExists, phase: 'prepared' };
-      if (manifest.gameIdentity && manifest.gameIdentity !== await this.gameIdentity(appId)) throw new Error('SAVE_IDENTITY_CHANGED');
-      this.writeJson(journalPath, JSON.stringify(journal));
-      this.ensureStopped();
-      if (originalExists) fs.renameSync(selected, previous);
       try {
-        this.ensureStopped(); fs.renameSync(staged, selected);
-      } catch (error) {
-        if (originalExists) fs.renameSync(previous, selected);
+        const sourceRoot = this.canonicalDirectory(this.root(context) + '/' + snapshotId + '/files');
+        for (const entry of manifest.files) {
+          this.ensureStopped(); this.ensureParents(staged, entry.relativePath);
+          const source = this.child(sourceRoot, entry.relativePath);
+          const copied = await this.digest(source, sourceRoot, staged + '/' + entry.relativePath);
+          if (copied.sha256 !== entry.sha256 || copied.size !== entry.size) throw new Error('SAVE_HASH_MISMATCH');
+        }
+        this.ensureStopped();
+        if (beforeFiles) {
+          const currentFiles = await this.scan(approvedRoot, manifest.selectedPath);
+          if (JSON.stringify(currentFiles) !== JSON.stringify(beforeFiles)) throw new Error('SAVE_CHANGED');
+          if (expected && !sameSaveContent(expected.files, currentFiles)) throw new Error('SAVE_CHANGED');
+        } else if (fs.accessSync(selected)) throw new Error('SAVE_CHANGED');
+        const journal: RestoreJournal = { appId: appId, selectedPath: manifest.selectedPath, stagedName: stagedName,
+          previousName: previousName, originalExists: originalExists, phase: 'prepared' };
+        if (manifest.gameIdentity && manifest.gameIdentity !== await this.gameIdentity(appId)) throw new Error('SAVE_IDENTITY_CHANGED');
+        this.writeJson(journalPath, JSON.stringify(journal));
+        this.ensureStopped();
+        if (originalExists) fs.renameSync(selected, previous);
+        try {
+          this.ensureStopped(); fs.renameSync(staged, selected);
+        } catch (error) {
+          if (originalExists) fs.renameSync(previous, selected);
+          fs.unlinkSync(journalPath);
+          throw new Error((error as Error).message);
+        }
+        journal.phase = 'committed';
+        this.writeJson(journalPath, JSON.stringify(journal));
+        if (fs.accessSync(previous)) this.removeTransferTree(this.child(parent, previousName, true));
         fs.unlinkSync(journalPath);
-        throw new Error((error as Error).message);
+      } finally {
+        // Before the journal is written, staging contains only copied backup bytes.
+        // Once journaled, recovery owns both paths until commit or rollback is complete.
+        if (!fs.accessSync(journalPath) && fs.accessSync(staged)) this.removeTransferTree(this.child(parent, stagedName, true));
       }
-      // Retain the pre-restore tree as well as the snapshot. Never delete game data to finish this operation.
-      fs.unlinkSync(journalPath);
-    } finally { this.busy = false; }
+    } finally { this.busy = false; this.notifyChanged(); }
   }
 }

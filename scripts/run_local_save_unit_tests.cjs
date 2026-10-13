@@ -13,7 +13,7 @@ const base = fs.mkdtempSync(path.join(os.tmpdir(), 'vp-save-test-'));
 const filesDir = path.join(base, 'files'), gameDir = path.join(base, 'game');
 fs.mkdirSync(filesDir); fs.mkdirSync(gameDir); fs.mkdirSync(path.join(gameDir, 'save'));
 const save = path.join(gameDir, 'save', 'slot.sav'); fs.writeFileSync(save, 'first save');
-let visible = true, engine = appModels.EngineState.STOPPED, processes = [], failRename = false, zeroWrite = false, mutateRead = false;
+let visible = true, engine = appModels.EngineState.STOPPED, processes = [], failRename = false, zeroWrite = false, mutateRead = false, failHead = false;
 const game = { id: 'game-1', title:'Game', available:true, directory:gameDir,
   launchTarget: {kind:appModels.LaunchKind.WINE_EXE,executable:path.join(gameDir,'game.exe')} };
 fs.writeFileSync(game.launchTarget.executable, 'MZ-game-identity-fixture');
@@ -30,7 +30,8 @@ const adapter = {
   writeSync(fd,data){if(zeroWrite)return 0; const b=typeof data==='string'?Buffer.from(data):Buffer.from(data); return fs.writeSync(fd,b);},
   fsyncSync:fs.fsyncSync, listFileSync:fs.readdirSync, readTextSync:name=>fs.readFileSync(name,'utf8'),
   unlinkSync:fs.unlinkSync, rmdirSync:fs.rmdirSync,
-  renameSync(a,b){if(failRename&&path.basename(a).startsWith('.vp-restore-')) throw Error('injected rename error');fs.renameSync(a,b);}
+  renameSync(a,b){if(failRename&&path.basename(a).startsWith('.vp-restore-')) throw Error('injected rename error');
+    if(failHead&&path.basename(b)==='current-backups.json')throw Error('head commit failure');fs.renameSync(a,b);}
 };
 const md = {createMd(){const hash=crypto.createHash('sha256');return {update:async ({data})=>{hash.update(data);},
   digest:async()=>({data:new Uint8Array(hash.digest())})};}};
@@ -61,7 +62,8 @@ const service=moduleObject.exports.LocalSaveSnapshotService.getInstance(), conte
   assert.equal(snap.files[0].sha256,crypto.createHash('sha256').update('first save').digest('hex'));
   assert.ok(!JSON.stringify(snap).includes(base),'manifest must not contain absolute roots');
   fs.writeFileSync(save,'second save');await service.restore(context,snap.snapshotId,game.id);assert.equal(fs.readFileSync(save,'utf8'),'first save');
-  assert.ok(service.list(context,game.id).length>=2,'pre-restore snapshot retained');
+  assert.equal(service.list(context,game.id).length,1,'restore does not create a history backup');
+  assert.equal(fs.readdirSync(gameDir).filter(n=>n.startsWith('.vp-')).length,0,'successful restore cleans transaction trees');
   fs.writeFileSync(save,'third save');failRename=true;
   await assert.rejects(service.restore(context,snap.snapshotId,game.id),/injected rename error/);failRename=false;
   assert.equal(fs.readFileSync(save,'utf8'),'third save','failed swap rolled back');
@@ -72,6 +74,9 @@ const service=moduleObject.exports.LocalSaveSnapshotService.getInstance(), conte
   const before=service.list(context,game.id).length;fs.writeFileSync(save,'changed before write failure');zeroWrite=true;
   await assert.rejects(service.create(context,game.id,'save'),/SAVE_WRITE_FAILED/);zeroWrite=false;
   assert.equal(service.list(context,game.id).length,before,'short-write snapshot not published');
+  failHead=true;await assert.rejects(service.create(context,game.id,'save'),/head commit failure/);failHead=false;
+  assert.equal(service.list(context,game.id)[0].snapshotId,snap.snapshotId,'failed pointer commit preserves old backup');
+  assert.equal(fs.readdirSync(path.join(filesDir,'local_save_snapshots')).filter(n=>/^[a-f0-9-]{36}$/.test(n)).length,1);
   mutateRead=true;await assert.rejects(service.create(context,game.id,'save'),/SAVE_CHANGED/);
   fs.writeFileSync(path.join(gameDir,'save','SLOT.SAV'),'collision');await assert.rejects(service.create(context,game.id,'save'),/SAVE_PATH_COLLISION/);
   fs.unlinkSync(path.join(gameDir,'save','SLOT.SAV'));
@@ -103,24 +108,70 @@ const service=moduleObject.exports.LocalSaveSnapshotService.getInstance(), conte
   await service.create(context,game.id,'save');
   const count=service.list(context,game.id).length;await service.runAutomatic(context);
   assert.equal(service.list(context,game.id).length,count,'unchanged content reuses an intact version');
+  let observedCount=-1;
+  const onBackupChange=()=>{ observedCount=service.summaries(context)[0].count; };
+  service.subscribe(onBackupChange);
   fs.writeFileSync(save,'automatic save');await service.runAutomatic(context);
-  assert.equal(service.list(context,game.id).length,count+1,'opted-in changed save is backed up');
-  const preview=await service.preview(context,game.id,'save',snap.snapshotId);
+  assert.equal(observedCount,1,'open settings receives the current backup');
+  service.unsubscribe(onBackupChange);
+  assert.equal(service.list(context,game.id).length,1,'changed save replaces the old backup');
+  assert.equal(fs.existsSync(path.dirname(path.dirname(snapshotFile))),false,'replaced snapshot bytes are deleted');
+  const latest=service.list(context,game.id)[0];assert.notEqual(latest.snapshotId,snap.snapshotId);
+  fs.writeFileSync(save,'changed before preview');
+  const preview=await service.preview(context,game.id,'save',latest.snapshotId);
   assert.equal(preview.changed,1);
   fs.writeFileSync(save,'changed during confirmation');
-  await assert.rejects(service.restore(context,snap.snapshotId,game.id,preview),/SAVE_CHANGED/);
+  await assert.rejects(service.restore(context,latest.snapshotId,game.id,preview),/SAVE_CHANGED/);
   assert.equal(fs.readFileSync(save,'utf8'),'changed during confirmation');
   game.available=false;service.reconcileCatalog(context);
-  assert.equal(service.summaries(context)[0].installed,false,'removed games stay in backup history');
-  assert.equal(service.summaries(context)[0].count,count+1);
+  assert.equal(service.summaries(context)[0].installed,false,'removed games keep the latest backup');
+  assert.equal(service.summaries(context)[0].count,1);
   game.available=true;assert.equal(service.backupState(context,game.id).enabled,false,'reimport never silently re-enables backup');
   fs.writeFileSync(game.launchTarget.executable,'MZ-another-game');
-  await assert.rejects(service.restore(context,snap.snapshotId,game.id),/SAVE_IDENTITY_CHANGED/);
+  await assert.rejects(service.restore(context,latest.snapshotId,game.id),/SAVE_IDENTITY_CHANGED/);
   game.steam={appId:123};assert.equal(service.eligibleGames().length,0,'new imported Steam cards excluded');delete game.steam;
   fs.writeFileSync(game.launchTarget.executable,'MZ-game-identity-fixture');
   await service.setBackupEnabled(context,game.id,true);
   fs.writeFileSync(game.launchTarget.executable,'MZ-updated-game');await service.runAutomatic(context);
   assert.equal(service.backupState(context,game.id).enabled,false,'changed executable pauses automatic backups');
-  console.log('Automatic backup: unique detection, opt-in, unchanged reuse, confirmation race, archived history, reimport, Steam exclusion, identity guard PASS');
+  // Migrate legacy history only after verifying an intact candidate; ignore pre-restore protection copies.
+  fs.writeFileSync(game.launchTarget.executable,'MZ-game-identity-fixture');
+  const snapshotRoot=path.join(filesDir,'local_save_snapshots');
+  fs.unlinkSync(path.join(snapshotRoot,'current-backups.json'));
+  const legacyId=crypto.randomUUID(),corruptId=crypto.randomUUID();
+  for(const [id,origin,offset,bytes] of [[legacyId,'before-restore',100,'automatic save'],[corruptId,'manual',200,'corrupt']]) {
+    const folder=path.join(snapshotRoot,id);fs.cpSync(path.join(snapshotRoot,latest.snapshotId),folder,{recursive:true});
+    const manifest={...latest,snapshotId:id,origin,createdAt:latest.createdAt+offset};
+    fs.writeFileSync(path.join(folder,'manifest.json'),JSON.stringify(manifest));fs.writeFileSync(path.join(folder,'files','slot.sav'),bytes);
+  }
+  await service.maintainLatest(context);
+  assert.equal(service.list(context,game.id)[0].snapshotId,latest.snapshotId,'migration selects newest verified ordinary backup');
+  assert.equal(fs.existsSync(path.join(snapshotRoot,legacyId)),false);assert.equal(fs.existsSync(path.join(snapshotRoot,corruptId)),false);
+  // Recovery after original->previous and after staged->selected leaves no historical directories.
+  for(const committed of [false,true]) {
+    const id=crypto.randomUUID(),previousName='.vp-before-'+id,stagedName='.vp-restore-'+id;
+    fs.writeFileSync(save,'before interrupted restore');fs.renameSync(path.join(gameDir,'save'),path.join(gameDir,previousName));
+    fs.mkdirSync(path.join(gameDir,stagedName));fs.writeFileSync(path.join(gameDir,stagedName,'slot.sav'),'restored');
+    if(committed)fs.renameSync(path.join(gameDir,stagedName),path.join(gameDir,'save'));
+    fs.writeFileSync(path.join(snapshotRoot,'restore-journal.json'),JSON.stringify({appId:game.id,selectedPath:'save',previousName,stagedName,originalExists:true,phase:'prepared'}));
+    service.recoverInterrupted(context);
+    assert.equal(fs.readFileSync(save,'utf8'),committed?'restored':'before interrupted restore');
+    assert.equal(fs.readdirSync(gameDir).filter(n=>n.startsWith('.vp-')).length,0);
+  }
+  // A crash after committing a new directory but before the pointer leaves the old head authoritative.
+  const orphanId=crypto.randomUUID();fs.cpSync(path.join(snapshotRoot,latest.snapshotId),path.join(snapshotRoot,orphanId),{recursive:true});
+  fs.writeFileSync(path.join(snapshotRoot,orphanId,'manifest.json'),JSON.stringify({...latest,snapshotId:orphanId,createdAt:Date.now()+10000}));
+  assert.equal(service.list(context,game.id)[0].snapshotId,latest.snapshotId);
+  await service.maintainLatest(context);assert.equal(fs.existsSync(path.join(snapshotRoot,orphanId)),false);
+  await service.setBackupEnabled(context,game.id,true);
+  service.deleteSnapshot(context,latest.snapshotId,game.id);
+  assert.equal(service.backupState(context,game.id).enabled,true,'deleting a backup keeps an installed game opt-in');
+  const last=await service.create(context,game.id,'save');
+  game.available=false;service.reconcileCatalog(context);
+  service.deleteSnapshot(context,last.snapshotId,game.id);
+  assert.equal(service.summaries(context).length,0,'deleting a removed game last backup leaves no empty entry');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(snapshotRoot,'locations.json'))).locations.length,0);
+  console.log('Single backup: verified replacement, physical history cleanup, legacy migration, interrupted restore and pointer commit PASS');
+  console.log('Automatic backup: unique detection, opt-in, unchanged reuse, confirmation race, retained latest backup, reimport, Steam exclusion, identity guard PASS');
   console.log('Local snapshots: hidden/running guard, traversal/symlink/collision, hash, stable scans, backup, rollback, short writes PASS');
 })().finally(()=>fs.rmSync(base,{recursive:true,force:true})).catch(error=>{console.error(error);process.exitCode=1;});

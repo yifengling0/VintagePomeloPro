@@ -787,8 +787,13 @@ export const DEFAULT_GAMEPAD_MAPPINGS: GamepadButtonMapping[] = [
   { id: 'home', label: 'Home', buttonCode: 2315, evdevCode: 63 }
 ];
 
+let controlElementSequence: number = 0;
 export function generateControlElementId(prefix: string = 'el'): string {
-  return prefix + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 0x10000).toString(36);
+  // A template creates many elements within one millisecond. The sequence prevents
+  // duplicate IDs even when the random suffix collides; existing saved IDs stay intact.
+  controlElementSequence++;
+  return prefix + '-' + Date.now().toString(36) + '-' + controlElementSequence.toString(36) + '-' +
+    Math.floor(Math.random() * 0x100000000).toString(36);
 }
 
 function clamp01(value: number): number {

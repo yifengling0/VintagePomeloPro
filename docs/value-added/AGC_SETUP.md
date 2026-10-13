@@ -6,7 +6,7 @@
 
 已合并 `main_proton` 的 1.4.7，保留最新 Steam、FEX、Wine、PAL4 和鼠标修复。包名是 `com.vintage.pomelopro`，开发 profile 的 appIdentifier 是 `6917605913989898754`；签名工具自动把该 profile 写入 HAP。
 
-这个 appIdentifier 不是 OAuth Client ID，也不能据此推定 IAP App ID。本地存档快照不依赖账号；真实登录和云同步在配置齐备前保持不可用。
+这个 appIdentifier 不是 OAuth Client ID，也不能据此推定 IAP App ID。本地存档备份不依赖账号。官方华为登录已解耦业务配置并通过开发签名真机测试；业务云同步仍需接入后端。
 
 ## 先取得应用公开配置
 
@@ -15,7 +15,7 @@
 3. 确认 Account Kit 已开通，并登记本次开发证书的 SHA-256 指纹。上线证书和开发证书分别核对。
 4. Client Secret、Server SDK 凭据、OBS AK/SK、IAP 私钥只进入云端受保护配置，不能放入客户端 JSON、Git 或聊天。
 
-仅登录测试需要真实 Client ID、客户端签名登记，以及已部署并接通 CloudDB 的换码接口。输入方案和云存档目前按会员权益开放，还需要真实 IAP 核验；云存档另外需要 OBS。可先完成登录、本地存档，再按顺序接通后续能力。
+基础登录直接调用 Account Kit，由系统校验签名应用身份，不要求先部署业务后端。业务云会话需要真实 Client ID、客户端签名登记，以及已部署并接通 CloudDB 的换码接口。输入方案和云存档目前按会员权益开放，还需要真实 IAP 核验；云存档另外需要 OBS。可先完成登录、本地存档，再按顺序接通后续能力。
 
 ## 云函数接入差异
 
@@ -44,3 +44,5 @@ python3 scripts/configure_value_added.py /path/to/public-account-config.json --a
 第一条只检查，第二条同时更新 `value_added_config.json` 和 `module.metadata.client_id`，保持设备声明。之后重新构建、开发签名，先验证授权页、换码、退出和过期，再验证同步。
 
 开发签名包、构建成功、主机文件系统闭环和 SDK 对 mock 的测试，都不能替代真实华为登录、云函数部署或跨设备云同步结果。
+
+头像昵称、三档咖啡和单份备份的当前实现及配置见 [ACCOUNT_AND_COFFEE.md](ACCOUNT_AND_COFFEE.md)。咖啡直接调用官方 IAP，不以云会员后端为前置条件。

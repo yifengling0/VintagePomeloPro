@@ -81,3 +81,20 @@ test('expired acquired body lease cannot write after abort; uncertain in-flight 
  resume();await sending;await f.saves.abort(user,b.jobId);assert.equal(f.data.size,0);
  assert.equal((await f.saves.list(user)).reservedBytes,0);
 });
+
+test('latest backup replaces history after publish; failed cleanup keeps quota until retry',async()=>{
+ const f=fixture(),a=await start(f);await f.saves.upload(user,a.jobId,0,Buffer.from('save'));await f.saves.finalize(user,a.jobId);
+ const b=await start(f,1,a.slot);await f.saves.upload(user,b.jobId,0,Buffer.from('save'));
+ assert.equal((await f.saves.download(user,a.slot.slotId,a.jobId)).versionId,a.jobId,'old backup available until commit');
+ const remove=f.objects.delete;f.objects.delete=async()=>{throw Error('offline');};
+ const result=await f.saves.finalize(user,b.jobId);assert.equal(result.status,'PUBLISHED');
+ assert.deepEqual(result.slot.versions.map(v=>v.versionId),[b.jobId]);
+ let index=await f.saves.list(user);assert.equal(index.usedBytes,8,'retired objects still charged');assert.equal(index.reservedBytes,0);
+ await assert.rejects(f.saves.download(user,a.slot.slotId,a.jobId),/SAVE_NOT_FOUND/);
+ f.objects.delete=remove;await f.saves.cleanup(user);index=await f.saves.list(user);
+ assert.equal(index.usedBytes,4);assert.equal(f.data.size,1);
+ for(let n=2;n<6;n++){
+  const next=await start(f,n,a.slot);await f.saves.upload(user,next.jobId,0,Buffer.from('save'));await f.saves.finalize(user,next.jobId);
+ }
+ index=await f.saves.list(user);assert.equal(index.slots[0].versions.length,1);assert.equal(index.usedBytes,4);assert.equal(f.data.size,1);
+});

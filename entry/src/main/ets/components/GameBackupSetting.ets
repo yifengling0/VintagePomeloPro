@@ -48,7 +48,7 @@ export struct GameBackupSetting {
           .id('game-save-backup-toggle').onChange((enabled: boolean): void => { void this.change(enabled); })
       }.width('100%')
       Text(this.detail).fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('game-save-backup-status')
-      Text('相同内容不会重复保存；关闭备份或移除游戏后，已有版本仍会保留。').fontSize(12)
+      Text('每游戏保留一份最新备份；关闭备份或移除游戏后，这份备份仍会保留。').fontSize(12)
         .fontColor(skinColor('text_secondary')).width('100%')
       Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
         if (!this.supported) {

@@ -1,4 +1,5 @@
 import { bundleManager, common } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { authentication } from '@kit.AccountKit';
 import { iap } from '@kit.IAPKit';
 import http from '@ohos.net.http';
@@ -31,14 +32,22 @@ interface ProfilePut { baseRevision: number; payload: InputProfile; }
 interface ProfilePutResult { status: string; current: ProfileEnvelope; }
 interface ProfileIndex { profiles: ProfileSummary[]; }
 interface EmptyBody { }
-export interface StoreProduct { id: string; title: string; price: string; type: number; }
+export interface StoreProduct { id: string; title: string; price: string; type: number; purpose: 'membership' | 'coffee'; }
+export interface HuaweiAccountProfile { nickname: string; avatarUri: string; status: string; }
 
 /** No provider token, purchase token, or internal session is persisted on the device. */
 export class ValueAddedService {
   private static instance: ValueAddedService | null = null;
   private config: ValueAddedConfig | null = null;
+  private availability: string = 'checking';
   private context: common.UIAbilityContext | null = null;
   private session: AccountSession | null = null;
+  private huaweiSignedIn: boolean = false;
+  isHuaweiSignedIn(): boolean { this.guard(); return this.huaweiSignedIn; }
+  private huaweiProfile: HuaweiAccountProfile = { nickname: '', avatarUri: '', status: '' };
+  getHuaweiProfile(): HuaweiAccountProfile {
+    this.guard(); return { nickname: this.huaweiProfile.nickname, avatarUri: this.huaweiProfile.avatarUri, status: this.huaweiProfile.status };
+  }
   private generation: number = 0;
   private busy: boolean = false;
   private capabilities: ServiceCapabilities = { account: false, commerce: false, profiles: false,
@@ -57,24 +66,30 @@ export class ValueAddedService {
   }
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.guard();
-    if (this.config) return;
+    this.context = context;
+    if (this.config && this.availability === 'ready') return;
     const bytes = await context.resourceManager.getRawFileContent('value_added_config.json');
     const config = JSON.parse(util.TextDecoder.create('utf-8').decodeToString(bytes)) as ValueAddedConfig;
-    validateValueAddedConfig(config);
+    try { validateValueAddedConfig(config); }
+    catch (_) { this.availability = 'configuration_missing'; return; }
     const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_HAP_MODULE |
       bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_METADATA);
     const module = info.hapModulesInfo.find((item: bundleManager.HapModuleInfo): boolean => item.name === 'entry');
     if (!module || !module.metadata.some((item: bundleManager.Metadata): boolean =>
-      item.name === 'client_id' && item.value === config.accountClientId)) throw new Error('NOT_CONFIGURED');
+      item.name === 'client_id' && item.value === config.accountClientId)) {
+      this.availability = 'identity_mismatch'; return;
+    }
     this.context = context;
     this.config = config;
     try {
+      this.availability = 'checking';
       this.capabilities = await this.request<ServiceCapabilities>('/v1/capabilities', http.RequestMethod.GET, '', false);
+      this.availability = this.capabilities.account ? 'ready' : 'service_closed';
     } catch (error) {
-      this.config = null;
-      throw new Error((error as Error).message);
+      this.config = null; this.availability = 'unreachable';
     }
   }
+  accountAvailability(): string { this.guard(); return this.availability; }
   getCapabilities(): ServiceCapabilities { this.guard(); return this.capabilities; }
   getUserId(): string { this.guard(); return this.validSession()?.userId ?? ''; }
   getConflict(id: string): ProfileConflict | undefined { this.guard(); return this.conflicts.get(id); }
@@ -124,38 +139,82 @@ export class ValueAddedService {
   }
   async signIn(): Promise<void> {
     this.guard();
-    if (!this.config || !this.context || !this.capabilities.account) throw new Error('NOT_CONFIGURED');
+    if (!this.context) throw new Error('NOT_CONFIGURED');
     if (this.busy) throw new Error('BUSY');
     this.busy = true;
     this.clearSession();
+    this.huaweiSignedIn = false;
+    this.huaweiProfile = { nickname: '', avatarUri: '', status: '' };
     const epoch = this.generation;
     try {
-      const attempt = await this.request<AccountAttempt>('/v1/auth/begin', http.RequestMethod.POST, '{}', false);
-      const provider = new authentication.HuaweiIDProvider();
-      const request = provider.createAuthorizationWithHuaweiIDRequest();
-      request.forceAuthorization = true;
-      request.scopes = ['profile'];
-      request.permissions = ['serviceauthcode'];
-      request.state = attempt.state;
+      const request = new authentication.HuaweiIDProvider().createLoginWithHuaweiIDRequest();
+      request.forceLogin = true;
+      request.state = util.generateRandomUUID();
+      const controller = new authentication.AuthenticationController(this.context);
+      let response: authentication.LoginWithHuaweiIDResponse;
+      try {
+        response = await controller.executeRequest(request) as authentication.LoginWithHuaweiIDResponse;
+      } catch (error) {
+        const code = (error as BusinessError).code;
+        // Preserve only the SDK error number; credentials never enter logs or error messages.
+        throw new Error('HUAWEI_LOGIN_' + (Number.isInteger(code) ? code : 'FAILED'));
+      }
+      if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      if (response.state !== request.state || !response.data?.openID) throw new Error('AUTH_STATE_MISMATCH');
+      // SDK success describes the system identity only. Cloud access still requires a server-verified session.
+      this.huaweiSignedIn = true;
+      await this.loadHuaweiProfile(epoch, response.data.openID);
+      if (this.config && this.capabilities.account && this.availability === 'ready') await this.connectCloud(epoch);
+    } finally { this.busy = false; }
+  }
+  private async loadHuaweiProfile(epoch: number, openID: string): Promise<void> {
+    if (!this.context) return;
+    try {
+      const request = new authentication.HuaweiIDProvider().createAuthorizationWithHuaweiIDRequest();
+      request.scopes = ['profile']; request.forceAuthorization = true; request.state = util.generateRandomUUID();
       const controller = new authentication.AuthenticationController(this.context);
       const response = await controller.executeRequest(request) as authentication.AuthorizationWithHuaweiIDResponse;
-      const code = response.data?.authorizationCode;
-      if (!code || response.state !== attempt.state || epoch !== this.generation) throw new Error('AUTH_STATE_MISMATCH');
-      const exchange: AccountExchange = { attemptId: attempt.attemptId, state: attempt.state,
-        code: code, clientId: this.config.accountClientId };
-      const session = await this.request<AccountSession>('/v1/auth/exchange', http.RequestMethod.POST,
-        JSON.stringify(exchange), false);
-      if (epoch !== this.generation || !session.token || !session.userId || !Number.isFinite(session.expiresAt) ||
-        session.expiresAt <= Date.now()) throw new Error('INVALID_SESSION');
-      this.session = session;
-      this.accountListeners.forEach((listener: (userId: string) => void): void => listener(session.userId));
-    } finally { this.busy = false; }
+      if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      if (response.state !== request.state || response.data?.openID && response.data.openID !== openID) throw new Error('AUTH_STATE_MISMATCH');
+      const avatar = response.data?.avatarUri ?? '';
+      this.huaweiProfile = { nickname: (response.data?.nickName ?? '').slice(0, 128),
+        avatarUri: /^https:\/\//.test(avatar) ? avatar : '', status: 'ready' };
+    } catch (_) {
+      if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      // Declining profile consent does not undo a successful identity login.
+      this.huaweiProfile = { nickname: '', avatarUri: '', status: 'unavailable' };
+    }
+  }
+  private async connectCloud(epoch: number): Promise<void> {
+    if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
+    const attempt = await this.request<AccountAttempt>('/v1/auth/begin', http.RequestMethod.POST, '{}', false);
+    const provider = new authentication.HuaweiIDProvider();
+    const request = provider.createAuthorizationWithHuaweiIDRequest();
+    request.forceAuthorization = true;
+    request.scopes = ['profile'];
+    request.permissions = ['serviceauthcode'];
+    request.state = attempt.state;
+    const controller = new authentication.AuthenticationController(this.context);
+    const response = await controller.executeRequest(request) as authentication.AuthorizationWithHuaweiIDResponse;
+    const code = response.data?.authorizationCode;
+    if (!code || response.state !== attempt.state || epoch !== this.generation) throw new Error('AUTH_STATE_MISMATCH');
+    const exchange: AccountExchange = { attemptId: attempt.attemptId, state: attempt.state,
+      code: code, clientId: this.config.accountClientId };
+    const session = await this.request<AccountSession>('/v1/auth/exchange', http.RequestMethod.POST,
+      JSON.stringify(exchange), false);
+    if (epoch !== this.generation || !session.token || !session.userId || !Number.isFinite(session.expiresAt) ||
+      session.expiresAt <= Date.now()) throw new Error('INVALID_SESSION');
+    this.session = session;
+    this.accountListeners.forEach((listener: (userId: string) => void): void => listener(session.userId));
+
   }
   async signOut(): Promise<void> {
     this.guard();
     // Forget identity immediately, even if revocation cannot reach the service. The server also has a short TTL.
     const pending = this.session ? this.request<EmptyBody>('/v1/auth/logout', http.RequestMethod.POST, '{}') : null;
     this.clearSession();
+    this.huaweiSignedIn = false;
+    this.huaweiProfile = { nickname: '', avatarUri: '', status: '' };
     if (pending) { try { await pending; } catch (_) { } }
   }
   async entitlement(): Promise<MemberEntitlement> {
@@ -180,7 +239,8 @@ export class ValueAddedService {
       const products = await iap.queryProducts(this.context, { productType: item.productType, productIds: [item.productId] });
       for (const product of products) {
         if (product.id === item.productId && product.type === item.productType) {
-          result.push({ id: product.id, title: product.name, price: product.localPrice ?? product.price, type: product.type });
+          result.push({ id: product.id, title: product.name, price: product.localPrice ?? product.price, type: product.type,
+            purpose: item.productId === config.coffeeProductId ? 'coffee' : 'membership' });
         }
       }
     }
