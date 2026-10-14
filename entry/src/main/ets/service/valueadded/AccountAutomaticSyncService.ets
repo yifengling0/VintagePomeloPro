@@ -56,7 +56,12 @@ export class AccountAutomaticSyncService {
   hasPreferencesConflict(): boolean { return !!this.preferenceConflict; }
   profilesEnabled(): boolean { return this.currentAccount()?.profilesEnabled ?? true; }
   preferencesEnabled(): boolean { return this.currentAccount()?.preferencesEnabled ?? true; }
-  lastSyncedAt(): number { return this.currentAccount()?.lastSyncedAt ?? 0; }
+  lastSyncedAt(): number {
+    if (DeviceCapabilityPolicy.supportsValueAddedFeatures() && this.api().getCapabilities().configuration) {
+      return ConfigurationCloudSyncService.getInstance().lastSyncedAt();
+    }
+    return this.currentAccount()?.lastSyncedAt ?? 0;
+  }
   private emit(): void { this.listeners.forEach((listener: AutomaticSyncListener): void => listener()); }
   private api(): ValueAddedService { return ValueAddedService.getInstance(); }
   private currentAccount(): SyncAccountState | undefined {

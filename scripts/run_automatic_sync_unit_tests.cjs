@@ -19,7 +19,8 @@ function fixture(options={}) {
   const calls={uploads:[],downloads:[],settingsUploads:0,settingsApplies:0,backups:[],configurations:0,resumes:0,capabilities:0,entitlements:0,journals:0};
   const configurationListeners=[];let configurationRevision=0,configurationHook=null;
   const configurationRepo={subscribe:f=>configurationListeners.push(f),revision:()=>configurationRevision};
-  const configuration={initialize:async()=>{},hasConflict:()=>false,usedBytes:()=>0,lastSyncedAt:()=>1000,sync:async()=>{calls.configurations++;return configurationHook?configurationHook():'云端备份已更新';}};
+  let configurationSyncedAt=options.configurationSyncedAt??1000;
+  const configuration={initialize:async()=>{},hasConflict:()=>false,usedBytes:()=>0,lastSyncedAt:()=>configurationSyncedAt,sync:async()=>{calls.configurations++;return configurationHook?configurationHook():'云端备份已更新';}};
   const accountListeners=[], profileListeners=[], themeListeners=[], entitlementListeners=[];
   let capabilities={profiles:true,preferences:true,...options.capabilities},recovery='',restoreFailure=false,restoreHook=null,refreshHook=null;
   let seq=0, beforeRead=null, beforeApply=null;
@@ -73,6 +74,7 @@ function fixture(options={}) {
   const sync=mod.exports.AccountAutomaticSyncService.getInstance();
   return {sync,calls,profiles,journal,timers,api,cloud:{profiles:remotes,preferences:preferencesByOwner},settings:()=>settings,remoteMap,
     changeConfiguration:()=>{configurationRevision++;configurationListeners.forEach(f=>f());},configurationHook:f=>configurationHook=f,
+    configurationTime:value=>configurationSyncedAt=value,
     fire:async()=>{const [id,job]=timers.entries().next().value;timers.delete(id);job.f();for(let i=0;i<100;i++){await new Promise(resolve=>setImmediate(resolve));if(!sync.busy&&!sync.preparing)break;}assert.equal(sync.busy,false);},
     initialize:async()=>sync.initialize({}),run:async()=>{sync.clearTimer();if(!capabilities.configuration)sync.forceConfigurationCheck=true;await sync.syncNow();},
     edit:p=>{profiles.set(p.id,clone(p));profileListeners.forEach(f=>f(p.id,false,'local'));},
@@ -287,6 +289,12 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
  });
  await test('legacy migration transport also stays idle without configuration changes',async()=>{
   const f=fixture();await f.initialize();await f.run();const before=JSON.stringify(f.calls);await f.sync.syncNow();assert.equal(JSON.stringify(f.calls),before);assert.equal(f.timers.size,0);
+ });
+ await test('the unified backup time never claims an old partial profile upload was a complete backup',async()=>{
+  const f=fixture({capabilities:{configuration:true},configurationSyncedAt:0});await f.initialize();f.sync.data.accounts[0].lastSyncedAt=9999;
+  f.entitlement(false);await f.run();assert.equal(f.sync.lastSyncedAt(),0);assert.equal(f.timers.size,0);
+  f.configurationTime(3210);assert.equal(f.sync.lastSyncedAt(),3210);
+  f.capabilities({profiles:true,preferences:true,configuration:false});assert.equal(f.sync.lastSyncedAt(),9999);
  });
  console.log(`Automatic account sync: ${count} scenarios PASS (host mocks, no real account/network)`);
 })().catch(error=>{console.error(error);process.exitCode=1;});
