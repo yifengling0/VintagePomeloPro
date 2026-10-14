@@ -1,5 +1,6 @@
 import { SponsorshipSettings } from '../components/SponsorshipSettings';
 import { AccountSyncSettings } from '../components/AccountSyncSettings';
+import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { FontImportFiles, replaceImportedFonts } from '../service/FontImportTransaction';
 import { skinColor } from '../service/SkinColors';
 /// <reference path="../ohos.systemShare.d.ts" />
@@ -774,7 +775,8 @@ struct SystemSettingsPage {
       options.maxSelectNumber = 1;
       const result = await documentPicker.select(options);
       if (!result || result.length === 0) return;
-      this.updatePageBackground(result[0], true);
+      const imported = await UserConfigurationRepository.getInstance().importWallpaper(result[0]);
+      this.updatePageBackground(imported, true);
       promptAction.showToast({ message: '页面背景已更新' });
     } catch (_) {
       promptAction.showToast({ message: '未选择背景图片' });
@@ -948,6 +950,7 @@ struct SystemSettingsPage {
           this.fontImportProgress = Math.round(done / total * 100);
           this.fontImportStage = '正在写入字体 ' + done + '/' + total;
         });
+      await UserConfigurationRepository.getInstance().recordFonts(fonts, fontsDir);
       await this.removeDirRecursive(tmpDir);
       try { fs.unlinkSync(cacheZip); } catch (_) {}
       this.fontImporting = false;

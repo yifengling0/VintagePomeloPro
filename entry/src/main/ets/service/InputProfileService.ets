@@ -24,8 +24,8 @@ const DOMAIN = 0x0000;
 const TAG = 'InputProfile';
 
 /**
- * v6 起输入方案改为 Winlator 风格的元素化任意排布模型。旧 v5 分组模型
- * 直接替换：非 v6 数据加载时丢弃，不迁移、不保留只读兼容。
+ * v6 元素化输入模型。无法读取的方案保留原始 Preferences 并阻止写回；
+ * 有明确迁移器之前，不把未知格式替换为默认布局。
  */
 export class InputProfileService {
   private static instance: InputProfileService | null = null;
@@ -34,6 +34,29 @@ export class InputProfileService {
   unsubscribeChanges(listener: (id: string, removed: boolean, source: string) => void): void { this.listeners.delete(listener); }
   private store: preferences.Preferences | null = null;
   private profiles: Map<string, InputProfile> = new Map<string, InputProfile>();
+  private deleted: string[] = [];
+  private incompatible: boolean = false;
+  isDeleted(id: string): boolean { return this.deleted.includes(id); }
+  async reloadConfiguration(): Promise<void> {
+    if (!this.store) return;
+    this.profiles.clear(); this.loadProfiles();
+    createBuiltInInputProfiles().forEach((p: InputProfile): void => { if (!this.profiles.has(p.id)) this.profiles.set(p.id, p); });
+  }
+  private loadProfiles(): void {
+    if (!this.store) return;
+    this.incompatible = false;
+    const raw = this.store.getSync(PROFILES_KEY, '') as string;
+    try {
+      this.deleted = JSON.parse(this.store.getSync('deleted_profiles_v1', '[]') as string) as string[];
+      if (!Array.isArray(this.deleted) || this.deleted.length > 2048 || this.deleted.some((id: string): boolean => typeof id !== 'string' || id.length > 128)) throw new Error('CONFIG_INVALID');
+      if (!raw) return;
+      const values = JSON.parse(raw) as InputProfile[];
+      if (!Array.isArray(values) || values.some((p: InputProfile): boolean => !p || p.schemaVersion !== INPUT_PROFILE_SCHEMA_VERSION)) {
+        this.incompatible = true; return;
+      }
+      values.forEach((p: InputProfile): void => { this.profiles.set(p.id, p); });
+    } catch (_) { this.incompatible = true; }
+  }
 
   static getInstance(): InputProfileService {
     if (!InputProfileService.instance) InputProfileService.instance = new InputProfileService();
@@ -43,18 +66,7 @@ export class InputProfileService {
   async initialize(context: common.UIAbilityContext): Promise<void> {
     if (this.store) return;
     this.store = await preferences.getPreferences(context, STORE_NAME);
-    const raw = this.store.getSync(PROFILES_KEY, '') as string;
-    if (raw) {
-      try {
-        const values = JSON.parse(raw) as InputProfile[];
-        values.forEach((value: InputProfile): void => {
-          if (value && value.schemaVersion === INPUT_PROFILE_SCHEMA_VERSION) {
-            this.profiles.set(value.id, value);
-          }
-        });
-      } catch (_) {
-      }
-    }
+    this.loadProfiles();
 
     // Built-in profiles are versioned selectable presets. Keep user-created
     // profiles untouched, but refresh a built-in when its shipped layout gains
@@ -136,14 +148,18 @@ export class InputProfileService {
   }
 
   async removeProfile(id: string): Promise<boolean> {
+    if (this.incompatible) throw new Error('CONFIG_REQUIRES_UPDATE');
     if (inputTemplateForProfileId(id) || !this.profiles.has(id)) return false;
     this.profiles.delete(id);
+    this.deleted = this.deleted.filter((value: string): boolean => value !== id); this.deleted.push(id);
     await this.persistProfiles();
     this.listeners.forEach((listener: (id: string, removed: boolean, source: string) => void): void => listener(id, true, 'local'));
     return true;
   }
 
   async saveProfile(profile: InputProfile, source: string = 'local'): Promise<void> {
+    if (this.incompatible) throw new Error('CONFIG_REQUIRES_UPDATE');
+    if (source === 'local') this.deleted = this.deleted.filter((id: string): boolean => id !== profile.id);
     const normalized = this.cloneProfile(profile);
     this.profiles.set(normalized.id, normalized);
     await this.persistProfiles();
@@ -232,12 +248,13 @@ export class InputProfileService {
   }
 
   private async persistProfiles(): Promise<void> {
-    if (!this.store) return;
+    if (!this.store || this.incompatible) return;
     const values: InputProfile[] = [];
     this.profiles.forEach((value: InputProfile): void => {
       values.push(cloneInputProfile(value));
     });
     await this.store.put(PROFILES_KEY, JSON.stringify(values));
+    await this.store.put('deleted_profiles_v1', JSON.stringify(this.deleted));
     await this.store.flush();
   }
 

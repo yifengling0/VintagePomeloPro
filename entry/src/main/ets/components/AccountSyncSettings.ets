@@ -49,6 +49,8 @@ export struct AccountSyncSettings {
   @State private autoProfiles: boolean = true;
   @State private autoPreferences: boolean = true;
   @State private preferencesConflict: boolean = false;
+  @State private configurationConflict: boolean = false;
+  @State private configurationBytes: number = 0;
   private syncListener: (() => void) | null = null;
   private entitlementListener: (() => void) | null = null;
   private accountListener: ((userId: string) => void) | null = null;
@@ -142,6 +144,7 @@ export struct AccountSyncSettings {
     const sync = AccountAutomaticSyncService.getInstance();
     this.autoSyncStatus = sync.status(); this.syncItems = sync.itemStates();
     this.autoProfiles = sync.profilesEnabled(); this.autoPreferences = sync.preferencesEnabled();
+    this.configurationConflict = sync.configurationConflict(); this.configurationBytes = sync.configurationBytes();
     this.preferencesConflict = sync.hasPreferencesConflict(); this.lastSyncTime = sync.lastSyncedAt();
     this.userId = ValueAddedService.getInstance().getUserId();
     this.refreshHuaweiIdentity();
@@ -298,7 +301,7 @@ export struct AccountSyncSettings {
       this.userId = service.getUserId();
       if (this.userId) {
         await this.refreshAccount();
-        AccountAutomaticSyncService.getInstance().requestSync(0);
+        AccountAutomaticSyncService.getInstance().requestSync(0, true);
         this.status = '已登录，正在检查云端备份';
       } else this.status = '已登录，同步尚未连接';
     });
@@ -459,45 +462,46 @@ export struct AccountSyncSettings {
   }
   @Builder
   private Profiles() {
-    this.Heading('云端备份', '登录后自动备份当前设备的设置与输入方案，重装应用后登录同一账号恢复。平板与桌面分别保存。')
+    this.Heading('应用配置备份', '自动保存系统设置、输入方案和游戏配置。游戏图片留在游戏目录，游戏存档不上传。')
     Row({ space: 12 }) {
       Column({ space: 5 }) {
-        Text(this.huaweiSignedIn && !this.userId ? '已登录 · 同步尚未连接' : this.backupStatus(this.autoSyncStatus || '等待登录')).fontSize(15).fontWeight(FontWeight.Medium)
-          .fontColor(skinColor('text_secondary')).width('100%').id('sync-automatic-status')
+        Text(this.huaweiSignedIn && !this.userId ? '已登录 · 备份尚未连接' : this.backupStatus(this.autoSyncStatus || '等待登录'))
+          .fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_secondary')).width('100%').id('sync-automatic-status')
         if (this.lastSyncTime > 0) {
-          Text('最近备份 ' + new Date(this.lastSyncTime).toLocaleString())
-            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+          Text('最近备份 ' + new Date(this.lastSyncTime).toLocaleString()).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
         }
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
       this.Action('重新检查', 'sync-automatic-check', (): boolean => !!this.userId && !this.busy, (): void => {
-        AccountAutomaticSyncService.getInstance().requestSync(0);
+        AccountAutomaticSyncService.getInstance().requestSync(0, true);
       })
     }.width('100%')
-    this.SyncSwitch('设置同步', '自动备份外观、卡片布局与默认输入方案', 'preferences', (): boolean => this.autoPreferences)
-    this.SyncSwitch('输入方案同步', '自动备份按键布局、鼠标参数和手柄映射', 'profiles', (): boolean => this.autoProfiles)
-    if (!this.profilesReady) {
-      Text('云同步暂未接通。未登录或离线时，本地设置与方案仍可正常使用。')
-        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+    this.SyncSwitch('自动备份应用配置', '修改后自动备份；重装后恢复当前配置', 'configuration', (): boolean => this.autoProfiles && this.autoPreferences)
+    if (this.configurationConflict) {
+      Text('本机与云端均有配置，已保留双方内容。选择一次本次使用的配置。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
+        this.Action('保留本机', 'sync-configuration-keep', (): boolean => !this.busy, (): void => {
+          void this.run('automatic', async (): Promise<void> => { await AccountAutomaticSyncService.getInstance().resolveConfiguration(false); this.refreshAutomaticSync(); });
+        })
+        this.Action('恢复云端', 'sync-configuration-restore', (): boolean => !this.busy, (): void => {
+          void this.run('automatic', async (): Promise<void> => { await AccountAutomaticSyncService.getInstance().resolveConfiguration(true); this.refreshAutomaticSync(); });
+        })
+      }.width('100%')
     }
-    ForEach(this.syncItems.filter((item: SyncItemStatus): boolean => item.id === 'preferences' || item.id === 'profiles-status'), (item: SyncItemStatus) => {
-      this.SyncItem(item)
-    }, (item: SyncItemStatus): string => item.id + ':' + item.state + ':' + item.lastSyncedAt)
     Button() {
       Row({ space: 12 }) {
-        Column({ space: 5 }) {
-          Text('方案备份明细').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
-          Text(this.profileDetailsSummary()).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-        }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+        Text('备份明细').fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).layoutWeight(1)
         SymbolGlyph(this.profileDetailsExpanded ? $r('sys.symbol.chevron_up') : $r('sys.symbol.chevron_down'))
           .fontSize(16).fontColor([skinColor('text_secondary')])
       }.width('100%')
     }.type(ButtonType.Normal).width('100%').padding(14).borderRadius(14)
       .backgroundColor(skinColor('search_background')).id('sync-profile-details-expand')
-      .accessibilityText(this.profileDetailsExpanded ? '收起方案备份明细' : '展开方案备份明细')
       .onClick((): void => { this.profileDetailsExpanded = !this.profileDetailsExpanded; })
-    ForEach(this.visibleProfileItems(), (item: SyncItemStatus) => {
-      this.SyncItem(item)
-    }, (item: SyncItemStatus): string => item.id + ':' + item.state + ':' + item.lastSyncedAt)
+    if (this.profileDetailsExpanded) {
+      Text('完整输入方案 ' + this.profiles.length + ' 个 · 云端 ' + (this.configurationBytes / 1048576).toFixed(1) + ' MB')
+        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+      Text('游戏专用按键与兼容设置保存在游戏目录。系统背景和用户导入字体随应用配置备份。平板与桌面分别保存。')
+        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+    }
   }
   @Builder
   private MembershipBenefit(title: string, detail: string) {
@@ -515,8 +519,8 @@ export struct AccountSyncSettings {
     Text('会员权益').fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
       .width('100%').id('sync-membership-title')
     Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row, justifyContent: FlexAlign.SpaceBetween }) {
-      this.MembershipBenefit('设置备份', '外观与常用设置，重装后自动恢复')
-      this.MembershipBenefit('输入方案备份', '按键布局、鼠标参数与手柄映射')
+      this.MembershipBenefit('应用配置备份', '系统设置、系统背景与输入方案，重装后恢复')
+      this.MembershipBenefit('游戏专用配置', '专用按键随游戏目录保存，并备份配置文件')
     }.width('100%').padding({ top: 4, bottom: 4 }).id('sync-membership-benefits')
     Text('更多会员功能正在开发中').fontSize(12).fontColor(skinColor('text_secondary'))
       .width('100%').id('sync-membership-coming-soon')

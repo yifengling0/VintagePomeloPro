@@ -48,6 +48,31 @@ export class AppSettingsStore {
   private static instance: AppSettingsStore | null = null;
   private store: preferences.Preferences | null = null;
   private globalListeners: Set<() => void> = new Set<() => void>();
+  private portableWriter: ((value: AppSettings) => Promise<void>) | null = null;
+  setPortableWriter(writer: (value: AppSettings) => Promise<void>): void { this.portableWriter = writer; }
+  reloadConfiguration(): void {
+    this.appSettings.clear(); this.lastPlayedAt.clear(); this.playMinutes.clear();
+    this.loadGlobal(); this.loadApps(); this.loadRecentLaunches(); this.loadBentoState(); this.loadRenderMode();
+    this.libraryPath = this.store?.getSync(LIBRARY_PATH_KEY, '') as string || '';
+  }
+  async remapAppId(oldId: string, newId: string): Promise<void> {
+    if (oldId === newId || !this.store) return;
+    const old = this.appSettings.get(oldId);
+    if (old && !this.appSettings.has(newId)) {
+      const value = this.normalizeAppSettings(old); value.appId = newId;
+      await this.saveAppSettings(value, 'portable');
+    }
+    if (this.appSettings.has(oldId)) await this.removeAppSettings(oldId);
+    this.recentLaunches = Array.from(new Set<string>(this.recentLaunches.map((id: string): string => id === oldId ? newId : id)));
+    if (this.lastPlayedAt.has(oldId)) this.lastPlayedAt.set(newId, Math.max(this.lastPlayedAt.get(newId) ?? 0, this.lastPlayedAt.get(oldId) ?? 0));
+    if (this.playMinutes.has(oldId)) this.playMinutes.set(newId, Math.max(this.playMinutes.get(newId) ?? 0, this.playMinutes.get(oldId) ?? 0));
+    this.lastPlayedAt.delete(oldId); this.playMinutes.delete(oldId);
+    this.bentoOrder = Array.from(new Set<string>(this.bentoOrder.map((id: string): string => id === oldId ? newId : id)));
+    await this.store.put(RECENT_LAUNCHES_KEY, JSON.stringify(this.recentLaunches));
+    await this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(this.mapToRecord(this.lastPlayedAt)));
+    await this.store.put(PLAY_TIME_KEY, JSON.stringify(this.mapToRecord(this.playMinutes)));
+    await this.setBentoState(this.bentoSort, this.bentoOrder);
+  }
   subscribeGlobalChanges(listener: () => void): void { this.globalListeners.add(listener); }
   unsubscribeGlobalChanges(listener: () => void): void { this.globalListeners.delete(listener); }
 
@@ -355,7 +380,11 @@ export class AppSettingsStore {
   async saveGlobalSettings(value: GlobalSettings): Promise<void> {
     this.globalSettings = value;
     if (!this.store) return;
-    await this.store.put(GLOBAL_KEY, JSON.stringify(value));
+    const raw = this.store.getSync(GLOBAL_KEY, '') as string;
+    const preserved = JSON.parse(raw || '{}') as Record<string, string>;
+    const changed = JSON.parse(JSON.stringify(value)) as Record<string, string>;
+    Object.keys(changed).forEach((key: string): void => { preserved[key] = changed[key]; });
+    await this.store.put(GLOBAL_KEY, JSON.stringify(preserved));
     await this.store.flush();
     this.globalListeners.forEach((listener: () => void): void => listener());
   }
@@ -545,13 +574,14 @@ export class AppSettingsStore {
     return this.appSettings.get(appId) ?? createDefaultAppSettings(appId);
   }
 
-  async saveAppSettings(value: AppSettings): Promise<void> {
+  async saveAppSettings(value: AppSettings, source: string = 'local'): Promise<void> {
     this.appSettings.set(value.appId, this.normalizeAppSettings(value));
     if (!this.store) return;
     const values: AppSettings[] = [];
     this.appSettings.forEach((item: AppSettings) => values.push(item));
     await this.store.put(APP_SETTINGS_KEY, JSON.stringify(values));
     await this.store.flush();
+    if (source === 'local' && this.portableWriter) await this.portableWriter(value);
   }
 
   async removeAppSettings(appId: string): Promise<void> {

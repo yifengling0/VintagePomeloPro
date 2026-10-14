@@ -165,6 +165,7 @@ export class InputSettingsService {
       hilog.error(DOMAIN, 'wine', 'input settings load fail: %{public}s', JSON.stringify(e));
     }
   }
+  reloadConfiguration(ctx: common.Context): void { this.initialized = false; this.init(ctx); this.notify(); }
 
   private persist(): void {
     if (!this.store) {

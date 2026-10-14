@@ -10,7 +10,7 @@ export class ObsObjects {
     this.signer=signer;this.bucket=bucket;this.endpoint=endpoint;this.fingerprint=fingerprint;this.transport=transport;this.ready=false;
   }
   sign(method,key,headers={}) {
-    requireThat(/^(saves\/[a-f0-9]{64}\/[a-f0-9-]{36}\/[0-9]{1,2}|probe\/[a-f0-9-]{36})$/.test(key),'INVALID_OBJECT_KEY');
+    requireThat(/^(saves\/[a-f0-9]{64}\/[a-f0-9-]{36}\/[0-9]{1,2}|configurations\/[a-f0-9]{64}\/[a-f0-9]{64}|probe\/[a-f0-9-]{36})$/.test(key),'INVALID_OBJECT_KEY');
     const signed=this.signer.createSignedUrlSync({Method:method,Bucket:this.bucket,Key:key,Expires:60,Headers:headers});
     const url=new URL(signed.SignedUrl), endpoint=new URL(this.endpoint);
     requireThat(url.protocol==='https:' && !url.username && !url.password &&

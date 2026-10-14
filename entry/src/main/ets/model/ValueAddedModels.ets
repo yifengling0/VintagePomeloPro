@@ -64,6 +64,7 @@ export interface ServiceCapabilities {
   profiles: boolean;
   preferences?: boolean;
   cloudSaves: boolean;
+  configuration?: boolean;
   reason: string;
 }
 export interface ProfileSummary {

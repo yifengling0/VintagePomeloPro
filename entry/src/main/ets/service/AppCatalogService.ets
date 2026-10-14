@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { PortableGameConfigurationService } from './PortableGameConfigurationService';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from './LogService';
@@ -261,6 +262,7 @@ export class AppCatalogService {
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
+    await PortableGameConfigurationService.getInstance().initialize(context);
     this.libraryRoot = this.directLibraryRoot();
     const status = this.ensureGamesDirectory();
     // DOWNLOAD mode is a provisioning API, not a generic file chooser. It
@@ -504,6 +506,9 @@ export class AppCatalogService {
       // executable directly under games/ has no distinct folder and is
       // removed as soon as that executable disappears.
       const directoryIsGamesRoot = normalizedDirectory === normalizedGames;
+      // Identity migration must retire the old cached card for the same game folder.
+      if (!directoryIsGamesRoot && merged.some((item: AppDescriptor): boolean => item.source === AppSource.DOWNLOAD &&
+        item.directory.replace(/\\/g, '/').replace(/\/+$/, '') === normalizedDirectory)) continue;
       const directoryIsLegacyNestedGamesRoot =
         normalizedDirectory.toLowerCase() === (normalizedGames + '/games').toLowerCase();
       const directoryIsSteamContainer =
@@ -647,6 +652,7 @@ export class AppCatalogService {
 
     for (let index = 0; index < names.length; index++) {
       const name = names[index];
+      if (name.toLowerCase() === '.pomelo') continue;
       if (containerDepth === 0 && name.toLowerCase() === 'steam-download-staging') continue;
       const path = joinPath(gamesPath, name);
       const steamKind = steamCatalogPathKind(path, steamScope);
@@ -674,7 +680,9 @@ export class AppCatalogService {
     const automaticExecutable = this.chooseExecutable(directory, candidates);
     const cached = cachedCards
       .find((item: AppDescriptor) => item.directory === directory);
-    const id = cached?.id ?? stableAppId(AppSource.DOWNLOAD, automaticExecutable || directory);
+    const oldId = cached?.id ?? stableAppId(AppSource.DOWNLOAD, automaticExecutable || directory);
+    const selected = AppSettingsStore.getInstance().getAppSettings(oldId).executable || automaticExecutable;
+    const id = await PortableGameConfigurationService.getInstance().discover(directory, selected, oldId);
     const settings = AppSettingsStore.getInstance().getAppSettings(id);
     // An explicit user choice remains authoritative even when the file was moved.
     // This lets the catalog expose an unavailable card that can be re-associated.
@@ -768,6 +776,7 @@ export class AppCatalogService {
       for (let index = 0; index < names.length; index++) {
         if (result.length >= maxTargets) break;
         const name = names[index].replace(/\\/g, '/').replace(/^\/+/, '');
+        if (name.split('/').some((part: string): boolean => part.toLowerCase() === '.pomelo')) continue;
         if (!name || name.split('/').some((part: string) => part === '..')) continue;
         const path = joinPath(frame.path, name);
         // Skip known asset/library files without a stat. Deep picker scans

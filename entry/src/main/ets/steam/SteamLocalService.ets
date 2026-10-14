@@ -49,6 +49,7 @@ export class SteamLocalService {
   private context: common.UIAbilityContext | null = null;
   private root: string = '';
   private store: preferences.Preferences | null = null;
+  reloadConfiguration(): void { this.compatibility = this.store?.getSync('compatibility', false) as boolean ?? false; }
   private compatibility: boolean = false;
   private importing: boolean = false;
   private committing: boolean = false;

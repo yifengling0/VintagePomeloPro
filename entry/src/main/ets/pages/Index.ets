@@ -1,4 +1,7 @@
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
+import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
+import { InputSettingsService } from '../service/InputSettingsService';
+import { PortableGameConfigurationService } from '../service/PortableGameConfigurationService';
 import { skinColor } from '../service/SkinColors';
 import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import router from '@ohos.router';
@@ -919,6 +922,17 @@ struct Index {
     await this.rescan();
     this.preferGamesForConsole();
     this.catalogInitialized = true;
+    UserConfigurationRepository.getInstance().beforeSnapshot(async (): Promise<void> => { await PortableGameConfigurationService.getInstance().flush(); });
+    UserConfigurationRepository.getInstance().onRestored(async (): Promise<void> => {
+      AppSettingsStore.getInstance().reloadConfiguration();
+      await InputProfileService.getInstance().reloadConfiguration();
+      InputSettingsService.getInstance().reloadConfiguration(this.context);
+      SteamLocalService.getInstance().reloadConfiguration();
+      PortableGameConfigurationService.getInstance().reload();
+      ThemeSettingsService.getInstance().refreshConfiguration();
+      await this.rescan();
+    });
+    await UserConfigurationRepository.getInstance().start();
     void AccountAutomaticSyncService.getInstance().initialize(this.context);
     // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标)
     SteamService.getInstance().initialize(this.context).then((): void => {

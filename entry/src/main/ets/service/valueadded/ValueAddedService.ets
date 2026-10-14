@@ -276,6 +276,11 @@ export class ValueAddedService {
     if (!this.capabilities.cloudSaves || !path.startsWith('/v1/saves')) throw new Error('NOT_CONFIGURED');
     return this.request<T>(path, method, body);
   }
+  async configurationRequest<T>(path: string, method: http.RequestMethod, body: string = ''): Promise<T> {
+    this.guard();
+    if (!this.capabilities.configuration || !path.startsWith('/v1/configuration/')) throw new Error('NOT_CONFIGURED');
+    return this.request<T>(path, method, body);
+  }
   async signIn(): Promise<void> {
     if (this.resuming) await this.resuming.catch((): void => {});
     await this.authenticate(true);

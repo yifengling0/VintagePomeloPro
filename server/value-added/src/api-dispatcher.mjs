@@ -39,6 +39,19 @@ export function createApiDispatcher(domain) {
         if (path === '/v1/auth/logout' && method === 'POST') { await body(request); result = await domain.logout(token); }
         else if (path === '/v1/entitlement' && method === 'GET') result = await domain.entitlement(userId);
         else if (path === '/v1/purchases/intent' && method === 'POST') result = await domain.intent(userId, await body(request));
+        else if (/^\/v1\/configuration\/(tablet|desktop)$/.test(path) && method === 'GET') result = await domain.configurations.current(userId,path.split('/')[3]);
+        else if (path === '/v1/configuration/uploads' && method === 'POST') result = await domain.configurations.begin(userId,await body(request));
+        else if (path === '/v1/configuration/cleanup' && method === 'POST') {await body(request);result=await domain.configurations.cleanup(userId);}
+        else if (path.startsWith('/v1/configuration/')) {
+          const route=/^\/v1\/configuration\/uploads\/([a-f0-9-]{36})\/(chunks(?:\/([a-f0-9]{64}))?|finalize|abort|lease)$/.exec(path);
+          requireThat(route,'NOT_FOUND',404);
+          if(route[2]==='chunks'&&method==='PUT') result=await domain.configurations.upload(userId,route[1],await body(request));
+          else if(route[3]&&method==='GET')result=await domain.configurations.read(userId,route[1],route[3]);
+          else if(route[2]==='finalize'&&method==='POST'){await body(request);result=await domain.configurations.finalize(userId,route[1]);}
+          else if(route[2]==='abort'&&method==='POST'){await body(request);result=await domain.configurations.abort(userId,route[1]);}
+          else if(route[2]==='lease'&&method==='POST'){await body(request);result=await domain.configurations.lease(userId,route[1]);}
+          else throw new ServiceError('NOT_FOUND',404);
+        }
         else if (path === '/v1/saves' && method === 'GET') result = await domain.saves.list(userId);
         else if (path === '/v1/saves/slots' && method === 'POST') result = await domain.saves.createSlot(userId,await body(request));
         else if (path === '/v1/saves/uploads' && method === 'POST') result = await domain.saves.begin(userId,await body(request));

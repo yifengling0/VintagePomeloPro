@@ -1,4 +1,5 @@
 import { skinColor } from '../service/SkinColors';
+import { PortableGameConfigurationService } from '../service/PortableGameConfigurationService';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import fs from '@ohos.file.fs';
@@ -24,6 +25,7 @@ import {
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { InputProfileService } from '../service/InputProfileService';
 import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import { LengthMetrics, window } from '@kit.ArkUI';
@@ -331,7 +333,8 @@ struct AppSettingsPage {
   }
 
   private profileEditorId(): string {
-    return this.currentProfileId() === 'default' ? 'app-' + this.value.appId : this.currentProfileId();
+    return this.currentProfileId().startsWith('app-') ? this.currentProfileId() :
+      PortableGameConfigurationService.getInstance().dedicatedProfileId(this.value.appId);
   }
 
   private profileEditorName(): string {
@@ -629,6 +632,12 @@ struct AppSettingsPage {
 
   private async editInputProfile(): Promise<void> {
     const profileId = this.profileEditorId();
+    const baseProfileId = this.currentProfileId() === 'default' ? this.globalProfileId() : this.currentProfileId();
+    const service = InputProfileService.getInstance();
+    if (!service.hasProfile(profileId)) {
+      const independent = service.ensureProfile(profileId, this.profileEditorName(), baseProfileId);
+      await service.saveProfile(independent);
+    }
     const next = cloneAppSettings(this.value);
     next.inputProfileId = profileId;
     this.value = next;
@@ -642,7 +651,7 @@ struct AppSettingsPage {
         appId: this.value.appId,
         profileId: profileId,
         profileName: this.profileEditorName(),
-        baseProfileId: this.globalProfileId()
+        baseProfileId: baseProfileId
       }
     });
   }

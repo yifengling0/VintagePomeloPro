@@ -3,6 +3,8 @@ import { requireThat, ServiceError } from './errors.mjs';
 import { deriveMembership, MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY } from './membership-policy.mjs';
 import { sealReceipt, openReceipt } from './subscription.mjs';
 import { CloudSaves } from './cloud-saves.mjs';
+import { Configurations } from './configurations.mjs';
+import { ConfigurationDatabaseObjects } from './configuration-database-objects.mjs';
 import { validatePreferences, preferencesEnvelope } from './preferences.mjs';
 import { validateProfile, profileEnvelope } from './profiles.mjs';
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -16,6 +18,7 @@ export class ValueAddedDomain {
   constructor({ store, accountProvider, purchaseProvider, config, objects = {ready:false}, clock = Date.now }) {
     this.store = store; this.accountProvider = accountProvider; this.purchaseProvider = purchaseProvider;
     this.config = config; this.clock = clock; this.saves = new CloudSaves(this,objects,clock);
+    this.configurations = new Configurations(this,objects.ready ? objects : new ConfigurationDatabaseObjects(store),clock);
     this.subscriptionRefreshes = new Map();
   }
   capabilities() {
@@ -24,6 +27,7 @@ export class ValueAddedDomain {
     return { account: storage && this.accountProvider.ready, commerce: storage && this.purchaseProvider.ready || sandbox,
       ...(sandbox ? { sandboxCommerce: true } : {}),
       profiles: storage && this.purchaseProvider.ready, preferences: storage && this.purchaseProvider.ready, cloudSaves: storage && this.purchaseProvider.ready && this.saves.objects.ready,
+      configuration: storage && this.purchaseProvider.ready && this.configurations.objects.ready,
       reason: storage ? (this.purchaseProvider.ready ? '' : 'IAP_NOT_CONFIGURED') : 'CLOUDDB_NOT_VERIFIED' };
   }
   gate(feature) { requireThat(this.capabilities()[feature], 'NOT_CONFIGURED', 503); }

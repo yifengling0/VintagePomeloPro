@@ -7,7 +7,8 @@ export class MemoryStore {
     const operation = this.queue.then(async () => {
       const working = structuredClone(this.rows);
       const result = await action({ get: async key => structuredClone(working.get(key)?.value ?? null),
-        put: (key, value, scope) => working.set(key, { value: structuredClone(value), scope }) });
+        put: (key, value, scope) => working.set(key, { value: structuredClone(value), scope }),
+        delete: key => working.delete(key) });
       this.rows = working;
       return result;
     });

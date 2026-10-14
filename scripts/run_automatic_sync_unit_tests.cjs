@@ -16,7 +16,10 @@ const profile = (id='custom',name='Custom') => ({id,name,schemaVersion:6,cursorS
 function fixture(options={}) {
   let user=A, settings=payload(), offline=false, entitlement=true;
   const timers=new Map(), journal=new Map(), profiles=new Map(), remotes=options.cloud?.profiles || new Map(), heads=new Map(), conflicts=new Map();
-  const calls={uploads:[],downloads:[],settingsUploads:0,settingsApplies:0,backups:[]};
+  const calls={uploads:[],downloads:[],settingsUploads:0,settingsApplies:0,backups:[],configurations:0,resumes:0,capabilities:0,entitlements:0,journals:0};
+  const configurationListeners=[];let configurationRevision=0,configurationHook=null;
+  const configurationRepo={subscribe:f=>configurationListeners.push(f),revision:()=>configurationRevision};
+  const configuration={initialize:async()=>{},hasConflict:()=>false,usedBytes:()=>0,lastSyncedAt:()=>1000,sync:async()=>{calls.configurations++;return configurationHook?configurationHook():'云端备份已更新';}};
   const accountListeners=[], profileListeners=[], themeListeners=[], entitlementListeners=[];
   let capabilities={profiles:true,preferences:true,...options.capabilities},recovery='',restoreFailure=false,restoreHook=null,refreshHook=null;
   let seq=0, beforeRead=null, beforeApply=null;
@@ -32,13 +35,13 @@ function fixture(options={}) {
   const theme={getSettings:()=>clone(settings),subscribe:f=>themeListeners.push(f),update:async p=>{
     if(beforeApply)await beforeApply(); settings=clone(p);calls.settingsApplies++;themeListeners.forEach(f=>f(p));}};
   const api={getUserId:()=>user,getCapabilities:()=>capabilities,
-    initialize:async()=>{},resumeAccount:async()=>{},hasRememberedAccount:()=>false,refreshCapabilities:async()=>{if(refreshHook)refreshHook();},getPurchaseRecoveryStatus:()=>recovery,getPurchaseRecoveryCheckedAt:()=>Date.now(),
+    initialize:async()=>{},resumeAccount:async()=>{calls.resumes++;},hasRememberedAccount:()=>false,refreshCapabilities:async()=>{calls.capabilities++;if(refreshHook)refreshHook();},getPurchaseRecoveryStatus:()=>recovery,getPurchaseRecoveryCheckedAt:()=>Date.now(),
     subscribeEntitlement:f=>entitlementListeners.push(f),restorePurchases:async()=>{
       calls.restores=(calls.restores||0)+1;if(restoreHook)await restoreHook();
       entitlementListeners.forEach(f=>f());if(restoreFailure)throw Error('PROVIDER_UNAVAILABLE');
       recovery='ACK_PENDING';entitlement=true;return recovery;
     },
-    subscribeAccount:f=>accountListeners.push(f),entitlement:async()=>{check();return {active:entitlement,expiresAt:Date.now()+10000,serverTime:Date.now()};},
+    subscribeAccount:f=>accountListeners.push(f),entitlement:async()=>{calls.entitlements++;check();return {active:entitlement,expiresAt:Date.now()+10000,serverTime:Date.now()};},
     payloadHash:async s=>hash(s),getConflict:id=>conflicts.get(id),setProfileBaseRevision:(id,r)=>heads.set(id,r),profileRevision:id=>heads.get(id)||0,
     listCloudProfiles:async()=>{check();if(beforeRead)await beforeRead();return Array.from(remoteMap().entries()).map(([id,e])=>({variant:id,name:e.payload.name,revision:e.revision}));},
     readCloudProfile:async id=>{check();return clone(remoteMap().get(id));},
@@ -55,20 +58,23 @@ function fixture(options={}) {
       preferencesByOwner.set(user,{schemaVersion:1,deviceClass:'tablet',revision:base+1,payloadSha256:hash(JSON.stringify(p)),payload:clone(p)});
       calls.settingsUploads++;return {status:'SAVED',current:clone(remotePreferences())};}
   };
-  const store={getSync:(k,d)=>journal.get(k)||d,put:async(k,v)=>journal.set(k,v),flush:async()=>{}};
+  const store={getSync:(k,d)=>journal.get(k)||d,put:async(k,v)=>{calls.journals++;journal.set(k,v);},flush:async()=>{}};
   const imports={'@kit.AbilityKit':{},'@ohos.data.preferences':{default:{getPreferences:async()=>store}},
     '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>true}},
     '../../model/AppModels':app,'../../model/ValueAddedModels':models,'../../model/AccountSyncModels':syncModels,
     './ValueAddedService':{ValueAddedService:{getInstance:()=>api}},'../InputProfileService':{InputProfileService:{getInstance:()=>inputs}},
     '../ThemeSettingsService':{ThemeSettingsService:{getInstance:()=>theme}},
+    '../UserConfigurationRepository':{UserConfigurationRepository:{getInstance:()=>configurationRepo}},
+    './ConfigurationCloudSyncService':{ConfigurationCloudSyncService:{getInstance:()=>configuration}},
     '../AppSettingsStore':{AppSettingsStore:{getInstance:()=>({subscribeGlobalChanges:f=>themeListeners.push(f)})}}};
   const mod={exports:{}};
   vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n])throw Error(n);return imports[n];},
     setTimeout:(f,ms)=>{timers.set(++seq,{f,ms});return seq;},clearTimeout:id=>timers.delete(id),console});
   const sync=mod.exports.AccountAutomaticSyncService.getInstance();
   return {sync,calls,profiles,journal,timers,api,cloud:{profiles:remotes,preferences:preferencesByOwner},settings:()=>settings,remoteMap,
-    fire:async()=>{const [id,job]=timers.entries().next().value;timers.delete(id);job.f();for(let i=0;i<100;i++){await new Promise(resolve=>setImmediate(resolve));if(!sync.busy)break;}assert.equal(sync.busy,false);},
-    initialize:async()=>sync.initialize({}),run:async()=>{sync.clearTimer();await sync.syncNow();},
+    changeConfiguration:()=>{configurationRevision++;configurationListeners.forEach(f=>f());},configurationHook:f=>configurationHook=f,
+    fire:async()=>{const [id,job]=timers.entries().next().value;timers.delete(id);job.f();for(let i=0;i<100;i++){await new Promise(resolve=>setImmediate(resolve));if(!sync.busy&&!sync.preparing)break;}assert.equal(sync.busy,false);},
+    initialize:async()=>sync.initialize({}),run:async()=>{sync.clearTimer();if(!capabilities.configuration)sync.forceConfigurationCheck=true;await sync.syncNow();},
     edit:p=>{profiles.set(p.id,clone(p));profileListeners.forEach(f=>f(p.id,false,'local'));},
     remove:id=>{profiles.delete(id);profileListeners.forEach(f=>f(id,true,'local'));},
     changeSettings:p=>{settings=clone(p);themeListeners.forEach(f=>f(settings));},
@@ -216,12 +222,12 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
  await test('purchase restoration opens backup without another payment and avoids a self-triggered fast loop',async()=>{
   const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('PROVIDER_UNAVAILABLE');f.entitlement(false);
   await f.run();assert.equal(f.calls.restores,1);assert.equal(f.calls.settingsUploads,1);assert.equal(f.sync.status(),'已同步');
-  assert.equal(Array.from(f.timers.values())[0].ms,30000);
-  await f.run();assert.equal(f.calls.restores,2);assert.equal(f.calls.settingsUploads,1);assert.equal(Array.from(f.timers.values())[0].ms,30000);
+  assert.equal(f.timers.size,0);
+  await f.run();assert.equal(f.calls.restores,2);assert.equal(f.calls.settingsUploads,1);assert.equal(f.timers.size,0);
  });
  await test('failed legacy receipts do not block a separately verified active entitlement or cause a fast notification loop',async()=>{
   const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('PROVIDER_UNAVAILABLE');f.restoreFailure(true);
-  await f.run();assert.equal(f.calls.settingsUploads,1);assert.equal(Array.from(f.timers.values())[0].ms,30000);
+  await f.run();assert.equal(f.calls.settingsUploads,1);assert.equal(f.timers.size,0);
   f.restoreFailure(false);f.entitlementEvent();assert.equal(Array.from(f.timers.values())[0].ms,0);await f.run();assert.equal(f.calls.settingsUploads,1);
  });
  await test('changed deployment capabilities are reread before automatic backup',async()=>{
@@ -256,6 +262,31 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
   // This fixture's restore mock must leave official inactive state intact on failure.
   f.api.restorePurchases=async()=>{throw Error('ORDER_BINDING_MISMATCH');};
   await f.run();assert.equal(f.calls.settingsUploads,0);assert.equal(f.calls.uploads.length,0);assert.match(f.sync.status(),/VIP/);
+ });
+ await test('unified backup stays fully idle after success, including no journal or entitlement calls',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();assert.equal(f.timers.size,0);
+  const calls=JSON.stringify(f.calls);for(let i=0;i<12;i++)await f.run();assert.equal(JSON.stringify(f.calls),calls);assert.equal(f.timers.size,0);
+ });
+ await test('unified local saves coalesce and go idle after the last configuration revision',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();for(let i=0;i<9;i++)f.changeConfiguration();
+  assert.equal(f.timers.size,1);await f.fire();assert.equal(f.calls.configurations,2);assert.equal(f.timers.size,0);
+ });
+ await test('unified transient errors after prior success still retry with increasing delay',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();f.changeConfiguration();f.configurationHook(()=>{throw Error('OFFLINE');});
+  await f.fire();assert.equal([...f.timers.values()][0].ms,60000);await f.fire();assert.equal([...f.timers.values()][0].ms,120000);
+  f.configurationHook(null);await f.fire();assert.equal(f.timers.size,0);assert.equal(f.sync.status(),'云端备份已更新');
+ });
+ await test('unified foreground and manual checks run once while a disabled backup makes no requests',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();f.sync.setForeground(false);f.sync.setForeground(true);await f.fire();assert.equal(f.calls.configurations,2);assert.equal(f.timers.size,0);
+  f.sync.requestSync(0,true);await f.fire();assert.equal(f.calls.configurations,3);await f.sync.setEnabled('configuration',false);const calls=JSON.stringify(f.calls);await f.fire();assert.equal(JSON.stringify(f.calls),calls);assert.equal(f.timers.size,0);
+ });
+ await test('unified modifications during transfer queue one more job and paused membership stops polling',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();let once=true;f.configurationHook(()=>{if(once){once=false;f.changeConfiguration();return '检测到本地修改，等待备份';}return '云端备份已更新';});
+  await f.run();assert.equal(f.timers.size,1);await f.fire();assert.equal(f.calls.configurations,2);assert.equal(f.timers.size,0);
+  f.entitlement(false);f.sync.requestSync(0,true);await f.fire();assert.match(f.sync.status(),/VIP/);assert.equal(f.timers.size,0);
+ });
+ await test('legacy migration transport also stays idle without configuration changes',async()=>{
+  const f=fixture();await f.initialize();await f.run();const before=JSON.stringify(f.calls);await f.sync.syncNow();assert.equal(JSON.stringify(f.calls),before);assert.equal(f.timers.size,0);
  });
  console.log(`Automatic account sync: ${count} scenarios PASS (host mocks, no real account/network)`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

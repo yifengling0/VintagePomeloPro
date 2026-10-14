@@ -1,4 +1,5 @@
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
+import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
 import { AppLog } from '../service/LogService';
@@ -86,6 +87,14 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
+    void UserConfigurationRepository.getInstance().initialize(this.context).then((): void => {
+      this.createConfiguredWindowStage(windowStage);
+    }).catch((error: Error): void => {
+      hilog.error(DOMAIN, 'EntryAbility', 'Configuration bootstrap failed, preserving backups');
+      this.createConfiguredWindowStage(windowStage);
+    });
+  }
+  private createConfiguredWindowStage(windowStage: window.WindowStage): void {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
     this.ensureDownloadGamesDirectory('onWindowStageCreate');

@@ -46,9 +46,11 @@ export class CloudDbStore {
       const lock = JSON.parse(locks[0].json);
       requireThat(Number.isSafeInteger(lock.revision) && lock.revision < Number.MAX_SAFE_INTEGER, 'STORAGE_INVARIANT', 503);
       const writes = new Map();
+      const deletes = new Map();
       result = await action({
         get: async key => {
           requireThat(key !== LOCK_KEY, 'RESERVED_KEY');
+          if (deletes.has(key)) return null;
           if (writes.has(key)) return JSON.parse(writes.get(key).json);
           const rows = await raw.executeQuery(this.query(key));
           requireThat(rows.length <= 1, 'STORAGE_INVARIANT', 503);
@@ -59,11 +61,17 @@ export class CloudDbStore {
           const json = JSON.stringify(value);
           requireThat(Buffer.byteLength(json) <= 524288, 'STORAGE_QUOTA');
           writes.set(key, new ValueAddedRecord(key, scope, json));
+          deletes.delete(key);
+        },
+        delete: key => {
+          requireThat(key !== LOCK_KEY && typeof key === 'string' && key.startsWith('config-') && key.length <= 200, 'INVALID_STORAGE_KEY');
+          writes.delete(key);deletes.set(key,new ValueAddedRecord(key));
         }
       });
       // SDK requires all reads before all writes. Callback has no external side effects and may rerun.
       raw.executeUpsert([new ValueAddedRecord(LOCK_KEY, 'internal', JSON.stringify({ revision: lock.revision + 1 })),
         ...writes.values()]);
+      if(deletes.size)raw.executeDelete([...deletes.values()]);
       return true;
     } }));
     requireThat(committed === true, 'STORAGE_CONFLICT_RETRY', 503);

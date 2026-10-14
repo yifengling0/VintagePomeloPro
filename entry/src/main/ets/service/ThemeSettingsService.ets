@@ -30,6 +30,10 @@ export class ThemeSettingsService {
     await AppSettingsStore.getInstance().saveGlobalSettings(settings);
     this.listeners.forEach((listener: ThemeSettingsListener) => listener(settings));
   }
+  refreshConfiguration(): void {
+    const settings = this.getSettings(); this.applyColorMode(settings);
+    this.listeners.forEach((listener: ThemeSettingsListener): void => listener(settings));
+  }
 
   subscribe(listener: ThemeSettingsListener): void {
     this.listeners.add(listener);
