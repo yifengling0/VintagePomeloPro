@@ -14,6 +14,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/arm64x_build_cache.sh"
 
 [ -f "$DXVK_SRC/meson.build" ] || err "DXVK source missing: $DXVK_SRC"
 command -v glslangValidator >/dev/null 2>&1 || err "glslangValidator missing"
@@ -40,7 +41,9 @@ BIN="$ARM64X_ROOT/bin"
 mkdir -p "$GEN" "$OBJD" "$BIN"
 
 # ── 1) version.h (meson vcs_tag 产物) ──
-sed 's/@VCS_TAG@/v1.10.3/' "$DXVK_SRC/version.h.in" > "$GEN/version.h"
+version="$(git -c safe.directory="$DXVK_SRC" -C "$DXVK_SRC" describe --tags --always --dirty)"
+sed "s/@VCS_TAG@/$version/" "$DXVK_SRC/version.h.in" > "$GEN/version.h.new"
+arm64x_update_generated "$GEN/version.h" "$GEN/version.h.new"
 
 # ── 2) glslang shader .h ──
 log "Generating shader headers (glslang)..."
@@ -48,8 +51,9 @@ for f in $(find "$DXVK_SRC/src/dxvk/shaders" "$DXVK_SRC/src/dxvk/hud/shaders" \
                "$DXVK_SRC/src/d3d11/shaders" "$DXVK_SRC/src/d3d9/shaders" \
                \( -name '*.vert' -o -name '*.frag' -o -name '*.comp' -o -name '*.geom' \) 2>/dev/null); do
     b=$(basename "$f"); bn=${b%.*}
-    glslangValidator --quiet -V --vn "$bn" "$f" -o "$GEN/$bn.h" >/dev/null 2>&1 || \
+    glslangValidator --quiet -V --vn "$bn" "$f" -o "$GEN/$bn.h.new" >/dev/null 2>&1 || \
         err "glslang failed on $f"
+    arm64x_update_generated "$GEN/$bn.h" "$GEN/$bn.h.new"
 done
 
 # ── 3) -marm64x 单遍编译 ──
@@ -71,7 +75,8 @@ SRCS=$(find "$DXVK_SRC/src/util" "$DXVK_SRC/src/spirv" "$DXVK_SRC/src/vulkan" \
            \( -name '*.cpp' -o -name '*.c' \) 2>/dev/null)
 # 编译参数指纹: 增量 skip ([ -f "$obj" ] && continue) 不感知 CFLAGS 变化,
 # 宏/选项变动必须重编 (2026-09-05 实测: -DDXVK_WSI_WIN32 加了却不生效)。
-fp="$(printf '%s\n%s\n%s' "$CFLAGS" "$CFLAGS_C" "${CFLAGS_EXTRA:-}" | sha256sum | awk '{print $1}')"
+fp="$( { printf '%s\n%s\n%s\n%s\n' "$CFLAGS" "$CFLAGS_C" "${CFLAGS_EXTRA:-}" "$SRCS";
+    "$CLANG" --version; sha256sum "$CLANG"; } | sha256sum | awk '{print $1}')"
 fp_file="$OBJD/.cflags_fp"
 [ -f "$fp_file" ] && [ "$(cat "$fp_file" 2>/dev/null)" = "$fp" ] || { rm -rf "$OBJD"; mkdir -p "$OBJD"; }
 printf '%s\n' "$fp" > "$fp_file"
@@ -79,10 +84,10 @@ N=0
 for s in $SRCS; do
     rel=${s#$DXVK_SRC/src/}
     obj="$OBJD/$(echo "$rel" | tr '/' '_').o"
-    [ -f "$obj" ] && continue
+    arm64x_object_current "$obj" && continue
     N=$((N+1))
     if [[ "$s" == *.c ]]; then CF="$CFLAGS_C"; else CF="$CFLAGS"; fi
-    "$CLANG" --target=aarch64-w64-mingw32 -marm64x $CF -c "$s" -o "$obj" 2> "$obj.err" || {
+    "$CLANG" --target=aarch64-w64-mingw32 -marm64x $CF -MD -MP -MF "$obj.d" -MT "$obj" -c "$s" -o "$obj" 2> "$obj.err" || {
         echo "==== $rel FAIL:"; head -6 "$obj.err"; exit 1;
     }
 done

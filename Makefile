@@ -167,7 +167,7 @@ dxvk: $(DXVK_STAMP)
 # arm64x 链接引用 wine 构建的 import lib (dlls/vulkan-1/aarch64-windows/libvulkan-1.a):
 # 必须显式前置 wine stamp, 否则干净环境 (无残留 build/) 中 dxvk 先于 wine 构建
 # → 链接失败 (CI 实测 2026-09-04: "no such file ... libvulkan-1.a")。
-$(DXVK_STAMP): $(SCRIPTS)/build_dxvk.sh $(SCRIPTS)/build_dxvk_arm64x.sh $(DXVK_SOURCE_INPUTS) \
+$(DXVK_STAMP): $(SCRIPTS)/build_dxvk.sh $(SCRIPTS)/build_dxvk_arm64x.sh $(DXVK_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
 	$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
 	@echo "=== dxvk legacy ($(WINE_ARCH)) ==="
 	bash $(SCRIPTS)/build_dxvk.sh
@@ -188,7 +188,7 @@ $(DXVK_ARTIFACTS): $(DXVK_STAMP)
 .PHONY: dxvk-modern
 dxvk-modern: $(DXVK_MODERN_STAMP)
 
-$(DXVK_MODERN_STAMP): $(SCRIPTS)/build_dxvk_modern.sh $(SCRIPTS)/build_dxvk_modern_arm64x.sh $(DXVK_MODERN_SOURCE_INPUTS) \
+$(DXVK_MODERN_STAMP): $(SCRIPTS)/build_dxvk_modern.sh $(SCRIPTS)/build_dxvk_modern_arm64x.sh $(DXVK_MODERN_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
 	$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
 	@echo "=== dxvk modern 2.6 ($(WINE_ARCH)) ==="
 	bash $(SCRIPTS)/build_dxvk_modern.sh

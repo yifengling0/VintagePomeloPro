@@ -513,7 +513,7 @@ def write_payload(out_dir: Path, suites: dict, cases: dict, env: dict) -> None:
 # 设备与传输
 # ---------------------------------------------------------------------------
 
-BUNDLE = "app.hackeris.winehua"
+BUNDLE = os.environ.get("WINEHUA_SMOKE_BUNDLE", "app.hackeris.winehua")
 ABILITY = "EntryAbility"
 # 沙箱路径有两个视角，用途不同（2026-09-16 实测，不可混用）：
 #   hdc file send -b <bundle>：remote 必须写沙箱视角，写真实路径会落到不存在的相对位置

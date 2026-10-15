@@ -11,6 +11,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/arm64x_build_cache.sh"
 
 [ -f "$DXVK_MODERN_SRC/meson.build" ] || err "DXVK Modern source missing: $DXVK_MODERN_SRC"
 [ -f "$DXVK_MODERN_SRC/include/vulkan/include/vulkan/vulkan.h" ] || \
@@ -43,13 +44,16 @@ BIN="$ARM64X_ROOT/bin"
 mkdir -p "$GEN" "$OBJD" "$BIN"
 
 # ── 1) meson 配置产物 (PoV: meson 只做 configure_file/vcs_tag/glslang, 手搓等价) ──
-sed -e 's/@VCS_TAG@/v2.6/' "$DXVK_MODERN_SRC/version.h.in" > "$GEN/version.h"
-cat > "$GEN/buildenv.h" <<'EOF'
+version="$(git -c safe.directory="$DXVK_MODERN_SRC" -C "$DXVK_MODERN_SRC" describe --tags --always --dirty)"
+sed "s/@VCS_TAG@/$version/" "$DXVK_MODERN_SRC/version.h.in" > "$GEN/version.h.new"
+arm64x_update_generated "$GEN/version.h" "$GEN/version.h.new"
+cat > "$GEN/buildenv.h.new" <<EOF
 #pragma once
 #define DXVK_TARGET "aarch64"
 #define DXVK_COMPILER "clang"
-#define DXVK_COMPILER_VERSION "23"
+#define DXVK_COMPILER_VERSION "$($CLANG -dumpversion)"
 EOF
+arm64x_update_generated "$GEN/buildenv.h" "$GEN/buildenv.h.new"
 
 # ── 2) glslang shader .h ──
 log "Generating shader headers (glslang)..."
@@ -57,15 +61,16 @@ for f in $(find "$DXVK_MODERN_SRC/src/dxvk/shaders" "$DXVK_MODERN_SRC/src/dxvk/h
                "$DXVK_MODERN_SRC/src/d3d11/shaders" \
                \( -name '*.vert' -o -name '*.frag' -o -name '*.comp' -o -name '*.geom' \) 2>/dev/null); do
     b=$(basename "$f"); bn=${b%.*}
-    glslangValidator --quiet -V --vn "$bn" "$f" -o "$GEN/$bn.h" >/dev/null 2>&1 || \
+    glslangValidator --quiet -V --vn "$bn" "$f" -o "$GEN/$bn.h.new" >/dev/null 2>&1 || \
         err "glslang failed on $f"
+    arm64x_update_generated "$GEN/$bn.h" "$GEN/$bn.h.new"
 done
 
 # ── 3) libdisplay-info pnp-id-table.c (其 meson 生成产物) ──
-[ -f "$GEN/pnp-id-table.c" ] || \
-    python3 "$DXVK_MODERN_SRC/subprojects/libdisplay-info/tool/gen-search-table.py" \
+python3 "$DXVK_MODERN_SRC/subprojects/libdisplay-info/tool/gen-search-table.py" \
       "$DXVK_MODERN_SRC/subprojects/libdisplay-info/pnp.ids" \
-      "$GEN/pnp-id-table.c" pnp_id_table 2>/dev/null || true
+      "$GEN/pnp-id-table.c.new" pnp_id_table
+arm64x_update_generated "$GEN/pnp-id-table.c" "$GEN/pnp-id-table.c.new"
 
 # ── 4) -marm64x 单遍编译 (每源一个 AA+EC 双图对象) ──
 # 手搓链绕过 meson -Dbuildtype=release；OPT 必须显式带上，否则 clang 默认 O0。
@@ -91,7 +96,8 @@ SRCS="$SRCS $(find "$DXVK_MODERN_SRC/subprojects/libdisplay-info" -maxdepth 1 -n
 SRCS="$SRCS $GEN/pnp-id-table.c"
 
 # 编译参数指纹 (增量 skip 不感知 CFLAGS 变化, 见 build_dxvk_arm64x.sh 注释)
-fp="$(printf '%s\n%s\n%s' "$CFLAGS" "$CFLAGS_C" "${CFLAGS_EXTRA:-}" | sha256sum | awk '{print $1}')"
+fp="$( { printf '%s\n%s\n%s\n%s\n' "$CFLAGS" "$CFLAGS_C" "${CFLAGS_EXTRA:-}" "$SRCS";
+    "$CLANG" --version; sha256sum "$CLANG"; } | sha256sum | awk '{print $1}')"
 fp_file="$OBJD/.cflags_fp"
 [ -f "$fp_file" ] && [ "$(cat "$fp_file" 2>/dev/null)" = "$fp" ] || { rm -rf "$OBJD"; mkdir -p "$OBJD"; }
 printf '%s\n' "$fp" > "$fp_file"
@@ -103,10 +109,10 @@ for s in $SRCS; do
         rel=$(echo "$s" | tr '/' '_')
     fi
     obj="$OBJD/$(echo "$rel" | tr '/' '_').o"
-    [ -f "$obj" ] && continue
+    arm64x_object_current "$obj" && continue
     N=$((N+1))
     if [[ "$s" == *.c ]]; then CF="$CFLAGS_C"; else CF="$CFLAGS"; fi
-    "$CLANG" --target=aarch64-w64-mingw32 -marm64x $CF -c "$s" -o "$obj" 2> "$obj.err" || {
+    "$CLANG" --target=aarch64-w64-mingw32 -marm64x $CF -MD -MP -MF "$obj.d" -MT "$obj" -c "$s" -o "$obj" 2> "$obj.err" || {
         echo "==== $rel FAIL:"; head -6 "$obj.err"; exit 1;
     }
 done
@@ -124,7 +130,7 @@ link_profile() {
     if [ "$dll" = "dxgi" ]; then
         keep="$KEEP_COMMON dxgi_"
     else # d3d11: 全部 common + 仅 dxgi 组的 dxgi_format + dxbc/d3d10/d3d11
-        keep="$KEEP_COMMON $KEEP_OLD" extra_implib="$ARM64X_ROOT/dxgi.lib"
+        keep="$KEEP_COMMON $KEEP_OLD dxgi_" extra_implib="$ARM64X_ROOT/dxgi.lib"
     fi
 
     local objs=() base o p
@@ -152,7 +158,7 @@ link_profile() {
             n=$(echo "$line" | awk '{print $1}'); o=$(echo "$line" | awk '{print $2}')
             echo "	.asciz \"/EXPORT:${n},${o}\""
         done < <(sed -n '3,$p' "$DXVK_MODERN_SRC/src/$dll/$dll.def" | \
-          grep -oE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*(@[0-9]+)?[[:space:]]*$')
+          grep -oE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*([[:space:]]+@[0-9]+)?[[:space:]]*$')
     } > "$shim"
     "$CLANG" --target=aarch64-w64-mingw32 -marm64x -c "$shim" -o "$BUILD/$dll.exports.o"
 

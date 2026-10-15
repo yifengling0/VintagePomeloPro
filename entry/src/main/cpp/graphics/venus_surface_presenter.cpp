@@ -164,6 +164,8 @@ struct VenusSurfaceQueueTarget::Impl {
         VkSemaphore acquired = VK_NULL_HANDLE;
         VkSemaphore released = VK_NULL_HANDLE;
         bool submitted = false;
+        bool acquisitionPending = false;
+        VkFence acquisitionComplete = VK_NULL_HANDLE;
         VkFence complete = VK_NULL_HANDLE;
         VkQueryPool gpuTiming = VK_NULL_HANDLE;
     };
@@ -362,8 +364,15 @@ struct VenusSurfaceQueueTarget::Impl {
 
         uint32_t imageIndex = 0;
         stageStartNs = NowNs();
+        // An accepted WSI acquire may still be signaling its semaphore after
+        // the call returns. Retire that operation before destroying a failed
+        // recording's slot, even when no GPU command was submitted.
+        result = vkResetFences(device_, 1, &frame.acquisitionComplete);
+        if (result != VK_SUCCESS) return FailLocked("reset acquisition fence", result, serial);
+        frame.acquisitionPending = false;
         result = vkAcquireNextImageKHR(device_, swapchain_, displayPeriodNs_ * 2,
-                                       frame.acquired, VK_NULL_HANDLE, &imageIndex);
+                                       frame.acquired, frame.acquisitionComplete, &imageIndex);
+        frame.acquisitionPending = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
         const uint64_t acquireUs = (NowNs() - stageStartNs) / 1000;
         if (result == VK_TIMEOUT || result == VK_NOT_READY) {
             ++throttled_;
@@ -388,12 +397,17 @@ struct VenusSurfaceQueueTarget::Impl {
             return FailLocked("acquire", result, serial);
         TracePresentStage("target-acquired", serial, image);
 
-        vkResetFences(device_, 1, &frame.complete);
-        vkResetCommandBuffer(frame.command, 0);
+        const auto abortAcquired = [&](const char* operation, VkResult failure) {
+            swapchainDirty_ = true;
+            FailLocked(operation, failure, serial);
+            return failure == VK_ERROR_DEVICE_LOST ? -ENODEV : -EAGAIN;
+        };
+        result = vkResetCommandBuffer(frame.command, 0);
+        if (result != VK_SUCCESS) return abortAcquired("reset command", result);
         VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         result = vkBeginCommandBuffer(frame.command, &begin);
-        if (result != VK_SUCCESS) return FailLocked("begin command", result, serial);
+        if (result != VK_SUCCESS) return abortAcquired("begin command", result);
 
         if (gpuTiming) {
             /* The query pool belongs to this completed frame slot.  It was
@@ -532,7 +546,7 @@ struct VenusSurfaceQueueTarget::Impl {
         }
 
         result = vkEndCommandBuffer(frame.command);
-        if (result != VK_SUCCESS) return FailLocked("end command", result, serial);
+        if (result != VK_SUCCESS) return abortAcquired("end command", result);
 
         const uint64_t timestamp = NowNs();
         OH_NativeWindow_NativeWindowHandleOpt(
@@ -547,9 +561,11 @@ struct VenusSurfaceQueueTarget::Impl {
         submit.signalSemaphoreCount = 1;
         submit.pSignalSemaphores = &renderFinished_[imageIndex];
         stageStartNs = NowNs();
+        result = vkResetFences(device_, 1, &frame.complete);
+        if (result != VK_SUCCESS) return abortAcquired("reset fence", result);
         result = vkQueueSubmit(queue_, 1, &submit, frame.complete);
         const uint64_t submitUs = (NowNs() - stageStartNs) / 1000;
-        if (result != VK_SUCCESS) return FailLocked("queue submit", result, serial);
+        if (result != VK_SUCCESS) return abortAcquired("queue submit", result);
         frame.submitted = true;
         TracePresentStage("copy-submitted", serial, image);
 
@@ -1001,10 +1017,12 @@ private:
     VkResult WaitForOutstandingFramesLocked()
     {
         std::vector<VkFence> pending;
-        pending.reserve(frames_.size());
+        pending.reserve(frames_.size() * 2);
         for (const Frame& frame : frames_) {
             if (frame.submitted && frame.complete)
                 pending.push_back(frame.complete);
+            if (frame.acquisitionPending && frame.acquisitionComplete)
+                pending.push_back(frame.acquisitionComplete);
         }
         if (pending.empty()) return VK_SUCCESS;
 
@@ -1012,7 +1030,10 @@ private:
             device_, static_cast<uint32_t>(pending.size()), pending.data(),
             VK_TRUE, kReleaseFenceWatchdogNs);
         if (result == VK_SUCCESS) {
-            for (Frame& frame : frames_) frame.submitted = false;
+            for (Frame& frame : frames_) {
+                frame.submitted = false;
+                frame.acquisitionPending = false;
+            }
         }
         return result;
     }
@@ -1376,7 +1397,9 @@ private:
             if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr,
                                   &frames_[i].acquired) != VK_SUCCESS ||
                 vkCreateFence(device_, &fenceInfo, nullptr,
-                              &frames_[i].complete) != VK_SUCCESS) {
+                              &frames_[i].complete) != VK_SUCCESS ||
+                vkCreateFence(device_, &fenceInfo, nullptr,
+                              &frames_[i].acquisitionComplete) != VK_SUCCESS) {
                 error = -ENOMEM;
                 return false;
             }
@@ -1427,6 +1450,7 @@ private:
             for (auto& frame : frames_) {
                 if (frame.gpuTiming) vkDestroyQueryPool(device_, frame.gpuTiming, nullptr);
                 if (frame.complete) vkDestroyFence(device_, frame.complete, nullptr);
+                if (frame.acquisitionComplete) vkDestroyFence(device_, frame.acquisitionComplete, nullptr);
                 if (frame.acquired) vkDestroySemaphore(device_, frame.acquired, nullptr);
                 if (frame.released) vkDestroySemaphore(device_, frame.released, nullptr);
             }

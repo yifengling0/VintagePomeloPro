@@ -539,6 +539,7 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
         UpsertEnvLine(env, "VK_ICD_FILENAMES=" + guestVulkanIcd);
     }
 #endif
+    UpsertEnvLine(env, "DXVK_WINEHUA_BATCH_MAPPED_FLUSH=1");
     if (!legacy) return;
 
     const std::vector<std::string> legacyCompatibility = {
