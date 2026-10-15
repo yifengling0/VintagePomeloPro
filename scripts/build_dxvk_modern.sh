@@ -30,11 +30,11 @@ if [ "$WINE_ARCH" != "aarch64" ]; then
 fi
 
 log "--- DXVK Modern profile ($DXVK_MODERN_SRC) ---"
-ninja -C "$DXVK_MODERN_BUILD_ROOT/build.winehua32" install
+ninja -j "$JOBS" -C "$DXVK_MODERN_BUILD_ROOT/build.winehua32" install
 if [ "$WINE_ARCH" = "aarch64" ]; then
     log "scheme ③: skip meson x64 (ARM64X overlay replaces it in wine-data x64/)"
 else
-    ninja -C "$DXVK_MODERN_BUILD_ROOT/build.winehua64" install
+    ninja -j "$JOBS" -C "$DXVK_MODERN_BUILD_ROOT/build.winehua64" install
 fi
 
 for dll in d3d11.dll dxgi.dll; do

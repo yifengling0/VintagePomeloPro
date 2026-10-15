@@ -69,7 +69,7 @@ export struct AppCard {
     // Explorer supplies both the desktop shell and the file manager.  Label the
     // shell role explicitly while keeping explorer.exe as the actual launch target.
     if (this.app.id === 'builtin-desktop') return 'desktop (explorer)';
-    if (this.app.id === 'builtin-dxvk-cube') return 'DXVK Legacy · D3D11';
+    if (this.app.id === 'builtin-dxvk-cube') return 'DXVK · D3D11';
     return this.app.launchTarget.executable;
   }
 

@@ -1,0 +1,27 @@
+{
+  "name": "dxvk26-memory-legacy",
+  "title": "Legacy minimal readback control without CubeArray shader",
+  "checks": [
+    "coverage"
+  ],
+  "tests": [
+    {
+      "case": "dxvk26-regression",
+      "id": "dxvk26-memory-legacy",
+      "arch": [
+        "x64"
+      ],
+      "backend": {
+        "d3d": "dxvk_legacy"
+      },
+      "env": {
+        "DXVK26_MEMORY_ONLY": "1",
+        "DXVK_LOG_LEVEL": "info",
+        "DXVK_WINEHUA_TRACE_MAPPED": "1",
+        "WINEHUA_VIRGL_HOST_SHADOW_SELECTOR": "1"
+      },
+      "seconds": 5,
+      "timeoutMs": 60000
+    }
+  ]
+}

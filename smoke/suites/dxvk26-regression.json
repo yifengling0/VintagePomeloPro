@@ -1,0 +1,50 @@
+{
+  "name": "dxvk26-regression",
+  "title": "DXVK Modern CPU GPU visibility and rendering",
+  "checks": [],
+  "tests": [
+    {
+      "case": "dxvk26-regression",
+      "id": "dxvk26-regression",
+      "arch": [
+        "x64",
+        "x86"
+      ],
+      "backend": {
+        "d3d": "dxvk_modern_2_6"
+      },
+      "env": {
+        "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT": "1",
+        "DXVK_LOG_LEVEL": "info",
+        "DXVK_WINEHUA_TRACE_MAPPED": "1",
+        "DXVK_WINEHUA_OWN_CACHED_BUFFERS": "1",
+        "DXVK_DEBUG": "",
+        "DXVK_WINEHUA_LEGACY_READBACK_COPY": "0",
+        "DXVK_WINEHUA_READBACK_DEVICE_IDLE": "0"
+      },
+      "seconds": 5,
+      "timeoutMs": 180000
+    },
+    {
+      "case": "dxvk26-regression-amd64",
+      "id": "dxvk26-regression-amd64",
+      "arch": [
+        "x64"
+      ],
+      "backend": {
+        "d3d": "dxvk_modern_2_6"
+      },
+      "env": {
+        "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT": "1",
+        "DXVK_LOG_LEVEL": "info",
+        "DXVK_WINEHUA_TRACE_MAPPED": "1",
+        "DXVK_WINEHUA_OWN_CACHED_BUFFERS": "1",
+        "DXVK_DEBUG": "",
+        "DXVK_WINEHUA_LEGACY_READBACK_COPY": "0",
+        "DXVK_WINEHUA_READBACK_DEVICE_IDLE": "0"
+      },
+      "seconds": 5,
+      "timeoutMs": 180000
+    }
+  ]
+}

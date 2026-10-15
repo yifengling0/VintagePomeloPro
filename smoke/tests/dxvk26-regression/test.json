@@ -1,0 +1,34 @@
+{
+  "id": "dxvk26-regression",
+  "title": "DXVK Modern correctness readback regression",
+  "exe": "winehua_dxvk26_regression.exe",
+  "arch": [
+    "x64",
+    "x86"
+  ],
+  "build": {
+    "sources": [
+      "smoke/winehua_dxvk26_regression.c"
+    ],
+    "cflags": [
+      "-O2",
+      "-s",
+      "-Wall",
+      "-Ithirdparty/wine/programs"
+    ],
+    "libs": [
+      "-ld3d11",
+      "-ld3d10",
+      "-ldxgi",
+      "-ld3dcompiler",
+      "-luuid",
+      "-luser32",
+      "-lm"
+    ],
+    "dxvk_include": true,
+    "vulkan_import": true
+  },
+  "checks": [
+    "result-json"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "dxvk26-regression-legacy",
+  "title": "DXVK Legacy readback transport control",
+  "checks": [
+    "coverage"
+  ],
+  "tests": [
+    {
+      "case": "dxvk26-regression",
+      "id": "dxvk26-regression",
+      "arch": [
+        "x64"
+      ],
+      "backend": {
+        "d3d": "dxvk_legacy"
+      },
+      "env": {
+        "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT": "1"
+      },
+      "seconds": 5,
+      "timeoutMs": 180000
+    }
+  ]
+}
