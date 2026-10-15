@@ -160,6 +160,11 @@ export class AccountAutomaticSyncService {
   }
   setForeground(value: boolean): void {
     this.foreground = value;
+    // The library backgrounds when a Wine game window opens, including on
+    // devices where account features are hidden and never initialized.
+    if (!DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+      this.epoch++; this.clearTimer(); return;
+    }
     if (!value) { this.epoch++; this.clearTimer(); this.overall = this.api().getUserId() ? '返回应用后继续同步' : '等待登录'; this.emit(); }
     else if (this.context) this.requestSync(0, true);
   }

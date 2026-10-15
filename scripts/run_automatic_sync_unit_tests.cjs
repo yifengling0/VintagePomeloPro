@@ -61,7 +61,7 @@ function fixture(options={}) {
   };
   const store={getSync:(k,d)=>journal.get(k)||d,put:async(k,v)=>{calls.journals++;journal.set(k,v);},flush:async()=>{}};
   const imports={'@kit.AbilityKit':{},'@ohos.data.preferences':{default:{getPreferences:async()=>store}},
-    '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>true}},
+    '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>options.valueAddedSupported!==false}},
     '../../model/AppModels':app,'../../model/ValueAddedModels':models,'../../model/AccountSyncModels':syncModels,
     './ValueAddedService':{ValueAddedService:{getInstance:()=>api}},'../InputProfileService':{InputProfileService:{getInstance:()=>inputs}},
     '../ThemeSettingsService':{ThemeSettingsService:{getInstance:()=>theme}},
@@ -91,6 +91,13 @@ function fixture(options={}) {
 let count=0;
 async function test(name,run){await run();count++;console.log('PASS '+name);}
 (async()=>{
+ await test('hidden account features tolerate game-window background and foreground without account calls',async()=>{
+  const f=fixture({valueAddedSupported:false});
+  f.api.getUserId=()=>{throw Error('FEATURE_HIDDEN');};
+  await f.initialize();const before=JSON.stringify(f.calls);
+  for(let i=0;i<3;i++){assert.doesNotThrow(()=>f.sync.setForeground(false));assert.doesNotThrow(()=>f.sync.setForeground(true));}
+  await f.sync.syncNow();assert.equal(JSON.stringify(f.calls),before);assert.equal(f.timers.size,0);assert.equal(f.journal.size,0);
+ });
  await test('first login uploads automatically; steady state sends no redundant writes',async()=>{
   const f=fixture();await f.initialize();await f.run();assert.equal(f.calls.uploads.length,2);assert.equal(f.calls.settingsUploads,1);
   const last=f.sync.lastSyncedAt();await f.run();assert.equal(f.calls.uploads.length,2);assert.equal(f.calls.settingsUploads,1);assert.ok(last>0);
