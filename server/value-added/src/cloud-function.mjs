@@ -1,5 +1,5 @@
 import { createApiDispatcher } from './api-dispatcher.mjs';
-import { requireThat, ServiceError } from './errors.mjs';
+import { requireThat, ServiceError, unexpectedDiagnostic } from './errors.mjs';
 
 // This transport carries JSON only. 4 MiB save chunks must not be base64-expanded
 // into an unverified gateway limit; keep saves closed until binary transport is qualified.
@@ -44,7 +44,8 @@ export function createCloudFunction(domain) {
       return { protocol: 1, ...result };
     } catch (error) {
       return { protocol: 1, status: error instanceof ServiceError ? error.status : 500,
-        body: JSON.stringify({ code: error instanceof ServiceError ? error.code : 'SERVICE_ERROR' }) };
+        body: JSON.stringify(error instanceof ServiceError ? { code: error.code } :
+          { code: 'SERVICE_ERROR', diagnosticCode: unexpectedDiagnostic(error) }) };
     }
   };
 }

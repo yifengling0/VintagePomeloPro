@@ -45,11 +45,13 @@ export function subscriptionFact(group, candidate, config, now) {
   const isLatest = last?.subscriptionId === current.subscriptionId && last?.purchaseToken === current.purchaseToken;
   // Billing retry is not proof of paid access; no undocumented grace period is invented.
   const status = revoked ? 'revoked' : current.status === '1' && isLatest && current.expiresTime > now ? 'purchased' : 'expired';
-  // Renewals may carry no developerPayload. The signed original receipt supplies the immutable owner binding.
-  requireThat(!order.developerPayload || !candidate.developerPayload || order.developerPayload === candidate.developerPayload,
-    'ORDER_BINDING_MISMATCH', 403);
+  // A same-account repurchase can keep its subscription/token/generation and replace
+  // developerPayload. Both values come from verified official JWS; the domain must
+  // validate both HMAC bindings against the authenticated account before recording.
   return { appId: config.appId, orderId: order.purchaseOrderId, productId: order.productId, productType: 2,
-    purchaseToken: current.purchaseToken, developerPayload: candidate.developerPayload || order.developerPayload, quantity: 1, status,
+    purchaseToken: current.purchaseToken, developerPayload: order.developerPayload || candidate.developerPayload,
+    ...(candidate.developerPayload && order.developerPayload && candidate.developerPayload !== order.developerPayload ?
+      { receiptDeveloperPayload: candidate.developerPayload } : {}), quantity: 1, status,
     needsFinish: !revoked && order.finishStatus === '2', purchasedAt: order.purchaseTime, expiresAt: current.expiresTime,
     subscriptionId: current.subscriptionId, subscriptionGroupId: group.subGroupId,
     generationId: current.subGroupGenerationId, subscriptionStatus: current.status,

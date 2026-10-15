@@ -146,7 +146,7 @@ async function editScale(f,value){const global=f.models.createDefaultGlobalSetti
  });
  await test('complete cloud backup deduplicates unchanged wallpaper and restores every setting',async()=>{
   const c=await cloudFixture(),a=fixture({cloudApi:c.api});await a.initialize();await a.repo.start();await editScale(a,77);const picture=path.join(a.library,'wall.img');fs.writeFileSync(picture,Buffer.alloc(300000,8));const pathTo=await a.repo.importWallpaper(picture);const settings=a.settings.getGlobalSettings();settings.pageBackgroundUri=pathTo;settings.usePageBackground=true;await a.settings.saveGlobalSettings(settings);
-  const cloud=await client(a,c);assert.equal(await cloud.sync(()=>{}),'云端备份已更新');const uploads=c.calls.filter(x=>x.method==='PUT').length,head=(await c.service.current(c.api.getUserId(),'desktop')).head;
+  const cloud=await client(a,c);assert.equal(cloud.usedBytes(),-1);assert.equal(await cloud.sync(()=>{}),'云端备份已更新');assert.ok(cloud.usedBytes()>0);const uploads=c.calls.filter(x=>x.method==='PUT').length,head=(await c.service.current(c.api.getUserId(),'desktop')).head;
   c.calls.length=0;assert.equal(await cloud.sync(()=>{}),'云端备份已更新');assert.equal(c.calls.length,1);assert.equal(c.calls[0].method,'GET');
   await editScale(a,79);const global=a.settings.getGlobalSettings();global.pageBackgroundUri=pathTo;await a.settings.saveGlobalSettings(global);c.calls.length=0;await cloud.sync(()=>{});assert.equal(c.calls.filter(x=>x.method==='PUT').length,1);assert.equal(c.calls.filter(x=>x.route.endsWith('/lease')).length,0);
   const b=fixture({cloudApi:c.api});await b.initialize();await b.repo.start();const restored=await client(b,c);c.calls.length=0;assert.equal(await restored.sync(()=>{}),'已恢复应用配置');b.settings.reloadConfiguration();assert.equal(b.settings.getGlobalSettings().outputScale,79);assert.deepEqual(fs.readFileSync(b.settings.getGlobalSettings().pageBackgroundUri),Buffer.alloc(300000,8));assert.equal(c.calls.filter(x=>x.route.includes('/chunks/')).length,3);assert.ok(uploads>=3);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.revision,head.revision+1);a.dispose();b.dispose();
@@ -156,13 +156,37 @@ async function editScale(f,value){const global=f.models.createDefaultGlobalSetti
   await editScale(f,81);c.hook((route,method)=>{if(method==='PUT')throw Error('OFFLINE');});await assert.rejects(cloud.sync(()=>{}),/OFFLINE/);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.revision,old.revision);
   c.hook(null);await cloud.sync(()=>{});assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.revision,old.revision+1);assert.ok(c.calls.some(x=>x.route.endsWith('/abort')));f.dispose();
  });
+ await test('a restarted client recovers an interrupted upload already removed by cloud cleanup',async()=>{
+  const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,75);const cloud=await client(f,c);await cloud.sync(()=>{});const old=(await c.service.current(c.api.getUserId(),'desktop')).head;
+  await editScale(f,81);c.hook((route,method)=>{if(method==='PUT')throw Error('OFFLINE');});await assert.rejects(cloud.sync(()=>{}),/OFFLINE/);
+  const journal=JSON.parse(f.getStore('configuration_cloud_journal').getSync('state_v1','{}'));assert.ok(journal.pendingId);c.hook(null);c.service.clock=()=>Date.now()+3600001;await c.service.cleanup(c.api.getUserId());assert.equal(await c.store.get('config-job:'+journal.pendingId),null);
+  assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.sha256,old.sha256);
+  const restarted=fixture({cloudApi:c.api,library:f.library,filesDir:f.context.filesDir,persistent:f.stores});await restarted.initialize();await restarted.repo.start();const resumed=await client(restarted,c);
+  assert.equal(await resumed.sync(()=>{}),'云端备份已更新');assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.revision,old.revision+1);assert.equal(restarted.settings.getGlobalSettings().outputScale,81);
+  assert.equal(JSON.parse(restarted.getStore('configuration_cloud_journal').getSync('state_v1','{}')).pendingId,'');f.dispose();
+ });
+ await test('pending upload cleanup preserves the retry record for network and authorization failures',async()=>{
+  const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,75);const cloud=await client(f,c);await cloud.sync(()=>{});const old=(await c.service.current(c.api.getUserId(),'desktop')).head;
+  await editScale(f,81);c.hook((route,method)=>{if(method==='PUT')throw Error('OFFLINE');});await assert.rejects(cloud.sync(()=>{}),/OFFLINE/);
+  const journal=f.getStore('configuration_cloud_journal'),pending=journal.getSync('state_v1','');
+  for(const code of ['OFFLINE','SIGN_IN_REQUIRED','MEMBERSHIP_REQUIRED','SERVICE_ERROR']){
+   c.hook(route=>{if(route.endsWith('/abort'))throw Error(code);});await assert.rejects(cloud.sync(()=>{}),new RegExp(code));assert.equal(journal.getSync('state_v1',''),pending);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.sha256,old.sha256);
+  }f.dispose();
+ });
+ await test('an account change during missing-upload cleanup cannot clear the previous users journal',async()=>{
+  const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,75);const cloud=await client(f,c);
+  c.hook((route,method)=>{if(method==='PUT')throw Error('OFFLINE');});await assert.rejects(cloud.sync(()=>{}),/OFFLINE/);
+  const journal=f.getStore('configuration_cloud_journal'),pending=journal.getSync('state_v1',''),owner=c.api.getUserId();
+  c.hook(route=>{if(route.endsWith('/abort')){c.owner('b'.repeat(64));throw Error('CONFIG_NOT_FOUND');}});
+  await assert.rejects(cloud.sync(()=>{if(c.api.getUserId()!==owner)throw Error('ACCOUNT_CHANGED');}),/ACCOUNT_CHANGED/);assert.equal(journal.getSync('state_v1',''),pending);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head,null);f.dispose();
+ });
  await test('edits during upload are not published and are queued for a complete retry',async()=>{
   const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,70);const cloud=await client(f,c);let once=true;
   c.hook(async(route,method)=>{if(method==='PUT'&&once){once=false;await editScale(f,91);}});await assert.rejects(cloud.sync(()=>{}),/CONFIG_LOCAL_CHANGED/);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head,null);
   c.hook(null);await cloud.sync(()=>{});const b=fixture({cloudApi:c.api});await b.initialize();await client(b,c).then(x=>x.sync(()=>{}));b.settings.reloadConfiguration();assert.equal(b.settings.getGlobalSettings().outputScale,91);f.dispose();b.dispose();
  });
  await test('account switch and legacy ownership never upload the previous users configuration',async()=>{
-  const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,72);const cloud=await client(f,c);await cloud.sync(()=>{});c.owner('b'.repeat(64));c.calls.length=0;
+  const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,72);const cloud=await client(f,c);await cloud.sync(()=>{});assert.ok(cloud.usedBytes()>0);c.owner('b'.repeat(64));assert.equal(cloud.usedBytes(),-1);c.calls.length=0;
   assert.match(await cloud.sync(()=>{}),/其他账号/);assert.equal(c.calls.filter(x=>x.method!=='GET').length,0);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head,null);
   const migrated=fixture({cloudApi:c.api});await migrated.initialize();await migrated.repo.start();await editScale(migrated,83);const migration=await client(migrated,c,'a'.repeat(64));assert.match(await migration.sync(()=>{}),/其他账号/);f.dispose();migrated.dispose();
  });

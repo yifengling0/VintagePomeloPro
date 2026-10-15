@@ -25,7 +25,8 @@ export class ConfigurationCloudSyncService {
   private data: ConfigurationSyncState = { owner: '', baselines: [] };
   private conflict: ConfigurationCurrent | null = null;
   private statusText: string = '';
-  private bytes: number = 0;
+  private bytes: number = -1;
+  private bytesOwner: string = '';
   static getInstance(): ConfigurationCloudSyncService { if (!ConfigurationCloudSyncService.instance) ConfigurationCloudSyncService.instance = new ConfigurationCloudSyncService(); return ConfigurationCloudSyncService.instance; }
   async initialize(context: common.UIAbilityContext, previousOwner: string = ''): Promise<void> {
     if (this.store) return;
@@ -38,7 +39,7 @@ export class ConfigurationCloudSyncService {
     }
   }
   status(): string { return this.statusText; }
-  usedBytes(): number { return this.bytes; }
+  usedBytes(): number { return this.bytesOwner === ValueAddedService.getInstance().getUserId() ? this.bytes : -1; }
   hasConflict(): boolean { return !!this.conflict; }
   lastSyncedAt(): number { return this.data.baselines.find((b: ConfigurationSyncBaseline): boolean => b.owner === ValueAddedService.getInstance().getUserId())?.syncedAt ?? 0; }
   private async persist(): Promise<void> { if (this.store) { await this.store.put('state_v1', JSON.stringify(this.data)); await this.store.flush(); } }
@@ -90,11 +91,19 @@ export class ConfigurationCloudSyncService {
     }
     const type = DeviceCapabilityPolicy.isTabletDevice() ? 'tablet' : 'desktop';
     if (this.data.pendingId && this.data.pendingOwner === owner) {
-      await api.configurationRequest<ConfigurationBegin>('/v1/configuration/uploads/' + this.data.pendingId + '/abort', http.RequestMethod.POST, '{}'); check();
+      try {
+        await api.configurationRequest<ConfigurationBegin>('/v1/configuration/uploads/' + this.data.pendingId + '/abort', http.RequestMethod.POST, '{}');
+      } catch (error) {
+        check();
+        // Expired uploads may already be removed by server cleanup. Reconcile
+        // against the current complete head after discarding only this marker.
+        if ((error as Error).message !== 'CONFIG_NOT_FOUND') throw error as Error;
+      }
+      check();
       this.data.pendingId = ''; this.data.pendingOwner = ''; await this.persist();
     }
     const current = await api.configurationRequest<ConfigurationCurrent>('/v1/configuration/' + type, http.RequestMethod.GET); check();
-    if (current.quotaBytes !== 67108864) throw new Error('CONFIG_INVALID'); this.bytes = current.head?.totalBytes ?? 0;
+    if (current.quotaBytes !== 67108864) throw new Error('CONFIG_INVALID'); this.bytes = current.head?.totalBytes ?? 0; this.bytesOwner = owner;
     if (!current.head && migrateLegacy) { await migrateLegacy(); check(); }
     const base = this.base(owner), revision = repo.revision(), members = await repo.snapshot(); check();
     const manifest = await this.manifest(members), digest = await files.hash(files.bytes(JSON.stringify(manifest)));

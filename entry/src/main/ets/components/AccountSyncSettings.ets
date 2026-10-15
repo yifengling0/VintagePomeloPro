@@ -50,7 +50,7 @@ export struct AccountSyncSettings {
   @State private autoPreferences: boolean = true;
   @State private preferencesConflict: boolean = false;
   @State private configurationConflict: boolean = false;
-  @State private configurationBytes: number = 0;
+  @State private configurationBytes: number = -1;
   private syncListener: (() => void) | null = null;
   private entitlementListener: (() => void) | null = null;
   private accountListener: ((userId: string) => void) | null = null;
@@ -151,6 +151,12 @@ export struct AccountSyncSettings {
     this.profiles = InputProfileService.getInstance().getProfiles();
     this.conflicts = this.profiles.filter((profile: InputProfile): boolean => !!ValueAddedService.getInstance().getConflict(profile.id))
       .map((profile: InputProfile): string => profile.id);
+  }
+  private configurationSizeText(): string {
+    if (this.configurationBytes < 0) return '云端大小待检查';
+    if (this.configurationBytes === 0) return '云端暂无备份';
+    if (this.configurationBytes < 1048576) return '云端 ' + (this.configurationBytes / 1024).toFixed(1) + ' KB';
+    return '云端 ' + (this.configurationBytes / 1048576).toFixed(1) + ' MB';
   }
   private backupStatus(value: string): string {
     if (value === '已同步') return '云端备份已更新';
@@ -497,7 +503,7 @@ export struct AccountSyncSettings {
       .backgroundColor(skinColor('search_background')).id('sync-profile-details-expand')
       .onClick((): void => { this.profileDetailsExpanded = !this.profileDetailsExpanded; })
     if (this.profileDetailsExpanded) {
-      Text('完整输入方案 ' + this.profiles.length + ' 个 · 云端 ' + (this.configurationBytes / 1048576).toFixed(1) + ' MB')
+      Text('完整输入方案 ' + this.profiles.length + ' 个 · ' + this.configurationSizeText())
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
       Text('游戏专用按键与兼容设置保存在游戏目录。系统背景和用户导入字体随应用配置备份。平板与桌面分别保存。')
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')

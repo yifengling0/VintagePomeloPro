@@ -52,7 +52,7 @@ test('HTTP trigger unwraps bounded SDK data and ignores outer authorization', as
 test('provider exceptions are redacted and service errors preserve their status', async () => {
   const call = createCloudFunction({ begin: async () => { throw Error('secret-provider-response'); } });
   const result = await call(envelope('/v1/auth/begin', 'POST', '{}'));
-  assert.deepEqual(result, { protocol: 1, status: 500, body: '{"code":"SERVICE_ERROR"}' });
+  assert.deepEqual(result, { protocol: 1, status: 500, body: '{"code":"SERVICE_ERROR","diagnosticCode":"UNEXPECTED_ERROR"}' });
   assert.equal((await call(envelope('/v1/auth/begin', 'POST', '{'))).status, 400);
 });
 test('warm instances do not bypass request rate limits', async () => {
@@ -76,4 +76,26 @@ test('Huawei entry calls its single-argument callback once even when service ini
     assert.equal(returned, undefined);
   });
   assert.equal(callbacks, 1);
+});
+
+test('unexpected diagnostics expose only fixed categories or numeric SDK codes', async () => {
+  const sensitive = 'private-account-token-and-provider-response';
+  for (const [error, expected] of [
+    [new TypeError(sensitive), 'TYPE_ERROR'],
+    [new ReferenceError(sensitive), 'REFERENCE_ERROR'],
+    [new SyntaxError(sensitive), 'SYNTAX_ERROR'],
+    [new RangeError(sensitive), 'RANGE_ERROR'],
+    [{ getCode: () => '100000001', message: sensitive }, '100000001'],
+    [{ errorCode: 1234, message: sensitive }, '1234'],
+    [{ code: sensitive }, 'UNEXPECTED_ERROR'],
+    [{ code: '1234567890123' }, 'UNEXPECTED_ERROR'],
+    [{ getCode: () => { throw new Error(sensitive); } }, 'UNEXPECTED_ERROR'],
+    [null, 'UNEXPECTED_ERROR']
+  ]) {
+    const call = createCloudFunction({ begin: async () => { throw error; } });
+    const response = await call(envelope('/v1/auth/begin', 'POST', '{}'));
+    assert.equal(response.status, 500);
+    assert.deepEqual(JSON.parse(response.body), { code: 'SERVICE_ERROR', diagnosticCode: expected });
+    assert.ok(!JSON.stringify(response).includes(sensitive));
+  }
 });

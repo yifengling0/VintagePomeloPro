@@ -121,7 +121,9 @@ export class ValueAddedDomain {
     }
     requireThat(fact.productType === productType && fact.appId === this.config.appId && fact.quantity === 1 &&
       typeof fact.orderId === 'string' && fact.orderId.length > 0 && fact.orderId.length <= 256 &&
-      this.verifyBinding(fact.developerPayload, userId, fact.productId), 'ORDER_BINDING_MISMATCH', 403);
+      this.verifyBinding(fact.developerPayload, userId, fact.productId) &&
+      (fact.receiptDeveloperPayload === undefined || this.verifyBinding(fact.receiptDeveloperPayload, userId, fact.productId)),
+      'ORDER_BINDING_MISMATCH', 403);
     requireThat(['purchased','pending','refunded','revoked','expired'].includes(fact.status), 'INVALID_ORDER');
     if (fact.status === 'pending') return { status: 'STORE_PENDING', finishAllowed: false };
     const now = this.clock();
@@ -183,10 +185,15 @@ export class ValueAddedDomain {
       const entitlement = await tx.get(entitlementKey) ?? { orders: {}, subscriptions: {} };
       if (existing) {
         requireThat(existing.userId === userId && existing.appId === state.appId && existing.productId === state.productId &&
-          existing.generationId === state.generationId && existing.tokenHash === state.tokenHash &&
-          existing.bindingHash === state.bindingHash, 'ORDER_OWNER_IMMUTABLE', 403);
+          existing.generationId === state.generationId && existing.tokenHash === state.tokenHash,
+          'ORDER_OWNER_IMMUTABLE', 403);
         // An older query completing late cannot roll back a newer renewal/refund snapshot.
-        if (existing.observedAt > observedAt || existing.signedAt > state.signedAt) return false;
+        if (existing.observedAt > observedAt || existing.signedAt > state.signedAt || existing.purchasedAt > state.purchasedAt) return false;
+        // Rotation is valid only for a newer, separately identified purchase whose
+        // authenticated binding still proves the same immutable account owner.
+        requireThat(this.verifyBinding(fact.developerPayload, userId, fact.productId) &&
+          (existing.bindingHash === state.bindingHash || existing.orderId !== state.orderId && existing.purchasedAt < state.purchasedAt),
+          'ORDER_BINDING_MISMATCH', 403);
         if (existing.status === 'revoked' && state.status !== 'revoked' &&
           (existing.orderId === state.orderId || state.purchasedAt <= existing.purchasedAt)) return false;
       }

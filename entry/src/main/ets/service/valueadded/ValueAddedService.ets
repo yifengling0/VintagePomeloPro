@@ -279,7 +279,16 @@ export class ValueAddedService {
   async configurationRequest<T>(path: string, method: http.RequestMethod, body: string = ''): Promise<T> {
     this.guard();
     if (!this.capabilities.configuration || !path.startsWith('/v1/configuration/')) throw new Error('NOT_CONFIGURED');
-    return this.request<T>(path, method, body);
+    try {
+      return await this.request<T>(path, method, body);
+    } catch (error) {
+      // Log only a fixed operation name: never account/job IDs, hashes or body.
+      const operation = path.endsWith('/abort') ? 'abort' : path.endsWith('/finalize') ? 'finalize' :
+        path.endsWith('/lease') ? 'lease' : path.endsWith('/uploads') ? 'begin' :
+        path.indexOf('/chunks') >= 0 ? 'chunk' : 'current';
+      console.warn('[ValueAddedService] configuration request failed: ' + operation);
+      throw error as Error;
+    }
   }
   async signIn(): Promise<void> {
     if (this.resuming) await this.resuming.catch((): void => {});

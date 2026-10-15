@@ -39,7 +39,7 @@ test('group/package/token/generation/product/price/time/finish/binding tampering
   for (const bad of [{ purchaseToken: 'other' }, { subscriptionId: 'other' }, { subGroupGenerationId: 'other' },
     { status: '4' }, { expiresTime: NaN }, { renewalInfo: undefined }]) assert.throws(() => fact(bad));
   for (const bad of [{ price: 800 }, { duration: 'P1Y' }, { quantity: 2 }, { signedTime: now + 60001 },
-    { purchaseTime: undefined }, { finishStatus: undefined }, { developerPayload: 'other' }]) {
+    { purchaseTime: undefined }, { finishStatus: undefined }]) {
     assert.throws(() => fact({ lastPurchaseOrder: { ...order, ...bad } }));
   }
   const switched = { ...current, subscriptionId: 'other', purchaseToken: 'other' };
@@ -122,4 +122,39 @@ test('late old snapshot cannot roll back newer refund or use a missing payload t
   assert.equal((await f.d.entitlement(user)).active, false);
   f.latest(original);
   await assert.rejects(f.d.verify('b'.repeat(64), { purchaseData: '{}', productType: 2 }), /ORDER_BINDING_MISMATCH/);
+});
+
+test('same-account repurchase rotates the signed binding without changing subscription ownership', async () => {
+  const f=domainFixture(),user='a'.repeat(64);
+  const first=await f.d.intent(user,{productId:'monthly',productType:2});
+  const initial={...fact({}),developerPayload:first.developerPayload};
+  f.latest(initial);await f.d.verify(user,{purchaseData:JSON.stringify(first),productType:2});
+  f.advance(1000);
+  const second=await f.d.intent(user,{productId:'monthly',productType:2});
+  const next={...initial,orderId:'repurchase',purchasedAt:f.now(),signedAt:f.now(),developerPayload:second.developerPayload};
+  f.latest(next);
+  assert.equal((await f.d.verify(user,{purchaseData:JSON.stringify(second),productType:2})).status,'ALREADY_FINISHED');
+  assert.equal((await f.d.entitlement(user)).active,true);
+  assert.equal((await f.store.list('subscriptions:'+user)).length,1);
+  assert.equal((await f.d.recordSubscription(user,initial,JSON.stringify(first),f.now())).status,'SUPERSEDED');
+  assert.equal((await f.d.entitlement(user)).active,true);
+  await assert.rejects(f.d.verify('b'.repeat(64),{purchaseData:JSON.stringify(second),productType:2}),/ORDER_BINDING_MISMATCH/);
+  const forged=await f.d.intent('b'.repeat(64),{productId:'monthly',productType:2});
+  await assert.rejects(f.d.recordSubscription(user,{...next,developerPayload:forged.developerPayload},'unused',f.now()),/ORDER_BINDING_MISMATCH/);
+  const third=await f.d.intent(user,{productId:'monthly',productType:2});
+  await assert.rejects(f.d.recordSubscription(user,{...next,developerPayload:third.developerPayload},'unused',f.now()),/ORDER_BINDING_MISMATCH/);
+});
+test('official latest order carries both signed bindings when a repurchase replaces the original payload', async () => {
+  const f=domainFixture(),user='a'.repeat(64);
+  const first=await f.d.intent(user,{productId:'monthly',productType:2});
+  const second=await f.d.intent(user,{productId:'monthly',productType:2});
+  const replacement=subscriptionFact({...group,lastSubscriptionStatus:{...current,lastPurchaseOrder:{...order,developerPayload:second.developerPayload}}},
+    {...candidate,developerPayload:first.developerPayload},config,now);
+  assert.equal(replacement.developerPayload,second.developerPayload);
+  assert.equal(replacement.receiptDeveloperPayload,first.developerPayload);
+  f.d.purchaseProvider.verify=async()=>replacement;
+  assert.equal((await f.d.verify(user,{purchaseData:'signed-receipt-fixture',productType:2})).status,'ALREADY_FINISHED');
+  const other=await f.d.intent('b'.repeat(64),{productId:'monthly',productType:2});
+  f.d.purchaseProvider.verify=async()=>({...replacement,receiptDeveloperPayload:other.developerPayload});
+  await assert.rejects(f.d.verify(user,{purchaseData:'signed-receipt-fixture',productType:2}),/ORDER_BINDING_MISMATCH/);
 });

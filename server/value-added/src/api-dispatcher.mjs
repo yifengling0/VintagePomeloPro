@@ -1,5 +1,5 @@
 import { CHUNK_BYTES } from './save-manifest.mjs';
-import { ServiceError, requireThat } from './errors.mjs';
+import { ServiceError, requireThat, unexpectedDiagnostic } from './errors.mjs';
 async function body(request) {
   requireThat(request.headers['content-type']?.split(';')[0] === 'application/json', 'INVALID_CONTENT_TYPE', 415);
   const chunks = []; let size = 0;
@@ -97,7 +97,8 @@ export function createApiDispatcher(domain) {
     } catch (error) {
       // Never log token, authorization code, receipt, request body, provider exception, or credentials.
       return { status: error instanceof ServiceError ? error.status : 500,
-        body: JSON.stringify({ code: error instanceof ServiceError ? error.code : 'SERVICE_ERROR' }) };
+        body: JSON.stringify(error instanceof ServiceError ? { code: error.code } :
+          { code: 'SERVICE_ERROR', diagnosticCode: unexpectedDiagnostic(error) }) };
     }
   };
 }
