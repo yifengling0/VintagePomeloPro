@@ -7,6 +7,7 @@ import { Configurations } from './configurations.mjs';
 import { ConfigurationDatabaseObjects } from './configuration-database-objects.mjs';
 import { validatePreferences, preferencesEnvelope } from './preferences.mjs';
 import { validateProfile, profileEnvelope } from './profiles.mjs';
+import { RenewalReminders } from './renewal-reminders.mjs';
 const digest = value => createHash('sha256').update(value).digest('hex');
 const random = () => randomBytes(32).toString('base64url');
 const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length &&
@@ -15,17 +16,19 @@ const FRESH_MS = 5 * 60 * 1000;
 
 /** The provider returns only server-verified facts; client JWS claims never reach this layer as identity. */
 export class ValueAddedDomain {
-  constructor({ store, accountProvider, purchaseProvider, config, objects = {ready:false}, clock = Date.now }) {
+  constructor({ store, accountProvider, purchaseProvider, config, objects = {ready:false}, clock = Date.now, pushSender }) {
     this.store = store; this.accountProvider = accountProvider; this.purchaseProvider = purchaseProvider;
     this.config = config; this.clock = clock; this.saves = new CloudSaves(this,objects,clock);
     this.configurations = new Configurations(this,objects.ready ? objects : new ConfigurationDatabaseObjects(store),clock);
     this.subscriptionRefreshes = new Map();
+    this.reminders = new RenewalReminders(this, pushSender);
   }
   capabilities() {
     const storage = this.store.ready === true;
     const sandbox = storage && this.purchaseProvider.sandboxReady === true && this.purchaseProvider.config?.environment === 'SANDBOX';
     return { account: storage && this.accountProvider.ready, commerce: storage && this.purchaseProvider.ready || sandbox,
-      ...(sandbox ? { sandboxCommerce: true } : {}),
+      ...(sandbox ? { sandboxCommerce: true } : {}), renewalReminders: this.reminders.ready && this.reminders.timerReady,
+      membershipPurchases: !this.config.enforceCheckoutReadiness || this.config.membershipReleaseReady === true,
       profiles: storage && this.purchaseProvider.ready, preferences: storage && this.purchaseProvider.ready, cloudSaves: storage && this.purchaseProvider.ready && this.saves.objects.ready,
       configuration: storage && this.purchaseProvider.ready && this.configurations.objects.ready,
       reason: storage ? (this.purchaseProvider.ready ? '' : 'IAP_NOT_CONFIGURED') : 'CLOUDDB_NOT_VERIFIED' };
@@ -81,6 +84,13 @@ export class ValueAddedDomain {
     if (product.kind === 'membership') {
       const entitlement = await this.store.get('entitlement:' + userId);
       requireThat(Object.keys(entitlement?.orders ?? {}).length < 256, 'ORDER_LIMIT', 409);
+      if (this.config.enforceCheckoutReadiness) {
+        requireThat(this.config.membershipReleaseReady, 'MEMBERSHIP_NOT_OPEN', 503);
+        const current = await this.entitlement(userId);
+        requireThat(!current.active, 'MEMBERSHIP_ALREADY_ACTIVE', 409);
+        requireThat(!current.refreshRequired, 'MEMBERSHIP_STATUS_UNKNOWN', 409);
+        if (productType === 2) requireThat(await this.reminders.available(userId), 'REMINDERS_UNAVAILABLE', 503);
+      }
     }
     // 32 + 1 + 64 + 1 + 43 = 141 chars, safely under the IAP 256-character limit.
     const value = randomBytes(16).toString('hex') + '.' + userId;
@@ -180,6 +190,8 @@ export class ValueAddedDomain {
       expiresAt: fact.expiresAt, orderId: fact.orderId, purchasedAt: fact.purchasedAt, signedAt: fact.signedAt,
       verifiedAt: now, observedAt, policyVersion: SUBSCRIPTION_POLICY, tokenHash: digest(fact.purchaseToken),
       bindingHash: digest(fact.developerPayload) };
+    state.nextRenewalAt = fact.nextRenewalAt; state.nextRenewalPrice = fact.nextRenewalPrice;
+    state.renewalCurrency = fact.renewalCurrency;
     const accepted = await this.store.transaction(async tx => {
       const existing = await tx.get(key), entitlementKey = 'entitlement:' + userId;
       const entitlement = await tx.get(entitlementKey) ?? { orders: {}, subscriptions: {} };
@@ -203,6 +215,7 @@ export class ValueAddedDomain {
       tx.put(key, { ...state, receiptCipher: sealReceipt(receipt, this.config.purchaseBindingSecret, userId + '\n' + key) },
         'subscriptions:' + userId);
       tx.put(entitlementKey, { ...entitlement, subscriptions }, 'entitlements');
+      await this.reminders.record(tx, state, key);
       return true;
     });
     const finishAllowed = accepted && fact.status === 'purchased' && fact.needsFinish === true;
@@ -211,27 +224,33 @@ export class ValueAddedDomain {
       ...(finishAllowed ? { productId: fact.productId, productType: 2,
         purchaseOrderId: fact.orderId, purchaseToken: fact.purchaseToken } : {}) };
   }
-  async refreshSubscriptions(userId, value) {
-    if (!this.capabilities().commerce) return;
-    if (this.subscriptionRefreshes.has(userId)) return this.subscriptionRefreshes.get(userId);
+  async refreshSubscriptions(userId, value, force = false) {
+    if (!this.capabilities().commerce) {
+      requireThat(!force, 'SUBSCRIPTION_STATUS_UNAVAILABLE', 503);
+      return;
+    }
+    if (this.subscriptionRefreshes.has(userId)) {
+      await this.subscriptionRefreshes.get(userId);
+      if (!force) return;
+    }
     const work = (async () => {
       for (const [key, state] of Object.entries(value?.subscriptions ?? {})) {
-        if (state.verifiedAt + FRESH_MS > this.clock()) continue;
+        if (!force && state.verifiedAt + FRESH_MS > this.clock()) continue;
         try {
           const stored = await this.store.get(key);
           requireThat(stored?.userId === userId, 'ORDER_OWNER_IMMUTABLE', 403);
           const receipt = openReceipt(stored.receiptCipher, this.config.purchaseBindingSecret, userId + '\n' + key);
           await this.verify(userId, { purchaseData: receipt, productType: 2 });
-        } catch { /* Keep the old verification time. Provider failure cannot extend access. */ }
+        } catch (error) { if (force) throw error; /* Keep the old verification time. */ }
       }
     })();
     this.subscriptionRefreshes.set(userId, work);
     try { await work; } finally { this.subscriptionRefreshes.delete(userId); }
   }
-  async entitlement(userId) {
+  async entitlement(userId, force = false) {
     let value = await this.store.get('entitlement:' + userId);
     if (Object.keys(value?.subscriptions ?? {}).length) {
-      await this.refreshSubscriptions(userId, value);
+      await this.refreshSubscriptions(userId, value, force);
       value = await this.store.get('entitlement:' + userId);
     }
     const now = this.clock();

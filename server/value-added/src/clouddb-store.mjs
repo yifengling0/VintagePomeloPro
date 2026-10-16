@@ -15,7 +15,7 @@ export class ValueAddedRecord {
   getClassName() { return 'ValueAddedRecord'; }
   getPrimaryKeyList() { return ['key']; }
   getFieldTypeMap() { return new Map([['key','String'], ['scope','String'], ['json','Text']]); }
-  getIndexList() { return new Map([['scopeIndex', ['scope']]]); }
+  getIndexList() { return new Map([['scopeIndex', ['scope']], ['scopeKeyIndex', ['scope', 'key']]]); }
   getEncryptedFieldList() { return []; }
 }
 const bounded = promise => Promise.race([promise, new Promise((_, reject) => {
@@ -35,6 +35,13 @@ export class CloudDbStore {
     const rows = result.getSnapshotObjects();
     requireThat(rows.length <= 256, 'PROFILE_LIMIT', 409);
     return rows.map(row => JSON.parse(row.json));
+  }
+  async page(scope, cursor = '', limit = 25) {
+    requireThat(Number.isInteger(limit) && limit > 0 && limit <= 100, 'INVALID_PAGE');
+    let query = this.Query.where(ValueAddedRecord).equalTo('scope', scope);
+    if (cursor) query = query.greaterThan('key', cursor);
+    const result = await bounded(this.zone.executeQuery(query.orderByAsc('key').limit(limit)));
+    return result.getSnapshotObjects().map(row => ({ key: row.key, value: JSON.parse(row.json) }));
   }
   async transaction(action) {
     let result;

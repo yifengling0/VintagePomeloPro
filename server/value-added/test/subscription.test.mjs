@@ -32,6 +32,14 @@ test('official subscription expiry is authoritative; cancellation keeps this ter
   assert.equal(fact({ lastPurchaseOrder: { ...order, revocationTime: now } }).status, 'revoked');
   assert.equal(fact({ lastPurchaseOrder: { ...order, developerPayload: undefined } }).developerPayload, 'bound');
 });
+test('upcoming renewal time/amount/currency only come from a complete official renewal plan', () => {
+  const plan = { ...current.renewalInfo, renewalTime: now + 7 * 86400000, renewalPrice: 500, currency: 'CNY' };
+  const next = fact({ renewalInfo: plan });
+  assert.equal(next.nextRenewalAt, plan.renewalTime); assert.equal(next.nextRenewalPrice, 500); assert.equal(next.renewalCurrency, 'CNY');
+  for (const bad of [{ renewalTime: undefined }, { renewalPrice: 0 }, { renewalPrice: 1.5 }, { currency: '' }, { autoRenewStatusCode: '0' }]) {
+    assert.equal(fact({ renewalInfo: { ...plan, ...bad } }).nextRenewalAt, undefined);
+  }
+});
 test('group/package/token/generation/product/price/time/finish/binding tampering is rejected', () => {
   for (const bad of [{ packageName: 'other' }, { applicationId: 'other' }, { environment: 'NORMAL' }, { subGroupId: 'other' }]) {
     assert.throws(() => subscriptionFact({ ...group, ...bad }, candidate, config, now));
@@ -72,6 +80,19 @@ function domainFixture() {
   return { d, store, now: () => time, queries: () => queries, advance: ms => { time += ms; },
     latest: value => { latest = value; }, outage: value => { outage = value; } };
 }
+test('returning from management forces official recheck even while cached state is fresh, and propagates query failure', async () => {
+  const f = domainFixture(), user = 'a'.repeat(64);
+  const { developerPayload } = await f.d.intent(user, { productId: 'monthly', productType: 2 });
+  const receipt = JSON.stringify({ developerPayload });
+  f.latest({ ...fact({}), developerPayload }); await f.d.verify(user, { purchaseData: receipt, productType: 2 });
+  f.latest({ ...fact({ renewalInfo: { ...current.renewalInfo, autoRenewStatusCode: '0' } }), developerPayload });
+  assert.equal((await f.d.entitlement(user)).autoRenew, true);
+  assert.equal((await f.d.entitlement(user, true)).autoRenew, false);
+  f.d.purchaseProvider.ready = false;
+  await assert.rejects(f.d.entitlement(user, true), /SUBSCRIPTION_STATUS_UNAVAILABLE/);
+  f.d.purchaseProvider.ready = true;
+  f.outage(true); await assert.rejects(f.d.entitlement(user, true), /offline/);
+});
 test('cancelled renewal keeps the already-paid term across service restart and ends at the official expiry', async () => {
   const f = domainFixture(), user = 'a'.repeat(64);
   const { developerPayload } = await f.d.intent(user, { productId: 'monthly', productType: 2 });

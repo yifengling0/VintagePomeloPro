@@ -3,6 +3,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { CoffeePurchaseService } from '../service/valueadded/CoffeePurchaseService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { skinColor } from '../service/SkinColors';
+import { MembershipSupport } from './MembershipSupport';
 
 @Component
 export struct SponsorshipSettings {
@@ -126,6 +127,7 @@ export struct SponsorshipSettings {
             this.CoffeeCup('大杯', 10)
           }.width('100%').id('settings-support-options')
           Text('自愿支持开发，不包含会员权益。').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+          MembershipSupport()
           if (this.coffeeStatus) { Text(this.coffeeStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%') }
           if (this.busy) { LoadingProgress().width(18).height(18).color(skinColor('accent')) }
           if (this.status) { Text(this.status).fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('settings-support-status') }

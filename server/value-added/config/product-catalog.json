@@ -1,5 +1,12 @@
 [
   {
+    "id": "vip_monthly_once",
+    "type": 3,
+    "kind": "membership",
+    "policyVersion": "calendar-month-v1",
+    "prices": { "CNY": [500] }
+  },
+  {
     "id": "vip_monthly_auto",
     "type": 2,
     "kind": "membership",

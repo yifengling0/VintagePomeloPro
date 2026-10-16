@@ -6,7 +6,7 @@ NODE="$TOOL_HOME/tool/node/bin/node"
 TSC="$TOOL_HOME/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/tsc.js"
 OUTPUT="${MODEL_TEST_DIR:-$ROOT/build/host_tests/models}"
 mkdir -p "$OUTPUT/ts/model" "$OUTPUT/ts/common" "$OUTPUT/js"
-sources=(model/AppModels model/AppCatalogRules model/PerformanceHudSettings model/ValueAddedModels model/CloudSaveModels model/SaveBackupModels model/AccountSyncModels common/EvdevKeyNames)
+sources=(model/AppModels model/AppCatalogRules model/PerformanceHudSettings model/ValueAddedModels model/MembershipCommerce model/CloudSaveModels model/SaveBackupModels model/AccountSyncModels common/EvdevKeyNames)
 inputs=()
 for source in "${sources[@]}"; do
     cp "$ROOT/entry/src/main/ets/$source.ets" "$OUTPUT/ts/$source.ts"

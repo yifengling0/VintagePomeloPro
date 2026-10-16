@@ -29,7 +29,10 @@ export function createApiDispatcher(domain) {
       requireThat(!url.search && !url.hash, 'INVALID_ROUTE', 404);
       const path = url.pathname, method = request.method;
       let result;
-      if (path === '/v1/capabilities' && method === 'GET') result = domain.capabilities();
+      if (path === '/v1/capabilities' && method === 'GET') {
+        result = domain.capabilities();
+        if (domain.reminders) result.renewalReminders = await domain.reminders.timerHealthy();
+      }
       else if (path === '/v1/auth/begin' && method === 'POST') { await body(request); result = await domain.begin(); }
       else if (path === '/v1/auth/exchange' && method === 'POST') result = await domain.exchange(await body(request));
       else {
@@ -38,6 +41,10 @@ export function createApiDispatcher(domain) {
         const token = match[1], userId = await domain.authenticate(token);
         if (path === '/v1/auth/logout' && method === 'POST') { await body(request); result = await domain.logout(token); }
         else if (path === '/v1/entitlement' && method === 'GET') result = await domain.entitlement(userId);
+        else if (path === '/v1/entitlement/refresh' && method === 'POST') { await body(request); result = await domain.entitlement(userId, true); }
+        else if (path === '/v1/notification-devices/register' && method === 'POST') result = await domain.reminders.register(userId, await body(request));
+        else if (path === '/v1/notification-devices/revoke' && method === 'POST') result = await domain.reminders.revoke(userId, await body(request));
+        else if (path === '/v1/notification-opened' && method === 'POST') result = await domain.reminders.opened(userId, await body(request));
         else if (path === '/v1/purchases/intent' && method === 'POST') result = await domain.intent(userId, await body(request));
         else if (/^\/v1\/configuration\/(tablet|desktop)$/.test(path) && method === 'GET') result = await domain.configurations.current(userId,path.split('/')[3]);
         else if (path === '/v1/configuration/uploads' && method === 'POST') result = await domain.configurations.begin(userId,await body(request));

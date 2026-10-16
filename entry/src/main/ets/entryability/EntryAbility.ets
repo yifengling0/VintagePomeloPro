@@ -3,7 +3,7 @@ import { UserConfigurationRepository } from '../service/UserConfigurationReposit
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
 import { AppLog } from '../service/LogService';
-import { display, window } from '@kit.ArkUI';
+import { display, window, router } from '@kit.ArkUI';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { AppCatalogService, GamesDirectoryStatus } from '../service/AppCatalogService';
@@ -35,6 +35,18 @@ export default class EntryAbility extends UIAbility {
   private lastTitleButtonInsetVp: number = 0;
   private pendingAutomationWant: Want | null = null;
   private automationLaunchStarted: boolean = false;
+  private membershipDelivery: string | null = null;
+  private rememberMembershipWant(want: Want): void {
+    if (want.action !== 'com.vintagepomelo.action.MEMBERSHIP') return;
+    const delivery = want.parameters?.deliveryId;
+    this.membershipDelivery = typeof delivery === 'string' && /^[a-f0-9]{64}$/.test(delivery) ? delivery : '';
+  }
+  private openMembershipWant(): void {
+    if (this.membershipDelivery === null) return;
+    const delivery = this.membershipDelivery; this.membershipDelivery = null;
+    void router.pushUrl({ url: 'pages/SystemSettings', params: { section: 'sync', membership: 'expanded', deliveryId: delivery } })
+      .catch((): void => { this.membershipDelivery = delivery; });
+  }
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 日志服务最先初始化，保证后续 ArkTS/native 日志都能实时落盘。
@@ -47,6 +59,7 @@ export default class EntryAbility extends UIAbility {
     this.ensureDownloadGamesDirectory('onCreate');
     this.applyWineHuaWantParams(want);
     this.rememberAutomationWant(want);
+    this.rememberMembershipWant(want);
   }
 
   private ensureDownloadGamesDirectory(trigger: string): void {
@@ -62,6 +75,8 @@ export default class EntryAbility extends UIAbility {
   }
 
   onNewWant(want: Want): void {
+    this.rememberMembershipWant(want);
+    if (this.mainWindow) this.openMembershipWant();
     // A singleton Ability may receive the next launch without another
     // onCreate. Re-check the app-owned Download directory on every handoff.
     this.ensureDownloadGamesDirectory('onNewWant');
@@ -150,6 +165,7 @@ export default class EntryAbility extends UIAbility {
         }
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+      this.openMembershipWant();
       this.scheduleWantAutomation();
       this.scheduleAutomationLaunch();
     });

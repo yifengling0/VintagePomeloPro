@@ -9,6 +9,7 @@ import { createApiServer } from './http-server.mjs';
 import { requireThat, ServiceError } from './errors.mjs';
 import { MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY } from './membership-policy.mjs';
 import { loadPkixRuntime } from './pkix-runtime.mjs';
+import { HuaweiPushSender } from './huawei-push.mjs';
 const packageRoot = fileURLToPath(new URL('../', import.meta.url));
 const configFile = path => isAbsolute(path) ? path : resolve(packageRoot, path);
 const optionalFile = async path => path ? readFile(configFile(path), 'utf8') : '';
@@ -70,7 +71,32 @@ export async function loadService(env = process.env) {
     objects=await connectObs(env);
     if(env.VP_OBS_VERIFICATION_FILE)await objects.enable(JSON.parse(await readFile(configFile(env.VP_OBS_VERIFICATION_FILE),'utf8')));
   }
-  return new ValueAddedDomain({ store, accountProvider, purchaseProvider, config, objects });
+  const release = env.VP_MEMBERSHIP_RELEASE_FILE ? JSON.parse(await optionalFile(env.VP_MEMBERSHIP_RELEASE_FILE)) : {};
+  config.enforceCheckoutReadiness = true;
+  config.membershipReleaseReady = typeof release.operatorName === 'string' && release.operatorName.trim().length > 0 &&
+    release.appId === config.appId && release.environment === 'NORMAL' && env.VP_IAP_ENVIRONMENT === 'NORMAL' &&
+    release.normalPaymentVerified === true && release.backupAccepted === true && release.supportVerified === true &&
+    release.cancelInAppVerified === true && release.agreementsReadVerified === true &&
+    release.oneTimeProductId === 'vip_monthly_once' && products.some(p => p.id === release.oneTimeProductId && p.type === 3);
+  if (env.VP_MEMBERSHIP_SANDBOX_CHECKOUT === 'enabled' && env.VP_IAP_ENVIRONMENT === 'SANDBOX' && purchaseProvider.sandboxReady) {
+    config.membershipReleaseReady = true; // Only the explicit tester path; paid backup capabilities stay closed.
+  }
+  const pushEvidence = env.VP_RENEWAL_VERIFICATION_FILE ? JSON.parse(await optionalFile(env.VP_RENEWAL_VERIFICATION_FILE)) : {};
+  const credential = JSON.parse(env.VP_PUSH_CREDENTIAL_JSON || await optionalFile(env.VP_PUSH_CREDENTIAL_FILE) || '{}');
+  const sandboxReminders = env.VP_RENEWAL_SANDBOX_TESTING === 'enabled' && env.VP_IAP_ENVIRONMENT === 'SANDBOX' && purchaseProvider.sandboxReady;
+  const pushSender = new HuaweiPushSender({ credential, projectId: env.VP_PUSH_PROJECT_ID ?? '', receiptId: env.VP_PUSH_RECEIPT_ID ?? '',
+    verified: !!env.VP_PUSH_RECEIPT_ID && (sandboxReminders || pushEvidence.appId === config.appId && pushEvidence.projectId === env.VP_PUSH_PROJECT_ID &&
+      pushEvidence.timerActive === true && pushEvidence.deviceDisplayed === true && pushEvidence.deepLinkOpened === true &&
+      pushEvidence.subscriptionCategoryEligible === true && pushEvidence.receiptVerified === true &&
+      pushEvidence.paginationVerified === true && pushEvidence.advanceNoticeVerified === true &&
+      pushEvidence.cancelStopsVerified === true && pushEvidence.permissionClosedVerified === true &&
+      pushEvidence.dedupVerified === true && pushEvidence.retryAlarmVerified === true) });
+  const domain = new ValueAddedDomain({ store, accountProvider, purchaseProvider, config, objects, pushSender });
+  if (store.ready) {
+    const heartbeat = await store.get('renewal-timer-checkpoint');
+    domain.reminders.timerReady = !!heartbeat && heartbeat.lastRunAt >= domain.clock() - 3600000;
+  }
+  return domain;
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const domain = await loadService();

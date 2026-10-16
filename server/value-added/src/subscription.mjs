@@ -56,6 +56,11 @@ export function subscriptionFact(group, candidate, config, now) {
     subscriptionId: current.subscriptionId, subscriptionGroupId: group.subGroupId,
     generationId: current.subGroupGenerationId, subscriptionStatus: current.status,
     autoRenew: renewal.autoRenewStatusCode === '1', billingRetry: renewal.hasInBillingRetryPeriod,
+    ...(renewal.autoRenewStatusCode === '1' && timestamp(renewal.renewalTime) &&
+      Number.isSafeInteger(renewal.renewalPrice) && renewal.renewalPrice > 0 &&
+      typeof renewal.currency === 'string' && /^[A-Z]{3}$/.test(renewal.currency) ? {
+        nextRenewalAt: renewal.renewalTime, nextRenewalPrice: renewal.renewalPrice,
+        renewalCurrency: renewal.currency } : {}),
     signedAt: order.signedTime, policyVersion: SUBSCRIPTION_POLICY };
 }
 

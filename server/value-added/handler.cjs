@@ -24,3 +24,23 @@ exports.myHandler = function (event, context, callback) {
   })
     .then(result => { callback(result); });
 };
+
+let timer;
+exports.renewalHandler = function (event, context, callback) {
+  if (!timer) timer = Promise.all([import('./src/main.mjs'), import('./src/renewal-timer.mjs')])
+    .then(async ([main, adapter]) => adapter.createRenewalTimer(await main.loadService(), process.env.VP_RENEWAL_TIMER_SECRET))
+    .catch(error => { timer = undefined; throw error; });
+  timer.then(run => run(event)).then(result => callback(result)).catch(() => {
+    console.error('[RenewalReminders] timer failed'); callback({ code: 'RENEWAL_TIMER_FAILED' });
+  });
+};
+
+let receipts;
+exports.pushReceiptHandler = function (event, context, callback) {
+  if (!receipts) receipts = Promise.all([import('./src/main.mjs'), import('./src/push-receipts.mjs')])
+    .then(async ([main, adapter]) => adapter.createPushReceiptCallback(await main.loadService(), {
+      username: process.env.VP_PUSH_CALLBACK_USER, secret: process.env.VP_PUSH_CALLBACK_SECRET, packageName: process.env.VP_PACKAGE_NAME
+    })).catch(error => { receipts = undefined; throw error; });
+  receipts.then(run => run(event)).then(body => callback({ statusCode: 200, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) })).catch(() => callback({ statusCode: 403, body: JSON.stringify({ code: 'RECEIPT_REJECTED' }) }));
+};

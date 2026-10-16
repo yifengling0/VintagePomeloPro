@@ -12,6 +12,7 @@
     "pages/WinePopup",
     "pages/SteamAccount",
     "pages/SteamGameDetail",
-    "pages/AccountCloud"
+    "pages/AccountCloud",
+    "pages/MembershipLegal"
   ]
 }

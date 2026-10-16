@@ -30,5 +30,8 @@ export function deriveMembership(orders, now, freshnessMs, subscriptions = {}) {
   return { active: passes.active || !!verified, expiresAt: Math.max(passes.expiresAt, latest?.expiresAt ?? 0),
     serverTime: now, refreshRequired: !passes.active && !verified && (passes.refreshRequired || current.length > 0),
     ...(latest ? { subscriptionStatus: latest.subscriptionStatus, autoRenew: latest.autoRenew,
-      billingRetry: latest.billingRetry } : {}) };
+      billingRetry: latest.billingRetry, subscriptionProductId: latest.productId,
+      ...(verified && latest.autoRenew && latest.nextRenewalAt ? {
+        nextRenewalAt: latest.nextRenewalAt, nextRenewalPrice: latest.nextRenewalPrice,
+        renewalCurrency: latest.renewalCurrency } : {}) } : {}) };
 }

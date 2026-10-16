@@ -17,6 +17,9 @@ export interface ValueAddedConfig {
   membershipProductId: string;
   membershipProductType: number;
   membershipPromotionalOfferId?: string;
+  membershipOneTimeProductId?: string;
+  membershipSubscriptionGroupId?: string;
+  membershipOperatorName?: string;
   coffeeProductId: string;
 }
 
@@ -41,6 +44,14 @@ export function validateValueAddedConfig(config: ValueAddedConfig): void {
   if (config.membershipProductId && config.membershipProductId === config.coffeeProductId) {
     throw new Error('NOT_CONFIGURED');
   }
+  for (const id of [config.membershipOneTimeProductId, config.membershipSubscriptionGroupId]) {
+    if (id !== undefined && (typeof id !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/.test(id))) throw new Error('NOT_CONFIGURED');
+  }
+  if (config.membershipOneTimeProductId && [config.membershipProductId, config.coffeeProductId].includes(config.membershipOneTimeProductId)) {
+    throw new Error('NOT_CONFIGURED');
+  }
+  if (config.membershipOperatorName !== undefined && (typeof config.membershipOperatorName !== 'string' ||
+    config.membershipOperatorName.length > 128 || /[\x00-\x1f]/.test(config.membershipOperatorName))) throw new Error('NOT_CONFIGURED');
 }
 
 export interface AccountSession {
@@ -49,6 +60,10 @@ export interface AccountSession {
   expiresAt: number;
 }
 export interface MemberEntitlement {
+  nextRenewalAt?: number;
+  nextRenewalPrice?: number;
+  renewalCurrency?: string;
+  subscriptionProductId?: string;
   refreshRequired?: boolean;
   subscriptionStatus?: string;
   autoRenew?: boolean;
@@ -58,6 +73,8 @@ export interface MemberEntitlement {
   serverTime: number;
 }
 export interface ServiceCapabilities {
+  membershipPurchases?: boolean;
+  renewalReminders?: boolean;
   account: boolean;
   commerce: boolean;
   sandboxCommerce?: boolean;

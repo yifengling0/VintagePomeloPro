@@ -8,6 +8,12 @@ import { MemberEntitlement, ProfileSummary } from '../model/ValueAddedModels';
 import { InputProfileService } from '../service/InputProfileService';
 import { StoreProduct, ValueAddedService } from '../service/valueadded/ValueAddedService';
 import { skinColor } from '../service/SkinColors';
+import { router } from '@kit.ArkUI';
+import { MembershipSupport } from './MembershipSupport';
+import { MembershipConfirmation, MEMBERSHIP_TERMS_VERSION } from '../model/MembershipCommerce';
+import { MEMBERSHIP_CANCEL_PATH } from '../model/MembershipLegal';
+
+interface MembershipRouteParams { membership?: string; deliveryId?: string; }
 
 @Component
 export struct AccountSyncSettings {
@@ -29,9 +35,16 @@ export struct AccountSyncSettings {
   @State private statusArea: string = 'account';
   @State private membership: string = '未登录';
   @State private vipActive: boolean = false;
+  @State private membershipUncertain: boolean = false;
   @State private renewalKnown: boolean = false;
   @State private renewalEnabled: boolean = true;
   @State private membershipExpanded: boolean = false;
+  @State private selectedProductId: string = '';
+  @State private membershipAccepted: boolean = false;
+  @State private autoRenewAccepted: boolean = false;
+  @State private reminderReady: boolean = false;
+  @State private renewalDetail: string = '';
+  private notificationTimer: number = -1;
   private vipOwner: string = '';
   private vipDeadline: number = 0;
   private vipTimer: number = -1;
@@ -60,6 +73,8 @@ export struct AccountSyncSettings {
 
   aboutToAppear(): void {
     this.alive = true;
+    const params = router.getParams() as MembershipRouteParams;
+    this.membershipExpanded = params?.membership === 'expanded';
     // Registered pages are also directly addressable. Guard before any service or SDK initialization.
     if (!this.supported) return;
     this.syncListener = (): void => this.refreshAutomaticSync();
@@ -74,27 +89,35 @@ export struct AccountSyncSettings {
     this.accountListener = (userId: string): void => {
       if (!this.alive) return;
       this.membershipRequest++;
+      this.clearConfirmation(); this.reminderReady = false;
       this.userId = userId; this.refreshHuaweiIdentity(); this.resetVip();
       this.membership = userId ? '正在更新会员状态' : '等待登录';
+      if (userId && params?.deliveryId) void ValueAddedService.getInstance().recordReminderOpened(params.deliveryId).catch((): void => {});
       if (userId) void this.refreshMemberState().catch((): void => {});
     };
     ValueAddedService.getInstance().subscribeAccount(this.accountListener);
     void this.run('account', async (): Promise<void> => {
-      await InputProfileService.getInstance().initialize(this.context);
-      this.profiles = InputProfileService.getInstance().getProfiles();
       const service = ValueAddedService.getInstance();
       await service.initialize(this.context);
+      await InputProfileService.getInstance().initialize(this.context);
+      this.profiles = InputProfileService.getInstance().getProfiles();
       this.ready = service.getCapabilities().account;
-      this.commerceReady = service.getCapabilities().commerce;
+      this.commerceReady = service.getCapabilities().commerce && service.getCapabilities().membershipPurchases !== false && !!service.getMembershipOperator();
       this.profilesReady = service.getCapabilities().profiles;
       this.userId = service.getUserId();
       this.refreshHuaweiIdentity();
       this.availability = service.accountAvailability();
       if (this.userId) await this.refreshAccount(); else await this.refreshMembershipProducts();
+      await this.refreshReminder(false);
+      if (params?.deliveryId) await service.recordReminderOpened(params.deliveryId);
     });
+    this.notificationTimer = setInterval((): void => {
+      if (this.alive && this.membershipExpanded && !this.busy) void this.refreshReminder(false);
+    }, 30000);
   }
   aboutToDisappear(): void {
     this.alive = false; this.membershipRequest++; this.resetVip();
+    if (this.notificationTimer >= 0) clearInterval(this.notificationTimer);
     if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener);
     if (this.entitlementListener) ValueAddedService.getInstance().unsubscribeEntitlement(this.entitlementListener);
     if (this.accountListener) ValueAddedService.getInstance().unsubscribeAccount(this.accountListener);
@@ -114,6 +137,10 @@ export struct AccountSyncSettings {
     }
     if (error.message === 'SANDBOX_REQUIRED') return '当前账号无法进行测试订阅，请检查测试账号配置';
     if (error.message === 'PRICE_CHANGED') return '商品优惠已变化，请刷新会员价格后重试';
+    if (error.message === 'MEMBERSHIP_CONSENT_REQUIRED') return '请选择商品，并主动阅读和勾选相应协议';
+    if (error.message === 'MEMBERSHIP_STATUS_UNKNOWN') return '本期会员状态待核验，请刷新或恢复购买，无需再次付款';
+    if (error.message === 'MEMBERSHIP_NOT_READY' || error.message === 'MEMBERSHIP_NOT_OPEN') return '会员购买尚未开放，管理订阅和恢复购买仍可使用';
+    if (error.message === 'RENEWAL_NOTIFICATION_REQUIRED' || error.message === 'REMINDERS_UNAVAILABLE') return '续费提醒暂不可用，请开启通知后重试，或选择单月会员';
     if (error.message === 'INVALID_OFFER') return '优惠信息暂不可用，请刷新会员价格后重试';
     if (error.message === 'AUTH_STATE_MISMATCH') return '登录响应校验未通过，请重新登录';
     if (error.message === 'NOT_CONFIGURED') return '云服务暂未接通，本地设置与输入方案仍可使用';
@@ -213,7 +240,7 @@ export struct AccountSyncSettings {
     const owner = this.userId;
     this.membership = '正在更新会员状态';
     await service.refreshCapabilities();
-    this.commerceReady = service.getCapabilities().commerce;
+    this.commerceReady = service.getCapabilities().commerce && service.getCapabilities().membershipPurchases !== false && !!service.getMembershipOperator();
     this.profilesReady = service.getCapabilities().profiles;
     const entitlement = await this.refreshMemberState();
     if (!this.alive || owner !== service.getUserId()) return;
@@ -226,6 +253,10 @@ export struct AccountSyncSettings {
     const entitlement = await service.entitlement();
     if (!this.alive || request !== this.membershipRequest || owner !== service.getUserId()) return entitlement;
     this.applyVip(entitlement, owner);
+    this.membershipUncertain = entitlement.refreshRequired === true;
+    this.renewalDetail = entitlement.autoRenew === false ? '自动续费已关闭，权益保留至 ' + this.expiryDate(entitlement.expiresAt) :
+      entitlement.nextRenewalAt && entitlement.nextRenewalPrice ? '预计续费 ' + this.expiryDate(entitlement.nextRenewalAt) + '，' +
+        (entitlement.renewalCurrency || '') + ' ' + (entitlement.nextRenewalPrice / 100).toFixed(2) + '，延长一个月' : '';
     this.membership = this.vipActive ?
       '有效期至 ' + new Date(entitlement.expiresAt).toLocaleDateString() +
         (entitlement.autoRenew === true ? ' · 自动续费已开启' : entitlement.autoRenew === false ? ' · 到期后不再续费' : '') :
@@ -241,7 +272,7 @@ export struct AccountSyncSettings {
   private resetVip(): void {
     if (this.vipTimer >= 0) clearTimeout(this.vipTimer);
     this.vipTimer = -1; this.vipActive = false; this.vipOwner = ''; this.vipDeadline = 0;
-    this.renewalKnown = false; this.renewalEnabled = true;
+    this.renewalKnown = false; this.renewalEnabled = true; this.membershipUncertain = false;
   }
   private applyVip(entitlement: MemberEntitlement, owner: string): void {
     this.resetVip();
@@ -271,6 +302,7 @@ export struct AccountSyncSettings {
     this.vipTimer = setTimeout((): void => this.updateVipExpiry(), Math.min(remaining, 60000));
   }
   private async refreshMembershipProducts(): Promise<void> {
+    this.clearConfirmation();
     this.membershipPriceStatus = '正在加载价格';
     try {
       const products = await ValueAddedService.getInstance().products();
@@ -299,7 +331,7 @@ export struct AccountSyncSettings {
       const service = ValueAddedService.getInstance();
       await service.initialize(this.context);
       this.ready = service.getCapabilities().account;
-      this.commerceReady = service.getCapabilities().commerce;
+      this.commerceReady = service.getCapabilities().commerce && service.getCapabilities().membershipPurchases !== false && !!service.getMembershipOperator();
       this.profilesReady = service.getCapabilities().profiles;
       this.availability = service.accountAvailability();
       await service.signIn();
@@ -321,8 +353,14 @@ export struct AccountSyncSettings {
     });
   }
   private buy(product: StoreProduct): void {
+    const service = ValueAddedService.getInstance();
+    const confirmation: MembershipConfirmation = { userId: this.userId, quote: service.quoteKey(product),
+      termsVersion: MEMBERSHIP_TERMS_VERSION, membershipAccepted: this.membershipAccepted, autoRenewAccepted: this.autoRenewAccepted };
     void this.run('membership', async (): Promise<void> => {
-      const result = await ValueAddedService.getInstance().purchase(product);
+      let result: string;
+      try { result = await service.purchase(product, confirmation); }
+      catch (error) { this.clearConfirmation(); await this.refreshMembershipProducts(); throw error as Error; }
+      this.clearConfirmation();
       this.status = result === 'CANCELLED' ? '已取消购买' :
         result === 'VERIFICATION_PENDING' ? '购买已完成，会员确认暂未完成；会自动重试，无需再次付款' :
         result === 'ACK_PENDING' ? '会员已生效，订单确认稍后自动重试' :
@@ -331,6 +369,42 @@ export struct AccountSyncSettings {
       if (result !== 'CANCELLED') AccountAutomaticSyncService.getInstance().requestSync(0);
       await this.refreshAccount();
     });
+  }
+  private clearConfirmation(): void {
+    this.selectedProductId = ''; this.membershipAccepted = false; this.autoRenewAccepted = false;
+  }
+  private selectProduct(product: StoreProduct): void {
+    this.clearConfirmation(); this.selectedProductId = product.id;
+  }
+  private openLegal(document: string): void {
+    void router.pushUrl({ url: 'pages/MembershipLegal', params: { document: document } });
+  }
+  private async refreshReminder(requestPermission: boolean): Promise<void> {
+    const service = ValueAddedService.getInstance(), owner = service.getUserId();
+    try {
+      const ready = await service.prepareRenewalReminders(requestPermission);
+      if (this.alive && owner === service.getUserId()) this.reminderReady = ready;
+    } catch (_) { if (this.alive) this.reminderReady = false; }
+  }
+  private manageMembership(): void {
+    void this.run('membership', async (): Promise<void> => {
+      const service = ValueAddedService.getInstance();
+      await service.manageSubscriptions(this.context);
+      this.status = '状态待确认';
+      if (!service.getUserId()) return;
+      try {
+        await service.restorePurchases();
+        const value = await service.confirmSubscriptionState();
+        this.applyVip(value, service.getUserId());
+        this.status = value.refreshRequired ? '状态待确认，请稍后重试查询' : value.autoRenew === false ?
+          '自动续费已关闭，权益保留至 ' + this.expiryDate(value.expiresAt) :
+          value.autoRenew === true ? '自动续费仍然开启，可在华为订阅详情取消' : '状态待确认，请在华为订阅详情核实';
+      } catch (_) { this.status = '状态待确认，请稍后重试查询；仅关闭弹窗不会取消自动续费'; }
+    });
+  }
+  private expiryDate(time: number): string {
+    const date = new Date(time);
+    return date.getFullYear() + '-' + (date.getMonth() + 1).toString().padStart(2, '0') + '-' + date.getDate().toString().padStart(2, '0');
   }
   private refreshHuaweiIdentity(): void {
     const service = ValueAddedService.getInstance(), profile = service.getHuaweiProfile();
@@ -406,7 +480,7 @@ export struct AccountSyncSettings {
           .height(36).fontSize(13).fontWeight(FontWeight.Medium).padding({ left: 16, right: 16 }).borderRadius(12)
           .fontColor('#493413').linearGradient({ angle: 120, colors: [['#F5E5C4', 0], ['#DDC18B', 1]] })
           .enabled(!this.busy).id('sync-membership-entry')
-          .onClick((): void => { this.membershipExpanded = !this.membershipExpanded; })
+          .onClick((): void => { this.membershipExpanded = !this.membershipExpanded; if (this.membershipExpanded) void this.refreshReminder(false); })
         if (!this.huaweiSignedIn) {
           this.Action('登录', 'sync-account-login', (): boolean => !this.busy, (): void => this.login())
         } else if (!this.userId && this.ready) {
@@ -522,95 +596,83 @@ export struct AccountSyncSettings {
   }
   @Builder
   private Membership() {
-    Text('会员权益').fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary'))
-      .width('100%').id('sync-membership-title')
-    Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row, justifyContent: FlexAlign.SpaceBetween }) {
-      this.MembershipBenefit('应用配置备份', '系统设置、系统背景与输入方案，重装后恢复')
-      this.MembershipBenefit('游戏专用配置', '专用按键随游戏目录保存，并备份配置文件')
-    }.width('100%').padding({ top: 4, bottom: 4 }).id('sync-membership-benefits')
-    Text('更多会员功能正在开发中').fontSize(12).fontColor(skinColor('text_secondary'))
-      .width('100%').id('sync-membership-coming-soon')
-    if (this.vipActive) {
-      Text(this.renewalKnown && !this.renewalEnabled ?
-        '自动续费已关闭，本期权益保留至到期。恢复续订只恢复后续续费。' :
-        '会员权益已生效，可在订阅管理中调整自动续费。')
-        .fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-member-renewal-status')
+    this.Heading('会员权益', '应用配置和输入方案备份、恢复；游戏存档不上传。')
+    if (this.vipActive || this.membershipUncertain) {
+      Text(this.membership).fontSize(14).fontColor(skinColor('text_primary')).width('100%')
+      if (this.renewalDetail) { Text(this.renewalDetail).fontSize(13).fontColor(skinColor('text_secondary')).width('100%') }
     } else {
+      Text('请主动选择商品。连续包月标准价 ¥5/月；单月会员 ¥5，一个日历月，到期不自动扣款。')
+        .fontSize(14).fontColor(skinColor('text_primary')).width('100%')
       if (this.membershipPriceStatus) {
-        Text(this.membershipPriceStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-          .id('sync-membership-price-status')
+        Text(this.membershipPriceStatus).fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
       }
       ForEach(this.products.filter((product: StoreProduct): boolean => product.purpose === 'membership'), (product: StoreProduct) => {
-        Flex({ direction: this.compact ? FlexDirection.Column : FlexDirection.Row,
-          alignItems: this.compact ? ItemAlign.Start : ItemAlign.Center }) {
-          Column({ space: 8 }) {
+        Column({ space: 12 }) {
+          Button((this.selectedProductId === product.id ? '已选择：' : '选择：') +
+            (product.type === 2 ? '连续包月 ' : '单月会员 ') + product.price)
+            .width('100%').fontSize(17).height(48).id('sync-select-' + product.id)
+            .onClick((): void => this.selectProduct(product)).enabled(!this.busy)
+          Text(product.priceDescription || (product.type === 2 ? '每月自动续费，标准价 ' + (product.regularPrice || product.price) + '/月' :
+            '开通一个日历月，到期不自动扣款')).fontSize(14).fontColor(skinColor('text_primary')).width('100%')
+          if (this.selectedProductId === product.id) {
+            Text('首次付款：' + product.price + (product.type === 2 ?
+              '。优惠结束后 ' + (product.regularPrice || product.price) + '/月，按月自动扣款；华为可能提前24小时扣款，失败后可能重试。' :
+              '。会员期限：一个日历月；无后续自动扣款。'))
+              .fontSize(15).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
+            if (product.type === 2) {
+              Text('根据官方续费计划提前7天发送推送，正常情况下至少提前5日告知。通知包含金额、时间和延长期限，点击进入会员管理。')
+                .fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+              Text(this.reminderReady ? '续费提醒已连接' : '续费提醒尚未就绪，请开启通知；也可选择单月会员。')
+                .fontSize(13).fontColor(skinColor('text_secondary')).width('100%').id('sync-reminder-status')
+              this.Action('开启／检查续费提醒', 'sync-enable-reminders', (): boolean => !this.busy && !!this.userId,
+                (): void => { void this.run('membership', async (): Promise<void> => { await this.refreshReminder(true); }); })
+            }
             Row({ space: 8 }) {
-              Text('连续包月').fontSize(13).fontColor(skinColor('text_secondary'))
-              if (product.promotion) {
-                Text('限时优惠').fontSize(10).fontColor(skinColor('text_secondary'))
-                  .padding({ left: 6, right: 6, top: 3, bottom: 3 }).borderRadius(6)
-                  .backgroundColor(skinColor('search_background')).id('sync-membership-offer-badge')
-              }
+              Checkbox({ name: 'membership', group: 'membership-consent' }).select(this.membershipAccepted)
+                .id('sync-consent-membership').onChange((checked: boolean): void => { this.membershipAccepted = checked; })
+              Text('我已阅读并同意').fontSize(13).fontColor(skinColor('text_primary'))
+              Button('《会员服务协议》').fontSize(13).backgroundColor(Color.Transparent).fontColor(skinColor('accent'))
+                .onClick((): void => this.openLegal('membership')).id('sync-membership-agreement')
+            }.width('100%')
+            if (product.type === 2) {
+              Row({ space: 8 }) {
+                Checkbox({ name: 'renewal', group: 'renewal-consent' }).select(this.autoRenewAccepted)
+                  .id('sync-consent-renewal').onChange((checked: boolean): void => { this.autoRenewAccepted = checked; })
+                Text('我授权按月扣款并同意').fontSize(13).fontColor(skinColor('text_primary'))
+                Button('《自动续费服务协议》').fontSize(13).backgroundColor(Color.Transparent).fontColor(skinColor('accent'))
+                  .onClick((): void => this.openLegal('renewal')).id('sync-renewal-agreement')
+              }.width('100%')
             }
-            Row({ space: 5 }) {
-              Text(product.price).fontSize(28).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
-                .id('sync-membership-current-price')
-              Text('／月').fontSize(12).fontColor(skinColor('text_secondary')).margin({ top: 10 })
-              if (product.regularPrice) {
-                Text('标准价 ' + product.regularPrice + '／月').fontSize(12).fontColor(skinColor('text_secondary'))
-                  .margin({ left: 10, top: 10 }).id('sync-membership-standard-price')
-              }
-            }
-            if (product.priceDescription) {
-              Text(product.priceDescription).fontSize(12).fontColor(skinColor('text_secondary'))
-                .id('sync-membership-price-terms').width('100%')
-            }
-          }.layoutWeight(this.compact ? 0 : 1).width(this.compact ? '100%' : undefined).alignItems(HorizontalAlign.Start)
-          Row() {
-            this.Action('开通 VIP', 'sync-product-' + product.id,
-              (): boolean => (!this.busy && (this.commerceReady)), (): void => {
-                if (!this.userId) { this.login(); } else { this.buy(product); }
-              }, true)
-          }.margin({ left: this.compact ? 0 : 12, top: this.compact ? 12 : 0 })
-        }.width('100%').padding({ top: 8, bottom: 4 }).id('sync-membership-product')
-      }, (product: StoreProduct): string => product.id + ':' + product.price + ':' + (product.priceDescription ?? ''))
-      Text('按月自动续费，可随时取消。取消后本期权益保留至到期。')
-        .fontSize(11).fontColor(skinColor('text_secondary')).width('100%').id('sync-membership-terms')
-      if (!this.commerceReady && !this.vipActive) {
-        Text('暂未开放购买').fontSize(11).fontColor(skinColor('text_secondary')).width('100%').id('sync-membership-unavailable')
-      }
-    }
-    Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.End }) {
-      if (!this.vipActive) {
-        Row() {
-        this.Action('刷新价格', 'sync-membership-refresh', (): boolean => !this.busy, (): void => {
-          void this.run('membership', async (): Promise<void> => { await this.refreshMembershipProducts(); });
-        })
-        }.margin({ left: 8, bottom: 8 })
-      }
-      Row() {
-        this.Action(this.vipActive && this.renewalKnown && !this.renewalEnabled ? '恢复续订' : '管理订阅', 'sync-manage-subscriptions', (): boolean => !this.busy && this.huaweiSignedIn, (): void => {
-          void this.run('membership', async (): Promise<void> => {
-            await ValueAddedService.getInstance().manageSubscriptions();
-            if (this.userId) {
-              await ValueAddedService.getInstance().restorePurchases();
-              await this.refreshAccount();
-              AccountAutomaticSyncService.getInstance().requestSync(0);
-            }
-          });
-        })
-      }.margin({ left: 8, bottom: 8 })
-      if (this.commerceReady && !this.vipActive) {
-        Row() {
-      this.Action('恢复购买', 'sync-restore-purchases', (): boolean => (this.commerceReady && !!this.userId && !this.busy), (): void => {
-      void this.run('membership', async (): Promise<void> => {
-        const result = await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount();
-        this.status = result === 'ACK_PENDING' ? '部分订单确认仍待重试' : '恢复购买核验完成';
-      });
+            this.Action('支付 ' + product.price + (product.type === 2 ? ' 开通连续包月' : ' 开通单月会员'), 'sync-product-' + product.id,
+              (): boolean => !this.busy && this.commerceReady && !!this.userId && this.membershipAccepted &&
+                (product.type !== 2 || this.autoRenewAccepted && this.reminderReady), (): void => this.buy(product), true)
+          }
+        }.width('100%').padding(14).borderRadius(14).backgroundColor(skinColor('search_background'))
+      }, (product: StoreProduct): string => ValueAddedService.getInstance().quoteKey(product))
+      if (!this.userId) { Text('购买需先登录；协议、客服和管理订阅无需登录即可打开。').fontSize(13).fontColor(skinColor('text_secondary')) }
+      if (!this.commerceReady) { Text('会员购买尚未开放，仍可管理订阅和恢复购买。').fontSize(13).fontColor(skinColor('text_secondary')) }
+      this.Action('重新获取价格', 'sync-membership-refresh', (): boolean => !this.busy, (): void => {
+        void this.run('membership', async (): Promise<void> => { await this.refreshMembershipProducts(); });
       })
-        }.margin({ left: 8, bottom: 8 })
-      }
-    }.width('100%').id('sync-membership-actions')
+    }
+    Text('取消路径：' + MEMBERSHIP_CANCEL_PATH).fontSize(13).fontColor(skinColor('text_primary')).width('100%')
+    Text('取消后保留本期权益；取消与退款是不同操作。').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+    if (this.vipActive && this.renewalEnabled && !this.reminderReady) {
+      Text('续费提醒未连接或通知已关闭，请恢复提醒，也可直接管理订阅。').fontSize(13).fontColor(skinColor('text_primary'))
+      this.Action('恢复／检查提醒', 'sync-restore-reminders', (): boolean => !this.busy && !!this.userId,
+        (): void => { void this.run('membership', async (): Promise<void> => { await this.refreshReminder(true); }); })
+    }
+    Flex({ wrap: FlexWrap.Wrap }) {
+      this.Action('会员服务协议', 'sync-terms-read', (): boolean => true, (): void => this.openLegal('membership'))
+      this.Action('自动续费服务协议', 'sync-renewal-read', (): boolean => true, (): void => this.openLegal('renewal'))
+      this.Action('取消自动续费说明', 'sync-cancel-read', (): boolean => true, (): void => this.openLegal('cancel'))
+      this.Action('恢复购买', 'sync-restore-purchases', (): boolean => !this.busy && !!this.userId, (): void => {
+        void this.run('membership', async (): Promise<void> => {
+          await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount();
+          this.status = '恢复购买核验完成';
+        });
+      })
+    }.width('100%')
   }
   @Builder
   private OperationStatus(area: string) {
@@ -631,6 +693,9 @@ export struct AccountSyncSettings {
       Column({ space: 14 }) {
         Column({ space: 16 }) {
           this.Overview()
+          this.Action('管理订阅／取消自动续费', 'sync-manage-subscriptions', (): boolean => !this.busy,
+            (): void => this.manageMembership())
+          MembershipSupport()
           this.OperationStatus('account')
           if (this.membershipExpanded) {
             Divider().color(this.cardBorderColor).margin({ top: 2, bottom: 2 })

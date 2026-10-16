@@ -16,6 +16,9 @@ import { AutomaticSyncData, PreferencesRead, PreferencesWrite, PreferencesEnvelo
 import { InputProfileService } from '../InputProfileService';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import preferences from '@ohos.data.preferences';
+import { pushService, pushCommon } from '@kit.PushKit';
+import { notificationManager } from '@kit.NotificationKit';
+import { MembershipQuote, MembershipConfirmation, membershipQuoteKey, validateMembershipConfirmation } from '../../model/MembershipCommerce';
 
 interface AccountAttempt { attemptId: string; state: string; }
 interface AccountExchange { attemptId: string; state: string; code: string; clientId: string; }
@@ -41,10 +44,13 @@ interface EmptyBody { }
 export interface StorePromotion {
   id: string; price: string; microPrice: number; paymentMode: number; periodUnit: number; periodCount: number;
 }
-export interface StoreProduct {
+export interface StoreProduct extends MembershipQuote {
   id: string; title: string; price: string; type: number; purpose: 'membership' | 'coffee';
   regularPrice?: string; microPrice?: number; currency?: string; promotion?: StorePromotion; priceDescription?: string;
+  subscriptionGroupId?: string;
 }
+interface NotificationRegistration { installationId: string; token: string; enabled: boolean; }
+interface NotificationReady { ready: boolean; }
 export interface HuaweiAccountProfile { nickname: string; avatarUri: string; status: string; }
 
 /** No provider token, purchase token, or internal session is persisted on the device. */
@@ -61,6 +67,8 @@ export class ValueAddedService {
     this.guard(); return { nickname: this.huaweiProfile.nickname, avatarUri: this.huaweiProfile.avatarUri, status: this.huaweiProfile.status };
   }
   private generation: number = 0;
+  private notificationInstallationId: string = '';
+  private notificationToken: string = '';
   private busy: boolean = false;
   private initializing: Promise<void> | null = null;
   private identityStore: preferences.Preferences | null = null;
@@ -104,6 +112,12 @@ export class ValueAddedService {
     if (this.config && this.availability === 'ready') return;
     if (!this.identityStore) {
       this.identityStore = await preferences.getPreferences(context, 'account_identity');
+      this.notificationInstallationId = this.identityStore.getSync('notification_installation_v1', '') as string;
+      if (!/^[a-f0-9-]{36}$/.test(this.notificationInstallationId)) {
+        this.notificationInstallationId = util.generateRandomUUID();
+        await this.identityStore.put('notification_installation_v1', this.notificationInstallationId);
+        await this.identityStore.flush();
+      }
       const remembered = this.identityStore.getSync('resume_login_v1', '') as string;
       if (remembered === '') {
         // Migrate only an existing account journal. This is intent to resume, never proof of identity or VIP.
@@ -299,6 +313,7 @@ export class ValueAddedService {
     if (!this.context) throw new Error('NOT_CONFIGURED');
     if (this.busy) throw new Error('BUSY');
     this.busy = true;
+    await this.revokeNotificationDevice();
     this.clearSession();
     this.huaweiSignedIn = false;
     this.huaweiProfile = { nickname: '', avatarUri: '', status: '' };
@@ -377,13 +392,23 @@ export class ValueAddedService {
   }
   async signOut(): Promise<void> {
     this.guard();
-    // Forget identity immediately, even if revocation cannot reach the service. The server also has a short TTL.
+    await this.revokeNotificationDevice();
     const pending = this.session ? this.request<EmptyBody>('/v1/auth/logout', http.RequestMethod.POST, '{}') : null;
     this.clearSession();
     this.huaweiSignedIn = false;
     this.huaweiProfile = { nickname: '', avatarUri: '', status: '' };
     await this.rememberLogin(false);
     if (pending) { try { await pending; } catch (_) { } }
+  }
+  private async revokeNotificationDevice(): Promise<void> {
+    if (this.session && this.notificationInstallationId) {
+      const owner = this.session.userId;
+      // Revoke with the old account before forgetting it. Failure cannot retain a local session.
+      try { await this.request<EmptyBody>('/v1/notification-devices/revoke', http.RequestMethod.POST,
+        JSON.stringify({ installationId: this.notificationInstallationId })); } catch (_) { }
+      try { await pushService.unbindAppProfileId(owner); } catch (_) { }
+    }
+    this.notificationToken = '';
   }
   async entitlement(): Promise<MemberEntitlement> {
     if (this.entitlementFlight) return this.entitlementFlight;
@@ -406,7 +431,16 @@ export class ValueAddedService {
     const display: StoreProduct = { id: product.id, title: product.name, price: product.localPrice ?? product.price,
       type: product.type, purpose: product.id === this.config?.coffeeProductId ? 'coffee' : 'membership',
       microPrice: product.microPrice, currency: product.currency };
-    if (product.type !== iap.ProductType.AUTORENEWABLE) return display;
+    if (display.purpose === 'membership' && (!display.price || !Number.isSafeInteger(display.microPrice) ||
+      (display.microPrice ?? 0) <= 0 || !display.currency)) throw new Error('INVALID_PRODUCT_PRICE');
+    if (product.type !== iap.ProductType.AUTORENEWABLE) {
+      if (display.purpose === 'membership') display.priceDescription = '本次支付 ' + display.price + '，开通一个日历月，到期不自动扣款。';
+      return display;
+    }
+    if (product.subscriptionInfo?.periodUnit !== iap.PeriodUnit.MONTH || product.subscriptionInfo.periodCount !== 1) {
+      throw new Error('INVALID_SUBSCRIPTION_PERIOD');
+    }
+    display.subscriptionGroupId = product.subscriptionInfo.groupId;
     const recurring = display.price + '／月';
     display.priceDescription = recurring + '，按月自动续费。';
     const configuredOffer = this.config?.membershipPromotionalOfferId;
@@ -433,20 +467,26 @@ export class ValueAddedService {
     if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
     const config = this.config, epoch = this.generation;
     const result: StoreProduct[] = [];
+    let invalidMembership: Error | null = null;
     const configured: ProductRequest[] = [
       { productId: config.membershipProductId, productType: config.membershipProductType },
+      { productId: config.membershipOneTimeProductId ?? '', productType: 3 },
       { productId: config.coffeeProductId, productType: iap.ProductType.CONSUMABLE }
     ];
     for (const item of configured) {
       if (!item.productId) continue;
-      const products = await iap.queryProducts(this.context, { productType: item.productType, productIds: [item.productId] });
+      let products: iap.Product[];
+      try { products = await iap.queryProducts(this.context, { productType: item.productType, productIds: [item.productId] }); }
+      catch (error) { if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED'); continue; }
       if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
       for (const product of products) {
         if (product.id === item.productId && product.type === item.productType) {
-          result.push(this.storeProduct(product));
+          try { result.push(this.storeProduct(product)); }
+          catch (error) { if (product.id !== config.coffeeProductId) invalidMembership = error as Error; }
         }
       }
     }
+    if (invalidMembership && !result.some((item: StoreProduct): boolean => item.purpose === 'membership')) throw invalidMembership;
     return result;
   }
   private async verifyAndFinish(data: string, type: number, epoch: number): Promise<string> {
@@ -459,6 +499,7 @@ export class ValueAddedService {
     if (!verdict.finishAllowed) return verdict.status;
     if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
     const allowed = this.config && ((verdict.productId === this.config.coffeeProductId && verdict.productType === 0) ||
+      (verdict.productId === this.config.membershipOneTimeProductId && verdict.productType === 3) ||
       (verdict.productId === this.config.membershipProductId && verdict.productType === this.config.membershipProductType));
     if (!allowed || type !== verdict.productType || !verdict.purchaseToken || !verdict.purchaseOrderId) {
       throw new Error('INVALID_ORDER');
@@ -476,23 +517,63 @@ export class ValueAddedService {
     if (this.capabilities.sandboxCommerce === true &&
       (!this.context || !await iap.isSandboxActivated(this.context))) throw new Error('SANDBOX_REQUIRED');
   }
-  async purchase(product: StoreProduct): Promise<string> {
+  quoteKey(product: StoreProduct): string {
+    return membershipQuoteKey(product, product.promotion ? JSON.stringify(product.promotion) : '');
+  }
+  getMembershipOperator(): string { return this.config?.membershipOperatorName?.trim() ?? ''; }
+  async notificationsEnabled(): Promise<boolean> {
+    try { return await notificationManager.isNotificationEnabled(); } catch (_) { return false; }
+  }
+  async prepareRenewalReminders(requestPermission: boolean): Promise<boolean> {
+    this.guard();
+    if (!this.context || !this.getUserId() || !this.capabilities.renewalReminders) throw new Error('REMINDERS_UNAVAILABLE');
+    const epoch = this.generation;
+    if (requestPermission && !await this.notificationsEnabled()) await notificationManager.requestEnableNotification(this.context);
+    const enabled = await this.notificationsEnabled();
+    if (!enabled) {
+      await this.request<EmptyBody>('/v1/notification-devices/revoke', http.RequestMethod.POST,
+        JSON.stringify({ installationId: this.notificationInstallationId }));
+      return false;
+    }
+    const token = await pushService.getToken();
+    this.assertGeneration(epoch);
+    await pushService.bindAppProfileId(pushCommon.AppProfileType.PROFILE_TYPE_APPLICATION_ACCOUNT, this.getUserId());
+    this.assertGeneration(epoch);
+    const body: NotificationRegistration = { installationId: this.notificationInstallationId, token: token, enabled: true };
+    const result = await this.request<NotificationReady>('/v1/notification-devices/register', http.RequestMethod.POST, JSON.stringify(body));
+    this.assertGeneration(epoch); this.notificationToken = token;
+    return result.ready === true;
+  }
+  async recordReminderOpened(deliveryId: string): Promise<void> {
+    if (!/^[a-f0-9]{64}$/.test(deliveryId) || !this.notificationInstallationId || !this.getUserId()) return;
+    await this.request<EmptyBody>('/v1/notification-opened', http.RequestMethod.POST,
+      JSON.stringify({ deliveryId: deliveryId, installationId: this.notificationInstallationId }));
+  }
+  async purchase(product: StoreProduct, confirmation?: MembershipConfirmation): Promise<string> {
     this.guard();
     if (!this.context || !this.config || !this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
     await this.checkPurchaseEnvironment();
     if (this.busy) throw new Error('BUSY');
     if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
     const allowed = (product.id === this.config.coffeeProductId && product.type === 0) ||
+      (product.id === this.config.membershipOneTimeProductId && product.type === 3) ||
       (product.id === this.config.membershipProductId && product.type === this.config.membershipProductType);
     if (!allowed) throw new Error('UNKNOWN_PRODUCT');
+    if (product.purpose !== (product.id === this.config.coffeeProductId ? 'coffee' : 'membership')) throw new Error('UNKNOWN_PRODUCT');
+    if (product.purpose === 'membership') {
+      validateMembershipConfirmation(confirmation, this.getUserId(), this.quoteKey(product), product.type === 2);
+      if (!this.getMembershipOperator()) throw new Error('MEMBERSHIP_NOT_READY');
+      if (this.capabilities.membershipPurchases === false) throw new Error('MEMBERSHIP_NOT_OPEN');
+    }
     const epoch = this.generation;
     this.busy = true;
     try {
-      if (product.type === iap.ProductType.AUTORENEWABLE) {
+      if (product.purpose === 'membership') {
         // A cancelled renewal retains the paid current term. Never create another purchase
         // for an active member, even if the UI has an older entitlement snapshot.
         const current = await this.entitlement();
         if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+        if (current.refreshRequired && current.expiresAt > current.serverTime) throw new Error('MEMBERSHIP_STATUS_UNKNOWN');
         if (current.active && !current.refreshRequired && current.expiresAt > current.serverTime) {
           this.purchaseRecovery = 'RESTORED';
           this.entitlementChanged();
@@ -500,7 +581,7 @@ export class ValueAddedService {
         }
       }
       let selected: StoreProduct = product;
-      if (product.type === iap.ProductType.AUTORENEWABLE) {
+      if (product.purpose === 'membership') {
         const fresh = await iap.queryProducts(this.context, { productType: product.type, productIds: [product.id] });
         const official = fresh.find((value: iap.Product): boolean => value.id === product.id && value.type === product.type);
         if (!official) throw new Error('PRODUCT_MISSING');
@@ -510,7 +591,11 @@ export class ValueAddedService {
           (product.currency !== undefined && selected.currency !== product.currency) ||
           (product.promotion && (selected.promotion?.microPrice !== product.promotion.microPrice ||
             selected.promotion.periodCount !== product.promotion.periodCount))) throw new Error('PRICE_CHANGED');
+        if (this.quoteKey(selected) !== this.quoteKey(product)) throw new Error('PRICE_CHANGED');
         if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      }
+      if (product.type === iap.ProductType.AUTORENEWABLE && !await this.prepareRenewalReminders(false)) {
+        throw new Error('RENEWAL_NOTIFICATION_REQUIRED');
       }
       const body: ProductRequest = { productId: product.id, productType: product.type,
         promotionalOfferId: selected.promotion?.id };
@@ -552,10 +637,28 @@ export class ValueAddedService {
       return verdict;
     } finally { this.busy = false; }
   }
-  async manageSubscriptions(): Promise<void> {
+  async manageSubscriptions(context?: common.UIAbilityContext): Promise<void> {
     this.guard();
+    if (context) this.context = context;
     if (!this.context) throw new Error('NOT_CONFIGURED');
-    await iap.showManagedSubscriptions(this.context, { windowScreenMode: iap.WindowScreenMode.DIALOG_BOX });
+    // The official SDK handles Huawei sign-in; cloud capabilities never gate cancellation.
+    let groupId = this.config?.membershipSubscriptionGroupId;
+    if (!groupId) {
+      try {
+        const bytes = await this.context.resourceManager.getRawFileContent('value_added_config.json');
+        groupId = (JSON.parse(util.TextDecoder.create('utf-8').decodeToString(bytes)) as ValueAddedConfig).membershipSubscriptionGroupId;
+      } catch (_) { }
+    }
+    await iap.showManagedSubscriptions(this.context, { windowScreenMode: iap.WindowScreenMode.DIALOG_BOX }, groupId);
+    this.invalidateEntitlement();
+  }
+  async confirmSubscriptionState(): Promise<MemberEntitlement> {
+    this.invalidateEntitlement();
+    const result = await this.request<MemberEntitlement>('/v1/entitlement/refresh', http.RequestMethod.POST, '{}');
+    if (typeof result.active !== 'boolean' || !Number.isFinite(result.expiresAt) || !Number.isFinite(result.serverTime)) {
+      throw new Error('INVALID_ENTITLEMENT');
+    }
+    return result;
   }
   async restorePurchases(): Promise<string> {
     if (this.restoring) return this.restoring;
@@ -577,6 +680,7 @@ export class ValueAddedService {
     try {
       // Coffee has its own independent recovery flow and must not block membership restoration.
       const types: number[] = [this.config.membershipProductType];
+      if (this.config.membershipOneTimeProductId && !types.includes(3)) types.push(3);
       for (const type of types) {
         const queries: number[] = type === 0 ? [iap.PurchaseQueryType.UNFINISHED] :
           [iap.PurchaseQueryType.UNFINISHED, type === iap.ProductType.AUTORENEWABLE ?

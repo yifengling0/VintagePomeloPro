@@ -10,6 +10,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--clouddb-evidence', type=Path, required=True)
 parser.add_argument('--pkix-runtime', type=Path)
 parser.add_argument('--iap-evidence', type=Path)
+parser.add_argument('--membership-release-evidence', type=Path)
+parser.add_argument('--renewal-evidence', type=Path)
 parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 source = Path(__file__).resolve().parents[1]
@@ -33,6 +35,18 @@ with ZipFile(args.output, 'w', ZIP_DEFLATED) as z:
         if report.get('queryAndSignatureVerified') is not True:
             raise SystemExit('IAP evidence incomplete')
         z.write(args.iap_evidence, 'config/iap-verification.json')
+    for path, name, fields in [
+        (args.membership_release_evidence, 'membership-release.json', ['normalPaymentVerified', 'backupAccepted',
+            'supportVerified', 'cancelInAppVerified', 'agreementsReadVerified']),
+        (args.renewal_evidence, 'renewal-verification.json', ['timerActive', 'deviceDisplayed', 'deepLinkOpened',
+            'subscriptionCategoryEligible', 'receiptVerified', 'paginationVerified', 'advanceNoticeVerified',
+            'cancelStopsVerified', 'permissionClosedVerified', 'dedupVerified', 'retryAlarmVerified'])]:
+        if path:
+            report = json.loads(path.read_text())
+            allowed = set(fields) | {'operatorName', 'appId', 'projectId', 'environment', 'oneTimeProductId', 'testedAt'}
+            if set(report) - allowed or any(report.get(field) is not True for field in fields):
+                raise SystemExit('Incomplete or unexpected release evidence: ' + name)
+            z.write(path, 'config/' + name)
     for folder in ['src', 'node_modules']:
         for path in sorted((source / folder).rglob('*')):
             if path.is_file():

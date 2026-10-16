@@ -7,6 +7,7 @@ import re
 
 ROOT = Path(__file__).resolve().parent.parent
 FIELDS = {'apiBaseUrl', 'accountClientId', 'membershipProductId',
+          'membershipOneTimeProductId', 'membershipSubscriptionGroupId', 'membershipOperatorName',
           'membershipProductType', 'membershipPromotionalOfferId', 'coffeeProductId', 'cloudFunctionName', 'cloudFunctionVersion'}
 
 
@@ -49,11 +50,19 @@ def main():
     if offer_id is not None and (config['membershipProductType'] != 2 or not isinstance(offer_id, str) or
                                  not re.fullmatch(r'[a-zA-Z0-9._-]{1,64}', offer_id)):
         parser.error('Promotional offer ID must match the saved automatic-subscription offer')
-    for key in ('membershipProductId', 'coffeeProductId'):
+    for key in ('membershipProductId', 'coffeeProductId', 'membershipOneTimeProductId', 'membershipSubscriptionGroupId'):
+        if key not in config:
+            continue
         if not isinstance(config[key], str) or config[key] and not re.fullmatch(r'[a-zA-Z0-9._-]{1,128}', config[key]):
             parser.error('Product IDs must be public SKU identifiers or empty')
     if config['membershipProductId'] and config['membershipProductId'] == config['coffeeProductId']:
         parser.error('Membership and support products must have different IDs')
+    if config.get('membershipOneTimeProductId') in (config['membershipProductId'], config['coffeeProductId']):
+        parser.error('The one-time membership must have a distinct product ID')
+    if 'membershipOperatorName' in config and (not isinstance(config['membershipOperatorName'], str) or
+                                              len(config['membershipOperatorName']) > 128 or
+                                              re.search(r'[\x00-\x1f]', config['membershipOperatorName'])):
+        parser.error('membershipOperatorName must match the registered publisher')
     module = load_json5(module_file)
     metadata = module['module'].get('metadata', [])
     module['module']['metadata'] = [item for item in metadata if item.get('name') != 'client_id'] + [

@@ -4,6 +4,7 @@ const ts=require(process.argv[3]);
 const models=require(path.resolve(process.argv[2],'model/ValueAddedModels.js'));
 const app=require(path.resolve(process.argv[2],'model/AppModels.js'));
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'vp-account-service-'));
+const completionWatchdog=setTimeout(()=>{console.error('Value-added service tests did not finish');process.exitCode=1;},15000);
 let visible=true,requests=0,constructors=0,finishCalls=0,failFinish=true,writes=0,user='alice',authorizationState='', sdkError=0, wrongState=false;
 const identityStores=new WeakMap(),authRequests=[];
 const preferences={getPreferences:async(context,name)=>{
@@ -11,14 +12,16 @@ const preferences={getPreferences:async(context,name)=>{
  const stores=identityStores.get(context);if(!stores.has(name))stores.set(name,new Map());
  const store=stores.get(name);return {getSync:(k,d)=>store.has(k)?store.get(k):d,put:async(k,v)=>store.set(k,v),flush:async()=>{}};
 }};
-const config={apiBaseUrl:'https://api.example.com',accountClientId:'client-id',membershipProductId:'month',membershipProductType:3,coffeeProductId:'coffee'};
+const config={apiBaseUrl:'https://api.example.com',accountClientId:'client-id',membershipProductId:'month',membershipProductType:3,coffeeProductId:'coffee',membershipOperatorName:'Test publisher'};
 const profile=models.cloudProfilePayload(app.createDefaultInputProfile());
 const envelope={schemaVersion:1,profileFamily:'input/native-v6',deviceClass:'tablet',variant:profile.id,revision:1,baseRevision:0,
   payloadSha256:crypto.createHash('sha256').update(JSON.stringify(profile)).digest('hex'),payload:profile};
 let cloudCalls=0, cloudReply=null, functionSupported=true;
 let route=async(url,options)=>{
  const endpoint=new URL(url).pathname;
- if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,preferences:true,cloudSaves:false,reason:''};
+ if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,preferences:true,cloudSaves:false,renewalReminders:true,reason:''};
+ if(endpoint==='/v1/notification-devices/register')return {ready:true};
+ if(endpoint==='/v1/notification-devices/revoke')return {};
  if(endpoint==='/v1/entitlement')return {active:false,expiresAt:0,serverTime:Date.now()};
  if(endpoint==='/v1/auth/begin')return {attemptId:'test-attempt',state:'test-state'};
  if(endpoint==='/v1/auth/exchange')return {token:'session-'+user,userId:user,expiresAt:Date.now()+1800000};
@@ -64,13 +67,15 @@ const imports={
  const data=params.data;assert.equal(data.protocol,1);
  return {result:{protocol:1,status:200,body:JSON.stringify(await route('https://cloud.test'+data.path,{method:data.method,extraData:data.body}))}};
  }}},'@ohos.deviceInfo':{default:{sdkApiVersion:23}},
+ '@kit.PushKit':{pushCommon:{AppProfileType:{PROFILE_TYPE_APPLICATION_ACCOUNT:1}},pushService:{getToken:async()=> 'push-test-token',bindAppProfileId:async()=>{},unbindAppProfileId:async()=>{}}},
+ '@kit.NotificationKit':{notificationManager:{isNotificationEnabled:async()=>true,requestEnableNotification:async()=>{}}},
  '@kit.BasicServicesKit':{},'@kit.AccountKit':{authentication},'@kit.IAPKit':{iap},'@ohos.net.http':{default:http},'@ohos.data.preferences':{default:preferences},
  '@ohos.util':{default:{TextDecoder:{create:()=>({decodeToString:b=>Buffer.from(b).toString()})},
  TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:crypto.randomUUID}},
  '@kit.CryptoArchitectureKit':{cryptoFramework:md},'@kit.CoreFileKit':{fileIo:adapter},
  '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>visible,deviceType:()=>visible?'tablet':'phone'}},
  '../../model/AppModels':app,'../../model/AccountSyncModels':require(path.resolve(process.argv[2], 'model/AccountSyncModels.js')),
-  '../../model/ValueAddedModels':models,
+  '../../model/ValueAddedModels':models,'../../model/MembershipCommerce':require(path.resolve(process.argv[2],'model/MembershipCommerce.js')),
  '../InputProfileService':{InputProfileService:{getInstance:()=>({hasProfile:()=>true,getProfile:()=>profile,saveProfile:async()=>{writes++;}})}}
 };
 const source=fs.readFileSync(path.join(__dirname,'../entry/src/main/ets/service/valueadded/ValueAddedService.ets'),'utf8');
@@ -78,6 +83,10 @@ const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.Common
 const mod={exports:{}};
 vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n])throw Error(n);return imports[n];},canIUse:()=>functionSupported,setTimeout,ArrayBuffer,Uint8Array,TextEncoder,console});
 const service=mod.exports.ValueAddedService.getInstance();
+async function purchaseConfirmed(service, product){
+ if(!product.purpose)product=(await service.products()).find(p=>p.id===product.id&&p.type===product.type);
+ return service.purchase(product,{userId:service.getUserId(),quote:service.quoteKey(product),termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:product.type===2});
+}
 const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(config))}};
 (async()=>{
  visible=false;await assert.rejects(service.initialize(context),/FEATURE_HIDDEN/);await assert.rejects(service.signIn(),/FEATURE_HIDDEN/);
@@ -89,7 +98,7 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  await mismatch.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,accountClientId:'other-client'}))}});
  assert.equal(mismatch.accountAvailability(),'identity_mismatch');assert.equal(requests,0);
  const availabilityRoute=route;
- route=async()=>({account:false,commerce:false,profiles:false,cloudSaves:false,reason:'NOT_CONFIGURED'});
+ route=async()=>({account:false,commerce:false,profiles:false,cloudSaves:false,renewalReminders:true,reason:'NOT_CONFIGURED'});
  const closed=new mod.exports.ValueAddedService();await closed.initialize(context);assert.equal(closed.accountAvailability(),'service_closed');
  route=async()=>{throw Error('offline');};const unreachable=new mod.exports.ValueAddedService();
  await unreachable.initialize(context);assert.equal(unreachable.accountAvailability(),'unreachable');
@@ -110,7 +119,15 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  const storeProducts=await service.products();
  assert.deepEqual(Array.from(storeProducts,p=>({id:p.id,purpose:p.purpose,price:p.price})),[
   {id:'month',purpose:'membership',price:'CNY 6.00'},{id:'coffee',purpose:'coffee',price:'CNY 6.00'}]);
- assert.equal(await service.purchase({id:'month',type:3}),'ACK_PENDING');assert.equal(finishCalls,1);
+ const membershipProduct=storeProducts.find(p=>p.purpose==='membership');
+ const accepted={userId:'alice',quote:service.quoteKey(membershipProduct),termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:false};
+ const beforeConsent=purchaseCalls;
+ await assert.rejects(service.purchase(membershipProduct),/MEMBERSHIP_CONSENT_REQUIRED/);
+ for(const override of [{membershipAccepted:false},{userId:'bob'},{quote:'old quote'},{termsVersion:'old'}]) {
+  await assert.rejects(service.purchase(membershipProduct,{...accepted,...override}),/MEMBERSHIP_CONSENT_REQUIRED/);
+ }
+ assert.equal(purchaseCalls,beforeConsent,'missing/account/quote/revision consent never reaches the cashier');
+ assert.equal(await purchaseConfirmed(service,{id:'month',type:3}),'ACK_PENDING');assert.equal(finishCalls,1);
  failFinish=false;assert.equal(await service.restorePurchases(),'RESTORED');assert.equal(finishCalls,2);
  await service.downloadProfile('default');assert.equal(writes,1);
  const realBackup=service.saveLocalBranch.bind(service);let releaseBackup,backupEntered;
@@ -185,6 +202,9 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  const autoService=new mod.exports.ValueAddedService();
  await autoService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,membershipProductType:2}))}});
  await autoService.signIn();subscriptionQueries.length=0;
+ const autoProduct=(await autoService.products()).find(p=>p.type===2);
+ await assert.rejects(autoService.purchase(autoProduct,{userId:autoService.getUserId(),quote:autoService.quoteKey(autoProduct),
+  termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:false}),/MEMBERSHIP_CONSENT_REQUIRED/);
  const autoRoute=route, beforeAutoFinish=finishCalls;
  route=async(url,opts)=>{
   if(new URL(url).pathname==='/v1/purchases/verify'){
@@ -193,7 +213,7 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
   }
   return autoRoute(url,opts);
  };
- assert.equal(await autoService.purchase({id:'month',type:2}),'FINISHED');assert.equal(finishCalls,beforeAutoFinish+1);
+ assert.equal(await purchaseConfirmed(autoService,{id:'month',type:2}),'FINISHED');assert.equal(finishCalls,beforeAutoFinish+1);
  route=autoRoute;
  assert.equal(await autoService.restorePurchases(),'RESTORED');
  assert.deepEqual(subscriptionQueries,[{productType:2,queryType:1},{productType:2,queryType:2}]);
@@ -202,7 +222,7 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  for(const autoRenew of [true,false]){
   route=async(url,opts)=>new URL(url).pathname==='/v1/entitlement'?
    {active:true,refreshRequired:false,autoRenew,expiresAt:Date.now()+10000,serverTime:Date.now()}:autoRoute(url,opts);
-  assert.equal(await autoService.purchase({id:'month',type:2}),'ALREADY_ACTIVE');
+  assert.equal(await purchaseConfirmed(autoService,{id:'month',type:2}),'ALREADY_ACTIVE');
   assert.equal(purchaseCalls,beforeActiveCreate,'cancelled renewal must not buy the already-paid current term again');
  }
  route=autoRoute;
@@ -217,11 +237,11 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  route=async(url,opts)=>{if(new URL(url).pathname==='/v1/purchases/verify')throw Error('PROVIDER_UNAVAILABLE');return autoRoute(url,opts);};
  await autoService.signIn();assert.equal(autoService.getUserId(),'alice');assert.equal(autoService.getPurchaseRecoveryStatus(),'PROVIDER_UNAVAILABLE');
  assert.equal(purchaseCalls,beforeRecoveryPurchase);
- assert.equal(await autoService.purchase({id:'month',type:2}),'VERIFICATION_PENDING');assert.equal(autoService.getPurchaseRecoveryStatus(),'PROVIDER_UNAVAILABLE');
+ assert.equal(await purchaseConfirmed(autoService,{id:'month',type:2}),'VERIFICATION_PENDING');assert.equal(autoService.getPurchaseRecoveryStatus(),'PROVIDER_UNAVAILABLE');
  route=async(url,opts)=>new URL(url).pathname==='/v1/purchases/verify'?{status:'ALREADY_FINISHED',finishAllowed:false}:autoRoute(url,opts);
  await autoService.restorePurchases();assert.equal(autoService.getPurchaseRecoveryStatus(),'RESTORED');
- createError=1;assert.equal(await autoService.purchase({id:'month',type:2}),'CANCELLED');createError=2;
- const beforeOwnedFinish=finishCalls;assert.equal(await autoService.purchase({id:'month',type:2}),'RESTORED');assert.equal(finishCalls,beforeOwnedFinish);
+ createError=1;assert.equal(await purchaseConfirmed(autoService,{id:'month',type:2}),'CANCELLED');createError=2;
+ const beforeOwnedFinish=finishCalls;assert.equal(await purchaseConfirmed(autoService,{id:'month',type:2}),'RESTORED');assert.equal(finishCalls,beforeOwnedFinish);
  createError=0;autoReceipts=[];route=autoRoute;autoService.unsubscribeEntitlement(listener);
  console.log('Membership recovery: automatic login, backend outage without logout, paid order retry, cancellation, owned order reconciliation PASS');
  const offeredService=new mod.exports.ValueAddedService();
@@ -233,41 +253,41 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  const offerProduct=(await offeredService.products()).find(p=>p.type===2);
  assert.equal(offerProduct.price,'¥2.00');assert.equal(offerProduct.regularPrice,'¥5.00');
  assert.match(offerProduct.priceDescription,/前 2 个月/);assert.match(offerProduct.priceDescription,/之后 ¥5.00／月/);
- await assert.rejects(offeredService.purchase(offerProduct),/NOT_CONFIGURED/);
+ await assert.rejects(purchaseConfirmed(offeredService,offerProduct),/NOT_CONFIGURED/);
  offeredService.capabilities.commerce=true;await offeredService.signIn();
  const beforeOfferRoute=route;
  route=async(url,options)=>new URL(url).pathname==='/v1/purchases/verify'?
   {status:'GRANTED',finishAllowed:true,productId:'month',productType:2,purchaseOrderId:'offer-order',purchaseToken:'offer-token'}:
   beforeOfferRoute(url,options);
- await offeredService.purchase(offerProduct);
+ await purchaseConfirmed(offeredService,offerProduct);
  assert.equal(latestPurchase.promotionalOfferId,'vip_2026_year_end');assert.equal(latestPurchase.applicationUserName,'alice');
  assert.equal(latestPurchase.jwsRepresentation,'AAA.BBB.CCC');assert.equal(Object.hasOwn(latestPurchase,'quantity'),false);
  const paidCalls=purchaseCalls;omitOfferSignature=true;
- await assert.rejects(offeredService.purchase(offerProduct),/INVALID_OFFER/);assert.equal(purchaseCalls,paidCalls);omitOfferSignature=false;
+ await assert.rejects(purchaseConfirmed(offeredService,offerProduct),/INVALID_OFFER/);assert.equal(purchaseCalls,paidCalls);omitOfferSignature=false;
  promotionalOffers[0].periodCount=3;
- await assert.rejects(offeredService.purchase(offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
+ await assert.rejects(purchaseConfirmed(offeredService,offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
  promotionalOffers[0].periodCount=2;promotionalOffers[0].microPrice=3000000;
- await assert.rejects(offeredService.purchase(offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
+ await assert.rejects(purchaseConfirmed(offeredService,offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
  promotionalOffers[0].paymentMode=3;
  await assert.rejects(offeredService.products(),/INVALID_OFFER/);assert.equal(purchaseCalls,paidCalls);
  promotionalOffers=[];
- await assert.rejects(offeredService.purchase(offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
+ await assert.rejects(purchaseConfirmed(offeredService,offerProduct),/PRICE_CHANGED/);assert.equal(purchaseCalls,paidCalls);
  const fullPrice=(await offeredService.products()).find(p=>p.type===2);assert.equal(fullPrice.price,'¥5.00');assert.equal(fullPrice.promotion,undefined);
- await offeredService.purchase(fullPrice);assert.equal(Object.hasOwn(latestPurchase,'promotionalOfferId'),false);
+ await purchaseConfirmed(offeredService,fullPrice);assert.equal(Object.hasOwn(latestPurchase,'promotionalOfferId'),false);
  route=beforeOfferRoute;
  const sandboxRoute=route;
  route=async(url,options)=>new URL(url).pathname==='/v1/capabilities'?
-  {account:true,commerce:true,sandboxCommerce:true,profiles:false,preferences:false,cloudSaves:false,reason:'IAP_NOT_CONFIGURED'}:
+  {account:true,commerce:true,sandboxCommerce:true,profiles:false,preferences:false,cloudSaves:false,renewalReminders:true,reason:'IAP_NOT_CONFIGURED'}:
   new URL(url).pathname==='/v1/purchases/verify'?
    {status:'GRANTED',finishAllowed:true,productId:'month',productType:2,purchaseOrderId:'sandbox-order',purchaseToken:'sandbox-token'}:
    sandboxRoute(url,options);
  const sandboxContext={...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,membershipProductType:2}))}};
  const sandboxService=new mod.exports.ValueAddedService();await sandboxService.initialize(sandboxContext);await sandboxService.signIn();
  assert.equal(sandboxService.getCapabilities().commerce,true);assert.equal(sandboxService.getCapabilities().preferences,false);
- await sandboxService.purchase((await sandboxService.products()).find(p=>p.type===2));
+ await purchaseConfirmed(sandboxService,(await sandboxService.products()).find(p=>p.type===2));
  const sandboxPurchaseCalls=purchaseCalls,sandboxFinishCalls=finishCalls,queryCount=subscriptionQueries.length;
  sandboxActive=false;
- await assert.rejects(sandboxService.purchase({id:'month',type:2}),/SANDBOX_REQUIRED/);
+ await assert.rejects(purchaseConfirmed(sandboxService,{id:'month',type:2}),/SANDBOX_REQUIRED/);
  await assert.rejects(sandboxService.restorePurchases(),/SANDBOX_REQUIRED/);
  assert.equal(purchaseCalls,sandboxPurchaseCalls);assert.equal(finishCalls,sandboxFinishCalls);assert.equal(subscriptionQueries.length,queryCount);
  const notTester=new mod.exports.ValueAddedService();await notTester.initialize(sandboxContext);assert.equal(notTester.getCapabilities().commerce,false);
@@ -285,7 +305,10 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  assert.equal(authRequests.length-authBefore,3,'concurrent startup performs one identity/profile/code exchange');
  assert.ok(authRequests.slice(authBefore).every(r=>r.forceLogin===false||r.forceAuthorization===false),'restart never opens login/consent UI');
  assert.equal(purchaseCalls,ordersBeforeRestart,'restoration cannot create a new payment');
- assert.deepEqual(Array.from(identityStores.get(restartContext).get('account_identity').entries()),[['resume_login_v1','true']]);
+ const persisted=identityStores.get(restartContext).get('account_identity');
+ assert.deepEqual([...persisted.keys()].sort(),['notification_installation_v1','resume_login_v1']);
+ assert.match(persisted.get('notification_installation_v1'),/^[a-f0-9-]{36}$/);
+ assert.equal(persisted.get('resume_login_v1'),'true');
  restarted.session.expiresAt=Date.now()-1;await restarted.resumeAccount();assert.equal(restarted.getUserId(),user);
  await restarted.signOut();const afterLogout=authRequests.length;
  const signedOutProcess=new mod.exports.ValueAddedService();await signedOutProcess.initialize(restartContext);await signedOutProcess.resumeAccount();
@@ -323,8 +346,9 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  };
  const entitlementService=new mod.exports.ValueAddedService();await entitlementService.initialize({...context});await entitlementService.signIn();
  const delayed=entitlementService.entitlement();await oldEntered;
- await entitlementService.purchase({id:'month',type:3});releaseOld();
+ // Receipt recovery can invalidate an already-running entitlement read without creating a new purchase.
+ await entitlementService.verifyAndFinish('opaque-provider-receipt',3,entitlementService.generation);releaseOld();
  assert.equal((await delayed).active,true);assert.equal(reads,2);route=ordinaryRoute;
  console.log('Account restart: silent verified reauthentication, expired session, explicit logout, receipt isolation, coalesced recovery and stale entitlement PASS');
  console.log('Value-added services: hidden guards, auth/ack, account-switch races, profile hash, settings routes/hash/allowlist PASS');
-})().finally(()=>fs.rmSync(directory,{recursive:true,force:true})).catch(error=>{console.error(error);process.exitCode=1;});
+})().finally(()=>{clearTimeout(completionWatchdog);fs.rmSync(directory,{recursive:true,force:true});}).catch(error=>{console.error(error);process.exitCode=1;});
