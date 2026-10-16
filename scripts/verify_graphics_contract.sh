@@ -625,4 +625,6 @@ require_literal "Make always verifies modern DXVK cache" \
 require_literal "Make always verifies VKD3D cache" \
     '$(VKD3D_PROTON_ARTIFACTS): vkd3d-proton-cache-check' Makefile
 
+python3 "$ROOT/scripts/dxvk_runtime_contract.py"
+
 printf 'graphics-contract: all checks passed\n'

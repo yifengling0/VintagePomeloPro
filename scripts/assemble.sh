@@ -851,6 +851,17 @@ EOF
   }
 }
 EOF
+    python3 - "$wine_data/dxvk/manifest.json" <<'PYDXVK'
+import hashlib, json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+manifest = json.loads(path.read_text())
+for profile, runtime in manifest['runtimes'].items():
+    directory = path.parent / profile / 'arm64x'
+    if directory.is_dir():
+        runtime['arm64x'] = {name: hashlib.sha256((directory/name).read_bytes()).hexdigest()
+                            for name in ('d3d11.dll', 'dxgi.dll')}
+path.write_text(json.dumps(manifest, indent=2) + '\n')
+PYDXVK
     # Suite 编排定义由 automation/smoke.py 产出 (smoke/tests + smoke/suites),
     # 见 assemble 尾部的载荷拷贝。
     log "  VKD3D-Proton 2.6 limited-500K (default mixed D3D12 profile) → vkd3d/limited-500k/x64 (sha256=$vkd3d64_d3d12_sha)"

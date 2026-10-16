@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "commit": "08cb6797cc340369fba6ea557292c8a3ad367b8e",
+  "sourceSha256": "cf7a3cbc4f81cd0e1fcc8ff5e363fc1ba4ac5633722ca65c893d6885869610d8",
+  "files": {
+    "arm64x/d3d11.dll": "15cd06505112f9e4b8eec70107534e622ee950f72711a2590b0f2aea9a50e09e",
+    "x64/d3d11.dll": "15cd06505112f9e4b8eec70107534e622ee950f72711a2590b0f2aea9a50e09e",
+    "arm64x/dxgi.dll": "c12ae28b73952e53f7eadac6efecca6d46166740355b4d3f86cdd9021ac53d68",
+    "x64/dxgi.dll": "c12ae28b73952e53f7eadac6efecca6d46166740355b4d3f86cdd9021ac53d68",
+    "x86/d3d11.dll": "e4f12acb01a8384b9007eea91fb5053aad18b153b62ec4a9edb5f2b2b3e0ab59",
+    "x86/dxgi.dll": "814fc6f173bc9b774696029e3f752d9d15e2cd61819c5fd6914c3ae54d89baf5"
+  }
+}

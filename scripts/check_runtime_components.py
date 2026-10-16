@@ -12,6 +12,7 @@ from typing import FrozenSet, Iterable, Union
 from zipfile import ZipFile
 
 from runtime_library_guard import RuntimeLibraryError, validate_library
+from dxvk_runtime_contract import validate_modern_runtime
 
 
 GSTREAMER_VERSION = "1.24.4"
@@ -488,6 +489,12 @@ def validate_graphics_runtime_payload(archive: Archive, wine_arch: str) -> None:
             raise ValidationError(f"DXVK manifest has no {profile} runtime")
         require_equal(runtime.get("version"), version, f"DXVK {profile} version")
         require_equal(runtime.get("state"), state, f"DXVK {profile} state")
+
+    if wine_arch == 'aarch64':
+        try:
+            validate_modern_runtime(archive)
+        except (KeyError, ValueError) as exc:
+            raise ValidationError(str(exc)) from exc
 
     require_equal(vkd3d.get("schemaVersion"), 1, "VKD3D manifest schema version")
     require_equal(vkd3d.get("profile"), "limited-500k", "VKD3D profile")
