@@ -368,6 +368,20 @@ export struct AccountSyncSettings {
       this.status = '已退出，当前账号的会话和云端状态已清除';
     });
   }
+  private async showPurchaseMessage(title: string, message: string): Promise<void> {
+    if (!this.alive) return;
+    this.status = message; this.statusArea = 'membership';
+    const prompt = this.getUIContext().getPromptAction();
+    try {
+      await prompt.showDialog({ title: title, message: message,
+        buttons: [{ text: '知道了', color: skinColor('accent') }] });
+    } catch (_) {
+      // Keep the outcome in the page even if the window closes during presentation.
+      if (this.alive) {
+        try { prompt.showToast({ message: message }); } catch (_) {}
+      }
+    }
+  }
   private buy(product: StoreProduct): void {
     if (!this.canBuyMembership(product)) return;
     const service = ValueAddedService.getInstance();
@@ -376,20 +390,35 @@ export struct AccountSyncSettings {
     void this.run('membership', async (): Promise<void> => {
       // This explicit payment action can request permission. A background readiness check must not lock the button forever.
       if (product.type === 2 && !await this.refreshReminder(true)) {
-        if (this.alive && confirmation.userId === service.getUserId()) this.status = this.reminderStatus;
+        if (this.alive && confirmation.userId === service.getUserId()) {
+          await this.showPurchaseMessage('暂时无法开通', this.reminderStatus + '\n\n本次未发起支付，没有扣款。');
+        }
         return;
       }
       let result: string;
       try { result = await service.purchase(product, confirmation); }
-      catch (error) { this.clearConfirmation(); await this.refreshMembershipProducts(); throw error as Error; }
+      catch (error) {
+        this.clearConfirmation();
+        const failure = error as Error, code = (error as BusinessError).code;
+        const detail = this.errorMessage(failure) + (Number.isInteger(code) ? '\n错误代码：' + code : '');
+        await this.showPurchaseMessage('购买未完成', detail + '\n\n若已完成付款，请先刷新状态或恢复购买，不要重复支付。');
+        if (this.alive) await this.refreshMembershipProducts();
+        return;
+      }
+      if (!this.alive || confirmation.userId !== service.getUserId()) return;
       this.clearConfirmation();
       this.status = result === 'CANCELLED' ? '已取消购买' :
         result === 'VERIFICATION_PENDING' ? '购买已完成，会员确认暂未完成；会自动重试，无需再次付款' :
         result === 'ACK_PENDING' ? '会员已生效，订单确认稍后自动重试' :
         result === 'ALREADY_ACTIVE' ? '本期会员已生效，无需重复购买' :
         result === 'FINISHED' || result === 'RESTORED' || result === 'ALREADY_FINISHED' ? '会员状态已更新' : '订阅状态已更新';
-      if (result !== 'CANCELLED') AccountAutomaticSyncService.getInstance().requestSync(0);
-      await this.refreshAccount();
+      if (result === 'CANCELLED') return;
+      if (result === 'VERIFICATION_PENDING') await this.showPurchaseMessage('付款已完成，会员待确认', this.status);
+      AccountAutomaticSyncService.getInstance().requestSync(0);
+      try { await this.refreshAccount(); }
+      catch (_) {
+        await this.showPurchaseMessage('会员状态待确认', '暂时无法刷新会员状态，请稍后刷新或恢复购买，无需再次付款。');
+      }
     });
   }
   private canBuyMembership(product: StoreProduct): boolean {
@@ -442,7 +471,8 @@ export struct AccountSyncSettings {
       if (!this.alive || owner !== service.getUserId()) return false;
       this.reminderReady = ready;
       this.reminderStatus = ready ? '续费提醒已连接' :
-        enabled ? '续费提醒登记未完成，请稍后检查重试。' : '通知尚未开启，点击支付将申请通知权限；允许后继续支付。';
+        enabled ? '续费提醒登记未完成，请稍后检查重试。' : requestPermission ?
+          '通知权限尚未开启，请在系统设置中允许本应用发送通知后重试。' : '通知尚未开启，点击支付将申请通知权限；允许后继续支付。';
       return ready;
     } catch (error) {
       if (this.alive && owner === service.getUserId()) {
