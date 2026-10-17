@@ -27,7 +27,7 @@ export class ValueAddedDomain {
     const storage = this.store.ready === true;
     const sandbox = storage && this.purchaseProvider.sandboxReady === true && this.purchaseProvider.config?.environment === 'SANDBOX';
     return { account: storage && this.accountProvider.ready, commerce: storage && this.purchaseProvider.ready || sandbox,
-      ...(sandbox ? { sandboxCommerce: true } : {}), renewalReminders: this.reminders.ready && this.reminders.timerReady,
+      ...(sandbox ? { sandboxCommerce: true, sandboxCheckout: this.config.sandboxCheckout === true } : {}), renewalReminders: this.reminders.ready && this.reminders.timerReady,
       membershipPurchases: !this.config.enforceCheckoutReadiness || this.config.membershipReleaseReady === true,
       profiles: storage && this.purchaseProvider.ready, preferences: storage && this.purchaseProvider.ready, cloudSaves: storage && this.purchaseProvider.ready && this.saves.objects.ready,
       configuration: storage && this.purchaseProvider.ready && this.configurations.objects.ready,
@@ -81,6 +81,7 @@ export class ValueAddedDomain {
   async intent(userId, { productId, productType, promotionalOfferId }) {
     this.gate('commerce');
     const product = this.product(productId, productType);
+    requireThat(product.purchasesEnabled !== false, 'PRODUCT_NOT_FOR_SALE', 409);
     if (product.kind === 'membership') {
       const entitlement = await this.store.get('entitlement:' + userId);
       requireThat(Object.keys(entitlement?.orders ?? {}).length < 256, 'ORDER_LIMIT', 409);
@@ -89,7 +90,11 @@ export class ValueAddedDomain {
         const current = await this.entitlement(userId);
         requireThat(!current.active, 'MEMBERSHIP_ALREADY_ACTIVE', 409);
         requireThat(!current.refreshRequired, 'MEMBERSHIP_STATUS_UNKNOWN', 409);
-        if (productType === 2) requireThat(await this.reminders.available(userId), 'REMINDERS_UNAVAILABLE', 503);
+        // Accelerated Huawei sandbox orders are not real paid subscriptions. This explicit
+        // test-only path never advertises reminders ready and cannot apply in NORMAL.
+        if (productType === 2 && !this.capabilities().sandboxCheckout) {
+          requireThat(await this.reminders.available(userId), 'REMINDERS_UNAVAILABLE', 503);
+        }
       }
     }
     // 32 + 1 + 64 + 1 + 43 = 141 chars, safely under the IAP 256-character limit.

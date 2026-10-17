@@ -3,6 +3,7 @@
     "id": "vip_monthly_once",
     "type": 3,
     "kind": "membership",
+    "purchasesEnabled": false,
     "policyVersion": "calendar-month-v1",
     "prices": { "CNY": [500] }
   },

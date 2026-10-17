@@ -267,10 +267,15 @@ export struct AccountSyncSettings {
     const request = ++this.membershipRequest;
     const entitlement = await service.entitlement();
     if (!this.alive || request !== this.membershipRequest || owner !== service.getUserId()) return entitlement;
+    this.applyMembershipState(entitlement, owner);
+    return entitlement;
+  }
+  private applyMembershipState(entitlement: MemberEntitlement, owner: string): void {
+    const service = ValueAddedService.getInstance();
     this.applyVip(entitlement, owner);
     this.membershipUncertain = entitlement.refreshRequired === true;
-    this.renewalDetail = entitlement.autoRenew === false ? '自动续费已关闭，权益保留至 ' + this.expiryDate(entitlement.expiresAt) :
-      entitlement.nextRenewalAt && entitlement.nextRenewalPrice ? '预计续费 ' + this.expiryDate(entitlement.nextRenewalAt) + '，' +
+    this.renewalDetail = entitlement.active && entitlement.autoRenew === false ? '自动续费已关闭，权益保留至 ' + this.expiryDate(entitlement.expiresAt) :
+      entitlement.active && entitlement.autoRenew === true && entitlement.nextRenewalAt && entitlement.nextRenewalPrice ? '预计续费 ' + this.expiryDate(entitlement.nextRenewalAt) + '，' +
         (entitlement.renewalCurrency || '') + ' ' + (entitlement.nextRenewalPrice / 100).toFixed(2) + '，延长一个月' : '';
     this.membership = this.vipActive ?
       '有效期至 ' + new Date(entitlement.expiresAt).toLocaleDateString() +
@@ -282,7 +287,6 @@ export struct AccountSyncSettings {
       service.getPurchaseRecoveryStatus() === 'CHECKING' ? '正在确认订阅' :
       service.getPurchaseRecoveryStatus() && !['RESTORED', 'FINISHED', 'ALREADY_FINISHED'].includes(service.getPurchaseRecoveryStatus()) ?
         '订阅确认待重试，无需重复购买' : '普通账号';
-    return entitlement;
   }
   private resetVip(): void {
     if (this.vipTimer >= 0) clearTimeout(this.vipTimer);
@@ -406,7 +410,9 @@ export struct AccountSyncSettings {
       }
       if (!this.alive || confirmation.userId !== service.getUserId()) return;
       // This explicit payment action can request permission. A background readiness check must not lock the button forever.
-      if (product.type === 2 && !await this.refreshReminder(true)) {
+      const capability = service.getCapabilities();
+      const sandboxCheckout = capability.sandboxCommerce === true && capability.sandboxCheckout === true;
+      if (product.type === 2 && !sandboxCheckout && !await this.refreshReminder(true)) {
         if (this.alive && confirmation.userId === service.getUserId()) {
           await this.showPurchaseMessage('暂时无法开通', this.reminderStatus + '\n\n本次未发起支付，没有扣款。');
         }
@@ -482,6 +488,11 @@ export struct AccountSyncSettings {
         if (!this.alive || owner !== service.getUserId()) return false;
         this.commerceReady = service.getCapabilities().commerce && service.getCapabilities().membershipPurchases !== false && !!service.getMembershipOperator();
       }
+      if (service.getCapabilities().sandboxCommerce === true && service.getCapabilities().sandboxCheckout === true) {
+        this.reminderReady = false;
+        this.reminderStatus = '华为沙盒支付测试，不会真实扣款。续费提醒仍待接通，正式购买尚未开放。';
+        return false;
+      }
       if (!service.getCapabilities().renewalReminders) throw new Error('REMINDERS_UNAVAILABLE');
       const ready = await service.prepareRenewalReminders(requestPermission);
       const enabled = ready || await service.notificationsEnabled();
@@ -502,18 +513,48 @@ export struct AccountSyncSettings {
   }
   private manageMembership(): void {
     void this.run('membership', async (): Promise<void> => {
-      const service = ValueAddedService.getInstance();
+      const service = ValueAddedService.getInstance(), owner = service.getUserId();
       await service.manageSubscriptions(this.context);
+      if (!this.alive || !owner || owner !== service.getUserId()) return;
       this.status = '状态待确认';
-      if (!service.getUserId()) return;
+      const request = ++this.membershipRequest;
       try {
-        await service.restorePurchases();
+        // An obsolete receipt must not block a fresh official subscription query.
         const value = await service.confirmSubscriptionState();
-        this.applyVip(value, service.getUserId());
+        if (!this.alive || request !== this.membershipRequest || owner !== service.getUserId()) return;
+        this.applyMembershipState(value, owner);
         this.status = value.refreshRequired ? '状态待确认，请稍后重试查询' : value.autoRenew === false ?
-          '自动续费已关闭，权益保留至 ' + this.expiryDate(value.expiresAt) :
+          value.active ? '自动续费已关闭，权益保留至 ' + this.expiryDate(value.expiresAt) : '自动续费已关闭，会员已到期' :
           value.autoRenew === true ? '自动续费仍然开启，可在华为订阅详情取消' : '状态待确认，请在华为订阅详情核实';
-      } catch (_) { this.status = '状态待确认，请稍后重试查询；仅关闭弹窗不会取消自动续费'; }
+      } catch (_) {
+        if (this.alive && request === this.membershipRequest && owner === service.getUserId()) {
+          this.membershipUncertain = true;
+          this.status = '状态待确认，请稍后重试查询；仅关闭弹窗不会取消自动续费';
+        }
+      }
+    });
+  }
+  private restoreMembership(): void {
+    void this.run('membership', async (): Promise<void> => {
+      const service = ValueAddedService.getInstance(), owner = service.getUserId();
+      if (!owner) return;
+      let incomplete = false;
+      try { await service.restorePurchases(); }
+      catch (_) { incomplete = true; }
+      if (!this.alive || owner !== service.getUserId()) return;
+      const request = ++this.membershipRequest;
+      try {
+        const value = await service.confirmSubscriptionState();
+        if (!this.alive || request !== this.membershipRequest || owner !== service.getUserId()) return;
+        this.applyMembershipState(value, owner);
+        this.status = value.refreshRequired ? '状态待确认，请稍后重试查询' : incomplete ?
+          value.active ? '当前会员已核验，部分历史购买待重试，无需重复付款' : '部分历史购买尚未恢复，请稍后重试' : '恢复购买核验完成';
+      } catch (_) {
+        if (this.alive && request === this.membershipRequest && owner === service.getUserId()) {
+          this.membershipUncertain = true;
+          this.status = '会员状态待确认，请稍后刷新或恢复购买，无需重复付款';
+        }
+      }
     });
   }
   private expiryDate(time: number): string {
@@ -871,16 +912,13 @@ export struct AccountSyncSettings {
           if (this.membershipExpanded) {
             Divider().color(this.cardBorderColor).margin({ top: 2, bottom: 2 })
             this.Membership()
-            this.OperationStatus('membership')
           }
+          this.OperationStatus('membership')
           Flex({ wrap: FlexWrap.Wrap }) {
             this.Action('管理订阅／取消自动续费', 'sync-manage-subscriptions', (): boolean => !this.busy,
               (): void => this.manageMembership())
-            this.Action('恢复购买', 'sync-restore-purchases', (): boolean => !this.busy && !!this.userId, (): void => {
-              void this.run('membership', async (): Promise<void> => {
-                await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount(); this.status = '恢复购买核验完成';
-              });
-            })
+            this.Action('恢复购买', 'sync-restore-purchases', (): boolean => !this.busy && !!this.userId,
+              (): void => this.restoreMembership())
             this.Action('客服与帮助', 'membership-support', (): boolean => true, (): void => this.openLegal('support'))
           }.width('100%')
           MembershipSupport({ compact: true, showHelpLink: false })

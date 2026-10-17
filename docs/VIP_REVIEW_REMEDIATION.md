@@ -1,75 +1,90 @@
-# VIP 审核整改与开放检查
+# VIP 购买整改与部署验收
 
-实施位置：WSL `/home/liufeng/src/vpp-account-cloud`，`feature/account-cloud-membership-mvp`。两套皮肤使用同一个 `AccountSyncSettings`，未改动旧 Windows checkout。新增非续期 SKU `vip_monthly_once`（type 3，CNY 500 分），保留 `vip_monthly_auto`（type 2）和旧订单日历月算法。
+实施分支：`feature/account-cloud-membership-mvp`，权威目录 `/home/liufeng/src/vpp-account-cloud`。两套皮肤共用 `AccountSyncSettings`。
 
-## 已实现的用户流程
+## 当前购买流程
 
-“系统设置 → 账号与同步 → 开通 VIP”进入购买区；初始不选择商品、不勾选协议。连续包月与单月会员均显示华为报价，前者显示优惠期数、优惠后价格、月周期、扣款和提醒说明。支付按钮带本次金额；价格查询失败提供重试。选择其他商品、换号、刷新报价或报价变化会清除确认；支付前再次查询华为商品并核对账号、报价快照和协议版本。有效会员及尚待核验的本期权益禁止新购。
+仅销售连续包月 `vip_monthly_auto`（type 2）。单月卡 `vip_monthly_once`（type 3）已停售，客户端不查询、不展示该商品，服务端拒绝新的购买 intent；历史回执核验和恢复仍保留，沿用日历月算法。无需为停售商品新建商店 SKU；以后启售时才配置独立商品并完成相应正式支付验收。
 
-会员协议和自动续费授权分开勾选；点击协议仅阅读正文。三个协议随应用编译打包，在原生页面中离线阅读，不依赖外部网页。会员权益仅描述应用配置、输入方案备份恢复，游戏存档不上传。
+系统设置 → 账号与同步 → 开通 VIP：先展示权益和华为实时价格，点击开通后弹出原生居中确认页。当前优惠为前 2 个月每月 ¥2，之后 ¥5/月，以华为当次报价及用户优惠资格为准。确认页显示本次金额、优惠期数、标准续费价、按月周期、扣款时机、提醒和取消入口。
 
-“管理订阅／取消自动续费”和客服在账号区始终显示，不依赖云同步/新购功能开放；无需应用内登录即可打开官方管理弹窗。弹窗使用配置中的订阅组 ID。完整退订路径：**系统设置 → 账号与同步 → 管理订阅／取消自动续费 → 华为订阅详情 → 取消订阅 → 确认**。返回后恢复订单并强制查验官方状态；仅关闭弹窗不会取消。核验关闭显示保留权益的到期日，失败显示“状态待确认”。恢复购买和退订不要求购买协议授权。
+会员、自动续费、取消说明合并在一个离线阅读页面，确认弹窗也能直接展开全文。会员协议、自动续费授权两项独立勾选，初始不选，阅读正文不会授权。换商品、换账号、重新打开确认或报价变化均清空确认。支付前重新查询商品，核对报价快照及账号。有效会员隐藏新购，防止重复收费。预检失败和购买异常均有明显原生弹窗；只有确定尚未调用支付的预检失败才提示“未发起支付，没有扣款”。待核验订单提示刷新或恢复，避免重复付款。
 
-购买页、会员详情、三个协议、客服页、赞助购买页统一提供邮箱 **liufengpm@live.cn**、**QQ 群 966307250**，均可直接复制，无需登录。
+“管理订阅／取消自动续费”、恢复购买、客服入口不依赖新购或云备份是否开放。管理使用 `iap.showManagedSubscriptions` 的应用内弹窗及会员订阅组 ID。完整路径：**系统设置 → 账号与同步 → 管理订阅／取消自动续费 → 华为订阅详情 → 取消订阅 → 确认**。返回后直接强制查询官方状态，不由历史回执恢复阻断；关闭弹窗不能当作退订成功。取消保留本期权益，查询失败显示状态待确认。恢复购买独立处理历史订单，之后核验当前订阅；部分历史恢复失败会明确提示，不能伪装成全部成功。异步结果校验账号和页面生命周期，管理和恢复均不要求购买协议授权。操作结果在会员详情收起时也保持可见；已到期订阅不显示保留本期权益或下一期扣款计划。
 
-## 提醒部署
+运营主体：**刘峰**。客服邮箱 **liufengpm@live.cn**、QQ 群 **966307250**；购买、详情、协议、赞助及客服页均可查看和复制，无需登录。仅承诺已交付的应用配置、输入方案备份恢复；游戏存档不上传。
 
-服务端根据官方签名状态中的 `renewalInfo.renewalTime`（毫秒）、`renewalPrice`（分）、`currency` 保存计划。不得用到期日或上次成交价补齐缺失计划。续费时间提前 7 天开始发送，考虑华为可能提前 24 小时扣款，正常情况下至少提前 5 日告知；缺失官方计划、延迟、推送失败均输出固定告警日志并保留重试状态。
+## 沙盒和正式开放
 
-使用同一经过审查的云函数代码 ZIP，部署三个函数入口：
+`VP_MEMBERSHIP_SANDBOX_CHECKOUT=enabled` 仅在官方 provider 的 `SANDBOX` 环境就绪时开放独立的沙盒收银台联调，返回 `sandboxCommerce` 和 `sandboxCheckout`。客户端组件、服务层、服务端 intent 均区分此路径；客户端仍须通过华为 `iap.isSandboxActivated()` 检测。界面明确显示沙盒不会真实扣款，提醒仍待接通。测试开关不会将 `renewalReminders` 标为 true，不能开放 NORMAL 购买或替代正式验收。
 
-| 函数 | 入口 | 触发与访问 |
+正式购买仍需 NORMAL 支付、在售 SKU、实际备份、协议、客服、退订和提醒验收证据。`membershipProductId` 必须与在售自动续费商品匹配；只有单月卡重新启售时才要求 `oneTimeProductId`。不要用沙盒结果填写 NORMAL 证据。
+
+发布检查：
+
+```sh
+node server/value-added/scripts/check-membership-release.mjs NORMAL.json renewal.json storage.json
+```
+
+缺少记录或记录不一致时检查失败。`NORMAL.json` 包含 `operatorName/appId/environment:NORMAL/membershipProductId/testedAt` 及 `normalPaymentVerified/backupAccepted/supportVerified/cancelInAppVerified/agreementsReadVerified`；可选 `oneTimeProductId` 仅供启售单月卡使用。
+
+## 续费提醒实现
+
+使用官方签名状态中的 `renewalInfo.renewalTime`、`renewalPrice` 和 `currency`，不得从本期到期日或成交价编造下一期计划。提前 7 天安排发送，为可能提前 24 小时扣款及重试留出时间。发送前再次官方核验；取消、撤销、退款后停发。消息包括名称、金额、预计时间、延长一个月及管理/取消入口。
+
+华为通知类别为 **ACCOUNT（账号动态）**。会员续费不属于 SUBSCRIPTION 内容订阅。正式开放要求 `notificationCategory:ACCOUNT`、`accountCategoryEligible:true` 及真实验证记录。2026-10-17 已提交此权益申请，当前审核中；不能把申请提交当作批准。
+
+按订阅周期和设备持久化去重，发送租约防并发重复，失败 15 分钟后重试；已发送订阅仍定期核验下一周期。设备 token 只属于一个账号，换号、退出、权限关闭和 token 更新使旧绑定退役。Push 受理、设备回执、用户打开分别记录，均不能代替屏幕展示截图。
+
+部署入口：
+
+| 功能 | 入口 | 限制 |
 | --- | --- | --- |
-| 账号 API | `handler.myHandler` | 保持现有 SDK/HTTP JSON v1 传输；设备登记、撤销和打开回执必须账号认证；不允许执行定时任务 |
-| 续费任务 | `handler.renewalHandler` | 独立 IAM 私有函数，**只配置定时触发器**，不要添加 HTTP/客户端触发；建议 `@every 15m`，超时至少 180 秒 |
-| Push V2 回执 | `handler.pushReceiptHandler` | 独立 HTTPS 回调地址；强制华为 HMAC 鉴权，不接受账号 token 代替；在 AGC 配置回调用户名和密钥 |
+| 账号与购买 API | `handler.myHandler` | 保留当前 SDK JSON v1 调用；设备登记、撤销及打开回执均须账号认证 |
+| 私有续费任务 | `handler.renewalHandler` | 仅定时触发器，无 HTTP 或客户端入口，超时 180 秒 |
+| 消息回执 | AGC `handler.pushReceiptHandler`；受支持的公网网关可用 FunctionGraph `handler.handler` | 公网 HTTPS + 华为 HMAC，不能要求账号 token 或 AGC API 客户端令牌 |
 
-AGC 定时触发器的“事件值”是开发者定义的 JSON 入参，配置为 `{"triggerType":"TIMER","userData":"与受保护的 VP_RENEWAL_TIMER_SECRET 相同的随机值"}`，随机值至少 32 字符。请勿将实际值提交到仓库或日志。启用触发器并检查首个心跳后再开放自动续费。心跳超过一小时，服务端禁止新开自动续费；单月卡、已有订单核验、退订不受此限制。
+**AGC 公网回执入口限制（2026-10-17 实查）**：现项目仅有事件调用函数，HTTP 触发器的认证类型只有 API 客户端鉴权（Client/Server），没有免认证。官方已公告自 **2025-11-04** 起停止新建旧版 HTTP 请求函数，并停止新建 API 网关触发器；旧文档中“免认证/Custom Runtime”的步骤不表示当前账号还能新建。账号 API、购买验证和定时发送继续部署在 AGC；Push 无法自行获得 AGC 客户端 OAuth 令牌，不能直接将该鉴权地址登记为回执 URL，也不能把令牌放进回执地址。
 
-CloudDB `ValueAddedRecord` 保留原字段、权限和锁记录，新增复合索引 `scopeKeyIndex(scope,key)`。执行测试区的 `scripts/probe-renewal-storage.mjs` 验证 300 行稳定排序分页；需要明确设置 `VP_PROBE_ALLOW_WRITES=I_APPROVE_TEST_RECORDS`、现有测试区凭据和 `VP_RENEWAL_STORAGE_EVIDENCE_FILE`，脚本不会自动写生产区。索引和分页真实验证完成前不要标记 `paginationVerified`。
+本轮交付采用**云函数代码包**，没有独立服务器或自托管 Docker 部署。`src/push-receipts.mjs` 仅加载 CloudDB、HMAC 和包名，不加载 IAP 私钥。保留 AGC 单参数 callback 入口，供平台支持合适公网入口时接入。另提供独立 FunctionGraph + HTTPS APIG 的适配包，入口 `handler.handler`，使用标准 `callback(error,result)`。该入口仅允许 **POST /push/receipts**，处理网关 Base64 请求体、限制正文 64 KiB、统一请求头并校验 HMAC/时窗/重放；初始化和存储故障返回 503，避免错误地确认已保存回执。
 
-受保护配置：
+备用云函数打包（不包含支付实现、商品目录、IAP 验证材料或 PKIX 可执行文件；不含任何凭据）：
 
-- `VP_PUSH_PROJECT_ID`：与应用所属 AGC 项目一致。
-- `VP_PUSH_CREDENTIAL_FILE` 或 `VP_PUSH_CREDENTIAL_JSON`：API Console **推送服务账号密钥**，含 `project_id/key_id/sub_account/private_key`；不是 Android OAuth client secret。NEXT 调用 `/v3/{projectId}/messages:send`，PS256 JWT。
-- `VP_PUSH_RECEIPT_ID`：AGC V2 回执配置 ID；申请通知自分类的 `SUBSCRIPTION` 权益及消息回执权益。
-- `VP_PUSH_CALLBACK_USER`、`VP_PUSH_CALLBACK_SECRET`：与回执配置一致；新密钥按华为文档先 Base64 解码再 HMAC-SHA256。回调验证五分钟时间窗口、nonce、应用包名及发送 requestId。
-- `VP_RENEWAL_TIMER_SECRET`：仅定时函数及其触发器持有。
-- `VP_RENEWAL_VERIFICATION_FILE`：经实测记录；`appId/projectId/testedAt` 及 `timerActive/deviceDisplayed/deepLinkOpened/subscriptionCategoryEligible/receiptVerified/paginationVerified` 为真实结果。后述完整发布检查还核对提前时间、退订停发、权限关闭、去重和告警证据。
-- `VP_MEMBERSHIP_RELEASE_FILE`：经实测记录，含与商店一致的 `operatorName/appId/environment:NORMAL/oneTimeProductId` 和 `normalPaymentVerified/backupAccepted/supportVerified/cancelInAppVerified/agreementsReadVerified/testedAt`。当前没有这些证据。
-- 现有 IAP、账号、CloudDB、PKIX 和对象存储受保护配置仍需保留；勿把密钥打入 ZIP。仅沙盒联调可显式设置 `VP_MEMBERSHIP_SANDBOX_CHECKOUT=enabled` 和 `VP_RENEWAL_SANDBOX_TESTING=enabled`，先部署定时器和回执，再使用真实设备取得提醒验收记录；这些开关只在 `SANDBOX` 官方测试账号环境生效，不能解锁正式备份能力。不要在 NORMAL 环境配置这些开关，沙盒验收不能标记 NORMAL 支付通过。
+```sh
+python3 server/value-added/scripts/package-cloud-function.py --target functiongraph-receipts --clouddb-evidence /private/clouddb-verification.json --output /artifacts/vp-push-receipts-functiongraph.zip
+```
 
-云函数打包脚本支持 `--membership-release-evidence`、`--renewal-evidence`，将完成的公开验收记录放到 ZIP 的 `config/membership-release.json`、`config/renewal-verification.json`；对应设置上述文件环境变量。现有 `--clouddb-evidence/--iap-evidence/--pkix-runtime` 参数继续保留。无验收记录时可打包整改代码进行沙盒联调，正式新购继续关闭。
+部署前必须有可接收 Push HMAC 的公网 HTTPS 入口。当前 FunctionGraph 控制台仅提供 APIG 专享版入口，需要另行配置网关；本轮未开通或购买网关，也未登记不可用回执 URL。此备用包只是可部署实现，**未完成公网部署验收**，不能据此宣称纯 AGC 回执闭环已接通。
 
-设备登记按账号认证，token 单一归属，安装 ID 仅用于设备绑定；换号/退出撤销旧绑定，token 更新使旧 token 退役。华为原生 profileId 绑定进一步隔离账号。应用进程退出后定时任务仍使用持久化计划；发送前重新验证官方签名状态，关闭/撤销不再发。每个订阅续费日期一个周期，每台设备一个发送记录；并发租约和跨进程记录防止重复，已发送的订阅仍每六小时核验以发现下一周期。失败十五分钟后重试。
+接收端受保护配置：`VP_AGC_CREDENTIAL_JSON` 或文件、`VP_AGC_ZONE`、`VP_CLOUDDB_VERIFICATION_FILE`、`VP_PUSH_CALLBACK_USER`、`VP_PUSH_CALLBACK_SECRET`、`VP_PACKAGE_NAME`。回调密钥为标准 Base64，解码后至少 16 字节，与控制台保持一致。接收端部署且华为回执测试通过后，将回执 ID 填入 API 和定时任务配置。
 
-`acceptedAt/providerRequestId` 仅表示 Push 服务受理；V2 回执保存 `deviceReportedAt/providerDeliveryResult/deliveredAt`，`displayStatus` 在没有用户打开证据时仍为 `UNKNOWN`。点击通知保存 `openedAt/OPENED`；实际屏幕展示必须另外留截图/录像，不能以 HTTP 200 或送达回执替代。瞬时设备错误会安排重试；token 无效、通知关闭、长期不活跃会停发并告警。
+发送端另需 `VP_PUSH_PROJECT_ID`、`VP_PUSH_CREDENTIAL_JSON` 或文件（项目级 Push 服务账号，PS256 JWT）、`VP_PUSH_RECEIPT_ID`。私有定时器另需至少 32 字符的 `VP_RENEWAL_TIMER_SECRET`。事件值为 `{"triggerType":"TIMER","userData":"与受保护的定时密钥相同"}`，日程 `@every 15m`。密钥不写入仓库、ZIP、日志或验收文档。
 
-在云监控中为 `[RenewalReminders] delivery failed`、`device delivery failed`、`late renewal notice`、`timer failed` 建立告警，并监测 `renewal-timer-checkpoint.lastRunAt` 超过一小时。任务的 `attempts/retryAt/lastFailureAt` 保留失败状态。定时器心跳不是全部任务按时完成的证明，需监控积压及最早待发时间；按用户规模压测和调整触发频率/执行预算。
+仅沙盒提醒联调可设置 `VP_RENEWAL_SANDBOX_TESTING=enabled`；仍需真实凭据、回执 ID 和真实定时运行。正式 sender 另要求 `VP_RENEWAL_VERIFICATION_FILE`，含 `appId/projectId/testedAt/notificationCategory:ACCOUNT` 及 `timerActive/deviceDisplayed/deepLinkOpened/accountCategoryEligible/receiptVerified/paginationVerified/advanceNoticeVerified/cancelStopsVerified/permissionClosedVerified/dedupVerified/retryAlarmVerified` 的真实记录。
 
-## 提审前的验收与记录
+CloudDB 保留原对象字段与权限，查询使用 `scopeKeyIndex(scope,key)` 的排序分页。`scripts/probe-renewal-storage.mjs` 仅允许 `PomeloAccountTest`，须显式设置 `VP_PROBE_ALLOW_WRITES=I_APPROVE_TEST_RECORDS` 和证据输出路径；实测 300 行后在 finally 清理隔离记录，不放宽生产删除约束。SDK 初始化失败后可在同一云进程重试，但不同凭据不能复用已有客户端。
 
-已按开发者提供的上架登记信息，将 `entry/src/main/resources/rawfile/value_added_config.json` 中运营主体填写为 **刘峰**；应用内协议读取此配置。后续真实验收产生的服务端发布记录中 `operatorName` 须与此一致。NORMAL 支付、自动备份和续费提醒等验收证据尚未齐备，正式新购继续关闭；已有订单恢复、订阅管理、协议和客服仍可用。
+监控固定告警 `delivery failed`、`device delivery failed`、`late renewal notice`、`timer failed`，并监测 `renewal-timer-checkpoint.lastRunAt` 超过一小时。心跳只表明任务运行，仍需监控积压、最早待发时间及失败重试。不要手写心跳记录。
 
-运行 `node server/value-added/scripts/check-membership-release.mjs <NORMAL发布记录.json> <提醒验收记录.json> <CloudDB分页记录.json>`。缺失证据返回非零；不得用全 true 的模板代替验收。正式候选包记录版本、SHA256、签名/包名、服务端版本、SKU 配置和逐项截图/录像：
+## 当前验收边界
 
-1. 两套皮肤分别验证主动选商品；未勾选不能支付；读协议不勾选；换商品、换账号及价格变化重置确认；首期优惠转标准价说明；价格失败和重试。
-2. NORMAL 环境购买单月卡及自动包月，核对实际金额、周期、订单核验/重复回执和权益；单月卡到期不扣款；有效会员隐藏新购。验证配置/输入方案自动备份、重装恢复；现有备份链路未完成验收时不开放承诺服务。
-3. 应用内退订，无需离开应用；取消保留本期；仅关闭弹窗不显示取消成功；后端查询失败显示待确认。关闭新购、云同步故障时仍可进入管理；恢复购买不要求协议勾选。
-4. 退出应用后的真实通知展示；时区、提前7天与可能提前24小时扣款的计算；金额/币种/期限；点击冷启动和热启动均进入账号与同步的会员详情。取消停发、跨周期与多设备去重、token轮换/换号隔离、失败重试及监控告警。关闭通知后禁止新开自动续费，单月卡仍可选，已有会员提示恢复提醒。
-5. 未登录复制邮箱/群号；购买区、会员详情、协议、客服页和赞助页均可访问。
+- 已通过：后端 77 项测试、客户端服务与购买逻辑测试、ArkTS 编译、调试签名校验；真实 CloudDB 300 行分页和清理；华为官方沙盒检测、最新订单查询及验签；云端沙盒 capability 调用；rc8 平板弹出官方沙盒收银台并完成订阅，初次显示至 2026-11-17、下期 CNY 2，之后加速续期至 2027-02-17、标准价 CNY 5。已在应用内华为弹窗实际取消，官方显示“取消成功”和“2027/2/17 到期后不再扣费”。随后沙盒官方状态已到期，不能用显示的日历日期推断仍有权益。rc9 已验证恢复购买完成，无需重新授权或再次付款；最终 rc11 已安装，管理返回后直接核验并显示“自动续费已关闭，会员已到期”，会员详情收起时结果仍可见。
+- 已准备：Push 项目专用密钥、ACCOUNT 权益申请、`vp-renewal-timer` 私有函数及最小配置的回执云函数部署包。
+- 未完成：公网回执入口、回执 ID、定时器真实心跳及告警、应用退出后设备通知展示/跳转、真实提醒闭环和 NORMAL 支付验收。定时函数未配置触发器，避免未就绪任务空跑；正式新购保持关闭。
 
-## 三项审核问题的提交说明草稿
+改变商品目录、证书链、支付环境或验证器后须重新执行 `probe-iap.mjs`，旧验签指纹不能直接沿用。部署前以真实受保护配置加载最终 ZIP，验证 capabilities；部署后重复调用并在设备验证。保留原云端配置和代码导出供回滚，禁止用本地过期配置整体覆盖线上环境变量。
 
-以下为代码对应的复测路径。**取得上述正式候选包证据后再提交，不将本文件作为已经验收的证明。**
+最终 rc11 在详情收起状态点击“恢复购买”，实测返回“恢复购买核验完成”，未要求购买协议授权，也未打开收银台。
 
-- **购买信息与协议**：已增加连续包月与不自动续费的单月卡。购买页显著显示本次金额、优惠期数、标准续费金额、周期、扣款时机、提醒方式及取消路径；会员协议和续费授权分别主动勾选，默认不选。复测：系统设置 → 账号与同步 → 开通 VIP → 分别选择商品、阅读协议并检查支付按钮。
-- **便捷退订**：账号区常显“管理订阅／取消自动续费”，应用内华为订阅弹窗直接完成取消；正文提供完整路径，取消后核验并保留本期权益。复测：系统设置 → 账号与同步 → 管理订阅／取消自动续费 → 华为订阅详情 → 取消订阅 → 确认 → 返回核验。
-- **客服联系方式**：无需登录即可查看、复制邮箱 liufengpm@live.cn 和 QQ 群 966307250；会员购买、详情、协议和赞助页均提供入口。复测：系统设置 → 账号与同步/赞助 → 客服与帮助 → 复制邮箱、复制群号。
+## 提审证据
+
+按购买信息与协议、应用内退订、客服三项分别整理截图及复测路径。额外覆盖未勾选、报价变化、取消保留本期、关闭管理弹窗未取消、查询失败、重复回执、账号切换、关闭通知和恢复购买。提醒验收需包含应用退出后的实际展示、提前时间、取消停发、跨周期去重、失败重试/告警和通知跳转；沙盒结果不替代 NORMAL 支付或正式自动备份验收。
 
 ## 依据
 
 - [审核指南](https://developer.huawei.com/consumer/cn/doc/doccenter-submission/50104)、[自动续费 FAQ](https://developer.huawei.com/consumer/cn/doc/app/50166)
-- [NEXT Push JWT](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)、[v3 请求结构](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct)、[请求参数](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param)
-- [消息回执](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-msg-receipt)、[V2 回执接口](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-api-msg-receipt)
+- [NEXT Push JWT](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)、[v3 请求结构](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct)
+- [消息回执](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-msg-receipt)、[V2 回执](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-api-msg-receipt)
+- [AGC 停止新建旧版 HTTP 请求函数公告](https://developer.huawei.com/consumer/cn/doc/AppGallery-connect-Guides/develop-func-introduction-0000001512391180)、[停止新建 API 网关触发器公告](https://developer.huawei.com/consumer/cn/doc/AppGallery-connect-Guides/agc-cloudfunction-apigw-trigger-0000001706957933)
+- [FunctionGraph APIG 触发器](https://support.huaweicloud.com/usermanual-functiongraph/functiongraph_01_0204.html)
 - [AGC 定时触发器](https://developer.huawei.com/consumer/cn/doc/AppGallery-connect-Guides/agc-cloudfunction-crontrigger-0000001658717864)

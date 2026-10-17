@@ -623,7 +623,8 @@ export class ValueAddedService {
         if (this.quoteKey(selected) !== this.quoteKey(product)) throw new Error('PRICE_CHANGED');
         if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
       }
-      if (product.type === iap.ProductType.AUTORENEWABLE && !await this.prepareRenewalReminders(false)) {
+      const sandboxCheckout = this.capabilities.sandboxCommerce === true && this.capabilities.sandboxCheckout === true;
+      if (product.type === iap.ProductType.AUTORENEWABLE && !sandboxCheckout && !await this.prepareRenewalReminders(false)) {
         throw new Error('RENEWAL_NOTIFICATION_REQUIRED');
       }
       const body: ProductRequest = { productId: product.id, productType: product.type,

@@ -21,11 +21,17 @@ for (const field of ['normalPaymentVerified', 'backupAccepted', 'supportVerified
 }
 const single = products.find(p => p.id === config.membershipOneTimeProductId && p.type === 3);
 const automatic = products.find(p => p.id === config.membershipProductId && p.type === 2);
-check(single?.policyVersion === 'calendar-month-v1' && single.prices?.CNY?.includes(500), 'Independent CNY 5 calendar-month product missing');
+if (config.membershipOneTimePurchases === true) {
+  check(single?.purchasesEnabled !== false && single?.policyVersion === 'calendar-month-v1' && single.prices?.CNY?.includes(500), 'Independent CNY 5 calendar-month product missing');
+  check(release.oneTimeProductId === single?.id, 'NORMAL single-month SKU not verified');
+} else {
+  check(single?.purchasesEnabled === false, 'Historical single-month SKU must be closed to new purchases');
+}
 check(automatic?.subscriptionGroupId === config.membershipSubscriptionGroupId && automatic?.prices?.CNY?.includes(500), 'Monthly subscription group/price mismatch');
-check(release.oneTimeProductId === single?.id, 'NORMAL single-month SKU not verified');
+check(automatic?.purchasesEnabled !== false && release.membershipProductId === automatic?.id, 'NORMAL subscription SKU not verified');
 check(reminder.appId === config.accountClientId && typeof reminder.projectId === 'string' && !!reminder.projectId, 'Push application/project mismatch');
-for (const field of ['timerActive', 'deviceDisplayed', 'deepLinkOpened', 'subscriptionCategoryEligible', 'receiptVerified', 'paginationVerified',
+check(reminder.notificationCategory === 'ACCOUNT', 'Membership renewal notices require the ACCOUNT category');
+for (const field of ['timerActive', 'deviceDisplayed', 'deepLinkOpened', 'accountCategoryEligible', 'receiptVerified', 'paginationVerified',
   'advanceNoticeVerified', 'cancelStopsVerified', 'permissionClosedVerified', 'dedupVerified', 'retryAlarmVerified']) {
   check(reminder[field] === true, 'Reminder evidence incomplete: ' + field);
 }

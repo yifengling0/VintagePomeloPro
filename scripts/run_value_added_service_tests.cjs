@@ -248,6 +248,17 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
  assert.equal(purchaseCalls,callsBeforeReminderFailure,'unavailable reminder backend cannot reach the cashier');
  autoService.capabilities.renewalReminders=true;
+ // Exercise the service's second payment gate, in addition to the component gate.
+ autoService.capabilities.renewalReminders=false;autoService.capabilities.sandboxCheckout=true;
+ await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
+ autoService.capabilities.sandboxCommerce=true;sandboxActive=false;
+ await assert.rejects(purchaseConfirmed(autoService,autoProduct),/SANDBOX_REQUIRED/);
+ assert.equal(purchaseCalls,callsBeforeReminderFailure,'test flags cannot replace official sandbox activation');
+ sandboxActive=true;createError=iap.IAPErrorCode.USER_CANCELED;
+ assert.equal(await purchaseConfirmed(autoService,autoProduct),'CANCELLED');
+ assert.equal(purchaseCalls,callsBeforeReminderFailure+1,'official sandbox can exercise the cashier before reminder deployment');
+ createError=0;delete autoService.capabilities.sandboxCommerce;delete autoService.capabilities.sandboxCheckout;
+ autoService.capabilities.renewalReminders=true;
  await assert.rejects(autoService.purchase(autoProduct,{userId:autoService.getUserId(),quote:autoService.quoteKey(autoProduct),
   termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:false}),/MEMBERSHIP_CONSENT_REQUIRED/);
  const autoRoute=route, beforeAutoFinish=finishCalls;

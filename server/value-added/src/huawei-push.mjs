@@ -34,7 +34,8 @@ export class HuaweiPushSender {
     const response = await this.fetcher('https://push-api.cloud.huawei.com/v3/' + this.projectId + '/messages:send', {
       method: 'POST', signal: AbortSignal.timeout(10000), headers: { 'Content-Type': 'application/json',
         Authorization: 'Bearer ' + this.jwt(), 'push-type': '0' },
-      body: JSON.stringify({ payload: { notification: { category: 'SUBSCRIPTION', title: '旧柚 VIP 续费提醒',
+      // Huawei classifies membership expiry/renewal as ACCOUNT; SUBSCRIPTION is for content alerts.
+      body: JSON.stringify({ payload: { notification: { category: 'ACCOUNT', title: '旧柚 VIP 续费提醒',
         body: '连续包月预计于 ' + date + '（北京时间）续费 ' + price + '，延长一个月。华为可能提前24小时扣款；点击管理或取消自动续费。',
         clickAction: { actionType: 1, action: MEMBERSHIP_ACTION, data: { deliveryId } },
         profileId: userId, style: 0, notifyId: parseInt(deliveryId.slice(0, 7), 16), appMessageId: deliveryId } },

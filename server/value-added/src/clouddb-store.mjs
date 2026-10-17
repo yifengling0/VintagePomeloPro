@@ -113,7 +113,14 @@ export async function connectCloudDb({ credentialFile, credentialJson, zoneName 
     }
     credential = CredentialParser.toCredential(credentialFile);
   } finally { if (directory) rmSync(directory, { recursive: true, force: true }); }
-  AGCClient.initialize(credential);
+  // A failed service initialization may retry in the same warm cloud process.
+  // The SDK keeps its default client even when our service Promise is reset.
+  const previous = AGCClient.INSTANCES.get(AGCClient.DEFAULT_INSTANCE_NAME);
+  if (previous) {
+    const active = previous.getCredential();
+    requireThat(['getProjectId','getRegion','getClientId','getClientSecret'].every(field =>
+      active[field]() === credential[field]()), 'CLOUDDB_CLIENT_CONFLICT', 503);
+  } else AGCClient.initialize(credential);
   const client = AGCClient.getInstance();
   AGConnectCloudDB.initialize(client);
   const zone = AGConnectCloudDB.getInstance(client).openCloudDBZone(new CloudDBZoneConfig(zoneName));

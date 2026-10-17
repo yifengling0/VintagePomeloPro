@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { protectedPem } from '../src/main.mjs';
+import { protectedPem, membershipProductsVerified } from '../src/main.mjs';
 import { loadPkixRuntime, PKIX_FILES } from '../src/pkix-runtime.mjs';
 
 test('single-line protected PEM configuration preserves newlines and rejects malformed or noncanonical input', () => {
@@ -25,4 +25,13 @@ test('bundled PKIX runtime rejects modified binary before executing or changing 
     await writeFile(join(directory, 'openssl-verify'), '#!/bin/sh\nexit 0\n');
     await assert.rejects(loadPkixRuntime(url), /PKIX_NOT_CONFIGURED/);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+test('release evidence covers every offered membership SKU while retired SKUs remain recoverable', () => {
+  const products = [{id:'auto',type:2,kind:'membership'}, {id:'once',type:3,kind:'membership',purchasesEnabled:false}];
+  assert.equal(membershipProductsVerified(products, {membershipProductId:'auto'}), true);
+  assert.equal(membershipProductsVerified(products, {oneTimeProductId:'once'}), false);
+  products[1].purchasesEnabled = true;
+  assert.equal(membershipProductsVerified(products, {membershipProductId:'auto'}), false);
+  assert.equal(membershipProductsVerified(products, {membershipProductId:'auto',oneTimeProductId:'once'}), true);
+  assert.equal(membershipProductsVerified([], {}), false);
 });

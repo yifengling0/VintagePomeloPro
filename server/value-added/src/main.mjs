@@ -13,6 +13,12 @@ import { HuaweiPushSender } from './huawei-push.mjs';
 const packageRoot = fileURLToPath(new URL('../', import.meta.url));
 const configFile = path => isAbsolute(path) ? path : resolve(packageRoot, path);
 const optionalFile = async path => path ? readFile(configFile(path), 'utf8') : '';
+export function membershipProductsVerified(products, release) {
+  const available = products.filter(p => p.kind === 'membership' && p.purchasesEnabled !== false);
+  return available.length > 0 && available.every(p =>
+    p.type === 2 ? release.membershipProductId === p.id :
+      p.type === 3 && release.oneTimeProductId === p.id);
+}
 export function protectedPem(encoded, literal = '') {
   if (!encoded) return literal;
   requireThat(typeof encoded === 'string' && encoded.length <= 32768 &&
@@ -32,6 +38,7 @@ export async function loadService(env = process.env) {
         ((product.type === 3 && product.policyVersion === MEMBERSHIP_POLICY) ||
         (product.type === 2 && product.policyVersion === SUBSCRIPTION_POLICY &&
           /^[a-zA-Z0-9._-]{1,128}$/.test(product.subscriptionGroupId))))) &&
+      (product.purchasesEnabled === undefined || typeof product.purchasesEnabled === 'boolean') &&
       product.prices && Object.keys(product.prices).length > 0,
       'INVALID_CATALOG');
     ids.add(product.id);
@@ -77,8 +84,9 @@ export async function loadService(env = process.env) {
     release.appId === config.appId && release.environment === 'NORMAL' && env.VP_IAP_ENVIRONMENT === 'NORMAL' &&
     release.normalPaymentVerified === true && release.backupAccepted === true && release.supportVerified === true &&
     release.cancelInAppVerified === true && release.agreementsReadVerified === true &&
-    release.oneTimeProductId === 'vip_monthly_once' && products.some(p => p.id === release.oneTimeProductId && p.type === 3);
+    membershipProductsVerified(products, release);
   if (env.VP_MEMBERSHIP_SANDBOX_CHECKOUT === 'enabled' && env.VP_IAP_ENVIRONMENT === 'SANDBOX' && purchaseProvider.sandboxReady) {
+    config.sandboxCheckout = true;
     config.membershipReleaseReady = true; // Only the explicit tester path; paid backup capabilities stay closed.
   }
   const pushEvidence = env.VP_RENEWAL_VERIFICATION_FILE ? JSON.parse(await optionalFile(env.VP_RENEWAL_VERIFICATION_FILE)) : {};
@@ -87,7 +95,7 @@ export async function loadService(env = process.env) {
   const pushSender = new HuaweiPushSender({ credential, projectId: env.VP_PUSH_PROJECT_ID ?? '', receiptId: env.VP_PUSH_RECEIPT_ID ?? '',
     verified: !!env.VP_PUSH_RECEIPT_ID && (sandboxReminders || pushEvidence.appId === config.appId && pushEvidence.projectId === env.VP_PUSH_PROJECT_ID &&
       pushEvidence.timerActive === true && pushEvidence.deviceDisplayed === true && pushEvidence.deepLinkOpened === true &&
-      pushEvidence.subscriptionCategoryEligible === true && pushEvidence.receiptVerified === true &&
+      pushEvidence.notificationCategory === 'ACCOUNT' && pushEvidence.accountCategoryEligible === true && pushEvidence.receiptVerified === true &&
       pushEvidence.paginationVerified === true && pushEvidence.advanceNoticeVerified === true &&
       pushEvidence.cancelStopsVerified === true && pushEvidence.permissionClosedVerified === true &&
       pushEvidence.dedupVerified === true && pushEvidence.retryAlarmVerified === true) });

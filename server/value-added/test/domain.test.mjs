@@ -107,6 +107,15 @@ test('already finished store orders restore entitlement without requesting anoth
   assert.equal(result.finishAllowed,false); assert.equal(result.status,'ALREADY_FINISHED');
   assert.equal((await d.entitlement(userId)).active,true);
 });
+test('retiring a product rejects new intents but still verifies and restores its historical orders', async () => {
+  const {d,now}=make(); const {userId}=await login(d);
+  const fact=await receipt(d,userId,now());
+  d.config.products.find(p=>p.id==='month').purchasesEnabled=false;
+  await assert.rejects(d.intent(userId,{productId:'month',productType:3}), /PRODUCT_NOT_FOR_SALE/);
+  await verify(d,userId,{...fact,needsFinish:false});
+  assert.equal((await d.entitlement(userId)).active,true);
+  assert.equal((await d.entitlement(userId)).expiresAt,fact.expiresAt);
+});
 
 
 const preferences = {schemaVersion:1,themeMode:'system',uiSkin:'classic',consolePalette:'violet',

@@ -37,10 +37,13 @@ exports.renewalHandler = function (event, context, callback) {
 
 let receipts;
 exports.pushReceiptHandler = function (event, context, callback) {
-  if (!receipts) receipts = Promise.all([import('./src/main.mjs'), import('./src/push-receipts.mjs')])
-    .then(async ([main, adapter]) => adapter.createPushReceiptCallback(await main.loadService(), {
-      username: process.env.VP_PUSH_CALLBACK_USER, secret: process.env.VP_PUSH_CALLBACK_SECRET, packageName: process.env.VP_PACKAGE_NAME
-    })).catch(error => { receipts = undefined; throw error; });
+  if (!receipts) receipts = import('./src/push-receipts.mjs')
+    .then(adapter => adapter.loadPushReceiptCallback())
+    .catch(error => { receipts = undefined; throw error; });
   receipts.then(run => run(event)).then(body => callback({ statusCode: 200, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body) })).catch(() => callback({ statusCode: 403, body: JSON.stringify({ code: 'RECEIPT_REJECTED' }) }));
+    body: JSON.stringify(body) })).catch(error => {
+      const statusCode = error?.code === 'INVALID_PUSH_RECEIPT' ? (error.status === 403 ? 403 : 400) : 503;
+      callback({ statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        code: statusCode === 503 ? 'RECEIPT_UNAVAILABLE' : 'RECEIPT_REJECTED' }) });
+    });
 };

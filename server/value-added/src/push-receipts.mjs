@@ -1,6 +1,20 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { requireThat } from './errors.mjs';
+import { requireThat, ServiceError } from './errors.mjs';
+import { connectCloudDb } from './clouddb-store.mjs';
+import { isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 const hash = value => createHash('sha256').update(value).digest('hex');
+/** The receiver needs CloudDB and callback HMAC only, never payment signing keys. */
+export async function loadPushReceiptCallback(env = process.env) {
+  const store = await connectCloudDb({credentialFile:env.VP_AGC_CREDENTIAL_FILE,
+    credentialJson:env.VP_AGC_CREDENTIAL_JSON || env.PROJECT_CREDENTIAL,zoneName:env.VP_AGC_ZONE});
+  requireThat(env.VP_CLOUDDB_VERIFICATION_FILE, 'CLOUDDB_NOT_VERIFIED',503);
+  const root=fileURLToPath(new URL('../',import.meta.url));
+  await store.loadVerification(isAbsolute(env.VP_CLOUDDB_VERIFICATION_FILE) ? env.VP_CLOUDDB_VERIFICATION_FILE :
+    resolve(root,env.VP_CLOUDDB_VERIFICATION_FILE));
+  return createPushReceiptCallback({store,clock:Date.now},{username:env.VP_PUSH_CALLBACK_USER,
+    secret:env.VP_PUSH_CALLBACK_SECRET,packageName:env.VP_PACKAGE_NAME});
+}
 /** Separate HTTPS callback. Huawei HMAC authentication is required; no account session is accepted. */
 export function createPushReceiptCallback(domain, { username, secret, packageName }) {
   requireThat(typeof username === 'string' && username.length > 0 && typeof secret === 'string' && secret.length >= 24 &&
@@ -17,11 +31,13 @@ export function createPushReceiptCallback(domain, { username, secret, packageNam
     requireThat(timingSafeEqual(Buffer.from(match[3]), Buffer.from(expected)), 'INVALID_PUSH_RECEIPT', 403);
     requireThat(event.isBase64Encoded !== true && typeof event.body === 'string' && Buffer.byteLength(event.body) <= 65536,
       'INVALID_PUSH_RECEIPT');
-    let payload; try { payload = JSON.parse(event.body); } catch { throw new Error('INVALID_PUSH_RECEIPT'); }
+    let payload; try { payload = JSON.parse(event.body); } catch { throw new ServiceError('INVALID_PUSH_RECEIPT'); }
+    requireThat(payload && typeof payload === 'object', 'INVALID_PUSH_RECEIPT');
     requireThat(Array.isArray(payload.statuses) && payload.statuses.length <= 100, 'INVALID_PUSH_RECEIPT');
-    for (const item of payload.statuses) requireThat(item.appPackageName === packageName && item.pushType === 0 &&
-      /^[a-f0-9]{64}$/.test(item.biTag ?? '') && typeof item.token === 'string' && item.token.length <= 4096 &&
-      typeof item.requestId === 'string' && item.requestId.length <= 256 && Number.isInteger(item.deliveryStatus?.result) &&
+    for (const item of payload.statuses) requireThat(item && typeof item === 'object' &&
+      item.appPackageName === packageName && item.pushType === 0 &&
+      /^[a-f0-9]{64}$/.test(item.biTag ?? '') && typeof item.token === 'string' && item.token.length > 0 && item.token.length <= 4096 &&
+      typeof item.requestId === 'string' && item.requestId.length > 0 && item.requestId.length <= 256 && Number.isInteger(item.deliveryStatus?.result) &&
       Number.isSafeInteger(item.deliveryStatus?.timestamp) && item.deliveryStatus.timestamp <= domain.clock() + 60000,
       'INVALID_PUSH_RECEIPT');
     await domain.store.transaction(async tx => {

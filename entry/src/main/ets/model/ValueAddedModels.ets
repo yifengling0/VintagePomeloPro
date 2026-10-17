@@ -82,6 +82,7 @@ export interface ServiceCapabilities {
   account: boolean;
   commerce: boolean;
   sandboxCommerce?: boolean;
+  sandboxCheckout?: boolean;
   profiles: boolean;
   preferences?: boolean;
   cloudSaves: boolean;

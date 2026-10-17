@@ -96,6 +96,24 @@ test('new automatic purchases require a fresh timer heartbeat and registered dev
   f.advance(3600001);
   await assert.rejects(f.d.intent(user, { productId: 'auto', productType: 2 }), /REMINDERS_UNAVAILABLE/);
 });
+test('explicit sandbox checkout remains separate from reminder readiness and never applies to NORMAL', async () => {
+  const f = await fixture();
+  f.d.config.enforceCheckoutReadiness=true; f.d.config.membershipReleaseReady=true;
+  f.fact.autoRenew=false; f.fact.status='expired'; f.fact.expiresAt-=8*DAY;
+  await f.d.verify(user,{purchaseData:'protected receipt',productType:2});
+  f.d.reminders.sender.ready=false;
+  f.d.purchaseProvider.sandboxReady=true; f.d.purchaseProvider.config={environment:'SANDBOX'};
+  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
+  f.d.config.sandboxCheckout=true;
+  assert.equal(f.d.capabilities().renewalReminders,false);
+  assert.equal(f.d.capabilities().sandboxCheckout,true);
+  await f.d.intent(user,{productId:'auto',productType:2});
+  f.d.purchaseProvider.config.environment='NORMAL';
+  assert.equal(f.d.capabilities().sandboxCheckout,undefined);
+  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
+  f.d.purchaseProvider.config.environment='SANDBOX'; f.d.purchaseProvider.sandboxReady=false;
+  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
+});
 test('NEXT v3 PS256 JWT and subscription content are valid; HTTP success alone is rejected', async () => {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   let code = '80000000', sent;
@@ -111,7 +129,7 @@ test('NEXT v3 PS256 JWT and subscription content are valid; HTTP success alone i
   assert.equal(verify('sha256', Buffer.from(head + '.' + payload), { key: publicKey,
     padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 32 }, Buffer.from(signature, 'base64url')), true);
   const message = JSON.parse(sent.request.body).payload.notification;
-  assert.equal(message.category, 'SUBSCRIPTION'); assert.equal(message.profileId, user);
+  assert.equal(message.category, 'ACCOUNT'); assert.equal(message.profileId, user);
   assert.match(message.body, /5.00/); assert.match(message.body, /延长一个月/);
   assert.equal(message.clickAction.data.deliveryId, body.deliveryId);
   code = '80300001'; await assert.rejects(sender.send('device', body), /PUSH_UNAVAILABLE/);
