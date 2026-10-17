@@ -18,6 +18,7 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0006-virgl-vtest-serialize-socket-transactions.patch"
     "$SCRIPT_DIR/../patches/mesa/0007-virgl-gpu-srgb-surface-storage.patch"
     "$SCRIPT_DIR/../patches/mesa/0008-virgl-explicit-pbuffer-front-present.patch"
+    "$SCRIPT_DIR/../patches/mesa/0009-venus-order-shadow-export-after-ring.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

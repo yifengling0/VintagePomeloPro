@@ -38,8 +38,8 @@ patches:
 submodules:
   virglrenderer: fde243e144d3c593033b614c386b7de2088f495a
   mesa: 2939cbb816d3a3c5fcf3147fb8436e105d0a0ee8
-  dxvk: f3436e1796e0e4bab9406460380460a81e1aac69
-  dxvk-modern: ff2d6a2c3d26a3c3098f8a490e4e4adc5aa4704b
+  dxvk: 5dff1d7b3dc3c2cd7f51356b99213bcc427b1af9
+  dxvk-modern: 01febe2d48fdce76b581369a1d526d2d33b75c7a
   vkd3d-proton: 3e5aab6fb3e18f81a71b339be4cb5cdf55140980
   # 2026-09-16: 对齐 7d68686c (float32 WASAPI mix-format) 之后的实际指针;
   # 该提交当时只改了 gitlink, 漏改本锁, 使 graphics-contract-check 一直失败。

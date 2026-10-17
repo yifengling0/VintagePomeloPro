@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "runtimes": {
+    "legacy": {
+      "commit": "5dff1d7b3dc3c2cd7f51356b99213bcc427b1af9",
+      "sourceSha256": "5d51aa800baffd4c13d74aa7ccb816b8ad37cf0d68b84ffa4953d3d60124df52",
+      "files": {
+        "arm64x/d3d11.dll": "feda449b40cc80f16865985f75f6c916908a3ece07c90a9ad25a654a9c2dcd9f",
+        "arm64x/dxgi.dll": "a8f1f103aad02be221f2c44acbf360b0082fab13d87fd42b3211e0693c170489",
+        "x64/d3d11.dll": "feda449b40cc80f16865985f75f6c916908a3ece07c90a9ad25a654a9c2dcd9f",
+        "x64/dxgi.dll": "a8f1f103aad02be221f2c44acbf360b0082fab13d87fd42b3211e0693c170489",
+        "x86/d3d10.dll": "68c9b73cc998535c2ac96ab582671e01da41a68e44fc0e71afa1cdfc3eb0dcff",
+        "x86/d3d10_1.dll": "84a065b9af0767f7a664d4bfc946b8b3f3d3fccaaba1bab285c0116c11376886",
+        "x86/d3d10core.dll": "94c4995f685c67f6ebf679e1b1b8dfad03b326a138ab487aa20ac10311861714",
+        "x86/d3d11.dll": "56619fc1637f10a60a290689f4e0122870bbe66f619dc334c018b359087bdd03",
+        "x86/dxgi.dll": "f8e8645f0330b1f36848994900b4096abb61c0284a720f9f5b9cf6f3d46e5b96"
+      }
+    },
+    "modern-2.6": {
+      "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
+      "sourceSha256": "6047450311643f2b992fd2154d2563327ffffda7fa587d1713232025917c0c59",
+      "files": {
+        "arm64x/d3d11.dll": "47625387eefb3a039ee1d535134d70db915d39dc10e76d9e748a8c4a28f92127",
+        "arm64x/dxgi.dll": "383a3256f051f1f380d992febc3715ab5d630b37dd015473c15ec5f6adac551e",
+        "x64/d3d11.dll": "47625387eefb3a039ee1d535134d70db915d39dc10e76d9e748a8c4a28f92127",
+        "x64/dxgi.dll": "383a3256f051f1f380d992febc3715ab5d630b37dd015473c15ec5f6adac551e",
+        "x86/d3d11.dll": "eb5be7e70d3262058312be8233dfd845f4ea447dd080f647feb7a53076617576",
+        "x86/dxgi.dll": "5631eb512eb4409386ceca0458a17e70a411d75d677f6122b77b75a5d42120ef"
+      }
+    }
+  },
+  "venus": {
+    "commit": "557fa3e781ea6e78fcff3ee759c25f60c3055064",
+    "sha256": "0519fc902f06b4f96029c2070d5914b3788d48f3e7bca6b6ca9e2df746755437",
+    "patches": [
+      {
+        "path": "patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch",
+        "sha256": "1461b42bc5cd34a57e1ba662855060671741065ba0f3543233500d752fed76b9"
+      },
+      {
+        "path": "patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch",
+        "sha256": "6f3f3d53c821b5b5917cde979b7e84a9b88ac3200fdbfd372d510b97d718a380"
+      },
+      {
+        "path": "patches/mesa/0003-venus-present-retry-single-ring-drain.patch",
+        "sha256": "eee95c0edfb7f0c2c362f269e1598f268417f3f50914e3d122fdb5cc83c68681"
+      },
+      {
+        "path": "patches/mesa/0004-venus-wine-owned-low-map.patch",
+        "sha256": "1ab2b08f8ba685e6bc9d47c9c8d45ac0196971c706424f5cc05917943674f2cf"
+      },
+      {
+        "path": "patches/mesa/0005-zink-ohos-explicit-vulkan-loader.patch",
+        "sha256": "0a1bdf1b59ddce0a999b2780d006899a5ec50d22304006fa9a2acdfbd49ca6ad"
+      },
+      {
+        "path": "patches/mesa/0006-virgl-vtest-serialize-socket-transactions.patch",
+        "sha256": "d3b2d7f9516758570a227d181ffd78ec171700b0183115895e9e2e7497e52835"
+      },
+      {
+        "path": "patches/mesa/0007-virgl-gpu-srgb-surface-storage.patch",
+        "sha256": "297d7aefd18c9b73c573e20b21346758f775293a5b2ea9c144380d7c1fabf308"
+      },
+      {
+        "path": "patches/mesa/0008-virgl-explicit-pbuffer-front-present.patch",
+        "sha256": "e3f064fddff218d0c551e4581e86843c8f3de0175cf72ba4de2552e9e4292cf1"
+      },
+      {
+        "path": "patches/mesa/0009-venus-order-shadow-export-after-ring.patch",
+        "sha256": "2338ac0f63422de0d26b706d4dd6bcd263cbf61b23a2fdfd9189dcc3dd712eb4"
+      }
+    ]
+  }
+}
