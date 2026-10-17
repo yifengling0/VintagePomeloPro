@@ -44,6 +44,7 @@ export struct AccountSyncSettings {
   @State private autoRenewAccepted: boolean = false;
   @State private showCheckout: boolean = false;
   @State private checkoutLegalExpanded: boolean = false;
+  private checkoutScroller: Scroller = new Scroller();
   @State private reminderReady: boolean = false;
   @State private reminderStatus: string = '支付前将检查续费提醒，并在需要时申请通知权限。';
   @State private renewalDetail: string = '';
@@ -663,8 +664,9 @@ export struct AccountSyncSettings {
   @Builder
   private CheckoutDetails(product: StoreProduct) {
     Column({ space: 16 }) {
-      Scroll() {
+      Scroll(this.checkoutScroller) {
         Column({ space: 16 }) {
+          if (!this.checkoutLegalExpanded) {
           Column({ space: 6 }) {
             Text(product.type === 2 ? '连续包月' : '单月会员').fontSize(18).fontWeight(FontWeight.Medium)
               .fontColor(skinColor('text_primary'))
@@ -683,6 +685,7 @@ export struct AccountSyncSettings {
             Text('随时取消：账号与同步 → 管理订阅／取消自动续费 → 华为订阅详情 → 取消订阅 → 确认。本期权益保留，取消不等于退款。')
               .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
           }
+          }
           if (this.checkoutLegalExpanded) {
             Text(membershipLegalText('membership', ValueAddedService.getInstance().getMembershipOperator()))
               .fontSize(13).lineHeight(22).fontColor(skinColor('text_secondary')).width('100%').copyOption(CopyOptions.LocalDevice)
@@ -693,7 +696,10 @@ export struct AccountSyncSettings {
         Divider().color(this.cardBorderColor)
         Button(this.checkoutLegalExpanded ? '收起完整服务说明' : '查看会员、续费与取消说明 ›')
           .fontSize(13).height(32).fontColor(skinColor('accent')).backgroundColor(Color.Transparent)
-          .onClick((): void => { this.checkoutLegalExpanded = !this.checkoutLegalExpanded; }).id('sync-checkout-terms')
+          .onClick((): void => {
+            this.checkoutLegalExpanded = !this.checkoutLegalExpanded;
+            this.checkoutScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+          }).id('sync-checkout-terms')
         Row({ space: 6 }) {
             Checkbox({ name: 'membership', group: 'membership-consent' }).select(this.membershipAccepted)
               .enabled(!this.busy).id('sync-consent-membership')
@@ -754,7 +760,7 @@ export struct AccountSyncSettings {
             SymbolGlyph(this.selectedProductId === product.id ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
               .fontSize(22).fontColor([this.selectedProductId === product.id ? skinColor('accent') : skinColor('text_secondary')])
           }.width('100%').padding(16)
-        }.width('100%').borderRadius(16).type(ButtonType.Normal)
+        }.width('100%').type(ButtonType.Normal).borderRadius(16)
           .backgroundColor(this.selectedProductId === product.id ? skinColor('selected_background') : skinColor('search_background'))
           .border({ width: this.selectedProductId === product.id ? 1.5 : 1,
             color: this.selectedProductId === product.id ? skinColor('accent') : this.cardBorderColor })
