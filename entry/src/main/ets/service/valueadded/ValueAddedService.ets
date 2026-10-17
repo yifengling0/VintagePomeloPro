@@ -49,6 +49,7 @@ export interface StoreProduct extends MembershipQuote {
   regularPrice?: string; microPrice?: number; currency?: string; promotion?: StorePromotion; priceDescription?: string;
   subscriptionGroupId?: string;
 }
+export interface StoreProductIssue { id: string; type: number; code: string; }
 interface NotificationRegistration { installationId: string; token: string; enabled: boolean; }
 interface NotificationReady { ready: boolean; }
 export interface HuaweiAccountProfile { nickname: string; avatarUri: string; status: string; }
@@ -69,6 +70,7 @@ export class ValueAddedService {
   private generation: number = 0;
   private notificationInstallationId: string = '';
   private notificationToken: string = '';
+  private productIssues: StoreProductIssue[] = [];
   private busy: boolean = false;
   private initializing: Promise<void> | null = null;
   private identityStore: preferences.Preferences | null = null;
@@ -222,6 +224,7 @@ export class ValueAddedService {
     this.session = null;
     this.purchaseRecovery = '';
     this.purchaseRecoveryCheckedAt = 0;
+    this.productIssues = [];
     this.profileHeads.clear();
     this.conflicts.clear();
     this.invalidateEntitlement();
@@ -467,27 +470,45 @@ export class ValueAddedService {
     if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
     const config = this.config, epoch = this.generation;
     const result: StoreProduct[] = [];
+    const issues: StoreProductIssue[] = [];
     let invalidMembership: Error | null = null;
     const configured: ProductRequest[] = [
       { productId: config.membershipProductId, productType: config.membershipProductType },
-      { productId: config.membershipOneTimeProductId ?? '', productType: 3 },
+      { productId: config.membershipOneTimePurchases === false ? '' : config.membershipOneTimeProductId ?? '', productType: 3 },
       { productId: config.coffeeProductId, productType: iap.ProductType.CONSUMABLE }
     ];
     for (const item of configured) {
       if (!item.productId) continue;
       let products: iap.Product[];
       try { products = await iap.queryProducts(this.context, { productType: item.productType, productIds: [item.productId] }); }
-      catch (error) { if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED'); continue; }
+      catch (error) {
+        if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+        issues.push({ id: item.productId, type: item.productType, code: this.safeDiagnostic(error as Error) });
+        continue;
+      }
       if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
+      if (!products.some((product: iap.Product): boolean => product.id === item.productId && product.type === item.productType)) {
+        issues.push({ id: item.productId, type: item.productType, code: 'PRODUCT_MISSING' });
+      }
       for (const product of products) {
         if (product.id === item.productId && product.type === item.productType) {
           try { result.push(this.storeProduct(product)); }
-          catch (error) { if (product.id !== config.coffeeProductId) invalidMembership = error as Error; }
+          catch (error) {
+            issues.push({ id: item.productId, type: item.productType, code: this.safeDiagnostic(error as Error) });
+            if (product.id !== config.coffeeProductId) invalidMembership = error as Error;
+          }
         }
       }
     }
+    this.productIssues = issues;
+    issues.forEach((issue: StoreProductIssue): void => console.warn('[ValueAddedService] product type ' + issue.type + ': ' + issue.code));
     if (invalidMembership && !result.some((item: StoreProduct): boolean => item.purpose === 'membership')) throw invalidMembership;
     return result;
+  }
+  getMembershipProductIssues(): StoreProductIssue[] {
+    this.guard();
+    return this.productIssues.filter((issue: StoreProductIssue): boolean => issue.type !== 0)
+      .map((issue: StoreProductIssue): StoreProductIssue => ({ id: issue.id, type: issue.type, code: issue.code }));
   }
   private async verifyAndFinish(data: string, type: number, epoch: number): Promise<string> {
     if (!this.context) throw new Error('NOT_CONFIGURED');
@@ -559,6 +580,9 @@ export class ValueAddedService {
       (product.id === this.config.membershipOneTimeProductId && product.type === 3) ||
       (product.id === this.config.membershipProductId && product.type === this.config.membershipProductType);
     if (!allowed) throw new Error('UNKNOWN_PRODUCT');
+    if (product.id === this.config.membershipOneTimeProductId && this.config.membershipOneTimePurchases === false) {
+      throw new Error('MEMBERSHIP_NOT_OPEN');
+    }
     if (product.purpose !== (product.id === this.config.coffeeProductId ? 'coffee' : 'membership')) throw new Error('UNKNOWN_PRODUCT');
     if (product.purpose === 'membership') {
       validateMembershipConfirmation(confirmation, this.getUserId(), this.quoteKey(product), product.type === 2);

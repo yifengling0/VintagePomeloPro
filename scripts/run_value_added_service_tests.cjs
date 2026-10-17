@@ -203,6 +203,51 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  await autoService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify({...config,membershipProductType:2}))}});
  await autoService.signIn();subscriptionQueries.length=0;
  const autoProduct=(await autoService.products()).find(p=>p.type===2);
+ const officialQuery=iap.queryProducts;
+ const onceService=new mod.exports.ValueAddedService();
+ await onceService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(
+  {...config,membershipProductType:2,membershipOneTimeProductId:'once'}))}});
+ iap.queryProducts=async(ctx,args)=>args.productIds[0]==='once'?[]:officialQuery(ctx,args);
+ assert.equal((await onceService.products()).filter(p=>p.purpose==='membership').length,1);
+ assert.deepEqual(JSON.parse(JSON.stringify(onceService.getMembershipProductIssues())),[{id:'once',type:3,code:'PRODUCT_MISSING'}]);
+ iap.queryProducts=async(ctx,args)=>{if(args.productIds[0]==='once')throw {code:12345};return officialQuery(ctx,args);};
+ assert.equal((await onceService.products()).filter(p=>p.purpose==='membership').length,1);
+ assert.equal(onceService.getMembershipProductIssues()[0].code,'12345');
+ iap.queryProducts=officialQuery;
+ assert.equal((await onceService.products()).filter(p=>p.purpose==='membership').length,2);
+ assert.equal(onceService.getMembershipProductIssues().length,0,'retry clears a recovered SKU issue');
+ const retiredOnceService=new mod.exports.ValueAddedService();
+ const retiredConfig={...config,membershipProductType:2,membershipOneTimeProductId:'once',membershipOneTimePurchases:false};
+ const beforeRetiredRoute=route;
+ route=async(url,opts)=>new URL(url).pathname==='/v1/purchases/verify'?
+  {status:'GRANTED',finishAllowed:true,productId:'once',productType:3,purchaseOrderId:'historical-once',purchaseToken:'historical-once-token'}:
+  beforeRetiredRoute(url,opts);
+ await retiredOnceService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(retiredConfig))}});
+ await retiredOnceService.signIn();
+ const queried=[];
+ iap.queryProducts=async(ctx,args)=>{queried.push(...args.productIds);return officialQuery(ctx,args);};
+ assert.equal((await retiredOnceService.products()).filter(p=>p.purpose==='membership').length,1);
+ assert.equal(queried.includes('once'),false,'retired SKU is not queried or advertised for sale');
+ assert.equal(retiredOnceService.getMembershipProductIssues().length,0);
+ const callsBeforeRetiredPurchase=purchaseCalls;
+ await assert.rejects(retiredOnceService.purchase({id:'once',type:3,purpose:'membership',price:'¥5.00'}),/MEMBERSHIP_NOT_OPEN/);
+ assert.equal(purchaseCalls,callsBeforeRetiredPurchase);
+ subscriptionQueries.length=0;
+ await retiredOnceService.restorePurchases();
+ assert.ok(subscriptionQueries.some(q=>q.productType===3),'retired SKU still participates in historical order recovery');
+ iap.queryProducts=officialQuery;subscriptionQueries.length=0;route=beforeRetiredRoute;
+ assert.throws(()=>models.validateValueAddedConfig({...retiredConfig,membershipOneTimePurchases:'false'}),/NOT_CONFIGURED/);
+ const notificationManager=imports['@kit.NotificationKit'].notificationManager;
+ const originalEnabled=notificationManager.isNotificationEnabled;
+ notificationManager.isNotificationEnabled=async()=>false;
+ const callsBeforeReminderFailure=purchaseCalls;
+ await assert.rejects(purchaseConfirmed(autoService,autoProduct),/RENEWAL_NOTIFICATION_REQUIRED/);
+ assert.equal(purchaseCalls,callsBeforeReminderFailure,'disabled notifications cannot reach the cashier');
+ notificationManager.isNotificationEnabled=originalEnabled;
+ autoService.capabilities.renewalReminders=false;
+ await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
+ assert.equal(purchaseCalls,callsBeforeReminderFailure,'unavailable reminder backend cannot reach the cashier');
+ autoService.capabilities.renewalReminders=true;
  await assert.rejects(autoService.purchase(autoProduct,{userId:autoService.getUserId(),quote:autoService.quoteKey(autoProduct),
   termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:false}),/MEMBERSHIP_CONSENT_REQUIRED/);
  const autoRoute=route, beforeAutoFinish=finishCalls;

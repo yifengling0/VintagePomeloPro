@@ -6,6 +6,7 @@ import { skinColor } from '../service/SkinColors';
 @Component
 export struct MembershipSupport {
   @Prop showHelpLink: boolean = true;
+  @Prop compact: boolean = false;
   @State private message: string = '';
   private async copy(value: string): Promise<void> {
     try {
@@ -15,15 +16,29 @@ export struct MembershipSupport {
   }
   build() {
     Column({ space: 8 }) {
-      Text('客服邮箱 ' + MEMBERSHIP_SUPPORT_EMAIL).fontSize(13).fontColor(skinColor('text_primary')).copyOption(CopyOptions.LocalDevice)
-      Text('QQ 群 ' + MEMBERSHIP_SUPPORT_GROUP).fontSize(13).fontColor(skinColor('text_primary')).copyOption(CopyOptions.LocalDevice)
-      Flex({ wrap: FlexWrap.Wrap }) {
-        Button('复制邮箱').fontSize(12).onClick((): void => { void this.copy(MEMBERSHIP_SUPPORT_EMAIL); }).id('membership-copy-email')
-        Button('复制群号').fontSize(12).margin({ left: 8 }).onClick((): void => { void this.copy(MEMBERSHIP_SUPPORT_GROUP); }).id('membership-copy-group')
-        if (this.showHelpLink) {
-          Button('客服与帮助').fontSize(12).margin({ left: 8 }).onClick((): void => {
-            void router.pushUrl({ url: 'pages/MembershipLegal', params: { document: 'support' } });
-          }).id('membership-support')
+      if (this.compact) {
+        Flex({ wrap: FlexWrap.Wrap }) {
+          Button('邮箱 ' + MEMBERSHIP_SUPPORT_EMAIL + ' · 复制').fontSize(12).height(32)
+            .backgroundColor(Color.Transparent).fontColor(skinColor('text_secondary'))
+            .onClick((): void => { void this.copy(MEMBERSHIP_SUPPORT_EMAIL); }).id('membership-copy-email')
+          Button('QQ 群 ' + MEMBERSHIP_SUPPORT_GROUP + ' · 复制').fontSize(12).height(32)
+            .backgroundColor(Color.Transparent).fontColor(skinColor('text_secondary'))
+            .onClick((): void => { void this.copy(MEMBERSHIP_SUPPORT_GROUP); }).id('membership-copy-group')
+        }
+      } else {
+        Text('客服邮箱 ' + MEMBERSHIP_SUPPORT_EMAIL).fontSize(13).fontColor(skinColor('text_primary')).copyOption(CopyOptions.LocalDevice)
+        Text('QQ 群 ' + MEMBERSHIP_SUPPORT_GROUP).fontSize(13).fontColor(skinColor('text_primary')).copyOption(CopyOptions.LocalDevice)
+        Flex({ wrap: FlexWrap.Wrap }) {
+          Button('复制邮箱').fontSize(12).onClick((): void => { void this.copy(MEMBERSHIP_SUPPORT_EMAIL); }).id('membership-copy-email')
+            .height(40).backgroundColor(skinColor('selected_background')).fontColor(skinColor('accent'))
+          Button('复制群号').fontSize(12).margin({ left: 8 }).onClick((): void => { void this.copy(MEMBERSHIP_SUPPORT_GROUP); }).id('membership-copy-group')
+            .height(40).backgroundColor(skinColor('selected_background')).fontColor(skinColor('accent'))
+          if (this.showHelpLink) {
+            Button('客服与帮助').fontSize(12).margin({ left: 8 }).onClick((): void => {
+              void router.pushUrl({ url: 'pages/MembershipLegal', params: { document: 'support' } });
+            }).id('membership-support')
+              .height(40).backgroundColor(skinColor('selected_background')).fontColor(skinColor('accent'))
+          }
         }
       }
       if (this.message) { Text(this.message).fontSize(12).fontColor(skinColor('text_secondary')) }

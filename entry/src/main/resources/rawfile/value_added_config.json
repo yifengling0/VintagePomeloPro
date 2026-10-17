@@ -4,6 +4,7 @@
   "membershipProductId": "vip_monthly_auto",
   "membershipProductType": 2,
   "membershipOneTimeProductId": "vip_monthly_once",
+  "membershipOneTimePurchases": false,
   "membershipSubscriptionGroupId": "055EAC5A781A430B807FEE6DFDC5D173",
   "membershipOperatorName": "刘峰",
   "coffeeProductId": "buy_coffe",

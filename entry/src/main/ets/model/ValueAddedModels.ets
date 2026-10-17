@@ -18,6 +18,7 @@ export interface ValueAddedConfig {
   membershipProductType: number;
   membershipPromotionalOfferId?: string;
   membershipOneTimeProductId?: string;
+  membershipOneTimePurchases?: boolean;
   membershipSubscriptionGroupId?: string;
   membershipOperatorName?: string;
   coffeeProductId: string;
@@ -48,6 +49,9 @@ export function validateValueAddedConfig(config: ValueAddedConfig): void {
     if (id !== undefined && (typeof id !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/.test(id))) throw new Error('NOT_CONFIGURED');
   }
   if (config.membershipOneTimeProductId && [config.membershipProductId, config.coffeeProductId].includes(config.membershipOneTimeProductId)) {
+    throw new Error('NOT_CONFIGURED');
+  }
+  if (config.membershipOneTimePurchases !== undefined && typeof config.membershipOneTimePurchases !== 'boolean') {
     throw new Error('NOT_CONFIGURED');
   }
   if (config.membershipOperatorName !== undefined && (typeof config.membershipOperatorName !== 'string' ||
