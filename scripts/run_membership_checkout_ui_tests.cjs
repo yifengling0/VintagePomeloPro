@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const ts = require(process.argv[2]);
 const source = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/components/AccountSyncSettings.ets'), 'utf8');
-const names = ['buy', 'showPurchaseMessage', 'canBuyMembership', 'clearConfirmation', 'refreshReminder', 'openCheckout', 'selectProduct', 'checkoutProduct'];
+const names = ['buy', 'errorMessage', 'showPurchaseMessage', 'canBuyMembership', 'clearConfirmation', 'refreshReminder', 'openCheckout', 'selectProduct', 'checkoutProduct'];
 const methods = names.map(name => {
   const match = new RegExp('^  private (?:async )?' + name + '\\(', 'm').exec(source);
   assert.ok(match, name);
@@ -15,6 +15,7 @@ const methods = names.map(name => {
 const product = { id: 'monthly', type: 2, price: '¥5.00' };
 let owner, capabilities, ready, permissionCalls, cashierCalls, refreshCalls, enabled, permissionAction;
 let purchaseError, purchaseResult, dialogCalls, toastCalls, dialogAction, accountError;
+let environmentError, environmentCalls;
 const prompt = {
   showDialog: async options => { dialogCalls.push(options); if (dialogAction) await dialogAction(); },
   showToast: options => toastCalls.push(options)
@@ -22,6 +23,7 @@ const prompt = {
 const service = {
   getUserId: () => owner, getCapabilities: () => capabilities, getMembershipOperator: () => 'Publisher',
   quoteKey: p => p.id + ':' + p.price,
+  checkPurchaseEnvironment: async () => { environmentCalls++; if (environmentError) throw environmentError; },
   refreshCapabilities: async () => { refreshCalls++; },
   notificationsEnabled: async () => enabled,
   prepareRenewalReminders: async request => { permissionCalls.push(request); if (permissionAction) await permissionAction(); return ready; },
@@ -39,15 +41,16 @@ const js = ts.transpileModule('class Harness {\n' + methods + '\n}\nmodule.expor
 const mod = { exports: {} };
 vm.runInNewContext(js, { module: mod, ValueAddedService: { getInstance: () => service },
   skinColor: () => '#5569D8',
+  console: { warn() {} },
   MEMBERSHIP_TERMS_VERSION: '2026-10-16', AccountAutomaticSyncService: { getInstance: () => ({ requestSync() {} }) } });
 function harness() {
   owner = 'alice'; capabilities = { commerce: true, membershipPurchases: true, renewalReminders: true };
   ready = true; enabled = true; permissionCalls = []; cashierCalls = 0; refreshCalls = 0; permissionAction = null;
   purchaseError = null; purchaseResult = 'CANCELLED'; dialogCalls = []; toastCalls = []; dialogAction = null; accountError = null;
+  environmentError = null; environmentCalls = 0;
   const ui = Object.assign(new mod.exports(), { alive: true, busy: false, userId: owner, commerceReady: true,
     membershipAccepted: false, autoRenewAccepted: false, selectedProductId: product.id, reminderReady: false,
     showCheckout: true, products: [{ ...product, purpose: 'membership' }], vipActive: false, membershipUncertain: false });
-  ui.errorMessage = e => e.message;
   ui.getUIContext = () => ({ getPromptAction: () => prompt });
   ui.refreshAccount = async () => { if (accountError) throw accountError; };
   ui.refreshMembershipProducts = async () => ui.clearConfirmation();
@@ -68,6 +71,7 @@ function harness() {
   assert.equal(ui.canBuyMembership(product), true, 'permissions not prepared yet must not deadlock the payment button');
   ui.buy(product); await ui.pending;
   assert.deepEqual(permissionCalls, [true]); assert.equal(refreshCalls, 1); assert.equal(cashierCalls, 1);
+  assert.equal(environmentCalls, 1, 'official payment environment is checked before notification preflight');
   assert.equal(ui.membershipAccepted, false, 'leaving the cashier resets confirmation');
   assert.equal(dialogCalls.length, 0, 'normal cashier cancellation is not an error');
 
@@ -83,7 +87,7 @@ function harness() {
   ui.buy(product); await ui.pending;
   assert.equal(cashierCalls, 0); assert.equal(permissionCalls.length, 0);
   assert.equal(dialogCalls.length, 1); assert.equal(dialogCalls[0].title, '暂时无法开通');
-  assert.match(dialogCalls[0].message, /REMINDERS_UNAVAILABLE/); assert.match(ui.status, /未发起支付，没有扣款/);
+  assert.match(dialogCalls[0].message, /续费提醒服务暂不可用/); assert.match(ui.status, /未发起支付，没有扣款/);
   assert.equal(ui.busy, false, 'dismissal permits a later retry');
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; ready = false;
@@ -99,7 +103,17 @@ function harness() {
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; purchaseError = new Error('PRICE_CHANGED');
   ui.buy(product); await ui.pending;
-  assert.match(dialogCalls[0].message, /PRICE_CHANGED/); assert.equal(ui.showCheckout, false);
+  assert.match(dialogCalls[0].message, /商品优惠已变化/); assert.equal(ui.showCheckout, false);
+
+  for (const [code, reason] of [[1001860002, /包名及签名/], [1001860057, /调试签名/], [1001860058, /测试名单/]]) {
+    ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
+    environmentError = Object.assign(new Error('opaque SDK diagnostic'), { code });
+    ui.buy(product); await ui.pending;
+    assert.equal(cashierCalls, 0); assert.equal(permissionCalls.length, 0);
+    assert.match(dialogCalls[0].message, reason); assert.match(dialogCalls[0].message, new RegExp(''+code));
+    assert.match(dialogCalls[0].message, /未发起支付/);
+    assert.doesNotMatch(dialogCalls[0].message, /opaque SDK diagnostic/);
+  }
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; purchaseResult = 'VERIFICATION_PENDING';
   ui.buy(product); await ui.pending;

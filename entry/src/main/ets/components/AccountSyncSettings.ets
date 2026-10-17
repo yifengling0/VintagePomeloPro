@@ -142,6 +142,12 @@ export struct AccountSyncSettings {
       if (code === '1001502001') return '请先登录设备账号';
       return '登录未完成（' + code + '），请稍后重试';
     }
+    if (sdkCode === 1001860002) return '华为支付尚未授权此应用，请核对应用的包名及签名配置';
+    if (sdkCode === 1001860005) return '华为支付连接失败，请检查网络后重试';
+    if (sdkCode === 1001860050) return '请先登录设备的华为账号后重试';
+    if (sdkCode === 1001860054) return '当前华为账号所在地区暂不支持应用内支付';
+    if (sdkCode === 1001860057) return '当前安装包不支持沙盒支付，请安装调试签名版本';
+    if (sdkCode === 1001860058) return '当前华为账号尚未加入沙盒测试名单，请使用已登记的测试账号';
     if (error.message === 'SANDBOX_REQUIRED') return '当前账号无法进行测试订阅，请检查测试账号配置';
     if (error.message === 'PRICE_CHANGED') return '商品优惠已变化，请刷新会员价格后重试';
     if (error.message === 'MEMBERSHIP_CONSENT_REQUIRED') return '请选择商品，并主动阅读和勾选相应协议';
@@ -388,6 +394,17 @@ export struct AccountSyncSettings {
     const confirmation: MembershipConfirmation = { userId: this.userId, quote: service.quoteKey(product),
       termsVersion: MEMBERSHIP_TERMS_VERSION, membershipAccepted: this.membershipAccepted, autoRenewAccepted: this.autoRenewAccepted };
     void this.run('membership', async (): Promise<void> => {
+      // Check the official sandbox status independently of notification setup; never open a cashier for this probe.
+      try { await service.checkPurchaseEnvironment(); }
+      catch (error) {
+        if (this.alive && confirmation.userId === service.getUserId()) {
+          const code = (error as BusinessError).code;
+          const detail = this.errorMessage(error as Error) + (Number.isInteger(code) ? '\n错误代码：' + code : '');
+          await this.showPurchaseMessage('暂时无法开通', detail + '\n\n本次未发起支付，没有扣款。');
+        }
+        return;
+      }
+      if (!this.alive || confirmation.userId !== service.getUserId()) return;
       // This explicit payment action can request permission. A background readiness check must not lock the button forever.
       if (product.type === 2 && !await this.refreshReminder(true)) {
         if (this.alive && confirmation.userId === service.getUserId()) {

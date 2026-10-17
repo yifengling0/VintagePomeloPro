@@ -534,9 +534,14 @@ export class ValueAddedService {
       return 'ACK_PENDING';
     }
   }
-  private async checkPurchaseEnvironment(): Promise<void> {
-    if (this.capabilities.sandboxCommerce === true &&
-      (!this.context || !await iap.isSandboxActivated(this.context))) throw new Error('SANDBOX_REQUIRED');
+  async checkPurchaseEnvironment(): Promise<void> {
+    this.guard();
+    if (!this.context) throw new Error('NOT_CONFIGURED');
+    if (this.capabilities.sandboxCommerce === true) {
+      const activated = await iap.isSandboxActivated(this.context);
+      console.info('[ValueAddedService] sandbox payment environment: ' + activated);
+      if (!activated) throw new Error('SANDBOX_REQUIRED');
+    }
   }
   quoteKey(product: StoreProduct): string {
     return membershipQuoteKey(product, product.promotion ? JSON.stringify(product.promotion) : '');
