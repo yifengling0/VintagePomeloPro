@@ -15,103 +15,14 @@ from runtime_library_guard import RuntimeLibraryError, validate_library
 from dxvk_runtime_contract import validate_modern_runtime
 
 
-GSTREAMER_VERSION = "1.24.4"
+from gstreamer_inventory import (VERSION as GSTREAMER_VERSION, PLUGINS,
+    REQUIRED_PLUGINS, REQUIRED_ELEMENTS, fingerprint, check_elf)
 MONO_VERSION = "11.1.0"
 MONO_SHA256 = "deb0341431f8260b209fff6bc79ddcc5414b97f8e9236ab9fbdca4ce59e0a9b9"
 DXVK_LEGACY_VERSION = "1.10.3"
 DXVK_MODERN_VERSION = "2.6.2"
 VKD3D_VERSION = "2.6"
-REQUIRED_PLUGINS = (
-    "libgstcoreelements.so",
-    "libgsttypefindfunctions.so",
-    "libgstplayback.so",
-    "libgstisomp4.so",
-    "libgstmatroska.so",
-    "libgstasf.so",
-    "libgstvideoparsersbad.so",
-    "libgstlibav.so",
-)
-# The locked GStreamer 1.24.4 build supplies this complete plugin inventory.
-# Checking only the playback baseline above would allow a partially staged
-# sysroot to pass while removing formats a game may discover at runtime.
-EXPECTED_GSTREAMER_PLUGINS = frozenset((
-    "libgstadaptivedemux2.so",
-    "libgstadder.so",
-    "libgstaiff.so",
-    "libgstalaw.so",
-    "libgstalpha.so",
-    "libgstalphacolor.so",
-    "libgstapetag.so",
-    "libgstapp.so",
-    "libgstasf.so",
-    "libgstasfmux.so",
-    "libgstaudioconvert.so",
-    "libgstaudiofx.so",
-    "libgstaudiomixer.so",
-    "libgstaudioparsers.so",
-    "libgstaudiorate.so",
-    "libgstaudioresample.so",
-    "libgstaudiotestsrc.so",
-    "libgstauparse.so",
-    "libgstautodetect.so",
-    "libgstavi.so",
-    "libgstcoreelements.so",
-    "libgstcutter.so",
-    "libgstdebug.so",
-    "libgstdeinterlace.so",
-    "libgstdsd.so",
-    "libgstdtmf.so",
-    "libgsteffectv.so",
-    "libgstequalizer.so",
-    "libgstflv.so",
-    "libgstflxdec.so",
-    "libgstgio.so",
-    "libgstgoom.so",
-    "libgstgoom2k1.so",
-    "libgsticydemux.so",
-    "libgstid3demux.so",
-    "libgstimagefreeze.so",
-    "libgstinterleave.so",
-    "libgstisomp4.so",
-    "libgstlevel.so",
-    "libgstlibav.so",
-    "libgstmatroska.so",
-    "libgstmidi.so",
-    "libgstmonoscope.so",
-    "libgstmpegpsdemux.so",
-    "libgstmpegtsdemux.so",
-    "libgstmulaw.so",
-    "libgstmultifile.so",
-    "libgstmultipart.so",
-    "libgstnavigationtest.so",
-    "libgstpbtypes.so",
-    "libgstplayback.so",
-    "libgstrawparse.so",
-    "libgstreplaygain.so",
-    "libgstrtp.so",
-    "libgstrtpmanager.so",
-    "libgstrtsp.so",
-    "libgstshapewipe.so",
-    "libgstsmpte.so",
-    "libgstspectrum.so",
-    "libgstsubparse.so",
-    "libgsttcp.so",
-    "libgsttypefindfunctions.so",
-    "libgstudp.so",
-    "libgstvideobox.so",
-    "libgstvideoconvertscale.so",
-    "libgstvideocrop.so",
-    "libgstvideofilter.so",
-    "libgstvideomixer.so",
-    "libgstvideoparsersbad.so",
-    "libgstvideorate.so",
-    "libgstvideotestsrc.so",
-    "libgstvolume.so",
-    "libgstwavenc.so",
-    "libgstwavparse.so",
-    "libgstxingmux.so",
-    "libgsty4menc.so",
-))
+EXPECTED_GSTREAMER_PLUGINS = frozenset(PLUGINS)
 REQUIRED_UNIX_LIBRARIES = (
     "libglib-2.0.so.0",
     "libgstreamer-1.0.so.0",
@@ -338,6 +249,7 @@ def validate_media_dependency_closure(payload: Archive, hap: Archive, wine_arch:
 
     media_consumers = payload_libraries + [
         name for name in hap_libraries if name.rsplit("/", 1)[-1] == REQUIRED_WINE_MEDIA_UNIX_LIBRARY
+        or name.rsplit("/", 1)[-1] in EXPECTED_GSTREAMER_PLUGINS
     ]
     if not any(name.rsplit("/", 1)[-1] == REQUIRED_WINE_MEDIA_UNIX_LIBRARY for name in media_consumers):
         raise ValidationError(f"missing HAP Wine media library: {REQUIRED_WINE_MEDIA_UNIX_LIBRARY}")
@@ -510,40 +422,94 @@ def validate_graphics_runtime_payload(archive: Archive, wine_arch: str) -> None:
     require_equal(actual_sha256, expected_sha256, "VKD3D d3d12 payload checksum")
 
 
+def validate_gstreamer(payload: Archive, wine_arch: str, hap: Archive | None = None) -> None:
+    manifest = json.loads(payload.read("runtime-components.json"))
+    require_equal(manifest.get("schemaVersion"), 2, "component schema version")
+    gst = manifest.get("gstreamer")
+    if not isinstance(gst, dict):
+        raise ValidationError("component manifest has no gstreamer object")
+    native_arch = gst.get("nativeArch")
+    if native_arch not in {"arm64-v8a", "x86_64"} or (wine_arch == "aarch64" and native_arch != "arm64-v8a"):
+        raise ValidationError(f"invalid GStreamer native architecture: {native_arch!r}")
+    box64 = wine_arch == "x86_64" and native_arch == "arm64-v8a"
+    require_equal(gst.get("version"), GSTREAMER_VERSION, "GStreamer version")
+    require_equal(gst.get("storage"), "payload" if box64 else "native-libs", "GStreamer plugin storage")
+    directory = f"bin/{wine_arch}-unix/gstreamer-1.0" if box64 else f"libs/{native_arch}"
+    require_equal(gst.get("pluginDirectory"), directory, "GStreamer plugin directory")
+    require_equal(gst.get("pluginCount"), len(PLUGINS), "GStreamer plugin count")
+    require_equal(gst.get("requiredPlugins"), list(REQUIRED_PLUGINS), "required GStreamer plugins")
+    require_equal(gst.get("requiredElements"), list(REQUIRED_ELEMENTS), "required GStreamer elements")
+    files = gst.get("files")
+    if not isinstance(files, dict):
+        raise ValidationError("GStreamer manifest has no plugin checksums")
+    require_equal(set(files), set(PLUGINS), "GStreamer plugin inventory")
+    for name, digest in files.items():
+        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            raise ValidationError(f"invalid GStreamer checksum: {name}")
+    require_equal(gst.get("inventorySha256"), fingerprint(files), "GStreamer inventory fingerprint")
+    if not box64:
+        stale = [name for name in payload.names if name.startswith(f"bin/{wine_arch}-unix/gstreamer-1.0/") and name.endswith(".so")]
+        if stale:
+            raise ValidationError("native GStreamer plugins must be in HAP native libs, found el2 payload copies")
+    source = payload if box64 else hap
+    if source is None:
+        return  # Native files are outside wine-data.zip; validate_hap must check them.
+    packaged = {name.rsplit("/", 1)[-1] for name in source.names
+                if name.startswith(directory + "/") and name.rsplit("/", 1)[-1] in PLUGINS}
+    require_equal(packaged, set(PLUGINS), "packaged GStreamer plugin inventory")
+    for name in PLUGINS:
+        path = f"{directory}/{name}"
+        data = source.read(path)
+        require_equal(hashlib.sha256(data).hexdigest(), files[name], f"GStreamer plugin checksum {path}")
+        try:
+            check_elf(data, wine_arch, path)
+        except ValueError as error:
+            raise ValidationError(str(error)) from error
+        if any("/" in dependency for dependency in elf_needed(path, data)):
+            raise ValidationError(f"GStreamer plugin has an absolute DT_NEEDED: {path}")
+    if not box64:
+        # A rawfile copy cannot satisfy a native plugin's DT_NEEDED dependency.
+        pending = list(PLUGINS)
+        visited = set()
+        while pending:
+            name = pending.pop()
+            if name in visited:
+                continue
+            visited.add(name)
+            path = f"{directory}/{name}"
+            data = hap.read(path)
+            try:
+                check_elf(data, wine_arch, path)
+            except ValueError as error:
+                raise ValidationError(str(error)) from error
+            needed = elf_needed(path, data)
+            if any("/" in dependency for dependency in needed):
+                raise ValidationError(f"native media library has an absolute DT_NEEDED: {path}")
+            pending.extend(needed)
+        marker = ("winehua-gst-inventory:" + gst["inventorySha256"]).encode()
+        loader_path = f"libs/{native_arch}/winegstreamer.so"
+        loader = hap.read(loader_path)
+        try:
+            check_elf(loader, wine_arch, loader_path)
+        except ValueError as error:
+            raise ValidationError(str(error)) from error
+        if marker not in loader:
+            raise ValidationError("winegstreamer.so does not contain the packaged plugin inventory fingerprint")
+
+
 def validate_runtime_payload(archive: Archive) -> RuntimeInfo:
     manifest_name = "runtime-components.json"
     manifest = json.loads(archive.read(manifest_name).decode("utf-8"))
     if not isinstance(manifest, dict):
         raise ValidationError("runtime-components.json must contain an object")
 
-    require_equal(manifest.get("schemaVersion"), 1, "component schema version")
+    require_equal(manifest.get("schemaVersion"), 2, "component schema version")
     wine_arch = manifest.get("wineArch")
     if wine_arch not in {"aarch64", "x86_64"}:
         raise ValidationError(f"unsupported wine architecture in component manifest: {wine_arch!r}")
     pe_arch = "aarch64-windows" if wine_arch == "aarch64" else "x86_64-windows"
 
-    gstreamer = manifest.get("gstreamer")
-    if not isinstance(gstreamer, dict):
-        raise ValidationError("component manifest has no gstreamer object")
-    require_equal(gstreamer.get("version"), GSTREAMER_VERSION, "GStreamer version")
-    plugin_directory = f"bin/{wine_arch}-unix/gstreamer-1.0"
-    require_equal(gstreamer.get("pluginDirectory"), plugin_directory, "GStreamer plugin directory")
-    plugin_prefix = f"{plugin_directory}/"
-    packaged_plugins = frozenset(
-        name[len(plugin_prefix):]
-        for name in archive.names
-        if name.startswith(plugin_prefix) and name.endswith(".so")
-    )
-    require_equal(gstreamer.get("pluginCount"), len(packaged_plugins), "GStreamer plugin count")
-    require_equal(packaged_plugins, EXPECTED_GSTREAMER_PLUGINS,
-                  "GStreamer plugin inventory")
-    declared_plugins = gstreamer.get("requiredPlugins")
-    if not isinstance(declared_plugins, list):
-        raise ValidationError("GStreamer requiredPlugins must be an array")
-    require_members(declared_plugins, REQUIRED_PLUGINS, "declared baseline GStreamer plugins")
-    require_members(packaged_plugins, REQUIRED_PLUGINS, "packaged baseline GStreamer plugins")
-    for plugin in packaged_plugins:
-        archive.require_file(f"{plugin_prefix}{plugin}")
+    validate_gstreamer(archive, wine_arch)
 
     for windows_arch in (pe_arch, "i386-windows"):
         for filename in REQUIRED_WINDOWS_CORE_FILES:
@@ -640,6 +606,7 @@ def validate_hap(path: Path) -> RuntimeInfo:
         payload = Archive(io.BytesIO(payload_bytes))
         try:
             info = validate_runtime_payload(payload)
+            validate_gstreamer(payload, info.wine_arch, hap)
             validate_media_dependency_closure(payload, hap, info.wine_arch)
             audio_sources = [(archive, name) for archive in (payload, hap) for name in archive.names
                              if Path(name).name == 'wineohos.so']
@@ -677,7 +644,7 @@ def main() -> None:
                 info = validate_runtime_payload(archive)
             finally:
                 archive.close()
-            print(f"runtime payload PASS: wineArch={info.wine_arch}")
+            print(f"runtime payload PASS: wineArch={info.wine_arch}; native plugins require --hap verification")
         else:
             info = validate_hap(args.hap)
             print(f"HAP runtime closure PASS: wineArch={info.wine_arch}")

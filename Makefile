@@ -1051,3 +1051,8 @@ test-wine-vm-diagnostics:
 test: test-wine-network-contract
 test-wine-network-contract:
 	python3 $(ROOT)/host_tests/wine_network_contract_test.py
+
+.PHONY: test-gstreamer-native
+test: test-gstreamer-native
+test-gstreamer-native:
+	python3 $(ROOT)/host_tests/gstreamer_native_plugins_test.py

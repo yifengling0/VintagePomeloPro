@@ -15,7 +15,7 @@ if [ "${1:-}" = --unix-modules ]; then
     shift
     for module in "$@"; do
         case "$module" in
-            ntdll|win32u|opengl32|winevulkan|winewayland.drv|wineohos.drv|wineserver) ;;
+            ntdll|win32u|opengl32|winevulkan|winewayland.drv|wineohos.drv|winegstreamer|wineserver) ;;
             *) echo "unsupported Unix module: $module" >&2; exit 1 ;;
         esac
         WINE_UNIX_MODULES="${WINE_UNIX_MODULES:+$WINE_UNIX_MODULES }$module"
@@ -287,6 +287,16 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0060-ntdll-vm-protect-diagnostics
 # Preserve real IPv4 bindings and query permitted kernel routing metadata.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0061-iphlpapi-native-network-contract.patch" \
     "IPv4 adapter bindings and sandbox-safe native route metadata"
+
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0066-ohos-native-gstreamer-plugins.patch" \
+    "Load the packaged OHOS GStreamer inventory from the native namespace"
+python3 "$SCRIPT_DIR/gstreamer_inventory.py" \
+    --plugins-dir "$SYSROOT_EXT_LIB/gstreamer-1.0" \
+    --wine-arch "$WINE_ARCH" --native-arch "$NATIVE_ARCH" \
+    --header "$WINE_SRC/dlls/winegstreamer/winehua_gst_inventory.h"
+if ! cmp -s "$SCRIPT_DIR/wine_gstreamer_loader.h" "$WINE_SRC/dlls/winegstreamer/winehua_gstreamer_loader.h"; then
+    cp "$SCRIPT_DIR/wine_gstreamer_loader.h" "$WINE_SRC/dlls/winegstreamer/winehua_gstreamer_loader.h"
+fi
 
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \

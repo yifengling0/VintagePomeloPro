@@ -51,41 +51,25 @@ assemble_pad() {
         cp "$cxx_root/libunwind.dll" "$dest/libunwind.dll"
         log "    ARM64X C++ runtime ← $cxx_root → $dest"
     }
-    # GStreamer discovers plugins through GST_PLUGIN_PATH.  Keep modules in the
-    # architecture-specific rawfile directory even when the Wine unixlibs live
-    # in the HAP native-library directory.
+    # The canonical inventory also generates Wine's explicit native loader.
     package_gstreamer_plugins() {
-        local gst_plugin_dir="$SYSROOT_EXT_LIB/gstreamer-1.0"
-        local gst_dest="$wine_data/bin/$WINE_ARCH-unix/gstreamer-1.0"
-        local plugin_count=0
-        local pso required
-
-        [ -d "$gst_plugin_dir" ] || err "GStreamer plugin directory missing: $gst_plugin_dir"
-        mkdir -p "$gst_dest"
-        for pso in "$gst_plugin_dir"/*.so; do
-            [ -f "$pso" ] || continue
-            cp -L "$pso" "$gst_dest/"
-            plugin_count=$((plugin_count + 1))
-        done
-        [ "$plugin_count" -gt 0 ] || err "No GStreamer plugins found in: $gst_plugin_dir"
-
-        # These modules cover the Wine media baseline: core discovery, common
-        # playback, MP4/Matroska/ASF containers, H.264 parsing and libav decode.
-        for required in \
-            libgstcoreelements.so libgsttypefindfunctions.so libgstplayback.so \
-            libgstisomp4.so libgstmatroska.so libgstasf.so \
-            libgstvideoparsersbad.so libgstlibav.so; do
-            [ -s "$gst_dest/$required" ] || err "Required GStreamer plugin missing: $gst_dest/$required"
-        done
-        log "    GStreamer plugins ($plugin_count) → rawfile bin/$WINE_ARCH-unix/gstreamer-1.0/"
+        local gst_dest="$NATIVE_LIBS"
+        if [ "$is_box64_scheme" = "1" ]; then
+            gst_dest="$wine_data/bin/$WINE_ARCH-unix/gstreamer-1.0"
+        fi
+        python3 "$SCRIPT_DIR/gstreamer_inventory.py" \
+            --plugins-dir "$SYSROOT_EXT_LIB/gstreamer-1.0" \
+            --wine-arch "$WINE_ARCH" --native-arch "$NATIVE_ARCH" \
+            --package-to "$gst_dest" --metadata "$STAGING_DIR/gstreamer-components.json"
     }
 
     verify_runtime_components() {
         local runtime_lib_dir="$NATIVE_LIBS"
-        local gst_plugin_dir="$wine_data/bin/$WINE_ARCH-unix/gstreamer-1.0"
+        local gst_plugin_dir="$NATIVE_LIBS"
         local component_manifest="$wine_data/runtime-components.json"
         local plugin_count font_count mono_status="disabled"
-        local gstreamer_version="1.24.4"
+        local gstreamer_version
+        gstreamer_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$SCRIPT_DIR/gstreamer_plugins.json")"
         local mono_version="11.1.0"
         local mono_sha256=""
         local llvm_readelf="$OHOS_SDK/native/llvm/bin/llvm-readelf"
@@ -94,6 +78,7 @@ assemble_pad() {
 
         if [ "$is_box64_scheme" = "1" ]; then
             runtime_lib_dir="$wine_data/bin/$WINE_ARCH-unix"
+            gst_plugin_dir="$runtime_lib_dir/gstreamer-1.0"
         fi
 
         for required in \
@@ -106,13 +91,6 @@ assemble_pad() {
         done
         grep -Fxq "Version: $gstreamer_version" "$SYSROOT_EXT_PC/gstreamer-1.0.pc" || \
             err "Unexpected GStreamer version in: $SYSROOT_EXT_PC/gstreamer-1.0.pc"
-        for required in \
-            libgstcoreelements.so libgsttypefindfunctions.so libgstplayback.so \
-            libgstisomp4.so libgstmatroska.so libgstasf.so \
-            libgstvideoparsersbad.so libgstlibav.so; do
-            [ -s "$gst_plugin_dir/$required" ] || \
-                err "Packaged GStreamer plugin missing: $gst_plugin_dir/$required"
-        done
         [ -x "$llvm_readelf" ] || err "llvm-readelf missing: $llvm_readelf"
         "$llvm_readelf" --dynamic-table "$runtime_lib_dir/libintl.so" 2>/dev/null | \
             grep -Fq 'Library soname: [libintl.so]' || \
@@ -136,18 +114,13 @@ assemble_pad() {
 
         font_count="$(find "$wine_data/share/wine/fonts" -maxdepth 1 -type f -name '*.ttf' | wc -l)"
         [ "$font_count" -gt 0 ] || err "Wine font payload is empty"
-        plugin_count="$(find "$gst_plugin_dir" -maxdepth 1 -type f -name '*.so' | wc -l)"
+        plugin_count="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["pluginCount"])' "$STAGING_DIR/gstreamer-components.json")"
 
         cat > "$component_manifest" <<EOF
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "wineArch": "$WINE_ARCH",
-  "gstreamer": {
-    "version": "$gstreamer_version",
-    "pluginDirectory": "bin/$WINE_ARCH-unix/gstreamer-1.0",
-    "pluginCount": $plugin_count,
-    "requiredPlugins": ["libgstcoreelements.so", "libgsttypefindfunctions.so", "libgstplayback.so", "libgstisomp4.so", "libgstmatroska.so", "libgstasf.so", "libgstvideoparsersbad.so", "libgstlibav.so"]
-  },
+  "gstreamer": $(cat "$STAGING_DIR/gstreamer-components.json"),
   "mono": {
     "status": "$mono_status",
     "version": "$mono_version",

@@ -9,7 +9,7 @@
  * 各自只保留真分歧键:
  *   - XDG_RUNTIME_DIR / WAYLAND_DISPLAY (主: 合成器 socket 参数; 子: prefix/固定名)
  *   - LD_LIBRARY_PATH 系 (主: 按图形后端拼 runtimeLibPath; 子: 系统原生路径)
- *   - 仅主进程: LANG/LC_ALL, GST_PLUGIN_PATH
+ *   - 仅主进程: LANG/LC_ALL
  *   - 仅子进程: WINEBINDIR/WINEUNIXDIR (dladdr 路径修正), WINEDEBUG profile 选择
  *
  * header-only 的原因: wine_child 是独立 lib (libwine_child.so, 不链 entry
@@ -24,6 +24,15 @@
 #include "wine_constants.h"
 
 namespace winehua {
+
+// Native libraries are executable in the application linker namespace.
+inline std::string BundleNativeLibsDir() {
+#ifdef __aarch64__
+    return "/data/storage/el1/bundle/libs/arm64";
+#else
+    return "/data/storage/el1/bundle/libs/x86_64";
+#endif
+}
 
 // -- Box64 性能调优表 (单源, 仅 ARM64 有内容) --
 // 历史: 曾是 SetBox64PerfEnv (setenv 版) 与 AppendBox64PerfStrings (字符串版)
@@ -132,6 +141,22 @@ inline std::vector<std::string> BuildWineBaselineLines(const WineBaselinePaths& 
         "TMPDIR=" WINE_TMPDIR,
         "MIDI_SOUNDFONT_PATH=" + binDir + "/../audio/winehua-gm.sf2",
     };
+#if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
+    const std::string pluginDir = binDir + "/" WINE_UNIX_SUBDIR "/gstreamer-1.0";
+    lines.push_back("WINEHUA_GST_PLUGIN_DIR=");
+    lines.push_back("GST_PLUGIN_PATH=" + pluginDir);
+    lines.push_back("GST_PLUGIN_PATH_1_0=" + pluginDir);
+    lines.push_back("GST_PLUGIN_SYSTEM_PATH=" + pluginDir);
+    lines.push_back("GST_PLUGIN_SYSTEM_PATH_1_0=" + pluginDir);
+#else
+    lines.push_back("WINEHUA_GST_PLUGIN_DIR=" + BundleNativeLibsDir());
+    // Wine explicitly loads only the packaged inventory after gst_init_check().
+    lines.push_back("GST_PLUGIN_PATH=");
+    lines.push_back("GST_PLUGIN_PATH_1_0=");
+    lines.push_back("GST_PLUGIN_SYSTEM_PATH=");
+    lines.push_back("GST_PLUGIN_SYSTEM_PATH_1_0=");
+#endif
+    lines.push_back("WINE_GST_REGISTRY_DIR=" WINE_RUNTIME_ROOT "/.cache/gstreamer-1.0");
 #if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
     // ARM Proton uses the FEX native-F64 x87 policy by default, matching
     // Valve's ARM configuration. Entry overrides may select strict F80 (0).

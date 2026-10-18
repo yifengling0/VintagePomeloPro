@@ -21,16 +21,7 @@
 #define LOG_TAG "WL_NAPI"
 #include <hilog/log.h>
 
-#ifdef __aarch64__
-static constexpr const char kNativeLibDirName[] = "arm64";
-#else
-static constexpr const char kNativeLibDirName[] = "x86_64";
-#endif
-
-static std::string BundleNativeLibsDir()
-{
-    return std::string("/data/storage/el1/bundle/libs/") + kNativeLibDirName;
-}
+using winehua::BundleNativeLibsDir;
 
 static std::string UnixlibSearchPath(const std::string& binDir)
 {
@@ -137,9 +128,6 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (见 WineLocaleFor),
     // 与 LANG 同取设置页 wineLang (zh_CN / zh_TW / ja_JP / en_US)。
     env.push_back("LC_ALL=" + locale + ".UTF-8");
-    // winegstreamer 运行时加载 GStreamer 插件 (gst-plugins-base/good/libav)
-    env.push_back("GST_PLUGIN_PATH=" + binDir + "/" WINE_UNIX_SUBDIR "/gstreamer-1.0");
-    env.push_back("GST_PLUGIN_SYSTEM_PATH=" + binDir + "/" WINE_UNIX_SUBDIR "/gstreamer-1.0");
     // ==== Layer 1: Box64 性能调优 (仅方案②有实际消费者, 键值表见 wine_env_baseline.h) ====
     // NOTE: BOX64_DYNAREC_WEAKBARRIER=2 在桌面 DXVK 下会被 AppendStableDxvkEnv 覆盖为 0
     winehua::AppendBox64PerfStrings(env);

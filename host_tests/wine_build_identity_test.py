@@ -29,6 +29,8 @@ with tempfile.TemporaryDirectory(prefix='wine-identity-') as temporary:
     (repo / 'patches/wine/0001-test.patch').write_text('ordered overlay\n')
     (repo / 'scripts/build_wine.sh').write_text('ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0001-test.patch" "test"\n')
     (repo / 'scripts/env.sh').write_text('configuration\n')
+    for name in ('gstreamer_plugins.json', 'gstreamer_inventory.py', 'wine_gstreamer_loader.h'):
+        (repo / 'scripts' / name).write_text('GStreamer build input\n')
     git(repo, 'init', '-q'); git(repo, 'add', '.');
     git(repo, 'update-index', '--add', '--cacheinfo', f'160000,{head},thirdparty/wine-valve')
     git(repo, 'commit', '-qm', 'repo')
@@ -64,6 +66,9 @@ with tempfile.TemporaryDirectory(prefix='wine-identity-') as temporary:
         original = path.read_text(); path.write_text(f'srcdir = {base / "foreign source"}\n')
         run(expected='cached srcdir mismatch'); path.write_text(original)
     run(extra=['--config', 'WINE_ARCH=x86_64'], expected='configuration or toolchain differs')
+    for name in ('gstreamer_plugins.json', 'gstreamer_inventory.py', 'wine_gstreamer_loader.h'):
+        asset=repo/'scripts'/name; original=asset.read_text(); asset.write_text(original+'changed\n')
+        run(expected='overlays, configuration'); asset.write_text(original)
     patch = repo / 'patches/wine/0001-test.patch'; original = patch.read_text(); patch.write_text(original + 'changed\n')
     run(expected='overlays, configuration'); patch.write_text(original)
     unit = source / 'unit.c'; original = unit.read_text(); unit.write_text('int version = 2;\n')
