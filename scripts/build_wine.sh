@@ -278,6 +278,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0058-ohos-shared-wasapi-float32.p
     "Advertise shared WASAPI mix format as IEEE float32"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0062-wineohos-shared-audio-format-contract.patch" \
     "Export the shared Float32 format used by GetMixFormat for final-package validation"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0065-wow64-self-context-no-suspend.patch" \
+    "Read the current WOW64 context without suspending the caller"
 # Keep native protection diagnostics opt-in and separate from behavior fixes.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0060-ntdll-vm-protect-diagnostics.patch" \
     "Paired native VM protection diagnostics (default off)"
