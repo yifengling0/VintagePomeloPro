@@ -98,6 +98,56 @@ class RemoteBridge(unittest.TestCase):
         cls.server = cls.directory / "server"
         subprocess.run(["g++", *flags, str(ROOT / "entry/src/main/cpp/linux_steam/steam_bridge/server.cpp"), str(obj), "-ldl", "-o", str(cls.server)], check=True)
 
+    def test_msvc_record_returns_use_the_caller_buffer(self):
+        # Call the generated vtable using the explicit result-buffer ABI used
+        # by Proton/MSVC. Guard words catch writing into the wrong location.
+        source = self.directory / "record_return.cpp"
+        source.write_text(r'''#include "sdk.h"
+#include <map>
+#include <string>
+#include <type_traits>
+#include <stdexcept>
+#include <cstdint>
+namespace hmosbridge {
+static std::map<std::pair<std::string,uint32_t>,void*> interfaces;
+void* Wrap(const char*,uint32_t);
+[[noreturn]] static void Failed(uint32_t,int){throw std::runtime_error("unsupported");}
+enum {Invalid=2};
+template<bool,class R,class... A> static R Invoke(uint32_t,uint32_t,A...){
+ if constexpr(std::is_same_v<R,CSteamID>)return CSteamID((uint64)0x011000010000002aull);
+ else if constexpr(std::is_void_v<R>)return;
+ else return {};
+}
+template<class R>static R Ticket(uint32_t,uint32_t,void*,int,uint32*){return {};}
+#include "pe_methods.inc"
+}
+int main(){
+ struct Guarded {uint64 before;CSteamID id;uint64 after;};
+ for(const auto* version:{"SteamUser021","STEAMAPPS_INTERFACE_VERSION008"}){
+  void* object=hmosbridge::Wrap(version,1);if(!object)return 1;
+  const unsigned slot=version[5]=='U'?2:17;
+  auto** table=*reinterpret_cast<void***>(object);
+  using Call=CSteamID*(*)(void*,CSteamID*);
+  auto call=reinterpret_cast<Call>(table[slot]);
+  Guarded result{0x12345678,CSteamID((uint64)0),0x76543210};
+  for(unsigned i=0;i<4;++i){
+   if(call(object,&result.id)!=&result.id)return 2;
+   if(result.id.ConvertToUint64()!=0x011000010000002aull)return 3;
+   if(result.before!=0x12345678||result.after!=0x76543210)return 4;
+  }
+ }
+}
+''')
+        # Resolve the Apps vtable slot from the pinned SDK order.
+        apps = [x for x in self.catalog["methods"] if x["interface"] == "STEAMAPPS_INTERFACE_VERSION008"]
+        slot = next(i for i,x in enumerate(apps) if x["method"] == "GetAppOwner")
+        source.write_text(source.read_text().replace("?2:17", "?2:" + str(slot)))
+        binary = self.directory / "record_return"
+        sdk = Path(os.environ["STEAM_BRIDGE_REFERENCE"]) / "lsteamclient/steamworks_sdk_150"
+        subprocess.run(["g++", "-std=c++17", "-O1", "-w", "-I" + str(self.generated),
+                        "-isystem", str(sdk), str(source), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+
     @classmethod
     def tearDownClass(cls):
         cls.temp.cleanup()

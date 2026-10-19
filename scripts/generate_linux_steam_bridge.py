@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generate experimental lsteamclient ABI wrappers from pinned Proton SDK headers.
 
-The ABI comes from Clang's AST, including x86 thiscall / struct-return handling.
+Method signatures come from Clang AST. PE vtables explicitly implement the MSVC
+record-return ABI, which differs from MinGW C++ record returns on x86 and x64.
 Only explicitly supported wire types are invoked; other methods report unsupported.
 No downloaded SDK header or Valve binary is copied into the application package.
 """
@@ -13,6 +14,11 @@ import re
 import subprocess
 
 PIN = "e91ca2be0df2cef4c230cbbc0b86604d73a0bbf6"
+# Proton handle_method_c uses an explicit result buffer for record returns.
+# Keep the PE vtable separate from the GNU SDK classes: MinGW inheritance would
+# silently use its C++ return ABI for CSteamID and corrupt the game caller.
+RECORD_RETURNS = {"CSteamID", "CGameID", "InputDigitalActionData_t",
+                  "InputAnalogActionData_t", "InputMotionData_t"}
 OUTPUT_METHODS = {("ISteamUserStats", name) for name in [
     "GetStat", "GetAchievement", "GetAchievementAndUnlockTime", "GetGlobalStat"]}
 
@@ -84,7 +90,7 @@ def generate(reference, compiler, output):
     catalog = []
     for name, version in versions.items():
         stubs.append(f'class Stub{name}:public {name} {{ public:')
-        pe.append(f'class Remote{name} final:public {name} {{ public: uint32_t object; explicit Remote{name}(uint32_t id):object(id){{}}')
+        pe.append(f'class Remote{name} {{ public: uint32_t object; explicit Remote{name}(uint32_t id):object(id){{}}')
         for method in classes[name]:
             signature = method["type"]["qualType"]
             result = signature[:signature.index("(")].strip()
@@ -104,10 +110,16 @@ def generate(reference, compiler, output):
             outputs = (name, method["name"]) in OUTPUT_METHODS
             template = ("true" if outputs else "false") + ", " + result
             rest = (", " + ", ".join(names)) if names else ""
-            pe.append(f'{result} {method["name"]}({", ".join(declarations)}) override {{')
+            record_return = result in RECORD_RETURNS
+            pe_declarations = ([result + "* returned"] if record_return else []) + declarations
+            pe_result = result + "*" if record_return else result
+            pe.append(f'static_assert((std::is_class_v<{result}> || std::is_union_v<{result}>) == {str(record_return).lower()}, "Review new SDK record return ABI");')
+            pe.append(f'virtual {pe_result} {method["name"]}({", ".join(pe_declarations)}) {{')
             ticket = name == "ISteamUser" and method["name"] in ["GetAuthSessionTicket", "GetEncryptedAppTicket"]
             callback_check = root and method["name"] == "Set_SteamAPI_CCheckCallbackRegisteredInProcess"
-            if callback_check:
+            if record_return:
+                pe.append(f' if(!returned)Failed({number}u,Invalid); *returned=Invoke<{template}>(object,{number}u{rest}); return returned;')
+            elif callback_check:
                 # Match Proton's explicit dispatch model: request all native
                 # callbacks; the game's steam_api dispatches registered ones.
                 # A Windows function address must never be invoked in GNU.
@@ -145,7 +157,7 @@ def generate(reference, compiler, output):
                     call = "session.CancelTicket(target,arg0)"
                 server.append(f'return Serve<{template}{typestr}>([&]({", ".join(declarations)}) -> {result} {{ return {call}; }},input,output);')
             server.append('}')
-            catalog.append({"id": number, "interface": version, "class": name, "method": method["name"], "signature": signature, "scalarOutputsAllowed": outputs})
+            catalog.append({"id": number, "interface": version, "class": name, "method": method["name"], "signature": signature, "scalarOutputsAllowed": outputs, "windowsRecordReturn": record_return})
         pe.append('};')
         stubs.append('};')
     pe.append('void* Wrap(const char* version,uint32_t object) { if(!object||!version)return nullptr; auto key=std::make_pair(std::string(version),object);auto found=interfaces.find(key);if(found!=interfaces.end())return found->second; void* result=nullptr;')

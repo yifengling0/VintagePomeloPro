@@ -20,7 +20,25 @@ static std::recursive_mutex mutex;
 static std::map<std::pair<std::string,uint32_t>,void*> interfaces;
 static std::map<std::pair<uint32_t,uint32_t>,std::string> strings;
 void* Wrap(const char*,uint32_t);
+// Bounded technical progress only; never record arguments, account identities or ticket data.
+// A PID and monotonic tick distinguish this run from a stale previous game.
+static void Report(const char* stage,uint32_t method,Status status){
+ if(!appId)return;
+ static unsigned reports=0;
+ ++reports;if(reports>32 && status==Ok && reports%128)return;
+ char text[384];int length=snprintf(text,sizeof(text),
+  "{\"stage\":\"%s\",\"method\":%u,\"status\":%u,\"sequence\":%u,\"processId\":%lu,\"monotonicMs\":%llu,\"authenticationVerified\":false}\n",
+  stage,method,(unsigned)status,sequence,(unsigned long)GetCurrentProcessId(),(unsigned long long)GetTickCount64());
+ if(length<=0||length>=(int)sizeof(text))return;
+ const wchar_t* path=L"C:\\windows\\temp\\hmosdeck-steam-api-state.json";
+ const wchar_t* pending=L"C:\\windows\\temp\\hmosdeck-steam-api-state.pending";
+ HANDLE file=CreateFileW(pending,GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
+ if(file==INVALID_HANDLE_VALUE)return;
+ DWORD written=0;BOOL ok=WriteFile(file,text,(DWORD)length,&written,nullptr);CloseHandle(file);
+ if(!ok||written!=(DWORD)length||!MoveFileExW(pending,path,MOVEFILE_REPLACE_EXISTING))DeleteFileW(pending);
+}
 [[noreturn]] static void Failed(uint32_t method,Status status){
+ Report("call_failed",method,status);
  char line[160];snprintf(line,sizeof(line),"HMOSDECK_STEAM_API unsupported_or_failed method=%u status=%u\n",method,(unsigned)status);
  OutputDebugStringA(line);SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
  RaiseException(0xe0484d01,EXCEPTION_NONCONTINUABLE,0,nullptr);abort();
@@ -55,15 +73,16 @@ static bool Configure(){
 }
 static Status Exchange(uint32_t object,uint32_t method,Buffer& payload,Buffer& result){
  if(!Configure())return Disconnected;
+ Report("request_pending",method,Ok);
  Buffer frame;frame.Put(0x484d534231);frame.Put(++sequence);frame.Put(object);frame.Put(method);frame.Put(appId);frame.Bytes(nonce,32);frame.Bytes(payload.data.data(),payload.data.size());
  uint32_t length=htonl((uint32_t)frame.data.size());
  if(!Transfer(&length,4,true)||!Transfer(frame.data.data(),frame.data.size(),true)||!Transfer(&length,4,false))goto disconnected;
  length=ntohl(length);if(length<24||length>MaxFrame)goto disconnected;
  result.data.resize(length);if(!Transfer(result.data.data(),length,false))goto disconnected;
  if(result.Get()!=0x484d534252||result.Get()!=sequence)goto disconnected;
- {uint64_t status=result.Get();if(status>SourceUnverified)goto disconnected;return (Status)status;}
+ {uint64_t status=result.Get();if(status>SourceUnverified)goto disconnected;Report("request_received",method,(Status)status);return (Status)status;}
 disconnected:
- closesocket(connection);connection=INVALID_SOCKET;return Disconnected;
+ closesocket(connection);connection=INVALID_SOCKET;Report("disconnected",method,Disconnected);return Disconnected;
 }
 template<class T> void WriteArgument(Buffer& out,T value){
  if constexpr(std::is_same_v<T,const char*>)out.String(value);
