@@ -68,3 +68,7 @@ thirdparty/wine-proton/
 # Local HAP build packages
 *.hap
 thirdparty/wine-valve-rpgxp-alpha/
+
+# Local experiment/build trees; source lives in entry/, scripts/, patches/, tests/.
+/workspace_temp/
+/build-fex-vm-contract-*/

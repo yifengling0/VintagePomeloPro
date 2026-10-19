@@ -5,6 +5,7 @@ import testNapi from 'libentry.so';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { PopupWindowManager } from '../service/PopupWindowManager';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { ManagedWindowInput } from '../service/ManagedWindowInput';
 
 const DOMAIN = 0x0000;
 const TAG = 'WWA';
@@ -13,6 +14,8 @@ export default class WineWindowAbility extends UIAbility {
   private toplevelId: number = 0;
   private cleanedUp: boolean = false;
   private mainWindow: window.Window | null = null;
+  private stage: window.WindowStage | null = null;
+  private foreground: boolean = false;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     try {
@@ -47,6 +50,7 @@ export default class WineWindowAbility extends UIAbility {
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
+    this.stage = windowStage;
     hilog.info(DOMAIN, TAG, '[WWA]  onWindowStageCreate tl=%{public}d cleanedUp=%{public}s',
       this.toplevelId, this.cleanedUp ? 'yes' : 'no');
 
@@ -79,6 +83,7 @@ export default class WineWindowAbility extends UIAbility {
 
       // 父窗口移动/缩放 → 重新定位其 popup 子窗口
       mainWindow.on('windowRectChange', () => {
+        ManagedWindowInput.getInstance().syncBounds(this.toplevelId);
         const mgr = WineWindowManager.getInstance();
         PopupWindowManager.getInstance().repositionPopups(
           this.toplevelId, mainWindow, mgr.getEffectiveScale());
@@ -98,9 +103,11 @@ export default class WineWindowAbility extends UIAbility {
       mainWindow.on('windowEvent', (eventType: number) => {
         hilog.info(DOMAIN, TAG, '[WWA] #%{public}d windowEvent type=%{public}d', this.toplevelId, eventType);
         if (eventType === window.WindowEventType.WINDOW_DESTROYED) {
+          ManagedWindowInput.getInstance().background(this.toplevelId);
           hilog.info(DOMAIN, TAG, '[WWA] #%{public}d  WINDOW_DESTROYED (user closed)', this.toplevelId);
           this.cleanup();
         } else if (eventType === window.WindowEventType.WINDOW_SHOWN) {
+          this.attachManagedInput();
           hilog.info(DOMAIN, TAG, '[WWA] #%{public}d  WINDOW_SHOWN → resume input', this.toplevelId);
           try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
         } else if (eventType === window.WindowEventType.WINDOW_HIDDEN) {
@@ -147,11 +154,15 @@ export default class WineWindowAbility extends UIAbility {
   }
 
   onForeground(): void {
+    this.foreground = true;
+    this.attachManagedInput();
     hilog.info(DOMAIN, TAG, '[WWA] onForeground tl=%{public}d', this.toplevelId);
     try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
   }
 
   onBackground(): void {
+    this.foreground = false;
+    ManagedWindowInput.getInstance().background(this.toplevelId);
     hilog.info(DOMAIN, TAG, '[WWA] onBackground tl=%{public}d', this.toplevelId);
     // 与 master 相同: 融合 Ability 失焦不等于 surface 不可呈现, 不停渲染。
     try { testNapi.setToplevelVisible(this.toplevelId, false); } catch (_) {}
@@ -172,6 +183,7 @@ export default class WineWindowAbility extends UIAbility {
   }
 
   private cleanup(): void {
+    ManagedWindowInput.getInstance().background(this.toplevelId);
     if (this.cleanedUp) {
       hilog.warn(DOMAIN, TAG, '[WWA] cleanup tl=%{public}d: already cleaned, skip', this.toplevelId);
       return;
@@ -203,6 +215,12 @@ export default class WineWindowAbility extends UIAbility {
         this.toplevelId, JSON.stringify(e));
     }
     hilog.info(DOMAIN, TAG, '[WWA] cleanup tl=%{public}d DONE', this.toplevelId);
+  }
+
+  private attachManagedInput(): void {
+    if (this.foreground && this.stage && this.mainWindow && !this.cleanedUp) {
+      ManagedWindowInput.getInstance().foreground(this.toplevelId, this.stage, this.mainWindow, this.context);
+    }
   }
 
   /** 游戏窗口打开期间按全局设置保持屏幕常亮。 */

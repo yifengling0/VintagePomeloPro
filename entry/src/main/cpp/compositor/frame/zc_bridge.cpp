@@ -273,7 +273,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
     if (sd->isSubsurface && sd->parentSurface)
     {
         info.subsurface = true;
-        auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
+        auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(sd->parentSurface);
         if (!parent || !parent->hasToplevel) return reject("parent_without_toplevel");
         info.parentToplevel = parent->toplevelId;
         const auto* parentState = comp_.tmgr_.FindToplevelLocked(info.parentToplevel);
@@ -587,7 +587,7 @@ bool ZcBridge::ResolvePresentBinding(uint64_t surfaceKey, uint32_t frameWidth,
         }
         else if (sd->isSubsurface && sd->parentSurface)
         {
-            auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
+            auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(sd->parentSurface);
             if (!parent || !parent->hasToplevel) return false;
             topId = parent->toplevelId;
         }
@@ -822,6 +822,50 @@ void ZcBridge::DumpWindowBindingDiag()
         BindDiagEmit(line);
     }
 
+    // Explicit frame-trace experiments only: inspect the retained client SHM
+    // as well as its toplevel placeholder. The caller holds the tree lock,
+    // including all pixel-buffer rotation. Bound captures to four surfaces,
+    // four samples each; the production path returns before reaching here.
+    {
+        static std::map<uint64_t, std::pair<uint64_t, unsigned>> captures;
+        for (const auto& layer : comp_.subsurfaceLayers_) {
+            if (!layer.surface || layer.w < 200 || layer.h < 100 ||
+                layer.w > 4096 || layer.h > 4096 ||
+                layer.pixels.size() != static_cast<size_t>(layer.w) * layer.h * 4) continue;
+            auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(layer.surface));
+            if (!sd) continue;
+            const uint64_t key = (static_cast<uint64_t>(sd->clientPid) << 32) | sd->protocolId;
+            auto it = captures.find(key);
+            if (it == captures.end()) {
+                if (captures.size() >= 4) continue;
+                it = captures.emplace(key, std::make_pair(uint64_t{0}, 0u)).first;
+            }
+            auto& [lastUs, count] = it->second;
+            if (count >= 4 || (count && nowUs - lastUs < 30000000)) continue;
+            char path[192];
+            snprintf(path, sizeof(path), "/data/storage/el2/base/temp/client-w%d-h%d-own%u-%u.raw",
+                     layer.w, layer.h, sd->clientPid, sd->protocolId);
+            const int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+            lastUs = nowUs;
+            ++count; // Bound failed attempts too.
+            if (fd < 0) continue;
+            char hdr[192];
+            const int hn = snprintf(hdr, sizeof(hdr),
+                "W %d H %d FMT %u TLV %u OWNER %u,%u PIX %zu SERIAL %llu\n",
+                layer.w, layer.h, layer.shmFormat, layer.parentToplevel,
+                sd->clientPid, sd->protocolId, layer.pixels.size(),
+                static_cast<unsigned long long>(layer.shmCommitSerial));
+            if (hn > 0) write(fd, hdr, static_cast<size_t>(hn));
+            size_t off = 0;
+            while (off < layer.pixels.size()) {
+                const ssize_t n = write(fd, layer.pixels.data() + off, layer.pixels.size() - off);
+                if (n <= 0) break;
+                off += static_cast<size_t>(n);
+            }
+            close(fd);
+        }
+    }
+
     for (const auto& [key, res] : comp_.tmgr_.SurfaceResources())
     {
         static_cast<void>(key);
@@ -957,7 +1001,7 @@ bool ZcBridge::DiagnoseLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelI
     out.subY = sd->subsurfaceY;
     if (sd->isSubsurface && sd->parentSurface)
     {
-        auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
+        auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(sd->parentSurface);
         if (parent)
         {
             out.parentToplevel = parent->toplevelId;
@@ -987,8 +1031,7 @@ bool ZcBridge::DiagnoseLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelI
         peer.h = static_cast<int16_t>(otherSd->h);
         if (otherSd->isSubsurface && otherSd->parentSurface)
         {
-            auto* parent = static_cast<SurfaceData*>(
-                wl_resource_get_user_data(otherSd->parentSurface));
+            auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(otherSd->parentSurface);
             if (parent) peer.parentToplevel = parent->toplevelId;
         }
     }
@@ -1010,8 +1053,7 @@ bool ZcBridge::DiagnoseLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelI
         entry.h = static_cast<int16_t>(otherSd->h);
         if (otherSd->isSubsurface && otherSd->parentSurface)
         {
-            auto* parent = static_cast<SurfaceData*>(
-                wl_resource_get_user_data(otherSd->parentSurface));
+            auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(otherSd->parentSurface);
             if (parent) entry.parentToplevel = parent->toplevelId;
         }
         if (entry.hasToplevel)
@@ -1161,7 +1203,7 @@ bool ZcBridge::ActiveOwner(uint64_t producerKey, uint64_t& ownerKey, uint32_t& t
         // Parent destruction can precede child cleanup. Check pointer membership
         // before dereferencing the protocol edge on the input thread.
         if (!comp_.tmgr_.ContainsSurfaceResource(sd->parentSurface)) return false;
-        auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
+        auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(sd->parentSurface);
         if (!parent || !parent->hasToplevel ||
             comp_.tmgr_.FindSurfaceResource(parent->surfaceKey) != sd->parentSurface) return false;
         topId = parent->toplevelId;
@@ -1191,29 +1233,26 @@ bool ZcBridge::HasLayerForToplevel(uint32_t id) const
 
 bool ZcBridge::GetContentSize(uint32_t toplevelId, int& outW, int& outH) const
 {
-    // 与 HasZeroCopyLayerForToplevelLocked 同一层集合判定 (共用
-    // FindZeroCopyLayerForToplevelLocked 单一查找); 内容尺寸取
-    // vpDst 裁剪后几何, 与 GetZeroCopyLayerInfo (egl_renderer 渲染视口
-    // 缓存 zeroCopyLayerW_/H_ 的来源) 完全同规则 — 保证输入 fit 与渲染
-    // 显示严格互逆。
-    const auto* layer = comp_.FindZeroCopyLayerForToplevelLocked(toplevelId);
-    uint64_t layerOwner = 0;
-    uint32_t layerTop = 0;
-    int layerW = 0, layerH = 0;
-    if (layer && ActiveOwner(layer->surfaceKey, layerOwner, layerTop, layerW, layerH) &&
-        layerTop == toplevelId) {
-        outW = layerW;
-        outH = layerH;
-        return true;
-    }
-    // A protocol-only child has no SHM layer. Use the same live, consumed
-    // metadata as visibility; choose deterministically when menus coexist.
+    const auto* state = comp_.tmgr_.FindToplevelLocked(toplevelId);
+    if (!state) return false;
     uint64_t bestKey = 0, bestArea = 0;
     for (uint64_t key : activeKeys_) {
         uint64_t owner = 0;
         uint32_t top = 0;
         int w = 0, h = 0;
         if (!ActiveOwner(key, owner, top, w, h) || top != toplevelId) continue;
+        auto* res = comp_.tmgr_.FindSurfaceResource(owner);
+        auto* sd = res ? static_cast<SurfaceData*>(wl_resource_get_user_data(res)) : nullptr;
+        if (!sd) continue;
+        // Offsets/viewport shrink denote embedded content. A smaller child
+        // over retained parent pixels is also local video. With no parent SHM
+        // and no viewport crop, a protocol-only drawable may instead resize
+        // the game's canvas while the parent's configure size is still old.
+        const bool viewportShrink = (sd->vpDstW > 0 && sd->vpDstW < sd->w) ||
+                                    (sd->vpDstH > 0 && sd->vpDstH < sd->h);
+        if (sd->isSubsurface &&
+            (sd->subsurfaceX != 0 || sd->subsurfaceY != 0 || viewportShrink ||
+             (state->HasFrame() && (w < state->Width() || h < state->Height())))) continue;
         const uint64_t area = static_cast<uint64_t>(w) * h;
         if (area > bestArea || (area == bestArea && key < bestKey)) {
             bestArea = area; bestKey = key; outW = w; outH = h;
@@ -1247,7 +1286,7 @@ void ZcBridge::BindDiagPass(uint64_t surfaceKey, uint32_t frameWidth, uint32_t f
         const bool windowLike = [&]() -> bool {
             if (other->hasToplevel) topId = other->toplevelId;
             else if (other->isSubsurface && other->parentSurface) {
-                auto* parent = static_cast<SurfaceData*>(wl_resource_get_user_data(other->parentSurface));
+                auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(other->parentSurface);
                 if (!parent || !parent->hasToplevel) return false;
                 topId = parent->toplevelId;
             } else return false;

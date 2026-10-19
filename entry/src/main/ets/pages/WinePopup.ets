@@ -1,3 +1,4 @@
+import { AxisEventGate } from '../service/InputEventGate';
 import { hilog } from '../service/LogService';
 import testNapi from 'libentry.so';
 import { mapMouseButton } from '../common/MouseMap';
@@ -48,6 +49,8 @@ class PopupXComponentController extends XComponentController {
 @Entry
 @Component
 struct WinePopup {
+  private axisTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   controller: PopupXComponentController = new PopupXComponentController();
   @State popupId: number = 0;
 
@@ -267,12 +270,16 @@ struct WinePopup {
         // -- 滚轮事件 (菜单滚动条等) --
         // 轴事件不冒泡, 必须挂在命中链顶端的 XComponent 上 (同 WineWindow)
         .onAxisEvent((event?: AxisEvent) => {
+          if (event && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] WinePopup action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+          if (!event || !this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+            event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
           if (this.popupId <= 0 || !event) return;
           const px = vp2px(event.x);
           const py = vp2px(event.y);
           const vert = event.getVerticalAxisValue();
           const horiz = event.getHorizontalAxisValue();
-          const step = event.scrollStep ?? 0;
+          const step = -1; // Hardware AxisEvent values are continuous vp.
           if (vert !== 0) {
             testNapi.sendScrollEvent(this.popupId, 0, vert, step, px, py);
           }
@@ -330,12 +337,16 @@ struct WinePopup {
 
     // -- 滚轮事件 (菜单滚动条等) --
     .onAxisEvent((event?: AxisEvent) => {
+          if (event && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] WinePopup action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+          if (!event || !this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+            event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
       if (this.popupId <= 0 || !event) return;
       const px = vp2px(event.x);
       const py = vp2px(event.y);
       const vert = event.getVerticalAxisValue();
       const horiz = event.getHorizontalAxisValue();
-      const step = event.scrollStep ?? 0;
+      const step = -1;
       if (vert !== 0) {
         testNapi.sendScrollEvent(this.popupId, 0, vert, step, px, py);
       }

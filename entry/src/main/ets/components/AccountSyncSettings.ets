@@ -48,7 +48,6 @@ export struct AccountSyncSettings {
   @State private reminderReady: boolean = false;
   @State private reminderStatus: string = '支付前将检查续费提醒，并在需要时申请通知权限。';
   @State private renewalDetail: string = '';
-  private notificationTimer: number = -1;
   private vipOwner: string = '';
   private vipDeadline: number = 0;
   private vipTimer: number = -1;
@@ -73,6 +72,7 @@ export struct AccountSyncSettings {
   private syncListener: (() => void) | null = null;
   private entitlementListener: (() => void) | null = null;
   private accountListener: ((userId: string) => void) | null = null;
+  private reminderListener: ((ready: boolean, enabled: boolean) => void) | null = null;
   private membershipRequest: number = 0;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
   private alive: boolean = false;
@@ -87,11 +87,15 @@ export struct AccountSyncSettings {
     AccountAutomaticSyncService.getInstance().subscribe(this.syncListener);
     this.refreshAutomaticSync();
     this.entitlementListener = (): void => {
-      if (this.alive && ValueAddedService.getInstance().getUserId()) {
+      if (this.alive && !this.busy && ValueAddedService.getInstance().getUserId()) {
         void this.refreshMemberState().catch((): void => {});
       }
     };
     ValueAddedService.getInstance().subscribeEntitlement(this.entitlementListener);
+    this.reminderListener = (ready: boolean, enabled: boolean): void => {
+      if (this.alive) this.applyReminderState(ready, enabled);
+    };
+    ValueAddedService.getInstance().subscribeReminder(this.reminderListener);
     this.accountListener = (userId: string): void => {
       if (!this.alive) return;
       this.membershipRequest++;
@@ -100,7 +104,7 @@ export struct AccountSyncSettings {
       this.userId = userId; this.refreshHuaweiIdentity(); this.resetVip();
       this.membership = userId ? '正在更新会员状态' : '等待登录';
       if (userId && params?.deliveryId) void ValueAddedService.getInstance().recordReminderOpened(params.deliveryId).catch((): void => {});
-      if (userId) void this.refreshMemberState().catch((): void => {});
+      if (userId && !this.busy) void this.refreshMemberState().catch((): void => {});
     };
     ValueAddedService.getInstance().subscribeAccount(this.accountListener);
     void this.run('account', async (): Promise<void> => {
@@ -118,13 +122,10 @@ export struct AccountSyncSettings {
       await this.refreshReminder(false);
       if (params?.deliveryId) await service.recordReminderOpened(params.deliveryId);
     });
-    this.notificationTimer = setInterval((): void => {
-      if (this.alive && this.membershipExpanded && !this.busy) void this.refreshReminder(false);
-    }, 30000);
   }
   aboutToDisappear(): void {
     this.alive = false; this.membershipRequest++; this.resetVip();
-    if (this.notificationTimer >= 0) clearInterval(this.notificationTimer);
+    if (this.reminderListener) ValueAddedService.getInstance().unsubscribeReminder(this.reminderListener);
     if (this.syncListener) AccountAutomaticSyncService.getInstance().unsubscribe(this.syncListener);
     if (this.entitlementListener) ValueAddedService.getInstance().unsubscribeEntitlement(this.entitlementListener);
     if (this.accountListener) ValueAddedService.getInstance().unsubscribeAccount(this.accountListener);
@@ -248,13 +249,13 @@ export struct AccountSyncSettings {
       await AccountAutomaticSyncService.getInstance().resolveProfile(id, useCloud); this.refreshAutomaticSync();
     });
   }
-  private async refreshAccount(): Promise<void> {
+  private async refreshAccount(force: boolean = false): Promise<void> {
     const service = ValueAddedService.getInstance();
     this.userId = service.getUserId();
     this.refreshHuaweiIdentity();
     const owner = this.userId;
     this.membership = '正在更新会员状态';
-    await service.refreshCapabilities();
+    await service.refreshCapabilities(force);
     this.commerceReady = service.getCapabilities().commerce && service.getCapabilities().membershipPurchases !== false && !!service.getMembershipOperator();
     this.profilesReady = service.getCapabilities().profiles;
     const entitlement = await this.refreshMemberState();
@@ -484,23 +485,21 @@ export struct AccountSyncSettings {
         this.reminderReady = false; this.reminderStatus = '登录后可检查续费提醒。'; return false;
       }
       if (requestPermission) {
-        await service.refreshCapabilities();
+        await service.refreshCapabilities(true);
         if (!this.alive || owner !== service.getUserId()) return false;
         this.commerceReady = service.getCapabilities().commerce && service.getCapabilities().membershipPurchases !== false && !!service.getMembershipOperator();
       }
-      if (service.getCapabilities().sandboxCommerce === true && service.getCapabilities().sandboxCheckout === true) {
+      if (service.getCapabilities().sandboxCommerce === true && service.getCapabilities().sandboxCheckout === true &&
+        !service.getCapabilities().renewalReminders) {
         this.reminderReady = false;
         this.reminderStatus = '华为沙盒支付测试，不会真实扣款。续费提醒仍待接通，正式购买尚未开放。';
         return false;
       }
       if (!service.getCapabilities().renewalReminders) throw new Error('REMINDERS_UNAVAILABLE');
-      const ready = await service.prepareRenewalReminders(requestPermission);
+      const ready = await service.prepareRenewalReminders(requestPermission, requestPermission);
       const enabled = ready || await service.notificationsEnabled();
       if (!this.alive || owner !== service.getUserId()) return false;
-      this.reminderReady = ready;
-      this.reminderStatus = ready ? '续费提醒已连接' :
-        enabled ? '续费提醒登记未完成，请稍后检查重试。' : requestPermission ?
-          '通知权限尚未开启，请在系统设置中允许本应用发送通知后重试。' : '通知尚未开启，点击支付将申请通知权限；允许后继续支付。';
+      this.applyReminderState(ready, enabled, requestPermission);
       return ready;
     } catch (error) {
       if (this.alive && owner === service.getUserId()) {
@@ -510,6 +509,12 @@ export struct AccountSyncSettings {
       }
       return false;
     }
+  }
+  private applyReminderState(ready: boolean, enabled: boolean, requestPermission: boolean = false): void {
+    this.reminderReady = ready;
+    this.reminderStatus = ready ? '已开启，续费前将通过系统通知提醒。' :
+      enabled ? '续费提醒登记未完成，请稍后检查重试。' : requestPermission ?
+        '通知权限尚未开启，请在系统设置中允许本应用发送通知后重试。' : '通知尚未开启，点击支付将申请通知权限；允许后继续支付。';
   }
   private manageMembership(): void {
     void this.run('membership', async (): Promise<void> => {
@@ -643,7 +648,7 @@ export struct AccountSyncSettings {
         }
         if (this.userId) {
           this.Action('刷新状态', 'sync-refresh-account', (): boolean => !this.busy, (): void => {
-            void this.run('account', async (): Promise<void> => { await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount(); AccountAutomaticSyncService.getInstance().requestSync(0); });
+            void this.run('account', async (): Promise<void> => { await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount(true); AccountAutomaticSyncService.getInstance().requestSync(0, true); });
           })
         }
         if (this.huaweiSignedIn || this.userId) {
@@ -697,7 +702,7 @@ export struct AccountSyncSettings {
   }
   @Builder
   private Profiles() {
-    this.Heading('应用配置备份', '自动保存系统设置、输入方案和游戏配置。游戏图片留在游戏目录，游戏存档不上传。')
+    this.Heading('用户配置备份', '自动保存系统设置与输入方案。游戏库、游戏文件、壁纸和字体文件仅保存在本地。')
     Row({ space: 12 }) {
       Column({ space: 5 }) {
         Text(this.huaweiSignedIn && !this.userId ? '已登录 · 备份尚未连接' : this.backupStatus(this.autoSyncStatus || '等待登录'))
@@ -734,7 +739,7 @@ export struct AccountSyncSettings {
     if (this.profileDetailsExpanded) {
       Text('完整输入方案 ' + this.profiles.length + ' 个 · ' + this.configurationSizeText())
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
-      Text('游戏专用按键与兼容设置保存在游戏目录。系统背景和用户导入字体随应用配置备份。平板与桌面分别保存。')
+      Text('仅备份用户设置与输入方案，每份最多 256 KiB。游戏库、游玩记录、壁纸和字体文件不上传。平板与桌面分别保存。')
         .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
     }
   }
@@ -826,14 +831,25 @@ export struct AccountSyncSettings {
   @Builder
   private Membership() {
     this.Heading('VIP 会员', '自动备份和恢复应用配置、输入方案；游戏存档不上传。')
+    Row({ space: 10 }) {
+      Column({ space: 4 }) {
+        Text('续费提醒').fontSize(14).fontColor(skinColor('text_primary'))
+        Text(this.reminderStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
+          .id('sync-renewal-reminder-status')
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+      if (!this.reminderReady) {
+        this.Action('开启提醒', 'sync-restore-reminders', (): boolean => !this.busy && !!this.userId,
+          (): void => { void this.run('membership', async (): Promise<void> => { await this.refreshReminder(true); }); })
+      }
+      this.Action('通知设置', 'sync-reminder-settings', (): boolean => !this.busy,
+        (): void => { void this.run('membership', async (): Promise<void> => {
+          await ValueAddedService.getInstance().openReminderNotificationSettings();
+          await this.refreshReminder(false);
+        }); })
+    }.width('100%').padding(12).borderRadius(12).backgroundColor(skinColor('search_background'))
     if (this.vipActive || this.membershipUncertain) {
       Text(this.membership).fontSize(14).fontColor(skinColor('text_primary')).width('100%')
       if (this.renewalDetail) { Text(this.renewalDetail).fontSize(13).fontColor(skinColor('text_secondary')).width('100%') }
-      if (this.vipActive && this.renewalEnabled && !this.reminderReady) {
-        Text('续费提醒未连接，请检查通知；也可随时管理订阅。').fontSize(13).fontColor(skinColor('text_secondary'))
-        this.Action('检查续费提醒', 'sync-restore-reminders', (): boolean => !this.busy && !!this.userId,
-          (): void => { void this.run('membership', async (): Promise<void> => { await this.refreshReminder(true); }); })
-      }
     } else {
       ForEach(this.products.filter((product: StoreProduct): boolean => product.purpose === 'membership'), (product: StoreProduct) => {
         Button() {

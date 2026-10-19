@@ -30,6 +30,9 @@ struct WineProcessEntry {
     // early-server children keep their existing authoritative exit callbacks.
     bool waitPending = false;
     uint64_t generation = 0;
+    uint32_t toplevelId = 0;
+    std::vector<uint32_t> toplevelIds{};
+    bool applicationSession = false;
 };
 
 // -- NAPI threadsafe 回调 (由 napi_init.cpp 设置) --
@@ -64,7 +67,7 @@ void KillAllProcesses();
 // 杀单个子进程 (按设备模式分流): fork 后端原生 kill; NCP 后端优先官方
 // 终止 API (沙箱内 kill(2) 可能受限), 失败 fallback SIGKILL。任务列表
 // 「结束进程」与 KillAllProcesses 共用
-void KillChildProcess(pid_t pid);
+bool KillChildProcess(pid_t pid);
 
 // -- 主 wineserver 会话锚点 --
 // LaunchPadMode spawn wineserver 成功后登记: 加入进程注册表 (ProcMon 监视,
@@ -109,6 +112,15 @@ bool IsProcessAliveNotZombie(pid_t pid);
 // -- 进程注册表只读访问 (供 NAPI handler) --
 std::vector<WineProcessEntry> GetProcessListSnapshot();
 bool QueryProcessSnapshot(pid_t pid, WineProcessEntry* outEntry);
+
+// App session handles identify a registered process incarnation, never a PID
+// alone. Window association is exact-PID or proven ancestry, not basename/time.
+std::string WineSessionId(const WineProcessEntry& entry);
+std::string BeginRegisteredWineSession(pid_t pid);
+bool QueryWineSession(const std::string& id, WineProcessEntry* entry);
+std::string AssociateWineSessionWindow(pid_t clientPid, uint32_t toplevelId);
+void ForgetWineSessionWindow(uint32_t toplevelId);
+bool StopRegisteredWineSession(const std::string& id);
 
 // -- 辅助函数 --
 void LogProcessExit(const char* tag, pid_t pid, int status);

@@ -43,7 +43,7 @@ public:
     void InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy);
     void InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy);
     void InjectPointerButton(uint32_t button, uint32_t state);
-    void InjectPointerAxis(int axis, wl_fixed_t value);
+    void InjectPointerAxis(int axis, wl_fixed_t value, bool continuous = false);
     void InjectPointerLeave();
     void InjectKeyboardEnter(uint32_t tl, wl_resource* surface);
     void InjectKeyboardKey(uint32_t key, uint32_t state);

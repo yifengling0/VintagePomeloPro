@@ -12,13 +12,12 @@ try {
   await store.loadVerification(process.env.VP_CONFIG_PROBE_VERIFICATION);
   const objects=new ConfigurationDatabaseObjects(store);
   const service=new Configurations({store,gate(){},requireMembership:async()=>{}},objects);
-  const resource=Buffer.alloc(CONFIG_CHUNK_BYTES+37,7),asset='assets/'+hash(resource)+'.img';
   async function publish(label,base) {
-    const value={formatVersion:1,minReaderVersion:1,minWriterVersion:1,writtenByAppVersion:'1.4.8',requiredFeatures:['assets-v1'],
+    const value={formatVersion:1,minReaderVersion:1,minWriterVersion:1,writtenByAppVersion:'1.4.8',requiredFeatures:['cloud-settings-v1'],
       modules:['settings','input_profiles','library','resources'].map(name=>({name,schemaVersion:name==='input_profiles'?6:1,entries:[]})),
-      assets:[{path:asset,sha256:hash(resource),size:resource.length,target:'wallpaper'}],probe:label};
-    const members=[{name:'manifest.json',bytes:Buffer.from(JSON.stringify(value))},{name:asset,bytes:resource}];
-    const manifest={formatVersion:1,deviceClass:'tablet',totalBytes:members.reduce((n,m)=>n+m.bytes.length,0),members:members.map(m=>({
+      assets:[],probe:label};
+    const members=[{name:'manifest.json',bytes:Buffer.from(JSON.stringify(value))}];
+    const manifest={formatVersion:1,scope:'user-settings',deviceClass:'tablet',totalBytes:members.reduce((n,m)=>n+m.bytes.length,0),members:members.map(m=>({
       name:m.name,size:m.bytes.length,sha256:hash(m.bytes),chunks:Array.from({length:Math.ceil(m.bytes.length/CONFIG_CHUNK_BYTES)},(_,i)=>{
         const bytes=m.bytes.subarray(i*CONFIG_CHUNK_BYTES,(i+1)*CONFIG_CHUNK_BYTES);return {sha256:hash(bytes),size:bytes.length};})}))};
     keys.add('config-index:'+owner);
@@ -29,13 +28,13 @@ try {
     }
     const result=await service.finalize(owner,begun.id);assert.equal(result.status,'PUBLISHED');return {manifest,result,missing:begun.missing.length};
   }
-  const first=await publish('first',0),second=await publish('second',1);assert.equal(first.missing,3);assert.equal(second.missing,1);
+  const first=await publish('first',0),second=await publish('second',1);assert.equal(first.missing,1);assert.equal(second.missing,1);
   const current=await service.current(owner,'tablet');assert.equal(current.head.revision,2);
-  for (const part of second.manifest.members[1].chunks) {
+  for (const part of second.manifest.members[0].chunks) {
     const read=await service.read(owner,current.head.id,part.sha256);assert.equal(hash(Buffer.from(read.data,'base64')),part.sha256);
   }
   const report={checkedAt:new Date().toISOString(),isolatedOwner:true,fullChunkBytes:CONFIG_CHUNK_BYTES,
-    realCloudDbWriteRead:true,completeAtomicPublication:true,revision:current.head.revision,unchangedResourceChunksUploaded:0,
+    realCloudDbWriteRead:true,completeAtomicPublication:true,revision:current.head.revision,settingsOnly:true,resourceChunksUploaded:0,
     identityAndMembershipValidation:'not tested by this isolated probe'};
   await store.transaction(async tx=>{for(const key of keys)await tx.get(key);for(const key of keys)tx.delete(key);});
   for(const key of keys)assert.equal(await store.get(key),null);report.realCloudDbDelete=true;

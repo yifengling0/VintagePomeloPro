@@ -1,0 +1,26 @@
+{
+  "sourceProject": "steam-ohos-lab",
+  "snapshotDate": "2026-10-18",
+  "files": [
+    {
+      "source": "native/graphics_host/host.h",
+      "snapshot": "host.h",
+      "sha256": "875d2330bea3e3b1e0fd0158cb79e36eeb243be017fd60e314512440929d5234"
+    },
+    {
+      "source": "native/graphics_host/wayland_probe.cpp",
+      "snapshot": "wayland_probe.cpp",
+      "sha256": "9d511814c25761389640114266505d16dba0512d0b6eb7f0fda804c5b2f08e32"
+    },
+    {
+      "source": "integration/winehua/winehua_host.cpp",
+      "snapshot": "winehua_host.cpp",
+      "sha256": "97d63ae87ec809f9d061a88dd7ca0d006caa304f8c4cd326be80f88e7560cd8a"
+    },
+    {
+      "source": "integration/winehua/winehua_host.h",
+      "snapshot": "winehua_host.h",
+      "sha256": "fb41eba94b2ea8cd59cc693ea205a4768252fe521b2a800dbd01a5e55dec62dc"
+    }
+  ]
+}

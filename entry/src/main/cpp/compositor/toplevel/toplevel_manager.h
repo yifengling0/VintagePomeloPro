@@ -26,6 +26,8 @@
 // - fullscreen toplevel 锚定 (0,0): SetToplevelFullscreen 维护,
 //   合成按保比例缩放铺满, 不使用浮动位置。
 
+struct SurfaceData;
+
 class ToplevelManager {
 public:
     // -- 公共类型 --
@@ -345,7 +347,10 @@ public:
         return it != surfaceResources_.end() ? it->second : nullptr;
     }
     void RegisterSurfaceResource(uint64_t key, wl_resource* res) { surfaceResources_[key] = res; }
-    void UnregisterSurfaceResource(uint64_t key) { surfaceResources_.erase(key); }
+    // Caller holds Lock(). Unlink surviving children before freeing a parent.
+    void UnregisterSurfaceResource(uint64_t key);
+    // Test registry membership before touching a possibly retired resource.
+    SurfaceData* FindRegisteredSurfaceDataLocked(wl_resource* resource);
     size_t SurfaceResourceCount() const { return surfaceResources_.size(); }
     // 诊断 (2026-09-16): 只读遍历 (present surface → owner 窗口解析取证用)
     const std::unordered_map<uint64_t, wl_resource*>& SurfaceResources() const {

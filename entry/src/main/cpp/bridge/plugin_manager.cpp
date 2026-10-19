@@ -68,6 +68,8 @@ void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {
         WaylandServer::GetInstance()->GetDesktopCompositor());
     // 初始尺寸 1x1, 真正尺寸由 ResizeRenderer (onSurfaceChanged) 设置
     r->SetToplevelId(toplevelId);
+    const auto visibility = rendererPaused_.find(toplevelId);
+    if (visibility != rendererPaused_.end()) r->SetPaused(visibility->second);
     if (r->Init(win, 1, 1)) {
         toplevelRenderers_[toplevelId] = std::move(r);
         OH_LOG_INFO(LOG_APP, "[MW-Create] OK toplevel #%{public}u renderer created (total=%{public}zu)",
@@ -108,6 +110,7 @@ void PluginManager::ResizeRenderer(uint32_t toplevelId, int w, int h) {
 }
 
 void PluginManager::DestroyToplevel(uint32_t toplevelId) {
+    rendererPaused_.erase(toplevelId);
     OH_LOG_INFO(LOG_APP, "[MW-Life] DestroyRenderer tl=%{public}u count=%{public}zu→%{public}zu",
                 toplevelId, toplevelRenderers_.size(), toplevelRenderers_.size() > 0 ? toplevelRenderers_.size() - 1 : 0);
     auto it = toplevelRenderers_.find(toplevelId);
@@ -142,8 +145,20 @@ void PluginManager::MoveRendererToToplevel(uint32_t oldId, uint32_t newId) {
         return;
     }
     OH_LOG_INFO(LOG_APP, "[MW-Plug] MoveRenderer tl #%{public}u -> #%{public}u", oldId, newId);
-    toplevelRenderers_[newId] = std::move(it->second);
+    auto existing = toplevelRenderers_.find(newId);
+    if (existing != toplevelRenderers_.end()) existing->second->Shutdown();
+    // Erase before insertion: operator[] may rehash and invalidate it.
+    auto renderer = std::move(it->second);
     toplevelRenderers_.erase(it);
+    const auto visibility = rendererPaused_.find(newId);
+    if (visibility != rendererPaused_.end()) renderer->SetPaused(visibility->second);
+    else {
+        const auto oldVisibility = rendererPaused_.find(oldId);
+        if (oldVisibility != rendererPaused_.end()) rendererPaused_[newId] = oldVisibility->second;
+    }
+    rendererPaused_.erase(oldId);
+    renderer->SetToplevelId(newId);
+    toplevelRenderers_[newId] = std::move(renderer);
 }
 
 // ---- VPP additions ----
@@ -161,8 +176,7 @@ void PluginManager::RefreshRenderer(uint32_t toplevelId) {
 }
 
 void PluginManager::SetRendererPaused(uint32_t toplevelId, bool paused) {
-    // proton 基线 renderer 无逐 toplevel pause API: 降级为日志 (不阻塞渲染)
-    OH_LOG_INFO(LOG_APP, "[MW-RNDR] toplevel #%{public}u pause request %{public}s (no-op on proton baseline)",
-                toplevelId, paused ? "paused" : "resumed");
-    (void)toplevelId; (void)paused;
+    rendererPaused_[toplevelId] = paused;
+    auto it = toplevelRenderers_.find(toplevelId);
+    if (it != toplevelRenderers_.end()) it->second->SetPaused(paused);
 }

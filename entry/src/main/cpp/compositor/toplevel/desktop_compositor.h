@@ -89,6 +89,11 @@ public:
     std::vector<CompositorLayer> BuildLayerListLocked(int rootW, int rootH);
 
     bool IsContentVisibleLocked(uint32_t id) const;
+    bool BindExternalToplevel(uint32_t source, uint32_t host, uint32_t sourcePid,
+                              uint32_t hostPid, int x, int y, int w, int h);
+    void UnbindExternalToplevel(uint32_t host);
+    uint32_t ExternalHostLocked(uint32_t source) const;
+    uint32_t ExternalSourceLocked(uint32_t host) const;
     uint32_t FirstVisibleContentModalLocked(uint32_t id) const;
 
     bool GetDirectDesktopLayout(uint32_t pid, uint32_t toplevelId, uint32_t wlSurfaceId,
@@ -134,7 +139,7 @@ public:
     // SHM 用 buffer 尺寸) + ComputeFitRect — 该规则的唯一实现, 替换两侧
     // 各自组合。调用方须已持有 tmgr mutex; 找不到 toplevel state 返回 false。
     bool ComputeFullscreenFitLocked(uint32_t toplevelId, int rootW, int rootH,
-                                    FitRect& out) const;
+                                    FitRect& out, bool* gpuContent = nullptr) const;
 
     // -- Zero-copy layer 管理 (任务 3-A: 已抽离到 ZcBridge, 本类经 zc_ 委托) --
     bool GetZeroCopyLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
@@ -170,6 +175,8 @@ public:
 
     // -- 桌面 root dirty 标记 --
     void MarkDesktopRootDirtyLocked();
+    // Render-thread visibility/identity boundary; invalidate retained CPU output.
+    void RequestFullRedraw(uint32_t id);
 
     // -- Subsurface layer 生命周期 (替代直接操作 subsurfaceLayers_) --
 
@@ -253,6 +260,14 @@ private:
     uint64_t sceneDiagnosticSerial_ = 0;
 
     std::vector<SubsurfaceLayer> subsurfaceLayers_;
+    struct ExternalWindow {
+        uint32_t source = 0, host = 0;
+        uint64_t sourceKey = 0, hostKey = 0;
+        int x = 0, y = 0, w = 0, h = 0;
+    };
+    // Guarded by tmgr_. Surface keys prevent ID reuse from inheriting a binding.
+    std::unordered_map<uint32_t, ExternalWindow> externalWindows_;
+    bool ExternalWindowLiveLocked(const ExternalWindow& binding) const;
     uint64_t desktopCompositionSignature_ = 0;
     uint64_t desktopOutputRootFrameSerial_ = 0;
     bool desktopOutputInitialized_ = false;
@@ -268,6 +283,7 @@ private:
      * 级"根帧又新了"的全局序号, 后者是 each-toplevel 内容版本号。 */
     std::atomic<uint64_t> desktopRootFrameSerial_{0};
     std::unordered_map<uint32_t, std::pair<int, int>> directDesktopContentSizes_;
+    std::unordered_set<uint32_t> directDesktopVisibleToplevels_;
     // TakeToplevelFrame 快照缓冲池 (仅渲染线程访问): 跨帧复用容量,
     // 避免每帧新建多 MB vector 的分配+缺页开销 — 见 cpp 快照阶段注释
     std::vector<std::vector<uint8_t>> snapPool_;

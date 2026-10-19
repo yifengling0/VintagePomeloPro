@@ -111,6 +111,8 @@ def request_identity(args, source):
             'build_script_sha256': file_hash(script),
             'identity_guard_sha256': file_hash(Path(__file__)),
             'environment_script_sha256': file_hash(repo / 'scripts/env.sh'),
+            'diagnostics_inputs': {name: file_hash(repo / 'scripts' / name) for name in
+                                  ('wine_runtime_diagnostics.py', 'wine_runtime_diagnostics.h')},
             'gstreamer_inputs': {name: file_hash(repo / 'scripts' / name) for name in
                                   ('gstreamer_plugins.json', 'gstreamer_inventory.py', 'wine_gstreamer_loader.h')},
             'ordered_overlays': overlays, 'configuration': sorted(args.config), 'tools': tools}

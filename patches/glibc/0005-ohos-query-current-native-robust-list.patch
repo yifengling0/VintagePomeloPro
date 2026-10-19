@@ -1,0 +1,31 @@
+--- a/nptl/pthread_self.c
++++ b/nptl/pthread_self.c
+@@ -25,3 +25,18 @@
+ }
+ libc_hidden_def (__pthread_self)
+ weak_alias (__pthread_self, pthread_self)
++
++/* GNU-native app sandbox: query only this thread's real registered list.
++   Do not inspect another process/thread or fabricate an empty list. */
++int
++__steamohos_get_robust_list (pid_t tid, void **head, size_t *length)
++{
++  struct pthread *self = THREAD_SELF;
++  if (tid != 0 && tid != self->tid)
++    { __set_errno (EPERM); return -1; }
++  if (head == NULL || length == NULL)
++    { __set_errno (EFAULT); return -1; }
++  *head = &self->robust_head;
++  *length = sizeof (self->robust_head);
++  return 0;
++}
+--- a/nptl/Versions
++++ b/nptl/Versions
+@@ -379,6 +379,7 @@
+     tss_set;
+   }
+   GLIBC_PRIVATE {
++    __steamohos_get_robust_list;
+     __libc_alloca_cutoff;
+     __lll_lock_wake_private;
+     __lll_lock_wait_private;

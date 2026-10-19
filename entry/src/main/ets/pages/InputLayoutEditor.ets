@@ -1,4 +1,5 @@
 import router from '@ohos.router';
+import { HostWindowTask, HostWindowTasks } from '../service/HostWindowTasks';
 import promptAction from '@ohos.promptAction';
 import { common, ConfigurationConstant, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
@@ -304,6 +305,13 @@ struct InputLayoutEditor {
 
   private resumeWineAbility(): void {
     if (this.returnScheduled) return;
+    if (this.returnAbilityName === 'WineWindowAbility') {
+      this.returnScheduled = true;
+      const task = HostWindowTasks.getInstance().snapshot().find((item: HostWindowTask): boolean =>
+        item.toplevelId === Number(this.returnToplevelId));
+      if (task) void HostWindowTasks.getInstance().activate(task.key);
+      return;
+    }
     if (this.returnAbilityName !== 'DesktopAbility') return;
     this.returnScheduled = true;
     const want: Want = {

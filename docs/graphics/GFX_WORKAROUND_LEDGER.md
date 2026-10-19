@@ -30,13 +30,13 @@
 - 上游路径：验证目标平台是否具备可上游表达的外部同步能力；否则把 transport capability 做成显式能力位
 - 删除条件：Host/Guest 双方支持并验证反馈通道，打开 feedback 后无死锁且结果一致
 
-### Q003 — Box64 强内存屏障与 ring 可见性
+### Q003 — 转译边界与 ring 可见性
 
 - 状态：`active`
-- Owner：Box64/Venus 进程边界
+- Owner：native Wine + FEX / Venus 进程边界
 - 影响：ARM64 设备上的 x86_64 Guest Vulkan/DXVK
 - 症状：弱内存序导致 ring 元数据或 payload 观察顺序错误，表现为随机卡帧、命令损坏或只在压力下复现
-- 当前措施：`VN_WINEHUA_STRONG_RING_BARRIER=1`，并由 Box64 preset 保持强屏障语义
+- 当前措施：`VN_WINEHUA_STRONG_RING_BARRIER=1`，保留原生 ARM64 Guest ring 的 acquire/release 语义；不将产品切回 Box64
 - 生产默认：DXVK/VKD3D 相关 ARM64 路径启用
 - 主要位置：`wine_env.cpp`、`SmokeRunner.ets`、Box64 preset 传递链
 - 回归：多线程 ring 压力、连续 submit、10 分钟稳定性和退出清理
@@ -62,8 +62,8 @@
 - Owner：VirGL renderer/context compatibility
 - 影响：首个 framebuffer 的 sRGB/linear 状态与 Guest 预期不一致的 OpenGL/WineD3D 路径
 - 症状：首帧颜色空间错误、过亮/过暗，后续 framebuffer 切换后才恢复
-- 当前措施：保留锁定 VirGL gitlink 中的首 framebuffer sRGB 策略
-- 生产默认：随当前 VirGL gitlink 生效，无用户开关
+- 当前措施：VirGL managed 0005 恢复首相关 framebuffer 策略，并按附件 view/storage 统一 draw/clear；保留 Mesa sRGB shadow
+- 生产默认：由 gitlink + managed patches 共同生效，无用户开关
 - 主要位置：`thirdparty/virglrenderer` gitlink；版本由机器锁固定
 - 回归：首帧截图像素/直方图、sRGB FBO 切换、WineD3D 老游戏 smoke
 - 上游路径：先在纯 VirGL GLES 测试中复现，再核对上游 framebuffer sRGB 状态管理
@@ -76,7 +76,7 @@
 - 影响：`Maleoon N` / `Mali-GN` 命名的 GPU；当前阈值为 920
 - 症状：低于阈值的设备选择 DXVK 2.6 后不兼容；未知名称可能被误判
 - 当前措施：通过 `getHostGpuName()` 和 `/(?:Maleoon|Mali-?G)\s*(\d+)/i` 判定，920 以下回退 DXVK 1.10
-- 生产默认：`auto` 模式按此门控；显式选择仍必须经过能力约束
+- 生产默认：未设置/auto 默认 Legacy；显式选择 2.6 经过名称门控。未知名称仍可能放行，后续以能力探测替代
 - 主要位置：`SystemSettings.ets`、`WineEngineService.ets`、`host_vulkan_probe.cpp`
 - 回归：GPU 名称解析单测、空/未知/变体名称、低于/等于/高于 920 的后端选择测试
 - 上游路径：用 Vulkan feature/format/extension probe 替代营销名称；GPU 名称只保留为诊断信息
@@ -108,6 +108,20 @@
 - 上游路径：先补齐 NativeImage consumer 与 producer 的暂停/恢复协调，再考虑用明确 queue-full/deferred 语义替代驱动模糊错误
 - 删除条件：生命周期及故障注入均证明失败不再形成无界循环，恢复和长稳无回归；仅消除后台错误不足以删除通用失败限速
 - 未完成：`0x505` 根因、完整后台停产、十分钟/资源增长及 GL 帧序门槛；详见 [证据与回退](gl-background-backoff.md)
+
+### Q009 — GL 共享纹理呈现的 producer 上下文与双向 GPU 同步
+
+- 状态：`candidate`（2026-10-17；平板 EGL 与默认 Vulkan 实机验证通过，尚未发布）
+- Owner：VirGL vtest / Native `SurfaceQueueTarget`
+- 影响：GL 游戏在共享纹理输出中复用同一 source texture；已在 Maleoon 910 的星露谷 1.6.15 复现
+- 症状：游戏区域高速闪烁而工具栏正常；换宿主 EGL 合成仍闪；强制软件帧对照不闪
+- 当前措施：managed 0006 在 present 回调前通过零长度提交选择请求所属 producer context，避免 dispatch 前 fence 轮询留下 ctx0；Native 在采样结束后将 consumed fence 排入 producer，约束下一帧覆盖
+- 生产默认：GPU 共享纹理通道内自动生效，不按游戏名称特判；正常路径无 CPU readback、glFinish 或降画质，只有异常同步失败时等待已提交的读取结束
+- 主要位置：`patches/virglrenderer/0006-gl-present-producer-context.patch`、`virgl_surface_presenter.cpp`
+- 回归：真实 present handler 的 204 项上下文/协议/错误回复检查；双向同步 34 项、故障恢复 43 项、renderer 生命周期 698 项；旧 handler 在维护上下文场景真实断言失败
+- 实机边界：用户确认 rc3 EGL 和默认 Vulkan 均不闪；菜单约 60 FPS，农场约 50–60 FPS。默认 Vulkan 连续呈现超过 23000 帧，`glSources=1`、`releaseErrors=0`，readbacks 固定为启动时的 3 次；独立 VPTest 读档、移动及室内外往返通过。未宣称全设备或所有游戏已验证
+- 上游路径：本地 present 扩展需显式保存/选择 producer；保留标准 GL 共享对象的 ready/consumed 同步语义
+- 删除条件：替代输出通道具有同等所有权与双向同步保证，并在相同纹理复用及故障恢复测试、设备游戏验证中通过
 
 ## 新增记录模板
 

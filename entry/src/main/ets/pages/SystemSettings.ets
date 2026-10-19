@@ -409,7 +409,10 @@ struct SystemSettingsPage {
     this.loadApplicationVersion();
     this.restoreSettingsWindowChrome();
     const params = router.getParams() as Record<string, string>;
-    if (!this.routeSectionApplied && params?.section === 'sync' && DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+    if (!this.routeSectionApplied && params?.section === 'engine') {
+      this.routeSectionApplied = true;
+      this.sectionJumpTimer = setTimeout((): void => { this.sectionJumpTimer = -1; this.selectSection('engine'); }, 100);
+    } else if (!this.routeSectionApplied && params?.section === 'sync' && DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
       this.routeSectionApplied = true;
       this.sectionJumpTimer = setTimeout((): void => { this.sectionJumpTimer = -1; this.selectSection('sync'); }, 100);
     }
@@ -498,7 +501,7 @@ struct SystemSettingsPage {
       const succeeded = await task();
       promptAction.showToast({ message: succeeded ? successMessage : WineEngineService.getInstance().getMessage() });
     } catch (_) {
-      promptAction.showToast({ message: 'Wine 引擎操作失败，请查看引擎状态' });
+      promptAction.showToast({ message: WineEngineService.getInstance().getMessage() });
     } finally {
       this.engineBusy = false;
       this.engineOperationMessage = '';
@@ -2380,6 +2383,8 @@ struct SystemSettingsPage {
                   .fontColor(skinColor('text_primary')).width('100%')
                 Text('重建 Wine 沙盒并重装运行时。默认保留文档和注册表。')
                   .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+                Text('从 1.4.4 等旧版本升级后无法启动桌面，请先重置。若重置后仍卡住，请备份重要数据后卸载本应用并重新安装。')
+                  .fontSize(11).fontColor('#C47A20').width('100%')
               }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             }.width('100%')
             this.SwitchRow({

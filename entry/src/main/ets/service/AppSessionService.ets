@@ -28,6 +28,7 @@ import {
 import { isWineInfrastructurePath } from '../model/AppCatalogRules';
 import { WineEngineService } from './WineEngineService';
 import { WineWindowManager } from './WineWindowManager';
+import { HostWindowTasks } from './HostWindowTasks';
 import { InputOverlayWindowCoordinator } from './InputOverlayWindowCoordinator';
 import { AppSettingsStore } from './AppSettingsStore';
 import { AppCatalogService } from './AppCatalogService';
@@ -329,6 +330,7 @@ export class AppSessionService {
         }
       }
     }
+    let launchExecutable = app.launchTarget.executable;
     if (app.steam) {
       if (!SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
       await SteamLocalService.getInstance().ensureGpuDependencies();
@@ -336,16 +338,25 @@ export class AppSessionService {
         app.steam.appId ? 'play' : 'open';
       launchArguments = steamLaunchArguments(action, app.steam.appId,
         SteamLocalService.getInstance().isCompatibility(), action === 'play' ? launchArguments : []);
+      if (action === 'open') {
+        const steam = SteamLocalService.getInstance();
+        // The bundled "2" launcher owns cold-start flags. A running client
+        // must receive the open URI directly instead of rerunning the batch.
+        const client = steam.clientCard();
+        const running = steam.processesFor(client, this.getNativeProcesses()).length > 0;
+        launchExecutable = running ? steam.getClientDirectory() + '/steam.exe' : client.launchTarget.executable;
+        if (launchExecutable.toLowerCase().endsWith('.bat')) launchArguments = [];
+      }
       // Do not let old per-process diagnostics reintroduce conflicting GPU flags.
       envOverrides.push('WINEHUA_CEF_FORCE_GPU=0', 'WINEHUA_CEF_FORCE_SOFTWARE=0', 'WINEHUA_CEF_STEAM_DISABLE_GPU=0');
     }
     if (app.steam && !SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
     const result = WineEngineService.getInstance().launchExecutable(
-      app.launchTarget.executable, launchArguments,
+      launchExecutable, launchArguments,
       app.launchTarget.workingDirectory, envOverrides) as NativeLaunchResult;
     if (!result || result.pid <= 0) {
       hilog.error(DOMAIN, '[SESS]', 'launch: runWineExe FAILED app=%{public}s exe=%{public}s state=%{public}s',
-        app.id, app.launchTarget.executable, engine.getState());
+        app.id, launchExecutable, engine.getState());
       return null;
     }
     hilog.info(DOMAIN, '[SESS]', 'launch: spawned app=%{public}s pid=%{public}d session=%{public}s',
@@ -353,7 +364,7 @@ export class AppSessionService {
     const session: RuntimeSession = {
       sessionId: result.sessionId || 'wine-' + result.pid,
       appId: app.id,
-      executable: app.launchTarget.executable,
+      executable: launchExecutable,
       pid: result.pid,
       displayMode: mode,
       presentationMode: presentationMode,
@@ -404,9 +415,17 @@ export class AppSessionService {
   registerDiagnosticLaunch(executable: string, result: NativeLaunchResult,
     mode: DisplayMode, presentationMode: WinePresentationMode): RuntimeSession | null {
     if (!result || result.pid <= 0) return null;
+    return this.registerExternalLaunch('diagnostic-' + result.pid, executable, result, mode, presentationMode);
+  }
+
+  registerExternalLaunch(appId: string, executable: string, result: NativeLaunchResult,
+    mode: DisplayMode, presentationMode: WinePresentationMode): RuntimeSession | null {
+    if (!result || result.pid <= 0 || !result.sessionId) return null;
+    const existing = this.sessions.get(result.sessionId);
+    if (existing) return existing;
     const session: RuntimeSession = {
-      sessionId: result.sessionId || 'wine-' + result.pid,
-      appId: 'diagnostic-' + result.pid,
+      sessionId: result.sessionId,
+      appId: appId,
       executable: executable,
       pid: result.pid,
       displayMode: mode,
@@ -424,9 +443,12 @@ export class AppSessionService {
       } catch (_) {
       }
     }
-    if (session.toplevelId > 0) this.promoteDesktopSession(session);
+    if (session.toplevelId > 0) {
+      HostWindowTasks.getInstance().associateSession(session.toplevelId, session.sessionId);
+      this.promoteDesktopSession(session);
+    }
     hilog.info(DOMAIN, '[SESS]',
-      'diagnostic launch registered sid=%{public}s pid=%{public}d tl=%{public}d',
+      'external launch registered sid=%{public}s pid=%{public}d tl=%{public}d',
       session.sessionId, session.pid, session.toplevelId);
     return session;
   }
@@ -502,6 +524,10 @@ export class AppSessionService {
 
   async resume(session: RuntimeSession): Promise<void> {
     if (!this.context) return;
+    if (session.presentationMode === WinePresentationMode.MANAGED_WINDOWS) {
+      const task = HostWindowTasks.getInstance().snapshot().find((item): boolean => item.sessionId === session.sessionId);
+      if (task && await HostWindowTasks.getInstance().activate(task.key)) return;
+    }
     try { testNapi.activateWineSession(session.sessionId); } catch (_) {}
     if (session.toplevelId <= 0) {
       // ArkTS 侧关联可能因 created 事件缺 sessionId 而丢失，从 native 会话补回。
@@ -551,15 +577,23 @@ export class AppSessionService {
     }
   }
 
-  stop(session: RuntimeSession): void {
+  stop(session: RuntimeSession): boolean {
+    let accepted = false;
     const steamGame = SteamLocalService.getInstance().getCards().find((card: AppDescriptor): boolean =>
       card.id === session.appId && !!card.steam?.appId);
-    if (steamGame) this.stopApp(steamGame);
-    else if (session.appId.startsWith('steam-default-')) {
-      if (session.pid > 0) testNapi.killProcess(session.pid);
-    } else if (session.pid > 0 && !testNapi.stopWineSession(session.sessionId)) testNapi.killProcess(session.pid);
-    session.state = SessionState.STOPPED;
-    this.sessions.delete(session.sessionId);
+    try {
+      if (steamGame) accepted = this.stopApp(steamGame);
+      else if (session.appId.startsWith('steam-default-')) {
+        if (session.pid > 0) accepted = testNapi.killProcess(session.pid);
+      } else if (session.pid > 0) {
+        // A session handle is an exact process incarnation. Falling back to a
+        // recycled PID could terminate another launch after a stale stop.
+        accepted = testNapi.stopWineSession(session.sessionId);
+      }
+    } catch (_) { accepted = false; }
+    // The normal native process/window reconciliation publishes STOPPED only
+    // after authoritative exit. A rejected request keeps the running card.
+    return accepted;
   }
 
   /** Stop a card even when its ArkTS session was lost but native Wine still
@@ -576,8 +610,7 @@ export class AppSessionService {
     }
     const session = this.findByAppId(app.id);
     if (session) {
-      this.stop(session);
-      return true;
+      return this.stop(session);
     }
     const expectedPath = normalizeCatalogLaunchIdentity(app.launchTarget.executable);
     if (expectedPath.length === 0) return false;
@@ -593,7 +626,7 @@ export class AppSessionService {
       } catch (_) {
         processStopped = false;
       }
-      if (!processStopped) {
+      if (!process.sessionId || process.sessionId.length === 0) {
         try { processStopped = testNapi.killProcess(process.pid); } catch (_) { processStopped = false; }
       }
       stopped = processStopped || stopped;
@@ -705,6 +738,7 @@ export class AppSessionService {
       matched = this.upsertDesktopSession(toplevelId, clientPid);
     }
     if (matched) {
+      HostWindowTasks.getInstance().associateSession(toplevelId, matched.sessionId);
       const wasUnmapped = matched.toplevelId <= 0;
       if (matched.pid <= 0 && clientPid > 0) matched.pid = clientPid;
       if (sessionId === DESKTOP_SESSION_ID || matched.toplevelId === 0) matched.toplevelId = toplevelId;
@@ -958,6 +992,10 @@ export class AppSessionService {
     const removed: string[] = [];
     this.sessions.forEach((session: RuntimeSession, id: string) => {
       if (session.pid > 0 && !activePids.has(session.pid)) removed.push(id);
+      if (session.sessionId.startsWith('wine-')) {
+        const native = processes.find((process: NativeProcessInfo): boolean => process.pid === session.pid);
+        if (native?.sessionId && native.sessionId !== session.sessionId) removed.push(id);
+      }
       const awaitingReadyWithRoot = id === DESKTOP_SESSION_ID && preparingRootId > 0 &&
         session.toplevelId === preparingRootId;
       if (session.pid === 0 && engineState !== EngineState.READY && !awaitingReadyWithRoot) removed.push(id);

@@ -17,8 +17,10 @@
 #include <cerrno>
 #include <climits>
 #include <algorithm>
+#include <cctype>
 #include <atomic>
 #include <set>
+#include <unordered_map>
 #include <string>
 #include <thread>
 #include <vector>
@@ -33,6 +35,15 @@
 
 // -- 全局状态 --
 static std::mutex gProcMutex;
+// Serialize process-incarnation replacement with a single-session stop. Do
+// not hold gProcMutex across NCP calls: synchronous exit callbacks query it.
+static std::mutex gProcessOperationMutex;
+struct SessionWindowClient {
+    pid_t pid;
+    uint64_t generation;
+};
+static std::unordered_map<uint32_t, SessionWindowClient> gSessionWindowClients;
+static std::string ReassociateSessionWindow(pid_t clientPid, uint32_t id, uint64_t generation);
 static std::vector<WineProcessEntry> gProcRegistry;
 
 // -- 主 wineserver 会话锚点 --
@@ -80,15 +91,11 @@ static bool IsForkBackend() {
 // 杀子进程 (按后端分流): fork 后端原生 kill 有效; NCP 后端优先官方终止
 // API (沙箱内 kill(2) 可能受限/pid ns 不可见), 失败 fallback 到 SIGKILL —
 // SELF_FORK 模式子进程官方 API 明确不可终止, 恰由 fallback 覆盖
-void KillChildProcess(pid_t pid) {
-    if (IsForkBackend()) {
-        kill(pid, SIGKILL);
-        return;
-    }
-    auto rc = OH_Ability_KillChildProcess((int32_t)pid);
-    if (rc != NCP_NO_ERROR) {
-        kill(pid, SIGKILL);
-    }
+bool KillChildProcess(pid_t pid) {
+    if (pid <= 0) return false;
+    if (IsForkBackend()) return kill(pid, SIGKILL) == 0;
+    const auto rc = OH_Ability_KillChildProcess((int32_t)pid);
+    return rc == NCP_NO_ERROR || kill(pid, SIGKILL) == 0;
 }
 
 // NCP 退出回调是否已注册 (注册后 ProcMon 轮询降级为纯 zombie 感知 —
@@ -258,6 +265,7 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
     if (pid <= 0) return nullptr;
     WineProcessEntry* result = nullptr;
     {
+        std::lock_guard<std::mutex> operation(gProcessOperationMutex);
         std::lock_guard<std::mutex> lock(gProcMutex);
         std::string basename = exeFullPath;
         auto slash = basename.find_last_of("/\\");
@@ -324,15 +332,18 @@ void KillAllProcesses() {
     gShutdownRequested.store(true);
     std::vector<pid_t> trackedPids;
     {
-        std::lock_guard<std::mutex> lock(gProcMutex);
-        for (auto& entry : gProcRegistry) {
-            if (!entry.running) continue;
-            OH_LOG_WARN(LOG_APP, "[ProcReg] killAll pid=%{public}d name=%{public}s",
-                        entry.pid, entry.exeBasename.c_str());
-            *(entry.readerActive) = false;
-            trackedPids.push_back(entry.pid);
-            KillChildProcess(entry.pid);
+        std::lock_guard<std::mutex> operation(gProcessOperationMutex);
+        {
+            std::lock_guard<std::mutex> lock(gProcMutex);
+            for (auto& entry : gProcRegistry) {
+                if (!entry.running) continue;
+                *(entry.readerActive) = false;
+                trackedPids.push_back(entry.pid);
+            }
         }
+        // NCP termination may synchronously query/complete the registry.
+        // Keep PID replacement serialized, release the registry lock first.
+        for (pid_t pid : trackedPids) KillChildProcess(pid);
     }
 
     const pid_t self = getpid();
@@ -344,8 +355,6 @@ void KillAllProcesses() {
     OH_LOG_INFO(LOG_APP,
                 "[ProcReg] killAll session descendants=%{public}zu tracked=%{public}zu",
                 descendants.size(), trackedPids.size());
-    for (pid_t pid : trackedPids)
-        if (pid != self) kill(pid, SIGKILL);
     for (pid_t pid : descendants)
         if (pid != self && pid != directForkServer) kill(pid, SIGKILL);
 
@@ -719,4 +728,118 @@ bool QueryProcessSnapshot(pid_t pid, WineProcessEntry* outEntry) {
     if (it == gProcRegistry.end()) return false;
     *outEntry = *it;
     return true;
+}
+
+
+std::string WineSessionId(const WineProcessEntry& entry) {
+    return "wine-" + std::to_string(entry.pid) + "-" + std::to_string(entry.generation);
+}
+
+bool QueryWineSession(const std::string& id, WineProcessEntry* out) {
+    if (!out || id.empty()) return false;
+    std::lock_guard<std::mutex> lock(gProcMutex);
+    for (const auto& entry : gProcRegistry) {
+        if (WineSessionId(entry) != id) continue;
+        *out = entry;
+        return true;
+    }
+    return false;
+}
+
+std::string BeginRegisteredWineSession(pid_t pid) {
+    std::string session;
+    std::vector<std::pair<uint32_t, SessionWindowClient>> windows;
+    {
+        std::lock_guard<std::mutex> lock(gProcMutex);
+        for (auto& entry : gProcRegistry) if (entry.pid == pid) {
+            entry.applicationSession = true;
+            session = WineSessionId(entry);
+            break;
+        }
+        for (const auto& window : gSessionWindowClients) windows.push_back(window);
+    }
+    // A window can arrive before RunWineExe receives the broker PID. Rebind
+    // those windows now that the launch owner is known, using proven ancestry.
+    for (const auto& [id, client] : windows) ReassociateSessionWindow(client.pid, id, client.generation);
+    return session;
+}
+
+std::string AssociateWineSessionWindow(pid_t clientPid, uint32_t id) {
+    if (clientPid <= 0 || !id) return {};
+    uint64_t generation;
+    {
+        std::lock_guard<std::mutex> lock(gProcMutex);
+        static uint64_t nextGeneration = 0;
+        generation = ++nextGeneration;
+        gSessionWindowClients[id] = {clientPid, generation};
+        for (auto& entry : gProcRegistry) {
+            auto& ids = entry.toplevelIds;
+            ids.erase(std::remove(ids.begin(), ids.end(), id), ids.end());
+            entry.toplevelId = ids.empty() ? 0 : ids.front();
+        }
+    }
+    return ReassociateSessionWindow(clientPid, id, generation);
+}
+
+static std::string ReassociateSessionWindow(pid_t clientPid, uint32_t id, uint64_t generation) {
+    const auto processes = GetProcessListSnapshot();
+    WineProcessEntry owner{};
+    bool found = false;
+    pid_t candidate = clientPid;
+    for (unsigned depth = 0; candidate > 1 && depth < 32; ++depth) {
+        for (const auto& entry : processes) {
+            if (entry.pid != candidate || !entry.running) continue;
+            if (!found || entry.applicationSession) { owner = entry; found = true; }
+            if (entry.applicationSession) break;
+        }
+        if (found && owner.applicationSession) break;
+        pid_t parent = 0;
+        if (!ReadProcessParent(candidate, &parent) || parent == candidate) break;
+        candidate = parent;
+    }
+    std::lock_guard<std::mutex> lock(gProcMutex);
+    const auto window = gSessionWindowClients.find(id);
+    if (window == gSessionWindowClients.end() || window->second.pid != clientPid ||
+        window->second.generation != generation) return {};
+    if (!found) return {};
+    auto live = std::find_if(gProcRegistry.begin(), gProcRegistry.end(), [&](const auto& entry) {
+        return entry.pid == owner.pid && entry.generation == owner.generation && entry.running;
+    });
+    if (live == gProcRegistry.end()) return {};
+    for (auto& entry : gProcRegistry) {
+        if (&entry == &*live) continue;
+        auto& ids = entry.toplevelIds;
+        ids.erase(std::remove(ids.begin(), ids.end(), id), ids.end());
+        entry.toplevelId = ids.empty() ? 0 : ids.front();
+    }
+    auto& ids = live->toplevelIds;
+    if (std::find(ids.begin(), ids.end(), id) == ids.end()) ids.push_back(id);
+    live->toplevelId = ids.front();
+    return WineSessionId(*live);
+}
+
+void ForgetWineSessionWindow(uint32_t id) {
+    std::lock_guard<std::mutex> lock(gProcMutex);
+    gSessionWindowClients.erase(id);
+    for (auto& entry : gProcRegistry) {
+        auto& ids = entry.toplevelIds;
+        ids.erase(std::remove(ids.begin(), ids.end(), id), ids.end());
+        entry.toplevelId = ids.empty() ? 0 : ids.front();
+    }
+}
+
+bool StopRegisteredWineSession(const std::string& id) {
+    std::lock_guard<std::mutex> operation(gProcessOperationMutex);
+    WineProcessEntry entry;
+    if (!QueryWineSession(id, &entry)) return false;
+    std::string name = entry.exeBasename;
+    std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (entry.desktopShell || name == "desktop" || name == "explorer.exe" ||
+        name == "steam.exe" || name == "wineserver" || entry.exeFullPath.rfind("@engine/", 0) == 0)
+        return false;
+    if (!entry.running) return entry.toplevelIds.empty();
+    // true means the backend accepted the request, not that exit completed.
+    // Only waitpid/NCP callbacks publish death. AddProcess cannot replace this
+    // PID incarnation while the backend termination call runs.
+    return KillChildProcess(entry.pid);
 }

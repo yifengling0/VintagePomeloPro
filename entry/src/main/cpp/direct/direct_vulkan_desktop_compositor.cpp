@@ -150,7 +150,39 @@ public:
         return true;
     }
 
-    bool Render(int expectedW, int expectedH) {
+    bool Render(int expectedW, int expectedH, bool paused) {
+        // Visibility changes do not stop queue consumption. Drain submitted
+        // reads once on background entry, then return retired buffers with
+        // their original acquire fences without acquiring/presenting output.
+        if (paused) {
+            if (!background_) {
+                for (size_t i = 0; i < 2; ++i) {
+                    auto& frame = frames_[i];
+                    if (frame.inFlight && !Check(vkWaitForFences(core_->Device(), 1,
+                            &core_->Submission(i).fence, VK_TRUE, 2'000'000'000ULL), "background_drain")) return false;
+                    frame.inFlight = false;
+                    frame.references.clear();
+                }
+                background_ = true;
+                for (const auto& [key, layer] : glLayers_)
+                    GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key, 100000000ull);
+            }
+            if (!UpdateSources()) return false;
+            UpdateGlSources();
+            // Keep the latest acquired image for a producer that stops drawing
+            // while hidden (e.g. CEF). Returning it here loses the only frame
+            // available on resume. UpdateSources/UpdateGlSources retire each
+            // replaced image, so multi-buffer queues still advance in background
+            // without copying pixels or acquiring an output image.
+            return DrainBackgroundBuffers();
+        }
+        if (background_) {
+            background_ = false;
+            for (const auto& [key, layer] : glLayers_)
+                GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key, cadence_.PeriodNs());
+            scene_ = {};
+            renderedExtent_ = {};
+        }
         PublishFrameRates();
         auto& g = *core_;
         auto& slot = g.Submission(frameIndex_ % 2);
@@ -463,7 +495,7 @@ private:
                     layer->window.Adopt(OH_NativeImage_AcquireNativeWindow(consumer),
                                        NativeWindowReleaseMode::UnreferenceNativeObject);
                     if (!layer->window || !broker.AttachZeroCopyTarget(source.surfaceKey,
-                            layer->window.Get(), cadence_.PeriodNs(), source.vulkan)) continue;
+                            layer->window.Get(), background_ ? 100000000ull : cadence_.PeriodNs(), source.vulkan)) continue;
                     compositor_.zc().BindSurface(source.surfaceKey, geometry.shmCommitSerial);
                     OH_LOG_INFO(LOG_APP, "[VIRGL-VK] attached key=%{public}llu size=%{public}ux%{public}u generation=%{public}llu vulkan=%{public}d",
                         (unsigned long long)source.surfaceKey, source.width, source.height,
@@ -525,6 +557,34 @@ private:
                 if (cache->second.use_count() == 1) cache = layer.cache.erase(cache); else ++cache;
             ++it;
         }
+    }
+    bool DrainBackgroundBuffers() {
+        const bool owned = std::any_of(retired_.begin(), retired_.end(),
+            [](const Buffer& buffer) { return buffer.owned; });
+        if (owned) {
+            // The background-entry fence wait completes reads, but queue
+            // ownership/layout still need an explicit release to FOREIGN.
+            // Submit only these barriers; never acquire/present an output.
+            auto& g = *core_;
+            auto& slot = g.Submission(0);
+            if (!Check(vkResetCommandBuffer(slot.command, 0), "background_command_reset")) return false;
+            VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+            begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            if (!Check(vkBeginCommandBuffer(slot.command, &begin), "background_command_begin")) return false;
+            for (auto& buffer : retired_) if (buffer.owned) Barrier(slot.command, buffer, false);
+            if (!Check(vkEndCommandBuffer(slot.command), "background_command_end")) return false;
+            if (!Check(vkResetFences(g.Device(), 1, &slot.fence), "background_fence_reset")) return false;
+            VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+            submit.commandBufferCount = 1; submit.pCommandBuffers = &slot.command;
+            if (!Check(vkQueueSubmit(g.Queue(), 1, &submit, slot.fence), "background_release_submit")) return false;
+            frames_[0].inFlight = true;
+            if (!Check(vkWaitForFences(g.Device(), 1, &slot.fence, VK_TRUE,
+                                      2'000'000'000ULL), "background_release_wait")) return false;
+            frames_[0].inFlight = false;
+        }
+        for (auto& buffer : retired_) Return(buffer, -1);
+        retired_.clear();
+        return true;
     }
     void Return(Buffer& buffer, int releaseFd) {
         if (!buffer.windowBuffer) { if (releaseFd >= 0) close(releaseFd); return; }
@@ -783,6 +843,7 @@ private:
     std::unordered_map<uint64_t, std::unique_ptr<GlLayer>> glLayers_;
     std::unordered_set<uint64_t> failedGlKeys_;
     uint64_t lastGlQueryUs_ = 0, glDraws_ = 0;
+    bool background_ = false;
     std::vector<Buffer> retired_;
     GpuDesktopSnapshotCache snapshots_;
     GpuDesktopScene scene_;
@@ -800,7 +861,7 @@ DirectVulkanDesktopCompositor::DirectVulkanDesktopCompositor(DesktopCompositor& 
     : renderer_(std::make_unique<VulkanDesktopRenderer>(compositor)) {}
 DirectVulkanDesktopCompositor::~DirectVulkanDesktopCompositor() = default;
 bool DirectVulkanDesktopCompositor::Initialize(OHNativeWindow* window) { return renderer_->Initialize(window); }
-bool DirectVulkanDesktopCompositor::Render(int width, int height) { return renderer_->Render(width, height); }
+bool DirectVulkanDesktopCompositor::Render(int width, int height, bool paused) { return renderer_->Render(width, height, paused); }
 int DirectVulkanDesktopCompositor::Width() const { return renderer_->Width(); }
 int DirectVulkanDesktopCompositor::Height() const { return renderer_->Height(); }
 int DirectVulkanDesktopCompositor::ContentWidth() const { return renderer_->ContentWidth(); }

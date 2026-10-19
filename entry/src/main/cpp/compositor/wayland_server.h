@@ -201,6 +201,7 @@ public:
     static void subcompositor_get_subsurface(wl_client*, wl_resource*, uint32_t, wl_resource*, wl_resource*);
     /* wl_subsurface */
     static void subsurface_destroy(wl_client*, wl_resource* r);
+    static void subsurface_resource_destroyed(wl_resource* r);
     static void subsurface_set_position(wl_client*, wl_resource*, int32_t, int32_t);
     static void subsurface_place_above(wl_client*, wl_resource*, wl_resource*);
     static void subsurface_place_below(wl_client*, wl_resource*, wl_resource*);
@@ -228,6 +229,7 @@ public:
     // 动作方法保留 (EndMoveGrab/ProcessMoveGrabMotion 含会话侧 dirty 标记
     // 与事件补发, 属会话状态职责)。
     void StartMoveGrab(uint32_t toplevelId, uint32_t serial);
+    void StartMoveGrabAt(uint32_t toplevelId, uint32_t serial, wl_fixed_t globalX, wl_fixed_t globalY);
     void EndMoveGrab();
     bool ProcessMoveGrabMotion(int32_t gx, int32_t gy);
 

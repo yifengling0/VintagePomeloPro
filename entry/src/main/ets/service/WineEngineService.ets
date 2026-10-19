@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
+import { promptAction, router } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { zlib } from '@kit.BasicServicesKit';
+import { BusinessError, zlib } from '@kit.BasicServicesKit';
 import { hilog } from './LogService';
 import testNapi, { ProductDirectProbeResult } from 'libentry.so';
 import {
@@ -20,6 +21,7 @@ import {
 import { AppSettingsStore } from './AppSettingsStore';
 import { syncManagedSmoke } from './ManagedSmokePayloadService';
 import { WineWindowManager } from './WineWindowManager';
+import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
 
 const DOMAIN = 0x0000;
 const TAG = 'WineEngine';
@@ -643,6 +645,8 @@ export class WineEngineService {
   private waiters: Array<(ready: boolean) => void> = [];
   private callbackInstalled: boolean = false;
   private restartPromise: Promise<boolean> | null = null;
+  private upgradeGuard: WineUpgradeGuard = new WineUpgradeGuard();
+  private upgradeWarningPromise: Promise<void> | null = null;
   private prefixRefreshRequired: boolean = false;
   private pendingPrefixVersion: Uint8Array = new Uint8Array(0);
   private d3dBackend: string = 'dxvk_legacy';
@@ -799,6 +803,17 @@ export class WineEngineService {
   async startSession(mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string, prefixMode: string = 'reuse'): Promise<boolean> {
     if (!this.context) return false;
+    // Inspect the old installation before extraction changes its markers and
+    // before the ERROR retry path can start any native services.
+    try {
+      if (this.blockLegacyWineUpgrade()) return false;
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'Wine upgrade check failed: %{public}s', JSON.stringify(error));
+      this.setState(EngineState.PREPARING, '正在检查 Wine 安装');
+      this.setState(EngineState.ERROR, 'Wine 安装检测失败，请在系统设置中检查或重置 Wine 环境');
+      this.finishWaiters(false);
+      return false;
+    }
     const requestedPrefixMode = prefixMode === 'clean' ? 'clean' : 'reuse';
     const requestedWineLanguage = AppSettingsStore.getInstance().getGlobalSettings().wineLanguage;
     const requestedD3DBackend = this.selectedD3DBackend();
@@ -922,6 +937,29 @@ export class WineEngineService {
       this.finishWaiters(false);
       return false;
     }
+  }
+
+  private blockLegacyWineUpgrade(): boolean {
+    if (!this.upgradeGuard.needsReset(this.getBundledRuntimeVersion())) return false;
+    // Pending program requests observe PREPARING -> ERROR and resolve instead
+    // of remaining queued for a ready event that this blocked launch cannot emit.
+    this.setState(EngineState.PREPARING, '正在检查 Wine 安装');
+    this.setState(EngineState.ERROR, '旧版 Wine 环境需要重置，请进入系统设置 → Wine 引擎');
+    this.finishWaiters(false);
+    if (!this.upgradeWarningPromise) {
+      this.upgradeWarningPromise = promptAction.showDialog({
+        title: '升级后需要重置 Wine',
+        message: WINE_UPGRADE_RESET_MESSAGE,
+        buttons: [{ text: '稍后处理', color: '#667085' }, { text: '前往重置', color: '#D94848' }]
+      }).then(async (answer): Promise<void> => {
+        if (answer.index === 1) {
+          await router.pushUrl({ url: 'pages/SystemSettings', params: { section: 'engine' } });
+        }
+      }).catch((error: BusinessError): void => {
+        hilog.warn(DOMAIN, TAG, 'Wine upgrade reminder dismissed or unavailable: %{public}s', JSON.stringify(error));
+      }).finally((): void => { this.upgradeWarningPromise = null; });
+    }
+    return true;
   }
 
   async ensureReady(mode: DisplayMode, presentationMode: WinePresentationMode,
@@ -1187,7 +1225,10 @@ export class WineEngineService {
    * 本仓不清 WINE_ROOT 整树（forceRefreshRuntime 解绑版本标记后按缺失路径重装）。
    */
   async wipeEnvironment(): Promise<void> {
-    testNapi.resetWinePrefix();
+    if (!(testNapi.resetWinePrefix() as boolean)) {
+      this.setState(EngineState.ERROR, 'Wine 环境清理失败，请备份数据后卸载本应用并重新安装');
+      throw new Error('Unable to reset Wine prefix');
+    }
     await this.forceRefreshRuntime();
   }
 
@@ -1209,7 +1250,12 @@ export class WineEngineService {
         throw new Error('备份文档或注册表失败: ' + JSON.stringify(error));
       }
     }
-    await this.wipeEnvironment();
+    try {
+      await this.wipeEnvironment();
+    } catch (error) {
+      this.setState(EngineState.ERROR, 'Wine 环境重置失败，请备份重要数据后卸载本应用并重新安装');
+      throw new Error('Wine 环境重置失败: ' + (error as Error).message);
+    }
     if (preserve) {
       try {
         restorePrefixUserData(RESET_KEEP_DIR);
@@ -1222,12 +1268,18 @@ export class WineEngineService {
     } else {
       removeRecursive(RESET_KEEP_DIR);
     }
+    // Acknowledging the dialog never clears the requirement. Only a completed
+    // prefix wipe, runtime reinstall and optional data restore can release it.
+    this.upgradeGuard.completeReset();
     if (home.length > 0) {
       const settings = AppSettingsStore.getInstance().getGlobalSettings();
       const presentation = resolveWinePresentationMode(
         LaunchKind.WINE_EXE, settings.defaultDisplayMode,
         AppSettingsStore.getInstance().usesManagedWineWindows());
-      await this.startSession(settings.defaultDisplayMode, presentation, home);
+      if (!await this.startSession(settings.defaultDisplayMode, presentation, home)) {
+        this.setState(EngineState.ERROR, '重置后仍无法启动 Wine，请备份重要数据后卸载本应用并重新安装');
+        throw new Error(this.message);
+      }
       return;
     }
     this.setState(EngineState.STOPPED, 'Wine 环境已重置');
@@ -1653,6 +1705,61 @@ export class WineEngineService {
     }
   }
 
+  private isWineBuiltinModule(path: string): boolean {
+    if (!pathExists(path) || fs.statSync(path).size < 80) return false;
+    const file = fs.openSync(path, fs.OpenMode.READ_ONLY);
+    try {
+      const buffer = new ArrayBuffer(80);
+      if (fs.readSync(file.fd, buffer, { offset: 0, length: 80 }) !== 80) {
+        throw new Error('Incomplete builtin module header');
+      }
+      const bytes = new Uint8Array(buffer);
+      const signature = 'Wine builtin DLL';
+      for (let i = 0; i < signature.length; i++) {
+        if (bytes[64 + i] !== signature.charCodeAt(i)) return false;
+      }
+      return true;
+    } finally { fs.closeSync(file); }
+  }
+
+  private syncManagedIcuModules(): void {
+    if (!pathExists(WINE_ROOT + '/icu-compat.json')) return;
+    const names: string[] = ['icu.dll', 'icuuc.dll', 'icuin.dll'];
+    const arches: string[] = ['aarch64-windows', 'i386-windows'];
+    const dirs: string[] = ['system32', 'syswow64'];
+    // Validate the whole pair before publishing anything into the prefix.
+    for (const arch of arches) {
+      for (const name of names) {
+        if (!this.isWineBuiltinModule(WINE_BIN + '/' + arch + '/' + name)) {
+          throw new Error('Missing or invalid managed ICU module: ' + arch + '/' + name);
+        }
+      }
+    }
+    const data = WINE_ROOT + '/share/wine/nls/icudtl.dat';
+    if (!pathExists(data) || !fs.statSync(data).isFile() || fs.statSync(data).size === 0) {
+      throw new Error('Missing managed ICU Unicode data');
+    }
+    for (let arch = 0; arch < arches.length; arch++) {
+      const directory = PREFIX_DIR + '/drive_c/windows/' + dirs[arch];
+      if (!pathExists(directory)) fs.mkdirSync(directory, true);
+      for (const name of names) {
+        const source = WINE_BIN + '/' + arches[arch] + '/' + name;
+        const target = directory + '/' + name;
+        // Respect user-installed native Windows ICU overrides.
+        if (pathExists(target) && !this.isWineBuiltinModule(target)) continue;
+        if (this.binaryFilesMatch(source, target)) continue;
+        const temporary = target + '.winehua-update';
+        try {
+          fs.copyFileSync(source, temporary);
+          if (!this.binaryFilesMatch(source, temporary)) throw new Error('Incomplete managed ICU copy');
+          fs.renameSync(temporary, target);
+        } finally {
+          if (pathExists(temporary)) fs.unlinkSync(temporary);
+        }
+      }
+    }
+  }
+
   private async ensureRuntimeInstalled(bundledVersion: Uint8Array): Promise<boolean> {
     // Recover or reconcile a marker stashed by a previous interrupted extract
     // before deciding whether this runtime is complete.
@@ -1670,6 +1777,7 @@ export class WineEngineService {
     const fontSubstitutesCurrent = this.prefixFontSubstitutesCurrent();
     if (missingBefore.length === 0 && versionMatches) {
       this.syncManagedFexModules();
+      this.syncManagedIcuModules();
       if (prefixMatches && fontSubstitutesCurrent) return false;
       // Upgrade path for versions released before the prefix marker existed:
       // when the extracted runtime itself did not change and the prefix is
@@ -1732,6 +1840,7 @@ export class WineEngineService {
         throw new Error('Wine runtime incomplete after extract: ' + missingAfter.join(', '));
       }
       this.syncManagedFexModules();
+      this.syncManagedIcuModules();
       if (!this.writeVersionMarker(RUNTIME_VERSION_MARKER, bundledVersion)) {
         throw new Error('Unable to persist Wine runtime version marker');
       }

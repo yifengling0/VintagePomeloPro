@@ -1,3 +1,4 @@
+#include "compositor/subsurface_resource.h"
 // wl_core.cpp — Wayland 核心协议实现。
 // wl_compositor / wl_surface / wl_region / wl_subcompositor / wl_subsurface /
 // wp_viewporter / wp_viewport / wl_output 的接口表与回调, 以及 global 注册。
@@ -139,9 +140,9 @@ void WaylandServer::compositor_create_surface(wl_client* client, wl_resource* co
         // 内部按指针比较, 非焦点 surface 是 no-op
         InputManager::GetInstance()->OnSurfaceDestroyed(r);
         if (sd && sd->hasToplevel) {
-            {
-                self->toplevelMgr_.UnmapToplevelSurface(sd->toplevelId);
-            }
+            // A disconnect may destroy wl_surface before its xdg role. Finish
+            // the window here; the role's weak reference will already be null.
+            self->OnToplevelDestroyed(sd->toplevelId);
             self->PostToplevelEvent(sd->toplevelId, ToplevelEventType::Destroyed);
         }
         if (removedPopup) {
@@ -179,7 +180,9 @@ void WaylandServer::subcompositor_get_subsurface(wl_client* client, wl_resource*
     // 追踪 subsurface 父子关系:
     // 子 surface → 记录父 surface 指针, 标记 isSubsurface
     // wl_subsurface 的 user_data 存子 surface, 供 set_position 查找
-    auto* childSd = static_cast<SurfaceData*>(wl_resource_get_user_data(surface));
+    auto* self = GetInstance();
+    auto lock = self->toplevelMgr_.Lock();
+    auto* childSd = self->toplevelMgr_.FindRegisteredSurfaceDataLocked(surface);
     if (childSd) {
         childSd->parentSurface = parent;
         childSd->isSubsurface = true;
@@ -190,23 +193,29 @@ void WaylandServer::subcompositor_get_subsurface(wl_client* client, wl_resource*
                     surface, parent);
     }
 
-    // wl_subsurface resource 的 user_data = 子 surface (供 set_position 查找 SurfaceData)
     wl_resource* ss = wl_resource_create(client, &wl_subsurface_interface, 1, id);
-    wl_resource_set_implementation(ss, &kSubsurfaceImpl, surface, nullptr);
+    if (!ss) { wl_client_post_no_memory(client); return; }
+    auto* data = new SubsurfaceResource(surface);
+    wl_resource_set_implementation(ss, &kSubsurfaceImpl, data, [](wl_resource* resource) {
+        WaylandServer::subsurface_resource_destroyed(resource);
+        auto* data = static_cast<SubsurfaceResource*>(wl_resource_get_user_data(resource));
+        delete data;
+    });
 }
 
 void WaylandServer::subsurface_set_position(wl_client*, wl_resource* ssRes,
                                              int32_t x, int32_t y) {
-    auto* childSurf = static_cast<wl_resource*>(wl_resource_get_user_data(ssRes));
+    auto* childSurf = SubsurfaceChild(ssRes);
     if (!childSurf) return;
-    auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(childSurf));
-    if (!sd) return;
-    if (sd->subsurfaceX == x && sd->subsurfaceY == y) return;
-    sd->subsurfaceX = x;
-    sd->subsurfaceY = y;
     auto* self = GetInstance();
+    SurfaceData* sd = nullptr;
     {
         auto lk = self->toplevelMgr_.Lock();
+        sd = self->toplevelMgr_.FindRegisteredSurfaceDataLocked(childSurf);
+        if (!sd) return;
+        if (sd->subsurfaceX == x && sd->subsurfaceY == y) return;
+        sd->subsurfaceX = x;
+        sd->subsurfaceY = y;
         uint32_t layerParent = 0;
         DisplayPolicy::SubsurfaceRoute layerRoute = DisplayPolicy::SubsurfaceRoute::DesktopLayer;
         if (self->desktopCompositor_.UpdateSubsurfaceLayerLocalPosition(
@@ -227,7 +236,7 @@ void WaylandServer::subsurface_set_position(wl_client*, wl_resource* ssRes,
         auto lk = self->toplevelMgr_.Lock();
         int32_t parentContentX = 0, parentContentY = 0;
         if (sd->parentSurface) {
-            auto* parentSd = static_cast<SurfaceData*>(wl_resource_get_user_data(sd->parentSurface));
+            auto* parentSd = self->toplevelMgr_.FindRegisteredSurfaceDataLocked(sd->parentSurface);
             if (parentSd) {
                 parentContentX = parentSd->committed.contentRect.x;
                 parentContentY = parentSd->committed.contentRect.y;
@@ -252,7 +261,7 @@ void WaylandServer::subsurface_place_above(wl_client*, wl_resource* ssRes, wl_re
      * 桌面语义上 popup 恒在父窗口之上 (OHOS 子窗口天然满足),
      * 多 popup (子菜单链) 交叠顺序极端情况下可能与客户端预期不符。
      */
-    auto* childSurf = static_cast<wl_resource*>(wl_resource_get_user_data(ssRes));
+    auto* childSurf = SubsurfaceChild(ssRes);
     if (!childSurf || !sibling) return;
     auto* self = GetInstance();
     auto lk = self->toplevelMgr_.Lock();
@@ -265,7 +274,7 @@ void WaylandServer::subsurface_place_above(wl_client*, wl_resource* ssRes, wl_re
 }
 
 void WaylandServer::subsurface_place_below(wl_client*, wl_resource* ssRes, wl_resource* sibling) {
-    auto* childSurf = static_cast<wl_resource*>(wl_resource_get_user_data(ssRes));
+    auto* childSurf = SubsurfaceChild(ssRes);
     if (!childSurf || !sibling) return;
     auto* self = GetInstance();
     auto lk = self->toplevelMgr_.Lock();
@@ -278,36 +287,30 @@ void WaylandServer::subsurface_place_below(wl_client*, wl_resource* ssRes, wl_re
 }
 
 void WaylandServer::subsurface_destroy(wl_client*, wl_resource* r) {
-    // role 移除: surface 变回普通 surface。按 unmap 处理:
-    // 清 desktop layer / PC popup 记录, 通知 ArkTS 销毁 popup 子窗口。
-    auto* childSurf = static_cast<wl_resource*>(wl_resource_get_user_data(r));
-    if (childSurf) {
-        auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(childSurf));
-        if (sd) {
-            sd->isSubsurface = false;
-            sd->parentSurface = nullptr;
-            // CommittedSurface.role 即时同步 (重构第 5A2 步): role 移除后
-            // surface 变回普通面 (旧代码只清 isSubsurface, 语义对等)
-            sd->committed.role = RoleFor(sd->hasToplevel, sd->isSubsurface);
-            auto* self = GetInstance();
-            uint32_t removedPopup = 0, popupParent = 0;
-            {
-                auto lk = self->toplevelMgr_.Lock();
-                uint32_t removedParent = 0;
-                DisplayPolicy::SubsurfaceRoute removedRoute = DisplayPolicy::SubsurfaceRoute::DesktopLayer;
-                if (self->desktopCompositor_.RemoveSubsurfaceLayer(childSurf, removedParent, removedRoute)) {
-                    self->MarkLayerHostDirtyLocked(removedParent, removedRoute);
-                }
-                // popup 表已迁至 PopupManager (重构第 5B2 步, 锁域/清理顺序不变)
-                popupParent = self->popupMgr_.RemovePopupBySurfaceKeyLocked(sd->surfaceKey, removedPopup);
-            }
-            if (removedPopup) {
-                self->PostToplevelEvent(popupParent, ToplevelEventType::PopupHide,
-                                        ToplevelEventBus::JsonPopupHide(removedPopup));
-            }
-        }
-    }
     wl_resource_destroy(r);
+}
+
+void WaylandServer::subsurface_resource_destroyed(wl_resource* r) {
+    auto* childSurf = SubsurfaceChild(r);
+    if (!childSurf) return;
+    auto* self = GetInstance();
+    uint32_t removedPopup = 0, popupParent = 0;
+    {
+        auto lk = self->toplevelMgr_.Lock();
+        auto* sd = self->toplevelMgr_.FindRegisteredSurfaceDataLocked(childSurf);
+        if (!sd) return;
+        sd->isSubsurface = false;
+        sd->parentSurface = nullptr;
+        sd->committed.role = RoleFor(sd->hasToplevel, sd->isSubsurface);
+        uint32_t removedParent = 0;
+        DisplayPolicy::SubsurfaceRoute removedRoute = DisplayPolicy::SubsurfaceRoute::DesktopLayer;
+        if (self->desktopCompositor_.RemoveSubsurfaceLayer(childSurf, removedParent, removedRoute))
+            self->MarkLayerHostDirtyLocked(removedParent, removedRoute);
+        popupParent = self->popupMgr_.RemovePopupBySurfaceKeyLocked(sd->surfaceKey, removedPopup);
+    }
+    if (removedPopup)
+        self->PostToplevelEvent(popupParent, ToplevelEventType::PopupHide,
+                                ToplevelEventBus::JsonPopupHide(removedPopup));
 }
 
 // -- viewporter 实现 --

@@ -17,9 +17,12 @@ const profile=models.cloudProfilePayload(app.createDefaultInputProfile());
 const envelope={schemaVersion:1,profileFamily:'input/native-v6',deviceClass:'tablet',variant:profile.id,revision:1,baseRevision:0,
   payloadSha256:crypto.createHash('sha256').update(JSON.stringify(profile)).digest('hex'),payload:profile};
 let cloudCalls=0, cloudReply=null, functionSupported=true;
+let notificationsAllowed=true,notificationToken='push-test-token',permissionGranted=true,bindCalls=0,unbindCalls=0;
+const capabilityOverrides={};
+const notificationTimers=new Map();let notificationTimerId=0;
 let route=async(url,options)=>{
  const endpoint=new URL(url).pathname;
- if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,preferences:true,cloudSaves:false,renewalReminders:true,reason:''};
+ if(endpoint==='/v1/capabilities')return {account:true,commerce:true,profiles:true,preferences:true,cloudSaves:false,renewalReminders:true,reason:'',...capabilityOverrides};
  if(endpoint==='/v1/notification-devices/register')return {ready:true};
  if(endpoint==='/v1/notification-devices/revoke')return {};
  if(endpoint==='/v1/entitlement')return {active:false,expiresAt:0,serverTime:Date.now()};
@@ -67,8 +70,8 @@ const imports={
  const data=params.data;assert.equal(data.protocol,1);
  return {result:{protocol:1,status:200,body:JSON.stringify(await route('https://cloud.test'+data.path,{method:data.method,extraData:data.body}))}};
  }}},'@ohos.deviceInfo':{default:{sdkApiVersion:23}},
- '@kit.PushKit':{pushCommon:{AppProfileType:{PROFILE_TYPE_APPLICATION_ACCOUNT:1}},pushService:{getToken:async()=> 'push-test-token',bindAppProfileId:async()=>{},unbindAppProfileId:async()=>{}}},
- '@kit.NotificationKit':{notificationManager:{isNotificationEnabled:async()=>true,requestEnableNotification:async()=>{}}},
+ '@kit.PushKit':{pushCommon:{AppProfileType:{PROFILE_TYPE_APPLICATION_ACCOUNT:1}},pushService:{getToken:async()=>notificationToken,bindAppProfileId:async()=>{bindCalls++;},unbindAppProfileId:async()=>{unbindCalls++;}}},
+ '@kit.NotificationKit':{notificationManager:{isNotificationEnabled:async()=>notificationsAllowed,requestEnableNotification:async()=>{notificationsAllowed=permissionGranted;}}},
  '@kit.BasicServicesKit':{},'@kit.AccountKit':{authentication},'@kit.IAPKit':{iap},'@ohos.net.http':{default:http},'@ohos.data.preferences':{default:preferences},
  '@ohos.util':{default:{TextDecoder:{create:()=>({decodeToString:b=>Buffer.from(b).toString()})},
  TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:crypto.randomUUID}},
@@ -81,7 +84,9 @@ const imports={
 const source=fs.readFileSync(path.join(__dirname,'../entry/src/main/ets/service/valueadded/ValueAddedService.ets'),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const mod={exports:{}};
-vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n])throw Error(n);return imports[n];},canIUse:()=>functionSupported,setTimeout,ArrayBuffer,Uint8Array,TextEncoder,console});
+vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n])throw Error(n);return imports[n];},canIUse:()=>functionSupported,
+ setTimeout:(f,ms)=>{notificationTimers.set(++notificationTimerId,{f,ms});return notificationTimerId;},clearTimeout:id=>notificationTimers.delete(id),
+ ArrayBuffer,Uint8Array,TextEncoder,console});
 const service=mod.exports.ValueAddedService.getInstance();
 async function purchaseConfirmed(service, product){
  if(!product.purpose)product=(await service.products()).find(p=>p.id===product.id&&p.type===product.type);
@@ -244,21 +249,21 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  await assert.rejects(purchaseConfirmed(autoService,autoProduct),/RENEWAL_NOTIFICATION_REQUIRED/);
  assert.equal(purchaseCalls,callsBeforeReminderFailure,'disabled notifications cannot reach the cashier');
  notificationManager.isNotificationEnabled=originalEnabled;
- autoService.capabilities.renewalReminders=false;
+ capabilityOverrides.renewalReminders=false;
  await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
  assert.equal(purchaseCalls,callsBeforeReminderFailure,'unavailable reminder backend cannot reach the cashier');
- autoService.capabilities.renewalReminders=true;
+ capabilityOverrides.renewalReminders=true;
  // Exercise the service's second payment gate, in addition to the component gate.
- autoService.capabilities.renewalReminders=false;autoService.capabilities.sandboxCheckout=true;
+ capabilityOverrides.renewalReminders=false;capabilityOverrides.sandboxCheckout=true;
  await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
- autoService.capabilities.sandboxCommerce=true;sandboxActive=false;
+ capabilityOverrides.sandboxCommerce=true;sandboxActive=false;
  await assert.rejects(purchaseConfirmed(autoService,autoProduct),/SANDBOX_REQUIRED/);
  assert.equal(purchaseCalls,callsBeforeReminderFailure,'test flags cannot replace official sandbox activation');
  sandboxActive=true;createError=iap.IAPErrorCode.USER_CANCELED;
  assert.equal(await purchaseConfirmed(autoService,autoProduct),'CANCELLED');
  assert.equal(purchaseCalls,callsBeforeReminderFailure+1,'official sandbox can exercise the cashier before reminder deployment');
- createError=0;delete autoService.capabilities.sandboxCommerce;delete autoService.capabilities.sandboxCheckout;
- autoService.capabilities.renewalReminders=true;
+ createError=0;delete capabilityOverrides.sandboxCommerce;delete capabilityOverrides.sandboxCheckout;
+ capabilityOverrides.renewalReminders=true;
  await assert.rejects(autoService.purchase(autoProduct,{userId:autoService.getUserId(),quote:autoService.quoteKey(autoProduct),
   termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:false}),/MEMBERSHIP_CONSENT_REQUIRED/);
  const autoRoute=route, beforeAutoFinish=finishCalls;
@@ -304,13 +309,13 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  await offeredService.initialize({...context,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(
   {...config,membershipProductType:2,membershipPromotionalOfferId:'vip_2026_year_end'}))}});
  // Prices remain readable while logged out and commerce is gated; this never grants purchase permission.
- offeredService.capabilities.commerce=false;
+ offeredService.capabilities.commerce=false;capabilityOverrides.commerce=false;
  promotionalOffers=[{offerId:'vip_2026_year_end',paymentMode:2,periodUnit:2,periodCount:2,microPrice:2000000,localPrice:'¥2.00'}];
  const offerProduct=(await offeredService.products()).find(p=>p.type===2);
  assert.equal(offerProduct.price,'¥2.00');assert.equal(offerProduct.regularPrice,'¥5.00');
  assert.match(offerProduct.priceDescription,/前 2 个月/);assert.match(offerProduct.priceDescription,/之后 ¥5.00／月/);
  await assert.rejects(purchaseConfirmed(offeredService,offerProduct),/NOT_CONFIGURED/);
- offeredService.capabilities.commerce=true;await offeredService.signIn();
+ capabilityOverrides.commerce=true;offeredService.capabilities.commerce=true;await offeredService.signIn();
  const beforeOfferRoute=route;
  route=async(url,options)=>new URL(url).pathname==='/v1/purchases/verify'?
   {status:'GRANTED',finishAllowed:true,productId:'month',productType:2,purchaseOrderId:'offer-order',purchaseToken:'offer-token'}:
@@ -406,5 +411,93 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  await entitlementService.verifyAndFinish('opaque-provider-receipt',3,entitlementService.generation);releaseOld();
  assert.equal((await delayed).active,true);assert.equal(reads,2);route=ordinaryRoute;
  console.log('Account restart: silent verified reauthentication, expired session, explicit logout, receipt isolation, coalesced recovery and stale entitlement PASS');
+ // Capability caching is limited to discovery, while explicit refreshes remain real requests.
+ const frequencyRoute=route,frequencyCalls=[];
+ let gate=null,failRevoke=false,failRegistration=false,registrationReady=true;
+ route=async(url,options)=>{
+  const endpoint=new URL(url).pathname;frequencyCalls.push(endpoint);
+  if(gate?.path===endpoint){const current=gate;gate=null;current.enter();await current.wait;}
+  if(endpoint==='/v1/notification-devices/revoke'&&failRevoke)throw Error('OFFLINE');
+  if(endpoint==='/v1/notification-devices/register'){
+   if(failRegistration)throw Error('OFFLINE');return {ready:registrationReady};
+  }
+  return frequencyRoute(url,options);
+ };
+ const count=p=>frequencyCalls.filter(x=>x===p).length;
+ const block=path=>{let enter,release;const entered=new Promise(r=>enter=r),wait=new Promise(r=>release=r);gate={path,enter,wait};return {entered,release};};
+ const frequent=new mod.exports.ValueAddedService();await frequent.initialize({...context});
+ let capabilityCount=count('/v1/capabilities');
+ await Promise.all(Array.from({length:20},()=>frequent.refreshCapabilities()));
+ assert.equal(count('/v1/capabilities'),capabilityCount);
+ frequent.capabilitiesFetchedAt=Date.now()-300001;
+ const cacheGate=block('/v1/capabilities');const concurrent=Array.from({length:12},()=>frequent.refreshCapabilities());
+ await cacheGate.entered;cacheGate.release();await Promise.all(concurrent);
+ assert.equal(count('/v1/capabilities'),++capabilityCount);
+ await frequent.refreshCapabilities(true);assert.equal(count('/v1/capabilities'),++capabilityCount);
+ // Startup registers once. Unchanged foreground/detail checks never send another cloud request.
+ await frequent.signIn();let registrations=count('/v1/notification-devices/register'),revocations=count('/v1/notification-devices/revoke');
+ assert.equal(registrations,1);
+ const idle=frequencyCalls.length;
+ for(let i=0;i<30;i++){frequent.onForeground();await frequent.prepareRenewalReminders(false);}
+ assert.equal(frequencyCalls.length,idle,'15-minute-equivalent idle checks remain local');
+ notificationsAllowed=false;
+ await Promise.all(Array.from({length:12},()=>frequent.prepareRenewalReminders(false)));
+ assert.equal(count('/v1/notification-devices/revoke'),++revocations);
+ await frequent.prepareRenewalReminders(false);assert.equal(count('/v1/notification-devices/revoke'),revocations);
+ notificationsAllowed=true;await frequent.prepareRenewalReminders(false);
+ assert.equal(count('/v1/notification-devices/register'),++registrations);
+ notificationToken='push-updated-token';const registrationGate=block('/v1/notification-devices/register');
+ const repeated=Array.from({length:10},()=>frequent.prepareRenewalReminders(false));await registrationGate.entered;
+ notificationToken='push-updated-during-transfer';registrationGate.release();await Promise.all(repeated);
+ registrations+=2;assert.equal(count('/v1/notification-devices/register'),registrations);
+ assert.ok(frequent.notificationBinding.endsWith(':push-updated-during-transfer'),'token rotation during transfer queues one following registration');
+ // Acknowledged but not-ready registrations are also deduplicated; explicit force rechecks the server.
+ registrationReady=false;await frequent.prepareRenewalReminders(false,true);registrations++;
+ assert.equal(await frequent.prepareRenewalReminders(false),false);assert.equal(count('/v1/notification-devices/register'),registrations);
+ registrationReady=true;assert.equal(await frequent.prepareRenewalReminders(false,true),true);registrations++;
+ // A failed revoke is not acknowledged locally and can succeed at the next relevant check.
+ notificationsAllowed=false;failRevoke=true;await assert.rejects(frequent.prepareRenewalReminders(false),/OFFLINE/);revocations++;
+ frequent.onBackground();assert.equal(notificationTimers.has(frequent.notificationRetryTimer),false);
+ frequent.onForeground();await frequent.prepareRenewalReminders(false);
+ assert.equal(count('/v1/notification-devices/revoke'),revocations,'foreground preserves the pending retry deadline');
+ for(const delay of [60000,300000,900000]){
+  const timer=notificationTimers.get(frequent.notificationRetryTimer);assert.ok(timer.ms>delay-1000&&timer.ms<=delay);
+  notificationTimers.delete(frequent.notificationRetryTimer);frequent.notificationRetryAt=Date.now()-1;timer.f();
+  await assert.rejects(frequent.prepareRenewalReminders(false),/OFFLINE/);revocations++;
+ }
+ assert.equal(frequent.notificationRetryExhausted,true);assert.equal(frequent.notificationRetryTimer,-1);
+ for(let i=0;i<10;i++){frequent.onForeground();await frequent.prepareRenewalReminders(false);}
+ assert.equal(count('/v1/notification-devices/revoke'),revocations,'exhausted notification retries stay idle');
+ failRevoke=false;await frequent.prepareRenewalReminders(false,true);revocations++;
+ await frequent.prepareRenewalReminders(false);assert.equal(count('/v1/notification-devices/revoke'),revocations);
+ permissionGranted=true;await frequent.prepareRenewalReminders(true,true);registrations++;
+ assert.equal(count('/v1/notification-devices/register'),registrations);
+ frequent.config.membershipProductType=2;createError=iap.IAPErrorCode.USER_CANCELED;
+ const preflightProduct=(await frequent.products()).find(p=>p.type===2);
+ assert.equal(await purchaseConfirmed(frequent,preflightProduct),'CANCELLED');
+ assert.equal(count('/v1/notification-devices/register'),registrations,'checkout reuses its successful reminder preflight');
+ createError=0;frequent.config.membershipProductType=3;
+ // Permission restoration cancels an obsolete revoke retry, even if the old binding was never removed.
+ notificationsAllowed=false;failRevoke=true;await assert.rejects(frequent.prepareRenewalReminders(false),/OFFLINE/);
+ notificationsAllowed=true;assert.equal(await frequent.prepareRenewalReminders(false),true);
+ assert.equal(frequent.notificationRetryTimer,-1);
+ notificationsAllowed=false;failRevoke=false;await frequent.prepareRenewalReminders(false);
+ assert.ok(frequent.notificationBinding.endsWith(':disabled'));
+ notificationsAllowed=true;await frequent.prepareRenewalReminders(false);
+ // A forced refresh that failed must retry the cloud request even with an older acknowledged binding.
+ failRegistration=true;await assert.rejects(frequent.prepareRenewalReminders(false,true),/OFFLINE/);
+ const afterFailedForce=count('/v1/notification-devices/register');failRegistration=false;
+ const forcedRetry=notificationTimers.get(frequent.notificationRetryTimer);
+ notificationTimers.delete(frequent.notificationRetryTimer);frequent.notificationRetryAt=Date.now()-1;forcedRetry.f();
+ assert.equal(await frequent.prepareRenewalReminders(false),true);
+ assert.equal(count('/v1/notification-devices/register'),afterFailedForce+1);assert.equal(frequent.notificationRetryTimer,-1);
+ // Logout waits for an in-flight registration, then revokes it before the next account can register.
+ notificationToken='push-logout-race';const logoutGate=block('/v1/notification-devices/register');
+ const registering=frequent.prepareRenewalReminders(false);await logoutGate.entered;
+ const loggingOut=frequent.signOut();logoutGate.release();await Promise.all([registering,loggingOut]);
+ assert.equal(frequent.getUserId(),'');assert.equal(frequent.notificationBinding,'');
+ user='other-frequency-owner';await frequent.signIn();assert.match(frequent.notificationBinding,/^other-frequency-owner:/);
+ assert.ok(unbindCalls>0&&bindCalls>0);await frequent.signOut();user='alice';notificationToken='push-test-token';route=frequencyRoute;
+ console.log('Cloud frequency: 5-minute capability cache/concurrent refresh, idle zero requests, token/permission transitions, registration/revoke dedup, failed revoke and logout race PASS');
  console.log('Value-added services: hidden guards, auth/ack, account-switch races, profile hash, settings routes/hash/allowlist PASS');
 })().finally(()=>{clearTimeout(completionWatchdog);fs.rmSync(directory,{recursive:true,force:true});}).catch(error=>{console.error(error);process.exitCode=1;});

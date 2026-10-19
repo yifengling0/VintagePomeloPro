@@ -1,8 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { requireThat } from './errors.mjs';
 import { openReceipt } from './subscription.mjs';
+import { runtimeError } from './runtime-log.mjs';
 
 const DAY = 86400000, LEASE = 10 * 60000;
+// One daily scan, with twelve hours of tolerance for a delayed scheduler.
+export const RENEWAL_TIMER_MAX_AGE_MS = 36 * 3600000;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const installation = value => typeof value === 'string' && /^[a-f0-9-]{36}$/.test(value);
 const cycle = value => hash([value.subscriptionKey, value.nextRenewalAt].join('\n'));
@@ -50,7 +53,7 @@ export class RenewalReminders {
   async timerHealthy() {
     if (!this.ready) return false;
     const heartbeat = await this.domain.store.get('renewal-timer-checkpoint');
-    this.timerReady = !!heartbeat && heartbeat.lastRunAt >= this.domain.clock() - 3600000;
+    this.timerReady = !!heartbeat && heartbeat.lastRunAt >= this.domain.clock() - RENEWAL_TIMER_MAX_AGE_MS;
     return this.timerReady;
   }
   async record(tx, state, subscriptionKey) {
@@ -79,7 +82,7 @@ export class RenewalReminders {
         cursor = row.key;
         consumed++;
         try { if (await this.process(row.value.id)) processed++; }
-        catch { failed++; console.error('[RenewalReminders] delivery failed'); }
+        catch { failed++; runtimeError('[RenewalReminders] delivery failed'); }
         if (Date.now() - started > 45000) break;
       }
       if (consumed === page.length && page.length < 25) { cursor = ''; break; }
@@ -94,7 +97,8 @@ export class RenewalReminders {
   async process(id) {
     const { store } = this.domain;
     let job = await store.get(id), now = this.domain.clock();
-    if (!job?.enabled || job.retryAt > now || job.checkAt > now &&
+    if (!job?.enabled || job.retryAt > now || job.dueAt > now ||
+      job.sentCycle === job.cycle && job.nextRenewalAt > now || job.checkAt > now &&
       (job.sentCycle === job.cycle || job.dueAt > now)) return false;
     const lease = randomUUID();
     const acquired = await store.transaction(async tx => {
@@ -149,7 +153,7 @@ export class RenewalReminders {
           tx.put(id, { ...current, sentCycle: job.cycle, acceptedAt: this.domain.clock() }, 'renewal-jobs');
         }
       });
-      if (job.nextRenewalAt - now < 6 * DAY) console.error('[RenewalReminders] late renewal notice');
+      if (job.nextRenewalAt - now < 6 * DAY) runtimeError('[RenewalReminders] late renewal notice');
       return true;
     } catch (error) {
       await store.transaction(async tx => {

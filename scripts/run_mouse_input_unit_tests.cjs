@@ -5,7 +5,9 @@ const vm = require('node:vm');
 const ts = require(path.resolve(process.argv[2]));
 const root = path.resolve(__dirname, '../entry/src/main/ets');
 const calls = [];
+const scrollCalls = [];
 const native = { sendPointerEvent: (...args) => calls.push(args), findToplevelAt: () => 10,
+  sendScrollEvent: (...args) => scrollCalls.push(args),
   sendKeyEvent() {} };
 const models = { DisplayMode: { DESKTOP: 'desktop' } };
 const queriedDevices = [];
@@ -138,9 +140,51 @@ function mouseCallback(file) {
   return compile(method, () => { throw new Error('unexpected dependency'); }).Page;
 }
 // Callbacks refer to these names directly, as they do inside their pages.
-Object.assign(globals, { vp2px: x => x * 2, mapMouseButton: () => 272,
+Object.assign(globals, { AxisAction: { NONE: 0, BEGIN: 1, UPDATE: 2, END: 3, CANCEL: 4 }, vp2px: x => x * 2, mapMouseButton: () => 272,
   InputDeviceMapper, testNapi: native, hilog, DOMAIN: 0,
-  WineWindowManager: { getInstance: () => ({ shouldStartMoving: () => false }) } });
+  WineWindowManager: { getInstance: () => ({ shouldStartMoving: () => false, getDesktopRootId: () => 1 }) },
+  InputDispatcher: load('InputDispatcher').InputDispatcher });
+const AxisPage = compile('export class Page {\n' + method('pages/InputOverlay.ets', 'handleDirectAxis') +
+  '\n}', () => {}).Page;
+const AxisEventGate = load('InputEventGate').AxisEventGate;
+const axisPage = new AxisPage();
+axisPage.axisEventGate = new AxisEventGate();
+calls.length = 0;
+const axisEvent = { action: 2, windowX: 350, windowY: 210, x: 2, y: 3, scrollStep: 0,
+  getVerticalAxisValue: () => .25, getHorizontalAxisValue: () => -15 };
+axisPage.handleDirectAxis(axisEvent);
+assert.deepEqual(scrollCalls.splice(0), [[10, 0, .25, -1, 700, 420], [10, 1, -15, -1, 700, 420]]);
+assert.ok(calls.length === 1 && calls[0][1] === 3, 'Hardware scroll updates position without clicking');
+calls.length = 0;
+axisPage.handleDirectAxis({ ...axisEvent, getVerticalAxisValue: () => 0, getHorizontalAxisValue: () => 0 });
+assert.equal(calls.length + scrollCalls.length, 0, 'Zero axis events cannot change focus or inject input');
+for (const [file, target] of [['pages/WineWindow.ets', 20], ['pages/WinePopup.ets', 30],
+                             ['components/DesktopLayer.ets', 10]]) {
+  const source = fs.readFileSync(path.join(root, file), 'utf8');
+  const match = /^(\s*)\.onAxisEvent\(\((event|ev)\?: AxisEvent\) => \{/m.exec(source);
+  assert.ok(match, file);
+  const start = match.index + match[0].length;
+  const end = source.indexOf('\n' + match[1] + '})', start);
+  const Page = compile('export class Page { handle(' + match[2] + '?: AxisEvent) {' +
+    source.slice(start, end) + '\n} }', () => {}).Page;
+  const page = new Page();
+  Object.assign(page, { toplevelId: 20, popupId: 30, axisEventGate: new AxisEventGate(), noteHardwareActivity() {} });
+  page.handle(axisEvent);
+  assert.deepEqual(scrollCalls.splice(0), [[target, 0, .25, -1, 4, 6], [target, 1, -15, -1, 4, 6]], file);
+  assert.equal(calls.length, 0, file + ': axis cannot become mouse-button input');
+}
+for (const action of [3, 4]) {
+  calls.length = 0; axisPage.handleDirectAxis({ ...axisEvent, action });
+  assert.equal(calls.length + scrollCalls.length, 0, 'Axis END/CANCEL must not replay retained deltas');
+}
+const axisGate = new AxisEventGate();
+assert.equal(axisGate.shouldHandle(2, 100000000001, 10, 0, 1, 3), true);
+assert.equal(axisGate.shouldHandle(2, 100000000001, 10, 0, 1, 3), false, 'same system axis sample is injected once');
+assert.equal(axisGate.shouldHandle(2, 100000000002, 10, 0, 1, 3), true, 'adjacent real high-rate samples survive');
+assert.equal(axisGate.shouldHandle(2, 100000000002, -10, 0, 1, 3), true, 'reverse scrolling is preserved');
+assert.equal(axisGate.shouldHandle(3, 100000000002, -10, 0, 1, 3), false, 'terminal event never replays delta');
+assert.equal(axisGate.shouldHandle(2, 0, 10, 0, 1, 3), true, 'unknown timestamps are not guessed');
+console.log('Physical axis callbacks: continuous delta, current pointer, zero event, no click across all presentations PASS');
 for (const [file, target] of [['pages/WineWindow.ets', 20],
                              ['pages/WinePopup.ets', 30],
                              ['components/DesktopLayer.ets', 10]]) {

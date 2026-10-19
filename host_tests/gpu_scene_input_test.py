@@ -14,6 +14,9 @@ p.add_argument('--resize-baseline-ref',default='f47090663537b1e70ad1ebe2f76bd2c3
 p.add_argument('--viewport-baseline',action='store_true',help='Reproduce padded SHM menu compression with prior compositor')
 p.add_argument('--input-region-baseline',action='store_true',help='Reproduce Direct GPU child intercepting pointer input')
 p.add_argument('--warp-baseline',action='store_true',help='Reproduce an inactive fullscreen window warping the foreground pointer')
+p.add_argument('--surface-lifetime-baseline',action='store_true')
+p.add_argument('--asan',action='store_true')
+p.add_argument('--external-window-host',action='store_true')
 args=p.parse_args()
 assert not (args.baseline and args.focus_baseline)
 with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
@@ -81,13 +84,25 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
             manager.write_text(text)
         sources[sources.index(str(cpp/unit))]=str(manager)
         command+=['-I',str(cpp/'input')]
-    command += [str(ROOT/'host_tests/gpu_scene_input_test.cpp')]+sources
+    if args.surface_lifetime_baseline:
+        unit='compositor/frame/zc_bridge.cpp'
+        baseline=temp/'baseline-surface-lifetime.cpp'
+        baseline.write_bytes(subprocess.check_output(['git','show','HEAD:entry/src/main/cpp/'+unit],cwd=ROOT))
+        sources[sources.index(str(cpp/unit))]=str(baseline)
+    if args.asan:command+=['-fsanitize=address,undefined','-fno-sanitize=vptr','-fno-omit-frame-pointer','-g']
+    main = 'linux_steam_window_host_test.cpp' if args.external_window_host else 'gpu_scene_input_test.cpp'
+    command += [str(ROOT/'host_tests'/main)]+sources
     command += ['-Wl,--gc-sections','-o',str(temp/'test')]
     subprocess.run(command,check=True)
-    modes=[16] if args.warp_baseline else ([14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 17)))))
+    modes=[16] if args.warp_baseline else ([14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 20)))))
+    if args.surface_lifetime_baseline:modes=[17]
+    if args.external_window_host:modes=[0]
     for mode in modes:
         result=subprocess.run([str(temp/'test'),str(mode)],capture_output=True,text=True,timeout=20)
-        if args.warp_baseline:
+        if args.surface_lifetime_baseline:
+            assert result.returncode==-11,result.stdout+result.stderr
+            print('BASELINE RED: production GetLayerInfo dereferences retired parent resource')
+        elif args.warp_baseline:
             assert result.returncode!=0 and 'inactive fullscreen window must not warp' in result.stderr,result.stdout+result.stderr
             print('BASELINE RED: inactive fullscreen window can warp the foreground pointer')
         elif args.input_region_baseline:

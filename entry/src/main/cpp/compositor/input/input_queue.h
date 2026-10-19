@@ -43,7 +43,8 @@ public:
     struct Event {
         enum Type { PTR_ENTER, PTR_LEAVE, PTR_MOTION, PTR_BUTTON, PTR_AXIS,
                     REL_MOTION,
-                    KBD_ENTER, KBD_LEAVE, KBD_KEY, KBD_MODIFIERS } type;
+                    KBD_ENTER, KBD_LEAVE, KBD_KEY, KBD_MODIFIERS, ACTIVATE_TOPLEVEL,
+                    EXTERNAL_MOVE } type;
         uint32_t tl = 0;
         wl_resource* surface = nullptr;
         int32_t x = 0, y = 0;
@@ -54,6 +55,10 @@ public:
         int32_t axis_value = 0;
         // modifiers fields
         uint32_t mod_depressed = 0, mod_latched = 0, mod_locked = 0, mod_group = 0;
+        // Snapshot both spaces at enqueue time. A grab can start/end before
+        // dispatch; local coordinates must never be interpreted as desktop.
+        int32_t global_x = 0, global_y = 0;
+        bool has_global = false, local_valid = true;
     };
 
     // 生命周期 (WaylandServer 启动/停止时由 InputManager 委托调用) —
@@ -65,12 +70,14 @@ public:
     // -- NAPI/JS 线程入队 (锁内 push, 锁外 pipe 唤醒; 与旧 Enqueue 逐字) --
     void Enqueue(Event::Type type, uint32_t tl, wl_resource* surface,
                  int32_t x, int32_t y, uint32_t btn_or_key, uint32_t state);
+    void EnqueueMotion(uint32_t tl, wl_resource* surface, int32_t x, int32_t y,
+                       int32_t globalX, int32_t globalY, bool localValid = true);
     // 修饰键快照入队 (编排层从 InputStateTracker 取当前值 — 事件携带快照,
     // 消费侧不读实时状态, 与旧 EnqueueModifiers 同序)
     void EnqueueModifiers(uint32_t depressed, uint32_t latched, uint32_t locked, uint32_t group);
     // axis 入队 (原 SendScrollEvent 尾部手写 push — tl 是诊断字段, 消费侧
     // InjectPointerAxis 不读 tl, 按当前 pointer focus 的 client 投递)
-    void EnqueueAxis(int axis, int32_t axis_value, uint32_t tl);
+    void EnqueueAxis(int axis, int32_t axis_value, uint32_t tl, bool continuous = false);
 
     // -- Wayland 线程 --
     // 取批 + 去重 (原 FlushQueue 前半; 批换出后队列可立即接纳新事件)

@@ -184,6 +184,7 @@ FramePlanOutcome FramePlanner::GateDesktopDirtyLocked(uint32_t id, FramePlan& pl
     }
     if (!hasChildren && comp_.subsurfaceLayers_.empty()) {
         out = rst->Pixels();
+        comp_.desktopOutputInitialized_ = false; // fast output is not the composition cache
         // 帧交付契约 (kFastPath): 无子窗口快进 = root 帧直通, 语义同合成帧
         frame.kind = PresentedFrame::Kind::Composed;
         frame.baseSpace = PresentedFrame::BaseSpace::Desktop;
@@ -211,8 +212,7 @@ void FramePlanner::PlanFullscreenLocked(FramePlan& plan) {
         plan.fullscreenX = fsWin->X();
         plan.fullscreenY = fsWin->Y();
         plan.hasFullscreen = comp_.ComputeFullscreenFitLocked(plan.fullscreenId, plan.rootW,
-                                                              plan.rootH, plan.transform);
-        plan.isZcGame = comp_.HasZeroCopyLayerForToplevelLocked(plan.fullscreenId);
+                                                              plan.rootH, plan.transform, &plan.isZcGame);
     }
 }
 
@@ -294,7 +294,8 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
             return false;
         }
     }
-    if (plan.hasFullscreen && !plan.isZcGame && rst->ShmFormat() != 0 &&
+    if (plan.hasFullscreen && !comp_.HasZeroCopyLayerForToplevelLocked(plan.fullscreenId) &&
+        rst->ShmFormat() != 0 &&
         plan.transform.srcW > 0 && plan.transform.srcH > 0) {
         const ToplevelManager::ToplevelState* fsTop =
             tmgr_.FindToplevelLocked(plan.fullscreenId);
@@ -354,8 +355,10 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                             // 强制不透明: alpha=255 区域与 CPU 混合分支逐
                             // 像素一致, alpha=0 区域 CPU 保留黑底 (RGB 残留
                             // 值通常亦黑) — 视觉等价。
-                            if ((sl.vpDstW <= 0 || sl.vpDstW >= sl.w) &&
-                                (sl.vpDstH <= 0 || sl.vpDstH >= sl.h))
+                            if ((sl.shmFormat != 0 || sl.opaque) &&
+                                layer.x == plan.fullscreenX && layer.y == plan.fullscreenY &&
+                                (sl.vpDstW <= 0 || sl.vpDstW == sl.w) &&
+                                (sl.vpDstH <= 0 || sl.vpDstH == sl.h))
                                 contentSub = &sl;
                         }
                         continue;
@@ -383,7 +386,9 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                     // 与 CPU 合成输出逐像素一致 (黑边 glClear 同效
                     // fillBlackRect); 半透明全屏内容 (预期无, 游戏用
                     // XRGB/全不透明) 会丢失混合 — 容忍并看验收。
-                    } else if (fsTop->Width() == plan.transform.srcW &&
+                    } else if (!contentSub && fsTop->ShmFormat() != 0 &&
+                               !plan.fullscreenContentCovered &&
+                               fsTop->Width() == plan.transform.srcW &&
                                fsTop->Height() == plan.transform.srcH &&
                                fsTop->Pixels().size() ==
                                    static_cast<size_t>(fsTop->Width()) * fsTop->Height() * 4) {
@@ -395,6 +400,7 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                 if (directPixels) {
                     // assign 而非 swap: 源缓冲属 wl 线程的层状态, 必须拷出
                     out.assign(directPixels->begin(), directPixels->end());
+                    comp_.desktopOutputInitialized_ = false;
                     // 帧交付契约 (kDirectPass): 直传帧 buffer 是游戏内容尺寸
                     // (如 800x600), 但帧作为整屏桌面输出交付 — 输入逆映射锚
                     // 仍是桌面逻辑尺寸 (contentW/H = root), 与 buffer 尺寸
@@ -441,6 +447,16 @@ uint64_t FramePlanner::ComputeCompositionSignatureLocked(uint32_t id,
     mixSignature(id);
     mixSignature(static_cast<uint32_t>(plan.rootW));
     mixSignature(static_cast<uint32_t>(plan.rootH));
+    mixSignature(plan.fullscreenId);
+    mixSignature(plan.hasFullscreen);
+    mixSignature(plan.isZcGame);
+    mixSignature(plan.fullscreenContentCovered);
+    mixSignature(static_cast<uint32_t>(plan.transform.srcW));
+    mixSignature(static_cast<uint32_t>(plan.transform.srcH));
+    mixSignature(static_cast<uint32_t>(plan.transform.offX));
+    mixSignature(static_cast<uint32_t>(plan.transform.offY));
+    mixSignature(static_cast<uint32_t>(plan.transform.dstW));
+    mixSignature(static_cast<uint32_t>(plan.transform.dstH));
     // 签名遍历 Layer 列表: 每个可见 toplevel/subsurface 的几何与标记
     // (与旧两个循环 mix 序列等价; 不可见 toplevel 的 (id,0) 不再混入,
     // 仅影响 rebuildBase 触发时机, 不影响输出像素 — 不可见窗口不参与
@@ -448,6 +464,7 @@ uint64_t FramePlanner::ComputeCompositionSignatureLocked(uint32_t id,
     for (const auto& layer : plan.layers) {
         if (layer.type == CompositorLayer::Type::Toplevel) {
             mixSignature(layer.toplevelId);
+            mixSignature(layer.externalHostId);
             mixSignature(layer.visible ? 1 : 0);
             if (!layer.visible) continue;
             mixSignature(static_cast<uint32_t>(layer.x));
@@ -561,7 +578,7 @@ bool FramePlanner::ComputeDamageRectLocked(ToplevelManager::ToplevelState* rst,
                                     cst->Width(), cst->Height(),
                                     ux, uy, uw, uh);
                 } else {
-                    ux = cst->X(); uy = cst->Y(); uw = cst->Width(); uh = cst->Height();
+                    ux = layer.x; uy = layer.y; uw = layer.w; uh = layer.h;
                 }
             }
             if (uw <= 0 || uh <= 0) continue;
@@ -618,10 +635,19 @@ void FramePlanner::SnapshotBlitSourcesLocked(ToplevelManager::ToplevelState* rst
         // 局部合成: 与 R 不相交的层不会画到 R 内 (blit 有 R 裁剪早退),
         // 其像素本帧保持上帧内容 — 跳过快照拷贝。相交但未变化的层仍
         // 快照+重画 (半透明层以本次重建的底混合, 见 R 注释)。
-        if (!plan.dmg.full && (plan.dmg.x >= layer.x + layer.w ||
-                          plan.dmg.y >= layer.y + layer.h ||
-                          plan.dmg.x + plan.dmg.w <= layer.x ||
-                          plan.dmg.y + plan.dmg.h <= layer.y)) {
+        int x = layer.x, y = layer.y, w = layer.w, h = layer.h;
+        if (plan.hasFullscreen && layer.toplevelId == plan.fullscreenId) {
+            if (layer.type == CompositorLayer::Type::Subsurface) {
+                w = DisplaySizeAfterViewportClamped(layer.sub->vpDstW, w);
+                h = DisplaySizeAfterViewportClamped(layer.sub->vpDstH, h);
+            }
+            FitMapLayerRect(plan.transform, x - plan.fullscreenX, y - plan.fullscreenY,
+                            w, h, x, y, w, h);
+        }
+        if (!plan.dmg.full && (plan.dmg.x >= x + w ||
+                          plan.dmg.y >= y + h ||
+                          plan.dmg.x + plan.dmg.w <= x ||
+                          plan.dmg.y + plan.dmg.h <= y)) {
             bs.skip = true;
             continue;
         }
@@ -629,7 +655,7 @@ void FramePlanner::SnapshotBlitSourcesLocked(ToplevelManager::ToplevelState* rst
             auto* cst = tmgr_.FindToplevelLocked(layer.toplevelId);
             if (!cst) { bs.skip = true; continue; }
             bs.w = cst->Width(); bs.h = cst->Height();
-            bs.x = cst->X(); bs.y = cst->Y();
+            bs.x = layer.x; bs.y = layer.y;
             bs.shmFormat = cst->ShmFormat();
             comp_.lastTopSerial_[layer.toplevelId] = cst->FrameSerial();  // 局部合成基准
             // ZC 游戏整幅填黑不读像素, 省下全屏拷贝 (pixels 留空)
@@ -722,6 +748,14 @@ void FrameBlitter::Composite(uint32_t id,
 void FrameBlitter::BlitToplevel(const FramePlan& plan, const CompositorLayer& layer,
                                 const BlitSource& bs, std::vector<uint8_t>& composited) {
     if (bs.skip) return;
+    if (layer.externalHostId) {
+        BlitScaled(composited.data(), plan.rootW, plan.rootH,
+                   bs.pixels->data(), bs.w, bs.w, bs.h,
+                   layer.x, layer.y, layer.w, layer.h, bs.shmFormat == 0,
+                   plan.dmg.full ? 0 : plan.dmg.x, plan.dmg.full ? 0 : plan.dmg.y,
+                   plan.dmg.full ? 0 : plan.dmg.w, plan.dmg.full ? 0 : plan.dmg.h);
+        return;
+    }
     if (layer.toplevelId == plan.fullscreenId && plan.hasFullscreen && plan.isZcGame) {
         // ZC 游戏: 整幅填黑, 跳过 SHM BlitScaled — 其 SHM 内容是
         // explorer 桌面而非游戏画面, 实际画面由 GL ZC 层渲染
@@ -834,10 +868,8 @@ void FrameBlitter::BlitSubsurface(const FramePlan& plan, const CompositorLayer& 
     int renderDstX = dstX, renderDstY = dstY;
     if (bs.vpDstW > 0 && bs.vpDstW < copyW) renderW = bs.vpDstW;
     if (bs.vpDstH > 0 && bs.vpDstH < copyH) renderH = bs.vpDstH;
-    if (bs.dmgW > 0 && bs.dmgH > 0 &&
-        !ClipBlitSourceToRect(renderSrcX, renderSrcY, renderDstX, renderDstY,
-                              renderW, renderH, bs.dmgX, bs.dmgY, bs.dmgW, bs.dmgH))
-        return;
+    // Damage chooses the destination rebuild region, not which retained source
+    // pixels exist. Replay every source pixel intersecting this frame's region.
     // 局部合成: 再裁剪到本帧重绘矩形 (R 外复用上帧内容, 不重画)
     if (!plan.dmg.full &&
         !IntersectBlitWithDamage(renderSrcX, renderSrcY, renderDstX, renderDstY,

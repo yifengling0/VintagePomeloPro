@@ -1,0 +1,81 @@
+{
+  "version": "1792110651",
+  "packages": {
+    "bins_linuxarm64_linuxarm64": {
+      "file": "bins_linuxarm64_linuxarm64.zip.d805dedcf43ac21154c6b24587a1d3ac39035008",
+      "size": 110506888,
+      "sha2": "53a241f5d9571534037ded43a3381ee84ad73ff659df693437043f6a0b748b87",
+      "zipvz": "bins_linuxarm64_linuxarm64.zip.vz.c72e45952372c4445e4d6a2d2e2a7b27dc70f1d4_61606712",
+      "sha2vz": "3e639a0d88142f9659c1f57a0b850809a7b264d9025d446dac0c4ea4893070d0",
+      "url": "https://client-update.steamstatic.com/bins_linuxarm64_linuxarm64.zip.d805dedcf43ac21154c6b24587a1d3ac39035008"
+    },
+    "webkit_linuxarm64_linuxarm64": {
+      "file": "webkit_linuxarm64_linuxarm64.zip.c1d5fa58a564375f71b34bccaa51c19be1143137",
+      "size": 111396433,
+      "sha2": "b8687e0f20668d24055d8f2e9f6c4fbcbe84fbb99a7bc9de4595530be7029990",
+      "zipvz": "webkit_linuxarm64_linuxarm64.zip.vz.d3aee15478f583089bf4c35c58ca2c01153607fa_73817231",
+      "sha2vz": "de8dad5a5b7c6db482e54c42bc254bc447a8db62fad7a48ccb3a6a1fbd504c0f",
+      "url": "https://client-update.steamstatic.com/webkit_linuxarm64_linuxarm64.zip.c1d5fa58a564375f71b34bccaa51c19be1143137"
+    },
+    "sdl3_linuxarm64_linuxarm64": {
+      "file": "sdl3_linuxarm64_linuxarm64.zip.4b790cfa0128e45677846f63879dea79aeccbd72",
+      "size": 9314329,
+      "sha2": "5352fa56db36a3eb154c36e6ff9c6078db52b785995679bb3783e8bad7f19af6",
+      "zipvz": "sdl3_linuxarm64_linuxarm64.zip.vz.27a91607a054004ca128a36eb2c8ad0bd90c656a_6633583",
+      "sha2vz": "eb7174271997287edb3cc1d1353ef52641fccd55eda25c67c9371d33307f5047",
+      "url": "https://client-update.steamstatic.com/sdl3_linuxarm64_linuxarm64.zip.4b790cfa0128e45677846f63879dea79aeccbd72"
+    },
+    "resource_linuxarm64_linuxarm64": {
+      "file": "resource_linuxarm64_linuxarm64.zip.6e5691ac5a1a55a554250468a98c3f8e454fea4a",
+      "size": 2371,
+      "sha2": "f78280db38d95a74096a00f7d2bc3061286db135e9e61bbf963eb65de39d66fc",
+      "url": "https://client-update.steamstatic.com/resource_linuxarm64_linuxarm64.zip.6e5691ac5a1a55a554250468a98c3f8e454fea4a"
+    },
+    "steamui_websrc_all": {
+      "file": "steamui_websrc_all.zip.3594ec836f0fc2953934efc566cc689795a72037",
+      "size": 36067050,
+      "sha2": "24641b848ca8232b37b334b2c34b08ade0962ba5ca88632286ba9ec3b167b0da",
+      "zipvz": "steamui_websrc_all.zip.vz.f9708a23a705e403c22c3a11c1f3539d5ac533a7_29033835",
+      "sha2vz": "c0c72e65310e3328169356f2e68f647a520769c9117729dae72c52be0026ae98",
+      "url": "https://client-update.steamstatic.com/steamui_websrc_all.zip.3594ec836f0fc2953934efc566cc689795a72037"
+    },
+    "resources_all": {
+      "file": "resources_all.zip.641e9eb30f1b8d771a28818779c8cbcc79e4f04b",
+      "size": 4302726,
+      "sha2": "711185e036f0b82efb2aa83341cfea3b2dfed511c532ae75b061b5e6d0a3d9c7",
+      "zipvz": "resources_all.zip.vz.316079df9cbbdb1d880867b707d11b71e72a4c34_3499070",
+      "sha2vz": "85a124e496bd55851296971deafab75fcf7cde63c9ed6a5531f5c4e8990bf9c3",
+      "url": "https://client-update.steamstatic.com/resources_all.zip.641e9eb30f1b8d771a28818779c8cbcc79e4f04b"
+    },
+    "resources_misc_all": {
+      "file": "resources_misc_all.zip.99ed79ed868d732d8e9e9a45444b8f003191e3dd",
+      "size": 4317962,
+      "sha2": "187e562403c7544af7162e08baf7677d030ad6f60947c2cdc7dcbcbf0a7a7fe6",
+      "zipvz": "resources_misc_all.zip.vz.e86a975545f3ab21a77373870cb311ef93934b8c_2224876",
+      "sha2vz": "5e9ca0aac16b4d5caa2ac77ab2ce239e8dbcabe5ba6f0565112239ebb127ab2b",
+      "url": "https://client-update.steamstatic.com/resources_misc_all.zip.99ed79ed868d732d8e9e9a45444b8f003191e3dd"
+    },
+    "public_all": {
+      "file": "public_all.zip.23986fbf050cd10589db123d1d192c0ec9121f67",
+      "size": 31197793,
+      "sha2": "320f9bcc68b0f6936f5d8411b5517352ffc54ea6431c42271afc27ae59792646",
+      "zipvz": "public_all.zip.vz.865ad4f48ac97af21fb6407bec255ad401ebc927_24177827",
+      "sha2vz": "87f042c71994041540662c04dc0758a2562a3638bf9deaaf7c4bbb739def5086",
+      "url": "https://client-update.steamstatic.com/public_all.zip.23986fbf050cd10589db123d1d192c0ec9121f67"
+    },
+    "strings_en_all": {
+      "file": "strings_en_all.zip.feda688b91f12c45b6e576c6ca63705793617543",
+      "size": 114068,
+      "sha2": "920283d1b37cd256b9f9bb48a81dea72da0cf7cca86cfefcb2313d9433713146",
+      "url": "https://client-update.steamstatic.com/strings_en_all.zip.feda688b91f12c45b6e576c6ca63705793617543"
+    },
+    "codecs_linuxarm64_linuxarm64": {
+      "file": "codecs_linuxarm64_linuxarm64.zip.53f9d355fbc58c16644f3c61ab1aeeb979059230",
+      "size": 11186876,
+      "sha2": "30fa6e5ad583de624772a415f063ff9328c330864a83420bafd20dba8652756a",
+      "zipvz": "codecs_linuxarm64_linuxarm64.zip.vz.f7983bf8af97ef6f634bba9b1af61620ec1a41aa_6098356",
+      "sha2vz": "93b7e20c20a41b252e91b4d1f0bd08682244bb89d3c34141da86bd9335f6aa7a",
+      "url": "https://client-update.steamstatic.com/codecs_linuxarm64_linuxarm64.zip.53f9d355fbc58c16644f3c61ab1aeeb979059230"
+    }
+  }
+}

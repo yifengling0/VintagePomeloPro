@@ -8,6 +8,7 @@ import { HuaweiPushSender } from '../src/huawei-push.mjs';
 import { createCloudFunction } from '../src/cloud-function.mjs';
 import { MemoryStore } from './memory-store.mjs';
 import { createPushReceiptCallback } from '../src/push-receipts.mjs';
+import { RENEWAL_TIMER_MAX_AGE_MS } from '../src/renewal-reminders.mjs';
 const DAY = 86400000, user = 'a'.repeat(64), installationId = '00000000-0000-4000-a000-000000000001';
 async function fixture() {
   let now = 1800000000000, sends = [], queries = 0, fail = false, providerFail = false;
@@ -55,6 +56,23 @@ test('cancel/refund/revocation discovered immediately before dispatch suppresses
     const [job] = await f.store.list('renewal-jobs'); assert.equal(job.enabled, false);
   }
 });
+test('daily scans skip future plans, notify at least five days before early charging, and deduplicate later scans', async () => {
+  const f = await fixture();
+  f.fact.nextRenewalAt = f.d.clock() + 9 * DAY;
+  f.fact.expiresAt = f.fact.nextRenewalAt;
+  await f.d.verify(user, { purchaseData: 'protected receipt', productType: 2 });
+  const before = f.queries();
+  await f.d.reminders.run(); f.advance(DAY); await f.d.reminders.run();
+  assert.equal(f.queries(), before, 'future plans do not call the payment provider');
+  assert.equal(f.sends.length, 0);
+  f.advance(2 * DAY - 1); await f.d.reminders.run();
+  assert.equal(f.sends.length, 1);
+  assert.ok(f.sends[0].renewalAt - DAY - f.d.clock() >= 5 * DAY);
+  const after = f.queries();
+  f.advance(DAY); await f.d.reminders.run();
+  assert.equal(f.sends.length, 1);
+  assert.equal(f.queries(), after, 'accepted cycles wait until renewal to discover the next cycle');
+});
 test('push/provider failures retry without asserting delivery; missing official plan is never fabricated', async () => {
   const f = await fixture(); f.fail(true);
   const result = await f.d.reminders.run(); assert.equal(result.failed, 1);
@@ -93,7 +111,9 @@ test('new automatic purchases require a fresh timer heartbeat and registered dev
   f.fact.autoRenew = false; f.fact.status = 'expired'; f.fact.expiresAt -= 8 * DAY;
   await f.d.verify(user, { purchaseData: 'protected receipt', productType: 2 });
   await f.d.intent(user, { productId: 'auto', productType: 2 });
-  f.advance(3600001);
+  f.advance(DAY);
+  await f.d.intent(user, { productId: 'auto', productType: 2 });
+  f.advance(RENEWAL_TIMER_MAX_AGE_MS - DAY + 1);
   await assert.rejects(f.d.intent(user, { productId: 'auto', productType: 2 }), /REMINDERS_UNAVAILABLE/);
 });
 test('explicit sandbox checkout remains separate from reminder readiness and never applies to NORMAL', async () => {
@@ -132,7 +152,14 @@ test('NEXT v3 PS256 JWT and subscription content are valid; HTTP success alone i
   assert.equal(message.category, 'ACCOUNT'); assert.equal(message.profileId, user);
   assert.match(message.body, /5.00/); assert.match(message.body, /延长一个月/);
   assert.equal(message.clickAction.data.deliveryId, body.deliveryId);
+  await sender.sendTest('device', body);
+  const diagnostic = JSON.parse(sent.request.body);
+  assert.equal(diagnostic.pushOptions.testMessage, true);
+  assert.equal(diagnostic.pushOptions.ttl, 300);
+  assert.match(diagnostic.payload.notification.body, /测试通知.*不会扣款/);
+  assert.equal(diagnostic.payload.notification.clickAction.data.deliveryId, body.deliveryId);
   code = '80300001'; await assert.rejects(sender.send('device', body), /PUSH_UNAVAILABLE/);
+  await assert.rejects(sender.sendTest('device', body), /PUSH_UNAVAILABLE/);
 });
 
 function receiptFixture(f) {

@@ -7,6 +7,15 @@ public:
     using InputTarget = ::InputTarget;
     static WaylandServer* GetInstance() { static WaylandServer server; return &server; }
     void RaiseToplevel(uint32_t, bool) {}
-    bool ProcessMoveGrabMotion(int32_t, int32_t) { return false; }
-    void EndMoveGrab() {}
+    void SetToplevelRestored(uint32_t) {}
+    int32_t moveX=0,moveY=0;
+    bool ProcessMoveGrabMotion(int32_t x, int32_t y) {
+        if (!movedHost) return false;
+        moveX=x;moveY=y;return true;
+    }
+    void EndMoveGrab() { movedHost=0; }
+    uint32_t movedHost = 0;
+    void StartMoveGrabAt(uint32_t host, uint32_t, int32_t x,int32_t y) {
+        movedHost=host;moveX=x;moveY=y;
+    }
 };

@@ -1,0 +1,60 @@
+--- a/elf/dl-map-segments.h
++++ b/elf/dl-map-segments.h
+@@ -25,40 +25,36 @@
+ _dl_map_segment (const struct loadcmd *c, ElfW(Addr) mappref,
+ 		 const size_t maplength, int fd)
+ {
+-  if (__glibc_likely (c->mapalign <= GLRO(dl_pagesize)))
+-    return (ElfW(Addr)) __mmap ((void *) mappref, maplength, c->prot,
+-				MAP_COPY|MAP_FILE, fd, c->mapoff);
+-
+-  /* If the segment alignment > the page size, allocate enough space to
+-     ensure that the segment can be properly aligned.  */
+-  ElfW(Addr) maplen = (maplength >= c->mapalign
+-		       ? (maplength + c->mapalign)
+-		       : (2 * c->mapalign));
++  /* Reserve the complete virtual range without asking for executable file
++     pages beyond EOF. OHOS code signing rejects such over-wide RX mappings.
++     Each PT_LOAD is mapped from its actual file range; later segments are
++     installed by _dl_map_segments as usual. Keep address alignment and holes. */
++  const ElfW(Addr) alignment = c->mapalign > GLRO(dl_pagesize)
++                              ? c->mapalign : GLRO(dl_pagesize);
++  const ElfW(Addr) maplen = ALIGN_UP (maplength, GLRO(dl_pagesize)) + alignment;
+   ElfW(Addr) map_start = (ElfW(Addr)) __mmap ((void *) mappref, maplen,
+-					      PROT_NONE,
+-					      MAP_ANONYMOUS|MAP_COPY,
+-					      -1, 0);
++                                            PROT_NONE,
++                                            MAP_ANONYMOUS|MAP_COPY, -1, 0);
+   if (__glibc_unlikely ((void *) map_start == MAP_FAILED))
+     return map_start;
+ 
+-  ElfW(Addr) map_start_aligned = ALIGN_UP (map_start, c->mapalign);
++  ElfW(Addr) map_start_aligned = ALIGN_UP (map_start, alignment);
+   map_start_aligned = (ElfW(Addr)) __mmap ((void *) map_start_aligned,
+-					   maplength, c->prot,
+-					   MAP_COPY|MAP_FILE|MAP_FIXED,
+-					   fd, c->mapoff);
++                                         c->mapend - c->mapstart, c->prot,
++                                         MAP_COPY|MAP_FILE|MAP_FIXED,
++                                         fd, c->mapoff);
+   if (__glibc_unlikely ((void *) map_start_aligned == MAP_FAILED))
+     __munmap ((void *) map_start, maplen);
+   else
+     {
+-      /* Unmap the unused regions.  */
+       ElfW(Addr) delta = map_start_aligned - map_start;
+       if (delta)
+-	__munmap ((void *) map_start, delta);
+-      ElfW(Addr) map_end = map_start_aligned + maplength;
+-      map_end = ALIGN_UP (map_end, GLRO(dl_pagesize));
++        __munmap ((void *) map_start, delta);
++      ElfW(Addr) map_end = ALIGN_UP (map_start_aligned + maplength,
++                                    GLRO(dl_pagesize));
+       delta = map_start + maplen - map_end;
+       if (delta)
+-	__munmap ((void *) map_end, delta);
++        __munmap ((void *) map_end, delta);
+     }
+ 
+   return map_start_aligned;

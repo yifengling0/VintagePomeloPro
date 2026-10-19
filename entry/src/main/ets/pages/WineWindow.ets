@@ -1,3 +1,4 @@
+import { AxisEventGate } from '../service/InputEventGate';
 import { hilog } from '../service/LogService';
 import testNapi from 'libentry.so';
 import { EVDEV_KEY_ENTER, OH2EVDEV } from '../common/KeyMap';
@@ -5,6 +6,7 @@ import { mapMouseButton } from '../common/MouseMap';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { InputDeviceMapper } from '../service/InputDeviceMapper';
 import { FpsHud } from '../components/FpsHud';
+import { HostWindowTasks } from '../service/HostWindowTasks';
 
 const DOMAIN = 0x0000;
 
@@ -54,6 +56,8 @@ class WineXComponentController extends XComponentController {
 @Entry
 @Component
 struct WineWindow {
+  private axisTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   controller: WineXComponentController = new WineXComponentController();
   @State toplevelId: number = 0;
   @State surfacePxW: number = 1;
@@ -117,6 +121,7 @@ struct WineWindow {
         .focusable(false)
         // -- 触摸事件 (参考 DesktopWindow 桌面模式手势状态机, 单窗口无目标查找) --
         .onTouch((ev: TouchEvent) => {
+          if (ev.type === TouchType.Down) HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
           try {
             if (this.toplevelId <= 0) return;
 
@@ -320,12 +325,16 @@ struct WineWindow {
         // 轴事件不冒泡 (AxisEvent.propagation 需显式激活), 挂外层 Stack 收不到,
         // 必须挂在命中链顶端的 XComponent 上
         .onAxisEvent((event?: AxisEvent) => {
+          if (event && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] WineWindow action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+          if (!event || !this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+            event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
           if (this.toplevelId <= 0 || !event) return;
           const px = vp2px(event.x);
           const py = vp2px(event.y);
           const vert = event.getVerticalAxisValue();
           const horiz = event.getHorizontalAxisValue();
-          const step = event.scrollStep ?? 0;
+          const step = -1; // Hardware AxisEvent values are continuous vp.
           if (vert !== 0) {
             hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] SCROLL tl=%{public}d vert=%{public}d step=%{public}d px=(%{public}d,%{public}d)',
               this.toplevelId, Math.round(vert), step, Math.round(px), Math.round(py));
@@ -349,6 +358,7 @@ struct WineWindow {
 
     // -- 鼠标事件 --
     .onMouse((event: MouseEvent) => {
+      if (event.action === MouseAction.Press) HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
       if (this.toplevelId <= 0) return;
       // Wine 发起 xdg_toplevel.move → 下一个 MOVE 时调用 OHOS 原生 startMoving()
       // 必须优先于手势守卫: 守卫本意是拦"手指触摸的合成 mouse Move",
@@ -411,6 +421,7 @@ struct WineWindow {
 
     // -- 键盘事件 --
     .onKeyEvent((event: KeyEvent) => {
+      HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
       hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] onKeyEvent keyCode=%{public}d type=%{public}d tl=%{public}d',
         event.keyCode, event.type, this.toplevelId);
       if (this.toplevelId <= 0) return;

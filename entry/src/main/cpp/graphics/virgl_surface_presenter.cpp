@@ -4,6 +4,7 @@
 #include "present_target.h"
 #include "presenter_common.h"
 #include "shader_utils.h"
+#include "present_pacing.h"
 
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
@@ -90,6 +91,7 @@ public:
         timestampFailures_ = 0;
         throttled_ = 0;
         lastPresentNs_ = 0;
+        failureBackoff_.Reset();
         displayPeriodNs_ = NormalizeVirglFramePeriodNs(framePeriodNs);
         framePeriodNs_ = VirglQueuePacingPeriodNs(displayPeriodNs_);
         OH_LOG_INFO(LOG_APP,
@@ -146,6 +148,16 @@ public:
         if (!windowLease_) return kPresentNoTarget;
         if (!sourceVisible) return kPresentSourceInvisible;
         const uint64_t nowNs = NowNs();
+        if (const auto retry = failureBackoff_.PendingDeadline(nowNs)) {
+            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
+            ++throttled_;
+            return kPresentThrottled;
+        }
+        auto failed = [&](int result) {
+            const uint64_t retry = failureBackoff_.Fail(NowNs(), framePeriodNs_);
+            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
+            return result;
+        };
         if (width_ == width && height_ == height && lastPresentNs_ &&
             nowNs - lastPresentNs_ < framePeriodNs_)
         {
@@ -156,21 +168,21 @@ public:
         }
         lastPresentNs_ = nowNs;
         sourceReady = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        if (!sourceReady) return kPresentFenceSyncFailed;
+        if (!sourceReady) return failed(kPresentFenceSyncFailed);
         glFlush();
         if (!EnsureGlLocked(sourceDisplay, sourceContext, width, height))
         {
             eglMakeCurrent(sourceDisplay, sourceDraw, sourceRead, sourceContext);
             glDeleteSync(sourceReady);
             ++failures_;
-            return kPresentGlSetupFailed;
+            return failed(kPresentGlSetupFailed);
         }
         if (eglMakeCurrent(display_, surface_, surface_, context_) != EGL_TRUE)
         {
             eglMakeCurrent(sourceDisplay, sourceDraw, sourceRead, sourceContext);
             glDeleteSync(sourceReady);
             ++failures_;
-            return kPresentMakeCurrentFailed;
+            return failed(kPresentMakeCurrentFailed);
         }
         glWaitSync(sourceReady, 0, GL_TIMEOUT_IGNORED);
         glDeleteSync(sourceReady);
@@ -200,24 +212,44 @@ public:
         }
         glDrawArrays(GL_TRIANGLES, 0, 3);
         const GLenum glError = glGetError();
+        // The shared source texture can be reused as soon as this method
+        // returns. Swap/flush submits this context without completing its
+        // texture read, so also order the producer's next write after it.
+        const GLsync sourceConsumed = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (sourceConsumed) {
+            glFlush();
+        } else {
+            // Exceptional allocation failure must still retire the read before
+            // letting the producer overwrite the shared texture.
+            glFinish();
+            glGetError();
+        }
         const EGLBoolean swapped = glError == GL_NO_ERROR
             ? eglSwapBuffers(display_, surface_) : EGL_FALSE;
         const EGLint eglError = swapped == EGL_TRUE ? EGL_SUCCESS : eglGetError();
         const EGLBoolean restored = eglMakeCurrent(
             sourceDisplay, sourceDraw, sourceRead, sourceContext);
+        if (sourceConsumed) {
+            if (restored == EGL_TRUE)
+                glWaitSync(sourceConsumed, 0, GL_TIMEOUT_IGNORED);
+            else
+                glFinish(); // failed MakeCurrent leaves the reader current
+            glDeleteSync(sourceConsumed);
+        }
 
-        if (swapped != EGL_TRUE || restored != EGL_TRUE)
+        if (!sourceConsumed || swapped != EGL_TRUE || restored != EGL_TRUE)
         {
             ++failures_;
             if (failures_ == 1 || failures_ % 120 == 0)
                 OH_LOG_WARN(LOG_APP,
                             "[VIRGL-ZC][NCP] blit dropped serial=%{public}u gl=0x%{public}x "
-                            "egl=0x%{public}x restore=%{public}d drops=%{public}llu",
-                            serial, glError, eglError, restored,
+                            "egl=0x%{public}x restore=%{public}d read_fence=%{public}d drops=%{public}llu",
+                            serial, glError, eglError, restored, sourceConsumed != nullptr,
                             static_cast<unsigned long long>(failures_));
-            return kPresentBlitFailed;
+            return failed(sourceConsumed ? kPresentBlitFailed : kPresentFenceSyncFailed);
         }
 
+        failureBackoff_.Reset();
         ++frames_;
         if (nextPresentDeadlineNs)
             *nextPresentDeadlineNs = lastPresentNs_ + framePeriodNs_;
@@ -437,6 +469,8 @@ private:
         ResetGlLocked();
         ReleaseWindowLocked();
         surfaceKey_ = 0;
+        lastPresentNs_ = 0;
+        failureBackoff_.Reset();
     }
 
     void ReleaseWindowLocked()
@@ -461,6 +495,7 @@ private:
     uint64_t timestampFailures_ = 0;
     uint64_t throttled_ = 0;
     uint64_t lastPresentNs_ = 0;
+    winehua::GlPresentFailureBackoff failureBackoff_;
     uint64_t displayPeriodNs_ = kDefaultFramePeriodNs;
     uint64_t framePeriodNs_ = kDefaultFramePeriodNs;
 };

@@ -284,6 +284,12 @@ with open('$module_json', 'w') as f:
         warn "未找到 $data_arch_marker (旧版 assemble 产物?), 无法校验 wine-data 架构一致性"
     fi
 
+    # Pair runtime hashes with the ELF bytes that release stripping will ship.
+    # The normalizer rejects stale identities and any loadable-content change.
+    python3 "$SCRIPT_DIR/normalize_runtime_identity.py" \
+        --libs "$WINEHUA/entry/libs" --rawfile "$WINEHUA/entry/src/main/resources/rawfile" \
+        --strip "$TOOL_HOME/sdk/default/openharmony/native/llvm/bin/llvm-strip"
+
     # A direct hap build may reuse old assemble outputs. Never silently ship a
     # stale SDK stub; leave unknown/generated inputs intact and require reassembly.
     python3 "$SCRIPT_DIR/runtime_library_guard.py" \

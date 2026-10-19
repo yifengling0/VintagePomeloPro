@@ -129,6 +129,19 @@ elif ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$PATCH" >/dev/null 2>&1; then
     log "已应用 patch: $(basename "$PATCH")"
 fi
 
+# Self-XOR results become guest register values. Give each definition its own
+# zero node: sharing it with an earlier register later overwritten by MOVSS can
+# corrupt subsequent zeros (the .NET/MonoGame projection regression).
+# Keep this independent of the legacy patch-set shortcut and keep general
+# named-vector caching intact.
+simd_zero_patch="$SCRIPT_DIR/patches/fex-simd-zero.patch"
+if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$simd_zero_patch" >/dev/null 2>&1; then
+    patch -d "$FEX_SRC" -p1 --dry-run -s < "$simd_zero_patch" >/dev/null || \
+        err "FEX SIMD zero patch cannot be applied"
+    patch -d "$FEX_SRC" -p1 -s < "$simd_zero_patch"
+    log "Applied patch: $(basename "$simd_zero_patch")"
+fi
+
 # Counter instrumentation is deliberately a second overlay and build identity.
 # It is never part of clean OFF/ON timing DLLs.
 if [ "${FEX_EXACTSTORE_DIAGNOSTICS:-0}" = "1" ]; then
@@ -536,4 +549,6 @@ build_fex_pe() {
 
 build_fex_ec
 build_fex_pe
+python3 "$SCRIPT_DIR/fex_simd_runtime.py" record --build "$BUILD_DIR" \
+    --patch "$simd_zero_patch" --source-hash "${FEX_SOURCE_HASH:-detect}"
 log "FEX 构建完成 (arm64ecfex + wow64fex)"

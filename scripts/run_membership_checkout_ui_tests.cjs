@@ -4,7 +4,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), path = re
 const ts = require(process.argv[2]);
 const source = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/components/AccountSyncSettings.ets'), 'utf8');
 const names = ['buy', 'errorMessage', 'showPurchaseMessage', 'canBuyMembership', 'clearConfirmation', 'refreshReminder', 'openCheckout', 'selectProduct', 'checkoutProduct',
-  'manageMembership', 'restoreMembership', 'applyMembershipState', 'expiryDate'];
+  'manageMembership', 'restoreMembership', 'applyMembershipState', 'applyReminderState', 'expiryDate'];
 const methods = names.map(name => {
   const match = new RegExp('^  private (?:async )?' + name + '\\(', 'm').exec(source);
   assert.ok(match, name);
@@ -227,6 +227,33 @@ function harness() {
   ui.restoreMembership(); await ui.pending; assert.match(ui.status, /状态待确认/); assert.equal(ui.membershipUncertain, true);
   ui = harness(); restoreAction = async () => { owner = 'bob'; };
   ui.restoreMembership(); await ui.pending; assert.equal(confirmCalls, 0); assert.equal(ui.applied, undefined);
+  // Run the real component lifecycle with a virtual clock: leaving details expanded
+  // for 15 minutes must not install cloud polling or repeat the initial requests.
+  const lifecycle=source.slice(source.indexOf('  aboutToAppear(): void {'),source.indexOf('  private errorMessage('));
+  const lifecycleJs=ts.transpileModule('class Lifecycle {\n'+lifecycle+'\n}\nmodule.exports=Lifecycle;',
+    {compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText;
+  const lifecycleModule={exports:{}},scheduled=[],listeners=new Map();
+  const lifecycleService={
+    initialize:async()=>{},getCapabilities:()=>({account:true,commerce:true,profiles:true}),
+    getUserId:()=> 'alice',getMembershipOperator:()=> 'Publisher',accountAvailability:()=> 'ready',
+    ...Object.fromEntries(['Entitlement','Account','Reminder'].flatMap(kind=>[
+      ['subscribe'+kind,f=>listeners.set(kind,f)],['unsubscribe'+kind,()=>listeners.delete(kind)]]))
+  };
+  const lifecycleSync={subscribe:f=>listeners.set('Sync',f),unsubscribe:()=>listeners.delete('Sync')};
+  vm.runInNewContext(lifecycleJs,{module:lifecycleModule,router:{getParams:()=>({membership:'expanded'})},
+    ValueAddedService:{getInstance:()=>lifecycleService},AccountAutomaticSyncService:{getInstance:()=>lifecycleSync},
+    InputProfileService:{getInstance:()=>({initialize:async()=>{},getProfiles:()=>[]})},
+    setInterval:(f,ms)=>scheduled.push({f,ms}),setTimeout:(f,ms)=>scheduled.push({f,ms})});
+  let lifecycleReads=0;const detail=new lifecycleModule.exports();
+  Object.assign(detail,{supported:true,context:{},refreshAutomaticSync(){},refreshHuaweiIdentity(){},clearConfirmation(){},resetVip(){},
+    refreshAccount:async()=>{lifecycleReads++;},refreshReminder:async()=>{lifecycleReads++;},applyReminderState(){},
+    run(_,work){this.pending=work();return this.pending;}});
+  detail.aboutToAppear();await detail.pending;
+  assert.equal(detail.membershipExpanded,true);assert.equal(lifecycleReads,2);
+  for(let elapsed=30000;elapsed<=900000;elapsed+=30000)for(const timer of scheduled)if(elapsed%timer.ms===0)await timer.f();
+  assert.equal(lifecycleReads,2);assert.equal(scheduled.length,0,'expanded details install no periodic cloud work');
+  detail.aboutToDisappear();assert.equal(listeners.size,0);
+  console.log('Membership details: expanded 15-minute virtual idle makes no periodic requests, listeners cleaned up PASS');
   console.log('Membership checkout UI: explicit consent, reminder preflight, visible failures, SDK error code, pending payment, cancellation, retry, duplicate prevention, account isolation and product changes PASS');
   console.log('Subscription management: fresh official state, cancellation keeps access, dialog dismissal, partial recovery, query failures and account/page isolation PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

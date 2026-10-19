@@ -30,6 +30,7 @@ const mocks={
  './AppSettingsStore':{AppSettingsStore:{getInstance:()=>store}},
  '../service/GameContainer':{wineDriveCForContainer:()=>'/prefix/drive_c'},
  './LogService':{hilog:{info(){},warn(){},error(){}}},
+ './PortableGameConfigurationService':{PortableGameConfigurationService:{getInstance:()=>({discover:async(_directory,_exe,id)=>id})}},
  '../steam/SteamLocalService':{SteamLocalService:{getInstance:()=>local}},
  './WineEngineService':{WineEngineService:{getInstance:()=>engine}},
  './WineWindowManager':{WineWindowManager:{getInstance:()=>({isDesktopMode:false})}},
@@ -100,6 +101,26 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  assert.ok(service.getRunningAppIds().has('steam-client-default'),'game exit preserves Steam');
  await service.launch(local.clientCard(),{},tmp);await service.launch(local.clientCard(),{},tmp);
  assert.equal(launches.length,3,'every open-client action reaches the running silent client');
+ put(client+'/2-perf-gpu-auto.bat','@echo off\ncd /d "%~dp0"\nstart steam.exe');
+ const batchCard=local.clientCard();
+ assert.equal(batchCard.launchTarget.executable,client+'/2-perf-gpu-auto.bat');
+ assert.equal(local.installCard('555').launchTarget.executable,client+'/steam.exe','install URI must reach Steam directly');
+ await service.launch(batchCard,{},tmp);
+ assert.equal(launches.at(-1).exe,client+'/steam.exe','warm client bypasses batch');
+ assert.equal(launches.at(-1).args.at(-1),'steam://open/main');
+ processes.length=0;
+ await service.launch(batchCard,{},tmp);
+ assert.equal(launches.at(-1).exe,client+'/2-perf-gpu-auto.bat','cold card uses the bundled 2 launcher');
+ assert.equal(launches.at(-1).args.length,0,'batch owns its flags');
+ local.compatibility=true;
+ await service.launch(batchCard,{},tmp);
+ assert.equal(launches.at(-1).exe,client+'/steam.exe','compatibility changes apply even to a cached batch card');
+ assert.ok(launches.at(-1).args.includes('-cef-disable-gpu'));
+ local.compatibility=false;
+ fs.unlinkSync(client+'/2-perf-gpu-auto.bat');
+ await service.launch(batchCard,{},tmp);
+ assert.equal(launches.at(-1).exe,client+'/steam.exe','missing batch falls back even with a cached card');
+ processes.push({pid:1,path:'Z:\\Steam\\steam.exe',state:'running'});
  // Exercise production ordinary discovery and cache reconciliation together.
  const catalog=new (load('service/AppCatalogService.ets').AppCatalogService)();
  catalog.libraryRoot=tmp;

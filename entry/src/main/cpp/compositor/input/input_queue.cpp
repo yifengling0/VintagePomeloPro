@@ -67,6 +67,18 @@ void InputQueue::Enqueue(Event::Type type, uint32_t tl, wl_resource* surface,
     WakePipe();
 }
 
+void InputQueue::EnqueueMotion(uint32_t tl, wl_resource* surface, int32_t x, int32_t y,
+                               int32_t globalX, int32_t globalY, bool localValid) {
+    Event event{Event::PTR_MOTION, tl, surface, x, y, 0, 0};
+    event.global_x = globalX; event.global_y = globalY;
+    event.has_global = true; event.local_valid = localValid;
+    {
+        std::lock_guard<std::mutex> lk(queueMutex_);
+        queue_.push_back(event);
+    }
+    WakePipe();
+}
+
 void InputQueue::EnqueueModifiers(uint32_t depressed, uint32_t latched,
                                   uint32_t locked, uint32_t group) {
     {
@@ -77,11 +89,11 @@ void InputQueue::EnqueueModifiers(uint32_t depressed, uint32_t latched,
     WakePipe();
 }
 
-void InputQueue::EnqueueAxis(int axis, int32_t axis_value, uint32_t tl) {
+void InputQueue::EnqueueAxis(int axis, int32_t axis_value, uint32_t tl, bool continuous) {
     {
         std::lock_guard<std::mutex> lk(queueMutex_);
         // tl 仅用于诊断；消费侧按当前 pointer focus 的 client 投递。
-        queue_.push_back({Event::PTR_AXIS, tl, nullptr, 0, 0, 0, 0,
+        queue_.push_back({Event::PTR_AXIS, tl, nullptr, 0, 0, 0, continuous ? 1u : 0u,
                           axis, axis_value, 0, 0, 0, 0});
     }
     WakePipe();
@@ -126,7 +138,11 @@ std::vector<InputQueue::Event> InputQueue::Poll() {
                         skip = (last.btn_or_key == ev.btn_or_key && last.state == ev.state);
                         break;
                     case Event::PTR_MOTION:
-                        last = ev; continue;  // 只保留最后一个坐标 (绝对位置)
+                        if (last.tl == ev.tl && last.surface == ev.surface &&
+                            last.has_global == ev.has_global && last.local_valid == ev.local_valid) {
+                            last = ev; continue;
+                        }
+                        break;
                     // PTR_AXIS 不去重: 每个值是累积滚动距离, 丢中间值 = 丢滚动量
                     // 快速滚轮/触控板会产生连续 axis 事件, 必须全部送达 Wine
                     case Event::PTR_ENTER:

@@ -1,0 +1,20 @@
+--- a/elf/dl-map-segments.h
++++ b/elf/dl-map-segments.h
+@@ -43,7 +43,7 @@
+       if (count < 0 && errno == EINTR)
+         continue;
+       if (count < 0)
+-        { int error = errno; _dl_debug_printf ("STEAMOHOS_NATIVE_MAP copy_or_protect_error=%d\n", error); __munmap (memory, length); __set_errno (error); return MAP_FAILED; }
++        { int error = errno; _dl_debug_printf ("STEAMOHOS_NATIVE_MAP pread_error=%d offset=%ld length=%zu copied=%zu\n", error, (long)offset, length, copied); __munmap (memory, length); __set_errno (error); return MAP_FAILED; }
+       if (count == 0)
+         break; /* The tail of the final file page stays zero filled. */
+       copied += count;
+@@ -51,7 +51,7 @@
+   if (protection & PROT_EXEC)
+     __builtin___clear_cache ((char *) memory, (char *) memory + length);
+   if (__mprotect (memory, length, protection) < 0)
+-    { int error = errno; _dl_debug_printf ("STEAMOHOS_NATIVE_MAP copy_or_protect_error=%d\n", error); __munmap (memory, length); __set_errno (error); return MAP_FAILED; }
++    { int error = errno; _dl_debug_printf ("STEAMOHOS_NATIVE_MAP protect_error=%d address=%p length=%zu protection=%x page=%zu\n", error, memory, length, protection, GLRO(dl_pagesize)); __munmap (memory, length); __set_errno (error); return MAP_FAILED; }
+   return memory;
+ }
+ 

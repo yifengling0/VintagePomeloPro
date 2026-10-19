@@ -381,7 +381,14 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
 # → assemble 找不到 wine-ohos-x86_64。方案① (NATIVE_ARCH=x86_64) 无冲突但同样带后缀。
 wine: $(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH)
 
-$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_build_identity.py $(SCRIPTS)/env.sh $(STAMPS)/deps FORCE | $(STAMPS)
+WINE_DIAGNOSTIC_INPUTS := $(SCRIPTS)/wine_runtime_diagnostics.py $(SCRIPTS)/wine_runtime_diagnostics.h
+
+# Focused Unix build uses the same ordered overlays and source identity checks.
+.PHONY: wine-ntdll
+wine-ntdll: $(WINE_DIAGNOSTIC_INPUTS)
+	BUILD_DIR="$(BUILD_DIR)" bash $(SCRIPTS)/build_wine.sh --unix-modules ntdll
+
+$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_build_identity.py $(WINE_DIAGNOSTIC_INPUTS) $(SCRIPTS)/env.sh $(STAMPS)/deps FORCE | $(STAMPS)
 	@if [ -f "$@" ]; then mode=--check-cached-identity; else mode=--check-identity; fi; \
 	    BUILD_DIR="$(BUILD_DIR)" bash "$(SCRIPTS)/build_wine.sh" "$$mode"
 	@if [ -f $@ ] && [ -f $(WINE_SENTINEL) ] && \
@@ -408,7 +415,7 @@ $(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_
 # fex → assemble 缺 libarm64ecfex.dll。skip-touch 分支同样不落共享 stamp。
 fex: $(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH)
 
-FEX_BUILD_INPUTS := $(SCRIPTS)/build_fex.sh $(SCRIPTS)/env.sh $(SCRIPTS)/check_fex_build_identity.sh $(wildcard $(SCRIPTS)/patches/fex-*.patch)
+FEX_BUILD_INPUTS := $(SCRIPTS)/build_fex.sh $(SCRIPTS)/env.sh $(SCRIPTS)/check_fex_build_identity.sh $(SCRIPTS)/fex_simd_runtime.py $(wildcard $(SCRIPTS)/patches/fex-*.patch)
 $(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH): $(FEX_BUILD_INPUTS) FORCE | $(STAMPS)
 	@if [ "$(WINE_ARCH)" = "x86_64" ]; then \
 	    echo "  [fex] skip (x86_64)"; \
@@ -416,6 +423,7 @@ $(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH): $(FEX_BUILD_INPUTS) FORCE | $(STAMPS)
 	elif [ -f $@ ] && \
 	    [ -f $(BUILD_DIR)/fex-ec/Bin/libarm64ecfex.dll ] && \
 	    [ -f $(BUILD_DIR)/fex-pe/Bin/libwow64fex.dll ] && \
+	    [ -s $(BUILD_DIR)/fex-simd-zero.json ] && \
 	    BUILD_DIR="$(BUILD_DIR)" FEX_SRC="$(FEX_SRC)" bash "$(SCRIPTS)/check_fex_build_identity.sh" check "$@" && \
 	    ! [ "$(SCRIPTS)/build_fex.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/patches/fex-wow64-synthetic-return.patch" -nt $@ ] && \
@@ -512,6 +520,8 @@ $$(STAMPS)/$(1)/native: $(SCRIPTS)/build_native.sh $(SCRIPTS)/env.sh FORCE | $$(
 		    [ -f "$$$$libs_dir/libffi.so.8" ] && \
 		    [ -f "$$$$libs_dir/libwinehua_vtest_server.so" ] && \
 	    ! [ "$(SCRIPTS)/build_native.sh" -nt $$@ ] && \
+	    ! [ "$(SCRIPTS)/apply_virglrenderer_ohos_patches.sh" -nt $$@ ] && \
+	    ! find $(ROOT)/patches/virglrenderer -newer $$@ -type f -name '*.patch' 2>/dev/null | grep -q . && \
 	    ! find $(ROOT)/thirdparty/wayland \
 	           $(ROOT)/thirdparty/libffi \
 	           $(ROOT)/thirdparty/libepoxy \
@@ -1015,6 +1025,7 @@ test-fex-fault-boundaries:
 
 # Real phone fork/SIGCHLD plus production registry and sandbox liveness.
 .PHONY: test-process-lifecycle
+test: test-process-lifecycle
 test-process-lifecycle:
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -pthread -I $(ROOT)/host_tests/process_stubs -I $(ROOT)/entry/src/main/cpp \
@@ -1051,6 +1062,122 @@ test-wine-vm-diagnostics:
 test: test-wine-network-contract
 test-wine-network-contract:
 	python3 $(ROOT)/host_tests/wine_network_contract_test.py
+
+
+.PHONY: native-entry-check
+.PHONY: test-stderr-forwarding
+test: test-stderr-forwarding
+test-stderr-forwarding:
+	python3 $(ROOT)/host_tests/stderr_forwarding_test.py
+
+NATIVE_CHECK_PRODUCT ?= default
+NATIVE_CHECK_MODE ?= debug
+native-entry-check:
+	$(TOOL_HOME)/sdk/default/openharmony/native/build-tools/cmake/bin/cmake --build \
+	    $(ROOT)/entry/.cxx/$(NATIVE_CHECK_PRODUCT)/default/$(NATIVE_CHECK_MODE)/$(NATIVE_ARCH) \
+	    --target entry virgl_child wine_child -j4
+
+.PHONY: test-compositor-migration test-text-input-lifecycle
+test: test-compositor-migration test-text-input-lifecycle
+test-compositor-migration:
+	python3 $(ROOT)/host_tests/compositor_migration_test.py
+test-text-input-lifecycle:
+	bash $(ROOT)/scripts/run_text_input_unit_tests.sh
+
+.PHONY: graphics-contract-check graphics-migration-check
+graphics-contract-check:
+	bash $(ROOT)/scripts/verify_graphics_contract.sh
+graphics-migration-check: graphics-contract-check test-compositor-migration test-process-lifecycle test-text-input-lifecycle
+	@test -n "$(GFX_EFFECTIVE_WINE)" -a -n "$(GFX_EFFECTIVE_VIRGL)" || (echo 'Set GFX_EFFECTIVE_WINE and GFX_EFFECTIVE_VIRGL to clean pinned sources plus registered overlays'; exit 1)
+	bash $(ROOT)/scripts/verify_graphics_contract.sh --wine-source "$(GFX_EFFECTIVE_WINE)" --virgl-source "$(GFX_EFFECTIVE_VIRGL)" --behavior
+
+.PHONY: test-gl-present-failure test-virgl-present-sync test-mf-nonshared
+test-gl-present-failure:
+	python3 $(ROOT)/host_tests/gl_present_failure_test.py
+test-virgl-present-sync:
+	python3 $(ROOT)/host_tests/virgl_present_sync_test.py
+test-mf-nonshared:
+	python3 $(ROOT)/host_tests/mf_nonshared_retry_test.py --source "$(GFX_EFFECTIVE_WINE)"
+graphics-migration-check: test-gl-present-failure test-virgl-present-sync test-renderer-lifecycle
+
+.PHONY: test-virgl-present-context
+test-virgl-present-context:
+	@test -n "$(GFX_EFFECTIVE_VIRGL)" || (echo 'Set GFX_EFFECTIVE_VIRGL to the pinned VirGL source plus managed patches'; exit 1)
+	python3 $(ROOT)/host_tests/virgl_present_context_test.py --source "$(GFX_EFFECTIVE_VIRGL)"
+graphics-migration-check: test-virgl-present-context
+
+.PHONY: test-renderer-lifecycle
+test-renderer-lifecycle:
+	python3 $(ROOT)/host_tests/renderer_lifecycle_test.py
+
+.PHONY: migration-virgl-build migration-mf-build
+migration-virgl-build:
+	@test -n "$(GFX_VIRGL_BUILD)" || (echo 'Set GFX_VIRGL_BUILD to the configured isolated ARM64 build'; exit 1)
+	ninja -C "$(GFX_VIRGL_BUILD)" -j4
+migration-mf-build:
+	@test -n "$(GFX_MF_BUILD)" -a -n "$(GFX_LLVM_MINGW)" || (echo 'Set GFX_MF_BUILD and GFX_LLVM_MINGW'; exit 1)
+	PATH="$(GFX_LLVM_MINGW)/bin:$$PATH" $(MAKE) -C "$(GFX_MF_BUILD)" -j4 dlls/mfplat/all
+
+# Focused unsigned release candidate from an already staged native Wine/FEX
+# runtime. Full builds continue through hap/assemble; this avoids restaging an
+# old payload over locally validated module replacements during migration QA.
+.PHONY: migration-hap-check
+migration-hap-check: graphics-contract-check
+	python3 $(ROOT)/host_tests/runtime_normalize_test.py
+	python3 $(ROOT)/scripts/normalize_runtime_identity.py --libs $(ROOT)/entry/libs --rawfile $(ROOT)/entry/src/main/resources/rawfile --strip $(TOOL_HOME)/sdk/default/openharmony/native/llvm/bin/llvm-strip
+	python3 $(ROOT)/scripts/runtime_library_guard.py $(ROOT)/entry/libs/$(NATIVE_ARCH) $(ROOT)/entry/src/main/resources/rawfile/wine-data.zip
+	python3 $(ROOT)/scripts/check_runtime_components.py --payload $(ROOT)/entry/src/main/resources/rawfile/wine-data.zip
+	bash $(TOOL_HOME)/bin/hvigorw --mode module -p module=entry@default -p product=proRelease -p buildMode=release assembleHap --no-daemon
+	python3 $(ROOT)/scripts/runtime_library_guard.py $(ROOT)/entry/build/proRelease/outputs/default/entry-default-unsigned.hap
+	python3 $(ROOT)/scripts/check_runtime_components.py --hap $(ROOT)/entry/build/proRelease/outputs/default/entry-default-unsigned.hap
+	bash $(ROOT)/scripts/verify_graphics_contract.sh --hap $(ROOT)/entry/build/proRelease/outputs/default/entry-default-unsigned.hap --native-output-dir $(ROOT)/entry/build/proRelease/intermediates/stripped_native_libs/default/$(NATIVE_ARCH)
+	python3 $(ROOT)/host_tests/graphics_package_identity_test.py --hap $(ROOT)/entry/build/proRelease/outputs/default/entry-default-unsigned.hap
+
+.PHONY: test-xdg-resource-lifecycle
+test-xdg-resource-lifecycle:
+	python3 $(ROOT)/host_tests/xdg_resource_lifecycle_test.py
+graphics-migration-check: test-xdg-resource-lifecycle
+
+.PHONY: test-program-compat
+test: test-program-compat
+test-program-compat:
+	mkdir -p $(ROOT)/build/host_tests
+	$(CXX) -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/program_compat_test.cpp -o $(ROOT)/build/host_tests/program_compat_test
+	$(ROOT)/build/host_tests/program_compat_test
+
+# Self-contained ICU is part of the ARM64 Wine payload, including upgrades.
+# A new build resolves a fixed source commit; offline callers may provide its
+# verified archive or a repository containing that commit.
+ICU_COMPAT_OUTPUT ?= $(BUILD_DIR)/icu-compat/output
+export ICU_COMPAT_OUTPUT
+ICU_COMPAT_INPUTS := $(SCRIPTS)/build_icu_compat.sh $(SCRIPTS)/icu_compat_runtime.py $(SCRIPTS)/fex_simd_runtime.py $(SCRIPTS)/env.sh
+.PHONY: icu-compat
+icu-compat: $(STAMPS)/icu-compat-$(CONFIG)-$(WINE_ARCH)
+$(STAMPS)/icu-compat-$(CONFIG)-$(WINE_ARCH): $(ICU_COMPAT_INPUTS) FORCE | $(STAMPS)
+	@if [ "$(WINE_ARCH)" != aarch64 ]; then \
+	    mkdir -p $(dir $@); test -f $@ || touch $@; \
+	elif [ -f $@ ] && \
+	    ! [ "$(SCRIPTS)/build_icu_compat.sh" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/icu_compat_runtime.py" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/fex_simd_runtime.py" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/env.sh" -nt $@ ] && \
+	    python3 $(SCRIPTS)/icu_compat_runtime.py check --output "$(ICU_COMPAT_OUTPUT)"; then \
+	    echo '  [icu-compat] up to date'; \
+	else \
+	    bash $(SCRIPTS)/build_icu_compat.sh && touch $@; \
+	fi
+ifeq ($(WINE_ARCH),aarch64)
+$(STAMPS)/arm64-v8a/assemble: $(STAMPS)/icu-compat-$(CONFIG)-$(WINE_ARCH) $(ICU_COMPAT_INPUTS) $(SCRIPTS)/fex_simd_runtime.py
+endif
+
+.PHONY: simd-zero-probes
+simd-zero-probes:
+	bash $(SCRIPTS)/build_simd_probes.sh
+
+.PHONY: test-wine-runtime-diagnostics
+test: test-wine-runtime-diagnostics
+test-wine-runtime-diagnostics:
+	python3 $(ROOT)/host_tests/wine_runtime_diagnostics_test.py
 
 .PHONY: test-gstreamer-native
 test: test-gstreamer-native

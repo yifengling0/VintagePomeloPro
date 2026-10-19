@@ -39,6 +39,8 @@ int main() {
         auto* input = wl_client_get_object(client, 3);
         auto* surface = wl_resource_create(client, &wl_surface_interface, 4, 4);
         assert(input && surface);
+        text->SetArmed(true);
+        assert(wl_event_loop_dispatch(wl_display_get_event_loop(display), 0) == 0);
         activation.clear();
         auto activate = [&]() {
             text->OnKeyboardEnter(surface);
@@ -62,6 +64,7 @@ int main() {
         assert((activation == std::vector<bool>{true, false, true}));
         assert(Drain(client, sockets[1]) > 0);
         text->SendCommitString("new focus");
+        assert(wl_event_loop_dispatch(wl_display_get_event_loop(display), 0) == 0);
         assert(Drain(client, sockets[1]) > 0); // binding survives a local focus reset
         text->ResetKeyboardFocus();
         text->Unregister();

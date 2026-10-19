@@ -19,6 +19,7 @@ class Fields {
   appliedHostGraphicsBackend = 'dxvk_legacy'; hostGraphicsLabExperiment = '';
   appliedHostGraphicsLabExperiment = ''; restartPromise = null;
   selectedD3DBackend() {return 'dxvk_legacy';}
+  blockLegacyWineUpgrade() {return false;}
   setState(state) {this.state = state;}
   waitForReady() {throw new Error('Dead coordinator must never be awaited');}
 }

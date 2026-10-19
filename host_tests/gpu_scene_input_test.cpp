@@ -1,3 +1,7 @@
+#include <atomic>
+#include <thread>
+#include <sys/mman.h>
+#include <unistd.h>
 #include "compositor/toplevel/desktop_compositor.h"
 #include "compositor/input/input_resolver.h"
 #include "compositor/toplevel/toplevel_manager.h"
@@ -22,6 +26,11 @@ struct ProtocolEvent {
     wl_resource* surface;
 };
 static std::vector<ProtocolEvent> events;
+struct AxisEvent { wl_resource* resource; uint32_t axis; int32_t value; bool discrete; };
+static std::vector<AxisEvent> axes;
+static double motionX, motionY;
+void HostTestAxisEvent(wl_resource* r,uint32_t a,int32_t v,bool discrete) { axes.push_back({r,a,v,discrete}); }
+void HostTestMotionEvent(wl_resource*,wl_fixed_t x,wl_fixed_t y) { motionX=wl_fixed_to_double(x);motionY=wl_fixed_to_double(y); }
 static std::vector<wl_resource*> keyboards, pointers;
 static wl_client* Client(uintptr_t id) { return reinterpret_cast<wl_client*>(id); }
 void HostTestProtocolEvent(wl_resource* r, const char* name, wl_resource* s) {
@@ -48,7 +57,11 @@ void InputSpaceMapper::CoordTransform(double x,double y,uint32_t,wl_fixed_t* sx,
     *sx=wl_fixed_from_double(x);*sy=wl_fixed_from_double(y);
     if(fit) { *fit={};fit->srcW=fit->dstW=160;fit->srcH=fit->dstH=100;fit->scale=1; }
 }
-void InputSpaceMapper::UpdateGlobalPtr(wl_fixed_t,wl_fixed_t,GlobalPtrState::Space) {}
+void InputSpaceMapper::UpdateGlobalPtr(wl_fixed_t x,wl_fixed_t y,GlobalPtrState::Space space) {
+    globalPtrX_=x; globalPtrY_=y; globalPtrSpace_=space;
+}
+wl_fixed_t InputSpaceMapper::GetGlobalPtrX() const { return globalPtrX_; }
+wl_fixed_t InputSpaceMapper::GetGlobalPtrY() const { return globalPtrY_; }
 void InputSpaceMapper::ResetGlobalPtr() {}
 void wl_display_flush_clients(wl_display*) {}
 static int dispatchFd=-1;
@@ -66,8 +79,10 @@ static void DrainInput() {
     assert(dispatchCallback(dispatchFd,WL_EVENT_READABLE,dispatchData)==0);
 }
 TextInput* TextInput::GetInstance() { static TextInput text; return &text; }
-void TextInput::OnKeyboardEnter(wl_resource* s) { events.push_back({"ime.enter", nullptr, s}); }
-void TextInput::OnKeyboardLeave(wl_resource* s) { events.push_back({"ime.leave", nullptr, s}); }
+static wl_resource* imeFocus;
+void TextInput::OnKeyboardEnter(uint32_t, wl_resource* s) { imeFocus = s; events.push_back({"ime.enter", nullptr, s}); }
+void TextInput::OnKeyboardLeave() { events.push_back({"ime.leave", nullptr, imeFocus}); imeFocus = nullptr; }
+void TextInput::OnSurfaceDestroyed(wl_resource* s) { if (imeFocus == s) imeFocus = nullptr; }
 void TextInput::ResetKeyboardFocus() { events.push_back({"ime.reset", nullptr, nullptr}); }
 static void Expect(const char* name, wl_resource* surface, wl_resource* resource = nullptr) {
     assert(!events.empty());
@@ -146,7 +161,9 @@ int main(int argc, char** argv) {
         f.childData.parentSurface=&f.steam; f.check(4,false);
         f.childData.parentSurface=&f.game; f.check(5,true);
         f.tm.UnregisterSurfaceResource(Key(5)); f.check(4,false);
-        f.tm.RegisterSurfaceResource(Key(5),&f.game); f.check(5,true);
+        f.tm.RegisterSurfaceResource(Key(5),&f.game); f.check(4,false);
+        // Recycled storage does not restore a destroyed protocol relationship.
+        f.childData.parentSurface=&f.game; f.check(5,true);
         { auto lock=f.tm.Lock(); f.tm.FindToplevelLocked(5)->FrameData().resize(160*100*4,255); }
         f.comp.zc().Release(Key(25),1); f.check(5,false);
     }
@@ -196,10 +213,12 @@ int main(int argc, char** argv) {
         f.tm.UnregisterSurfaceResource(Key(5));
         assert(!f.input.ResolveKeyboardFocusSurface(5,&f.child)); // destroyed owner
         f.tm.RegisterSurfaceResource(Key(5),&f.game);
+        f.childData.parentSurface=&f.game;
         // A mismatched resource registration cannot establish ownership.
         f.tm.RegisterSurfaceResource(Key(25),&f.steam);
         assert(!f.input.ResolveKeyboardFocusSurface(5,&f.child));
         f.tm.RegisterSurfaceResource(Key(25),&f.child);
+        f.childData.parentSurface=&f.game;
         // Popup pseudo-toplevel mappings can retain their own focus surface.
         f.tm.MapToplevelSurface(26,&f.menu);
         assert(f.input.ResolveKeyboardFocusSurface(26,&f.menu)==&f.menu);
@@ -234,6 +253,7 @@ int main(int argc, char** argv) {
         f.tm.UnregisterSurfaceResource(Key(5));inject.InjectKeyboardKey(30,0);
         assert(events.empty() && !tracker.KeyboardEntered());
         f.tm.RegisterSurfaceResource(Key(5),&f.game);
+        f.childData.parentSurface=&f.game;
         // Rapid A -> B -> A requests before a flush must all be respected.
         inject.InjectKeyboardEnter(4,&f.steam);
         Expect("keyboard.enter",&f.steam,&kbd);Expect("ime.enter",&f.steam);
@@ -611,5 +631,61 @@ int main(int argc, char** argv) {
         assert(!f.input.SurfaceLocalToDesktop(&f.game,40,30,x,y));
     }
 #endif
+    if (mode == 17) {
+        // A stale edge must be rejected before either wl_resource or its
+        // user_data is touched. The prior GetLayerInfo faults on this page.
+        const size_t pageSize=static_cast<size_t>(sysconf(_SC_PAGESIZE));
+        void* poison=mmap(nullptr,pageSize,PROT_NONE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+        assert(poison!=MAP_FAILED);
+        {auto lock=f.tm.Lock();f.childData.parentSurface=static_cast<wl_resource*>(poison);}
+        ZeroCopyLayerInfo info;
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info));
+        ZcLayerDiag diag;
+        assert(f.comp.zc().DiagnoseLayerInfo(Key(25),1,diag) && diag.parentToplevel==0);
+        GpuDesktopScene scene;
+        assert(f.comp.SnapshotGpuDesktopScene({},f.cache,scene,{f.gpu}));
+        assert(!f.input.ResolveKeyboardFocusSurface(5,&f.child));
+        {auto lock=f.tm.Lock();f.childData.parentSurface=nullptr;}
+        assert(munmap(poison,pageSize)==0);
+    }
+    if (mode == 18) {
+        {auto lock=f.tm.Lock();f.tm.UnregisterSurfaceResource(Key(5));}
+        assert(!f.childData.parentSurface && f.childData.isSubsurface);
+        auto* old=f.game.userData;
+        f.game.userData=reinterpret_cast<void*>(0x303d646c69686320ULL);
+        ZeroCopyLayerInfo info;
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info));
+        f.game.userData=old;
+        {auto lock=f.tm.Lock();f.tm.RegisterSurfaceResource(Key(5),&f.game);}
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info));
+        {auto lock=f.tm.Lock();f.childData.parentSurface=&f.game;}
+        assert(f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info) && info.parentToplevel==5);
+    }
+    if (mode == 19) {
+        std::atomic<bool> begin{false};
+        std::atomic<unsigned> reads{0};
+        std::thread render([&] {
+            while(!begin.load()) std::this_thread::yield();
+            for(unsigned i=0;i<5000;++i) {
+                ZeroCopyLayerInfo info;
+                f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info);
+                GpuDesktopScene scene;GpuDesktopSnapshotCache cache;
+                assert(f.comp.SnapshotGpuDesktopScene({},cache,scene,{f.gpu}));
+                ++reads;
+            }
+        });
+        begin=true;
+        for(unsigned i=0;i<5000;++i) {
+            {auto lock=f.tm.Lock();f.tm.UnregisterSurfaceResource(Key(5));
+             assert(!f.childData.parentSurface);
+             f.game.userData=reinterpret_cast<void*>(0x303d646c69686320ULL);}
+            f.input.ResolveKeyboardFocusSurface(5,&f.child);
+            {auto lock=f.tm.Lock();f.game.userData=&f.gameData;
+             f.tm.RegisterSurfaceResource(Key(5),&f.game);
+        f.childData.parentSurface=&f.game;
+             f.childData.parentSurface=&f.game;}
+        }
+        render.join();assert(reads==5000);
+    }
     std::puts("full production scene/input contract passed");
 }

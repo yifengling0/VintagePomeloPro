@@ -18,7 +18,7 @@ identity() {
         printf 'source_hash=%s\nsource_version=%s\n' "${FEX_SOURCE_HASH:-detect}" "${FEX_SOURCE_VERSION:-detect}"
         # Hash contents as well as timestamps: switching overlays or restoring
         # older mtimes must not reuse an artifact from a different experiment.
-        for input in "$script_dir/build_fex.sh" "$script_dir/env.sh" \
+        for input in "$script_dir/build_fex.sh" "$script_dir/env.sh" "$script_dir/fex_simd_runtime.py" \
                      "$script_dir/check_fex_build_identity.sh" "$script_dir"/patches/fex-*.patch; do
             test -f "$input"
             printf '%s ' "${input#"$script_dir"/}"

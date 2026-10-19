@@ -336,15 +336,19 @@ export class SteamLocalService {
   }
   getGame(appId: string): AppDescriptor | null { return this.cards.find((card: AppDescriptor) => card.steam?.appId === appId) ?? null; }
   clientCard(): AppDescriptor {
+    const executable = this.getClientDirectory() + '/steam.exe';
+    const batch = this.getClientDirectory() + '/2-perf-gpu-auto.bat';
+    const launcher = !this.compatibility && exists(batch) && !directory(batch) ? batch : executable;
     return { id: STEAM_CLIENT_ID, title: 'Steam', source: AppSource.DOWNLOAD,
       directory: this.getClientDirectory(), coverPath: '', available: this.isInstalled(),
-      launchTarget: { kind: LaunchKind.STEAM_CLIENT, executable: this.getClientDirectory() + '/steam.exe', arguments: [], workingDirectory: this.getClientDirectory() },
+      launchTarget: { kind: LaunchKind.STEAM_CLIENT, executable: launcher, arguments: [], workingDirectory: this.getClientDirectory() },
       displayModeOverride: null, steam: { clientId: STEAM_CLIENT_ID, appId: '', state: 'client' } };
   }
   installCard(appId: string): AppDescriptor {
     if (!isSteamAppId(appId)) throw new Error('Steam AppID 无效');
     const card = this.clientCard();
     card.id = 'steam-install-' + appId;
+    card.launchTarget.executable = this.getClientDirectory() + '/steam.exe';
     card.steam = { clientId: STEAM_CLIENT_ID, appId, state: 'install-request' };
     return card;
   }

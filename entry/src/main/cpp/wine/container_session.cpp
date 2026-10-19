@@ -66,6 +66,14 @@ ContainerSession GetActiveContainerSession()
     return gActiveContainer;
 }
 
+bool SetActiveContainerLanguage(const std::string& language)
+{
+    if (language != "zh_CN" && language != "zh_TW" && language != "ja_JP" && language != "en_US") return false;
+    std::lock_guard<std::mutex> lock(gContainerMutex);
+    gActiveContainer.wineLang = language;
+    return true;
+}
+
 bool IsActiveContainerSession(const std::string& id)
 {
     std::lock_guard<std::mutex> lock(gContainerMutex);

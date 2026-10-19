@@ -71,6 +71,9 @@ struct CompositorLayer {
     // 只是它的执行投影, 不参与合成判定。
     bool zcActive = false;
     uint32_t toplevelId = 0; // 归属窗口 (Root 为 0; Subsurface 为 parentToplevel)
+    // Explicit foreign content hosted by a real Wine HWND. Its frame/input
+    // comes from toplevelId; placement, z-order and lifetime belong to this HWND.
+    uint32_t externalHostId = 0;
     int x = 0, y = 0, w = 0, h = 0;  // 坐标 (桌面合成: 桌面坐标; 窗口内: 窗口局部坐标)
     bool fullscreen = false; // Toplevel: 全屏标记
     const SubsurfaceLayer* sub = nullptr;  // Type==Subsurface 时引用原层

@@ -695,13 +695,7 @@ struct AppSettingsPage {
     void this.persist();
   }
 
-  private setPreferMfMpeg4Handler(enabled: boolean): void {
-    if (enabled === this.value.preferMfMpeg4Handler) return;
-    const next = cloneAppSettings(this.value);
-    next.preferMfMpeg4Handler = enabled;
-    this.value = next;
-    void this.persist();
-  }
+
 
   private setExtraLaunchArguments(text: string): void {
     const next = cloneAppSettings(this.value);
@@ -866,17 +860,7 @@ struct AppSettingsPage {
                 .onChange((value: boolean): void => this.setDisableMfDxgiDeviceManager(value))
             }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             .id('app-settings-mf-disable-dxgi')
-            Row() {
-              Column({ space: 4 }) {
-                Text('优先 Wine MPEG4 Handler').fontSize(15).fontWeight(FontWeight.Medium)
-                  .fontColor(skinColor('text_primary'))
-                Text('实验性。handler 查找失败时先试 Wine MPEG4，再回退 GStreamer。不要和无视频问题一起乱开。')
-                  .fontSize(11).fontColor(skinColor('text_secondary'))
-              }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-              Toggle({ type: ToggleType.Switch, isOn: this.value.preferMfMpeg4Handler })
-                .onChange((value: boolean): void => this.setPreferMfMpeg4Handler(value))
-            }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
-            .id('app-settings-mf-prefer-mpeg4')
+
           }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
 
           Column({ space: 12 }) {

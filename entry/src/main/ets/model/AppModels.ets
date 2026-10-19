@@ -908,6 +908,10 @@ export interface InputTemplate {
 
 export const INPUT_TEMPLATES: InputTemplate[] = [
   {
+    id: 'steam-navigation', name: 'Steam 导航', description: '方向、确认、返回和触摸板',
+    builtInProfileId: 'builtin-steam-navigation', profileName: 'Steam 导航', revision: 1
+  },
+  {
     id: 'default', name: '通用', description: '方向键、鼠标和常用功能键',
     builtInProfileId: 'default', profileName: '默认输入方案', revision: 4
   },
@@ -958,6 +962,17 @@ function defaultTemplateElements(): ControlElement[] {
     createControlElement(ControlElementType.BUTTON, 0.06, 0.16, 'Esc', [keyBinding(1)], ControlElementShape.ROUND_RECT, 0.72),
     createControlElement(ControlElementType.BUTTON, 0.14, 0.16, 'Shift', [keyBinding(42)], ControlElementShape.ROUND_RECT, 0.72, true),
     createControlElement(ControlElementType.BUTTON, 0.22, 0.16, 'Ctrl', [keyBinding(29)], ControlElementShape.ROUND_RECT, 0.72, true)
+  ];
+}
+
+function steamNavigationElements(): ControlElement[] {
+  return [
+    createControlElement(ControlElementType.D_PAD, 0.12, 0.70, '', arrowBindings()),
+    createControlElement(ControlElementType.TRACKPAD, 0.65, 0.76, '鼠标', []),
+    createControlElement(ControlElementType.BUTTON, 0.88, 0.64, '确认', [keyBinding(28)]),
+    createControlElement(ControlElementType.BUTTON, 0.94, 0.82, '返回', [keyBinding(1)]),
+    createControlElement(ControlElementType.BUTTON, 0.06, 0.16, 'Tab', [keyBinding(15)], ControlElementShape.ROUND_RECT),
+    createControlElement(ControlElementType.BUTTON, 0.16, 0.16, 'Esc', [keyBinding(1)], ControlElementShape.ROUND_RECT)
   ];
 }
 
@@ -1130,6 +1145,7 @@ function actionTemplateElements(): ControlElement[] {
 }
 
 function templateElements(templateId: string): ControlElement[] {
+  if (templateId === 'steam-navigation') return steamNavigationElements();
   if (templateId === 'full-keyboard') return fullKeyboardTemplateElements();
   if (templateId === 'rpg') return rpgTemplateElements();
   if (templateId === 'fps' || templateId === 'shooter') return fpsTemplateElements();
@@ -1160,6 +1176,12 @@ export function createBuiltInInputProfiles(): InputProfile[] {
       template.profileName,
       template.id);
     profile.builtInRevision = template.revision;
+    if (template.id === 'steam-navigation') {
+      profile.gamepadMappings.forEach((mapping: GamepadButtonMapping): void => {
+        if (mapping.buttonCode === 2301) mapping.evdevCode = 28;
+        if (mapping.buttonCode === 2302) mapping.evdevCode = 1;
+      });
+    }
     return profile;
   });
 }
@@ -1228,7 +1250,6 @@ export function createDefaultAppSettings(appId: string): AppSettings {
 }
 
 export const MF_DXGI_DEVICE_MANAGER_DISABLE_ENV = 'WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER=1';
-export const MF_PREFER_MPEG4_HANDLER_ENV = 'WINE_MF_PREFER_MPEG4_HANDLER=1';
 
 /** Per-game Media Foundation compat env; default settings emit nothing. */
 export function resolveMfCompatEnv(settings: AppSettings): string[] {
@@ -1236,9 +1257,8 @@ export function resolveMfCompatEnv(settings: AppSettings): string[] {
   if (settings.disableMfDxgiDeviceManager) {
     env.push(MF_DXGI_DEVICE_MANAGER_DISABLE_ENV);
   }
-  if (settings.preferMfMpeg4Handler) {
-    env.push(MF_PREFER_MPEG4_HANDLER_ENV);
-  }
+  // Persist the legacy field for older settings files. Valve Wine already
+  // selects MPEG4 as its default handler; the old override has no consumer.
   return env;
 }
 

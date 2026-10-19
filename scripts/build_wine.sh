@@ -278,6 +278,10 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0058-ohos-shared-wasapi-float32.p
     "Advertise shared WASAPI mix format as IEEE float32"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0062-wineohos-shared-audio-format-contract.patch" \
     "Export the shared Float32 format used by GetMixFormat for final-package validation"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0064-mfplat-opt-in-nonshared-texture-retry.patch" \
+    "Opt-in Media Foundation nonshared texture retry"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0063-ntdll-ohos-thread-exit-signal-stack.patch" \
+    "OHOS thread exit outside Wine-owned signal stack"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0065-wow64-self-context-no-suspend.patch" \
     "Read the current WOW64 context without suspending the caller"
 # Keep native protection diagnostics opt-in and separate from behavior fixes.
@@ -297,6 +301,12 @@ python3 "$SCRIPT_DIR/gstreamer_inventory.py" \
 if ! cmp -s "$SCRIPT_DIR/wine_gstreamer_loader.h" "$WINE_SRC/dlls/winegstreamer/winehua_gstreamer_loader.h"; then
     cp "$SCRIPT_DIR/wine_gstreamer_loader.h" "$WINE_SRC/dlls/winegstreamer/winehua_gstreamer_loader.h"
 fi
+
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0065-kernelbase-linux-steam-session-registry.patch" \
+    "Process-local Linux Steam SDK bootstrap"
+
+# Normalize inherited temporary probes; keep the actual fault/exit paths intact.
+python3 "$SCRIPT_DIR/wine_runtime_diagnostics.py" --source "$WINE_SRC"
 
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \

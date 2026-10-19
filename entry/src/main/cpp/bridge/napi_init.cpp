@@ -415,6 +415,7 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
             !strcmp(wineLang, "ja_JP") || !strcmp(wineLang, "en_US"))
             p->wineLang = wineLang;
     }
+    winehua::SetActiveContainerLanguage(p->wineLang);
     if (argc >= 10) {
         bool directNcpSession = false;
         if (napi_get_value_bool(env, args[9], &directNcpSession) != napi_ok) {
@@ -1160,6 +1161,52 @@ static napi_value RaiseToplevel(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
+// Restore/raise/focus must execute on the Wayland event-loop thread.
+static napi_value BindExternalToplevel(napi_env env, napi_callback_info info) {
+    size_t count = 8; napi_value args[8], result; int32_t values[8] = {};
+    napi_get_cb_info(env, info, &count, args, nullptr, nullptr);
+    bool valid = count == 8;
+    for (size_t i = 0; valid && i < count; ++i)
+        valid = napi_get_value_int32(env, args[i], &values[i]) == napi_ok;
+    bool bound = valid && values[0] > 0 && values[1] > 0 && values[2] > 0 && values[3] > 0 &&
+        WaylandServer::GetInstance()->GetDesktopCompositor().BindExternalToplevel(
+            values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7]);
+    napi_get_boolean(env, bound, &result); return result;
+}
+
+static napi_value GetKeyboardFocusedToplevel(napi_env env, napi_callback_info) {
+    napi_value result;
+    napi_create_uint32(env, InputManager::GetInstance()->GetKeyboardFocusedToplevel(), &result);
+    return result;
+}
+
+static napi_value MoveExternalHost(napi_env env, napi_callback_info info) {
+    size_t count = 2; napi_value args[2], result; uint32_t source = 0, host = 0;
+    napi_get_cb_info(env, info, &count, args, nullptr, nullptr);
+    bool accepted = count == 2 && napi_get_value_uint32(env, args[0], &source) == napi_ok &&
+        napi_get_value_uint32(env, args[1], &host) == napi_ok &&
+        InputManager::GetInstance()->RequestExternalHostMove(source, host);
+    napi_get_boolean(env, accepted, &result); return result;
+}
+
+static napi_value UnbindExternalToplevel(napi_env env, napi_callback_info info) {
+    size_t count = 1; napi_value args[1]; uint32_t id = 0;
+    napi_get_cb_info(env, info, &count, args, nullptr, nullptr);
+    if (count == 1 && napi_get_value_uint32(env, args[0], &id) == napi_ok)
+        WaylandServer::GetInstance()->GetDesktopCompositor().UnbindExternalToplevel(id);
+    return nullptr;
+}
+
+static napi_value ActivateToplevel(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1];
+    uint32_t id = 0;
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    if (argc == 1 && napi_get_value_uint32(env, args[0], &id) == napi_ok)
+        InputManager::GetInstance()->RequestToplevelActivation(id);
+    return nullptr;
+}
+
 // Desktop 模式: 接收物理像素坐标 (px, py), 通过 viewport 映射为 Wine 逻辑坐标后查找
 // resize 后 surface 和逻辑尺寸比例变化, 由 renderer viewport 保证映射正确
 static napi_value FindToplevelAt(napi_env env, napi_callback_info info) {
@@ -1214,7 +1261,7 @@ static napi_value GetProcessList(napi_env env, napi_callback_info info) {
         napi_value obj;
         napi_create_object(env, &obj);
 
-        napi_value pidVal, nameVal, pathVal, stateVal, shellVal;
+        napi_value pidVal, nameVal, pathVal, stateVal, shellVal, sessionVal;
         napi_create_int32(env, entry.pid, &pidVal);
         napi_create_string_utf8(env, entry.exeBasename.c_str(), NAPI_AUTO_LENGTH, &nameVal);
         napi_create_string_utf8(env, entry.exeFullPath.c_str(), NAPI_AUTO_LENGTH, &pathVal);
@@ -1223,8 +1270,11 @@ static napi_value GetProcessList(napi_env env, napi_callback_info info) {
         // 桌面 root 出现前加入的会话基础进程 (desktop + 桌面前的 explorer 等),
         // ArkTS 据此隐藏"结束"操作防误操作破坏桌面运行
         napi_get_boolean(env, entry.desktopShell, &shellVal);
+        const auto sessionId = WineSessionId(entry);
+        napi_create_string_utf8(env, sessionId.c_str(), sessionId.size(), &sessionVal);
 
         napi_property_descriptor props[] = {
+            {"sessionId", nullptr, nullptr, nullptr, nullptr, sessionVal, napi_default, nullptr},
             {"pid",   nullptr, nullptr, nullptr, nullptr, pidVal,   napi_default, nullptr},
             {"name",  nullptr, nullptr, nullptr, nullptr, nameVal,  napi_default, nullptr},
             {"path",  nullptr, nullptr, nullptr, nullptr, pathVal,  napi_default, nullptr},
@@ -1250,11 +1300,12 @@ static napi_value KillProcess(napi_env env, napi_callback_info info) {
     napi_get_value_int32(env, args[0], &pid);
     OH_LOG_WARN(LOG_APP, "[NAPI] killProcess pid=%{public}d", pid);
 
-    KillChildProcess(pid);
-    RemoveProcess(pid);
+    WineProcessEntry entry;
+    const bool stopped = QueryProcessSnapshot(pid, &entry) &&
+        StopRegisteredWineSession(WineSessionId(entry));
 
     napi_value r;
-    napi_get_boolean(env, true, &r);
+    napi_get_boolean(env, stopped, &r);
     return r;
 }
 
@@ -1480,8 +1531,7 @@ static napi_value WineTextInputPreedit(napi_env env, napi_callback_info info) {
     }
     // 预上屏光标放在 UTF-8 末尾 (字节偏移), 避免把 JS UTF-16 下标误当字节数。
     int32_t end = static_cast<int32_t>(strlen(text));
-    TextInput::GetInstance()->SendPreeditString(text, 0, end);
-    const bool delivered = true; // theirs API returns void
+    const bool delivered = TextInput::GetInstance()->SendPreeditString(text, 0, end);
     napi_value result;
     napi_get_boolean(env, delivered, &result);
     return result;
@@ -1496,8 +1546,7 @@ static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
         size_t len = 0;
         napi_get_value_string_utf8(env, args[0], text, sizeof(text), &len);
     }
-    TextInput::GetInstance()->SendCommitString(text);
-    const bool delivered = true; // theirs API returns void
+    const bool delivered = TextInput::GetInstance()->SendCommitString(text);
     napi_value result;
     napi_get_boolean(env, delivered, &result);
     return result;
@@ -1505,7 +1554,7 @@ static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
 
 static napi_value WineTextInputEnabled(napi_env env, napi_callback_info) {
     napi_value result;
-    napi_get_boolean(env, true, &result); // theirs API has no IsEnabled
+    napi_get_boolean(env, TextInput::GetInstance()->IsEnabled(), &result);
     return result;
 }
 
@@ -1515,7 +1564,7 @@ static napi_value WineTextInputSetArmed(napi_env env, napi_callback_info info) {
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     bool armed = false;
     if (argc >= 1 && args[0] != nullptr) napi_get_value_bool(env, args[0], &armed);
-    (void)armed; // theirs API has no SetArmed
+    TextInput::GetInstance()->SetArmed(armed);
     return nullptr;
 }
 
@@ -1572,26 +1621,57 @@ static napi_value GetDisplayFps(napi_env env, napi_callback_info info) {
 }
 
 
-// ---- VPP wine-session surface (degraded on proton baseline) ----
-// theirs' (proton) process registry has no sessionId/toplevelId fields, so the
-// VPP session-management exports degrade to inert responses for this test build.
-static napi_value GetWineSession(napi_env env, napi_callback_info) {
-    OH_LOG_WARN(LOG_APP, "[VPP-Compat] getWineSession: sessions unavailable on proton baseline");
+// ---- Registered Proton process sessions ----
+static std::string ReadWineSessionArgument(napi_env env, napi_callback_info info) {
+    size_t argc = 1; napi_value arg;
+    napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr);
+    char id[128] = {};
+    if (argc != 1 || napi_get_value_string_utf8(env, arg, id, sizeof(id), nullptr) != napi_ok) return {};
+    return id;
+}
+static bool ResolveNativeWineSession(const std::string& id, WineProcessEntry& entry) {
+    if (id == "desktop") {
+        const auto root = WaylandServer::GetInstance()->GetDesktopRootToplevelId();
+        if (!root) return false;
+        entry = {}; entry.pid = 0; entry.toplevelId = root; entry.running = true;
+        entry.desktopShell = true; entry.exeFullPath = "desktop";
+        return true;
+    }
+    return QueryWineSession(id, &entry);
+}
+static napi_value GetWineSession(napi_env env, napi_callback_info info) {
+    const auto id = ReadWineSessionArgument(env, info);
+    WineProcessEntry entry;
     napi_value result;
-    napi_get_null(env, &result);
+    if (!ResolveNativeWineSession(id, entry)) { napi_get_null(env, &result); return result; }
+    napi_create_object(env, &result);
+    auto number = [&](const char* key, int32_t value) {
+        napi_value v; napi_create_int32(env, value, &v); napi_set_named_property(env, result, key, v);
+    };
+    auto string = [&](const char* key, const std::string& value) {
+        napi_value v; napi_create_string_utf8(env, value.c_str(), value.size(), &v);
+        napi_set_named_property(env, result, key, v);
+    };
+    number("pid", entry.pid); number("toplevelId", entry.toplevelId);
+    string("sessionId", id); string("path", entry.exeFullPath);
+    string("state", entry.running ? "running" : "stopped");
     return result;
 }
-static napi_value StopWineSession(napi_env env, napi_callback_info) {
-    OH_LOG_WARN(LOG_APP, "[VPP-Compat] stopWineSession: sessions unavailable on proton baseline");
-    napi_value result;
-    napi_get_boolean(env, false, &result);
-    return result;
+static napi_value StopWineSession(napi_env env, napi_callback_info info) {
+    const auto id = ReadWineSessionArgument(env, info);
+    const bool stopped = id != "desktop" && StopRegisteredWineSession(id);
+    napi_value result; napi_get_boolean(env, stopped, &result); return result;
 }
-static napi_value ActivateWineSession(napi_env env, napi_callback_info) {
-    OH_LOG_WARN(LOG_APP, "[VPP-Compat] activateWineSession: sessions unavailable on proton baseline");
-    napi_value result;
-    napi_get_boolean(env, false, &result);
-    return result;
+static napi_value ActivateWineSession(napi_env env, napi_callback_info info) {
+    const auto id = ReadWineSessionArgument(env, info);
+    WineProcessEntry entry;
+    bool active = ResolveNativeWineSession(id, entry) && entry.toplevelId;
+    if (active) {
+        auto& manager = WaylandServer::GetInstance()->GetToplevelManager();
+        { auto lock = manager.Lock(); active = manager.FindToplevelLocked(entry.toplevelId) != nullptr; }
+        if (active) WaylandServer::GetInstance()->RaiseToplevel(entry.toplevelId, true);
+    }
+    napi_value result; napi_get_boolean(env, active, &result); return result;
 }
 
 EXTERN_C_START
@@ -1743,6 +1823,11 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"notifyToplevelResizeEnd",nullptr,NotifyToplevelResizeEnd,nullptr, nullptr, nullptr, napi_default, nullptr},
         {"findToplevelAt",   nullptr, FindToplevelAt,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"raiseToplevel",    nullptr, RaiseToplevel,    nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"activateToplevel", nullptr, ActivateToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"bindExternalToplevel", nullptr, BindExternalToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"moveExternalHost", nullptr, MoveExternalHost, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getKeyboardFocusedToplevel", nullptr, GetKeyboardFocusedToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"unbindExternalToplevel", nullptr, UnbindExternalToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setToplevelVisible", nullptr, SetToplevelVisible, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getProcessList",   nullptr, GetProcessList,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"killProcess",     nullptr, KillProcess,     nullptr, nullptr, nullptr, napi_default, nullptr},

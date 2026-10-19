@@ -1,16 +1,88 @@
 #!/usr/bin/env python3
-"""Reject SDK stubs and stale Wine audio in runtime inputs and final archives."""
+"""Reject SDK stubs, stale Wine audio, and mismatched thread-exit repair packages."""
 import argparse
+import hashlib
 import io
+import json
 from pathlib import Path
 import struct
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 from wine_audio_contract import shared_audio_format
 
 
 class RuntimeLibraryError(RuntimeError):
     pass
+
+
+THREAD_EXIT_REPAIR_VERSION = 2
+THREAD_EXIT_MARKERS = (
+    b'failed to disable signal stack at thread exit:',
+    b'invalid Unix stack at thread exit:',
+    b'failed to join previous thread before freeing its TEB:',
+    b'failed to query native pthread stack at startup:',
+)
+
+
+def validate_thread_exit_library(data, label, repair_version=THREAD_EXIT_REPAIR_VERSION):
+    # Identity checks pair this diagnostic fingerprint with the compiled ELF.
+    # The strings alone do not establish correct machine-code behavior.
+    if len(data) < 64 or data[:6] != b'\x7fELF\x02\x01' or data[18:20] != b'\xb7\x00':
+        raise RuntimeLibraryError(f'{label}: expected an ARM64 ELF ntdll')
+    markers = THREAD_EXIT_MARKERS[:3] if repair_version == 1 else THREAD_EXIT_MARKERS
+    if any(marker not in data for marker in markers):
+        raise RuntimeLibraryError(f'{label}: missing thread-exit repair diagnostics')
+
+
+def validate_thread_exit_metadata(archive, label):
+    suffix = 'resources/rawfile/wine-runtime-manifest.json'
+    manifests = [name for name in archive.namelist() if name.endswith(suffix)]
+    if not manifests:
+        return
+    if len(manifests) != 1:
+        raise RuntimeLibraryError(f'{label}: ambiguous runtime manifest')
+    try:
+        manifest = json.loads(archive.read(manifests[0]))
+    except (ValueError, UnicodeError) as error:
+        raise RuntimeLibraryError(f'{label}: invalid runtime manifest') from error
+    if not isinstance(manifest, dict):
+        raise RuntimeLibraryError(f'{label}: invalid runtime manifest')
+    if 'threadExit' not in manifest:
+        return  # Older, unmarked runtimes remain supported.
+    record = manifest['threadExit']
+    if not isinstance(record, dict) or record.get('repairVersion') not in (1, 2):
+        raise RuntimeLibraryError(f'{label}: unsupported thread-exit repair record')
+    if record.get('library') != 'libs/arm64-v8a/ntdll.so':
+        raise RuntimeLibraryError(f'{label}: invalid thread-exit library member')
+    prefix = manifests[0][:-len(suffix)]
+    try:
+        library = archive.read(prefix + record['library'])
+        validate_thread_exit_library(library, label + '/' + record['library'], record['repairVersion'])
+        digest = hashlib.sha256(library).hexdigest()
+        if record.get('sha256') != digest:
+            raise RuntimeLibraryError(f'{label}: thread-exit ntdll checksum mismatch')
+        version = archive.read(prefix + 'resources/rawfile/wine_runtime.version').decode().strip()
+        markers = [part for part in version.split(';') if part.startswith('thread-exit=')]
+        if markers != ['thread-exit=' + digest[:16]]:
+            raise RuntimeLibraryError(f'{label}: thread-exit runtime version mismatch')
+        payload = archive.read(prefix + 'resources/rawfile/wine-data.zip')
+        if manifest.get('payloadSha256') != hashlib.sha256(payload).hexdigest():
+            raise RuntimeLibraryError(f'{label}: thread-exit runtime payload checksum mismatch')
+        with ZipFile(io.BytesIO(payload)) as nested:
+            members = []
+            for name in nested.namelist():
+                if Path(name).name != 'ntdll.so':
+                    continue
+                data = nested.read(name)
+                if data[:6] != b'\x7fELF\x02\x01' or data[18:20] != b'\xb7\x00':
+                    continue
+                members.append(name)
+                if hashlib.sha256(data).hexdigest() != digest:
+                    raise RuntimeLibraryError(f'{label}/{name}: stale nested thread-exit ntdll')
+            if record.get('nestedMembers') != members:
+                raise RuntimeLibraryError(f'{label}: thread-exit nested member list mismatch')
+    except (KeyError, ValueError, UnicodeError, BadZipFile) as error:
+        raise RuntimeLibraryError(f'{label}: incomplete thread-exit runtime metadata') from error
 
 
 def exported_functions(data):
@@ -60,6 +132,9 @@ def validate_library(data, label):
 
 def validate_archive(data, label):
     with ZipFile(io.BytesIO(data)) as archive:
+        if len(archive.namelist()) != len(set(archive.namelist())):
+            raise RuntimeLibraryError(f'{label}: duplicate archive members')
+        validate_thread_exit_metadata(archive, label)
         for name in archive.namelist():
             if '.so' in Path(name).name:
                 validate_library(archive.read(name), f'{label}/{name}')

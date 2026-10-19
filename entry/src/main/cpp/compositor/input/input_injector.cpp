@@ -151,10 +151,15 @@ void InputInjector::InjectPointerButton(uint32_t button, uint32_t state) {
                 button, state, s, nSent, ptrs.size(), t);
 }
 
-void InputInjector::InjectPointerAxis(int axis, wl_fixed_t value) {
+void InputInjector::InjectPointerAxis(int axis, wl_fixed_t value, bool continuous) {
     auto ptrs = Seat::GetInstance()->GetAllPointerResources();
     wl_resource* focus = tracker_->PointerFocusedSurface();
-    if (ptrs.empty() || !focus) { return; }
+    if (ptrs.empty() || !focus || !value || !resolver_->IsSurfaceAlive(focus)) { return; }
+    const bool native = resolver_->IsExternallyHostedSurface(focus);
+    // Xwayland consumes continuous axis values (10 units per wheel detent).
+    // A discrete +/-1 on every fractional event overrides that value in
+    // Xwayland and turns a smooth gesture into many full wheel clicks.
+    const auto nativeValue = continuous ? value : wl_fixed_from_double(wl_fixed_to_double(value) * 10.0);
     struct wl_client* focusClient = wl_resource_get_client(focus);
     uint32_t axisEnum = (axis == 0) ? WL_POINTER_AXIS_VERTICAL_SCROLL
                                     : WL_POINTER_AXIS_HORIZONTAL_SCROLL;
@@ -165,11 +170,11 @@ void InputInjector::InjectPointerAxis(int axis, wl_fixed_t value) {
             // winewayland.drv 只处理 axis_discrete/axis_value120, axis 是空函数。
             // 协议规定 discrete 在配对 axis 之前; steps 直接比较 wl_fixed 原值,
             // 避免 wl_fixed_to_int 截断把 |值|<1 的正向滚动 (触控板细步) 误判成反向
-            if (wl_resource_get_version(ptr) >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION) {
+            if (!native && wl_resource_get_version(ptr) >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION) {
                 int32_t steps = (value > 0) ? 1 : -1;
                 wl_pointer_send_axis_discrete(ptr, axisEnum, steps);
             }
-            wl_pointer_send_axis(ptr, t, axisEnum, value);
+            wl_pointer_send_axis(ptr, t, axisEnum, native ? nativeValue : value);
             wl_pointer_send_frame(ptr);
             nSent++;
         }

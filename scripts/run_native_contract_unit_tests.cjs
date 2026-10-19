@@ -24,7 +24,7 @@ for (const name of added) {
 assert.ok(!/\bany\b|\bunknown\b/.test(declaration));
 assert.match(wine,/size_t argc = 10;/);
 assert.match(declaration,/environment\?: string\[\], wineLang\?: string\) => WineLaunchResult/);
-assert.match(declaration,/getWineSession: \(sessionId: string\) => null/);
+assert.match(declaration,/getWineSession: \(sessionId: string\) => NativeWineSessionInfo \| null/);
 assert.match(declaration,/readPerformanceCounters: \(appCpu: boolean, systemCpu: boolean\) => Promise<string>/);
 const options = /export interface WineProgramOptions \{([\s\S]*?)\n\}/.exec(declaration)[1];
 for (const ignored of ['prefixMode','wineLang','presentToSurface','automationMode','dxvkBackend']) {
@@ -34,6 +34,8 @@ assert.ok(options.includes('presentBackend?: string;'));
 const calls = [], summaries = [];
 let syncCalls=0, restoreCalls=0;
 const imports = {
+ './LinuxSteamDiagnosticData': {}, './LinuxSteamWindowHost': {}, './LinuxSteamStorageAudit': {},
+ './LinuxSteamGameLaunch': {}, 'libsmoke_napi.so': { default: {} },
  'libentry.so': { default: {runWineProgram: value => {calls.push(value); return {pid: 123};}} },
  './LogService': { hilog: {info(){},warn(){},error(){}} },
  './WineEngineService': {WineEngineService: {getInstance:()=>({isReady:()=>true,getD3dBackend:()=> 'dxvk_legacy',

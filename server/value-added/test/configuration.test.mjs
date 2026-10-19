@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { protectedPem, membershipProductsVerified } from '../src/main.mjs';
+import { protectedPem, protectedPushCredential, membershipProductsVerified } from '../src/main.mjs';
 import { loadPkixRuntime, PKIX_FILES } from '../src/pkix-runtime.mjs';
 
 test('single-line protected PEM configuration preserves newlines and rejects malformed or noncanonical input', () => {
@@ -15,6 +15,20 @@ test('single-line protected PEM configuration preserves newlines and rejects mal
     assert.throws(() => protectedPem(bad), /INVALID_CREDENTIAL_CONFIGURATION/);
   }
 });
+test('chunked push credentials preserve the complete key and reject partial or conflicting deployments', () => {
+  const pem = '-----BEGIN PRIVATE KEY-----\n' + 'key-fixture'.repeat(300) + '\n-----END PRIVATE KEY-----\n';
+  const base64 = Buffer.from(pem).toString('base64');
+  const env = Object.fromEntries([1, 2, 3].map((n) => ['VP_PUSH_PRIVATE_KEY_BASE64_' + n, base64.slice((n - 1) * 1800, n * 1800)]));
+  const json = JSON.stringify({ project_id: '12345678', key_id: 'fixture', sub_account: 'service' });
+  assert.equal(protectedPushCredential(json, env).private_key, pem);
+  for (const missing of [1, 2, 3]) {
+    const partial = { ...env }; delete partial['VP_PUSH_PRIVATE_KEY_BASE64_' + missing];
+    assert.throws(() => protectedPushCredential(json, partial), /INVALID_CREDENTIAL_CONFIGURATION/);
+  }
+  assert.throws(() => protectedPushCredential(JSON.stringify({ private_key: pem }), env), /INVALID_CREDENTIAL_CONFIGURATION/);
+  assert.deepEqual(protectedPushCredential(json), JSON.parse(json));
+});
+
 test('bundled PKIX runtime rejects modified binary before executing or changing permissions', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'vp-pkix-integrity-'));
   const url = pathToFileURL(directory + '/');

@@ -5,4 +5,5 @@ inline int OH_Ability_RegisterNativeChildProcessExitCallback(void (*)(int32_t, i
     return NCP_NO_ERROR;
 }
 
-inline int OH_Ability_KillChildProcess(int32_t) { return -1; }
+int ProcessTestNcpKill(int32_t);
+inline int OH_Ability_KillChildProcess(int32_t pid) { return ProcessTestNcpKill(pid); }

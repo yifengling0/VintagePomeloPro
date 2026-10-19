@@ -192,6 +192,21 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
                 return out.surface != nullptr;
             }
         } else if (layer.type == CompositorLayer::Type::Toplevel) {
+            if (layer.externalHostId) {
+                const auto* source = tmgr_.FindToplevelLocked(layer.toplevelId);
+                if (source && layer.w > 0 && layer.h > 0 &&
+                    x >= layer.x && y >= layer.y && x < layer.x + layer.w && y < layer.y + layer.h) {
+                    out.toplevelId = layer.externalHostId;
+                    out.surface = tmgr_.GetSurfaceForToplevel(layer.toplevelId);
+                    out.originX = layer.x; out.originY = layer.y;
+                    out.scale = static_cast<double>(layer.w) / source->Width();
+                    contentW = source->Width(); contentH = source->Height();
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(layer.externalHostId);
+                    finalize();
+                    return out.surface != nullptr;
+                }
+                continue;
+            }
             if (fsOk && layer.toplevelId == fullscreenId) {
                 // 主全屏窗口: 内容区 (fit 矩形) 命中
                 if (x >= transform.offX && x < transform.offX + transform.dstW &&
@@ -254,13 +269,17 @@ wl_resource* InputResolver::ResolveKeyboardFocusSurface(uint32_t toplevelId,
                                                        wl_resource* hitSurface)
 {
     auto* owner = tmgr_.GetSurfaceForToplevel(toplevelId);
-    if (!owner || !IsSurfaceAlive(owner) || !IsSurfaceAlive(hitSurface)) return nullptr;
-    // Never infer ownership from a process ID or a recycled protocol ID.
-    // Each edge must still refer to its registered resource.
+    auto lock = tmgr_.Lock();
+    if (!tmgr_.FindRegisteredSurfaceDataLocked(owner)) return nullptr;
+    // The host HWND owns activation, while its explicitly bound foreign
+    // Wayland client receives keyboard/IME. Never infer this from a title.
+    const auto foreign = compositor_.ExternalSourceLocked(toplevelId);
+    if (foreign && (hitSurface == owner || hitSurface == tmgr_.GetSurfaceForToplevel(foreign)))
+        return tmgr_.GetSurfaceForToplevel(foreign);
+    // Hold one lock over the entire ancestry walk, including the data reads.
     auto* current = hitSurface;
     for (unsigned depth = 0; current && depth < 32; ++depth) {
-        if (!IsSurfaceAlive(current)) return nullptr;
-        auto* data = static_cast<SurfaceData*>(wl_resource_get_user_data(current));
+        auto* data = tmgr_.FindRegisteredSurfaceDataLocked(current);
         if (!data || tmgr_.FindSurfaceResource(data->surfaceKey) != current) return nullptr;
         if (current == owner) return owner;
         if (!data->isSubsurface || !data->parentSurface) return nullptr;
@@ -276,6 +295,21 @@ bool InputResolver::IsSurfaceAlive(wl_resource* surface)
     return tmgr_.ContainsSurfaceResource(surface);
 }
 
+bool InputResolver::IsExternallyHostedSurface(wl_resource* surface)
+{
+    const auto id = tmgr_.FindToplevelBySurface(surface);
+    auto lock = tmgr_.Lock();
+    return id && compositor_.ExternalHostLocked(id) != 0;
+}
+
+bool InputResolver::CanMoveExternalHost(uint32_t source, uint32_t host)
+{
+    auto lock = tmgr_.Lock();
+    const auto* window = tmgr_.FindToplevelLocked(host);
+    return source && host && compositor_.ExternalHostLocked(source) == host && window &&
+        !window->IsMinimized() && !window->IsFullscreen();
+}
+
 bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, double ly,
                                           double& dx, double& dy)
 {
@@ -284,6 +318,16 @@ bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, doubl
     auto lk = tmgr_.Lock();
     const auto* st = tmgr_.FindToplevelLocked(tl);
     if (!st) return false;
+    if (compositor_.ExternalHostLocked(tl)) {
+        int rw, rh; ResolveRootSize(rw, rh);
+        for (const auto& layer : compositor_.BuildLayerListLocked(rw, rh))
+            if (layer.externalHostId && layer.toplevelId == tl && layer.visible) {
+                dx = layer.x + lx * layer.w / st->Width();
+                dy = layer.y + ly * layer.h / st->Height();
+                return true;
+            }
+        return false;
+    }
     // Do not warp through a cascaded fullscreen window that is not displayed.
     if (st->IsFullscreen()) {
         // 与 FindInputTargetAt 全屏分支同一几何 (ComputeFullscreenFitLocked),

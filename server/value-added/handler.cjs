@@ -26,12 +26,26 @@ exports.myHandler = function (event, context, callback) {
 };
 
 let timer;
-exports.renewalHandler = function (event, context, callback) {
-  if (!timer) timer = Promise.all([import('./src/main.mjs'), import('./src/renewal-timer.mjs')])
-    .then(async ([main, adapter]) => adapter.createRenewalTimer(await main.loadService(), process.env.VP_RENEWAL_TIMER_SECRET))
+exports.renewalHandler = function (event, context, callback, logger) {
+  if (!timer) timer = Promise.all([import('./src/main.mjs'), import('./src/renewal-timer.mjs'), import('./src/runtime-log.mjs')])
+    .then(async ([main, adapter, logging]) => ({
+      run: adapter.createRenewalTimer(await main.loadService(), process.env.VP_RENEWAL_TIMER_SECRET), logging }))
     .catch(error => { timer = undefined; throw error; });
-  timer.then(run => run(event)).then(result => callback(result)).catch(() => {
-    console.error('[RenewalReminders] timer failed'); callback({ code: 'RENEWAL_TIMER_FAILED' });
+  timer.then(({ run, logging }) => logging.withRuntimeLogger(logger ?? globalThis.logger, async () => {
+    const result = await run(event);
+    logging.runtimeInfo('VP_RENEWAL_TIMER ' + JSON.stringify({ processed: result.processed, failed: result.failed, complete: result.complete }));
+    return result;
+  })).then(result => callback(result)).catch(error => {
+    const known = ['ENOENT', 'EACCES', 'NOT_CONFIGURED', 'NODE_RUNTIME_NOT_SUPPORTED', 'CLOUDDB_NOT_VERIFIED',
+      'CLOUDDB_LOCK_MISSING', 'STORAGE_TIMEOUT', 'TIMER_NOT_CONFIGURED', 'TIMER_ONLY', 'REMINDERS_UNAVAILABLE',
+      'INVALID_CREDENTIAL_CONFIGURATION', 'INVALID_PUSH_CREDENTIAL'];
+    const raw = String(error?.getCode?.() ?? error?.code ?? '');
+    const diagnosticCode = known.includes(raw) || /^\d{1,12}$/.test(raw) ? raw :
+      error?.name === 'TypeError' ? 'TYPE_ERROR' : error?.name === 'SyntaxError' ? 'SYNTAX_ERROR' : 'INITIALIZATION_FAILED';
+    const sink = logger ?? globalThis.logger;
+    const message = '[RenewalReminders] timer failed: ' + diagnosticCode;
+    if (typeof sink?.error === 'function') sink.error(message); else console.error(message);
+    callback({ code: 'RENEWAL_TIMER_FAILED', diagnosticCode });
   });
 };
 

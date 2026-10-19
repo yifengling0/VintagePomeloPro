@@ -31,16 +31,27 @@ export class HuaweiPushSender {
     const date = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit',
       day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(renewalAt);
     const price = new Intl.NumberFormat('zh-CN', { style: 'currency', currency }).format(amount / 100);
+    return this.dispatch(token, { deliveryId, userId, title: '旧柚 VIP 续费提醒',
+      body: '连续包月预计于 ' + date + '（北京时间）续费 ' + price + '，延长一个月。华为可能提前24小时扣款；点击管理或取消自动续费。',
+      ttl: Math.min(86400, Math.max(1, Math.floor((renewalAt - this.clock()) / 1000))) });
+  }
+  // Used only by an operator with server-side credentials, never a public API.
+  async sendTest(token, { deliveryId, userId }) {
+    return this.dispatch(token, { deliveryId, userId, title: '旧柚 VIP 提醒测试',
+      body: '这是一条测试通知，不会扣款。收到后点击进入会员管理，查看订阅和续费提醒设置。',
+      ttl: 300, testMessage: true });
+  }
+  async dispatch(token, { deliveryId, userId, title, body, ttl, testMessage = false }) {
+    requireThat(this.ready, 'REMINDERS_UNAVAILABLE', 503);
     const response = await this.fetcher('https://push-api.cloud.huawei.com/v3/' + this.projectId + '/messages:send', {
       method: 'POST', signal: AbortSignal.timeout(10000), headers: { 'Content-Type': 'application/json',
         Authorization: 'Bearer ' + this.jwt(), 'push-type': '0' },
       // Huawei classifies membership expiry/renewal as ACCOUNT; SUBSCRIPTION is for content alerts.
-      body: JSON.stringify({ payload: { notification: { category: 'ACCOUNT', title: '旧柚 VIP 续费提醒',
-        body: '连续包月预计于 ' + date + '（北京时间）续费 ' + price + '，延长一个月。华为可能提前24小时扣款；点击管理或取消自动续费。',
+      body: JSON.stringify({ payload: { notification: { category: 'ACCOUNT', title, body,
         clickAction: { actionType: 1, action: MEMBERSHIP_ACTION, data: { deliveryId } },
         profileId: userId, style: 0, notifyId: parseInt(deliveryId.slice(0, 7), 16), appMessageId: deliveryId } },
         target: { token: [token] }, pushOptions: { biTag: deliveryId, ...(this.receiptId ? { receiptId: this.receiptId } : {}),
-          ttl: Math.min(86400, Math.max(1, Math.floor((renewalAt - this.clock()) / 1000))) } })
+          ttl, ...(testMessage ? { testMessage: true } : {}) } })
     });
     // HTTP 200 alone is not acceptance. Do not log the response (it may contain tokens).
     let result; try { result = await response.json(); } catch { throw new Error('PUSH_UNAVAILABLE'); }

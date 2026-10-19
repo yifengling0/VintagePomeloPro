@@ -43,8 +43,12 @@ public:
     bool Init(OHNativeWindow* window, int w, int h);
     void Shutdown();
 
-    uint32_t GetToplevelId() const { return toplevelId_; }
-    void SetToplevelId(uint32_t id) { toplevelId_ = id; }
+    uint32_t GetToplevelId() const { return toplevelId_.load(std::memory_order_relaxed); }
+    void SetToplevelId(uint32_t id) { toplevelId_.store(id, std::memory_order_relaxed); }
+    void SetPaused(bool paused) {
+        renderPaused_.store(paused, std::memory_order_release);
+        vsyncCv_.notify_all();
+    }
     // ArkTS onSurfaceChanged 声明的 surface 尺寸 (只作诊断基准, 见成员区注释)。
     // **不写 width_/height_**: 那两个字段是"实测 surface 尺寸", 被声明值污染后
     // 循环里的"实测 == 已画"判定会误判 (2026-09-14 黑边根因)
@@ -215,7 +219,8 @@ private:
     uint64_t vsyncSequence_ = 0;
     std::atomic<long long> vsyncPeriodNs_{16666667};
 
-    uint32_t toplevelId_ = 0;
+    std::atomic<uint32_t> toplevelId_{0};
+    std::atomic<bool> renderPaused_{false};
 
     // frame compositor 引用 (构造注入, 见构造函数注释): 取帧/层几何/ZC
     // 状态机直连目标 — 渲染线程唯一需要的外部 compositor 入口。

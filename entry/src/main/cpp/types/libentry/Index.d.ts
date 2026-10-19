@@ -237,6 +237,13 @@ export const setDesktopMode: (enabled: boolean) => void;
 export const setPhoneMode: (enabled: boolean) => void;
 export const findToplevelAt: (px: number, py: number) => number;
 export const raiseToplevel: (toplevelId: number) => void;
+// Queue restore, raise and keyboard focus on the compositor event-loop thread.
+export const activateToplevel: (toplevelId: number) => void;
+export const moveExternalHost: (source: number, host: number) => boolean;
+export const bindExternalToplevel: (source: number, host: number, sourcePid: number,
+  hostPid: number, x: number, y: number, width: number, height: number) => boolean;
+export const unbindExternalToplevel: (host: number) => void;
+export const getKeyboardFocusedToplevel: () => number;
 export const createRenderer: (toplevelId: number, surfaceId: BigInt) => void;
 export const resizeRenderer: (toplevelId: number, width: number, height: number) => void;
 export const destroyRenderer: (toplevelId: number) => void;
@@ -280,7 +287,10 @@ export const setHostGraphicsBackend: (backend: string) => boolean;
 export const getHostGpuName: () => string;
 export const getDesktopRootId: () => number;
 // Proton currently returns inert null/false. These declarations do not restore session functionality.
-export const getWineSession: (sessionId: string) => null;
+export interface NativeWineSessionInfo {
+  pid: number; sessionId: string; path: string; state: string; toplevelId: number;
+}
+export const getWineSession: (sessionId: string) => NativeWineSessionInfo | null;
 export const activateWineSession: (sessionId: string) => boolean;
 export const stopWineSession: (sessionId: string) => boolean;
 export const initGameController: () => number;

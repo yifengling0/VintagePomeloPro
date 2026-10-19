@@ -1,4 +1,5 @@
 #include "toplevel_manager.h"
+#include "compositor/frame/surface_data.h"
 #include "debug_assert.h"
 #include "compositor_utils.h"    // IsRestoreSizeCommit (最小化自动恢复判定)
 #include "compositor_constants.h"  // 掩码阈值/FNV 常数/最小化坐标阈值
@@ -262,4 +263,28 @@ ToplevelManager::ToplevelGeometrySnapshot ToplevelManager::GetToplevelGeometrySn
         s.shmFormat = it->second.ShmFormat();
     }
     return s;
+}
+
+SurfaceData* ToplevelManager::FindRegisteredSurfaceDataLocked(wl_resource* resource)
+{
+    if (!resource || !ContainsSurfaceResource(resource)) return nullptr;
+    return static_cast<SurfaceData*>(wl_resource_get_user_data(resource));
+}
+
+void ToplevelManager::UnregisterSurfaceResource(uint64_t key)
+{
+    const auto it = surfaceResources_.find(key);
+    if (it == surfaceResources_.end()) return;
+    const auto* retired = it->second;
+    for (const auto& [childKey, resource] : surfaceResources_) {
+        if (!resource || resource == retired) continue;
+        auto* child = static_cast<SurfaceData*>(wl_resource_get_user_data(resource));
+        if (child && child->parentSurface == retired) {
+            child->parentSurface = nullptr;
+            // Retain the subsurface role until wl_subsurface is destroyed. A
+            // detached child must not bootstrap as a role-less GPU producer.
+            child->directVisible = false;
+        }
+    }
+    surfaceResources_.erase(it);
 }

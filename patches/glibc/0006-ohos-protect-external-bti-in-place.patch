@@ -1,0 +1,118 @@
+--- a/elf/dl-map-segments.h
++++ b/elf/dl-map-segments.h
+@@ -21,34 +21,7 @@
+ 
+ #include <not-cancel.h>
+ 
+-/* Explicit opt-in for a caller-verified, versioned external GNU runtime.
+-   Never alter the normal signed file mapping path or privileged execution. */
+-static __always_inline bool
+-_dl_ohos_external_memory (const char *name)
+-{
+-  extern char **_environ attribute_hidden;
+-  const char *root = NULL;
+-  bool enabled = false;
+-  if (name == NULL) name = "";
+-  for (char **entry = _environ; entry != NULL && *entry != NULL; ++entry)
+-    {
+-      const char flag[] = "STEAMOHOS_NATIVE_MEMORY=1";
+-      const char prefix[] = "STEAMOHOS_EXTERNAL_RUNTIME=";
+-      if (strcmp (*entry, flag) == 0)
+-        enabled = true;
+-      if (strncmp (*entry, prefix, sizeof (prefix) - 1) == 0)
+-        root = *entry + sizeof (prefix) - 1;
+-    }
+-  static unsigned diagnostic_messages;
+-  if (root != NULL && diagnostic_messages++ < 2)
+-    _dl_debug_printf ("STEAMOHOS_NATIVE_MAP enabled=%d secure=%d image=%s\n", enabled, __libc_enable_secure, name);
+-  if (__libc_enable_secure || name[0] != '/') return false;
+-  if (!enabled || root == NULL || root[0] != '/' || root[1] == '\0'
+-      || strstr (root, "/../") != NULL || strstr (name, "/../") != NULL)
+-    return false;
+-  const size_t length = strlen (root);
+-  return strncmp (name, root, length) == 0 && name[length] == '/';
+-}
++#include <dl-ohos-native-memory.h>
+ 
+ static __always_inline void *
+ _dl_ohos_map_file (void *address, size_t length, int protection,
+--- /dev/null
++++ b/elf/dl-ohos-native-memory.h
+@@ -0,0 +1,37 @@
++/* Shared OHOS external mapping mode for ELF segments and AArch64 BTI. */
++#ifndef _DL_OHOS_NATIVE_MEMORY_H
++#define _DL_OHOS_NATIVE_MEMORY_H 1
++#include <stdbool.h>
++#include <string.h>
++#include <ldsodefs.h>
++
++/* Explicit opt-in for a caller-verified, versioned external GNU runtime.
++   Never alter the normal signed file mapping path or privileged execution. */
++static __always_inline bool
++_dl_ohos_external_memory (const char *name)
++{
++  extern char **_environ attribute_hidden;
++  const char *root = NULL;
++  bool enabled = false;
++  if (name == NULL) name = "";
++  for (char **entry = _environ; entry != NULL && *entry != NULL; ++entry)
++    {
++      const char flag[] = "STEAMOHOS_NATIVE_MEMORY=1";
++      const char prefix[] = "STEAMOHOS_EXTERNAL_RUNTIME=";
++      if (strcmp (*entry, flag) == 0)
++        enabled = true;
++      if (strncmp (*entry, prefix, sizeof (prefix) - 1) == 0)
++        root = *entry + sizeof (prefix) - 1;
++    }
++  static unsigned diagnostic_messages;
++  if (root != NULL && diagnostic_messages++ < 2)
++    _dl_debug_printf ("STEAMOHOS_NATIVE_MAP enabled=%d secure=%d image=%s\n", enabled, __libc_enable_secure, name);
++  if (__libc_enable_secure || name[0] != '/') return false;
++  if (!enabled || root == NULL || root[0] != '/' || root[1] == '\0'
++      || strstr (root, "/../") != NULL || strstr (name, "/../") != NULL)
++    return false;
++  const size_t length = strlen (root);
++  return strncmp (name, root, length) == 0 && name[length] == '/';
++}
++
++#endif
+--- a/sysdeps/aarch64/dl-bti.c
++++ b/sysdeps/aarch64/dl-bti.c
+@@ -19,6 +19,7 @@
+ #include <errno.h>
+ #include <libintl.h>
+ #include <ldsodefs.h>
++#include <dl-ohos-native-memory.h>
+ #include <sys/mman.h>
+ 
+ /* See elf/dl-load.h.  */
+@@ -32,6 +33,9 @@
+ _dl_bti_protect (struct link_map *map, int fd)
+ {
+   const size_t pagesz = GLRO(dl_pagesize);
++  const char *name = map->l_name[0] != '\0' ? map->l_name
++                     : map->l_libname != NULL ? map->l_libname->name : "";
++  const bool native_memory = _dl_ohos_external_memory (name);
+   const ElfW(Phdr) *phdr;
+ 
+   for (phdr = map->l_phdr; phdr < &map->l_phdr[map->l_phnum]; ++phdr)
+@@ -49,9 +53,16 @@
+ 	if (phdr->p_flags & PF_W)
+ 	  prot |= PROT_WRITE;
+ 
+-	if (fd == -1)
+-	  /* Ignore failures for kernel mapped binaries.  */
+-	  __mprotect (start, len, prot);
++	if (fd == -1 || native_memory)
++          {
++            /* External PT_LOAD contents already occupy verified anonymous
++               pages. A MAP_FIXED file remap can discard them before OHOS
++               rejects executable file mapping. Enable real BTI in place;
++               preserve the existing error path if protection is refused. */
++            int result = __mprotect (start, len, prot);
++            if (fd != -1)
++              map->l_mach.bti_fail = result < 0;
++          }
+ 	else
+ 	  map->l_mach.bti_fail = __mmap (start, len, prot,
+ 					 MAP_FIXED|MAP_COPY|MAP_FILE,

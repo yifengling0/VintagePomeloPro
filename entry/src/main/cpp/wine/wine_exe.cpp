@@ -168,6 +168,7 @@ static napi_value MakeProcessObject(napi_env env, const WineProcessEntry* entry,
     }
 
     setInt("pid", entry->pid);
+    setString("sessionId", WineSessionId(*entry));
     setString("status", entry->running ? "running" : "exited");
     setDouble("startTimestamp", static_cast<double>(entry->startTimestampMs));
     setDouble("endTimestamp", static_cast<double>(entry->endTimestampMs));
@@ -235,6 +236,9 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     policy.binDir = binDir;
     policy.homeDir = homeDir;
     policy.prefixDir = prefixDir;
+    // Managed child programs inherit the active desktop/container locale.
+    // Per-launch LC_ALL/LANG overrides still take precedence in extraEnv.
+    policy.wineLang = winehua::GetActiveContainerSession().wineLang;
     policy.d3dBackend = options.d3dBackend;
     policy.dxvkBackend = options.dxvkBackend;
     // DXVK 稳定化默认值 (DXVK_LOG/perf profile/WEAKBARRIER clamp 等) 与桌面
@@ -280,6 +284,7 @@ static int SpawnWineProgramImpl(const ProgramOptions& options)
     const pid_t pid = winehua::Spawner::Spawn(req);
     if (pid <= 0) return -1;
     AddProcess(pid, options.windowsExePath, -1);
+    BeginRegisteredWineSession(pid);
     OH_LOG_INFO(LOG_APP,
                 "[WineProgram] pid=%{public}d exe=%{public}s prefix=%{public}s d3d=%{public}s present=%{public}s",
                 pid, exePath.c_str(), prefixDir.c_str(), options.d3dBackend.c_str(),
@@ -405,16 +410,9 @@ napi_value TerminateWineProcess(napi_env env, napi_callback_info info)
     int32_t pid = -1;
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc >= 1) napi_get_value_int32(env, args[0], &pid);
-    OH_LOG_WARN(LOG_APP,
-                "[WineProgram] terminateWineProcess requested pid=%{public}d signal=SIGKILL",
-                pid);
-    const bool ok = pid > 0 && kill(pid, SIGKILL) == 0;
-    if (!ok) {
-        OH_LOG_WARN(LOG_APP,
-                    "[WineProgram] terminateWineProcess failed pid=%{public}d errno=%{public}d(%{public}s)",
-                    pid, errno, strerror(errno));
-    }
-    if (ok) RemoveProcess(pid, -1, "unknown");
+    WineProcessEntry entry;
+    const bool ok = pid > 0 && QueryProcessSnapshot(pid, &entry) &&
+        StopRegisteredWineSession(WineSessionId(entry));
     napi_value result;
     napi_get_boolean(env, ok, &result);
     return result;
@@ -567,6 +565,5 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
         snprintf(msg, sizeof(msg), "evt:launch-accepted:%d", pid);
         napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
     }
-    // VPP 会话面在 proton 基线上降级: sessionId 恒为空串
-    return MakeLaunchResult(env, pid, "", false);
+    return MakeLaunchResult(env, pid, BeginRegisteredWineSession(pid), false);
 }

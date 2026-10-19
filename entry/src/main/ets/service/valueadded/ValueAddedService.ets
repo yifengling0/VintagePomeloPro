@@ -70,6 +70,18 @@ export class ValueAddedService {
   private generation: number = 0;
   private notificationInstallationId: string = '';
   private notificationToken: string = '';
+  private notificationBinding: string = '';
+  private notificationReady: boolean = false;
+  private notificationFlight: Promise<boolean> | null = null;
+  private notificationFlightForced: boolean = false;
+  private notificationDisconnecting: boolean = false;
+  private notificationForeground: boolean = true;
+  private notificationRetryTarget: string = '';
+  private notificationRetryAttempt: number = 0;
+  private notificationRetryAt: number = 0;
+  private notificationRetryExhausted: boolean = false;
+  private notificationRetryTimer: number = -1;
+  private reminderListeners: Set<(ready: boolean, enabled: boolean) => void> = new Set<(ready: boolean, enabled: boolean) => void>();
   private productIssues: StoreProductIssue[] = [];
   private busy: boolean = false;
   private initializing: Promise<void> | null = null;
@@ -79,6 +91,8 @@ export class ValueAddedService {
   private restoring: Promise<string> | null = null;
   private entitlementFlight: Promise<MemberEntitlement> | null = null;
   private entitlementRevision: number = 0;
+  private capabilitiesFetchedAt: number = 0;
+  private capabilitiesFlight: Promise<void> | null = null;
   private capabilities: ServiceCapabilities = { account: false, commerce: false, profiles: false,
     cloudSaves: false, reason: 'NOT_CONFIGURED' };
   private purchaseRecovery: string = '';
@@ -190,15 +204,25 @@ export class ValueAddedService {
       console.warn('[ValueAddedService] account resume failed: ' + this.safeDiagnostic(error as Error));
     }
   }
-  async refreshCapabilities(): Promise<void> {
+  async refreshCapabilities(force: boolean = false): Promise<void> {
     this.guard();
     if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
+    if (this.capabilitiesFlight) return this.capabilitiesFlight;
+    const age = Date.now() - this.capabilitiesFetchedAt;
+    if (!force && this.capabilitiesFetchedAt > 0 && age >= 0 && age < 300000) return;
+    const work = this.readCapabilities();
+    this.capabilitiesFlight = work;
+    try { await work; }
+    finally { if (this.capabilitiesFlight === work) this.capabilitiesFlight = null; }
+  }
+  private async readCapabilities(): Promise<void> {
     const capabilities = await this.request<ServiceCapabilities>('/v1/capabilities', http.RequestMethod.GET, '', false);
     if (capabilities.sandboxCommerce === true) {
       try { capabilities.commerce = capabilities.commerce && await iap.isSandboxActivated(this.context); }
       catch (_) { capabilities.commerce = false; }
     }
     this.capabilities = capabilities;
+    this.capabilitiesFetchedAt = Date.now();
   }
   private recoveryFailure(error: Error): string {
     const diagnostic = this.safeDiagnostic(error);
@@ -228,6 +252,9 @@ export class ValueAddedService {
     this.profileHeads.clear();
     this.conflicts.clear();
     this.invalidateEntitlement();
+    this.notificationBinding = ''; this.notificationReady = false;
+    this.notificationFlight = null;
+    this.notificationRetryTarget = ''; this.resetNotificationRetry();
     this.accountListeners.forEach((listener: (userId: string) => void): void => listener(''));
   }
   private async request<T>(path: string, method: http.RequestMethod, body: string | ArrayBuffer, authenticated: boolean = true): Promise<T> {
@@ -391,7 +418,7 @@ export class ValueAddedService {
     this.session = session;
     this.purchaseRecovery = this.config.membershipProductType === 2 && this.capabilities.commerce ? 'CHECKING' : '';
     this.accountListeners.forEach((listener: (userId: string) => void): void => listener(session.userId));
-
+    await this.refreshForegroundReminders();
   }
   async signOut(): Promise<void> {
     this.guard();
@@ -404,14 +431,22 @@ export class ValueAddedService {
     if (pending) { try { await pending; } catch (_) { } }
   }
   private async revokeNotificationDevice(): Promise<void> {
-    if (this.session && this.notificationInstallationId) {
-      const owner = this.session.userId;
-      // Revoke with the old account before forgetting it. Failure cannot retain a local session.
-      try { await this.request<EmptyBody>('/v1/notification-devices/revoke', http.RequestMethod.POST,
-        JSON.stringify({ installationId: this.notificationInstallationId })); } catch (_) { }
-      try { await pushService.unbindAppProfileId(owner); } catch (_) { }
-    }
-    this.notificationToken = '';
+    this.notificationDisconnecting = true;
+    try {
+      if (this.notificationFlight) {
+        try { await this.notificationFlight; } catch (_) { }
+      }
+      if (this.session && this.notificationInstallationId) {
+        const owner = this.session.userId;
+        // Revoke with the old account before forgetting it. Failure cannot retain a local session.
+        try { await this.request<EmptyBody>('/v1/notification-devices/revoke', http.RequestMethod.POST,
+          JSON.stringify({ installationId: this.notificationInstallationId })); } catch (_) { }
+        try { await pushService.unbindAppProfileId(owner); } catch (_) { }
+      }
+      this.notificationToken = '';
+      this.notificationBinding = ''; this.notificationReady = false;
+      this.notificationRetryTarget = ''; this.resetNotificationRetry();
+    } finally { this.notificationDisconnecting = false; }
   }
   async entitlement(): Promise<MemberEntitlement> {
     if (this.entitlementFlight) return this.entitlementFlight;
@@ -550,26 +585,124 @@ export class ValueAddedService {
   async notificationsEnabled(): Promise<boolean> {
     try { return await notificationManager.isNotificationEnabled(); } catch (_) { return false; }
   }
-  async prepareRenewalReminders(requestPermission: boolean): Promise<boolean> {
+  async openReminderNotificationSettings(): Promise<void> {
+    if (!this.context) throw new Error('NOT_CONFIGURED');
+    await notificationManager.openNotificationSettings(this.context);
+  }
+  subscribeReminder(listener: (ready: boolean, enabled: boolean) => void): void { this.reminderListeners.add(listener); }
+  unsubscribeReminder(listener: (ready: boolean, enabled: boolean) => void): void { this.reminderListeners.delete(listener); }
+  onForeground(): void {
+    if (!DeviceCapabilityPolicy.supportsValueAddedFeatures() || !this.context) return;
+    this.notificationForeground = true;
+    void this.refreshForegroundReminders();
+  }
+  onBackground(): void {
+    this.notificationForeground = false;
+    this.clearNotificationRetryTimer();
+  }
+  private clearNotificationRetryTimer(): void {
+    if (this.notificationRetryTimer >= 0) clearTimeout(this.notificationRetryTimer);
+    this.notificationRetryTimer = -1;
+  }
+  private resetNotificationRetry(): void {
+    this.clearNotificationRetryTimer();
+    this.notificationRetryAttempt = 0; this.notificationRetryAt = 0; this.notificationRetryExhausted = false;
+  }
+  private armNotificationRetry(): void {
+    this.clearNotificationRetryTimer();
+    if (!this.notificationForeground || !this.notificationRetryAt || this.notificationRetryExhausted) return;
+    this.notificationRetryTimer = setTimeout((): void => {
+      this.notificationRetryTimer = -1; void this.refreshForegroundReminders();
+    }, Math.max(0, this.notificationRetryAt - Date.now()));
+  }
+  private retryNotificationLater(): void {
+    const delays: number[] = [60000, 300000, 900000];
+    if (this.notificationRetryAttempt >= delays.length) {
+      this.notificationRetryExhausted = true; this.clearNotificationRetryTimer(); return;
+    }
+    this.notificationRetryAt = Date.now() + delays[this.notificationRetryAttempt++];
+    this.armNotificationRetry();
+  }
+  private notificationAttemptAllowed(target: string): boolean {
+    if (this.notificationRetryTarget !== target) {
+      this.notificationRetryTarget = target; this.resetNotificationRetry();
+    }
+    if (!this.notificationForeground || this.notificationRetryExhausted) return false;
+    if (Date.now() < this.notificationRetryAt) { this.armNotificationRetry(); return false; }
+    return true;
+  }
+  private async refreshForegroundReminders(): Promise<void> {
+    if (!this.notificationForeground || !this.getUserId() || !this.capabilities.renewalReminders) return;
+    try { await this.prepareRenewalReminders(false); }
+    catch (_) { /* Registration failures use only the bounded foreground retry queue. */ }
+  }
+  async prepareRenewalReminders(requestPermission: boolean, force: boolean = false): Promise<boolean> {
     this.guard();
     if (!this.context || !this.getUserId() || !this.capabilities.renewalReminders) throw new Error('REMINDERS_UNAVAILABLE');
+    if (this.notificationDisconnecting) throw new Error('ACCOUNT_CHANGED');
     const epoch = this.generation;
-    if (requestPermission && !await this.notificationsEnabled()) await notificationManager.requestEnableNotification(this.context);
+    if (this.notificationFlight) {
+      const forced = this.notificationFlightForced;
+      const ready = await this.notificationFlight;
+      this.assertGeneration(epoch);
+      const enabled = await this.notificationsEnabled();
+      const currentTarget = this.getUserId() + ':' + this.notificationInstallationId + ':' +
+        (enabled ? await pushService.getToken() : 'disabled');
+      this.assertGeneration(epoch);
+      if (currentTarget === this.notificationRetryTarget && (!force || forced) && (!requestPermission || ready || enabled)) return ready;
+      return this.prepareRenewalReminders(requestPermission, force);
+    }
+    if (force || requestPermission) this.resetNotificationRetry();
+    const work = this.updateRenewalReminders(requestPermission, force, epoch);
+    this.notificationFlight = work; this.notificationFlightForced = force;
+    try { return await work; }
+    catch (error) {
+      if (epoch === this.generation && !this.notificationDisconnecting) this.retryNotificationLater();
+      throw error as Error;
+    }
+    finally { if (this.notificationFlight === work) this.notificationFlight = null; }
+  }
+  private async updateRenewalReminders(requestPermission: boolean, force: boolean, epoch: number): Promise<boolean> {
+    const owner = this.getUserId();
+    if (requestPermission && !await this.notificationsEnabled()) {
+      this.assertGeneration(epoch);
+      if (!this.context) throw new Error('NOT_CONFIGURED');
+      await notificationManager.requestEnableNotification(this.context);
+    }
     const enabled = await this.notificationsEnabled();
+    this.assertGeneration(epoch);
+    const prefix = owner + ':' + this.notificationInstallationId + ':';
     if (!enabled) {
-      await this.request<EmptyBody>('/v1/notification-devices/revoke', http.RequestMethod.POST,
-        JSON.stringify({ installationId: this.notificationInstallationId }));
+      const allowed = this.notificationAttemptAllowed(prefix + 'disabled');
+      if (this.notificationBinding !== prefix + 'disabled' || this.notificationRetryAt > 0) {
+        if (!allowed) return false;
+        await this.request<EmptyBody>('/v1/notification-devices/revoke', http.RequestMethod.POST,
+          JSON.stringify({ installationId: this.notificationInstallationId }));
+        this.assertGeneration(epoch);
+        this.notificationBinding = prefix + 'disabled'; this.notificationReady = false; this.notificationToken = '';
+        this.resetNotificationRetry();
+        try { await pushService.unbindAppProfileId(owner); } catch (_) { }
+      }
+      this.reminderListeners.forEach((listener: (ready: boolean, enabled: boolean) => void): void => listener(false, false));
       return false;
     }
     const token = await pushService.getToken();
     this.assertGeneration(epoch);
-    await pushService.bindAppProfileId(pushCommon.AppProfileType.PROFILE_TYPE_APPLICATION_ACCOUNT, this.getUserId());
-    this.assertGeneration(epoch);
-    const body: NotificationRegistration = { installationId: this.notificationInstallationId, token: token, enabled: true };
-    const result = await this.request<NotificationReady>('/v1/notification-devices/register', http.RequestMethod.POST, JSON.stringify(body));
-    this.assertGeneration(epoch); this.notificationToken = token;
-    return result.ready === true;
+    const allowed = this.notificationAttemptAllowed(prefix + token);
+    if (force || this.notificationBinding !== prefix + token || this.notificationRetryAt > 0) {
+      if (!allowed) return false;
+      await pushService.bindAppProfileId(pushCommon.AppProfileType.PROFILE_TYPE_APPLICATION_ACCOUNT, owner);
+      this.assertGeneration(epoch);
+      const body: NotificationRegistration = { installationId: this.notificationInstallationId, token: token, enabled: true };
+      const result = await this.request<NotificationReady>('/v1/notification-devices/register', http.RequestMethod.POST, JSON.stringify(body));
+      this.assertGeneration(epoch);
+      this.notificationToken = token; this.notificationBinding = prefix + token; this.notificationReady = result.ready === true;
+      this.resetNotificationRetry();
+    }
+    this.reminderListeners.forEach((listener: (ready: boolean, enabled: boolean) => void): void => listener(this.notificationReady, true));
+    return this.notificationReady;
   }
+
   async recordReminderOpened(deliveryId: string): Promise<void> {
     if (!/^[a-f0-9]{64}$/.test(deliveryId) || !this.notificationInstallationId || !this.getUserId()) return;
     await this.request<EmptyBody>('/v1/notification-opened', http.RequestMethod.POST,
@@ -577,8 +710,10 @@ export class ValueAddedService {
   }
   async purchase(product: StoreProduct, confirmation?: MembershipConfirmation): Promise<string> {
     this.guard();
-    if (!this.context || !this.config || !this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
+    if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
+    await this.refreshCapabilities(true);
     await this.checkPurchaseEnvironment();
+    if (!this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
     if (this.busy) throw new Error('BUSY');
     if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
     const allowed = (product.id === this.config.coffeeProductId && product.type === 0) ||
@@ -624,7 +759,7 @@ export class ValueAddedService {
         if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
       }
       const sandboxCheckout = this.capabilities.sandboxCommerce === true && this.capabilities.sandboxCheckout === true;
-      if (product.type === iap.ProductType.AUTORENEWABLE && !sandboxCheckout && !await this.prepareRenewalReminders(false)) {
+      if (product.type === iap.ProductType.AUTORENEWABLE && !sandboxCheckout && !await this.prepareRenewalReminders(false, !this.notificationReady)) {
         throw new Error('RENEWAL_NOTIFICATION_REQUIRED');
       }
       const body: ProductRequest = { productId: product.id, productType: product.type,
@@ -699,8 +834,10 @@ export class ValueAddedService {
   }
   private async reconcilePurchases(): Promise<string> {
     this.guard();
-    if (!this.context || !this.config || !this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
+    if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
+    await this.refreshCapabilities(true);
     await this.checkPurchaseEnvironment();
+    if (!this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
     if (this.busy) throw new Error('BUSY');
     if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
     this.busy = true;

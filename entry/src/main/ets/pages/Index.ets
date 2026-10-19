@@ -12,6 +12,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import testNapi from 'libentry.so';
 import { AppSearchBar } from '../components/SearchBar';
 import { AppCard } from '../components/AppCard';
+import { HostWindowTasks } from '../service/HostWindowTasks';
 import { ConsoleBentoGrid, BentoTileBox } from '../components/ConsoleBentoGrid';
 import { ConsoleRingItem } from '../components/ConsoleRingItem';
 import { GameDetailSheet } from '../components/GameDetailSheet';
@@ -2507,6 +2508,7 @@ struct Index {
   }
 
   private handleConsoleHardware(code: number, fromKeyboard: boolean = false): boolean {
+    if (HostWindowTasks.getInstance().hasForegroundTask()) return false;
     if (this.settings.uiSkin !== UiSkin.CONSOLE || !this.libraryChromeVisible()) return false;
     if (code === 2070 || code === 2302) {
       if (this.consoleDetailVisible) {

@@ -1,0 +1,35 @@
+Subject: [PATCH] aarch64: use the native fstat syscall for descriptor metadata
+
+The OHOS kernel accepts fstat on live socket descriptors, but rejects the
+newfstatat(fd, "", AT_EMPTY_PATH) form used by glibc 2.38 with EBADF. Keep
+the complete kernel-provided stat record and real errors. AArch64's 64-bit
+stat ABI supports the original fstat syscall without structure conversion.
+Other architectures retain the existing implementation.
+
+--- a/sysdeps/unix/sysv/linux/fstat64.c
++++ b/sysdeps/unix/sysv/linux/fstat64.c
+@@ -25,6 +25,8 @@
+ #include <kernel_stat.h>
+ #include <stat_t64_cp.h>
+ #include <errno.h>
++#include <sysdep.h>
++#undef fstat
+ 
+ int
+ __fstat64_time64 (int fd, struct __stat64_t64 *buf)
+@@ -35,7 +37,15 @@
+       __set_errno (EBADF);
+       return -1;
+     }
++#if defined __aarch64__ && XSTAT_IS_XSTAT64 && defined __NR_fstat
++  /* The paired OHOS runtime must query the descriptor itself.  Its kernel
++     supports fstat for sockets, while AT_EMPTY_PATH on the same descriptor
++     returns EBADF.  Preserve the real kernel record, including its errors;
++     no /proc link parsing or inferred metadata is involved.  */
++  return INLINE_SYSCALL_CALL (fstat, fd, buf);
++#else
+   return __fstatat64_time64 (fd, "", buf, AT_EMPTY_PATH);
++#endif
+ }
+ #if __TIMESIZE != 64
+ hidden_def (__fstat64_time64)

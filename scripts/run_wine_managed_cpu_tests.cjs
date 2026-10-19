@@ -9,7 +9,8 @@ const source = nodefs.readFileSync(path.resolve(__dirname,
 const methods = source.slice(source.indexOf('  private binaryFilesMatch('),
   source.indexOf('  private async ensureRuntimeInstalled('));
 const base = nodefs.mkdtempSync(path.join(os.tmpdir(), 'vp-managed-cpu-'));
-const WINE_BIN = base + '/wine/bin';
+const WINE_ROOT = base + '/wine';
+const WINE_BIN = WINE_ROOT + '/bin';
 const PREFIX_DIR = base + '/.wine';
 const pathExists = p => nodefs.existsSync(p);
 const hilog = { info() {} };
@@ -88,7 +89,42 @@ try {
   nodefs.unlinkSync(system32 + '/' + ec);
   service.syncManagedFexModules();
   assert.deepEqual(nodefs.readFileSync(system32 + '/' + ec), fixed);
-  console.log('PASS: fresh-prefix 32/64 CPU deployment, incomplete/empty pair rejection, upgrades, unchanged files, user DLL preservation, short reads, partial copies, rename failure and retry');
+  const beforeIcu = copies;
+  service.syncManagedIcuModules();
+  assert.equal(copies, beforeIcu, 'Historical payload without ICU record remains supported');
+  nodefs.writeFileSync(WINE_ROOT + '/icu-compat.json', '{}');
+  assert.throws(() => service.syncManagedIcuModules(), /managed ICU module/);
+  const builtin = Buffer.alloc(150123, 20);
+  builtin.write('Wine builtin DLL', 64, 'ascii');
+  const builtinOld = Buffer.from(builtin); builtinOld[1000] = 21;
+  const icuNames = ['icu.dll', 'icuuc.dll', 'icuin.dll'];
+  for (const arch of ['aarch64-windows', 'i386-windows']) {
+    nodefs.mkdirSync(WINE_BIN + '/' + arch, { recursive: true });
+    for (const name of icuNames) nodefs.writeFileSync(WINE_BIN + '/' + arch + '/' + name, builtin);
+  }
+  assert.throws(() => service.syncManagedIcuModules(), /Unicode data/);
+  nodefs.mkdirSync(WINE_ROOT + '/share/wine/nls', { recursive: true });
+  nodefs.writeFileSync(WINE_ROOT + '/share/wine/nls/icudtl.dat', 'Unicode data');
+  nodefs.writeFileSync(system32 + '/icu.dll', builtinOld);
+  nodefs.writeFileSync(system32 + '/icuuc.dll', 'user installed native ICU override');
+  service.syncManagedIcuModules();
+  assert.deepEqual(nodefs.readFileSync(system32 + '/icu.dll'), builtin);
+  assert.equal(nodefs.readFileSync(system32 + '/icuuc.dll', 'utf8'), 'user installed native ICU override');
+  const syswow64 = PREFIX_DIR + '/drive_c/windows/syswow64';
+  for (const name of icuNames) assert.deepEqual(nodefs.readFileSync(syswow64 + '/' + name), builtin);
+  const unchanged = copies; service.syncManagedIcuModules();
+  assert.equal(copies, unchanged, 'Same ICU does not rewrite prefix DLLs');
+  nodefs.writeFileSync(syswow64 + '/icu.dll', builtinOld);
+  failCopy = true;
+  assert.throws(() => service.syncManagedIcuModules(), /Incomplete/);
+  assert.deepEqual(nodefs.readFileSync(syswow64 + '/icu.dll'), builtinOld);
+  assert.equal(pathExists(syswow64 + '/icu.dll.winehua-update'), false);
+  failCopy = false; failRename = true;
+  assert.throws(() => service.syncManagedIcuModules(), /rename failed/);
+  assert.deepEqual(nodefs.readFileSync(syswow64 + '/icu.dll'), builtinOld);
+  failRename = false; service.syncManagedIcuModules();
+  assert.deepEqual(nodefs.readFileSync(syswow64 + '/icu.dll'), builtin);
+  console.log('PASS: paired CPU upgrade; generic ICU upgrade; 32/64 builtins; native overrides; incomplete data; copy/rename failure and retry');
 } finally {
   nodefs.rmSync(base, { recursive: true, force: true });
 }

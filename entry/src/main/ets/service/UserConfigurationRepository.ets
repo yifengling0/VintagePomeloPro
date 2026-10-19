@@ -8,11 +8,14 @@ import { CONFIGURATION_REGISTRY, ConfigurationRegistration, ConfigurationModule,
 import { ConfigurationZipMember, encodeConfigurationZip, decodeConfigurationZip } from '../model/ConfigurationZip';
 import { ConfigurationFiles as files } from './ConfigurationFiles';
 import { BUILT_IN_FONT_HASHES } from '../model/BuiltInFontBaseline';
+import { CLOUD_CONFIGURATION_BYTES, CLOUD_GLOBAL_SETTINGS_KEYS, cloudGlobalSettings, isCloudConfigurationKey, projectCloudUserConfiguration,
+  validateCloudUserConfiguration } from '../model/CloudUserConfiguration';
+import { createDefaultGlobalSettings } from '../model/AppModels';
 
-interface ConfigurationState { schemaVersion: number; migrated: boolean; userModified: boolean; restored: boolean; revision: number; localBackupStatus?: string; localBackupSHA256?: string; }
+interface ConfigurationState { schemaVersion: number; migrated: boolean; userModified: boolean; restored: boolean; revision: number; cloudRevision?: number; cloudModified?: boolean; localBackupStatus?: string; localBackupSHA256?: string; }
 interface RestoreFont { name: string; existed: boolean; }
 interface RestoreChange { store: string; key: string; removed: boolean; value: ConfigurationValue; }
-interface RestoreJournal { phase: string; before: string; previousState: ConfigurationState; fonts: RestoreFont[]; changes?: RestoreChange[]; }
+interface RestoreJournal { phase: string; before: string; previousState: ConfigurationState; fonts: RestoreFont[]; changes?: RestoreChange[]; cloudOnly?: boolean; }
 interface ImportedFont { name: string; path: string; }
 /** Complete allowlisted user configuration. Existing services remain the runtime-facing storage API. */
 export class UserConfigurationRepository {
@@ -21,6 +24,8 @@ export class UserConfigurationRepository {
   private stores: Map<string, preferences.Preferences> = new Map<string, preferences.Preferences>();
   private state: ConfigurationState = { schemaVersion: 1, migrated: false, userModified: false, restored: false, revision: 0 };
   private listeners: Set<() => void> = new Set<() => void>();
+  private cloudListeners: Set<() => void> = new Set<() => void>();
+  private cloudObserved: Map<string, string> = new Map<string, string>();
   private restoreListeners: Set<() => Promise<void>> = new Set<() => Promise<void>>();
   private bootstrap: Promise<void> | null = null;
   private started: boolean = false;
@@ -44,6 +49,9 @@ export class UserConfigurationRepository {
     if (!UserConfigurationRepository.instance) UserConfigurationRepository.instance = new UserConfigurationRepository(); return UserConfigurationRepository.instance;
   }
   subscribe(listener: () => void): void { this.listeners.add(listener); }
+  subscribeCloud(listener: () => void): void { this.cloudListeners.add(listener); }
+  cloudRevision(): number { return this.state.cloudRevision ?? 0; }
+  hasCloudUserData(): boolean { return this.state.cloudModified === true; }
   onRestored(listener: () => Promise<void>): void { this.restoreListeners.add(listener); }
   revision(): number { return this.state.revision; }
   hasLocalUserData(): boolean { return this.state.userModified || this.state.migrated || this.state.restored; }
@@ -85,16 +93,18 @@ export class UserConfigurationRepository {
         const pending = JSON.parse(files.text(files.read(journal))) as RestoreJournal;
         if (pending.phase === 'applying') {
           const members = decodeConfigurationZip(files.read(this.root + '/restore-before.zip', 75497472));
-          const before = await this.validateMembers(members); await this.applyEntries(before);
+          const before = await this.validateMembers(members); await this.applyEntries(before, pending.cloudOnly === true);
           await this.applyConcurrent(pending.changes ?? []);
           this.rollbackFonts(pending.fonts);
           this.state = pending.previousState;
-          if (pending.changes?.length) { this.state.userModified = true; this.state.revision++; }
+          if (pending.changes?.length) { this.state.userModified = true; this.state.revision++; this.state.cloudModified = true; this.state.cloudRevision = this.cloudRevision() + 1; }
           this.persistState();
         } else if (pending.phase !== 'committed') throw new Error('CONFIG_INVALID');
         fs.unlinkSync(journal);
       } catch (_) { this.blocked = true; this.localStatus = '配置恢复未完成，原备份已保留'; return; }
     }
+    if (this.state.cloudModified === undefined) this.state.cloudModified = CONFIGURATION_REGISTRY.some((r: ConfigurationRegistration): boolean =>
+      isCloudConfigurationKey(r.name, '') && r.keys.some((key: string): boolean => this.stores.get(r.store)?.hasSync(key) ?? false));
     if (!this.stores.get('pomelo_config_resources')?.hasSync('fonts_v1')) await this.migrateFonts();
     const path = this.libraryRoot + '/.pomelo/app-settings-backup.zip';
     if (!this.hasLocalUserData() && fs.accessSync(path)) {
@@ -137,11 +147,17 @@ export class UserConfigurationRepository {
     this.started = true;
     for (const registration of CONFIGURATION_REGISTRY) {
       const store = this.stores.get(registration.store); if (!store) continue;
-      for (const key of registration.keys) this.observed.set(registration.store + '/' + key, store.hasSync(key) ? JSON.stringify(store.getSync(key, '')) : 'absent');
+      for (const key of registration.keys) {
+        this.observed.set(registration.store + '/' + key, store.hasSync(key) ? JSON.stringify(store.getSync(key, '')) : 'absent');
+        if (isCloudConfigurationKey(registration.name, key)) this.cloudObserved.set(registration.store + '/' + key, this.cloudValue(store, key));
+      }
       store.on('change', (key: string): void => {
         if (!registration.keys.includes(key)) return;
         const id = registration.store + '/' + key, value = store.hasSync(key) ? JSON.stringify(store.getSync(key, '')) : 'absent';
         if (this.observed.get(id) === value) return; this.observed.set(id, value);
+        const cloudValue = isCloudConfigurationKey(registration.name, key) ? this.cloudValue(store, key) : '';
+        const cloudChanged = isCloudConfigurationKey(registration.name, key) && this.cloudObserved.get(id) !== cloudValue;
+        if (cloudChanged) this.cloudObserved.set(id, cloudValue);
         if (this.restoring) {
           if (this.restoreJournal?.phase === 'applying' && this.restoreExpected.get(id) !== value) {
             const changes = this.restoreJournal.changes ?? [];
@@ -151,11 +167,22 @@ export class UserConfigurationRepository {
           }
           return;
         }
-        this.state.userModified = true; this.state.revision++; this.persistState(); this.emit(); this.scheduleLocal();
+        this.state.userModified = true; this.state.revision++;
+        if (cloudChanged) { this.state.cloudModified = true; this.state.cloudRevision = this.cloudRevision() + 1; }
+        this.persistState(); this.emit(); this.scheduleLocal();
+        if (cloudChanged) this.cloudListeners.forEach((listener: () => void): void => listener());
       });
     }
     // A fresh install must first check cloud. Do not publish defaults as an existing user's new head.
     if (this.hasLocalUserData()) this.scheduleLocal();
+  }
+  private cloudValue(store: preferences.Preferences, key: string): string {
+    if (!store.hasSync(key)) return 'absent';
+    const value = store.getSync(key, '') as ConfigurationValue;
+    if (key === 'global_settings_v1') {
+      try { return cloudGlobalSettings(value as string); } catch (_) { return JSON.stringify(value); }
+    }
+    return JSON.stringify(value);
   }
   private scheduleLocal(): void {
     if (this.timer >= 0) clearTimeout(this.timer);
@@ -177,17 +204,27 @@ export class UserConfigurationRepository {
     names.forEach((name: string): void => { if (/^[^/\\:]{1,128}$/.test(name)) result.push({ name: name, path: directory + '/' + name }); });
     await store.put('fonts_v1', JSON.stringify(result)); await store.flush();
   }
-  private entries(): ConfigurationModule[] {
+  private entries(cloudOnly: boolean = false): ConfigurationModule[] {
     const modules: ConfigurationModule[] = [];
     for (const registration of CONFIGURATION_REGISTRY) {
       let module = modules.find((m: ConfigurationModule): boolean => m.name === registration.name);
       if (!module) { module = { name: registration.name, schemaVersion: registration.schemaVersion, entries: [] }; modules.push(module); }
+      if (cloudOnly && !isCloudConfigurationKey(registration.name, '')) continue;
       const store = this.stores.get(registration.store); if (!store) throw new Error('CONFIG_STORAGE_UNAVAILABLE');
       for (const key of registration.keys) {
         if (store.hasSync(key)) module.entries.push({ store: registration.store, key: key, value: store.getSync(key, '') as string | number | boolean });
       }
     }
     return modules;
+  }
+  async cloudSnapshot(): Promise<ConfigurationZipMember[]> {
+    if (this.blocked || !this.context) throw new Error('CONFIG_REQUIRES_UPDATE');
+    const value: UserConfiguration = { formatVersion: 1, minReaderVersion: 1, minWriterVersion: 1,
+      writtenByAppVersion: this.appVersion, requiredFeatures: ['portable-games-v1', 'input-v6', 'assets-v1'],
+      modules: this.entries(true), assets: [] };
+    const cloud = projectCloudUserConfiguration(value), bytes = files.bytes(JSON.stringify(cloud));
+    if (bytes.length > CLOUD_CONFIGURATION_BYTES) throw new Error('CONFIG_QUOTA');
+    return [{ name: 'manifest.json', bytes: bytes }];
   }
   async snapshot(): Promise<ConfigurationZipMember[]> {
     if (this.blocked || !this.context) throw new Error('CONFIG_REQUIRES_UPDATE');
@@ -237,18 +274,25 @@ export class UserConfigurationRepository {
     if (members.length !== new Set<string>(value.assets.map((a: ConfigurationAsset): string => a.path)).size + 1) throw new Error('CONFIG_INVALID');
     return value;
   }
-  private async applyEntries(value: UserConfiguration): Promise<void> {
+  private async applyEntries(value: UserConfiguration, cloudOnly: boolean = false): Promise<void> {
     for (const registration of CONFIGURATION_REGISTRY) {
+      if (cloudOnly && !isCloudConfigurationKey(registration.name, '')) continue;
       const module = value.modules.find((m: ConfigurationModule): boolean => m.name === registration.name); if (!module) throw new Error('CONFIG_INCOMPLETE');
       const store = this.stores.get(registration.store); if (!store) throw new Error('CONFIG_STORAGE_UNAVAILABLE');
       for (const key of registration.keys) {
         const entry = module.entries.find((e: ConfigurationEntry): boolean => e.store === registration.store && e.key === key);
-        if (!entry) { this.restoreExpected.set(registration.store + '/' + key, 'absent'); await store.delete(key); continue; }
-        let data = entry.value;
+        if (!entry && !(cloudOnly && key === 'global_settings_v1')) { this.restoreExpected.set(registration.store + '/' + key, 'absent'); await store.delete(key); continue; }
+        let data = entry?.value ?? JSON.stringify(createDefaultGlobalSettings());
         if (key === 'global_settings_v1') {
           const settings = JSON.parse(data as string) as Record<string, string | boolean | number>;
           const asset = value.assets.find((a: ConfigurationAsset): boolean => a.target === 'wallpaper');
-          settings['pageBackgroundUri'] = asset ? this.root + '/' + asset.path : ''; data = JSON.stringify(settings);
+          if (cloudOnly) {
+            const local = JSON.parse(store.getSync(key, '{}') as string) as Record<string, string | boolean | number>;
+            for (const localKey of Object.keys(local)) if (!CLOUD_GLOBAL_SETTINGS_KEYS.includes(localKey)) settings[localKey] = local[localKey];
+            settings['pageBackgroundUri'] = local['pageBackgroundUri'] ?? '';
+            settings['usePageBackground'] = local['usePageBackground'] ?? false;
+          } else settings['pageBackgroundUri'] = asset ? this.root + '/' + asset.path : '';
+          data = JSON.stringify(settings);
         }
         if (key === 'fonts_v1') data = JSON.stringify(value.assets.filter((a: ConfigurationAsset): boolean => a.target.startsWith('font:'))
           .map((a: ConfigurationAsset): ImportedFont => { return { name: a.target.slice(5), path: this.fontsRoot + '/' + a.target.slice(5) }; }));
@@ -266,22 +310,23 @@ export class UserConfigurationRepository {
       await store.flush();
     }
   }
-  async restore(members: ConfigurationZipMember[], expectedRevision: number): Promise<void> {
+  async restore(members: ConfigurationZipMember[], expectedRevision: number, cloudOnly: boolean = false): Promise<void> {
     const value = await this.validateMembers(members);
-    if (expectedRevision !== this.state.revision || this.restoring || this.blocked) throw new Error('CONFIG_LOCAL_CHANGED');
-    const before = await this.snapshot();
-    if (expectedRevision !== this.state.revision) throw new Error('CONFIG_LOCAL_CHANGED');
+    if (cloudOnly) validateCloudUserConfiguration(value);
+    if (expectedRevision !== (cloudOnly ? this.cloudRevision() : this.state.revision) || this.restoring || this.blocked) throw new Error('CONFIG_LOCAL_CHANGED');
+    const before = cloudOnly ? await this.cloudSnapshot() : await this.snapshot();
+    if (expectedRevision !== (cloudOnly ? this.cloudRevision() : this.state.revision)) throw new Error('CONFIG_LOCAL_CHANGED');
     files.write(this.root + '/restore-before.zip', encodeConfigurationZip(before));
     const fontUndo: RestoreFont[] = []; files.ensure(this.root + '/restore-fonts');
     const beforeValue = await this.validateMembers(before);
     const fontNames = new Set<string>();
-    for (const asset of beforeValue.assets.concat(value.assets)) if (asset.target.startsWith('font:')) fontNames.add(asset.target.slice(5));
+    if (!cloudOnly) for (const asset of beforeValue.assets.concat(value.assets)) if (asset.target.startsWith('font:')) fontNames.add(asset.target.slice(5));
     for (const name of fontNames) {
       const path = this.fontsRoot + '/' + name;
       const existed = fs.accessSync(path); if (existed) files.write(this.root + '/restore-fonts/' + name, files.read(path, 16777216));
       fontUndo.push({ name: name, existed: existed });
     }
-    const journal: RestoreJournal = { phase: 'applying', before: 'restore-before.zip', previousState: JSON.parse(JSON.stringify(this.state)) as ConfigurationState, fonts: fontUndo };
+    const journal: RestoreJournal = { phase: 'applying', before: 'restore-before.zip', previousState: JSON.parse(JSON.stringify(this.state)) as ConfigurationState, fonts: fontUndo, cloudOnly: cloudOnly };
     files.json(this.root + '/restore-journal.json', JSON.stringify(journal)); this.restoring = true;
     this.restoreJournal = journal; this.restoreExpected.clear();
     this.observed.forEach((v: string, k: string): void => { this.restoreExpected.set(k, v); });
@@ -297,18 +342,18 @@ export class UserConfigurationRepository {
         const directory = this.fontsRoot; files.ensure(directory);
         files.write(directory + '/' + asset.target.slice(5), files.read(this.root + '/' + asset.path, 16777216));
       }
-      await this.applyEntries(value);
+      await this.applyEntries(value, cloudOnly);
       if (journal.changes?.length) throw new Error('CONFIG_LOCAL_CHANGED');
-      this.state.restored = true; this.state.revision++; this.persistState();
+      this.state.restored = true; this.state.revision++; this.state.cloudModified = true; this.state.cloudRevision = this.cloudRevision() + 1; this.persistState();
       journal.phase = 'committed'; files.json(this.root + '/restore-journal.json', JSON.stringify(journal));
       for (const listener of this.restoreListeners) await listener();
       fs.unlinkSync(this.root + '/restore-journal.json'); this.localStatus = '应用配置已恢复';
     } catch (error) {
       if (journal.phase === 'applying') {
         const changes = journal.changes ?? []; this.restoreJournal = null;
-        await this.applyEntries(await this.validateMembers(before)); await this.applyConcurrent(changes);
+        await this.applyEntries(await this.validateMembers(before), cloudOnly); await this.applyConcurrent(changes);
         this.rollbackFonts(journal.fonts); this.state = journal.previousState;
-        if (changes.length) { this.state.userModified = true; this.state.revision++; }
+        if (changes.length) { this.state.userModified = true; this.state.revision++; this.state.cloudModified = true; this.state.cloudRevision = this.cloudRevision() + 1; }
         this.persistState();
         for (const listener of this.restoreListeners) await listener();
         fs.unlinkSync(this.root + '/restore-journal.json');

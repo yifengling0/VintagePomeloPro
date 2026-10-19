@@ -1,0 +1,94 @@
+--- a/xkb/ddxLoad.c
++++ b/xkb/ddxLoad.c
+@@ -105,9 +105,83 @@
+  * Start xkbcomp, let the callback write into xkbcomp's stdin. When done,
+  * return a strdup'd copy of the file name we've written to.
+  */
++#ifdef STEAMOHOS_NATIVE_XKBCOMP
++#include <sys/wait.h>
++#include <sys/prctl.h>
++#include <signal.h>
++#include <errno.h>
++#include <dlfcn.h>
++
++/* Keep real xkbcomp parsing and XKM output. The HAP sandbox cannot execute a
++ * shell from writable app data. Run the paired GNU compiler in a short-lived
++ * fork instead; the server process never adopts compiler-global state. */
++static char *
++RunNativeXkbComp(xkbcomp_buffer_callback callback, void *userdata)
++{
++    char directory[PATH_MAX], input[PATH_MAX], output[PATH_MAX], keymap[128];
++    OutputDirectory(directory, sizeof(directory));
++    if (snprintf(input, sizeof(input), "%skeymap-XXXXXX", directory) >= sizeof(input) ||
++        snprintf(keymap, sizeof(keymap), "server-%s", display) >= sizeof(keymap) ||
++        snprintf(output, sizeof(output), "%s%s.xkm", directory, keymap) >= sizeof(output))
++        return NULL;
++    int fd = mkstemp(input);
++    if (fd < 0)
++        return NULL;
++    FILE *file = fdopen(fd, "w");
++    if (!file) {
++        close(fd);
++        unlink(input);
++        return NULL;
++    }
++    callback(file, userdata);
++    int failed = ferror(file);
++    if (fclose(file)) failed = 1;
++    if (failed) {
++        unlink(input);
++        return NULL;
++    }
++    char root[PATH_MAX + 3];
++    if (snprintf(root, sizeof(root), "-R%s", XkbBaseDirectory ? XkbBaseDirectory : "") >= sizeof(root)) {
++        unlink(input);
++        return NULL;
++    }
++    char *args[] = { "xkbcomp", "-w", "1", root, "-xkm", input, output, NULL };
++    pid_t owner = getpid();
++    pid_t child = fork();
++    if (!child) {
++        if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != owner) _exit(126);
++        /* The server and libxkbfile export XkbInternAtom with incompatible
++         * signatures. Keep compiler dependencies out of the server's global
++         * scope and bind the private compiler group to its own Xlib ABI. */
++        const char *library = getenv("STEAMOHOS_XKBCOMP_LIBRARY");
++        void *compiler = library ? dlopen(library, RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND) : NULL;
++        int (*compile)(int, char **) = compiler ? dlsym(compiler, "SteamOhosXkbcompMain") : NULL;
++        if (!compile) {
++            const char *error = dlerror();
++            dprintf(STDERR_FILENO, "Native xkbcomp load failed: %s\n", error ? error : "missing library");
++            _exit(125);
++        }
++        _exit(compile(7, args));
++    }
++    int status = 0;
++    pid_t waited = -1;
++    if (child > 0) do { waited = waitpid(child, &status, 0); }
++    while (waited < 0 && errno == EINTR);
++    unlink(input);
++    if (waited == child && child > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0)
++        return xnfstrdup(keymap);
++    unlink(output);
++    LogMessage(X_ERROR, "Native xkbcomp failed (wait=%d, status=%d)\n", (int) waited, status);
++    return NULL;
++}
++#endif
++
+ static char *
+ RunXkbComp(xkbcomp_buffer_callback callback, void *userdata)
+ {
++#ifdef STEAMOHOS_NATIVE_XKBCOMP
++    return RunNativeXkbComp(callback, userdata);
++#else
+     FILE *out;
+     char *buf = NULL, keymap[PATH_MAX], xkm_output_dir[PATH_MAX];
+ 
+@@ -212,6 +286,7 @@
+     }
+     free(buf);
+     return NULL;
++#endif
+ }
+ 
+ typedef struct {

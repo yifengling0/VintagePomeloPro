@@ -1,10 +1,16 @@
+import { common } from '@kit.AbilityKit';
+import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage } from './LinuxSteamDiagnosticData';
+import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
+import { auditLinuxSteamStorage } from './LinuxSteamStorageAudit';
 import testNapi from 'libentry.so';
+import smokeNapi from 'libsmoke_napi.so';
 import { hilog } from './LogService';
 import {
   ensureSmokeDirectory, readSmokeText, smokeDriveC,
   syncManagedSmoke, writeSmokeText
 } from './ManagedSmokePayloadService';
 import { WineEngineService } from './WineEngineService';
+import { LinuxSteamGameLaunch } from './LinuxSteamGameLaunch';
 import { SmokeRequest } from '../common/SmokeTypes';
 
 const DOMAIN = 0x0000;
@@ -59,6 +65,25 @@ interface SmokeSummary {
   tests?: SmokeTestResult[];
 }
 
+interface LinuxSteamGnuControl {
+  exitCode: number;
+  signal: number;
+  childReaped: boolean;
+  timedOut: boolean;
+}
+
+interface LinuxSteamGnuResult {
+  status: string;
+  gnuExecutionVerified: boolean;
+  steamClientStarted: boolean;
+  gnuWaylandVerified?: boolean;
+  x11Verified?: boolean;
+  ncpExitVerified: boolean;
+  ncpExitSignal: number;
+  exitControl?: LinuxSteamGnuControl;
+  timeoutControl?: LinuxSteamGnuControl;
+}
+
 // 结果文件 / runWineProgram 返回的窄化视图 (ArkTS 禁止对象字面量类型声明)
 interface SmokeResultFile {
   status?: string;
@@ -88,6 +113,12 @@ export class SmokeRunner {
       SmokeRunner.instance = new SmokeRunner();
     }
     return SmokeRunner.instance;
+  }
+
+  private context: common.Context | null = null;
+
+  initialize(context: common.Context): void {
+    this.context = context;
   }
 
   private listeners: (() => void)[] = [];
@@ -155,10 +186,39 @@ export class SmokeRunner {
         await this.finishSuite(request, [this.unsupported(request, 'clean prefix is not supported by this native ABI')], driveC);
         return;
       }
+      if (request.suite === 'linux-steam-storage') {
+        if (!this.context) throw new Error('Storage diagnostic context unavailable');
+        const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+        if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create storage audit directory');
+        writeSmokeText(`${resultsDir}/storage-audit.json`, await auditLinuxSteamStorage(this.context));
+        await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId, testId: 'storage-audit',
+          status: 'PASS', stage: 'metadata_collected', message: 'Read-only bounded directory size audit' }], driveC);
+        return;
+      }
+      if (request.suite === 'linux-steam-gnu') {
+        await this.runLinuxSteamGnu(request, driveC);
+        return;
+      }
       if (!WineEngineService.getInstance().isReady()) {
         await this.finishSuite(request, [
           this.failure(request, 'suites', 'engine not ready', -1)
         ], driveC);
+        return;
+      }
+      if (request.suite === 'linux-steam-client') {
+        await this.runLinuxSteamClient(request, driveC);
+        return;
+      }
+      if (request.suite === 'linux-steam-gnu-xwayland') {
+        await this.runLinuxSteamGnuXwayland(request, driveC);
+        return;
+      }
+      if (request.suite === 'linux-steam-gnu-wayland') {
+        await this.runLinuxSteamGnuWayland(request, driveC);
+        return;
+      }
+      if (request.suite === 'linux-steam-host') {
+        await this.runLinuxSteamHost(request, driveC);
         return;
       }
       if (!syncManagedSmoke(prefixMode)) {
@@ -211,12 +271,148 @@ export class SmokeRunner {
       hilog.info(DOMAIN, TAG, 'run done suite=%{public}s status=%{public}s %{public}d/%{public}d',
         request.suite, summary.status, passed, results.length);
     } catch (e) {
-      hilog.error(DOMAIN, TAG, 'run ERROR: %{public}s', JSON.stringify(e));
+      hilog.error(DOMAIN, TAG, 'run ERROR: %{public}s %{public}s', (e as Error).message, JSON.stringify(e));
       this.currentResult = 'ERROR';
       this.currentStatus = `Smoke ${request.suite} ERROR`;
     } finally {
       this.busy = false;
       this.notify();
+    }
+  }
+
+  private async runLinuxSteamGnu(request: SmokeRequest, driveC: string): Promise<void> {
+    const probe = smokeNapi.probeLinuxSteamGnu;
+    if (!probe) {
+      await this.finishSuite(request, [this.unsupported(request, 'Native GNU diagnostics are disabled')], driveC);
+      return;
+    }
+    const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+    if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create native GNU result directory');
+    if (!this.context) throw new Error('Steam diagnostic context is unavailable');
+    const externalRoot = await prepareLinuxSteamExternalStorage(this.context);
+    writeSmokeText(`${resultsDir}/external-storage.json`, JSON.stringify({ root: externalRoot, drive: 'Z:' }));
+    const raw = await probe();
+    writeSmokeText(`${resultsDir}/linux-steam-gnu.json`, raw);
+    const result = JSON.parse(raw) as LinuxSteamGnuResult;
+    const failure = result.exitControl;
+    const timeout = result.timeoutControl;
+    const passed = result.gnuExecutionVerified && !result.steamClientStarted && result.ncpExitVerified &&
+      result.ncpExitSignal === 0 && failure !== undefined && failure.exitCode === 37 && failure.childReaped &&
+      timeout !== undefined && timeout.timedOut && timeout.signal === 9 && timeout.childReaped;
+    const test: SmokeTestResult = {
+      schemaVersion: 1, runId: request.runId, testId: 'linux-steam-gnu',
+      status: passed ? 'PASS' : 'FAIL', stage: result.status,
+      message: 'Native GNU ARM64 loader and self-built fixture; Steam and graphics are not tested'
+    };
+    await this.finishSuite(request, [test], driveC);
+  }
+
+  private async runLinuxSteamClient(request: SmokeRequest, driveC: string): Promise<void> {
+    const probe = smokeNapi.probeLinuxSteamGnuClient;
+    if (!probe) {
+      await this.finishSuite(request, [this.unsupported(request, 'Native GNU diagnostics are disabled')], driveC);
+      return;
+    }
+    const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+    if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create Steam result directory');
+    if (!this.context) throw new Error('Steam diagnostic context is unavailable');
+    this.currentStatus = '准备原版 Steam 资源';
+    this.notify();
+    const preparingAt = Date.now();
+    await prepareLinuxSteamClientData(this.context);
+    writeSmokeText(`${resultsDir}/startup-timing.json`, JSON.stringify({
+      resourcePreparationMs: Date.now() - preparingAt, probeStartedAt: Date.now()
+    }));
+    const external = readSmokeText('/data/storage/el2/base/files/steamohos-native/external-root.path').trim();
+    const launchService = new LinuxSteamGameLaunch();
+    const windowHost = new LinuxSteamWindowHost();
+    const useWineWindow = readSmokeText('/data/storage/el2/base/files/steamohos-native/client-launch.conf')
+      .split('\n').some((line: string): boolean => line.trim() === 'wineWindowHost=1');
+    if (useWineWindow) await windowHost.start(this.context, driveC, resultsDir);
+    launchService.start(`${external}/library`, resultsDir);
+    let raw: string;
+    try { raw = await probe(); } finally { launchService.stop(); windowHost.stop(); }
+    writeSmokeText(`${resultsDir}/linux-steam-client.json`, raw);
+    const result = JSON.parse(raw) as LinuxSteamGnuResult;
+    const test: SmokeTestResult = {
+      schemaVersion: 1, runId: request.runId, testId: 'linux-steam-client',
+      status: result.steamClientStarted ? 'PASS' : 'FAIL', stage: result.status,
+      message: 'Original ARM64 Steam execution attempt; PASS requires actual Steam client startup'
+    };
+    await this.finishSuite(request, [test], driveC);
+  }
+
+  private async runLinuxSteamGnuXwayland(request: SmokeRequest, driveC: string): Promise<void> {
+    const probe = smokeNapi.probeLinuxSteamGnuXwayland;
+    if (!probe) {
+      await this.finishSuite(request, [this.unsupported(request, 'Native GNU diagnostics are disabled')], driveC);
+      return;
+    }
+    const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+    if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create GNU Xwayland result directory');
+    const raw = await probe();
+    writeSmokeText(`${resultsDir}/linux-steam-gnu-xwayland.json`, raw);
+    const result = JSON.parse(raw) as LinuxSteamGnuResult;
+    const passed = result.gnuExecutionVerified && result.x11Verified === true &&
+      !result.steamClientStarted && result.ncpExitVerified && result.ncpExitSignal === 0;
+    const test: SmokeTestResult = {
+      schemaVersion: 1, runId: request.runId, testId: 'linux-steam-gnu-xwayland',
+      status: passed ? 'PASS' : 'FAIL', stage: result.status,
+      message: 'Native Xwayland and real X11 drawing/readback; input, GPU and Steam are separate gates'
+    };
+    await this.finishSuite(request, [test], driveC);
+  }
+
+  private async runLinuxSteamGnuWayland(request: SmokeRequest, driveC: string): Promise<void> {
+    const probe = smokeNapi.probeLinuxSteamGnuWayland;
+    if (!probe) {
+      await this.finishSuite(request, [this.unsupported(request, 'Native GNU diagnostics are disabled')], driveC);
+      return;
+    }
+    const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+    if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create GNU Wayland result directory');
+    const raw = await probe();
+    writeSmokeText(`${resultsDir}/linux-steam-gnu-wayland.json`, raw);
+    const result = JSON.parse(raw) as LinuxSteamGnuResult;
+    const passed = result.gnuExecutionVerified && result.gnuWaylandVerified === true &&
+      !result.steamClientStarted && result.ncpExitVerified && result.ncpExitSignal === 0;
+    const test: SmokeTestResult = {
+      schemaVersion: 1, runId: request.runId, testId: 'linux-steam-gnu-wayland',
+      status: passed ? 'PASS' : 'FAIL', stage: result.status,
+      message: 'Native GNU libwayland SHM and bidirectional FD transfer; input events, scanout and Steam are not verified'
+    };
+    await this.finishSuite(request, [test], driveC);
+  }
+
+  private async runLinuxSteamHost(request: SmokeRequest, driveC: string): Promise<void> {
+    const probe = smokeNapi.probeLinuxSteamHost;
+    const inject = smokeNapi.injectLinuxSteamHostKeys;
+    if (!probe || !inject) {
+      await this.finishSuite(request, [this.unsupported(request,
+        'Linux Steam host diagnostics are disabled in this build')], driveC);
+      return;
+    }
+    const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+    if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create Linux Steam host result directory');
+    const timer = setInterval((): void => { inject(); }, 100);
+    try {
+      const result = await probe();
+      writeSmokeText(`${resultsDir}/linux-steam-host.json`, JSON.stringify(result));
+      const passed = result.status === 'host_protocol_verified' && result.inputInjected &&
+        result.inputVerified && !result.gnuExecutionVerified && !result.steamClientStarted;
+      const metrics: Record<string, number> = {
+        'framesSubmitted': result.framesSubmitted, 'bufferReleases': result.bufferReleases,
+        'frameCallbacks': result.frameCallbacks, 'keyEvents': result.keyEvents
+      };
+      const test: SmokeTestResult = {
+        schemaVersion: 1, runId: request.runId, testId: 'linux-steam-host',
+        status: passed ? 'PASS' : 'FAIL', stage: result.stage,
+        message: 'OHOS host SHM and synthetic keyboard probe; GNU/Steam and visible presentation are separate checks',
+        metrics: metrics
+      };
+      await this.finishSuite(request, [test], driveC);
+    } finally {
+      clearInterval(timer);
     }
   }
 
@@ -346,14 +542,19 @@ export class SmokeRunner {
       schemaVersion: 1,
       runId: request.runId,
       suite: request.suite,
-      status: results.length > 0 && results.every((result: SmokeTestResult): boolean => result.status === 'UNSUPPORTED') ?
-        'UNSUPPORTED' : 'FAIL',
+      status: results.length > 0 && results.every((result: SmokeTestResult): boolean => result.status === 'PASS') ?
+        'PASS' : (results.length > 0 && results.every((result: SmokeTestResult): boolean => result.status === 'UNSUPPORTED') ?
+        'UNSUPPORTED' : 'FAIL'),
       tests: results
     };
     writeSmokeText(`${resultsDir}/suite-summary.json`, JSON.stringify(summary));
     this.currentResult = summary.status;
     this.currentStatus = `Smoke ${request.suite} ${summary.status} (${results[0] ? results[0].message : 'unknown'})`;
-    hilog.error(DOMAIN, TAG, 'suite failed early suite=%{public}s cause=%{public}s',
-      request.suite, results[0] ? results[0].message : '');
+    if (summary.status === 'PASS') {
+      hilog.info(DOMAIN, TAG, 'suite completed suite=%{public}s status=PASS', request.suite);
+    } else {
+      hilog.error(DOMAIN, TAG, 'suite failed early suite=%{public}s cause=%{public}s',
+        request.suite, results[0] ? results[0].message : '');
+    }
   }
 }

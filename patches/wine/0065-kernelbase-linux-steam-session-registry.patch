@@ -1,0 +1,109 @@
+--- a/dlls/kernelbase/registry.c
++++ b/dlls/kernelbase/registry.c
+@@ -341,6 +341,97 @@
+     return status;
+ }
+ 
++static inline HKEY get_special_root_hkey( HKEY hkey );
++
++/* Linux Steam SDK bootstrap is a per-process registry view.  Neither the
++ * Windows Steam installation nor its shared Valve registry values are used.
++ * The endpoint is validated again by lsteamclient and by the GNU helper. */
++static BOOL hmosdeck_steam_session_enabled(void)
++{
++    WCHAR marker[160], app[16], *p;
++    DWORD n, i, port = 0;
++    ULONGLONG id = 0;
++
++    n = GetEnvironmentVariableW( L"HMOSDECK_STEAM_BRIDGE", marker, ARRAY_SIZE(marker) );
++    if (!n || n >= ARRAY_SIZE(marker)) return FALSE;
++    n = GetEnvironmentVariableW( L"SteamAppId", app, ARRAY_SIZE(app) );
++    if (!n || n >= ARRAY_SIZE(app)) return FALSE;
++    p = marker;
++    if (*p < '1' || *p > '9') return FALSE;
++    for (i = 0; *p >= '0' && *p <= '9'; ++i, ++p)
++    {
++        if (i == 5) return FALSE;
++        port = port * 10 + *p - '0';
++    }
++    if (!port || port > 65535 || *p++ != ':') return FALSE;
++    for (i = 0; i < 64; ++i, ++p)
++        if (!((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f'))) return FALSE;
++    if (*p++ != ':' || *p < '1' || *p > '9') return FALSE;
++    if (wcscmp( p, app )) return FALSE;
++    for (i = 0; *p >= '0' && *p <= '9'; ++i, ++p)
++    {
++        if (i == 10) return FALSE;
++        id = id * 10 + *p - '0';
++    }
++    return !*p && id && id <= 0xffffffff;
++}
++
++static BOOL hmosdeck_steam_session_key( HKEY root, const UNICODE_STRING *name,
++                                       ACCESS_MASK access, HKEY *retkey, NTSTATUS *status )
++{
++    static const WCHAR steam[] = L"Software\\Valve\\Steam";
++    static const WCHAR active[] = L"Software\\Valve\\Steam\\ActiveProcess";
++    static const WCHAR dll32[] = L"C:\\windows\\syswow64\\lsteamclient.dll";
++    static const WCHAR dll64[] = L"C:\\windows\\system32\\lsteamclient.dll";
++    static const WCHAR path[] = L"C:\\windows";
++    HKEY user = get_special_root_hkey( HKEY_CURRENT_USER ), session = 0, key = 0;
++    union { KEY_NAME_INFORMATION key; WCHAR buffer[512]; } actual, expected;
++    WCHAR full[512], private_path[120];
++    DWORD length, pid = GetCurrentProcessId();
++    LSTATUS error;
++    BOOL is_active;
++
++    if (!root || !user || !name->Buffer || !hmosdeck_steam_session_enabled()) return FALSE;
++    if (NtQueryKey( root, KeyNameInformation, &actual, sizeof(actual), &length ) ||
++        NtQueryKey( user, KeyNameInformation, &expected, sizeof(expected), &length )) return FALSE;
++    if (actual.key.NameLength < expected.key.NameLength ||
++        _wcsnicmp( actual.key.Name, expected.key.Name, expected.key.NameLength / sizeof(WCHAR) )) return FALSE;
++    length = (actual.key.NameLength - expected.key.NameLength) / sizeof(WCHAR);
++    if (length && actual.key.Name[expected.key.NameLength / sizeof(WCHAR)] != '\\') return FALSE;
++    if (length) --length;
++    if (length + name->Length / sizeof(WCHAR) + 2 > ARRAY_SIZE(full)) return FALSE;
++    memcpy( full, actual.key.Name + expected.key.NameLength / sizeof(WCHAR) + (length ? 1 : 0), length * sizeof(WCHAR) );
++    if (length && name->Length) full[length++] = '\\';
++    memcpy( full + length, name->Buffer, name->Length );
++    full[length + name->Length / sizeof(WCHAR)] = 0;
++    is_active = !wcsicmp( full, active );
++    if (!is_active && wcsicmp( full, steam )) return FALSE;
++
++    /* The private volatile key lives only for this Wine server session.  Do
++     * not write any value under Software\\Valve\\Steam. */
++    swprintf( private_path, ARRAY_SIZE(private_path), L"Software\\Wine\\HMOSDeck\\SteamSessions\\%lu", pid );
++    error = RegCreateKeyExW( HKEY_CURRENT_USER, private_path, 0, NULL, REG_OPTION_VOLATILE,
++                             KEY_ALL_ACCESS, NULL, &session, NULL );
++    if (!error) error = RegSetValueExW( session, L"SteamPath", 0, REG_SZ, (const BYTE *)path, sizeof(path) );
++    if (!error) error = RegCreateKeyExW( session, L"ActiveProcess", 0, NULL, REG_OPTION_VOLATILE,
++                                        KEY_ALL_ACCESS, NULL, &key, NULL );
++    if (!error) error = RegSetValueExW( key, L"SteamClientDll", 0, REG_SZ, (const BYTE *)dll32, sizeof(dll32) );
++    if (!error) error = RegSetValueExW( key, L"SteamClientDll64", 0, REG_SZ, (const BYTE *)dll64, sizeof(dll64) );
++    if (!error) error = RegSetValueExW( key, L"pid", 0, REG_DWORD, (const BYTE *)&pid, sizeof(pid) );
++    if (!error)
++    {
++        OBJECT_ATTRIBUTES attr;
++        UNICODE_STRING empty = {0};
++        InitializeObjectAttributes( &attr, &empty, 0, is_active ? key : session, NULL );
++        *status = NtOpenKeyEx( (HANDLE *)retkey, access, &attr, 0 );
++        TRACE( "HMOSDECK_STEAM_API private session bootstrap active=%d status=%lx\n", is_active, *status );
++    }
++    else *status = STATUS_UNSUCCESSFUL;
++    if (key) RegCloseKey( key );
++    if (session) RegCloseKey( session );
++    return TRUE;
++}
++
+ /* wrapper for NtOpenKeyEx to handle Wow6432 nodes */
+ static NTSTATUS open_key( HKEY *retkey, HKEY root, UNICODE_STRING *name, DWORD options, ACCESS_MASK access, BOOL create )
+ {
+@@ -350,6 +441,8 @@
+     BOOL was_wow6432node = TRUE;
+ 
+     *retkey = NULL;
++
++    if (!create && !options && hmosdeck_steam_session_key( root, name, access, retkey, &status )) return status;
+ 
+     if (!(is_win64 && (access & KEY_WOW64_32KEY)) && !create)
+     {

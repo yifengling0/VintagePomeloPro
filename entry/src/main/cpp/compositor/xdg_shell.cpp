@@ -298,23 +298,7 @@ static const struct xdg_toplevel_interface kToplevelImpl = {
 
 // -- xdg_surface 实现 --
 static void xs_destroy(wl_client*, wl_resource* r) {
-    auto* d = static_cast<XdgSurface*>(wl_resource_get_user_data(r));
-    OH_LOG_INFO(LOG_APP, "[MW-Life] xs_destroy xdg=%{public}p wlSurf=%{public}p",
-                r, d ? d->wlSurface : nullptr);
-    if (d && d->wlSurface) {
-        auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(d->wlSurface));
-        if (sd && sd->hasToplevel) {
-            const uint32_t toplevelId = sd->toplevelId;
-            OH_LOG_INFO(LOG_APP, "[MW-Life] xs_destroy → OnToplevelDestroyed tl=%{public}u", toplevelId);
-            WaylandServer::GetInstance()->OnToplevelDestroyed(toplevelId);
-            sd->hasToplevel = false;
-            sd->toplevelId = 0;
-            sd->committed.role = RoleFor(sd->hasToplevel, sd->isSubsurface);
-            sd->committed.hasWindowGeometry = false;
-            WaylandServer::GetInstance()->PostToplevelEvent(toplevelId,
-                                                            ToplevelEventType::Destroyed);
-        }
-    }
+    // Explicit destruction and client disconnect share one cleanup callback.
     wl_resource_destroy(r);
 }
 
@@ -323,12 +307,12 @@ static void xs_get_toplevel(wl_client* client, wl_resource* xsRes, uint32_t id) 
 
     wl_resource* tl = wl_resource_create(client, &xdg_toplevel_interface,
                                           wl_resource_get_version(xsRes), id);
-    d->xdgToplevel = tl;
+    d->xdgToplevelWatch.Set(tl);
 
     // 为 toplevel 创建独立的 user_data（ToplevelData），不再共享 XdgSurface*
     // 避免 wl_client_destroy 时 xs_resource_destroy 先释放 XdgSurface 导致 use-after-free
     auto* td = new ToplevelData();
-    td->xdgSurface = xsRes;
+    td->xdgSurfaceWatch.Set(xsRes);
     wl_resource_set_implementation(tl, &kToplevelImpl, td, tl_resource_destroy);
 
     // 关联 SurfaceData: 分配 toplevelId, 发送 created 事件到 ArkTS
@@ -400,8 +384,8 @@ static const struct xdg_surface_interface kSurfaceImpl = {
 };
 
 static void xs_resource_destroy(wl_resource* r) {
-    // Client disconnect can bypass xs_destroy; explicit xs_destroy clears the
-    // role before reaching this callback, so cleanup and notification run once.
+    // wl_surface can already be gone on client disconnect. The weak link is
+    // cleared before its storage is freed; wl_surface cleanup owns that order.
     auto* d = static_cast<XdgSurface*>(wl_resource_get_user_data(r));
     if (d && d->wlSurface) {
         auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(d->wlSurface));
@@ -433,7 +417,7 @@ static void wm_get_xdg_surface(wl_client* client, wl_resource* wmRes,
     wl_resource* xs = wl_resource_create(client, &xdg_surface_interface,
                                           wl_resource_get_version(wmRes), id);
     auto* d = new XdgSurface();
-    d->wlSurface = surfaceRes;
+    d->wlSurfaceWatch.Set(surfaceRes);
     d->xdgSurface = xs;
     wl_resource_set_implementation(xs, &kSurfaceImpl, d, xs_resource_destroy);
 }

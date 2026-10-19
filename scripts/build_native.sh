@@ -343,6 +343,9 @@ build_virglrenderer() {
     local python_with_yaml
     local config_stamp="$build/.winehua-config"
     local expected_config="venus=1;render-server-mode=thread;render-server-worker=thread;vulkan-dload=1"
+    local overlay_sha
+    overlay_sha="$(cat "$ROOT/scripts/apply_virglrenderer_ohos_patches.sh" "$ROOT"/patches/virglrenderer/*.patch | sha256sum | cut -d' ' -f1)"
+    expected_config="$expected_config;overlays=$overlay_sha"
 
     [ -d "$src" ] || err "thirdparty/virglrenderer is missing"
     bash "$ROOT/scripts/apply_virglrenderer_ohos_patches.sh" "$src"

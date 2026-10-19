@@ -233,11 +233,13 @@ void WaylandServer::RaiseToplevel(uint32_t id, bool userInitiated) {
 
 // -- 交互式窗口移动 (xdg_toplevel.move) --
 void WaylandServer::StartMoveGrab(uint32_t toplevelId, uint32_t serial) {
-    // 用最近一次注入的全局指针位置立即算固定 grab 偏移:
-    // 绝对定位后窗口每帧由 全局坐标−偏移 决定, 不依赖消费时刻的 st->x
+    StartMoveGrabAt(toplevelId, serial, InputManager::GetInstance()->GetLastGlobalPointerX(),
+                    InputManager::GetInstance()->GetLastGlobalPointerY());
+}
+
+void WaylandServer::StartMoveGrabAt(uint32_t toplevelId, uint32_t serial, wl_fixed_t globalX, wl_fixed_t globalY) {
     moveGrab_.StartMoveGrab(toplevelMgr_, toplevelId, serial,
-                            wl_fixed_to_int(InputManager::GetInstance()->GetLastGlobalPointerX()),
-                            wl_fixed_to_int(InputManager::GetInstance()->GetLastGlobalPointerY()));
+                            wl_fixed_to_int(globalX), wl_fixed_to_int(globalY));
     if (Policy().OhosWindowPerToplevel()) {
         PostToplevelEvent(toplevelId, ToplevelEventType::MoveStart);
     }
@@ -266,7 +268,19 @@ void WaylandServer::PostToplevelEvent(uint32_t id, ToplevelEventType evt,
     // (ArkTS toplevel 回调) 全部在 ToplevelEventBus::Post 内 — 事件名经
     // ToplevelEventName 映射为旧字符串 (逐字), 日志文本/顺序/抑制条件逐字;
     // NAPI 通道移出 compositor 核心 (旧本函数直调 gStateTsfn, 见下方旁路)。
-    toplevelEventBus_.Post(id, evt, json);
+    std::string payload = json;
+    if (evt == ToplevelEventType::Created) {
+        const auto key = payload.find("\"clientPid\":");
+        if (key != std::string::npos) {
+            const pid_t pid = static_cast<pid_t>(strtoul(payload.c_str() + key + 12, nullptr, 10));
+            const auto session = AssociateWineSessionWindow(pid, id);
+            if (!session.empty() && !payload.empty() && payload.back() == '}') {
+                payload.pop_back();
+                payload += ",\"sessionId\":\"" + session + "\"}";
+            }
+        }
+    } else if (evt == ToplevelEventType::Destroyed) ForgetWineSessionWindow(id);
+    toplevelEventBus_.Post(id, evt, payload);
     /* 桌面根出现 = 引擎消息通道的 evt:desktop-ready: LaunchPadMode 的 15s
      * root 等待超时后状态机停在 ready-degraded, 靠这个补票升级为正式 ready。
      * 挂在统一的 toplevel 事件收口点而非 LaunchPadMode 等待循环 — root 在任意

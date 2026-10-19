@@ -24,6 +24,7 @@ export class AccountAutomaticSyncService {
   private overall: string = '等待登录';
   private foreground: boolean = true;
   private busy: boolean = false;
+  private initializing: boolean = false;
   private preparing: boolean = false;
   private applying: boolean = false;
   private observedPreferences: string = '';
@@ -32,7 +33,12 @@ export class AccountAutomaticSyncService {
   private timer: number = -1;
   private rerun: boolean = false;
   private reconcilingPurchases: boolean = false;
-  private retryMs: number = 30000;
+  private retryAttempt: number = 0;
+  private retryAt: number = 0;
+  private retryExhausted: boolean = false;
+  private pendingSync: boolean = true;
+  private observedOwner: string | null = null;
+  private accountChangeFlight: Promise<void> | null = null;
   private preferenceConflict: PreferencesEnvelope | null = null;
   private configurationDecision: string = '';
   private configurationCheckedOwner: string = '';
@@ -71,9 +77,11 @@ export class AccountAutomaticSyncService {
   async initialize(context: common.UIAbilityContext): Promise<void> {
     if (!DeviceCapabilityPolicy.supportsValueAddedFeatures() || this.context) return;
     this.context = context;
+    this.initializing = true;
+    let initialized: boolean = false;
     try {
       this.store = await preferences.getPreferences(context, 'account_automatic_sync');
-      UserConfigurationRepository.getInstance().subscribe((): void => { this.localChanged('configuration', '应用配置', 'configuration'); });
+      UserConfigurationRepository.getInstance().subscribeCloud((): void => { this.localChanged('configuration', '用户配置', 'configuration'); });
       const raw = this.store.getSync('state_v1', '') as string;
       if (raw) {
         if (raw.length > 524288) throw new Error('INVALID_SYNC_STATE');
@@ -116,8 +124,12 @@ export class AccountAutomaticSyncService {
       });
       await this.api().initialize(context);
       await this.accountChanged(this.api().getUserId());
+      initialized = true;
     } catch (error) {
       this.overall = (error as Error).message === 'NOT_CONFIGURED' ? '云同步暂未接通' : '同步暂不可用，请稍后重试'; this.emit();
+    } finally {
+      this.initializing = false;
+      if (initialized && this.pendingSync && !this.retryExhausted) this.scheduleSync(0);
     }
   }
   private ownProfile(id: string, userId: string): void {
@@ -135,12 +147,25 @@ export class AccountAutomaticSyncService {
     this.persistedState = raw;
   }
   private async accountChanged(userId: string): Promise<void> {
+    // initialize() and the login event can observe the same session concurrently.
+    if (this.observedOwner === userId) {
+      if (this.accountChangeFlight) await this.accountChangeFlight;
+      return;
+    }
+    this.observedOwner = userId;
+    const work = this.applyAccountChange(userId);
+    this.accountChangeFlight = work;
+    try { await work; }
+    finally { if (this.accountChangeFlight === work) this.accountChangeFlight = null; }
+  }
+  private async applyAccountChange(userId: string): Promise<void> {
     this.configurationCheckedOwner = ''; this.configurationCheckedRevision = -1;
     this.configurationDecision = '';
     this.epoch++; const epoch = this.epoch; this.clearTimer(); this.items = []; this.preferenceConflict = null;
     if (!userId) {
       this.overall = this.api().hasRememberedAccount() ? '正在恢复登录，稍后自动重试' : '等待登录'; this.emit();
-      this.requestSync(this.retryMs); return;
+      if (this.api().hasRememberedAccount()) this.requestSync(0);
+      return;
     }
     if (!/^[a-f0-9]{64}$/.test(userId)) { this.overall = '账号身份无效'; this.emit(); return; }
     let account = this.data.accounts.find((entry: SyncAccountState): boolean => entry.userId === userId);
@@ -156,7 +181,7 @@ export class AccountAutomaticSyncService {
     this.data.lastOwner = userId;
     try { await this.persist(); } catch (_) { this.overall = '同步记录保存失败'; this.emit(); return; }
     if (epoch !== this.epoch || this.api().getUserId() !== userId) return;
-    this.retryMs = 30000; this.overall = '等待同步'; this.emit(); this.requestSync(0);
+    this.overall = '等待同步'; this.emit(); this.requestSync(0);
   }
   setForeground(value: boolean): void {
     this.foreground = value;
@@ -166,7 +191,9 @@ export class AccountAutomaticSyncService {
       this.epoch++; this.clearTimer(); return;
     }
     if (!value) { this.epoch++; this.clearTimer(); this.overall = this.api().getUserId() ? '返回应用后继续同步' : '等待登录'; this.emit(); }
-    else if (this.context) this.requestSync(0, true);
+    else if (this.context && this.pendingSync && !this.retryExhausted) {
+      this.scheduleSync(Math.max(0, this.retryAt - Date.now()));
+    }
   }
   async setEnabled(family: string, value: boolean): Promise<void> {
     const account = this.currentAccount(); if (!account) throw new Error('SIGN_IN_REQUIRED');
@@ -188,11 +215,29 @@ export class AccountAutomaticSyncService {
     }
     this.requestSync();
   }
-  requestSync(delay: number = 700, force: boolean = false): void {
+  requestSync(delay: number = 2000, force: boolean = false): void {
+    // Only a new user/data event resets the finite retry budget.
+    this.retryAttempt = 0; this.retryAt = 0; this.retryExhausted = false;
+    this.pendingSync = true;
+    this.scheduleSync(delay, force);
+  }
+  private scheduleSync(delay: number, force: boolean = false): void {
     if (force) this.forceConfigurationCheck = true;
-    if (!this.context || !this.foreground || !this.api().getUserId() && !this.api().hasRememberedAccount()) return;
+    if (!this.context || this.initializing || !this.foreground || !this.api().getUserId() && !this.api().hasRememberedAccount()) return;
     if (this.busy || this.preparing) { this.rerun = true; return; }
     this.clearTimer(); this.timer = setTimeout((): void => { this.timer = -1; void this.syncNow(); }, delay);
+  }
+  private retryLater(): void {
+    this.pendingSync = true;
+    const delays: number[] = [60000, 300000, 900000];
+    if (this.retryAttempt >= delays.length) {
+      this.retryExhausted = true;
+      this.overall = '连接暂不可用，待下次启动、修改或手动重试'; this.emit();
+      return;
+    }
+    const delay = delays[this.retryAttempt++];
+    this.retryAt = Date.now() + delay;
+    this.scheduleSync(delay, true);
   }
   private valid(epoch: number, owner: string): boolean {
     return this.foreground && this.epoch === epoch && this.api().getUserId() === owner;
@@ -210,26 +255,29 @@ export class AccountAutomaticSyncService {
   async syncNow(): Promise<void> {
     if (!this.context || !this.foreground || this.busy || this.preparing || !DeviceCapabilityPolicy.supportsValueAddedFeatures()) return;
     if (this.api().getCapabilities().configuration && this.currentAccount() && !this.configurationEnabled()) {
-      this.overall = '自动备份已关闭'; this.emit(); return;
+      this.pendingSync = false; this.overall = '自动备份已关闭'; this.emit(); return;
     }
     // Idle configuration has no timer and no cloud read, entitlement call, journal write or upload.
     if (!this.forceConfigurationCheck && !this.configurationDecision &&
       this.configurationCheckedOwner === this.api().getUserId() &&
       this.configurationCheckedRevision === (this.api().getCapabilities().configuration ?
-        UserConfigurationRepository.getInstance().revision() : this.localRevision)) return;
+        UserConfigurationRepository.getInstance().cloudRevision() : this.localRevision)) {
+      this.pendingSync = false; return;
+    }
+    this.pendingSync = false; this.retryAt = 0;
     this.forceConfigurationCheck = false;
     // Renew the short-lived server session with an already authorized system identity, including after process restart.
     this.preparing = true;
     try { await this.api().resumeAccount(); }
     catch (_) {
-      this.preparing = false; this.retryMs = Math.min(300000, this.retryMs * 2);
-      this.overall = '登录连接暂不可用，等待自动重试'; this.emit(); this.requestSync(this.retryMs, true); return;
+      this.preparing = false;
+      this.overall = '登录连接暂不可用，等待自动重试'; this.emit(); this.retryLater(); return;
     } finally { this.preparing = false; }
-    if (!this.foreground || this.busy) return;
+    if (!this.foreground || this.busy) { this.pendingSync = true; return; }
     const account = this.currentAccount();
     if (!account) {
       this.overall = this.api().hasRememberedAccount() ? '正在恢复登录，稍后自动重试' : '等待登录'; this.emit();
-      if (this.api().hasRememberedAccount()) this.requestSync(this.retryMs);
+      if (this.api().hasRememberedAccount()) this.retryLater();
       return;
     }
     this.busy = true; this.rerun = false;
@@ -241,8 +289,7 @@ export class AccountAutomaticSyncService {
       await api.refreshCapabilities(); this.check(epoch, owner);
       const capabilities = api.getCapabilities();
       const recovery = api.getPurchaseRecoveryStatus();
-      if (capabilities.commerce && recovery && (!['RESTORED', 'FINISHED', 'ALREADY_FINISHED'].includes(recovery) ||
-        api.getPurchaseRecoveryCheckedAt() + 60000 <= Date.now())) {
+      if (capabilities.commerce && recovery && !['RESTORED', 'FINISHED', 'ALREADY_FINISHED'].includes(recovery)) {
         this.reconcilingPurchases = true;
         try { await api.restorePurchases(); }
         catch (_) { /* The independently verified server entitlement remains authoritative, even if an old receipt cannot finish. */ }
@@ -279,8 +326,8 @@ export class AccountAutomaticSyncService {
           account.lastSyncedAt = unified.lastSyncedAt(); await this.persist();
           if (this.overall === '云端备份已更新' || this.overall === '已恢复应用配置') {
             this.configurationCheckedOwner = owner;
-            this.configurationCheckedRevision = UserConfigurationRepository.getInstance().revision();
-            this.retryMs = 30000;
+            this.configurationCheckedRevision = UserConfigurationRepository.getInstance().cloudRevision();
+            this.retryAttempt = 0;
           }
           retry = this.overall === '检测到本地修改，等待备份';
         } finally { this.applying = false; }
@@ -298,7 +345,7 @@ export class AccountAutomaticSyncService {
         conflict ? '有冲突，等待处理' : waiting ? '部分内容等待同步' : held ? '其他账号的本地内容未上传' :
         unavailable ? '部分云同步暂未开放' : this.items.some((item: SyncItemStatus): boolean => item.state === '已恢复') ? '已恢复云端备份' : '已同步';
       if (localRevision === this.localRevision && !conflict && !waiting && !held && !unavailable) account.lastSyncedAt = Date.now();
-      await this.persist(); this.retryMs = 30000;
+      await this.persist(); this.retryAttempt = 0;
       if (localRevision === this.localRevision && !conflict && !waiting && !held && !unavailable) {
         this.configurationCheckedOwner = owner; this.configurationCheckedRevision = localRevision;
       }
@@ -308,8 +355,9 @@ export class AccountAutomaticSyncService {
         console.warn('[AccountAutomaticSync] sync failed: ' + (/^[A-Z][A-Z0-9_]{1,63}$/.test(message) ? message : 'FAILED'));
         this.overall = message === 'SIGN_IN_REQUIRED' ? '登录已过期，等待重新登录' :
           message === 'CONFIG_REQUIRES_UPDATE' ? '此配置需要更新应用后恢复，原备份已保留' :
+          message === 'CONFIG_SCOPE_UNSUPPORTED' ? '云端仅接受用户设置与输入方案，请更新应用后重试' :
           message === 'CONFIG_LOCAL_CHANGED' ? '检测到新修改，等待备份' :
-          message === 'CONFIG_QUOTA' ? '配置超出备份容量，本地与原云端备份已保留' :
+          message === 'CONFIG_QUOTA' ? '用户配置超过 256 KiB，本地与原云端备份已保留' :
           message === 'CONFIG_HASH_MISMATCH' || message === 'CONFIG_INCOMPLETE' || message === 'CONFIG_INVALID' ? '配置校验失败，原内容已保留' :
           message === 'CONFIG_RECONCILIATION_REQUIRED' ? '上传尚待云端确认，原备份已保留' :
           message === 'MEMBERSHIP_REQUIRED' ? '会员权益待确认，同步已暂停' :
@@ -319,18 +367,16 @@ export class AccountAutomaticSyncService {
         this.items.forEach((item: SyncItemStatus): void => {
           if (item.state === '正在同步' || item.state === '正在检查') item.state = '等待自动重试';
         });
-        this.retryMs = Math.min(300000, this.retryMs * 2);
-        retry = !['CONFIG_REQUIRES_UPDATE', 'CONFIG_QUOTA', 'CONFIG_INVALID', 'CONFIG_HASH_MISMATCH', 'CONFIG_INCOMPLETE',
+        retry = !['CONFIG_REQUIRES_UPDATE', 'CONFIG_SCOPE_UNSUPPORTED', 'CONFIG_QUOTA', 'CONFIG_INVALID', 'CONFIG_HASH_MISMATCH', 'CONFIG_INCOMPLETE',
           'MEMBERSHIP_REQUIRED', 'SYNC_RECORD_LIMIT', 'INVALID_SYNC_STATE'].includes(message);
         if (retry) this.forceConfigurationCheck = true;
       }
     } finally {
       this.busy = false; this.emit();
-      if (this.foreground) {
-        if (this.rerun || retry) {
-          this.requestSync(this.rerun ? 700 : this.retryMs);
-        }
-      }
+      if (!this.valid(epoch, owner)) this.pendingSync = true;
+      if (this.rerun) this.scheduleSync(2000);
+      else if (retry) this.retryLater();
+      else if (this.pendingSync && !this.retryExhausted) this.scheduleSync(Math.max(0, this.retryAt - Date.now()));
     }
   }
   private async syncProfiles(account: SyncAccountState, epoch: number): Promise<void> {

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import FrozenSet, Iterable, Union
 from zipfile import ZipFile
 
-from runtime_library_guard import RuntimeLibraryError, validate_library
+from runtime_library_guard import RuntimeLibraryError, validate_library, validate_thread_exit_metadata
 from dxvk_runtime_contract import validate_modern_runtime
 
 
@@ -524,6 +524,20 @@ def validate_runtime_payload(archive: Archive) -> RuntimeInfo:
         for filename in REQUIRED_ARM64_FEX_FILES:
             archive.require_file(f"bin/{pe_arch}/{filename}")
 
+    if "fex-simd-zero.json" in archive.name_set:
+        from fex_simd_runtime import validate as validate_fex_simd
+        try:
+            validate_fex_simd(json.loads(archive.read("fex-simd-zero.json")), archive.read)
+        except (ValueError, KeyError, TypeError, IndexError, struct.error) as error:
+            raise ValidationError("FEX SIMD repair identity invalid: " + str(error)) from error
+
+    if "icu-compat.json" in archive.name_set:
+        from icu_compat_runtime import validate as validate_icu_compat
+        try:
+            validate_icu_compat(json.loads(archive.read("icu-compat.json")), archive.read)
+        except (ValueError, KeyError, TypeError) as error:
+            raise ValidationError("ICU runtime identity invalid: " + str(error)) from error
+
     mono = manifest.get("mono")
     if not isinstance(mono, dict):
         raise ValidationError("component manifest has no mono object")
@@ -588,6 +602,10 @@ def find_runtime_manifest_name(hap: Archive) -> str:
 def validate_hap(path: Path) -> RuntimeInfo:
     hap = Archive(path)
     try:
+        try:
+            validate_thread_exit_metadata(hap.zip, str(path))
+        except RuntimeLibraryError as error:
+            raise ValidationError(str(error)) from error
         payload_name = find_payload_name(hap)
         payload_bytes = hap.read(payload_name)
         runtime_manifest = json.loads(hap.read(find_runtime_manifest_name(hap)).decode("utf-8"))

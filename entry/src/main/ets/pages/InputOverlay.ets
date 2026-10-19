@@ -24,7 +24,7 @@ import { InputOverlayListener, InputOverlaySnapshot, InputOverlayWindowCoordinat
 import { InputProfileService } from '../service/InputProfileService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { AppSessionService } from '../service/AppSessionService';
-import { InputEventGate } from '../service/InputEventGate';
+import { AxisEventGate, InputEventGate } from '../service/InputEventGate';
 import { EngineState } from '../model/AppModels';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
@@ -56,6 +56,8 @@ interface TouchpadFinger {
 @Entry
 @Component
 struct InputOverlayPage {
+  private axisTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   @State private snapshot: InputOverlaySnapshot = InputOverlayWindowCoordinator.getInstance().getSnapshot();
   @State private profile: InputProfile = createDefaultInputProfile();
   @State private settings: GlobalSettings = createDefaultGlobalSettings();
@@ -471,7 +473,7 @@ struct InputOverlayPage {
   /** 宿主键盘关闭时转发蓝牙/实体 KeyEvent; 打开时不拦截, 拼音走 TextInput/IME。 */
   private handleHardwareKey(ev: KeyEvent): void {
     if (this.hostKeyboardActive) return;
-    const rootId = WineWindowManager.getInstance().getDesktopRootId();
+    const rootId = this.snapshot.session.toplevelId || WineWindowManager.getInstance().getDesktopRootId();
     if (rootId <= 0) return;
     ev.stopPropagation();
     // Keyboard arrows share OHOS codes with gamepad D-pad. Do not let the
@@ -839,12 +841,22 @@ struct InputOverlayPage {
     }
   }
 
-  private handleDirectAxis(event?: AxisEvent): void {
+  private handleDirectAxis(event?: AxisEvent, origin: string = 'direct'): void {
     if (!event) return;
+    if (this.axisTraceCount++ < 32) hilog.info(0x0000, 'CLICK-PIPE', '[AXIS-PHASE] overlay=%{public}s action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+      origin, event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+    if (!this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+      event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
     const vertical = event.getVerticalAxisValue();
     const horizontal = event.getHorizontalAxisValue();
-    if (vertical !== 0) InputDispatcher.getInstance().scroll('external-mouse', 0, vertical, event.scrollStep ?? 40);
-    if (horizontal !== 0) InputDispatcher.getInstance().scroll('external-mouse', 1, horizontal, event.scrollStep ?? 40);
+    if (vertical === 0 && horizontal === 0) return;
+    // Controls may forward component-local AxisEvents. Use window coordinates
+    // as for physical mouse motion, rather than the old virtual cursor.
+    const dispatcher = InputDispatcher.getInstance();
+    dispatcher.pointerMove('external-mouse', vp2px(event.windowX), vp2px(event.windowY),
+      false, { rawDx: 0, rawDy: 0, fromMouse: true });
+    if (vertical !== 0) dispatcher.scroll('external-mouse', 0, vertical, -1);
+    if (horizontal !== 0) dispatcher.scroll('external-mouse', 1, horizontal, -1);
   }
 
   private async openInputEditor(route: string): Promise<void> {
@@ -859,7 +871,7 @@ struct InputOverlayPage {
         profileName: this.profile.name || '默认键鼠手柄',
         appId: session?.appId ?? '',
         baseProfileId: this.settings.desktopInputProfileId || 'default',
-        returnAbilityName: 'DesktopAbility',
+        returnAbilityName: WineWindowManager.getInstance().getDesktopMode() ? 'DesktopAbility' : 'WineWindowAbility',
         returnSessionId: this.snapshot.session.sessionId,
         returnToplevelId: this.snapshot.session.toplevelId.toString()
       }
@@ -927,7 +939,7 @@ struct InputOverlayPage {
           },
           onUnhandledTouch: (event: TouchEvent): void => this.handleOverlayTouch(event),
           onUnhandledMouse: (event: MouseEvent): void => this.handleDirectMouse(event),
-          onUnhandledAxis: (event?: AxisEvent): void => this.handleDirectAxis(event)
+          onUnhandledAxis: (event?: AxisEvent): void => this.handleDirectAxis(event, 'virtual')
         })
         .zIndex(10)
       }

@@ -18,7 +18,7 @@ function fixture(options={}) {
   const timers=new Map(), journal=new Map(), profiles=new Map(), remotes=options.cloud?.profiles || new Map(), heads=new Map(), conflicts=new Map();
   const calls={uploads:[],downloads:[],settingsUploads:0,settingsApplies:0,backups:[],configurations:0,resumes:0,capabilities:0,entitlements:0,journals:0};
   const configurationListeners=[];let configurationRevision=0,configurationHook=null;
-  const configurationRepo={subscribe:f=>configurationListeners.push(f),revision:()=>configurationRevision};
+  const configurationRepo={subscribeCloud:f=>configurationListeners.push(f),cloudRevision:()=>configurationRevision};
   let configurationSyncedAt=options.configurationSyncedAt??1000;
   const configuration={initialize:async()=>{},hasConflict:()=>false,usedBytes:()=>0,lastSyncedAt:()=>configurationSyncedAt,sync:async()=>{calls.configurations++;return configurationHook?configurationHook():'云端备份已更新';}};
   const accountListeners=[], profileListeners=[], themeListeners=[], entitlementListeners=[];
@@ -260,10 +260,10 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
   f.api.resumeAccount=async()=>{await f.user(A);};
   f.edit({...profile(),cursorSpeed:1.9});await f.fire();assert.equal(f.remoteMap().get('custom').payload.cursorSpeed,1.9);
  });
- await test('foreground checks for newly unfinished renewals even after the initial restoration succeeded',async()=>{
+ await test('configuration edits do not repeatedly restore an already checked purchase',async()=>{
   const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('RESTORED');
-  f.api.getPurchaseRecoveryCheckedAt=()=>Date.now()-60001;await f.run();assert.equal(f.calls.restores,1);
-  f.api.getPurchaseRecoveryCheckedAt=()=>Date.now();f.recovery('RESTORED');await f.run();assert.equal(f.calls.restores,1);
+  f.api.getPurchaseRecoveryCheckedAt=()=>Date.now()-60001;await f.run();assert.equal(f.calls.restores||0,0);
+  f.recovery('ACK_PENDING');f.entitlementEvent();await f.fire();assert.equal(f.calls.restores,1);
  });
  await test('failed legacy receipt still cannot grant backup when the official entitlement is inactive',async()=>{
   const f=fixture();await f.initialize();f.capabilities({commerce:true,profiles:true,preferences:true});f.recovery('ORDER_BINDING_MISMATCH');
@@ -282,12 +282,62 @@ async function test(name,run){await run();count++;console.log('PASS '+name);}
  });
  await test('unified transient errors after prior success still retry with increasing delay',async()=>{
   const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();f.changeConfiguration();f.configurationHook(()=>{throw Error('OFFLINE');});
-  await f.fire();assert.equal([...f.timers.values()][0].ms,60000);await f.fire();assert.equal([...f.timers.values()][0].ms,120000);
+  await f.fire();assert.equal([...f.timers.values()][0].ms,60000);await f.fire();assert.equal([...f.timers.values()][0].ms,300000);
   f.configurationHook(null);await f.fire();assert.equal(f.timers.size,0);assert.equal(f.sync.status(),'云端备份已更新');
  });
- await test('unified foreground and manual checks run once while a disabled backup makes no requests',async()=>{
-  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();f.sync.setForeground(false);f.sync.setForeground(true);await f.fire();assert.equal(f.calls.configurations,2);assert.equal(f.timers.size,0);
-  f.sync.requestSync(0,true);await f.fire();assert.equal(f.calls.configurations,3);await f.sync.setEnabled('configuration',false);const calls=JSON.stringify(f.calls);await f.fire();assert.equal(JSON.stringify(f.calls),calls);assert.equal(f.timers.size,0);
+ await test('idle foreground is local only; manual checks and disabled backup retain their behavior',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();const idle=JSON.stringify(f.calls);
+  for(let i=0;i<15;i++){f.sync.setForeground(false);f.sync.setForeground(true);}assert.equal(f.timers.size,0);assert.equal(JSON.stringify(f.calls),idle);
+  f.sync.requestSync(0,true);await f.fire();assert.equal(f.calls.configurations,2);await f.sync.setEnabled('configuration',false);const calls=JSON.stringify(f.calls);await f.fire();assert.equal(JSON.stringify(f.calls),calls);assert.equal(f.timers.size,0);
+ });
+ await test('duplicate initialization and login observations share one startup job',async()=>{
+  const f=fixture({capabilities:{configuration:true}});
+  f.api.initialize=async()=>{await f.sync.accountChanged(A);};
+  await f.initialize();assert.equal(f.timers.size,1);assert.equal(f.calls.journals,1);
+  await Promise.all([f.sync.accountChanged(A),f.sync.accountChanged(A)]);await f.fire();
+  assert.equal(f.calls.configurations,1);assert.equal(f.timers.size,0);
+ });
+ await test('continuous local saves use a two-second debounce and one cloud job',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();
+  for(let i=0;i<20;i++)f.changeConfiguration();
+  assert.equal(f.timers.size,1);assert.equal([...f.timers.values()][0].ms,2000);
+  await f.fire();assert.equal(f.calls.configurations,2);assert.equal(f.timers.size,0);
+ });
+ await test('startup login and purchase-recovery events wait for initialization and share one transfer',async()=>{
+  const f=fixture({capabilities:{configuration:true}});let enter,release;
+  const entered=new Promise(r=>enter=r),gate=new Promise(r=>release=r);
+  f.api.initialize=async()=>{await f.sync.accountChanged(A);f.entitlementEvent();enter();await gate;f.entitlementEvent();};
+  const initialization=f.initialize();await entered;
+  assert.equal(f.timers.size,0,'startup cannot transfer while account restoration is incomplete');
+  release();await initialization;assert.equal(f.timers.size,1);await f.fire();
+  assert.equal(f.calls.configurations,1);assert.equal(f.timers.size,0);
+ });
+ await test('failed work retries at one, five and fifteen minutes then waits for a new event',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();
+  f.configurationHook(()=>{throw Error('OFFLINE');});f.changeConfiguration();await f.fire();
+  for(const delay of [60000,300000,900000]){assert.equal([...f.timers.values()][0].ms,delay);await f.fire();}
+  assert.equal(f.timers.size,0);assert.equal(f.sync.retryExhausted,true);assert.equal(f.calls.configurations,5);
+  f.sync.setForeground(false);f.sync.setForeground(true);assert.equal(f.timers.size,0);
+  f.changeConfiguration();assert.equal([...f.timers.values()][0].ms,2000);await f.fire();assert.equal([...f.timers.values()][0].ms,60000);
+  f.configurationHook(null);await f.fire();assert.equal(f.timers.size,0);assert.equal(f.sync.status(),'云端备份已更新');
+ });
+ await test('background edits wait for foreground and do not reset a pending failure budget',async()=>{
+  const f=fixture({capabilities:{configuration:true}});await f.initialize();await f.run();
+  f.sync.setForeground(false);f.changeConfiguration();assert.equal(f.timers.size,0);
+  f.sync.setForeground(true);await f.fire();assert.equal(f.calls.configurations,2);
+  f.configurationHook(()=>{throw Error('OFFLINE');});f.changeConfiguration();await f.fire();
+  f.sync.setForeground(false);assert.equal(f.timers.size,0);f.sync.setForeground(true);
+  assert.equal(f.sync.retryAttempt,1);assert.ok([...f.timers.values()][0].ms>59000);
+  await f.fire();assert.equal([...f.timers.values()][0].ms,300000);
+ });
+ await test('foreground resumed before an interrupted transfer completes continues pending work once',async()=>{
+  const f=fixture();await f.initialize();let entered,release;
+  const started=new Promise(r=>entered=r),blocked=new Promise(r=>release=r);
+  f.beforeRead(async()=>{entered();await blocked;});
+  const running=f.run();await started;f.sync.setForeground(false);f.sync.setForeground(true);
+  assert.equal(f.timers.size,0);release();await running;
+  assert.equal(f.timers.size,1);f.beforeRead(null);await f.fire();assert.equal(f.timers.size,0);
+  assert.equal(f.sync.status(),'已同步');
  });
  await test('unified modifications during transfer queue one more job and paused membership stops polling',async()=>{
   const f=fixture({capabilities:{configuration:true}});await f.initialize();let once=true;f.configurationHook(()=>{if(once){once=false;f.changeConfiguration();return '检测到本地修改，等待备份';}return '云端备份已更新';});

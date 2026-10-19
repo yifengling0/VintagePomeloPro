@@ -13,6 +13,7 @@ struct ContainerSession {
     std::string id;
     std::string prefixDir;
     std::string waylandSocket;
+    std::string wineLang = "zh_CN";
 };
 
 bool IsValidContainerId(const std::string& id);
@@ -22,6 +23,7 @@ bool ResolveContainerSession(const std::string& id, ContainerSession* out);
 // caller must drain the previous session before changing this value.
 bool SetActiveContainerSession(const std::string& id, ContainerSession* out = nullptr);
 ContainerSession GetActiveContainerSession();
+bool SetActiveContainerLanguage(const std::string& language);
 bool IsActiveContainerSession(const std::string& id);
 
 } // namespace winehua

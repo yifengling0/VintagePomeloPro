@@ -202,6 +202,7 @@ void InputManager::ResetSessionState() {
 }
 
 void InputManager::OnSurfaceDestroyed(wl_resource* surface) {
+    TextInput::GetInstance()->OnSurfaceDestroyed(surface);
     // surface 已被 Wine 销毁, 如果仍持有引用并在后续 Inject*Leave 中使用,
     // 会导致 Wayland 协议错误 "invalid object" → Wine 断开连接
     if (tracker_.PointerFocusedSurfaceIs(surface)) {
@@ -249,7 +250,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
     if (!seat->HasPointerResource()) return;
 
     // 坐标转换
-    wl_fixed_t wx, wy;
+    wl_fixed_t wx, wy, globalX = 0, globalY = 0;
     // Desktop 模式: 按桌面坐标解析精确输入目标 (菜单 subsurface 有自己的
     // wl_surface, 必须 enter 它并用层相对坐标 — 经父窗口 surface 的越界
     // 坐标会被 winewayland 的 motion clamp 夹回窗口内, 菜单伸出部分点不中)
@@ -260,6 +261,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
         CoordTransform(px, py, *desktopRootToplevelId_, &wx, &wy, &displayFit);
         // 记录最近一次注入的桌面全局指针位置 (grab 建立时算固定偏移用)。
         // 4C1: 收进 InputSpaceMapper, 空间标签显式化为 Desktop (桌面逻辑坐标)
+        globalX = wx; globalY = wy;
         InputSpaceMapper::GetInstance()->UpdateGlobalPtr(wx, wy, GlobalPtrState::Space::Desktop);
         // move grab 期间 (xdg_toplevel.move): compositor 用桌面全局坐标绝对定位
         // 被拖窗口, motion 必须注入全局坐标。局部坐标往返 (enqueue 时
@@ -269,7 +271,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
         // 6A: moveGrab 状态查询直呼注入的 MoveGrabHandler (原两行转发)
         if (action == ACT_MOVE && moveGrab_->IsActive() &&
             moveGrab_->GetToplevelId() == tl) {
-            queue_.Enqueue(InputQueue::Event::PTR_MOTION, 0, nullptr, wx, wy, 0, 0);
+            queue_.EnqueueMotion(tl, nullptr, 0, 0, globalX, globalY, false);
             return;
         }
         double logicalX = wl_fixed_to_double(wx);
@@ -357,19 +359,15 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
         // PC 空间全局指针位置 = 窗口局部坐标 + 窗口位置 (grab 偏移基准)。
         // 4C1: 显式语义为 Window 空间 (窗口局部+窗口位置还原值)
         const auto tlGeo = tmgr_->GetToplevelGeometrySnapshot(tl);
-        InputSpaceMapper::GetInstance()->UpdateGlobalPtr(
-            wl_fixed_from_double(wl_fixed_to_double(wx) + tlGeo.x),
-            wl_fixed_from_double(wl_fixed_to_double(wy) + tlGeo.y),
-            GlobalPtrState::Space::Window);
+        globalX = wl_fixed_from_double(wl_fixed_to_double(wx) + tlGeo.x);
+        globalY = wl_fixed_from_double(wl_fixed_to_double(wy) + tlGeo.y);
+        InputSpaceMapper::GetInstance()->UpdateGlobalPtr(globalX, globalY, GlobalPtrState::Space::Window);
         // move grab 降级路径 (PC 模式 startMoving 失败时): wx 是窗口局部坐标,
         // 补上窗口位置还原为绝对坐标, 供 compositor 绝对定位 (不在此做
         // 局部→全局往返, 消费侧不再二次读 st->x, 避免双线程基准漂移)
         if (action == ACT_MOVE && moveGrab_->IsActive() &&
             moveGrab_->GetToplevelId() == tl) {
-            queue_.Enqueue(InputQueue::Event::PTR_MOTION, 0, nullptr,
-                    wl_fixed_from_double(wl_fixed_to_double(wx) + tlGeo.x),
-                    wl_fixed_from_double(wl_fixed_to_double(wy) + tlGeo.y),
-                    0, 0);
+            queue_.EnqueueMotion(tl, nullptr, 0, 0, globalX, globalY, false);
             return;
         }
         // PC 模式: wx/wy 即窗口局部坐标, 无需额外变换
@@ -474,7 +472,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
                 tracker_.UpdateLastLocal(wl_fixed_to_double(wx), wl_fixed_to_double(wy));
             }
             if (!skipEnter)
-                queue_.Enqueue(InputQueue::Event::PTR_MOTION, 0, nullptr, wx, wy, 0, 0);
+                queue_.EnqueueMotion(tl, targetSurf, wx, wy, globalX, globalY);
             // Request focus before the click. Only the dispatch thread may
             // change the delivered keyboard focus: pre-setting it here made
             // the queued leave target the NEW window instead of the old one.
@@ -550,7 +548,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
                     OH_LOG_INFO(LOG_APP, "[Input] MOVE-ENTER enqueued OK");
                 }
             }
-            queue_.Enqueue(InputQueue::Event::PTR_MOTION, 0, nullptr, wx, wy, 0, 0);
+            queue_.EnqueueMotion(tl, targetSurf, wx, wy, globalX, globalY);
             break;
         }
         default:
@@ -608,6 +606,8 @@ void InputManager::EnqueueModifiers() {
 
 void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scrollStep,
                                     double px, double py) {
+    if ((axis != 0 && axis != 1) || !std::isfinite(value) || value == 0 ||
+        std::abs(value) > 32768 || !std::isfinite(px) || !std::isfinite(py)) return;
     // 窗口不可见时抑制输入 (缺段修复: scroll 此前绕过可见性检查, 与
     // SendPointerEvent/SendKeyEvent 对齐 — 最小化窗口/不可见窗口的滚动不再注入)
     if (tracker_.IsInputSuppressed(tl)) {
@@ -630,7 +630,7 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
     // findToplevelAt 的窗口 id, 查不到 renderer 走 GetAnyRenderer 兜底得到
     // 的是**桌面逻辑坐标**, 却以窗口局部坐标语义进 enter → wine 光标被
     // 设置到偏移窗口原点/未经 fit 缩放的位置。
-    wl_fixed_t wx, wy;
+    wl_fixed_t wx, wy, globalX = 0, globalY = 0;
     wl_resource* targetSurf = nullptr;
     // 6A: 策略/rootId/moveGrab/裁决经装配注入引用直调 (与旧 WaylandServer 转发同值)
     if (policy_->CompositorRoutesInput() && tl != *desktopRootToplevelId_) {
@@ -638,6 +638,7 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
         // 缺段修复: 维护最近一次全局指针位置 (grab 偏移基准, 与
         // SendPointerEvent 桌面分支同一语义 — scroll 位置即指针位置);
         // 4C1 收进 InputSpaceMapper, 空间标签 Desktop (桌面逻辑坐标)
+        globalX = wx; globalY = wy;
         InputSpaceMapper::GetInstance()->UpdateGlobalPtr(wx, wy, GlobalPtrState::Space::Desktop);
         // move grab 期间: 交互式拖拽由 compositor 接管, 不注入 scroll —
         // 拖动窗口标题栏时滚轮不应滚动窗口内容 (axis 无位置属性, 不存在
@@ -650,6 +651,7 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
         double logicalY = wl_fixed_to_double(wy);
         WaylandServer::InputTarget target;
         if (resolver_->FindInputTargetAt(logicalX, logicalY, target)) {
+            if (target.swallow || target.blockedModalId) return;
             tl = target.toplevelId;
             targetSurf = target.surface;
             // 终态: resolver 锁内已算好 surface 局部坐标 + 内容区钳制
@@ -683,10 +685,9 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
         // 缺段修复: PC 空间全局指针位置 = 窗口局部 + 窗口位置 (grab 偏移基准,
         // 与 SendPointerEvent PC 分支同款); 4C1 显式语义 Window 空间
         const auto tlGeo = tmgr_->GetToplevelGeometrySnapshot(tl);
-        InputSpaceMapper::GetInstance()->UpdateGlobalPtr(
-            wl_fixed_from_double(wl_fixed_to_double(wx) + tlGeo.x),
-            wl_fixed_from_double(wl_fixed_to_double(wy) + tlGeo.y),
-            GlobalPtrState::Space::Window);
+        globalX = wl_fixed_from_double(wl_fixed_to_double(wx) + tlGeo.x);
+        globalY = wl_fixed_from_double(wl_fixed_to_double(wy) + tlGeo.y);
+        InputSpaceMapper::GetInstance()->UpdateGlobalPtr(globalX, globalY, GlobalPtrState::Space::Window);
         if (moveGrab_->IsActive() && moveGrab_->GetToplevelId() == tl) {
             OH_LOG_INFO(LOG_APP, "[Input] SCROLL-DROP tl=%{public}u (move grab active)", tl);
             return;
@@ -722,7 +723,10 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
 
     // 入队 axis 事件 (原手写 push 收在 InputQueue::EnqueueAxis — 锁边界/pipe
     // 唤醒与原实现逐字; tl 诊断字段语义见 input_queue.h)
-    queue_.EnqueueAxis(axis, val, tl);
+    // Axis has no coordinates. Refresh motion even when it stays on the same
+    // surface, otherwise X11 scrolls the old panel under its previous cursor.
+    queue_.EnqueueMotion(tl, targetSurf, wx, wy, globalX, globalY);
+    queue_.EnqueueAxis(axis, val, tl, scrollStep < 0);
 }
 
 // ========================================================================
@@ -749,6 +753,20 @@ void InputManager::SubmitEnterLeave(uint32_t tl, wl_resource* targetSurf,
 //  事件队列 flush (Wayland 线程 — pipe 回调 → poll 去重 → dispatch → flush)
 // ========================================================================
 
+void InputManager::RequestToplevelActivation(uint32_t id) {
+    if (id) queue_.Enqueue(InputQueue::Event::ACTIVATE_TOPLEVEL, id, nullptr, 0, 0, 0, 0);
+}
+
+bool InputManager::RequestExternalHostMove(uint32_t source, uint32_t host) {
+    // Called on the input/NAPI thread: a late X11 request after button-up must
+    // not start a stuck grab. Recheck the live binding when dequeued as well.
+    if (!source || !host || !(tracker_.PressedButtons() & 1U) ||
+        tracker_.PointerFocusedToplevel() != host || !resolver_->CanMoveExternalHost(source, host)) return false;
+    queue_.Enqueue(InputQueue::Event::EXTERNAL_MOVE, host, nullptr,
+        GetLastGlobalPointerX(), GetLastGlobalPointerY(), source, tracker_.PointerEnterSerial());
+    return true;
+}
+
 void InputManager::FlushQueue() {
     // InputQueue::Poll = 锁内 swap 取批 + 去重 (原 FlushQueue 前半逐字,
     // dedup 日志在队列层 — 去重属队列批量语义, 与注入无关, 见 input_queue.h)
@@ -757,14 +775,35 @@ void InputManager::FlushQueue() {
 
     for (auto& ev : batch) {
         switch (ev.type) {
+            case InputQueue::Event::EXTERNAL_MOVE:
+                if ((tracker_.PressedButtons() & 1U) && !moveGrab_->IsActive() &&
+                    resolver_->CanMoveExternalHost(ev.btn_or_key, ev.tl) &&
+                    tracker_.PointerFocusedToplevel() == ev.tl)
+                    WaylandServer::GetInstance()->StartMoveGrabAt(ev.tl, ev.state, ev.x, ev.y);
+                break;
+            case InputQueue::Event::ACTIVATE_TOPLEVEL: {
+                // Re-resolve after dequeue: the window may have exited meanwhile.
+                auto* surface = tmgr_ ? tmgr_->GetSurfaceForToplevel(ev.tl) : nullptr;
+                if (!surface) break;
+                WaylandServer::GetInstance()->EndMoveGrab();
+                injector_.InjectPointerLeave();
+                tracker_.SetToplevelVisible(ev.tl, true);
+                WaylandServer::GetInstance()->SetToplevelRestored(ev.tl);
+                WaylandServer::GetInstance()->RaiseToplevel(ev.tl, true);
+                injector_.InjectKeyboardEnter(ev.tl, surface);
+                break;
+            }
             case InputQueue::Event::PTR_ENTER:   injector_.InjectPointerEnter(ev.tl, ev.surface, ev.x, ev.y); break;
             case InputQueue::Event::PTR_LEAVE:   injector_.InjectPointerLeave(); break;
             case InputQueue::Event::PTR_MOTION: {
                 //  Wayland 标准: xdg_toplevel.move 期间 compositor 接管 motion,
                 // 不转发给 Wine (协议规定 surface loses device focus)
-                if (WaylandServer::GetInstance()->ProcessMoveGrabMotion(ev.x, ev.y))
+                if (ev.has_global && WaylandServer::GetInstance()->ProcessMoveGrabMotion(ev.global_x, ev.global_y))
                     break;
-                injector_.InjectPointerMotion(ev.x, ev.y); break;
+                // A motion queued during a grab has no surface-local position.
+                // If release won the race, drop it rather than warp the client.
+                if (ev.local_valid) injector_.InjectPointerMotion(ev.x, ev.y);
+                break;
             }
             case InputQueue::Event::PTR_BUTTON:
                 //  交互式移动结束: Release 时结束 grab 并转发给 Wine
@@ -772,7 +811,7 @@ void InputManager::FlushQueue() {
                     WaylandServer::GetInstance()->EndMoveGrab();
                 injector_.InjectPointerButton(ev.btn_or_key, ev.state); break;
             case InputQueue::Event::REL_MOTION:  injector_.InjectRelativeMotion(ev.surface, ev.x, ev.y); break;
-            case InputQueue::Event::PTR_AXIS:    injector_.InjectPointerAxis(ev.axis, ev.axis_value); break;
+            case InputQueue::Event::PTR_AXIS:    injector_.InjectPointerAxis(ev.axis, ev.axis_value, ev.state != 0); break;
             case InputQueue::Event::KBD_ENTER:   injector_.InjectKeyboardEnter(ev.tl, ev.surface); break;
             case InputQueue::Event::KBD_LEAVE:   injector_.InjectKeyboardLeave(); break;
             case InputQueue::Event::KBD_KEY:     injector_.InjectKeyboardKey(ev.btn_or_key, ev.state); break;

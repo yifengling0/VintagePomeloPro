@@ -34,7 +34,7 @@ export function configurationRelativePath(value: string): string {
 }
 export function validateUserConfiguration(value: UserConfiguration): void {
   if (!value || value.formatVersion !== 1 || value.minReaderVersion > 1 || value.minWriterVersion > 1 ||
-    !Array.isArray(value.requiredFeatures) || value.requiredFeatures.some((f: string): boolean => !['portable-games-v1', 'input-v6', 'assets-v1'].includes(f))) {
+    !Array.isArray(value.requiredFeatures) || value.requiredFeatures.some((f: string): boolean => !['portable-games-v1', 'input-v6', 'assets-v1', 'cloud-settings-v1'].includes(f))) {
     throw new Error('CONFIG_REQUIRES_UPDATE');
   }
   if (value.minReaderVersion !== 1 || value.minWriterVersion !== 1 || typeof value.writtenByAppVersion !== 'string' ||

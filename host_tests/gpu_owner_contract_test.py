@@ -41,6 +41,7 @@ struct State{bool IsMinimized()const{return false;}bool IsBackground()const{retu
 int Width()const{return 101;}int Height()const{return 398;}int X()const{return 0;}int Y()const{return 0;}int WineX()const{return 0;}int WineY()const{return 0;}};
 struct Manager{State state;std::mutex m;std::unordered_map<uint64_t,wl_resource*>resources;
 auto Lock(){return std::unique_lock<std::mutex>(m);}wl_resource* FindSurfaceResource(uint64_t k){auto it=resources.find(k);return it==resources.end()?nullptr:it->second;}
+SurfaceData* FindRegisteredSurfaceDataLocked(wl_resource* p){for(const auto& [key,res]:resources)if(res==p)return res->data;return nullptr;}
 const auto& SurfaceResources(){return resources;}State* FindToplevelLocked(uint32_t id){return id==5?&state:nullptr;}
 bool IsToplevelVisibleLocked(uint32_t id,uint32_t){return id==5;}};
 struct Layer{wl_resource* surface=nullptr;int vpDstW=0,vpDstH=0,w=0,h=0;uint64_t shmCommitSerial=0;uint32_t parentToplevel=5;bool isExternal=false;};

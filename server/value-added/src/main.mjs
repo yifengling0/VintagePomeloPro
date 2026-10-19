@@ -27,6 +27,18 @@ export function protectedPem(encoded, literal = '') {
   requireThat(bytes.toString('base64') === encoded, 'INVALID_CREDENTIAL_CONFIGURATION', 503);
   return bytes.toString('utf8');
 }
+// AGC bounds each environment value; preserve the PEM using three base64 chunks.
+export function protectedPushCredential(json, env = {}) {
+  const credential = JSON.parse(json || '{}');
+  const chunks = [env.VP_PUSH_PRIVATE_KEY_BASE64_1, env.VP_PUSH_PRIVATE_KEY_BASE64_2, env.VP_PUSH_PRIVATE_KEY_BASE64_3];
+  if (chunks.some(value => value !== undefined)) {
+    requireThat(!credential.private_key && chunks.every(value => typeof value === 'string' && value.length > 0 && value.length <= 1800),
+      'INVALID_CREDENTIAL_CONFIGURATION', 503);
+    credential.private_key = protectedPem(chunks.join(''));
+  }
+  return credential;
+}
+
 export async function loadService(env = process.env) {
   requireThat(Number(process.versions.node.split('.')[0]) >= 22, 'NODE_RUNTIME_NOT_SUPPORTED', 503);
   const products = JSON.parse(await optionalFile(env.VP_PRODUCT_CATALOG ?? './config/product-catalog.json') || '[]');
@@ -90,10 +102,12 @@ export async function loadService(env = process.env) {
     config.membershipReleaseReady = true; // Only the explicit tester path; paid backup capabilities stay closed.
   }
   const pushEvidence = env.VP_RENEWAL_VERIFICATION_FILE ? JSON.parse(await optionalFile(env.VP_RENEWAL_VERIFICATION_FILE)) : {};
-  const credential = JSON.parse(env.VP_PUSH_CREDENTIAL_JSON || await optionalFile(env.VP_PUSH_CREDENTIAL_FILE) || '{}');
+  const credential = protectedPushCredential(env.VP_PUSH_CREDENTIAL_JSON || await optionalFile(env.VP_PUSH_CREDENTIAL_FILE), env);
   const sandboxReminders = env.VP_RENEWAL_SANDBOX_TESTING === 'enabled' && env.VP_IAP_ENVIRONMENT === 'SANDBOX' && purchaseProvider.sandboxReady;
   const pushSender = new HuaweiPushSender({ credential, projectId: env.VP_PUSH_PROJECT_ID ?? '', receiptId: env.VP_PUSH_RECEIPT_ID ?? '',
-    verified: !!env.VP_PUSH_RECEIPT_ID && (sandboxReminders || pushEvidence.appId === config.appId && pushEvidence.projectId === env.VP_PUSH_PROJECT_ID &&
+    // The provider permits sends without a receipt ID. Sandbox verification must
+    // be possible before delivery evidence exists; NORMAL still requires it all.
+    verified: sandboxReminders || !!env.VP_PUSH_RECEIPT_ID && (pushEvidence.appId === config.appId && pushEvidence.projectId === env.VP_PUSH_PROJECT_ID &&
       pushEvidence.timerActive === true && pushEvidence.deviceDisplayed === true && pushEvidence.deepLinkOpened === true &&
       pushEvidence.notificationCategory === 'ACCOUNT' && pushEvidence.accountCategoryEligible === true && pushEvidence.receiptVerified === true &&
       pushEvidence.paginationVerified === true && pushEvidence.advanceNoticeVerified === true &&
@@ -101,8 +115,7 @@ export async function loadService(env = process.env) {
       pushEvidence.dedupVerified === true && pushEvidence.retryAlarmVerified === true) });
   const domain = new ValueAddedDomain({ store, accountProvider, purchaseProvider, config, objects, pushSender });
   if (store.ready) {
-    const heartbeat = await store.get('renewal-timer-checkpoint');
-    domain.reminders.timerReady = !!heartbeat && heartbeat.lastRunAt >= domain.clock() - 3600000;
+    await domain.reminders.timerHealthy();
   }
   return domain;
 }

@@ -83,6 +83,8 @@ public:
 
     // surface 指针是否仍存活 (输入注入前的防御校验, 遍历 surfaceResources_)
     bool IsSurfaceAlive(wl_resource* surface);
+    bool IsExternallyHostedSurface(wl_resource* surface);
+    bool CanMoveExternalHost(uint32_t source, uint32_t host);
 
     // Keyboard focus belongs to the mapped window, even when its render child
     // was hit. Validate the live protocol ancestry before changing focus.

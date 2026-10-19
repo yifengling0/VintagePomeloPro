@@ -16,7 +16,7 @@
 
 ## 沙盒和正式开放
 
-`VP_MEMBERSHIP_SANDBOX_CHECKOUT=enabled` 仅在官方 provider 的 `SANDBOX` 环境就绪时开放独立的沙盒收银台联调，返回 `sandboxCommerce` 和 `sandboxCheckout`。客户端组件、服务层、服务端 intent 均区分此路径；客户端仍须通过华为 `iap.isSandboxActivated()` 检测。界面明确显示沙盒不会真实扣款，提醒仍待接通。测试开关不会将 `renewalReminders` 标为 true，不能开放 NORMAL 购买或替代正式验收。
+`VP_MEMBERSHIP_SANDBOX_CHECKOUT=enabled` 仅在官方 provider 的 `SANDBOX` 环境就绪时开放独立的沙盒收银台联调，返回 `sandboxCommerce` 和 `sandboxCheckout`。客户端组件、服务层、服务端 intent 均区分此路径；客户端仍须通过华为 `iap.isSandboxActivated()` 检测。界面明确显示沙盒不会真实扣款。沙盒购买与提醒联调分别受开关控制；只有 Push 和设备登记及心跳检查通过才显示提醒已连接，购买测试开关本身不能开放提醒或 NORMAL。
 
 正式购买仍需 NORMAL 支付、在售 SKU、实际备份、协议、客服、退订和提醒验收证据。`membershipProductId` 必须与在售自动续费商品匹配；只有单月卡重新启售时才要求 `oneTimeProductId`。不要用沙盒结果填写 NORMAL 证据。
 
@@ -32,9 +32,9 @@ node server/value-added/scripts/check-membership-release.mjs NORMAL.json renewal
 
 使用官方签名状态中的 `renewalInfo.renewalTime`、`renewalPrice` 和 `currency`，不得从本期到期日或成交价编造下一期计划。提前 7 天安排发送，为可能提前 24 小时扣款及重试留出时间。发送前再次官方核验；取消、撤销、退款后停发。消息包括名称、金额、预计时间、延长一个月及管理/取消入口。
 
-华为通知类别为 **ACCOUNT（账号动态）**。会员续费不属于 SUBSCRIPTION 内容订阅。正式开放要求 `notificationCategory:ACCOUNT`、`accountCategoryEligible:true` 及真实验证记录。2026-10-17 已提交此权益申请，当前审核中；不能把申请提交当作批准。
+华为通知类别为 **ACCOUNT（账号动态）**。会员续费不属于 SUBSCRIPTION 内容订阅。正式开放要求 `notificationCategory:ACCOUNT`、`accountCategoryEligible:true` 及真实验证记录。2026-10-17 已在控制台核对该权益审核通过，并以真实设备发送测试验证；权益获批仍不能代替正式购买验收。
 
-按订阅周期和设备持久化去重，发送租约防并发重复，失败 15 分钟后重试；已发送订阅仍定期核验下一周期。设备 token 只属于一个账号，换号、退出、权限关闭和 token 更新使旧绑定退役。Push 受理、设备回执、用户打开分别记录，均不能代替屏幕展示截图。
+按订阅周期和设备持久化去重，发送租约防并发重复，失败保留任务、记录告警，冷却至少 15 分钟后由下次每日任务重试；未到提醒时间不查询支付平台，已发送周期等到续费时间再核验下一周期。设备 token 只属于一个账号，换号、退出、权限关闭和 token 更新使旧绑定退役。Push 受理、设备回执、用户打开分别记录，均不能代替屏幕展示截图。
 
 部署入口：
 
@@ -58,19 +58,21 @@ python3 server/value-added/scripts/package-cloud-function.py --target functiongr
 
 接收端受保护配置：`VP_AGC_CREDENTIAL_JSON` 或文件、`VP_AGC_ZONE`、`VP_CLOUDDB_VERIFICATION_FILE`、`VP_PUSH_CALLBACK_USER`、`VP_PUSH_CALLBACK_SECRET`、`VP_PACKAGE_NAME`。回调密钥为标准 Base64，解码后至少 16 字节，与控制台保持一致。接收端部署且华为回执测试通过后，将回执 ID 填入 API 和定时任务配置。
 
-发送端另需 `VP_PUSH_PROJECT_ID`、`VP_PUSH_CREDENTIAL_JSON` 或文件（项目级 Push 服务账号，PS256 JWT）、`VP_PUSH_RECEIPT_ID`。私有定时器另需至少 32 字符的 `VP_RENEWAL_TIMER_SECRET`。事件值为 `{"triggerType":"TIMER","userData":"与受保护的定时密钥相同"}`，日程 `@every 15m`。密钥不写入仓库、ZIP、日志或验收文档。
+发送端另需 `VP_PUSH_PROJECT_ID`、`VP_PUSH_CREDENTIAL_JSON` 或文件（项目级 Push 服务账号，PS256 JWT）。`VP_PUSH_RECEIPT_ID` 是官方可选发送参数，正式发布门槛仍要求回执闭环验收。私有定时器另需至少 32 字符的 `VP_RENEWAL_TIMER_SECRET`。事件值为 `{"triggerType":"TIMER","userData":"与受保护的定时密钥相同"}`，每日北京时间 16:05 执行一次（控制台日程 `5 16 * * *`）。提前 7 天到期的任务在每日扫描中发送，正常最迟仍在预计续费前 6 天、可能提前一天扣款前 5 天告知。密钥不写入仓库、ZIP、日志或验收文档。
 
-仅沙盒提醒联调可设置 `VP_RENEWAL_SANDBOX_TESTING=enabled`；仍需真实凭据、回执 ID 和真实定时运行。正式 sender 另要求 `VP_RENEWAL_VERIFICATION_FILE`，含 `appId/projectId/testedAt/notificationCategory:ACCOUNT` 及 `timerActive/deviceDisplayed/deepLinkOpened/accountCategoryEligible/receiptVerified/paginationVerified/advanceNoticeVerified/cancelStopsVerified/permissionClosedVerified/dedupVerified/retryAlarmVerified` 的真实记录。
+仅沙盒提醒联调可设置 `VP_RENEWAL_SANDBOX_TESTING=enabled`；仍需真实凭据和有效定时心跳；官方 receiptId 可在回执入口接通后补充，不能将沙盒实际点击等同于官方送达回执。正式 sender 另要求 `VP_RENEWAL_VERIFICATION_FILE`，含 `appId/projectId/testedAt/notificationCategory:ACCOUNT` 及 `timerActive/deviceDisplayed/deepLinkOpened/accountCategoryEligible/receiptVerified/paginationVerified/advanceNoticeVerified/cancelStopsVerified/permissionClosedVerified/dedupVerified/retryAlarmVerified` 的真实记录。
 
 CloudDB 保留原对象字段与权限，查询使用 `scopeKeyIndex(scope,key)` 的排序分页。`scripts/probe-renewal-storage.mjs` 仅允许 `PomeloAccountTest`，须显式设置 `VP_PROBE_ALLOW_WRITES=I_APPROVE_TEST_RECORDS` 和证据输出路径；实测 300 行后在 finally 清理隔离记录，不放宽生产删除约束。SDK 初始化失败后可在同一云进程重试，但不同凭据不能复用已有客户端。
 
-监控固定告警 `delivery failed`、`device delivery failed`、`late renewal notice`、`timer failed`，并监测 `renewal-timer-checkpoint.lastRunAt` 超过一小时。心跳只表明任务运行，仍需监控积压、最早待发时间及失败重试。不要手写心跳记录。
+监控固定告警 `delivery failed`、`device delivery failed`、`late renewal notice`、`timer failed`，并监测 `renewal-timer-checkpoint.lastRunAt` 超过 36 小时。正常每日任务的心跳在次日执行前仍有效；超时将禁止新的正式自动续费购买。心跳只表明任务运行，仍需监控积压、最早待发时间及失败重试。不要手写心跳记录。
 
 ## 当前验收边界
 
-- 已通过：后端 77 项测试、客户端服务与购买逻辑测试、ArkTS 编译、调试签名校验；真实 CloudDB 300 行分页和清理；华为官方沙盒检测、最新订单查询及验签；云端沙盒 capability 调用；rc8 平板弹出官方沙盒收银台并完成订阅，初次显示至 2026-11-17、下期 CNY 2，之后加速续期至 2027-02-17、标准价 CNY 5。已在应用内华为弹窗实际取消，官方显示“取消成功”和“2027/2/17 到期后不再扣费”。随后沙盒官方状态已到期，不能用显示的日历日期推断仍有权益。rc9 已验证恢复购买完成，无需重新授权或再次付款；最终 rc11 已安装，管理返回后直接核验并显示“自动续费已关闭，会员已到期”，会员详情收起时结果仍可见。
-- 已准备：Push 项目专用密钥、ACCOUNT 权益申请、`vp-renewal-timer` 私有函数及最小配置的回执云函数部署包。
-- 未完成：公网回执入口、回执 ID、定时器真实心跳及告警、应用退出后设备通知展示/跳转、真实提醒闭环和 NORMAL 支付验收。定时函数未配置触发器，避免未就绪任务空跑；正式新购保持关闭。
+本轮最新事实见 [续费提醒真机与部署记录](value-added/RENEWAL_PUSH_VALIDATION_20261017.md)。
+
+- 已通过：79 项后端自动化、客户端服务与购买逻辑测试、ArkTS 编译和调试签名；真实华为沙盒收银台、订阅和官方验签；真实 Push 受理；强制退出应用后系统通知展示；实际通知点击后冷启动进入会员管理；通知权限关闭后撤销云端设备登记、恢复后重新登记。
+- 已配置：ACCOUNT 权益已获批；API 与私有 timer 部署本轮代码；清理三个一分钟诊断触发器，改为一个每日触发器。
+- 未验收：AGC 每日任务自动执行（此前的心跳来自手动调用，不能作为调度成功证据）、官方公网送达回执、NORMAL 支付及正式自动备份。测试通知明确说明不会扣款；不向无订阅用户发送真实续费扣款消息。
 
 改变商品目录、证书链、支付环境或验证器后须重新执行 `probe-iap.mjs`，旧验签指纹不能直接沿用。部署前以真实受保护配置加载最终 ZIP，验证 capabilities；部署后重复调用并在设备验证。保留原云端配置和代码导出供回滚，禁止用本地过期配置整体覆盖线上环境变量。
 

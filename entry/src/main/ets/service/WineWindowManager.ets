@@ -4,6 +4,9 @@ import { hilog } from './LogService';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { pointer } from '@kit.InputKit';
 import testNapi from 'libentry.so';
+import smokeNapi from 'libsmoke_napi.so';
+import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
+import { InputDispatcher } from './InputDispatcher';
 import {
   DesktopWindowMode,
   ScreenOrientationSetting,
@@ -221,6 +224,13 @@ export class WineWindowManager {
       testNapi.setDisplayScale(this.displayScale * this.scaleBoost);
     }
 
+    HostWindowTasks.getInstance().setActivator(async (task: HostWindowTask,
+      current: () => boolean): Promise<boolean> => this.restoreTask(task, current));
+    HostWindowTasks.getInstance().setLauncher(async (): Promise<void> => {
+      if (this.uiAbilityContext) await this.uiAbilityContext.startAbility({
+        bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility'
+      });
+    });
     hilog.info(DOMAIN, TAG, '[MW] registering toplevel callback...');
     testNapi.setToplevelCallback((id: number, event: string, data: string) => {
       hilog.info(DOMAIN, TAG, '[MW]  cb toplevel #%{public}d event=%{public}s data=%{public}s',
@@ -256,6 +266,7 @@ export class WineWindowManager {
   }
 
   setPresentationMode(mode: WinePresentationMode): void {
+    HostWindowTasks.getInstance().reset();
     this.presentationMode = mode;
     this.isDesktopMode = mode === WinePresentationMode.DESKTOP;
     this.desktopRootId = 0;
@@ -512,6 +523,30 @@ export class WineWindowManager {
     PopupWindowManager.getInstance().raisePopups(toplevelId);
   }
 
+  private async restoreTask(task: HostWindowTask, current: () => boolean): Promise<boolean> {
+    if (!current() || this.destroyed.has(task.toplevelId)) return false;
+    const win = this.windows.get(task.toplevelId);
+    if (!win) return false;
+    InputDispatcher.getInstance().releaseAll('host-task-switch');
+    try {
+      await win.showWindow();
+      if (!current()) return false;
+      // raiseToAppTop is for Pad subwindows; PC main windows use showWindow.
+      if (this.fusionUsesSubWindow()) await win.raiseToAppTop();
+      if (!current()) return false;
+      this.raiseWindowGroup(task.toplevelId);
+      const target = HostWindowTasks.getInstance().focusTarget(task.toplevelId);
+      if (target !== task.toplevelId) testNapi.activateToplevel(task.toplevelId);
+      testNapi.activateToplevel(target);
+      InputDispatcher.getInstance().setActiveToplevel(target);
+      hilog.info(DOMAIN, TAG, '[TASK] restored tl=%{public}d focus=%{public}d', task.toplevelId, target);
+      return true;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, '[TASK] restore failed tl=%{public}d: %{public}s', task.toplevelId, JSON.stringify(error));
+      return false;
+    }
+  }
+
   getWindow(toplevelId: number): window.Window | undefined {
     return this.windows.get(toplevelId);
   }
@@ -646,6 +681,15 @@ export class WineWindowManager {
 
   // -- toplevel 事件分发 --
   private onToplevelEvent(id: number, event: string, data: string): void {
+    let linuxSteam = false;
+    if (event === 'created') {
+      try {
+        const initial = JSON.parse(data) as Record<string, string | number>;
+        linuxSteam = !!smokeNapi.isLinuxSteamProcess?.(Number(initial.clientPid ?? 0));
+      } catch (_) {}
+    }
+    HostWindowTasks.getInstance().onEvent(id, event, data, linuxSteam);
+    if (event === 'minimized') InputDispatcher.getInstance().releaseAll('window-minimized');
     hilog.info(DOMAIN, TAG, '[MW] onToplevelEvent #%{public}d event=%{public}s hasWindow=%{public}s',
       id, event, this.windows.has(id) ? 'yes' : 'no');
 

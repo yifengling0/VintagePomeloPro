@@ -61,6 +61,15 @@ async function client(f,c,previousOwner=''){
  const service=f.load(path.join(source,'service/valueadded/ConfigurationCloudSyncService.ets')).ConfigurationCloudSyncService.getInstance();await service.initialize(f.context,previousOwner);return service;
 }
 async function editScale(f,value){const global=f.models.createDefaultGlobalSettings();global.outputScale=value;await f.settings.saveGlobalSettings(global);}
+async function seedLegacyBackup(c,f){
+ const members=await f.repo.snapshot(),hash=b=>crypto.createHash('sha256').update(b).digest('hex'),id=crypto.randomUUID(),owner=c.api.getUserId(),objects={};
+ const manifest={formatVersion:1,deviceClass:'desktop',totalBytes:members.reduce((n,m)=>n+m.bytes.length,0),members:members.map(m=>{
+  const parts=[];for(let offset=0;offset<m.bytes.length;offset+=262144){const bytes=Buffer.from(m.bytes.slice(offset,offset+262144)),sha256=hash(bytes);parts.push({sha256,size:bytes.length});objects[sha256]={size:bytes.length,status:'stored',until:0};c.objects.set('configurations/'+owner+'/'+sha256,bytes);}
+  return {name:m.name,size:m.bytes.length,sha256:hash(m.bytes),chunks:parts};})};
+ const head={id,revision:1,sha256:hash(JSON.stringify(manifest)),totalBytes:manifest.totalBytes,createdAt:1};
+ await c.store.transaction(async tx=>{tx.put('config-index:'+owner,{heads:{desktop:head},jobs:[],retired:[],objects},'config-index');tx.put('config-job:'+id,{id,userId:owner,manifest,status:'published',head,pinnedUntil:0},'config-jobs:'+owner);});
+ return {head,manifest};
+}
 (async()=>{
  await test('complete game layout survives reinstall and a Chinese directory move',async()=>{
   const f=fixture();await f.initialize();const game=path.join(f.library,'games','游戏 A');fs.mkdirSync(game,{recursive:true});const exe=path.join(game,'game.exe');fs.writeFileSync(exe,'executable');
@@ -144,12 +153,55 @@ async function editScale(f,value){const global=f.models.createDefaultGlobalSetti
   b=fixture({failFlush:async name=>{if(name==='input_settings'&&once){once=false;const p=b.getStore('vintage_pomelo_pro'),v=JSON.parse(p.getSync('global_settings_v1','{}'));v.outputScale=93;await p.put('global_settings_v1',JSON.stringify(v));await p.flush();}return false;}});
   await b.initialize();await b.repo.start();await editScale(b,81);once=true;await assert.rejects(b.repo.restore(remote,b.repo.revision()),/CONFIG_LOCAL_CHANGED/);b.settings.reloadConfiguration();assert.equal(b.settings.getGlobalSettings().outputScale,93);assert.ok(b.repo.hasLocalUserData());a.dispose();b.dispose();
  });
- await test('complete cloud backup deduplicates unchanged wallpaper and restores every setting',async()=>{
+ await test('cloud backup sends settings only and preserves local resources on restore',async()=>{
   const c=await cloudFixture(),a=fixture({cloudApi:c.api});await a.initialize();await a.repo.start();await editScale(a,77);const picture=path.join(a.library,'wall.img');fs.writeFileSync(picture,Buffer.alloc(300000,8));const pathTo=await a.repo.importWallpaper(picture);const settings=a.settings.getGlobalSettings();settings.pageBackgroundUri=pathTo;settings.usePageBackground=true;await a.settings.saveGlobalSettings(settings);
-  const cloud=await client(a,c);assert.equal(cloud.usedBytes(),-1);assert.equal(await cloud.sync(()=>{}),'云端备份已更新');assert.ok(cloud.usedBytes()>0);const uploads=c.calls.filter(x=>x.method==='PUT').length,head=(await c.service.current(c.api.getUserId(),'desktop')).head;
+  const fonts=path.join(a.context.filesDir,'.wine/drive_c/windows/fonts');fs.mkdirSync(fonts,{recursive:true});fs.writeFileSync(path.join(fonts,'Large.ttf'),Buffer.alloc(17000000,7));await a.repo.recordFonts(['Large.ttf'],fonts);
+  await a.getStore('vintage_pomelo_pro').put('library_path_v1','/private/game-library');await a.getStore('vintage_pomelo_pro').flush();
+  const cloud=await client(a,c);assert.equal(cloud.usedBytes(),-1);assert.equal(await cloud.sync(()=>{}),'云端备份已更新');assert.ok(cloud.usedBytes()<262144);const uploads=c.calls.filter(x=>x.method==='PUT').length,head=(await c.service.current(c.api.getUserId(),'desktop')).head;
+  assert.equal(uploads,1);const sent=JSON.parse([...c.objects.values()][0]);assert.equal(sent.assets.length,0);assert.equal(sent.modules.find(m=>m.name==='library').entries.length,0);assert.equal(sent.modules.find(m=>m.name==='resources').entries.length,0);
+  assert.equal(JSON.stringify(sent).includes('/private/game-library'),false);assert.equal(JSON.stringify(sent).includes(pathTo),false);
   c.calls.length=0;assert.equal(await cloud.sync(()=>{}),'云端备份已更新');assert.equal(c.calls.length,1);assert.equal(c.calls[0].method,'GET');
   await editScale(a,79);const global=a.settings.getGlobalSettings();global.pageBackgroundUri=pathTo;await a.settings.saveGlobalSettings(global);c.calls.length=0;await cloud.sync(()=>{});assert.equal(c.calls.filter(x=>x.method==='PUT').length,1);assert.equal(c.calls.filter(x=>x.route.endsWith('/lease')).length,0);
-  const b=fixture({cloudApi:c.api});await b.initialize();await b.repo.start();const restored=await client(b,c);c.calls.length=0;assert.equal(await restored.sync(()=>{}),'已恢复应用配置');b.settings.reloadConfiguration();assert.equal(b.settings.getGlobalSettings().outputScale,79);assert.deepEqual(fs.readFileSync(b.settings.getGlobalSettings().pageBackgroundUri),Buffer.alloc(300000,8));assert.equal(c.calls.filter(x=>x.route.includes('/chunks/')).length,3);assert.ok(uploads>=3);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.revision,head.revision+1);a.dispose();b.dispose();
+  const b=fixture({cloudApi:c.api});await b.initialize();await b.repo.start();const local=b.getStore('vintage_pomelo_pro');await local.put('library_path_v1','/local/library');await local.flush();
+  const localSettings=b.settings.getGlobalSettings();localSettings.pageBackgroundUri='/local/wallpaper';localSettings.usePageBackground=true;localSettings.futureLocalOnly='keep';await local.put('global_settings_v1',JSON.stringify(localSettings));await local.flush();
+  // This device has only local resources; permit restoring the account's settings.
+  b.repo.state.cloudModified=false;const dest=path.join(b.context.filesDir,'.wine/drive_c/windows/fonts');fs.mkdirSync(dest,{recursive:true});fs.writeFileSync(path.join(dest,'Keep.ttf'),'keep');
+  const restored=await client(b,c);c.calls.length=0;assert.equal(await restored.sync(()=>{}),'已恢复应用配置');b.settings.reloadConfiguration();assert.equal(b.settings.getGlobalSettings().outputScale,79);
+  assert.equal(b.settings.getGlobalSettings().pageBackgroundUri,'/local/wallpaper');assert.equal(local.getSync('library_path_v1',''),'/local/library');assert.equal(fs.readFileSync(path.join(dest,'Keep.ttf'),'utf8'),'keep');
+  assert.equal(JSON.parse(local.getSync('global_settings_v1','{}')).futureLocalOnly,'keep');
+  assert.equal(c.calls.filter(x=>x.route.includes('/chunks/')).length,1);assert.equal((await c.service.current(c.api.getUserId(),'desktop')).head.revision,head.revision+1);a.dispose();b.dispose();
+ });
+ await test('local library, wallpaper and font changes do not schedule cloud synchronization',async()=>{
+  const f=fixture();await f.initialize();await f.repo.start();await editScale(f,76);let changes=0;f.repo.subscribeCloud(()=>changes++);
+  const revision=f.repo.cloudRevision(),store=f.getStore('vintage_pomelo_pro'),global=f.settings.getGlobalSettings();global.pageBackgroundUri='/local/only';global.usePageBackground=true;
+  await f.settings.saveGlobalSettings(global);await store.put('library_path_v1','/local/games');await store.put('play_time_v1','{"game":999}');await store.flush();
+  const fonts=f.getStore('pomelo_config_resources');await fonts.put('fonts_v1','[{"name":"huge.ttf","path":"/not-readable"}]');await fonts.flush();
+  assert.equal(changes,0);assert.equal(f.repo.cloudRevision(),revision);assert.ok((await f.repo.cloudSnapshot())[0].bytes.length<262144);
+  global.outputScale=81;await f.settings.saveGlobalSettings(global);assert.equal(changes,1);assert.equal(f.repo.cloudRevision(),revision+1);f.dispose();
+ });
+ await test('cloud snapshot quota refuses large settings without uploading any data',async()=>{
+  const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,75);
+  const store=f.getStore('input_settings');await store.put('padButtons','x'.repeat(262144));await store.flush();
+  await assert.rejects(f.repo.cloudSnapshot(),/CONFIG_QUOTA/);const cloud=await client(f,c);await assert.rejects(cloud.sync(()=>{}),/CONFIG_QUOTA/);
+  assert.equal(c.calls.filter(call=>call.method!=='GET').length,0);assert.equal(c.objects.size,0);f.dispose();
+ });
+ await test('legacy cloud backups restore only user settings and migrate without downloading resources',async()=>{
+  const c=await cloudFixture(),a=fixture({cloudApi:c.api});await a.initialize();await a.repo.start();await editScale(a,84);
+  const picture=path.join(a.library,'old.img');fs.writeFileSync(picture,Buffer.alloc(1100000,3));const global=a.settings.getGlobalSettings();global.pageBackgroundUri=await a.repo.importWallpaper(picture);global.usePageBackground=true;await a.settings.saveGlobalSettings(global);
+  const store=a.getStore('vintage_pomelo_pro');await store.put('library_path_v1','/old/remote/library');await store.flush();await seedLegacyBackup(c,a);
+  const b=fixture({cloudApi:c.api});await b.initialize();await b.repo.start();const local=b.getStore('vintage_pomelo_pro');await local.put('library_path_v1','/keep/local/library');await local.flush();
+  const cloud=await client(b,c);c.calls.length=0;assert.equal(await cloud.sync(()=>{}),'已恢复应用配置');b.settings.reloadConfiguration();
+  assert.equal(b.settings.getGlobalSettings().outputScale,84);assert.equal(b.settings.getGlobalSettings().pageBackgroundUri,'');assert.equal(local.getSync('library_path_v1',''),'/keep/local/library');
+  assert.equal(c.calls.filter(call=>call.route.includes('/chunks/')).length,1);const current=await c.service.current(c.api.getUserId(),'desktop');
+  assert.equal(current.head.revision,2);assert.equal(current.manifest.scope,'user-settings');assert.equal(current.manifest.members.length,1);
+  c.service.clock=()=>Date.now()+600001;await c.service.cleanup(c.api.getUserId());assert.equal(c.objects.size,1);a.dispose();b.dispose();
+ });
+ await test('cloud-only restore rolls back without modifying local library or fonts',async()=>{
+  const a=fixture();await a.initialize();await editScale(a,65);const remote=await a.repo.cloudSnapshot();let fail=false;
+  const b=fixture({failFlush:async name=>fail&&name==='input_settings'});await b.initialize();await b.repo.start();await editScale(b,81);
+  const local=b.getStore('vintage_pomelo_pro');await local.put('library_path_v1','/keep/library');await local.flush();const revision=b.repo.cloudRevision();fail=true;
+  await assert.rejects(b.repo.restore(remote,revision,true),/INTERRUPTED/);fail=false;
+  const restarted=fixture({filesDir:b.context.filesDir,library:b.library,persistent:b.stores});await restarted.initialize();assert.equal(restarted.settings.getGlobalSettings().outputScale,81);assert.equal(local.getSync('library_path_v1',''),'/keep/library');a.dispose();b.dispose();
  });
  await test('interrupted cloud upload preserves published head and retries the pending local edit',async()=>{
   const c=await cloudFixture(),f=fixture({cloudApi:c.api});await f.initialize();await f.repo.start();await editScale(f,75);const cloud=await client(f,c);await cloud.sync(()=>{});const old=(await c.service.current(c.api.getUserId(),'desktop')).head;

@@ -519,6 +519,8 @@ EOF
         else
             warn "libwow64fex.dll 未找到！请先执行: bash scripts/build_fex.sh"
         fi
+        # Pair the SIMD repair identity with both deployed CPU modules.
+        python3 "$SCRIPT_DIR/fex_simd_runtime.py" stage --build "$BUILD_DIR" --directory "$wine_data"
         # Box64 wowbox64.dll → PE 目录 (arm64 原生转译 32 位 x86 应用, HODLL 可选引擎)
         local wowbox64_dll="$BUILD_DIR/box64-pe/wowbox64-prefix/src/wowbox64-build/wowbox64.dll"
         if [ -f "$wowbox64_dll" ]; then
@@ -1031,6 +1033,11 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
     mkdir -p "$wine_data/smoke"
     cp -a "$smoke_payload/." "$wine_data/smoke/"
     log "  smoke payload → wine-data/smoke ($(find "$wine_data/smoke" -name '*.exe' | wc -l) exe)"
+
+    if [ "$WINE_ARCH" = aarch64 ]; then
+        python3 "$SCRIPT_DIR/icu_compat_runtime.py" stage \
+            --output "${ICU_COMPAT_OUTPUT:-$BUILD_DIR/icu-compat/output}" --directory "$wine_data"
+    fi
 
     # Catch SDK copies from optional/legacy paths too, before creating payloads.
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$NATIVE_LIBS" "$wine_data"

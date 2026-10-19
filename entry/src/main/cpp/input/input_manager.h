@@ -72,9 +72,13 @@ public:
     // pressed: true=按下, false=释放
     void SendKeyEvent(uint32_t toplevelId, int evdevCode, bool pressed);
 
+    // JS thread enqueues only an identity; resolve resources on the Wayland thread.
+    void RequestToplevelActivation(uint32_t toplevelId);
+    bool RequestExternalHostMove(uint32_t source, uint32_t host);
+
     // axis: 0=垂直(SCROLL_VERTICAL), 1=水平(SCROLL_HORIZONTAL)
     // value: 轴值 (正值=向下/向右, 负值=向上/向左)
-    // scrollStep: ArkTS AxisEvent.scrollStep
+    // scrollStep: negative = hardware continuous vp; nonnegative = virtual detents
     // px/py: 鼠标在组件上的物理像素坐标
     void SendScrollEvent(uint32_t toplevelId, int axis, double value, int scrollStep, double px, double py);
 

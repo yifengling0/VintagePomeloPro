@@ -25,7 +25,8 @@ class WineLocaleTests(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix="wine-locale-")
         cls.addClassCleanup(cls.temp.cleanup)
-        cls.source = (ROOT / "thirdparty/wine/dlls/ntdll/unix/env.c").read_text()
+        wine_source = Path(os.environ.get("WINE_EFFECTIVE_SOURCE", ROOT / "thirdparty/wine-valve"))
+        cls.source = (wine_source / "dlls/ntdll/unix/env.c").read_text()
         functions = ("is_c_unix_locale", "unix_locale_from_env", "ohos_env_locale_is",
                      "ohos_requested_locale")
         code = "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n"
@@ -62,8 +63,9 @@ class WineLocaleTests(unittest.TestCase):
         native = (ROOT / "entry/src/main/cpp/wine/wine_exe.cpp").read_text()
         self.assertIn("this.activeWineLanguage !== requestedWineLanguage", service)
         self.assertRegex(service, r"testNapi\.runWineExe\([\s\S]*?launchEnvironment,\s*this\.activeWineLanguage\s*\)")
-        self.assertIn('GetString(env, args[0], "wineLang", "zh_CN")', native)
-        self.assertIn("policy.wineLang = options.wineLang;", native)
+        self.assertIn("policy.wineLang = winehua::GetActiveContainerSession().wineLang;", native)
+        self.assertIn("winehua::SetActiveContainerLanguage(p->wineLang);",
+                      (ROOT / "entry/src/main/cpp/bridge/napi_init.cpp").read_text())
         self.assertIn("policy.wineLang = wineLang;", native)
         self.assertIn("ReadString(env, args[9])", native)
 

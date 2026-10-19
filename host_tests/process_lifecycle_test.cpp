@@ -16,11 +16,33 @@
 napi_threadsafe_function gStateTsfn = reinterpret_cast<void*>(1);
 std::string gSockPath;
 static int checks;
+std::atomic<bool> ProcessTestPhoneMode{true};
+static unsigned ncpReentries = 0;
+int ProcessTestNcpKill(int32_t pid) {
+    // System callbacks may synchronously query process state. A registry lock
+    // held across NCP termination would deadlock this real implementation.
+    WineProcessEntry entry;
+    if (QueryProcessSnapshot(pid, &entry)) ++ncpReentries;
+    return -1; // exercise the POSIX fallback too
+}
 
 static std::atomic<pid_t> hiddenPid{-1};
+static constexpr pid_t syntheticClient = 99999001;
+static pid_t syntheticParent = 0;
+static std::atomic<bool> blockAncestry{false}, ancestryEntered{false}, ancestryReleased{false};
 extern "C" FILE* __real_fopen(const char*, const char*);
 extern "C" FILE* __wrap_fopen(const char* path, const char* mode) {
     const std::string hiddenPath = "/proc/" + std::to_string(hiddenPid.load()) + "/stat";
+    if (syntheticParent && std::string(path) == "/proc/" + std::to_string(syntheticClient) + "/stat") {
+        if (blockAncestry.load()) {
+            ancestryEntered = true;
+            while (!ancestryReleased.load()) usleep(1000);
+        }
+        FILE* file = tmpfile();
+        std::fprintf(file, "%d (window-client) S %d 0\n", syntheticClient, syntheticParent);
+        rewind(file);
+        return file;
+    }
     if (hiddenPath == path) { errno = ENOENT; return nullptr; }
     return __real_fopen(path, mode);
 }
@@ -274,6 +296,76 @@ int main() {
         Check(Snapshot(children[i]).exitCode == static_cast<int>(i % 4),
               "each burst child retains its actual exit result");
     }
+    // Exercise the production session API with real children, including
+    // early window events, multiwindow lifetime, unknown ancestry and PID reuse.
+    pid_t game = fork();
+    Check(game >= 0, "session child fork");
+    if (!game) { for (;;) pause(); }
+    AddProcess(game, "C:/game.exe", -1, ProcessRegistration::ForkChild);
+    const auto early = AssociateWineSessionWindow(game, 701);
+    const auto session = BeginRegisteredWineSession(game);
+    Check(!session.empty() && session == early, "early event retains launch incarnation");
+    Check(AssociateWineSessionWindow(game, 702) == session, "second window has same session");
+    WineProcessEntry sessionEntry;
+    Check(QueryWineSession(session, &sessionEntry) && sessionEntry.toplevelId == 701 &&
+          sessionEntry.toplevelIds.size() == 2, "first window stays primary");
+    ForgetWineSessionWindow(702);
+    Check(QueryWineSession(session, &sessionEntry) && sessionEntry.toplevelId == 701,
+          "closing auxiliary window retains primary");
+    AssociateWineSessionWindow(game, 703);
+    ForgetWineSessionWindow(701);
+    Check(QueryWineSession(session, &sessionEntry) && sessionEntry.toplevelId == 703,
+          "closing primary selects surviving window");
+    Check(AssociateWineSessionWindow(99999999, 704).empty(), "hidden unknown PID is never guessed");
+    ForgetWineSessionWindow(704);
+    Check(!StopRegisteredWineSession("wine-" + std::to_string(game) + "-0"), "stale generation cannot stop live game");
+    Check(kill(game, 0) == 0, "rejected stale stop leaves game alive");
+    ProcessTestPhoneMode = false;
+    Check(StopRegisteredWineSession(session), "exact session requests process stop");
+    ProcessTestPhoneMode = true;
+    Check(ncpReentries == 1, "NCP callback reentered registry without a lock cycle");
+    AwaitExit(game);
+    Check(QueryWineSession(session, &sessionEntry) && !sessionEntry.running,
+          "session stop awaits real reaper state");
+    ForgetWineSessionWindow(703);
+    // Begin's ancestry lookup races Wayland destroy/recreate with the same id.
+    // The delayed lookup must not resurrect or steal a newer window lifetime.
+    constexpr pid_t raceOwner = 99999002, replacementOwner = 99999003;
+    AddProcess(raceOwner, "C:/race.exe", -1, ProcessRegistration::NativeChild);
+    AddProcess(replacementOwner, "C:/replacement.exe", -1, ProcessRegistration::NativeChild);
+    const auto raced = BeginRegisteredWineSession(raceOwner);
+    syntheticParent = raceOwner;
+    AssociateWineSessionWindow(syntheticClient, 704);
+    blockAncestry = true;
+    std::thread bind([&] { BeginRegisteredWineSession(raceOwner); });
+    for (int i = 0; i < 2000 && !ancestryEntered; ++i) usleep(1000);
+    Check(ancestryEntered, "ancestry lookup is in progress outside registry lock");
+    ForgetWineSessionWindow(704);
+    const auto replacementSession = AssociateWineSessionWindow(replacementOwner, 704);
+    ancestryReleased = true;
+    bind.join();
+    Check(QueryWineSession(raced, &sessionEntry) && sessionEntry.toplevelIds.empty(),
+          "stale ancestry result cannot restore a destroyed/recreated window");
+    Check(QueryWineSession(replacementSession, &sessionEntry) && sessionEntry.toplevelId == 704,
+          "recreated window retains its new owner");
+    ForgetWineSessionWindow(704);
+    std::thread([=] { RemoveProcess(raceOwner); RemoveProcess(replacementOwner); }).join();
+    blockAncestry = false;
+    syntheticParent = 0;
+    Check(StopRegisteredWineSession(session), "already stopped and windowless session is idempotent");
+    AddProcess(game, "C:/new.exe", -1, ProcessRegistration::NativeChild);
+    Check(!QueryWineSession(session, &sessionEntry) && !StopRegisteredWineSession(session),
+          "PID reuse invalidates old session handle");
+    std::thread([=] { RemoveProcess(game); }).join();
+    for (const auto* name : {"steam.exe", "EXPLORER.EXE", "desktop", "wineserver", "@engine/test"}) {
+        AddProcess(game, name, -1, ProcessRegistration::NativeChild);
+        Check(!StopRegisteredWineSession(BeginRegisteredWineSession(game)), "shared infrastructure stop refused");
+        std::thread([=] { RemoveProcess(game); }).join();
+    }
+    AddProcess(game, "C:/missing.exe", -1, ProcessRegistration::NativeChild);
+    Check(!StopRegisteredWineSession(BeginRegisteredWineSession(game)),
+          "backend rejected stop must not report success");
+    std::thread([=] { RemoveProcess(game); }).join();
     // Fast wineserver exit must be reported even when it precedes anchor labeling.
     RegisterWineserver(failed);
     Check(GetWineserverPid() == -1 && failures == 1,
@@ -286,7 +378,11 @@ int main() {
     usleep(1100000);
     Check(GetWineserverPid() == server && Snapshot(server).running && failures == 1,
           "live wineserver survives monitor and repeated label registration");
+    ProcessTestPhoneMode = false;
+    const unsigned beforeNcpStopAll = ncpReentries;
     KillAllProcesses();
+    ProcessTestPhoneMode = true;
+    Check(ncpReentries > beforeNcpStopAll, "stopAll NCP callback can reenter registry");
     AwaitExit(server);
     NotifyWhenSessionDrained();
     for (int i = 0; i < 500 && stopped == 0; ++i) usleep(2000);

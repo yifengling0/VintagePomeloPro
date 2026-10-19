@@ -107,7 +107,7 @@ using winehua::CompileShader;
 
 bool EglRenderer::InitZeroCopyConsumer()
 {
-    if (toplevelId_ == 0 ||
+    if (toplevelId_.load(std::memory_order_relaxed) == 0 ||
         winehua::GraphicsBroker::GetInstance().GetState().active != winehua::GraphicsBackend::Virgl)
         return false;
 
@@ -130,7 +130,7 @@ bool EglRenderer::InitZeroCopyConsumer()
         return false;
     }
     zeroCopyTransformLocation_ = glGetUniformLocation(zeroCopyProgram_, "uTransform");
-    OH_LOG_INFO(LOG_APP, "[VIRGL-ZC][MAIN] pipeline ready tl=%{public}u", toplevelId_);
+    OH_LOG_INFO(LOG_APP, "[VIRGL-ZC][MAIN] pipeline ready tl=%{public}u", toplevelId_.load(std::memory_order_relaxed));
     return true;
 }
 
@@ -226,7 +226,8 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         if (!consumer.producerWindow ||
             !broker.AttachZeroCopyTarget(
                 surface.surfaceKey, consumer.producerWindow,
-                static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed)),
+                renderPaused_.load(std::memory_order_acquire) ? 100000000ull :
+                    static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed)),
                 surface.vulkan))
         {
             ReleaseZeroCopyBinding(consumer);
@@ -304,7 +305,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
             OH_LOG_WARN(LOG_APP,
                         "[VIRGL-ZC][MAIN] update failed tl=%{public}u update=%{public}d "
                         "transform=%{public}d failures=%{public}llu consecutive=%{public}u",
-                        toplevelId_, updateResult, transformResult,
+                        toplevelId_.load(std::memory_order_relaxed), updateResult, transformResult,
                         static_cast<unsigned long long>(consumer.failures),
                         consumer.consecutiveFailures);
         if (compositor_.zc().IsReadyPublished(consumer.surfaceKey) &&
@@ -312,7 +313,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
             consumer.consecutiveFailures >= 8)
         {
             ZeroCopyLayerInfo layer;
-            uint32_t rendererToplevelId = toplevelId_;
+            uint32_t rendererToplevelId = toplevelId_.load(std::memory_order_relaxed);
             if (compositor_.Policy().RootCompositing())
                 rendererToplevelId = compositor_.DesktopRootToplevelId();
             const bool baselineValid = compositor_.GetZeroCopyLayerInfo(
@@ -338,7 +339,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
             OH_LOG_WARN(LOG_APP,
                         "[VIRGL-ZC][MAIN] consumer re-attach after %{public}u consecutive "
                         "update failures tl=%{public}u key=%{public}llu failures=%{public}llu",
-                        consumer.consecutiveFailures, toplevelId_,
+                        consumer.consecutiveFailures, toplevelId_.load(std::memory_order_relaxed),
                         static_cast<unsigned long long>(consumer.surfaceKey),
                         static_cast<unsigned long long>(consumer.failures));
             consumer.lastReattachUs = PerfNowUs();
@@ -365,7 +366,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
                     OH_LOG_WARN(LOG_APP,
                                 "[VIRGL-ZC][MAIN] timestamp regression tl=%{public}u "
                                 "current=%{public}lld previous=%{public}lld count=%{public}llu",
-                                toplevelId_, static_cast<long long>(imageTimestamp),
+                                toplevelId_.load(std::memory_order_relaxed), static_cast<long long>(imageTimestamp),
                                 static_cast<long long>(previousTimestamp),
                                 static_cast<unsigned long long>(consumer.timestampRegressions));
             } else if (imageTimestamp == previousTimestamp) {
@@ -377,7 +378,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
     }
 
     ZeroCopyLayerInfo layer;
-    uint32_t rendererToplevelId = toplevelId_;
+    uint32_t rendererToplevelId = toplevelId_.load(std::memory_order_relaxed);
     if (compositor_.Policy().RootCompositing()) rendererToplevelId = compositor_.DesktopRootToplevelId();
     if (!compositor_.GetZeroCopyLayerInfo(consumer.surfaceKey, rendererToplevelId,
                                           consumer.sourceW, consumer.sourceH, layer) ||
@@ -430,7 +431,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
                     "[VIRGL-ZC][MAIN] frame=%{public}llu tl=%{public}u key=%{public}llu "
                     "source=%{public}dx%{public}d layer=%{public}dx%{public}d+%{public}d,%{public}d "
                     "signals=%{public}llu failures=%{public}llu",
-                    static_cast<unsigned long long>(consumer.frames), toplevelId_,
+                    static_cast<unsigned long long>(consumer.frames), toplevelId_.load(std::memory_order_relaxed),
                     static_cast<unsigned long long>(consumer.surfaceKey), width, height,
                     consumer.layerW, consumer.layerH, consumer.layerX, consumer.layerY,
                     static_cast<unsigned long long>(consumer.frameSignals.load()),
@@ -500,7 +501,7 @@ void EglRenderer::DumpZeroCopyLayerPixels(ZeroCopyConsumer& consumer, int x, int
                     "signals=%{public}llu updates=%{public}llu failures=%{public}llu "
                     "reattach=%{public}llu nonblack=%{public}zu/%{public}zu mean_luma=%{public}llu "
                     "rect=%{public}dx%{public}d+%{public}d,%{public}d",
-                    static_cast<unsigned long long>(consumer.frames), toplevelId_,
+                    static_cast<unsigned long long>(consumer.frames), toplevelId_.load(std::memory_order_relaxed),
                     static_cast<unsigned long long>(consumer.frameSignals.load()),
                     static_cast<unsigned long long>(consumer.updates),
                     static_cast<unsigned long long>(consumer.failures),
@@ -517,12 +518,12 @@ void EglRenderer::ReleaseZeroCopyBinding(ZeroCopyConsumer& consumer)
     OH_LOG_INFO(LOG_APP,
                 "[VIRGL-ZC][MAIN] release begin tl=%{public}u key=%{public}llu "
                 "registered=%{public}d ready=%{public}d listener=%{public}d image=%{public}p",
-                toplevelId_, static_cast<unsigned long long>(surfaceKey),
+                toplevelId_.load(std::memory_order_relaxed), static_cast<unsigned long long>(surfaceKey),
                 consumer.registered, compositor_.zc().IsReadyPublished(surfaceKey),
                 consumer.listenerSet, consumer.image);
     // 幂等: 未发布过 (attach 早退/从未 GPU_ACTIVE) 时状态复位序列是 no-op
     // (ready 未发布不撤也不打日志; key=0 时 SetEnabled 内部 no-op)
-    compositor_.zc().Release(surfaceKey, toplevelId_);
+    compositor_.zc().Release(surfaceKey, toplevelId_.load(std::memory_order_relaxed));
     if (consumer.registered) {
         OH_LOG_INFO(LOG_APP, "[VIRGL-ZC][MAIN] release detach begin key=%{public}llu",
                     static_cast<unsigned long long>(surfaceKey));
@@ -575,7 +576,7 @@ void EglRenderer::ReleaseZeroCopyBinding(ZeroCopyConsumer& consumer)
     consumer.sourceH = 0;
     consumer.vulkanSource = false;
     OH_LOG_INFO(LOG_APP, "[VIRGL-ZC][MAIN] release complete tl=%{public}u key=%{public}llu",
-                toplevelId_, static_cast<unsigned long long>(surfaceKey));
+                toplevelId_.load(std::memory_order_relaxed), static_cast<unsigned long long>(surfaceKey));
 }
 
 void EglRenderer::ShutdownZeroCopyConsumer()
@@ -749,12 +750,12 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
     // 放在这里是因为合成器一定会在会话早期走到, 且此时 EGL 已可用。
     WineHuaProbeHostGlCapability();
 
-    OH_LOG_INFO(LOG_APP, "[EGL] Init tl=%{public}u req=%{public}dx%{public}d", toplevelId_, w, h);
+    OH_LOG_INFO(LOG_APP, "[EGL] Init tl=%{public}u req=%{public}dx%{public}d", toplevelId_.load(std::memory_order_relaxed), w, h);
 
     // 1. 使用共享 EGLDisplay (全进程只 init 一次)
     display_ = GetSharedDisplay();
     if (display_ == EGL_NO_DISPLAY) {
-        OH_LOG_ERROR(LOG_APP, "[EGL] shared display unavailable tl=%{public}u", toplevelId_);
+        OH_LOG_ERROR(LOG_APP, "[EGL] shared display unavailable tl=%{public}u", toplevelId_.load(std::memory_order_relaxed));
         return false;
     }
 
@@ -779,7 +780,7 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
     surface_ = eglCreateWindowSurface(display_, cfg,
                                        reinterpret_cast<EGLNativeWindowType>(window_), nullptr);
     if (surface_ == EGL_NO_SURFACE) {
-        OH_LOG_ERROR(LOG_APP, "[EGL] eglCreateWindowSurface failed tl=%{public}u: 0x%{public}x", toplevelId_, eglGetError());
+        OH_LOG_ERROR(LOG_APP, "[EGL] eglCreateWindowSurface failed tl=%{public}u: 0x%{public}x", toplevelId_.load(std::memory_order_relaxed), eglGetError());
         return false;
     }
     {
@@ -788,12 +789,12 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
         eglQuerySurface(display_, surface_, EGL_HEIGHT, &sh);
         eglQuerySurface(display_, surface_, EGL_ALPHA_SIZE, &alphaBits);
         OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u eglSurface %{public}dx%{public}d alphaBits=%{public}d",
-                    toplevelId_, sw, sh, alphaBits);
+                    toplevelId_.load(std::memory_order_relaxed), sw, sh, alphaBits);
     }
 
     running_ = true;
     thread_ = std::thread(&EglRenderer::RenderLoop, this);
-    OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u Init done, render thread started OK", toplevelId_);
+    OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u Init done, render thread started OK", toplevelId_.load(std::memory_order_relaxed));
     return true;
 }
 
@@ -843,7 +844,14 @@ uint32_t EglRenderer::DirectPassCapabilities() const
 
 void EglRenderer::VulkanRenderLoop() {
     while (running_) {
-        if (!vulkanDesktop_->Render(expectW_ > 0 ? expectW_ : width_, expectH_ > 0 ? expectH_ : height_)) break;
+        if (!vulkanDesktop_->Render(expectW_ > 0 ? expectW_ : width_, expectH_ > 0 ? expectH_ : height_, renderPaused_.load(std::memory_order_acquire))) break;
+        if (renderPaused_.load(std::memory_order_acquire)) {
+            std::unique_lock<std::mutex> lock(vsyncMutex_);
+            vsyncCv_.wait_for(lock, std::chrono::milliseconds(100), [&] {
+                return !running_ || !renderPaused_.load(std::memory_order_acquire);
+            });
+            continue;
+        }
         width_ = vulkanDesktop_->Width(); height_ = vulkanDesktop_->Height();
         frameW_ = contentW_ = vulkanDesktop_->ContentWidth();
         frameH_ = contentH_ = vulkanDesktop_->ContentHeight();
@@ -866,7 +874,7 @@ void EglRenderer::RenderLoop() {
     // so a frame does not wait once for VSync and again inside eglSwapBuffers.
     const bool swapIntervalDisabled = eglSwapInterval(display_, 0) == EGL_TRUE;
     OH_LOG_INFO(LOG_APP, "[MW-RNDR] tl=%{public}u eglSwapInterval(0)=%{public}s",
-                toplevelId_, swapIntervalDisabled ? "OK" : "FAIL");
+                toplevelId_.load(std::memory_order_relaxed), swapIntervalDisabled ? "OK" : "FAIL");
 
     // 2. 着色器
     GLuint vs = CompileShader(GL_VERTEX_SHADER, kFullscreenQuadVS);
@@ -894,7 +902,7 @@ void EglRenderer::RenderLoop() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     const bool zeroCopyReady = InitZeroCopyConsumer();
     OH_LOG_INFO(LOG_APP, "[VIRGL-ZC][MAIN] tl=%{public}u path=%{public}s",
-                toplevelId_, zeroCopyReady ? "SURFACE_QUEUE" : "SHM_FALLBACK");
+                toplevelId_.load(std::memory_order_relaxed), zeroCopyReady ? "SURFACE_QUEUE" : "SHM_FALLBACK");
 
     // 5. 渲染循环: 跟随硬件 VSync, 每次只取最新的 toplevel 帧
     FpsCounter fps("render");
@@ -905,7 +913,7 @@ void EglRenderer::RenderLoop() {
     bool rendered = false;  // 首帧已渲染后, 无新帧时跳过 GPU 绘制
     RendererPerfWindow perf;
     winehua::FrameLoopDiagnosticWindow loopPerf;
-    uint32_t diagnosticRoot = toplevelId_;
+    uint32_t diagnosticRoot = toplevelId_.load(std::memory_order_relaxed);
     GpuDesktopScene previousZeroCopyScene;
     uint32_t pixSampleN = 0;  // [PIX-SAMPLE] 帧内容白度采样计数 (诊断)
 
@@ -919,7 +927,7 @@ void EglRenderer::RenderLoop() {
         OH_LOG_INFO(LOG_APP,
                     "[MW-RNDR] tl=%{public}u request frame rate min=%{public}d "
                     "max=%{public}d expected=%{public}d result=%{public}d",
-                    toplevelId_, expectedRate.min, expectedRate.max,
+                    toplevelId_.load(std::memory_order_relaxed), expectedRate.min, expectedRate.max,
                     expectedRate.expected, rateResult);
     }
     long long vsyncPeriodNs = vsyncPeriodNs_.load(std::memory_order_relaxed);
@@ -969,7 +977,7 @@ void EglRenderer::RenderLoop() {
                             OH_LOG_INFO(LOG_APP,
                                         "[MW-RNDR] tl=%{public}u NativeVSync period=%{public}lldns "
                                         "rate=%{public}.2fHz",
-                                        toplevelId_, period, refreshRate);
+                                        toplevelId_.load(std::memory_order_relaxed), period, refreshRate);
                             loggedPeriodNs = period;
                         }
                     }
@@ -987,7 +995,7 @@ void EglRenderer::RenderLoop() {
                 OH_LOG_WARN(LOG_APP,
                             "[MW-RNDR] tl=%{public}u NativeVSync unavailable "
                             "request=%{public}d failures=%{public}u, using deadline fallback",
-                            toplevelId_, requestResult, vsyncFailures);
+                            toplevelId_.load(std::memory_order_relaxed), requestResult, vsyncFailures);
             }
         }
 
@@ -1007,19 +1015,44 @@ void EglRenderer::RenderLoop() {
         if (loopPerf.Active()) {
             const uint64_t nowUs = PerfNowUs();
             loopPerf.NoteWait(nowUs - startedUs);
-            loopPerf.MaybePublish(toplevelId_, diagnosticRoot, nowUs);
+            loopPerf.MaybePublish(toplevelId_.load(std::memory_order_relaxed), diagnosticRoot, nowUs);
         }
         return result;
     };
 
     OH_LOG_INFO(LOG_APP, "[MW-RNDR] tl=%{public}u render loop started pacing=%{public}s",
-                toplevelId_, nativeVsync ? "NativeVSync" : "deadline-60Hz");
+                toplevelId_.load(std::memory_order_relaxed), nativeVsync ? "NativeVSync" : "deadline-60Hz");
 
     std::unique_ptr<winehua::direct::DirectDesktopCompositor> directDesktop;
     if (compositor_.Policy().RootCompositing())
         directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(compositor_, display_);
 
+    bool wasPaused = false;
+    uint32_t lastIdentity = GetToplevelId();
     while (running_) {
+        const uint32_t identity = GetToplevelId();
+        if (identity != lastIdentity) {
+            rendered = false;
+            lastDrawW_ = lastDrawH_ = 0;
+            previousZeroCopyScene = {};
+            compositor_.RequestFullRedraw(identity);
+            lastIdentity = identity;
+        }
+        const bool paused = renderPaused_.load(std::memory_order_acquire);
+        if (paused != wasPaused) {
+            const uint64_t period = paused ? 100000000ull :
+                static_cast<uint64_t>(vsyncPeriodNs > 0 ? vsyncPeriodNs : kFallbackPeriodNs);
+            for (const auto& consumer : zeroCopyConsumers_)
+                winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(consumer->surfaceKey, period);
+            if (!paused) {
+                rendered = false;
+                lastDrawW_ = lastDrawH_ = 0;
+                previousZeroCopyScene = {};
+                compositor_.RequestFullRedraw(
+                    compositor_.Policy().RootCompositing() ? compositor_.DesktopRootToplevelId() : GetToplevelId());
+            }
+            wasPaused = paused;
+        }
         const uint64_t frameStartedUs = PerfNowUs();
         const bool loopDiagnostics = loopPerf.Sync(winehua::FrameLoopDiagnosticState(), frameStartedUs);
         winehua::ScopedTakeLockSink lockSink(loopDiagnostics ? &loopPerf.lockWait : nullptr);
@@ -1031,7 +1064,7 @@ void EglRenderer::RenderLoop() {
         bool zeroCopyFrame = false;
         int zeroCopyWidth = 0;
         int zeroCopyHeight = 0;
-        uint32_t useToplevel = toplevelId_;
+        uint32_t useToplevel = toplevelId_.load(std::memory_order_relaxed);
         // Desktop mode: root toplevel may be recreated, always use current ID
         // (6A: 配置经构造注入的 DesktopCompositor 引用直读 — 与旧
         // WaylandServer::Policy()/GetDesktopRootToplevelId() 同一引用成员, 同值)
@@ -1069,7 +1102,7 @@ void EglRenderer::RenderLoop() {
                                 "key=%{public}llu idleMs=%{public}llu signals=%{public}llu "
                                 "frames=%{public}llu failures=%{public}llu reattach=%{public}llu "
                                 "reason=%{public}s",
-                                toplevelId_,
+                                toplevelId_.load(std::memory_order_relaxed),
                                 static_cast<unsigned long long>(consumer.surfaceKey),
                                 static_cast<unsigned long long>(idleMs),
                                 static_cast<unsigned long long>(consumer.frameSignals.load()),
@@ -1080,6 +1113,13 @@ void EglRenderer::RenderLoop() {
                     ReleaseZeroCopyBinding(consumer);
                 }
             }
+        }
+        if (paused) {
+            std::unique_lock<std::mutex> lock(vsyncMutex_);
+            vsyncCv_.wait_for(lock, std::chrono::milliseconds(100), [&] {
+                return !running_ || !renderPaused_.load(std::memory_order_acquire);
+            });
+            continue;
         }
         const bool zeroCopySceneReady = SnapshotZeroCopyScene();
         if (zeroCopySceneReady) {
@@ -1214,7 +1254,7 @@ void EglRenderer::RenderLoop() {
             lastWarnSurfW_ = surfW; lastWarnSurfH_ = surfH;
             OH_LOG_WARN(LOG_APP,
                         "[MW-RNDR] tl=%{public}u DRAW-TIME surface=%{public}dx%{public}d != expect=%{public}dx%{public}d",
-                        toplevelId_, surfW, surfH, expectW_, expectH_);
+                        toplevelId_.load(std::memory_order_relaxed), surfW, surfH, expectW_, expectH_);
         }
         if (surfW > 0 && surfH > 0) {
             width_ = surfW;
@@ -1367,7 +1407,7 @@ void EglRenderer::RenderLoop() {
             // 告警, 便于发现 surface 失效/buffer 饥饿这类持续失败
             OH_LOG_WARN(LOG_APP,
                         "[MW-RNDR] tl=%{public}u eglSwapBuffers failed x%{public}d (draw=%{public}dx%{public}d)",
-                        toplevelId_, swapFailStreak_, drawW, drawH);
+                        toplevelId_.load(std::memory_order_relaxed), swapFailStreak_, drawW, drawH);
         }
         const uint64_t frameEndedUs = PerfNowUs();
         loopPerf.NoteWork(frameEndedUs - frameStartedUs);
@@ -1386,8 +1426,8 @@ void EglRenderer::RenderLoop() {
                             "[MW-SWAP] tl=%{public}u loop=%{public}llu f=%{public}d/%{public}d/%{public}d skip=%{public}llu take=%{public}lluus swap=%{public}lluus",
                             useToplevel, static_cast<unsigned long long>(loopCount),
                             cpuFrame ? 1 : 0, zeroCopyFrame ? 1 : 0, zeroCopyGeometryFrame ? 1 : 0,
-                            static_cast<unsigned long long>(skipFrames_), takeUs,
-                            frameEndedUs - swapStartedUs);
+                            static_cast<unsigned long long>(skipFrames_), static_cast<unsigned long long>(takeUs),
+                            static_cast<unsigned long long>(frameEndedUs - swapStartedUs));
             }
             skipFrames_ = 0;
             perf.Add(useToplevel, takeUs, uploads.cpuUs, frameEndedUs - swapStartedUs,
@@ -1420,12 +1460,12 @@ void EglRenderer::Shutdown() {
         }
         // 不调 eglTerminate: 共享 display 由进程生命周期管理
         // 避免反复 init/terminate 导致 GPU 驱动竞争, 偶发性 SIGSEGV
-        OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u Shutdown OK (display retained)", toplevelId_);
+        OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u Shutdown OK (display retained)", toplevelId_.load(std::memory_order_relaxed));
     }
     // surfaceId 创建的 native window 在这里销毁 (EglRenderer 持有 window_ 指针)
     if (window_) {
         OH_NativeWindow_DestroyNativeWindow(window_);
         window_ = nullptr;
-        OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u native window destroyed", toplevelId_);
+        OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u native window destroyed", toplevelId_.load(std::memory_order_relaxed));
     }
 }

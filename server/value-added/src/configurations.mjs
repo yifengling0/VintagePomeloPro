@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { requireThat, ServiceError } from './errors.mjs';
+import { CONFIGURATION_BYTES, CONFIGURATION_SCOPE, validateCloudSettings } from './configuration-policy.mjs';
 export const CONFIG_CHUNK_BYTES = 262144;
-export const CONFIG_BYTES = 64 * 1024 * 1024;
+export const CONFIG_BYTES = CONFIGURATION_BYTES;
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const uid = value => typeof value === 'string' && /^[a-f0-9-]{36}$/.test(value);
 const sha = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -10,6 +11,8 @@ const indexKey = user => 'config-index:' + user;
 const jobKey = id => 'config-job:' + id;
 const fresh = () => ({ heads: {}, jobs: [], retired: [], objects: {} });
 export function validateConfigurationManifest(value) {
+  requireThat(value?.scope === CONFIGURATION_SCOPE && Array.isArray(value.members) && value.members.length === 1 &&
+    value.members[0]?.name === 'manifest.json', 'CONFIG_SCOPE_UNSUPPORTED');
   requireThat(value?.formatVersion === 1 && device(value.deviceClass) && Array.isArray(value.members) &&
     value.members.length >= 1 && value.members.length <= 257, 'CONFIG_INVALID');
   let total = 0, parts = 0; const names = new Set();
@@ -58,7 +61,11 @@ export class Configurations {
       requireThat(index.jobs.length<2 && Object.keys(index.objects).length<1536,'CONFIG_BUSY',409);
       const specifications=chunks(clean), physical=Object.values(index.objects).reduce((n,o)=>n+o.size,0);
       const missing=specifications.filter(c=>index.objects[c.sha256]?.status!=='stored');
-      requireThat(physical+missing.reduce((n,c)=>n+c.size,0)<=3*CONFIG_BYTES,'CONFIG_QUOTA',409);
+      // Existing full backups may exceed the new cap. Allow one bounded settings
+      // replacement so old resources can retire without discarding the current head.
+      let legacy = false;
+      for (const head of Object.values(index.heads)) if ((await tx.get(jobKey(head.id)))?.manifest.scope !== CONFIGURATION_SCOPE) legacy = true;
+      requireThat(physical+missing.reduce((n,c)=>n+c.size,0)<=(legacy ? 3*64*1024*1024+CONFIG_BYTES : 3*CONFIG_BYTES),'CONFIG_QUOTA',409);
       const job={id,userId:user,baseRevision,manifest:clean,status:'uploading',expiresAt:this.clock()+3600000,pinnedUntil:0};
       index.jobs.push(id);
       for (const chunk of specifications) {
@@ -76,6 +83,7 @@ export class Configurations {
     const attempt=randomUUID(), key='configurations/'+user+'/'+sha256;
     const stored=await this.store.transaction(async tx=>{
       const job=this.owned(await tx.get(jobKey(id)),user),index=await tx.get(indexKey(user));
+      validateConfigurationManifest(job.manifest);
       requireThat(job.status==='uploading'&&job.expiresAt>this.clock(),'CONFIG_UPLOAD_EXPIRED',409);
       const expected=chunks(job.manifest).find(c=>c.sha256===sha256);requireThat(expected&&expected.size===bytes.length,'CONFIG_INVALID');
       const object=index.objects[sha256];if(object.status==='stored')return true;
@@ -103,12 +111,12 @@ export class Configurations {
     await this.gate(user);requireThat(uid(id),'CONFIG_INVALID');
     const pending=this.owned(await this.store.get(jobKey(id)),user);
     if(pending.status==='published')return {status:'PUBLISHED',head:pending.head};
+    validateConfigurationManifest(pending.manifest);
     requireThat(pending.status==='uploading'&&pending.expiresAt>this.clock(),'CONFIG_UPLOAD_EXPIRED',409);
     const index=await this.store.get(indexKey(user));
     requireThat(chunks(pending.manifest).every(c=>index.objects[c.sha256]?.status==='stored'),'CONFIG_INCOMPLETE',409);
     let value;try{value=JSON.parse((await this.member(user,pending.manifest,'manifest.json')).toString('utf8'));}catch(error){if(error instanceof ServiceError)throw error;throw new ServiceError('CONFIG_INVALID');}
-    requireThat(value?.formatVersion===1&&value.minReaderVersion===1&&value.minWriterVersion===1&&Array.isArray(value.modules)&&
-      value.modules.length===4&&new Set(value.modules.map(m=>m.name)).size===4&&value.modules.every(m=>['settings','input_profiles','library','resources'].includes(m.name))&&Array.isArray(value.assets),'CONFIG_INVALID');
+    validateCloudSettings(value);
     const assets=new Map(value.assets.map(a=>[a.path,a]));
     requireThat(assets.size+1===pending.manifest.members.length,'CONFIG_INCOMPLETE');
     for(const member of pending.manifest.members.filter(m=>m.name!=='manifest.json')){

@@ -1,4 +1,6 @@
 #include "spawn_codec.h"
+#include "stderr_hilog_budget.h"
+#include "program_compat.h"
 /**
  * wine_child.cpp - Wine 子进程入口 (libwine_child.so)
  *
@@ -49,20 +51,43 @@
 struct stderr_ctx { int fd; int fileFd; };
 static void* stderr_reader_thread(void* arg) {
     auto* ctx = (stderr_ctx*)arg;
+    const char* mirror = getenv("WINEHUA_STDERR_HILOG");
+    winehua::StderrHilogBudget budget(mirror && !strcmp(mirror, "full"));
     char buf[4096];
     ssize_t n;
-    while ((n = read(ctx->fd, buf, sizeof(buf) - 1)) > 0) {
+    for (;;) {
+        n = read(ctx->fd, buf, sizeof(buf) - 1);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) break;
         buf[n] = '\0';  // strtok_r 需要终止符, read() 不添加
-        // 写文件
-        if (ctx->fileFd >= 0) write(ctx->fileFd, buf, n);
-        // 转发到 hilog（多行拆开）
+        // Preserve the complete file even when a signal interrupts the write.
+        if (ctx->fileFd >= 0) {
+            ssize_t off = 0;
+            while (off < n) {
+                const ssize_t wrote = write(ctx->fileFd, buf + off, static_cast<size_t>(n - off));
+                if (wrote < 0 && errno == EINTR) continue;
+                if (wrote <= 0) break;
+                off += wrote;
+            }
+        }
+        timespec now{};
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        const uint64_t skipped = budget.BeginSecond(static_cast<uint64_t>(now.tv_sec));
+        if (skipped)
+            OH_LOG_WARN(LOG_APP, "[WineChild-stderr] %{public}llu mirror lines omitted; complete output in wine_stderr file",
+                        static_cast<unsigned long long>(skipped));
+        // Slow logd consumers must not hold Wine's stderr pipe on trace floods.
         char *save = nullptr, *tok = strtok_r(buf, "\n", &save);
         while (tok) {
-            OH_LOG_INFO(LOG_APP, "[WineChild-stderr] %{public}s", tok);
+            if (budget.Allow(tok)) OH_LOG_INFO(LOG_APP, "[WineChild-stderr] %{public}s", tok);
             tok = strtok_r(nullptr, "\n", &save);
         }
     }
+    if (budget.Skipped())
+        OH_LOG_WARN(LOG_APP, "[WineChild-stderr] %{public}llu final mirror lines omitted; complete output in wine_stderr file",
+                    static_cast<unsigned long long>(budget.Skipped()));
     if (ctx->fileFd >= 0) close(ctx->fileFd);
+    close(ctx->fd);
     delete ctx;
     return nullptr;
 }
@@ -552,14 +577,9 @@ static void select_wow64_backend(int argc, char **argv)
 // Steam 客户端 (…\Steam\steam.exe) 的必备 CEF 参数是否已由 Want 给出。
 static bool is_steam_bootstrap_exe(int argc, char **argv)
 {
-    for (int i = 1; i < argc; ++i)
-    {
-        if (!argv[i]) continue;
-        if (contains_ascii_ci(argv[i], "\\steam\\steam.exe") ||
-            contains_ascii_ci(argv[i], "/steam/steam.exe"))
-            return true;
-    }
-    return false;
+    // Both direct PE argv[0] and loader-prefixed argv[1] occur on the broker
+    // path. Do not mistake a game/document argument for the process image.
+    return winehua::ProcessImageName(argc, argv) == "steam.exe";
 }
 
 // Steam 客户端在 Wine 下的默认参数。缺了 -no-cef-sandbox 时 webhelper 的

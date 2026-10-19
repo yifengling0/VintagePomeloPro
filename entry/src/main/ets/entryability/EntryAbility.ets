@@ -1,4 +1,5 @@
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
+import { ValueAddedService } from '../service/valueadded/ValueAddedService';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
@@ -36,21 +37,43 @@ export default class EntryAbility extends UIAbility {
   private pendingAutomationWant: Want | null = null;
   private automationLaunchStarted: boolean = false;
   private membershipDelivery: string | null = null;
+  private membershipRouteTimer: number = -1;
+  private membershipRouteAttempts: number = 0;
   private rememberMembershipWant(want: Want): void {
     if (want.action !== 'com.vintagepomelo.action.MEMBERSHIP') return;
     const delivery = want.parameters?.deliveryId;
     this.membershipDelivery = typeof delivery === 'string' && /^[a-f0-9]{64}$/.test(delivery) ? delivery : '';
+    this.membershipRouteAttempts = 0;
   }
   private openMembershipWant(): void {
-    if (this.membershipDelivery === null) return;
+    if (this.membershipDelivery === null || !this.mainWindow) return;
+    if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
+    // loadContent can finish before the first page mounts its router. Defer
+    // navigation until the next UI turn and retain the request on failure.
+    this.membershipRouteTimer = setTimeout((): void => {
+      this.membershipRouteTimer = -1;
+      this.routeMembershipWant();
+    }, 100);
+  }
+  private routeMembershipWant(): void {
+    if (this.membershipDelivery === null || !this.mainWindow) return;
     const delivery = this.membershipDelivery; this.membershipDelivery = null;
-    void router.pushUrl({ url: 'pages/SystemSettings', params: { section: 'sync', membership: 'expanded', deliveryId: delivery } })
-      .catch((): void => { this.membershipDelivery = delivery; });
+    this.membershipRouteAttempts++;
+    // Push launches can arrive before the global router has an active scope.
+    // Route through the Ability's own window, including a cold application start.
+    void this.mainWindow.getUIContext().getRouter().pushUrl({ url: 'pages/SystemSettings',
+      params: { section: 'sync', membership: 'expanded', deliveryId: delivery } })
+      .catch((): void => {
+        if (this.membershipDelivery === null) this.membershipDelivery = delivery;
+        if (this.membershipRouteAttempts < 5) this.openMembershipWant();
+        else hilog.warn(DOMAIN, 'EntryAbility', 'Membership notification route unavailable');
+      });
   }
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 日志服务最先初始化，保证后续 ArkTS/native 日志都能实时落盘。
     AppLog.init();
+    SmokeRunner.getInstance().initialize(this.context);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     const useForkNcp = DeviceCapabilityPolicy.isPhoneDevice();
     testNapi.setPhoneMode(useForkNcp);
@@ -71,6 +94,8 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
+    this.membershipRouteTimer = -1;
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 
@@ -484,6 +509,7 @@ export default class EntryAbility extends UIAbility {
 
   onForeground(): void {
     AccountAutomaticSyncService.getInstance().setForeground(true);
+    ValueAddedService.getInstance().onForeground();
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
     this.ensureDownloadGamesDirectory('onForeground');
@@ -491,6 +517,7 @@ export default class EntryAbility extends UIAbility {
 
   onBackground(): void {
     AccountAutomaticSyncService.getInstance().setForeground(false);
+    ValueAddedService.getInstance().onBackground();
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
   }

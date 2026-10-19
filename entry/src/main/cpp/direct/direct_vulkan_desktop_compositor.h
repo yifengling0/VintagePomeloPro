@@ -21,7 +21,7 @@ public:
     explicit DirectVulkanDesktopCompositor(DesktopCompositor& compositor);
     ~DirectVulkanDesktopCompositor();
     bool Initialize(OHNativeWindow* window);
-    bool Render(int width, int height);
+    bool Render(int width, int height, bool paused = false);
     int Width() const;
     int Height() const;
     int ContentWidth() const;

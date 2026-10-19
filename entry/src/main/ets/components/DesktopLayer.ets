@@ -20,7 +20,7 @@ import { InputDispatcher } from '../service/InputDispatcher';
 import { GamepadActivityListener, GamepadConnectionListener, GamepadManager } from '../service/GamepadManager';
 import { InputProfileService } from '../service/InputProfileService';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
-import { InputEventGate } from '../service/InputEventGate';
+import { AxisEventGate, InputEventGate } from '../service/InputEventGate';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
 import { FpsHud } from '../components/FpsHud';
 
@@ -111,6 +111,8 @@ class DesktopController extends XComponentController {
 
 @Component
 export struct DesktopLayer {
+  private axisTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   @StorageLink('desktopToplevelId') @Watch('onDesktopToplevelChanged') private desktopToplevelId: number = 0;
   @StorageLink('desktopWindowMode') @Watch('onDesktopWindowModeChanged') private desktopWindowMode: string = '';
   // overlay 关掉宿主 IME 后跨窗口把焦点要回桌面 XComponent, 蓝牙可打印键才继续走 KeyEvent。
@@ -634,6 +636,10 @@ export struct DesktopLayer {
 
       // ── 滚轮事件 ──
       .onAxisEvent((ev?: AxisEvent) => {
+          if (ev && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] DesktopLayer action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            ev.action, ev.timestamp.toString(), ev.getVerticalAxisValue().toString(), ev.getHorizontalAxisValue().toString());
+          if (!ev || !this.axisEventGate.shouldHandle(ev.action, ev.timestamp, ev.getVerticalAxisValue(),
+            ev.getHorizontalAxisValue(), ev.source, ev.sourceTool)) return;
         if (this.floating) return;  // 悬浮窗态: 输入旁路
         this.noteHardwareActivity();
         const rootId = WineWindowManager.getInstance().getDesktopRootId();
@@ -642,7 +648,9 @@ export struct DesktopLayer {
         const wpy = Math.round(vp2px(ev.y));
         const vert = ev.getVerticalAxisValue();
         const horiz = ev.getHorizontalAxisValue();
-        const step = ev.scrollStep ?? 0;
+        // Hardware AxisEvent values are continuous vp; virtual wheels pass
+        // normalized detents through the same NAPI with a nonnegative step.
+        const step = -1;
         const hit = testNapi.findToplevelAt(wpx, wpy) as number;
         const tl: number = hit > 0 ? hit : rootId;
         if (vert !== 0) testNapi.sendScrollEvent(tl, 0, vert, step, wpx, wpy);
