@@ -68,6 +68,34 @@ int main(int argc,char** argv){
     assert(broker.Reply(id,2,23));assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==23);
     assert(!broker.OwnsProcess(child));
     }
+    // Only the two official Linux client helper paths cross the game boundary.
+    // Their content digest is independently checked by the ArkTS launch adapter.
+    for(const std::string relative:{"legacycompat/iscriptevaluator.exe","bin/d3ddriverquery64.exe"}) {
+        const std::string helper=client+"/"+relative;
+        std::filesystem::create_directories(std::filesystem::path(helper).parent_path());
+        {std::ofstream file(helper);file.write(reinterpret_cast<char*>(pe),sizeof(pe));}
+        auto request=valid;request.argv={helper,"legacycompat\\evaluatorscript_3590.vdf"};request.cwd=client;
+        const bool query=relative[0]=='b';
+        if(query){request.install=client;request.appId="0";request.environment={};}
+        int helperFd=send(request);events=broker.Drain();assert(events.size()==1);
+        assert(events[0].role==(query?"driver_query":"install_script"));
+        assert(broker.Reply(events[0].id,1,0));assert(recv(helperFd,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply));
+        assert(broker.Reply(events[0].id,2,7));assert(recv(helperFd,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply)&&ntohl(reply[2])==7);close(helperFd);
+        auto wrong=request;wrong.cwd=root;rejected(wrong);
+        wrong=request;wrong.environment.push_back("HMOSDECK_STEAM_BRIDGE=1234:"+std::string(64,'a')+":"+request.appId);rejected(wrong);
+        wrong=request;wrong.argv[0]=client+"/legacycompat/unknown.exe";
+        {std::ofstream file(wrong.argv[0]);file.write(reinterpret_cast<char*>(pe),sizeof(pe));}rejected(wrong);
+        if(!query){wrong=request;wrong.install=root;rejected(wrong);}
+        pid_t child=fork();assert(child>=0);
+        if(!child){setenv("STEAMOHOS_LAUNCH_SOCKET",endpoint.c_str(),1);setenv("STEAMOHOS_LAUNCH_NONCE",nonce.c_str(),1);
+            setenv("STEAMOHOS_STEAM_ROOT",client.c_str(),1);setenv("SteamAppId",request.appId.c_str(),1);
+            setenv("STEAM_COMPAT_INSTALL_PATH",request.install.c_str(),1);setenv("STEAMOHOS_STEAMCLIENT_GAME_BRIDGE","1",1);
+            assert(!chdir(client.c_str()));execl(argv[1],argv[1],"run",helper.c_str(),request.argv[1].c_str(),nullptr);_exit(127);}
+        events.clear();for(unsigned i=0;i<200&&events.empty();++i){events=broker.Drain();Tick();}
+        assert(events.size()==1&&events[0].cwd==client&&events[0].role==(query?"driver_query":"install_script"));
+        assert(broker.Reply(events[0].id,1,0));assert(broker.Reply(events[0].id,2,0));int status=0;
+        assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);
+    }
     // Bad frames never allocate unbounded buffers or produce a launch.
     fd=Connect(endpoint);uint32_t oversized=htonl(LaunchMaxBytes+1);assert(write(fd,&oversized,4)==4);assert(broker.Drain().empty());assert(recv(fd,&byte,1,0)==0);close(fd);
     broker.Stop();assert(!broker.OwnsProcess(getpid()));assert(access(endpoint.c_str(),F_OK)!=0);std::filesystem::remove_all(root);

@@ -23,7 +23,9 @@ interface ExternalManifest {
   files: ExternalFile[];
 }
 interface RuntimeData { sha256: string; }
-interface RuntimeProbe { data: RuntimeData; }
+interface ClientHelperFile { path: string; bytes: number; sha256: string; }
+interface ClientHelperData { file: string; sha256: string; files: ClientHelperFile[]; }
+interface RuntimeProbe { data: RuntimeData; helpers?: ClientHelperData; }
 interface RuntimeManifest { steamClientProbe: RuntimeProbe; xwaylandProbe: RuntimeProbe; }
 
 // DOWNLOAD resolves the same app-owned system directory used by Wine's Z:.
@@ -145,6 +147,30 @@ export async function prepareLinuxSteamClientData(context: common.Context): Prom
       throw new Error('External Steam resources are incomplete');
     }
     writeSmokeText(`${home}/.packaged-data-version`, runtimeManifest.steamClientProbe.data.sha256);
+  }
+  const helpers = runtimeManifest.steamClientProbe.helpers;
+  if (helpers) {
+    if (helpers.file !== 'steam-client-helpers.zip' || !/^[a-f0-9]{64}$/.test(helpers.sha256) ||
+        helpers.files.length !== 2) throw new Error('Invalid official Linux helper archive');
+    const allowed: Set<string> = new Set<string>(['legacycompat/iscriptevaluator.exe', 'bin/d3ddriverquery64.exe']);
+    for (const file of helpers.files) {
+      if (!allowed.delete(file.path) || !/^[a-f0-9]{64}$/.test(file.sha256) ||
+          file.bytes < 1 || file.bytes > 1048576) throw new Error('Invalid official Linux helper');
+    }
+    if (readSmokeText(`${home}/.packaged-helpers-version`).trim() !== helpers.sha256) {
+      const archive = `${runtime}/${helpers.file}`;
+      if (await ConfigurationFiles.fileHash(archive) !== helpers.sha256) throw new Error('Linux helper archive checksum failed');
+      // This separate archive contains exactly two locked helpers, so adding
+      // first-install support does not re-extract account/configuration data.
+      await zlib.decompressFile(archive, home, {});
+    }
+    for (const file of helpers.files) {
+      if (fs.statSync(`${home}/${file.path}`).size !== file.bytes ||
+          await ConfigurationFiles.fileHash(`${home}/${file.path}`) !== file.sha256) {
+        throw new Error(`Official Linux helper checksum failed: ${file.path}`);
+      }
+    }
+    writeSmokeText(`${home}/.packaged-helpers-version`, helpers.sha256);
   }
   const xkb = `${root}/xkb-data`;
   const xlocale = `${root}/x11-locale`;

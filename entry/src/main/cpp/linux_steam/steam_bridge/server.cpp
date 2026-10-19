@@ -28,11 +28,12 @@ namespace hmosbridge {
 // No identity, nonce, ticket, account or callback payload is written here.
 static bool sourceVerified = false;
 static unsigned completedRequests = 0;
+static int callbackCode = 0, callbackBytes = 0, callbackResultCode = 0;
 static void Report(const char* stage, uint32_t method=0, Status status=Ok) {
  const char* prefix=getenv("STEAMOHOS_WINE_PREFIX");if(!prefix||prefix[0]!='/')return;
  std::string path=std::string(prefix)+"/drive_c/windows/temp/hmosdeck-steam-bridge-state.json",temporary=path+".pending";
  int fd=open(temporary.c_str(),O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC,0600);if(fd<0)return;
- char text[512];int length=snprintf(text,sizeof(text),"{\"stage\":\"%s\",\"method\":%u,\"status\":%u,\"completedRequests\":%u,\"clientSourceVerified\":%s,\"authenticationVerified\":false}\n",stage,method,(unsigned)status,completedRequests,sourceVerified?"true":"false");
+ char text[640];int length=snprintf(text,sizeof(text),"{\"stage\":\"%s\",\"method\":%u,\"status\":%u,\"completedRequests\":%u,\"callbackCode\":%d,\"callbackBytes\":%d,\"callbackResultCode\":%d,\"clientSourceVerified\":%s,\"authenticationVerified\":false}\n",stage,method,(unsigned)status,completedRequests,callbackCode,callbackBytes,callbackResultCode,sourceVerified?"true":"false");
  bool written=length>0&&length<(int)sizeof(text)&&write(fd,text,(size_t)length)==length;int closed=close(fd);
  if(written&&!closed){if(rename(temporary.c_str(),path.c_str()))unlink(temporary.c_str());}else unlink(temporary.c_str());
 }
@@ -121,7 +122,15 @@ public:
   ValidatePair(pipe,0);if(pending.count(pipe))return Invalid;
   CallbackMsg_t message{};int ignored=0;
   bool received=nextCallback(pipe,&message,&ignored)!=0;output.Put(received);if(!received)return Ok;
+  callbackCode=message.m_iCallback;callbackBytes=message.m_cubParam;callbackResultCode=0;
+  if(message.m_iCallback==SteamAPICallCompleted_t::k_iCallback&&message.m_pubParam&&message.m_cubParam==(int)sizeof(SteamAPICallCompleted_t)){
+   SteamAPICallCompleted_t value{};memcpy(&value,message.m_pubParam,sizeof(value));callbackResultCode=value.m_iCallback;
+  }
   pending.insert(pipe);output.Put((uint32_t)message.m_hSteamUser);output.Put((uint32_t)message.m_iCallback);output.Put((uint32_t)ignored);
+  // The PE steam_api owns registration. Only it may decide to discard an
+  // unknown callback; never forward opaque GNU layouts into Windows memory.
+  bool supported=CallbackSize(message.m_iCallback)!=0;output.Put(supported);
+  if(!supported)return Ok;
   std::vector<unsigned char> unused;Status status=CallbackCodec(message.m_iCallback,message.m_pubParam,(size_t)message.m_cubParam,output,true,unused);
   if(status!=Ok){freeCallback(pipe);pending.erase(pipe);}return status;
  }

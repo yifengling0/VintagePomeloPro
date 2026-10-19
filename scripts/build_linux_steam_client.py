@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--lsof-build", type=Path, help="Optional verified OHOS live socket lsof build")
     parser.add_argument("--mesa-build", type=Path, help="Optional verified GNU Mesa Xlib/virpipe build output")
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--helpers-package", type=Path, help="Optional checksum-locked official Linux ARM64 misc package")
     args = parser.parse_args()
     if args.mesa_build and not args.client_deps:
         parser.error("--mesa-build requires --client-deps for the GNU dependency closure")
@@ -290,6 +291,9 @@ def main():
         "sources": {str(p.relative_to(ROOT)): sha(p) for p in sources},
         "compatibilityScope": "private X11/tmp/cert paths; bounded SysV IPC; single-thread signed GNU exec handoff", "uiVerified": False}
     (runtime / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    if args.helpers_package:
+        from import_linux_steam_client_helpers import import_helpers
+        import_helpers(args.helpers_package, runtime)
     print(json.dumps({"runtime": str(runtime), "files": len(manifest["files"]), "steamUnmodified": True}))
 
 if __name__ == "__main__":

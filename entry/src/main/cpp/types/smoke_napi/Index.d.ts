@@ -42,6 +42,7 @@ export const probeLinuxSteamGnuClient: (() => Promise<string>) | undefined;
 
 export interface LinuxSteamLaunchRequest {
   id: number; cancel: boolean; appId: string; cwd: string; install: string;
+  role: 'game' | 'install_script' | 'driver_query';
   argv: string[]; environment: string[];
 }
 export const startLinuxSteamLaunchBroker: ((library: string) => boolean) | undefined;

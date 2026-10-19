@@ -80,18 +80,30 @@ bool LaunchBroker::OwnsProcess(pid_t pid) {
 }
 std::string LaunchBroker::Parameters(){std::lock_guard<std::mutex> guard(mutex);return listener>=0?socketPath+"\n"+nonce:"";}
 bool LaunchBroker::Validate(LaunchRequest& r){
-    if(r.nonce!=nonce||!Id(r.appId)||(r.verb!="run"&&r.verb!="waitforexitandrun"))return false;
-    const auto common=Real(library+"/steamapps/common");r.install=Real(r.install);
-    if(common.empty()||!Under(common,library)||!Under(r.install,common))return false;
-    r.cwd=Real(r.cwd);if(r.cwd!=r.install&&!Under(r.cwd,r.install))return false;
+    if(r.nonce!=nonce||(r.verb!="run"&&r.verb!="waitforexitandrun"))return false;
     std::string executable=r.argv.front();
     if(executable.empty()||executable.front()!='/')return false;
     executable=Real(executable);
-    if(!Under(executable,r.install)||!Pe(executable))return false;
+    const auto client=Real(library+"/../client/.steam/steam");
+    const auto common=Real(library+"/steamapps/common");
+    r.install=Real(r.install);r.cwd=Real(r.cwd);r.role="game";
+    // Linux Steam ships these PE helpers itself. ArkTS additionally checks the
+    // pinned official content digest before launching; other client PE files
+    // (including legacy steamclient DLLs) never acquire an execution exception.
+    if(!client.empty()&&executable==client+"/legacycompat/iscriptevaluator.exe")r.role="install_script";
+    else if(!client.empty()&&executable==client+"/bin/d3ddriverquery64.exe")r.role="driver_query";
+    const bool helper=r.role!="game",query=r.role=="driver_query";
+    if(!(query&&r.appId=="0")&&!Id(r.appId))return false;
+    if(query){if(r.install!=client)return false;}
+    else if(common.empty()||!Under(common,library)||!Under(r.install,common))return false;
+    const auto cwdRoot=helper?client:r.install;
+    if(r.cwd!=cwdRoot&&!Under(r.cwd,cwdRoot))return false;
+    if((!helper&&!Under(executable,r.install))||!Pe(executable))return false;
     r.argv.front()=executable;
     for(const auto& e:r.environment){auto at=e.find('=');if(at==std::string::npos)return false;
         const auto key=e.substr(0,at),value=e.substr(at+1);
         if(key=="HMOSDECK_STEAM_BRIDGE") {
+            if(helper)return false;
             // Only the authenticated GNU tool can supply this per-game local
             // capability. Do not accept arbitrary Wine environment overrides.
             const auto first=value.find(':'),last=value.rfind(':');
@@ -99,7 +111,7 @@ bool LaunchBroker::Validate(LaunchRequest& r){
             const auto port=value.substr(0,first),secret=value.substr(first+1,64);
             if(port.find_first_not_of("0123456789")!=std::string::npos||strtoul(port.c_str(),nullptr,10)==0||strtoul(port.c_str(),nullptr,10)>65535||secret.find_first_not_of("0123456789abcdef")!=std::string::npos)return false;
         } else {
-            if((key!="SteamAppId"&&key!="SteamGameId"&&key!="SteamOverlayGameId")||!Id(value))return false;
+            if((key!="SteamAppId"&&key!="SteamGameId"&&key!="SteamOverlayGameId")||(!Id(value)&&!(query&&value=="0")))return false;
             if(key=="SteamAppId"&&value!=r.appId)return false;
         }}
     r.nonce.clear();return true;

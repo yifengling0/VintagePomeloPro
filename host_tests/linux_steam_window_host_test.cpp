@@ -68,6 +68,10 @@ int main()
     axes.clear();manager->SendScrollEvent(7,1,-15,-1,75,50);DrainInput();
     assert(axes.size()==1&&axes[0].axis==1&&axes[0].value==wl_fixed_from_double(-15));
     axes.clear();manager->SendScrollEvent(7,0,0,40,75,50);DrainInput();assert(axes.empty());
+    // The overlay can still target the desktop root after focus/session
+    // changes. The pointer position, rather than keyboard focus, owns scroll.
+    axes.clear();manager->SendScrollEvent(f.root,0,1,40,75,50);DrainInput();
+    assert(axes.size()==1&&axes[0].resource==&nativePointer&&axes[0].value==wl_fixed_from_double(10));
     assert(!manager->RequestExternalHostMove(4,7));
     manager->SendPointerEvent(7,1,75,50,0x110);DrainInput();
     assert(!manager->RequestExternalHostMove(5,7));

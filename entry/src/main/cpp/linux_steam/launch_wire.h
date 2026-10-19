@@ -12,6 +12,8 @@ struct LaunchRequest {
     uint32_t id = 0;
     bool cancel = false;
     std::string nonce, appId, verb, cwd, install;
+    // Assigned by the host after path validation, never trusted from the wire.
+    std::string role = "game";
     std::vector<std::string> argv, environment;
 };
 inline void PutNumber(std::string& out, uint32_t n) { n=htonl(n); out.append(reinterpret_cast<char*>(&n),4); }

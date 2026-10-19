@@ -123,7 +123,7 @@ def generate(reference, compiler, output):
                 # Match Proton's explicit dispatch model: request all native
                 # callbacks; the game's steam_api dispatches registered ones.
                 # A Windows function address must never be invoked in GNU.
-                pe.append(f' return Invoke<false,void>(object,{number}u,arg0 != nullptr);')
+                pe.append(f' return RegisterCallbackCheck(object,{number}u,arg0);')
             elif ticket:
                 pe.append(f' return Ticket<{result}>(object,{number}u,arg0,arg1,arg2);')
             elif getter:

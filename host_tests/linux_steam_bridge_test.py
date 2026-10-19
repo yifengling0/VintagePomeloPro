@@ -36,7 +36,7 @@ class User:public StubISteamUser{public:
 class Apps:public StubISteamApps{public:bool BIsSubscribedApp(AppId_t app)override{return app==480;}};
 class Stats:public StubISteamUserStats{public:
  bool GetAchievement(const char* name,bool* out)override{if(!out)return false;*out=!strcmp(name,"fixture");return true;}
- bool RequestCurrentStats()override{callback=1101;return true;}
+ bool RequestCurrentStats()override{callback=getenv("MOCK_PRIVATE_CALLBACK")?1040044:1101;return true;}
 };
 static User user;static Apps apps;static Stats stats;
 class Client:public StubISteamClient{public:
@@ -56,6 +56,7 @@ extern "C" int8 Steam_BGetCallback(int pipe,CallbackMsg_t* message,int*){
  static GetAuthSessionTicketResponse_t ticket;static UserStatsReceived_t received;
  message->m_hSteamUser=456;message->m_iCallback=callback;
  if(callback==163){ticket.m_hAuthTicket=987;ticket.m_eResult=k_EResultOK;message->m_pubParam=(uint8*)&ticket;message->m_cubParam=sizeof(ticket);}
+ else if(callback==1040044){static uint8 data[784]{};message->m_pubParam=data;message->m_cubParam=sizeof(data);}
  else {received.m_nGameID=480;received.m_eResult=k_EResultOK;received.m_steamIDUser=CSteamID((uint64)76561198000000042ull);message->m_pubParam=(uint8*)&received;message->m_cubParam=sizeof(received);}
  return true;
 }
@@ -118,6 +119,7 @@ template<bool,class R,class... A> static R Invoke(uint32_t,uint32_t,A...){
  else if constexpr(std::is_void_v<R>)return;
  else return {};
 }
+template<class... A>static void RegisterCallbackCheck(A...){ }
 template<class R>static R Ticket(uint32_t,uint32_t,void*,int,uint32*){return {};}
 #include "pe_methods.inc"
 }
@@ -169,9 +171,11 @@ int main(){
                 self.child.terminate()
             self.child.communicate(timeout=3)
 
-    def start(self, source_fail=False):
+    def start(self, source_fail=False, private_callback=False):
+        environment=dict(os.environ)
+        if private_callback: environment["MOCK_PRIVATE_CALLBACK"]="1"
         self.child = subprocess.Popen([str(self.server), "--endpoint", str(self.endpoint)], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            env=dict(os.environ, STEAMOHOS_CODE_ROOT=str(self.root), SteamAppId="480", STEAMOHOS_STEAMCLIENT_EXPECTED_PID=str(os.getpid()),
+            env=dict(environment, STEAMOHOS_CODE_ROOT=str(self.root), SteamAppId="480", STEAMOHOS_STEAMCLIENT_EXPECTED_PID=str(os.getpid()),
                      MOCK_TRACE=str(self.trace), MOCK_SOURCE_FAIL="1" if source_fail else "0"))
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline:
@@ -274,10 +278,24 @@ int main(){
         self.assertEqual(self.number(stats, "RequestCurrentStats", version="STEAMUSERSTATS_INTERFACE_VERSION012"), 1)
         status, data = self.call(0, 1, Q(123))
         self.assertEqual(status, 0)
-        self.assertEqual(struct.unpack("!QQQQQQQ", data), (1, 456, 1101, 0, 480, 1, 76561198000000042))
+        self.assertEqual(struct.unpack("!QQQQQQQQ", data), (1, 456, 1101, 0, 1, 480, 1, 76561198000000042))
         self.assertEqual(self.call(0, 2, Q(123)), (0, Q(1)))
         self.assertEqual(self.call(0, 1, Q(123)), (0, Q(0)))
         self.assertIn("callback_free", self.close_and_events())
+
+    def test_unknown_callback_only_returns_metadata_and_waits_for_pe_registration_decision(self):
+        self.start(private_callback=True)
+        self.initialized()
+        stats = self.number(self.client, "GetISteamUserStats", Q(456) + Q(123) + text("STEAMUSERSTATS_INTERFACE_VERSION012"))
+        self.number(stats, "RequestCurrentStats", version="STEAMUSERSTATS_INTERFACE_VERSION012")
+        self.assertEqual(self.call(0, 1, Q(123)), (0, Q(1)+Q(456)+Q(1040044)+Q(0)+Q(0)))
+        self.assertNotIn("callback_free", self.trace.read_text())
+        # A pending callback cannot be overwritten by another request. The PE
+        # owns the registered/unregistered decision and sends the real release.
+        self.assertEqual(self.call(0, 1, Q(123)), (2, b""))
+        self.assertEqual(self.call(0, 2, Q(123)), (0, Q(1)))
+        self.assertEqual(self.call(0, 1, Q(123)), (0, Q(0)))
+        self.assertEqual(self.close_and_events().count("callback_free"), 1)
 
     def test_ticket_uses_official_buffer_and_is_cancelled_before_user_release(self):
         self.start()
@@ -286,7 +304,7 @@ int main(){
         self.assertEqual(status, 0)
         self.assertEqual(data, Q(987) + Q(4) + Q(4) + bytes([0xa5])*4)
         status, data = self.call(0, 1, Q(123))
-        self.assertEqual((status, struct.unpack("!QQQQQQ", data)), (0, (1, 456, 163, 0, 987, 1)))
+        self.assertEqual((status, struct.unpack("!QQQQQQQ", data)), (0, (1, 456, 163, 0, 1, 987, 1)))
         events = self.close_and_events()
         self.assertLess(events.index("ticket_cancel"), events.index("user_release"))
         self.assertEqual(events.count("ticket_cancel"), 1)

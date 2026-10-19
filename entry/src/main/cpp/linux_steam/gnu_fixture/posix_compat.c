@@ -1,6 +1,8 @@
 // GNU-only adaptations for the app's private X11 endpoint. Never loaded by OHOS.
 #define _GNU_SOURCE 1
 #include <sys/socket.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -61,6 +63,38 @@ static int NativeDiagnostic(void) {
     return value && !strcmp(value,"1");
 }
 __attribute__((visibility("hidden"))) extern long (*SteamOhosNextSyscall)(long,...);
+// Observe large virtual reservations without changing their address or flags.
+// In particular, CEF/V8 needs a CodeRange even when GPU acceleration is off.
+static void *(*next_mmap)(void *,size_t,int,int,int,off_t);
+void *mmap(void *address,size_t length,int prot,int flags,int fd,off_t offset) {
+    if (!next_mmap) next_mmap=dlsym(RTLD_NEXT,"mmap");
+    if (!next_mmap) { errno=ENOSYS; return MAP_FAILED; }
+    void *result=next_mmap(address,length,prot,flags,fd,offset);
+    int saved=errno;
+    static _Atomic unsigned diagnostics;
+    if (NativeDiagnostic() && length>=64u*1024u*1024u && atomic_fetch_add(&diagnostics,1)<128) {
+        struct rlimit limit={0,0};getrlimit(RLIMIT_AS,&limit);
+        fprintf(stderr,"STEAMOHOS_MMAP pid=%d length=%zu hint=%p prot=%x flags=%x result=%p errno=%d asLimit=%llu generation=%s\n",
+            getpid(),length,address,prot,flags,result,result==MAP_FAILED?saved:0,
+            (unsigned long long)limit.rlim_cur,getenv("STEAMOHOS_EXEC_GENERATION")?getenv("STEAMOHOS_EXEC_GENERATION"):"0");
+    }
+    errno=saved;return result;
+}
+void *mmap64(void *address,size_t length,int prot,int flags,int fd,off64_t offset) {
+    // Both supported GNU targets have 64-bit off_t.
+    _Static_assert(sizeof(off_t)==sizeof(off64_t),"native GNU offset ABI");
+    return mmap(address,length,prot,flags,fd,(off_t)offset);
+}
+static int (*next_mprotect)(void *,size_t,int);
+int mprotect(void *address,size_t length,int prot) {
+    if (!next_mprotect) next_mprotect=dlsym(RTLD_NEXT,"mprotect");
+    if (!next_mprotect) { errno=ENOSYS; return -1; }
+    int result=next_mprotect(address,length,prot),saved=errno;
+    static _Atomic unsigned diagnostics;
+    if (NativeDiagnostic() && result<0 && atomic_fetch_add(&diagnostics,1)<64)
+        fprintf(stderr,"STEAMOHOS_MPROTECT pid=%d address=%p length=%zu prot=%x errno=%d\n",getpid(),address,length,prot,saved);
+    errno=saved;return result;
+}
 static int (*next_connect)(int, const struct sockaddr *, socklen_t);
 static int (*next_bind)(int,const struct sockaddr*,socklen_t);
 static int (*next_accept)(int,struct sockaddr*,socklen_t*);

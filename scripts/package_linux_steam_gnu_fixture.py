@@ -120,6 +120,13 @@ def main():
             executables |= {name for name in extra if name.startswith("steamrtarm64/")}
     if set(manifest["files"]) != names:
         parser.error("Unexpected native diagnostic ELF manifest.")
+    helpers = manifest.get("steamClientProbe", {}).get("helpers")
+    if helpers:
+        lock_path = pathlib.Path(__file__).resolve().parents[1] / "entry/src/main/cpp/linux_steam/client_helpers.lock.json"
+        lock = json.loads(lock_path.read_text())
+        if (helpers.get("file") != "steam-client-helpers.zip" or helpers.get("provenance") != lock or
+            hashlib.sha256((args.runtime / helpers["file"]).read_bytes()).hexdigest() != helpers.get("sha256")):
+            parser.error("Official Linux client helper archive mismatch")
     for name in names:
         data = (args.runtime / name).read_bytes()
         if data[:4] != b"\x7fELF" or int.from_bytes(data[18:20], "little") != 183 or hashlib.sha256(data).hexdigest() != manifest["files"][name]["sha256"]:

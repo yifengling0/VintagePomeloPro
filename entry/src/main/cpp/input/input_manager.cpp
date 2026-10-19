@@ -633,7 +633,10 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
     wl_fixed_t wx, wy, globalX = 0, globalY = 0;
     wl_resource* targetSurf = nullptr;
     // 6A: 策略/rootId/moveGrab/裁决经装配注入引用直调 (与旧 WaylandServer 转发同值)
-    if (policy_->CompositorRoutesInput() && tl != *desktopRootToplevelId_) {
+    // Overlay sessions may target the desktop root after a focus change. Axis
+    // events still belong to the surface under the cursor, including an X11
+    // client hosted inside Wine; never bypass hit testing for the root ID.
+    if (policy_->CompositorRoutesInput()) {
         CoordTransform(px, py, *desktopRootToplevelId_, &wx, &wy);
         // 缺段修复: 维护最近一次全局指针位置 (grab 偏移基准, 与
         // SendPointerEvent 桌面分支同一语义 — scroll 位置即指针位置);

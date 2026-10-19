@@ -140,7 +140,7 @@ int main(int argc,char** argv){
     // the real library boundary and PE identity independently.
     request.install=installed;
     const std::string base=installed;
-    if(request.cwd!=base && request.cwd.compare(0,base.size()+1,base+"/")!=0) request.cwd=base;
+    const std::string originalCwd=request.cwd;
     if(argc>122)return 64;
     for(int i=2;i<argc;++i){if(strlen(argv[i])>16384)return 64;request.argv.emplace_back(argv[i]);}
     if(request.argv[0].empty())return 64;
@@ -150,9 +150,18 @@ int main(int argc,char** argv){
         fputs("HMOSDECK: executable path cannot be resolved\n",stderr);return 72;
     }
     request.argv[0]=executable;
+    char clientPath[4096];const char* steamRoot=Env("STEAMOHOS_STEAM_ROOT");
+    const std::string client=*steamRoot&&realpath(steamRoot,clientPath)?clientPath:"";
+    const bool installer=!client.empty()&&request.argv[0]==client+"/legacycompat/iscriptevaluator.exe";
+    const bool driver=!client.empty()&&request.argv[0]==client+"/bin/d3ddriverquery64.exe";
+    const bool helper=installer||driver;
+    const auto& cwdRoot=helper?client:base;
+    request.cwd=originalCwd;
+    if(request.cwd!=cwdRoot&&request.cwd.compare(0,cwdRoot.size()+1,cwdRoot+"/")!=0)request.cwd=cwdRoot;
+    if(driver){request.install=client;if(request.appId.empty())request.appId="0";}
     for(const char* key:{"SteamAppId","SteamGameId","SteamOverlayGameId"}){
         const char* value=Env(key);if(*value)request.environment.push_back(std::string(key)+"="+value);}
-    GameBridge bridge;if(!bridge.Start(request.appId)){fputs("HMOSDECK: experimental Steam API helper unavailable\n",stderr);return 73;}
+    GameBridge bridge;if(!helper&&!bridge.Start(request.appId)){fputs("HMOSDECK: experimental Steam API helper unavailable\n",stderr);return 73;}
     if(!bridge.credential.empty())request.environment.push_back("HMOSDECK_STEAM_BRIDGE="+bridge.credential);
     std::string frame=steamohos::EncodeLaunch(request);if(frame.size()>steamohos::LaunchMaxBytes+4)return 64;
     int fd=socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return 69;

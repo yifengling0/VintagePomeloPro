@@ -15,6 +15,7 @@ namespace hmosbridge {
 static SOCKET connection=INVALID_SOCKET;
 static bool attempted=false;
 static uint32_t sequence=0,appId=0;
+static SteamAPI_CheckCallbackRegistered_t callbackCheck=nullptr;
 static unsigned char nonce[32];
 static std::recursive_mutex mutex;
 static std::map<std::pair<std::string,uint32_t>,void*> interfaces;
@@ -110,6 +111,9 @@ template<class R>static R Ticket(uint32_t object,uint32_t method,void* buffer,in
  R result=GetScalar<R>(response);uint32 count=GetScalar<uint32>(response);uint64 bytes=response.Get();if(bytes>(uint64)capacity||bytes>65536)Failed(method,Invalid);
  response.Read(buffer,(size_t)bytes);response.End();*reported=count;return result;
 }
+static void RegisterCallbackCheck(uint32_t object,uint32_t method,SteamAPI_CheckCallbackRegistered_t check){
+ Invoke<false,void>(object,method,check!=nullptr);callbackCheck=check;
+}
 #include "pe_methods.inc"
 }
 using namespace hmosbridge;
@@ -131,12 +135,26 @@ extern "C" __declspec(dllexport) void __cdecl Steam_ReleaseThreadLocalMemory(boo
 }
 static std::map<int,std::vector<unsigned char>> callbacks;
 extern "C" __declspec(dllexport) bool __cdecl Steam_BGetCallback(int pipe,CallbackMsg_t* message,int* ignored){
- std::lock_guard<std::recursive_mutex> guard(mutex);if(!message)return false;Buffer request,response;PutScalar(request,pipe);
- Status status=Exchange(0,1,request,response);if(status!=Ok)Failed(1,status);
- bool received=GetScalar<bool>(response);if(!received){response.End();return false;}
- CallbackMsg_t result{};result.m_hSteamUser=GetScalar<int>(response);result.m_iCallback=GetScalar<int>(response);int extra=GetScalar<int>(response);
- auto& bytes=callbacks[pipe];status=CallbackCodec(result.m_iCallback,nullptr,0,response,false,bytes);if(status!=Ok)Failed(1,status);response.End();
- result.m_cubParam=(int)bytes.size();result.m_pubParam=bytes.data();*message=result;if(ignored)*ignored=extra;return true;
+ std::lock_guard<std::recursive_mutex> guard(mutex);if(!message)return false;
+ // Bound one polling call even if the official client emits many private,
+ // unregistered notifications. Leave remaining callbacks for the next pump.
+ for(unsigned count=0;count<64;++count){
+  Buffer request,response;PutScalar(request,pipe);
+  Status status=Exchange(0,1,request,response);if(status!=Ok)Failed(1,status);
+  bool received=GetScalar<bool>(response);if(!received){response.End();return false;}
+  CallbackMsg_t result{};result.m_hSteamUser=GetScalar<int>(response);result.m_iCallback=GetScalar<int>(response);int extra=GetScalar<int>(response);
+  bool supported=GetScalar<bool>(response);
+  if(!supported){
+   response.End();
+   if(!callbackCheck||callbackCheck(result.m_iCallback))Failed(1,Unsupported);
+   Buffer release,released;PutScalar(release,pipe);status=Exchange(0,2,release,released);
+   if(status!=Ok)Failed(2,status);if(!GetScalar<bool>(released))Failed(2,Invalid);released.End();
+   continue;
+  }
+  auto& bytes=callbacks[pipe];status=CallbackCodec(result.m_iCallback,nullptr,0,response,false,bytes);if(status!=Ok)Failed(1,status);response.End();
+  result.m_cubParam=(int)bytes.size();result.m_pubParam=bytes.data();*message=result;if(ignored)*ignored=extra;return true;
+ }
+ return false;
 }
 extern "C" __declspec(dllexport) bool __cdecl Steam_FreeLastCallback(int pipe){
  std::lock_guard<std::recursive_mutex> guard(mutex);Buffer request,response;PutScalar(request,pipe);

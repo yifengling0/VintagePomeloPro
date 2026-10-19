@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "clientVersion": "1791918634",
+  "manifestUrl": "https://client-update.queniuqe.com/steam_client_linuxarm64",
+  "package": "bins_misc_linuxarm64.zip.7ec11b458eb4bbffc6ada9a85924c7d7db25132f",
+  "packageSha1": "7ec11b458eb4bbffc6ada9a85924c7d7db25132f",
+  "files": {
+    "legacycompat/iscriptevaluator.exe": {
+      "bytes": 650904,
+      "sha256": "81fdcd1509fa6ed26e9976980532e1dd38509cd1efc4a4b66171dc148d8a04fd",
+      "role": "install_script"
+    },
+    "bin/d3ddriverquery64.exe": {
+      "bytes": 157336,
+      "sha256": "5e173d1cbb51cc70d48d3f27986190d6f3516de0231d153ce5ad8eb7479d2290",
+      "role": "driver_query"
+    }
+  }
+}
