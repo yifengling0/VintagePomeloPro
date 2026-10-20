@@ -22,7 +22,7 @@ interface ExternalManifest {
   steamSha256: string;
   files: ExternalFile[];
 }
-interface RuntimeData { sha256: string; }
+interface RuntimeData { sha256: string; kind?: string; essential?: ClientHelperFile[]; }
 interface ClientHelperFile { path: string; bytes: number; sha256: string; }
 interface ClientHelperData { file: string; sha256: string; files: ClientHelperFile[]; }
 interface RuntimeProbe { data: RuntimeData; helpers?: ClientHelperData; }
@@ -30,6 +30,9 @@ interface RuntimeManifest { steamClientProbe: RuntimeProbe; xwaylandProbe: Runti
 
 // DOWNLOAD resolves the same app-owned system directory used by Wine's Z:.
 export async function prepareLinuxSteamExternalStorage(context: common.Context): Promise<string> {
+  const cached = readSmokeText(`${BASE}/external-root.path`).trim();
+  if (cached.startsWith('/') && cached.endsWith('/SteamLinuxARM64') && !cached.split('/').includes('..') &&
+    !/[\x00-\x1f]/.test(cached) && fs.accessSync(cached)) return cached;
   const documentPicker = new picker.DocumentViewPicker(context);
   const choices = await documentPicker.save({ pickerMode: picker.DocumentPickerMode.DOWNLOAD });
   if (!choices || choices.length === 0) throw new Error('Cannot resolve Steam Z drive directory');
@@ -73,12 +76,17 @@ function copyExternalFile(source: string, destination: string): void {
 // Only the explicit diagnostic suite consumes a local HDC-staged directory.
 // A completed release remains on Z: across HAP updates; there is no bundled
 // Steam fallback and no automatic third-party download or redistribution.
-export async function prepareLinuxSteamClientData(context: common.Context): Promise<void> {
+export async function prepareLinuxSteamClientData(context: common.Context, diagnosticImport: boolean = true,
+  candidateVersion: string = ''): Promise<void> {
   const root = await prepareLinuxSteamExternalStorage(context);
   const sourceManifest = `${IMPORT}/manifest.json`;
   const previousVersion = readSmokeText(`${root}/active-version.txt`).trim();
   let version = previousVersion;
-  if (fs.accessSync(sourceManifest)) {
+  if (candidateVersion) {
+    if (diagnosticImport || !/^[a-f0-9]{64}$/.test(candidateVersion)) throw new Error('Invalid download deployment');
+    version = candidateVersion;
+  }
+  if (diagnosticImport && fs.accessSync(sourceManifest)) {
     const text = ConfigurationFiles.text(ConfigurationFiles.read(sourceManifest, 1048576));
     const manifest = JSON.parse(text) as ExternalManifest;
     if (manifest.schemaVersion !== 1 || manifest.layout !== 'SteamLinuxARM64' ||
@@ -138,7 +146,20 @@ export async function prepareLinuxSteamClientData(context: common.Context): Prom
   }
   const runtimeManifest = JSON.parse(readSmokeText(`${runtime}/manifest.json`)) as RuntimeManifest;
   const home = `${root}/client/.steam/steam`;
-  if (readSmokeText(`${home}/.packaged-data-version`).trim() !== runtimeManifest.steamClientProbe.data.sha256) {
+  const clientData = runtimeManifest.steamClientProbe.data;
+  if (clientData.kind === 'installed-resources') {
+    if (readSmokeText(`${home}/.packaged-data-version`).trim() !== clientData.sha256 ||
+      !clientData.essential || clientData.essential.length < 4 || clientData.essential.length > 16) {
+      throw new Error('Steam 界面资源尚未安装完成，请继续安装运行组件');
+    }
+    for (const file of clientData.essential) {
+      if (!file.path || file.path.startsWith('/') || file.path.includes('\\') || file.path.split('/').includes('..') ||
+        !/^[a-f0-9]{64}$/.test(file.sha256) || fs.statSync(`${home}/${file.path}`).size !== file.bytes ||
+        await ConfigurationFiles.fileHash(`${home}/${file.path}`) !== file.sha256) {
+        throw new Error('Steam 关键资源校验失败，请修复运行组件');
+      }
+    }
+  } else if (readSmokeText(`${home}/.packaged-data-version`).trim() !== clientData.sha256) {
     if (!ensureSmokeDirectory(home)) throw new Error('Cannot create external Steam data directory');
     const archive = `${runtime}/steam-client-data.zip`;
     if (await ConfigurationFiles.fileHash(archive) !== runtimeManifest.steamClientProbe.data.sha256) throw new Error('Steam data checksum failed');
@@ -193,8 +214,8 @@ export async function prepareLinuxSteamClientData(context: common.Context): Prom
     writeSmokeText(`${BASE}/single-library-error.json`, JSON.stringify({ message: (error as Error).message }));
     throw new Error((error as Error).message);
   }
-  writeSmokeText(`${root}/active-version.txt`, version);
-  writeSmokeText(`${BASE}/external-active.path`, release);
+  ConfigurationFiles.json(`${root}/active-version.txt`, version);
+  ConfigurationFiles.json(`${BASE}/external-active.path`, release);
   // Retain the active release and the immediately previous one for rollback.
   if (previousVersion !== version) {
     await reclaimLinuxSteamReleases(root, version, previousVersion, false);

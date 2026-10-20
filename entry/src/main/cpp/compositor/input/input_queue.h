@@ -44,7 +44,7 @@ public:
         enum Type { PTR_ENTER, PTR_LEAVE, PTR_MOTION, PTR_BUTTON, PTR_AXIS,
                     REL_MOTION,
                     KBD_ENTER, KBD_LEAVE, KBD_KEY, KBD_MODIFIERS, ACTIVATE_TOPLEVEL,
-                    EXTERNAL_MOVE } type;
+                    EXTERNAL_MOVE, PTR_POSITION } type;
         uint32_t tl = 0;
         wl_resource* surface = nullptr;
         int32_t x = 0, y = 0;

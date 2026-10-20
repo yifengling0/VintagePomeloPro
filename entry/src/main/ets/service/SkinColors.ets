@@ -37,6 +37,15 @@ const BLUE: SkinColorSet = {
   accent: '#FF69A7FF', selected_background: '#FF1B3B63'
 };
 
+const GRAPHITE: SkinColorSet = {
+  followsSystem: false,
+  start_window_background: '#0A0B0D', page_background: '#0A0B0D',
+  sidebar_background: '#121417', card_background: '#1A1D22',
+  card_glass_background: '#E6121417', search_background: '#1A1D22',
+  text_primary: '#F2F4F7', text_secondary: '#9AA3AF',
+  accent: '#1A9FFF', selected_background: '#172D40'
+};
+
 const PEARL: SkinColorSet = {
   followsSystem: false,
   start_window_background: '#F7F8FC', page_background: '#F7F8FC',
@@ -49,6 +58,7 @@ const PEARL: SkinColorSet = {
 /** Each future skin can decide independently whether to follow system colors. */
 export function skinFollowsSystem(settings: GlobalSettings): boolean {
   if (settings.uiSkin === UiSkin.CLASSIC) return settings.themeMode === ThemeMode.SYSTEM;
+  if (settings.uiSkin === UiSkin.DECK) return false;
   return consoleColors(settings.consolePalette).followsSystem;
 }
 
@@ -60,8 +70,8 @@ export function consoleColors(palette: ConsolePalette): SkinColorSet {
 
 export function skinColor(token: SkinColorToken): string | Resource {
   const settings = AppSettingsStore.getInstance().getGlobalSettings();
-  if (settings.uiSkin === UiSkin.CONSOLE) {
-    const colors = consoleColors(settings.consolePalette);
+  if (settings.uiSkin === UiSkin.CONSOLE || settings.uiSkin === UiSkin.DECK) {
+    const colors = settings.uiSkin === UiSkin.DECK ? GRAPHITE : consoleColors(settings.consolePalette);
     switch (token) {
       case 'start_window_background': return colors.start_window_background;
       case 'page_background': return colors.page_background;

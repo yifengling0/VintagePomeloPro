@@ -16,6 +16,8 @@ int main(int argc,char**argv){
  assert(!strcmp(getenv("EXEC_FIXTURE_MARKER"),"preserved"));
  assert(getenv("STEAMOHOS_SOCKET_METADATA_ROOT")&&
         !strcmp(getenv("STEAMOHOS_SOCKET_METADATA_ROOT"),"/var/tmp/steamohos-exec-scope"));
+ assert(getenv("STEAMOHOS_SYSVIPC_ROOT")&&
+        !strcmp(getenv("STEAMOHOS_SYSVIPC_ROOT"),"/var/tmp/steamohos-exec-sysvipc"));
  assert(!strcmp(getenv("STEAMOHOS_AUDIO_BOOTSTRAP_SOCKET"),"/var/tmp/exec-fixture-audio"));
  assert(!strcmp(getenv("ALSA_CONFIG_PATH"),"/var/tmp/exec-fixture-asound.conf"));
  assert(!strcmp(getenv("SDL_AUDIO_DRIVER"),"alsa"));

@@ -41,6 +41,7 @@ public:
 
     void InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fixed_t sx, wl_fixed_t sy);
     void InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy);
+    void SyncPointerPosition(wl_fixed_t sx, wl_fixed_t sy);
     void InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl_fixed_t dy);
     void InjectPointerButton(uint32_t button, uint32_t state);
     void InjectPointerAxis(int axis, wl_fixed_t value, bool continuous = false);
@@ -52,6 +53,8 @@ public:
 
 private:
     InputStateTracker* tracker_;
+    wl_resource* positionedSurface_ = nullptr;
+    wl_fixed_t positionedX_ = 0, positionedY_ = 0;
     InputResolver* resolver_ = nullptr;  // 6A 装配 (BindResolvers): IsSurfaceAlive 防御
     ToplevelManager* tmgr_ = nullptr;    // 6A 装配 (BindResolvers): GetSurfaceForToplevel
 };

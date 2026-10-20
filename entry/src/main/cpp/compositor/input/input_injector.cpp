@@ -94,6 +94,7 @@ void InputInjector::InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fix
             nSent++;
         }
     }
+    if (nSent) { positionedSurface_ = surface; positionedX_ = sx; positionedY_ = sy; }
     OH_LOG_INFO(LOG_APP, "[Input] InjectEnter OK sent=%{public}d", nSent);
 }
 
@@ -104,6 +105,17 @@ void InputInjector::InjectRelativeMotion(wl_resource* surface, wl_fixed_t dx, wl
     if (!surface || !resolver_->IsSurfaceAlive(surface)) return;
     PointerExtras::GetInstance()->SendRelativeMotion(
         surface, wl_fixed_to_double(dx), wl_fixed_to_double(dy));
+}
+
+void InputInjector::SyncPointerPosition(wl_fixed_t sx, wl_fixed_t sy) {
+    wl_resource* focus = tracker_->PointerFocusedSurface();
+    // Xwayland emits absolute-only motion through one XI device and wheel
+    // through its relative device. Repeating an unchanged absolute motion
+    // before every wheel switches XI devices and resets Chromium's scroll
+    // baseline. Synchronize a changed position, not a synthetic mouse move.
+    if (focus && focus == positionedSurface_ && sx == positionedX_ && sy == positionedY_ &&
+        resolver_->IsExternallyHostedSurface(focus)) return;
+    InjectPointerMotion(sx, sy);
 }
 
 void InputInjector::InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy) {
@@ -120,6 +132,7 @@ void InputInjector::InjectPointerMotion(wl_fixed_t sx, wl_fixed_t sy) {
             nSent++;
         }
     }
+    if (nSent) { positionedSurface_ = focus; positionedX_ = sx; positionedY_ = sy; }
     // 高频路径 (hover ~125Hz) 抽样 120:1, 防止刷爆 hilog
     static uint32_t sInjMotionLogN = 0;
     if (++sInjMotionLogN % 120 == 0)
@@ -184,6 +197,7 @@ void InputInjector::InjectPointerAxis(int axis, wl_fixed_t value, bool continuou
 }
 
 void InputInjector::InjectPointerLeave() {
+    positionedSurface_ = nullptr;
     auto ptrs = Seat::GetInstance()->GetAllPointerResources();
     wl_resource* surf = tracker_->PointerFocusedSurface();
     if (ptrs.empty() || !surf) return;

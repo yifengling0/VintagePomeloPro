@@ -1,6 +1,7 @@
 /* Drive the production supervisor via real X11 requests, not its C helpers. */
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #include <assert.h>
 #include <dlfcn.h>
 #include <stdio.h>
@@ -128,7 +129,39 @@ int main(void) {
     request(d,desktop,"WM_CHANGE_STATE",IconicState,NULL,NULL);state(desktop,0,1);
     XMapRaised(d,desktop);XFlush(d);state(desktop,0,0);
     XUnmapWindow(d,desktop);XMapRaised(d,replacement);XFlush(d);state(replacement,2,0);
-    XDestroyWindow(d,desktop);XDestroyWindow(d,replacement);XCloseDisplay(d);
+    XDestroyWindow(d,desktop);XDestroyWindow(d,replacement);XFlush(d);state(None,0,0);
+    // Steam remembers a global desktop position and size across sessions. The
+    // private X11 root is already the Wine client area: never apply it twice.
+    Window splash=XCreateSimpleWindow(d,root,80,100,640,400,0,0,0);
+    XStoreName(d,splash,"Steam");XMapWindow(d,splash);XFlush(d);state(splash,0,0);bounds(d,splash,640,400);
+    XDestroyWindow(d,splash);XFlush(d);state(None,0,0);
+    Window main=XCreateSimpleWindow(d,root,180,120,1200,800,0,0,0);
+    XStoreName(d,main,"Steam");XMapWindow(d,main);XFlush(d);state(main,0,0);bounds(d,main,800,600);
+    XSelectInput(d,main,StructureNotifyMask);
+    XMoveResizeWindow(d,main,200,160,1400,900);XFlush(d);usleep(150000);
+    XWindowAttributes embedded;assert(XGetWindowAttributes(d,main,&embedded));
+    assert(embedded.x==0&&embedded.y==0&&embedded.width==800&&embedded.height==600);
+    int answered=0;while(XPending(d)) {
+        XEvent event;XNextEvent(d,&event);
+        if(event.type==ConfigureNotify&&event.xconfigure.window==main&&event.xconfigure.send_event&&
+            event.xconfigure.x==0&&event.xconfigure.y==0&&event.xconfigure.width==800&&event.xconfigure.height==600)
+            answered=1;
+    }
+    assert(answered);
+    Window next=XCreateSimpleWindow(d,root,0,0,800,600,0,0,0);
+    XStoreName(d,next,"Steam");XMapWindow(d,next);XFlush(d);state(next,0,0);
+    XUnmapWindow(d,next);XFlush(d);state(main,0,0);XDestroyWindow(d,next);
+    Window big=XCreateSimpleWindow(d,root,0,0,800,600,0,0,0);
+    Atom full=XInternAtom(d,"_NET_WM_STATE_FULLSCREEN",False);
+    XChangeProperty(d,big,XInternAtom(d,"_NET_WM_STATE",False),XA_ATOM,32,PropModeReplace,(unsigned char*)&full,1);
+    XMapWindow(d,big);XFlush(d);state(big,2,0);
+    // The still visible desktop has the same area; it must not steal the
+    // primary back from Big Picture on the next supervisor tick.
+    usleep(250000);state(big,2,0);
+    XUnmapWindow(d,big);XFlush(d);state(main,0,0);bounds(d,main,800,600);
+    assert(XGetWindowAttributes(d,main,&embedded)&&embedded.x==0&&embedded.y==0);
+    XDestroyWindow(d,big);XDestroyWindow(d,main);XCloseDisplay(d);
+    puts("X11_EMBEDDED initial-size client-origin fullscreen-replacement restore PASS");
     puts("X11_MODE_SWITCH withdrawal replacement remap retained-fullscreen PASS");
     puts("X11_BRIDGE primary popup fullscreen maximize minimize restore generation PASS");
     return 37;

@@ -94,6 +94,8 @@ public:
     void UnbindExternalToplevel(uint32_t host);
     uint32_t ExternalHostLocked(uint32_t source) const;
     uint32_t ExternalSourceLocked(uint32_t host) const;
+    // Called under the toplevel lock before ApplyFullscreen changes the anchor.
+    void TrackExternalHostFullscreenLocked(uint32_t host, bool on);
     uint32_t FirstVisibleContentModalLocked(uint32_t id) const;
 
     bool GetDirectDesktopLayout(uint32_t pid, uint32_t toplevelId, uint32_t wlSurfaceId,
@@ -264,6 +266,8 @@ private:
         uint32_t source = 0, host = 0;
         uint64_t sourceKey = 0, hostKey = 0;
         int x = 0, y = 0, w = 0, h = 0;
+        bool hasWindowedPosition = false;
+        int windowedX = 0, windowedY = 0, windowedWineX = 0, windowedWineY = 0;
     };
     // Guarded by tmgr_. Surface keys prevent ID reuse from inheriting a binding.
     std::unordered_map<uint32_t, ExternalWindow> externalWindows_;

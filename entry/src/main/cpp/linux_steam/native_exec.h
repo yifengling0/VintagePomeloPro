@@ -11,6 +11,7 @@ struct NativeExecOptions {
     std::vector<int> passFds;
     std::string workingDirectory;
     uint32_t outputLimit = 32768; // Clamped to 1–256 KiB by the isolated runner.
+    bool persistentSession = false; // Product sessions have no diagnostic lifetime budget.
     bool libcForkOnly = false; // Dedicated single-thread phone supervisor: skip inherited SDK atfork hooks.
     bool traceSyscalls = false; // Explicit diagnostic only; never enabled by default.
     bool traceSignals = false; // Follow this child's threads; preserve delivered signals.

@@ -29,8 +29,9 @@ static std::vector<ProtocolEvent> events;
 struct AxisEvent { wl_resource* resource; uint32_t axis; int32_t value; bool discrete; };
 static std::vector<AxisEvent> axes;
 static double motionX, motionY;
+static unsigned motionCount;
 void HostTestAxisEvent(wl_resource* r,uint32_t a,int32_t v,bool discrete) { axes.push_back({r,a,v,discrete}); }
-void HostTestMotionEvent(wl_resource*,wl_fixed_t x,wl_fixed_t y) { motionX=wl_fixed_to_double(x);motionY=wl_fixed_to_double(y); }
+void HostTestMotionEvent(wl_resource*,wl_fixed_t x,wl_fixed_t y) { ++motionCount;motionX=wl_fixed_to_double(x);motionY=wl_fixed_to_double(y); }
 static std::vector<wl_resource*> keyboards, pointers;
 static wl_client* Client(uintptr_t id) { return reinterpret_cast<wl_client*>(id); }
 void HostTestProtocolEvent(wl_resource* r, const char* name, wl_resource* s) {

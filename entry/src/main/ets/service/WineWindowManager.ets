@@ -88,6 +88,7 @@ export class WineWindowManager {
    * 调用点: app 启动 (init) + 引擎每次启动前 (WineEngineService)。
    */
   applyModePolicy(): void {
+    const wasDesktop = this.isDesktopMode;
     const isPhone = DeviceCapabilityPolicy.isPhoneDevice();
     const explicitMode = DesktopModeService.getInstance().getOverrideMode();
     const savedMode = DesktopModeService.getInstance().mode;
@@ -101,7 +102,7 @@ export class WineWindowManager {
       this.presentationMode = this.isDesktopMode ?
         WinePresentationMode.DESKTOP : WinePresentationMode.MANAGED_WINDOWS;
     }
-    this.desktopRootId = 0;
+    if (wasDesktop !== this.isDesktopMode) this.desktopRootId = 0;
     testNapi.setDesktopMode(this.isDesktopMode);
     hilog.info(DOMAIN, TAG,
       '[MW] applyModePolicy=%{public}s nativeDesktop=%{public}s explicit=%{public}s',
@@ -227,7 +228,8 @@ export class WineWindowManager {
     HostWindowTasks.getInstance().setActivator(async (task: HostWindowTask,
       current: () => boolean): Promise<boolean> => this.restoreTask(task, current));
     HostWindowTasks.getInstance().setLauncher(async (): Promise<void> => {
-      if (this.uiAbilityContext) await this.uiAbilityContext.startAbility({
+      const foreground = this.desktopAbilityForeground ? this.desktopAbilityCtx : this.uiAbilityContext;
+      if (foreground) await foreground.startAbility({
         bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility'
       });
     });
@@ -255,14 +257,9 @@ export class WineWindowManager {
       this.applyPointerVisibility();
     });
 
-    // A launcher resume recreates EntryAbility while the Wine desktop root can
-    // still be alive.  No new desktop_root event is emitted in that case, so
-    // explicitly bring the existing desktop compositor back to the foreground.
-    if (this.isDesktopMode && this.desktopRootId > 0) {
-      hilog.info(DOMAIN, TAG, '[MW] restoring existing DesktopAbility root=%{public}d',
-        this.desktopRootId);
-      this.startDesktopAbility(this.desktopRootId);
-    }
+    // Returning to the launcher is an explicit foreground choice. Existing
+    // desktop windows are restored through the task activator, never by init.
+
   }
 
   setPresentationMode(mode: WinePresentationMode): void {
@@ -525,6 +522,24 @@ export class WineWindowManager {
 
   private async restoreTask(task: HostWindowTask, current: () => boolean): Promise<boolean> {
     if (!current() || this.destroyed.has(task.toplevelId)) return false;
+    if (this.isDesktopMode) {
+      const root = this.desktopRootId || testNapi.getDesktopRootId();
+      if (root <= 0 || !this.uiAbilityContext) return false;
+      InputDispatcher.getInstance().releaseAll('host-task-switch');
+      if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
+        AppStorage.setOrCreate('desktopLauncherVisible', false);
+        await this.uiAbilityContext.startAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility' });
+      } else if (!this.desktopAbilityForeground) {
+        // startAbility foregrounds the existing singleton without restarting Wine.
+        await this.uiAbilityContext.startAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'DesktopAbility',
+          parameters: { toplevelId: root } });
+      }
+      if (!current()) return false;
+      const target = HostWindowTasks.getInstance().focusTarget(task.toplevelId);
+      testNapi.activateToplevel(target);
+      InputDispatcher.getInstance().setActiveToplevel(target);
+      return true;
+    }
     const win = this.windows.get(task.toplevelId);
     if (!win) return false;
     InputDispatcher.getInstance().releaseAll('host-task-switch');
@@ -1491,6 +1506,7 @@ export class WineWindowManager {
     this.desktopAbilityRootId = rootId;
     this.desktopAbilityRunning = true;
     this.desktopAbilityForeground = true;
+    HostWindowTasks.getInstance().markDesktopForeground();
     hilog.info(DOMAIN, TAG, '[MW] DesktopAbility foreground for root #%{public}d', rootId);
     // 完整桌面窗口前台: 若 wine 已相对模式, 从悬浮禁止隐藏重算为允许隐藏
     this.applyPointerVisibility();

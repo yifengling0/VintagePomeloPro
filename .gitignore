@@ -53,6 +53,7 @@ thirdparty/freetype-VER-2-13-3/
 entry/src/main/resources/rawfile/wine-data.zip
 entry/src/main/resources/rawfile/wine-runtime-manifest.json
 entry/src/main/resources/rawfile/wine_runtime.version
+entry/src/main/resources/rawfile/linux-steam/hmosdeck-gnu-arm64-v1.zip
 tmp/
 prebuilt/
 

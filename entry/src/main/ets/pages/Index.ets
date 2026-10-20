@@ -1,3 +1,5 @@
+import { DeckHome } from '../components/hmosdeck/DeckHome';
+import { LinuxSteamSessionService } from '../service/LinuxSteamSessionService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { InputSettingsService } from '../service/InputSettingsService';
@@ -227,7 +229,7 @@ struct Index {
   private artworkListener: ArtworkListener | null = null;
   private consoleNavigationListener: GamepadNavigationListener | null = null;
   private consoleNavigationActive: boolean = false;
-  private consolePageVisible: boolean = false;
+  @State private consolePageVisible: boolean = false;
   private consoleLastNavigationAt: number = 0;
   private consoleIgnoreCardClickUntil: number = 0;
   private consoleCategoryInitialized: boolean = false;
@@ -592,6 +594,7 @@ struct Index {
   }
 
   private usesDarkAppearance(): boolean {
+    if (this.settings.uiSkin === UiSkin.DECK) return true;
     if (this.settings.uiSkin === UiSkin.CONSOLE) return this.settings.consolePalette !== ConsolePalette.PEARL;
     if (this.settings.themeMode === ThemeMode.DARK) return true;
     if (this.settings.themeMode === ThemeMode.LIGHT) return false;
@@ -738,7 +741,7 @@ struct Index {
     };
     WineEngineService.getInstance().subscribe(this.engineCallback);
     this.refreshTimer = setInterval(() => this.refreshRunningState(), 1500);
-    this.steamScanTimer = setInterval((): void => { void this.pollSteamLibrary(); }, 5000);
+    // Linux Steam is the sole account/library owner on this branch. No legacy CM polling.
     this.artworkListener = (_appId: string, _path: string): void => {
       this.consoleBackgroundCache.delete(_appId);
       this.artworkRevision++;
@@ -748,7 +751,6 @@ struct Index {
 
   aboutToDisappear(): void {
     this.detachConsoleNavigation();
-    SteamService.getInstance().unsubscribe('LauncherSteamEntry');
     this.stopSteamPopTimer();
     if (this.breakpointCallback) BreakpointSystem.unsubscribe(this.breakpointCallback);
     if (this.engineCallback) WineEngineService.getInstance().unsubscribe(this.engineCallback);
@@ -760,8 +762,8 @@ struct Index {
   }
 
   onPageShow(): void {
+    if (!(this.showDesktopLayer() && !this.launcherVisible)) HostWindowTasks.getInstance().markLauncherForeground();
     this.consolePageVisible = true;
-    this.refreshSteamEntry();
     this.settings = AppSettingsStore.getInstance().getGlobalSettings();
     this.consoleBackgroundCache.clear();
     this.syncConsoleNavigation();
@@ -935,17 +937,7 @@ struct Index {
     });
     await UserConfigurationRepository.getInstance().start();
     void AccountAutomaticSyncService.getInstance().initialize(this.context);
-    // Steam 顶栏入口: 初始化 + 会话恢复 (失败静默, 保持灰图标)
-    SteamService.getInstance().initialize(this.context).then((): void => {
-      SteamService.getInstance().subscribe('LauncherSteamEntry',
-        (_state: SteamUiState, _message: string): void => this.refreshSteamEntry());
-      this.refreshSteamEntry();
-      if (SteamService.getInstance().steamId64.length > 0) {
-        SteamService.getInstance().restoreSession().then((): void => {
-          this.refreshSteamEntry();
-        }).catch((): void => {});
-      }
-    }).catch((): void => {});
+    LinuxSteamSessionService.getInstance().initialize(this.context);
   }
 
   private async rescan(): Promise<void> {
@@ -1437,7 +1429,7 @@ struct Index {
   private phoneNavigationMenu(): HdsNavigationMenuContentOptions {
     return {
       value: [
-        { content: { label: 'Steam', icon: $r('sys.symbol.gamecontroller'), action: (): void => { this.toggleSteamPop(); } } },
+        { content: { label: 'Deck 模式', icon: $r('app.media.deck_mode'), action: (): void => { void this.setLauncherSkin(UiSkin.DECK); } } },
         {
           content: {
             label: '系统设置',
@@ -1586,7 +1578,7 @@ struct Index {
           Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : skinColor('text_secondary'))
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Row({ space: 4 }) {
-          this.SteamEntryButton()
+          this.DeckEntryButton(48)
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([skinColor('text_primary')]) }
             .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.list_bullet')).fontSize(17).fontColor([skinColor('text_primary')]) }
@@ -2773,7 +2765,7 @@ struct Index {
       .onClick((): void => { void this.rescan(); })
       .accessibilityText('刷新游戏库')
       .id('console-refresh')
-      this.SteamEntryButton()
+      this.DeckEntryButton(40)
       Button({ type: ButtonType.Circle }) {
         SymbolGlyph($r('sys.symbol.gearshape')).fontSize(18)
           .fontColor([skinColor('text_primary')])
@@ -2788,25 +2780,24 @@ struct Index {
     .id('console-header')
   }
 
-  /** 顶栏 Steam 入口按钮: 未登录灰 S, 已登录显示头像。 */
+  private async setLauncherSkin(skin: UiSkin): Promise<void> {
+    InputRouter.getInstance().releaseAllKeys();
+    GamepadManager.getInstance().releaseAll();
+    this.captureScrollOffsets();
+    const next = JSON.parse(JSON.stringify(this.settings)) as GlobalSettings;
+    next.uiSkin = skin;
+    await ThemeSettingsService.getInstance().update(next);
+    if (skin === UiSkin.CLASSIC) setTimeout((): void => this.restoreScrollOffset(this.filter), 0);
+  }
+
   @Builder
-  private SteamEntryButton() {
+  private DeckEntryButton(size: number) {
     Button({ type: ButtonType.Circle }) {
-      if (this.steamLoggedIn && this.steamAvatar.length > 0) {
-        Image(this.steamAvatar)
-          .width(34).height(34).borderRadius(17)
-          .objectFit(ImageFit.Cover)
-          .draggable(false)
-      } else {
-        Text('S').fontSize(16).fontWeight(FontWeight.Bold)
-          .fontColor(this.steamLoggedIn ? skinColor('accent') : skinColor('text_secondary'))
-      }
-    }
-    .width(40).height(40)
-    .backgroundColor(skinColor(this.steamLoggedIn ? 'selected_background' : 'search_background'))
-    .onClick((): void => { this.toggleSteamPop(); })
-    .accessibilityText('Steam 账号')
-    .id('steam-top-btn')
+      Image($r('app.media.deck_mode')).width(28).height(28)
+        .fillColor(skinColor('accent')).draggable(false)
+    }.width(size).height(size).backgroundColor(skinColor('selected_background'))
+      .onClick((): void => { void this.setLauncherSkin(UiSkin.DECK); })
+      .accessibilityText('切换到 Deck 模式').id('classic-open-deck')
   }
 
   /** Steam 弹窗面板: 未登录=登录入口; 已登录=账号/令牌码/库/匹配/登出。 */
@@ -3220,8 +3211,20 @@ struct Index {
         .width('100%')
         .height('100%')
         .padding({ top: this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
-        .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .visibility(this.settings.uiSkin !== UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       }
+      DeckHome({
+        active: this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() && this.consolePageVisible,
+        localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
+        onClassic: (): void => { void this.setLauncherSkin(UiSkin.CLASSIC); },
+        onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
+        onResources: (): void => this.openSidebarPage('pages/LinuxSteam'),
+        onLocalLaunch: (app: AppDescriptor): Promise<void> => this.launch(app),
+        localArtwork: (app: AppDescriptor): string => this.consoleBackground(app),
+        onLocalSettings: (app: AppDescriptor): void => this.openAppSettings(app)
+      })
+        .padding({ top: this.statusBarHeightVp + 8, bottom: this.navBarInsetVp })
+        .visibility(this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
         Stack() {
@@ -3406,7 +3409,7 @@ struct Index {
     Stack() {
       this.PageSurface()
       // Steam 弹窗浮层: 全屏透明遮罩 + 右上角锚定面板 (点遮罩空白处关闭)
-      if (this.steamPop) {
+      if (false) {
         Column()
           .width('100%').height('100%')
           .backgroundColor('#33000000')

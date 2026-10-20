@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage } from './LinuxSteamDiagnosticData';
 import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
 import { auditLinuxSteamStorage } from './LinuxSteamStorageAudit';
+import { isolateLinuxSteamForCleanDownload, restoreLinuxSteamAfterCleanDownload } from './LinuxSteamCleanInstallDiagnostic';
 import testNapi from 'libentry.so';
 import smokeNapi from 'libsmoke_napi.so';
 import { hilog } from './LogService';
@@ -184,6 +185,24 @@ export class SmokeRunner {
       // test while actually spawning inside the active product container.
       if (prefixMode === 'clean') {
         await this.finishSuite(request, [this.unsupported(request, 'clean prefix is not supported by this native ABI')], driveC);
+        return;
+      }
+      if (request.suite === 'linux-steam-clean-restore') {
+        if (!this.context) throw new Error('Restore context unavailable');
+        const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+        if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create diagnostic result directory');
+        writeSmokeText(`${resultsDir}/restoration.json`, await restoreLinuxSteamAfterCleanDownload(this.context));
+        await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId, testId: 'clean-download-restore',
+          status: 'PASS', stage: 'old_resources_restored', message: 'Old resources restored; downloaded trial preserved separately' }], driveC);
+        return;
+      }
+      if (request.suite === 'linux-steam-clean-stage') {
+        if (!this.context) throw new Error('Clean download context unavailable');
+        const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+        if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create diagnostic result directory');
+        writeSmokeText(`${resultsDir}/isolation.json`, await isolateLinuxSteamForCleanDownload(this.context));
+        await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId, testId: 'clean-download-isolation',
+          status: 'PASS', stage: 'old_resources_preserved', message: 'Empty component directory; private app data preserved' }], driveC);
         return;
       }
       if (request.suite === 'linux-steam-storage') {

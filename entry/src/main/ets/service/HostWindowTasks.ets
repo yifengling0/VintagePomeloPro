@@ -31,6 +31,7 @@ export class HostWindowTasks {
   private steamSessions: Set<string> = new Set<string>();
   private request: number = 0;
   private active: string = '';
+  private launcherForeground: boolean = false;
   private requestedKey: string = '';
   private tail: Promise<void> = Promise.resolve();
   private activator: HostTaskActivator | null = null;
@@ -43,10 +44,13 @@ export class HostWindowTasks {
 
   setActivator(activator: HostTaskActivator): void { this.activator = activator; }
   setLauncher(launcher: () => Promise<void>): void { this.launcher = launcher; }
+  markLauncherForeground(): void {
+    ++this.request; this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
+  }
+  markDesktopForeground(): void { this.launcherForeground = false; }
+  isLauncherForeground(): boolean { return this.launcherForeground; }
   async showLauncher(): Promise<void> {
-    ++this.request;
-    this.requestedKey = '';
-    this.active = '';
+    this.markLauncherForeground();
     if (this.launcher) await this.launcher();
   }
 
@@ -179,7 +183,7 @@ export class HostWindowTasks {
       if (!current() || !success) return false;
       const live = this.windows.get(task.toplevelId);
       if (live) live.minimized = false;
-      this.active = key;
+      this.launcherForeground = false; this.active = key;
       this.publish();
       return true;
     });
@@ -191,5 +195,5 @@ export class HostWindowTasks {
     return settled;
   }
 
-  hasForegroundTask(): boolean { return this.active.length > 0; }
+  hasForegroundTask(): boolean { return !this.launcherForeground && this.active.length > 0; }
 }

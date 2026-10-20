@@ -12,14 +12,18 @@ import { GamepadManager } from './GamepadManager';
 import { InputProfileService } from './InputProfileService';
 import { InputOverlayWindowCoordinator } from './InputOverlayWindowCoordinator';
 import { ensureSmokeDirectory, readSmokeText, writeSmokeText } from './ManagedSmokePayloadService';
+import { ConfigurationFiles } from './ConfigurationFiles';
+import { parseLinuxSteamWindowPreferences } from '../model/LinuxSteamWindowPreferences';
 
 interface WindowState {
   version: number; x: number; y: number; width: number; height: number;
-  minimized: number; activation: number; closed: number;
+  minimized: number; activation: number; closed: number; mode: number; controlSerial: number; geometryReady?: number;
 }
 interface SteamWindowState {
   version: number; window: number; mode: number; minimized: number; activation: number; closed: number;
   moveRequest: number;
+  normalWidth?: number;
+  normalHeight?: number;
 }
 const BRIDGE = '/data/storage/el2/base/files/steamohos-native/client-tmp';
 
@@ -44,6 +48,7 @@ export class LinuxSteamWindowHost {
   private hostKey: string = '';
   private lastStatus: string = '';
   private moveRequest: number = 0;
+  private presentationSerial: number = 0;
 
   async start(context: common.Context, driveC: string, results: string): Promise<void> {
     if (!WineWindowManager.getInstance().getDesktopMode()) {
@@ -60,13 +65,23 @@ export class LinuxSteamWindowHost {
     try { fs.writeSync(file.fd, payload.buffer); } finally { fs.closeSync(file); }
     this.statePath = `${results}/wine-window-state.json`;
     this.evidence = `${results}/wine-window-binding.json`;
-    if (fs.accessSync(this.statePath)) fs.unlinkSync(this.statePath);
-    for (const name of ['wine-window-native.json', 'wine-window-command.txt']) {
+    // Commands belong to one HWND lifetime. A previous serial must never resize
+    // the next host before its first native window has even been created.
+    for (const path of [this.statePath, `${this.statePath}.control`]) {
+      if (fs.accessSync(path)) fs.unlinkSync(path);
+    }
+    for (const name of ['wine-window-native.json', 'wine-window-command.txt', 'wine-window-geometry.txt']) {
       if (fs.accessSync(`${BRIDGE}/${name}`)) fs.unlinkSync(`${BRIDGE}/${name}`);
     }
     const windowsState = `C:${this.statePath.substring(driveC.length).replace(/\//g, '\\')}`;
+    const environment = [`HMOSDECK_WINDOW_STATE=${windowsState}`];
+    try {
+      const saved = parseLinuxSteamWindowPreferences(ConfigurationFiles.text(
+        ConfigurationFiles.read(`${BRIDGE}/wine-window-preferences.conf`, 96)));
+      if (saved) environment.push(`HMOSDECK_WINDOW_SIZE=${saved.width}x${saved.height}`);
+    } catch (_) {}
     const launch = WineEngineService.getInstance().launchExecutable('C:\\hmosdeck\\hmosdeck-steam.exe',
-      [], 'C:\\hmosdeck', [`HMOSDECK_WINDOW_STATE=${windowsState}`]);
+      [], 'C:\\hmosdeck', environment);
     if (launch.pid <= 0 || !launch.sessionId || launch.reused) throw new Error('Wine 未创建 Steam 宿主进程');
     this.sessionId = launch.sessionId;
     this.started = Date.now();
@@ -78,6 +93,31 @@ export class LinuxSteamWindowHost {
       }
     }, 150);
     this.record('wine_window_started_waiting_for_xwayland');
+    // Initialize the X11 viewport once from the actual launch client area.
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const initial = readSmokeText(this.statePath);
+      if (initial && initial.length <= 1024) {
+        const state = JSON.parse(initial) as WindowState;
+        if (state.version === 1 && state.closed === 0 && state.geometryReady === 1 && Number.isSafeInteger(state.width) &&
+          Number.isSafeInteger(state.height) && state.width >= 320 && state.width <= 4096 &&
+          state.height >= 200 && state.height <= 4096 && state.width * state.height <= 8388608) {
+          writeSmokeText(`${BRIDGE}/wine-window-geometry.txt`, `${state.width}x${state.height}\n`);
+          return;
+        }
+      }
+      await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 100); });
+    }
+    this.stop();
+    throw new Error('Wine Steam 窗口未能报告可用尺寸，请重试');
+  }
+
+  async restore(): Promise<boolean> {
+    return this.hostKey ? HostWindowTasks.getInstance().activate(this.hostKey) : false;
+  }
+
+  isForeground(): boolean {
+    return this.host > 0 && !HostWindowTasks.getInstance().isLauncherForeground() &&
+      testNapi.getKeyboardFocusedToplevel() === this.host;
   }
 
   private record(status: string): void {
@@ -93,12 +133,12 @@ export class LinuxSteamWindowHost {
     if (!text || text.length > 1024) return;
     const state = JSON.parse(text) as WindowState;
     if (state.version !== 1) return;
-    if (!this.syncPresentation(state)) return;
     if (state.closed === 1) {
       if (this.source > 0) testNapi.sendToplevelClose(this.source);
       this.record('wine_window_closed');
       this.stop(); return;
     }
+    if (!this.syncPresentation(state) || state.geometryReady === 0) return;
     const session = testNapi.getWineSession(this.sessionId) as NativeWineSessionInfo | null;
     if (!session || session.toplevelId <= 0) {
       this.record('waiting_for_wine_window'); return;
@@ -131,7 +171,7 @@ export class LinuxSteamWindowHost {
     }
     if (state.activation !== this.activation) {
       this.activation = state.activation;
-      testNapi.activateToplevel(this.host);
+      if (!HostWindowTasks.getInstance().isLauncherForeground()) testNapi.activateToplevel(this.host);
     }
   }
 
@@ -144,6 +184,9 @@ export class LinuxSteamWindowHost {
     if (native.closed === 1) {
       this.record('native_steam_exited'); this.stop(); return false;
     }
+    // Window withdrawal is a transition, not a request to leave fullscreen.
+    // Keep the last presentation until Steam has selected the replacement.
+    if (native.window === 0) return false;
     if (Number.isSafeInteger(native.moveRequest) && native.moveRequest > this.moveRequest) {
       this.moveRequest = native.moveRequest;
       if (this.source > 0 && this.host > 0 && native.mode === 0 && native.minimized === 0)
@@ -156,13 +199,20 @@ export class LinuxSteamWindowHost {
     }
     this.previousMinimized = state.minimized;
     this.previousActivation = state.activation;
-    const key = `${native.window}:${native.mode}:${native.minimized}:${native.activation}`;
+    const normalWidth = native.normalWidth ?? 0; const normalHeight = native.normalHeight ?? 0;
+    const dimensions = Number.isSafeInteger(normalWidth) && Number.isSafeInteger(normalHeight) &&
+      normalWidth >= 320 && normalWidth <= 4096 && normalHeight >= 200 && normalHeight <= 4096 &&
+      normalWidth * normalHeight <= 8388608 ? ` ${normalWidth} ${normalHeight}` : '';
+    const key = `${native.window}:${native.mode}:${native.minimized}:${native.activation}${dimensions}`;
     if (key !== this.nativeState) {
       this.nativeState = key;
+      this.presentationSerial = ++this.controlSerial;
       writeSmokeText(`${this.statePath}.control`,
-        `${++this.controlSerial} ${native.mode} ${native.minimized} 1\n`);
+        `${this.presentationSerial} ${native.mode} ${native.minimized} 1${dimensions}\n`);
     }
-    return true;
+    // Ignore intermediate WM_MOVE/WM_SIZE publications from the previous mode.
+    // Resize Xwayland only after the Wine host applied this exact request.
+    return state.mode === native.mode && state.controlSerial >= this.presentationSerial;
   }
 
   stop(): void {

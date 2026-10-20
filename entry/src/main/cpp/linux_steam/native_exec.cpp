@@ -133,7 +133,7 @@ static NativeExecResult RunNativeProcess(const std::vector<std::string>& argv,
                                const std::vector<std::string>& environment, uint32_t timeoutMs,
                                const NativeLoaderImage* loader, const NativeExecOptions& options) {
     NativeExecResult r;
-    if (argv.empty() || argv[0].empty() || argv[0][0] != '/' || timeoutMs < 10 || timeoutMs > 14420000) {
+    if (argv.empty() || argv[0].empty() || argv[0][0] != '/' || (!options.persistentSession && timeoutMs < 10) || timeoutMs > 14420000) {
         r.stage = "invalid_arguments"; r.setupError = EINVAL; return r;
     }
     if (options.passFds.size() > 16) { r.stage = "invalid_pass_fds"; r.setupError = EINVAL; return r; }
@@ -246,7 +246,7 @@ static NativeExecResult RunNativeProcess(const std::vector<std::string>& argv,
     close(errors[1]); errors[1] = -1;
     if (options.parentTask) options.parentTask(options.context, pid);
     int status = 0, leaderStatus = 0;
-    uint64_t deadline = start + timeoutMs;
+    uint64_t deadline = options.persistentSession && timeoutMs == 0 ? UINT64_MAX : start + timeoutMs;
     bool killed = false;
     bool tracingStarted = false;
     struct TraceEntry { unsigned long number = 0, pc = 0; } trace[32];

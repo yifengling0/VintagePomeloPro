@@ -35,7 +35,10 @@ struct Shm { unsigned magic, removed, mode; uid_t uid; gid_t gid; size_t size; t
 union SteamSemun { int val; struct semid_ds *buf; unsigned short *array; };
 static int Fail(int error) { errno = error; return -1; }
 static int Root(void) {
-    const char *path = getenv("STEAMOHOS_IPC_ROOT");
+    // SysV objects are temporary and must not share the persistent Cloud/NSS root.
+    // Keep the legacy root for standalone diagnostics that have no host session.
+    const char *path = getenv("STEAMOHOS_SYSVIPC_ROOT");
+    if (!path) path = getenv("STEAMOHOS_IPC_ROOT");
     if (!path || path[0] != '/') return Fail(ENOSYS);
     if (mkdir(path, 0700) && errno != EEXIST) return -1;
     int fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
@@ -103,7 +106,12 @@ static int Get(int kind, key_t key, size_t amount, int flags) {
     }
     if (id<0 && error==ENOENT && (key==IPC_PRIVATE || (flags&IPC_CREAT))) {
         if (!amount) error=EINVAL;
-        else if (free_slot<0 || registry->next==INT32_MAX) error=ENOSPC;
+        else if (free_slot<0 || registry->next==INT32_MAX) {
+            error=ENOSPC;
+            static int reported;
+            if (!__atomic_exchange_n(&reported,1,__ATOMIC_RELAXED))
+                fprintf(stderr,"STEAMOHOS_SYSVIPC exhausted capacity=%d next=%d pid=%d\n",RECORDS,registry->next,getpid());
+        }
         else {
             int candidate=registry->next++; char name[40]; Name(name,sizeof(name),kind,candidate);
             int file=openat(root,name,O_RDWR|O_CREAT|O_EXCL|O_CLOEXEC|O_NOFOLLOW,0600);

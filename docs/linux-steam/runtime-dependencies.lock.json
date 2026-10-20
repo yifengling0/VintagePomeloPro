@@ -1,0 +1,4272 @@
+{
+  "schemaVersion": 1,
+  "scope": "external-runtime-inventory-not-loader-emulation",
+  "manifestSha256": "2924b031ae17dd3d34517a790cddcc4971301d215c3c6d3a2e53acb7b6081f34",
+  "fileCount": 253,
+  "elfCount": 253,
+  "totalBytes": 746517464,
+  "glibcVersion": "2.38",
+  "xwaylandVersion": "24.1.3",
+  "mesaCommit": "557fa3e781ea6e78fcff3ee759c25f60c3055064",
+  "originalSteamSha256": "bd059af3d99c8b9979a5218838cce9ff44bef4c5ccc0b399b333db0ae1b84a89",
+  "packages": {
+    "bash:arm64@5.2.15-2+b13": {
+      "Package": "bash",
+      "Version": "5.2.15-2+b13",
+      "Architecture": "arm64",
+      "Filename": "pool/main/b/bash/bash_5.2.15-2+b13_arm64.deb",
+      "SHA256": "fdb470b5ec1773b90014138bfc1deda4505c1c23e7f5731e8b527c636ac03385"
+    },
+    "ca-certificates:all@20230311+deb12u1": {
+      "Package": "ca-certificates",
+      "Version": "20230311+deb12u1",
+      "Architecture": "all",
+      "Filename": "pool/main/c/ca-certificates/ca-certificates_20230311+deb12u1_all.deb",
+      "SHA256": "0d5f444f594e48c1e16a41d8fc628a09b24c658916a1274025c2330f2a802bed"
+    },
+    "libbrotli-dev:arm64@1.0.9-2+b6": {
+      "Package": "libbrotli-dev",
+      "Version": "1.0.9-2+b6",
+      "Architecture": "arm64",
+      "Filename": "pool/main/b/brotli/libbrotli-dev_1.0.9-2+b6_arm64.deb",
+      "SHA256": "68f334eb61694c2e5ca756174d111109f72193d1e3c14a25a65833c6dfcd98b7"
+    },
+    "libbrotli1:arm64@1.0.9-2+b6": {
+      "Package": "libbrotli1",
+      "Version": "1.0.9-2+b6",
+      "Architecture": "arm64",
+      "Filename": "pool/main/b/brotli/libbrotli1_1.0.9-2+b6_arm64.deb",
+      "SHA256": "3137de7f71952e710ee9f0df05026b3c6f463be9369a502d57c7696732f1ed22"
+    },
+    "libbsd0:arm64@0.11.7-2": {
+      "Package": "libbsd0",
+      "Version": "0.11.7-2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libb/libbsd/libbsd0_0.11.7-2_arm64.deb",
+      "SHA256": "ef00f132ddd268ee67d756998723ee18543db27ab34930c0a9f1cff75cf55382"
+    },
+    "libbz2-1.0:arm64@1.0.8-5+b1": {
+      "Package": "libbz2-1.0",
+      "Version": "1.0.8-5+b1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/b/bzip2/libbz2-1.0_1.0.8-5+b1_arm64.deb",
+      "SHA256": "d3a96ece03326498b39ff093a76800dfcbcb1d4049d6ae6e9f6fa1aa7a590ad6"
+    },
+    "libbz2-dev:arm64@1.0.8-5+b1": {
+      "Package": "libbz2-dev",
+      "Version": "1.0.8-5+b1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/b/bzip2/libbz2-dev_1.0.8-5+b1_arm64.deb",
+      "SHA256": "c9827ab40420f1259b1a10983978ec8de87c11fc1a6b3c192adea1c4c490754f"
+    },
+    "libexpat1-dev:arm64@2.5.0-1+deb12u2": {
+      "Package": "libexpat1-dev",
+      "Version": "2.5.0-1+deb12u2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/e/expat/libexpat1-dev_2.5.0-1+deb12u2_arm64.deb",
+      "SHA256": "9987e4aa214b0ec23fc2ba6a99b8f10d2dc68f2de347722215ae3f960802e3d3"
+    },
+    "libexpat1:arm64@2.5.0-1+deb12u2": {
+      "Package": "libexpat1",
+      "Version": "2.5.0-1+deb12u2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/e/expat/libexpat1_2.5.0-1+deb12u2_arm64.deb",
+      "SHA256": "8dc1976735acf825e3a922d82f171e20feec7394da2b8c616091983e38706275"
+    },
+    "libfontenc-dev:arm64@1:1.1.4-1": {
+      "Package": "libfontenc-dev",
+      "Version": "1:1.1.4-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libf/libfontenc/libfontenc-dev_1.1.4-1_arm64.deb",
+      "SHA256": "c551ef0c398535b88a2c6b7c9e7e8b5f58f9c93e14e02ebb50d98665d0e74763"
+    },
+    "libfontenc1:arm64@1:1.1.4-1": {
+      "Package": "libfontenc1",
+      "Version": "1:1.1.4-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libf/libfontenc/libfontenc1_1.1.4-1_arm64.deb",
+      "SHA256": "0ec21487b4e9b23043353fe51be8576d70a8860aef40104ca52df14bf1dc476c"
+    },
+    "libfreetype-dev:arm64@2.12.1+dfsg-5+deb12u4": {
+      "Package": "libfreetype-dev",
+      "Version": "2.12.1+dfsg-5+deb12u4",
+      "Architecture": "arm64",
+      "Filename": "pool/main/f/freetype/libfreetype-dev_2.12.1+dfsg-5+deb12u4_arm64.deb",
+      "SHA256": "4e5057ac9107c69c0f49f4a8989056a7c37184c94c73ee48ba7023c5fb118db7"
+    },
+    "libfreetype6:arm64@2.12.1+dfsg-5+deb12u4": {
+      "Package": "libfreetype6",
+      "Version": "2.12.1+dfsg-5+deb12u4",
+      "Architecture": "arm64",
+      "Filename": "pool/main/f/freetype/libfreetype6_2.12.1+dfsg-5+deb12u4_arm64.deb",
+      "SHA256": "b8d32e54ebc9020637f8fa16b6afa64a5731e40845a6e01880d38d6f632237c9"
+    },
+    "libgtk2.0-0:arm64@2.24.33-2+deb12u1": {
+      "Package": "libgtk2.0-0",
+      "Version": "2.24.33-2+deb12u1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/g/gtk+2.0/libgtk2.0-0_2.24.33-2+deb12u1_arm64.deb",
+      "SHA256": "d035cfd259b330a641a6b7310748ba2f42903b795d4923fa4fb23bacb872ac07"
+    },
+    "libgtk2.0-common:all@2.24.33-2+deb12u1": {
+      "Package": "libgtk2.0-common",
+      "Version": "2.24.33-2+deb12u1",
+      "Architecture": "all",
+      "Filename": "pool/main/g/gtk+2.0/libgtk2.0-common_2.24.33-2+deb12u1_all.deb",
+      "SHA256": "f55a9800d3721b1de246e4bfaf94a63ca50efdfa49eb5fa2362ed4fa79258299"
+    },
+    "libice6:arm64@2:1.0.10-1": {
+      "Package": "libice6",
+      "Version": "2:1.0.10-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libi/libice/libice6_1.0.10-1_arm64.deb",
+      "SHA256": "1067dcf02c2fcc4e227a911a4b8916f8295a0ac2bcd20ef3e84e550a97733d60"
+    },
+    "libmd-dev:arm64@1.0.4-2": {
+      "Package": "libmd-dev",
+      "Version": "1.0.4-2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libm/libmd/libmd-dev_1.0.4-2_arm64.deb",
+      "SHA256": "de8e643485042fdec30591cde210a163891a6d673a4981d8ad49abb62f140fb3"
+    },
+    "libmd0:arm64@1.0.4-2": {
+      "Package": "libmd0",
+      "Version": "1.0.4-2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libm/libmd/libmd0_1.0.4-2_arm64.deb",
+      "SHA256": "99a8c7dd591fae9fb37d8bf8dfdffa850e207fa405b3198c5b24711a5f972381"
+    },
+    "libpixman-1-0:arm64@0.42.2-1": {
+      "Package": "libpixman-1-0",
+      "Version": "0.42.2-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/p/pixman/libpixman-1-0_0.42.2-1_arm64.deb",
+      "SHA256": "a18db1a3bdbad168c7168b528bbb07b47316ff9fe977206a780dcc21b376e501"
+    },
+    "libpixman-1-dev:arm64@0.42.2-1": {
+      "Package": "libpixman-1-dev",
+      "Version": "0.42.2-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/p/pixman/libpixman-1-dev_0.42.2-1_arm64.deb",
+      "SHA256": "c11e91549795027a214e2a359b746eb31039a5bdb5d4d36eff2a16d0af2ea21a"
+    },
+    "libpng-dev:arm64@1.6.39-2+deb12u5": {
+      "Package": "libpng-dev",
+      "Version": "1.6.39-2+deb12u5",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libp/libpng1.6/libpng-dev_1.6.39-2+deb12u5_arm64.deb",
+      "SHA256": "f02dc017801713dfd11aaa7e72d705f747570e029fd242c29af072d64474ddfc"
+    },
+    "libpng16-16:arm64@1.6.39-2+deb12u5": {
+      "Package": "libpng16-16",
+      "Version": "1.6.39-2+deb12u5",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libp/libpng1.6/libpng16-16_1.6.39-2+deb12u5_arm64.deb",
+      "SHA256": "69aba3963ddfb11b98e5bf4b0d022f76b797436568884b10f2da32e0f4b8c2dd"
+    },
+    "libpthread-stubs0-dev:arm64@0.4-1": {
+      "Package": "libpthread-stubs0-dev",
+      "Version": "0.4-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libp/libpthread-stubs/libpthread-stubs0-dev_0.4-1_arm64.deb",
+      "SHA256": "acd58ed5d26d3f4d4b0856ebec6bc43f9c4357601a532eee0d2de839a8b8952e"
+    },
+    "libsm6:arm64@2:1.2.3-1": {
+      "Package": "libsm6",
+      "Version": "2:1.2.3-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libs/libsm/libsm6_1.2.3-1_arm64.deb",
+      "SHA256": "4871361a83b7952eed12e9516e5b5475c8ffc1e6e2d12842373c82f291e82178"
+    },
+    "libtinfo6:arm64@6.4-4": {
+      "Package": "libtinfo6",
+      "Version": "6.4-4",
+      "Architecture": "arm64",
+      "Filename": "pool/main/n/ncurses/libtinfo6_6.4-4_arm64.deb",
+      "SHA256": "baef0f6776f84c7eed4f1146d6e5774689567dad43216894d41da02e6608e4b3"
+    },
+    "libtirpc3:arm64@1.3.3+ds-1": {
+      "Package": "libtirpc3",
+      "Version": "1.3.3+ds-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libt/libtirpc/libtirpc3_1.3.3+ds-1_arm64.deb",
+      "SHA256": "deaf9ea54f74cab6690b4bc0b427f05cbe62cc073580d84f5f18a8d9e2ece401"
+    },
+    "libuuid1:arm64@2.38.1-5+deb12u3": {
+      "Package": "libuuid1",
+      "Version": "2.38.1-5+deb12u3",
+      "Architecture": "arm64",
+      "Filename": "pool/main/u/util-linux/libuuid1_2.38.1-5+deb12u3_arm64.deb",
+      "SHA256": "3b2d19df0f3190108cf54228c4cfc822226c06d8f3615a5ab16a7dffb1f58aed"
+    },
+    "libva-drm2:arm64@2.17.0-1": {
+      "Package": "libva-drm2",
+      "Version": "2.17.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libv/libva/libva-drm2_2.17.0-1_arm64.deb",
+      "SHA256": "dd1c3981a81171f3886f14b56e2c13cb879111109e5b1e3e786c26641ab2cc2f"
+    },
+    "libva-x11-2:arm64@2.17.0-1": {
+      "Package": "libva-x11-2",
+      "Version": "2.17.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libv/libva/libva-x11-2_2.17.0-1_arm64.deb",
+      "SHA256": "326f1a6d764adae4ccdc606913ba60b3aecc62788c509444751e7fea75a13584"
+    },
+    "libva2:arm64@2.17.0-1": {
+      "Package": "libva2",
+      "Version": "2.17.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libv/libva/libva2_2.17.0-1_arm64.deb",
+      "SHA256": "b737136a783067f8f202115ed820d955aea16b95a6f06c406cc4305f99d20d3e"
+    },
+    "libvdpau1:arm64@1.5-2": {
+      "Package": "libvdpau1",
+      "Version": "1.5-2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libv/libvdpau/libvdpau1_1.5-2_arm64.deb",
+      "SHA256": "2f13f0bce02b7c5c5caecf5522e22852e296d93b2275c6a445dbf5427605b93c"
+    },
+    "libx11-6:arm64@2:1.8.4-2+deb12u2": {
+      "Package": "libx11-6",
+      "Version": "2:1.8.4-2+deb12u2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libx11/libx11-6_1.8.4-2+deb12u2_arm64.deb",
+      "SHA256": "d1d533e983582282a9ea82c87ac5ce715a9b67bd6d1acbd2439a11c63c36549b"
+    },
+    "libx11-data:all@2:1.8.4-2+deb12u2": {
+      "Package": "libx11-data",
+      "Version": "2:1.8.4-2+deb12u2",
+      "Architecture": "all",
+      "Filename": "pool/main/libx/libx11/libx11-data_1.8.4-2+deb12u2_all.deb",
+      "SHA256": "987a848aeb1c358e4186368871b0526f10bb14c6b53214ab3bf8b69abb830191"
+    },
+    "libx11-dev:arm64@2:1.8.4-2+deb12u2": {
+      "Package": "libx11-dev",
+      "Version": "2:1.8.4-2+deb12u2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libx11/libx11-dev_1.8.4-2+deb12u2_arm64.deb",
+      "SHA256": "34bfc833561de983cfb4475523fedc13abb4faee14a876300de659591779add8"
+    },
+    "libxau-dev:arm64@1:1.0.9-1": {
+      "Package": "libxau-dev",
+      "Version": "1:1.0.9-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxau/libxau-dev_1.0.9-1_arm64.deb",
+      "SHA256": "21db3761a8f388fc83707c00fac645d4332737a859dd727571e1e6ede003b048"
+    },
+    "libxau6:arm64@1:1.0.9-1": {
+      "Package": "libxau6",
+      "Version": "1:1.0.9-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxau/libxau6_1.0.9-1_arm64.deb",
+      "SHA256": "36c2bf400641a80521093771dc2562c903df4065f9eb03add50d90564337ea6c"
+    },
+    "libxcb-dri2-0-dev:arm64@1.15-1": {
+      "Package": "libxcb-dri2-0-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-dri2-0-dev_1.15-1_arm64.deb",
+      "SHA256": "3fa3ef38d95374623faddc2a9ea552dfc8c267caaa870654ed7df4804d1731e3"
+    },
+    "libxcb-dri2-0:arm64@1.15-1": {
+      "Package": "libxcb-dri2-0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-dri2-0_1.15-1_arm64.deb",
+      "SHA256": "ec012de2f5945a5662b32ab1eb59be944e4b5b5ddae89ae28765819df62817f6"
+    },
+    "libxcb-dri3-0:arm64@1.15-1": {
+      "Package": "libxcb-dri3-0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-dri3-0_1.15-1_arm64.deb",
+      "SHA256": "a4b2a700d0da1dcaddc6435986d2ae45e8efdb58a2892a2e87cebb0c85dca359"
+    },
+    "libxcb-dri3-dev:arm64@1.15-1": {
+      "Package": "libxcb-dri3-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-dri3-dev_1.15-1_arm64.deb",
+      "SHA256": "b8db68968bc1d30884699dd1426a4573df9d2fd136bb5c2d2540e6ec54ea7ff5"
+    },
+    "libxcb-present-dev:arm64@1.15-1": {
+      "Package": "libxcb-present-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-present-dev_1.15-1_arm64.deb",
+      "SHA256": "91b5e26057209d6611622f4a29f9c98b09d553848c06de45a63cce658ba59d10"
+    },
+    "libxcb-present0:arm64@1.15-1": {
+      "Package": "libxcb-present0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-present0_1.15-1_arm64.deb",
+      "SHA256": "df2148b69f25b6a31af73bcfb355b2ae3724678167457996febb3d335377ca17"
+    },
+    "libxcb-randr0-dev:arm64@1.15-1": {
+      "Package": "libxcb-randr0-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-randr0-dev_1.15-1_arm64.deb",
+      "SHA256": "53c5a310889ca7d2371ff908fda984f499fc8931867447fe23a2be1607e3c2dc"
+    },
+    "libxcb-randr0:arm64@1.15-1": {
+      "Package": "libxcb-randr0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-randr0_1.15-1_arm64.deb",
+      "SHA256": "9e09fe9b7f6ac596f8b14499e9a10c336b7d3ff27e78f751dffeac9975113004"
+    },
+    "libxcb-render0-dev:arm64@1.15-1": {
+      "Package": "libxcb-render0-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-render0-dev_1.15-1_arm64.deb",
+      "SHA256": "41faa12cb10a66b4dd06ef5f0aee1671eb8eda88d7676d194327711f0b05b285"
+    },
+    "libxcb-render0:arm64@1.15-1": {
+      "Package": "libxcb-render0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-render0_1.15-1_arm64.deb",
+      "SHA256": "8d431caeae9dd0f7490caef1d66de0b7a7d3817afe021b6d55bedbba7b19bf43"
+    },
+    "libxcb-shape0-dev:arm64@1.15-1": {
+      "Package": "libxcb-shape0-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-shape0-dev_1.15-1_arm64.deb",
+      "SHA256": "ac3ce3070d8dd13fd6fe8f1548c547b5c8bdea486c78c1b3bb2995a6b1db3408"
+    },
+    "libxcb-shape0:arm64@1.15-1": {
+      "Package": "libxcb-shape0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-shape0_1.15-1_arm64.deb",
+      "SHA256": "8fd520c537f00cc5d29ff3ef4417d1182c4a7475c5d5c0998f137a9f52eb02a5"
+    },
+    "libxcb-shm0-dev:arm64@1.15-1": {
+      "Package": "libxcb-shm0-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-shm0-dev_1.15-1_arm64.deb",
+      "SHA256": "91dd1dfef7990d1820842001b4a3674359ee049c6f873523260d056b4e880efd"
+    },
+    "libxcb-shm0:arm64@1.15-1": {
+      "Package": "libxcb-shm0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-shm0_1.15-1_arm64.deb",
+      "SHA256": "825931950d42f51cd795cf2e5b9399d840225491e95ec530e0c5a9145c4ba5a0"
+    },
+    "libxcb-sync-dev:arm64@1.15-1": {
+      "Package": "libxcb-sync-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-sync-dev_1.15-1_arm64.deb",
+      "SHA256": "10859a863143b673a1be81459c053736919c198f8ef5758c13f28d029dcabc48"
+    },
+    "libxcb-sync1:arm64@1.15-1": {
+      "Package": "libxcb-sync1",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-sync1_1.15-1_arm64.deb",
+      "SHA256": "63f165fb851ffacf021cdc4224fb93f5694a5c03dc699f2f4237aa67e1550d25"
+    },
+    "libxcb-xfixes0-dev:arm64@1.15-1": {
+      "Package": "libxcb-xfixes0-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-xfixes0-dev_1.15-1_arm64.deb",
+      "SHA256": "7a7f518b9976bafdcf38c8b1ffe82b403bdca8ca1368135e611628cb13aaa39d"
+    },
+    "libxcb-xfixes0:arm64@1.15-1": {
+      "Package": "libxcb-xfixes0",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb-xfixes0_1.15-1_arm64.deb",
+      "SHA256": "e6cfc1f2a68d4c7f0c10e8bf24ebab20d791ba96ec1ca70824ccd927f0fa9e21"
+    },
+    "libxcb1-dev:arm64@1.15-1": {
+      "Package": "libxcb1-dev",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb1-dev_1.15-1_arm64.deb",
+      "SHA256": "87b5c3f1bb130727df68295ecfaadc305ee10c150afeb1a183e95b9150e18db5"
+    },
+    "libxcb1:arm64@1.15-1": {
+      "Package": "libxcb1",
+      "Version": "1.15-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcb/libxcb1_1.15-1_arm64.deb",
+      "SHA256": "041d9a68415c3ccf3ce8f4f8b88e4bbfb5dc1f0d97013c6ef8423e620ea50f84"
+    },
+    "libxcvt-dev:arm64@0.1.2-1": {
+      "Package": "libxcvt-dev",
+      "Version": "0.1.2-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcvt/libxcvt-dev_0.1.2-1_arm64.deb",
+      "SHA256": "d9b59655013ca3a7433ef47125dde29cb3ce223e1e4814237945a7a9a72f5fe8"
+    },
+    "libxcvt0:arm64@0.1.2-1": {
+      "Package": "libxcvt0",
+      "Version": "0.1.2-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxcvt/libxcvt0_0.1.2-1_arm64.deb",
+      "SHA256": "ad8724b48a1fa79ede417aa33197d1f779d59fcbc1fc232f603531b59988a280"
+    },
+    "libxdmcp-dev:arm64@1:1.1.2-3": {
+      "Package": "libxdmcp-dev",
+      "Version": "1:1.1.2-3",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxdmcp/libxdmcp-dev_1.1.2-3_arm64.deb",
+      "SHA256": "6fd0bc51f3a4e6b7f944f24f15524a4c4ba68a4b0aa136c18bdb96a2d36988f2"
+    },
+    "libxdmcp6:arm64@1:1.1.2-3": {
+      "Package": "libxdmcp6",
+      "Version": "1:1.1.2-3",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxdmcp/libxdmcp6_1.1.2-3_arm64.deb",
+      "SHA256": "e92569ac33247261aa09adfadc34ced3994ac301cf8b58de415a2d5dbf15ccfc"
+    },
+    "libxext-dev:arm64@2:1.3.4-1+b1": {
+      "Package": "libxext-dev",
+      "Version": "2:1.3.4-1+b1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxext/libxext-dev_1.3.4-1+b1_arm64.deb",
+      "SHA256": "07f5e3efeba9564071885b2d0d2ba277692fa309a9f05ef862688af0022b1fcf"
+    },
+    "libxext6:arm64@2:1.3.4-1+b1": {
+      "Package": "libxext6",
+      "Version": "2:1.3.4-1+b1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxext/libxext6_1.3.4-1+b1_arm64.deb",
+      "SHA256": "5e9c0ad606eb4674c645fe8e0e64330c47d2729f7a59ed569848610efd5d5b62"
+    },
+    "libxfont-dev:arm64@1:2.0.6-1": {
+      "Package": "libxfont-dev",
+      "Version": "1:2.0.6-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxfont/libxfont-dev_2.0.6-1_arm64.deb",
+      "SHA256": "ca9b6d1390bb41fe10bfd458ac009af4e9b8369a62e8e03e40f55dbc60f9eb2c"
+    },
+    "libxfont2:arm64@1:2.0.6-1": {
+      "Package": "libxfont2",
+      "Version": "1:2.0.6-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxfont/libxfont2_2.0.6-1_arm64.deb",
+      "SHA256": "9721780b98ccdd0a15262095e94e6cb1ca1ef60ec2778d36bd23afe888aa463a"
+    },
+    "libxkbcommon-dev:arm64@1.5.0-1": {
+      "Package": "libxkbcommon-dev",
+      "Version": "1.5.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxkbcommon/libxkbcommon-dev_1.5.0-1_arm64.deb",
+      "SHA256": "7d39b34b202fe58e18992b439c79c149ebb1b821b58dfb863ff4898e06420699"
+    },
+    "libxkbcommon0:arm64@1.5.0-1": {
+      "Package": "libxkbcommon0",
+      "Version": "1.5.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxkbcommon/libxkbcommon0_1.5.0-1_arm64.deb",
+      "SHA256": "ec518d8a19796a399ab95e7bc4dfbb6bd2ed8e151f77b222df26208db412d852"
+    },
+    "libxkbfile-dev:arm64@1:1.1.0-1": {
+      "Package": "libxkbfile-dev",
+      "Version": "1:1.1.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxkbfile/libxkbfile-dev_1.1.0-1_arm64.deb",
+      "SHA256": "03d5b7d4cb8715681ca24e1f228843ac656efe04b5fb1052276209db8ff41b9b"
+    },
+    "libxkbfile1:arm64@1:1.1.0-1": {
+      "Package": "libxkbfile1",
+      "Version": "1:1.1.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxkbfile/libxkbfile1_1.1.0-1_arm64.deb",
+      "SHA256": "d5fa175e392561675075232697a52030eedbf18a2e910fae87d5a2095fa7fc99"
+    },
+    "libxshmfence-dev:arm64@1.3-1": {
+      "Package": "libxshmfence-dev",
+      "Version": "1.3-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxshmfence/libxshmfence-dev_1.3-1_arm64.deb",
+      "SHA256": "b3ba827995bcec974d1517ce23d09c04aa77a8714363c1fc54d0947a853d7ca1"
+    },
+    "libxshmfence1:arm64@1.3-1": {
+      "Package": "libxshmfence1",
+      "Version": "1.3-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxshmfence/libxshmfence1_1.3-1_arm64.deb",
+      "SHA256": "fa2edaae6902681ecd02534dcdf8389ac48714d3385d572cc17747160957acc8"
+    },
+    "libxss1:arm64@1:1.2.3-1": {
+      "Package": "libxss1",
+      "Version": "1:1.2.3-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/libx/libxss/libxss1_1.2.3-1_arm64.deb",
+      "SHA256": "e0ff80e309eacda5face68b9a3bd56718fed2750af429324c35d7c9491c335f4"
+    },
+    "lsof:arm64@4.95.0-1": {
+      "Package": "lsof",
+      "Version": "4.95.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/l/lsof/lsof_4.95.0-1_arm64.deb",
+      "SHA256": "f3857366f016abd9a31d570b6495f8080c632753627a7f16418d27a1ce470dd4"
+    },
+    "util-linux:arm64@2.38.1-5+deb12u3": {
+      "Package": "util-linux",
+      "Version": "2.38.1-5+deb12u3",
+      "Architecture": "arm64",
+      "Filename": "pool/main/u/util-linux/util-linux_2.38.1-5+deb12u3_arm64.deb",
+      "SHA256": "c30366915d4dc21106d69c3d5a2bf6b010c4c2ff508a1231ede4620aed9874fc"
+    },
+    "x11proto-dev:all@2022.1-1": {
+      "Package": "x11proto-dev",
+      "Version": "2022.1-1",
+      "Architecture": "all",
+      "Filename": "pool/main/x/xorgproto/x11proto-dev_2022.1-1_all.deb",
+      "SHA256": "3cab66a6591774188a568f9b54c4e7956f18da76e0e0fc4a779db5f6bcc3f148"
+    },
+    "xkb-data:all@2.35.1-1": {
+      "Package": "xkb-data",
+      "Version": "2.35.1-1",
+      "Architecture": "all",
+      "Filename": "pool/main/x/xkeyboard-config/xkb-data_2.35.1-1_all.deb",
+      "SHA256": "28a79c61b785f403da93af58c39aed13c022032935e3e54362c6707169cfe982"
+    },
+    "xtrans-dev:all@1.4.0-1": {
+      "Package": "xtrans-dev",
+      "Version": "1.4.0-1",
+      "Architecture": "all",
+      "Filename": "pool/main/x/xtrans/xtrans-dev_1.4.0-1_all.deb",
+      "SHA256": "9ce1af9464faee0c679348dd11cdf63934c12e734a64e0903692b0cb5af38e06"
+    },
+    "zlib1g-dev:arm64@1:1.2.13.dfsg-1": {
+      "Package": "zlib1g-dev",
+      "Version": "1:1.2.13.dfsg-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/z/zlib/zlib1g-dev_1.2.13.dfsg-1_arm64.deb",
+      "SHA256": "afb60f0bae432f2f0edfe2d674e99c1a13a147c9aa2b52f2f23e3df19ece76f5"
+    },
+    "zlib1g:arm64@1:1.2.13.dfsg-1": {
+      "Package": "zlib1g",
+      "Version": "1:1.2.13.dfsg-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/z/zlib/zlib1g_1.2.13.dfsg-1_arm64.deb",
+      "SHA256": "52b8b8a145bbe1956bba82034f77022cbef0c3d0885c9e32d9817a7932fe1913"
+    }
+  },
+  "files": {
+    "Xwayland": {
+      "bytes": 10932032,
+      "sha256": "aa9eb4fb91aace388910617066fa1895ee95f30dae29444052079788ab2db4a6",
+      "needed": [
+        "libpixman-1.so.0",
+        "libXfont2.so.2",
+        "libwayland-client.so.0",
+        "libxcvt.so.0",
+        "libm.so.6",
+        "libxshmfence.so.1",
+        "libmd.so.0",
+        "libXau.so.6",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "/home/liufeng/steamohos-xwayland-20261019-v4/deps-root/usr/lib/aarch64-linux-gnu"
+      ]
+    },
+    "compatibilitytools.d/hmosdeck/hmosdeck": {
+      "bytes": 81640,
+      "sha256": "58d409d1c160c724ade5ea3ee9629ed0c61535a87b1740110e0bced3b8b275c1",
+      "needed": [
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "ld-linux-aarch64.so.1": {
+      "bytes": 1130424,
+      "sha256": "90ff8debdd8b481dff6c348350d1a6e98a04036568a3326978db1ef5f935b7c7",
+      "needed": [],
+      "soname": [
+        "ld-linux-aarch64.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libEGL.so.1": {
+      "bytes": 133584,
+      "sha256": "721c34b57c0006f5dbd38704abc523368ac98cb0b6c8f2059faf1ee4764bda78",
+      "needed": [
+        "libGLdispatch.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libEGL.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libFLAC.so.12": {
+      "bytes": 329592,
+      "sha256": "206e6ad0e4d3e3f1b12ba86f84a6d196a0118e3442aabc1f89f714b777670985",
+      "needed": [
+        "libogg.so.0",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libFLAC.so.12"
+      ],
+      "searchPaths": []
+    },
+    "libGL.so.1": {
+      "bytes": 985192,
+      "sha256": "99c2cde6f0586ad932d13c9cc344e752c694cd3d45a33d3b2633e0c971d7cef8",
+      "needed": [
+        "libGLdispatch.so.0",
+        "libGLX.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libGL.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libGLX.so.0": {
+      "bytes": 199032,
+      "sha256": "e2a6d5ea771bd4ab1b751528ba48264b41b63bce344041da599e37da251880a7",
+      "needed": [
+        "libGLdispatch.so.0",
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libGLX.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libGLdispatch.so.0": {
+      "bytes": 1575160,
+      "sha256": "6d6da001d8112cdef30a72ed62b97f7e274cd81469effa759a133f9ba2c30c61",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libGLdispatch.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libICE.so.6": {
+      "bytes": 93976,
+      "sha256": "e6823dffcd3c65d6cfcd489980d67928d42d968b0c682ad72bc074393f4cc363",
+      "needed": [
+        "libbsd.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libICE.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libSM.so.6": {
+      "bytes": 30872,
+      "sha256": "94937ec22b40d901691cd0665e4027cc7310c3c8217797345c8794a145be437d",
+      "needed": [
+        "libICE.so.6",
+        "libuuid.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libSM.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libX11-xcb.so.1": {
+      "bytes": 67216,
+      "sha256": "a8c34d18723a629b829906851d6702174e7054efed12bfdabd81f8410a43926a",
+      "needed": [],
+      "soname": [
+        "libX11-xcb.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libX11.so.6": {
+      "bytes": 1329712,
+      "sha256": "8371115a64330431c1e0f332ea668bbff10a11bef18e0800b5306ffdca595e1a",
+      "needed": [
+        "libxcb.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libX11.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libXau.so.6": {
+      "bytes": 14416,
+      "sha256": "d43657a20d5b1b779e91e417f31e3deaccbcede10d7dd38991e31b86e550152b",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXau.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libXcomposite.so.1": {
+      "bytes": 14264,
+      "sha256": "bc3619d6c7bd9b7177bf19b5a4609f4c5640149d4638c4956382ace19fe1c98b",
+      "needed": [
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXcomposite.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libXcursor.so.1": {
+      "bytes": 43600,
+      "sha256": "b7dd4653fbc6d3349fe0b0175f23503df5adde69a7396637f3b3427deb0e3a4e",
+      "needed": [
+        "libXrender.so.1",
+        "libXfixes.so.3",
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXcursor.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libXdamage.so.1": {
+      "bytes": 67536,
+      "sha256": "a69f4f381bbfefb435614b79e110ae307bcf3eec4fc3cedf6505d8325b299877",
+      "needed": [
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXdamage.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libXdmcp.so.6": {
+      "bytes": 22576,
+      "sha256": "cff589ca553d339123ba32528cdf45f071761624aef1ebb4b3970fe9180b7e3b",
+      "needed": [
+        "libbsd.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXdmcp.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libXext.so.6": {
+      "bytes": 134696,
+      "sha256": "136fdffc957db4f1af62ca787fdd5f00053c2477e68ce93d52a57952acb1f8ea",
+      "needed": [
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXext.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libXfixes.so.3": {
+      "bytes": 67640,
+      "sha256": "366080bac4e91b8af31cbfda6259b77eb5de13eac014535e36937f5f01523579",
+      "needed": [
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXfixes.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libXfont2.so.2": {
+      "bytes": 202320,
+      "sha256": "032e46843ac38a1a2b2e9f5e309a41eb5d9c90f07a83a8dbb719ed2f44a8ec74",
+      "needed": [
+        "libz.so.1",
+        "libbz2.so.1.0",
+        "libm.so.6",
+        "libfontenc.so.1",
+        "libfreetype.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXfont2.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libXi.so.6": {
+      "bytes": 67888,
+      "sha256": "6f3240dcf0ba88f56d42c9229aa9cc2aef9055d47238c73afa193370318c0e17",
+      "needed": [
+        "libX11.so.6",
+        "libXext.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXi.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libXinerama.so.1": {
+      "bytes": 10296,
+      "sha256": "c3cab7adf1a2ea68fec624321b6c730f045f2a85fcd1ece3adffc60f6f54b3ba",
+      "needed": [
+        "libX11.so.6",
+        "libXext.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXinerama.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libXrandr.so.2": {
+      "bytes": 43200,
+      "sha256": "35fcdeb241810de83bda62ccc3f4d46103ab9f45d32369aef01fa2f5b4a3fee9",
+      "needed": [
+        "libXext.so.6",
+        "libXrender.so.1",
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXrandr.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libXrender.so.1": {
+      "bytes": 43408,
+      "sha256": "3bd2f69bfdb9174410d0545400ee9214b87a629b8cd2668b9aadfd6c7305c11a",
+      "needed": [
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXrender.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libXss.so.1": {
+      "bytes": 14416,
+      "sha256": "9fa00315c7f3652aae0c14a4eeb12bca3129459f89006fe1bc9bdc08acbac033",
+      "needed": [
+        "libX11.so.6",
+        "libXext.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXss.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libXtst.so.6": {
+      "bytes": 26888,
+      "sha256": "8478d005361fe9f891848604296f51fef3ea76b1297e490dde534e4c88a27746",
+      "needed": [
+        "libX11.so.6",
+        "libXext.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libXtst.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libasound.so.2": {
+      "bytes": 1116648,
+      "sha256": "9fade6b3aedf1ba944e6795b52b74378f2f89166b92ee542582171416a76572d",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libasound.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libasound_module_pcm_hmosdeck.so": {
+      "bytes": 73096,
+      "sha256": "f51b553ee0b84d32697940ff7edf037027b6e315f4ec47897c85d6ccaa5e312d",
+      "needed": [
+        "libasound.so.2",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "libasyncns.so.0": {
+      "bytes": 67352,
+      "sha256": "a091ad63ec4ea5e8a60b4536def0240e01b73212e2f2ec53faf71c663d95a5d9",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libasyncns.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libatk-1.0.so.0": {
+      "bytes": 198584,
+      "sha256": "d2c575df7b50422db6e68e6badd8e987879cc90219dae0b334e1a9c28de64ed0",
+      "needed": [
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libatk-1.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libatk-bridge-2.0.so.0": {
+      "bytes": 267672,
+      "sha256": "921a8ec1a235d0ce209a6a366acff18b6f934ae060b5a7fb8bdb739b5d6d5d09",
+      "needed": [
+        "libatspi.so.0",
+        "libatk-1.0.so.0",
+        "libdbus-1.so.3",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libatk-bridge-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libatspi.so.0": {
+      "bytes": 264344,
+      "sha256": "cee8b10109d9ac723b5b1f55b9320a0946f4cd845ec89de16972addfc37adab4",
+      "needed": [
+        "libdbus-1.so.3",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libX11.so.6",
+        "libXi.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libatspi.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libavahi-client.so.3": {
+      "bytes": 67672,
+      "sha256": "a1e243ec3b285d4efb52e72dfe1b264e7a42b77c4c145d64ec9d459eeb3ec78c",
+      "needed": [
+        "libdbus-1.so.3",
+        "libavahi-common.so.3",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavahi-client.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libavahi-common.so.3": {
+      "bytes": 67784,
+      "sha256": "8acdb763e9c0e83ec93a734f60db9b0f88ff0619c64ab05c05f6f51e693e3f53",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavahi-common.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libblkid.so.1": {
+      "bytes": 396248,
+      "sha256": "5315fa2b1a050713f155a90d2faa4c64187626f4a580e6e05d2d40190e086363",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libblkid.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libbrotlicommon.so.1": {
+      "bytes": 133232,
+      "sha256": "eb58e3a7decc81cb3bf7dbd3d2db8f5000b473b4fd3b6c2f6b7afbccf6d7dd60",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libbrotlicommon.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libbrotlidec.so.1": {
+      "bytes": 67688,
+      "sha256": "ee7db2a46ad6a5bc2a164827cfbe21b930450c1b0954594fa4e2aafb156977c3",
+      "needed": [
+        "libbrotlicommon.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libbrotlidec.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libbsd.so.0": {
+      "bytes": 133944,
+      "sha256": "24f2bb08fed31a04a80f4d0d0145f4cc5f42543af07a364b1fafdd3d2dcbe137",
+      "needed": [
+        "libmd.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libbsd.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libbz2.so.1.0": {
+      "bytes": 70504,
+      "sha256": "636189620fb8ac7497a8dfba3c77c001f0c27814b16ad822bcf4b8e11f1ffbf7",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libbz2.so.1.0"
+      ],
+      "searchPaths": []
+    },
+    "libc.so.6": {
+      "bytes": 10804880,
+      "sha256": "01b18cc3e7990e5c3dc222429e0df5f7e744912668ad0400940cd1a3ef43c7e4",
+      "needed": [
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libc.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libcairo.so.2": {
+      "bytes": 1183080,
+      "sha256": "01695f7f120f8f3593f7810443a07ad97d6fb0ced86d9494d27f1ee23d2b2008",
+      "needed": [
+        "libpixman-1.so.0",
+        "libfontconfig.so.1",
+        "libfreetype.so.6",
+        "libpng16.so.16",
+        "libxcb-shm.so.0",
+        "libxcb.so.1",
+        "libxcb-render.so.0",
+        "libXrender.so.1",
+        "libX11.so.6",
+        "libXext.so.6",
+        "libz.so.1",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libcairo.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libcap.so.2": {
+      "bytes": 67552,
+      "sha256": "dcb3587efc518852f7a1430594526ee9d7334126a9afb46f23cfa60f1b2d1927",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libcap.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libcom_err.so.2": {
+      "bytes": 67432,
+      "sha256": "da3488ef5ec0962c5b7ac5a22108c1f4259fe0ecb1cbe0014dcfb83700493c56",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libcom_err.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libcups.so.2": {
+      "bytes": 657288,
+      "sha256": "b1bc5453b07422e516651b44908d5b46b228cf9e1aa69fdc2a7599f6cb2792e9",
+      "needed": [
+        "libgssapi_krb5.so.2",
+        "libavahi-common.so.3",
+        "libavahi-client.so.3",
+        "libgnutls.so.30",
+        "libz.so.1",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libcups.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libdatrie.so.1": {
+      "bytes": 67432,
+      "sha256": "f79a360f5f78aabb1f3db902db986914e8b32926002ab165c7a001b8b75d657a",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libdatrie.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libdbus-1.so.3": {
+      "bytes": 395336,
+      "sha256": "e35b314463bc7d7e48d542b13941c49172abb2ba8e8fe5b1f54e6a50b636bdfc",
+      "needed": [
+        "libsystemd.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libdbus-1.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libdl.so.2": {
+      "bytes": 73264,
+      "sha256": "7e1cfbcb574d3893d346dd3e31f4994750694b4245d66d6c016aa21430c76ff0",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libdl.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libdrm.so.2": {
+      "bytes": 133896,
+      "sha256": "2d9d3c8d24be2cabf6ff8af026928ffc6b1f7782d4b8f19f859f6a0918a40ab3",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libdrm.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libexpat.so.1": {
+      "bytes": 198712,
+      "sha256": "4da3eb8010076d0c9ca494ca3d7a179d1697093ceb7fdc05ca701bb2a4359fff",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libexpat.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libffi.so.8": {
+      "bytes": 146360,
+      "sha256": "8e2e03952d594da5b8debf02142287e6da622b2f6fd5f1dd4e82571748086d24",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libffi.so.8"
+      ],
+      "searchPaths": []
+    },
+    "libfontconfig.so.1": {
+      "bytes": 330656,
+      "sha256": "3c8297dc27acfe453110b4633d89d0254215aa735b50ed1e86f54426356aa3d8",
+      "needed": [
+        "libfreetype.so.6",
+        "libexpat.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libfontconfig.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libfontenc.so.1": {
+      "bytes": 30176,
+      "sha256": "70d9bc8d141ed7ce1ffbcb5f8e396a7173b8709ab5dbe96b4c584a06ad5448c1",
+      "needed": [
+        "libz.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libfontenc.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libfreebl3.so": {
+      "bytes": 67584,
+      "sha256": "91b5db32810b1e15b948fe4c26ebce082db939c74f36482075da167bf127da1b",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libfreebl3.so"
+      ],
+      "searchPaths": []
+    },
+    "libfreeblpriv3.so": {
+      "bytes": 591968,
+      "sha256": "81dda06c9f39c389f43c453599ac4431ab80fac235749dbb20f298081687c90a",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libfreeblpriv3.so"
+      ],
+      "searchPaths": []
+    },
+    "libfreetype.so.6": {
+      "bytes": 788568,
+      "sha256": "aeb963698e88c23790f2db1bf36abdf650152253f7b25cdb90fee080c5e09c4a",
+      "needed": [
+        "libz.so.1",
+        "libpng16.so.16",
+        "libbrotlidec.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libfreetype.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libfribidi.so.0": {
+      "bytes": 108720,
+      "sha256": "1517d417be4bb654ec0c99a10287b76528e946801bbdab98e6e911098ed93970",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libfribidi.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libgbm.so.1": {
+      "bytes": 68480,
+      "sha256": "e3d658722199ad8e4c79f4d1338c7d3a0a036ee9603585ce661a6e94b8ef446d",
+      "needed": [
+        "libdrm.so.2",
+        "libwayland-server.so.0",
+        "libexpat.so.1",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgbm.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libgcc_s.so.1": {
+      "bytes": 597304,
+      "sha256": "97274af05378128bef0f4a16ab61bd8b30f25a40bcc52ef2a42dedf7155b7dc5",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libgcc_s.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libgcrypt.so.20": {
+      "bytes": 1000296,
+      "sha256": "01c8f6929c4c5853f8204a727e2be5fc3f7cef3f850e2818558800aa5f78c80e",
+      "needed": [
+        "libgpg-error.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgcrypt.so.20"
+      ],
+      "searchPaths": []
+    },
+    "libgdk-x11-2.0.so.0": {
+      "bytes": 793912,
+      "sha256": "6c7e5496fc5fbdbcc70c6ff5fe1f5fa04e9f47b6ec2b8289ae3c82da26c1942d",
+      "needed": [
+        "libpangocairo-1.0.so.0",
+        "libpango-1.0.so.0",
+        "libgio-2.0.so.0",
+        "libfontconfig.so.1",
+        "libXrender.so.1",
+        "libXinerama.so.1",
+        "libXi.so.6",
+        "libXrandr.so.2",
+        "libXcursor.so.1",
+        "libXcomposite.so.1",
+        "libXdamage.so.1",
+        "libXfixes.so.3",
+        "libgdk_pixbuf-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libcairo.so.2",
+        "libX11.so.6",
+        "libXext.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgdk-x11-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libgdk_pixbuf-2.0.so.0": {
+      "bytes": 198760,
+      "sha256": "15e8d2f10782f9e7f27e94e04713dd934ec2a72661d6247fcf3e9c84be3b4576",
+      "needed": [
+        "libm.so.6",
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libgmodule-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libpng16.so.16",
+        "libjpeg.so.62",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgdk_pixbuf-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libgio-2.0.so.0": {
+      "bytes": 2100616,
+      "sha256": "bd9f40d91ca9595f3c6dbc6ebd45b4366dd6ab0024edb0a214e1c8f609e3a63a",
+      "needed": [
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libgmodule-2.0.so.0",
+        "libz.so.1",
+        "libmount.so.1",
+        "libselinux.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgio-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libglib-2.0.so.0": {
+      "bytes": 1314544,
+      "sha256": "e27388803d2f938cc01918316f2d1700ae3b650f1b3a62d5a4f2585717e28185",
+      "needed": [
+        "libpcre2-8.so.0",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libglib-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libgmodule-2.0.so.0": {
+      "bytes": 67584,
+      "sha256": "01213eba05eede42181e91dd10378b9700185ff458405165854307347a7d8131",
+      "needed": [
+        "libglib-2.0.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgmodule-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libgmp.so.10": {
+      "bytes": 529184,
+      "sha256": "391b336ee37cd47a1d4748ba2d15bd125c1a082864f7bca9c92612f8a0ac305e",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgmp.so.10"
+      ],
+      "searchPaths": []
+    },
+    "libgnutls.so.30": {
+      "bytes": 2303440,
+      "sha256": "a28310df0a36465608473face05bf89b87759804bd0df83b161d564b9804b3fc",
+      "needed": [
+        "libp11-kit.so.0",
+        "libidn2.so.0",
+        "libunistring.so.2",
+        "libtasn1.so.6",
+        "libnettle.so.8",
+        "libhogweed.so.6",
+        "libgmp.so.10",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgnutls.so.30"
+      ],
+      "searchPaths": []
+    },
+    "libgobject-2.0.so.0": {
+      "bytes": 462704,
+      "sha256": "9d89f4f6dc1193398fa0f30c297c89b691756a601a99c8f2b58e21d10a2f576e",
+      "needed": [
+        "libglib-2.0.so.0",
+        "libffi.so.8",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgobject-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libgpg-error.so.0": {
+      "bytes": 198640,
+      "sha256": "44c67a9e7a5cfc227e84dcb8f96463103c12415286a8e003bc66abebc4b1f6bd",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgpg-error.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libgraphite2.so.3": {
+      "bytes": 133232,
+      "sha256": "fc6684eb88315e757d87b2eb9691573d8550bd6f88c9cd007bc8a5467467a723",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgraphite2.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libgssapi_krb5.so.2": {
+      "bytes": 334904,
+      "sha256": "9d35dc9f4a4ad1b3e2a97412ae1147c78a2ba28729c0eba07f2c4e52ba254153",
+      "needed": [
+        "libkrb5.so.3",
+        "libk5crypto.so.3",
+        "libcom_err.so.2",
+        "libkrb5support.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgssapi_krb5.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libgtk-x11-2.0.so.0": {
+      "bytes": 4670632,
+      "sha256": "122be0187dd9518c0e2dcee64077a48d9c0670ee197ce6acf6ec18c59cb9c955",
+      "needed": [
+        "libgdk-x11-2.0.so.0",
+        "libgmodule-2.0.so.0",
+        "libpangocairo-1.0.so.0",
+        "libX11.so.6",
+        "libXfixes.so.3",
+        "libatk-1.0.so.0",
+        "libcairo.so.2",
+        "libgdk_pixbuf-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libpangoft2-1.0.so.0",
+        "libpango-1.0.so.0",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libfontconfig.so.1",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libgtk-x11-2.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libharfbuzz.so.0": {
+      "bytes": 1052200,
+      "sha256": "2b79a236dc9ff8f991a3123dae97eba4193c9f70d3c2a45b731b64d3b5b8677e",
+      "needed": [
+        "libm.so.6",
+        "libfreetype.so.6",
+        "libgraphite2.so.3",
+        "libglib-2.0.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libharfbuzz.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libhogweed.so.6": {
+      "bytes": 329656,
+      "sha256": "07ffe03d318b7819b94988a810b153909257f72fba0b1843ced7bc619312a93c",
+      "needed": [
+        "libnettle.so.8",
+        "libgmp.so.10",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libhogweed.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libibus-1.0.so.5": {
+      "bytes": 526480,
+      "sha256": "c4a5b38ef44a4b5184470da11e3dd1ae5ab6134612487dba1fec08b87300571e",
+      "needed": [
+        "libgio-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libibus-1.0.so.5"
+      ],
+      "searchPaths": []
+    },
+    "libidn2.so.0": {
+      "bytes": 198664,
+      "sha256": "7a596ba5e585c8132d02ec8c3e83f15b1767ade6b735a4f0814ced6d0f1bf985",
+      "needed": [
+        "libunistring.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libidn2.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libjpeg.so.62": {
+      "bytes": 395264,
+      "sha256": "4021b9b82df1affabe252aec393c00f2ec61b7ab570e760f4b4cf76db9b449ab",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libjpeg.so.62"
+      ],
+      "searchPaths": []
+    },
+    "libk5crypto.so.3": {
+      "bytes": 199352,
+      "sha256": "3b52aaddb3db517a635e711ba055b2a86adccacab4186a444ab4ae398cdffba5",
+      "needed": [
+        "libkrb5support.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libk5crypto.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libkeyutils.so.1": {
+      "bytes": 67432,
+      "sha256": "8364aac5e87ae71e5f659163f7672d8ae7d936f2ccb45d0aaec645a006952ed1",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libkeyutils.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libkrb5.so.3": {
+      "bytes": 928752,
+      "sha256": "9521937afd55582d7714f7e20b5bf1ba53016221cb069edec49a3c2d58cdbe60",
+      "needed": [
+        "libk5crypto.so.3",
+        "libcom_err.so.2",
+        "libkrb5support.so.0",
+        "libkeyutils.so.1",
+        "libresolv.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libkrb5.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libkrb5support.so.0": {
+      "bytes": 68576,
+      "sha256": "cb761561cbf732abfbeeb105bda4a8c28685b6da3ebe1be066430c1fe564a8db",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libkrb5support.so.0"
+      ],
+      "searchPaths": []
+    },
+    "liblz4.so.1": {
+      "bytes": 199056,
+      "sha256": "43109ed13afa34ff991ed73c4d520c5056378949b17d77c50d5773c5aa851439",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "liblz4.so.1"
+      ],
+      "searchPaths": []
+    },
+    "liblzma.so.5": {
+      "bytes": 198584,
+      "sha256": "530e774de0f3fd8754351f387f52db6a0cb134b350e43d80044dea7109400f17",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "liblzma.so.5"
+      ],
+      "searchPaths": []
+    },
+    "libm.so.6": {
+      "bytes": 2257816,
+      "sha256": "78c841b1bf3257ffdaf6b29cc6c19554ced0f8beedfb9719464b65618a33ad68",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libm.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libmd.so.0": {
+      "bytes": 67704,
+      "sha256": "be8d151f2f06935db812859f575ec818af7fd93eaab0ec4e7dae9e5ad7ca38bb",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libmd.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libmount.so.1": {
+      "bytes": 461432,
+      "sha256": "c4feeb360a1bc2996da81bfe08dd9f1453558513cea012e2c45752a9833d5a83",
+      "needed": [
+        "libblkid.so.1",
+        "libselinux.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libmount.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libmp3lame.so.0": {
+      "bytes": 329616,
+      "sha256": "75fc8d8c3a348016aabdf40f4ca844cacea9dcb217a6d36e32db86d476445b60",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libmp3lame.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libmpg123.so.0": {
+      "bytes": 332024,
+      "sha256": "baa2f9293279475fc072cce39aed982f1d5bdd1ddedeb86ac85b10966a7db160",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libmpg123.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libnettle.so.8": {
+      "bytes": 329736,
+      "sha256": "d534bf67fcfa3c9bbead7a0a3d55244764eab87de1f85143948e6edbb74c4749",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libnettle.so.8"
+      ],
+      "searchPaths": []
+    },
+    "libnm.so.0": {
+      "bytes": 1510320,
+      "sha256": "d7d80ec77ad298a71e5e11663d1a1dc332d142a16cbf7bf601bb22413e51e6d2",
+      "needed": [
+        "libgnutls.so.30",
+        "libgio-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libgmodule-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libudev.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libnm.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libnspr4.so": {
+      "bytes": 266608,
+      "sha256": "30806bb24e92098bce0439825c99c5f52a852499be9c022fdda52742dd98c9cc",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libnspr4.so"
+      ],
+      "searchPaths": []
+    },
+    "libnss3.so": {
+      "bytes": 1381616,
+      "sha256": "d9f0bf059175da212927f4aab37626012f35dc6f55c809785712e17d2d98e94d",
+      "needed": [
+        "libnssutil3.so",
+        "libplc4.so",
+        "libplds4.so",
+        "libnspr4.so",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libnss3.so"
+      ],
+      "searchPaths": []
+    },
+    "libnssckbi.so": {
+      "bytes": 631064,
+      "sha256": "316b7087ec6b263d09d3e42e084116c5ef921a6a8450594981e96893e3d020e9",
+      "needed": [
+        "libplc4.so",
+        "libplds4.so",
+        "libnspr4.so",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libnssckbi.so"
+      ],
+      "searchPaths": []
+    },
+    "libnssutil3.so": {
+      "bytes": 198880,
+      "sha256": "a6376e78afeefd6712bf0e1b89a6e3ee4edf96d7f35140755c12b230f80f4e7f",
+      "needed": [
+        "libplc4.so",
+        "libplds4.so",
+        "libnspr4.so",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libnssutil3.so"
+      ],
+      "searchPaths": []
+    },
+    "libopenal.so.1": {
+      "bytes": 921024,
+      "sha256": "9bcff6eeedfd40543a31d0d39399b4c1390b51e9ee2b1c9db1399123222eb98b",
+      "needed": [
+        "libsndio.so.7.0",
+        "libpthread.so.0",
+        "libdl.so.2",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libopenal.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libopus.so.0": {
+      "bytes": 395672,
+      "sha256": "70eda5b43974a0adfc9eea77f2a1c3dc0a49f68dd181b8cb1816e73bb2d38ccb",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libopus.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libp11-kit.so.0": {
+      "bytes": 1351264,
+      "sha256": "d6cb9154d510d036aa7270369ba602df62e45caf9c410f6de2e60dca32e3a80e",
+      "needed": [
+        "libffi.so.8",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libp11-kit.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libpango-1.0.so.0": {
+      "bytes": 462192,
+      "sha256": "d5a9acb5692963bb69ce900e25f0e8ca4dc9921baf9dd4dc541c3c19fc23705f",
+      "needed": [
+        "libm.so.6",
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libfribidi.so.0",
+        "libthai.so.0",
+        "libharfbuzz.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpango-1.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libpangocairo-1.0.so.0": {
+      "bytes": 67472,
+      "sha256": "16673fb15d0894d90afec50b6f656314ea1ec0990e8f1e5a916504868d656753",
+      "needed": [
+        "libpango-1.0.so.0",
+        "libpangoft2-1.0.so.0",
+        "libm.so.6",
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libharfbuzz.so.0",
+        "libfontconfig.so.1",
+        "libcairo.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpangocairo-1.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libpangoft2-1.0.so.0": {
+      "bytes": 132888,
+      "sha256": "1ec1f2f9882aa9603cbde923afc3ee5f35b2eb60e96bc149854009d4e9f49155",
+      "needed": [
+        "libpango-1.0.so.0",
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libharfbuzz.so.0",
+        "libfontconfig.so.1",
+        "libfreetype.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpangoft2-1.0.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libpcre2-8.so.0": {
+      "bytes": 592440,
+      "sha256": "cabf859fab34e77fba3ab3485878cc19014327246a7c6aa21ac0d2d1a32dcc81",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpcre2-8.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libpipewire-0.3.so.0": {
+      "bytes": 985976,
+      "sha256": "5a44a914cfbaec5fcb48d1f92960686bc478f9492bfb83424ac7a07a38757b75",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpipewire-0.3.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libpixman-1.so.0": {
+      "bytes": 657360,
+      "sha256": "e999186992ae77d42b482821f8a37115b88f02f914f6f7ac29d301baa3c3f097",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpixman-1.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libplc4.so": {
+      "bytes": 67600,
+      "sha256": "a9213855b5e129cd6e596d26cd7a6fca94c3719c847e010d21d55357e58455e9",
+      "needed": [
+        "libnspr4.so",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libplc4.so"
+      ],
+      "searchPaths": []
+    },
+    "libplds4.so": {
+      "bytes": 67632,
+      "sha256": "2a908f809b996c5df8ce4b3933e2f4447e828d022e5aee262905b385353e081a",
+      "needed": [
+        "libnspr4.so",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libplds4.so"
+      ],
+      "searchPaths": []
+    },
+    "libpng16.so.16": {
+      "bytes": 264040,
+      "sha256": "07cf81c68cc0971f8672ee6669aaaa668cb6fab3255c8d45960139db0cf91a01",
+      "needed": [
+        "libz.so.1",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpng16.so.16"
+      ],
+      "searchPaths": []
+    },
+    "libpthread.so.0": {
+      "bytes": 73544,
+      "sha256": "fedf0a1eb8a0c106f6aee6e33e1028c902995502ce28d69673551f402ba1aa86",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libpthread.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libpulse.so.0": {
+      "bytes": 330728,
+      "sha256": "c69d82ff2e1f4963b81dd02f9a0042314430607da73119bf4d925d027f403953",
+      "needed": [
+        "libpulsecommon-16.1.so",
+        "libm.so.6",
+        "libdbus-1.so.3",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpulse.so.0"
+      ],
+      "searchPaths": [
+        "/usr/lib/aarch64-linux-gnu/pulseaudio"
+      ]
+    },
+    "libpulsecommon-16.1.so": {
+      "bytes": 526456,
+      "sha256": "0430110d7a0e159f1692938e828f4f569e98031fc2c4331e7af68525d27634dc",
+      "needed": [
+        "libm.so.6",
+        "libsndfile.so.1",
+        "libdbus-1.so.3",
+        "libX11-xcb.so.1",
+        "libX11.so.6",
+        "libxcb.so.1",
+        "libsystemd.so.0",
+        "libasyncns.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpulsecommon-16.1.so"
+      ],
+      "searchPaths": []
+    },
+    "libresolv.so.2": {
+      "bytes": 237280,
+      "sha256": "ceb2394c53715e96b1f01f4d0535442efc73c76f8f1bbf14a3f7bc80b43490b7",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libresolv.so.2"
+      ],
+      "searchPaths": []
+    },
+    "librt.so.1": {
+      "bytes": 78800,
+      "sha256": "2b2640e22f2e0e605c84701a70be87943a78c4a7d8af722226a7b5d8b4a587f6",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "librt.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libselinux.so.1": {
+      "bytes": 198800,
+      "sha256": "6f51339a6f92f88785dfcfdb13194c3d10cb10ccee1d0ddb5b3e3445145c761c",
+      "needed": [
+        "libpcre2-8.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libselinux.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libsmime3.so": {
+      "bytes": 199144,
+      "sha256": "fe640b1ff4dd3cb57145951a830ed49573cf09fef7e43be811165b12561c011e",
+      "needed": [
+        "libnss3.so",
+        "libnssutil3.so",
+        "libplc4.so",
+        "libplds4.so",
+        "libnspr4.so",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libsmime3.so"
+      ],
+      "searchPaths": []
+    },
+    "libsndfile.so.1": {
+      "bytes": 595024,
+      "sha256": "fd9d43a318e52cdf4d3e79d344e4cbff00dc3ed85346eb05c1d6553297f1d46d",
+      "needed": [
+        "libFLAC.so.12",
+        "libvorbis.so.0",
+        "libvorbisenc.so.2",
+        "libopus.so.0",
+        "libogg.so.0",
+        "libmpg123.so.0",
+        "libmp3lame.so.0",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libsndfile.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libsndio.so.7.0": {
+      "bytes": 67760,
+      "sha256": "1dc7015db86b9bf122384c7e9799d6980c02ff7ed8173bd9c5a62680bdd06e47",
+      "needed": [
+        "libasound.so.2",
+        "libbsd.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libsndio.so.7"
+      ],
+      "searchPaths": []
+    },
+    "libsoftokn3.so": {
+      "bytes": 398632,
+      "sha256": "e0bdc0ab5233c442b349acb6853fbcfbf390ef2ba248074b28ce460154999fc8",
+      "needed": [
+        "libsqlite3.so.0",
+        "libnssutil3.so",
+        "libplc4.so",
+        "libplds4.so",
+        "libnspr4.so",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libsoftokn3.so"
+      ],
+      "searchPaths": []
+    },
+    "libsqlite3.so.0": {
+      "bytes": 1458912,
+      "sha256": "1da497e08d6343387879262c2be006e4801cb32d94f2868966747c1c5a6d1ede",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libsqlite3.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libstdc++.so.6": {
+      "bytes": 20475720,
+      "sha256": "968dbc2eaf5db9bd14e5869721ae49b222c5f22027683e9258d94bc061881345",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "libgcc_s.so.1"
+      ],
+      "soname": [
+        "libstdc++.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libsteamohos_gamepad.so": {
+      "bytes": 72816,
+      "sha256": "8dfa6dac96a28a7714a47c26d3aa5921c6ca0a00131a55cd92a8b0f6d2f74b68",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "libsteamohos_gnu_late.so": {
+      "bytes": 71088,
+      "sha256": "46ca3a1348517eff2e923440ca5126886825ba6e8e43d7b1dc2f506a258be05f",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libsteamohos_gnu_late.so"
+      ],
+      "searchPaths": []
+    },
+    "libsteamohos_gnu_tls.so": {
+      "bytes": 71232,
+      "sha256": "aacd336941a334a13a3cbbd22384a202adfe926bcf24d29b7f12e735cdf4ab4e",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libsteamohos_gnu_tls.so"
+      ],
+      "searchPaths": []
+    },
+    "libsteamohos_posix.so": {
+      "bytes": 162784,
+      "sha256": "b82bd9922ba04914ea138f332077fc793c20656c3a6457dc4f4276d737c9c989",
+      "needed": [
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libsteamohos_posix.so"
+      ],
+      "searchPaths": []
+    },
+    "libsteamohos_software_gl.so": {
+      "bytes": 17136984,
+      "sha256": "b7b685ba870c4e18aa1c90c13d0584f68a6d2306edbeeb932813594eebba47db",
+      "needed": [
+        "libX11.so.6",
+        "libz.so.1",
+        "libXext.so.6",
+        "libexpat.so.1",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libGL.so.1"
+      ],
+      "searchPaths": [
+        "/home/liufeng/steamohos-software-gl-20261019-v6/deps-root/usr/lib/aarch64-linux-gnu"
+      ]
+    },
+    "libsteamohos_xkbcomp.so": {
+      "bytes": 227784,
+      "sha256": "435c5d0d98ae4557bce67b573e05f4760f0051b71d17cf9ac636b8fc7c44a528",
+      "needed": [
+        "libxkbfile.so.1",
+        "libX11.so.6",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libsteamohos_xkbcomp.so"
+      ],
+      "searchPaths": []
+    },
+    "libsystemd.so.0": {
+      "bytes": 923696,
+      "sha256": "e38e0c11131d330c9a49a4a7f9437f8cf9d6a198355a47ecff02bc4aabe52171",
+      "needed": [
+        "libcap.so.2",
+        "libgcrypt.so.20",
+        "liblzma.so.5",
+        "libzstd.so.1",
+        "liblz4.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libsystemd.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libtasn1.so.6": {
+      "bytes": 133048,
+      "sha256": "9ca4614b9dabf3c2a094dda8a0be33144144ded8094827db8ababcfc22f09d6a",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libtasn1.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libthai.so.0": {
+      "bytes": 40880,
+      "sha256": "7b407835f19c4dc914538515e9793e450fb811f56f12747e0e3176c3fd60e21d",
+      "needed": [
+        "libdatrie.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libthai.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libtinfo.so.6": {
+      "bytes": 199896,
+      "sha256": "3486c8bf9712132d1834a4800d5002e37d4edc670daa9652b3d470eb813aec55",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libtinfo.so.6"
+      ],
+      "searchPaths": []
+    },
+    "libtirpc.so.3": {
+      "bytes": 198960,
+      "sha256": "33cb81d22a00ece4f9d82f7c399237a6fd36269f2f9181041b3dc7b83e74bafb",
+      "needed": [
+        "libgssapi_krb5.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libtirpc.so.3"
+      ],
+      "searchPaths": []
+    },
+    "libudev.so.1": {
+      "bytes": 199104,
+      "sha256": "215857660d2d9ff00d8d653188fc9bd77b25cb2492d275be4b25fe500981da95",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libudev.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libunistring.so.2": {
+      "bytes": 1771448,
+      "sha256": "58aceeb77aed45910b4f5abc1d2c51a964a10d5008609e0b4b57dd4e7eeba570",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libunistring.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libutil.so.1": {
+      "bytes": 73128,
+      "sha256": "b2ded7a3c84dbc271ba91ffc496720adb66c326f8c10b29f5eef7b6cbedf4d82",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libutil.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libuuid.so.1": {
+      "bytes": 67576,
+      "sha256": "d007db0f16412cec5034aa5cf56b44e9847d3186c375dd3d23a744589d2471ce",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libuuid.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libva.so.2": {
+      "bytes": 199088,
+      "sha256": "b46f33c9b27e3328f821be56c17089c0caeb6e1fdb543999bb7909b0cc68dbef",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libva.so.2"
+      ],
+      "searchPaths": []
+    },
+    "libwayland-client.so.0": {
+      "bytes": 192944,
+      "sha256": "becf0a0fef58e8c097ea61927b8313e62a6a461aa098b747d9a293cdf030af27",
+      "needed": [
+        "libffi.so.8",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libwayland-client.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libwayland-server.so.0": {
+      "bytes": 134656,
+      "sha256": "97f8e645fa0ccf4413683344e883569740d796b5f122c93d61dcce57f870afc6",
+      "needed": [
+        "libffi.so.8",
+        "libpthread.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libwayland-server.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libxcb-render.so.0": {
+      "bytes": 67784,
+      "sha256": "b3351688e53eb0e42338f87c9b379a03e65cd62f90402915d9780bcbe14cbb88",
+      "needed": [
+        "libxcb.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libxcb-render.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libxcb-shm.so.0": {
+      "bytes": 67576,
+      "sha256": "4cefd6bc21493a15bfca3c88e7c3b14136acccc94b56c841a0f354f5c8cb9490",
+      "needed": [
+        "libxcb.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libxcb-shm.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libxcb.so.1": {
+      "bytes": 199544,
+      "sha256": "a1087fa3ff008f9b38c7dc70f3f4734fc26cb513025c033acc4e3a9b17475aa4",
+      "needed": [
+        "libXau.so.6",
+        "libXdmcp.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libxcb.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libxcvt.so.0": {
+      "bytes": 67376,
+      "sha256": "09dc8dbe4e63abf26b2b87a4ba61e39cbe36152c2c989ca3ac5ab1663a4342a5",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libxcvt.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libxkbcommon.so.0": {
+      "bytes": 330360,
+      "sha256": "bdaa3b24c59ef1766494d62f8ac13bbe6434d461b5691b8126ca03ec60021888",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libxkbcommon.so.0"
+      ],
+      "searchPaths": []
+    },
+    "libxkbfile.so.1": {
+      "bytes": 155632,
+      "sha256": "8d8462b7082bd7eaf1ac03e0ea195e81c2bcd52d16db7a7bcd1a258c7322ad58",
+      "needed": [
+        "libX11.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libxkbfile.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libxshmfence.so.1": {
+      "bytes": 10104,
+      "sha256": "9d5f0d1a96550d66fdc8a0a88903dcf21219971dad40ab32e06080df56f4b50c",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libxshmfence.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libz.so.1": {
+      "bytes": 133520,
+      "sha256": "ffb1ab496e6eced03ab679075f9f2c415c7728a145cc7f63d614497102d73822",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libz.so.1"
+      ],
+      "searchPaths": []
+    },
+    "libzstd.so.1": {
+      "bytes": 657352,
+      "sha256": "63ff891e4316be1d30a8e551ded6cbb0283772105b352103608e60c06c95ac15",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libzstd.so.1"
+      ],
+      "searchPaths": []
+    },
+    "steamohos_gnu_connection_identity": {
+      "bytes": 75960,
+      "sha256": "6c053cbba365d18ea8c6060019d6884ffe9e30d6ac112bc4139235d65ccae66c",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_desktop": {
+      "bytes": 77656,
+      "sha256": "2bf8537af30f371fbef7ada099ff29819efb3cfe8f32254a09f0168ee0a00fb6",
+      "needed": [
+        "libX11.so.6",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_fixture": {
+      "bytes": 76992,
+      "sha256": "78c042d6cb0a119556bff610631af68ec5e17f0e9b31aab98728386da9629dc1",
+      "needed": [
+        "libsteamohos_gnu_tls.so",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_glx": {
+      "bytes": 77728,
+      "sha256": "8076bf76f5253c180894a12d99c2da6860406eee8a74fc2b11951e966f99156f",
+      "needed": [
+        "libGL.so.1",
+        "libX11.so.6",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_graphics_loader": {
+      "bytes": 74792,
+      "sha256": "039da7ca48fa1c0ef8ff8ea29e46079507c5f78fb69038fd3fb1b4100c23d04e",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_steam_bridge": {
+      "bytes": 423112,
+      "sha256": "52c19c09fec8c038b54e2b22ffce9dde12a1b69565b47aa5d33919211ecccdea",
+      "needed": [
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_steam_session": {
+      "bytes": 74656,
+      "sha256": "bdf227f7773b067f0c0fa969ae2955b20963ad1684fb4d8ad82c3cd7e98289d5",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_steamclient": {
+      "bytes": 76144,
+      "sha256": "5e6cb96a4e2cb25c07472e4f0e779e7fbcde9a3798731a3ff24937bb64ea8e46",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_sysvipc": {
+      "bytes": 75896,
+      "sha256": "4e761e4a9d10b88105e9bcb8dc708270b51db8f073b181857c7369c4b9a6c306",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_wayland": {
+      "bytes": 79952,
+      "sha256": "6830def1e380b8938b568269e854197a30067461b9351a96a8f3fb668d204120",
+      "needed": [
+        "libwayland-client.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_x11": {
+      "bytes": 74944,
+      "sha256": "d3e58b225b0236a19e61cdedf5150a0243be5cfe0665c8136270836d3ed51db1",
+      "needed": [
+        "libxcb.so.1",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_gnu_xlib": {
+      "bytes": 74616,
+      "sha256": "aeea01f329cbb0e963032aeb37f079afbbea587e01daf99fd7b0ec3a2c76a27a",
+      "needed": [
+        "libX11.so.6",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_lsof": {
+      "bytes": 229280,
+      "sha256": "efe5949589b59cc1d6ce61783b31f71384df2cf84552aa58bbb1dd55abf81858",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_shell": {
+      "bytes": 1346480,
+      "sha256": "f5918390c5b15392ad8835e8368a79c1ee9937fbb19f2349cccf5d4524183299",
+      "needed": [
+        "libtinfo.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamohos_taskset": {
+      "bytes": 133288,
+      "sha256": "73fd987f9cdb44d56025aec83b53f9c5f4e9a1dbc9f06679a9f2b59ea75c63a5",
+      "needed": [
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamrtarm64/cefsimple": {
+      "bytes": 4689496,
+      "sha256": "becb02eba2773071cbb8544b3ddb9cb6fa6b4d3b971b85fa8e53de2d57f7c9e3",
+      "needed": [
+        "libcef.so",
+        "libX11.so.6",
+        "libpthread.so.0",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/chromehtml.so": {
+      "bytes": 2923856,
+      "sha256": "cb0312cb75782b1195085a471c38a682fcd2d72417e5ee109920ae70fec778b0",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/crashhandler.so": {
+      "bytes": 1221080,
+      "sha256": "e12918a922e471fc0df7a0e319f995badab352141bf3df0e57793141a32970d3",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/filesystem_stdio.so": {
+      "bytes": 878104,
+      "sha256": "b4c1a9be3adb18db83dea9379dc38759689d1fafa42c1717cefc9f2d96031dbc",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/fossilize_replay": {
+      "bytes": 3584168,
+      "sha256": "ab5aaf881f1f2edf26dc8335b6868f52be1479e1c907e00dac3f2603e8184a4c",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/friendsui.so": {
+      "bytes": 7553600,
+      "sha256": "1310fea8001b2a3309bb737ec6345a63ab6aef66b2e5fd847c641d4c9a2e683a",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/gameoverlayrenderer.so": {
+      "bytes": 727376,
+      "sha256": "2901b74abd5b8167bda982b932e86516bfc5b86b5bd02eb26485e424bc98a4b7",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libGL.so.1",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/gameoverlayui": {
+      "bytes": 7800,
+      "sha256": "163285ea95d36ec562984a969889514d536290ec5da48000d49ad2c19fb2c143",
+      "needed": [
+        "libdl.so.2",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/gameoverlayui.so": {
+      "bytes": 7762576,
+      "sha256": "d44e62ad3247f7d66952bedb48c0769665bf179c2c71f5a70b7313830c47deda",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libavif.so.16",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/gldriverquery": {
+      "bytes": 174496,
+      "sha256": "1dfccd458602577f8c7187839ae27be81cce2f05513830515d6d875d539a3b5a",
+      "needed": [
+        "libSDL2-2.0.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamrtarm64/libEGL.so": {
+      "bytes": 283472,
+      "sha256": "26d5bfd7d5921d51101146f5be1c6c7091ad0e1f026c34314bd3d6f412e505b4",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libEGL.so"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libGLESv2.so": {
+      "bytes": 6486432,
+      "sha256": "5e389cf7ee3202501f1c67dc2845013b7e60c5023261def47d2216e5e7f6b266",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libX11.so.6",
+        "libXext.so.6",
+        "libxcb.so.1",
+        "libdrm.so.2",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libGLESv2.so"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libSDL3.so.0": {
+      "bytes": 3329224,
+      "sha256": "2fc45efdd36f694409c5760e6a576213a4af3c070bba0d5925c792e7c7fb600f",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libEGL.so.1",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libSDL3.so.0"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libSDL3_image.so.0": {
+      "bytes": 278016,
+      "sha256": "6b4c637a50bb5f2f62e138a4781f0a73717d538452c5fa026f7b190e42232577",
+      "needed": [
+        "libSDL3.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libSDL3_image.so.0"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libSDL3_ttf.so.0": {
+      "bytes": 27297024,
+      "sha256": "a6dc96b8a7deaf4d1feb563390de7f27334610577e5159d4dd17ca1545fbc332",
+      "needed": [
+        "libSDL3.so.0",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libSDL3_ttf.so.0"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libVkLayer_khronos_validation.so": {
+      "bytes": 16715320,
+      "sha256": "ec56e465adf5463db927620305fddc17a64284bb702e81538c45530ebb1b7e9b",
+      "needed": [
+        "libpthread.so.0",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libVkLayer_khronos_validation.so"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libVkLayer_steam_fossilize.so": {
+      "bytes": 1111704,
+      "sha256": "8cf7787e262f73c81f4953707808cfabc32a194c3da39f7070093d189563dd39",
+      "needed": [
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libaom.so.3": {
+      "bytes": 2703080,
+      "sha256": "3c4720d99fe25ebf2c1db8674aff346435e3cc93a3bb50b3752215b0b67e371e",
+      "needed": [
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libaom.so.3"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libaudio.so": {
+      "bytes": 988456,
+      "sha256": "74e90584ed00425f658383b6a6113454a71ef0c33d4e58e4d0f0b3b6e3bdb685",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libpulse.so.0",
+        "libopenal.so.1",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libavcodec.so": {
+      "bytes": 3223696,
+      "sha256": "9340c42cb4922d7e82a47042a77bbf976b26cb2c2e8d92de2358611b44ea394a",
+      "needed": [
+        "libavutil.so.59",
+        "libvpx.so.6",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libva.so.2",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavcodec.so.61"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavcodec.so.58": {
+      "bytes": 2970032,
+      "sha256": "5a049fbfcce59f426ba4575a41c0cabe1b4244ef79ea975ce1aaac4d0f8660d4",
+      "needed": [
+        "libavutil.so.56",
+        "libvpx.so.6",
+        "libm.so.6",
+        "libva.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavcodec.so.58"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavcodec.so.62": {
+      "bytes": 3195792,
+      "sha256": "35813858b86d252d802e970480d64a8cec3c60e43d18d805831f4b4bd923cc67",
+      "needed": [
+        "libavutil.so.60",
+        "libvpx.so.6",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libva.so.2",
+        "libdl.so.2",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavcodec.so.62"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libavfilter.so": {
+      "bytes": 121688,
+      "sha256": "8bfaeab75f3248b5b408523cd66a8548ba74076ade60372c3708ca7015b05268",
+      "needed": [
+        "libavutil.so.59",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavfilter.so.10"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavfilter.so.11": {
+      "bytes": 175280,
+      "sha256": "08e464cce97dc7ea0984bed565e8bd5bd1dff5c6c64650e81786365dd0b659ea",
+      "needed": [
+        "libswscale.so.9",
+        "libavutil.so.60",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavfilter.so.11"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libavfilter.so.7": {
+      "bytes": 134744,
+      "sha256": "2e6a95845c97aa7217f35e2da8b8966d482c0bad2d2972d2ce7a98ce91c225a9",
+      "needed": [
+        "libavutil.so.56",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavfilter.so.7"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavformat.so": {
+      "bytes": 922240,
+      "sha256": "a562e8084987b51c344bc5e04e66a4304ef8ffaeb480cd5817741137fdc68c0b",
+      "needed": [
+        "libavcodec.so.61",
+        "libavutil.so.59",
+        "libm.so.6",
+        "libbz2.so.1.0",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavformat.so.61"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavformat.so.58": {
+      "bytes": 925176,
+      "sha256": "9e8be10df5075eb744130c4ef3bf4ef553ccf4f3de9573b72ea777f917663d8b",
+      "needed": [
+        "libavcodec.so.58",
+        "libavutil.so.56",
+        "libm.so.6",
+        "libbz2.so.1.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavformat.so.58"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavformat.so.62": {
+      "bytes": 1041248,
+      "sha256": "2bc162383864c93bd653de3fb1b650ca17d68d7797bf62eedb82b1218e097c51",
+      "needed": [
+        "libavcodec.so.62",
+        "libavutil.so.60",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavformat.so.62"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libavif.so.16": {
+      "bytes": 162664,
+      "sha256": "06a14a73462ef4e0e686cd7851bdbe1721993b6cb04ebe0ad7a639fe58e1ef76",
+      "needed": [
+        "libdav1d.so.6",
+        "libaom.so.3",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavif.so.16"
+      ],
+      "searchPaths": [
+        ""
+      ]
+    },
+    "steamrtarm64/libavresample.so": {
+      "bytes": 133392,
+      "sha256": "fbdb4c38ccdb14701fb21128f6d295894eb0508ad87e3569ca7c2ae48f4e88cd",
+      "needed": [
+        "libavutil.so.56",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavresample.so.4"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavresample.so.4": {
+      "bytes": 133496,
+      "sha256": "d965cb998a0c09ea33ef9ffbbd4d8e5f034643898edd955686227fc17ccf4c7c",
+      "needed": [
+        "libavutil.so.56",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavresample.so.4"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavutil.so": {
+      "bytes": 789440,
+      "sha256": "e8aa8afcd19a5f8cef404e5d59cf0125fceeabe12bbe0179025c02e03e4257a3",
+      "needed": [
+        "libvdpau.so.1",
+        "libX11.so.6",
+        "libm.so.6",
+        "libdrm.so.2",
+        "libva.so.2",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavutil.so.59"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavutil.so.56": {
+      "bytes": 593720,
+      "sha256": "d9abcb3c6e6dd9714ece2f5d0ab78b4a598b19966d0e2cdb4b3d3e16bd656985",
+      "needed": [
+        "libvdpau.so.1",
+        "libX11.so.6",
+        "libm.so.6",
+        "libdrm.so.2",
+        "libva.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavutil.so.56"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libavutil.so.60": {
+      "bytes": 945552,
+      "sha256": "7f3a228bd24b671d7e3416e272b1733e636f8882ef7a47c830c75b62d971285d",
+      "needed": [
+        "libm.so.6",
+        "libdrm.so.2",
+        "libva.so.2",
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavutil.so.60"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libcef.so": {
+      "bytes": 218132264,
+      "sha256": "891d85f97231fcafa5763b7140039c5d3cbbb99f2a42ede08de5991abcbc3cdb",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libnss3.so",
+        "libnssutil3.so",
+        "libsmime3.so",
+        "libnspr4.so",
+        "libdbus-1.so.3",
+        "libatk-1.0.so.0",
+        "libatk-bridge-2.0.so.0",
+        "libcups.so.2",
+        "libgio-2.0.so.0",
+        "libm.so.6",
+        "libX11.so.6",
+        "libXcomposite.so.1",
+        "libXdamage.so.1",
+        "libXext.so.6",
+        "libXfixes.so.3",
+        "libXrandr.so.2",
+        "libgbm.so.1",
+        "libdrm.so.2",
+        "libexpat.so.1",
+        "libxcb.so.1",
+        "libxkbcommon.so.0",
+        "libpango-1.0.so.0",
+        "libcairo.so.2",
+        "libasound.so.2",
+        "libatspi.so.0",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libcef.so"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libdav1d.so.6": {
+      "bytes": 758944,
+      "sha256": "d4c79dcc36b80c6f3d952bfe92214f6e5142bcc5bb0db11f146d2d2ac6196eee",
+      "needed": [
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libdav1d.so.6"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libh264bitstream.so.0": {
+      "bytes": 433976,
+      "sha256": "22cf2cba7ab48c1f2ff92d92b694b4ed322b14b5e8ea14b6af6637ef75f285d1",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libh264bitstream.so.0"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libhevcbitstream.so.0": {
+      "bytes": 483024,
+      "sha256": "a9bfee5f612f2b3a1946e3c0cb18ca62293b94881e0d410350b402decf52beaa",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libhevcbitstream.so.0"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libmiles.so": {
+      "bytes": 403424,
+      "sha256": "b2308b33d6eaab4362db4429a3cca799cea23cd53bb2416d0488a315d889bc3d",
+      "needed": [
+        "libopenal.so.1",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libminigbm.so": {
+      "bytes": 2046456,
+      "sha256": "ea1201f47c0854f4810ea850919fd0212b28cf92088b87fa1816e0050e4e123c",
+      "needed": [
+        "libpthread.so.0",
+        "libdrm.so.2",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libminigbm.so"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libogg.so": {
+      "bytes": 30832,
+      "sha256": "6eb0b5f59af51b1e434dd96fd92ef8b34c984e4f9fcd48f94867ad2b6be2372e",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libogg.so.0"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libogg.so.0": {
+      "bytes": 30928,
+      "sha256": "91821b16b19583ec48f9204d27ef8a10ab42cd2c178d56c30aff2ab7a3b1a6b4",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libogg.so.0"
+      ],
+      "searchPaths": [
+        "$$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libopenvr_api.so": {
+      "bytes": 333320,
+      "sha256": "4a8723b7134c53ec6c9291d9d2f55ea86349ffd0d227d10ae49a4951ae5395d4",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamrtarm64/libpulsecommon-10.0.so": {
+      "bytes": 592072,
+      "sha256": "059fb7bd2bcd2556b3639e2a4c96459f93a023b89a953fecb50dd1aa23db491a",
+      "needed": [
+        "libm.so.6",
+        "libsndfile.so.1",
+        "libdbus-1.so.3",
+        "libX11-xcb.so.1",
+        "libX11.so.6",
+        "libxcb.so.1",
+        "libsystemd.so.0",
+        "libasyncns.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libpulsecommon-16.1.so"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libs/libcurl.so": {
+      "bytes": 760920,
+      "sha256": "d58dcb98115743f3b2f8f3b2dead3979ddd9f989da7d129974c20d2a0e181063",
+      "needed": [
+        "libnghttp2.so.14",
+        "libssh2.so.1",
+        "libssl.so.3",
+        "libcrypto.so.3",
+        "libzstd.so.1",
+        "libbrotlidec.so.1",
+        "libz.so.1",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libcurl.so.4"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libs/libcurl.so.4.8.0": {
+      "bytes": 760920,
+      "sha256": "d58dcb98115743f3b2f8f3b2dead3979ddd9f989da7d129974c20d2a0e181063",
+      "needed": [
+        "libnghttp2.so.14",
+        "libssh2.so.1",
+        "libssl.so.3",
+        "libcrypto.so.3",
+        "libzstd.so.1",
+        "libbrotlidec.so.1",
+        "libz.so.1",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libcurl.so.4"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libs/libnghttp2.so": {
+      "bytes": 304688,
+      "sha256": "65802cbbab83219c19016cc1326f4df33f2da64e86cc3771c7dcaf7f6d878f11",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libnghttp2.so.14"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libs/libnghttp2.so.14": {
+      "bytes": 304688,
+      "sha256": "65802cbbab83219c19016cc1326f4df33f2da64e86cc3771c7dcaf7f6d878f11",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libnghttp2.so.14"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libs/libnghttp2.so.14.20.1": {
+      "bytes": 304688,
+      "sha256": "65802cbbab83219c19016cc1326f4df33f2da64e86cc3771c7dcaf7f6d878f11",
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": [
+        "libnghttp2.so.14"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libsdkencryptedappticket.so": {
+      "bytes": 1601472,
+      "sha256": "82ecc6073367c4e89edcd3104c80df63b8bbf456f14fd80a781f75f3161615eb",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libswresample.so": {
+      "bytes": 84256,
+      "sha256": "c1c84cc09e012544aa964e5c829c47ca099dc4a89c628326ea2aa63dec7f0737",
+      "needed": [
+        "libavutil.so.59",
+        "libm.so.6",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libswresample.so.5"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libswresample.so.6": {
+      "bytes": 88464,
+      "sha256": "d402ec9761bb524ada2cf25626c2cab5073132a48a93a87c9519ed3031133b2b",
+      "needed": [
+        "libavutil.so.60",
+        "libm.so.6",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libswresample.so.6"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libswscale.so": {
+      "bytes": 375088,
+      "sha256": "ee1198033a837bfb61891cffa4bb7ae30d6f5ef89ac3007eff2830fb3bc96b09",
+      "needed": [
+        "libavutil.so.59",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libswscale.so.8"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libswscale.so.5": {
+      "bytes": 461088,
+      "sha256": "5a8be80531c5bcbf16f2ffd7390a965ed2f632d259bd7377aebe56eaca16bb27",
+      "needed": [
+        "libavutil.so.56",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libswscale.so.5"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libswscale.so.9": {
+      "bytes": 769168,
+      "sha256": "c507fce6e0804f6b9ba6936a3fea0a50242d664606b9d6e9bf8e96624ee8a036",
+      "needed": [
+        "libavutil.so.60",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libswscale.so.9"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libtier0_s.so": {
+      "bytes": 369544,
+      "sha256": "42ee1b25becb1a9eb3817587ba766f5e2b1a4d1e63bfce78990de5639fdda6dc",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libvideo.so": {
+      "bytes": 9786464,
+      "sha256": "878400d7ff70fbb3d229f5292e5289d42e691cf4cf4f22b748efc0b2a9632d69",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libavcodec.so.62",
+        "libavformat.so.62",
+        "libswresample.so.6",
+        "libavutil.so.60",
+        "libswscale.so.9",
+        "libavfilter.so.11",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libvk_swiftshader.so": {
+      "bytes": 16882424,
+      "sha256": "cbb0e4003d7a1acb046dc4f24c3a710ea07e528ab9033fe87286c4ea485775c2",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libvk_swiftshader.so"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libvorbis.so": {
+      "bytes": 162424,
+      "sha256": "2a8f0f32cb3cda2d89ec0ed59c2f4a815209c7d0ee8f27bcfc46c918283e73a3",
+      "needed": [
+        "libm.so.6",
+        "libogg.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvorbis.so.0"
+      ],
+      "searchPaths": [
+        "/buildffmpeg7/ffmpeg-7.0.1/build_arm64/lib"
+      ]
+    },
+    "steamrtarm64/libvorbis.so.0": {
+      "bytes": 162528,
+      "sha256": "4efea9c368ffc556dd1d48126d05314641358d4ac123974c20a7909ae7379281",
+      "needed": [
+        "libm.so.6",
+        "libogg.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvorbis.so.0"
+      ],
+      "searchPaths": [
+        "/home/buildbot/buildslave/libav_linux/build/ffmpeg-8.1.2/build_arm64/lib:$$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libvorbisenc.so": {
+      "bytes": 653344,
+      "sha256": "dc85e991ae4d6328c2f584ea2645fbf8a87e9b48c1ef876c7457c24ebb81d18a",
+      "needed": [
+        "libvorbis.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvorbisenc.so.2"
+      ],
+      "searchPaths": [
+        "/buildffmpeg7/ffmpeg-7.0.1/build_arm64/lib"
+      ]
+    },
+    "steamrtarm64/libvorbisenc.so.2": {
+      "bytes": 653448,
+      "sha256": "c1fd996c7af29fded0222f45ede97a46f60485c72af889b4eb663b265e730e22",
+      "needed": [
+        "libvorbis.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvorbisenc.so.2"
+      ],
+      "searchPaths": [
+        "/home/buildbot/buildslave/libav_linux/build/ffmpeg-8.1.2/build_arm64/lib:$$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libvorbisfile.so": {
+      "bytes": 31104,
+      "sha256": "94a492ff8189ec94f0c4235aaa6420063ff89b18da2f9269c0d5b0a71b158e3c",
+      "needed": [
+        "libvorbis.so.0",
+        "libogg.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvorbisfile.so.3"
+      ],
+      "searchPaths": [
+        "/buildffmpeg7/ffmpeg-7.0.1/build_arm64/lib"
+      ]
+    },
+    "steamrtarm64/libvorbisfile.so.3": {
+      "bytes": 31208,
+      "sha256": "58924ce47e51a42401ea5522b5f2baa1f6ec71f24ca49f5fd519aa69d03c843a",
+      "needed": [
+        "libvorbis.so.0",
+        "libogg.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvorbisfile.so.3"
+      ],
+      "searchPaths": [
+        "/home/buildbot/buildslave/libav_linux/build/ffmpeg-8.1.2/build_arm64/lib:$$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libvpx.so": {
+      "bytes": 2112000,
+      "sha256": "3a1b594ae9490f9a617e0ee5b2e0fec7f416fd6fbadcc95b35a2e6a3dbcfd948",
+      "needed": [
+        "libpthread.so.0",
+        "libm.so.6",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvpx.so.6"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libvpx.so.6": {
+      "bytes": 2112096,
+      "sha256": "8d29aea36f0885ed314319bee850ff8ca80fe9102fb997e7bb8e363da8673514",
+      "needed": [
+        "libpthread.so.0",
+        "libm.so.6",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvpx.so.6"
+      ],
+      "searchPaths": [
+        "$$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libvstdlib_s.so": {
+      "bytes": 1225272,
+      "sha256": "c8432b3c81764ef823c65038929925f4ab917ca1c312ad539dacd96ec2ff802e",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/libvulkan.so": {
+      "bytes": 592464,
+      "sha256": "d114974137bb80154f08c12531a2adef6431dde112566a0d2625e307fbd7eedf",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libvulkan.so.1"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/libvulkan.so.1": {
+      "bytes": 592464,
+      "sha256": "d114974137bb80154f08c12531a2adef6431dde112566a0d2625e307fbd7eedf",
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libvulkan.so.1"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/reaper": {
+      "bytes": 19336,
+      "sha256": "6105162a0b337c4f082f382b4bbd0211c03808df36b698a9dbfadd2d768a7161",
+      "needed": [
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": []
+    },
+    "steamrtarm64/steam": {
+      "bytes": 10174384,
+      "sha256": "bd059af3d99c8b9979a5218838cce9ff44bef4c5ccc0b399b333db0ae1b84a89",
+      "needed": [
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steam_monitor": {
+      "bytes": 529536,
+      "sha256": "07fb32db6417c819e871a8da1f0cea76300ac05d68a5b7c23c1dc3f93096fbed",
+      "needed": [
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steamclient.so": {
+      "bytes": 47744848,
+      "sha256": "8dec8579abad65d000079f146aee5f42c12a4bd9ca7a24051b691813cced11dc",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libXrandr.so.2",
+        "libXi.so.6",
+        "libGL.so.1",
+        "libXrender.so.1",
+        "libX11.so.6",
+        "libXtst.so.6",
+        "libpipewire-0.3.so.0",
+        "libopenal.so.1",
+        "libpulse.so.0",
+        "libnm.so.0",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libudev.so.1",
+        "libgio-2.0.so.0",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steamerrorreporter": {
+      "bytes": 158240,
+      "sha256": "6e5ddc7616300e7b62d335455fd3c35b99101128c9527f6769bb57f1616f42c3",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steamoverlayvulkanlayer.so": {
+      "bytes": 833016,
+      "sha256": "8526acd724076bbd0b3046ffc227bf2c5929e4ce1e9d1871699480d60338c0d1",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steamservice.so": {
+      "bytes": 9230320,
+      "sha256": "7a169c1cfcd1bd05c7d94e058c074847b4705113ef9e5463962aa22018d2c614",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steamsysinfo": {
+      "bytes": 2590424,
+      "sha256": "74379a06b546b7f21bb5449e66de07b4ab92369af358421f124a0bb3ca4fbe54",
+      "needed": [
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steamui.so": {
+      "bytes": 39116664,
+      "sha256": "447d06ce17c28a04f966cc23e2ce6b0645ad2c2e031cb1ba3db65c210583823c",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libSDL3.so.0",
+        "libvideo.so",
+        "libGL.so.1",
+        "libXtst.so.6",
+        "libXfixes.so.3",
+        "libXrandr.so.2",
+        "libXrender.so.1",
+        "libXext.so.6",
+        "libX11.so.6",
+        "libXi.so.6",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libgtk-x11-2.0.so.0",
+        "libpipewire-0.3.so.0",
+        "libpulse.so.0",
+        "libgdk_pixbuf-2.0.so.0",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/steamwebhelper": {
+      "bytes": 10322464,
+      "sha256": "59210d37eb488b4f61706eb74a3b62e5d939e26bf70c2f7cb81e2a8472c9faf8",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libcef.so",
+        "libSDL3.so.0",
+        "libgobject-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libX11.so.6",
+        "libXi.so.6",
+        "libXext.so.6",
+        "libXrender.so.1",
+        "libXtst.so.6",
+        "libXrandr.so.2",
+        "libXcomposite.so.1",
+        "libXdamage.so.1",
+        "libGL.so.1",
+        "libibus-1.0.so.5",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/streaming_client": {
+      "bytes": 14743016,
+      "sha256": "06db265e17d6f09f45b1fd77e270bd5809de6df8f713df77d69e0805c5445ada",
+      "needed": [
+        "libdl.so.2",
+        "libSDL3.so.0",
+        "libSDL3_image.so.0",
+        "libSDL3_ttf.so.0",
+        "libh264bitstream.so.0",
+        "libhevcbitstream.so.0",
+        "libXtst.so.6",
+        "libXrender.so.1",
+        "libX11.so.6",
+        "libXi.so.6",
+        "libXrandr.so.2",
+        "libGL.so.1",
+        "libbrotlidec.so.1",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/swiftshader/libEGL.so": {
+      "bytes": 1874248,
+      "sha256": "7becddfaf1d3648ae18e4fa59d4bfe79400e36b26f43211c76f31adb9074e68f",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libEGL.so"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/swiftshader/libGLESv2.so": {
+      "bytes": 97036984,
+      "sha256": "88efd225ff5db1c6aaf957c076a28ea472553df2c0c791474a8777ed9eaf52fa",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libGLESv2.so"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/vgui2_s.so": {
+      "bytes": 3472064,
+      "sha256": "035d7e65db82ab178a2e4463f748eddad321fa9fc8d1facd0c5d510a7cd35903",
+      "needed": [
+        "libdl.so.2",
+        "ld-linux-aarch64.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libX11.so.6",
+        "libXi.so.6",
+        "libXrandr.so.2",
+        "libXrender.so.1",
+        "libGL.so.1",
+        "libfontconfig.so.1",
+        "libfreetype.so.6",
+        "libgtk-x11-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libopenal.so.1",
+        "libXinerama.so.1",
+        "libSM.so.6",
+        "libICE.so.6",
+        "libXtst.so.6",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/vgui_panel_zoo": {
+      "bytes": 7644112,
+      "sha256": "a978874449e86a861401932f5ea6478f932e33231662582f1726ec692e801d39",
+      "needed": [
+        "libdl.so.2",
+        "librt.so.1",
+        "libtier0_s.so",
+        "libvstdlib_s.so",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/video/libavcodec.so.58": {
+      "bytes": 2970032,
+      "sha256": "5a049fbfcce59f426ba4575a41c0cabe1b4244ef79ea975ce1aaac4d0f8660d4",
+      "needed": [
+        "libavutil.so.56",
+        "libvpx.so.6",
+        "libm.so.6",
+        "libva.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavcodec.so.58"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/video/libavcodec.so.62": {
+      "bytes": 3195792,
+      "sha256": "35813858b86d252d802e970480d64a8cec3c60e43d18d805831f4b4bd923cc67",
+      "needed": [
+        "libavutil.so.60",
+        "libvpx.so.6",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libva.so.2",
+        "libdl.so.2",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavcodec.so.62"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/video/libavfilter.so.11": {
+      "bytes": 175280,
+      "sha256": "08e464cce97dc7ea0984bed565e8bd5bd1dff5c6c64650e81786365dd0b659ea",
+      "needed": [
+        "libswscale.so.9",
+        "libavutil.so.60",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavfilter.so.11"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/video/libavfilter.so.7": {
+      "bytes": 134744,
+      "sha256": "2e6a95845c97aa7217f35e2da8b8966d482c0bad2d2972d2ce7a98ce91c225a9",
+      "needed": [
+        "libavutil.so.56",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavfilter.so.7"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/video/libavformat.so.58": {
+      "bytes": 925176,
+      "sha256": "9e8be10df5075eb744130c4ef3bf4ef553ccf4f3de9573b72ea777f917663d8b",
+      "needed": [
+        "libavcodec.so.58",
+        "libavutil.so.56",
+        "libm.so.6",
+        "libbz2.so.1.0",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavformat.so.58"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/video/libavformat.so.62": {
+      "bytes": 1041248,
+      "sha256": "2bc162383864c93bd653de3fb1b650ca17d68d7797bf62eedb82b1218e097c51",
+      "needed": [
+        "libavcodec.so.62",
+        "libavutil.so.60",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavformat.so.62"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/video/libavutil.so.56": {
+      "bytes": 593720,
+      "sha256": "d9abcb3c6e6dd9714ece2f5d0ab78b4a598b19966d0e2cdb4b3d3e16bd656985",
+      "needed": [
+        "libvdpau.so.1",
+        "libX11.so.6",
+        "libm.so.6",
+        "libdrm.so.2",
+        "libva.so.2",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "soname": [
+        "libavutil.so.56"
+      ],
+      "searchPaths": []
+    },
+    "steamrtarm64/video/libavutil.so.60": {
+      "bytes": 945552,
+      "sha256": "7f3a228bd24b671d7e3416e272b1733e636f8882ef7a47c830c75b62d971285d",
+      "needed": [
+        "libm.so.6",
+        "libdrm.so.2",
+        "libva.so.2",
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libavutil.so.60"
+      ],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    },
+    "steamrtarm64/video/libvpx.so.6": {
+      "bytes": 2112096,
+      "sha256": "8d29aea36f0885ed314319bee850ff8ca80fe9102fb997e7bb8e363da8673514",
+      "needed": [
+        "libpthread.so.0",
+        "libm.so.6",
+        "libc.so.6"
+      ],
+      "soname": [
+        "libvpx.so.6"
+      ],
+      "searchPaths": [
+        "$$ORIGIN"
+      ]
+    },
+    "steamrtarm64/vulkandriverquery": {
+      "bytes": 174736,
+      "sha256": "a67394cc800b9a9f15c1ccbf498b975aaf3d776002bf8c75fa91b620dab195e3",
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": [],
+      "searchPaths": [
+        "$ORIGIN"
+      ]
+    }
+  },
+  "neededNotPresentInInventory": {
+    "steamrtarm64/gldriverquery": [
+      "libSDL2-2.0.so.0"
+    ],
+    "steamrtarm64/libavutil.so": [
+      "libvdpau.so.1"
+    ],
+    "steamrtarm64/libavutil.so.56": [
+      "libvdpau.so.1"
+    ],
+    "steamrtarm64/libs/libcurl.so": [
+      "libcrypto.so.3",
+      "libssh2.so.1",
+      "libssl.so.3"
+    ],
+    "steamrtarm64/libs/libcurl.so.4.8.0": [
+      "libcrypto.so.3",
+      "libssh2.so.1",
+      "libssl.so.3"
+    ],
+    "steamrtarm64/video/libavutil.so.56": [
+      "libvdpau.so.1"
+    ]
+  },
+  "limitations": [
+    "Includes optional Valve tools and diagnostics, not only active processes.",
+    "Does not infer dlopen, kernel support or hardware acceleration from file presence.",
+    "GNU/OHOS shared libraries remain separate ABI domains."
+  ]
+}

@@ -13,6 +13,7 @@
     "pages/SteamAccount",
     "pages/SteamGameDetail",
     "pages/AccountCloud",
-    "pages/MembershipLegal"
+    "pages/MembershipLegal",
+    "pages/LinuxSteam"
   ]
 }

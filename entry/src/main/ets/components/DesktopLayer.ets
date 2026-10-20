@@ -161,6 +161,8 @@ export struct DesktopLayer {
   private twoFingerLastMidX: number = 0;
   private twoFingerLastMidY: number = 0;
   private twoFingerTl: number = 0;
+  private twoFingerAnchorX: number = 0;
+  private twoFingerAnchorY: number = 0;
   private scrollLogCounter: number = 0;
   private twoFingerAccumY: number = 0;
   private twoFingerAccumX: number = 0;
@@ -362,6 +364,8 @@ export struct DesktopLayer {
               this.twoFingerActive = true;
               this.twoFingerLastMidX = midX;
               this.twoFingerLastMidY = midY;
+              this.twoFingerAnchorX = midX;
+              this.twoFingerAnchorY = midY;
               this.twoFingerAccumY = 0;
               this.twoFingerAccumX = 0;
               this.twoFingerTl = testNapi.findToplevelAt(midX, midY) as number ?? 0;
@@ -379,7 +383,8 @@ export struct DesktopLayer {
                 // 垂直滚动
                 while (Math.abs(this.twoFingerAccumY) >= DesktopLayer.SCROLL_STEP_PX) {
                   const sign = this.twoFingerAccumY > 0 ? 1 : -1;
-                  testNapi.sendScrollEvent(this.twoFingerTl, 0, sign, DesktopLayer.SCROLL_STEP_PX, midX, midY);
+                  testNapi.sendScrollEvent(this.twoFingerTl, 0, sign, DesktopLayer.SCROLL_STEP_PX,
+                    this.twoFingerAnchorX, this.twoFingerAnchorY);
                   this.twoFingerAccumY -= sign * DesktopLayer.SCROLL_STEP_PX;
                   if (++this.scrollLogCounter % 5 === 0) {
                     hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] SCROLL-V tl=%{public}d',
@@ -389,7 +394,8 @@ export struct DesktopLayer {
                 // 水平滚动
                 while (Math.abs(this.twoFingerAccumX) >= DesktopLayer.SCROLL_STEP_PX) {
                   const sign = this.twoFingerAccumX > 0 ? 1 : -1;
-                  testNapi.sendScrollEvent(this.twoFingerTl, 1, sign, DesktopLayer.SCROLL_STEP_PX, midX, midY);
+                  testNapi.sendScrollEvent(this.twoFingerTl, 1, sign, DesktopLayer.SCROLL_STEP_PX,
+                    this.twoFingerAnchorX, this.twoFingerAnchorY);
                   this.twoFingerAccumX -= sign * DesktopLayer.SCROLL_STEP_PX;
                 }
               }

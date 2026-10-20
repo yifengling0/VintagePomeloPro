@@ -219,6 +219,8 @@ extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(Nat
                 std::string paths(parameters + 6),audioSocket,gamepadSocket;
                 const auto audio=paths.rfind("\nAUDIO=");
                 if(audio!=std::string::npos){audioSocket=paths.substr(audio+7);paths.resize(audio);}
+                const bool productSession = paths.size() >= 10 && paths.compare(paths.size()-10,10,"\nPRODUCT=1") == 0;
+                if (productSession) paths.resize(paths.size()-10);
                 const auto gamepad=paths.rfind("\nGAMEPAD=");
                 if(gamepad!=std::string::npos){gamepadSocket=paths.substr(gamepad+9);paths.resize(gamepad);}
                 const auto separator = paths.find('\n');
@@ -226,7 +228,7 @@ extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(Nat
                 const auto second = separator == std::string::npos ? separator : paths.find('\n', separator + 1);
                 const std::string vtestSocket = separator == std::string::npos ? "" : paths.substr(separator + 1, second == std::string::npos ? second : second - separator - 1);
                 const std::string launch = second == std::string::npos ? "" : paths.substr(second + 1);
-                json = steamohos::ProbeXwayland(directory, waylandSocket, true, externalBase, vtestSocket, launch, audioFd, audioSocket, gamepadSocket, forkBackend);
+                json = steamohos::ProbeXwayland(directory, waylandSocket, true, externalBase, vtestSocket, launch, audioFd, audioSocket, gamepadSocket, forkBackend, productSession);
             }
         } else if (wayland) {
             const std::string socketPath(parameters + 8);

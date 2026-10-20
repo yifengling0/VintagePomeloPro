@@ -57,6 +57,7 @@ interface TouchpadFinger {
 @Component
 struct InputOverlayPage {
   private axisTraceCount: number = 0;
+  private mouseTraceCount: number = 0;
   private axisEventGate: AxisEventGate = new AxisEventGate();
   @State private snapshot: InputOverlaySnapshot = InputOverlayWindowCoordinator.getInstance().getSnapshot();
   @State private profile: InputProfile = createDefaultInputProfile();
@@ -278,6 +279,10 @@ struct InputOverlayPage {
             value.consumed = true;
             if (value.buttonDown) InputDispatcher.getInstance().releaseSource(this.directSource(activeTouchId));
           });
+          // Direct touch scrolls the panel under the gesture, even before any
+          // mouse click. Keep this starting position while fingers move so
+          // Xwayland does not alternate absolute motion and wheel devices.
+          InputDispatcher.getInstance().rememberPointer(this.lastMidX, this.lastMidY);
         } else if (this.directTouches.size > 2) {
           this.twoFingerTapEligible = false;
         }
@@ -800,6 +805,10 @@ struct InputOverlayPage {
   }
 
   private handleDirectMouse(event: MouseEvent): void {
+    if (event.action !== MouseAction.Move && this.mouseTraceCount++ < 32) {
+      hilog.info(0x0000, 'CLICK-PIPE', '[MOUSE-PHASE] overlay action=%{public}d button=%{public}d source=%{public}d tool=%{public}d',
+        event.action, event.button, event.source, event.sourceTool);
+    }
     if (!this.eventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
     event.stopPropagation();
     const source = 'external-mouse';
@@ -843,8 +852,8 @@ struct InputOverlayPage {
 
   private handleDirectAxis(event?: AxisEvent, origin: string = 'direct'): void {
     if (!event) return;
-    if (this.axisTraceCount++ < 32) hilog.info(0x0000, 'CLICK-PIPE', '[AXIS-PHASE] overlay=%{public}s action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
-      origin, event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+    if (this.axisTraceCount++ < 32) hilog.info(0x0000, 'CLICK-PIPE', '[AXIS-PHASE] overlay=%{public}s action=%{public}d time=%{public}s v=%{public}s h=%{public}s source=%{public}d tool=%{public}d',
+      origin, event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString(), event.source, event.sourceTool);
     if (!this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
       event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
     const vertical = event.getVerticalAxisValue();
@@ -853,8 +862,10 @@ struct InputOverlayPage {
     // Controls may forward component-local AxisEvents. Use window coordinates
     // as for physical mouse motion, rather than the old virtual cursor.
     const dispatcher = InputDispatcher.getInstance();
-    dispatcher.pointerMove('external-mouse', vp2px(event.windowX), vp2px(event.windowY),
-      false, { rawDx: 0, rawDy: 0, fromMouse: true });
+    // Native scrolling hit-tests and synchronizes the pointer when its position
+    // changes. A mouse move before every wheel switches Xwayland XI devices
+    // and resets Chromium's scrolling baseline, even at stationary coordinates.
+    dispatcher.rememberPointer(vp2px(event.windowX), vp2px(event.windowY));
     if (vertical !== 0) dispatcher.scroll('external-mouse', 0, vertical, -1);
     if (horizontal !== 0) dispatcher.scroll('external-mouse', 1, horizontal, -1);
   }

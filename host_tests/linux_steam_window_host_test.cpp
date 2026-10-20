@@ -50,6 +50,40 @@ int main()
     image = std::find_if(scene.layers.begin(), scene.layers.end(),
         [](const auto& layer) { return layer.key == ((1ULL << 63) | 4); });
     assert(image != scene.layers.end() && image->x == oldX + 10);
+    // Fullscreen anchors the host at zero. On exit, restore the compositor's
+    // dragged position even when Wine republishes its unchanged old position.
+    {
+        auto lock = f.tm.Lock();
+        auto* window = f.tm.FindToplevelLocked(7);
+        window->SetWinePosition(20, 10);
+        f.comp.TrackExternalHostFullscreenLocked(7, true);
+        window->ApplyFullscreen(true);
+        assert(window->X() == 0 && window->Y() == 0);
+        f.tm.SyncDesktopPositionLocked(7, 0, 0, false);
+    }
+    // A resize rebind must preserve the original windowed position.
+    assert(f.comp.BindExternalToplevel(4, 7, 100, 100, 4, 20, 92, 48));
+    {
+        auto lock = f.tm.Lock();
+        auto* window = f.tm.FindToplevelLocked(7);
+        f.comp.TrackExternalHostFullscreenLocked(7, true); // repeated request
+        f.comp.TrackExternalHostFullscreenLocked(7, false);
+        window->ApplyFullscreen(false);
+        f.tm.SyncDesktopPositionLocked(7, 20, 10, false);
+        assert(window->X() == 30 && window->Y() == 10);
+        window->SetPosition(35, 12);
+        f.comp.TrackExternalHostFullscreenLocked(7, false);
+        assert(window->X() == 35 && window->Y() == 12);
+        window->SetPosition(30, 10);
+        // Unbound game windows retain their existing fullscreen semantics.
+        auto* game = f.tm.FindToplevelLocked(5);
+        game->ApplyFullscreen(false); game->SetPosition(60, 20);
+        f.comp.TrackExternalHostFullscreenLocked(5, true);
+        game->ApplyFullscreen(true);
+        f.comp.TrackExternalHostFullscreenLocked(5, false);
+        game->ApplyFullscreen(false);
+        assert(game->X() == 0 && game->Y() == 0);
+    }
     // A scroll updates the real X11 cursor, retains fractional/accelerated
     // deltas, and never becomes a mouse-button click or reaches Wine.
     f.steam.client=Client(1);host.client=Client(2);
@@ -62,6 +96,12 @@ int main()
     assert(axes.size()==1&&axes[0].resource==&nativePointer&&!axes[0].discrete);
     assert(axes[0].value==wl_fixed_from_double(2.5));
     assert(std::none_of(events.begin(),events.end(),[](const auto& e){return e.name=="pointer.button";}));
+    // Repeating a wheel at a stationary cursor must not inject another
+    // absolute motion (which switches XI devices and resets CEF's baseline).
+    const unsigned stationary = motionCount;
+    manager->SendScrollEvent(7,0,1,40,70,50);DrainInput();
+    manager->SendScrollEvent(7,0,-1,40,70,50);DrainInput();
+    assert(motionCount==stationary);
     const double oldMotion=motionX;
     axes.clear();manager->SendScrollEvent(7,0,3,40,75,50);DrainInput();
     assert(axes.size()==1&&axes[0].value==wl_fixed_from_double(30)&&motionX>oldMotion);

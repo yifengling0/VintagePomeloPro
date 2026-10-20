@@ -86,6 +86,7 @@ int main(int argc, char **argv) {
             environment = os.environ.copy()
             environment.update(LD_PRELOAD=str(library), STEAMOHOS_CODE_ROOT=str(signed),
                                STEAMOHOS_SOCKET_METADATA_ROOT="/var/tmp/steamohos-exec-scope",
+                               STEAMOHOS_SYSVIPC_ROOT="/var/tmp/steamohos-exec-sysvipc",
                                EXEC_FIXTURE_MARKER="preserved", PATH=str(signed) + ":" + environment["PATH"],
                                GLIBC_TUNABLES="glibc.pthread.rseq=0", HOME=str(base / "home"),
                                STEAMOHOS_LAUNCH_SOCKET="/var/tmp/exec-fixture.sock",

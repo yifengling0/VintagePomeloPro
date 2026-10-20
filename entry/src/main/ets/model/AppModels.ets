@@ -53,7 +53,8 @@ export enum ViewMode {
 /** Launcher skin is independent of the existing light/dark preference. */
 export enum UiSkin {
   CLASSIC = 'classic',
-  CONSOLE = 'console'
+  CONSOLE = 'console',
+  DECK = 'deck'
 }
 
 export enum ConsoleCardLayout {

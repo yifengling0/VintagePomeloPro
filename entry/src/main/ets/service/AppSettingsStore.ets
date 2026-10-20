@@ -298,7 +298,7 @@ export class AppSettingsStore {
         box64Preset: stored.box64Preset ?? defaults.box64Preset,
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
         viewMode: stored.viewMode ?? defaults.viewMode,
-        uiSkin: stored.uiSkin === UiSkin.CONSOLE ? UiSkin.CONSOLE : UiSkin.CLASSIC,
+        uiSkin: stored.uiSkin === UiSkin.CONSOLE || stored.uiSkin === UiSkin.DECK ? UiSkin.DECK : UiSkin.CLASSIC,
         consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ?
           ConsoleCardLayout.BENTO_TILES : ConsoleCardLayout.FOCUS_3D,
         consolePalette: stored.consolePalette === ConsolePalette.BLUE ||

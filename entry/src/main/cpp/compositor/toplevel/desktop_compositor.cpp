@@ -183,6 +183,14 @@ bool DesktopCompositor::BindExternalToplevel(uint32_t source, uint32_t host,
     if (!binding.sourceKey || !binding.hostKey || !ExternalWindowLiveLocked(binding)) return false;
     for (const auto& [id, other] : externalWindows_)
         if (id != source && (other.host == host || other.source == host || other.host == source)) return false;
+    const auto previous = externalWindows_.find(source);
+    if (previous != externalWindows_.end() && previous->second.sourceKey == binding.sourceKey &&
+        previous->second.hostKey == binding.hostKey) {
+        const auto& saved = previous->second;
+        binding.hasWindowedPosition = saved.hasWindowedPosition;
+        binding.windowedX = saved.windowedX; binding.windowedY = saved.windowedY;
+        binding.windowedWineX = saved.windowedWineX; binding.windowedWineY = saved.windowedWineY;
+    }
     externalWindows_[source] = binding;
     MarkDesktopRootDirtyLocked();
     return true;
@@ -207,6 +215,26 @@ uint32_t DesktopCompositor::ExternalSourceLocked(uint32_t host) const
     for (const auto& [id, binding] : externalWindows_)
         if (binding.host == host && ExternalWindowLiveLocked(binding)) return id;
     return 0;
+}
+
+void DesktopCompositor::TrackExternalHostFullscreenLocked(uint32_t host, bool on)
+{
+    const auto source = ExternalSourceLocked(host);
+    const auto* current = tmgr_.FindToplevelLocked(host);
+    if (!source || !current || current->IsFullscreen() == on) return;
+    auto& binding = externalWindows_.at(source);
+    auto* state = tmgr_.FindToplevelLocked(host);
+    if (on && state->HasPosition()) {
+        binding.hasWindowedPosition = true;
+        binding.windowedX = state->X(); binding.windowedY = state->Y();
+        binding.windowedWineX = state->WineX(); binding.windowedWineY = state->WineY();
+    } else if (!on && binding.hasWindowedPosition) {
+        state->SetPosition(binding.windowedX, binding.windowedY);
+        // A compositor drag is intentionally unknown to Wine. Its old window
+        // coordinates on restore must not overwrite the saved dragged position.
+        state->SetWinePosition(binding.windowedWineX, binding.windowedWineY);
+        binding.hasWindowedPosition = false;
+    }
 }
 
 bool DesktopCompositor::IsContentVisibleLocked(uint32_t id) const

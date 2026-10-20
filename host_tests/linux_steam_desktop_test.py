@@ -67,6 +67,7 @@ std::string JsonString(const std::string& value) {return value;}
 }
 int main(int argc,char **argv) {
     if(argc==3&&std::string(argv[1])=="cleanup") {steamohos::CleanupSocketMetadata(argv[2]);return 0;}
+    if(argc==3&&std::string(argv[1])=="cleanup-ipc") {steamohos::CleanupSysvIpc(argv[2]);return 0;}
     if(argc!=2)return 2;
     steamohos::Session session;
     if(!steamohos::ReadClientSettings(argv[1],session))return 1;
@@ -115,6 +116,28 @@ int main(int argc,char **argv) {
                 self.assertTrue((metadata / 'unrelated').exists())
                 self.assertTrue((metadata / '456').is_file())
                 self.assertTrue((metadata / '789').is_symlink())
+            ipc=session/'sysvipc';ipc.mkdir(mode=0o700)
+            for name in ['registry-v2','s-1','m-2']:(ipc/name).write_text('generated IPC')
+            (ipc/'keep').write_text('unrelated')
+            victim=base/'outside';victim.write_text('preserve')
+            (ipc/'s-3').symlink_to(victim)
+            (ipc/'m-4').mkdir()
+            subprocess.run([str(runner),'cleanup-ipc',str(session)],check=True)
+            self.assertFalse((ipc/'registry-v2').exists())
+            self.assertFalse((ipc/'s-1').exists())
+            self.assertFalse((ipc/'m-2').exists())
+            self.assertEqual((ipc/'keep').read_text(),'unrelated')
+            self.assertTrue((ipc/'s-3').is_symlink())
+            self.assertTrue((ipc/'m-4').is_dir())
+            self.assertEqual(victim.read_text(),'preserve')
+            for name in ['keep','s-3']:(ipc/name).unlink()
+            (ipc/'m-4').rmdir()
+            subprocess.run([str(runner),'cleanup-ipc',str(session)],check=True)
+            self.assertFalse(ipc.exists())
+            ipc.symlink_to(base,target_is_directory=True)
+            subprocess.run([str(runner),'cleanup-ipc',str(session)],check=True)
+            self.assertTrue(ipc.is_symlink())
+            self.assertEqual(victim.read_text(),'preserve')
 
 
 class PrivateSnapshots(unittest.TestCase):
@@ -243,6 +266,17 @@ class DesktopSession(unittest.TestCase):
                 self.assertNotIn('snapshot', bridge.stderr)
                 self.assertFalse((base / 'desktop-root.ppm').exists())
                 self.assertEqual(json.loads((base / 'wine-window-native.json').read_text())['closed'], 1)
+                preferences_client = base / 'preferences-client'
+                subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror',
+                                str(ROOT / 'host_tests/linux_steam_window_preferences_client.c'),
+                                '-lX11', '-o', str(preferences_client)], check=True)
+                environment.update(HMOSDECK_SESSION_GENERATION='abcd-1234', STEAMOHOS_CODE_ROOT=str(base))
+                for phase in ['initial', 'restored']:
+                    environment['HMOSDECK_PLACEMENT_FIXTURE'] = phase
+                    result = subprocess.run([str(observer), str(preferences_client)], env=environment,
+                                            text=True, capture_output=True, timeout=15)
+                    self.assertEqual(result.returncode, 37, result.stderr + result.stdout)
+                    self.assertIn('X11_PREFERENCES', result.stdout)
             finally:
                 server.terminate()
                 server.communicate(timeout=5)

@@ -59,6 +59,7 @@ static napi_value SmokeNapiInit(napi_env env, napi_value exports) {
         {"drainLinuxSteamLaunchBroker", nullptr, steamohos::DrainGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"replyLinuxSteamLaunchBroker", nullptr, steamohos::ReplyGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"pollLinuxSteamLaunchSession", nullptr, steamohos::PollGameLaunchSession, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startLinuxSteamSession", nullptr, steamohos::StartSteamSession, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxSteamGnuClient", nullptr, steamohos::ProbeGnuSteam, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxSteamGnuXwayland", nullptr, steamohos::ProbeGnuXwayland, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxSteamGnuWayland", nullptr, steamohos::ProbeGnuWayland, nullptr, nullptr, nullptr, napi_default, nullptr},

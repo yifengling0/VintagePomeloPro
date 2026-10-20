@@ -39,6 +39,7 @@ struct GnuWork {
     std::string json;
     std::string parameters = "native-gnu-v1";
     bool forkBackend = false;
+    bool productSession = false;
 };
 uint64_t Now() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -102,7 +103,7 @@ void ExecuteGnu(napi_env, void* data) {
     // A bounded four-hour research session permits downloads; probes stay short.
     const bool steamSession = work.parameters.compare(0, 6, "steam:") == 0;
     uint64_t deadline = Now() + (steamSession ? 14430000 : 70000);
-    while (Now() < deadline) {
+    while (work.productSession || Now() < deadline) {
         char bytes[2048];
         ssize_t n = recv(sockets[0], bytes, sizeof(bytes), 0);
         if (n > 0) {
@@ -160,8 +161,9 @@ static napi_value StartGnuProbe(napi_env env, int mode) {
     if (GnuBusy.exchange(true)) { napi_throw_error(env, nullptr, "GNU native diagnostic is busy"); return nullptr; }
     auto work = std::make_unique<GnuWork>();
     work->forkBackend = PhoneAdapter_IsPhoneMode();
+    work->productSession = mode == 4;
     if (mode) work->parameters = std::string(mode == 1 ? "wayland:" : mode == 2 ? "xwayland:" : "steam:") + gSockPath;
-    if (mode == 3) {
+    if (mode == 3 || mode == 4) {
         // Capture the existing receiver; never restart it or mutate Wine's environment.
         const auto state = winehua::GraphicsBroker::GetInstance().GetState();
         if (state.virglSocketReady && !state.virglSocketPath.empty() &&
@@ -171,7 +173,7 @@ static napi_value StartGnuProbe(napi_env env, int mode) {
         const auto launch = GameLaunchBroker().Parameters();
         if (!launch.empty()) work->parameters += "\n" + launch;
     }
-    if(mode==3) {
+    if(mode==3 || mode==4) {
         // Share the existing hub/server, including physical and touch sources.
         auto& bridge=winehua::controller::GamepadBridge::Instance();
         winehua::controller::EnsurePhysicalGamepadInitialized();
@@ -180,6 +182,7 @@ static napi_value StartGnuProbe(napi_env env, int mode) {
         if(bridge.Start(endpoint.empty()?"/data/storage/el2/base/files/.wine/whgp.sock":endpoint))
             work->parameters+="\nGAMEPAD="+bridge.SocketPath();
     }
+    if (mode == 4) work->parameters += "\nPRODUCT=1";
     napi_value promise, name;
     if (napi_create_promise(env, &work->deferred, &promise) != napi_ok) { GnuBusy.store(false); return nullptr; }
     if (napi_create_string_utf8(env, "LinuxSteamNativeGnuProbe", NAPI_AUTO_LENGTH, &name) != napi_ok ||
@@ -195,6 +198,7 @@ static napi_value StartGnuProbe(napi_env env, int mode) {
     }
     work.release(); return promise;
 }
+napi_value StartSteamSession(napi_env env, napi_callback_info) { return StartGnuProbe(env, 4); }
 napi_value ProbeGnuSteam(napi_env env, napi_callback_info) { return StartGnuProbe(env, 3); }
 napi_value ProbeGnuXwayland(napi_env env, napi_callback_info) { return StartGnuProbe(env, 2); }
 napi_value ProbeGnu(napi_env env, napi_callback_info) { return StartGnuProbe(env, 0); }

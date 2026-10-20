@@ -726,9 +726,9 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
 
     // 入队 axis 事件 (原手写 push 收在 InputQueue::EnqueueAxis — 锁边界/pipe
     // 唤醒与原实现逐字; tl 诊断字段语义见 input_queue.h)
-    // Axis has no coordinates. Refresh motion even when it stays on the same
-    // surface, otherwise X11 scrolls the old panel under its previous cursor.
-    queue_.EnqueueMotion(tl, targetSurf, wx, wy, globalX, globalY);
+    // Axis has no coordinates. Synchronize its target position without
+    // manufacturing a motion when the external X11 pointer has not moved.
+    queue_.Enqueue(InputQueue::Event::PTR_POSITION, tl, targetSurf, wx, wy, 0, 0);
     queue_.EnqueueAxis(axis, val, tl, scrollStep < 0);
 }
 
@@ -798,6 +798,9 @@ void InputManager::FlushQueue() {
             }
             case InputQueue::Event::PTR_ENTER:   injector_.InjectPointerEnter(ev.tl, ev.surface, ev.x, ev.y); break;
             case InputQueue::Event::PTR_LEAVE:   injector_.InjectPointerLeave(); break;
+            case InputQueue::Event::PTR_POSITION:
+                if (!moveGrab_->IsActive()) injector_.SyncPointerPosition(ev.x, ev.y);
+                break;
             case InputQueue::Event::PTR_MOTION: {
                 //  Wayland 标准: xdg_toplevel.move 期间 compositor 接管 motion,
                 // 不转发给 Wine (协议规定 surface loses device focus)

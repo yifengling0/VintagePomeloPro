@@ -1,3 +1,4 @@
+import { InputRouter } from '../service/InputRouter';
 import { SponsorshipSettings } from '../components/SponsorshipSettings';
 import { AccountSyncSettings } from '../components/AccountSyncSettings';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
@@ -315,6 +316,7 @@ struct SystemSettingsPage {
   }
 
   private usesDarkAppearance(): boolean {
+    if (this.settings.uiSkin === UiSkin.DECK) return true;
     if (this.settings.uiSkin === UiSkin.CONSOLE) return this.settings.consolePalette !== ConsolePalette.PEARL;
     if (this.settings.themeMode === ThemeMode.DARK) return true;
     if (this.settings.themeMode === ThemeMode.LIGHT) return false;
@@ -1431,6 +1433,8 @@ struct SystemSettingsPage {
   }
 
   private selectUiSkin(value: UiSkin): void {
+    InputRouter.getInstance().releaseAllKeys();
+    GamepadManager.getInstance().releaseAll();
     const next = JSON.parse(JSON.stringify(this.settings)) as GlobalSettings;
     next.uiSkin = value;
     this.settings = next;
@@ -2019,10 +2023,10 @@ struct SystemSettingsPage {
               .backgroundColor(this.settings.uiSkin === UiSkin.CLASSIC ? skinColor('accent') : skinColor('search_background'))
               .fontColor(this.settings.uiSkin === UiSkin.CLASSIC ? '#FFFFFFFF' : skinColor('text_primary'))
               .onClick((): void => this.selectUiSkin(UiSkin.CLASSIC))
-            Button('新皮肤').layoutWeight(1).height(44).borderRadius(14)
-              .backgroundColor(this.settings.uiSkin === UiSkin.CONSOLE ? skinColor('accent') : skinColor('search_background'))
-              .fontColor(this.settings.uiSkin === UiSkin.CONSOLE ? '#FFFFFFFF' : skinColor('text_primary'))
-              .onClick((): void => this.selectUiSkin(UiSkin.CONSOLE))
+            Button('Deck 模式').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.uiSkin === UiSkin.DECK ? skinColor('accent') : skinColor('search_background'))
+              .fontColor(this.settings.uiSkin === UiSkin.DECK ? '#FFFFFFFF' : skinColor('text_primary'))
+              .onClick((): void => this.selectUiSkin(UiSkin.DECK))
           }.width('100%')
           if (this.settings.uiSkin === UiSkin.CONSOLE) {
             Text('游戏背景会在首次展示时自动从 Steam 公开图源精确匹配并下载，无需填写 Key。游戏设置中可重新获取或手动选择。')

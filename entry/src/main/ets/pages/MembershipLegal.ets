@@ -51,6 +51,7 @@ struct MembershipLegal {
     if (this.disposeInsets) { this.disposeInsets(); this.disposeInsets = null; }
   }
   private darkAppearance(): boolean {
+    if (this.settings.uiSkin === UiSkin.DECK) return true;
     if (this.settings.uiSkin === UiSkin.CONSOLE) return this.settings.consolePalette !== ConsolePalette.PEARL;
     if (this.settings.themeMode !== ThemeMode.SYSTEM) return this.settings.themeMode === ThemeMode.DARK;
     return this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK;

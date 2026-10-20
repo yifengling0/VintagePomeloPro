@@ -10,6 +10,7 @@ napi_value StopGameLaunchBroker(napi_env env, napi_callback_info info);
 napi_value DrainGameLaunchBroker(napi_env env, napi_callback_info info);
 napi_value ReplyGameLaunchBroker(napi_env env, napi_callback_info info);
 napi_value PollGameLaunchSession(napi_env env, napi_callback_info info);
+napi_value StartSteamSession(napi_env env, napi_callback_info info);
 napi_value ProbeGnuSteam(napi_env env, napi_callback_info info);
 napi_value ProbeGnuXwayland(napi_env env, napi_callback_info info);
 napi_value ProbeGnuWayland(napi_env env, napi_callback_info info);

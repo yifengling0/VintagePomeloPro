@@ -35,6 +35,7 @@ const calls = [], summaries = [];
 let syncCalls=0, restoreCalls=0;
 const imports = {
  './LinuxSteamDiagnosticData': {}, './LinuxSteamWindowHost': {}, './LinuxSteamStorageAudit': {},
+ './LinuxSteamCleanInstallDiagnostic': {},
  './LinuxSteamGameLaunch': {}, 'libsmoke_napi.so': { default: {} },
  'libentry.so': { default: {runWineProgram: value => {calls.push(value); return {pid: 123};}} },
  './LogService': { hilog: {info(){},warn(){},error(){}} },

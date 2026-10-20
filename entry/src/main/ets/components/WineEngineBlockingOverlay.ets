@@ -1,3 +1,4 @@
+import { skinColor } from '../service/SkinColors';
 import { EngineState } from '../model/AppModels';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
@@ -75,22 +76,22 @@ export struct WineEngineBlockingOverlay {
           .backgroundColor('#E80B1220')
           .hitTestBehavior(HitTestMode.Block)
         Column({ space: 16 }) {
-          LoadingProgress().width(56).height(56).color('#2F6BFF')
+          LoadingProgress().width(56).height(56).color(skinColor('accent'))
           Text(this.title())
-            .fontSize(22).fontWeight(FontWeight.Bold).fontColor('#101828')
+            .fontSize(22).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
             .textAlign(TextAlign.Center)
             .id('wine-engine-blocking-title')
           Text(this.message)
-            .fontSize(15).fontColor('#344054').textAlign(TextAlign.Center)
+            .fontSize(15).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
           Text(this.detail())
-            .fontSize(13).fontColor('#667085').textAlign(TextAlign.Center)
+            .fontSize(13).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
         }
         .width('86%').constraintSize({ maxWidth: 480 })
         .padding({ left: 24, right: 24, top: 28, bottom: 28 })
-        .backgroundColor('#FFFFFFFF')
-        .border({ width: 2, color: '#FFB8C7E8' })
+        .backgroundColor(skinColor('card_background'))
+        .border({ width: 1, color: skinColor('selected_background') })
         .borderRadius(20)
         .shadow({ radius: 24, color: '#66000000', offsetX: 0, offsetY: 10 })
         .hitTestBehavior(HitTestMode.Block)

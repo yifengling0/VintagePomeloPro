@@ -52,3 +52,6 @@ export const replyLinuxSteamLaunchBroker: ((id: number, kind: number, code: numb
 export const pollLinuxSteamLaunchSession: ((id: number, sessionId: string) => number) | undefined;
 
 export const isLinuxSteamProcess: ((pid: number) => boolean) | undefined;
+
+// Persistent product session, separate from bounded diagnostic probes.
+export const startLinuxSteamSession: (() => Promise<string>) | undefined;

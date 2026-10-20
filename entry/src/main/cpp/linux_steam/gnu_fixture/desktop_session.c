@@ -26,6 +26,7 @@ static uint64_t now(void) {
     struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);
     return (uint64_t)t.tv_sec*1000+t.tv_nsec/1000000;
 }
+#include "deck_session_control.h"
 static int xerror(Display *d,XErrorEvent *e) {
     char text[128];XGetErrorText(d,e->error_code,text,sizeof(text));
     fprintf(stderr,"GNU_DESKTOP xerror code=%u request=%u resource=%lu text=%s\n",
@@ -124,6 +125,7 @@ int main(int argc,char **argv) {
     XSetErrorHandler(xerror);Window root=DefaultRootWindow(display);
     struct wine_window_bridge bridge;
     int wine_window=bridge_initialize(&bridge,display,root);
+    struct deck_control deck;int product=deck_initialize(&deck);
     pointer_observer_start(display,root);
     fprintf(stderr,"GNU_DESKTOP root width=%d height=%d\n",DisplayWidth(display,DefaultScreen(display)),DisplayHeight(display,DefaultScreen(display)));
     int (*prepare_cloud)(void)=dlsym(RTLD_DEFAULT,"SteamOhosPrepareCloudPrefixes");
@@ -140,7 +142,7 @@ int main(int argc,char **argv) {
     const char *bounds=getenv("STEAMOHOS_WINDOW_BOUNDS");
     int constrain=bounds&&!strcmp(bounds,"1");
     const char *observe=getenv("STEAMOHOS_DESKTOP_OBSERVE");
-    int diagnostic=(!constrain&&!wine_window)||(observe&&!strcmp(observe,"1"));
+    int diagnostic=!product&&((!constrain&&!wine_window)||(observe&&!strcmp(observe,"1")));
     if(constrain) {
         unsigned long area[4]={0,0,(unsigned long)DisplayWidth(display,DefaultScreen(display)),(unsigned long)DisplayHeight(display,DefaultScreen(display))};
         XChangeProperty(display,root,XInternAtom(display,"_NET_WORKAREA",False),XA_CARDINAL,32,PropModeReplace,(unsigned char*)area,4);
@@ -152,6 +154,7 @@ int main(int argc,char **argv) {
         if(result==child)break;
         if(result<0&&errno!=EINTR){XCloseDisplay(display);return 5;}
         if(wine_window)bridge_tick(&bridge);
+        if(product)deck_tick(&deck,wine_window&&bridge.primary!=None,bridge.mode);
         if(constrain&&now()>=next_fit){fit_windows(display,root);next_fit=now()+250;}
         if(diagnostic&&now()>=next) {
             unsigned budget=128;unsigned mapped=windows(display,root,0,&budget);
@@ -162,7 +165,11 @@ int main(int argc,char **argv) {
         }
         poll(NULL,0,50);
     }
-    if(wine_window)bridge_publish(&bridge,1);
+    if(product)deck_finish(&deck);
+    if(wine_window) {
+        if(bridge.preferences_due) {bridge.preferences_due=1;bridge_save_preferences(&bridge);}
+        bridge_publish(&bridge,1);
+    }
     XCloseDisplay(display);
     if(WIFEXITED(status))return WEXITSTATUS(status);
     if(WIFSIGNALED(status)){signal(WTERMSIG(status),SIG_DFL);raise(WTERMSIG(status));}

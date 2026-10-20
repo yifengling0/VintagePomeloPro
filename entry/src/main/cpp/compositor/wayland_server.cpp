@@ -515,6 +515,7 @@ void WaylandServer::SetToplevelFullscreen(uint32_t id, bool on) {
         // 状态转换 (置位 + 锚定 + preFs 快照 + 不变式断言) 收在
         // ToplevelState::ApplyFullscreen
         auto& st = toplevelMgr_.EnsureToplevelLocked(id);
+        desktopCompositor_.TrackExternalHostFullscreenLocked(id, on);
         st.ApplyFullscreen(on);
         MarkDesktopRootDirtyLocked();
     }

@@ -154,7 +154,11 @@ const axisEvent = { action: 2, windowX: 350, windowY: 210, x: 2, y: 3, scrollSte
   getVerticalAxisValue: () => .25, getHorizontalAxisValue: () => -15 };
 axisPage.handleDirectAxis(axisEvent);
 assert.deepEqual(scrollCalls.splice(0), [[10, 0, .25, -1, 700, 420], [10, 1, -15, -1, 700, 420]]);
-assert.ok(calls.length === 1 && calls[0][1] === 3, 'Hardware scroll updates position without clicking');
+assert.equal(calls.length, 0, 'Hardware wheel must not emit an absolute motion before axis (Xwayland XI device switch)');
+assert.deepEqual({ ...dispatcher.lastPointer() }, { x: 700, y: 420, valid: true });
+axisPage.handleDirectAxis(axisEvent);
+assert.deepEqual(scrollCalls.splice(0), [[10, 0, .25, -1, 700, 420], [10, 1, -15, -1, 700, 420]]);
+assert.equal(calls.length, 0, 'Stationary repeated wheels keep the same XI scroll device');
 calls.length = 0;
 axisPage.handleDirectAxis({ ...axisEvent, getVerticalAxisValue: () => 0, getHorizontalAxisValue: () => 0 });
 assert.equal(calls.length + scrollCalls.length, 0, 'Zero axis events cannot change focus or inject input');
@@ -251,3 +255,100 @@ assert.equal(policy.canHideCursor(10), false, 'launcher preview stays visible');
 policy.desktopLauncherVisible = false;
 assert.equal(policy.canHideCursor(10), true, 'embedded full desktop still supports hiding');
 console.log('mouse_input: hardware, touch, calibration, all entrances, cursor ownership and visibility PASS');
+
+
+// Reproduce first-use and cross-panel scrolling without an intervening click.
+Object.assign(globals, { InputRouter: load('InputRouter').InputRouter });
+const DirectPage = compile('export class Page {\n' + ['handleDirectTouch', 'directSource',
+  'midpointX', 'midpointY', 'resetDirectTapSequence', 'scrollThresholdPx'].map(name =>
+    method('pages/InputOverlay.ets', name)).join('\n') + '\n}', () => {}).Page;
+const direct = new DirectPage();
+Object.assign(direct, { directTouches: new Map(), eventGate: { shouldHandleTouch: () => true },
+  settings: { virtualMouseConfig: { mouseSensitivity: 100 } }, TAP_SLOP_PX: 48, TAP_TIMEOUT_MS: 450,
+  injectDirectLeftTap() { throw new Error('two-finger scroll must not click'); } });
+function fingers(type, x, y) {
+  const points = [0, 1].map(id => ({ id, windowX: x + id * 40, windowY: y,
+    x: x + id * 40, y }));
+  return { type, touches: type === 1 || type === 3 ? [] : points,
+    changedTouches: points, stopPropagation() {} };
+}
+function assertDirectGesture(x, y, terminal) {
+  const anchor = [(x + 20) * 2, y * 2];
+  calls.length = 0; scrollCalls.length = 0;
+  direct.handleDirectTouch(fingers(0, x, y));
+  assert.equal(calls.length + scrollCalls.length, 0, 'two-finger down has no click or motion');
+  direct.handleDirectTouch(fingers(2, x, y - 70));
+  assert.ok(scrollCalls.length > 0, 'two-finger move reaches the scroll path');
+  assert.ok(scrollCalls.every(call => call[4] === anchor[0] && call[5] === anchor[1]),
+    'Direct two-finger target must use this gesture start, not the old cursor or moving fingers');
+  const count = scrollCalls.length;
+  direct.handleDirectTouch(fingers(terminal, x, y - 70));
+  assert.equal(scrollCalls.length, count, 'up/cancel never replays scroll');
+  assert.equal(calls.length, 0, 'scroll cannot inject clicks or absolute mouse motion');
+}
+dispatcher.rememberPointer(50, 50);
+assertDirectGesture(400, 250, 1);
+assertDirectGesture(100, 300, 3);
+assert.equal(direct.directTouches.size, 0);
+
+// Touchpad gestures keep their existing virtual cursor target; finger location
+// must only select a target in direct-touch mode.
+const PadPage = compile('export class Page {\n' + ['handleTouchpadTouch', 'touchpadMidpoint'].map(name =>
+  method('pages/InputOverlay.ets', name)).join('\n') + '\n}', () => {}).Page;
+const pad = new PadPage();
+Object.assign(pad, { eventGate: { shouldHandleTouch: () => true }, touchpadFingers: new Map(),
+  settings: { virtualMouseConfig: { mouseSensitivity: 100 } }, cursorX: 100, cursorY: 80,
+  ensureTouchpadCursor() {}, showCursorAt() {}, extendPendingTouchpadTap() {}, releaseTouchpadDrag() {},
+  touchpadDragInterval: () => 400, touchpadPendingTapTimer: -1, touchpadLastTapAt: 0 });
+dispatcher.rememberPointer(200, 160);
+calls.length = 0; scrollCalls.length = 0;
+pad.handleTouchpadTouch(fingers(0, 400, 300));
+pad.handleTouchpadTouch(fingers(2, 400, 260));
+assert.ok(scrollCalls.length > 0);
+assert.ok(scrollCalls.every(call => call[4] === 200 && call[5] === 160),
+  'touchpad scrolling remains at the virtual cursor');
+assert.equal(calls.length, 0);
+
+// Execute the legacy desktop touch callback as well: the scroll anchor must
+// not follow moving fingers across panels and keep switching Xwayland devices.
+const desktopSource = fs.readFileSync(path.join(root, 'components/DesktopLayer.ets'), 'utf8');
+const desktopMatch = /^(\s*)\.onTouch\(\(ev: TouchEvent\) => \{/m.exec(desktopSource);
+assert.ok(desktopMatch);
+const desktopStart = desktopMatch.index + desktopMatch[0].length;
+const desktopEnd = desktopSource.indexOf('\n' + desktopMatch[1] + '})', desktopStart);
+assert.ok(desktopEnd > desktopStart);
+Object.assign(globals, { DesktopLayer: { SCROLL_STEP_PX: 40 } });
+const DesktopTouch = compile('export class Page { handle(ev: TouchEvent) {' +
+  desktopSource.slice(desktopStart, desktopEnd) + '\n} }', () => {}).Page;
+const desktopTouch = new DesktopTouch();
+Object.assign(desktopTouch, { floating: false, eventGate: { shouldHandleTouch: () => true },
+  twoFingerActive: false, touchPending: false, isDragging: false });
+calls.length = 0; scrollCalls.length = 0;
+desktopTouch.handle(fingers(0, 400, 300));
+desktopTouch.handle(fingers(2, 430, 250));
+assert.ok(scrollCalls.length > 0);
+assert.ok(scrollCalls.every(call => call[4] === 840 && call[5] === 600),
+  'legacy desktop two-finger scroll stays anchored at gesture start');
+assert.equal(calls.length, 0);
+console.log('two_finger_scroll: initial target, panel change, fixed anchor, terminal events, touchpad cursor PASS');
+
+// The direct touch/mouse surface uses the same slots as the visible toolbar.
+const Toolbar = compile('export class Toolbar {\n' +
+  ['rectContains', 'toolbarActionAt'].map(name => method('components/VirtualInputOverlay.ets', name)).join('\n') +
+  '\n}', () => {}).Toolbar;
+const toolbar = new Toolbar();
+Object.assign(toolbar, { toolbarExpanded: true, toolbarAutoHidden: false,
+  toolbarOriginX: () => 100, toolbarOriginY: () => 200, resolveToolbarVertical: () => false });
+for (const floating of [false, true]) {
+  toolbar.desktopFloatingFullscreen = floating;
+  for (const vertical of [false, true]) {
+    toolbar.resolveToolbarVertical = () => vertical;
+    const actions = ['toolbar', floating ? 'home' : 'launcher', 'editor', 'controls', 'mouse', 'keyboard'];
+    for (let slot = 0; slot < actions.length; slot++) {
+      const x = 100 + (vertical ? 22 : 22 + slot * 44);
+      const y = 200 + (vertical ? (slot === 0 ? 20 : 40 + (slot - 1) * 44 + 22) : 26);
+      assert.equal(toolbar.toolbarActionAt(x, y), actions[slot], `toolbar slot ${slot} vertical=${vertical} floating=${floating}`);
+    }
+  }
+}
+console.log('Toolbar: native/embedded launcher, horizontal/vertical action slots PASS');
