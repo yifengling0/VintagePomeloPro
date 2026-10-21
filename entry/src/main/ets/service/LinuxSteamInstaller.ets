@@ -4,7 +4,7 @@ import { zlib } from '@kit.BasicServicesKit';
 import { LinuxSteamDeploymentPlan, LinuxSteamDownloadArchive, LinuxSteamInstallSnapshot, LinuxSteamInstallPhase,
   validateLinuxSteamDeployment, linuxSteamInstallBusy } from '../model/LinuxSteamDownloadModels';
 import { LinuxSteamLibraryService } from './LinuxSteamLibraryService';
-import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage } from './LinuxSteamDiagnosticData';
+import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage, recoverLinuxSteamExternalStorage } from './LinuxSteamDiagnosticData';
 import { ConfigurationFiles } from './ConfigurationFiles';
 import { ensureSmokeDirectory, readSmokeText } from './ManagedSmokePayloadService';
 import { LinuxSteamComponentDownload, LinuxSteamDownloadError } from './LinuxSteamComponentDownload';
@@ -91,6 +91,7 @@ export class LinuxSteamInstallService {
     if (force) { try { installationDirectory(BASE); ConfigurationFiles.json(STATE, JSON.stringify(this.snapshot())); } catch (_) {} }
   }
   async initialize(context: common.Context): Promise<void> {
+    await recoverLinuxSteamExternalStorage(context);
     if (!this.loaded) {
       this.loaded = true;
       try {

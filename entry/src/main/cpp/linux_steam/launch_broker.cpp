@@ -5,7 +5,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
-#include <fstream>
 #include <sstream>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -16,7 +15,14 @@ namespace steamohos {
 namespace {
 uint64_t Now() { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 bool Identity(pid_t pid, pid_t& parent, uint64_t& start) {
-    std::ifstream file("/proc/"+std::to_string(pid)+"/stat");std::string line;std::getline(file,line);
+    const std::string path="/proc/"+std::to_string(pid)+"/stat";
+    const int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+    if(fd<0)return false;
+    char bytes[4096];ssize_t count;
+    do {count=read(fd,bytes,sizeof(bytes));} while(count<0&&errno==EINTR);
+    const int readError=count<0?errno:0;close(fd);
+    if(count<=0||count==sizeof(bytes)){errno=readError?readError:EPROTO;return false;}
+    const std::string line(bytes,static_cast<size_t>(count));
     const auto at=line.rfind(')');if(at==std::string::npos)return false;
     std::istringstream values(line.substr(at+1));std::string value;
     for(unsigned field=3;field<=22;++field){if(!(values>>value))return false;
@@ -24,10 +30,10 @@ bool Identity(pid_t pid, pid_t& parent, uint64_t& start) {
         if(field==22)start=strtoull(value.c_str(),nullptr,10);}
     return true;
 }
-bool Descendant(pid_t pid,pid_t ancestor,uint64_t stamp) {
+bool Descendant(pid_t pid,pid_t ancestor,uint64_t stamp,ProcessIdentityReader identity) {
     if(ancestor<=0||!stamp)return false;
     for(unsigned n=0;n<64&&pid>1;++n){pid_t parent=0;uint64_t start=0;
-        if(!Identity(pid,parent,start))return false;
+        if(!identity(pid,parent,start))return false;
         if(pid==ancestor)return start==stamp;
         if(parent==pid)return false;
         pid=parent;}
@@ -48,6 +54,7 @@ bool Pe(const std::string& path) {
     close(fd);return ok;
 }
 }
+LaunchBroker::LaunchBroker(ProcessIdentityReader reader):identityReader(reader?reader:Identity){}
 LaunchBroker::~LaunchBroker(){Stop();}
 void LaunchBroker::Close(){
     for(const auto& c:clients)close(c.fd);
@@ -56,7 +63,7 @@ void LaunchBroker::Close(){
     listener=-1;
     if(!socketPath.empty())unlink(socketPath.c_str());
     if(!directory.empty())rmdir(directory.c_str());
-    directory.clear();socketPath.clear();nonce.clear();library.clear();ancestor=-1;ancestorStart=0;
+    directory.clear();socketPath.clear();nonce.clear();library.clear();ancestor=-1;ancestorStart=0;windowProcess=-1;
 }
 bool LaunchBroker::Start(const std::string& base,const std::string& root){
     std::lock_guard<std::mutex> guard(mutex);if(listener>=0)return false;
@@ -73,10 +80,23 @@ bool LaunchBroker::Start(const std::string& base,const std::string& root){
     return true;
 }
 void LaunchBroker::Stop(){std::lock_guard<std::mutex> guard(mutex);Close();}
-void LaunchBroker::SetAncestor(pid_t pid){std::lock_guard<std::mutex> guard(mutex);ancestor=pid;pid_t parent=0;if(!Identity(pid,parent,ancestorStart))ancestorStart=0;}
+void LaunchBroker::SetAncestor(pid_t pid) {
+    std::lock_guard<std::mutex> guard(mutex);
+    ancestor=pid;windowProcess=-1;pid_t parent=0;
+    if(!identityReader(pid,parent,ancestorStart))ancestorStart=0;
+}
+bool LaunchBroker::RegisterWindowProcess(pid_t supervisor,pid_t window) {
+    std::lock_guard<std::mutex> guard(mutex);
+    if(listener<0||supervisor<=1||supervisor!=ancestor||window<=1||window==supervisor||windowProcess>0)return false;
+    windowProcess=window;return true;
+}
+void LaunchBroker::ForgetWindowProcess(pid_t supervisor) {
+    std::lock_guard<std::mutex> guard(mutex);
+    if(supervisor==ancestor)windowProcess=-1;
+}
 bool LaunchBroker::OwnsProcess(pid_t pid) {
     std::lock_guard<std::mutex> guard(mutex);
-    return listener >= 0 && Descendant(pid, ancestor, ancestorStart);
+    return listener>=0&&pid>1&&(pid==windowProcess||Descendant(pid,ancestor,ancestorStart,identityReader));
 }
 std::string LaunchBroker::Parameters(){std::lock_guard<std::mutex> guard(mutex);return listener>=0?socketPath+"\n"+nonce:"";}
 bool LaunchBroker::Validate(LaunchRequest& r){
@@ -118,9 +138,14 @@ bool LaunchBroker::Validate(LaunchRequest& r){
 }
 std::vector<LaunchRequest> LaunchBroker::Drain(){
     std::lock_guard<std::mutex> guard(mutex);std::vector<LaunchRequest> events;if(listener<0)return events;
+    // Production OHOS can hide other NCPs in /proc. In that case only an
+    // explicitly attested live supervisor enables this socket. Kernel UID and
+    // the 256-bit session nonce (checked by Validate before delivery) remain
+    // mandatory; filenames, titles and untrusted PIDs never confer ownership.
     for(unsigned n=0;n<4;++n){int fd=accept4(listener,nullptr,nullptr,SOCK_CLOEXEC|SOCK_NONBLOCK);if(fd<0)break;
         ucred peer{};socklen_t size=sizeof(peer);
-        if(clients.size()>=4||getsockopt(fd,SOL_SOCKET,SO_PEERCRED,&peer,&size)||peer.uid!=geteuid()||!Descendant(peer.pid,ancestor,ancestorStart)){close(fd);continue;}
+        if(clients.size()>=4||getsockopt(fd,SOL_SOCKET,SO_PEERCRED,&peer,&size)||peer.uid!=geteuid()||
+            (ancestorStart? !Descendant(peer.pid,ancestor,ancestorStart,identityReader):windowProcess<=1)){close(fd);continue;}
         clients.push_back({fd,peer.pid,++nextId,Now(),false,{}});}
     for(auto it=clients.begin();it!=clients.end();){bool closeClient=false;char bytes[65540];
         ssize_t n=recv(it->fd,bytes,sizeof(bytes),0);

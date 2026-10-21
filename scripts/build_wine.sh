@@ -70,6 +70,23 @@ ensure_wine_patch() {
     if patch -d "$WINE_SRC" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1; then
         log "$description already applied"
     else
+        # 0067 changes the durable handshake condition introduced by 0011.
+        # Verify the stack on copies, never reverse a caller's source tree.
+        if [ "${patch_file##*/}" = 0011-wineboot-durable-prefix-completion.patch ]; then
+            if (
+                boot_proof=$(mktemp -d -t wine-boot-proof-XXXXXXXX)
+                trap 'rm -rf -- "$boot_proof"' EXIT
+                mkdir -p "$boot_proof/programs/wineboot" "$boot_proof/dlls/ntdll/unix"
+                cp "$WINE_SRC/programs/wineboot/wineboot.c" "$boot_proof/programs/wineboot/wineboot.c"
+                cp "$WINE_SRC/dlls/ntdll/unix/env.c" "$boot_proof/dlls/ntdll/unix/env.c"
+                patch -d "$boot_proof" -p1 --batch --force -R \
+                    < "${patch_file%/*}/0067-wineboot-single-managed-initialization.patch" >/dev/null 2>&1 &&
+                patch -d "$boot_proof" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1
+            ); then
+                log "$description already applied below single managed initialization"
+                return
+            fi
+        fi
         # 0062 moves 0058's assignments into the exported format record.
         # Prove both overlays on a disposable copy before declaring 0058 absent.
         if [ "${patch_file##*/}" = 0058-ohos-shared-wasapi-float32.patch ]; then
@@ -169,6 +186,10 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0010-winewayland-decoration-owner
     "Owner-attached decoration float not managed"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0011-wineboot-durable-prefix-completion.patch" \
     "Durable wineboot prefix completion handshake"
+# The first PE process already runs automatic --init. Do not force a second
+# wine.inf install just to obtain the durable managed completion handshake.
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0067-wineboot-single-managed-initialization.patch" \
+    "Single managed prefix initialization"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0012-wineserver-locked-registry-migration.patch" \
     "Prefix migration under wineserver session lock"
 # RPGXP 取证诊断组默认关闭，仅在 WINEHUA_RPGXP_DIAGNOSTICS=1 时启用。

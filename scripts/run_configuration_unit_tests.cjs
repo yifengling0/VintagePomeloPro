@@ -6,7 +6,7 @@ function fixture({library,filesDir,persistent,deny,failFlush,cloudApi}={}) {
  const temp=filesDir?path.dirname(filesDir):fs.mkdtempSync(path.join(os.tmpdir(),'pomelo-config-'));
  const context={filesDir:filesDir||path.join(temp,'sandbox'),cacheDir:path.join(temp,'cache')};fs.mkdirSync(context.filesDir,{recursive:true});fs.mkdirSync(context.cacheDir,{recursive:true});
  context.getApplicationContext=()=>context;
- library=library||path.join(temp,'library');fs.mkdirSync(library,{recursive:true});const stores=persistent||new Map(),cache=new Map(),timers=new Map();let nextTimer=0;
+ library=library||path.join(temp,'library');fs.mkdirSync(library,{recursive:true});const stores=persistent||new Map(),cache=new Map(),timers=new Map(),appStorage=new Map();let nextTimer=0;
  const prefs={getPreferences:async(_,name)=>getStore(name),getPreferencesSync:(_,options)=>getStore(options.name)};
  function getStore(name){if(stores.has(name))return stores.get(name);const values=new Map(),listeners=[],dirty=new Set();const store={values,
    getSync:(k,d)=>values.has(k)?values.get(k):d,hasSync:k=>values.has(k),put:async(k,v)=>{values.set(k,v);dirty.add(k);},putSync:(k,v)=>{values.set(k,v);dirty.add(k);},delete:async k=>{values.delete(k);dirty.add(k);},
@@ -27,7 +27,7 @@ function fixture({library,filesDir,persistent,deny,failFlush,cloudApi}={}) {
     if(name.endsWith('DeviceCapabilityPolicy'))return {DeviceCapabilityPolicy:{isTabletDevice:()=>false,usesManagedWineWindows:()=>false}};
     if(name.startsWith('.'))return load(path.resolve(path.dirname(file),name+'.ets'));throw Error('Missing test dependency '+name);};
    const js=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-   vm.runInNewContext(js,{exports,require:requireImpl,console,Uint8Array,ArrayBuffer,DataView,Set,Map,Date,JSON,Math,Number,AppStorage:{setOrCreate(){}},
+   vm.runInNewContext(js,{exports,require:requireImpl,console,Uint8Array,ArrayBuffer,DataView,Set,Map,Date,JSON,Math,Number,AppStorage:{get:k=>appStorage.get(k),setOrCreate:(k,v)=>appStorage.set(k,v)},
     setTimeout:f=>{const id=++nextTimer;timers.set(id,f);return id;},clearTimeout:id=>timers.delete(id)},{filename:file});return exports;}
  const models=load(path.join(source,'model/AppModels.ets')),zip=load(path.join(source,'model/ConfigurationZip.ets'));
  const settings=load(path.join(source,'service/AppSettingsStore.ets')).AppSettingsStore.getInstance(),profiles=load(path.join(source,'service/InputProfileService.ets')).InputProfileService.getInstance();

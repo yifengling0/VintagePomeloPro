@@ -66,6 +66,7 @@ export class LinuxSteamSessionService {
       const next = state.ready ? 'running' : 'starting';
       const presentation = state.mode === 2 ? 'bigPicture' : 'desktop';
       if (this.value.state === 'stopping') return;
+      if (presentation === 'bigPicture' && this.value.presentation !== 'bigPicture') this.pageRecovery.beginBigPicture();
       if (next !== this.value.state || presentation !== this.value.presentation) {
         this.value.state = next; this.value.presentation = presentation;
         this.value.message = state.ready ? 'Steam 已打开，登录和同步状态请在客户端查看' : '正在打开 Steam';
@@ -99,16 +100,16 @@ export class LinuxSteamSessionService {
     }).finally((): void => { this.recoveryQueued = false; });
     this.tail = operation;
   }
-  private async start(): Promise<void> {
+  private async start(foregroundCurrent: () => boolean): Promise<void> {
     if (this.starting) return this.starting;
     if (this.worker) {
       if (this.value.state === 'running') return;
       throw new Error('Steam 会话正在启动或退出，请稍后重试');
     }
-    const operation = this.startInternal(); this.starting = operation;
+    const operation = this.startInternal(foregroundCurrent); this.starting = operation;
     try { await operation; } finally { if (this.starting === operation) this.starting = null; }
   }
-  private async startInternal(): Promise<void> {
+  private async startInternal(foregroundCurrent: () => boolean): Promise<void> {
     if (!this.context) throw new Error('Steam 服务尚未初始化');
     const nativeStart = smokeNapi.startLinuxSteamSession;
     if (!nativeStart) throw new Error('当前应用不包含 Linux Steam 支持，请更新应用');
@@ -122,7 +123,7 @@ export class LinuxSteamSessionService {
       const engine = WineEngineService.getInstance();
       this.value.message = '正在准备游戏桌面'; this.publish();
       const ready = await engine.ensureReady(DisplayMode.DESKTOP, WinePresentationMode.DESKTOP,
-        root.substring(0, root.length - '/SteamLinuxARM64'.length));
+        root.substring(0, root.length - '/SteamLinuxARM64'.length), foregroundCurrent);
       this.elapsed('wineDesktop', stageAt); stageAt = Date.now();
       if (!ready) throw new Error(engine.getMessage() || '无法准备 Wine 桌面');
       ensureSmokeDirectory(TMP); ensureSmokeDirectory(`${BASE}/session`);
@@ -159,21 +160,31 @@ export class LinuxSteamSessionService {
     } catch (error) {
       if (!this.worker) { this.games?.stop(); this.host?.stop(); this.games = null; this.host = null;
         this.value.state = 'failed'; this.value.message = (error as Error).message; this.publish(); }
-      await HostWindowTasks.getInstance().showLauncher();
+      if (foregroundCurrent()) await HostWindowTasks.getInstance().showLauncher();
       promptAction.showToast({ message: (error as Error).message.substring(0, 180), duration: 5000 });
       throw new Error((error as Error).message);
     }
   }
   async open(action: LinuxSteamAction = 'library', appId: string = '0'): Promise<void> {
     if (action === 'launch' && !validLinuxSteamAppId(appId)) throw new Error('Steam AppID 无效');
-    this.userAction++;
+    const userAction = ++this.userAction;
+    const tasks = HostWindowTasks.getInstance();
+    const foregroundRevision = tasks.foregroundRevision();
+    const foregroundCurrent = (): boolean => userAction === this.userAction &&
+      foregroundRevision === tasks.foregroundRevision();
     if (action === 'shutdown' && !this.worker) return;
     const operation = this.tail.then(async (): Promise<void> => {
-      await this.start();
+      await this.start(foregroundCurrent);
       let stageAt = Date.now();
-      await this.dispatch(action, appId);
+      const launchTicket = action === 'launch' && foregroundCurrent() ? tasks.expectSteamGame(appId) : 0;
+      try { await this.dispatch(action, appId); }
+      catch (error) { if (launchTicket) tasks.cancelExpectedSteamGame(launchTicket); throw new Error((error as Error).message); }
       this.elapsed('actionDispatch', stageAt); stageAt = Date.now();
-      if (action !== 'shutdown') { await this.restore(); this.elapsed('windowRestore', stageAt); }
+      // A launch ACK only means the URI was forwarded. The game may already
+      // have mapped a window; restoring Steam here would steal its focus.
+      if (action !== 'shutdown' && action !== 'launch' && foregroundCurrent()) {
+        await this.restore(); this.elapsed('windowRestore', stageAt);
+      }
     });
     this.tail = operation.catch((): void => {}); return operation;
   }
@@ -190,19 +201,33 @@ export class LinuxSteamSessionService {
     } catch (_) {}
     const requestId = ++this.requestId;
     ConfigurationFiles.json(`${TMP}/deck-command.txt`, `1 ${generation} ${requestId} ${action} ${action === 'launch' ? appId : '0'}\n`);
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline && generation === this.value.generation && this.worker) {
-      try {
-        const ack = JSON.parse(ConfigurationFiles.text(ConfigurationFiles.read(`${TMP}/deck-command-ack.json`, 1024))) as LinuxSteamCommandAck;
-        if (ack.version === 1 && ack.generation === generation && ack.requestId === requestId) {
-          if (ack.status !== 'dispatched' || ack.exitCode !== 0) throw new Error(`Steam 操作未完成（${ack.status}）`);
-          if (action === 'shutdown') { this.value.state = 'stopping'; this.value.message = '正在退出 Steam'; this.publish(); }
-          return;
-        }
-      } catch (error) { if ((error as Error).message.startsWith('Steam 操作')) throw new Error((error as Error).message); }
-      await this.delay();
+    // The native client may exit before its dispatch ACK is observed. Record
+    // the accepted local shutdown request before yielding to the worker.
+    if (action === 'shutdown') {
+      this.value.state = 'stopping'; this.value.message = '正在退出 Steam'; this.publish();
     }
-    throw new Error('Steam 没有确认本次操作，请重试');
+    const deadline = Date.now() + 15000;
+    try {
+      while (Date.now() < deadline && generation === this.value.generation && this.worker) {
+        try {
+          const ack = JSON.parse(ConfigurationFiles.text(ConfigurationFiles.read(`${TMP}/deck-command-ack.json`, 1024))) as LinuxSteamCommandAck;
+          if (ack.version === 1 && ack.generation === generation && ack.requestId === requestId) {
+            if (ack.status !== 'dispatched' || ack.exitCode !== 0) throw new Error(`Steam 操作未完成（${ack.status}）`);
+            return;
+          }
+        } catch (error) { if ((error as Error).message.startsWith('Steam 操作')) throw new Error((error as Error).message); }
+        await this.delay();
+      }
+      if (action === 'shutdown' && generation === this.value.generation && this.snapshot().state === 'stopped') return;
+      throw new Error('Steam 没有确认本次操作，请重试');
+    } catch (error) {
+      // A rejected or unacknowledged command must not leave a live client in
+      // stopping forever. Keep it available for navigation and another exit.
+      if (action === 'shutdown' && generation === this.value.generation && this.worker && this.snapshot().state === 'stopping') {
+        this.value.state = 'running'; this.value.message = 'Steam 未确认退出，可重试'; this.publish();
+      }
+      throw new Error((error as Error).message);
+    }
   }
   async restore(): Promise<void> {
     GamepadManager.getInstance().releaseAll();
@@ -213,6 +238,7 @@ export class LinuxSteamSessionService {
     throw new Error('Steam 窗口正在切换，请稍后重试');
   }
   async returnHome(): Promise<void> {
+    this.userAction++;
     GamepadManager.getInstance().releaseAll();
     await HostWindowTasks.getInstance().showLauncher();
   }

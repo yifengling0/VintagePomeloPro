@@ -67,6 +67,7 @@ export class WineWindowManager {
   // 自身藏光标 (启动瞬时 toplevelId==desktopRootId)"与"游戏子窗口真相对模式"。
   private pointerLockToplevel: number = 0;
   private desktopRootId: number = 0;
+  private startupForegroundGuard: (() => boolean) | null = null;
   // 桌面启动器/悬浮窗可见性 (浮窗模式): Index 悬浮窗态=true → DesktopLayer
   // 跳过 root resize (桌面分辨率保持全屏, 缩略显示靠 letterbox); 全屏态=false
   desktopLauncherVisible: boolean = true;
@@ -264,6 +265,7 @@ export class WineWindowManager {
 
   setPresentationMode(mode: WinePresentationMode): void {
     HostWindowTasks.getInstance().reset();
+    this.startupForegroundGuard = null;
     this.presentationMode = mode;
     this.isDesktopMode = mode === WinePresentationMode.DESKTOP;
     this.desktopRootId = 0;
@@ -770,7 +772,9 @@ export class WineWindowManager {
           this.desktopRootId = id;
           // 浮窗模式: Index 承载桌面 (desktopActive 驱动 @StorageProp)
           AppStorage.setOrCreate('desktopActive', true);
-          this.startDesktopAbility(id);
+          // The user may have navigated elsewhere while the engine booted.
+          // Keep the root registered; a later explicit task restore can show it.
+          if (!this.startupForegroundGuard || this.startupForegroundGuard()) this.startDesktopAbility(id);
         } else {
           // A stale explorer root may arrive while changing from an older PC
           // desktop session. Managed-window hosts expose only actual program
@@ -1354,6 +1358,8 @@ export class WineWindowManager {
   }
 
   // Desktop 模式: 打开 DesktopAbility
+  setStartupForegroundGuard(guard: (() => boolean) | null): void { this.startupForegroundGuard = guard; }
+
   private startDesktopAbility(rootId: number): void {
     // 浮窗模式 (平板/手机): 桌面由 Index 页面承载 (DesktopLayer floating 切换),
     // 不启动 DesktopAbility — 放大/缩小都在当前画面 (Index) 内完成, 不切窗口。

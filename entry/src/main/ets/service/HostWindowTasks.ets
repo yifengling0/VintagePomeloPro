@@ -15,6 +15,8 @@ export interface HostWindowTask {
 export type HostTaskListener = (tasks: HostWindowTask[]) => void;
 export type HostTaskActivator = (task: HostWindowTask, current: () => boolean) => Promise<boolean>;
 
+interface PendingSteamGameLaunch { appId: string; ticket: number; expiresAt: number; sessionId: string; }
+
 interface WindowEventData {
   clientPid?: number;
   sessionId?: string;
@@ -29,7 +31,11 @@ export class HostWindowTasks {
   private listeners: Set<HostTaskListener> = new Set<HostTaskListener>();
   private generation: number = 0;
   private steamSessions: Set<string> = new Set<string>();
+  private endedSteamSessions: Set<string> = new Set<string>();
+  private pendingSteamReturn: string = '';
+  private pendingSteamLaunch: PendingSteamGameLaunch | null = null;
   private request: number = 0;
+  private foregroundChoice: number = 0;
   private active: string = '';
   private launcherForeground: boolean = false;
   private requestedKey: string = '';
@@ -45,10 +51,13 @@ export class HostWindowTasks {
   setActivator(activator: HostTaskActivator): void { this.activator = activator; }
   setLauncher(launcher: () => Promise<void>): void { this.launcher = launcher; }
   markLauncherForeground(): void {
-    ++this.request; this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
+    ++this.request; ++this.foregroundChoice; this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
+    this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
   }
   markDesktopForeground(): void { this.launcherForeground = false; }
   isLauncherForeground(): boolean { return this.launcherForeground; }
+  // Capture before asynchronous startup/dispatch, not after it completes.
+  foregroundRevision(): number { return this.foregroundChoice; }
   async showLauncher(): Promise<void> {
     this.markLauncherForeground();
     if (this.launcher) await this.launcher();
@@ -78,6 +87,8 @@ export class HostWindowTasks {
     this.requestedKey = '';
     this.windows.clear();
     this.steamSessions.clear();
+    this.endedSteamSessions.clear();
+    this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
     this.active = '';
     this.publish();
   }
@@ -93,12 +104,18 @@ export class HostWindowTasks {
       const wasActive = this.active === task.key;
       this.windows.delete(id);
       if (wasActive) this.active = '';
-      this.publish();
-      // Only a foreground Steam-launched game may return to Steam on exit.
-      if (wasActive && task.sessionId.length > 0 && task.source === 'steam-game') {
-        const steam = this.snapshot().find((item: HostWindowTask): boolean => item.source === 'steam-linux');
-        if (steam) void this.activate(steam.key);
+      // A splash/menu can disappear while the game is still running. Wait
+      // for confirmed process completion and all its windows to disappear.
+      if (wasActive && !this.launcherForeground && task.source === 'steam-game' &&
+        (this.steamSessions.has(task.sessionId) || this.endedSteamSessions.has(task.sessionId))) {
+        const sessionId = task.sessionId;
+        this.pendingSteamReturn = sessionId;
+        const peer = this.snapshot().find((item: HostWindowTask): boolean =>
+          item.sessionId === sessionId && !item.minimized);
+        if (peer) this.active = peer.key;
       }
+      this.publish();
+      this.returnAfterSteamGame(task.sessionId);
       return;
     }
     if (!task && (event === 'created' || event === 'modal' || event === 'desktop_root')) {
@@ -112,7 +129,9 @@ export class HostWindowTasks {
       task.sessionId = data.sessionId ?? '';
       if (linuxSteam) task.source = 'steam-linux';
       else if (this.steamSessions.has(task.sessionId)) task.source = 'steam-game';
-      if (!task.desktop && task.owner === 0) this.active = task.key;
+      if (!task.desktop && task.owner === 0) {
+        this.pendingSteamReturn = ''; this.active = task.key;
+      }
     } else if (event === 'title') {
       task.title = data.title || '运行窗口';
     } else if (event === 'minimized') {
@@ -126,15 +145,81 @@ export class HostWindowTasks {
       task.owner = data.modal === 1 ? (data.owner ?? 0) : 0;
     } else return;
     this.publish();
+    if (event === 'created') this.activateExpectedSteamGame(task.sessionId);
   }
 
-  registerSteamGame(sessionId: string): void {
+  // Native-child startup can publish a Wayland window before the broker's
+  // ancestry record becomes visible. Retry provenance without replaying a
+  // created event (which would also reset window focus/session metadata).
+  refreshLinuxSteamOwnership(ownsProcess: (pid: number) => boolean): void {
+    let changed = false;
+    this.windows.forEach((task: HostWindowTask): void => {
+      if (task.source !== 'steam-linux' && task.clientPid > 0 && ownsProcess(task.clientPid)) {
+        task.source = 'steam-linux'; changed = true;
+      }
+    });
+    if (changed) this.publish();
+  }
+
+  // An explicit Deck Play request may wait for a real game window without
+  // raising Steam. The next user foreground choice cancels this intent.
+  expectSteamGame(appId: string): number {
+    const ticket = ++this.request;
+    this.requestedKey = ''; this.pendingSteamReturn = '';
+    this.pendingSteamLaunch = { appId, ticket, expiresAt: Date.now() + 120000, sessionId: '' };
+    return ticket;
+  }
+
+  cancelExpectedSteamGame(ticket: number): void {
+    if (this.pendingSteamLaunch?.ticket === ticket) this.pendingSteamLaunch = null;
+  }
+
+  private activateExpectedSteamGame(sessionId: string): void {
+    const pending = this.pendingSteamLaunch;
+    if (!pending) return;
+    if (pending.expiresAt < Date.now() || pending.ticket !== this.request) {
+      this.pendingSteamLaunch = null; return;
+    }
+    if (!sessionId || pending.sessionId !== sessionId) return;
+    const game = this.snapshot().find((task: HostWindowTask): boolean =>
+      task.sessionId === sessionId && task.source === 'steam-game' && !task.minimized);
+    if (!game) return;
+    this.pendingSteamLaunch = null; // Exactly one restore, including splash replacement.
+    void this.activate(game.key).catch((): boolean => false);
+  }
+
+  registerSteamGame(sessionId: string, appId: string = ''): void {
     if (sessionId.length === 0) return;
     this.steamSessions.add(sessionId);
+    if (appId && this.pendingSteamLaunch?.appId === appId) this.pendingSteamLaunch.sessionId = sessionId;
     this.windows.forEach((task: HostWindowTask): void => {
       if (task.sessionId === sessionId && task.source !== 'steam-linux') task.source = 'steam-game';
     });
     this.publish();
+    this.activateExpectedSteamGame(sessionId);
+  }
+
+  finishSteamGame(sessionId: string, confirmedExit: boolean = true): void {
+    this.steamSessions.delete(sessionId);
+    if (this.pendingSteamLaunch?.sessionId === sessionId) this.pendingSteamLaunch = null;
+    if (confirmedExit) this.endedSteamSessions.add(sessionId);
+    else {
+      this.endedSteamSessions.delete(sessionId);
+      if (this.pendingSteamReturn === sessionId) this.pendingSteamReturn = '';
+    }
+    this.returnAfterSteamGame(sessionId);
+  }
+
+  private returnAfterSteamGame(sessionId: string): void {
+    if (!this.endedSteamSessions.has(sessionId) || Array.from(this.windows.values()).some(
+      (task: HostWindowTask): boolean => task.sessionId === sessionId && !task.desktop)) return;
+    this.endedSteamSessions.delete(sessionId);
+    const shouldReturn = this.pendingSteamReturn === sessionId && !this.launcherForeground && this.active.length === 0;
+    if (this.pendingSteamReturn === sessionId) this.pendingSteamReturn = '';
+    if (shouldReturn) {
+      const steam = this.snapshot().find((item: HostWindowTask): boolean => item.source === 'steam-linux');
+      if (steam) void this.activate(steam.key);
+    }
   }
 
   associateSession(id: number, sessionId: string): void {
@@ -143,12 +228,17 @@ export class HostWindowTasks {
     task.sessionId = sessionId;
     if (this.steamSessions.has(sessionId)) task.source = 'steam-game';
     this.publish();
+    this.activateExpectedSteamGame(sessionId);
   }
 
   noteInteraction(id: number): void {
     // An interaction invalidates an in-flight automatic/user switch.
     const task = this.windows.get(id);
-    if (task && this.active !== task.key) {
+    if (task) { this.pendingSteamReturn = ''; this.pendingSteamLaunch = null; }
+    if (task) {
+      ++this.foregroundChoice;
+      // Clicking the currently active task also cancels an in-flight raise of
+      // a different task. Active identity alone cannot detect that choice.
       if (this.requestedKey !== task.key) ++this.request;
       this.active = task.key;
     }
@@ -172,6 +262,8 @@ export class HostWindowTasks {
   }
 
   activate(key: string): Promise<boolean> {
+    ++this.foregroundChoice;
+    this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
     const serial = ++this.request;
     this.requestedKey = key;
     const task = this.snapshot().find((item: HostWindowTask): boolean => item.key === key);
@@ -193,6 +285,11 @@ export class HostWindowTasks {
     });
     this.tail = settled.then((): void => {}, (): void => {});
     return settled;
+  }
+
+  isSteamGameForeground(): boolean {
+    return !this.launcherForeground && Array.from(this.windows.values()).some(
+      (task: HostWindowTask): boolean => task.key === this.active && task.source === 'steam-game');
   }
 
   hasForegroundTask(): boolean { return !this.launcherForeground && this.active.length > 0; }

@@ -68,11 +68,12 @@
       "id": "builtin-graphics-smoke",
       "title": "图形测试",
       "launchKind": "wine-system",
-      "launchParams": { "executable": "winehua_graphics_smoke.exe", "arguments": [], "workingDirectory": "" },
+      "launchParams": { "executable": "C:\\smoke\\x64\\winehua_graphics_smoke.exe", "arguments": [], "workingDirectory": "C:\\smoke\\x64" },
       "cover": ""
     },
     {
       "id": "builtin-dxvk-cube",
+      "renderModes": ["dxvk_1_10", "dxvk_2_6"],
       "title": "DXVK 立方体测试",
       "launchKind": "wine-system",
       "launchParams": {
@@ -96,6 +97,7 @@
     },
     {
       "id": "builtin-vkd3d-triangle",
+      "enabled": false,
       "title": "VKD3D 方块测试",
       "launchKind": "wine-system",
       "launchParams": {
@@ -107,6 +109,7 @@
     },
     {
       "id": "builtin-vkd3d-gears",
+      "enabled": false,
       "title": "VKD3D 齿轮测试",
       "launchKind": "wine-system",
       "launchParams": {

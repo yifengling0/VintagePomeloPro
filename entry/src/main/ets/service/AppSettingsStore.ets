@@ -33,6 +33,7 @@ const RECENT_LAUNCHES_KEY = 'recent_launches_v1';
 const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
 const PLAY_TIME_KEY = 'play_time_v1';
 const SGDB_KEY = 'sgdb_api_key_v1';
+const DECK_MOTION_KEY = 'deck_motion_v1';
 const BENTO_STATE_KEY = 'console_bento_state_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
@@ -52,7 +53,7 @@ export class AppSettingsStore {
   setPortableWriter(writer: (value: AppSettings) => Promise<void>): void { this.portableWriter = writer; }
   reloadConfiguration(): void {
     this.appSettings.clear(); this.lastPlayedAt.clear(); this.playMinutes.clear();
-    this.loadGlobal(); this.loadApps(); this.loadRecentLaunches(); this.loadBentoState(); this.loadRenderMode();
+    this.loadGlobal(); this.loadApps(); this.loadRecentLaunches(); this.loadBentoState(); this.loadRenderMode(); this.loadDeckMotion();
     this.libraryPath = this.store?.getSync(LIBRARY_PATH_KEY, '') as string || '';
   }
   async remapAppId(oldId: string, newId: string): Promise<void> {
@@ -107,6 +108,7 @@ export class AppSettingsStore {
     this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
     this.loadBentoState();
     this.loadRenderMode();
+    this.loadDeckMotion();
   }
 
   private loadBentoState(): void {
@@ -142,6 +144,18 @@ export class AppSettingsStore {
       await store.flush();
     });
     await this.bentoWriteChain;
+  }
+
+  private loadDeckMotion(): void {
+    const previous = AppStorage.get<boolean>('hmosdeck.motion') ?? true;
+    const value = this.store?.getSync(DECK_MOTION_KEY, previous);
+    AppStorage.setOrCreate<boolean>('hmosdeck.motion', typeof value === 'boolean' ? value : true);
+  }
+  async setDeckMotion(enabled: boolean): Promise<void> {
+    if (!this.store) return;
+    await this.store.put(DECK_MOTION_KEY, enabled);
+    await this.store.flush();
+    AppStorage.setOrCreate<boolean>('hmosdeck.motion', enabled);
   }
 
   getSgdbApiKey(): string { return this.sgdbApiKey; }

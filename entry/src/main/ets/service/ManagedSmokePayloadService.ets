@@ -65,7 +65,7 @@ export function writeSmokeText(path: string, text: string): void {
 }
 
 function prefixRoot(prefixMode: string): string {
-  return prefixMode === 'clean' ? `${FILES_BASE}/.wine-smoke` : `${FILES_BASE}/.wine`;
+  return prefixMode === 'clean' ? `${FILES_BASE}/containers/clean/prefix` : `${FILES_BASE}/.wine`;
 }
 
 export function smokeDriveC(prefixMode: string): string {
@@ -82,8 +82,11 @@ function syncPayloadSmokeTree(source: string, target: string, prefixMode: string
     }
     if (readSmokeText(`${target}/manifest.json`) !== readSmokeText(`${source}/manifest.json`) ||
         !smokePathExists(`${target}/suites.json`)) {
-      removeRecursive(target);
       ensureSmokeDirectory(target);
+      // A diagnostic refresh may replace programs, never previous results.
+      for (const entry of fs.listFileSync(target)) {
+        if (entry !== 'results') removeRecursive(`${target}/${entry}`);
+      }
       for (const entry of ['manifest.json', 'suites.json', 'x64', 'x86', 'x64-fex', 'assets']) {
         if (smokePathExists(`${source}/${entry}`)) copyRecursive(`${source}/${entry}`, `${target}/${entry}`);
       }
@@ -97,13 +100,13 @@ function syncPayloadSmokeTree(source: string, target: string, prefixMode: string
   }
 }
 
-export function syncManagedSmoke(prefixMode: string): boolean {
+export function syncManagedSmoke(prefixMode: string, sourceMode: 'runtime' | 'diagnostic' = 'runtime'): boolean {
   const target = `${prefixRoot(prefixMode)}/drive_c/smoke`;
-  /* smoke.py 编排推送的完整用例集 (files/smoke-payload, 170+ exe) 优先:
-   * 存在则以整目录同步装载 (WineHua SmokeRunner 同源行为), 运行时 zip 的
-   * 精简 smoke 集仅作无编排载荷时的兜底。 */
+  // Normal catalog launches always use the bundled runtime. A diagnostic
+  // payload may contain only one test; its manifest cannot certify built-ins.
+  // SmokeRunner opts into that payload explicitly when running its suites.
   const payloadRoot = `${FILES_BASE}/smoke-payload`;
-  if (readSmokeText(`${payloadRoot}/manifest.json`)) {
+  if (sourceMode === 'diagnostic' && readSmokeText(`${payloadRoot}/manifest.json`)) {
     return syncPayloadSmokeTree(payloadRoot, target, prefixMode);
   }
   const source = `${WINE_ROOT}/smoke`;
@@ -177,7 +180,8 @@ export function syncManagedSmoke(prefixMode: string): boolean {
   if (complete) return true;
 
   try {
-    removeRecursive(target);
+    // Repair only runtime-owned files. Keep diagnostic programs and results;
+    // a later explicit diagnostic suite can select its own payload again.
     ensureSmokeDirectory(target);
     /* Keep the runtime-owned dxvk/ directory out of the prefix. */
     copyRecursive(`${source}/manifest.json`, `${target}/manifest.json`);

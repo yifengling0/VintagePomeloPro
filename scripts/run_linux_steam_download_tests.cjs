@@ -118,7 +118,7 @@ async function main() {
     p=>p.files[0].zipPath='../other',p=>p.archives[1].url='https://evil.invalid/test',p=>p.files.push(p.files[0])]) {
     const p=structuredClone(production);mutate(p);assert.throws(()=>model.validateLinuxSteamDeployment(p));
   }
-  const root=path.join(temporary,'SteamLinuxARM64');fs.mkdirSync(root);
+  const root=path.join(temporary,'SteamLinuxARM64');
   const content=new Map([
     ['release/runtime/steamrtarm64/steam',Buffer.from('ELF')],
     ['release/runtime/manifest.json',Buffer.from('{}')],
@@ -145,6 +145,36 @@ async function main() {
     else {fetches++;fs.writeFileSync(real(d),official);}p(official.length);
   }}
   const retention=load('service/LinuxSteamReleaseRetention.ets',{'@kit.CoreFileKit':{fileIo:io},'./ConfigurationFiles':config});
+  const pointer='/data/storage/el2/base/files/steamohos-native/external-root.path';
+  const readText=p=>{try{return fs.readFileSync(real(p),'utf8');}catch{return '';}};
+  let directoryResolutions=0, resolverUnavailable=false;
+  const storage=load('service/LinuxSteamDiagnosticData.ets',{
+    '@kit.AbilityKit':{}, '@kit.CoreFileKit':{fileIo:io,
+      fileUri:{FileUri:class {constructor(uri){this.path=uri;}}},
+      picker:{DocumentPickerMode:{DOWNLOAD:1},DocumentViewPicker:class {
+        async save(options){assert.equal(options.pickerMode,1);directoryResolutions++;
+          if(resolverUnavailable)throw new Error('directory unavailable');return [temporary];}
+      }}},
+    '@kit.BasicServicesKit':{}, './ConfigurationFiles':config,
+    './ManagedSmokePayloadService':{ensureSmokeDirectory:dirs,readSmokeText:readText,
+      writeSmokeText:(p,s)=>fs.writeFileSync(real(p),s)},
+    './LinuxSteamReleaseRetention':retention,'./LinuxSteamLibraryLayout':{},'../steam/SteamLocalRules':{}
+  });
+  assert.equal(await storage.recoverLinuxSteamExternalStorage({}),'');
+  assert.equal(fs.existsSync(root),false,'status discovery does not create a Steam component directory');
+  fs.mkdirSync(root);
+  assert.equal(await storage.recoverLinuxSteamExternalStorage({}),root);
+  assert.equal(readText(pointer),root,'existing app download directory recovers its private pointer');
+  const previousResolutions=directoryResolutions;
+  assert.equal(await storage.recoverLinuxSteamExternalStorage({}),root);
+  assert.equal(directoryResolutions,previousResolutions,'cached directory avoids another system lookup');
+  fs.unlinkSync(real(pointer));fs.rmdirSync(root);
+  fs.symlinkSync(temporary,root,'dir');
+  assert.equal(await storage.recoverLinuxSteamExternalStorage({}),'','symlinked roots are not adopted');
+  assert.equal(readText(pointer),'');fs.unlinkSync(root);
+  resolverUnavailable=true;
+  assert.equal(await storage.recoverLinuxSteamExternalStorage({}),'','unavailable lookup leaves status usable');
+  resolverUnavailable=false;fs.mkdirSync(root);
   const api=load('service/LinuxSteamInstaller.ets',{
     '@kit.AbilityKit':{},'@kit.CoreFileKit':{fileIo:io,statfs:{getFreeSize:async()=>free}},
     '@kit.BasicServicesKit':{zlib:{async decompressFile(file,where) {
@@ -159,8 +189,9 @@ async function main() {
         fs.writeFileSync(p,corrupt && group==='official'?Buffer.from('bad'):content.get(f.path));
       }
     }}},'../model/LinuxSteamDownloadModels':model,
-    './LinuxSteamLibraryService':{LinuxSteamLibraryService:{getInstance:()=>({externalRoot:()=>root})}},
-    './LinuxSteamDiagnosticData':{prepareLinuxSteamExternalStorage:async()=>root,
+    './LinuxSteamLibraryService':{LinuxSteamLibraryService:{getInstance:()=>({externalRoot:()=>readText(pointer)})}},
+    './LinuxSteamDiagnosticData':{prepareLinuxSteamExternalStorage:storage.prepareLinuxSteamExternalStorage,
+      recoverLinuxSteamExternalStorage:storage.recoverLinuxSteamExternalStorage,
       prepareLinuxSteamClientData:async(_,__,id)=>{activates++;fs.writeFileSync(path.join(root,'active-version.txt'),id);}},
     './ConfigurationFiles':config,'./ManagedSmokePayloadService':{ensureSmokeDirectory:dirs,
       readSmokeText:p=>{try{return fs.readFileSync(real(p),'utf8');}catch{return '';}}},
@@ -186,6 +217,13 @@ async function main() {
   assert.equal(fs.readFileSync(path.join(root,'active-version.txt'),'utf8'),plan.id);
   assert.equal(fs.readFileSync(path.join(root,'releases',plan.id,'.verified'),'utf8'),plan.id);
   assert.equal(fs.existsSync(path.join(root,'staging',plan.id)),false);
+  fs.unlinkSync(real(pointer));
+  const beforeRediscovery={fetches,activates,extractions};
+  await installer.initialize(context);
+  assert.equal(installer.installed(),true,'lost private pointer rediscovers the verified existing installation');
+  assert.equal(installer.snapshot().phase,'ready');
+  assert.deepEqual({fetches,activates,extractions},beforeRediscovery,'status discovery does not download, unpack or activate');
+  assert.equal(fs.readFileSync(path.join(user,'save'),'utf8'),'keep-user-data');
   await installer.install(context);assert.equal(activates,1,'ready installation is idempotent');
   const protectedFiles=new Map([
     [path.join(user,'save'),'keep-user-data'],
@@ -223,6 +261,7 @@ async function main() {
   await installer.resetComponents(context);assertProtected();
   assert.equal(fs.readFileSync(path.join(outsideClient,'icudtl.dat'),'utf8'),'ICU','reset never follows symlinked client parents');
   console.log('PASS: 206 resume, ignored Range, early response/dataEnd, interrupted transfer, checksum retry, 404 preserves partial, invalid/416 range, pause/restart, verified cache, production manifest and path/source boundaries');
+  console.log('PASS: missing private pointer rediscovers verified components without download; empty, symlinked and unavailable download roots are handled safely');
   console.log('PASS: actual installer space preflight, corrupt unpacked file, activation only after success, concurrent install, cache/staging cleanup, existing userdata preserved and ready idempotence');
   console.log('PASS: wrong/corrupt offline bundles rejected before extraction, no-network repair, reset/reimport, maintenance locking; game files, install records, accounts, saves and unknown files preserved');
 }

@@ -1,6 +1,7 @@
 import { LinuxSteamGame } from '../../model/LinuxSteamModels';
 import { LinuxSteamArtworkService } from '../../service/LinuxSteamArtworkService';
 import { DeckArtwork } from './DeckArtwork';
+import { DeckMotion } from './DeckMotion';
 
 // ArkUI compositor animations: no JavaScript frame loop and no Android runtime.
 @Component
@@ -39,9 +40,9 @@ export struct DeckBackdrop {
     }, 50);
   }
   private startMotion(): void {
-    this.getUIContext().animateTo({ duration: 9000, iterations: -1, playMode: PlayMode.Alternate, curve: Curve.EaseInOut }, (): void => { this.float0 = 1; });
-    this.getUIContext().animateTo({ duration: 11000, iterations: -1, playMode: PlayMode.Alternate, curve: Curve.EaseInOut }, (): void => { this.float1 = 1; });
-    this.getUIContext().animateTo({ duration: 13000, iterations: -1, playMode: PlayMode.Alternate, curve: Curve.EaseInOut }, (): void => { this.float2 = 1; });
+    this.getUIContext().animateTo({ duration: 9000, iterations: -1, playMode: PlayMode.Alternate, curve: DeckMotion.floatEase }, (): void => { this.float0 = 1; });
+    this.getUIContext().animateTo({ duration: 11000, iterations: -1, playMode: PlayMode.Alternate, curve: DeckMotion.floatEase }, (): void => { this.float1 = 1; });
+    this.getUIContext().animateTo({ duration: 13000, iterations: -1, playMode: PlayMode.Alternate, curve: DeckMotion.floatEase }, (): void => { this.float2 = 1; });
     this.getUIContext().animateTo({ duration: 40000, iterations: -1, curve: Curve.Linear }, (): void => { this.drift = 1; });
   }
   private floatAt(index: number): number { return index === 0 ? this.float0 : index === 1 ? this.float1 : this.float2; }
@@ -56,7 +57,17 @@ export struct DeckBackdrop {
     // Reading the revision makes an asynchronously committed cache entry reactive.
     return this.artRevision >= 0 ? LinuxSteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
   }
-  private wallGame(col: number, row: number): LinuxSteamGame { return this.games[(col * 5 + (row % 6) * 3) % this.games.length]; }
+  private wallWidth(): number { return (this.widthVp * 0.97437 + this.heightVp * 0.22495) * 1.1; }
+  private wallHeight(): number { return Math.max(this.heightVp * 2.4, (this.widthVp * 0.22495 + this.heightVp * 0.97437) * 1.1); }
+  private perRun(): number { return Math.floor((this.wallHeight() + 14) / 182) + 1; }
+  private indices(count: number): number[] {
+    const values: number[] = [];
+    for (let i = 0; i < count; i++) values.push(i);
+    return values;
+  }
+  private wallGame(col: number, row: number): LinuxSteamGame {
+    return this.games[(col * 5 + (row % this.perRun()) * 3) % this.games.length];
+  }
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column().width('100%').height('100%')
@@ -68,31 +79,32 @@ export struct DeckBackdrop {
             .shadow({ radius: 28, color: '#99000000', offsetY: 18 })
             .rotate({ angle: [-9, 5, -17][this.games.length - 1 - index] + 2 * this.floatAt(this.games.length - 1 - index) })
             .position({ x: this.fanX(this.games.length - 1 - index),
-              y: this.heightVp * [0.14, 0.24, 0.30][this.games.length - 1 - index] - 12 * this.floatAt(this.games.length - 1 - index) })
+              y: this.heightVp * (this.portrait ? [0.43, 0.51, 0.56] : [0.14, 0.24, 0.30])[this.games.length - 1 - index] - 12 * this.floatAt(this.games.length - 1 - index) })
         }, (game: LinuxSteamGame): string => game.appId)
       } else if (this.games.length >= 4) {
         Row({ space: 14 }) {
-          ForEach([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], (col: number) => {
+          ForEach(this.indices(Math.floor((this.wallWidth() + 14) / 126) + 1), (col: number) => {
             Column({ space: 14 }) {
-              ForEach([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], (row: number) => {
+              ForEach(this.indices(this.perRun() * 2), (row: number) => {
                 DeckArtwork({ name: this.wallGame(col, row).name, source: this.cover(this.wallGame(col, row)), appId: this.wallGame(col, row).appId })
                   .width(112).height(168)
               }, (row: number): string => row.toString())
-            }.translate({ y: col % 2 === 0 ? -1092 * this.drift : 1092 * this.drift - 1092 })
+            }.translate({ y: col % 2 === 0 ? -182 * this.perRun() * this.drift : 182 * this.perRun() * (this.drift - 1) })
           }, (col: number): string => col.toString())
-        }.rotate({ angle: -13 }).position({ x: -70, y: -180 })
+        }.alignItems(VerticalAlign.Top).width(this.wallWidth()).height(this.wallHeight())
+          .rotate({ angle: -13 }).position({ x: -(this.wallWidth() - this.widthVp) / 2, y: -(this.wallHeight() - this.heightVp) / 2 })
       } else {
         // An empty catalogue has no invented games or ownership claims.
-        Column().width(this.heightVp * 0.38).height(this.heightVp * 0.56).borderRadius(18)
+        Column().width(this.portrait ? this.fanHeight(0) * 2 / 3 : this.heightVp * 0.38).height(this.portrait ? this.fanHeight(0) : this.heightVp * 0.56).borderRadius(18)
           .border({ width: 1, color: '#343A43' })
           .linearGradient({ angle: 145, colors: [['#1C2B3A', 0], ['#10141B', 1]] })
-          .rotate({ angle: -12 + 2 * this.float0 }).position({ x: this.widthVp * (this.portrait ? 0.18 : 0.62), y: this.heightVp * 0.16 - 12 * this.float0 })
-        Column().width(this.heightVp * 0.38).height(this.heightVp * 0.56).borderRadius(18)
+          .rotate({ angle: -12 + 2 * this.float0 }).position({ x: this.widthVp * (this.portrait ? 0.18 : 0.62), y: this.heightVp * (this.portrait ? 0.43 : 0.16) - 12 * this.float0 })
+        Column().width(this.portrait ? this.fanHeight(0) * 2 / 3 : this.heightVp * 0.38).height(this.portrait ? this.fanHeight(0) : this.heightVp * 0.56).borderRadius(18)
           .border({ width: 1, color: '#343A43' }).backgroundColor('#121820')
-          .rotate({ angle: 8 - this.float1 }).position({ x: this.widthVp * (this.portrait ? 0.42 : 0.76), y: this.heightVp * 0.22 - 12 * this.float1 })
+          .rotate({ angle: 8 - this.float1 }).position({ x: this.widthVp * (this.portrait ? 0.42 : 0.76), y: this.heightVp * (this.portrait ? 0.51 : 0.22) - 12 * this.float1 })
       }
       Column().width('100%').height('100%')
-        .linearGradient({ angle: this.portrait ? 0 : 90, colors: [['#F70A0B0D', 0], ['#DB0A0B0D', 0.34], ['#400A0B0D', 0.68], ['#1A0A0B0D', 1]] })
+        .linearGradient({ angle: this.portrait ? 180 : 90, colors: [['#F70A0B0D', 0], ['#DB0A0B0D', 0.34], ['#400A0B0D', 0.68], ['#1A0A0B0D', 1]] })
       Column().width('100%').height('100%')
         .linearGradient({ angle: 180, colors: [['#000A0B0D', 0.55], ['#E60A0B0D', 1]] })
     }.width('100%').height('100%').clip(true).hitTestBehavior(HitTestMode.None).accessibilityLevel('no-hide-descendants')

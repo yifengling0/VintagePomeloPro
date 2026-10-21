@@ -47,6 +47,7 @@ export class LinuxSteamWindowHost {
   private sourceKey: string = '';
   private hostKey: string = '';
   private lastStatus: string = '';
+  private lastCandidates: string = '';
   private moveRequest: number = 0;
   private presentationSerial: number = 0;
 
@@ -86,18 +87,29 @@ export class LinuxSteamWindowHost {
     this.sessionId = launch.sessionId;
     this.started = Date.now();
     AppSessionService.getInstance().registerExternalLaunch('steam-linux-client',
-      'C:\\hmosdeck\\hmosdeck-steam.exe', launch, DisplayMode.DESKTOP, WinePresentationMode.DESKTOP);
+      'C:\\hmosdeck\\hmosdeck-steam.exe', launch, DisplayMode.DESKTOP, WinePresentationMode.DESKTOP, false);
     this.timer = setInterval((): void => {
       try { this.tick(); } catch (error) {
         this.record(`binding_error:${(error as Error).message.substring(0, 160)}`);
       }
     }, 150);
     this.record('wine_window_started_waiting_for_xwayland');
-    // Initialize the X11 viewport once from the actual launch client area.
-    for (let attempt = 0; attempt < 50; attempt++) {
+    // A cold Wine worker can take longer than five seconds even after the
+    // desktop is ready. Bound the wait, stop on exit/cancellation, and accept
+    // only this HWND lifetime's settled geometry.
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      if (this.sessionId !== launch.sessionId) throw new Error('Steam 窗口启动已取消');
+      const session = testNapi.getWineSession(launch.sessionId) as NativeWineSessionInfo | null;
+      if (session?.state === 'stopped') {
+        this.stop(); throw new Error('Steam 宿主窗口进程已退出，请重试');
+      }
       const initial = readSmokeText(this.statePath);
       if (initial && initial.length <= 1024) {
         const state = JSON.parse(initial) as WindowState;
+        if (state.version === 1 && state.closed === 1) {
+          this.stop(); throw new Error('Steam 宿主窗口已关闭');
+        }
         if (state.version === 1 && state.closed === 0 && state.geometryReady === 1 && Number.isSafeInteger(state.width) &&
           Number.isSafeInteger(state.height) && state.width >= 320 && state.width <= 4096 &&
           state.height >= 200 && state.height <= 4096 && state.width * state.height <= 8388608) {
@@ -107,8 +119,8 @@ export class LinuxSteamWindowHost {
       }
       await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 100); });
     }
-    this.stop();
-    throw new Error('Wine Steam 窗口未能报告可用尺寸，请重试');
+    if (this.sessionId === launch.sessionId) this.stop();
+    throw new Error('Steam 宿主窗口创建超时（20 秒），请重试');
   }
 
   async restore(): Promise<boolean> {
@@ -123,9 +135,14 @@ export class LinuxSteamWindowHost {
   private record(status: string): void {
     if (this.lastStatus === status) return;
     this.lastStatus = status;
-    writeSmokeText(this.evidence, JSON.stringify({ status, source: this.source, host: this.host,
-      sessionId: this.sessionId, elapsedMs: Date.now() - this.started,
-      nativeSteam: true, pixelPolling: false }));
+    // Evidence is optional, including when called from the interval's catch.
+    // A full diagnostic directory must not turn binding/cleanup into an
+    // uncaught timer exception or stop an otherwise healthy native session.
+    try {
+      writeSmokeText(this.evidence, JSON.stringify({ status, source: this.source, host: this.host,
+        sessionId: this.sessionId, elapsedMs: Date.now() - this.started,
+        nativeSteam: true, pixelPolling: false }));
+    } catch (_) {}
   }
 
   private tick(): void {
@@ -143,14 +160,22 @@ export class LinuxSteamWindowHost {
     if (!session || session.toplevelId <= 0) {
       this.record('waiting_for_wine_window'); return;
     }
-    const tasks = HostWindowTasks.getInstance().snapshot();
     const ownsProcess = smokeNapi.isLinuxSteamProcess;
     if (!ownsProcess) return;
+    const taskService = HostWindowTasks.getInstance();
+    if (this.source <= 0) taskService.refreshLinuxSteamOwnership(ownsProcess);
+    const tasks = taskService.snapshot();
     const host = tasks.find((item: HostWindowTask): boolean => item.toplevelId === session.toplevelId);
     const source = tasks.find((item: HostWindowTask): boolean => item.source === 'steam-linux' &&
       ownsProcess(item.clientPid));
     if (!host || !source || host.toplevelId === source.toplevelId) {
-      this.record('waiting_for_native_steam_surface'); return;
+      const candidates = JSON.stringify(tasks.map((task: HostWindowTask): string =>
+        `${task.toplevelId}:${task.clientPid}:${task.source}:${ownsProcess(task.clientPid) ? 1 : 0}`));
+      if (candidates !== this.lastCandidates) {
+        this.lastCandidates = candidates;
+        try { writeSmokeText(`${this.evidence}.candidates`, candidates); } catch (_) {}
+      }
+      this.record(!host ? 'waiting_for_wine_host_task' : 'waiting_for_native_steam_surface'); return;
     }
     if ((this.sourceKey && this.sourceKey !== source.key) || (this.hostKey && this.hostKey !== host.key)) {
       this.record('window_identity_changed'); this.stop(); return;
@@ -171,7 +196,8 @@ export class LinuxSteamWindowHost {
     }
     if (state.activation !== this.activation) {
       this.activation = state.activation;
-      if (!HostWindowTasks.getInstance().isLauncherForeground()) testNapi.activateToplevel(this.host);
+      const tasks = HostWindowTasks.getInstance();
+      if (!tasks.isLauncherForeground() && !tasks.isSteamGameForeground()) testNapi.activateToplevel(this.host);
     }
   }
 
@@ -207,8 +233,12 @@ export class LinuxSteamWindowHost {
     if (key !== this.nativeState) {
       this.nativeState = key;
       this.presentationSerial = ++this.controlSerial;
+      // Steam may publish mode/activation changes while a Wine game owns
+      // focus. Mirror geometry without issuing SetForegroundWindow then.
+      const tasks = HostWindowTasks.getInstance();
+      const activate = tasks.isLauncherForeground() || tasks.isSteamGameForeground() ? 0 : 1;
       writeSmokeText(`${this.statePath}.control`,
-        `${this.presentationSerial} ${native.mode} ${native.minimized} 1${dimensions}\n`);
+        `${this.presentationSerial} ${native.mode} ${native.minimized} ${activate}${dimensions}\n`);
     }
     // Ignore intermediate WM_MOVE/WM_SIZE publications from the previous mode.
     // Resize Xwayland only after the Wine host applied this exact request.

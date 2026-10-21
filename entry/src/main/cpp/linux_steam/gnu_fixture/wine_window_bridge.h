@@ -12,6 +12,7 @@ struct wine_window_bridge {
     char preferences[PATH_MAX],previous_preferences[96];
     uint64_t preferences_due;
     char path[PATH_MAX], commands[PATH_MAX], previous[512];
+    uint64_t inventory_due; char inventory_previous[16384];
 };
 static int bridge_property(Display *d, Window w, Atom property, Atom expected,
                            unsigned long **values, unsigned long *count) {
@@ -128,6 +129,37 @@ static void bridge_apply_preferences(struct wine_window_bridge *b) {
     b->mode=b->desktop_mode;bridge_layout(b);bridge_set_state(b);
     bridge_remember_preferences(b);
 }
+/* Fixed, private metadata snapshot. No account data, arbitrary titles or pixels.
+ * A loaded CEF page is not evidence that its X11 window is visible. */
+static void bridge_inventory(struct wine_window_bridge *b,Window *children,unsigned count) {
+    if(bridge_clock()<b->inventory_due)return;
+    b->inventory_due=bridge_clock()+500;
+    char text[16384],path[PATH_MAX],temporary[PATH_MAX];
+    size_t used=(size_t)snprintf(text,sizeof(text),"{\"version\":1,\"primary\":%lu,\"windows\":[",b->primary);
+    unsigned written=0;
+    for(unsigned i=0;i<count&&i<64;++i) {
+        XWindowAttributes a;Window transient=None;char *name=NULL;
+        if(!XGetWindowAttributes(b->display,children[i],&a))continue;
+        XGetTransientForHint(b->display,children[i],&transient);
+        int desktop=XFetchName(b->display,children[i],&name)&&name&&!strcmp(name,"Steam");
+        if(name)XFree(name);
+        int n=snprintf(text+used,sizeof(text)-used,
+            "%s{\"id\":%lu,\"mapped\":%d,\"override\":%d,\"transient\":%lu,\"x\":%d,\"y\":%d,\"width\":%d,\"height\":%d,\"fullscreen\":%d,\"desktop\":%d}",
+            written?",":"",children[i],a.map_state,a.override_redirect,transient,a.x,a.y,a.width,a.height,
+            bridge_has(b,children[i],b->fullscreen),desktop);
+        if(n<0||(size_t)n>=sizeof(text)-used-4)break;
+        used+=(size_t)n;++written;
+    }
+    snprintf(text+used,sizeof(text)-used,"]}\n");
+    if(!strcmp(text,b->inventory_previous))return;
+    const char *directory=getenv("STEAMOHOS_TMP_ROOT");
+    if(!directory||snprintf(path,sizeof(path),"%s/wine-window-inventory.json",directory)>=(int)sizeof(path)||
+       snprintf(temporary,sizeof(temporary),"%s.tmp",path)>=(int)sizeof(temporary))return;
+    int fd=open(temporary,O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC|O_NOFOLLOW,0600);
+    if(fd<0)return;
+    ssize_t size=write(fd,text,strlen(text));close(fd);
+    if(size==(ssize_t)strlen(text)&&!rename(temporary,path))strcpy(b->inventory_previous,text);
+}
 static void bridge_choose(struct wine_window_bridge *b) {
     Window returned,parent,*children=NULL;unsigned count=0;Window candidate=None;long largest=0;int best=-1;
     if(!XQueryTree(b->display,b->root,&returned,&parent,&children,&count))return;
@@ -141,6 +173,7 @@ static void bridge_choose(struct wine_window_bridge *b) {
         // Prefer fullscreen; equal-sized replacements follow X11 stacking.
         if(rank>best||(rank==best&&area>=largest)){best=rank;largest=area;candidate=children[i];}
     }
+    bridge_inventory(b,children,count);
     if(children)XFree(children);
     if(candidate&&candidate!=b->primary) {
         b->primary=candidate;b->minimized=0;

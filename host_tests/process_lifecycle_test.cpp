@@ -1,5 +1,6 @@
 #include "proc/wine_process.h"
 #include "wine/wineboot_wait.h"
+#include "wine/wine_launch.h"
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -16,6 +17,10 @@
 napi_threadsafe_function gStateTsfn = reinterpret_cast<void*>(1);
 std::string gSockPath;
 static int checks;
+static winehua::WineStartupState startupState;
+void CancelWineLaunch() { startupState.Cancel(); }
+bool CancelWineLaunch(uint64_t generation) { return startupState.Cancel(generation); }
+winehua::WineStartupSnapshot GetWineStartupSnapshot() { return startupState.Snapshot(); }
 std::atomic<bool> ProcessTestPhoneMode{true};
 static unsigned ncpReentries = 0;
 int ProcessTestNcpKill(int32_t pid) {
@@ -119,6 +124,18 @@ static WineProcessEntry Snapshot(pid_t pid) {
 }
 
 int main() {
+    // Replay an authoritative callback arriving before the spawn call returns.
+    constexpr pid_t fastNcp = 99998001;
+    const auto ticket = BeginNativeProcessSpawn();
+    NoteCreateNcpDeath(fastNcp);
+    AddProcess(fastNcp, "wineboot", -1, ProcessRegistration::NativeChild, ticket);
+    Check(IsLaunchChildExited(fastNcp) && !Snapshot(fastNcp).running,
+          "early NCP exit survives later registration");
+    const auto newerTicket = BeginNativeProcessSpawn();
+    AddProcess(fastNcp, "new incarnation", -1, ProcessRegistration::NativeChild, newerTicket);
+    Check(!IsLaunchChildExited(fastNcp) && Snapshot(fastNcp).running,
+          "old PID exit receipt cannot kill a new incarnation");
+    RemoveProcess(fastNcp);
     mainThread = pthread_self();
     Check(EnsureChildReaper(), "process reaper starts");
     // Emulate phone sandbox visibility for a genuinely live non-waitable

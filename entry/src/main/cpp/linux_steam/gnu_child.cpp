@@ -228,7 +228,7 @@ extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(Nat
                 const auto second = separator == std::string::npos ? separator : paths.find('\n', separator + 1);
                 const std::string vtestSocket = separator == std::string::npos ? "" : paths.substr(separator + 1, second == std::string::npos ? second : second - separator - 1);
                 const std::string launch = second == std::string::npos ? "" : paths.substr(second + 1);
-                json = steamohos::ProbeXwayland(directory, waylandSocket, true, externalBase, vtestSocket, launch, audioFd, audioSocket, gamepadSocket, forkBackend, productSession);
+                json = steamohos::ProbeXwayland(directory, waylandSocket, true, externalBase, vtestSocket, launch, audioFd, audioSocket, gamepadSocket, forkBackend, productSession, resultFd);
             }
         } else if (wayland) {
             const std::string socketPath(parameters + 8);

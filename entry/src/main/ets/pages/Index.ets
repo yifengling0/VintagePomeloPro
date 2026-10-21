@@ -1,3 +1,4 @@
+import { LauncherSupportActions } from '../components/LauncherSupportActions';
 import { DeckHome } from '../components/hmosdeck/DeckHome';
 import { LinuxSteamSessionService } from '../service/LinuxSteamSessionService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
@@ -141,6 +142,8 @@ const SUPPORTS_HDS_FLOATING: boolean =
 const HDS_MATERIAL_TYPE_IMMERSIVE: number = 101;
 const HDS_MATERIAL_LEVEL_EXQUISITE: number = 0;
 
+interface LauncherSettingsRoute { section: string; membership?: string; }
+
 interface ScrollOffsetSnapshot {
   xOffset: number;
   yOffset: number;
@@ -260,11 +263,13 @@ struct Index {
   @State private floatH: number = 135;
   private floatPosPlaced: boolean = false;
 
+  private compactTabletSidebar(): boolean {
+    return DeviceCapabilityPolicy.isTabletDevice() && this.viewportWidth >= 600 && !isWideBreakpoint(this.breakpoint);
+  }
+
   private isPhone(): boolean {
-    // Width-based chrome: MatePad 11.5s portrait is md (~720vp) and must not
-    // keep the in-between tablet header. xs/sm/md → phone shell + bottom nav;
-    // lg/xl → pad landscape / PC sidebar.
-    return !isWideBreakpoint(this.breakpoint);
+    // Keep a compact sidebar on portrait tablets; phones and narrow split windows retain their existing shell.
+    return !isWideBreakpoint(this.breakpoint) && !this.compactTabletSidebar();
   }
 
   private isNarrowPhone(): boolean {
@@ -361,6 +366,39 @@ struct Index {
       return;
     }
     this.clampFloatPos();
+  }
+
+  private launcherOrientationWindow: window.Window | null = null;
+  private launcherWindowEvent: ((event: window.WindowEventType) => void) | null = null;
+
+  private attachLauncherOrientation(): void {
+    if (!DeviceCapabilityPolicy.isTabletDevice() || this.launcherOrientationWindow) return;
+    const target = this.resolveMainWindow();
+    if (!target) return;
+    this.launcherOrientationWindow = target;
+    this.launcherWindowEvent = (event: window.WindowEventType): void => {
+      if (event === window.WindowEventType.WINDOW_SHOWN) this.restoreTabletLauncherOrientation(target);
+    };
+    try { target.on('windowEvent', this.launcherWindowEvent); } catch (_) {}
+    this.restoreTabletLauncherOrientation(target);
+  }
+
+  private restoreTabletLauncherOrientation(target: window.Window): void {
+    // DesktopAbility owns its requested game orientation. The launcher owns
+    // sensor rotation and must reclaim it when shown after that desktop.
+    if (this.showDesktopLayer() && !this.launcherVisible) return;
+    void target.setPreferredOrientation(window.Orientation.AUTO_ROTATION).then((): void => {
+      hilog.info(DOMAIN, 'LauncherOrientation', 'Tablet launcher sensor rotation restored');
+    }).catch((error: Error): void => {
+      hilog.warn(DOMAIN, 'LauncherOrientation', 'Tablet rotation restore failed: %{public}s', error.message);
+    });
+  }
+
+  private detachLauncherOrientation(): void {
+    if (this.launcherOrientationWindow && this.launcherWindowEvent) {
+      try { this.launcherOrientationWindow.off('windowEvent', this.launcherWindowEvent); } catch (_) {}
+    }
+    this.launcherOrientationWindow = null; this.launcherWindowEvent = null;
   }
 
   private resolveMainWindow(): window.Window | null {
@@ -624,7 +662,7 @@ struct Index {
     if (this.isPhoneLandscape()) return 12;
     if (this.breakpoint === 'xs') return 10;
     if (this.isPhone()) return 16;
-    return 28;
+    return this.compactTabletSidebar() ? 20 : 28;
   }
 
   // The HDS title is an overlay. Put its height into the scroll content so
@@ -724,6 +762,7 @@ struct Index {
   }
 
   aboutToAppear(): void {
+    this.attachLauncherOrientation();
     this.setupIme();
     this.initialize();
     BreakpointSystem.initialize();
@@ -750,6 +789,7 @@ struct Index {
   }
 
   aboutToDisappear(): void {
+    this.detachLauncherOrientation();
     this.detachConsoleNavigation();
     this.stopSteamPopTimer();
     if (this.breakpointCallback) BreakpointSystem.unsubscribe(this.breakpointCallback);
@@ -837,6 +877,7 @@ struct Index {
       if (!pageWindow) {
         return;
       }
+      this.attachLauncherOrientation();
       await applyStatusOnlyImmersiveShell(pageWindow);
       this.startWindowInsetObserver(pageWindow);
     } catch (_) {
@@ -1105,10 +1146,23 @@ struct Index {
     }
   }
 
-  private openSidebarPage(url: string): void {
+  private openSidebarPage(url: string, params?: LauncherSettingsRoute): void {
     if (url === 'pages/AccountCloud' && !DeviceCapabilityPolicy.supportsValueAddedFeatures()) return;
     this.suspendConsoleRingForPageTransition();
-    router.pushUrl({ url });
+    router.pushUrl({ url, params });
+  }
+
+  private openMembership(): void {
+    if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) this.openSidebarPage('pages/SystemSettings', { section: 'sync', membership: 'expanded' });
+  }
+  private openSponsorship(): void {
+    if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) this.openSidebarPage('pages/SystemSettings', { section: 'support' });
+  }
+  @Builder
+  private SupportActions() {
+    if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) LauncherSupportActions({
+      collapsed: this.sidebarCollapsed, idPrefix: 'classic', onMembership: (): void => this.openMembership(), onSupport: (): void => this.openSponsorship()
+    })
   }
 
   private filterTitle(): string {
@@ -1212,7 +1266,7 @@ struct Index {
     if (this.catalogCardViewMode() === ViewMode.COMPACT) return '1fr';
     // VintagePomelo keeps cover cards in two columns on phones. A single
     // flexible column makes one icon fill almost the entire compact window.
-    if (this.isPhone()) return '1fr 1fr';
+    if (this.isPhone() || this.compactTabletSidebar()) return '1fr 1fr';
     if (this.breakpoint === 'xl') return '1fr 1fr 1fr 1fr 1fr';
     return '1fr 1fr 1fr';
   }
@@ -1231,7 +1285,7 @@ struct Index {
 
   private compactGridColumns(): string {
     if (this.isPhoneLandscape()) return '1fr 1fr';
-    if (this.isPhone()) return '1fr';
+    if (this.isPhone() || this.compactTabletSidebar()) return '1fr';
     if (this.breakpoint === 'xl') return '1fr 1fr 1fr';
     return '1fr 1fr';
   }
@@ -1530,6 +1584,7 @@ struct Index {
           }.width('100%')
 
           Blank()
+          this.SupportActions()
           Row({ space: 12 }) {
             SymbolGlyph($r('sys.symbol.gearshape')).fontSize(19).fontColor([skinColor('text_secondary')])
             if (!this.sidebarCollapsed) {
@@ -1556,7 +1611,7 @@ struct Index {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
     }
-    .width(this.sidebarCollapsed ? 72 : 264)
+    .width(this.sidebarCollapsed ? 72 : this.compactTabletSidebar() ? 200 : 264)
     .height('100%')
     .padding({
       left: this.isNarrowPhone() ? 10 : 16,
@@ -1574,8 +1629,8 @@ struct Index {
       Row() {
         Column({ space: 3 }) {
           Text(this.filterTitle())
-            .fontSize(28).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
-          Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : skinColor('text_secondary'))
+            .fontSize(28).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary')).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : skinColor('text_secondary')).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Row({ space: 4 }) {
           this.DeckEntryButton(48)
@@ -2014,7 +2069,10 @@ struct Index {
     return 'builtin';
   }
 
+  private deckBackHandler: (() => boolean) | null = null;
+
   onBackPress(): boolean {
+    if (this.settings.uiSkin === UiSkin.DECK && this.deckBackHandler?.()) return true;
     if (this.consoleDetailVisible) {
       this.consoleDetailVisible = false;
       return true;
@@ -3219,6 +3277,9 @@ struct Index {
         onClassic: (): void => { void this.setLauncherSkin(UiSkin.CLASSIC); },
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
         onResources: (): void => this.openSidebarPage('pages/LinuxSteam'),
+        onBackHandler: (handler: (() => boolean) | null): void => { this.deckBackHandler = handler; },
+        onMembership: (): void => this.openMembership(),
+        onSupport: (): void => this.openSponsorship(),
         onLocalLaunch: (app: AppDescriptor): Promise<void> => this.launch(app),
         localArtwork: (app: AppDescriptor): string => this.consoleBackground(app),
         onLocalSettings: (app: AppDescriptor): void => this.openAppSettings(app)

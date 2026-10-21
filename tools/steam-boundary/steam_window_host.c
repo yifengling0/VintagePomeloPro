@@ -173,8 +173,14 @@ static LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM wp, LPARAM l
         RECT target = presentation ? work_area(window, presentation == 2) :
             fit_bounds(windowed_bounds, work_area(window, 0));
         if (!presentation) windowed_bounds = target;
+        /* Rotation replaces the work area while an earlier configure may still
+           be pending. Do not keep retrying a target from the old orientation. */
+        restore_target = target; restore_pending = 1;
+        restore_matches = 0; restore_retries = 0;
+        applying_control = 1;
         SetWindowPos(window, NULL, target.left, target.top, target.right-target.left,
             target.bottom-target.top, SWP_NOZORDER | SWP_NOACTIVATE);
+        applying_control = 0;
         publish(window, 0); break;
     }
     case WM_MOVE: case WM_SIZE:

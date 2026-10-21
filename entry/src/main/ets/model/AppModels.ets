@@ -587,6 +587,8 @@ export interface RuntimeSession {
   state: SessionState;
   toplevelId: number;
   startedAt: number;
+  // External task owners (Linux Steam) decide when to reveal their window.
+  automaticForeground?: boolean;
 }
 
 /** ArkTS 覆盖层所使用的 Wine 会话视图，不等同于 Wine/NCP 子进程。 */

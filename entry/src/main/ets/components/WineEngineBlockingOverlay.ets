@@ -1,3 +1,4 @@
+import { HostWindowTasks } from '../service/HostWindowTasks';
 import { skinColor } from '../service/SkinColors';
 import { EngineState } from '../model/AppModels';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
@@ -26,11 +27,11 @@ export struct WineEngineBlockingOverlay {
       // The input page owns a separate child window above the native Wine
       // surface. Keep that window alive and switch its hit-test state while
       // the engine is preparing, so XComponent frames cannot bypass this UI.
-      InputOverlayWindowCoordinator.getInstance().setEngineBusy(this.isBusy()).catch(() => {});
+      InputOverlayWindowCoordinator.getInstance().setEngineBusy(this.isBusy() || this.state === EngineState.ERROR).catch(() => {});
       this.syncPhaseTicker();
     };
     WineEngineService.getInstance().subscribe(this.listener);
-    InputOverlayWindowCoordinator.getInstance().setEngineBusy(this.isBusy()).catch(() => {});
+    InputOverlayWindowCoordinator.getInstance().setEngineBusy(this.isBusy() || this.state === EngineState.ERROR).catch(() => {});
     this.syncPhaseTicker();
   }
 
@@ -58,6 +59,7 @@ export struct WineEngineBlockingOverlay {
   }
 
   private title(): string {
+    if (this.state === EngineState.ERROR) return 'Wine 启动未完成';
     return this.state === EngineState.SWITCHING ? '正在重建 Wine 桌面' : '正在初始化 Wine';
   }
 
@@ -65,18 +67,20 @@ export struct WineEngineBlockingOverlay {
     const elapsed = '（已 ' + this.elapsedSec + ' 秒）';
     if (this.phaseText) return '当前阶段：' + this.phaseText + elapsed;
     if (this.state === EngineState.SWITCHING) return '正在关闭旧会话并重新建立 Wayland 显示' + elapsed;
-    return '首次启动会解压运行环境并初始化 Windows，可能需要几分钟' + elapsed;
+    return '首次启动会准备运行组件并初始化 Windows' + elapsed;
   }
 
   build() {
-    if (this.isBusy()) {
+    if (this.isBusy() || this.state === EngineState.ERROR) {
       Stack() {
         Column()
           .width('100%').height('100%')
           .backgroundColor('#E80B1220')
           .hitTestBehavior(HitTestMode.Block)
         Column({ space: 16 }) {
-          LoadingProgress().width(56).height(56).color(skinColor('accent'))
+          if (this.isBusy()) {
+            LoadingProgress().width(56).height(56).color(skinColor('accent'))
+          }
           Text(this.title())
             .fontSize(22).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
             .textAlign(TextAlign.Center)
@@ -84,9 +88,19 @@ export struct WineEngineBlockingOverlay {
           Text(this.message)
             .fontSize(15).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
-          Text(this.detail())
+          Text(this.state === EngineState.ERROR ? '可重新启动，或返回主页检查 Wine 设置' : this.detail())
             .fontSize(13).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
+          if (this.state === EngineState.ERROR) {
+            Row({ space: 12 }) {
+              Button('返回主页').onClick(() => {
+                HostWindowTasks.getInstance().showLauncher().catch(() => {});
+              }).id('wine-engine-return-home')
+              Button('重新启动').onClick(() => {
+                WineEngineService.getInstance().ensureEngineReady().catch(() => {});
+              }).id('wine-engine-retry')
+            }
+          }
         }
         .width('86%').constraintSize({ maxWidth: 480 })
         .padding({ left: 24, right: 24, top: 28, bottom: 28 })

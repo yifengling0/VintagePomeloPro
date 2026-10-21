@@ -419,7 +419,7 @@ export class AppSessionService {
   }
 
   registerExternalLaunch(appId: string, executable: string, result: NativeLaunchResult,
-    mode: DisplayMode, presentationMode: WinePresentationMode): RuntimeSession | null {
+    mode: DisplayMode, presentationMode: WinePresentationMode, automaticForeground: boolean = true): RuntimeSession | null {
     if (!result || result.pid <= 0 || !result.sessionId) return null;
     const existing = this.sessions.get(result.sessionId);
     if (existing) return existing;
@@ -432,7 +432,7 @@ export class AppSessionService {
       presentationMode: presentationMode,
       state: SessionState.RUNNING,
       toplevelId: 0,
-      startedAt: Date.now()
+      startedAt: Date.now(), automaticForeground
     };
     this.sessions.set(session.sessionId, session);
     this.resolvePendingToplevel(session);
@@ -479,11 +479,18 @@ export class AppSessionService {
     mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string): Promise<RuntimeSession | null> {
     return new Promise<RuntimeSession | null>((resolve: (result: RuntimeSession | null) => void): void => {
-      this.pendingLaunches.push({ app, settings, mode, presentationMode, homeDirectory, resolve });
+      const request: PendingLaunchRequest = { app, settings, mode, presentationMode, homeDirectory, resolve };
+      this.pendingLaunches.push(request);
+      const fail = (): void => {
+        const index = this.pendingLaunches.indexOf(request);
+        if (index >= 0) this.pendingLaunches.splice(index, 1);
+        resolve(null);
+      };
 
       this.ensurePendingLaunchListener();
       // 触发引擎启动（不 await）；引擎 READY 事件会驱动队列真正执行。
-      WineEngineService.getInstance().ensureReady(mode, presentationMode, homeDirectory).catch(() => {});
+      WineEngineService.getInstance().ensureReady(mode, presentationMode, homeDirectory)
+        .then((ready: boolean): void => { if (!ready) fail(); }).catch(fail);
       // 竞态兜底：若已经就绪立即排水。
       if (WineEngineService.getInstance().isReady()) this.drainPendingLaunches();
     });
@@ -773,7 +780,7 @@ export class AppSessionService {
   }
 
   private promoteDesktopSession(session: RuntimeSession): void {
-    if (session.presentationMode !== WinePresentationMode.DESKTOP ||
+    if (session.automaticForeground === false || session.presentationMode !== WinePresentationMode.DESKTOP ||
       !WineEngineService.getInstance().isReady() || session.toplevelId <= 0) return;
     hilog.info(DOMAIN, '[SESS]', 'auto-promote session=%{public}s tl=%{public}d',
       session.sessionId, session.toplevelId);
@@ -857,12 +864,24 @@ export class AppSessionService {
     let session = this.syncDesktopSessionFromNative();
     if (session && session.toplevelId > 0) return session;
     return new Promise<RuntimeSession | null>((resolve: (result: RuntimeSession | null) => void): void => {
+      let completed = false;
+      let poll = -1;
+      let timeout = -1;
       const finish = (result: RuntimeSession | null): void => {
+        if (completed) return;
+        completed = true;
+        if (poll >= 0) clearInterval(poll);
+        if (timeout >= 0) clearTimeout(timeout);
         const index = this.desktopRootWaiters.indexOf(finish);
         if (index >= 0) this.desktopRootWaiters.splice(index, 1);
         resolve(result);
       };
       this.desktopRootWaiters.push(finish);
+      timeout = setTimeout(() => finish(null), 20000);
+      poll = setInterval(() => {
+        const current = this.syncDesktopSessionFromNative();
+        if (current && current.toplevelId > 0) finish(current);
+      }, 250);
       // 订阅后再查一次，避免 root 在“检查”与“订阅”之间注册而漏掉事件。
       const recheck = this.syncDesktopSessionFromNative();
       if (recheck && recheck.toplevelId > 0) {

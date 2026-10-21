@@ -7,10 +7,12 @@ import testNapi from 'libentry.so';
 import smokeNapi from 'libsmoke_napi.so';
 import { hilog } from './LogService';
 import {
-  ensureSmokeDirectory, readSmokeText, smokeDriveC,
+  ensureSmokeDirectory, readSmokeText, smokeDriveC, smokePathExists,
   syncManagedSmoke, writeSmokeText
 } from './ManagedSmokePayloadService';
 import { WineEngineService } from './WineEngineService';
+import { AppSettingsStore } from './AppSettingsStore';
+import { WinePresentationMode } from '../model/AppModels';
 import { LinuxSteamGameLaunch } from './LinuxSteamGameLaunch';
 import { SmokeRequest } from '../common/SmokeTypes';
 
@@ -64,6 +66,24 @@ interface SmokeSummary {
   suite: string;
   status: string;
   tests?: SmokeTestResult[];
+}
+
+interface WineRecoveryEvidence {
+  interrupted: boolean;
+  firstReady: boolean;
+  unfinished: boolean;
+  recovered: boolean;
+  preserved: boolean;
+  initialized: boolean;
+  native: string;
+}
+
+interface WineStartupEvidence {
+  native: string;
+  initialized: boolean;
+  initStatus: string;
+  dispatchStatus: string;
+  isolated: boolean;
 }
 
 interface LinuxSteamGnuControl {
@@ -181,6 +201,30 @@ export class SmokeRunner {
     hilog.info(DOMAIN, TAG, 'run begin suite=%{public}s runId=%{public}s prefix=%{public}s engineReady=%{public}d',
       request.suite, request.runId, prefixMode, WineEngineService.getInstance().isReady());
     try {
+      // Readiness-only diagnostic: use the production startup coordinator in a
+      // separate empty container; never launch games or alter the product prefix.
+      if (request.suite === 'wine-startup-ready') {
+        const ready = WineEngineService.getInstance().isReady();
+        const prefix = driveC.substring(0, driveC.length - '/drive_c'.length);
+        const evidence: WineStartupEvidence = {
+          native: testNapi.getWineStartupState(),
+          initialized: testNapi.checkWinePrefix(prefixMode === 'clean' ? 'clean' : 'default'),
+          initStatus: readSmokeText(prefix + '/.winehua-wineboot-init-status'),
+          dispatchStatus: readSmokeText(prefix + '/.winehua-wineboot-dispatch-status'),
+          isolated: prefixMode === 'clean'
+        };
+        const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+        ensureSmokeDirectory(resultsDir);
+        writeSmokeText(resultsDir + '/startup.json', JSON.stringify(evidence));
+        await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
+          testId: 'wine-startup', status: ready && evidence.initialized ? 'PASS' : 'FAIL',
+          stage: 'prefix-ready', message: prefixMode === 'clean' ? 'Isolated fresh prefix' : 'Existing prefix' }], driveC);
+        return;
+      }
+      if (request.suite === 'wine-startup-interrupted-recovery' && prefixMode === 'reuse') {
+        await this.runWineStartupRecovery(request, driveC);
+        return;
+      }
       // The proton RunWineProgram ABI has no prefix switch. Never report a clean-prefix
       // test while actually spawning inside the active product container.
       if (prefixMode === 'clean') {
@@ -240,7 +284,7 @@ export class SmokeRunner {
         await this.runLinuxSteamHost(request, driveC);
         return;
       }
-      if (!syncManagedSmoke(prefixMode)) {
+      if (!syncManagedSmoke(prefixMode, 'diagnostic')) {
         await this.finishSuite(request, [
           this.failure(request, 'suites', `managed payload unavailable (${prefixMode})`, -1)
         ], driveC);
@@ -297,6 +341,54 @@ export class SmokeRunner {
       this.busy = false;
       this.notify();
     }
+  }
+
+  /** Interrupt only the disposable container, then retry without resetting it. */
+  private async runWineStartupRecovery(request: SmokeRequest, resultsDrive: string): Promise<void> {
+    const engine = WineEngineService.getInstance();
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    const home = '/storage/Users/currentUser/Download/com.vintage.pomelopro';
+    const prefix = '/data/storage/el2/base/files/containers/clean/prefix';
+    let firstFinished = false;
+    const first = engine.ensureSmokeReady(settings.defaultDisplayMode, WinePresentationMode.DESKTOP, home, 'clean')
+      .then((ready: boolean): boolean => { firstFinished = true; return ready; });
+    const deadline = Date.now() + 45000;
+    while (!firstFinished && engine.getPhase() !== 'wineboot' && Date.now() < deadline) {
+      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 100));
+    }
+    // Stop during registration, after Wine wrote its early update timestamp.
+    while (!firstFinished && !smokePathExists(prefix + '/.update-timestamp') && Date.now() < deadline) {
+      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 100));
+    }
+    const interrupted = !firstFinished && smokePathExists(prefix + '/.winehua-init-in-progress') &&
+      smokePathExists(prefix + '/.update-timestamp');
+    if (!interrupted) {
+      await engine.stopSession();
+      await first;
+      throw new Error('Diagnostic did not reach an incomplete isolated registration');
+    }
+    ensureSmokeDirectory(prefix + '/drive_c');
+    const sentinel = prefix + '/drive_c/startup-recovery-sentinel.txt';
+    writeSmokeText(sentinel, request.runId);
+    await engine.stopSession();
+    const firstReady = await first;
+    const unfinished = smokePathExists(prefix + '/.winehua-init-in-progress');
+    // No resetWinePrefix here: keep the interrupted cache, registry and sentinel.
+    const recovered = await engine.startSession(settings.defaultDisplayMode,
+      WinePresentationMode.DESKTOP, home, 'clean');
+    const preserved = readSmokeText(sentinel) === request.runId;
+    const initialized = testNapi.checkWinePrefix('clean') &&
+      !smokePathExists(prefix + '/.winehua-init-in-progress');
+    const resultsDir = `${resultsDrive}/smoke/results/${request.runId}`;
+    ensureSmokeDirectory(resultsDir);
+    writeSmokeText(resultsDir + '/recovery.json', JSON.stringify({
+      interrupted, firstReady, unfinished, recovered, preserved, initialized,
+      native: testNapi.getWineStartupState()
+    } as WineRecoveryEvidence));
+    await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
+      testId: 'wine-startup-interrupted-recovery',
+      status: interrupted && !firstReady && unfinished && recovered && preserved && initialized ? 'PASS' : 'FAIL',
+      stage: 'recovered-without-reset', message: 'Disposable prefix only; original product data preserved' }], resultsDrive);
   }
 
   private async runLinuxSteamGnu(request: SmokeRequest, driveC: string): Promise<void> {

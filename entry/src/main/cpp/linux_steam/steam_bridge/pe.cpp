@@ -66,6 +66,8 @@ static bool Configure(){
  if(!actualSize||actualSize>=sizeof(actual)||strcmp(actual,app))return false;
  WSADATA wsa;if(WSAStartup(MAKEWORD(2,2),&wsa))return false;
  connection=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);if(connection==INVALID_SOCKET)return false;
+ int noDelay=1;
+ if(setsockopt(connection,IPPROTO_TCP,TCP_NODELAY,(const char*)&noDelay,sizeof(noDelay))){closesocket(connection);connection=INVALID_SOCKET;return false;}
  DWORD timeout=5000;
  if(setsockopt(connection,SOL_SOCKET,SO_RCVTIMEO,(const char*)&timeout,sizeof(timeout))||setsockopt(connection,SOL_SOCKET,SO_SNDTIMEO,(const char*)&timeout,sizeof(timeout))){closesocket(connection);connection=INVALID_SOCKET;return false;}
  sockaddr_in target{};target.sin_family=AF_INET;target.sin_port=htons((unsigned short)port);target.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
@@ -76,8 +78,8 @@ static Status Exchange(uint32_t object,uint32_t method,Buffer& payload,Buffer& r
  if(!Configure())return Disconnected;
  Report("request_pending",method,Ok);
  Buffer frame;frame.Put(0x484d534231);frame.Put(++sequence);frame.Put(object);frame.Put(method);frame.Put(appId);frame.Bytes(nonce,32);frame.Bytes(payload.data.data(),payload.data.size());
- uint32_t length=htonl((uint32_t)frame.data.size());
- if(!Transfer(&length,4,true)||!Transfer(frame.data.data(),frame.data.size(),true)||!Transfer(&length,4,false))goto disconnected;
+ auto packet=frame.Packet();uint32_t length=0;
+ if(!Transfer(packet.data(),packet.size(),true)||!Transfer(&length,4,false))goto disconnected;
  length=ntohl(length);if(length<24||length>MaxFrame)goto disconnected;
  result.data.resize(length);if(!Transfer(result.data.data(),length,false))goto disconnected;
  if(result.Get()!=0x484d534252||result.Get()!=sequence)goto disconnected;
@@ -148,7 +150,11 @@ extern "C" __declspec(dllexport) bool __cdecl Steam_BGetCallback(int pipe,Callba
    response.End();
    if(!callbackCheck||callbackCheck(result.m_iCallback))Failed(1,Unsupported);
    Buffer release,released;PutScalar(release,pipe);status=Exchange(0,2,release,released);
-   if(status!=Ok)Failed(2,status);if(!GetScalar<bool>(released))Failed(2,Invalid);released.End();
+   if(status!=Ok)Failed(2,status);
+   // Proton ignores the native FreeLastCallback result when discarding an
+   // unregistered event. False is an official result, not a malformed RPC.
+   // Preserve it for public FreeLastCallback calls; do not abort this pump.
+   (void)GetScalar<bool>(released);released.End();
    continue;
   }
   auto& bytes=callbacks[pipe];status=CallbackCodec(result.m_iCallback,nullptr,0,response,false,bytes);if(status!=Ok)Failed(1,status);response.End();

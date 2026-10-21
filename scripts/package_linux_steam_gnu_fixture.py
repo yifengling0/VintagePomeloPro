@@ -140,6 +140,8 @@ def main():
             for item in source.infolist():
                 if item.filename.startswith("libs/arm64-v8a/gnu-native/") or item.filename.startswith("resources/rawfile/linux-steam-native/"):
                     continue
+                if args.wine_window_host and item.filename == "resources/rawfile/hmosdeck/hmosdeck-steam.exe":
+                    continue  # Replace the staged adapter once; duplicate ZIP members are ambiguous.
                 with source.open(item) as reader, destination.open(item, "w") as writer:
                     shutil.copyfileobj(reader, writer, length=4 * 1024 * 1024)
             destination.writestr("resources/rawfile/linux-steam-native/external-runtime.json", json.dumps({

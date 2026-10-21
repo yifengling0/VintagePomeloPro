@@ -142,6 +142,7 @@ static void LaunchJob(BrokerJob& job) {
     const bool phoneFork = !direct && PhoneAdapter_IsPhoneMode() &&
         winehua::spawn::EnvFlag(request, "WINEHUA_PHONE_DIRECT_FORK");
     int32_t childPid = -1;
+    const uint64_t spawnTicket = BeginNativeProcessSpawn();
     const int32_t status = direct ? (PhoneAdapter_IsPhoneMode() ? NCP_ERR_NOT_SUPPORTED :
         StartWineChildViaIpc(args, &childPid)) : phoneFork ?
         Phone_StartViaDirectForkServer("libwine_child.so:Main", args, &childPid) :
@@ -151,7 +152,7 @@ static void LaunchJob(BrokerJob& job) {
     if (!status && childPid > 0) {
         AddProcess(childPid, winehua::spawn::ProcessPath(request), -1,
             !direct && !phoneFork && PhoneAdapter_IsPhoneMode()
-                ? ProcessRegistration::Relabel : ProcessRegistration::NativeChild);
+                ? ProcessRegistration::Relabel : ProcessRegistration::NativeChild, spawnTicket);
         if (phoneFork) Phone_MarkDirectForkChildRegistered(childPid);
         WineHuaCefUtilityProbeNoteSpawn(childPid, job.peerPid, entry.c_str());
         if (direct) MarkWineIpcChildRegistered(childPid);

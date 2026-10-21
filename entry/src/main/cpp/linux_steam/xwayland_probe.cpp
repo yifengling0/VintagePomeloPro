@@ -1,3 +1,4 @@
+#include "window_process_message.h"
 #include "xwayland_probe.h"
 #include "native_exec.h"
 #include <cerrno>
@@ -108,6 +109,7 @@ void CleanupSysvIpc(const std::string& sessionDirectory) {
 }
 struct Session {
     int listener = -1, readyRead = -1, readyWrite = -1;
+    int ownershipFd = -1;
     std::string directory, socket;
     bool ready = false;
     int readyError = 0;
@@ -164,6 +166,15 @@ struct Session {
     }
     static void RunClient(void* data, int serverPid) {
         auto& session = *static_cast<Session*>(data);
+        if(session.steamClient&&session.ownershipFd>=0) {
+            const auto message=WindowProcessMessage(serverPid);
+            size_t sent=0;
+            while(sent<message.size()) {
+                const auto n=send(session.ownershipFd,message.data()+sent,message.size()-sent,MSG_NOSIGNAL);
+                if(n>0)sent+=static_cast<size_t>(n);
+                else if(errno!=EINTR)break;
+            }
+        }
         // The private server has -noreset for preflights. Once Steam exits,
         // stop it so a crash returns its real result without waiting 15 min.
         struct StopPrivateServer {
@@ -230,7 +241,9 @@ struct Session {
             const ssize_t ignored=write(live,scope.data(),scope.size());(void)ignored;
         }
         session.clientOptions.diagnosticFd=live;
-        session.clientOptions.parentPoll = session.steamClient && !session.productSession ? SnapshotClient : nullptr;
+        // Product sessions need the same bounded evidence as diagnostics: an IPC
+        // acknowledgement alone cannot establish that CEF or a game is ready.
+        session.clientOptions.parentPoll = session.steamClient ? SnapshotClient : nullptr;
         session.clientOptions.context = &session;
         session.client = RunNativeLoader(session.argv, session.environment, session.clientTimeout, session.clientOptions);
         if(live>=0)close(live);
@@ -329,7 +342,7 @@ bool ReadClientSettings(const std::string& path, Session& session) {
     return true;
 }
 }
-std::string ProbeXwayland(const std::string& directory, const std::string& socketPath, bool steamClient, const std::string& externalRoot, const std::string& vtestSocket, const std::string& launch, int audioFd, const std::string& audioSocket, const std::string& gamepadSocket, bool forkBackend, bool productSession) {
+std::string ProbeXwayland(const std::string& directory, const std::string& socketPath, bool steamClient, const std::string& externalRoot, const std::string& vtestSocket, const std::string& launch, int audioFd, const std::string& audioSocket, const std::string& gamepadSocket, bool forkBackend, bool productSession, int ownershipFd) {
     if (socketPath.empty() || socketPath[0] != '/' || socketPath.size() >= sizeof(sockaddr_un::sun_path))
         return "{\"status\":\"invalid_wayland_socket\",\"gnuExecutionVerified\":false}";
     const std::string base = "/data/storage/el2/base/files/steamohos-native";
@@ -337,7 +350,7 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
     const std::string xlocale = (externalRoot.empty() ? base : externalRoot) + "/x11-locale";
     if (access((xkb + "/rules/evdev").c_str(), R_OK))
         return "{\"status\":\"xkb_data_missing\",\"gnuExecutionVerified\":false}";
-    Session session;
+    Session session; session.ownershipFd=ownershipFd;
     session.nativeDirectory = directory; session.steamClient = steamClient; session.productSession = productSession;
     session.clientLogDirectory = (externalRoot.empty() ? base : externalRoot) + "/client/.steam/steam/logs";
     if(steamClient)session.clientOptions.outputLimit=131072;

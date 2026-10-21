@@ -6,8 +6,12 @@ const ts = require(path.resolve(process.argv[2]));
 const files = new Map(), writes = [], calls = [];
 const base = '/data/storage/el2/base/files/steamohos-native/client-tmp';
 const statePath = '/results/wine-window-state.json';
+let fakeNow = 100000, initialReadyDelay = 1000, readyAt = Infinity, nativeSessionState = 'running';
+let onSleep = () => {};
 let focused = 5;
-let launcherForeground = false;
+let launcherForeground = false, steamGameForeground = false;
+let nativeOwnershipAvailable = true;
+let failDiagnosticWrites = false;
 const tasks = [
   { key: 'wine-generation-1', toplevelId: 5, clientPid: 100 },
   { key: 'native-generation-1', source: 'steam-linux', toplevelId: 4, clientPid: 200 }
@@ -25,7 +29,7 @@ const deps = {
   './ConfigurationFiles': {},
   '../model/LinuxSteamWindowPreferences': preferencesOutput,
   'libentry.so': { default: {
-    getWineSession: () => ({ toplevelId: 5 }), getKeyboardFocusedToplevel: () => focused,
+    getWineSession: () => ({ toplevelId: 5, state: nativeSessionState }), getKeyboardFocusedToplevel: () => focused,
     bindExternalToplevel: (...args) => { calls.push(['bind', ...args]); return true; },
     notifyToplevelResize: (...args) => calls.push(['resize', ...args]),
     activateToplevel: id => calls.push(['activate', id]),
@@ -34,8 +38,10 @@ const deps = {
     sendToplevelClose: id => calls.push(['close', id])
     ,moveExternalHost: (...args) => calls.push(['move', ...args])
   } },
-  'libsmoke_napi.so': { default: { isLinuxSteamProcess: pid => pid === 200 } },
-  './HostWindowTasks': { HostWindowTasks: singleton({ snapshot: () => tasks, isLauncherForeground: () => launcherForeground }) },
+  'libsmoke_napi.so': { default: { isLinuxSteamProcess: pid => nativeOwnershipAvailable && pid === 200 } },
+  './HostWindowTasks': { HostWindowTasks: singleton({ snapshot: () => tasks,
+    refreshLinuxSteamOwnership: owns => {for(const task of tasks)if(owns(task.clientPid))task.source='steam-linux';},
+    isLauncherForeground: () => launcherForeground, isSteamGameForeground: () => steamGameForeground }) },
   './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ controllerOutputMode: 'dinput' }) }) },
   './GamepadManager': { GamepadManager: singleton({
     releaseAll: () => calls.push(['release']), setHostNavigation: enabled => calls.push(['navigation', enabled]),
@@ -46,8 +52,15 @@ const deps = {
     getSnapshot: () => ({ session: {}, controlsVisible: true, opacity: 72 }), update: () => {}
   }) },
   './ManagedSmokePayloadService': {
-    readSmokeText: name => files.get(name) || '',
-    writeSmokeText: (name, text) => { files.set(name, text); writes.push([name, text]); }
+    readSmokeText: name => {
+      if(name === '/drive/hmosdeck/session/wine-window-state.json' && fakeNow >= readyAt)
+        files.set(name,JSON.stringify({version:1,width:960,height:600,closed:0,geometryReady:1}));
+      return files.get(name) || '';
+    },
+    writeSmokeText: (name, text) => {
+      if (failDiagnosticWrites && /\/binding\.json(?:\.candidates)?$/.test(name)) throw new Error('ENOSPC');
+      files.set(name, text); writes.push([name, text]);
+    }
   }
 };
 const output = {};
@@ -55,7 +68,8 @@ const code = ts.transpileModule(fs.readFileSync(path.join(__dirname,
   '../entry/src/main/ets/service/LinuxSteamWindowHost.ets'), 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }
 }).outputText;
-vm.runInNewContext(code, { exports: output, clearInterval() {}, setInterval: () => 1, setTimeout, require(id) {
+vm.runInNewContext(code, { exports: output, clearInterval() {}, setInterval: () => 1, Date: {now: () => fakeNow},
+  setTimeout(callback, delay) { fakeNow += delay; onSleep(); return setTimeout(callback,0); }, require(id) {
   assert.ok(id in deps, id); return deps[id];
 } });
 function fixture() {
@@ -71,6 +85,17 @@ function native(mode = 0, minimized = 0, closed = 0, moveRequest = 0, normalWidt
   files.set(base + '/wine-window-native.json', JSON.stringify({ version: 1, window: 123,
     mode, minimized, activation: 1, closed, moveRequest, normalWidth, normalHeight }));
 }
+// A fast native child may announce the surface before its trusted ancestry
+// is recorded. The live task must recover without a synthetic created event.
+const pendingOwnership = fixture();
+tasks[1].source = 'wine'; nativeOwnershipAvailable = false;
+wine(); native(); pendingOwnership.tick();
+assert.equal(calls.some(c => c[0] === 'bind'),false,'unverified surfaces cannot bind');
+nativeOwnershipAvailable = true; pendingOwnership.tick();
+assert.equal(tasks[1].source,'steam-linux');
+assert.ok(calls.some(c => c[0] === 'bind'),'late broker registration recovers an existing native surface');
+assert.equal(tasks[1].key,'native-generation-1','reclassification preserves the original window generation');
+calls.length=0; writes.length=0;
 const host = fixture();
 wine(); native(); host.tick();
 assert.deepEqual(calls.find(c => c[0] === 'bind'), ['bind', 4, 5, 200, 100, 0, 0, 1024, 640]);
@@ -82,6 +107,11 @@ const activations = calls.filter(c => c[0] === 'activate').length;
 wine(0, 2); host.tick();
 assert.equal(calls.filter(c => c[0] === 'activate').length, activations, 'Steam activation cannot steal focus from Deck');
 launcherForeground = false; wine(); host.tick();
+steamGameForeground = true; focused = 99;
+native(1); wine(0,3); const beforeGameFocus = calls.filter(c => c[0] === 'activate').length; host.tick();
+assert.match(files.get(statePath+'.control'), /^\d+ 1 0 0\n$/, 'Background Steam geometry does not request foreground');
+assert.equal(calls.filter(c => c[0] === 'activate').length,beforeGameFocus,'Steam cannot reclaim game focus');
+steamGameForeground = false; focused = 5; native(); wine(); host.tick();
 const count = writes.length; host.tick();
 assert.equal(writes.length, count, 'Unchanged state cannot cause control/activation loops');
 native(0,0,0,1); host.tick(); host.tick();
@@ -120,6 +150,28 @@ native(0,0,0,0,4096,4096); sized.tick();
 assert.match(files.get(statePath+'.control'), /^\d+ 0 0 1\n$/,'invalid dimensions cannot resize the host');
 console.log('Wine/native window state, no activation loops, taskbar restore, focus profile, exit and generation: PASS');
 
+// A full/unavailable evidence directory must not prevent binding, resize or
+// shutdown. Exercise both the success and timer-error diagnostic paths.
+const diagnosticFailure = fixture(); native(1); wine(0,1,1);
+failDiagnosticWrites = true;
+const beforeDiagnosticFailure = calls.length;
+assert.doesNotThrow(() => diagnosticFailure.tick());
+assert.ok(calls.slice(beforeDiagnosticFailure).some(c => c[0] === 'bind'),
+  'optional binding evidence cannot interrupt an established native binding');
+assert.doesNotThrow(() => diagnosticFailure.record('binding_error:ENOSPC'),
+  'the timer catch must not throw while recording another I/O failure');
+const missingSurface = fixture(); tasks[1].source = 'wine'; nativeOwnershipAvailable = false;
+assert.doesNotThrow(() => missingSurface.tick(), 'candidate diagnostics are optional too');
+assert.equal(missingSurface.sessionId,'wine-1','an evidence error cannot stop the pending host');
+nativeOwnershipAvailable = true;
+assert.doesNotThrow(() => missingSurface.tick());
+assert.ok(missingSurface.host > 0,'a later verified surface still binds after evidence write failure');
+native(0,0,1);
+assert.doesNotThrow(() => diagnosticFailure.tick());
+assert.equal(diagnosticFailure.sessionId,'','native exit cleanup runs even with unavailable evidence');
+failDiagnosticWrites = false;
+console.log('Binding, pending surface recovery and exit tolerate diagnostic ENOSPC: PASS');
+
 // A delayed Wine configure must not resize Xwayland before it has settled.
 const pendingGeometry = fixture(); native(1); wine(0,1,1);
 files.set(statePath, JSON.stringify({version:1,x:0,y:0,width:700,height:440,
@@ -143,7 +195,7 @@ assert.equal(calls.filter(c => c[0] === 'resize').length,beforePending);
     assert.ok(!files.has(initialPath));
     assert.ok(!files.has(initialPath+'.control'),'Old HWND presentation serial is cleared before launch');
     files.set(initialPath,JSON.stringify({version:1,width:700,height:440,closed:0,geometryReady:0}));
-    setTimeout(()=>files.set(initialPath,JSON.stringify({version:1,width:960,height:600,closed:0,geometryReady:1})),30);
+    readyAt = fakeNow + initialReadyDelay;
     return {pid:100,sessionId:'new-host',reused:false};
   }});
   deps['./AppSessionService'].AppSessionService = singleton({registerExternalLaunch(){}});
@@ -152,5 +204,25 @@ assert.equal(calls.filter(c => c[0] === 'resize').length,beforePending);
   await started.start({resourceManager:{getRawFileContent:async()=>payload}},'/drive','/drive/hmosdeck/session');
   assert.equal(files.get(base+'/wine-window-geometry.txt'),'960x600\n',
     'Initial Xwayland size comes from settled geometry, never the intermediate 700x440 publication');
-  console.log('Fresh HWND command lifetime, delayed initial configure and settled resize handshake: PASS');
+  started.stop();
+  initialReadyDelay = 12000;
+  const cold = new output.LinuxSteamWindowHost();
+  const coldAt = fakeNow;
+  await cold.start({resourceManager:{getRawFileContent:async()=>payload}},'/drive','/drive/hmosdeck/session');
+  assert.ok(fakeNow - coldAt >= 12000,'cold worker can report settled geometry after the former five-second cutoff');
+  assert.equal(cold.sessionId,'new-host'); cold.stop();
+  initialReadyDelay = 30000;
+  const timeoutHost = new output.LinuxSteamWindowHost();
+  await assert.rejects(timeoutHost.start({resourceManager:{getRawFileContent:async()=>payload}},'/drive','/drive/hmosdeck/session'), /20 秒/);
+  assert.equal(timeoutHost.sessionId,'','bounded timeout stops its pending Wine worker');
+  const exited = new output.LinuxSteamWindowHost(); nativeSessionState = 'stopped';
+  const exitedAt = fakeNow;
+  await assert.rejects(exited.start({resourceManager:{getRawFileContent:async()=>payload}},'/drive','/drive/hmosdeck/session'), /进程已退出/);
+  assert.equal(fakeNow,exitedAt,'known process exit fails without waiting twenty seconds');
+  nativeSessionState = 'running';
+  const cancelled = new output.LinuxSteamWindowHost();
+  onSleep = () => { cancelled.stop(); onSleep = () => {}; };
+  await assert.rejects(cancelled.start({resourceManager:{getRawFileContent:async()=>payload}},'/drive','/drive/hmosdeck/session'), /已取消/);
+  assert.ok(!files.has(base+'/wine-window-geometry.txt'),'cancelled startup cannot publish late geometry');
+  console.log('Fresh HWND lifetime, cold worker, bounded timeout, early exit, cancellation and settled geometry: PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

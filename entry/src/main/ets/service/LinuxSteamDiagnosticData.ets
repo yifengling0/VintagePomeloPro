@@ -28,17 +28,43 @@ interface ClientHelperData { file: string; sha256: string; files: ClientHelperFi
 interface RuntimeProbe { data: RuntimeData; helpers?: ClientHelperData; }
 interface RuntimeManifest { steamClientProbe: RuntimeProbe; xwaylandProbe: RuntimeProbe; }
 
-// DOWNLOAD resolves the same app-owned system directory used by Wine's Z:.
-export async function prepareLinuxSteamExternalStorage(context: common.Context): Promise<string> {
-  const cached = readSmokeText(`${BASE}/external-root.path`).trim();
-  if (cached.startsWith('/') && cached.endsWith('/SteamLinuxARM64') && !cached.split('/').includes('..') &&
-    !/[\x00-\x1f]/.test(cached) && fs.accessSync(cached)) return cached;
+// DOWNLOAD resolves the app-owned system directory without a selection dialog.
+async function resolveLinuxSteamExternalRoot(context: common.Context): Promise<string> {
   const documentPicker = new picker.DocumentViewPicker(context);
   const choices = await documentPicker.save({ pickerMode: picker.DocumentPickerMode.DOWNLOAD });
   if (!choices || choices.length === 0) throw new Error('Cannot resolve Steam Z drive directory');
   const home = new fileUri.FileUri(choices[0]).path.replace(/\/$/, '');
-  const root = `${home}/SteamLinuxARM64`;
+  return `${home}/SteamLinuxARM64`;
+}
+
+function existingExternalRoot(root: string): boolean {
+  if (!root.startsWith('/') || !root.endsWith('/SteamLinuxARM64') || root.split('/').includes('..') ||
+    /[\x00-\x1f]/.test(root)) return false;
+  try {
+    const stat = fs.lstatSync(root);
+    return stat.isDirectory() && !stat.isSymbolicLink();
+  } catch (_) { return false; }
+}
+
+// Rebuild only the private directory pointer. Discovering existing resources
+// never installs, resets, activates or starts Steam, and never modifies games.
+export async function recoverLinuxSteamExternalStorage(context: common.Context): Promise<string> {
+  const cached = readSmokeText(`${BASE}/external-root.path`).trim();
+  if (existingExternalRoot(cached)) return cached;
+  try {
+    const root = await resolveLinuxSteamExternalRoot(context);
+    if (!existingExternalRoot(root) || !ensureSmokeDirectory(BASE)) return '';
+    writeSmokeText(`${BASE}/external-root.path`, root);
+    return root;
+  } catch (_) { return ''; }
+}
+
+export async function prepareLinuxSteamExternalStorage(context: common.Context): Promise<string> {
+  const cached = readSmokeText(`${BASE}/external-root.path`).trim();
+  if (existingExternalRoot(cached)) return cached;
+  const root = await resolveLinuxSteamExternalRoot(context);
   if (!ensureSmokeDirectory(root)) throw new Error('Cannot create Steam Z drive directory');
+  if (!existingExternalRoot(root)) throw new Error('Invalid Steam Z drive directory');
   if (!ensureSmokeDirectory(BASE)) throw new Error('Cannot create Steam diagnostic state directory');
   writeSmokeText(`${BASE}/external-root.path`, root);
   return root;

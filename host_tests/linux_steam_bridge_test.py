@@ -99,6 +99,115 @@ class RemoteBridge(unittest.TestCase):
         cls.server = cls.directory / "server"
         subprocess.run(["g++", *flags, str(ROOT / "entry/src/main/cpp/linux_steam/steam_bridge/server.cpp"), str(obj), "-ldl", "-o", str(cls.server)], check=True)
 
+    def test_pe_unregistered_callback_release_false_is_not_a_transport_failure(self):
+        # Compile the real PE callback pump as a host harness. The official
+        # native release result can be false, while the RPC itself succeeded.
+        source = (ROOT / "entry/src/main/cpp/linux_steam/steam_bridge/pe.cpp").read_text()
+        begin = source.index('extern "C" __declspec(dllexport) bool __cdecl Steam_BGetCallback')
+        end = source.index('extern "C" __declspec(dllexport) bool __cdecl Steam_FreeLastCallback', begin)
+        pump = source[begin:end].replace('__declspec(dllexport)', '').replace('__cdecl', '')
+        harness = self.directory / "pe_callback_pump.cpp"
+        harness.write_text(r'''#include "sdk.h"
+#include "wire.h"
+#include "callbacks.h"
+#include <mutex>
+#include <map>
+#include <stdexcept>
+using namespace hmosbridge;
+static std::recursive_mutex mutex;
+static std::map<int,std::vector<unsigned char>> callbacks;
+static bool registered=false,repeat=false;
+static SteamAPI_CheckCallbackRegistered_t callbackCheck=nullptr;
+static unsigned polls=0,releases=0;
+static uint32 Check(int){return registered?1:0;}
+[[noreturn]] static void Failed(uint32_t,Status){throw std::runtime_error("unsupported");}
+static Status Exchange(uint32_t,uint32_t method,Buffer& in,Buffer& out){
+ if(in.Get()!=123)return Invalid;in.End();
+ if(method==1){
+  bool received=repeat||++polls==1;out.Put(received);
+  if(received){out.Put(456);out.Put(1040044);out.Put(0);out.Put(false);}
+ }else if(method==2){++releases;out.Put(false);}else return Invalid;
+ return Ok;
+}
+''' + pump + r'''
+int main(){
+ CallbackMsg_t message{};
+ callbackCheck=Check;
+ if(Steam_BGetCallback(123,&message,nullptr)||polls!=2||releases!=1)return 1;
+ registered=true;polls=0;releases=0;
+ try {Steam_BGetCallback(123,&message,nullptr);return 2;}catch(const std::runtime_error&){}
+ if(releases)return 3;
+ registered=false;callbackCheck=nullptr;polls=0;
+ try {Steam_BGetCallback(123,&message,nullptr);return 4;}catch(const std::runtime_error&){}
+ if(releases)return 5;
+ callbackCheck=Check;repeat=true;polls=0;releases=0;
+ if(Steam_BGetCallback(123,&message,nullptr)||releases!=64)return 6;
+}
+''')
+        binary = self.directory / "pe_callback_pump"
+        sdk = Path(os.environ["STEAM_BRIDGE_REFERENCE"]) / "lsteamclient/steamworks_sdk_150"
+        subprocess.run(["g++", "-std=c++17", "-O2", "-DNDEBUG", "-w", "-I" + str(self.generated),
+                        "-I" + str(ROOT / "entry/src/main/cpp/linux_steam/steam_bridge"),
+                        "-isystem", str(sdk), str(harness), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+
+    def test_pe_framing_handles_partial_io_without_a_standalone_length_send(self):
+        # Exercise the production Exchange/Transfer bodies with deterministic
+        # short I/O. No timer threshold or mocked Steam authentication success.
+        source = (ROOT / "entry/src/main/cpp/linux_steam/steam_bridge/pe.cpp").read_text()
+        transfer = source[source.index("static bool Transfer("):source.index("static bool Configure(")]
+        exchange = source[source.index("static Status Exchange("):source.index("template<class T> void WriteArgument")]
+        harness = self.directory / "pe_transport.cpp"
+        harness.write_text(r'''#include "sdk.h"
+#include "wire.h"
+#include <arpa/inet.h>
+#include <algorithm>
+#include <cstdio>
+using namespace hmosbridge;
+static int connection=1;constexpr int INVALID_SOCKET=-1;
+static uint32_t sequence=0,appId=480;static unsigned char nonce[32]{};
+static std::vector<unsigned char> sent,reply;static size_t cursor=0,chunk=1000000;
+static unsigned sends=0;static size_t firstSend=0;
+static bool Configure(){return connection!=INVALID_SOCKET;}
+static void Report(const char*,uint32_t,Status){}
+static void closesocket(int){connection=INVALID_SOCKET;}
+static int send(int,const char* data,int count,int){
+ if(!sends++)firstSend=count;size_t n=std::min((size_t)count,chunk);
+ sent.insert(sent.end(),data,data+n);return (int)n;
+}
+static int recv(int,char* data,int count,int){
+ size_t n=std::min({(size_t)count,reply.size()-cursor,chunk});
+ if(n)memcpy(data,reply.data()+cursor,n);cursor+=n;return (int)n;
+}
+''' + transfer + exchange + r'''
+static void Prepare(uint64_t responseSequence=1){
+ connection=1;sequence=0;sent.clear();cursor=0;sends=0;
+ Buffer response;response.Put(0x484d534252);response.Put(responseSequence);response.Put(Ok);response.Put(42);reply=response.Packet();
+}
+int main(){
+ Buffer payload;payload.Put(123);
+ for(size_t n:{size_t(1000000),size_t(3)}){
+  Prepare();chunk=n;Buffer out;
+  if(Exchange(0,1,payload,out)!=Ok||out.Get()!=42)return 1;out.End();
+  Buffer expected;expected.Put(0x484d534231);expected.Put(1);expected.Put(0);expected.Put(1);expected.Put(480);expected.Bytes(nonce,32);expected.Put(123);
+  if(sent!=expected.Packet()||firstSend!=sent.size())return 2;
+  if(n==1000000&&sends!=1)return 3;
+ }
+ Prepare(99);Buffer out;if(Exchange(0,1,payload,out)!=Disconnected||connection!=INVALID_SOCKET)return 4;
+ Prepare();reply.resize(6);Buffer truncated;if(Exchange(0,1,payload,truncated)!=Disconnected)return 5;
+ Prepare();reply[0]=0x7f;Buffer oversized;if(Exchange(0,1,payload,oversized)!=Disconnected)return 6;
+ Buffer largest;largest.data.resize(MaxFrame);auto packet=largest.Packet();
+ if(packet.size()!=MaxFrame+4||packet[0]!=0||packet[1]!=16||packet[2]||packet[3])return 7;
+ largest.data.push_back(0);try{largest.Packet();return 8;}catch(const WireError&){}
+}
+''')
+        binary = self.directory / "pe_transport"
+        sdk = Path(os.environ["STEAM_BRIDGE_REFERENCE"]) / "lsteamclient/steamworks_sdk_150"
+        subprocess.run(["g++", "-std=c++17", "-O2", "-w", "-I" + str(self.generated),
+                        "-I" + str(ROOT / "entry/src/main/cpp/linux_steam/steam_bridge"),
+                        "-isystem", str(sdk), str(harness), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+
     def test_msvc_record_returns_use_the_caller_buffer(self):
         # Call the generated vtable using the explicit result-buffer ABI used
         # by Proton/MSVC. Guard words catch writing into the wrong location.

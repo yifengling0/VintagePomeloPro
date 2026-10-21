@@ -1,10 +1,17 @@
 #pragma once
 
+#include "wine_startup_state.h"
 #include <string>
 #include <vector>
 #include <napi/native_api.h>
 
+uint64_t BeginWineLaunch();
+void CancelWineLaunch();
+bool CancelWineLaunch(uint64_t generation);
+winehua::WineStartupSnapshot GetWineStartupSnapshot();
+
 struct LaunchParams {
+    uint64_t generation = 0;
     std::string exePath;
     std::string sockPath;
     std::string libPath;

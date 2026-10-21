@@ -8,7 +8,7 @@
     },
     "externalNativeOptions": {
       "path": "./src/main/cpp/CMakeLists.txt",
-      "arguments": "",
+      "arguments": "-DWINEHUA_ENABLE_STEAMOHOS_HOST=ON -DWINEHUA_ENABLE_STEAMOHOS_GNU_EXEC=ON",
       "cppFlags": "",
       "abiFilters": ["arm64-v8a"]
     }

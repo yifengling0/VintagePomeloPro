@@ -8,6 +8,7 @@ import { MembershipSupport } from './MembershipSupport';
 @Component
 export struct SponsorshipSettings {
   @Prop compact: boolean = false;
+  @Prop initiallyExpanded: boolean = false;
   @Prop surfaceColor: string | Resource = '';
   @Prop cardBorderColor: string = '#14000000';
   @Prop glass: boolean = false;
@@ -20,7 +21,10 @@ export struct SponsorshipSettings {
   @State private status: string = '';
   private alive: boolean = false;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
-  aboutToAppear(): void { this.alive = true; }
+  aboutToAppear(): void {
+    this.alive = true;
+    if (this.initiallyExpanded) this.toggleExpanded();
+  }
   aboutToDisappear(): void { this.alive = false; }
   private async run(action: () => Promise<void>): Promise<void> {
     if (this.busy || !this.alive) return;

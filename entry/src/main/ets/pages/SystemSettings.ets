@@ -273,6 +273,8 @@ struct InputProfilePickerDialog {
 struct SystemSettingsPage {
   @StorageLink('libraryTitleButtonInsetVp') private titleButtonInsetVp: number = 0;
   @State private settings: GlobalSettings = createDefaultGlobalSettings();
+  @StorageLink('hmosdeck.motion') private deckMotion: boolean = true;
+  private openSupportOnEntry: boolean = (router.getParams() as Record<string, string>)?.section === 'support';
   // 浮窗模式独立开关: 关闭时恢复此前的全屏/切边选择
   private nonFloatingDesktopMode: DesktopWindowMode = DesktopWindowMode.FULLSCREEN;
   @State private breakpoint: BreakpointType = 'lg';
@@ -411,12 +413,10 @@ struct SystemSettingsPage {
     this.loadApplicationVersion();
     this.restoreSettingsWindowChrome();
     const params = router.getParams() as Record<string, string>;
-    if (!this.routeSectionApplied && params?.section === 'engine') {
+    const target = params?.section as SettingsSection;
+    if (!this.routeSectionApplied && this.settingsSections().includes(target)) {
       this.routeSectionApplied = true;
-      this.sectionJumpTimer = setTimeout((): void => { this.sectionJumpTimer = -1; this.selectSection('engine'); }, 100);
-    } else if (!this.routeSectionApplied && params?.section === 'sync' && DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
-      this.routeSectionApplied = true;
-      this.sectionJumpTimer = setTimeout((): void => { this.sectionJumpTimer = -1; this.selectSection('sync'); }, 100);
+      this.sectionJumpTimer = setTimeout((): void => { this.sectionJumpTimer = -1; this.selectSection(target); }, 100);
     }
   }
 
@@ -1472,7 +1472,9 @@ struct SystemSettingsPage {
   @Builder
   private SectionButton(label: string, section: SettingsSection, icon: Resource) {
     Row({ space: 12 }) {
-      SymbolGlyph(icon).fontSize(18).fontColor([skinColor('text_primary')])
+      Stack({ alignContent: Alignment.Center }) {
+        SymbolGlyph(icon).fontSize(18).fontColor([skinColor('text_primary')])
+      }.width(24).height(24)
       Text(label).fontSize(14).fontColor(skinColor('text_primary'))
         .fontWeight(this.section === section ? FontWeight.Medium : FontWeight.Regular)
     }
@@ -1906,7 +1908,7 @@ struct SystemSettingsPage {
           surfaceColor: this.groupSurfaceColor(), cardBorderColor: this.groupBorderColor(),
           glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
       } else if (section === 'support') {
-        SponsorshipSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm',
+        SponsorshipSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm', initiallyExpanded: this.openSupportOnEntry,
           surfaceColor: this.groupSurfaceColor(), cardBorderColor: this.groupBorderColor(),
           glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
       } else if (section === 'display') {
@@ -2028,6 +2030,14 @@ struct SystemSettingsPage {
               .fontColor(this.settings.uiSkin === UiSkin.DECK ? '#FFFFFFFF' : skinColor('text_primary'))
               .onClick((): void => this.selectUiSkin(UiSkin.DECK))
           }.width('100%')
+          this.SwitchRow({
+            title: 'Deck 界面动画', description: '封面漂浮、卡片反馈与面板过渡', enabled: this.deckMotion,
+            onChange: (value: boolean): void => {
+              void AppSettingsStore.getInstance().setDeckMotion(value).catch((): void => {
+                promptAction.showToast({ message: '动画设置保存失败，请重试' });
+              });
+            }, id: 'settings-deck-motion'
+          })
           if (this.settings.uiSkin === UiSkin.CONSOLE) {
             Text('游戏背景会在首次展示时自动从 Steam 公开图源精确匹配并下载，无需填写 Key。游戏设置中可重新获取或手动选择。')
               .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')

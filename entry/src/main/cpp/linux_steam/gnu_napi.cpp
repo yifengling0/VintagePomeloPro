@@ -1,3 +1,4 @@
+#include "window_process_message.h"
 #include "host_napi.h"
 #include "launch_broker.h"
 #include "audio_bootstrap_relay.h"
@@ -85,6 +86,7 @@ void ExecuteGnu(napi_env, void* data) {
     }
     if (work.parameters.compare(0, 6, "steam:") == 0) GameLaunchBroker().SetAncestor(pid);
     std::string output;
+    bool awaitingWindow = work.parameters.compare(0,6,"steam:")==0;
     bool exited = false, eof = false, overflow = false;
     int exitSignal = -1;
     const auto observeExit = [&] {
@@ -109,6 +111,12 @@ void ExecuteGnu(napi_env, void* data) {
         if (n > 0) {
             if (output.size() + n > 2 * 1024 * 1024) { overflow = true; break; }
             output.append(bytes, static_cast<size_t>(n));
+            if(awaitingWindow) {
+                int window=-1;
+                const auto parsed=ConsumeWindowProcessMessage(output,window);
+                if(parsed<0||(parsed==1&&!GameLaunchBroker().RegisterWindowProcess(pid,window))) {overflow=true;break;}
+                if(parsed==1||parsed==2)awaitingWindow=false;
+            }
         } else if (!n) eof = true;
         else if (errno != EAGAIN && errno != EINTR) break;
         observeExit();
@@ -129,6 +137,7 @@ void ExecuteGnu(napi_env, void* data) {
         }
     }
     { std::lock_guard<std::mutex> lock(ExitsMutex); Exits.erase(pid); }
+    if(steamSession)GameLaunchBroker().ForgetWindowProcess(pid);
     const std::string childResult = ",\"childProcessBackend\":\"" + std::string(work.forkBackend ? "fork" : "ncp") +
         "\",\"childExitVerified\":" + (exited ? "true" : "false");
     if (!overflow && !output.empty() && output.front() == '{' && output.back() == '}') {

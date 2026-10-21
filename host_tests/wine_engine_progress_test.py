@@ -1,4 +1,4 @@
-'''Execute the production ArkTS service methods against both native protocols.
+'''Execute the production ArkTS phase clocks and blocking overlay text.
 
 Uses the SDK TypeScript compiler, a controlled clock, and the actual overlay
 detail method. No device/render claims: HAP and screenshots verify those.
@@ -23,7 +23,7 @@ def method(source, signature):
 
 methods = '\n'.join(method(service, name) for name in [
     'getPhaseText()', 'getPhaseElapsedMs()', 'getPreparationElapsedMs()',
-    'private phaseText(', 'private handleNativeState(', 'private handleEnginePhase(',
+    'private phaseText(', 'private handleEnginePhase(',
     'private setState('])
 source = '''class Service {
 state = EngineState.STOPPED; message = ''; enginePhase = ''; phaseStartedAt = 0;
@@ -50,21 +50,21 @@ assert.strictEqual(s.getPhaseElapsedMs(), 3000);
 const overlay = new Overlay();
 overlay.state=EngineState.PREPARING; overlay.phaseText=''; overlay.elapsedSec=3;
 assert(overlay.detail().includes('已 3 秒'), 'pre-native extraction has a clock');
-s.handleNativeState('state:starting:wineserver');
+s.handleEnginePhase('wineserver');
 assert.strictEqual(observedPhase, '启动 Wine 服务');
 now += 2000;
-s.handleNativeState('state:starting:wineserver');
+s.handleEnginePhase('wineserver');
 assert.strictEqual(s.getPhaseElapsedMs(), 2000, 'duplicate stage does not reset clock');
 assert.strictEqual(s.getPreparationElapsedMs(), 5000);
-s.handleNativeState('state:starting:wineboot');
+s.handleEnginePhase('wineboot');
 assert.strictEqual(s.getPhaseText(), '初始化 Wine 环境');
 assert.strictEqual(s.getPhaseElapsedMs(), 0);
-s.handleNativeState('phase:explorer');
+s.handleEnginePhase('explorer');
 assert.strictEqual(observedPhase, '启动桌面');
 assert.strictEqual(s.getPreparationElapsedMs(), 5000, 'phase changes preserve total elapsed');
-s.handleNativeState('phase:ready');
+s.handleEnginePhase('ready');
 assert.strictEqual(s.state, EngineState.PREPARING, 'informational ready does not finish init');
-s.handleNativeState('state:ready');
+s.setState(EngineState.READY, 'verified native checkpoint');
 assert.strictEqual(s.state, EngineState.READY);
 now += 1000;
 s.setState(EngineState.SWITCHING, 'rebuild');
@@ -75,19 +75,20 @@ overlay.state=EngineState.SWITCHING; overlay.phaseText=''; overlay.elapsedSec=4;
 assert(overlay.detail().includes('已 4 秒'), 'rebuild has a visible clock');
 s.setState(EngineState.STOPPED, 'stop');
 now += 1000;
-s.handleNativeState('phase:graphics');
-assert.strictEqual(s.state, EngineState.PREPARING);
-assert.strictEqual(observedPhase, '准备图形栈', 'first native phase reaches listeners');
+s.handleEnginePhase('graphics');
+assert.strictEqual(s.state, EngineState.STOPPED, 'late phase never resurrects stopped engine');
+s.setState(EngineState.PREPARING, 'new explicit attempt');
+s.handleEnginePhase('graphics');
+assert.strictEqual(observedPhase, '准备图形栈');
 assert.strictEqual(s.getPreparationElapsedMs(), 0);
 now += 6000;
-s.handleNativeState('phase:wineboot');
-assert.strictEqual(s.getPreparationElapsedMs(), 6000, 'main protocol shares progress clock');
-s.handleNativeState('state:failed:wineserver');
-assert.strictEqual(s.state, EngineState.ERROR, 'failure still releases blocker');
+s.handleEnginePhase('wineboot');
+assert.strictEqual(s.getPreparationElapsedMs(), 6000, 'stage changes preserve elapsed');
+s.setState(EngineState.ERROR, 'failed');
 s.setState(EngineState.PREPARING, 'retry');
 assert.strictEqual(s.getPreparationElapsedMs(), 0, 'retry starts a new clock');
 assert.strictEqual(s.getPhaseText(), '', 'retry clears old stage');
-console.log('Wine engine progress PASS: both protocols, extraction, phases, duplicate events, rebuild, failure and retry');
+console.log('Wine engine progress PASS: extraction, phases, duplicate events, late phase rejection, rebuild, failure and retry');
 '''
 javascript = javascript.replace('TS_MODULE', json.dumps(args.typescript)).replace('SOURCE', json.dumps(source))
 with tempfile.TemporaryDirectory(prefix='vp-progress-test-') as tmp:

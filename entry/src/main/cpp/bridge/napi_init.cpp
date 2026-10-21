@@ -472,6 +472,13 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     pos = p->exePath.find_last_of('/');
     p->winehuaBin = (pos != std::string::npos) ? p->exePath.substr(0, pos) : p->exePath;
 
+    p->generation = BeginWineLaunch();
+    if (!p->generation) {
+        delete p;
+        napi_value failed;
+        napi_create_int32(env, -1, &failed);
+        return failed;
+    }
     // 启动后台线程: wineserver -> wineboot --init
     std::thread(LaunchThreadFunc, p).detach();
 
@@ -480,6 +487,17 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     napi_value r;
     napi_create_int32(env, 0, &r);
     return r;
+}
+
+static napi_value GetWineStartupState(napi_env env, napi_callback_info) {
+    const auto snapshot = GetWineStartupSnapshot();
+    // Values are internal fixed protocol tokens, never account/user data.
+    const std::string json = "{\"generation\":" + std::to_string(snapshot.generation) +
+        ",\"active\":" + (snapshot.active ? "true" : "false") +
+        ",\"state\":\"" + snapshot.state + "\",\"phase\":\"" + snapshot.phase + "\"}";
+    napi_value value;
+    napi_create_string_utf8(env, json.c_str(), json.size(), &value);
+    return value;
 }
 
 // -- NAPI: checkWinePrefix -- 检测 .wine 是否已完整初始化 --
@@ -580,6 +598,7 @@ static napi_value ResetWinePrefix(napi_env env, napi_callback_info info) {
     const char* prefix = container.prefixDir.c_str();
     OH_LOG_WARN(LOG_APP, "[NAPI] resetWinePrefix called container=%{public}s prefix=%{public}s",
                 container.id.c_str(), prefix);
+    CancelWineLaunch();
     KillAllProcesses();
     bool ok = RmDir(prefix);
     if (mkdir(prefix, 0755) != 0 && errno != EEXIST) {
@@ -600,6 +619,7 @@ static napi_value StopClient(napi_env, napi_callback_info) {
      * renderer is itself an app-owned NCP child; killing the whole process
      * tree first can bypass its bounded shutdown and leave a stale Venus ring
      * across the next isolated session. */
+    CancelWineLaunch();
     winehua::GraphicsBroker::GetInstance().Stop();
     KillAllProcesses();
     // 会话终结统一收口 (与桌面退出同路径): 杀进程后进程级一次性状态全部
@@ -612,6 +632,7 @@ static napi_value StopClient(napi_env, napi_callback_info) {
 
 // -- NAPI: stopAll — 杀掉所有 Wine 进程 (含主 wineserver) + 停 Wayland server --
 static napi_value StopAll(napi_env, napi_callback_info) {
+    CancelWineLaunch();
     winehua::GraphicsBroker::GetInstance().Stop();
     KillAllProcesses();
     WaylandServer::GetInstance()->Stop();
@@ -1783,6 +1804,7 @@ static napi_value Init(napi_env env, napi_value exports) {
           nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startServer",    nullptr, StartServer,    nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setHostShadowProfile", nullptr, SetHostShadowProfile, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getWineStartupState", nullptr, GetWineStartupState, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"launchClient",   nullptr, LaunchClient,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopClient",     nullptr, StopClient,     nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopAll",        nullptr, StopAll,        nullptr, nullptr, nullptr, napi_default, nullptr},

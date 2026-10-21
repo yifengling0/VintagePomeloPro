@@ -7,7 +7,7 @@ class LaunchTest(unittest.TestCase):
             documents=prefix/'drive_c/users/steamuser/Documents';documents.mkdir(parents=True)
             zroot.mkdir()
             source=ROOT/'entry/src/main/cpp/linux_steam/gnu_fixture/hmosdeck.cpp'
-            subprocess.run(['g++','-std=c++17','-O2','-Wall','-Wextra','-Werror',str(source),'-o',str(build/'tool')],check=True)
+            subprocess.run(['g++','-std=c++17','-O2','-DNDEBUG','-Wall','-Wextra','-Werror',str(source),'-o',str(build/'tool')],check=True)
             env={**os.environ,'STEAMOHOS_Z_ROOT':str(zroot),'STEAMOHOS_WINE_PREFIX':str(prefix)}
             def convert(verb,path):
                 return subprocess.run([str(build/'tool'),verb,path],env=env,capture_output=True,text=True)
@@ -27,7 +27,9 @@ class LaunchTest(unittest.TestCase):
             source=ROOT/'entry/src/main/cpp'
             common=['g++','-std=c++17','-O2','-Wall','-Wextra','-Werror','-I'+str(source)]
             subprocess.run([*common,str(source/'linux_steam/gnu_fixture/hmosdeck.cpp'),'-o',str(build/'tool')],check=True)
-            subprocess.run([*common,str(ROOT/'host_tests/linux_steam_launch_test.cpp'),str(source/'linux_steam/launch_broker.cpp'),'-pthread','-o',str(build/'test')],check=True)
+            # Keep the harness assertions; compile the production broker as Release.
+            subprocess.run([*common,'-DNDEBUG','-c',str(source/'linux_steam/launch_broker.cpp'),'-o',str(build/'broker.o')],check=True)
+            subprocess.run([*common,str(ROOT/'host_tests/linux_steam_launch_test.cpp'),str(build/'broker.o'),'-pthread','-o',str(build/'test')],check=True)
             compat=build/'compat.so'
             subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',str(source/'linux_steam/gnu_fixture/filesystem_compat.c'),'-ldl','-o',str(compat)],check=True)
             subprocess.run([str(build/'test'),str(build/'tool'),str(compat)],check=True,timeout=20)

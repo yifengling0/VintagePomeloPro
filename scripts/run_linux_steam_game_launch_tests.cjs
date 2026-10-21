@@ -4,31 +4,32 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require(path.resolve(process.argv[2]));
 const files = new Map(), toasts = [], launches = [], stopped = [], replies = [];
-let requests = [], state = 1;
+let requests = [], state = 1, replyAccepted = true, failAudit = false, failRecord = false, failLaunch = false;
 let processInfo = { found: true, status: 'exited', exitCode: 1, exitCodeSource: 'waitpid' };
 const singleton = value => ({ getInstance: () => value });
 const helperDigests = new Map();
+const completions = [];
 const deps = {
   'libsmoke_napi.so': { default: {
     startLinuxSteamLaunchBroker: () => true,
     drainLinuxSteamLaunchBroker: () => { const value = requests; requests = []; return value; },
     pollLinuxSteamLaunchSession: () => state,
-    replyLinuxSteamLaunchBroker: (...args) => { replies.push(args); return true; }
+    replyLinuxSteamLaunchBroker: (...args) => { replies.push(args); return replyAccepted; }
   } },
   'libentry.so': { default: {
     getProcessList: () => [], queryWineProcess: () => processInfo, stopWineSession: id => stopped.push(id)
   } },
-  '@kit.CoreFileKit': {}, '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
+  '@kit.CoreFileKit': { fileIo: { listFileSync() { if (failAudit) throw Error('library updating'); return []; }, statSync() { throw Error('file removed'); } } }, '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
   '../model/AppModels': { DisplayMode: { DESKTOP: 1 }, WinePresentationMode: { MANAGED_WINDOWS: 1 } },
   './AppSessionService': { AppSessionService: singleton({ registerExternalLaunch() {} }) },
-  './HostWindowTasks': { HostWindowTasks: singleton({ registerSteamGame(id) { launches.push(['registerGame', id]); } }) },
+  './HostWindowTasks': { HostWindowTasks: singleton({ registerSteamGame(id) { launches.push(['registerGame', id]); }, finishSteamGame(id, known) { completions.push([id, known]); } }) },
   './WineEngineService': { WineEngineService: singleton({
-    launchExecutable: (...args) => { launches.push(args); return { pid: 100, sessionId: 'wine-100-1', reused: false }; },
+    launchExecutable: (...args) => { if (failLaunch) throw Error('launch failed'); launches.push(args); return { pid: 100, sessionId: 'wine-100-1', reused: false }; },
     getMode: () => 1, getPresentationMode: () => 1
   }) },
   './ManagedSmokePayloadService': {
     readSmokeText: name => files.get(name) || '',
-    writeSmokeText: (name, text) => files.set(name, text)
+    writeSmokeText: (name, text) => { if (failRecord) throw Error('diagnostic volume unavailable'); files.set(name, text); }
   },
   './ConfigurationFiles': { ConfigurationFiles: { fileHash: async name => helperDigests.get(name) || 'changed' } }
 };
@@ -48,6 +49,7 @@ requests = [request()]; await service.tick();
 assert.deepEqual(Array.from(launches[0][3]), ['SteamAppId=695630']);
 state = 0; await service.tick();
 const evidence = () => JSON.parse(files.get('/results/game-launch-695630.json'));
+assert.deepEqual(completions.at(-1), ['wine-100-1', true]);
 assert.equal(evidence().exitCode, 1); assert.equal(evidence().exitCodeSource, 'waitpid');
 assert.equal(evidence().steamApiAuthenticationVerified, false);
 assert.ok(toasts.some(text => text.includes('1')));
@@ -59,9 +61,15 @@ state = 0; processInfo = { found: true, status: 'exited', exitCode: 0, exitCodeS
 assert.equal(evidence().exitCode, 0); assert.equal(toasts.length, toastCount);
 state = 1; requests = [request()]; await service.tick();
 state = -1; processInfo = { found: false }; await service.tick();
+assert.deepEqual(completions.at(-1), ['wine-100-1', false], 'Unknown process state cannot return focus to Steam');
 assert.equal(evidence().status, 'wine_process_state_unavailable');
 assert.equal(evidence().exitCode, null);
 assert.equal(evidence().steamApiAuthenticationVerified, false);
+state = 1; requests = [request()]; await service.tick();
+state = 0; processInfo = { found: true, status: 'exited', exitCode: null, exitCodeSource: 'ncp-exit' }; await service.tick();
+assert.equal(evidence().status,'wine_process_ended_exit_code_unavailable');
+assert.equal(evidence().exitCode,null,'NCP death is not a fabricated successful exit code');
+assert.deepEqual(completions.at(-1),['wine-100-1',true],'Authoritative NCP death can end focus ownership');
 const previousGame = JSON.stringify(evidence());
 const lock = JSON.parse(fs.readFileSync(path.join(__dirname, '../entry/src/main/cpp/linux_steam/client_helpers.lock.json'), 'utf8'));
 const gameRegistrations = launches.filter(call => call[0] === 'registerGame').length;
@@ -97,6 +105,26 @@ state = 1; requests = [{ ...query, id: 12 }, { ...query, id: 12, cancel: true }]
 assert.equal(service.pending.length, 0, 'Cancelled queued work cannot start later');
 before = launchCount(); service.stop(); state = 0; await service.tick();
 assert.equal(launchCount(), before, 'Stopped service cannot start queued helpers');
+// Diagnostics cannot become lifecycle control or kill a running game.
+service.start('/z/SteamLinuxARM64/library', '/results');
+failAudit = true; service.ticks = 24; state = 1; requests = [request()];
+await service.tick(); assert.equal(service.sessions.length, 1);
+failRecord = true; service.ticks = 49;
+await service.tick(); assert.equal(service.sessions.length, 1);
+failAudit = false; failRecord = false;
+service.stop(); service.start('/z/SteamLinuxARM64/library', '/results');
+replyAccepted = false; requests = [request()];
+const registrationsBefore = launches.filter(call => call[0] === 'registerGame').length;
+const stopBefore = stopped.length;
+await service.tick();
+assert.equal(service.sessions.length, 0, 'A disconnected Steam controller cannot leave an orphan game');
+assert.equal(stopped.length, stopBefore + 1);
+assert.equal(launches.filter(call => call[0] === 'registerGame').length, registrationsBefore);
+replyAccepted = true; failLaunch = true; requests = [request()];
+await service.tick(); assert.equal(service.sessions.length, 0, 'Per-request launch failure is contained');
+failLaunch = false; requests = [request()]; await service.tick();
+assert.equal(service.sessions.length, 1, 'Next launch works without restarting the broker');
+service.stop();
 console.log('Linux Steam Wine handoff, opt-in diagnostics, real exit status and unknown-state evidence: PASS');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

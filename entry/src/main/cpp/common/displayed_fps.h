@@ -18,11 +18,10 @@ inline std::string DisplayedFpsPath(const char* basePath, uint32_t toplevelId)
     return std::string(basePath) + "." + std::to_string(toplevelId);
 }
 
-inline bool PublishDisplayedFpsSample(const char* basePath, uint32_t toplevelId,
-                                     uint64_t sequence, double fps, uint64_t nowUs)
+inline bool PublishDisplayedFpsFile(const std::string& path, uint32_t toplevelId,
+                                    uint64_t sequence, double fps, uint64_t nowUs)
 {
     if (!toplevelId || !std::isfinite(fps) || fps < 0 || fps > 1000) return false;
-    const std::string path = DisplayedFpsPath(basePath, toplevelId);
     std::string temporary = path + ".tmp.XXXXXX";
     const int fd = mkstemp(temporary.data());
     if (fd < 0) return false;
@@ -35,6 +34,20 @@ inline bool PublishDisplayedFpsSample(const char* basePath, uint32_t toplevelId,
     close(fd);
     const bool published = written && rename(temporary.c_str(), path.c_str()) == 0;
     if (!published) unlink(temporary.c_str());
+    return published;
+}
+
+inline bool PublishDisplayedFpsSample(const char* basePath, uint32_t toplevelId,
+                                     uint64_t sequence, double fps, uint64_t nowUs,
+                                     bool desktopCompatibility = false)
+{
+    const bool published = PublishDisplayedFpsFile(DisplayedFpsPath(basePath, toplevelId),
+        toplevelId, sequence, fps, nowUs);
+    // Bundled OpenGL smoke versions read the desktop sample at the original
+    // unsuffixed path. Only the desktop owner publishes that compatibility
+    // sample; individual windows must not overwrite each other's statistics.
+    if (published && desktopCompatibility)
+        PublishDisplayedFpsFile(basePath, toplevelId, sequence, fps, nowUs);
     return published;
 }
 

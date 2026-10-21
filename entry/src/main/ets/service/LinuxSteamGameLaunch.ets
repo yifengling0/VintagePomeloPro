@@ -3,7 +3,7 @@ import testNapi from 'libentry.so';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { readSmokeText } from './ManagedSmokePayloadService';
 import { promptAction } from '@kit.ArkUI';
-import { DisplayMode, NativeProcessInfo, WinePresentationMode } from '../model/AppModels';
+import { DisplayMode, NativeLaunchResult, NativeProcessInfo, WinePresentationMode } from '../model/AppModels';
 import { AppSessionService } from './AppSessionService';
 import { HostWindowTasks } from './HostWindowTasks';
 import { WineEngineService } from './WineEngineService';
@@ -56,7 +56,10 @@ export class LinuxSteamGameLaunch {
     this.generation++;
     if (this.timer >= 0) clearInterval(this.timer);
     this.timer = -1;
-    for (const session of this.sessions) testNapi.stopWineSession(session.sessionId);
+    for (const session of this.sessions) {
+      HostWindowTasks.getInstance().finishSteamGame(session.sessionId, false);
+      testNapi.stopWineSession(session.sessionId);
+    }
     this.sessions = [];
     this.pending = [];
     if (smokeNapi.stopLinuxSteamLaunchBroker) smokeNapi.stopLinuxSteamLaunchBroker();
@@ -67,7 +70,9 @@ export class LinuxSteamGameLaunch {
       steamApiAuthenticationVerified: false, exitCode, exitCodeSource, role
     };
     const name = role === 'game' ? `game-launch-${appId}` : `client-helper-${role}-${appId}`;
-    writeSmokeText(`${this.results}/${name}.json`, JSON.stringify(evidence));
+    // Evidence is optional. A full/unavailable diagnostic directory must not
+    // turn a successful launch or exit into a fatal broker failure.
+    try { writeSmokeText(`${this.results}/${name}.json`, JSON.stringify(evidence)); } catch (_) {}
   }
   private reject(request: LinuxSteamLaunchRequest, reason: string): void {
     if (smokeNapi.replyLinuxSteamLaunchBroker) smokeNapi.replyLinuxSteamLaunchBroker(request.id, 3, 1);
@@ -129,13 +134,20 @@ export class LinuxSteamGameLaunch {
   }
   private async tick(): Promise<void> {
     const generation = this.generation;
-    if (++this.ticks % 25 === 0) this.auditLibrary();
+    if (++this.ticks % 25 === 0) {
+      // Steam updates manifests and logs concurrently. Diagnostics never own
+      // game lifecycle, even when a file disappears between list/stat/read.
+      try { this.auditLibrary(); } catch (_) {}
+    }
     if (!smokeNapi.drainLinuxSteamLaunchBroker || !smokeNapi.pollLinuxSteamLaunchSession) return;
     for (const request of smokeNapi.drainLinuxSteamLaunchBroker()) {
       if (request.cancel) {
         this.pending = this.pending.filter((r: LinuxSteamLaunchRequest) => r.id !== request.id);
         for (const session of this.sessions) {
-          if (session.id === request.id) testNapi.stopWineSession(session.sessionId);
+          if (session.id === request.id) {
+            HostWindowTasks.getInstance().finishSteamGame(session.sessionId, false);
+            testNapi.stopWineSession(session.sessionId);
+          }
         }
         this.sessions = this.sessions.filter((s: GameSession) => s.id !== request.id);
         continue;
@@ -148,6 +160,7 @@ export class LinuxSteamGameLaunch {
     const remaining: GameSession[] = [];
     for (const session of this.sessions) {
       if (this.windowsSteamRunning()) {
+        HostWindowTasks.getInstance().finishSteamGame(session.sessionId, false);
         testNapi.stopWineSession(session.sessionId);
         if (smokeNapi.replyLinuxSteamLaunchBroker) smokeNapi.replyLinuxSteamLaunchBroker(session.id, 3, 1);
         this.record(session.appId, 'failed_windows_steam_started', undefined, undefined, session.role);
@@ -162,7 +175,11 @@ export class LinuxSteamGameLaunch {
         const process = testNapi.queryWineProcess(session.pid);
         const known = state === 0 && process.found && process.status === 'exited' &&
           (process.exitCodeSource === 'waitpid' || process.exitCodeSource === 'signal');
-        this.record(session.appId, known ? 'wine_process_ended' : 'wine_process_state_unavailable',
+        const ended = state === 0 && process.found && process.status === 'exited' &&
+          ['waitpid', 'signal', 'ncp-exit', 'ipc-death', 'proc-zombie'].includes(process.exitCodeSource);
+        if (session.role === 'game') HostWindowTasks.getInstance().finishSteamGame(session.sessionId, ended);
+        this.record(session.appId, known ? 'wine_process_ended' :
+          (ended ? 'wine_process_ended_exit_code_unavailable' : 'wine_process_state_unavailable'),
           known ? process.exitCode : null, known ? process.exitCodeSource : 'unknown', session.role);
         if (session.role === 'game' && known && process.exitCode !== null && process.exitCode !== 0) {
           promptAction.showToast({ message: `游戏已退出（退出码 ${process.exitCode}）`, duration: 5000 });
@@ -186,18 +203,27 @@ export class LinuxSteamGameLaunch {
       if (readSmokeText('/data/storage/el2/base/files/steamohos-native/game-launch-diagnostics.conf').trim() === 'wineLoader=1') {
         environment.push('WINEHUA_WINEDEBUG=-all,err+all,warn+all,+loaddll,+seh,+debugstr');
       }
-      const launch = WineEngineService.getInstance().launchExecutable(this.windowsPath(request.argv[0]), argv, this.windowsPath(request.cwd), environment);
+      let launch: NativeLaunchResult;
+      try {
+        launch = WineEngineService.getInstance().launchExecutable(this.windowsPath(request.argv[0]), argv, this.windowsPath(request.cwd), environment);
+      } catch (_) { this.reject(request, 'Wine 创建游戏进程失败'); continue; }
       if (launch.pid <= 0 || launch.sessionId.length === 0 || launch.reused) {
         this.reject(request, 'Wine 未创建新的游戏会话'); continue;
+      }
+      // The controller may disappear while Wine starts (Steam Stop, shutdown
+      // or pipe failure). Do not leave a running game without its owner.
+      if (!smokeNapi.replyLinuxSteamLaunchBroker || !smokeNapi.replyLinuxSteamLaunchBroker(request.id, 1, 0)) {
+        testNapi.stopWineSession(launch.sessionId);
+        this.record(request.appId, 'steam_launch_controller_disconnected', undefined, undefined, request.role);
+        continue;
       }
       const engine = WineEngineService.getInstance();
       AppSessionService.getInstance().registerExternalLaunch(`steam-linux-game-${request.appId}`,
         this.windowsPath(request.argv[0]), launch, engine.getMode() ?? DisplayMode.DESKTOP,
-        engine.getPresentationMode() ?? WinePresentationMode.MANAGED_WINDOWS);
-      if (request.role === 'game') HostWindowTasks.getInstance().registerSteamGame(launch.sessionId);
+        engine.getPresentationMode() ?? WinePresentationMode.MANAGED_WINDOWS, false);
+      if (request.role === 'game') HostWindowTasks.getInstance().registerSteamGame(launch.sessionId, request.appId);
       const session: GameSession = { id: request.id, appId: request.appId, sessionId: launch.sessionId, pid: launch.pid, role: request.role };
       this.sessions.push(session);
-      if (smokeNapi.replyLinuxSteamLaunchBroker) smokeNapi.replyLinuxSteamLaunchBroker(request.id, 1, 0);
       this.record(request.appId, 'wine_process_started_authentication_unverified', undefined, undefined, request.role);
     }
   }

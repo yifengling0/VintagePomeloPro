@@ -23,12 +23,12 @@ class NativeExec(unittest.TestCase):
             for source in [native / "gnu_fixture/exec_compat.cpp", native / "native_loader.cpp",
                            native / "native_loader_entry.S"]:
                 obj = base / (source.name + ".o")
-                subprocess.run(["g++", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-c",
+                subprocess.run(["g++", "-O2", "-DNDEBUG", "-Wall", "-Wextra", "-Werror", "-fPIC", "-c",
                                 str(source), "-o", str(obj)], check=True)
                 objects.append(str(obj))
             source = native / "gnu_fixture/popen_compat.c"
             obj = base / "popen_compat.o"
-            subprocess.run(["cc", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-c",
+            subprocess.run(["cc", "-O2", "-DNDEBUG", "-Wall", "-Wextra", "-Werror", "-fPIC", "-c",
                             str(source), "-o", str(obj)], check=True)
             objects.append(str(obj))
             library = signed / "libsteamohos_posix.so"
@@ -50,7 +50,7 @@ class NativeExec(unittest.TestCase):
             (signed / "script").write_text("#!/bin/sh\nexit 0\n")
             tool = signed / "compatibilitytools.d/hmosdeck/hmosdeck"
             tool.parent.mkdir(parents=True)
-            subprocess.run(["g++", "-std=c++17", "-O2", "-Wall", "-Wextra", "-Werror",
+            subprocess.run(["g++", "-std=c++17", "-O2", "-DNDEBUG", "-Wall", "-Wextra", "-Werror",
                             str(native / "gnu_fixture/hmosdeck.cpp"), "-o", str(tool)], check=True)
             (signed / "steamrtarm64").mkdir()
             reaper_source = base / "reaper.c"

@@ -6,6 +6,7 @@
 #include "direct_frame_stats.h"
 #include "common/displayed_fps.h"
 #include "common/perf_utils.h"
+#include "common/frame_loop_diagnostics.h"
 #include "compositor/wayland_server.h"
 #include "compositor/toplevel/desktop_compositor.h"
 #include "graphics/graphics_broker.h"
@@ -14,6 +15,7 @@
 #include <native_buffer/native_buffer.h>
 #include <hilog/log.h>
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <thread>
@@ -27,6 +29,43 @@
 #define LOG_TAG "DirectVkDesktop"
 
 namespace winehua::direct {
+
+// Opt-in bounded phase totals, sharing the existing frameDiagnostics switch.
+// Disabled mode never samples a clock or emits diagnostics.
+class DesktopPhaseTimings {
+public:
+    enum Phase { Slot, Surface, Sources, Acquire, Commands, Submit, Present, Idle, Count };
+    void Begin() {
+        const auto state = winehua::FrameLoopDiagnosticState();
+        enabled_ = (state & 1) != 0;
+        if (state != state_) { sums_ = {}; counts_ = {}; state_ = state; started_ = 0; }
+        if (!enabled_) return;
+        last_ = winehua::PerfNowUs();
+        if (!started_) started_ = last_;
+        if (last_ - started_ < 2000000) return;
+        OH_LOG_INFO(LOG_APP,
+            "[DIRECT-TIMING] window_us=%{public}llu counts_slot_surface_sources_acquire_commands_submit_present_idle=%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu sums_us=%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu/%{public}llu",
+            (unsigned long long)(last_ - started_),
+            (unsigned long long)counts_[Slot], (unsigned long long)counts_[Surface], (unsigned long long)counts_[Sources],
+            (unsigned long long)counts_[Acquire], (unsigned long long)counts_[Commands],
+            (unsigned long long)counts_[Submit], (unsigned long long)counts_[Present],
+            (unsigned long long)counts_[Idle],
+            (unsigned long long)sums_[Slot], (unsigned long long)sums_[Surface], (unsigned long long)sums_[Sources],
+            (unsigned long long)sums_[Acquire], (unsigned long long)sums_[Commands],
+            (unsigned long long)sums_[Submit], (unsigned long long)sums_[Present],
+            (unsigned long long)sums_[Idle]);
+        sums_ = {}; counts_ = {}; started_ = last_;
+    }
+    void Mark(Phase phase) {
+        if (!enabled_) return;
+        const auto now = winehua::PerfNowUs();
+        sums_[phase] += now - last_; ++counts_[phase]; last_ = now;
+    }
+private:
+    bool enabled_ = false;
+    uint64_t state_ = 0, started_ = 0, last_ = 0;
+    std::array<uint64_t, Count> sums_{}, counts_{};
+};
 
 static std::atomic<bool> desktopVulkanEnabled{false};
 void SetDirectDesktopVulkanEnabled(bool enabled) { desktopVulkanEnabled.store(enabled); }
@@ -184,6 +223,7 @@ public:
             renderedExtent_ = {};
         }
         PublishFrameRates();
+        timings_.Begin();
         auto& g = *core_;
         auto& slot = g.Submission(frameIndex_ % 2);
         auto& frame = frames_[frameIndex_ % 2];
@@ -193,6 +233,7 @@ public:
             frame.inFlight = false;
         }
         frame.references.clear();
+        timings_.Mark(DesktopPhaseTimings::Slot);
         VkSurfaceCapabilitiesKHR capabilities{};
         if (!Check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g.PhysicalDevice(), g.OutputSurface(), &capabilities), "scene_surface_caps")) return false;
         VkExtent2D extent = capabilities.currentExtent;
@@ -201,6 +242,7 @@ public:
         if (extent.width != g.OutputExtent().width || extent.height != g.OutputExtent().height) {
             if (!Recreate()) return false;
         }
+        timings_.Mark(DesktopPhaseTimings::Surface);
         if (!UpdateSources()) return false;
         if (cadence_.Refresh(winehua::PerfNowUs())) {
             for (const auto& [key, layer] : glLayers_)
@@ -230,11 +272,13 @@ public:
             next.width = g.OutputExtent().width; next.height = g.OutputExtent().height;
         }
         bool pending = !retired_.empty();
+        timings_.Mark(DesktopPhaseTimings::Sources);
         for (const auto& [id, layer] : layers_) pending |= layer.current.image && !layer.current.owned;
         for (const auto& [key, layer] : glLayers_) pending |= layer->current.image && !layer->current.owned;
         if (!pending && SameGpuDesktopScene(next, scene_) && renderedExtent_.width == g.OutputExtent().width &&
             renderedExtent_.height == g.OutputExtent().height) {
             std::this_thread::sleep_for(std::chrono::milliseconds(8));
+            timings_.Mark(DesktopPhaseTimings::Idle);
             return true;
         }
         scene_ = std::move(next);
@@ -244,6 +288,7 @@ public:
         if (result == VK_ERROR_OUT_OF_DATE_KHR) return Recreate();
         if (result == VK_TIMEOUT || result == VK_NOT_READY) return true;
         if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) return Fail("scene_acquire_output", result);
+        timings_.Mark(DesktopPhaseTimings::Acquire);
         const bool suboptimal = result == VK_SUBOPTIMAL_KHR;
         if (!Check(vkResetCommandBuffer(slot.command, 0), "scene_command_reset")) return false;
         VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -356,6 +401,7 @@ public:
         submit.waitSemaphoreCount = waits.size(); submit.pWaitSemaphores = waits.data(); submit.pWaitDstStageMask = waitStages.data();
         submit.commandBufferCount = 1; submit.pCommandBuffers = &slot.command;
         submit.signalSemaphoreCount = retired_.empty() ? 1 : 2; submit.pSignalSemaphores = signals;
+        timings_.Mark(DesktopPhaseTimings::Commands);
         if (!Check(vkQueueSubmit(g.Queue(), 1, &submit, slot.fence), "scene_submit")) return false;
         frame.inFlight = true;
         for (auto* buffer : newlyOwned) {
@@ -384,7 +430,9 @@ public:
         VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
         present.waitSemaphoreCount = 1; present.pWaitSemaphores = &g.OutputRendered(outputIndex);
         present.swapchainCount = 1; present.pSwapchains = &g.OutputSwapchain(); present.pImageIndices = &outputIndex;
+        timings_.Mark(DesktopPhaseTimings::Submit);
         result = vkQueuePresentKHR(g.Queue(), &present);
+        timings_.Mark(DesktopPhaseTimings::Present);
         if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
             desktopPresents.fetch_add(1, std::memory_order_relaxed);
             bool freshGameFrame = false;
@@ -650,7 +698,7 @@ private:
         if (root != statsRoot_) { rootRate_ = {}; statsRoot_ = root; }
         if (rootRate_.Sample(now, fps) && root) {
             winehua::PublishDisplayedFpsSample(winehua::kDisplayedFpsBasePath, root,
-                ++fpsSequence_, fps, now);
+                ++fpsSequence_, fps, now, true);
             OH_LOG_INFO(LOG_APP, "[DIRECT-FPS] root=%{public}u fps=%{public}.2f directGameCpuReadBytes=0 directGameCpuUploadBytes=0", root, fps);
         }
         std::unordered_set<uint32_t> liveWindows;
@@ -850,6 +898,7 @@ private:
     VkExtent2D renderedExtent_{};
     uint64_t frameIndex_ = 0, presents_ = 0, draws_ = 0;
     DirectFrameRate rootRate_;
+    DesktopPhaseTimings timings_;
     winehua::DisplayCadence cadence_;
     uint32_t statsRoot_ = 0;
     uint64_t fpsSequence_ = 0;

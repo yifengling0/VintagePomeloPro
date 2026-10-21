@@ -55,9 +55,13 @@ extern napi_threadsafe_function gStateTsfn;
 extern std::string gSockPath;
 
 // -- 进程注册表 --
+// Capture before calling the system spawn API: an NCP can exit before that
+// API returns its PID. Registration must preserve such a fresh exit receipt.
+uint64_t BeginNativeProcessSpawn();
 enum class ProcessRegistration { Relabel, NativeChild, ForkChild };
 WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd,
-                            ProcessRegistration registration = ProcessRegistration::Relabel);
+                            ProcessRegistration registration = ProcessRegistration::Relabel,
+                            uint64_t spawnTicket = 0);
 // Installs a signal-safe wakeup and a single worker that reaps only registered
 // fork children. Call before fork and register immediately in the parent.
 bool EnsureChildReaper();

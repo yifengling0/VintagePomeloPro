@@ -19,6 +19,9 @@
 
 ## 当前开发资料
 
+- [源码整合范围与构建入口](SOURCE_INTEGRATION.zh-CN.md)：主工程、自有窗口宿主、GNU 组件、Wine 补丁与子模块的提交边界。
+- [Release 稳定性修复与验收边界](RELEASE_STABILITY.zh-CN.md)。
+- [Wine 首次初始化、取消重试与桌面黑屏修复](WINE_STARTUP_RELIABILITY.zh-CN.md)。
 - [Linux Steam 第三方依赖与外置交付清单](THIRD_PARTY_RUNTIME.zh-CN.md)，以及可重建的 [ELF 依赖锁](runtime-dependencies.lock.json)。
 - [DroidDeck 上游机制与 HmosDeck 主 UI 移植设计](DROIDDECK_UI_RESEARCH.zh-CN.md)：原生 ArkUI 主屏、Linux 游戏库、单一会话控制及现有 OHOS Wine 后端。
 - [平板双指滚动回归](TABLET_INPUT_20261020.zh-CN.md)。

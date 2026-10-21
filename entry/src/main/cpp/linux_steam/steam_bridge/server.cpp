@@ -12,6 +12,7 @@ extern "C" {
 #include <fcntl.h>
 #include <map>
 #include <poll.h>
+#include <netinet/tcp.h>
 #include <set>
 #include <sys/random.h>
 #include <sys/socket.h>
@@ -196,7 +197,8 @@ int main(int argc,char** argv){
  if(poll(&waiting,1,15000)<=0){unlink(argv[2]);close(listener);return 68;}
  Report("waiting_for_game");
  int peer=accept4(listener,nullptr,nullptr,SOCK_CLOEXEC);close(listener);unlink(argv[2]);if(peer<0)return 68;
- timeval timeout{5,0};setsockopt(peer,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(peer,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+ int noDelay=1;timeval timeout{5,0};
+ if(setsockopt(peer,IPPROTO_TCP,TCP_NODELAY,&noDelay,sizeof(noDelay))||setsockopt(peer,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout))||setsockopt(peer,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout))){close(peer);return 68;}
  try{
   std::string library=std::string(root)+"/steamrtarm64/steamclient.so";Session session(library.c_str());uint64_t previous=0;
   const auto started=std::chrono::steady_clock::now();
@@ -211,7 +213,7 @@ int main(int argc,char** argv){
    Buffer output;Status status=Invalid;try{status=Dispatch(session,(uint32_t)object,(uint32_t)method,request,output);}catch(const Failure& failure){status=failure.status;}catch(const WireError&){status=Invalid;}
    ++completedRequests;if(completedRequests<=64||status!=Ok)Report("request_completed",(uint32_t)method,status);
    Buffer response;response.Put(0x484d534252);response.Put(sequence);response.Put(status);if(status==Ok)response.Bytes(output.data.data(),output.data.size());
-   if(response.data.size()>MaxFrame)throw WireError();uint32_t bytes=htonl((uint32_t)response.data.size());if(!Transfer(peer,&bytes,4,true)||!Transfer(peer,response.data.data(),response.data.size(),true))break;
+   auto packet=response.Packet();if(!Transfer(peer,packet.data(),packet.size(),true))break;
    if(status!=Ok)fprintf(stderr,"HMOSDECK_STEAM_API method=%u status=%u\n",(uint32_t)method,(unsigned)status);
   }
  }catch(const Failure& failure){Report("official_module_failed",0,failure.status);result=69;}catch(...){Report("helper_failed",0,Invalid);result=69;}

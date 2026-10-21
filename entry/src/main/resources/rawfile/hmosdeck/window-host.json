@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "source": "tools/steam-boundary/steam_window_host.c",
+  "sourceSha256": "57def3a7e09796967db5af739025d48d598802fa0cd365d7a694d284bd401b47",
+  "sha256": "905216850f6a0e01bcc24c68c730bdb95b2edefec4e4156eae1647de08a44179",
+  "bytes": 87552,
+  "machine": "0x8664"
+}

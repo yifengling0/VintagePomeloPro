@@ -42,7 +42,7 @@ function fixture() {
     getPresentationMode: () => models.WinePresentationMode.DESKTOP,
     subscribe: listener => listener(state)
   };
-  const windows = { setSessionAssociationCallback() {} };
+  const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root, isDesktopAbilityForeground:()=>false };
   const dependencies = {
     'libentry.so': { default: native },
     './LogService': { hilog: { info() {}, warn() {}, error() {} } },
@@ -170,5 +170,20 @@ function fixture() {
   await external.service.resume(registered);
   assert.equal(resumed, 1, 'External managed game uses the shared restore/focus operation');
   assert.equal(external.starts.length, 0, 'Resume must not create another Ability/process');
+  const background = fixture();
+  background.setState(models.EngineState.READY);
+  background.processes.push({pid:88,path:'C:/hmosdeck/hmosdeck-steam.exe',state:'running',sessionId:'steam-host'});
+  background.service.associateToplevel('steam-host',88,100);
+  let promotes = 0;
+  background.service.resume = async () => {promotes++;};
+  background.service.registerExternalLaunch('steam-linux-client', 'C:/hmosdeck/hmosdeck-steam.exe',
+    {pid:88,sessionId:'steam-host'}, models.DisplayMode.DESKTOP, models.WinePresentationMode.DESKTOP, false);
+  background.service.associateToplevel('steam-host',88,101);
+  assert.equal(promotes,0,'External Steam owner must not auto-promote on early or replacement windows');
+  background.service.registerExternalLaunch('ordinary-game', 'C:/game.exe',
+    {pid:89,sessionId:'ordinary'}, models.DisplayMode.DESKTOP, models.WinePresentationMode.DESKTOP);
+  background.service.schedulePromoteRetry=()=>{};
+  background.service.associateToplevel('ordinary',89,102);
+  assert.equal(promotes,1,'Ordinary Wine launch keeps its existing automatic presentation');
   console.log('AppSession startup/root, stop acceptance and process-incarnation reconciliation: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

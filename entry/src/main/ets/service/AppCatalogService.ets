@@ -20,6 +20,7 @@ import { SteamCatalogScope, steamCatalogPathKind } from '../steam/SteamLocalRule
 import { DesktopModeService, MODE_VIRTUAL } from './DesktopModeService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
+  builtinSupportsRenderMode,
   catalogFileName,
   chooseBackgroundFileName,
   chooseCoverFileName,
@@ -41,6 +42,8 @@ interface BuiltinCatalogItem {
   launchParams: BuiltinLaunchParams;
   cover: string;
   displayMode?: string;
+  renderModes?: string[];
+  enabled?: boolean;
 }
 
 interface BuiltinCatalogFile {
@@ -569,7 +572,9 @@ export class AppCatalogService {
     }
 
     const result: AppDescriptor[] = [];
+    const renderMode = AppSettingsStore.getInstance().getRenderMode();
     catalog.apps.forEach((item: BuiltinCatalogItem) => {
+      if (!builtinSupportsRenderMode(renderMode, item.renderModes, item.enabled)) return;
       const kind = this.parseLaunchKind(item.launchKind);
       const dm = DesktopModeService.getInstance();
       const override = dm.getOverrideMode();
@@ -618,8 +623,10 @@ export class AppCatalogService {
         { id: 'builtin-regedit', title: '注册表编辑器', launchKind: 'wine-system', launchParams: { executable: 'regedit.exe' }, cover: '' },
         { id: 'builtin-cmd', title: '命令提示符', launchKind: 'wine-system', launchParams: { executable: 'wineconsole.exe', arguments: ['cmd.exe'] }, cover: '' },
         { id: 'builtin-notepad', title: '记事本', launchKind: 'wine-system', launchParams: { executable: 'C:\\windows\\system32\\notepad.exe' }, cover: '' },
-        { id: 'builtin-graphics-smoke', title: '图形测试', launchKind: 'wine-system', launchParams: { executable: 'winehua_graphics_smoke.exe' }, cover: '' },
-        { id: 'builtin-dxvk-cube', title: 'DXVK 立方体测试', launchKind: 'wine-system', launchParams: {
+        { id: 'builtin-graphics-smoke', title: '图形测试', launchKind: 'wine-system', launchParams: {
+          executable: 'C:\\smoke\\x64\\winehua_graphics_smoke.exe', workingDirectory: 'C:\\smoke\\x64' }, cover: '' },
+        { id: 'builtin-dxvk-cube', title: 'DXVK 立方体测试', launchKind: 'wine-system',
+          renderModes: ['dxvk_1_10', 'dxvk_2_6'], launchParams: {
           executable: 'C:\\smoke\\x64\\winehua_d3d_switch_cube.exe', arguments: ['--d3d11'],
           workingDirectory: 'C:\\smoke\\x64' }, cover: '' },
         { id: 'builtin-audio-smoke', title: '音频测试', launchKind: 'wine-system', launchParams: {

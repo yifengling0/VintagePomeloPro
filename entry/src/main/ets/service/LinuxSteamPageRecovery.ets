@@ -71,6 +71,13 @@ export class LinuxSteamPageRecovery {
     } catch (_) { /* Logs are optional; unavailable evidence never restarts a client. */ }
   }
 
+  // Each confirmed Big Picture visit starts a new user-driven presentation
+  // cycle, even when Steam reuses its CEF browser process. Keep the log cursor
+  // and duplicate marker, so changing mode alone never requests navigation.
+  beginBigPicture(): void {
+    this.pending = false; this.sourceAttempts = 0; this.nextAttempt = 0;
+  }
+
   needed(): boolean { return this.pending && this.sourceAttempts < 2 && Date.now() >= this.nextAttempt; }
   take(): number {
     if (!this.needed()) return 0;

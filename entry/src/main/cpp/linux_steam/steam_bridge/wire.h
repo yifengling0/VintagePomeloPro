@@ -19,6 +19,14 @@ struct Buffer {
  void String(const char* s){if(!s){Put(UINT64_MAX);return;}size_t n=strnlen(s,MaxString+1);if(n>MaxString)throw WireError();Put(n);Bytes(s,n);}
  std::string String(bool* present=nullptr){uint64_t n=Get();if(present)*present=n!=UINT64_MAX;if(n==UINT64_MAX)return {};if(n>MaxString||n>data.size()-at)throw WireError();std::string s((char*)data.data()+at,(size_t)n);at+=(size_t)n;if(s.find('\0')!=s.npos)throw WireError();return s;}
  void End()const{if(at!=data.size())throw WireError();}
+ // A synchronous RPC must not send its small length prefix separately: the
+ // peer needs the body before replying, which otherwise interacts with Nagle.
+ std::vector<unsigned char> Packet()const{
+  if(data.size()>MaxFrame)throw WireError();
+  uint32_t n=(uint32_t)data.size();std::vector<unsigned char> packet;packet.reserve(4+n);
+  for(int i=3;i>=0;--i)packet.push_back((unsigned char)(n>>(8*i)));
+  packet.insert(packet.end(),data.begin(),data.end());return packet;
+ }
 };
 template<class T> constexpr bool Scalar=std::is_integral_v<T>||std::is_enum_v<T>||std::is_floating_point_v<T>||std::is_same_v<T,CSteamID>||std::is_same_v<T,CGameID>;
 template<class T> void PutScalar(Buffer& b,T value){

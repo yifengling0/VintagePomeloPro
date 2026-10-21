@@ -113,3 +113,8 @@ export function shouldRetainMissingCachedCard(directoryExists: boolean,
   executableExists: boolean, directoryIsGamesRoot: boolean): boolean {
   return directoryExists && (!directoryIsGamesRoot || executableExists);
 }
+
+// Shared by every launcher skin; omitted restrictions keep ordinary tools visible.
+export function builtinSupportsRenderMode(mode: string, allowedModes?: string[], enabled: boolean = true): boolean {
+  return enabled && (allowedModes === undefined || allowedModes.includes(mode));
+}

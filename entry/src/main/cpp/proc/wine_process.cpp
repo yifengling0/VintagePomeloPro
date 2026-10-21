@@ -1,4 +1,5 @@
 #include "wine_process.h"
+#include "wine/wine_launch.h"
 #include "wine/wine_constants.h"
 #include "phone_adapter/phone_adapter.h"
 #include "phone_adapter/phone_process.h"
@@ -106,7 +107,13 @@ static std::atomic<bool> gProcHiddenLogged{false};
 // -- 权威退出标记 (fork reaper / NCP 回调 / fork server 共用) --
 // 沙箱 /proc 不可见不代表退出。完成真实退出时记录，新的 PID 代次登记时清除。
 static std::mutex gExitWaitMutex;
-static std::set<pid_t> gExitedPids;
+struct ProcessExitReceipt { uint64_t sequence; int reason; std::string source; };
+static std::unordered_map<pid_t, ProcessExitReceipt> gExitedPids;
+static uint64_t gExitSequence = 0;
+uint64_t BeginNativeProcessSpawn() {
+    std::lock_guard<std::mutex> lock(gExitWaitMutex);
+    return gExitSequence + 1;
+}
 
 bool IsPidExited(pid_t pid) {
     std::lock_guard<std::mutex> lock(gExitWaitMutex);
@@ -261,7 +268,7 @@ static std::vector<pid_t> SnapshotProcessDescendants(pid_t root)
 
 // -- 注册表辅助函数 --
 WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdoutFd,
-                             ProcessRegistration registration) {
+                             ProcessRegistration registration, uint64_t spawnTicket) {
     if (pid <= 0) return nullptr;
     WineProcessEntry* result = nullptr;
     {
@@ -291,20 +298,25 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
                 if (ended == gProcRegistry.end()) break;
                 gProcRegistry.erase(ended);
             }
+            bool earlyExit = false;
+            ProcessExitReceipt receipt{};
             {
                 std::lock_guard<std::mutex> exitLock(gExitWaitMutex);
-                gExitedPids.erase(pid);
+                const auto found = gExitedPids.find(pid);
+                earlyExit = spawnTicket && found != gExitedPids.end() && found->second.sequence >= spawnTicket;
+                if (earlyExit) receipt = found->second;
+                else gExitedPids.erase(pid);
             }
             static uint64_t nextGeneration = 0;
             gProcRegistry.push_back({
                 .pid = pid,
                 .exeBasename = basename,
                 .exeFullPath = exeFullPath,
-                .running = true,
+                .running = !earlyExit,
                 .startTimestampMs = TimestampMs(),
-                .endTimestampMs = 0,
-                .exitCode = -1,
-                .exitCodeSource = "unknown",
+                .endTimestampMs = earlyExit ? TimestampMs() : 0,
+                .exitCode = earlyExit ? receipt.reason : -1,
+                .exitCodeSource = earlyExit ? receipt.source : "unknown",
                 .stdoutFd = stdoutFd,
                 .readerActive = std::make_shared<std::atomic<bool>>(true),
                 .waitPending = registration == ProcessRegistration::ForkChild,
@@ -382,7 +394,9 @@ void KillAllProcesses() {
 // 调用方在此之前同步停掉)。30s 封顶兜底: SIGKILL 下进程卡 D-state 不死时
 // 不至于永不发声 (ArkTS 侧另有超时硬放行, 双保险)。
 void NotifyWhenSessionDrained() {
-    std::thread([]() {
+    const auto generation = GetWineStartupSnapshot().generation;
+    const auto anchor = GetWineserverPid();
+    std::thread([generation, anchor]() {
         constexpr int kDrainTimeoutMs = 30000;
         int waitedMs = 0;
         while (waitedMs < kDrainTimeoutMs) {
@@ -400,7 +414,10 @@ void NotifyWhenSessionDrained() {
         if (waitedMs >= kDrainTimeoutMs) {
             OH_LOG_ERROR(LOG_APP, "[ProcReg] drain wait timeout: process survived SIGKILL");
         }
-        gWineserverPid.store(-1);
+        // A delayed old drain must not clear a replacement session's anchor.
+        if (GetWineStartupSnapshot().generation != generation) return;
+        auto expectedAnchor = anchor;
+        gWineserverPid.compare_exchange_strong(expectedAnchor, -1);
         OH_LOG_WARN(LOG_APP, "[ProcReg] session drained in %{public}d ms, emit state:stopped",
                     waitedMs);
         if (gStateTsfn) {
@@ -463,6 +480,7 @@ struct ProcessDeathNotification {
     int reason = -1;
     bool updated = false;
     bool anchor = false;
+    uint64_t launchGeneration = 0;
 };
 
 // Caller holds gProcMutex. Reaping and publishing share this critical section
@@ -490,17 +508,24 @@ static ProcessDeathNotification CompleteProcessLocked(pid_t pid, int reason,
     }
     {
         std::lock_guard<std::mutex> exitLock(gExitWaitMutex);
-        gExitedPids.insert(pid);
+        gExitedPids[pid] = {++gExitSequence, reason, source};
+        if (gExitedPids.size() > 4096) {
+            auto oldest = std::min_element(gExitedPids.begin(), gExitedPids.end(),
+                [](const auto& a, const auto& b) { return a.second.sequence < b.second.sequence; });
+            gExitedPids.erase(oldest);
+        }
     }
     result.pid = pid;
     result.reason = reason;
     pid_t expected = pid;
+    result.launchGeneration = GetWineStartupSnapshot().generation;
     result.anchor = gWineserverPid.compare_exchange_strong(expected, -1);
     return result;
 }
 
 static void DispatchProcessDeath(const ProcessDeathNotification& result) {
     if (result.pid <= 0) return;
+    const bool activeAnchor = result.anchor && CancelWineLaunch(result.launchGeneration);
     if (result.updated) {
         WineHuaCefUtilityProbeNoteExit(result.pid, result.reason);
         if (gStateTsfn) {
@@ -509,7 +534,7 @@ static void DispatchProcessDeath(const ProcessDeathNotification& result) {
             napi_call_threadsafe_function(gStateTsfn, strdup(msg), napi_tsfn_blocking);
         }
     }
-    if (!result.anchor || gShutdownRequested.load(std::memory_order_acquire)) return;
+    if (!activeAnchor || gShutdownRequested.load(std::memory_order_acquire)) return;
     if (gDesktopSessionEnded.load(std::memory_order_acquire)) {
         OH_LOG_WARN(LOG_APP, "[ProcMon] wineserver exited after desktop session end, clean stop");
         KillAllProcesses();

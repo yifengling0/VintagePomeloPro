@@ -33,3 +33,4 @@ done
 "$NODE" "$ROOT/scripts/run_mouse_input_unit_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_configuration_unit_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_wine_upgrade_guard_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_wine_startup_tests.cjs" "${TSC%/tsc.js}/typescript.js"

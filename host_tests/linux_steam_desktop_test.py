@@ -195,7 +195,8 @@ class DesktopSession(unittest.TestCase):
             (base / 'client.c').write_text(CLIENT)
             for source, target in [(ROOT / 'entry/src/main/cpp/linux_steam/gnu_fixture/desktop_session.c', observer),
                                    (base / 'client.c', client)]:
-                subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror', str(source),
+                subprocess.run(['cc', '-O2', *(['-DNDEBUG'] if target == observer else []),
+                                '-Wall', '-Wextra', '-Werror', str(source),
                                 '-lX11', '-ldl', '-o', str(target)], check=True)
             environment = os.environ.copy()
             # WSLg owns a read-only /tmp/.X11-unix. Use a free abstract Unix

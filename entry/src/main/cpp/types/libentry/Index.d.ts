@@ -253,6 +253,7 @@ export const sendScrollEvent: (toplevelId: number, axis: number, value: number, 
 export const notifyToplevelResize: (toplevelId: number, w: number, h: number, resizing?: boolean) => void;
 export const notifyToplevelResizeEnd: (toplevelId: number) => void;
 export const setToplevelVisible: (toplevelId: number, visible: boolean) => void;
+export const getWineStartupState: () => string;
 export const getProcessList: () => Array<{pid: number, name: string, path: string, state: string, desktopShell: boolean}>;
 export const killProcess: (pid: number) => boolean;
 export const termRun: (cols: number, rows: number, cb: (data: ArrayBuffer) => void, onExit: () => void) => number;

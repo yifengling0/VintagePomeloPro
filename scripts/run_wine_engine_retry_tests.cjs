@@ -33,12 +33,14 @@ eval(ts.transpileModule('class RetryService extends Fields {\n' +
     let drained; const drain = new Promise(resolve=>{drained=resolve;});
     let stops = 0, starts = 0;
     s.stopSession = async () => {++stops; await drain; s.state=EngineState.STOPPED;};
-    s.startSession = async (mode,presentation,home,actualPrefix) => {
+    const foregroundCurrent = () => false;
+    s.startSession = async (mode,presentation,home,actualPrefix,actualForeground) => {
+      assert.equal(actualForeground, foregroundCurrent, 'Recovery preserves the original foreground guard');
       ++starts; assert.equal(stops,1); assert.equal(s.state,EngineState.STOPPED);
       assert.deepEqual([mode,presentation,home,actualPrefix],['desktop','desktop','/games',prefix]);
       return true;
     };
-    const ready = RetryService.prototype.startSession.call(s,'desktop','desktop','/games',prefix);
+    const ready = RetryService.prototype.startSession.call(s,'desktop','desktop','/games',prefix,foregroundCurrent);
     assert.equal(stops,1,'Failure stops residual services before retry');
     assert.equal(starts,0,'New Wine cannot start before native drain');
     const concurrent = s.restart('desktop','desktop','/games',prefix);

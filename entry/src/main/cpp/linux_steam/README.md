@@ -1,8 +1,14 @@
 # Linux ARM64 Steam host diagnostics
 
+This directory now also contains the native GNU execution backend, Xwayland
+integration and Linux Steam API bridge. The sections below describe the original
+phase-1/phase-2 probes; current integration and build entry points are documented
+in [source integration](../../../../../docs/linux-steam/SOURCE_INTEGRATION.zh-CN.md).
+
 The HOST diagnostics verify the existing OHOS Wayland host. That probe does
 not load Linux ELFs, start Xwayland or run Steam. Build it explicitly with
-`-DWINEHUA_ENABLE_STEAMOHOS_HOST=ON`; the normal build defaults to OFF.
+`-DWINEHUA_ENABLE_STEAMOHOS_HOST=ON`. The CMake option defaults to OFF;
+the Linux Steam branch's `entry/build-profile.json5` enables it and GNU exec.
 
 `host_v1/` is an unchanged snapshot of the registry/ABI experiment from
 `steam-ohos-lab`. Its provenance and SHA-256 hashes are in

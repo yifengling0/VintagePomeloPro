@@ -277,16 +277,10 @@ static const char *active_wine_prefix()
 
 static void refresh_wine_session_paths()
 {
-    const char *prefix = active_wine_prefix();
-    std::string brokerPath(prefix);
-    const size_t slash = brokerPath.find_last_of('/');
-
-    setenv("XDG_RUNTIME_DIR", prefix, 1);
-    if (slash == std::string::npos)
-        brokerPath = ".wine_broker";
-    else
-        brokerPath.replace(slash + 1, std::string::npos, ".wine_broker");
-    setenv("PROCESSBROKER", brokerPath.c_str(), 1);
+    setenv("XDG_RUNTIME_DIR", active_wine_prefix(), 1);
+    // One host owns the broker across all containers. It is not a per-prefix
+    // service; deriving it from a nested prefix silently disconnects wineboot.
+    setenv("PROCESSBROKER", WINE_BROKER_SOCKET, 1);
 }
 
 static bool wine_directory_to_native(const char *path, const char *homeDir, std::string *out)

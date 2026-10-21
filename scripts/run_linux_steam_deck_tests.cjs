@@ -91,28 +91,42 @@ function pageRecoveryTests() {
   observer.start('/cef_log.txt');link=true;append(crash(100007));assert.equal(observer.needed(),false,'symlinks are ignored');
   link=false;observer.start('/cef_log.txt');append('x'.repeat(90000)+'\n'+crash(100008));
   assert.equal(observer.take(),1);assert.ok(maxRead<=65536,'per-poll I/O is bounded');assert.ok(closed>0);
-  observer.stop();append(crash(100009));assert.equal(observer.needed(),false,'stopped sessions cannot navigate');
+  observer.start('/cef_log.txt');append(crash(100010));assert.equal(observer.take(),1);
+  append(crash(100011));now+=30001;assert.equal(observer.take(),2);
+  append(crash(100012));now+=30001;assert.equal(observer.needed(),false,'one presentation cycle remains bounded');
+  observer.beginBigPicture();observer.poll();assert.equal(observer.needed(),false,'a mode change does not replay historical failures');
+  append(crash(100013));assert.equal(observer.take(),3,'a new Big Picture visit can recover with the same browser PID');
+  append(crash(100014));assert.equal(observer.needed(),false,'the new cycle still enforces its own cooldown');
+  observer.stop();append(crash(100015));assert.equal(observer.needed(),false,'stopped sessions cannot navigate');
   console.log('CEF recovery: historical logs, exact failure, split/duplicate records, rotation/truncation, cooldown, retry limit, symlinks, bounded I/O and stop PASS');
 }
 pageRecoveryTests();
 
-async function sessionTests() {
+async function sessionTests(shutdownMode = 'normal') {
+  const shutdownScenario = shutdownMode;
   const singleton=x=>({getInstance:()=>x});
-  let starts=0, launches=0, stopped=0, endNative;
-  const commands=[];
+  let starts=0, launches=0, stopped=0, endNative, foregroundRevision=0, homes=0;
+  let releaseComponents;
+  const componentsGate=new Promise(resolve=>{releaseComponents=resolve;});
+  const commands=[]; let onDispatch=()=>{};
   const base='/data/storage/el2/base/files/steamohos-native';
   const nativePromise=new Promise(resolve=>{endNative=resolve;});
   const config={read(file){if(!files.has(file))throw Error('missing');return files.get(file);},text:x=>x,json(file,text){
     files.set(file,text);
     if(file.endsWith('/deck-command.txt')) {
       const [version,generation,id,action,appId]=text.trim().split(' ');
-      commands.push({generation,id,action,appId});
-      files.set(base+'/client-tmp/deck-command-ack.json',JSON.stringify({version:1,generation,requestId:Number(id),status:'dispatched',exitCode:0}));
+      commands.push({generation,id,action,appId}); onDispatch();
+      if (action === 'shutdown' && shutdownMode === 'timeout') return;
+      if (action === 'shutdown' && shutdownMode === 'early') {
+        endNative('{"status":"completed"}'); return; // Native exit wins the next ACK poll.
+      }
+      const rejected = action === 'shutdown' && shutdownMode === 'rejected';
+      files.set(base+'/client-tmp/deck-command-ack.json',JSON.stringify({version:1,generation,requestId:Number(id),status:rejected?'failed':'dispatched',exitCode:rejected?1:0}));
     }
   }};
-  let foreground=true,recoverPending=false,recoverAttempts=0;
-  class Host {async restore(){return true;} async start() {launches++;} stop(){stopped++;} isForeground(){return foreground;}}
-  class Recovery {start(){}stop(){}poll(){}needed(){return recoverPending;}take(){recoverPending=false;return ++recoverAttempts;}}
+  let foreground=true,recoverPending=false,recoverAttempts=0,restores=0,presentationResets=0;
+  class Host {async restore(){restores++;return true;} async start() {launches++;} stop(){stopped++;} isForeground(){return foreground;}}
+  class Recovery {start(){}stop(){}poll(){}beginBigPicture(){presentationResets++;}needed(){return recoverPending;}take(){recoverPending=false;return ++recoverAttempts;}}
   class Games {start(){}stop(){}}
   const nativeStart=()=>{starts++;const generation=files.get(base+'/session-generation.txt').trim();
     files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation,ready:true,closed:false,mode:0,updatedAt:now}));
@@ -126,28 +140,41 @@ async function sessionTests() {
     '../model/AppModels':{DisplayMode:{DESKTOP:1},WinePresentationMode:{DESKTOP:1}},
     '../model/LinuxSteamModels':models,
     './ConfigurationFiles':{ConfigurationFiles:config},
-    './LinuxSteamInstallService':{LinuxSteamInstallService:singleton({ensureReady:async()=>{}})},
+    './LinuxSteamInstallService':{LinuxSteamInstallService:singleton({ensureReady:async()=>{await componentsGate;}})},
     './LinuxSteamLibraryService':{LinuxSteamLibraryService:singleton({externalRoot:()=>root})},
     './LinuxSteamGameLaunch':{LinuxSteamGameLaunch:Games},'./LinuxSteamWindowHost':{LinuxSteamWindowHost:Host},
     './LinuxSteamPageRecovery':{LinuxSteamPageRecovery:Recovery},
     './WineEngineService':{WineEngineService:singleton({ensureReady:async()=>true})},
-    './HostWindowTasks':{HostWindowTasks:singleton({snapshot:()=>[{key:'steam-1',source:'steam-linux'}],activate:async()=>true,showLauncher:async()=>{}})},
+    './HostWindowTasks':{HostWindowTasks:singleton({snapshot:()=>[{key:'steam-1',source:'steam-linux'}],activate:async()=>true,foregroundRevision:()=>foregroundRevision,showLauncher:async()=>{homes++;foregroundRevision++;},expectSteamGame:()=>1,cancelExpectedSteamGame:()=>{}})},
     './GamepadManager':{GamepadManager:singleton({releaseAll(){}})},
     './ManagedSmokePayloadService':{ensureSmokeDirectory(){return true;},readSmokeText:file=>files.get(file)||''}
   },{setInterval(){return 1;},clearInterval(){},setTimeout(cb){now+=200;Promise.resolve().then(cb);}});
   const service=api.LinuxSteamSessionService.getInstance();service.initialize({});
+  const coldOpen=service.open('library');
+  for(let i=0;i<12;i++)await Promise.resolve();
+  await service.returnHome(); releaseComponents(); await coldOpen;
+  assert.equal(restores,0,'Returning home during cold component preparation cancels the later window raise');
+  assert.equal(starts,1,'Returning home does not restart or kill the native client');
+  commands.length=0;service.requestId=0;files.delete(base+'/client-tmp/deck-command-ack.json');
   await Promise.all([service.open('library'),service.open('downloads'),service.open('launch','3590')]);
   assert.equal(starts,1,'concurrent callers share one product native session');
   assert.equal(launches,1,'one Wine host for that session');
   assert.deepEqual(commands.map(c=>c.action),['library','downloads','launch'],'commands serialized');
   assert.deepEqual(commands.map(c=>c.id),['1','2','3'],'monotonic requests');
   assert.equal(commands[2].appId,'3590');
+  assert.equal(restores,0,'The latest Play supersedes older navigation raises, and launch ACK must never restore Steam');
   assert.equal(service.snapshot().state,'running');
+  onDispatch=()=>{foregroundRevision++;};
+  await service.open('downloads');
+  assert.equal(restores,0,'An explicit foreground choice made while dispatch waits must win');
+  onDispatch=()=>{};
+  await service.open('library');assert.equal(restores,1,'Current explicit navigation can still restore Steam');
   await assert.rejects(service.open('launch','../bad'),/AppID/);
   files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation:'old-generation',ready:true,closed:false,mode:2,updatedAt:now}));
   service.poll();assert.equal(service.snapshot().presentation,'desktop','ignore other-generation presentation');
   files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation:'abcd-9876',ready:true,closed:false,mode:2,updatedAt:now}));
   service.poll();assert.equal(service.snapshot().presentation,'bigPicture');
+  service.poll();assert.equal(presentationResets,1,'only a confirmed new Big Picture visit resets the recovery allowance');
   files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation:'abcd-9876',ready:true,closed:false,mode:0,updatedAt:now-15000}));
   service.poll();assert.equal(service.snapshot().presentation,'bigPicture','stale file cannot reset presentation');
   recoverPending=true;service.recoverPage();assert.equal(service.recoveryQueued,false,'Big Picture is never redirected');
@@ -158,11 +185,22 @@ async function sessionTests() {
   assert.equal(commands.at(-1).action,'library');assert.equal(recoverAttempts,1);assert.equal(starts,1,'renderer repair never restarts Steam');
   assert.equal(commands.at(-1).id,'9','fixed maintenance commands cannot leave recovery using a replayed request');
   recoverPending=true;service.recoverPage();
-  await service.open('shutdown');assert.equal(service.snapshot().state,'stopping');
+  if (shutdownMode === 'rejected' || shutdownMode === 'timeout') {
+    await assert.rejects(service.open('shutdown'), shutdownMode === 'rejected' ? /Steam 操作未完成/ : /Steam 没有确认/);
+    assert.equal(service.snapshot().state, 'running', 'Rejected shutdown must remain retryable');
+    shutdownMode = 'normal';
+  }
+  await service.open('shutdown');
+  if (shutdownMode === 'early') {
+    assert.equal(service.snapshot().state, 'stopped', 'Native shutdown before ACK must not become a startup failure');
+  } else {
+    assert.equal(service.snapshot().state, 'stopping');
+    endNative('{"status":"completed"}');await service.worker;
+    assert.equal(service.snapshot().state,'stopped');
+  }
   assert.equal(recoverAttempts,1,'new user shutdown cancels pending repair');
-  endNative('{"status":"completed"}');await service.worker;assert.equal(service.snapshot().state,'stopped');
   assert.equal(stopped,1,'host cleaned after real native worker exit');
-  console.log('Deck ArkTS session: concurrent start, command ordering, AppID, fresh generation, mode ACK, stale state and normal shutdown PASS');
+  console.log('Deck ArkTS session: concurrent start, command ordering, AppID, fresh generation, mode ACK, stale state and shutdown '+shutdownScenario+' PASS');
 }
 async function taskTests() {
   const {HostWindowTasks} = load('service/HostWindowTasks.ets', {});
@@ -170,6 +208,14 @@ async function taskTests() {
   tasks.onEvent(4,'created',JSON.stringify({clientPid:100,sessionId:'steam-host'}));
   tasks.onEvent(4,'title',JSON.stringify({title:'Steam (Linux ARM64)'}));
   const key=tasks.snapshot()[0].key;
+  let ownershipReady=false;
+  tasks.refreshLinuxSteamOwnership(pid=>ownershipReady && pid===100);
+  assert.equal(tasks.snapshot()[0].source,'wine');
+  ownershipReady=true;tasks.refreshLinuxSteamOwnership(pid=>pid===100);
+  assert.equal(tasks.snapshot()[0].source,'steam-linux');
+  assert.equal(tasks.snapshot()[0].key,key,'late ownership does not replace or activate a task');
+  assert.equal(tasks.snapshot()[0].title,'Steam (Linux ARM64)');
+
   let complete;
   tasks.setActivator(async()=>new Promise(resolve=>{complete=resolve;}));
   const restore=tasks.activate(key);await Promise.resolve();
@@ -186,4 +232,4 @@ async function taskTests() {
   assert.equal(tasks.hasForegroundTask(),false);
   console.log('Deck tasks: launcher focus, cancelled in-flight restore, stable window identities and explicit restore PASS');
 }
-Promise.all([sessionTests(),taskTests()]).catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{await sessionTests();await sessionTests('early');await sessionTests('rejected');await sessionTests('timeout');await taskTests();})().catch(error=>{console.error(error);process.exitCode=1;});

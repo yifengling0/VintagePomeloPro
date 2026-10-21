@@ -1,4 +1,5 @@
 #include "linux_steam/launch_broker.h"
+#include "linux_steam/window_process_message.h"
 #include <cassert>
 #include <cerrno>
 #include <chrono>
@@ -98,6 +99,42 @@ int main(int argc,char** argv){
     }
     // Bad frames never allocate unbounded buffers or produce a launch.
     fd=Connect(endpoint);uint32_t oversized=htonl(LaunchMaxBytes+1);assert(write(fd,&oversized,4)==4);assert(broker.Drain().empty());assert(recv(fd,&byte,1,0)==0);close(fd);
-    broker.Stop();assert(!broker.OwnsProcess(getpid()));assert(access(endpoint.c_str(),F_OK)!=0);std::filesystem::remove_all(root);
-    std::cout<<"PASS: native socket identity, nonce, path/symlink/PE boundary, env allowlist, fragmented/oversized frames, cancellation, real tool lifetime/exit status\n";
+    broker.Stop();assert(!broker.OwnsProcess(getpid()));assert(access(endpoint.c_str(),F_OK)!=0);
+    // The private supervisor reports exactly the Xwayland PID. Cross-process
+    // /proc is intentionally unavailable in this production-policy fixture.
+    LaunchBroker noProc([](pid_t,pid_t&,uint64_t&){return false;});
+    assert(noProc.Start(root,library));noProc.SetAncestor(getpid());
+    const auto restrictedParameters=noProc.Parameters();const auto separator=restrictedParameters.find('\n');
+    const auto restrictedSocket=restrictedParameters.substr(0,separator);
+    auto restrictedRequest=valid;restrictedRequest.nonce=restrictedParameters.substr(separator+1);
+    auto restrictedSend=[&](const LaunchRequest& request){int socket=Connect(restrictedSocket);
+        const auto message=EncodeLaunch(request);assert(write(socket,message.data(),message.size())==static_cast<ssize_t>(message.size()));return socket;};
+    fd=restrictedSend(restrictedRequest);assert(noProc.Drain().empty());assert(recv(fd,&byte,1,0)<=0);close(fd);
+    assert(!noProc.RegisterWindowProcess(getpid()+1,getppid()));
+    assert(!noProc.RegisterWindowProcess(getpid(),getpid()));
+    pid_t window=fork();assert(window>=0);if(!window){pause();_exit(0);}
+    assert(noProc.RegisterWindowProcess(getpid(),window));
+    assert(!noProc.RegisterWindowProcess(getpid(),window+1));
+    assert(noProc.OwnsProcess(window));assert(!noProc.OwnsProcess(getpid()));
+    auto restrictedBad=restrictedRequest;restrictedBad.nonce[0]^=1;
+    fd=restrictedSend(restrictedBad);assert(noProc.Drain().empty());assert(recv(fd,&byte,1,0)==0);close(fd);
+    restrictedBad=restrictedRequest;restrictedBad.cwd=root;
+    fd=restrictedSend(restrictedBad);assert(noProc.Drain().empty());assert(recv(fd,&byte,1,0)==0);close(fd);
+    fd=restrictedSend(restrictedRequest);events=noProc.Drain();assert(events.size()==1);
+    assert(noProc.Reply(events[0].id,3,1));assert(recv(fd,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply));close(fd);
+    noProc.ForgetWindowProcess(getpid()+1);assert(noProc.OwnsProcess(window));
+    noProc.ForgetWindowProcess(getpid());assert(!noProc.OwnsProcess(window));
+    fd=restrictedSend(restrictedRequest);assert(noProc.Drain().empty());assert(recv(fd,&byte,1,0)<=0);close(fd);
+    kill(window,SIGTERM);assert(waitpid(window,nullptr,0)==window);noProc.Stop();
+    for(const auto& invalid: {std::string("HMOSDECK_WINDOW_V1 0\n"),std::string("HMOSDECK_WINDOW_V1 -1\n"),
+        std::string("HMOSDECK_WINDOW_V1 2147483648\n"),std::string("HMOSDECK_WINDOW_V1 12x\n"),std::string(49,'x')}) {
+        auto message=invalid;int parsed=-1;assert(ConsumeWindowProcessMessage(message,parsed)==-1);
+    }
+    std::string fragmented="HMOSDECK_WINDOW_";int parsed=-1;
+    assert(ConsumeWindowProcessMessage(fragmented,parsed)==0);
+    fragmented+="V1 1234\n{\"status\":\"done\"}";
+    assert(ConsumeWindowProcessMessage(fragmented,parsed)==1&&parsed==1234);
+    assert(fragmented=="{\"status\":\"done\"}");assert(ConsumeWindowProcessMessage(fragmented,parsed)==2);
+    std::filesystem::remove_all(root);
+    std::cout<<"PASS: native socket identity, NCP window attestation with hidden /proc, fragmented metadata, nonce, path/symlink/PE boundary, env allowlist, fragmented/oversized frames, cancellation, real tool lifetime/exit status\n";
 }
