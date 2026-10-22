@@ -1,6 +1,7 @@
 #include "window_process_message.h"
 #include "xwayland_probe.h"
 #include "native_exec.h"
+#include "gnu_fixture/deck_action_uri.h"
 #include <cerrno>
 #include <chrono>
 #include <cstring>
@@ -263,6 +264,7 @@ bool ReadClientSettings(const std::string& path, Session& session) {
     const std::vector<std::string> allowed{"-cef-disable-gpu", "-cef-disable-gpu-compositing",
         "-cef-verbose-logging", "-cef-disable-breakpad", "-cef-disable-occlusion", "-cef-disable-sandbox", "-gamepadui"};
     unsigned arguments = 0;
+    std::string startupUri;
     while (std::getline(stream, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.empty() || line[0] == '#') continue;
@@ -270,12 +272,24 @@ bool ReadClientSettings(const std::string& path, Session& session) {
             const std::string value = line.substr(4);
             if (++arguments > 8 || std::find(allowed.begin(), allowed.end(), value) == allowed.end()) { errno = EINVAL; return false; }
             session.argv.push_back(value);
+        } else if (line.compare(0,14,"startupAction=")==0) {
+            std::istringstream actionStream(line.substr(14));
+            std::string action, app, extra;
+            char buffer[96];
+            if (!(actionStream >> action >> app) || (actionStream >> extra) ||
+                !startupUri.empty() || action == "shutdown" ||
+                std::find(session.argv.begin(),session.argv.end(),"-applaunch") != session.argv.end()) {
+                errno=EINVAL;return false;
+            }
+            const char* uri=deck_uri(action.c_str(),app.c_str(),buffer,sizeof(buffer));
+            if(!uri){errno=EINVAL;return false;}
+            startupUri=uri;
         } else if (line.compare(0,12,"launchAppId=")==0) {
             const std::string appId=line.substr(12);
             if(appId.empty()||appId.size()>10||appId[0]=='0'||
                appId.find_first_not_of("0123456789")!=std::string::npos||
                std::strtoull(appId.c_str(),nullptr,10)>4294967295ULL||
-               std::find(session.argv.begin(),session.argv.end(),"-applaunch")!=session.argv.end()) {
+               !startupUri.empty() || std::find(session.argv.begin(),session.argv.end(),"-applaunch")!=session.argv.end()) {
                 errno=EINVAL;return false;
             }
             // Explicit research launch through the original Linux Steam client,
@@ -339,6 +353,9 @@ bool ReadClientSettings(const std::string& path, Session& session) {
             session.clientTimeout = static_cast<uint32_t>(timeout);
         } else { errno = EINVAL; return false; }
     }
+    // Let Steam queue this fixed URI across login/main-page initialization.
+    // A visible login surface is not a safe point for a second navigation process.
+    if(!startupUri.empty())session.argv.push_back(startupUri);
     return true;
 }
 }

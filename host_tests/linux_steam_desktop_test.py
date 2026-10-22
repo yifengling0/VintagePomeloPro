@@ -72,7 +72,9 @@ int main(int argc,char **argv) {
     steamohos::Session session;
     if(!steamohos::ReadClientSettings(argv[1],session))return 1;
     printf("geometry=%s observer=%d metadata=%d timeout=%u fullscreen=%d\n",session.desktopGeometry.c_str(),
-        session.desktopSession,session.socketMetadata,session.clientTimeout,session.desktopFullscreen);return 0;
+        session.desktopSession,session.socketMetadata,session.clientTimeout,session.desktopFullscreen);
+    for(const auto& value:session.argv)printf("arg=%s\n",value.c_str());
+    return 0;
 }
 ''')
             subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
@@ -90,6 +92,22 @@ int main(int argc,char **argv) {
             result = subprocess.run([str(runner), str(config)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('fullscreen=1', result.stdout)
+            # The first action belongs in official Steam argv, after all flags.
+            for action, uri in [('library 0', 'steam://open/library'),
+                                ('bigPicture 0', 'steam://open/bigpicture'),
+                                ('launch 695630', 'steam://rungameid/695630')]:
+                config.write_text('startupAction=' + action + '\narg=-cef-disable-gpu\n')
+                result = subprocess.run([str(runner), str(config)], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines()[-2:], ['arg=-cef-disable-gpu', 'arg=' + uri])
+            for value in ['launch 0', 'launch 4294967296', 'launch 695630;touch',
+                          'library 12', 'shutdown 0', 'shell 0', 'library 0 extra',
+                          'library 0\nstartupAction=downloads 0',
+                          'library 0\nlaunchAppId=695630']:
+                config.write_text('startupAction=' + value + '\n')
+                self.assertEqual(subprocess.run([str(runner), str(config)]).returncode, 1, value)
+            config.write_text('launchAppId=695630\nstartupAction=library 0\n')
+            self.assertEqual(subprocess.run([str(runner), str(config)]).returncode, 1)
             # Manual login uses no observer, screenshots or synthetic input.
             for timeout in [1000, 60000, 900000, 14400000]:
                 config.write_text('timeoutMs=' + str(timeout) + '\n')

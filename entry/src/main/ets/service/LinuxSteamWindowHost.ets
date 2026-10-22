@@ -94,10 +94,10 @@ export class LinuxSteamWindowHost {
       }
     }, 150);
     this.record('wine_window_started_waiting_for_xwayland');
-    // A cold Wine worker can take longer than five seconds even after the
-    // desktop is ready. Bound the wait, stop on exit/cancellation, and accept
-    // only this HWND lifetime's settled geometry.
-    const deadline = Date.now() + 20000;
+    // First-use Wine setup can still be completing after the desktop is
+    // ready. Give a live worker up to two minutes; exit, close and cancellation
+    // below still fail immediately. Only accept this HWND lifetime's geometry.
+    const deadline = Date.now() + 120000;
     while (Date.now() < deadline) {
       if (this.sessionId !== launch.sessionId) throw new Error('Steam 窗口启动已取消');
       const session = testNapi.getWineSession(launch.sessionId) as NativeWineSessionInfo | null;
@@ -120,7 +120,7 @@ export class LinuxSteamWindowHost {
       await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 100); });
     }
     if (this.sessionId === launch.sessionId) this.stop();
-    throw new Error('Steam 宿主窗口创建超时（20 秒），请重试');
+    throw new Error('Steam 宿主窗口创建超时（120 秒），已停止，可重试');
   }
 
   async restore(): Promise<boolean> {
@@ -128,8 +128,21 @@ export class LinuxSteamWindowHost {
   }
 
   isForeground(): boolean {
-    return this.host > 0 && !HostWindowTasks.getInstance().isLauncherForeground() &&
-      testNapi.getKeyboardFocusedToplevel() === this.host;
+    const service = HostWindowTasks.getInstance();
+    if (!this.sessionId || !this.lastGeometry || this.host <= 0 || this.source <= 0 ||
+      service.isLauncherForeground() || service.isSteamGameForeground()) return false;
+    const tasks = service.snapshot();
+    const host = tasks.find((task: HostWindowTask): boolean =>
+      task.toplevelId === this.host && task.key === this.hostKey);
+    const source = tasks.find((task: HostWindowTask): boolean =>
+      task.toplevelId === this.source && task.key === this.sourceKey && task.source === 'steam-linux');
+    if (!host || !source || host.minimized || source.minimized) return false;
+    // Native activation can focus the bound Xwayland content, while pointer
+    // activation focuses its Wine host. Both identify this same live window.
+    // Require the established binding and both generations; a reused ID or a
+    // background game must never authorize automatic library navigation.
+    const focused = testNapi.getKeyboardFocusedToplevel();
+    return focused === this.host || focused === this.source;
   }
 
   private record(status: string): void {

@@ -22,8 +22,9 @@ static void drain(struct deck_control *c){for(int i=0;i<100&&c->child;++i){deck_
 int main(int argc,char **argv){
     if(argc==2){put(getenv("DECK_TEST_DISPATCH"),argv[1]);return 0;}
     char tmp[]="/tmp/steam-deck-control-XXXXXX";assert(mkdtemp(tmp));
-    char path[PATH_MAX],ack[PATH_MAX],sent[PATH_MAX];
+    char path[PATH_MAX],ack[PATH_MAX],sent[PATH_MAX],state[PATH_MAX];
     snprintf(path,sizeof(path),"%s/deck-command.txt",tmp);snprintf(ack,sizeof(ack),"%s/deck-command-ack.json",tmp);snprintf(sent,sizeof(sent),"%s/sent",tmp);
+    snprintf(state,sizeof(state),"%s/deck-session-state.json",tmp);
     setenv("HMOSDECK_SESSION_GENERATION","abcd-1234",1);setenv("STEAMOHOS_TMP_ROOT",tmp,1);setenv("STEAMOHOS_CODE_ROOT",tmp,1);setenv("DECK_TEST_DISPATCH",sent,1);
     struct deck_control c;assert(deck_initialize(&c));assert(realpath(argv[0],c.client));
     put(path,"1 abcd-1234 1 launch 3590\n");deck_tick(&c,0,0);assert(!c.child&&!c.last);
@@ -35,8 +36,19 @@ int main(int argc,char **argv){
     put(path,"1 abcd-1234 4 store 0 extra\n");deck_tick(&c,1,0);assert(c.last==3);
     put(path,"1 abcd-1234 4 downloads 0\n");deck_tick(&c,1,0);drain(&c);assert(has(sent,"steam://open/downloads"));
     put(path,"1 abcd-1234 5 bigPicture 0\n");deck_tick(&c,1,2);drain(&c);assert(has(sent,"steam://open/bigpicture"));
-    deck_state(&c,1,0,2);snprintf(path,sizeof(path),"%s/deck-session-state.json",tmp);assert(has(path,"\"mode\":2"));
-    deck_finish(&c);assert(has(path,"\"closed\":true"));
+    // A game or CEF restart can withdraw the surface without ending Steam.
+    // Commands must remain usable once this supervisor has observed readiness.
+    deck_tick(&c,1,2);
+    put(path,"1 abcd-1234 6 library 0\n");c.next_state=0;deck_tick(&c,0,0);
+    assert(c.child>0);assert(has(state,"\"ready\":false"));
+    assert(has(state,"\"mode\":2"));drain(&c);assert(has(sent,"steam://open/library"));
+    put(path,"1 abcd-1234 7 shutdown 0\n");deck_tick(&c,0,0);
+    assert(c.child>0);drain(&c);assert(has(sent,"steam://exit"));
+    c.next_state=0;deck_tick(&c,1,0);assert(has(state,"\"mode\":0"));
+    c.next_state=0;deck_tick(&c,0,2);assert(has(state,"\"mode\":0"));
+    deck_finish(&c);assert(has(state,"\"closed\":true"));
+    put(path,"1 abcd-1234 8 library 0\n");deck_tick(&c,1,1);
+    assert(!c.child&&c.last==7&&has(state,"\"closed\":true"));
     setenv("HMOSDECK_SESSION_GENERATION","../../bad",1);assert(!deck_initialize(&c));
     puts("Deck GNU control: readiness, fixed URI dispatch, ACK, replay, stale generation, invalid AppID, invalid action, presentation and exit PASS");return 0;
 }

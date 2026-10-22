@@ -259,6 +259,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0038-wined3d-discard-map-invalida
     "Propagate nonpersistent D3D discard to OpenGL shadow maps"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0039-wined3d-opt-in-dynamic-buffer-sysmem.patch" \
     "Opt-in WOW64 nonpersistent dynamic buffer sysmem staging"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0068-wined3d-ohos-command-event-wake.patch" \
+    "Use paired auto-reset events for OHOS WineD3D command queue wakeups"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0040-ntdll-owned-virgl-shared-low-map.patch" \
     "Opt-in Wine-owned VirGL shared low-address buffer mappings"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0041-winebus-ohos-poll-progress.patch" \

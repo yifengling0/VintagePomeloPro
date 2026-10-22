@@ -63,13 +63,17 @@ export class LinuxSteamSessionService {
       if (state.version !== 1 || state.generation !== this.value.generation ||
         !Number.isSafeInteger(state.updatedAt) || Date.now() - state.updatedAt > 10000 || state.updatedAt > Date.now() + 2000) return;
       if (state.closed) return;
-      const next = state.ready ? 'running' : 'starting';
-      const presentation = state.mode === 2 ? 'bigPicture' : 'desktop';
+      // ready describes the current Steam surface. Games and presentation
+      // changes can withdraw it while the native client/control channel stays
+      // alive. Only worker completion ends an established session; otherwise
+      // navigation/shutdown would be rejected as a second cold startup.
+      const next = state.ready || this.value.state === 'running' ? 'running' : 'starting';
+      const presentation = state.ready ? (state.mode === 2 ? 'bigPicture' : 'desktop') : this.value.presentation;
       if (this.value.state === 'stopping') return;
       if (presentation === 'bigPicture' && this.value.presentation !== 'bigPicture') this.pageRecovery.beginBigPicture();
       if (next !== this.value.state || presentation !== this.value.presentation) {
         this.value.state = next; this.value.presentation = presentation;
-        this.value.message = state.ready ? 'Steam 已打开，登录和同步状态请在客户端查看' : '正在打开 Steam';
+        this.value.message = next === 'running' ? 'Steam 已打开，登录和同步状态请在客户端查看' : '正在打开 Steam';
         this.publish();
       }
       this.pageRecovery.poll();
@@ -100,16 +104,16 @@ export class LinuxSteamSessionService {
     }).finally((): void => { this.recoveryQueued = false; });
     this.tail = operation;
   }
-  private async start(foregroundCurrent: () => boolean): Promise<void> {
-    if (this.starting) return this.starting;
+  private async start(foregroundCurrent: () => boolean, action: LinuxSteamAction, appId: string): Promise<boolean> {
+    if (this.starting) { await this.starting; return false; }
     if (this.worker) {
-      if (this.value.state === 'running') return;
+      if (this.value.state === 'running') return false;
       throw new Error('Steam 会话正在启动或退出，请稍后重试');
     }
-    const operation = this.startInternal(foregroundCurrent); this.starting = operation;
-    try { await operation; } finally { if (this.starting === operation) this.starting = null; }
+    const operation = this.startInternal(foregroundCurrent, action, appId); this.starting = operation;
+    try { await operation; return true; } finally { if (this.starting === operation) this.starting = null; }
   }
-  private async startInternal(foregroundCurrent: () => boolean): Promise<void> {
+  private async startInternal(foregroundCurrent: () => boolean, action: LinuxSteamAction, appId: string): Promise<void> {
     if (!this.context) throw new Error('Steam 服务尚未初始化');
     const nativeStart = smokeNapi.startLinuxSteamSession;
     if (!nativeStart) throw new Error('当前应用不包含 Linux Steam 支持，请更新应用');
@@ -128,7 +132,8 @@ export class LinuxSteamSessionService {
       if (!ready) throw new Error(engine.getMessage() || '无法准备 Wine 桌面');
       ensureSmokeDirectory(TMP); ensureSmokeDirectory(`${BASE}/session`);
       ConfigurationFiles.json(`${BASE}/session-generation.txt`, this.value.generation + '\n');
-      ConfigurationFiles.json(`${BASE}/client-launch.conf`, 'arg=-cef-disable-gpu\narg=-cef-disable-gpu-compositing\nsoftwareOpenGL=1\nsocketMetadata=1\nwineWindowHost=1\nsteamClientBridge=experimental\n');
+      ConfigurationFiles.json(`${BASE}/client-launch.conf`, 'arg=-cef-disable-gpu\narg=-cef-disable-gpu-compositing\nsoftwareOpenGL=1\nsocketMetadata=1\nwineWindowHost=1\nsteamClientBridge=experimental\n' +
+        `startupAction=${action} ${action === 'launch' ? appId : '0'}\n`);
       const driveC = '/data/storage/el2/base/files/.wine/drive_c';
       const results = `${driveC}/hmosdeck/session`;
       if (!ensureSmokeDirectory(results)) throw new Error('无法准备 Steam 会话目录');
@@ -174,10 +179,14 @@ export class LinuxSteamSessionService {
       foregroundRevision === tasks.foregroundRevision();
     if (action === 'shutdown' && !this.worker) return;
     const operation = this.tail.then(async (): Promise<void> => {
-      await this.start(foregroundCurrent);
       let stageAt = Date.now();
       const launchTicket = action === 'launch' && foregroundCurrent() ? tasks.expectSteamGame(appId) : 0;
-      try { await this.dispatch(action, appId); }
+      try {
+        const cold = await this.start(foregroundCurrent, action, appId);
+        // A cold request is already queued in the official client's argv.
+        // Never replay it just because its login window became visible.
+        if (!cold) await this.dispatch(action, appId);
+      }
       catch (error) { if (launchTicket) tasks.cancelExpectedSteamGame(launchTicket); throw new Error((error as Error).message); }
       this.elapsed('actionDispatch', stageAt); stageAt = Date.now();
       // A launch ACK only means the URI was forwarded. The game may already

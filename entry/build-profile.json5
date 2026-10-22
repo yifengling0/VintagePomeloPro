@@ -29,7 +29,8 @@
       "nativeLib": {
         "debugSymbol": {
           "strip": true,
-          "exclude": []
+          // Preserve the validated GStreamer inventory and its loader identity.
+          "exclude": ["**/libgst*.so", "**/winegstreamer.so"]
         }
       }
     },

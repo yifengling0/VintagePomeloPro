@@ -150,11 +150,14 @@ async function sessionTests(shutdownMode = 'normal') {
     './ManagedSmokePayloadService':{ensureSmokeDirectory(){return true;},readSmokeText:file=>files.get(file)||''}
   },{setInterval(){return 1;},clearInterval(){},setTimeout(cb){now+=200;Promise.resolve().then(cb);}});
   const service=api.LinuxSteamSessionService.getInstance();service.initialize({});
-  const coldOpen=service.open('library');
+  const initialAction=shutdownScenario==='early'?'bigPicture':shutdownScenario==='rejected'?'launch':shutdownScenario==='timeout'?'downloads':'library';
+  const coldOpen=service.open(initialAction,initialAction==='launch'?'3590':'0');
   for(let i=0;i<12;i++)await Promise.resolve();
   await service.returnHome(); releaseComponents(); await coldOpen;
   assert.equal(restores,0,'Returning home during cold component preparation cancels the later window raise');
   assert.equal(starts,1,'Returning home does not restart or kill the native client');
+  assert.ok(files.get(base+'/client-launch.conf').includes(`startupAction=${initialAction} ${initialAction==='launch'?'3590':'0'}\n`),'cold navigation is queued in official Steam argv');
+  assert.equal(commands.length,0,'a visible login surface must not trigger a duplicate navigation process');
   commands.length=0;service.requestId=0;files.delete(base+'/client-tmp/deck-command-ack.json');
   await Promise.all([service.open('library'),service.open('downloads'),service.open('launch','3590')]);
   assert.equal(starts,1,'concurrent callers share one product native session');
@@ -175,6 +178,13 @@ async function sessionTests(shutdownMode = 'normal') {
   files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation:'abcd-9876',ready:true,closed:false,mode:2,updatedAt:now}));
   service.poll();assert.equal(service.snapshot().presentation,'bigPicture');
   service.poll();assert.equal(presentationResets,1,'only a confirmed new Big Picture visit resets the recovery allowance');
+  files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation:'abcd-9876',ready:false,closed:false,mode:0,updatedAt:now}));
+  service.poll();
+  assert.equal(service.snapshot().state,'running','A withdrawn Steam surface does not restart an already ready native session');
+  assert.equal(service.snapshot().presentation,'bigPicture','Window withdrawal must retain the last confirmed presentation');
+  const startsBeforeWithdrawal=starts;
+  await service.open('library');
+  assert.equal(starts,startsBeforeWithdrawal,'Navigation while a game hides Steam reuses the live native client');
   files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation:'abcd-9876',ready:true,closed:false,mode:0,updatedAt:now-15000}));
   service.poll();assert.equal(service.snapshot().presentation,'bigPicture','stale file cannot reset presentation');
   recoverPending=true;service.recoverPage();assert.equal(service.recoveryQueued,false,'Big Picture is never redirected');

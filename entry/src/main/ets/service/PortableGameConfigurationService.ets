@@ -14,7 +14,7 @@ export class PortableGameConfigurationService {
   private store: preferences.Preferences | null = null;
   private records: PortableRecord[] = [];
   private chain: Promise<void> = Promise.resolve();
-  private appVersion: string = '1.4.9';
+  private appVersion: string = '1.5.0';
   private incompatible: boolean = false;
   dedicatedProfileId(appId: string): string {
     const record = this.records.find((r: PortableRecord): boolean => r.appId === appId);

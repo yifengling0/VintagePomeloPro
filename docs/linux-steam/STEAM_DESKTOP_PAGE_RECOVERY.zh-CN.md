@@ -40,3 +40,19 @@ Chromium 对照源码：
 
 - [bad_message.h（126.0.6478.183）](https://chromium.googlesource.com/chromium/src/+/126.0.6478.183/content/browser/bad_message.h)
 - [renderer_host/ipc_utils.cc（126.0.6478.183）](https://chromium.googlesource.com/chromium/src/+/126.0.6478.183/content/browser/renderer_host/ipc_utils.cc)
+
+
+## 2026-10-22 手机的内容焦点漏判
+
+无线手机在同一个 Steam 会话中记录 CEF 213 后，窗口仍在前台，但恢复一直没有发出。
+22:46:18 点击空白标题栏后，输入日志明确为 `KbdFocus oldTl=5 newTl=4`；绑定记录为
+`source=5, host=4`。22:46:19 随即发出本会话第一次自动恢复导航，截图确认游戏库恢复。
+该操作没有点击“库”，也没有重启 Steam。这证明至少这一次延迟恢复由前台判定造成，
+不是日志匹配失败。
+
+旧判断只接受 Wine 宿主的键盘焦点，遗漏原生激活时落到已绑定 Xwayland 内容窗口的焦点。
+现在接受同一有效绑定的两种焦点身份，并检查双方窗口 generation、最小化、停止、
+Deck 前台及游戏前台状态；无关窗口不触发恢复。主机回归覆盖这些边界。
+这是页面恢复触发条件修正，不是 CEF `INVALID_INITIATOR_ORIGIN` 或网络服务崩溃的根因修复。
+本次源码修正已纳入按用户要求重新生成的 1.5.0 未签名 HAP 和上架 APP；
+窗口与会话回归、Release 编译、签名及包级核验通过，尚待新包实机复验。

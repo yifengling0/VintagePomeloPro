@@ -5,28 +5,13 @@ struct deck_control {
     unsigned last, pending;
     pid_t child;
     uint64_t deadline, next_state;
+    int started, closed, last_mode;
 };
 static int deck_token(const char *s) {
     size_t n=strnlen(s,65);
     return n>0&&n<=64&&strspn(s,"0123456789abcdef-")==n;
 }
-static const char *deck_uri(const char *action,const char *app,char *uri,size_t size) {
-    if(!strcmp(action,"launch")) {
-        size_t n=strlen(app);char *end=NULL;unsigned long long id=strtoull(app,&end,10);
-        if(!n||n>10||app[0]=='0'||strspn(app,"0123456789")!=n||!end||*end||id>4294967295ULL)return NULL;
-        if(snprintf(uri,size,"steam://rungameid/%s",app)>=(int)size)return NULL;
-        return uri;
-    }
-    if(strcmp(app,"0"))return NULL;
-    if(!strcmp(action,"library"))return "steam://open/library";
-    if(!strcmp(action,"downloads"))return "steam://open/downloads";
-    if(!strcmp(action,"store"))return "steam://store";
-    if(!strcmp(action,"account"))return "steam://open/settings/account";
-    if(!strcmp(action,"desktop"))return "steam://close/bigpicture";
-    if(!strcmp(action,"bigPicture"))return "steam://open/bigpicture";
-    if(!strcmp(action,"shutdown"))return "steam://exit";
-    return NULL;
-}
+#include "deck_action_uri.h"
 static void deck_write(struct deck_control *c,const char *name,const char *text) {
     char path[PATH_MAX],tmp[PATH_MAX];
     if(snprintf(path,sizeof(path),"%s/%s",c->directory,name)>=(int)sizeof(path)||
@@ -57,8 +42,13 @@ static void deck_state(struct deck_control *c,int ready,int closed,int mode) {
     deck_write(c,"deck-session-state.json",text);
 }
 static void deck_tick(struct deck_control *c,int ready,int mode) {
+    if(c->closed)return;
+    // Readiness describes a surface, not the supervised client's lifetime.
+    // After a game or CEF withdraws it, navigation and shutdown must still work.
+    // Before the first surface exists, keep the cold-start command barrier.
+    if(ready){c->started=1;if(mode>=0&&mode<=2)c->last_mode=mode;}
     uint64_t current=now();
-    if(current>=c->next_state){deck_state(c,ready,0,mode);c->next_state=current+1000;}
+    if(current>=c->next_state){deck_state(c,ready,0,c->last_mode);c->next_state=current+1000;}
     if(c->child>0) {
         int status=0;pid_t done=waitpid(c->child,&status,WNOHANG);
         if(done==c->child||(done<0&&errno!=EINTR)) {
@@ -70,7 +60,7 @@ static void deck_tick(struct deck_control *c,int ready,int mode) {
         }
         return;
     }
-    if(!ready)return;
+    if(!c->started)return;
     char path[PATH_MAX],text[257];
     if(snprintf(path,sizeof(path),"%s/deck-command.txt",c->directory)>=(int)sizeof(path))return;
     int fd=open(path,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return;
@@ -92,6 +82,7 @@ static void deck_tick(struct deck_control *c,int ready,int mode) {
     c->child=child;c->pending=id;c->deadline=current+10000;
 }
 static void deck_finish(struct deck_control *c) {
+    c->closed=1;
     if(c->child>0){kill(c->child,SIGKILL);waitpid(c->child,NULL,0);c->child=0;}
     deck_state(c,0,1,0);
 }
