@@ -255,6 +255,45 @@ int __lxstat64(int version, const char *path, struct stat64 *buf) {
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     errno=error;return result;
 }
+
+// Some OHOS procfs entries cannot be followed even though the descriptor is
+// live (e.g. document-provider and anonymous files). For our own /proc fd links
+// only, fstat the real descriptor; never invent metadata or follow foreign PIDs.
+static int OwnProcDescriptor(int directory,const char *path,int flags) {
+    const char *native=getenv("STEAMOHOS_NATIVE_MEMORY");
+    if(!native||strcmp(native,"1")||!path||!next_readlink||
+       (flags&~AT_NO_AUTOMOUNT))return -1;
+    char absolute[PATH_MAX];path=AtPath(directory,path,absolute);
+    char prefix[80];snprintf(prefix,sizeof(prefix),"/proc/%d/fd/",getpid());
+    const char *number=NULL;
+    if(!strncmp(path,"/proc/self/fd/",14))number=path+14;
+    else if(!strncmp(path,prefix,strlen(prefix)))number=path+strlen(prefix);
+    if(!number||!*number)return -1;
+    unsigned value=0;
+    for(const char *c=number;*c;++c) {
+        if(*c<'0'||*c>'9'||value>((unsigned)INT_MAX-(*c-'0'))/10)return -1;
+        value=value*10+(*c-'0');
+    }
+    return (int)value;
+}
+#define PROC_FSTAT_RECOVERY(name,type,statfd) \
+    static int Recover##name(int result,int directory,const char *path,type *buf,int flags) { \
+        int error=errno; \
+        if(result<0&&(error==ENOENT||error==EACCES)) { \
+            int descriptor=OwnProcDescriptor(directory,path,flags); \
+            if(descriptor>=0&&!statfd(descriptor,buf)) { \
+                static unsigned reports; \
+                if(__atomic_fetch_add(&reports,1,__ATOMIC_RELAXED)<8) \
+                    fprintf(stderr,"STEAMOHOS_PROC_FSTAT_RECOVERED pid=%d descriptor=%d api=%s errno=%d\n", \
+                            getpid(),descriptor,#name,error); \
+                errno=error;return 0; \
+            } \
+        } \
+        errno=error;return result; \
+    }
+PROC_FSTAT_RECOVERY(Native,struct stat,fstat)
+PROC_FSTAT_RECOVERY(Large,struct stat64,fstat64)
+
 static int (*next_fstatat)(int,const char*,struct stat*,int);
 int fstatat(int fd,const char *path,struct stat *buf,int flags) {
     if(!next_fstatat){errno=ENOSYS;return -1;}
@@ -262,7 +301,7 @@ int fstatat(int fd,const char *path,struct stat *buf,int flags) {
     path=SandboxAtPath(fd,path,absolute,mapped);
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
-    int result=next_fstatat(fd,path,buf,flags);int error=errno;
+    int result=RecoverNative(next_fstatat(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
     if(result)TraceAtFailure(fd,path,flags,error);
     if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
@@ -275,12 +314,44 @@ int fstatat64(int fd,const char *path,struct stat64 *buf,int flags) {
     path=SandboxAtPath(fd,path,absolute,mapped);
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
-    int result=next_fstatat64(fd,path,buf,flags);int error=errno;
+    int result=RecoverLarge(next_fstatat64(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
     if(result)TraceAtFailure(fd,path,flags,error);
     if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     errno=error;return result;
 }
+
+static int KnownStatVersion(int version) {
+#if defined(__x86_64__)
+    return version==0||version==1;
+#elif defined(__aarch64__)
+    return version==0;
+#else
+    return 0;
+#endif
+}
+
+// Valve's CEF uses the GLIBC_2.17 entry point, not the newer public fstatat64.
+// Retain its version check and ABI while sharing the same sandbox aliases.
+#define LEGACY_FSTATAT(name,type,recover) \
+    static int (*next_##name)(int,int,const char*,type*,int); \
+    int name(int version,int fd,const char *path,type *buf,int flags) { \
+        if(!next_##name){errno=ENOSYS;return -1;} \
+        char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX]; \
+        path=SandboxAtPath(fd,path,absolute,mapped); \
+        path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW)); \
+        if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed); \
+        int result=next_##name(version,fd,path,buf,flags); \
+        if(KnownStatVersion(version)){result=recover(result,fd,path,buf,flags);}int error=errno; \
+        if(result)TraceAtFailure(fd,path,flags,error); \
+        if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX]; \
+            int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target); \
+            if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}} \
+        errno=error;return result; \
+    }
+LEGACY_FSTATAT(__fxstatat,struct stat,RecoverNative)
+LEGACY_FSTATAT(__fxstatat64,struct stat64,RecoverLarge)
+
 FS(int, access, (const char *path, int mode), (path,mode), -1)
 AT_FS(int, faccessat, (int fd, const char *path, int mode, int flags), (fd,path,mode,flags), -1)
 FS(int, chmod, (const char *path, mode_t mode), (path,mode), -1)
@@ -452,6 +523,7 @@ __attribute__((constructor)) static void InitializeFilesystem(void) {
     RESOLVE(__lxstat64);
     RESOLVE(fstatat);
     RESOLVE(fstatat64);
+    RESOLVE(__fxstatat);RESOLVE(__fxstatat64);
     RESOLVE(access);
     RESOLVE(faccessat);
     RESOLVE(chmod);RESOLVE(utime);RESOLVE(utimes);
@@ -486,6 +558,8 @@ __attribute__((constructor)) static void InitializeFilesystem(void) {
     InitializeSingleLibrary();
     InitializeSingletonProfile();
     InitializeFontconfig();
+    extern void SteamOhosPreloadCefGraphics(void) __attribute__((weak));
+    if(SteamOhosPreloadCefGraphics)SteamOhosPreloadCefGraphics();
 }
 
 // POSIX names share a real mmap-able inode in the app-private IPC namespace.

@@ -140,6 +140,33 @@ static int UnixEndpoint(int (*operation)(int,const struct sockaddr*,socklen_t),i
     }
     return operation(fd,address,length);
 }
+
+// Load the verified, unmodified ANGLE modules before CEF forks its GPU/zygote
+// children. The document provider may deny new opens later in child startup.
+// Keep RTLD_LOCAL handles alive for the process lifetime: forked children reuse
+// the images without changing the renderer, creating a context or enabling GPU.
+__attribute__((visibility("hidden"))) void SteamOhosPreloadCefGraphics(void) {
+    const char *entry=getenv("STEAMOHOS_EXEC_PATH"),*code=getenv("STEAMOHOS_CODE_ROOT");
+    const char *external=getenv("STEAMOHOS_EXTERNAL_RUNTIME");
+    if(!NativeDiagnostic()||!entry||!code||!external||code[0]!='/')return;
+    if(!next_dlopen)next_dlopen=dlsym(RTLD_NEXT,"dlopen");
+    if(!next_dlopen)return;
+    size_t count=strlen(code),external_length=strlen(external);
+    if(external_length<2||strncmp(code,external,external_length)||
+       (code[external_length]&&code[external_length]!='/')||
+       strncmp(entry,code,count)||strcmp(entry+count,"/steamrtarm64/steamwebhelper")||
+       strstr(code,"/../")||strstr(code,"/./"))return;
+    static void *modules[2];
+    const char *names[]={"libGLESv2.so","libEGL.so"};
+    for(unsigned i=0;i<2;++i) {
+        char path[PATH_MAX];int n=snprintf(path,sizeof(path),"%s/steamrtarm64/%s",code,names[i]);
+        if(n<=0||n>=(int)sizeof(path))continue;
+        modules[i]=next_dlopen(path,RTLD_NOW|RTLD_LOCAL);
+        const char *error=modules[i]?NULL:dlerror();
+        fprintf(stderr,"STEAMOHOS_CEF_EARLY_GRAPHICS pid=%d library=%s loaded=%d error=%.300s\n",
+                getpid(),names[i],modules[i]!=NULL,error?error:"");
+    }
+}
 __attribute__((constructor)) static void Initialize(void) {
     SteamOhosNextSyscall = dlsym(RTLD_NEXT, "syscall");
     next_bind = dlsym(RTLD_NEXT,"bind");

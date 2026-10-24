@@ -35,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
     if not args.baseline:
         units+=['compositor/input/input_injector.cpp','compositor/input/input_state_tracker.cpp',
                 'compositor/input/input_queue.cpp','input/input_manager.cpp']
+    if args.external_window_host:units+=['compositor/toplevel/move_grab.cpp']
     command=['g++','-std=c++17','-Wall','-Wextra','-Werror','-Wno-unused-parameter',
              '-ffunction-sections','-fdata-sections','-pthread']
     if args.baseline:command+=['-DGPU_FOLLOWUP_BASELINE']

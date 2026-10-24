@@ -15,6 +15,7 @@
 #include <atomic>
 #include <string>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <vector>
@@ -25,6 +26,16 @@ using KernelExec = int (*)(const char*, char* const[], char* const[]);
 KernelExec NextExec = nullptr;
 using KernelSigaction = int (*)(int, const struct sigaction*, struct sigaction*);
 KernelSigaction NextSigaction = nullptr;
+using KernelWaitPid = pid_t (*)(pid_t, int*, int);
+using KernelWaitId = int (*)(idtype_t, id_t, siginfo_t*, int);
+using KernelKill = int (*)(pid_t, int);
+KernelWaitPid NextWaitPid = nullptr;
+KernelWaitId NextWaitId = nullptr;
+KernelKill NextKill = nullptr;
+bool ProcessDiagnostics() {
+    const char* native = getenv("STEAMOHOS_NATIVE_MEMORY");
+    return native && !strcmp(native, "1");
+}
 // This handler remains valid after a new GNU TLS context takes ownership.
 __attribute__((no_stack_protector)) long RawCall(long number, long a, long b, long c) {
 #if defined(__aarch64__)
@@ -56,6 +67,14 @@ __attribute__((no_stack_protector)) void ExecSigSys(int, siginfo_t* info, void*)
 __attribute__((constructor)) void InitializeExec() {
     NextExec = reinterpret_cast<KernelExec>(dlsym(RTLD_NEXT, "execve"));
     NextSigaction = reinterpret_cast<KernelSigaction>(dlsym(RTLD_NEXT, "sigaction"));
+    NextWaitPid = reinterpret_cast<KernelWaitPid>(dlsym(RTLD_NEXT, "waitpid"));
+    NextWaitId = reinterpret_cast<KernelWaitId>(dlsym(RTLD_NEXT, "waitid"));
+    NextKill = reinterpret_cast<KernelKill>(dlsym(RTLD_NEXT, "kill"));
+    if (NextSigaction && getenv("STEAMOHOS_EXEC_BOOTSTRAP_DIAGNOSTIC")) {
+        struct sigaction reset{}; reset.sa_handler = SIG_DFL; sigemptyset(&reset.sa_mask);
+        (void)NextSigaction(SIGSEGV, &reset, nullptr);
+        unsetenv("STEAMOHOS_EXEC_BOOTSTRAP_DIAGNOSTIC");
+    }
     const char* native=getenv("STEAMOHOS_NATIVE_MEMORY");
     if (NextSigaction && native && !strcmp(native,"1")) {
         struct sigaction diagnostic{};diagnostic.sa_flags=SA_SIGINFO;
@@ -187,6 +206,7 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
         (gamepad && *gamepad ? ":"+code+"/libsteamohos_gamepad.so" : ""));
     Set(environment, "STEAMOHOS_EXEC_PATH", target);
     Set(environment, "STEAMOHOS_EXEC_GENERATION", std::to_string(generation + 1));
+    if (ProcessDiagnostics()) Set(environment, "STEAMOHOS_EXEC_BOOTSTRAP_DIAGNOSTIC", "1");
     steamohos::NativeLoaderImage image;
     if (!image.Prepare(argv, environment)) {
         fprintf(stderr, "STEAMOHOS_GNU_EXEC_V1 prepare_failed stage=%s errno=%d\n", image.stage.c_str(), image.error);
@@ -203,7 +223,8 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
     }
     closedir(directory);
     // A userspace handoff is permitted only after fork / in a single-thread
-    // process. Old mappings remain, but no old instruction/TLS context resumes.
+    // process. Prepare reclamation while libc/TLS are still valid; the final
+    // raw-syscall trampoline runs entirely outside the previous image.
     struct sigaction action{}; action.sa_handler = SIG_DFL; sigemptyset(&action.sa_mask);
     for (int signal=1; signal<NSIG; ++signal) {
         if (signal == SIGKILL || signal == SIGSTOP) continue;
@@ -211,11 +232,18 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
         if (!sigaction(signal, nullptr, &old) && old.sa_handler != SIG_IGN)
             if (sigaction(signal, &action, nullptr) && errno != EINVAL) return -1;
     }
-    action.sa_flags = SA_SIGINFO;
-    action.sa_sigaction = ExecSigSys;
-    if (sigaction(SIGSYS, &action, nullptr)) return -1;
+    // The old handler's code will be unmapped too. Leave SIGSYS at SIG_DFL
+    // until the new preload installs a handler backed by its own live image.
+    action.sa_flags = 0;
+    action.sa_handler = SIG_DFL;
+    if (!NextSigaction || NextSigaction(SIGSYS, &action, nullptr)) return -1;
     stack_t alternate{}; alternate.ss_flags = SS_DISABLE;
     if (sigaltstack(&alternate, nullptr)) return -1;
+    if (!image.PrepareExecCleanup()) {
+        fprintf(stderr, "STEAMOHOS_GNU_EXEC_V1 reclaim_failed stage=%s errno=%d\n", image.stage.c_str(), image.error);
+        return Fail(image.error);
+    }
+    if (ProcessDiagnostics()) fputs(image.diagnostics.c_str(), stderr);
     fprintf(stderr, "STEAMOHOS_GNU_EXEC_V1 native_handoff image=%s generation=%u\n",
         target.substr(target.rfind('/')+1).c_str(), generation + 1);
     for (int fd : closeOnExec) close(fd);
@@ -321,3 +349,37 @@ TRACE_ACTION(posix_spawn_file_actions_addopen,(posix_spawn_file_actions_t* a,int
 TRACE_ACTION(posix_spawn_file_actions_addchdir_np,(posix_spawn_file_actions_t* a,const char* path),(a,path),"path=%s",path)
 TRACE_ACTION(posix_spawn_file_actions_addfchdir_np,(posix_spawn_file_actions_t* a,int fd),(a,fd),"fd=%d",fd)
 TRACE_ACTION(posix_spawn_file_actions_addclosefrom_np,(posix_spawn_file_actions_t* a,int fd),(a,fd),"fd=%d",fd)
+
+// Observe real kernel child status without reaping extra children or changing
+// a caller's wait flags. Keep this bounded and free of argv/account data.
+extern "C" pid_t waitpid(pid_t pid, int* status, int options) {
+    if (!NextWaitPid) { errno = ENOSYS; return -1; }
+    pid_t result = NextWaitPid(pid, status, options);
+    int saved = errno;
+    static std::atomic<unsigned> records{0};
+    if (result > 0 && status && ProcessDiagnostics() && records.fetch_add(1) < 256)
+        fprintf(stderr, "STEAMOHOS_CHILD_STATUS parent=%d child=%d api=waitpid status=%d exited=%d code=%d signaled=%d signal=%d\n",
+            getpid(), result, *status, WIFEXITED(*status), WIFEXITED(*status) ? WEXITSTATUS(*status) : -1,
+            WIFSIGNALED(*status), WIFSIGNALED(*status) ? WTERMSIG(*status) : 0);
+    errno = saved; return result;
+}
+extern "C" int waitid(idtype_t type, id_t id, siginfo_t* info, int options) {
+    if (!NextWaitId) { errno = ENOSYS; return -1; }
+    int result = NextWaitId(type, id, info, options);
+    int saved = errno;
+    static std::atomic<unsigned> records{0};
+    if (!result && info && info->si_pid > 0 && ProcessDiagnostics() && records.fetch_add(1) < 256)
+        fprintf(stderr, "STEAMOHOS_CHILD_STATUS parent=%d child=%d api=waitid reason=%d status=%d options=%d\n",
+            getpid(), info->si_pid, info->si_code, info->si_status, options);
+    errno = saved; return result;
+}
+extern "C" int kill(pid_t pid, int signal) noexcept {
+    if (!NextKill) { errno = ENOSYS; return -1; }
+    int result = NextKill(pid, signal);
+    int saved = errno;
+    static std::atomic<unsigned> records{0};
+    if (signal && ProcessDiagnostics() && records.fetch_add(1) < 128)
+        fprintf(stderr, "STEAMOHOS_PROCESS_SIGNAL caller=%d target=%d signal=%d result=%d errno=%d\n",
+            getpid(), pid, signal, result, result < 0 ? saved : 0);
+    errno = saved; return result;
+}

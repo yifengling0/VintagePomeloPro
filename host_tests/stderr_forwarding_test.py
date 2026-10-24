@@ -22,6 +22,7 @@ fixture = r'''
 #include <vector>
 #include <cassert>
 #include "stderr_hilog_budget.h"
+#include "stderr_file.h"
 static unsigned mirrored, errors;
 static void test_mirror(const char* line) {
     ++mirrored;

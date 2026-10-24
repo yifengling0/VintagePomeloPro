@@ -102,7 +102,8 @@ def build(runtime, package_lock, downloads, output, project_url):
         record = {"path": target.split("/", 1)[1], "bytes": len(data), "sha256": sha}
         (release_files if target.startswith("release/") else client_files).append(record)
 
-    for name in ("steam-client-data.zip", "steam-client-helpers.zip"):
+    for name in ("steam-client-data.zip", "steam-client-helpers.zip", "steam-client-compat.zip"):
+        if name == "steam-client-compat.zip" and not (runtime / name).exists(): continue
         with zipfile.ZipFile(runtime / name) as source:
             for member in source.infolist():
                 if not member.is_dir():
@@ -117,9 +118,10 @@ def build(runtime, package_lock, downloads, output, project_url):
     manifest["steamClientProbe"]["data"] = {"kind": "installed-resources", "sha256": client_hash,
                                           "essential": essential}
     manifest["steamClientProbe"].pop("helpers", None)
+    manifest["steamClientProbe"].pop("compatibility", None)
     # Source paths are metadata, never user data. Retain provenance/licenses.
     manifest_bytes = encode(manifest)
-    omitted = {"manifest.json", "steam-client-data.zip", "steam-client-helpers.zip"}
+    omitted = {"manifest.json", "steam-client-data.zip", "steam-client-helpers.zip", "steam-client-compat.zip"}
     for path in sorted(runtime.rglob("*")):
         if path.is_symlink():
             raise ValueError("Runtime input must have materialized regular files: " + str(path))

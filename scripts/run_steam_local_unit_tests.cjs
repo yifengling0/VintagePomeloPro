@@ -29,6 +29,11 @@ assert.deepEqual(Array.from(argv.slice(argv.indexOf('-applaunch'))), ['-applaunc
 assert.equal(rules.steamLaunchArguments('install', '123', false).at(-1), 'steam://install/123');
 assert.equal(rules.steamLaunchArguments('open', '', true).includes('-cef-disable-gpu'), true);
 assert.equal(rules.steamLaunchArguments('open', '', false).at(-1), 'steam://open/main');
+for (const [action, uri] of [['downloads','steam://open/downloads'], ['store','steam://store'],
+  ['account','steam://open/settings/account'], ['bigPicture','steam://open/bigpicture'], ['desktop','steam://close/bigpicture']]) {
+  assert.equal(rules.steamLaunchArguments('open', '', false, [], action).at(-1), uri);
+}
+assert.throws(() => rules.steamLaunchArguments('open', '', false, [], 'invalid'));
 assert.throws(() => rules.steamLaunchArguments('play', '123;bad', false));
 
 async function interruption(failAt, fresh=false, prepareFailure=false) {

@@ -144,13 +144,39 @@ class SteamClientProbe(unittest.TestCase):
     def test_source_rejects_other_process_despite_valid_login_and_library(self):
         self.live_peer_query(False)
 
-    def live_peer_query(self, correct):
+    def test_source_verified_with_cross_process_proc_denied(self):
+        self.live_peer_query(True, restricted_proc=True)
+
+    def test_wrong_source_rejected_with_cross_process_proc_denied(self):
+        self.live_peer_query(False, restricted_proc=True)
+
+    def live_peer_query(self, correct, restricted_proc=False):
         root = self.directory / "identity-runtime"
         (root / "steamrtarm64").mkdir(parents=True, exist_ok=True)
         server = root / "steamrtarm64/steam"
         metadata = root / "metadata.so"
         source = ROOT / "entry/src/main/cpp/linux_steam/gnu_fixture/socket_metadata.c"
         subprocess.run(["gcc", "-shared", "-fPIC", "-O2", str(source), "-pthread", "-o", str(metadata)], check=True)
+        preload = str(metadata)
+        if restricted_proc:
+            restriction = root / 'restricted.c'
+            restriction.write_text(r'''
+#define _GNU_SOURCE 1
+#include <dirent.h>
+#include <dlfcn.h>
+#include <errno.h>
+#include <string.h>
+DIR *opendir(const char *path) {
+ if(!strncmp(path,"/proc/",6)&&strcmp(path,"/proc/self/fd")&&strstr(path,"/fd")) {
+  errno=EACCES;return NULL;
+ }
+ DIR *(*next)(const char*)=dlsym(RTLD_NEXT,"opendir");return next(path);
+}
+''')
+            library = root / 'restricted.so'
+            subprocess.run(['gcc', '-shared', '-fPIC', '-Wall', '-Wextra', '-Werror',
+                            str(restriction), '-ldl', '-o', str(library)], check=True)
+            preload = str(library) + ':' + preload
         fixture = root / "server.c"
         fixture.write_text(r"""
 #define _GNU_SOURCE 1
@@ -180,7 +206,7 @@ int main(void) {
             port = child.stdout.readline().strip()
             self.assertTrue(port.isdigit())
             probe = subprocess.run([str(self.binary), "--library", str(self.library)], capture_output=True, text=True, timeout=3,
-                env=dict(env, LD_PRELOAD=str(metadata), MOCK_PORT=port,
+                env=dict(env, LD_PRELOAD=preload, MOCK_PORT=port,
                          STEAMOHOS_STEAMCLIENT_EXPECTED_PID=str(child.pid if correct else os.getpid()), STEAMOHOS_STEAMCLIENT_EXPECTED_IMAGE=str(server)))
             result = json.loads(probe.stdout.split("STEAMOHOS_STEAMCLIENT_RESULT ", 1)[1])
             self.assertEqual(probe.returncode, 0 if correct else 14, probe.stderr)
@@ -189,6 +215,9 @@ int main(void) {
             self.assertTrue(result["source"]["expectedImageNative"])
             self.assertTrue(result["source"]["loadedLibraryNative"])
             self.assertEqual(result["source"]["peerMatched"], correct)
+            self.assertTrue(result['source']['peerQueryAvailable'])
+            if restricted_proc:
+                self.assertEqual(result['source']['peerDirectoryErrno'], 13)
             self.assertTrue(result["pipeReleaseSucceeded"])
             child.communicate("X", timeout=2)
             self.assertEqual(child.returncode, 0)

@@ -1,0 +1,50 @@
+--- a/dlls/kernelbase/registry.c
++++ b/dlls/kernelbase/registry.c
+@@ -381,9 +381,12 @@
+ {
+     static const WCHAR steam[] = L"Software\\Valve\\Steam";
+     static const WCHAR active[] = L"Software\\Valve\\Steam\\ActiveProcess";
+-    static const WCHAR dll32[] = L"C:\\windows\\syswow64\\lsteamclient.dll";
+-    static const WCHAR dll64[] = L"C:\\windows\\system32\\lsteamclient.dll";
+-    static const WCHAR path[] = L"C:\\windows";
++    static const WCHAR bridge32[] = L"C:\\windows\\syswow64\\lsteamclient.dll";
++    static const WCHAR bridge64[] = L"C:\\windows\\system32\\lsteamclient.dll";
++    static const WCHAR native32[] = L"C:\\windows\\hmosdeck-steam\\steamclient.dll";
++    static const WCHAR native64[] = L"C:\\windows\\hmosdeck-steam\\steamclient64.dll";
++    static const WCHAR native_path[] = L"C:\\windows\\hmosdeck-steam";
++    const WCHAR *dll32 = bridge32, *dll64 = bridge64, *path = L"C:\\windows";
+     HKEY user = get_special_root_hkey( HKEY_CURRENT_USER ), session = 0, key = 0;
+     union { KEY_NAME_INFORMATION key; WCHAR buffer[512]; } actual, expected;
+     WCHAR full[512], private_path[120];
+@@ -392,6 +395,16 @@
+     BOOL is_active;
+ 
+     if (!root || !user || !name->Buffer || !hmosdeck_steam_session_enabled()) return FALSE;
++    /* Let Proton's ntdll trampoline the genuine Linux-distributed PE module.
++     * The per-process opt-in remains mandatory; ordinary Windows Steam is
++     * unaffected. Older resources retain the direct bridge bootstrap. */
++    if (GetFileAttributesW( native32 ) != INVALID_FILE_ATTRIBUTES &&
++        GetFileAttributesW( native64 ) != INVALID_FILE_ATTRIBUTES)
++    {
++        dll32 = native32;
++        dll64 = native64;
++        path = native_path;
++    }
+     if (NtQueryKey( root, KeyNameInformation, &actual, sizeof(actual), &length ) ||
+         NtQueryKey( user, KeyNameInformation, &expected, sizeof(expected), &length )) return FALSE;
+     if (actual.key.NameLength < expected.key.NameLength ||
+@@ -412,11 +425,11 @@
+     swprintf( private_path, ARRAY_SIZE(private_path), L"Software\\Wine\\HMOSDeck\\SteamSessions\\%lu", pid );
+     error = RegCreateKeyExW( HKEY_CURRENT_USER, private_path, 0, NULL, REG_OPTION_VOLATILE,
+                              KEY_ALL_ACCESS, NULL, &session, NULL );
+-    if (!error) error = RegSetValueExW( session, L"SteamPath", 0, REG_SZ, (const BYTE *)path, sizeof(path) );
++    if (!error) error = RegSetValueExW( session, L"SteamPath", 0, REG_SZ, (const BYTE *)path, (lstrlenW(path) + 1) * sizeof(WCHAR) );
+     if (!error) error = RegCreateKeyExW( session, L"ActiveProcess", 0, NULL, REG_OPTION_VOLATILE,
+                                         KEY_ALL_ACCESS, NULL, &key, NULL );
+-    if (!error) error = RegSetValueExW( key, L"SteamClientDll", 0, REG_SZ, (const BYTE *)dll32, sizeof(dll32) );
+-    if (!error) error = RegSetValueExW( key, L"SteamClientDll64", 0, REG_SZ, (const BYTE *)dll64, sizeof(dll64) );
++    if (!error) error = RegSetValueExW( key, L"SteamClientDll", 0, REG_SZ, (const BYTE *)dll32, (lstrlenW(dll32) + 1) * sizeof(WCHAR) );
++    if (!error) error = RegSetValueExW( key, L"SteamClientDll64", 0, REG_SZ, (const BYTE *)dll64, (lstrlenW(dll64) + 1) * sizeof(WCHAR) );
+     if (!error) error = RegSetValueExW( key, L"pid", 0, REG_DWORD, (const BYTE *)&pid, sizeof(pid) );
+     if (!error)
+     {

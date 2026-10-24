@@ -19,6 +19,24 @@ static int Fds() {
 int main(int argc, char** argv) {
     if (argc == 2 && !strcmp(argv[1], "hang")) { for (;;) pause(); }
     if (argc == 2 && !strcmp(argv[1], "exit37")) return 37;
+    if (argc == 2 && !strcmp(argv[1], "fork-fault")) {
+        const pid_t child = fork(); assert(child >= 0);
+        if (!child) { raise(SIGSEGV); _exit(99); }
+        int status = 0; assert(waitpid(child, &status, 0) == child);
+        return WIFSIGNALED(status) && WTERMSIG(status) == SIGSEGV ? 38 : 39;
+    }
+    if (argc == 2 && !strcmp(argv[1], "trace-check")) {
+        const int before = Fds();
+        steamohos::NativeExecOptions trace;
+        trace.traceSignals = true; trace.traceForks = true;
+        auto result = steamohos::RunNativeExec({"/proc/self/exe", "fork-fault"}, {}, 3000, trace);
+        assert(result.exitCode == 38 && result.reaped && !result.timedOut);
+        assert(result.faultDiagnostics.find("signal=11") != std::string::npos);
+        int status; errno = 0; assert(waitpid(-1, &status, WNOHANG) == -1 && errno == ECHILD);
+        assert(Fds() == before);
+        std::cout << "PASS owned fork fault traced; real SIGSEGV delivered; no child or FD leak\n";
+        return 0;
+    }
     if (argc == 2 && !strcmp(argv[1], "output")) {
         for (int i = 0; i < 100; ++i) { std::string s(1024, 'a'); if (write(1, s.data(), s.size()) < 0) return 1; }
         return 0;
@@ -42,6 +60,11 @@ int main(int argc, char** argv) {
     const int before = Fds();
     auto manual = steamohos::RunNativeExec({self, "exit37"}, {}, 14420000);
     assert(manual.exitCode == 37 && manual.reaped && !manual.timedOut);
+    steamohos::NativeExecOptions forkTrace;
+    forkTrace.traceSignals = true; forkTrace.traceForks = true;
+    auto childFault = steamohos::RunNativeExec({self, "fork-fault"}, {}, 3000, forkTrace);
+    assert(childFault.exitCode == 38 && childFault.reaped && !childFault.timedOut);
+    assert(childFault.faultDiagnostics.find("signal=11") != std::string::npos);
     char parentCwd[4096]; assert(getcwd(parentCwd, sizeof(parentCwd)));
     steamohos::NativeExecOptions cwdOptions;
     cwdOptions.workingDirectory = "/tmp";

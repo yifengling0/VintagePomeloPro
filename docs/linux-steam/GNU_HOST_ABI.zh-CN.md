@@ -46,7 +46,7 @@ OHOS 应用沙箱对可执行文件映射、软链接和部分系统调用的约
 
 减少环境文件主要改善体积、导入和更新成本。运行性能应实测 CPU 原生执行、图形传输/拷贝、同步等待、内存占用；不能仅凭未使用 rootfs 推导帧率更高。
 
-当前原生 exec handoff 保留了旧映射，尚未具备完整内核 exec 的地址空间回收语义；外置代码段也占用匿名内存。这是研究阶段需要继续测量、收敛的内存成本。共享 Mesa 接收端的 GLX 小程序通过，也不能直接证明 CEF 或 Proton 的完整 GPU 路径已经可用。
+原生 exec handoff 已增加单线程子进程的映射回收：独立 RX 跳板进入新栈后释放退役 GNU 映像和旧匿名内存，保留新映像、当前引导 TLS、内核区域及鸿蒙初始栈/堆和签名宿主模块。全面回收曾导致手机 GNU rtld 早期 SIGSEGV，因此保留上述宿主边界；这仍不具备完整内核 exec 语义，外置代码段也占用匿名内存。主机 28 组真实执行回归与手机双游戏主菜单/窗口退出已通过，详见 STEAMWORKS_COMPATIBILITY。这是研究阶段需要继续测量、收敛的内存成本。共享 Mesa 接收端的 GLX 小程序通过，也不能直接证明 CEF 或 Proton 的完整 GPU 路径已经可用。
 
 external-48 至 54 已区分两个真实约束：socket 的 AT_EMPTY_PATH 查询不适配，以及应用被拒绝读取 /proc TCP 表和 NETLINK_SOCK_DIAG。glibc 0007 修正前者；后者使用显式启用的应用内 FD 查询服务。服务以 SO_PEERCRED 验证真实 PID/UID、按 inode 核验 FD，再通过 SCM_RIGHTS 复制内核描述符；适配 lsof 使用 getsockname/getpeername/TCP_INFO 查询，不生成伪造的连接表。普通未登记进程仍保留查询失败。
 

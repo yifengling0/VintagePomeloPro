@@ -13,6 +13,10 @@ from zipfile import ZipFile
 
 from runtime_library_guard import RuntimeLibraryError, validate_library, validate_thread_exit_metadata
 from dxvk_runtime_contract import validate_modern_runtime
+from wined3d_runtime_contract import validate_runtime as validate_wined3d_runtime
+from package_texture_compat_runtime import validate as validate_texture_runtime
+from runtime_core_contract import validate_core
+from stamp_wine_builtin_identity import validate_archive as validate_builtin_identity
 
 
 from gstreamer_inventory import (VERSION as GSTREAMER_VERSION, PLUGINS,
@@ -520,6 +524,14 @@ def validate_runtime_payload(archive: Archive) -> RuntimeInfo:
             archive.require_file(f"bin/{windows_arch}/{filename}")
     validate_platform_smoke_suites(archive)
     validate_graphics_runtime_payload(archive, wine_arch)
+    if wine_arch == 'aarch64':
+        try:
+            validate_wined3d_runtime(json.loads(archive.read('wined3d-graphics.json')), archive.read)
+            validate_texture_runtime(archive, archive.read('bin/guest_vulkan/lib/libvulkan_virtio.so'))
+            validate_core(archive.read, 'payload')
+            validate_builtin_identity(archive.zip)
+        except (KeyError, ValueError, TypeError) as error:
+            raise ValidationError('Runtime compatibility contract: ' + str(error)) from error
     if wine_arch == "aarch64":
         for filename in REQUIRED_ARM64_FEX_FILES:
             archive.require_file(f"bin/{pe_arch}/{filename}")
@@ -624,6 +636,19 @@ def validate_hap(path: Path) -> RuntimeInfo:
         payload = Archive(io.BytesIO(payload_bytes))
         try:
             info = validate_runtime_payload(payload)
+            if info.wine_arch == 'aarch64':
+                require_equal(runtime_manifest.get('wineD3DGraphics'),
+                              json.loads(payload.read('wined3d-graphics.json')),
+                              'HAP WineD3D graphics contract')
+                try:
+                    validate_texture_runtime(payload, hap.read('libs/arm64-v8a/libvulkan_virtio.so'))
+                    validate_core(hap.read)
+                    dxvk = json.loads(payload.read('dxvk/manifest.json'))
+                    require_equal(dxvk['venusRuntime']['hostVirglrendererSha256'],
+                                  hashlib.sha256(hap.read('libs/arm64-v8a/libvirglrenderer.so.1')).hexdigest(),
+                                  'Venus host renderer identity')
+                except (KeyError, ValueError, TypeError) as error:
+                    raise ValidationError('Runtime compatibility contract: ' + str(error)) from error
             validate_gstreamer(payload, info.wine_arch, hap)
             validate_media_dependency_closure(payload, hap, info.wine_arch)
             audio_sources = [(archive, name) for archive in (payload, hap) for name in archive.names

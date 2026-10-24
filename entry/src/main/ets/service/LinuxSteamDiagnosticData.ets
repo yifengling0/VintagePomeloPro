@@ -1,3 +1,4 @@
+import { LINUX_STEAM_PRIVATE_ROOT, LinuxSteamStorageLocation } from './LinuxSteamPaths';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
@@ -29,7 +30,7 @@ interface RuntimeProbe { data: RuntimeData; helpers?: ClientHelperData; }
 interface RuntimeManifest { steamClientProbe: RuntimeProbe; xwaylandProbe: RuntimeProbe; }
 
 // DOWNLOAD resolves the app-owned system directory without a selection dialog.
-async function resolveLinuxSteamExternalRoot(context: common.Context): Promise<string> {
+async function resolveLinuxSteamDownloadRoot(context: common.Context): Promise<string> {
   const documentPicker = new picker.DocumentViewPicker(context);
   const choices = await documentPicker.save({ pickerMode: picker.DocumentPickerMode.DOWNLOAD });
   if (!choices || choices.length === 0) throw new Error('Cannot resolve Steam Z drive directory');
@@ -46,27 +47,52 @@ function existingExternalRoot(root: string): boolean {
   } catch (_) { return false; }
 }
 
-// Rebuild only the private directory pointer. Discovering existing resources
-// never installs, resets, activates or starts Steam, and never modifies games.
+export function linuxSteamStorageLocation(): LinuxSteamStorageLocation {
+  const root = readSmokeText(`${BASE}/external-root.path`).trim();
+  if (root) return root === LINUX_STEAM_PRIVATE_ROOT ? 'private' : 'download';
+  return readSmokeText(`${BASE}/storage-location.txt`).trim() === 'download' ? 'download' : 'private';
+}
+
+// Discover without installing, moving or resetting data. Legacy public installs
+// keep their location; a new install defaults to app-private storage.
 export async function recoverLinuxSteamExternalStorage(context: common.Context): Promise<string> {
   const cached = readSmokeText(`${BASE}/external-root.path`).trim();
   if (existingExternalRoot(cached)) return cached;
-  try {
-    const root = await resolveLinuxSteamExternalRoot(context);
-    if (!existingExternalRoot(root) || !ensureSmokeDirectory(BASE)) return '';
-    writeSmokeText(`${BASE}/external-root.path`, root);
-    return root;
-  } catch (_) { return ''; }
+  const selected = readSmokeText(`${BASE}/storage-location.txt`).trim();
+  let root = selected !== 'download' && existingExternalRoot(LINUX_STEAM_PRIVATE_ROOT) ? LINUX_STEAM_PRIVATE_ROOT : '';
+  if (!root && selected !== 'private') {
+    try { const download = await resolveLinuxSteamDownloadRoot(context); if (existingExternalRoot(download)) root = download; }
+    catch (_) {}
+  }
+  if (root && ensureSmokeDirectory(BASE)) {
+    ConfigurationFiles.json(`${BASE}/external-root.path`, root);
+    ConfigurationFiles.json(`${BASE}/storage-location.txt`, (root === LINUX_STEAM_PRIVATE_ROOT ? 'private' : 'download') + '\n');
+  }
+  return root;
+}
+
+export async function selectLinuxSteamStorage(context: common.Context, location: LinuxSteamStorageLocation): Promise<void> {
+  const root = location === 'private' ? LINUX_STEAM_PRIVATE_ROOT : await resolveLinuxSteamDownloadRoot(context);
+  if (!ensureSmokeDirectory(BASE)) throw new Error('无法保存 Steam 安装位置');
+  ConfigurationFiles.json(`${BASE}/storage-location.txt`, location + '\n');
+  ConfigurationFiles.json(`${BASE}/external-root.path`, root);
+}
+
+export async function linuxSteamDownloadHome(context: common.Context): Promise<string> {
+  // Keep the ordinary Wine Z: mapping even when native Steam lives on C:.
+  const root = await resolveLinuxSteamDownloadRoot(context);
+  return root.substring(0, root.length - '/SteamLinuxARM64'.length);
 }
 
 export async function prepareLinuxSteamExternalStorage(context: common.Context): Promise<string> {
-  const cached = readSmokeText(`${BASE}/external-root.path`).trim();
-  if (existingExternalRoot(cached)) return cached;
-  const root = await resolveLinuxSteamExternalRoot(context);
-  if (!ensureSmokeDirectory(root)) throw new Error('Cannot create Steam Z drive directory');
-  if (!existingExternalRoot(root)) throw new Error('Invalid Steam Z drive directory');
-  if (!ensureSmokeDirectory(BASE)) throw new Error('Cannot create Steam diagnostic state directory');
-  writeSmokeText(`${BASE}/external-root.path`, root);
+  let root = readSmokeText(`${BASE}/external-root.path`).trim();
+  if (existingExternalRoot(root)) return root;
+  if (!root) {
+    await selectLinuxSteamStorage(context, linuxSteamStorageLocation());
+    root = readSmokeText(`${BASE}/external-root.path`).trim();
+  }
+  if (!root.startsWith('/') || !root.endsWith('/SteamLinuxARM64') || root.split('/').includes('..')) throw new Error('Steam 安装位置无效');
+  if (!ensureSmokeDirectory(root) || !existingExternalRoot(root)) throw new Error('无法创建 Steam 安装目录');
   return root;
 }
 
@@ -152,7 +178,7 @@ export async function prepareLinuxSteamClientData(context: common.Context, diagn
       writeSmokeText(complete, version);
     }
   }
-  if (!/^[a-f0-9]{64}$/.test(version)) throw new Error('请先将 Steam ARM64 资源导入 Z:\\SteamLinuxARM64');
+  if (!/^[a-f0-9]{64}$/.test(version)) throw new Error('请先在 Steam 组件页安装或导入运行组件');
   const release = `${root}/releases/${version}`;
   if (readSmokeText(`${release}/.verified`).trim() !== version) throw new Error('External Steam release is incomplete');
   const runtime = `${release}/runtime`;
@@ -285,9 +311,25 @@ function migrateHmosDeckToolSelections(steam: string): void {
   }
 }
 
-// The GNU client cannot use Valve's separate GNU Wine runtime as the OHOS
-// compatibility tool. Seed its default and migrate only installed games that
-// still select a built-in Proton; preserve explicit third-party tool choices.
+// App manifests include shared runtimes as well as games. Only game entries
+// may receive a Windows compatibility override; a tool must stay a Linux tool.
+export function isHmosDeckGameManifest(text: string, appId: string): boolean {
+  try {
+    const app = parseSteamVdf(text).child('appstate');
+    if (!app || app.text('appid') !== appId) return false;
+    const name = app.text('name').trim();
+    const directory = app.text('installdir');
+    if (!name || !directory || /[\\/\x00-\x1f]/.test(directory) || directory === '.' || directory === '..') return false;
+    const type = app.text('type').toLowerCase();
+    if (type && type !== 'game' && type !== 'application') return false;
+    return !/^(?:Steam Linux Runtime(?:\b|_)|Steamworks (?:Common Redistributables|Shared)$|Proton(?:\b|_)|FEX(?:\b|-)|Steam Controller Configs\b)/i.test(name) &&
+      !/^(?:SteamLinuxRuntime(?:$|_)|Steamworks Shared$|Proton(?:\b|_)|FEX(?:\b|-))/i.test(directory);
+  } catch (_) { return false; }
+}
+
+// The global default cannot reliably beat per-app Linux mappings at priority
+// 100/101. Pin installed games at user-selection priority, while preserving
+// explicit native/custom choices. This runs before the GNU client starts.
 export function normalizeHmosDeckToolMappings(text: string, installedApps: string[]): string {
   const document = parseSteamVdf(text);
   let node = document;
@@ -306,17 +348,25 @@ export function normalizeHmosDeckToolMappings(text: string, installedApps: strin
   for (const id of apps) {
     let mapping = node.child(id);
     const name = mapping?.text('name') ?? '';
-    if (name === 'hmosdeck_proton') continue;
-    if (name.length > 0 && name !== 'hmosdeck' && !/^proton(?:_|$)/.test(name)) continue;
-    // Non-default empty selections keep their ordinary inherited behavior.
-    if (id !== '0' && name.length === 0) continue;
+    const minimumPriority = id === '0' ? 100 : 250;
+    const priority = Number(mapping?.text('priority') ?? '');
+    if (name === 'hmosdeck_proton') {
+      if (!Number.isFinite(priority) || priority < minimumPriority) {
+        mapping?.set('priority', minimumPriority.toString());
+        changed = true;
+      }
+      continue;
+    }
+    const automaticNative = id !== '0' && priority < 250 &&
+      /^(?:native|SteamLinuxRuntime(?:_.*)?)$/i.test(name);
+    if (name.length > 0 && name !== 'hmosdeck' && !/^proton(?:_|$)/.test(name) && !automaticNative) continue;
     if (!mapping) {
       mapping = new SteamVdfNode();
       node.children.set(id, mapping);
     }
     mapping.set('name', 'hmosdeck_proton');
     mapping.set('config', '');
-    mapping.set('priority', id === '0' ? '75' : '250');
+    mapping.set('priority', minimumPriority.toString());
     changed = true;
   }
   return changed ? serializeSteamVdf(document) : text;
@@ -360,7 +410,15 @@ async function prepareHmosDeckLibrary(root: string, runtime: string): Promise<vo
     '"manifest" { "version" "2" "commandline" "/hmosdeck %verb%" "compatmanager_layer_name" "proton" }');
   migrateHmosDeckToolSelections(steam);
   const migration = await prepareSingleLinuxSteamLibrary(root);
-  prepareHmosDeckToolDefaults(steam, migration.installedApps);
+  const games = migration.installedApps.filter((id: string): boolean => {
+    const path = `${library}/steamapps/appmanifest_${id}.acf`;
+    try {
+      const info = fs.lstatSync(path);
+      return info.isFile() && !info.isSymbolicLink() && info.size <= 1048576 &&
+        isHmosDeckGameManifest(fs.readTextSync(path, { encoding: 'utf-8' }), id);
+    } catch (_) { return false; }
+  });
+  prepareHmosDeckToolDefaults(steam, games);
   writeSmokeText(`${BASE}/single-library-migration.json`, JSON.stringify(migration));
   writeSmokeText(`${BASE}/game-library.json`, JSON.stringify({
     source: 'native_aarch64_linux_steam', library, windowsLibraryImported: false,

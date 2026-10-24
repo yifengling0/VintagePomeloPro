@@ -2,6 +2,7 @@
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
 #include <cstdint>
+#include <atomic>
 
 #include "compositor/frame/geometry.h"
 #include "compositor/frame/display_policy.h"      // DisplayPolicy (6A 装配注入共享引用)
@@ -74,7 +75,8 @@ public:
 
     // JS thread enqueues only an identity; resolve resources on the Wayland thread.
     void RequestToplevelActivation(uint32_t toplevelId);
-    bool RequestExternalHostMove(uint32_t source, uint32_t host);
+    bool RequestExternalHostMove(uint32_t source, uint32_t host, uint32_t resizeEdges = 0);
+    bool IsExternalHostResizing(uint32_t host) const;
 
     // axis: 0=垂直(SCROLL_VERTICAL), 1=水平(SCROLL_HORIZONTAL)
     // value: 轴值 (正值=向下/向右, 负值=向上/向左)
@@ -171,6 +173,7 @@ private:
     // 构造注入其引用, 见 InputManager 构造函数)
     InputStateTracker tracker_;
     InputQueue queue_;
+    std::atomic<uint32_t> pendingExternalResize_{0};
     InputInjector injector_;
 
     // 6A 装配注入的子组件引用 (指针形式: InputManager 单例可能先于

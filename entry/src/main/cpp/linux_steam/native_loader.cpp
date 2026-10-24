@@ -8,10 +8,20 @@
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <cstdio>
+#include <csignal>
+#include <cstdlib>
+#include <ucontext.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 extern "C" [[noreturn]] void SteamOhosEnterNativeLoader(uintptr_t entry, uintptr_t sp);
+extern "C" const unsigned char SteamOhosExecCleanupStart[], SteamOhosExecCleanupEnd[];
+#if defined(__aarch64__)
+extern "C" const unsigned char SteamOhosExecFaultStart[];
+static_assert(offsetof(ucontext_t, uc_mcontext.pc) == 440);
+static_assert(offsetof(ucontext_t, uc_mcontext.regs[30]) == 424);
+static_assert(offsetof(siginfo_t, si_addr) == 16);
+#endif
 namespace steamohos {
 namespace {
 uint64_t Down(uint64_t n, uint64_t a) { return n & ~(a - 1); }
@@ -32,6 +42,7 @@ bool Read(int fd, void* buffer, size_t bytes, off_t offset) {
 NativeLoaderImage::~NativeLoaderImage() {
     if (image_) munmap(image_, imageBytes_);
     if (stack_) munmap(stack_, stackBytes_);
+    if (cleanup_) munmap(cleanup_, cleanupBytes_);
 }
 bool NativeLoaderImage::Fail(const char* value, int code) { stage = value; error = code; return false; }
 bool NativeLoaderImage::Prepare(const std::vector<std::string>& argv, const std::vector<std::string>& environment) {
@@ -196,5 +207,113 @@ bool NativeLoaderImage::Prepare(const std::vector<std::string>& argv, const std:
     memcpy(reinterpret_cast<void*>(sp_), words.data(), words.size() * sizeof(uint64_t));
     entry_ = base + eh.e_entry; stage = "prepared"; return true;
 }
-[[noreturn]] void NativeLoaderImage::Enter() const { SteamOhosEnterNativeLoader(entry_, sp_); }
+bool NativeLoaderImage::PrepareExecCleanup() {
+    if (!entry_ || !sp_ || cleanup_) return Fail("exec_cleanup_state", EINVAL);
+    const long page = sysconf(_SC_PAGESIZE);
+    if (page != 4096 && page != 16384 && page != 65536) return Fail("exec_cleanup_page", ENOTSUP);
+    const size_t codeBytes = static_cast<size_t>(SteamOhosExecCleanupEnd - SteamOhosExecCleanupStart);
+    if (!codeBytes || codeBytes > static_cast<size_t>(page)) return Fail("exec_cleanup_code", EOVERFLOW);
+    struct Range { uintptr_t address, bytes; };
+    constexpr size_t limit = 16384;
+    cleanupBytes_ = static_cast<size_t>(page) + limit * sizeof(Range);
+    cleanup_ = mmap(nullptr, cleanupBytes_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (cleanup_ == MAP_FAILED) { cleanup_ = nullptr; return Fail("exec_cleanup_allocate", errno); }
+    memcpy(cleanup_, SteamOhosExecCleanupStart, codeBytes);
+    __builtin___clear_cache(static_cast<char*>(cleanup_), static_cast<char*>(cleanup_) + codeBytes);
+#if defined(__aarch64__)
+    // Use the existing per-thread OHOS execution policy, and still require the
+    // actual RW -> RX transition to succeed. W+X is never requested.
+    (void)prctl(0x6a6974, 0UL, 0UL, 0UL, 0UL);
+#endif
+    if (mprotect(cleanup_, static_cast<size_t>(page), PROT_READ | PROT_EXEC))
+        return Fail("exec_cleanup_protect", errno);
+    auto* ranges = reinterpret_cast<Range*>(static_cast<char*>(cleanup_) + page);
+    const Range keep[] = {{reinterpret_cast<uintptr_t>(image_), imageBytes_},
+        {reinterpret_cast<uintptr_t>(stack_), stackBytes_}, {reinterpret_cast<uintptr_t>(cleanup_), cleanupBytes_}};
+    FILE* maps = fopen("/proc/self/maps", "re");
+    if (!maps) return Fail("exec_cleanup_maps", errno);
+    // Patched GNU rtld may touch errno/current-thread state while mapping the
+    // first external ELF, before it installs the fresh initial TLS. Keep only
+    // the VMA containing the current TP for that bootstrap interval; the next
+    // exec can reclaim it once a different TLS has taken ownership.
+    const uintptr_t bootstrapTp = reinterpret_cast<uintptr_t>(__builtin_thread_pointer());
+    const uintptr_t vdso = static_cast<uintptr_t>(getauxval(AT_SYSINFO_EHDR));
+    char line[8192]; uintptr_t previous = 0; size_t total = 0, tlsBytes = 0, hostBytes = 0;
+    bool valid = true;
+    while (fgets(line, sizeof(line), maps)) {
+        unsigned long first = 0, last = 0; int offset = 0;
+        if (!strchr(line, '\n') || sscanf(line, "%lx-%lx %*4s %*s %*s %*s %n", &first, &last, &offset) != 2 ||
+            !offset || first >= last || first < previous || first % page || last % page) { valid = false; break; }
+        previous = last;
+        if (first <= bootstrapTp && bootstrapTp < last) { tlsBytes = last - first; continue; }
+        const char* name = line + offset;
+        // Userspace exec cannot replace the kernel's initial stack/brk or
+        // platform module bookkeeping. Keep those small anchors and signed
+        // host modules; reclaim retired GNU anonymous images/arenas instead.
+        if ((vdso && first <= vdso && vdso < last) || !strncmp(name, "[stack]", 7) ||
+            !strncmp(name, "[heap]", 6) || !strncmp(name, "/system/", 8) ||
+            !strncmp(name, "/vendor/", 8) || !strncmp(name, "/chip_prod/", 11) ||
+            !strncmp(name, "/data/storage/el1/", 18) || !strncmp(name, "/data/app/el1/", 14)) {
+            hostBytes += last - first;
+            continue;
+        }
+        // Keep kernel-owned code/data named by the new auxv. Everything else
+        // belongs to the previous image, including heap, stacks, anonymous
+        // copied ELF segments and inherited shared-memory attachments.
+        bool kernel = !strncmp(name, "[vdso]", 6) || !strncmp(name, "[vvar]", 6) ||
+            !strncmp(name, "[vvar_vclock]", 13) || !strncmp(name, "[vectors]", 9) ||
+            !strncmp(name, "[vsyscall]", 10) || !strncmp(name, "[sigpage]", 9) ||
+            !strncmp(name, "[commpage]", 10);
+        if (kernel) continue;
+        // VMAs may merge across our allocation boundaries; subtract intervals
+        // instead of preserving a whole VMA containing one new loader page.
+        uintptr_t cursor = first;
+        Range ordered[3] = {keep[0], keep[1], keep[2]};
+        std::sort(ordered, ordered + 3, [](const Range& a, const Range& b) { return a.address < b.address; });
+        auto append = [&](uintptr_t start, uintptr_t end) {
+            if (start >= end) return;
+            if (cleanupCount_ == limit) { valid = false; return; }
+            ranges[cleanupCount_++] = {start, end - start}; total += end - start;
+        };
+        for (const auto& range : ordered) {
+            if (range.address >= last || range.address + range.bytes <= cursor) continue;
+            append(cursor, std::min<uintptr_t>(last, range.address));
+            cursor = std::min<uintptr_t>(last, range.address + range.bytes);
+        }
+        append(cursor, last);
+        if (!valid) break;
+    }
+    if (ferror(maps)) valid = false;
+    fclose(maps);
+    if (!valid || !cleanupCount_) return Fail("exec_cleanup_inventory", EOVERFLOW);
+    if (mprotect(ranges, cleanupBytes_ - static_cast<size_t>(page), PROT_READ))
+        return Fail("exec_cleanup_ranges", errno);
+    diagnostics = "STEAMOHOS_EXEC_RECLAIM mappings=" + std::to_string(cleanupCount_) +
+        " virtual_bytes=" + std::to_string(total) + " bootstrap_tls_bytes=" + std::to_string(tlsBytes) +
+        " host_anchor_bytes=" + std::to_string(hostBytes) +
+        " loader_base=" + std::to_string(reinterpret_cast<uintptr_t>(image_)) + "\n";
+    stage = "exec_cleanup_prepared";
+#if defined(__aarch64__)
+    const char* diagnostic = getenv("STEAMOHOS_NATIVE_MEMORY");
+    if (diagnostic && !strcmp(diagnostic, "1")) {
+        // A bootstrap-only raw-syscall handler, stored in the retained page.
+        // The fresh GNU preload restores SIG_DFL before application startup.
+        struct sigaction fault{}; sigemptyset(&fault.sa_mask);
+        fault.sa_flags = SA_SIGINFO;
+        fault.sa_sigaction = reinterpret_cast<void (*)(int, siginfo_t*, void*)>(
+            static_cast<char*>(cleanup_) + (SteamOhosExecFaultStart - SteamOhosExecCleanupStart));
+        if (sigaction(SIGSEGV, &fault, nullptr)) return Fail("exec_cleanup_fault_handler", errno);
+    }
+#endif
+    return true;
+}
+[[noreturn]] void NativeLoaderImage::Enter() const {
+    if (cleanup_) {
+        using Transition = void (*)(uintptr_t, uintptr_t, const void*, size_t);
+        const auto page = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+        reinterpret_cast<Transition>(cleanup_)(entry_, sp_, static_cast<const char*>(cleanup_) + page, cleanupCount_);
+        __builtin_unreachable();
+    }
+    SteamOhosEnterNativeLoader(entry_, sp_);
+}
 }

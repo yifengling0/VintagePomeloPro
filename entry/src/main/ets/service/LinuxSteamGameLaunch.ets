@@ -1,3 +1,4 @@
+import { linuxSteamWindowsPath, linuxSteamLaunchArgument } from './LinuxSteamPaths';
 import smokeNapi, { LinuxSteamLaunchRequest } from 'libsmoke_napi.so';
 import testNapi from 'libentry.so';
 import { fileIo as fs } from '@kit.CoreFileKit';
@@ -16,7 +17,7 @@ interface LibraryState { folders: string; games: LibraryGame[]; }
 
 interface LaunchEvidence {
   source: string; appId: string; status: string; steamApiAuthenticationVerified: boolean;
-  role: string;
+  role: string; updatedAt: number;
   exitCode?: number | null; exitCodeSource?: string;
 }
 
@@ -32,15 +33,15 @@ export class LinuxSteamGameLaunch {
   private busy = false;
   private generation = 0;
   private windowsPath(path: string): string {
-    return `Z:${path.substring(this.zRoot.length).replace(/\//g, '\\')}`;
+    return linuxSteamWindowsPath(path, this.zRoot);
   }
-  start(library: string, results: string): void {
+  start(library: string, results: string, zRoot: string): void {
     if (!smokeNapi.startLinuxSteamLaunchBroker || !smokeNapi.startLinuxSteamLaunchBroker(library)) {
       throw new Error('Cannot create Linux Steam game launch service');
     }
     this.results = results;
     this.library = library;
-    this.zRoot = library.substring(0, library.length - '/SteamLinuxARM64/library'.length);
+    this.zRoot = zRoot;
     this.generation++;
     this.timer = setInterval(() => {
       if (this.busy) return;
@@ -67,12 +68,16 @@ export class LinuxSteamGameLaunch {
   private record(appId: string, status: string, exitCode?: number | null, exitCodeSource?: string, role: string = 'game'): void {
     const evidence: LaunchEvidence = {
       source: 'native_linux_steam_compatibility_tool', appId, status,
-      steamApiAuthenticationVerified: false, exitCode, exitCodeSource, role
+      steamApiAuthenticationVerified: false, exitCode, exitCodeSource, role, updatedAt: Date.now()
     };
     const name = role === 'game' ? `game-launch-${appId}` : `client-helper-${role}-${appId}`;
     // Evidence is optional. A full/unavailable diagnostic directory must not
     // turn a successful launch or exit into a fatal broker failure.
     try { writeSmokeText(`${this.results}/${name}.json`, JSON.stringify(evidence)); } catch (_) {}
+    // Fixed-size latest records are exported without enumerating game files or
+    // account directories. Helpers must never replace the last real game.
+    const latest = role === 'game' ? 'last-game-launch' : 'last-client-helper';
+    try { writeSmokeText(`${this.results}/${latest}.json`, JSON.stringify(evidence)); } catch (_) {}
   }
   private reject(request: LinuxSteamLaunchRequest, reason: string): void {
     if (smokeNapi.replyLinuxSteamLaunchBroker) smokeNapi.replyLinuxSteamLaunchBroker(request.id, 3, 1);
@@ -196,7 +201,7 @@ export class LinuxSteamGameLaunch {
         if (generation !== this.generation) return;
         if (!verified) { this.reject(request, '官方 Linux Steam 辅助程序校验失败'); continue; }
       }
-      const argv = request.argv.slice(1);
+      const argv = request.argv.slice(1).map((argument: string): string => linuxSteamLaunchArgument(argument, this.zRoot));
       const environment = request.environment.slice();
       // Exact opt-in in the private research directory; no arbitrary environment
       // overrides cross the authenticated GNU launch broker.
@@ -206,7 +211,7 @@ export class LinuxSteamGameLaunch {
       let launch: NativeLaunchResult;
       try {
         launch = WineEngineService.getInstance().launchExecutable(this.windowsPath(request.argv[0]), argv, this.windowsPath(request.cwd), environment);
-      } catch (_) { this.reject(request, 'Wine 创建游戏进程失败'); continue; }
+      } catch (error) { this.reject(request, 'Wine 创建游戏进程失败：' + (error as Error).message.substring(0, 160)); continue; }
       if (launch.pid <= 0 || launch.sessionId.length === 0 || launch.reused) {
         this.reject(request, 'Wine 未创建新的游戏会话'); continue;
       }

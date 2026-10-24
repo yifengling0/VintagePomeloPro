@@ -1,5 +1,6 @@
 #include "spawn_codec.h"
 #include "stderr_hilog_budget.h"
+#include "stderr_file.h"
 #include "program_compat.h"
 /**
  * wine_child.cpp - Wine 子进程入口 (libwine_child.so)
@@ -60,21 +61,18 @@ static void* stderr_reader_thread(void* arg) {
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) break;
         buf[n] = '\0';  // strtok_r 需要终止符, read() 不添加
-        // Preserve the complete file even when a signal interrupts the write.
+        // Bounded persistent output, shared safely with other Wine children.
         if (ctx->fileFd >= 0) {
-            ssize_t off = 0;
-            while (off < n) {
-                const ssize_t wrote = write(ctx->fileFd, buf + off, static_cast<size_t>(n - off));
-                if (wrote < 0 && errno == EINTR) continue;
-                if (wrote <= 0) break;
-                off += wrote;
+            if (!winehua::AppendStderrFile(ctx->fileFd, buf, static_cast<size_t>(n))) {
+                OH_LOG_WARN(LOG_APP, "[WineChild-stderr] persistent log write failed errno=%{public}d", errno);
+                close(ctx->fileFd); ctx->fileFd = -1;
             }
         }
         timespec now{};
         clock_gettime(CLOCK_MONOTONIC, &now);
         const uint64_t skipped = budget.BeginSecond(static_cast<uint64_t>(now.tv_sec));
         if (skipped)
-            OH_LOG_WARN(LOG_APP, "[WineChild-stderr] %{public}llu mirror lines omitted; complete output in wine_stderr file",
+            OH_LOG_WARN(LOG_APP, "[WineChild-stderr] %{public}llu mirror lines omitted; recent output in wine_stderr file",
                         static_cast<unsigned long long>(skipped));
         // Slow logd consumers must not hold Wine's stderr pipe on trace floods.
         char *save = nullptr, *tok = strtok_r(buf, "\n", &save);
@@ -84,7 +82,7 @@ static void* stderr_reader_thread(void* arg) {
         }
     }
     if (budget.Skipped())
-        OH_LOG_WARN(LOG_APP, "[WineChild-stderr] %{public}llu final mirror lines omitted; complete output in wine_stderr file",
+        OH_LOG_WARN(LOG_APP, "[WineChild-stderr] %{public}llu final mirror lines omitted; recent output in wine_stderr file",
                     static_cast<unsigned long long>(budget.Skipped()));
     if (ctx->fileFd >= 0) close(ctx->fileFd);
     close(ctx->fd);
@@ -99,7 +97,40 @@ static void* stderr_reader_thread(void* arg) {
 
 static const char *default_winedebug_profile(void)
 {
-    return "-all";
+    // Errors are necessary in user feedback. Traces and fixmes remain opt-in.
+    return "-all,err+all";
+}
+
+static void start_stderr_capture(size_t entryBytes, int argc, const char* role)
+{
+    const int file = winehua::OpenStderrFile(WINE_STDERR_DIR, time(nullptr));
+    if (file >= 0) {
+        char marker[256];
+        const int n = snprintf(marker, sizeof(marker),
+            "\n=== time=%lld PID=%d role=%s entryParamsBytes=%zu argc=%d ===\n",
+            static_cast<long long>(time(nullptr)), getpid(), role, entryBytes, argc);
+        winehua::AppendStderrFile(file, marker, static_cast<size_t>(n));
+    } else {
+        OH_LOG_WARN(LOG_APP, "[WineChild-stderr] cannot open persistent log errno=%{public}d", errno);
+    }
+    int pipes[2];
+    if (pipe(pipes) < 0) { if (file >= 0) close(file); return; }
+    fcntl(pipes[0], F_SETFD, FD_CLOEXEC);
+    fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
+    auto* ctx = new stderr_ctx{pipes[0], file};
+    pthread_t thread;
+    const int error = pthread_create(&thread, nullptr, stderr_reader_thread, ctx);
+    if (error) {
+        // Leave the original stderr intact. A pipe without a reader can stall
+        // the game, so failure to create a logger must not redirect stderr.
+        close(pipes[0]); close(pipes[1]); if (file >= 0) close(file); delete ctx;
+        OH_LOG_WARN(LOG_APP, "[WineChild-stderr] reader creation failed code=%{public}d", error);
+        return;
+    }
+    pthread_detach(thread);
+    if (dup2(pipes[1], STDERR_FILENO) < 0)
+        OH_LOG_WARN(LOG_APP, "[WineChild-stderr] redirect failed errno=%{public}d", errno);
+    close(pipes[1]);
 }
 
 static const char *midi_diag_winedebug_profile(void)
@@ -1957,28 +1988,7 @@ extern "C" void Main(NativeChildProcess_Args args)
             OH_LOG_INFO(LOG_APP, "[WineChild] cwd=%{public}s", launchCwd.c_str());
     }
 
-    int errPipe[2];
-    pipe(errPipe);
-    dup2(errPipe[1], STDERR_FILENO);
-    close(errPipe[1]);
-    mkdir(WINE_LOG_DIR, 0755);
-    time_t now = time(nullptr);
-    struct tm tm;
-    localtime_r(&now, &tm);
-    char logPath[128];
-    snprintf(logPath, sizeof(logPath),
-             WINE_LOG_DIR "/wine_stderr_%04d%02d%02d.log",
-             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
-    int errFile = open(logPath, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    // 写分隔标记，确认本进程的日志从哪开始
-    if (errFile >= 0) {
-        dprintf(errFile, "\n=== PID=%d entryParamsBytes=%zu argc=%d ===\n", getpid(),
-                args.entryParams ? strlen(args.entryParams) : size_t{0}, argc);
-    }
-    auto* ctx = new stderr_ctx{errPipe[0], errFile};
-    pthread_t tid;
-    pthread_create(&tid, nullptr, stderr_reader_thread, ctx);
-    pthread_detach(tid);
+    start_stderr_capture(args.entryParams ? strlen(args.entryParams) : size_t{0}, argc, "wine");
 
     // 空闲卡死看门狗 (WINEHUA_STALL_DUMP=<秒> 才启动): 必须在 stderr 已重定向到
     // wine_stderr 之后启动, 这样 dump 才落在同一个文件里。
@@ -2093,27 +2103,7 @@ static void RunWineserver(char* binDir, int argc2, char** argv2,
 
     // stderr → pipe → hilog + 文件 (与普通 wine child 相同的落盘通道,
     // hilog 转发实际不可靠, wineserver 排障依赖文件)
-    int errPipe[2];
-    pipe(errPipe);
-    dup2(errPipe[1], STDERR_FILENO);
-    close(errPipe[1]);
-    mkdir(WINE_LOG_DIR, 0755);
-    time_t now = time(nullptr);
-    struct tm tm;
-    localtime_r(&now, &tm);
-    char logPath[128];
-    snprintf(logPath, sizeof(logPath),
-             WINE_LOG_DIR "/wine_stderr_%04d%02d%02d.log",
-             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
-    int errFile = open(logPath, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    if (errFile >= 0) {
-        dprintf(errFile, "\n=== PID=%d entryParamsBytes=%zu argc=%d ===\n", getpid(),
-                entryParamsForLog ? strlen(entryParamsForLog) : size_t{0}, argc2);
-    }
-    auto* ctx = new stderr_ctx{errPipe[0], errFile};
-    pthread_t tid;
-    pthread_create(&tid, nullptr, stderr_reader_thread, ctx);
-    pthread_detach(tid);
+    start_stderr_capture(entryParamsForLog ? strlen(entryParamsForLog) : size_t{0}, argc2, "wineserver");
 
     // 收集 argv: "wineserver" "-f" ...
     if (argc2 == 0) {

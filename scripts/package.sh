@@ -300,6 +300,9 @@ with open('$module_json', 'w') as f:
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
+    # Unsigned distribution packages need the same final-byte compatibility
+    # checks as signed builds; checking only the rawfile misses native stripping.
+    python3 "$SCRIPT_DIR/check_runtime_components.py" --hap "$unsigned_hap"
     if [ "$mode" = unsigned ]; then
         ls -lh "$unsigned_hap"
         log "HAP 构建完成 (unsigned, $NATIVE_ARCH); 安装前必须自行签名"

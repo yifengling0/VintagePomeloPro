@@ -980,8 +980,12 @@ export class WineEngineService {
       this.nativeGeneration = snapshot.generation;
       this.pollStartup(generation);
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', JSON.stringify(error));
-      this.failStartup(generation, 'Wine 引擎准备失败，请重试');
+      const detail = error instanceof Error ? error.message : (JSON.stringify(error) || '未知异常');
+      hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', detail);
+      // Component verification has actionable product messages. Preserve them
+      // instead of serializing Error to {} and hiding the cause from the user.
+      this.failStartup(generation, detail.startsWith('Linux Steam 接口桥') ? detail :
+        'Wine 引擎准备失败，请重试');
     }
   }
 

@@ -13,7 +13,7 @@ const native={getProcessList:()=>processes.slice(),getWineSession:()=>null,getDe
  killProcess:p=>{killed.push(p);return true;},stopWineSession:s=>{stopped.push(s);return true;},activateWineSession(){},raiseToplevel(){}};
 const store={getAppSettings:id=>settings.get(id)||{customCover:'',customTitle:'',arguments:[],displayModeOverride:null,box64Preset:'default'},
  getCatalogCache:()=>catalogCache,saveCatalogCache:async cards=>{catalogCache=cards;},
- recordRecentLaunch:async()=>{},usesManagedWineWindows:()=>true,getGlobalSettings:()=>({})};
+ recordRecentLaunch:async()=>{},usesManagedWineWindows:()=>true,getGlobalSettings:()=>({}),getRenderMode:()=>'dxvk_2_6'};
 let local, models;
 const engine={getState:()=>models.EngineState.READY,isReady:()=>true,
  getPresentationMode:()=>models.WinePresentationMode.MANAGED_WINDOWS,
@@ -108,10 +108,21 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  await service.launch(batchCard,{},tmp);
  assert.equal(launches.at(-1).exe,client+'/steam.exe','warm client bypasses batch');
  assert.equal(launches.at(-1).args.at(-1),'steam://open/main');
+ for (const [action,uri] of [['bigPicture','steam://open/bigpicture'], ['desktop','steam://close/bigpicture'],
+  ['downloads','steam://open/downloads'], ['account','steam://open/settings/account']]) {
+   const card=local.clientCard();card.steam.clientAction=action;
+   await service.launch(card,{},tmp);
+   assert.equal(launches.at(-1).exe,client+'/steam.exe','client navigation bypasses library-only batch');
+   assert.equal(launches.at(-1).args.at(-1),uri,'chosen Windows client receives requested action');
+ }
  processes.length=0;
  await service.launch(batchCard,{},tmp);
  assert.equal(launches.at(-1).exe,client+'/2-perf-gpu-auto.bat','cold card uses the bundled 2 launcher');
  assert.equal(launches.at(-1).args.length,0,'batch owns its flags');
+ const coldBigPicture=local.clientCard();coldBigPicture.steam.clientAction='bigPicture';
+ await service.launch(coldBigPicture,{},tmp);
+ assert.equal(launches.at(-1).exe,client+'/steam.exe','cold navigation also bypasses the library-only batch');
+ assert.equal(launches.at(-1).args.at(-1),'steam://open/bigpicture','cold big picture request is preserved');
  local.compatibility=true;
  await service.launch(batchCard,{},tmp);
  assert.equal(launches.at(-1).exe,client+'/steam.exe','compatibility changes apply even to a cached batch card');

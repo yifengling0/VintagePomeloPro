@@ -86,10 +86,24 @@ class SocketMetadata(unittest.TestCase):
         result = subprocess.run([str(program)], env=environment, text=True,
                                 capture_output=True, timeout=12)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('queries=512 fd_leaks=0', result.stdout)
+        self.assertIn('queries=512 fragmented_query=1 fd_leaks=0', result.stdout)
         self.assertIn('wrong_peer_rejected=1 exit_cleanup=1', result.stdout)
         self.assertFalse((self.base / 'socket-metadata').exists())
         self.assertEqual(list((session / 'socket-metadata').iterdir()), [])
+
+    def test_fragmented_response_and_ancillary_validation(self):
+        program = self.base / 'stream'
+        subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror',
+                        str(ROOT / 'host_tests/linux_steam_socket_metadata_stream.c'),
+                        '-ldl', '-o', str(program)], check=True)
+        environment = {k: v for k, v in os.environ.items()
+                       if not k.startswith('STEAMOHOS_') and k != 'LD_PRELOAD'}
+        environment.update(STEAMOHOS_SOCKET_METADATA='1',
+                           STEAMOHOS_IPC_ROOT=str(self.base), LD_PRELOAD=str(self.library))
+        result = subprocess.run([str(program)], env=environment, text=True,
+                                capture_output=True, timeout=12)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('fragmented_response=1 duplicate_fd_rejected=1 incomplete_response_rejected=1', result.stdout)
 
     @unittest.skipUnless(os.environ.get('STEAMOHOS_LSOF_SOURCE_ARCHIVE'), 'pinned lsof source archive is required')
     def test_restricted_proc_requires_real_socket_backend(self):

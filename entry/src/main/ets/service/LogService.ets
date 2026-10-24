@@ -1,7 +1,8 @@
+import { exportLogZipInBackground } from './LogExportTask';
 import { hilog as hilogReal } from '@kit.PerformanceAnalysisKit';
 import { bundleManager } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
-import { zlib } from '@kit.BasicServicesKit';
+import { taskpool } from '@kit.ArkTS';
 import testNapi from 'libentry.so';
 
 /**
@@ -77,6 +78,7 @@ export class AppLog {
   private static seq: number = 0;
   private static bytes: number = 0;
   private static inited: boolean = false;
+  private static exporting: Promise<string> | null = null;
 
   static init(): void {
     if (AppLog.inited) return;
@@ -179,10 +181,12 @@ export class AppLog {
           const spec = format.substring(i + 2, close);
           if (spec.startsWith('private')) {
             out += '<private>';
+            idx++;
           } else {
             out += idx < n ? AppLog.stringifyArg(args[idx++]) : '<missing>';
           }
-          i = close;
+          // Consume the type as well as the visibility marker, e.g. %{public}s.
+          i = close + 1;
           continue;
         }
       }
@@ -297,6 +301,13 @@ export class AppLog {
    * 不污染 logs 目录，随后交给系统分享面板。返回可分享的 file URI。
    */
   static async exportLogsZip(): Promise<string> {
+    if (AppLog.exporting) return AppLog.exporting;
+    const operation = AppLog.createExportZip();
+    AppLog.exporting = operation;
+    try { return await operation; } finally { if (AppLog.exporting === operation) AppLog.exporting = null; }
+  }
+
+  private static async createExportZip(): Promise<string> {
     AppLog.init();
     if (!AppLog.logDir) {
       throw new Error('log directory unavailable');
@@ -308,25 +319,17 @@ export class AppLog {
     }
     const zipName = 'logs-' + localStampCompact() + '.zip';
     const zipPath = zipDir + '/' + zipName;
-    const files: string[] = [];
+    const snapshotDir = zipDir + '/log-export';
+    if (!AppLog.ensureDir(snapshotDir)) throw new Error('cannot create log snapshot directory');
+    let identity = '';
     try {
-      const names = fs.listFileSync(AppLog.logDir);
-      for (const name of names) {
-        if ((name.startsWith('app-') || name.startsWith('native-')) &&
-          name.endsWith('.log')) {
-          files.push(AppLog.logDir + '/' + name);
-        }
-      }
-    } catch (e) {
-    }
-    if (files.length === 0) {
-      throw new Error('no log files to share');
-    }
-    const compressOpt: zlib.Options = {};
-    await zlib.compressFiles(files, zipPath, compressOpt);
+      const bundle = bundleManager.getBundleInfoForSelfSync(0);
+      identity = `Application=${bundle.name} version=${bundle.versionName} code=${bundle.versionCode}\n`;
+    } catch (_) {}
+    const downloadRoot = AppLog.logDir.substring(0, AppLog.logDir.lastIndexOf('/'));
+    await taskpool.execute(exportLogZipInBackground, AppLog.logDir, snapshotDir, downloadRoot, identity, zipPath);
     AppLog.cleanupOldZips(zipDir);
-    hilogReal.info(0x0000, 'LogSvc', 'exportLogsZip OK files=%{public}d zip=%{public}s',
-      files.length, zipPath);
+    hilogReal.info(0x0000, 'LogSvc', 'exportLogsZip OK zip=%{public}s', zipPath);
     return fileUri.getUriFromPath(zipPath);
   }
 

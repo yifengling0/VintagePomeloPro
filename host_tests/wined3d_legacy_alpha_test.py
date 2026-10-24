@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Execute production legacy alpha-state functions; reproduce the missing enable."""
 from pathlib import Path
+import argparse
 import os
 import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-source = (root / 'thirdparty/wine-valve/dlls/wined3d/glsl_shader.c').read_text()
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--source', type=Path, default=root / 'thirdparty/wine-valve')
+args = parser.parse_args()
+source = (args.source / 'dlls/wined3d/glsl_shader.c').read_text()
 def function(signature):
     start = source.rindex(signature) # Skip the earlier forward declaration.
     return source[start:source.index('\n}\n', start) + 3]

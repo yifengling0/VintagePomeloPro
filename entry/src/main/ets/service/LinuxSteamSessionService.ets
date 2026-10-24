@@ -1,6 +1,8 @@
+import { applyLinuxSteamDownloadPolicy } from './LinuxSteamDownloadPolicy';
+import { linuxSteamDownloadHome } from './LinuxSteamDiagnosticData';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { hilog } from './LogService';
 import util from '@ohos.util';
 import smokeNapi from 'libsmoke_napi.so';
 import { DisplayMode, WinePresentationMode } from '../model/AppModels';
@@ -12,6 +14,7 @@ import { LinuxSteamGameLaunch } from './LinuxSteamGameLaunch';
 import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
 import { LinuxSteamPageRecovery } from './LinuxSteamPageRecovery';
 import { WineEngineService } from './WineEngineService';
+import { ManagedLinuxSteamBridgeService } from './ManagedLinuxSteamBridgeService';
 import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
 import { GamepadManager } from './GamepadManager';
 import { ensureSmokeDirectory, readSmokeText } from './ManagedSmokePayloadService';
@@ -38,17 +41,27 @@ export class LinuxSteamSessionService {
   private games: LinuxSteamGameLaunch | null = null;
   private pageRecovery: LinuxSteamPageRecovery = new LinuxSteamPageRecovery();
   private recoveryQueued: boolean = false;
+  private hostRecovery: Promise<void> | null = null;
   private userAction: number = 0;
+  private lastLoggedState: string = '';
   static getInstance(): LinuxSteamSessionService {
     if (!LinuxSteamSessionService.instance) LinuxSteamSessionService.instance = new LinuxSteamSessionService();
     return LinuxSteamSessionService.instance;
   }
   initialize(context: common.UIAbilityContext): void { this.context = context; }
+  isActive(): boolean { return this.starting !== null || this.worker !== null ||
+    (this.value.state !== 'stopped' && this.value.state !== 'failed'); }
   snapshot(): LinuxSteamSnapshot { return { state: this.value.state, presentation: this.value.presentation,
     message: this.value.message, generation: this.value.generation }; }
   subscribe(listener: LinuxSteamSessionListener): void { this.listeners.add(listener); listener(this.snapshot()); }
   unsubscribe(listener: LinuxSteamSessionListener): void { this.listeners.delete(listener); }
   private publish(): void {
+    const logged = `${this.value.generation}:${this.value.state}:${this.value.presentation}:${this.value.message}`;
+    if (logged !== this.lastLoggedState) {
+      this.lastLoggedState = logged;
+      hilog.info(0, 'DeckLaunch', 'state=%{public}s presentation=%{public}s message=%{public}s',
+        this.value.state, this.value.presentation, this.value.message);
+    }
     try { ensureSmokeDirectory(`${BASE}/session`); ConfigurationFiles.json(`${BASE}/session/state.json`, JSON.stringify(this.snapshot())); } catch (_) {}
     this.listeners.forEach((listener: LinuxSteamSessionListener): void => listener(this.snapshot()));
   }
@@ -124,12 +137,20 @@ export class LinuxSteamSessionService {
       await LinuxSteamInstallService.getInstance().ensureReady(this.context);
       this.elapsed('components', stageAt); stageAt = Date.now();
       const root = LinuxSteamLibraryService.getInstance().externalRoot();
+      try { applyLinuxSteamDownloadPolicy(root); }
+      catch (error) {
+        hilog.warn(0, 'DeckLaunch', 'Download connection preference was not applied: %{public}s', (error as Error).message.substring(0, 160));
+        promptAction.showToast({ message: '下载连接设置未能应用，Steam 将使用原配置启动', duration: 5000 });
+      }
+      const zRoot = await linuxSteamDownloadHome(this.context);
+      ConfigurationFiles.json(`${BASE}/wine-z-root.path`, zRoot + '\n');
       const engine = WineEngineService.getInstance();
       this.value.message = '正在准备游戏桌面'; this.publish();
       const ready = await engine.ensureReady(DisplayMode.DESKTOP, WinePresentationMode.DESKTOP,
-        root.substring(0, root.length - '/SteamLinuxARM64'.length), foregroundCurrent);
+        zRoot, foregroundCurrent);
       this.elapsed('wineDesktop', stageAt); stageAt = Date.now();
       if (!ready) throw new Error(engine.getMessage() || '无法准备 Wine 桌面');
+      await ManagedLinuxSteamBridgeService.synchronizeCompatibility(this.context, `${root}/client/.steam/steam`, '/data/storage/el2/base/files/.wine');
       ensureSmokeDirectory(TMP); ensureSmokeDirectory(`${BASE}/session`);
       ConfigurationFiles.json(`${BASE}/session-generation.txt`, this.value.generation + '\n');
       ConfigurationFiles.json(`${BASE}/client-launch.conf`, 'arg=-cef-disable-gpu\narg=-cef-disable-gpu-compositing\nsoftwareOpenGL=1\nsocketMetadata=1\nwineWindowHost=1\nsteamClientBridge=experimental\n' +
@@ -141,7 +162,7 @@ export class LinuxSteamSessionService {
       this.host = new LinuxSteamWindowHost();
       await this.host.start(this.context, driveC, results);
       this.elapsed('windowHost', stageAt); stageAt = Date.now();
-      this.games = new LinuxSteamGameLaunch(); this.games.start(`${root}/library`, results);
+      this.games = new LinuxSteamGameLaunch(); this.games.start(`${root}/library`, results, zRoot);
       this.pageRecovery.start(`${root}/client/.steam/steam/logs/cef_log.txt`);
       this.value.state = 'starting'; this.value.message = '正在打开官方 Linux ARM64 Steam'; this.publish();
       this.timer = setInterval((): void => this.poll(), 400);
@@ -185,7 +206,16 @@ export class LinuxSteamSessionService {
         const cold = await this.start(foregroundCurrent, action, appId);
         // A cold request is already queued in the official client's argv.
         // Never replay it just because its login window became visible.
-        if (!cold) await this.dispatch(action, appId);
+        if (!cold) {
+          if (action !== 'shutdown') {
+            if ((!this.host || this.host.hasExited()) && !foregroundCurrent()) {
+              if (launchTicket) tasks.cancelExpectedSteamGame(launchTicket);
+              return; // A superseded request cannot create or foreground a replacement.
+            }
+            await this.ensureWindowHost();
+          }
+          await this.dispatch(action, appId);
+        }
       }
       catch (error) { if (launchTicket) tasks.cancelExpectedSteamGame(launchTicket); throw new Error((error as Error).message); }
       this.elapsed('actionDispatch', stageAt); stageAt = Date.now();
@@ -238,6 +268,33 @@ export class LinuxSteamSessionService {
       throw new Error((error as Error).message);
     }
   }
+  private async ensureWindowHost(): Promise<void> {
+    if (this.hostRecovery) { await this.hostRecovery; return; }
+    if (this.host && !this.host.hasExited()) return;
+    if (!this.context || !this.worker || this.value.state !== 'running')
+      throw new Error('Steam 会话尚未就绪，无法恢复窗口');
+    const context = this.context;
+    const generation = this.value.generation;
+    const previous = this.host;
+    previous?.stop(); this.host = null;
+    const replacement = new LinuxSteamWindowHost(); this.host = replacement;
+    this.value.message = '正在恢复 Steam 承载窗口'; this.publish();
+    const operation = (async (): Promise<void> => {
+      try {
+        await replacement.start(context, '/data/storage/el2/base/files/.wine/drive_c',
+          '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session', true);
+        if (generation !== this.value.generation || !this.worker || this.value.state !== 'running' || this.host !== replacement)
+          throw new Error('Steam 窗口恢复已取消');
+        this.value.message = 'Steam 已打开，登录和同步状态请在客户端查看'; this.publish();
+      } catch (error) {
+        replacement.stop(); if (this.host === replacement) this.host = null;
+        throw new Error(`Steam 窗口恢复失败：${(error as Error).message}`);
+      }
+    })();
+    this.hostRecovery = operation;
+    try { await operation; } finally { if (this.hostRecovery === operation) this.hostRecovery = null; }
+  }
+
   async restore(): Promise<void> {
     GamepadManager.getInstance().releaseAll();
     if (this.host && await this.host.restore()) return;

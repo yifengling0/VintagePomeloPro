@@ -87,6 +87,7 @@ void InputManager::BindCompositorDeps(ToplevelManager& tmgr, InputResolver& reso
 void InputManager::Shutdown() {
     // 队列资源 (pipeSource_/fd/display) 清理迁 InputQueue
     queue_.Shutdown();
+    pendingExternalResize_ = 0;
     // 清理状态 (原第二段逐字, 顺序: buttons → modifiers → pointer/kbd 焦点)
     tracker_.ResetButtons();
     tracker_.ResetModifiers();
@@ -589,12 +590,15 @@ void InputManager::SendKeyEvent(uint32_t tl, int evdevCode, bool pressed) {
     // 追踪 modifier 状态 → 同步到 Wine
     if (tracker_.IsModifierKey(evdevCode)) {
         tracker_.UpdateModifiers(evdevCode, pressed);
-        EnqueueModifiers();  // 每次修饰键变化都同步, Wine 需要最新的 modifier state
     }
 
     // 入队 key 事件
     uint32_t state = pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED;
     queue_.Enqueue(InputQueue::Event::KBD_KEY, 0, nullptr, 0, 0, evdevCode, state);
+    // wl_keyboard specifies key before its resulting modifiers. Xwayland
+    // drains queued XKB key events when modifiers arrives. Sending Lock first
+    // makes CapsLock toggle a second time and cancels uppercase input.
+    if (tracker_.IsModifierKey(evdevCode)) EnqueueModifiers();
 }
 
 void InputManager::EnqueueModifiers() {
@@ -760,14 +764,19 @@ void InputManager::RequestToplevelActivation(uint32_t id) {
     if (id) queue_.Enqueue(InputQueue::Event::ACTIVATE_TOPLEVEL, id, nullptr, 0, 0, 0, 0);
 }
 
-bool InputManager::RequestExternalHostMove(uint32_t source, uint32_t host) {
+bool InputManager::RequestExternalHostMove(uint32_t source, uint32_t host, uint32_t resizeEdges) {
     // Called on the input/NAPI thread: a late X11 request after button-up must
     // not start a stuck grab. Recheck the live binding when dequeued as well.
-    if (!source || !host || !(tracker_.PressedButtons() & 1U) ||
+    if ((resizeEdges && !ExternalResizeGeometry::Valid(resizeEdges)) || !source || !host || !(tracker_.PressedButtons() & 1U) ||
         tracker_.PointerFocusedToplevel() != host || !resolver_->CanMoveExternalHost(source, host)) return false;
-    queue_.Enqueue(InputQueue::Event::EXTERNAL_MOVE, host, nullptr,
-        GetLastGlobalPointerX(), GetLastGlobalPointerY(), source, tracker_.PointerEnterSerial());
+    if (resizeEdges) pendingExternalResize_ = host;
+    queue_.Enqueue(resizeEdges ? InputQueue::Event::EXTERNAL_RESIZE : InputQueue::Event::EXTERNAL_MOVE, host, nullptr,
+        GetLastGlobalPointerX(), GetLastGlobalPointerY(), source, resizeEdges ? resizeEdges : tracker_.PointerEnterSerial());
     return true;
+}
+
+bool InputManager::IsExternalHostResizing(uint32_t host) const {
+    return host && (pendingExternalResize_.load() == host || (moveGrab_ && moveGrab_->ResizeTarget() == host));
 }
 
 void InputManager::FlushQueue() {
@@ -778,6 +787,13 @@ void InputManager::FlushQueue() {
 
     for (auto& ev : batch) {
         switch (ev.type) {
+            case InputQueue::Event::EXTERNAL_RESIZE:
+                if ((tracker_.PressedButtons() & 1U) && !moveGrab_->IsActive() &&
+                    resolver_->CanMoveExternalHost(ev.btn_or_key, ev.tl) &&
+                    tracker_.PointerFocusedToplevel() == ev.tl)
+                    WaylandServer::GetInstance()->StartExternalResizeGrabAt(ev.tl, tracker_.PointerEnterSerial(), ev.x, ev.y, ev.state);
+                pendingExternalResize_ = 0;
+                break;
             case InputQueue::Event::EXTERNAL_MOVE:
                 if ((tracker_.PressedButtons() & 1U) && !moveGrab_->IsActive() &&
                     resolver_->CanMoveExternalHost(ev.btn_or_key, ev.tl) &&

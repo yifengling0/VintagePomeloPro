@@ -112,20 +112,35 @@ bool SteamOhosVerifyClientSource(const char *library, void *factory, char *repor
         native_image_file(getpid(), loaded.dli_fname, &module_mapped), matched = false;
     typedef int (*Borrow)(pid_t, int, uint64_t);
     Borrow borrow = (Borrow)dlsym(RTLD_DEFAULT, "SteamOhosBorrowSocket");
+    typedef int (*FindPeer)(pid_t, int);
+    FindPeer find_peer = (FindPeer)dlsym(RTLD_DEFAULT, "SteamOhosFindPeerSocket");
     struct Endpoints own[64]; unsigned count = 0;
+    int own_fds[64];
     DIR *self = opendir("/proc/self/fd"); struct dirent *entry;
     if (self) {
         while (count < 64 && (entry = readdir(self))) {
             int fd = descriptor(entry->d_name);
-            if (fd >= 0 && tcp_endpoints(fd, &own[count])) ++count;
+            if (fd >= 0 && tcp_endpoints(fd, &own[count])) { own_fds[count] = fd; ++count; }
         }
         closedir(self);
     }
     char path[80]; snprintf(path, sizeof(path), "/proc/%d/fd", pid);
     DIR *peer = image && module && borrow ? opendir(path) : NULL;
-    unsigned examined = 0, borrowed = 0;
+    int directory_error = peer ? 0 : errno;
+    unsigned examined = 0, borrowed = 0; int query_error = 0;
+    if (image && module && find_peer) {
+        for (unsigned i = 0; !matched && i < count; ++i) {
+            int duplicate = find_peer(pid, own_fds[i]);
+            if (duplicate < 0) { query_error = errno; continue; }
+            ++borrowed; struct Endpoints remote;
+            matched = tcp_endpoints(duplicate, &remote) &&
+                equal_address(&own[i].local, &remote.peer) && equal_address(&own[i].peer, &remote.local);
+            close(duplicate);
+        }
+    }
     if (peer) {
-        while (!matched && examined++ < 4096 && (entry = readdir(peer))) {
+        // Older paired runtimes retain the exact PID/FD/inode protocol.
+        while (!find_peer && !matched && examined++ < 4096 && (entry = readdir(peer))) {
             int fd = descriptor(entry->d_name); uint64_t inode;
             if (fd < 0 || !socket_inode(pid, fd, &inode)) continue;
             int duplicate = borrow(pid, fd, inode);
@@ -143,8 +158,8 @@ bool SteamOhosVerifyClientSource(const char *library, void *factory, char *repor
     }
     fprintf(stderr, "STEAMOHOS_CLIENT_SOURCE expectedPid=%d nativeMachine=%d expectedImageNative=%d loadedLibraryNative=%d imageFileMapped=%d libraryFileMapped=%d connectedTcpSockets=%u borrowedPeerSockets=%u peerMatched=%d\n",
         pid, NATIVE_MACHINE, image, module, image_mapped, module_mapped, count, borrowed, matched);
-    snprintf(report, capacity, "{\"expectedPid\":%d,\"nativeMachine\":%d,\"expectedImageNative\":%s,\"loadedLibraryNative\":%s,\"connectedTcpSockets\":%u,\"borrowedPeerSockets\":%u,\"peerMatched\":%s,\"metadataAvailable\":%s}",
+    snprintf(report, capacity, "{\"expectedPid\":%d,\"nativeMachine\":%d,\"expectedImageNative\":%s,\"loadedLibraryNative\":%s,\"connectedTcpSockets\":%u,\"borrowedPeerSockets\":%u,\"peerMatched\":%s,\"metadataAvailable\":%s,\"peerQueryAvailable\":%s,\"peerDirectoryErrno\":%d,\"peerQueryErrno\":%d}",
         pid, NATIVE_MACHINE, image ? "true" : "false", module ? "true" : "false", count, borrowed,
-        matched ? "true" : "false", borrow ? "true" : "false");
+        matched ? "true" : "false", borrow ? "true" : "false", find_peer ? "true" : "false", directory_error, query_error);
     return image && module && matched;
 }

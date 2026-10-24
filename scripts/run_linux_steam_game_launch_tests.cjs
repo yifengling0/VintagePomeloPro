@@ -33,6 +33,12 @@ const deps = {
   },
   './ConfigurationFiles': { ConfigurationFiles: { fileHash: async name => helperDigests.get(name) || 'changed' } }
 };
+const paths = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../entry/src/main/ets/service/LinuxSteamPaths.ets'), 'utf8'), {
+  compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }
+}).outputText, { exports: paths });
+deps['./LinuxSteamPaths'] = paths;
 const output = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
   '../entry/src/main/ets/service/LinuxSteamGameLaunch.ets'), 'utf8'), {
@@ -44,11 +50,14 @@ const request = () => ({ id: 1, appId: '695630', role: 'game', cwd: '/z/SteamLin
   argv: ['/z/SteamLinuxARM64/library/steamapps/common/NewPAL/NewPAL_Release.exe'], environment: ['SteamAppId=695630'] });
 const service = new output.LinuxSteamGameLaunch();
 async function main() {
-service.start('/z/SteamLinuxARM64/library', '/results');
+service.start('/z/SteamLinuxARM64/library', '/results', '/z');
 requests = [request()]; await service.tick();
+assert.equal(launches[0][0], 'Z:\\SteamLinuxARM64\\library\\steamapps\\common\\NewPAL\\NewPAL_Release.exe');
 assert.deepEqual(Array.from(launches[0][3]), ['SteamAppId=695630']);
 state = 0; await service.tick();
 const evidence = () => JSON.parse(files.get('/results/game-launch-695630.json'));
+assert.equal(files.get('/results/last-game-launch.json'), files.get('/results/game-launch-695630.json'));
+assert.ok(Number.isSafeInteger(evidence().updatedAt) && evidence().updatedAt > 0);
 assert.deepEqual(completions.at(-1), ['wine-100-1', true]);
 assert.equal(evidence().exitCode, 1); assert.equal(evidence().exitCodeSource, 'waitpid');
 assert.equal(evidence().steamApiAuthenticationVerified, false);
@@ -84,6 +93,8 @@ for (const [relative, record] of Object.entries(lock.files)) {
   const helperEvidence = JSON.parse(files.get(`/results/client-helper-${record.role}-695630.json`));
   assert.equal(helperEvidence.exitCode, 7);
   assert.equal(helperEvidence.role, record.role);
+  assert.equal(files.get('/results/last-client-helper.json'), JSON.stringify(helperEvidence));
+  assert.equal(files.get('/results/last-game-launch.json'), previousGame);
   assert.equal(JSON.stringify(evidence()), previousGame, 'Helper completion cannot overwrite game evidence');
   assert.equal(launches.filter(call => call[0] === 'registerGame').length, gameRegistrations);
   const launchesBefore = launches.length;
@@ -106,13 +117,13 @@ assert.equal(service.pending.length, 0, 'Cancelled queued work cannot start late
 before = launchCount(); service.stop(); state = 0; await service.tick();
 assert.equal(launchCount(), before, 'Stopped service cannot start queued helpers');
 // Diagnostics cannot become lifecycle control or kill a running game.
-service.start('/z/SteamLinuxARM64/library', '/results');
+service.start('/z/SteamLinuxARM64/library', '/results', '/z');
 failAudit = true; service.ticks = 24; state = 1; requests = [request()];
 await service.tick(); assert.equal(service.sessions.length, 1);
 failRecord = true; service.ticks = 49;
 await service.tick(); assert.equal(service.sessions.length, 1);
 failAudit = false; failRecord = false;
-service.stop(); service.start('/z/SteamLinuxARM64/library', '/results');
+service.stop(); service.start('/z/SteamLinuxARM64/library', '/results', '/z');
 replyAccepted = false; requests = [request()];
 const registrationsBefore = launches.filter(call => call[0] === 'registerGame').length;
 const stopBefore = stopped.length;
@@ -125,6 +136,22 @@ await service.tick(); assert.equal(service.sessions.length, 0, 'Per-request laun
 failLaunch = false; requests = [request()]; await service.tick();
 assert.equal(service.sessions.length, 1, 'Next launch works without restarting the broker');
 service.stop();
+const privateRoot = paths.LINUX_STEAM_PRIVATE_ROOT;
+service.start(privateRoot + '/library', '/results', '/z');
+const localGame = request();
+localGame.argv = [privateRoot + '/library/steamapps/common/中文 游戏/game.exe',
+  privateRoot + '/library/steamapps/common/中文 游戏/installscript.vdf', '/quiet', 'https://example.com/a', '-path=C:\\old'];
+localGame.cwd = privateRoot + '/library/steamapps/common/中文 游戏';
+requests = [localGame]; state = 1; await service.tick();
+const privateLaunch = launches.filter(call => call[0] !== 'registerGame').at(-1);
+assert.equal(privateLaunch[0], 'C:\\SteamLinuxARM64\\library\\steamapps\\common\\中文 游戏\\game.exe');
+assert.deepEqual(Array.from(privateLaunch[1]), ['C:\\SteamLinuxARM64\\library\\steamapps\\common\\中文 游戏\\installscript.vdf',
+  '/quiet', 'https://example.com/a', '-path=C:\\old']);
+service.stop();
+for (const bad of ['/z-other/SteamLinuxARM64', '/z/../outside/game.exe', '/outside/game.exe']) {
+  assert.throws(() => paths.linuxSteamWindowsPath(bad, '/z'));
+}
+assert.equal(paths.linuxSteamWindowsPath('/z/one/../two', '/z'), 'Z:\\two');
 console.log('Linux Steam Wine handoff, opt-in diagnostics, real exit status and unknown-state evidence: PASS');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

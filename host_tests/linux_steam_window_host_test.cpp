@@ -9,6 +9,24 @@
 
 int main()
 {
+    // Every edge starts from the original rectangle; repeated pointer frames
+    // cannot compound motion. Left/top edges must keep their opposite fixed.
+    const ExternalResizeGeometry original{100,60,640,400};
+    for (uint32_t edge : {1u,2u,4u,5u,6u,8u,9u,10u}) {
+        const auto a=original.Drag(edge,25,35), b=original.Drag(edge,25,35);
+        assert(a.x==b.x&&a.y==b.y&&a.width==b.width&&a.height==b.height);
+        if(edge&4)assert(a.x+a.width==original.x+original.width&&a.width==615);
+        if(edge&8)assert(a.x==original.x&&a.width==665);
+        if(edge&1)assert(a.y+a.height==original.y+original.height&&a.height==365);
+        if(edge&2)assert(a.y==original.y&&a.height==435);
+        for(int delta:{-100000,100000}) {
+            const auto r=original.Drag(edge,delta,delta);
+            assert(r.width>=320&&r.height>=200&&r.width<=4096&&r.height<=4096);
+            assert(int64_t(r.width)*r.height<=8388608);
+        }
+    }
+    assert(original.Drag(3,100,100).width==640);
+    assert(original.Drag(10,100000,100000).width==4096);
     Fixture f;
     SurfaceData hostData; wl_resource host{&hostData};
     f.window(hostData, host, 7, true);
@@ -138,7 +156,40 @@ int main()
     std::this_thread::sleep_for(std::chrono::milliseconds(120));DrainInput();
     assert(server->movedHost==0);
     assert(!manager->RequestExternalHostMove(4,7));
+    assert(!manager->RequestExternalHostMove(4,7,10));
+    manager->SendPointerEvent(7,1,75,50,0x110);DrainInput();
+    assert(!manager->RequestExternalHostMove(4,7,3));
+    assert(manager->RequestExternalHostMove(4,7,10));
+    assert(manager->IsExternalHostResizing(7));
+    DrainInput();
+    assert(server->movedHost==7&&server->resizeEdges==10);
+    manager->SendPointerEvent(7,2,75,50,0x110);
+    std::this_thread::sleep_for(std::chrono::milliseconds(120));DrainInput();
+    assert(server->movedHost==0&&!manager->IsExternalHostResizing(7));
+    // A delayed X11 request that reaches the queue after release cannot grab.
+    manager->SendPointerEvent(7,1,75,50,0x110);DrainInput();
+    assert(manager->RequestExternalHostMove(4,7,5));
+    manager->SendPointerEvent(7,2,75,50,0x110);
+    std::this_thread::sleep_for(std::chrono::milliseconds(120));DrainInput();
+    assert(server->movedHost==0&&!manager->IsExternalHostResizing(7));
     manager->Shutdown();
+    {
+        auto lock=f.tm.Lock();auto* window=f.tm.FindToplevelLocked(7);
+        window->SetPosition(100,60);window->SetContentSize(640,400);
+    }
+    MoveGrabHandler resizing;
+    resizing.StartExternalResizeGrab(f.tm,7,1,100,60,5);
+    assert(resizing.ResizeTarget()==7);
+    assert(resizing.ProcessMoveGrabMotion(f.tm,125,95));
+    assert(resizing.ResizeBounds().x==125&&resizing.ResizeBounds().y==95);
+    assert(resizing.ResizeBounds().width==615&&resizing.ResizeBounds().height==365);
+    assert(resizing.ProcessMoveGrabMotion(f.tm,125,95));
+    assert(resizing.ResizeBounds().x==125&&resizing.ResizeBounds().width==615);
+    resizing.EndMoveGrab(f.tm);assert(!resizing.IsActive()&&!resizing.ResizeTarget());
+    {
+        auto lock=f.tm.Lock();auto* window=f.tm.FindToplevelLocked(7);
+        window->SetPosition(30,10);window->SetContentSize(100,72);
+    }
     {
         auto lock = f.tm.Lock(); f.tm.FindToplevelLocked(7)->SetMinimized(true);
     }

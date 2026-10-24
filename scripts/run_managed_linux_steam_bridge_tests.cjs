@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const ts=require(path.resolve(process.argv[2]));
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'hmosdeck-managed-bridge-'));
 let failRename=0, renames=0;
-const fileIo={accessSync:fs.existsSync,statSync:fs.statSync,mkdirSync:(p)=>fs.mkdirSync(p,{recursive:true}),
+const fileIo={accessSync:fs.existsSync,statSync:fs.statSync,lstatSync:fs.lstatSync,mkdirSync:(p)=>fs.mkdirSync(p,{recursive:true}),
  copyFileSync:fs.copyFileSync,renameSync(a,b){if(++renames===failRename)throw Error('interrupted');fs.renameSync(a,b);},unlinkSync:fs.unlinkSync,
  OpenMode:{READ_ONLY:'r'},openSync:p=>({fd:fs.openSync(p,'r')}),closeSync:f=>fs.closeSync(f.fd),
  readSync:(fd,buffer,options)=>fs.readSync(fd,new Uint8Array(buffer),0,options.length,options.offset)};
@@ -28,6 +28,33 @@ function fixture(name){
 (async()=>{
  try{
   await service.synchronize(path.join(root,'no-marker'),path.join(root,'untouched'));
+  const client=path.join(root,'linux-client'),prefix=path.join(root,'compat-prefix');
+  const names=['steamclient.dll','steamclient64.dll','Steam.dll'];
+  const files=names.map((name,i)=>{const data=Buffer.alloc(2048,i+2),source=path.join(client,'steamohos/compat',name);
+   fs.mkdirSync(path.dirname(source),{recursive:true});fs.writeFileSync(source,data);return {name,bytes:data.length,sha256:digest(source)};});
+  const metadata=()=>JSON.stringify({schemaVersion:1,files});
+  const context={resourceManager:{getRawFileContent:async name=>{assert.equal(name,'linux-steam/client-compat.json');return metadata();}}};
+  await service.synchronizeCompatibility(context,client,prefix);
+  const compatDir=path.join(prefix,'drive_c/windows/hmosdeck-steam');
+  for(const item of files)assert.equal(digest(path.join(compatDir,item.name)),item.sha256);
+  fs.writeFileSync(path.join(client,'steamohos/compat/steamclient.dll'),Buffer.alloc(2048,77));
+  await assert.rejects(service.synchronizeCompatibility(context,client,prefix),/校验失败/);
+  assert.equal(digest(path.join(compatDir,'steamclient.dll')),files[0].sha256);
+  files[0].name='../escape.dll';
+  await assert.rejects(service.synchronizeCompatibility(context,client,prefix),/清单无效/);
+  files[0].name='steamclient.dll';
+  const source32=path.join(client,'steamohos/compat/steamclient.dll');
+  fs.copyFileSync(path.join(compatDir,'steamclient.dll'),source32);
+  const target32=path.join(compatDir,'steamclient.dll'),pending32=target32+'.winehua-steam-update';
+  const protectedFile=path.join(root,'protected-user-file');fs.writeFileSync(protectedFile,'keep');
+  fs.unlinkSync(target32);fs.symlinkSync(protectedFile,pending32);
+  await assert.rejects(service.synchronizeCompatibility(context,client,prefix),/临时文件无效/);
+  assert.equal(fs.readFileSync(protectedFile,'utf8'),'keep');fs.unlinkSync(pending32);
+  fs.symlinkSync(path.join(root,'missing-user-file'),pending32);
+  await assert.rejects(service.synchronizeCompatibility(context,client,prefix),/临时文件无效/);
+  assert.equal(fs.existsSync(path.join(root,'missing-user-file')),false);fs.unlinkSync(pending32);
+  await service.synchronizeCompatibility(context,client,prefix);
+
   assert.equal(fs.existsSync(path.join(root,'untouched')),false);
   const f=fixture('fresh');await service.synchronize(f.runtime,f.prefix);
   for(const record of f.files)assert.equal(digest(f.target(record)),record.sha256);

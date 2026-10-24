@@ -18,4 +18,8 @@ public:
     void StartMoveGrabAt(uint32_t host, uint32_t, int32_t x,int32_t y) {
         movedHost=host;moveX=x;moveY=y;
     }
+    uint32_t resizeEdges = 0;
+    void StartExternalResizeGrabAt(uint32_t host, uint32_t serial, int32_t x, int32_t y, uint32_t edges) {
+        StartMoveGrabAt(host,serial,x,y);resizeEdges=edges;
+    }
 };

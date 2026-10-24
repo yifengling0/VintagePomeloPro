@@ -487,6 +487,7 @@ export interface SteamLocalIdentity {
   clientId: string;
   appId: string;
   state: string;
+  clientAction?: string;
 }
 
 export interface AppSettings {

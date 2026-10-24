@@ -23,6 +23,7 @@ const rulesCode = ts.transpileModule(fs.readFileSync(path.join(__dirname,
 }).outputText;
 vm.runInNewContext(rulesCode, { exports: rules });
 const dependencies = {
+  './LinuxSteamPaths': {},
   '../steam/SteamLocalRules': rules,
   '@kit.CoreFileKit': { fileIo: {
     listFileSync: root => { assert.equal(root, steam + '/userdata'); return ['123', '../Steam', 'config']; },
@@ -64,7 +65,9 @@ assert.equal(steamConfig.text('unrelated'), 'retain-value');
 const tools = steamConfig.child('compattoolmapping');
 assert.equal(tools.child('0').text('name'), 'hmosdeck_proton');
 assert.equal(tools.child('0').text('config'), '');
+assert.equal(tools.child('0').text('priority'), '100');
 assert.equal(tools.child('695630').text('name'), 'hmosdeck_proton');
+assert.equal(tools.child('695630').text('priority'), '250');
 assert.equal(tools.child('42').text('name'), 'GE-Proton-custom');
 assert.equal(tools.child('77').text('name'), 'proton_9', 'Do not rewrite a non-installed app');
 assert.equal(output.normalizeHmosDeckToolMappings(normalized, ['695630']), normalized);
@@ -84,3 +87,63 @@ assert.throws(() => output.testPrepareDefaults(steam, ['695630']));
 assert.equal(files.get(global), config, 'Default selection must not change if its backup cannot be preserved');
 blocked = '';
 console.log('Linux Steam fresh default, built-in Proton migration, explicit custom-tool preservation and atomic config writes: PASS');
+
+function mappings(text) {
+  return rules.parseSteamVdf(text).child('installconfigstore').child('software').child('valve')
+    .child('steam').child('compattoolmapping');
+}
+function configuration(entries) {
+  return '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { ' + entries + ' } } } } }';
+}
+const oldDefault = configuration('"0" { "name" "hmosdeck_proton" "priority" "75" "config" "keep-flags" }');
+const withCs2 = output.normalizeHmosDeckToolMappings(oldDefault, ['730', '730', '227300']);
+let selections = mappings(withCs2);
+assert.equal(selections.child('0').text('priority'), '100', 'Upgrade existing installations, not just fresh configs');
+assert.equal(selections.child('0').text('config'), 'keep-flags');
+assert.equal(selections.child('730').text('name'), 'hmosdeck_proton', 'CS2 must not inherit its native sniper mapping');
+assert.equal(selections.child('730').text('priority'), '250', 'Per-game selection must beat Steam native defaults at 100/101');
+assert.equal(selections.child('227300').text('priority'), '250');
+assert.equal(output.normalizeHmosDeckToolMappings(withCs2, ['730', '227300']), withCs2);
+
+const nativeMappings = configuration(
+  '"730" { "name" "SteamLinuxRuntime_sniper" "priority" "100" } ' +
+  '"440" { "name" "SteamLinuxRuntime_sniper" "priority" "101" } ' +
+  '"570" { "name" "native" "priority" "75" } ' +
+  '"42" { "name" "native" "priority" "250" "config" "explicit-native" } ' +
+  '"43" { "name" "GE-Proton-custom" "priority" "250" } ' +
+  '"44" { "name" "hmosdeck_proton" "priority" "75" "config" "own-flags" } ' +
+  '"45" { "name" "hmosdeck_proton" "priority" "300" }');
+selections = mappings(output.normalizeHmosDeckToolMappings(nativeMappings, ['730', '440', '570', '42', '43', '44', '45']));
+for (const id of ['730', '440', '570', '44']) {
+  assert.equal(selections.child(id).text('name'), 'hmosdeck_proton');
+  assert.equal(selections.child(id).text('priority'), '250');
+}
+assert.equal(selections.child('42').text('name'), 'native', 'Preserve an explicit user native selection');
+assert.equal(selections.child('42').text('config'), 'explicit-native');
+assert.equal(selections.child('43').text('name'), 'GE-Proton-custom');
+assert.equal(selections.child('44').text('config'), 'own-flags');
+assert.equal(selections.child('45').text('priority'), '300', 'Do not lower an existing stronger selection');
+
+function manifest(id, name, directory, extra = '') {
+  return '"AppState" { "appid" "' + id + '" "name" "' + name + '" "installdir" "' + directory + '" ' + extra + ' }';
+}
+const installed = [
+  ['730', manifest('730', 'Counter-Strike 2', 'Counter-Strike Global Offensive')],
+  ['227300', manifest('227300', 'Euro Truck Simulator 2', 'Euro Truck Simulator 2')],
+  ['695630', manifest('695630', '新仙剑奇侠传', 'NewPAL')],
+  ['1628350', manifest('1628350', 'Steam Linux Runtime 3.0 (sniper)', 'SteamLinuxRuntime_sniper')],
+  ['1070560', manifest('1070560', 'Steam Linux Runtime 1.0 (scout)', 'SteamLinuxRuntime')],
+  ['228980', manifest('228980', 'Steamworks Common Redistributables', 'Steamworks Shared')],
+  ['2805730', manifest('2805730', 'Proton 9.0', 'Proton 9.0')],
+  ['3127680', manifest('3127680', 'FEX', 'FEX-Emu')],
+  ['50', manifest('50', 'Other component', 'Other component', '"type" "tool"')],
+  ['51', manifest('52', 'Mismatched app', 'Game')],
+  ['53', manifest('53', 'Unsafe path', '../Game')],
+  ['54', '"AppState" {'],
+  ['55', manifest('55', '', 'Unknown')]
+];
+const games = installed.filter(([id, text]) => output.isHmosDeckGameManifest(text, id)).map(([id]) => id);
+assert.deepEqual(games, ['730', '227300', '695630']);
+selections = mappings(output.normalizeHmosDeckToolMappings('', games));
+assert.deepEqual(Array.from(selections.children.keys()), ['0', '730', '227300', '695630']);
+console.log('Linux Steam priority upgrade, CS2 native-default override, shared-tool exclusion, explicit selection and repeated startup: PASS');

@@ -140,7 +140,8 @@ int main(int argc,char** argv){
     // the real library boundary and PE identity independently.
     request.install=installed;
     const std::string base=installed;
-    const std::string originalCwd=request.cwd;
+    char realCwd[4096];
+    const std::string originalCwd=realpath(cwd,realCwd)?realCwd:installed;
     if(argc>122)return 64;
     for(int i=2;i<argc;++i){if(strlen(argv[i])>16384)return 64;request.argv.emplace_back(argv[i]);}
     if(request.argv[0].empty())return 64;
@@ -150,6 +151,14 @@ int main(int argc,char** argv){
         fputs("HMOSDECK: executable path cannot be resolved\n",stderr);return 72;
     }
     request.argv[0]=executable;
+    // Official install scripts receive Unix paths through Proton. Resolve the
+    // configured GNU aliases before OHOS Wine converts those arguments to DOS
+    // paths. Never rewrite switches, URLs, Windows paths or arbitrary substrings.
+    for(size_t i=1;i<request.argv.size();++i) {
+        char canonical[4096];
+        if(!request.argv[i].empty()&&request.argv[i][0]=='/'&&
+           realpath(request.argv[i].c_str(),canonical))request.argv[i]=canonical;
+    }
     char clientPath[4096];const char* steamRoot=Env("STEAMOHOS_STEAM_ROOT");
     const std::string client=*steamRoot&&realpath(steamRoot,clientPath)?clientPath:"";
     const bool installer=!client.empty()&&request.argv[0]==client+"/legacycompat/iscriptevaluator.exe";

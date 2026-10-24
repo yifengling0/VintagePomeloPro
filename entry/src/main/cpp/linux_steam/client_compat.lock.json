@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "package": "bins_misc_linuxarm64.zip.7ec11b458eb4bbffc6ada9a85924c7d7db25132f",
+  "packageSha1": "7ec11b458eb4bbffc6ada9a85924c7d7db25132f",
+  "files": {
+    "steamclient.dll": {
+      "source": "steamclient.dll",
+      "bytes": 21551256,
+      "sha256": "6b73151780c4d48bc5c37c674a69ef49094b5656482335dcb28730f00b646dbb",
+      "architecture": "i386"
+    },
+    "steamclient64.dll": {
+      "source": "steamclient64.dll",
+      "bytes": 26544280,
+      "sha256": "e9045710ec7ee47d7b7488d1c5dda2d933dec7e251e965967a5c48f4df68eb4e",
+      "architecture": "x86_64"
+    },
+    "Steam.dll": {
+      "source": "legacycompat/Steam.dll",
+      "bytes": 385312,
+      "sha256": "b2000e57123e99bbbe26aaec40cfaf09a4df93959c5148f0db571ed2e3401102",
+      "architecture": "i386"
+    }
+  }
+}

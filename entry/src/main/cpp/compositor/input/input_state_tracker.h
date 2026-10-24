@@ -60,7 +60,7 @@ public:
     uint32_t ModifiersLatched() const { return modifiersLatched_; }
     uint32_t ModifiersLocked() const { return modifiersLocked_; }
     uint32_t ModifiersGroup() const { return modifiersGroup_; }
-    void ResetModifiers() { modifiersDepressed_ = 0; modifiersLatched_ = 0; modifiersLocked_ = 0; modifiersGroup_ = 0; }
+    void ResetModifiers() { modifierKeys_ = 0; modifiersDepressed_ = 0; modifiersLatched_ = 0; modifiersLocked_ = 0; modifiersGroup_ = 0; }
 
     // -- pointer 焦点 (原子字段语义同旧: NAPI 读做 surface 级 enter/leave 判定,
     //    Wayland 线程 Write 注入) --
@@ -130,6 +130,7 @@ private:
     uint32_t pressedButtons_ = 0;
     // modifier state (原四个非 atomic 字段: NAPI 线程独占写; Wayland 线程
     // 仅在 InjectKbdEnter 日志读 dirty 值 — 与旧实现相同的无害竞态)
+    uint32_t modifierKeys_ = 0; // Individual left/right keys; repeated down does not toggle locks.
     uint32_t modifiersDepressed_ = 0;
     uint32_t modifiersLatched_ = 0;
     uint32_t modifiersLocked_ = 0;

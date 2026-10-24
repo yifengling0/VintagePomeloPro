@@ -70,6 +70,22 @@ ensure_wine_patch() {
     if patch -d "$WINE_SRC" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1; then
         log "$description already applied"
     else
+        # Native PE bootstrap extends 0065's inserted registry view. Prove
+        # both overlays on one small copy before accepting an existing tree.
+        if [ "${patch_file##*/}" = 0065-kernelbase-linux-steam-session-registry.patch ]; then
+            if (
+                steam_proof=$(mktemp -d -t wine-steam-proof-XXXXXXXX)
+                trap 'rm -rf -- "$steam_proof"' EXIT
+                mkdir -p "$steam_proof/dlls/kernelbase"
+                cp "$WINE_SRC/dlls/kernelbase/registry.c" "$steam_proof/dlls/kernelbase/registry.c"
+                patch -d "$steam_proof" -p1 --batch --force -R \
+                    < "${patch_file%/*}/0069-linux-steam-native-module-bootstrap.patch" >/dev/null 2>&1 &&
+                patch -d "$steam_proof" -p1 --batch --force --dry-run -R < "$patch_file" >/dev/null 2>&1
+            ); then
+                log "$description already applied below native PE bootstrap"
+                return
+            fi
+        fi
         # 0067 changes the durable handshake condition introduced by 0011.
         # Verify the stack on copies, never reverse a caller's source tree.
         if [ "${patch_file##*/}" = 0011-wineboot-durable-prefix-completion.patch ]; then
@@ -327,6 +343,7 @@ fi
 
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0065-kernelbase-linux-steam-session-registry.patch" \
     "Process-local Linux Steam SDK bootstrap"
+ensure_wine_patch "$ROOT/patches/wine/0069-linux-steam-native-module-bootstrap.patch" "Linux Steam native PE bootstrap"
 
 # Normalize inherited temporary probes; keep the actual fault/exit paths intact.
 python3 "$SCRIPT_DIR/wine_runtime_diagnostics.py" --source "$WINE_SRC"

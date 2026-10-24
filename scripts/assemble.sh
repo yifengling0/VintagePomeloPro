@@ -1039,6 +1039,11 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
             --output "${ICU_COMPAT_OUTPUT:-$BUILD_DIR/icu-compat/output}" --directory "$wine_data"
     fi
 
+    if [ "$WINE_ARCH" = aarch64 ]; then
+        python3 "$SCRIPT_DIR/wined3d_runtime_contract.py" \
+            --wine-source "$WINE_SRC" --directory "$wine_data"
+    fi
+
     # Catch SDK copies from optional/legacy paths too, before creating payloads.
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$NATIVE_LIBS" "$wine_data"
 
@@ -1068,6 +1073,10 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
   "smokeSuiteVersion": "$smoke_suite_version"
 }
 EOF
+    if [ "$WINE_ARCH" = aarch64 ]; then
+        python3 "$SCRIPT_DIR/wined3d_runtime_contract.py" \
+            --directory "$wine_data" --manifest "$rawfile_dir/wine-runtime-manifest.json"
+    fi
 # VPP 兼容: wine_runtime.version (WineEngineService 启动时整读比较的版本标记)。
 # 方案③布局, 内容为 zip sha256 + 关键 pin, 仅供人工核对与设备端 marker 比对。
 VP_VERSION_FILE="$rawfile_dir/wine_runtime.version"

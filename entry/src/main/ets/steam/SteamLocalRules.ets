@@ -147,7 +147,7 @@ export const STEAM_GPU_ARGUMENTS: string[] = ['-nocrashmonitor', '-noshaders', '
   '-no-cef-sandbox', '-vrdisable', '-cef-disable-breakpad'];
 
 export function steamLaunchArguments(action: string, appId: string, compatibility: boolean,
-  gameArguments: string[] = []): string[] {
+  gameArguments: string[] = [], clientAction: string = 'library'): string[] {
   const args = STEAM_GPU_ARGUMENTS.slice();
   if (compatibility) args.push('-cef-disable-gpu');
   if (action === 'play' || action === 'install') {
@@ -156,7 +156,13 @@ export function steamLaunchArguments(action: string, appId: string, compatibilit
     args.push('steam://install/' + appId);
   } else if (action === 'open') {
     // An explicit URI restores a client hidden by an earlier -silent launch.
-    args.push('steam://open/main');
+    if (clientAction === 'library') args.push('steam://open/main');
+    else if (clientAction === 'downloads') args.push('steam://open/downloads');
+    else if (clientAction === 'store') args.push('steam://store');
+    else if (clientAction === 'account') args.push('steam://open/settings/account');
+    else if (clientAction === 'bigPicture') args.push('steam://open/bigpicture');
+    else if (clientAction === 'desktop') args.push('steam://close/bigpicture');
+    else throw new Error('Steam 客户端操作无效');
   } else throw new Error('Steam 操作无效');
   return args;
 }

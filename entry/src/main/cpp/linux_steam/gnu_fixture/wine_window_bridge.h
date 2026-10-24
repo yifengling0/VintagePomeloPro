@@ -1,9 +1,12 @@
 /* Minimal X11 state manager for the private rootful Steam display. Wine owns
  * the visible HWND; Steam owns its client decorations. No image capture. */
 struct wine_window_bridge {
-    Display *display; Window root, primary, support;
+    Display *display; Window root, primary, support, active_child;
     Atom state, fullscreen, max_h, max_v, change_state, active, wm_state, moveresize;
     int mode, minimized; unsigned activation, serial, command, move_request;
+    unsigned resize_request, resize_edges;
+    Window dialog_drag;
+    int dialog_edge,dialog_px,dialog_py,dialog_x,dialog_y,dialog_width,dialog_height;
     int normal_x, normal_y, normal_width, normal_height;
     char last_type[64]; Window last_target; long last_direction,last_button;
     int caption_pressed,caption_pending,caption_x,caption_y;
@@ -11,7 +14,7 @@ struct wine_window_bridge {
     Window preferences_window;
     char preferences[PATH_MAX],previous_preferences[96];
     uint64_t preferences_due;
-    char path[PATH_MAX], commands[PATH_MAX], previous[512];
+    char path[PATH_MAX], commands[PATH_MAX], previous[768];
     uint64_t inventory_due; char inventory_previous[16384];
 };
 static int bridge_property(Display *d, Window w, Atom property, Atom expected,
@@ -61,10 +64,10 @@ static void bridge_remember_preferences(struct wine_window_bridge *b) {
     b->preferences_due=bridge_clock()+600;
 }
 static void bridge_publish(struct wine_window_bridge *b,int closed) {
-    char text[512],temporary[PATH_MAX];
-    snprintf(text,sizeof(text),"{\"version\":1,\"window\":%lu,\"mode\":%d,\"minimized\":%d,\"activation\":%u,\"closed\":%d,\"normalWidth\":%d,\"normalHeight\":%d,\"moveRequest\":%u,\"request\":\"%s\",\"requestWindow\":%lu,\"direction\":%ld,\"button\":%ld}\n",
-        b->primary,b->mode,b->minimized,b->activation,closed,b->normal_width,b->normal_height,b->move_request,
-        b->last_type,b->last_target,b->last_direction,b->last_button);
+    char text[768],temporary[PATH_MAX];
+    snprintf(text,sizeof(text),"{\"version\":1,\"window\":%lu,\"mode\":%d,\"minimized\":%d,\"activation\":%u,\"activeChild\":%lu,\"closed\":%d,\"normalWidth\":%d,\"normalHeight\":%d,\"moveRequest\":%u,\"resizeRequest\":%u,\"resizeEdges\":%u,\"commandSerial\":%u,\"request\":\"%s\",\"requestWindow\":%lu,\"direction\":%ld,\"button\":%ld}\n",
+        b->primary,b->mode,b->minimized,b->activation,b->active_child,closed,b->normal_width,b->normal_height,b->move_request,
+        b->resize_request,b->resize_edges,b->command,b->last_type,b->last_target,b->last_direction,b->last_button);
     if(!strcmp(text,b->previous))return;
     if(snprintf(temporary,sizeof(temporary),"%s.tmp",b->path)>=(int)sizeof(temporary))return;
     int fd=open(temporary,O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC|O_NOFOLLOW,0600);
@@ -79,6 +82,70 @@ static void bridge_set_state(struct wine_window_bridge *b) {
     XChangeProperty(b->display,b->primary,b->state,XA_ATOM,32,PropModeReplace,(unsigned char*)values,count);
     unsigned long legacy[2]={b->minimized?IconicState:NormalState,None};
     XChangeProperty(b->display,b->primary,b->wm_state,b->wm_state,32,PropModeReplace,(unsigned char*)legacy,2);
+}
+/* CEF launch options can be ordinary top-level windows without a transient
+ * hint. Honor their EWMH activation without changing the primary viewport.
+ * Restoring the Wine host must not raise that viewport over a live dialog. */
+static int bridge_visible_client(struct wine_window_bridge *b,Window window) {
+    XWindowAttributes a;Window root,parent,*children=NULL;unsigned count=0;
+    if(!window||!XGetWindowAttributes(b->display,window,&a)||a.override_redirect||
+       a.class==InputOnly||a.map_state!=IsViewable)return 0;
+    if(!XQueryTree(b->display,window,&root,&parent,&children,&count))return 0;
+    if(children)XFree(children);
+    return root==b->root&&parent==b->root;
+}
+static void bridge_end_dialog_drag(struct wine_window_bridge *b) {
+    if(b->dialog_drag)XUngrabPointer(b->display,CurrentTime);
+    b->dialog_drag=None;
+}
+static void bridge_start_dialog_drag(struct wine_window_bridge *b,Window window,int direction) {
+    if(direction==11){bridge_end_dialog_drag(b);return;}
+    if(direction<0||direction>8||window==b->primary||!bridge_visible_client(b,window))return;
+    Window root,child;int rx,ry,x,y;unsigned buttons;XWindowAttributes a;
+    if(!XQueryPointer(b->display,b->root,&root,&child,&rx,&ry,&x,&y,&buttons)||
+       !(buttons&Button1Mask)||!XGetWindowAttributes(b->display,window,&a))return;
+    if(XGrabPointer(b->display,window,False,PointerMotionMask|ButtonReleaseMask,
+        GrabModeAsync,GrabModeAsync,None,None,CurrentTime)!=GrabSuccess)return;
+    b->dialog_drag=window;b->dialog_edge=direction;b->dialog_px=rx;b->dialog_py=ry;
+    b->dialog_x=a.x;b->dialog_y=a.y;b->dialog_width=a.width;b->dialog_height=a.height;
+}
+static int bridge_bound(int value,int minimum,int maximum) {
+    return value<minimum?minimum:(value>maximum?maximum:value);
+}
+static void bridge_dialog_drag(struct wine_window_bridge *b) {
+    if(!b->dialog_drag)return;
+    Window root,child;int rx,ry,wx,wy;unsigned buttons;XWindowAttributes area;
+    if(!bridge_visible_client(b,b->dialog_drag)||
+       !XQueryPointer(b->display,b->root,&root,&child,&rx,&ry,&wx,&wy,&buttons)||
+       !(buttons&Button1Mask)||!XGetWindowAttributes(b->display,b->root,&area)) {
+        bridge_end_dialog_drag(b);return;
+    }
+    int x=b->dialog_x,y=b->dialog_y,w=b->dialog_width,h=b->dialog_height;
+    int dx=rx-b->dialog_px,dy=ry-b->dialog_py;
+    if(b->dialog_edge==8){x+=dx;y+=dy;}
+    else {
+        static const unsigned edges[]={5,1,9,8,10,2,6,4};unsigned edge=edges[b->dialog_edge];
+        int minw=64,minh=48,maxw=area.width,maxh=area.height;XSizeHints hints;long supplied;
+        if(XGetWMNormalHints(b->display,b->dialog_drag,&hints,&supplied)) {
+            if(hints.flags&PMinSize){minw=bridge_bound(hints.min_width,1,maxw);minh=bridge_bound(hints.min_height,1,maxh);}
+            if(hints.flags&PMaxSize){maxw=bridge_bound(hints.max_width,minw,maxw);maxh=bridge_bound(hints.max_height,minh,maxh);}
+        }
+        if(edge&(4|8))w=bridge_bound(w+((edge&4)?-dx:dx),minw,maxw);
+        if(edge&(1|2))h=bridge_bound(h+((edge&1)?-dy:dy),minh,maxh);
+        if(edge&4)x=b->dialog_x+b->dialog_width-w;
+        if(edge&1)y=b->dialog_y+b->dialog_height-h;
+    }
+    x=bridge_bound(x,0,area.width-w);y=bridge_bound(y,0,area.height-h);
+    XMoveResizeWindow(b->display,b->dialog_drag,x,y,(unsigned)w,(unsigned)h);
+}
+static void bridge_restore_client(struct wine_window_bridge *b) {
+    b->minimized=0;XMapRaised(b->display,b->primary);
+    Window focus=b->primary;
+    if(b->active_child&&bridge_visible_client(b,b->active_child)) {
+        focus=b->active_child;XRaiseWindow(b->display,focus);
+    } else b->active_child=None;
+    XSetInputFocus(b->display,focus,RevertToParent,CurrentTime);
+    bridge_set_state(b);
 }
 static void bridge_layout(struct wine_window_bridge *b) {
     XWindowAttributes root,a;
@@ -176,7 +243,7 @@ static void bridge_choose(struct wine_window_bridge *b) {
     bridge_inventory(b,children,count);
     if(children)XFree(children);
     if(candidate&&candidate!=b->primary) {
-        b->primary=candidate;b->minimized=0;
+        b->primary=candidate;b->minimized=0;b->active_child=None;
         XWindowAttributes a;
         if(XGetWindowAttributes(b->display,candidate,&a)) {
             b->normal_x=a.x;b->normal_y=a.y;b->normal_width=a.width;b->normal_height=a.height;
@@ -186,10 +253,10 @@ static void bridge_choose(struct wine_window_bridge *b) {
         XSelectInput(b->display,candidate,PropertyChangeMask|StructureNotifyMask);
         pointer_observer_watch(b->display,candidate);
         const char *names[]={"_NET_WM_ACTION_MOVE","_NET_WM_ACTION_MINIMIZE","_NET_WM_ACTION_MAXIMIZE_HORZ",
-            "_NET_WM_ACTION_MAXIMIZE_VERT","_NET_WM_ACTION_FULLSCREEN","_NET_WM_ACTION_CLOSE"};
-        Atom actions[6];for(unsigned i=0;i<6;++i)actions[i]=XInternAtom(b->display,names[i],False);
+            "_NET_WM_ACTION_MAXIMIZE_VERT","_NET_WM_ACTION_FULLSCREEN","_NET_WM_ACTION_CLOSE","_NET_WM_ACTION_RESIZE"};
+        Atom actions[7];for(unsigned i=0;i<7;++i)actions[i]=XInternAtom(b->display,names[i],False);
         XChangeProperty(b->display,candidate,XInternAtom(b->display,"_NET_WM_ALLOWED_ACTIONS",False),
-            XA_ATOM,32,PropModeReplace,(unsigned char*)actions,6);
+            XA_ATOM,32,PropModeReplace,(unsigned char*)actions,7);
         XSetInputFocus(b->display,candidate,RevertToParent,CurrentTime);
         ++b->activation;bridge_layout(b);bridge_set_state(b);
     }
@@ -231,8 +298,8 @@ static int bridge_initialize(struct wine_window_bridge *b,Display *d,Window root
     XChangeProperty(d,b->support,XInternAtom(d,"_NET_WM_NAME",False),XInternAtom(d,"UTF8_STRING",False),
         8,PropModeReplace,(const unsigned char*)name,sizeof(name)-1);
     Atom supported[]={b->state,b->fullscreen,b->max_h,b->max_v,b->active,b->moveresize,
-        XInternAtom(d,"_NET_WM_ALLOWED_ACTIONS",False),XInternAtom(d,"_NET_WM_ACTION_MOVE",False)};
-    XChangeProperty(d,root,XInternAtom(d,"_NET_SUPPORTED",False),XA_ATOM,32,PropModeReplace,(unsigned char*)supported,8);
+        XInternAtom(d,"_NET_WM_ALLOWED_ACTIONS",False),XInternAtom(d,"_NET_WM_ACTION_MOVE",False),XInternAtom(d,"_NET_WM_ACTION_RESIZE",False)};
+    XChangeProperty(d,root,XInternAtom(d,"_NET_SUPPORTED",False),XA_ATOM,32,PropModeReplace,(unsigned char*)supported,9);
     bridge_publish(b,0);XFlush(d);return 1;
 }
 static void bridge_caption_drag(struct wine_window_bridge *b) {
@@ -325,10 +392,21 @@ static void bridge_tick(struct wine_window_bridge *b) {
             }
         } else if(e.type==ConfigureNotify&&e.xconfigure.window==b->root) {
             bridge_layout(b);
+        } else if(e.type==ClientMessage&&e.xclient.message_type==b->active&&b->primary&&
+                  (e.xclient.window==b->primary||bridge_visible_client(b,e.xclient.window))) {
+            if(e.xclient.window!=b->primary)b->active_child=e.xclient.window;
+            bridge_restore_client(b);++b->activation;
+        } else if(e.type==ClientMessage&&e.xclient.message_type==b->moveresize&&e.xclient.window!=b->primary&&
+                  (e.xclient.data.l[3]==0||e.xclient.data.l[3]==1)) {
+            bridge_start_dialog_drag(b,e.xclient.window,(int)e.xclient.data.l[2]);
         } else if(e.type==ClientMessage&&e.xclient.window==b->primary) {
             if(e.xclient.message_type==b->moveresize&&e.xclient.data.l[2]==8&&
                (e.xclient.data.l[3]==0||e.xclient.data.l[3]==1)&&b->mode==0&&!b->minimized) {
                 ++b->move_request;
+            } else if(e.xclient.message_type==b->moveresize&&e.xclient.data.l[2]>=0&&e.xclient.data.l[2]<=7&&
+                      (e.xclient.data.l[3]==0||e.xclient.data.l[3]==1)&&b->mode==0&&!b->minimized) {
+                static const unsigned edges[]={5,1,9,8,10,2,6,4};
+                b->resize_edges=edges[e.xclient.data.l[2]];++b->resize_request;
             } else if(e.xclient.message_type==b->change_state&&e.xclient.data.l[0]==IconicState) {
                 b->minimized=1;XUnmapWindow(d,b->primary);bridge_set_state(b);
             } else if(e.xclient.message_type==b->state) {
@@ -349,10 +427,6 @@ static void bridge_tick(struct wine_window_bridge *b) {
                     if(mode==1)break;
                 }
                 bridge_set_state(b);
-            } else if(e.xclient.message_type==b->active) {
-                b->minimized=0;XMapRaised(d,b->primary);
-                XSetInputFocus(d,b->primary,RevertToParent,CurrentTime);++b->activation;
-                bridge_set_state(b);
             }
         } else if(e.type==MapNotify&&e.xmap.window==b->primary) {
             if(b->minimized) {
@@ -369,21 +443,28 @@ static void bridge_tick(struct wine_window_bridge *b) {
             b->primary=None;b->minimized=0;b->mode=0;
             b->caption_pending=0;b->caption_pressed=0;
         }
+        if((e.type==UnmapNotify&&e.xunmap.window==b->active_child)||
+           (e.type==DestroyNotify&&e.xdestroywindow.window==b->active_child))b->active_child=None;
     }
     // Keep a hidden primary stable: a temporary popup must never replace it.
     if(!b->primary||!b->minimized)bridge_choose(b);
     int fd=open(b->commands,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
     if(fd>=0) {
         char command[80]={0};ssize_t size=read(fd,command,sizeof(command)-1);close(fd);
-        unsigned serial;int action;
-        if(size>0&&sscanf(command,"%u %d",&serial,&action)==2&&serial!=b->command) {
+        unsigned serial;int action,width=0,height=0;
+        int fields=size>0?sscanf(command,"%u %d %d %d",&serial,&action,&width,&height):0;
+        if(fields>=2&&serial!=b->command) {
             b->command=serial;
             if(action==1&&b->primary) {
-                b->minimized=0;XMapRaised(d,b->primary);
-                XSetInputFocus(d,b->primary,RevertToParent,CurrentTime);bridge_set_state(b);
+                bridge_restore_client(b);
+            } else if(action==2&&fields==4&&b->primary&&b->mode==0&&
+                      width>=320&&width<=4096&&height>=200&&height<=4096&&(long)width*height<=8388608) {
+                b->normal_width=width;b->normal_height=height;
+                bridge_layout(b);bridge_remember_preferences(b);
             }
         }
     }
     bridge_apply_preferences(b);bridge_save_preferences(b);
+    bridge_dialog_drag(b);
     bridge_caption_drag(b);bridge_publish(b,0);XFlush(d);
 }

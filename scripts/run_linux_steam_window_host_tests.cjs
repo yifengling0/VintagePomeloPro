@@ -12,6 +12,7 @@ let focused = 5;
 let launcherForeground = false, steamGameForeground = false;
 let nativeOwnershipAvailable = true;
 let failDiagnosticWrites = false;
+let externalResizing = false;
 const tasks = [
   { key: 'wine-generation-1', toplevelId: 5, clientPid: 100 },
   { key: 'native-generation-1', source: 'steam-linux', toplevelId: 4, clientPid: 200 }
@@ -36,11 +37,13 @@ const deps = {
     unbindExternalToplevel: id => calls.push(['unbind', id]),
     stopWineSession: id => calls.push(['stop', id]),
     sendToplevelClose: id => calls.push(['close', id])
-    ,moveExternalHost: (...args) => calls.push(['move', ...args])
+    ,moveExternalHost: (...args) => { calls.push(['move', ...args]); return true; },
+    isExternalHostResizing: () => externalResizing
   } },
   'libsmoke_napi.so': { default: { isLinuxSteamProcess: pid => nativeOwnershipAvailable && pid === 200 } },
   './HostWindowTasks': { HostWindowTasks: singleton({ snapshot: () => tasks,
     refreshLinuxSteamOwnership: owns => {for(const task of tasks)if(owns(task.clientPid))task.source='steam-linux';},
+    activateSteamLaunchPrompt: async (...args) => {calls.push(['prompt', ...args]); return true;},
     isLauncherForeground: () => launcherForeground, isSteamGameForeground: () => steamGameForeground }) },
   './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ controllerOutputMode: 'dinput' }) }) },
   './GamepadManager': { GamepadManager: singleton({
@@ -175,6 +178,55 @@ native(0,0,0,0,4096,4096); sized.tick();
 assert.match(files.get(statePath+'.control'), /^\d+ 0 0 1\n$/,'invalid dimensions cannot resize the host');
 console.log('Wine/native window state, no activation loops, taskbar restore, focus profile, exit and generation: PASS');
 
+// Native corner resize follows the applied HWND geometry until the X11
+// supervisor acknowledges the final command. Stale normalWidth cannot undo it.
+tasks[1].key='native-generation-1';
+const resizing=fixture();native(0,0,0,0,960,600);wine(0,1,0,100000,960,600);resizing.tick();
+function resizeNative(request,edge,normalWidth=960,normalHeight=600,commandSerial=0,mode=0,window=123) {
+  files.set(base+'/wine-window-native.json',JSON.stringify({version:1,window,mode,minimized:0,
+    activation:1,closed:0,moveRequest:0,resizeRequest:request,resizeEdges:edge,normalWidth,normalHeight,commandSerial}));
+}
+externalResizing=true;resizeNative(1,10);resizing.tick();
+assert.deepEqual(calls.filter(c=>c[0]==='move').at(-1),['move',4,5,10]);
+wine(0,1,0,100000,1100,700);resizing.tick();
+assert.match(files.get(base+'/wine-window-command.txt'),/^\d+ 2 1100 700\n$/);
+const controlBeforeResize=files.get(statePath+'.control');
+resizing.tick();assert.equal(files.get(statePath+'.control'),controlBeforeResize);
+externalResizing=false;resizing.tick();
+assert.equal(files.get(statePath+'.control'),controlBeforeResize,'do not snap to stale pre-drag native size');
+resizeNative(1,10,1100,700,resizing.resizeCommandSerial);resizing.tick();
+assert.equal(resizing.resizeFollow,false);assert.match(files.get(statePath+'.control'),/ 1100 700\n$/);
+const callsBeforeInvalid=calls.filter(c=>c[0]==='move').length;
+resizeNative(2,3,1100,700);resizing.tick();
+assert.equal(calls.filter(c=>c[0]==='move').length,callsBeforeInvalid);
+// Explicit mode changes and replacement native windows end old drags.
+externalResizing=true;resizeNative(3,5,1100,700);resizing.tick();assert.equal(resizing.resizeFollow,true);
+resizeNative(3,5,1100,700,0,2);resizing.tick();assert.equal(resizing.resizeFollow,false);
+externalResizing=false;resizing.stop();
+assert.equal(resizing.resizeFollow,false);
+console.log('Interactive resize: applied geometry, command acknowledgment, invalid edge, mode change and stop: PASS');
+
+// Auxiliary dialogs request attention once per activation. Withdrawn/closed
+// windows cannot replay stale requests; the registry checks the live Play intent.
+const promptHost = fixture(); wine(); native(); promptHost.tick();
+const promptCount = () => calls.filter(c => c[0] === 'prompt').length;
+const beforePrompt = promptCount();
+const promptNative = (activation, extra = {}) => files.set(base+'/wine-window-native.json',
+  JSON.stringify({version:1,window:123,mode:0,minimized:0,activation,closed:0,activeChild:456,...extra}));
+promptNative(10); promptHost.tick(); promptHost.tick();
+assert.equal(promptCount(),beforePrompt+1,'a new auxiliary activation requests attention exactly once');
+assert.deepEqual(calls.filter(c=>c[0]==='prompt').at(-1),['prompt','wine-generation-1','wine-1']);
+promptNative(11,{window:0}); promptHost.tick();
+assert.equal(promptCount(),beforePrompt+1,'withdrawal cannot focus a stale dialog');
+promptNative(11,{activeChild:0}); promptHost.tick();
+assert.equal(promptCount(),beforePrompt+1,'primary activation never requests dialog attention');
+promptNative(11); promptHost.tick();
+assert.equal(promptCount(),beforePrompt+2,'a later valid dialog activation is honored');
+promptNative(12,{closed:1}); promptHost.tick();
+assert.equal(promptCount(),beforePrompt+2,'closed clients cannot request attention');
+console.log('Auxiliary activation deduplication, primary-only, withdrawal and close: PASS');
+
+
 // A full/unavailable evidence directory must not prevent binding, resize or
 // shutdown. Exercise both the success and timer-error diagnostic paths.
 const diagnosticFailure = fixture(); native(1); wine(0,1,1);
@@ -230,6 +282,18 @@ assert.equal(calls.filter(c => c[0] === 'resize').length,beforePending);
   assert.equal(files.get(base+'/wine-window-geometry.txt'),'960x600\n',
     'Initial Xwayland size comes from settled geometry, never the intermediate 700x440 publication');
   started.stop();
+  initialReadyDelay = 1000;
+  files.set(base+'/wine-window-native.json','live native mode');
+  files.set(base+'/wine-window-command.txt','57 1\n');
+  const replacement = new output.LinuxSteamWindowHost();
+  await replacement.start({resourceManager:{getRawFileContent:async()=>payload}},'/drive','/drive/hmosdeck/session',true);
+  assert.equal(replacement.controlSerial,57,'replacement commands continue the live native sequence');
+  assert.equal(files.get(base+'/wine-window-native.json'),'live native mode','replacement retains native presentation');
+  assert.equal(replacement.hasExited(),false);
+  nativeSessionState='stopped';
+  assert.equal(replacement.hasExited(),true,'confirmed Wine worker exit is observable even with stale HWND metadata');
+  assert.equal(await replacement.restore(),false,'dead HWND cannot be activated');
+  nativeSessionState='running'; replacement.stop();
   initialReadyDelay = 12000;
   const cold = new output.LinuxSteamWindowHost();
   const coldAt = fakeNow;

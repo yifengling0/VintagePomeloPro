@@ -29,8 +29,8 @@
       "nativeLib": {
         "debugSymbol": {
           "strip": true,
-          // Preserve the validated GStreamer inventory and its loader identity.
-          "exclude": ["**/libgst*.so", "**/winegstreamer.so"]
+          // Preserve validated plugin identities and the identical top/nested ICD.
+          "exclude": ["**/libgst*.so", "**/winegstreamer.so", "**/libvulkan_virtio.so"]
         }
       }
     },

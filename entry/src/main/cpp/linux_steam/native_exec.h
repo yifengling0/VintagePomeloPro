@@ -15,6 +15,7 @@ struct NativeExecOptions {
     bool libcForkOnly = false; // Dedicated single-thread phone supervisor: skip inherited SDK atfork hooks.
     bool traceSyscalls = false; // Explicit diagnostic only; never enabled by default.
     bool traceSignals = false; // Follow this child's threads; preserve delivered signals.
+    bool traceForks = false; // Explicit diagnostic: also follow this child's own fork/vfork descendants.
     void (*parentTask)(void*, int childPid) = nullptr;
     // Optional bounded diagnostic in the supervisor, every five seconds and
     // once after exit. Must not throw or manipulate the child. Never runs in GNU TLS.

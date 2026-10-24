@@ -239,7 +239,8 @@ export const findToplevelAt: (px: number, py: number) => number;
 export const raiseToplevel: (toplevelId: number) => void;
 // Queue restore, raise and keyboard focus on the compositor event-loop thread.
 export const activateToplevel: (toplevelId: number) => void;
-export const moveExternalHost: (source: number, host: number) => boolean;
+export const moveExternalHost: (source: number, host: number, resizeEdges?: number) => boolean;
+export const isExternalHostResizing: (host: number) => boolean;
 export const bindExternalToplevel: (source: number, host: number, sourcePid: number,
   hostPid: number, x: number, y: number, width: number, height: number) => boolean;
 export const unbindExternalToplevel: (host: number) => void;

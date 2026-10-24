@@ -8,7 +8,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/mman.h>
 int main(int argc,char**argv){
+ if(getenv("EXEC_FIXTURE_RETIRED")){
+  void *address=(void*)strtoul(getenv("EXEC_FIXTURE_RETIRED"),NULL,16);unsigned char residency;
+  errno=0;assert(mincore(address,4096,&residency)==-1&&errno==ENOMEM);
+  // A reclaimed inherited heap must not break the fresh libc allocator.
+  for(size_t i=1;i<1000;++i){void *memory=malloc(i*257);assert(memory);memset(memory,0xa5,i*257);free(memory);}
+  puts("PASS inherited 64 MiB mapping reclaimed; fresh allocator usable");
+ }
  assert(argc==4 && !strcmp(argv[0],"exec-target"));
  assert(getpid()==atoi(argv[1]));
  char value=0;assert(read(atoi(argv[2]),&value,1)==1 && value=='T');

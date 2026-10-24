@@ -302,6 +302,21 @@ int main()
               "session reset prevents retaining an old local baseline");
     }
 
+    {
+        InputStateTracker t;
+        t.UpdateModifiers(42, true); t.UpdateModifiers(54, true);
+        t.UpdateModifiers(42, false);
+        CHECK(t.ModifiersDepressed() == 1, "right Shift stays pressed when left Shift is released");
+        t.UpdateModifiers(54, false);
+        CHECK(t.ModifiersDepressed() == 0, "both Shift releases clear Shift");
+        t.UpdateModifiers(58, true); t.UpdateModifiers(58, true);
+        CHECK(t.ModifiersLocked() == 2, "CapsLock autorepeat cannot undo uppercase");
+        t.UpdateModifiers(58, false); t.UpdateModifiers(58, true);
+        CHECK(t.ModifiersLocked() == 0, "a second physical CapsLock press disables uppercase");
+        t.ResetModifiers(); t.UpdateModifiers(58, true);
+        CHECK(t.ModifiersLocked() == 2, "focus/session reset clears individual modifier keys");
+    }
+
     std::printf("input_state_test: %d checks / %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

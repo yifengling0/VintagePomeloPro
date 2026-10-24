@@ -1,3 +1,4 @@
+#include "wine/prefix_reset.h"
 #include <napi/native_api.h>
 #include "common/fs_utils.h"
 #include "compositor/wayland_server.h"
@@ -538,38 +539,6 @@ static napi_value CheckWinePrefix(napi_env env, napi_callback_info info) {
 }
 
 // -- NAPI: resetWinePrefix -- 一键清空受管 prefix 目录
-static bool RmDir(const char* path) {
-    DIR* d = opendir(path);
-    if (!d) return errno == ENOENT;
-    bool ok = true;
-    dirent* e;
-    while ((e = readdir(d))) {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
-        std::string full = std::string(path) + "/" + e->d_name;
-        struct stat st;
-        if (lstat(full.c_str(), &st) == 0) {
-            if (S_ISDIR(st.st_mode) && !S_ISLNK(st.st_mode)) {
-                if (!RmDir(full.c_str())) ok = false;
-            } else if (unlink(full.c_str()) != 0) {
-                ok = false;
-                OH_LOG_ERROR(LOG_APP, "[NAPI] unlink %{public}s failed: %{public}s",
-                             full.c_str(), strerror(errno));
-            }
-        } else {
-            ok = false;
-            OH_LOG_ERROR(LOG_APP, "[NAPI] lstat %{public}s failed: %{public}s",
-                         full.c_str(), strerror(errno));
-        }
-    }
-    closedir(d);
-    if (rmdir(path) != 0 && errno != ENOENT) {
-        ok = false;
-        OH_LOG_ERROR(LOG_APP, "[NAPI] rmdir %{public}s failed: %{public}s",
-                     path, strerror(errno));
-    }
-    return ok;
-}
-
 static napi_value ResetWinePrefix(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {};
@@ -600,7 +569,9 @@ static napi_value ResetWinePrefix(napi_env env, napi_callback_info info) {
                 container.id.c_str(), prefix);
     CancelWineLaunch();
     KillAllProcesses();
-    bool ok = RmDir(prefix);
+    const std::string keep = container.id == winehua::kDefaultContainerId
+        ? container.prefixDir + "/drive_c/SteamLinuxARM64" : "";
+    bool ok = winehua::RemovePrefixTree(prefix, keep);
     if (mkdir(prefix, 0755) != 0 && errno != EEXIST) {
         ok = false;
         OH_LOG_ERROR(LOG_APP, "[NAPI] mkdir %{public}s failed: %{public}s",
@@ -1202,12 +1173,21 @@ static napi_value GetKeyboardFocusedToplevel(napi_env env, napi_callback_info) {
 }
 
 static napi_value MoveExternalHost(napi_env env, napi_callback_info info) {
-    size_t count = 2; napi_value args[2], result; uint32_t source = 0, host = 0;
+    size_t count = 3; napi_value args[3], result; uint32_t source = 0, host = 0, edges = 0;
     napi_get_cb_info(env, info, &count, args, nullptr, nullptr);
-    bool accepted = count == 2 && napi_get_value_uint32(env, args[0], &source) == napi_ok &&
+    bool accepted = (count == 2 || count == 3) && napi_get_value_uint32(env, args[0], &source) == napi_ok &&
         napi_get_value_uint32(env, args[1], &host) == napi_ok &&
-        InputManager::GetInstance()->RequestExternalHostMove(source, host);
+        (count == 2 || napi_get_value_uint32(env, args[2], &edges) == napi_ok) &&
+        InputManager::GetInstance()->RequestExternalHostMove(source, host, edges);
     napi_get_boolean(env, accepted, &result); return result;
+}
+
+static napi_value IsExternalHostResizing(napi_env env, napi_callback_info info) {
+    size_t count = 1; napi_value arg, result; uint32_t host = 0;
+    napi_get_cb_info(env, info, &count, &arg, nullptr, nullptr);
+    napi_get_boolean(env, count == 1 && napi_get_value_uint32(env, arg, &host) == napi_ok &&
+        InputManager::GetInstance()->IsExternalHostResizing(host), &result);
+    return result;
 }
 
 static napi_value UnbindExternalToplevel(napi_env env, napi_callback_info info) {
@@ -1848,6 +1828,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"activateToplevel", nullptr, ActivateToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"bindExternalToplevel", nullptr, BindExternalToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"moveExternalHost", nullptr, MoveExternalHost, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"isExternalHostResizing", nullptr, IsExternalHostResizing, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getKeyboardFocusedToplevel", nullptr, GetKeyboardFocusedToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"unbindExternalToplevel", nullptr, UnbindExternalToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setToplevelVisible", nullptr, SetToplevelVisible, nullptr, nullptr, nullptr, napi_default, nullptr},

@@ -36,6 +36,21 @@ def stamp(content, hashes):
     return clean + MARKER + identity.hexdigest().encode('ascii') + newline
 
 
+def stamp_archive(archive, replacements=None):
+    """Targeted DLL staging must refresh the same prefix identity as assemble."""
+    replacements = replacements or {}
+    names = set(archive.namelist()) | set(replacements)
+    hashes = [(name, hashlib.sha256(replacements[name] if name in replacements
+                                    else archive.read(name)).hexdigest())
+              for name in names if is_builtin(name)]
+    return stamp(archive.read('share/wine/wine.inf'), hashes)
+
+
+def validate_archive(archive):
+    if archive.read('share/wine/wine.inf') != stamp_archive(archive):
+        raise ValueError('Wine builtin DLL identity is stale; prefix upgrades would miss changed DLLs')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('runtime', type=Path)

@@ -15,6 +15,10 @@ public:
     NativeLoaderImage(const NativeLoaderImage&) = delete;
     NativeLoaderImage& operator=(const NativeLoaderImage&) = delete;
     bool Prepare(const std::vector<std::string>& argv, const std::vector<std::string>& environment);
+    // Single-thread GNU exec only: reclaim the previous address space from a
+    // separate raw-syscall trampoline after switching to the new loader stack.
+    // Preparation does not alter any existing mapping; failure is reversible.
+    bool PrepareExecCleanup();
     [[noreturn]] void Enter() const;
     std::string stage = "not_prepared";
     int error = 0;
@@ -25,6 +29,8 @@ private:
     void* stack_ = nullptr;
     size_t stackBytes_ = 0;
     uintptr_t entry_ = 0, sp_ = 0;
+    void* cleanup_ = nullptr;
+    size_t cleanupBytes_ = 0, cleanupCount_ = 0;
     bool Fail(const char* value, int code);
 };
 }

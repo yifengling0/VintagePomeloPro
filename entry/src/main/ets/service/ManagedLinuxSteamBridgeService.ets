@@ -1,8 +1,11 @@
+import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { ConfigurationFiles } from './ConfigurationFiles';
 
 interface BridgeModule { path: string; bytes: number; sha256: string; }
 interface BridgeManifest { schemaVersion: number; files: BridgeModule[]; }
+interface CompatibilityModule { name: string; bytes: number; sha256: string; }
+interface CompatibilityManifest { schemaVersion: number; files: CompatibilityModule[]; }
 
 // Called only while preparing Wine, before any server/worker is started.
 // Wineboot does not copy ordinary MinGW lsteamclient DLLs into an existing prefix.
@@ -53,6 +56,54 @@ export class ManagedLinuxSteamBridgeService {
       }
       // An interrupted rename is repaired on the next preparation; Wine is
       // never started with only part of this validated set installed.
+      for (let i = 0; i < pending.length; ++i) fs.renameSync(pending[i], targets[i]);
+    } finally {
+      for (const path of pending) if (fs.accessSync(path)) fs.unlinkSync(path);
+    }
+  }
+
+  // Proton's native PE module layout is separate from the actual Linux
+  // backend. Only pinned modules shipped by the Linux client enter this view.
+  static async synchronizeCompatibility(context: common.Context, client: string, prefix: string): Promise<void> {
+    const raw = await context.resourceManager.getRawFileContent('linux-steam/client-compat.json');
+    const manifest = JSON.parse(ConfigurationFiles.text(raw)) as CompatibilityManifest;
+    const allowed: string[] = ['steamclient.dll', 'steamclient64.dll', 'Steam.dll'];
+    if (manifest.schemaVersion !== 1 || manifest.files.length !== allowed.length ||
+      allowed.some((name: string): boolean => manifest.files.filter((item: CompatibilityModule): boolean => item.name === name).length !== 1)) {
+      throw new Error('Linux Steam 兼容模块清单无效');
+    }
+    const directory = `${prefix}/drive_c/windows/hmosdeck-steam`;
+    if (!fs.accessSync(directory)) fs.mkdirSync(directory, true);
+    if (!fs.lstatSync(directory).isDirectory() || fs.lstatSync(directory).isSymbolicLink()) throw new Error('Steam 兼容目录无效');
+    const pending: string[] = []; const targets: string[] = [];
+    try {
+      for (const item of manifest.files) {
+        const source = `${client}/steamohos/compat/${item.name}`;
+        if (!Number.isSafeInteger(item.bytes) || item.bytes < 1024 || item.bytes > 33554432 ||
+          !/^[0-9a-f]{64}$/.test(item.sha256) || !fs.accessSync(source) ||
+          !fs.lstatSync(source).isFile() || fs.lstatSync(source).isSymbolicLink() ||
+          fs.statSync(source).size !== item.bytes || await ConfigurationFiles.fileHash(source) !== item.sha256) {
+          throw new Error('Linux Steam 兼容模块校验失败，请修复组件');
+        }
+        const target = `${directory}/${item.name}`;
+        if (fs.accessSync(target)) {
+          if (!fs.lstatSync(target).isFile() || fs.lstatSync(target).isSymbolicLink()) throw new Error('Steam 兼容模块目标无效');
+          if (fs.statSync(target).size === item.bytes && await ConfigurationFiles.fileHash(target) === item.sha256) continue;
+        }
+        const temporary = `${target}.winehua-steam-update`;
+        // A stale temporary file is reusable; a link must never be followed.
+        try {
+          const stat = fs.lstatSync(temporary);
+          if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Steam 兼容模块临时文件无效');
+        } catch (error) {
+          if (fs.accessSync(temporary) || (error as Error).message === 'Steam 兼容模块临时文件无效') {
+            throw new Error((error as Error).message);
+          }
+        }
+        pending.push(temporary); targets.push(target);
+        fs.copyFileSync(source, temporary);
+        if (await ConfigurationFiles.fileHash(temporary) !== item.sha256) throw new Error('Steam 兼容模块复制不完整');
+      }
       for (let i = 0; i < pending.length; ++i) fs.renameSync(pending[i], targets[i]);
     } finally {
       for (const path of pending) if (fs.accessSync(path)) fs.unlinkSync(path);

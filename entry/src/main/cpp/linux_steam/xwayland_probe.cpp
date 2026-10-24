@@ -165,8 +165,20 @@ struct Session {
         json += '}';
         WritePrivateSnapshot("/data/storage/el2/base/files/steamohos-native/client-live.private.json", json);
     }
+    static void StartupStage(const char* stage, int childPid, const NativeExecResult* result = nullptr) {
+        std::string json = "{\"version\":1,\"stage\":" + JsonString(stage) +
+            ",\"childPid\":" + std::to_string(childPid) + ",\"monotonicMs\":" + std::to_string(Now());
+        if (result) json += ",\"resultStage\":" + JsonString(result->stage) +
+            ",\"setupErrno\":" + std::to_string(result->setupError) +
+            ",\"execErrno\":" + std::to_string(result->execError) +
+            ",\"exitCode\":" + std::to_string(result->exitCode) +
+            ",\"signal\":" + std::to_string(result->signal) +
+            ",\"timedOut\":" + (result->timedOut ? "true" : "false");
+        WritePrivateSnapshot("/data/storage/el2/base/files/steamohos-native/session/native-startup.json", json + '}');
+    }
     static void RunClient(void* data, int serverPid) {
         auto& session = *static_cast<Session*>(data);
+        if (session.steamClient) StartupStage("xwayland_readiness", serverPid);
         if(session.steamClient&&session.ownershipFd>=0) {
             const auto message=WindowProcessMessage(serverPid);
             size_t sent=0;
@@ -212,7 +224,9 @@ struct Session {
                 return;
             }
             auto ipcArgs = prefix; ipcArgs.push_back(session.nativeDirectory + "/steamohos_gnu_sysvipc");
+            StartupStage("ipc_preflight", serverPid);
             session.ipcPreflight = RunNativeLoader(ipcArgs, session.environment, 1800, session.clientOptions);
+            StartupStage("ipc_preflight_finished", serverPid, &session.ipcPreflight);
             if (session.ipcPreflight.exitCode != 0 || session.ipcPreflight.output.find("PASS SysV") == std::string::npos) return;
             if(session.graphicsLoaderDiagnostic) {
                 auto loaderArgs=prefix;
@@ -246,7 +260,9 @@ struct Session {
         // acknowledgement alone cannot establish that CEF or a game is ready.
         session.clientOptions.parentPoll = session.steamClient ? SnapshotClient : nullptr;
         session.clientOptions.context = &session;
+        if (session.steamClient) StartupStage("steam_client_starting", serverPid);
         session.client = RunNativeLoader(session.argv, session.environment, session.clientTimeout, session.clientOptions);
+        if (session.steamClient) StartupStage("steam_client_finished", serverPid, &session.client);
         if(live>=0)close(live);
         session.clientOptions.diagnosticFd=-1;
     }
@@ -345,6 +361,9 @@ bool ReadClientSettings(const std::string& path, Session& session) {
             session.traceSyscalls = true;
         } else if (line == "diagnosticSignals=1") {
             session.traceSignals = true;
+        } else if (line == "diagnosticForks=1") {
+            session.traceSignals = true;
+            session.clientOptions.traceForks = true;
         } else if (line.compare(0, 10, "timeoutMs=") == 0) {
             const std::string value = line.substr(10);
             if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos || value.size() > 8) { errno = EINVAL; return false; }
@@ -424,7 +443,10 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
         // This diagnostic session launches the existing host prefix, not GNU Wine.
         session.environment.emplace_back("STEAMOHOS_WINE_PREFIX=" + base.substr(0, base.rfind('/')) + "/.wine");
         session.environment.emplace_back("STEAMOHOS_LIBRARY_ROOT=" + externalRoot + "/library");
-        session.environment.emplace_back("STEAMOHOS_Z_ROOT=" + externalRoot.substr(0, externalRoot.rfind('/')));
+        std::ifstream zRootFile(base + "/wine-z-root.path");
+        std::string zRoot; std::getline(zRootFile, zRoot);
+        if (zRoot.empty() || zRoot[0] != '/') zRoot = externalRoot.substr(0, externalRoot.rfind('/'));
+        session.environment.emplace_back("STEAMOHOS_Z_ROOT=" + zRoot);
         if (!launch.empty()) {
             const auto separator = launch.find('\n');
             if (separator == std::string::npos || launch.size() - separator - 1 != 64)
@@ -496,6 +518,7 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
             session.clientTimeout = 0;
             session.clientOptions.persistentSession = true;
             session.traceSyscalls = session.traceSignals = session.graphicsSelfTest = session.graphicsLoaderDiagnostic = false;
+            session.clientOptions.traceForks = false;
             session.desktopInputProbe = false;
         }
         // The real Wine HWND publishes its initial client size before this probe

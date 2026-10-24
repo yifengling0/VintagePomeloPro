@@ -48,6 +48,86 @@ static unsigned moves(void) {
     char *value=strstr(content,"\"moveRequest\":");assert(value);
     return (unsigned)strtoul(value+14,NULL,10);
 }
+static unsigned native_number(const char *key) {
+    char path[4096],content[1024],pattern[96];
+    snprintf(path,sizeof(path),"%s/wine-window-native.json",getenv("STEAMOHOS_TMP_ROOT"));
+    FILE *file=fopen(path,"r");assert(file);size_t size=fread(content,1,sizeof(content)-1,file);fclose(file);content[size]=0;
+    snprintf(pattern,sizeof(pattern),"\"%s\":",key);char *value=strstr(content,pattern);assert(value);
+    return (unsigned)strtoul(value+strlen(pattern),NULL,10);
+}
+static void moveresize(Display *d,Window w,int direction,int button) {
+    XEvent e={0};e.xclient.type=ClientMessage;e.xclient.window=w;e.xclient.format=32;
+    e.xclient.message_type=XInternAtom(d,"_NET_WM_MOVERESIZE",False);
+    e.xclient.data.l[2]=direction;e.xclient.data.l[3]=button;
+    assert(XSendEvent(d,DefaultRootWindow(d),False,SubstructureRedirectMask|SubstructureNotifyMask,&e));
+    XSync(d,False);usleep(150000);
+}
+static void resize_tests(Display *d,Window w) {
+    const unsigned edges[]={5,1,9,8,10,2,6,4};unsigned before=native_number("resizeRequest");
+    for(int i=0;i<8;++i){moveresize(d,w,i,1);assert(native_number("resizeRequest")==before+i+1);assert(native_number("resizeEdges")==edges[i]);}
+    moveresize(d,w,9,1);moveresize(d,w,0,2);assert(native_number("resizeRequest")==before+8);
+    request(d,w,"_NET_WM_STATE",1,"_NET_WM_STATE_FULLSCREEN",NULL);state(w,2,0);
+    moveresize(d,w,4,1);assert(native_number("resizeRequest")==before+8);
+    request(d,w,"_NET_WM_STATE",0,"_NET_WM_STATE_FULLSCREEN",NULL);state(w,0,0);
+    char path[4096];snprintf(path,sizeof(path),"%s/wine-window-command.txt",getenv("STEAMOHOS_TMP_ROOT"));
+    FILE *f=fopen(path,"w");assert(f);fputs("20 2 600 360\n",f);fclose(f);bounds(d,w,600,360);
+    assert(native_number("commandSerial")==20);
+    f=fopen(path,"w");assert(f);fputs("21 2 4096 4096\n",f);fclose(f);usleep(150000);bounds(d,w,600,360);
+    f=fopen(path,"w");assert(f);fputs("22 2 640 400\n",f);fclose(f);bounds(d,w,640,400);
+    puts("X11_RESIZE eight-edges invalid-button fullscreen bounded-command acknowledgment PASS");
+}
+static void dialog_resize_tests(Display *d,Window main) {
+    void *xtst=dlopen("libXtst.so.6",RTLD_NOW);assert(xtst);
+    int (*motion)(Display*,int,int,int,unsigned long)=dlsym(xtst,"XTestFakeMotionEvent");
+    int (*button)(Display*,unsigned int,int,unsigned long)=dlsym(xtst,"XTestFakeButtonEvent");assert(motion&&button);
+    Window dialog=XCreateSimpleWindow(d,DefaultRootWindow(d),180,100,300,220,0,0,0);
+    XSetTransientForHint(d,dialog,main);XMapRaised(d,dialog);XSync(d,False);usleep(150000);
+    motion(d,DefaultScreen(d),470,310,0);button(d,1,True,0);XSync(d,False);moveresize(d,dialog,4,1);
+    motion(d,DefaultScreen(d),510,340,0);XSync(d,False);bounds(d,dialog,340,250);
+    usleep(150000);bounds(d,dialog,340,250); // stationary frames cannot accumulate
+    button(d,1,False,0);XSync(d,False);usleep(150000);
+    motion(d,DefaultScreen(d),530,360,0);XSync(d,False);usleep(150000);bounds(d,dialog,340,250);
+    XSizeHints hints={0};hints.flags=PMinSize|PMaxSize;hints.min_width=hints.max_width=340;hints.min_height=hints.max_height=250;
+    XSetWMNormalHints(d,dialog,&hints);button(d,1,True,0);XSync(d,False);moveresize(d,dialog,4,1);
+    motion(d,DefaultScreen(d),550,380,0);XSync(d,False);usleep(150000);bounds(d,dialog,340,250);
+    button(d,1,False,0);XSync(d,False);usleep(150000);XDestroyWindow(d,dialog);XSync(d,False);
+    puts("X11_DIALOG_RESIZE native geometry no-compounding release fixed-size-hints PASS");
+}
+static void focused_above(Display *d,Window main,Window dialog) {
+    for(int n=0;n<100;++n) {
+        Window focus,root,parent,*children=NULL;int revert;unsigned count=0;
+        XGetInputFocus(d,&focus,&revert);
+        assert(XQueryTree(d,DefaultRootWindow(d),&root,&parent,&children,&count));
+        int main_index=-1,dialog_index=-1;
+        for(unsigned i=0;i<count;++i) {
+            if(children[i]==main)main_index=(int)i;
+            if(children[i]==dialog)dialog_index=(int)i;
+        }
+        if(children)XFree(children);
+        if(focus==dialog&&main_index>=0&&dialog_index>main_index)return;
+        usleep(20000);
+    }
+    fputs("active CEF dialog was hidden or lost focus\n",stderr);abort();
+}
+static void dialog_restore_tests(Display *d,Window main) {
+    /* Steam CEF's launch chooser has no WM_TRANSIENT_FOR hint. It requests
+     * activation separately, and must remain above the embedded main window. */
+    Window dialog=XCreateSimpleWindow(d,DefaultRootWindow(d),200,120,300,220,0,0,0);
+    XMapWindow(d,dialog);XSync(d,False);usleep(150000);
+    request(d,dialog,"_NET_ACTIVE_WINDOW",1,NULL,NULL);
+    focused_above(d,main,dialog);state(main,0,0);
+    request(d,main,"_NET_ACTIVE_WINDOW",1,NULL,NULL);
+    focused_above(d,main,dialog);
+    char path[4096];snprintf(path,sizeof(path),"%s/wine-window-command.txt",getenv("STEAMOHOS_TMP_ROOT"));
+    FILE *file=fopen(path,"w");assert(file);fputs("11 1\n",file);fclose(file);
+    usleep(150000);focused_above(d,main,dialog);
+    /* A dismissed chooser cannot capture a later restore. */
+    XUnmapWindow(d,dialog);XSync(d,False);usleep(150000);
+    file=fopen(path,"w");assert(file);fputs("12 1\n",file);fclose(file);usleep(150000);
+    Window focus;int revert;XGetInputFocus(d,&focus,&revert);assert(focus==main);
+    XDestroyWindow(d,dialog);
+    puts("X11_DIALOG activation primary-identity host-restore dismissed-focus PASS");
+}
 static void caption_pointer_tests(Display *d,Window w,Window popup) {
     void *xtst=dlopen("libXtst.so.6",RTLD_NOW);assert(xtst);
     int (*motion)(Display*,int,int,int,unsigned long)=dlsym(xtst,"XTestFakeMotionEvent");
@@ -110,7 +190,10 @@ int main(void) {
     FILE *file=fopen(path,"r");assert(file);
     size_t bytes=fread(content,1,sizeof(content)-1,file);content[bytes]=0;fclose(file);
     assert(strstr(content,"\"moveRequest\":1"));
+    resize_tests(d,w);
     caption_pointer_tests(d,w,popup);
+    dialog_restore_tests(d,w);
+    dialog_resize_tests(d,w);
     request(d,w,"WM_CHANGE_STATE",IconicState,NULL,NULL);state(w,0,1);
     /* Restore from Wine taskbar is a command to remap the same X11 window. */
     snprintf(path,sizeof(path),"%s/wine-window-command.txt",getenv("STEAMOHOS_TMP_ROOT"));

@@ -565,7 +565,7 @@ struct SystemSettingsPage {
     if (this.logBusy) return;
     this.logBusy = true;
     try {
-      // 打包整个 logs 目录为 zip，用系统分享面板（ShareKit）分享。
+      // 导出应用、Wine 和两种 Steam 客户端的有界日志快照并分享。
       // utd 用 general.object 而非 general.file：QQ/微信等 IM 的分享扩展
       // 只注册了 general.object/text 等泛类型（bm dump 实测 QQ 无 general.file），
       // 声明泛类型后 QQ 才会出现在面板中。
@@ -2506,14 +2506,14 @@ struct SystemSettingsPage {
               .fontColor(skinColor('text_secondary')).width('100%')
             Text('Download/com.vintage.pomelopro/logs').fontSize(12)
               .fontColor(skinColor('text_primary')).width('100%')
-            Text('记录应用自身 ArkTS 与 native 日志，按日期分文件（app-日期.log / native-日期.log），同一天超过 20MB 自动滚动，超过 7 天的文件自动清理。')
+            Text('记录应用日志，自动保留 7 天。导出时一并收集 Wine、图形运行库和 Windows／Linux Steam 的近期诊断日志；自动过滤登录凭据，超出大小限制时保留末尾并标注。请在问题发生后及时导出。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           }
           .width('100%').padding(14).borderRadius(16)
           .backgroundColor(skinColor('search_background'))
 
           Row({ space: 10 }) {
-            Button('导出日志').layoutWeight(1).height(48).borderRadius(14)
+            Button(this.logBusy ? '正在整理日志…' : '导出日志').layoutWeight(1).height(48).borderRadius(14)
               .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
               .enabled(!this.logBusy)
               .id('log-export')

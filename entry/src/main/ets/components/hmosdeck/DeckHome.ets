@@ -3,6 +3,8 @@ import { builtinCoverResource } from '../../model/BuiltinArtwork';
 import { LinuxSteamAction, LinuxSteamGame, LinuxSteamSnapshot } from '../../model/LinuxSteamModels';
 import { LinuxSteamLibraryService } from '../../service/LinuxSteamLibraryService';
 import { LinuxSteamInstallService } from '../../service/LinuxSteamInstallService';
+import { SteamClientService } from '../../service/SteamClientService';
+import { common } from '@kit.AbilityKit';
 import { LinuxSteamArtworkListener, LinuxSteamArtworkService } from '../../service/LinuxSteamArtworkService';
 import { LinuxSteamSessionListener, LinuxSteamSessionService } from '../../service/LinuxSteamSessionService';
 import { GamepadManager, GamepadNavigationListener } from '../../service/GamepadManager';
@@ -36,6 +38,7 @@ export struct DeckHome {
   @State private widthVp: number = 1000;
   @State private heightVp: number = 650;
   @State private busy: boolean = false;
+  @State private steamReady: boolean = SteamClientService.getInstance().installed().length > 0;
   @State private pendingTitle: string = '';
   @State private pendingCover: string = '';
   @State private pendingSource: string = 'Steam';
@@ -116,6 +119,7 @@ export struct DeckHome {
     this.navigationActive = false;
   }
   private refresh(): void {
+    this.steamReady = SteamClientService.getInstance().installed().length > 0;
     this.games = LinuxSteamLibraryService.getInstance().scan();
     LinuxSteamArtworkService.getInstance().ensure(this.games);
     if (!this.games.some((g: LinuxSteamGame): boolean => g.appId === this.selected)) this.selected = this.games[0]?.appId ?? '';
@@ -338,11 +342,22 @@ export struct DeckHome {
   }
   private async open(action: LinuxSteamAction, id: string = '0'): Promise<void> {
     if (this.busy) return;
-    if (!LinuxSteamInstallService.getInstance().installed()) { this.manageComponents(); return; }
+    const service = SteamClientService.getInstance();
+    if (action === 'launch' ? !LinuxSteamInstallService.getInstance().installed() : service.installed().length === 0) {
+      this.manageComponents(); return;
+    }
+    let backend: 'windows' | 'linux' | '' = 'linux';
+    try { if (action !== 'launch') backend = await service.choose(this.getUIContext()); }
+    catch (error) { promptAction.showToast({ message: (error as Error).message }); return; }
+    if (!backend) return;
+    const selected = backend;
     const game = action === 'launch' ? this.games.find((g: LinuxSteamGame): boolean => g.appId === id) : undefined;
     await this.beginLaunch(game?.name ?? 'Steam', game ? this.cover(game) : '', 'Steam',
       game ? '正在交给 Steam 启动，请稍候…' : '正在打开 Steam…', undefined, async (): Promise<void> => {
-        await LinuxSteamSessionService.getInstance().open(action, id);
+        if (action === 'launch') {
+          service.assertCanOpen('linux');
+          await LinuxSteamSessionService.getInstance().open(action, id);
+        } else await service.open(getContext(this) as common.UIAbilityContext, selected, action);
       });
   }
   @Builder
@@ -404,7 +419,7 @@ export struct DeckHome {
       Row({ space: 10 }) {
         if (this.busy) LoadingProgress().width(21).height(21).color('#03111F')
         else SymbolGlyph($r('sys.symbol.play_fill')).fontSize(18).fontColor(['#03111F'])
-        Text(this.busy ? '正在打开…' : LinuxSteamInstallService.getInstance().installed() ? '启动 Steam' : '安装 Steam')
+        Text(this.busy ? '正在打开…' : this.steamReady ? '启动 Steam' : '安装 Steam')
           .fontSize(17).fontWeight(FontWeight.Bold).fontColor('#03111F').letterSpacing(0.5)
       }.padding({ left: 22, right: 28 }).height(56)
     }.height(56).padding(0).borderRadius(12).enabled(!this.busy)
@@ -492,7 +507,7 @@ export struct DeckHome {
         }.width('100%')
         Column({ space: 12 }) {
           Text('运行组件').fontSize(13).fontColor('#9AA3AF').width('100%')
-          this.OptionCard('Steam 组件', LinuxSteamInstallService.getInstance().installed() ?
+          this.OptionCard('Steam 组件', this.steamReady ?
             '已安装 · 导入、更新与维护' : '尚未安装 · 在线下载或本地导入',
             'deck-components', $r('sys.symbol.archivebox'), (): void => this.manageComponents())
           Text('管理组件不会自动启动 Steam；游戏库、账号与存档会保留。')

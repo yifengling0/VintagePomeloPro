@@ -15,7 +15,7 @@ export interface HostWindowTask {
 export type HostTaskListener = (tasks: HostWindowTask[]) => void;
 export type HostTaskActivator = (task: HostWindowTask, current: () => boolean) => Promise<boolean>;
 
-interface PendingSteamGameLaunch { appId: string; ticket: number; expiresAt: number; sessionId: string; }
+interface PendingSteamGameLaunch { appId: string; intent: number; ticket: number; expiresAt: number; sessionId: string; promptKey: string; }
 
 interface WindowEventData {
   clientPid?: number;
@@ -166,12 +166,12 @@ export class HostWindowTasks {
   expectSteamGame(appId: string): number {
     const ticket = ++this.request;
     this.requestedKey = ''; this.pendingSteamReturn = '';
-    this.pendingSteamLaunch = { appId, ticket, expiresAt: Date.now() + 120000, sessionId: '' };
+    this.pendingSteamLaunch = { appId, intent: ticket, ticket, expiresAt: Date.now() + 120000, sessionId: '', promptKey: '' };
     return ticket;
   }
 
   cancelExpectedSteamGame(ticket: number): void {
-    if (this.pendingSteamLaunch?.ticket === ticket) this.pendingSteamLaunch = null;
+    if (this.pendingSteamLaunch?.intent === ticket) this.pendingSteamLaunch = null;
   }
 
   private activateExpectedSteamGame(sessionId: string): void {
@@ -234,12 +234,20 @@ export class HostWindowTasks {
   noteInteraction(id: number): void {
     // An interaction invalidates an in-flight automatic/user switch.
     const task = this.windows.get(id);
-    if (task) { this.pendingSteamReturn = ''; this.pendingSteamLaunch = null; }
+    if (task) {
+      this.pendingSteamReturn = '';
+      const pending = this.pendingSteamLaunch;
+      // Confirming the surfaced launch dialog is part of the same Play action.
+      // Any other task interaction still cancels its one-shot game handoff.
+      if (!pending || pending.promptKey !== task.key || pending.ticket !== this.request ||
+        pending.expiresAt < Date.now() || pending.sessionId) this.pendingSteamLaunch = null;
+    }
     if (task) {
       ++this.foregroundChoice;
       // Clicking the currently active task also cancels an in-flight raise of
       // a different task. Active identity alone cannot detect that choice.
       if (this.requestedKey !== task.key) ++this.request;
+      if (this.pendingSteamLaunch) this.pendingSteamLaunch.ticket = this.request;
       this.active = task.key;
     }
   }
@@ -261,14 +269,33 @@ export class HostWindowTasks {
     return target;
   }
 
-  activate(key: string): Promise<boolean> {
-    ++this.foregroundChoice;
-    this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
+  activate(key: string): Promise<boolean> { return this.activateTask(key, false); }
+
+  // A newly activated native Steam dialog can require input before a game
+  // exists. Honor only the still-current Play request, retaining its one-shot
+  // game activation. Explicit navigation or a started game cancels this path.
+  activateSteamLaunchPrompt(key: string, sessionId: string): Promise<boolean> {
+    const task = this.snapshot().find((item: HostWindowTask): boolean => item.key === key);
+    const pending = this.pendingSteamLaunch;
+    if (!task || (task.source !== 'steam-linux' && (!sessionId || task.sessionId !== sessionId)) ||
+      !pending || pending.ticket !== this.request || pending.expiresAt < Date.now() || pending.sessionId) return Promise.resolve(false);
+    pending.promptKey = key;
+    return this.activateTask(key, true);
+  }
+
+  private activateTask(key: string, preserveLaunch: boolean): Promise<boolean> {
+    const pending = preserveLaunch ? this.pendingSteamLaunch : null;
+    if (!preserveLaunch) ++this.foregroundChoice;
+    this.pendingSteamReturn = '';
+    if (!preserveLaunch) this.pendingSteamLaunch = null;
     const serial = ++this.request;
+    if (pending) pending.ticket = serial;
     this.requestedKey = key;
     const task = this.snapshot().find((item: HostWindowTask): boolean => item.key === key);
     if (!task || !this.activator) return Promise.resolve(false);
-    const current = (): boolean => serial === this.request && this.windows.get(task.toplevelId)?.key === key;
+    const current = (): boolean => serial === this.request && this.windows.get(task.toplevelId)?.key === key &&
+      (!preserveLaunch || (pending !== null && this.pendingSteamLaunch === pending && pending.ticket === serial &&
+        pending.expiresAt >= Date.now() && !pending.sessionId));
     const run = this.tail.then(async (): Promise<boolean> => {
       if (!current() || !this.activator) return false;
       const success = await this.activator(task, current);

@@ -282,6 +282,7 @@ class DesktopSession(unittest.TestCase):
                 self.assertEqual(bridge.returncode, 37, bridge.stderr)
                 self.assertIn('X11_BRIDGE primary popup fullscreen maximize minimize restore generation PASS', bridge.stdout)
                 self.assertIn('X11_CAPTION click drag once menus identity fullscreen PASS', bridge.stdout)
+                self.assertIn('X11_DIALOG activation primary-identity host-restore dismissed-focus PASS', bridge.stdout)
                 self.assertNotIn('snapshot', bridge.stderr)
                 self.assertFalse((base / 'desktop-root.ppm').exists())
                 self.assertEqual(json.loads((base / 'wine-window-native.json').read_text())['closed'], 1)

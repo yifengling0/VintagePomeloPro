@@ -22,6 +22,10 @@ interface WindowState {
 interface SteamWindowState {
   version: number; window: number; mode: number; minimized: number; activation: number; closed: number;
   moveRequest: number;
+  resizeRequest?: number;
+  resizeEdges?: number;
+  commandSerial?: number;
+  activeChild?: number;
   normalWidth?: number;
   normalHeight?: number;
 }
@@ -49,9 +53,15 @@ export class LinuxSteamWindowHost {
   private lastStatus: string = '';
   private lastCandidates: string = '';
   private moveRequest: number = 0;
+  private resizeRequest: number = 0;
+  private resizeFollow: boolean = false;
+  private resizeGeometry: string = '';
+  private resizeCommandSerial: number = 0;
+  private resizeWindow: number = 0;
+  private promptActivation: number = -1;
   private presentationSerial: number = 0;
 
-  async start(context: common.Context, driveC: string, results: string): Promise<void> {
+  async start(context: common.Context, driveC: string, results: string, recovering: boolean = false): Promise<void> {
     if (!WineWindowManager.getInstance().getDesktopMode()) {
       throw new Error('Linux Steam 的 Wine 窗口需要现有虚拟桌面模式');
     }
@@ -71,8 +81,16 @@ export class LinuxSteamWindowHost {
     for (const path of [this.statePath, `${this.statePath}.control`]) {
       if (fs.accessSync(path)) fs.unlinkSync(path);
     }
-    for (const name of ['wine-window-native.json', 'wine-window-command.txt', 'wine-window-geometry.txt']) {
-      if (fs.accessSync(`${BRIDGE}/${name}`)) fs.unlinkSync(`${BRIDGE}/${name}`);
+    // Replacing a dead Wine HWND must retain the live X11 session's mode and
+    // command sequence. Replaying serial 1 would be ignored by its supervisor.
+    if (recovering) {
+      const previous = readSmokeText(`${BRIDGE}/wine-window-command.txt`).trim().split(/\s+/)[0];
+      const serial = Number(previous);
+      if (Number.isSafeInteger(serial) && serial >= 0 && serial < 2147483647) this.controlSerial = serial;
+    } else {
+      for (const name of ['wine-window-native.json', 'wine-window-command.txt', 'wine-window-geometry.txt']) {
+        if (fs.accessSync(`${BRIDGE}/${name}`)) fs.unlinkSync(`${BRIDGE}/${name}`);
+      }
     }
     const windowsState = `C:${this.statePath.substring(driveC.length).replace(/\//g, '\\')}`;
     const environment = [`HMOSDECK_WINDOW_STATE=${windowsState}`];
@@ -123,7 +141,15 @@ export class LinuxSteamWindowHost {
     throw new Error('Steam 宿主窗口创建超时（120 秒），已停止，可重试');
   }
 
+  hasExited(): boolean {
+    if (!this.sessionId) return true;
+    // Missing metadata or a withdrawn surface is not proof of process exit.
+    const session = testNapi.getWineSession(this.sessionId) as NativeWineSessionInfo | null;
+    return session?.state === 'stopped';
+  }
+
   async restore(): Promise<boolean> {
+    if (this.hasExited()) return false;
     return this.hostKey ? HostWindowTasks.getInstance().activate(this.hostKey) : false;
   }
 
@@ -226,10 +252,44 @@ export class LinuxSteamWindowHost {
     // Window withdrawal is a transition, not a request to leave fullscreen.
     // Keep the last presentation until Steam has selected the replacement.
     if (native.window === 0) return false;
+    // Only an explicit, still-pending Play request may surface a native
+    // dialog over Deck. Primary-window activation and running games never do.
+    if (native.activeChild && Number.isSafeInteger(native.activeChild) && native.activeChild > 0 &&
+      Number.isSafeInteger(native.activation) && native.activation !== this.promptActivation && this.hostKey) {
+      this.promptActivation = native.activation;
+      void HostWindowTasks.getInstance().activateSteamLaunchPrompt(this.hostKey, this.sessionId)
+        .catch((): boolean => false);
+    }
     if (Number.isSafeInteger(native.moveRequest) && native.moveRequest > this.moveRequest) {
       this.moveRequest = native.moveRequest;
       if (this.source > 0 && this.host > 0 && native.mode === 0 && native.minimized === 0)
         testNapi.moveExternalHost(this.source, this.host);
+    }
+    const resizeRequest = native.resizeRequest ?? 0; const edges = native.resizeEdges ?? 0;
+    if (Number.isSafeInteger(resizeRequest) && resizeRequest > this.resizeRequest) {
+      this.resizeRequest = resizeRequest;
+      if (this.source > 0 && this.host > 0 && state.mode === 0 && state.minimized === 0 &&
+        state.geometryReady !== 0 && native.mode === 0 && native.minimized === 0 &&
+        [1, 2, 4, 5, 6, 8, 9, 10].includes(edges) && testNapi.moveExternalHost(this.source, this.host, edges)) {
+        this.resizeFollow = true; this.resizeGeometry = '';
+        this.resizeWindow = native.window;
+      }
+    }
+    if (this.resizeFollow) {
+      if (native.mode !== 0 || native.minimized !== 0 || state.mode !== 0 || state.minimized !== 0 ||
+        native.window !== this.resizeWindow) this.resizeFollow = false;
+      else {
+        const geometry = `${state.width} ${state.height}`;
+        if (state.width >= 320 && state.height >= 200 && state.width <= 4096 && state.height <= 4096 &&
+          state.width * state.height <= 8388608 && geometry !== this.resizeGeometry) {
+          this.resizeCommandSerial = ++this.controlSerial;
+          writeSmokeText(`${BRIDGE}/wine-window-command.txt`, `${this.resizeCommandSerial} 2 ${geometry}\n`);
+          this.resizeGeometry = geometry;
+        }
+        if (testNapi.isExternalHostResizing(this.host) ||
+          (native.commandSerial ?? 0) < this.resizeCommandSerial) return true;
+        this.resizeFollow = false;
+      }
     }
     // Wine taskbar restore is a request to remap the same native client.
     if ((this.previousMinimized === 1 && state.minimized === 0) ||
@@ -261,6 +321,7 @@ export class LinuxSteamWindowHost {
   stop(): void {
     if (this.timer >= 0) clearInterval(this.timer);
     this.timer = -1;
+    this.resizeFollow = false; this.resizeGeometry = ''; this.resizeWindow = 0;
     this.setNavigation(false);
     if (this.host > 0) testNapi.unbindExternalToplevel(this.host);
     if (this.sessionId) testNapi.stopWineSession(this.sessionId);

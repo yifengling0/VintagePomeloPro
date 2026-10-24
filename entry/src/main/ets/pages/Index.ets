@@ -1,6 +1,7 @@
 import { LauncherSupportActions } from '../components/LauncherSupportActions';
 import { DeckHome } from '../components/hmosdeck/DeckHome';
 import { LinuxSteamSessionService } from '../service/LinuxSteamSessionService';
+import { SteamClientService, SteamClientBackend } from '../service/SteamClientService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { InputSettingsService } from '../service/InputSettingsService';
@@ -1307,6 +1308,11 @@ struct Index {
   }
 
   private launch(app: AppDescriptor): Promise<void> {
+    if (app.id === STEAM_CLIENT_ID) return this.openSteamClient();
+    if (app.steam) {
+      try { SteamClientService.getInstance().assertCanOpen('windows'); }
+      catch (error) { promptAction.showToast({ message: (error as Error).message }); return Promise.resolve(); }
+    }
     if (!app.available && !app.steam) {
       this.openAppSettings(app, true);
       return Promise.resolve();
@@ -1326,6 +1332,15 @@ struct Index {
       return Promise.resolve();
     }
     return this.enqueueLaunch(app, false);
+  }
+
+  private async openSteamClient(backend: SteamClientBackend | '' = ''): Promise<void> {
+    try {
+      const service = SteamClientService.getInstance();
+      if (!service.installed().length) { this.openSidebarPage('pages/LinuxSteam'); return; }
+      const selected = backend || await service.choose(this.getUIContext());
+      if (selected) await service.open(this.context, selected);
+    } catch (error) { promptAction.showToast({ message: (error as Error).message, duration: 5000 }); }
   }
 
   private switchAndLaunch(app: AppDescriptor): Promise<void> {
@@ -1363,7 +1378,7 @@ struct Index {
           if (!this.consolePageVisible || AppSessionService.getInstance().getRunningAppIds().has(app.id)) return;
           promptAction.showDialog({ title: app.title, message: '游戏尚未进入运行状态，可打开 Steam 查看登录、更新或许可提示。',
             buttons: [{ text: '稍后', color: '#777777' }, { text: '打开 Steam', color: '#5569D8' }] })
-            .then((answer): void => { if (answer.index === 1) void this.launch(SteamLocalService.getInstance().clientCard()); });
+            .then((answer): void => { if (answer.index === 1) void this.openSteamClient('windows'); });
         }, 45000);
       }
       if (!session && (app.launchTarget.kind === LaunchKind.WINE_EXE ||

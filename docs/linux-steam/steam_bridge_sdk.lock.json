@@ -4,6 +4,7 @@
   "sdk": "1.50",
   "legacyClientSdk": "1.42",
   "sdkSources": {
+    "lsteamclient/steamworks_sdk_150/isteamappticket.h": "762f3f0b2162f92d938e28adda94876ee7961cb0fa55cca131a2a016d0bdb1b6",
     "lsteamclient/steamworks_sdk_150/isteamapplist.h": "205ddcf1f2cad47af3b6139d503d7251db860b44aef21184e9220958e94f175f",
     "lsteamclient/steamworks_sdk_150/isteamapps.h": "89bef21cd5686ae01408ab665a55b94f2552b71bcf232690d37bf8df9214d133",
     "lsteamclient/steamworks_sdk_150/isteamclient.h": "383526ab71184a54b5c0c513e797d52698864553d6d15aa1785c161b317b3d2b",
@@ -42,6 +43,1907 @@
     "lsteamclient/steamworks_sdk_150/steamnetworkingtypes.h": "333c805d2b93ffd214f507d7d35a60a74f600ed9d0cea3d34d21995e93df455b",
     "lsteamclient/steamworks_sdk_150/steamtypes.h": "5f777ea8f89bc85af14a215e7ae1a18cd5159b736bbbd8acad19d3722aac3504",
     "lsteamclient/steamworks_sdk_150/steamuniverse.h": "91b43f660be112f6496eb26480732b28a9981fc7a48c78a41c90966e802b05a3",
-    "lsteamclient/steamworks_sdk_142/isteamclient.h": "586c0306a23c2f2137c73e4e3f91b08f91884740afeebfa46d569bb91c6c157e"
-  }
+    "lsteamclient/steamworks_sdk_142/isteamclient.h": "586c0306a23c2f2137c73e4e3f91b08f91884740afeebfa46d569bb91c6c157e",
+    "lsteamclient/steamworks_sdk_129/isteamclient.h": "5b9508602937243ed309e121caa5b60a0d42bb25dd4115eda5e8ace5adca2055",
+    "lsteamclient/steamworks_sdk_129/isteamuser.h": "adf404c115ddb7cfe7ded479910c9d010b7c1bee6d9575d31091f70b154c547b",
+    "lsteamclient/steamworks_sdk_129/isteamutils.h": "84cd5357c2aac4122a27408266ef7f2a83e43c318437030fe7a39fb042f8c6d3",
+    "lsteamclient/steamworks_sdk_129/isteamapps.h": "c8737b98e1b2b2be028874690aef2002aae24354afc9c4f0779665ea2464585c",
+    "lsteamclient/steamworks_sdk_129/isteamfriends.h": "48d775ed8ebeddda5257d9d847f804b3bd64677d34026dea515f7e073ac5559f",
+    "lsteamclient/steamworks_sdk_100/isteamapps.h": "1f2d621f0ac8fca0b9564f3f77ca1aff585a3f152ed8506854ea2738352e88d1",
+    "lsteamclient/steamworks_sdk_103/isteamapps.h": "cb7886869ea7ad76dc959a3a851b2af7e49508b82bc01702cc9d5a9357b7d2e0",
+    "lsteamclient/steamworks_sdk_111/isteamapps.h": "f75c31b3bf9e0dc3595dcf592cdd5a1bbc2787509609183fa5b1a8a82946778c",
+    "lsteamclient/steamworks_sdk_117/isteamapps.h": "43962ccf06b91079ff6f935f93382c950c3ce4d91635af53abc066f7b638dbe7",
+    "lsteamclient/steamworks_sdk_125/isteamapps.h": "a1e8d9a9545a246d4fb77893210d9f4c1080d65b2ff9182e2d96e92c92da5419",
+    "lsteamclient/steamworks_sdk_136/isteamapps.h": "5bf634cbcd9466b5717c61e3a4c91b2e7909be1ddf34b3505e01a88d1decffcd",
+    "lsteamclient/steamworks_sdk_165/isteamapps.h": "a2edd0b880908da861e0bccd1044db88cfa2a64a27611fe2cb76d37ce61a8fa1",
+    "lsteamclient/steamworks_sdk_102x/isteamremotestorage.h": "5ef478b961e29daa7f6eba7c197a3c28f10455f8e2f9f5c0f3a7c2888f23d41c",
+    "lsteamclient/steamworks_sdk_111/isteamremotestorage.h": "55ca37d717953cc216aa0dd54812986242d48f0409aefe03c436d48778a44459",
+    "lsteamclient/steamworks_sdk_111x/isteamremotestorage.h": "5a885942839eedb0026dcbf962f5bd8cb61cf2478a7b548268a1867647ec8186",
+    "lsteamclient/steamworks_sdk_116/isteamremotestorage.h": "7bd9189713782afb572b85b7287c1f189e73d5c2885eb0c98c0a1a397ff2ee69",
+    "lsteamclient/steamworks_sdk_117/isteamremotestorage.h": "c18477901481b2bef6712d42c099ce6614822b0e5730a590e30c75b34b44948c",
+    "lsteamclient/steamworks_sdk_119/isteamremotestorage.h": "f39ae4dc27cea5e6588a791a8ba20a0b83dd7a27730be7c8c1895e122db089b4",
+    "lsteamclient/steamworks_sdk_119x/isteamremotestorage.h": "5e55a3bc8ea31ece81958b2354c1d0693e542f49a7732a928260a987c136816b",
+    "lsteamclient/steamworks_sdk_121/isteamremotestorage.h": "b3f8c18a40dfe1c152f949e36bdddd04573e6a9bf5716ebdbf6ef19f66fd96bf",
+    "lsteamclient/steamworks_sdk_121x/isteamremotestorage.h": "c4204e5a7e77c273ee5d2b6a1c327fe91ac5e13213f6920e437ee9d72bfceb18",
+    "lsteamclient/steamworks_sdk_124/isteamremotestorage.h": "48ca32e8a137f83b282327d57242770abee1a56897bde0047c6cd7a51e417aeb",
+    "lsteamclient/steamworks_sdk_125/isteamremotestorage.h": "2eebd364133e97e5b0ccf6363e5bdf5d57c9560a0034631c05ad9ea9210515a0",
+    "lsteamclient/steamworks_sdk_134/isteamremotestorage.h": "c25687215885fc6ed8c3f0797609fb786ff2b09eab5827689d179aea24704478",
+    "lsteamclient/steamworks_sdk_137/isteamremotestorage.h": "85e20fc53bd91cc53fca311d1f6db00415f73298678e4edb727ec8d8729bc3a7",
+    "lsteamclient/steamworks_sdk_165/isteamremotestorage.h": "c151c58b14457ec1f259e2057a756d4832e280d9da26e06940743ed7cbd733ca",
+    "lsteamclient/steamworks_sdk_099x/isteamuserstats.h": "e268b22b1c922da14799f29497624a111a8433dcc7795d57b3d35b3e3a0982e8",
+    "lsteamclient/steamworks_sdk_099y/isteamuserstats.h": "339855797dd89b6d0207b2eb0bb37c6683331c728ce6c7e244a4caf53327eb6d",
+    "lsteamclient/steamworks_sdk_102/isteamuserstats.h": "3ecf5f89a56431991b09f079ae0a5ca93331e72d746ebe48d28bbe59e89ef71e",
+    "lsteamclient/steamworks_sdk_103/isteamuserstats.h": "e59b1018d9865458e42f9ac7513178198cb1599c95f7311ed8fca36efb1f1e1a",
+    "lsteamclient/steamworks_sdk_104/isteamuserstats.h": "83eb16ce6b3bb97539b07d99855088fcdc180385fe9773c93b9b0b731df20938",
+    "lsteamclient/steamworks_sdk_107/isteamuserstats.h": "5754f58a9c7518ae0b264832a0f1692faa998c5c7426869b90db7e591638c2bb",
+    "lsteamclient/steamworks_sdk_111/isteamuserstats.h": "6813743bb611671663231e328a62c80f21447d0a058e46d0bc05b47e656bcfa5",
+    "lsteamclient/steamworks_sdk_111x/isteamuserstats.h": "9266e462f7f0daa86482e834653616828289ffdb972e58f566f89e3599e47bb9",
+    "lsteamclient/steamworks_sdk_113/isteamuserstats.h": "9bd422f80bb8dab6fd13aff558964eb7faf62d6f7b07b995c64163141f7c3f79",
+    "lsteamclient/steamworks_sdk_119/isteamuserstats.h": "727bdea947e21a2906c228b688f920444f6b7dd4650e248682d4ec7994643deb",
+    "lsteamclient/steamworks_sdk_148a/isteamuserstats.h": "ade8469fb1832a9153647d29fb0ed1278e48e5e1ba3efa80c7298020c5216ccc",
+    "lsteamclient/steamworks_sdk_165/isteamuserstats.h": "755541356cd1871765da35c5f97c38d026fb2451ac4e7cf9d991833635404301",
+    "lsteamclient/steamworks_sdk_099y/isteamclient.h": "c1b7ecadf7fa17690848e12ef87e91f66927b746b93f8d1d357c8749346603f5",
+    "lsteamclient/steamworks_sdk_103/isteamclient.h": "88c7bbf05c89e6889e5b25a466e769f8755b85a4fc9860bf2f2ef77b93784460",
+    "lsteamclient/steamworks_sdk_107/isteamclient.h": "8e42bcf71ef0af195281a5b3cff4de49764fb53c2c1aee64dc72c3b91d39f0c7",
+    "lsteamclient/steamworks_sdk_111/isteamclient.h": "38873d704360afb358597bf988b7ce9ecb16234e4a1e21eef3bbcbc7831fd948",
+    "lsteamclient/steamworks_sdk_115/isteamclient.h": "4d999e4c95cc00b5f526351acd5a4d2f1742f80179e5faa52f7732d8d47d54d4",
+    "lsteamclient/steamworks_sdk_116/isteamclient.h": "b7586b4a584851ecc197f78f04b2b45e5e3aca2cf53bab6df64906d8eec5a2fa",
+    "lsteamclient/steamworks_sdk_128/isteamclient.h": "8ead86b661d2e6e628bc0962c2b335054b681d5c1577d7a0a5003c3ada99b25d",
+    "lsteamclient/steamworks_sdk_128x/isteamclient.h": "b103cad55caca85d226175563a341e33c678dc543d8231800b3d0a2d8d59531b",
+    "lsteamclient/steamworks_sdk_130/isteamclient.h": "90f83d420608e5ce84749e7385892239da07c4bb7ec2a3410089bc786731fea0",
+    "lsteamclient/steamworks_sdk_131/isteamclient.h": "70b643572805c4e066fd1eb0ddceb8c964e2f180e51112901744c57978cce44a",
+    "lsteamclient/steamworks_sdk_145/isteamclient.h": "32bce8419ebd274693c6b49d8aecda2c6d3fee3d4d1da0dd1b6c56b239daf348",
+    "lsteamclient/steamworks_sdk_146/isteamclient.h": "3e84b5e3eb19dcddd148895f34a4cda577984f8656233befe71d69faeca086d3",
+    "lsteamclient/steamworks_sdk_162/isteamclient.h": "fd91353b4588ab49bf326985656e3152f4ed5bf8271c541658c58213d3ce55ae",
+    "lsteamclient/steamworks_sdk_165/isteamclient.h": "cf409526affe5956b561b40b71feb8600acae5971de91115b42a79974ab08387",
+    "lsteamclient/steamworks_sdk_099x/isteamfriends.h": "17142a449f8e083e1fda6a7a533a5dc699fcb2a678d497d17ac42716988cebac",
+    "lsteamclient/steamworks_sdk_099y/isteamfriends.h": "df82d401fcdbb39efcefbff84ee09221a225205b815534c0dfcf83de894e7e94",
+    "lsteamclient/steamworks_sdk_101/isteamfriends.h": "989b0da3cf24d2851e6b54f667394df37fd02d21bea83981d01a46c69860ed3f",
+    "lsteamclient/steamworks_sdk_102/isteamfriends.h": "972244be19f5dc541958e9f8b7ae0809b7eada1682fed6634b3ab1694be22768",
+    "lsteamclient/steamworks_sdk_109/isteamfriends.h": "bcbc5596d6543347d2f8b2a1e254b4ed1ee41b4f0043af40bfda9323ec5e58be",
+    "lsteamclient/steamworks_sdk_110/isteamfriends.h": "d318e717646d02ac03555cf6cbba2da874c3a786bc3bc2198fa5149fc0d32c66",
+    "lsteamclient/steamworks_sdk_111/isteamfriends.h": "2fee51dc59bedf979bca01c36d617fde78aac84898ba5d35b7df50ff58ebcacf",
+    "lsteamclient/steamworks_sdk_112/isteamfriends.h": "4fb86e409285c48a242f9ede7b456183666f2099ade8f761a69c3995326ce75e",
+    "lsteamclient/steamworks_sdk_116/isteamfriends.h": "8ce16307472df2573107f1215b996885b34c5435b6eb93afdfc655cd0867ba46",
+    "lsteamclient/steamworks_sdk_116x/isteamfriends.h": "15e6ff2c3f31ffa47c5553529a648c179f6a7242b30e657ac8e9a7d570c7229b",
+    "lsteamclient/steamworks_sdk_119/isteamfriends.h": "43e4b180a4c44ff3451753dd16d4be8cf31c00059b9ab2ef417895e83b3a6ee8",
+    "lsteamclient/steamworks_sdk_119x/isteamfriends.h": "81b7f05d93cc42f1890caf0dab78aa4bb421801d708b7a158350bc7af9180d58",
+    "lsteamclient/steamworks_sdk_125/isteamfriends.h": "3d28728afce0baa7f7c822b7e63c36fccebd7d7344ae04f9d9e074b832d50a84",
+    "lsteamclient/steamworks_sdk_142/isteamfriends.h": "4e2f399eca2984468021a16d831478caf1d6fc6084b3502230f8be60b887868d",
+    "lsteamclient/steamworks_sdk_165/isteamfriends.h": "fcf62de4ea21453041e63139120513e9014c2e42982aff56bc72988783ba501a",
+    "lsteamclient/steamworks_sdk_099u/isteamuser.h": "9acff65b8c064f0ee945062d4d1ca8507be4d7e869844b4dc1dfe89de490cbcc",
+    "lsteamclient/steamworks_sdk_099v/isteamuser.h": "1793d98dfc85d40fcad13fadab3a099c97d0680abf58eade065b306c9a8481cc",
+    "lsteamclient/steamworks_sdk_099w/isteamuser.h": "55f4d020b148f404498efb9d47063b50f58f5e991fa0359a4fa1b5beb3ac8128",
+    "lsteamclient/steamworks_sdk_099x/isteamuser.h": "fce504cf635099a3439b9badaa4bee8faff63ac6d63b2df193e7e674861b042d",
+    "lsteamclient/steamworks_sdk_099y/isteamuser.h": "026c401c3beb9886bb74272d22bffcd0de0455135393341e0da0e47473c7bbb7",
+    "lsteamclient/steamworks_sdk_100/isteamuser.h": "6c580ddb68184ce0d0b126d370a241ef9a4395c4cefe7e5dc09d1e89f520f96d",
+    "lsteamclient/steamworks_sdk_101/isteamuser.h": "a5c9206d6cc580d1f750e24a39152b9eb2d73f9476c41e7fdfbeeeddb08cfa9d",
+    "lsteamclient/steamworks_sdk_103/isteamuser.h": "6323bcfe4278c8d900db735f49aaa89705515e3ad56b36a7bd832cff2596f841",
+    "lsteamclient/steamworks_sdk_105/isteamuser.h": "bf9c8cb1b4f81745ea2a7e18591f4210e9c12f8b294db5693d8c9ea71c3e6f67",
+    "lsteamclient/steamworks_sdk_110/isteamuser.h": "1a0eec47bd527ad204cef2fa4e6c6044f34a522d6aa5f4c3fb47544ecf691ed7",
+    "lsteamclient/steamworks_sdk_112/isteamuser.h": "4fa81df96f16faab41e2679d94adce51a23a31309095bcd9861dd36c8bea43b2",
+    "lsteamclient/steamworks_sdk_112x/isteamuser.h": "314c3c9fa2d1a0c83997747ec5c43482a48746e0c14cfb9aafe0c0440a034019",
+    "lsteamclient/steamworks_sdk_123a/isteamuser.h": "618f412dd937f87778ebb2de073a5983163586a39fee69dc30a93d4b6a563563",
+    "lsteamclient/steamworks_sdk_136/isteamuser.h": "c2d33fead7046293f945e0b2d62a5eb3e93e8caa77005fffd49079b43052a232",
+    "lsteamclient/steamworks_sdk_142/isteamuser.h": "ede157dee361fe63a5e53b7d61cb44ec04180f2e881d0559f2501233cefe6fac",
+    "lsteamclient/steamworks_sdk_148a/isteamuser.h": "a5987fef8eaee0aa5637e15c12f3d019510ae12b39344721aed482a7dd017c74",
+    "lsteamclient/steamworks_sdk_156/isteamuser.h": "35d73d4fb9542fff103d0096d8285f95fa552bef5c02affcdda6946760f7116f",
+    "lsteamclient/steamworks_sdk_165/isteamuser.h": "2d93e98fdfd50551a2c53f0c3fcb3e90bbe4f135683db7005fc018f8074c36c5",
+    "lsteamclient/steamworks_sdk_103/isteamutils.h": "2ac9daafba40c1e4920d4742b314e75b42883d3a63725c43ec554a72803e0553",
+    "lsteamclient/steamworks_sdk_106/isteamutils.h": "69162afa270a59e777fd454a3ffe3105cac0f2035cec2abebdbb132bec04b140",
+    "lsteamclient/steamworks_sdk_123a/isteamutils.h": "06415a227874d44f0d8c465d37c58ab0d723c42b3b82279ccd331511a0483431",
+    "lsteamclient/steamworks_sdk_128/isteamutils.h": "0a6e2324aac922e8ced8d778c81ab51a1e59921410a23fef2a8486b675fb6f81",
+    "lsteamclient/steamworks_sdk_139/isteamutils.h": "8a3461ed75ba8774f6729ef718af35c3535290446f859516a0792c00022bcb95",
+    "lsteamclient/steamworks_sdk_149/isteamutils.h": "ede027f993f5b78a6211c4947c4b66debfea9046084019717e0f5e7e8af7facc",
+    "lsteamclient/steamworks_sdk_165/isteamutils.h": "a39cbf2bde67911257cab629a296fa85b7236e6b3c80e7fbcb258609bcc70369",
+    "lsteamclient/steamworks_sdk_133a/isteamclient.h": "edbeedba5ce996e500d39b32ef883c3df2238bd31540add9de0a6c06e6fdb2e8",
+    "lsteamclient/steamworks_sdk_163/isteamapps.h": "982fb2713af0fae9a7db1a48191758c9098b690bd981173d6cf8c25829dfac1e",
+    "lsteamclient/steamworks_sdk_165/isteamappticket.h": "fba25db10917481d35e0065a5121f8ee59712da6afdf765bd7894c3228ef7a63",
+    "lsteamclient/steamworks_sdk_151/isteamremotestorage.h": "6f33ba2c9d3852f4e5aca104d2547adbead9c6e37e73c357f098b07b9af69b83",
+    "lsteamclient/steamworks_sdk_160/isteamuserstats.h": "b7762bee0b9b6ecdd3ac709cf5a0bbefc769acf258353acbb2cf74f0b1e9ee76",
+    "lsteamclient/steamworks_sdk_158/isteamclient.h": "2b33ac58a8d840f78018d421bc4494e63374668fa1f7cf7de68bda7ce2fb3ff2",
+    "lsteamclient/steamworks_sdk_161/isteamfriends.h": "b7e83c130b4e10a054028e1b72971f56a30c33e6dbf5de987e240869b7cdcd77",
+    "lsteamclient/steamworks_sdk_155/isteamuser.h": "82d685c0eeca51b20763c41044659f215ff3f8927e35f69b12f66ca7cfd6acc7",
+    "lsteamclient/steamworks_sdk_164/isteamutils.h": "f9200ff54fca94435dad516db0685727d89787957ade4012ccf4a3bcea1f0be2",
+    "lsteamclient/steamworks_sdk_136/isteamutils.h": "a8e28ffae71d72d0a7bfba99f16f99521aa1846433d039fb9cc9ff48bba69eb7",
+    "lsteamclient/steamworks_sdk_165/isteamcontroller.h": "7ca7a2008908b0e5a7b5c8c6c5b9cbae7b2d71f18785bd25232562593d36040c",
+    "lsteamclient/steamworks_sdk_165/isteamgamecoordinator.h": "91b811f28258f8d6b222c4325cbc17e7a9e70cfb3ef217ba6e3a4c94d3bd03a6",
+    "lsteamclient/steamworks_sdk_165/isteamgameserver.h": "cbd30d4dbb044b1d3c40f5f2082d4422f9a572300bdf76d06cebd87e3433737d",
+    "lsteamclient/steamworks_sdk_165/isteamgameserverstats.h": "5d46add4d07ab48e905f04f9d7455745cdd33927eafd2d5be143dd6e36e1e44d",
+    "lsteamclient/steamworks_sdk_165/isteamhtmlsurface.h": "090d41fa08573cf795019eae8b2e17dba4718ea1648cedf76dc2ced64aefdf59",
+    "lsteamclient/steamworks_sdk_165/isteamhttp.h": "e33e78d53aa95ac46da7959b037abdc2985a2832f75a8c1948f9b7484487f979",
+    "lsteamclient/steamworks_sdk_165/isteaminput.h": "4cc1887e02d829633385c07582279a5712fbcd5e1b046eade01efba376237093",
+    "lsteamclient/steamworks_sdk_165/isteaminventory.h": "3228d8cd6a281bd5149fade2ac57aebfd1c2e6126364220f0ae88aae69f0e290",
+    "lsteamclient/steamworks_sdk_165/isteammatchmaking.h": "4138e689874c91c08134f9b6f653132d7101454c7e64fdd41e1f30f54449f6f1",
+    "lsteamclient/steamworks_sdk_165/isteammusic.h": "1211b437fdfd8d90035643ce2c2974cde9deb382fac2cacb6db71237d6c89b1c",
+    "lsteamclient/steamworks_sdk_165/isteamnetworking.h": "afa6bfdce47c868782e76f8a61acd1097fa991ac019a7a2a5b4a1237c5be5e2d",
+    "lsteamclient/steamworks_sdk_165/isteamnetworkingmessages.h": "632a3b525878dac1f37f669422e2c38df27ca63bec040ef9369efb6ee3217e04",
+    "lsteamclient/steamworks_sdk_165/isteamnetworkingsockets.h": "62fb107b7e881c2b99cc8e3683d7702ae3ed5c9b2349dd30520ebe690035f7fd",
+    "lsteamclient/steamworks_sdk_165/isteamnetworkingutils.h": "4c3f54b10523fc13a368b9d33638fc7384a6ca0510fda912c630c68b06fee7bb",
+    "lsteamclient/steamworks_sdk_165/isteamparentalsettings.h": "c27019f7b221f230d6a1ada668e37651d89be0d9eb22c3d332e961ca60b046df",
+    "lsteamclient/steamworks_sdk_165/isteamremoteplay.h": "904a25aec95bb34e6c702f4933e7636a0223464c3bde3362295627567f7398a9",
+    "lsteamclient/steamworks_sdk_165/isteamscreenshots.h": "295d32128360cdcea67bf797d81906a4d0809d246da5c27b53b8c9c0f4ee054b",
+    "lsteamclient/steamworks_sdk_165/isteamtimeline.h": "69694a131b13f75a0a1e3fb6cf3327bfd6ef910e0a3e01cc28cb949ac872701e",
+    "lsteamclient/steamworks_sdk_165/isteamugc.h": "1c32170a53f04f108ca4c1db0ba187c88729ab091dc3242d5752f9bdce45edfc",
+    "lsteamclient/steamworks_sdk_165/isteamvideo.h": "9c71bb2eba12a1d8a85e82a1a4076309fc9d896301ba4e5c737aae89247bea88",
+    "lsteamclient/steamworks_sdk_164/isteaminput.h": "03f6c887e6ab226406753d8af12b252b94df25d4c7085c469bb93d7d4c18c008",
+    "lsteamclient/steamworks_sdk_164/isteammatchmaking.h": "c5f71c3e3f13667d10225c9b88984de0b99edd281edaab4010be0f536ab7a518",
+    "lsteamclient/steamworks_sdk_164/isteamnetworkingsockets.h": "c712d79916fd5fe66b45a19908c269851a92eb7e7d2728c318cd7600a8c51aba",
+    "lsteamclient/steamworks_sdk_163/isteamremoteplay.h": "59f0865e4f9753dc7e7ec163dc5d7add42097897f4ea298114f5e3420e7a070c",
+    "lsteamclient/steamworks_sdk_162/isteammatchmaking.h": "fa973674c8a27725c2582f82ee6232bbee80bc55c508c3b338438c155940d432",
+    "lsteamclient/steamworks_sdk_162/isteammusicremote.h": "1f414960ec474aacc13690bd7125b481acb16b4ecb9bca1e745af059db3c97c1",
+    "lsteamclient/steamworks_sdk_161/isteamremoteplay.h": "11f1f09a104255c30bd35415b98ebf09a4b11d60d61355f27807c06f6193a6a6",
+    "lsteamclient/steamworks_sdk_161/isteamugc.h": "1fe3f591e95a886c06b9e0d3cb64c104900d926b0d3d180790b5efb5c5cd2d88",
+    "lsteamclient/steamworks_sdk_160/isteamtimeline.h": "78fc365a5710a0efb9f75722b2ddf7a23b46b896f97cb02624336065053f5a3f",
+    "lsteamclient/steamworks_sdk_159/isteamugc.h": "1f6385207298d44238f939c051d27883e12cb0509f90aebf565fb160393caa52",
+    "lsteamclient/steamworks_sdk_159/isteamvideo.h": "9845a5def2b43b992384f9ebe160114432d5cc2995d127d0d65dd4755d5cb2d0",
+    "lsteamclient/steamworks_sdk_158/isteamapplist.h": "3cfbd3ba151be2f70f654af712e0aa3c40beb52d631caf07c4a8f2165331268f",
+    "lsteamclient/steamworks_sdk_157/isteamremoteplay.h": "8b203408b5f98a5c1b0efe91723d082f5ba875c0f238719677574f59636b0bce",
+    "lsteamclient/steamworks_sdk_157/isteamugc.h": "87f68402b444b7e2483341eb30005989717302db49f4bce9202a4f8bbb9b1eae",
+    "lsteamclient/steamworks_sdk_155/isteamgameserver.h": "fc935b853c9fe67721d1cfc4f7d518a489bd9a8910680a39e11bb3830a60827f",
+    "lsteamclient/steamworks_sdk_155/isteamugc.h": "46b34aaf0a8583b7b1c4734581c7e7672297c53f6c823309c2ac59cb59bd9c5c",
+    "lsteamclient/steamworks_sdk_152/isteaminput.h": "53bbd185bf1b8ae20693eb192fa241a99ae534d4668c855eb290e6a1a3e98a46",
+    "lsteamclient/steamworks_sdk_152/isteamnetworkingsockets.h": "1b686a137b3435a3bcdfe9c14a551c93d545c0e2bf0e182e1a18faacf0ed3f09",
+    "lsteamclient/steamworks_sdk_152/isteamnetworkingutils.h": "d890057fda06afac301422538a8c8579ea13b1f07a6362089f082d4b6068b137",
+    "lsteamclient/steamworks_sdk_152/isteamugc.h": "1816cc2ba2fbcbb5aa6c7777b0f45612021b0d839b5fa073bce2058cec2650d4",
+    "lsteamclient/steamworks_sdk_151/isteamgameserver.h": "dfab5c2810655a60f53d8443cfd677f9036701e975497b532870e2de05ae6b93",
+    "lsteamclient/steamworks_sdk_151/isteaminput.h": "337d0aec88774b5c7fb9d37d5285e9a1a218fdca2f32606ffaafeb200d5b1e6c",
+    "lsteamclient/steamworks_sdk_149/isteamnetworkingsockets.h": "0ea6298fee24be944881aefe60236c01f7ff7c494d54441b435167d94c9ebe41",
+    "lsteamclient/steamworks_sdk_147/isteamnetworkingsockets.h": "48394d499c2863acbfb0c741dfa40e8ba4242bfc52cf75101a7f2298bce4ec95",
+    "lsteamclient/steamworks_sdk_146/isteamgameserver.h": "cd965407409e8bf24e53275aa64271b4e83667f2268c9f455bc2f7caed555c3d",
+    "lsteamclient/steamworks_sdk_146/isteamnetworking.h": "00bb5acc8e16c218e24a64f8c106e43b022a5f6a92f4468e01da0b6553e3ca4b",
+    "lsteamclient/steamworks_sdk_146/isteamnetworkingsockets.h": "9d69bb1de82d196fab9b7a3b9b18d5b6bfee12dfeabff58ec670aa0a700319c2",
+    "lsteamclient/steamworks_sdk_146/isteamnetworkingutils.h": "57c09d78efb5d2d88169b9cdcf58f8f1495afdb101bc7c51f2a86f04075a9806",
+    "lsteamclient/steamworks_sdk_146/isteamugc.h": "7397838d646b592e816869d2d7c55cfab74dc9b0f7e64baef6fc435bf49f68d5",
+    "lsteamclient/steamworks_sdk_144/isteamnetworkingsockets.h": "5d1fae86f43e23aebc38b952edc4a6cea452db5edea42eb260f374d52fc07d54",
+    "lsteamclient/steamworks_sdk_144/isteamnetworkingutils.h": "d2d0398de0b099cf8d79d53063f2de4104712ce84298b5b111bc15b20cd8cf6e",
+    "lsteamclient/steamworks_sdk_144/isteamugc.h": "a180e99434c701d82997da13f19e813af84ec0f42262325d3b0cf70874d1a5fe",
+    "lsteamclient/steamworks_sdk_143y/isteamnetworkingsocketsserialized.h": "b1ad00fbf1533f4fdb42c4e352b48945b45c8d8b9e6c90ef635a3b0594131355",
+    "lsteamclient/steamworks_sdk_143x/isteamnetworkingsocketsserialized.h": "032dbcc0dfa9cb3adfb0dc981b06cdf01f2deb2afabe33ce7c98762da40a4c44",
+    "lsteamclient/steamworks_sdk_142/isteamcontroller.h": "88a857bdea3b74c60acb9a020c6fed4d0ab3f93d012e2e9ec0e875307540b986",
+    "lsteamclient/steamworks_sdk_142/isteamhtmlsurface.h": "3bc069ca6648c9d02d86722b1e8bc0bda6d7e99ec0478de6b41ee982aab05d04",
+    "lsteamclient/steamworks_sdk_142/isteamhttp.h": "f5539ab72fbed65d64bdf9a771feb3342f9d96b3dfacfd74d67048174a38ed04",
+    "lsteamclient/steamworks_sdk_142/isteaminventory.h": "92315d73287cc9d6d5f61a2c8e70fb44df74d202a5ff5d238945fc98123683ee",
+    "lsteamclient/steamworks_sdk_142/isteamugc.h": "4fcddafbef8c3daf345d447040d55fa109f6ea137bf6d84f1d6d2037b21d939e",
+    "lsteamclient/steamworks_sdk_141/isteamcontroller.h": "610d85c38503a3bac568e64a09503c8800bf4b1566c4d569962f47c51ec3d49b",
+    "lsteamclient/steamworks_sdk_141/isteamunifiedmessages.h": "4c01f47e6b2e29f3c665ce3c3ed3bdd4fafb7104d2ca5e100314d87331df3cf2",
+    "lsteamclient/steamworks_sdk_140/isteamhtmlsurface.h": "0c5625abbeab7fd359586a8eef3089685c36b0dc624ec94635f7c62789e5b3a7",
+    "lsteamclient/steamworks_sdk_139/isteaminventory.h": "5864cfef40862b1cc6361a139e92a8736a713549fec9a671271e4aaa43396506",
+    "lsteamclient/steamworks_sdk_139/isteamugc.h": "2ba8e4da82bdbfd8ba73c263b87235c21f5b588e811f09f3f7b190e0224f3cc4",
+    "lsteamclient/steamworks_sdk_139/isteamvideo.h": "dadf6ddce8d009ba5260e13b2096294c6f568f48523e4c864eeb938b87ca0d18",
+    "lsteamclient/steamworks_sdk_138a/isteamcontroller.h": "e5d061e54bdd5581edd4dc1b3522276521e25f4572b7f8f06f0e97cb2311dd97",
+    "lsteamclient/steamworks_sdk_137/isteamcontroller.h": "9d003bc8ea44cac1abe0532fba8ce72ef65684539e2d6269ec3e7bce08221928",
+    "lsteamclient/steamworks_sdk_137/isteamscreenshots.h": "df86459a142177af71bf51f25515625dac37962b21f59a3786ae728e4449dcc0",
+    "lsteamclient/steamworks_sdk_137/isteamugc.h": "53fab038606cb878f880fd539326a4ff9d380d092bcc069003403a68ccf8c502",
+    "lsteamclient/steamworks_sdk_136/isteamugc.h": "5b46b6548acfd11608545926e14b8422748bcbabdd4a96163c86ce6e06d470e0",
+    "lsteamclient/steamworks_sdk_134/isteamcontroller.h": "4be872c2d8624006c2cbc2620c752566d56457a427ee31ca9f5c7003c21842e7",
+    "lsteamclient/steamworks_sdk_133x/isteamugc.h": "405f699d428855718374e4501ba03fecdb6cb6657d243a97def46de4e090016b",
+    "lsteamclient/steamworks_sdk_133b/isteamugc.h": "5a1c6839a147f952435afe50a1b580c439a8b905067f3c807ebff25211c6ba3c",
+    "lsteamclient/steamworks_sdk_133a/isteamhtmlsurface.h": "072068b062b2de50b837b805adbc29c979377b9b9aaca56a844381c632fe4fa9",
+    "lsteamclient/steamworks_sdk_132x/isteamugc.h": "d978e341c2ef4057820220c02334f8160ba9d60f62902106585530d0c7b1c3f4",
+    "lsteamclient/steamworks_sdk_132/isteamugc.h": "dc98d9f2b1b06c682ce34e46347a0b1d81f372eafec19487e8a2ee5791b7968f",
+    "lsteamclient/steamworks_sdk_130x/isteamhtmlsurface.h": "6cd68eba02dc91b572490b64be7ead5cc9b7f3a5203e7361be2e9012d0f0b844",
+    "lsteamclient/steamworks_sdk_130/isteamugc.h": "3346c273378e6ee12045562af325eb72307bfbeb3f12cec5eee077b967ee3e37",
+    "lsteamclient/steamworks_sdk_128/isteamgameserver.h": "f808813fd5d2ae103ac1b0ddf71406312b726d8c3aab06168adc0402f5b219ef",
+    "lsteamclient/steamworks_sdk_128/isteamugc.h": "9449bb8ec208b976285c8a58cf537e8e98fe9ed2b6262face5ef29621900ca68",
+    "lsteamclient/steamworks_sdk_122/isteamscreenshots.h": "2c936351defdee284fe265a502a4f3470b5e7d23dda78337a8c59a8181404cb4",
+    "lsteamclient/steamworks_sdk_121/isteamhttp.h": "782354a92101e63ef9774f9b133b29e14cdc9da7c6dd680c8e3feaea0e02cab4",
+    "lsteamclient/steamworks_sdk_117/isteamgamestats.h": "988247d7d0d60f9c3333a3493aa5febd33f1f71bc19246f1c5a0f0034baa38cb",
+    "lsteamclient/steamworks_sdk_116/isteamgameserver.h": "17ee27bccf9ede790dceab03bd5e928328c391e02d7884d2cd94de0b895c1ca3",
+    "lsteamclient/steamworks_sdk_116/isteammasterserverupdater.h": "1602f652ad8ad09c35674427ae854b81fde53153fbb6f10121b15fad52ef81e6",
+    "lsteamclient/steamworks_sdk_116/isteammatchmaking.h": "fc958f9746dbfca5ea1cc98d76d14b712557baa2fba8b8d4621cebc615f7ce54",
+    "lsteamclient/steamworks_sdk_112/isteamnetworking.h": "26cc90659495fc7b1ec67d064a66776a2a58d7ab8fc3fa050427315ccc82165a",
+    "lsteamclient/steamworks_sdk_110/isteamnetworking.h": "ac61c91797ce8dd90a9c100f3248351336ff8a73ddedf370acd9d26dc752056e",
+    "lsteamclient/steamworks_sdk_107/isteamgameserver.h": "5f688f45fa67224cbf4b9633edb15d9b48a0e2eea646f513ec8028f468e448c9",
+    "lsteamclient/steamworks_sdk_107/isteammatchmaking.h": "fceea9e367b73ddc5e9e9e8b3ee583cd0e0cdda1e3f862df72d684b1c48fa338",
+    "lsteamclient/steamworks_sdk_105/isteammatchmaking.h": "c4f4103c03297d759c715377eea2423842612ad634d89d6c1edc7c0400f268a2",
+    "lsteamclient/steamworks_sdk_104/isteamgameserver.h": "81ba7403cdde0275a8f9d8aa13660531e8d03536b66a46fbc992f9f11c29558d",
+    "lsteamclient/steamworks_sdk_104/isteammatchmaking.h": "234f64fe55272d30b282ce4495c95591fc257896a7d41f935ce28f66c6f351e0",
+    "lsteamclient/steamworks_sdk_104/isteamnetworking.h": "41b993c69e698e5baa60a9c2c2ee2c47a18849dd188ea3abefda17155d0af851",
+    "lsteamclient/steamworks_sdk_102x/isteammatchmaking.h": "22588e405fbfcd7345b931487f140c529c33fc9e2f9556b1a95533b3a6dac352",
+    "lsteamclient/steamworks_sdk_102/isteamgameserver.h": "1ee5f8b465cf232d3a33e7a22e4ec9c8b32a72b61f8cbb20cc0d72f8bbbf5783",
+    "lsteamclient/steamworks_sdk_102/isteammatchmaking.h": "9551bd1166684ba6d7e148a3abdff221446ae9a4687df0cc41566aea1e0275e8",
+    "lsteamclient/steamworks_sdk_102/isteamnetworking.h": "1bbf53ba08c833d909f45c5cde3e4b2833ea8cc1f76576e273b145a8560548cc",
+    "lsteamclient/steamworks_sdk_101x/isteammatchmaking.h": "1bdf7219035d14819a3f999896bd13150d39285375dbb9e07e8e0bf60240e71f",
+    "lsteamclient/steamworks_sdk_101/isteammatchmaking.h": "549ec0136d51c6ae7745c0e940c14faedb8bdf4b8b2f4f316176047381f3ed60",
+    "lsteamclient/steamworks_sdk_100/isteamgameserver.h": "3e027faebd7b3ca7c2e0b93272336a4200109f13cef0710a0fe975e5d746cb66",
+    "lsteamclient/steamworks_sdk_099y/isteambilling.h": "1d3cf7ce79f574f4d516d928003de61b6bcd8c178cc496198e1e94ca6b736ce1",
+    "lsteamclient/steamworks_sdk_099y/isteamgameserver.h": "d3248ac24dc071454822466a1a55794003e340d5fa1a85c9d9db003b3da1260b",
+    "lsteamclient/steamworks_sdk_099y/isteammatchmaking.h": "a26a5f06e86925caf4c5ddb9644a3496db25bf031c9f289e7355d9ce56f6a215",
+    "lsteamclient/steamworks_sdk_099x/isteamgameserver.h": "9d2ed8c8e82f1e648d30607a14c9c049d6fb4512bd6b28e0a7ad2a12931c35d7",
+    "lsteamclient/steamworks_sdk_129/steamcontrollerpublic.h": "cd1cc6c1cad312a26f04b94589cb500fe5f2f78bc1785b2e36efd566339eedaa",
+    "lsteamclient/steamworks_sdk_129/isteamunifiedmessages.h": "4c01f47e6b2e29f3c665ce3c3ed3bdd4fafb7104d2ca5e100314d87331df3cf2",
+    "lsteamclient/steamworks_sdk_165/steamnetworkingfakeip.h": "2a470de7af33243d149b520cef664ddce14eb9d46a88e81236d424517a857365",
+    "lsteamclient/steamworks_sdk_105/matchmakingtypes.h": "932a1f7438441873d49afd1748787a772104ef7e55b655e2af16364145b9b55a",
+    "lsteamclient/steamworks_sdk_165/steamnetworkingtypes.h": "9412aa24364758266b362832d260548e7572f1f1474d5a11ff677dc98a2089f0",
+    "lsteamclient/steamworks_sdk_165/isteamdualsense.h": "16c2c58094db88a687d0ddbd92f5e069b199c1cb419ea395ad6de177f907683f"
+  },
+  "legacyClientSdks": {
+    "SteamClient017": "1.42",
+    "SteamClient014": "1.29"
+  },
+  "legacyInterfaces": [
+    {
+      "class": "ISteamUser017",
+      "sourceClass": "ISteamUser",
+      "sdk": "129",
+      "header": "isteamuser.h",
+      "version": "SteamUser017"
+    },
+    {
+      "class": "ISteamUtils007",
+      "sourceClass": "ISteamUtils",
+      "sdk": "136",
+      "header": "isteamutils.h",
+      "version": "SteamUtils007"
+    },
+    {
+      "class": "ISteamApps006",
+      "sourceClass": "ISteamApps",
+      "sdk": "129",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION006"
+    },
+    {
+      "class": "ISteamFriends014",
+      "sourceClass": "ISteamFriends",
+      "sdk": "129",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends014"
+    }
+  ],
+  "coreInterfaces": [
+    {
+      "class": "ISteamApps001",
+      "sourceClass": "ISteamApps",
+      "sdk": "100",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamApps002",
+      "sourceClass": "ISteamApps",
+      "sdk": "103",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION002"
+    },
+    {
+      "class": "ISteamApps003",
+      "sourceClass": "ISteamApps",
+      "sdk": "111",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION003"
+    },
+    {
+      "class": "ISteamApps004",
+      "sourceClass": "ISteamApps",
+      "sdk": "117",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION004"
+    },
+    {
+      "class": "ISteamApps005",
+      "sourceClass": "ISteamApps",
+      "sdk": "125",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION005"
+    },
+    {
+      "class": "ISteamApps007",
+      "sourceClass": "ISteamApps",
+      "sdk": "136",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION007"
+    },
+    {
+      "class": "ISteamApps008",
+      "sourceClass": "ISteamApps",
+      "sdk": "163",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION008"
+    },
+    {
+      "class": "ISteamApps009",
+      "sourceClass": "ISteamApps",
+      "sdk": "165",
+      "header": "isteamapps.h",
+      "version": "STEAMAPPS_INTERFACE_VERSION009"
+    },
+    {
+      "class": "ISteamAppTicket001",
+      "sourceClass": "ISteamAppTicket",
+      "sdk": "165",
+      "header": "isteamappticket.h",
+      "version": "STEAMAPPTICKET_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamRemoteStorage001",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "102x",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamRemoteStorage002",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "111",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION002"
+    },
+    {
+      "class": "ISteamRemoteStorage003",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "111x",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION003"
+    },
+    {
+      "class": "ISteamRemoteStorage004",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "116",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION004"
+    },
+    {
+      "class": "ISteamRemoteStorage005",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "117",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION005"
+    },
+    {
+      "class": "ISteamRemoteStorage006",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "119",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION006"
+    },
+    {
+      "class": "ISteamRemoteStorage007",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "119x",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION007"
+    },
+    {
+      "class": "ISteamRemoteStorage008",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "121",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION008"
+    },
+    {
+      "class": "ISteamRemoteStorage009",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "121x",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION009"
+    },
+    {
+      "class": "ISteamRemoteStorage010",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "124",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION010"
+    },
+    {
+      "class": "ISteamRemoteStorage011",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "125",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION011"
+    },
+    {
+      "class": "ISteamRemoteStorage012",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "134",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION012"
+    },
+    {
+      "class": "ISteamRemoteStorage013",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "137",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION013"
+    },
+    {
+      "class": "ISteamRemoteStorage014",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "151",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION014"
+    },
+    {
+      "class": "ISteamRemoteStorage016",
+      "sourceClass": "ISteamRemoteStorage",
+      "sdk": "165",
+      "header": "isteamremotestorage.h",
+      "version": "STEAMREMOTESTORAGE_INTERFACE_VERSION016"
+    },
+    {
+      "class": "ISteamUserStats001",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "099x",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamUserStats002",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "099y",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION002"
+    },
+    {
+      "class": "ISteamUserStats003",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "102",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION003"
+    },
+    {
+      "class": "ISteamUserStats004",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "103",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION004"
+    },
+    {
+      "class": "ISteamUserStats005",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "104",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION005"
+    },
+    {
+      "class": "ISteamUserStats006",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "107",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION006"
+    },
+    {
+      "class": "ISteamUserStats007",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "111",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION007"
+    },
+    {
+      "class": "ISteamUserStats008",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "111x",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION008"
+    },
+    {
+      "class": "ISteamUserStats009",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "113",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION009"
+    },
+    {
+      "class": "ISteamUserStats010",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "119",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION010"
+    },
+    {
+      "class": "ISteamUserStats011",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "148a",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION011"
+    },
+    {
+      "class": "ISteamUserStats012",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "160",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION012"
+    },
+    {
+      "class": "ISteamUserStats013",
+      "sourceClass": "ISteamUserStats",
+      "sdk": "165",
+      "header": "isteamuserstats.h",
+      "version": "STEAMUSERSTATS_INTERFACE_VERSION013"
+    },
+    {
+      "class": "ISteamClient006",
+      "sourceClass": "ISteamClient",
+      "sdk": "099y",
+      "header": "isteamclient.h",
+      "version": "SteamClient006"
+    },
+    {
+      "class": "ISteamClient007",
+      "sourceClass": "ISteamClient",
+      "sdk": "103",
+      "header": "isteamclient.h",
+      "version": "SteamClient007"
+    },
+    {
+      "class": "ISteamClient008",
+      "sourceClass": "ISteamClient",
+      "sdk": "107",
+      "header": "isteamclient.h",
+      "version": "SteamClient008"
+    },
+    {
+      "class": "ISteamClient009",
+      "sourceClass": "ISteamClient",
+      "sdk": "111",
+      "header": "isteamclient.h",
+      "version": "SteamClient009"
+    },
+    {
+      "class": "ISteamClient010",
+      "sourceClass": "ISteamClient",
+      "sdk": "115",
+      "header": "isteamclient.h",
+      "version": "SteamClient010"
+    },
+    {
+      "class": "ISteamClient011",
+      "sourceClass": "ISteamClient",
+      "sdk": "116",
+      "header": "isteamclient.h",
+      "version": "SteamClient011"
+    },
+    {
+      "class": "ISteamClient012",
+      "sourceClass": "ISteamClient",
+      "sdk": "128",
+      "header": "isteamclient.h",
+      "version": "SteamClient012"
+    },
+    {
+      "class": "ISteamClient013",
+      "sourceClass": "ISteamClient",
+      "sdk": "128x",
+      "header": "isteamclient.h",
+      "version": "SteamClient013"
+    },
+    {
+      "class": "ISteamClient015",
+      "sourceClass": "ISteamClient",
+      "sdk": "130",
+      "header": "isteamclient.h",
+      "version": "SteamClient015"
+    },
+    {
+      "class": "ISteamClient016",
+      "sourceClass": "ISteamClient",
+      "sdk": "131",
+      "header": "isteamclient.h",
+      "version": "SteamClient016"
+    },
+    {
+      "class": "ISteamClient018",
+      "sourceClass": "ISteamClient",
+      "sdk": "145",
+      "header": "isteamclient.h",
+      "version": "SteamClient018"
+    },
+    {
+      "class": "ISteamClient019",
+      "sourceClass": "ISteamClient",
+      "sdk": "146",
+      "header": "isteamclient.h",
+      "version": "SteamClient019"
+    },
+    {
+      "class": "ISteamClient020",
+      "sourceClass": "ISteamClient",
+      "sdk": "158",
+      "header": "isteamclient.h",
+      "version": "SteamClient020"
+    },
+    {
+      "class": "ISteamClient021",
+      "sourceClass": "ISteamClient",
+      "sdk": "162",
+      "header": "isteamclient.h",
+      "version": "SteamClient021"
+    },
+    {
+      "class": "ISteamClient023",
+      "sourceClass": "ISteamClient",
+      "sdk": "165",
+      "header": "isteamclient.h",
+      "version": "SteamClient023"
+    },
+    {
+      "class": "ISteamFriends001",
+      "sourceClass": "ISteamFriends",
+      "sdk": "099x",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends001"
+    },
+    {
+      "class": "ISteamFriends002",
+      "sourceClass": "ISteamFriends",
+      "sdk": "099y",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends002"
+    },
+    {
+      "class": "ISteamFriends003",
+      "sourceClass": "ISteamFriends",
+      "sdk": "101",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends003"
+    },
+    {
+      "class": "ISteamFriends004",
+      "sourceClass": "ISteamFriends",
+      "sdk": "102",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends004"
+    },
+    {
+      "class": "ISteamFriends005",
+      "sourceClass": "ISteamFriends",
+      "sdk": "109",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends005"
+    },
+    {
+      "class": "ISteamFriends006",
+      "sourceClass": "ISteamFriends",
+      "sdk": "110",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends006"
+    },
+    {
+      "class": "ISteamFriends007",
+      "sourceClass": "ISteamFriends",
+      "sdk": "111",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends007"
+    },
+    {
+      "class": "ISteamFriends008",
+      "sourceClass": "ISteamFriends",
+      "sdk": "112",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends008"
+    },
+    {
+      "class": "ISteamFriends009",
+      "sourceClass": "ISteamFriends",
+      "sdk": "116",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends009"
+    },
+    {
+      "class": "ISteamFriends010",
+      "sourceClass": "ISteamFriends",
+      "sdk": "116x",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends010"
+    },
+    {
+      "class": "ISteamFriends011",
+      "sourceClass": "ISteamFriends",
+      "sdk": "119",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends011"
+    },
+    {
+      "class": "ISteamFriends012",
+      "sourceClass": "ISteamFriends",
+      "sdk": "119x",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends012"
+    },
+    {
+      "class": "ISteamFriends013",
+      "sourceClass": "ISteamFriends",
+      "sdk": "125",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends013"
+    },
+    {
+      "class": "ISteamFriends015",
+      "sourceClass": "ISteamFriends",
+      "sdk": "142",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends015"
+    },
+    {
+      "class": "ISteamFriends017",
+      "sourceClass": "ISteamFriends",
+      "sdk": "161",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends017"
+    },
+    {
+      "class": "ISteamFriends018",
+      "sourceClass": "ISteamFriends",
+      "sdk": "165",
+      "header": "isteamfriends.h",
+      "version": "SteamFriends018"
+    },
+    {
+      "class": "ISteamUser004",
+      "sourceClass": "ISteamUser",
+      "sdk": "099u",
+      "header": "isteamuser.h",
+      "version": "SteamUser004"
+    },
+    {
+      "class": "ISteamUser005",
+      "sourceClass": "ISteamUser",
+      "sdk": "099v",
+      "header": "isteamuser.h",
+      "version": "SteamUser005"
+    },
+    {
+      "class": "ISteamUser006",
+      "sourceClass": "ISteamUser",
+      "sdk": "099w",
+      "header": "isteamuser.h",
+      "version": "SteamUser006"
+    },
+    {
+      "class": "ISteamUser007",
+      "sourceClass": "ISteamUser",
+      "sdk": "099x",
+      "header": "isteamuser.h",
+      "version": "SteamUser007"
+    },
+    {
+      "class": "ISteamUser008",
+      "sourceClass": "ISteamUser",
+      "sdk": "099y",
+      "header": "isteamuser.h",
+      "version": "SteamUser008"
+    },
+    {
+      "class": "ISteamUser009",
+      "sourceClass": "ISteamUser",
+      "sdk": "100",
+      "header": "isteamuser.h",
+      "version": "SteamUser009"
+    },
+    {
+      "class": "ISteamUser010",
+      "sourceClass": "ISteamUser",
+      "sdk": "101",
+      "header": "isteamuser.h",
+      "version": "SteamUser010"
+    },
+    {
+      "class": "ISteamUser011",
+      "sourceClass": "ISteamUser",
+      "sdk": "103",
+      "header": "isteamuser.h",
+      "version": "SteamUser011"
+    },
+    {
+      "class": "ISteamUser012",
+      "sourceClass": "ISteamUser",
+      "sdk": "105",
+      "header": "isteamuser.h",
+      "version": "SteamUser012"
+    },
+    {
+      "class": "ISteamUser013",
+      "sourceClass": "ISteamUser",
+      "sdk": "110",
+      "header": "isteamuser.h",
+      "version": "SteamUser013"
+    },
+    {
+      "class": "ISteamUser014",
+      "sourceClass": "ISteamUser",
+      "sdk": "112",
+      "header": "isteamuser.h",
+      "version": "SteamUser014"
+    },
+    {
+      "class": "ISteamUser015",
+      "sourceClass": "ISteamUser",
+      "sdk": "112x",
+      "header": "isteamuser.h",
+      "version": "SteamUser015"
+    },
+    {
+      "class": "ISteamUser016",
+      "sourceClass": "ISteamUser",
+      "sdk": "123a",
+      "header": "isteamuser.h",
+      "version": "SteamUser016"
+    },
+    {
+      "class": "ISteamUser018",
+      "sourceClass": "ISteamUser",
+      "sdk": "136",
+      "header": "isteamuser.h",
+      "version": "SteamUser018"
+    },
+    {
+      "class": "ISteamUser019",
+      "sourceClass": "ISteamUser",
+      "sdk": "142",
+      "header": "isteamuser.h",
+      "version": "SteamUser019"
+    },
+    {
+      "class": "ISteamUser020",
+      "sourceClass": "ISteamUser",
+      "sdk": "148a",
+      "header": "isteamuser.h",
+      "version": "SteamUser020"
+    },
+    {
+      "class": "ISteamUser021",
+      "sourceClass": "ISteamUser",
+      "sdk": "155",
+      "header": "isteamuser.h",
+      "version": "SteamUser021"
+    },
+    {
+      "class": "ISteamUser022",
+      "sourceClass": "ISteamUser",
+      "sdk": "156",
+      "header": "isteamuser.h",
+      "version": "SteamUser022"
+    },
+    {
+      "class": "ISteamUser023",
+      "sourceClass": "ISteamUser",
+      "sdk": "165",
+      "header": "isteamuser.h",
+      "version": "SteamUser023"
+    },
+    {
+      "class": "ISteamUtils002",
+      "sourceClass": "ISteamUtils",
+      "sdk": "103",
+      "header": "isteamutils.h",
+      "version": "SteamUtils002"
+    },
+    {
+      "class": "ISteamUtils004",
+      "sourceClass": "ISteamUtils",
+      "sdk": "106",
+      "header": "isteamutils.h",
+      "version": "SteamUtils004"
+    },
+    {
+      "class": "ISteamUtils005",
+      "sourceClass": "ISteamUtils",
+      "sdk": "123a",
+      "header": "isteamutils.h",
+      "version": "SteamUtils005"
+    },
+    {
+      "class": "ISteamUtils006",
+      "sourceClass": "ISteamUtils",
+      "sdk": "128",
+      "header": "isteamutils.h",
+      "version": "SteamUtils006"
+    },
+    {
+      "class": "ISteamUtils008",
+      "sourceClass": "ISteamUtils",
+      "sdk": "139",
+      "header": "isteamutils.h",
+      "version": "SteamUtils008"
+    },
+    {
+      "class": "ISteamUtils009",
+      "sourceClass": "ISteamUtils",
+      "sdk": "149",
+      "header": "isteamutils.h",
+      "version": "SteamUtils009"
+    },
+    {
+      "class": "ISteamUtils010",
+      "sourceClass": "ISteamUtils",
+      "sdk": "164",
+      "header": "isteamutils.h",
+      "version": "SteamUtils010"
+    },
+    {
+      "class": "ISteamUtils011",
+      "sourceClass": "ISteamUtils",
+      "sdk": "165",
+      "header": "isteamutils.h",
+      "version": "SteamUtils011"
+    }
+  ],
+  "typeImports": [
+    {
+      "symbol": "EGamePerformanceSetting",
+      "source": "lsteamclient/steamworks_sdk_165/isteamapps.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "ERemoteStorageLocalFileChange",
+      "source": "lsteamclient/steamworks_sdk_165/isteamremotestorage.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "ERemoteStorageFilePathType",
+      "source": "lsteamclient/steamworks_sdk_165/isteamremotestorage.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "EFloatingGamepadTextInputMode",
+      "source": "lsteamclient/steamworks_sdk_165/isteamutils.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "ESteamHardwareDefaultConfig",
+      "source": "lsteamclient/steamworks_sdk_165/isteamutils.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "ESteamHardwareType",
+      "source": "lsteamclient/steamworks_sdk_165/isteamutils.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "ECommunityProfileItemProperty",
+      "source": "lsteamclient/steamworks_sdk_165/isteamfriends.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "ECommunityProfileItemType",
+      "source": "lsteamclient/steamworks_sdk_165/isteamfriends.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "EConfigSubTree",
+      "source": "lsteamclient/steamworks_sdk_099u/isteamuser.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "ELogonState",
+      "source": "lsteamclient/steamworks_sdk_099u/isteamuser.h",
+      "kind": "enum"
+    },
+    {
+      "symbol": "RemoteStorageUpdatePublishedFileRequest_t",
+      "source": "lsteamclient/steamworks_sdk_117/isteamremotestorage.h",
+      "kind": "struct"
+    },
+    {
+      "symbol": "SteamAPI_PostAPIResultInProcess_t",
+      "source": "lsteamclient/steamworks_sdk_133a/isteamclient.h",
+      "kind": "typedef"
+    },
+    {
+      "symbol": "GetTicketForWebApiResponse_t",
+      "source": "lsteamclient/steamworks_sdk_165/isteamuser.h",
+      "kind": "struct"
+    },
+    {
+      "symbol": "SteamControllerState_t",
+      "kind": "typedefStruct",
+      "source": "lsteamclient/steamworks_sdk_129/steamcontrollerpublic.h",
+      "pack": 1
+    },
+    {
+      "symbol": "RemotePlayInput_t",
+      "kind": "forward",
+      "source": "lsteamclient/steamworks_sdk_165/isteamremoteplay.h"
+    },
+    {
+      "symbol": "RemotePlayCursorID_t",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_165/isteamremoteplay.h"
+    },
+    {
+      "symbol": "TimelineEventHandle_t",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_165/isteamtimeline.h"
+    },
+    {
+      "symbol": "ETimelineGameMode",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_165/isteamtimeline.h"
+    },
+    {
+      "symbol": "ETimelineEventClipPriority",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_165/isteamtimeline.h"
+    },
+    {
+      "symbol": "EUGCContentDescriptorID",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_165/isteamugc.h"
+    },
+    {
+      "symbol": "ClientUnifiedMessageHandle",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_129/isteamunifiedmessages.h"
+    },
+    {
+      "symbol": "EControllerHapticLocation",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_165/isteaminput.h"
+    },
+    {
+      "symbol": "EGCResults",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_165/isteamgamecoordinator.h"
+    },
+    {
+      "symbol": "EMatchMakingType",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_105/matchmakingtypes.h"
+    },
+    {
+      "symbol": "EPaymentMethod",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_099y/isteambilling.h"
+    },
+    {
+      "symbol": "EPurchaseResultDetail",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_099y/isteambilling.h"
+    },
+    {
+      "symbol": "EPurchaseStatus",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_099y/isteambilling.h"
+    },
+    {
+      "symbol": "ESteamInputGlyphSize",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_165/isteaminput.h"
+    },
+    {
+      "symbol": "ESteamNetworkingFakeIPType",
+      "kind": "enum",
+      "source": "lsteamclient/steamworks_sdk_165/steamnetworkingtypes.h"
+    },
+    {
+      "symbol": "SteamNetworkingFakeIPResult_t",
+      "kind": "forward",
+      "source": "lsteamclient/steamworks_sdk_165/steamnetworkingtypes.h"
+    },
+    {
+      "symbol": "FnSteamNetworkingFakeIPResult",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_165/steamnetworkingtypes.h"
+    },
+    {
+      "symbol": "ISteamMatchmakingServerFriendsResponse",
+      "kind": "classForward",
+      "source": "lsteamclient/steamworks_sdk_165/isteammatchmaking.h"
+    },
+    {
+      "symbol": "ISteamNetworkingFakeUDPPort",
+      "kind": "classForward",
+      "source": "lsteamclient/steamworks_sdk_165/steamnetworkingfakeip.h"
+    },
+    {
+      "symbol": "ScePadTriggerEffectParam",
+      "kind": "forward",
+      "source": "lsteamclient/steamworks_sdk_165/isteamdualsense.h"
+    },
+    {
+      "symbol": "SteamInputActionEvent_t",
+      "kind": "forward",
+      "source": "lsteamclient/steamworks_sdk_165/isteaminput.h"
+    },
+    {
+      "symbol": "SteamInputActionEventCallbackPointer",
+      "kind": "typedef",
+      "source": "lsteamclient/steamworks_sdk_165/isteaminput.h"
+    },
+    {
+      "symbol": "SteamNetConnectionRealTimeLaneStatus_t",
+      "kind": "struct",
+      "source": "lsteamclient/steamworks_sdk_165/steamnetworkingtypes.h",
+      "pack": "callback"
+    },
+    {
+      "symbol": "SteamNetConnectionRealTimeStatus_t",
+      "kind": "struct",
+      "source": "lsteamclient/steamworks_sdk_165/steamnetworkingtypes.h",
+      "pack": "callback"
+    },
+    {
+      "symbol": "ISteamNetworkingConnectionSignaling",
+      "kind": "classForward",
+      "source": "lsteamclient/steamworks_sdk_165/isteamnetworkingsockets.h"
+    },
+    {
+      "symbol": "ISteamNetworkingSignalingRecvContext",
+      "kind": "classForward",
+      "source": "lsteamclient/steamworks_sdk_165/isteamnetworkingsockets.h"
+    }
+  ],
+  "interfaceAliases": {
+    "SteamApps001": "STEAMAPPS_INTERFACE_VERSION001"
+  },
+  "extendedInterfaces": [
+    {
+      "class": "ISteamAppList001",
+      "sourceClass": "ISteamAppList",
+      "sdk": "158",
+      "header": "isteamapplist.h",
+      "version": "STEAMAPPLIST_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamControllerION",
+      "sourceClass": "ISteamController",
+      "sdk": "134",
+      "header": "isteamcontroller.h",
+      "version": "STEAMCONTROLLER_INTERFACE_VERSION"
+    },
+    {
+      "class": "ISteamHTMLSurface001",
+      "sourceClass": "ISteamHTMLSurface",
+      "sdk": "130x",
+      "header": "isteamhtmlsurface.h",
+      "version": "STEAMHTMLSURFACE_INTERFACE_VERSION_001"
+    },
+    {
+      "class": "ISteamHTMLSurface002",
+      "sourceClass": "ISteamHTMLSurface",
+      "sdk": "133a",
+      "header": "isteamhtmlsurface.h",
+      "version": "STEAMHTMLSURFACE_INTERFACE_VERSION_002"
+    },
+    {
+      "class": "ISteamHTMLSurface003",
+      "sourceClass": "ISteamHTMLSurface",
+      "sdk": "140",
+      "header": "isteamhtmlsurface.h",
+      "version": "STEAMHTMLSURFACE_INTERFACE_VERSION_003"
+    },
+    {
+      "class": "ISteamHTMLSurface004",
+      "sourceClass": "ISteamHTMLSurface",
+      "sdk": "142",
+      "header": "isteamhtmlsurface.h",
+      "version": "STEAMHTMLSURFACE_INTERFACE_VERSION_004"
+    },
+    {
+      "class": "ISteamHTMLSurface005",
+      "sourceClass": "ISteamHTMLSurface",
+      "sdk": "165",
+      "header": "isteamhtmlsurface.h",
+      "version": "STEAMHTMLSURFACE_INTERFACE_VERSION_005"
+    },
+    {
+      "class": "ISteamHTTP001",
+      "sourceClass": "ISteamHTTP",
+      "sdk": "121",
+      "header": "isteamhttp.h",
+      "version": "STEAMHTTP_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamHTTP002",
+      "sourceClass": "ISteamHTTP",
+      "sdk": "142",
+      "header": "isteamhttp.h",
+      "version": "STEAMHTTP_INTERFACE_VERSION002"
+    },
+    {
+      "class": "ISteamHTTP003",
+      "sourceClass": "ISteamHTTP",
+      "sdk": "165",
+      "header": "isteamhttp.h",
+      "version": "STEAMHTTP_INTERFACE_VERSION003"
+    },
+    {
+      "class": "ISteamInventory001",
+      "sourceClass": "ISteamInventory",
+      "sdk": "139",
+      "header": "isteaminventory.h",
+      "version": "STEAMINVENTORY_INTERFACE_V001"
+    },
+    {
+      "class": "ISteamInventory002",
+      "sourceClass": "ISteamInventory",
+      "sdk": "142",
+      "header": "isteaminventory.h",
+      "version": "STEAMINVENTORY_INTERFACE_V002"
+    },
+    {
+      "class": "ISteamInventory003",
+      "sourceClass": "ISteamInventory",
+      "sdk": "165",
+      "header": "isteaminventory.h",
+      "version": "STEAMINVENTORY_INTERFACE_V003"
+    },
+    {
+      "class": "ISteamMusicRemote001",
+      "sourceClass": "ISteamMusicRemote",
+      "sdk": "162",
+      "header": "isteammusicremote.h",
+      "version": "STEAMMUSICREMOTE_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamMusic001",
+      "sourceClass": "ISteamMusic",
+      "sdk": "165",
+      "header": "isteammusic.h",
+      "version": "STEAMMUSIC_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamParentalSettings001",
+      "sourceClass": "ISteamParentalSettings",
+      "sdk": "165",
+      "header": "isteamparentalsettings.h",
+      "version": "STEAMPARENTALSETTINGS_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamRemotePlay001",
+      "sourceClass": "ISteamRemotePlay",
+      "sdk": "157",
+      "header": "isteamremoteplay.h",
+      "version": "STEAMREMOTEPLAY_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamRemotePlay002",
+      "sourceClass": "ISteamRemotePlay",
+      "sdk": "161",
+      "header": "isteamremoteplay.h",
+      "version": "STEAMREMOTEPLAY_INTERFACE_VERSION002"
+    },
+    {
+      "class": "ISteamRemotePlay003",
+      "sourceClass": "ISteamRemotePlay",
+      "sdk": "163",
+      "header": "isteamremoteplay.h",
+      "version": "STEAMREMOTEPLAY_INTERFACE_VERSION003"
+    },
+    {
+      "class": "ISteamRemotePlay004",
+      "sourceClass": "ISteamRemotePlay",
+      "sdk": "165",
+      "header": "isteamremoteplay.h",
+      "version": "STEAMREMOTEPLAY_INTERFACE_VERSION004"
+    },
+    {
+      "class": "ISteamScreenshots001",
+      "sourceClass": "ISteamScreenshots",
+      "sdk": "122",
+      "header": "isteamscreenshots.h",
+      "version": "STEAMSCREENSHOTS_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamScreenshots002",
+      "sourceClass": "ISteamScreenshots",
+      "sdk": "137",
+      "header": "isteamscreenshots.h",
+      "version": "STEAMSCREENSHOTS_INTERFACE_VERSION002"
+    },
+    {
+      "class": "ISteamScreenshots003",
+      "sourceClass": "ISteamScreenshots",
+      "sdk": "165",
+      "header": "isteamscreenshots.h",
+      "version": "STEAMSCREENSHOTS_INTERFACE_VERSION003"
+    },
+    {
+      "class": "ISteamTimeline001",
+      "sourceClass": "ISteamTimeline",
+      "sdk": "160",
+      "header": "isteamtimeline.h",
+      "version": "STEAMTIMELINE_INTERFACE_V001"
+    },
+    {
+      "class": "ISteamTimeline004",
+      "sourceClass": "ISteamTimeline",
+      "sdk": "165",
+      "header": "isteamtimeline.h",
+      "version": "STEAMTIMELINE_INTERFACE_V004"
+    },
+    {
+      "class": "ISteamUGC001",
+      "sourceClass": "ISteamUGC",
+      "sdk": "128",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamUGC002",
+      "sourceClass": "ISteamUGC",
+      "sdk": "130",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION002"
+    },
+    {
+      "class": "ISteamUGC003",
+      "sourceClass": "ISteamUGC",
+      "sdk": "132",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION003"
+    },
+    {
+      "class": "ISteamUGC004",
+      "sourceClass": "ISteamUGC",
+      "sdk": "132x",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION004"
+    },
+    {
+      "class": "ISteamUGC005",
+      "sourceClass": "ISteamUGC",
+      "sdk": "133b",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION005"
+    },
+    {
+      "class": "ISteamUGC006",
+      "sourceClass": "ISteamUGC",
+      "sdk": "133x",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION006"
+    },
+    {
+      "class": "ISteamUGC007",
+      "sourceClass": "ISteamUGC",
+      "sdk": "136",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION007"
+    },
+    {
+      "class": "ISteamUGC008",
+      "sourceClass": "ISteamUGC",
+      "sdk": "137",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION008"
+    },
+    {
+      "class": "ISteamUGC009",
+      "sourceClass": "ISteamUGC",
+      "sdk": "139",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION009"
+    },
+    {
+      "class": "ISteamUGC010",
+      "sourceClass": "ISteamUGC",
+      "sdk": "142",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION010"
+    },
+    {
+      "class": "ISteamUGC012",
+      "sourceClass": "ISteamUGC",
+      "sdk": "144",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION012"
+    },
+    {
+      "class": "ISteamUGC013",
+      "sourceClass": "ISteamUGC",
+      "sdk": "146",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION013"
+    },
+    {
+      "class": "ISteamUGC014",
+      "sourceClass": "ISteamUGC",
+      "sdk": "150",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION014"
+    },
+    {
+      "class": "ISteamUGC015",
+      "sourceClass": "ISteamUGC",
+      "sdk": "152",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION015"
+    },
+    {
+      "class": "ISteamUGC016",
+      "sourceClass": "ISteamUGC",
+      "sdk": "155",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION016"
+    },
+    {
+      "class": "ISteamUGC017",
+      "sourceClass": "ISteamUGC",
+      "sdk": "157",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION017"
+    },
+    {
+      "class": "ISteamUGC018",
+      "sourceClass": "ISteamUGC",
+      "sdk": "159",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION018"
+    },
+    {
+      "class": "ISteamUGC020",
+      "sourceClass": "ISteamUGC",
+      "sdk": "161",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION020"
+    },
+    {
+      "class": "ISteamUGC021",
+      "sourceClass": "ISteamUGC",
+      "sdk": "165",
+      "header": "isteamugc.h",
+      "version": "STEAMUGC_INTERFACE_VERSION021"
+    },
+    {
+      "class": "ISteamUnifiedMessages001",
+      "sourceClass": "ISteamUnifiedMessages",
+      "sdk": "141",
+      "header": "isteamunifiedmessages.h",
+      "version": "STEAMUNIFIEDMESSAGES_INTERFACE_VERSION001"
+    },
+    {
+      "class": "ISteamVideo001",
+      "sourceClass": "ISteamVideo",
+      "sdk": "139",
+      "header": "isteamvideo.h",
+      "version": "STEAMVIDEO_INTERFACE_V001"
+    },
+    {
+      "class": "ISteamVideo002",
+      "sourceClass": "ISteamVideo",
+      "sdk": "159",
+      "header": "isteamvideo.h",
+      "version": "STEAMVIDEO_INTERFACE_V002"
+    },
+    {
+      "class": "ISteamVideo007",
+      "sourceClass": "ISteamVideo",
+      "sdk": "165",
+      "header": "isteamvideo.h",
+      "version": "STEAMVIDEO_INTERFACE_V007"
+    },
+    {
+      "class": "ISteamBilling002",
+      "sourceClass": "ISteamBilling",
+      "sdk": "099y",
+      "header": "isteambilling.h",
+      "version": "SteamBilling002"
+    },
+    {
+      "class": "ISteamController003",
+      "sourceClass": "ISteamController",
+      "sdk": "137",
+      "header": "isteamcontroller.h",
+      "version": "SteamController003"
+    },
+    {
+      "class": "ISteamController004",
+      "sourceClass": "ISteamController",
+      "sdk": "138a",
+      "header": "isteamcontroller.h",
+      "version": "SteamController004"
+    },
+    {
+      "class": "ISteamController005",
+      "sourceClass": "ISteamController",
+      "sdk": "141",
+      "header": "isteamcontroller.h",
+      "version": "SteamController005"
+    },
+    {
+      "class": "ISteamController006",
+      "sourceClass": "ISteamController",
+      "sdk": "142",
+      "header": "isteamcontroller.h",
+      "version": "SteamController006"
+    },
+    {
+      "class": "ISteamController007",
+      "sourceClass": "ISteamController",
+      "sdk": "150",
+      "header": "isteamcontroller.h",
+      "version": "SteamController007"
+    },
+    {
+      "class": "ISteamController008",
+      "sourceClass": "ISteamController",
+      "sdk": "165",
+      "header": "isteamcontroller.h",
+      "version": "SteamController008"
+    },
+    {
+      "class": "ISteamGameCoordinator001",
+      "sourceClass": "ISteamGameCoordinator",
+      "sdk": "165",
+      "header": "isteamgamecoordinator.h",
+      "version": "SteamGameCoordinator001"
+    },
+    {
+      "class": "ISteamGameServer002",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "099x",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer002"
+    },
+    {
+      "class": "ISteamGameServer003",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "099y",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer003"
+    },
+    {
+      "class": "ISteamGameServer004",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "100",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer004"
+    },
+    {
+      "class": "ISteamGameServer005",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "102",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer005"
+    },
+    {
+      "class": "ISteamGameServer008",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "104",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer008"
+    },
+    {
+      "class": "ISteamGameServer009",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "107",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer009"
+    },
+    {
+      "class": "ISteamGameServer010",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "116",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer010"
+    },
+    {
+      "class": "ISteamGameServer011",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "128",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer011"
+    },
+    {
+      "class": "ISteamGameServer012",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "146",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer012"
+    },
+    {
+      "class": "ISteamGameServer013",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "151",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer013"
+    },
+    {
+      "class": "ISteamGameServer014",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "155",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer014"
+    },
+    {
+      "class": "ISteamGameServer015",
+      "sourceClass": "ISteamGameServer",
+      "sdk": "165",
+      "header": "isteamgameserver.h",
+      "version": "SteamGameServer015"
+    },
+    {
+      "class": "ISteamGameServerStats001",
+      "sourceClass": "ISteamGameServerStats",
+      "sdk": "165",
+      "header": "isteamgameserverstats.h",
+      "version": "SteamGameServerStats001"
+    },
+    {
+      "class": "ISteamGameStats001",
+      "sourceClass": "ISteamGameStats",
+      "sdk": "117",
+      "header": "isteamgamestats.h",
+      "version": "SteamGameStats001"
+    },
+    {
+      "class": "ISteamInput001",
+      "sourceClass": "ISteamInput",
+      "sdk": "150",
+      "header": "isteaminput.h",
+      "version": "SteamInput001"
+    },
+    {
+      "class": "ISteamInput002",
+      "sourceClass": "ISteamInput",
+      "sdk": "151",
+      "header": "isteaminput.h",
+      "version": "SteamInput002"
+    },
+    {
+      "class": "ISteamInput005",
+      "sourceClass": "ISteamInput",
+      "sdk": "152",
+      "header": "isteaminput.h",
+      "version": "SteamInput005"
+    },
+    {
+      "class": "ISteamInput006",
+      "sourceClass": "ISteamInput",
+      "sdk": "164",
+      "header": "isteaminput.h",
+      "version": "SteamInput006"
+    },
+    {
+      "class": "ISteamInput007",
+      "sourceClass": "ISteamInput",
+      "sdk": "165",
+      "header": "isteaminput.h",
+      "version": "SteamInput007"
+    },
+    {
+      "class": "ISteamMasterServerUpdater001",
+      "sourceClass": "ISteamMasterServerUpdater",
+      "sdk": "116",
+      "header": "isteammasterserverupdater.h",
+      "version": "SteamMasterServerUpdater001"
+    },
+    {
+      "class": "ISteamGameSearch001",
+      "sourceClass": "ISteamGameSearch",
+      "sdk": "162",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchGameSearch001"
+    },
+    {
+      "class": "ISteamMatchmaking001",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "099y",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking001"
+    },
+    {
+      "class": "ISteamMatchmaking002",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "101",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking002"
+    },
+    {
+      "class": "ISteamMatchmaking003",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "101x",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking003"
+    },
+    {
+      "class": "ISteamMatchmaking004",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "102",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking004"
+    },
+    {
+      "class": "ISteamMatchmaking005",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "102x",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking005"
+    },
+    {
+      "class": "ISteamMatchmaking006",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "104",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking006"
+    },
+    {
+      "class": "ISteamMatchmaking007",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "107",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking007"
+    },
+    {
+      "class": "ISteamMatchmaking008",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "116",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking008"
+    },
+    {
+      "class": "ISteamMatchmaking009",
+      "sourceClass": "ISteamMatchmaking",
+      "sdk": "165",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMaking009"
+    },
+    {
+      "class": "ISteamMatchmakingServers001",
+      "sourceClass": "ISteamMatchmakingServers",
+      "sdk": "105",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMakingServers001"
+    },
+    {
+      "class": "ISteamMatchmakingServers002",
+      "sourceClass": "ISteamMatchmakingServers",
+      "sdk": "164",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMakingServers002"
+    },
+    {
+      "class": "ISteamMatchmakingServers003",
+      "sourceClass": "ISteamMatchmakingServers",
+      "sdk": "165",
+      "header": "isteammatchmaking.h",
+      "version": "SteamMatchMakingServers003"
+    },
+    {
+      "class": "ISteamNetworking001",
+      "sourceClass": "ISteamNetworking",
+      "sdk": "102",
+      "header": "isteamnetworking.h",
+      "version": "SteamNetworking001"
+    },
+    {
+      "class": "ISteamNetworking002",
+      "sourceClass": "ISteamNetworking",
+      "sdk": "104",
+      "header": "isteamnetworking.h",
+      "version": "SteamNetworking002"
+    },
+    {
+      "class": "ISteamNetworking003",
+      "sourceClass": "ISteamNetworking",
+      "sdk": "110",
+      "header": "isteamnetworking.h",
+      "version": "SteamNetworking003"
+    },
+    {
+      "class": "ISteamNetworking004",
+      "sourceClass": "ISteamNetworking",
+      "sdk": "112",
+      "header": "isteamnetworking.h",
+      "version": "SteamNetworking004"
+    },
+    {
+      "class": "ISteamNetworking005",
+      "sourceClass": "ISteamNetworking",
+      "sdk": "146",
+      "header": "isteamnetworking.h",
+      "version": "SteamNetworking005"
+    },
+    {
+      "class": "ISteamNetworking006",
+      "sourceClass": "ISteamNetworking",
+      "sdk": "165",
+      "header": "isteamnetworking.h",
+      "version": "SteamNetworking006"
+    },
+    {
+      "class": "ISteamNetworkingMessages002",
+      "sourceClass": "ISteamNetworkingMessages",
+      "sdk": "165",
+      "header": "isteamnetworkingmessages.h",
+      "version": "SteamNetworkingMessages002"
+    },
+    {
+      "class": "ISteamNetworkingSockets002",
+      "sourceClass": "ISteamNetworkingSockets",
+      "sdk": "144",
+      "header": "isteamnetworkingsockets.h",
+      "version": "SteamNetworkingSockets002"
+    },
+    {
+      "class": "ISteamNetworkingSockets004",
+      "sourceClass": "ISteamNetworkingSockets",
+      "sdk": "146",
+      "header": "isteamnetworkingsockets.h",
+      "version": "SteamNetworkingSockets004"
+    },
+    {
+      "class": "ISteamNetworkingSockets006",
+      "sourceClass": "ISteamNetworkingSockets",
+      "sdk": "147",
+      "header": "isteamnetworkingsockets.h",
+      "version": "SteamNetworkingSockets006"
+    },
+    {
+      "class": "ISteamNetworkingSockets008",
+      "sourceClass": "ISteamNetworkingSockets",
+      "sdk": "149",
+      "header": "isteamnetworkingsockets.h",
+      "version": "SteamNetworkingSockets008"
+    },
+    {
+      "class": "ISteamNetworkingSockets009",
+      "sourceClass": "ISteamNetworkingSockets",
+      "sdk": "152",
+      "header": "isteamnetworkingsockets.h",
+      "version": "SteamNetworkingSockets009"
+    },
+    {
+      "class": "ISteamNetworkingSockets012",
+      "sourceClass": "ISteamNetworkingSockets",
+      "sdk": "164",
+      "header": "isteamnetworkingsockets.h",
+      "version": "SteamNetworkingSockets012"
+    },
+    {
+      "class": "ISteamNetworkingSockets013",
+      "sourceClass": "ISteamNetworkingSockets",
+      "sdk": "165",
+      "header": "isteamnetworkingsockets.h",
+      "version": "SteamNetworkingSockets013"
+    },
+    {
+      "class": "ISteamNetworkingSocketsSerialized002",
+      "sourceClass": "ISteamNetworkingSocketsSerialized",
+      "sdk": "143x",
+      "header": "isteamnetworkingsocketsserialized.h",
+      "version": "SteamNetworkingSocketsSerialized002"
+    },
+    {
+      "class": "ISteamNetworkingSocketsSerialized003",
+      "sourceClass": "ISteamNetworkingSocketsSerialized",
+      "sdk": "143y",
+      "header": "isteamnetworkingsocketsserialized.h",
+      "version": "SteamNetworkingSocketsSerialized003"
+    },
+    {
+      "class": "ISteamNetworkingUtils001",
+      "sourceClass": "ISteamNetworkingUtils",
+      "sdk": "144",
+      "header": "isteamnetworkingutils.h",
+      "version": "SteamNetworkingUtils001"
+    },
+    {
+      "class": "ISteamNetworkingUtils002",
+      "sourceClass": "ISteamNetworkingUtils",
+      "sdk": "146",
+      "header": "isteamnetworkingutils.h",
+      "version": "SteamNetworkingUtils002"
+    },
+    {
+      "class": "ISteamNetworkingUtils003",
+      "sourceClass": "ISteamNetworkingUtils",
+      "sdk": "152",
+      "header": "isteamnetworkingutils.h",
+      "version": "SteamNetworkingUtils003"
+    },
+    {
+      "class": "ISteamNetworkingUtils004",
+      "sourceClass": "ISteamNetworkingUtils",
+      "sdk": "165",
+      "header": "isteamnetworkingutils.h",
+      "version": "SteamNetworkingUtils004"
+    },
+    {
+      "class": "ISteamParties002",
+      "sourceClass": "ISteamParties",
+      "sdk": "165",
+      "header": "isteammatchmaking.h",
+      "version": "SteamParties002"
+    },
+    {
+      "version": "SteamNetworkingFakeUDPPort001",
+      "sourceClass": "ISteamNetworkingFakeUDPPort",
+      "class": "ISteamNetworkingFakeUDPPort001",
+      "sdk": "165",
+      "header": "steamnetworkingfakeip.h"
+    }
+  ]
 }

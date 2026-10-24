@@ -19,7 +19,9 @@ function load(relative, deps, extra = {}) {
 }
 const model = load('model/LinuxSteamDownloadModels.ets', {});
 const real = p => typeof p === 'string' && p.startsWith('/data/storage/el2/base/files/steamohos-native') ?
-  path.join(temporary, 'private', p.substring('/data/storage/el2/base/files/steamohos-native'.length)) : p;
+  path.join(temporary, 'private', p.substring('/data/storage/el2/base/files/steamohos-native'.length)) :
+  typeof p === 'string' && p.startsWith('/data/storage/el2/base/files/.wine/drive_c/SteamLinuxARM64') ?
+    path.join(temporary, 'private-c/SteamLinuxARM64',p.substring('/data/storage/el2/base/files/.wine/drive_c/SteamLinuxARM64'.length)) : p;
 const io = {
   OpenMode: {CREATE: fs.constants.O_CREAT, WRITE_ONLY: fs.constants.O_WRONLY, TRUNC: fs.constants.O_TRUNC,
     READ_ONLY: fs.constants.O_RDONLY, APPEND: fs.constants.O_APPEND, NOFOLLOW: fs.constants.O_NOFOLLOW},
@@ -147,8 +149,32 @@ async function main() {
   const retention=load('service/LinuxSteamReleaseRetention.ets',{'@kit.CoreFileKit':{fileIo:io},'./ConfigurationFiles':config});
   const pointer='/data/storage/el2/base/files/steamohos-native/external-root.path';
   const readText=p=>{try{return fs.readFileSync(real(p),'utf8');}catch{return '';}};
+  const policy=load('service/LinuxSteamDownloadPolicy.ets',{
+    '@kit.CoreFileKit':{fileIo:io},'./ConfigurationFiles':config,
+    './ManagedSmokePayloadService':{ensureSmokeDirectory:dirs,readSmokeText:readText}
+  });
+  const policyRoot=path.join(temporary,'policy-client');
+  const cfg=path.join(policyRoot,'client/.steam/steam/steam_dev.cfg');
+  fs.mkdirSync(path.dirname(cfg),{recursive:true});
+  const original='// user config\n@user_download_setting 7\n';
+  fs.writeFileSync(cfg,original);
+  policy.applyLinuxSteamDownloadPolicy(policyRoot);assert.equal(fs.readFileSync(cfg,'utf8'),original,'default leaves existing cfg untouched');
+  policy.setLinuxSteamDownloadHttp1(true);policy.applyLinuxSteamDownloadPolicy(policyRoot);
+  const forced=fs.readFileSync(cfg,'utf8');assert.ok(forced.startsWith(original));
+  assert.ok(forced.includes('@nClientDownloadEnableHTTP2PlatformLinux 0'));
+  policy.applyLinuxSteamDownloadPolicy(policyRoot);assert.equal(fs.readFileSync(cfg,'utf8'),forced,'idempotent preference');
+  policy.setLinuxSteamDownloadHttp1(false);policy.applyLinuxSteamDownloadPolicy(policyRoot);
+  assert.equal(fs.readFileSync(cfg,'utf8'),original,'turning off removes only our block');
+  const corruptCfg=original+'// BEGIN HMOSDECK DOWNLOAD CONNECTION\n';fs.writeFileSync(cfg,corruptCfg);
+  assert.throws(()=>policy.applyLinuxSteamDownloadPolicy(policyRoot),/标记/);assert.equal(fs.readFileSync(cfg,'utf8'),corruptCfg);
+  fs.unlinkSync(cfg);const external=path.join(temporary,'external.cfg');fs.writeFileSync(external,original);fs.symlinkSync(external,cfg);
+  assert.throws(()=>policy.applyLinuxSteamDownloadPolicy(policyRoot),/安全/);assert.equal(fs.readFileSync(external,'utf8'),original);
+  fs.unlinkSync(cfg);fs.writeFileSync(cfg,original);
+  console.log('PASS: download preference preserves user config, applies once, reverses cleanly and refuses damaged/symlinked cfg');
   let directoryResolutions=0, resolverUnavailable=false;
+  const paths=load('service/LinuxSteamPaths.ets',{});
   const storage=load('service/LinuxSteamDiagnosticData.ets',{
+    './LinuxSteamPaths': paths,
     '@kit.AbilityKit':{}, '@kit.CoreFileKit':{fileIo:io,
       fileUri:{FileUri:class {constructor(uri){this.path=uri;}}},
       picker:{DocumentPickerMode:{DOWNLOAD:1},DocumentViewPicker:class {
@@ -168,7 +194,7 @@ async function main() {
   const previousResolutions=directoryResolutions;
   assert.equal(await storage.recoverLinuxSteamExternalStorage({}),root);
   assert.equal(directoryResolutions,previousResolutions,'cached directory avoids another system lookup');
-  fs.unlinkSync(real(pointer));fs.rmdirSync(root);
+  fs.unlinkSync(real(pointer));fs.unlinkSync(real('/data/storage/el2/base/files/steamohos-native/storage-location.txt'));fs.rmdirSync(root);
   fs.symlinkSync(temporary,root,'dir');
   assert.equal(await storage.recoverLinuxSteamExternalStorage({}),'','symlinked roots are not adopted');
   assert.equal(readText(pointer),'');fs.unlinkSync(root);
@@ -176,6 +202,7 @@ async function main() {
   assert.equal(await storage.recoverLinuxSteamExternalStorage({}),'','unavailable lookup leaves status usable');
   resolverUnavailable=false;fs.mkdirSync(root);
   const api=load('service/LinuxSteamInstaller.ets',{
+    './LinuxSteamPaths':paths,
     '@kit.AbilityKit':{},'@kit.CoreFileKit':{fileIo:io,statfs:{getFreeSize:async()=>free}},
     '@kit.BasicServicesKit':{zlib:{async decompressFile(file,where) {
       extractions++;
@@ -192,7 +219,8 @@ async function main() {
     './LinuxSteamLibraryService':{LinuxSteamLibraryService:{getInstance:()=>({externalRoot:()=>readText(pointer)})}},
     './LinuxSteamDiagnosticData':{prepareLinuxSteamExternalStorage:storage.prepareLinuxSteamExternalStorage,
       recoverLinuxSteamExternalStorage:storage.recoverLinuxSteamExternalStorage,
-      prepareLinuxSteamClientData:async(_,__,id)=>{activates++;fs.writeFileSync(path.join(root,'active-version.txt'),id);}},
+      selectLinuxSteamStorage:storage.selectLinuxSteamStorage, linuxSteamStorageLocation:storage.linuxSteamStorageLocation,
+      prepareLinuxSteamClientData:async(_,__,id)=>{activates++;if(id)fs.writeFileSync(path.join(root,'active-version.txt'),id);}},
     './ConfigurationFiles':config,'./ManagedSmokePayloadService':{ensureSmokeDirectory:dirs,
       readSmokeText:p=>{try{return fs.readFileSync(real(p),'utf8');}catch{return '';}}},
     './LinuxSteamComponentDownload':{LinuxSteamComponentDownload:Transfer,LinuxSteamDownloadError:download.LinuxSteamDownloadError},
@@ -218,6 +246,7 @@ async function main() {
   assert.equal(fs.readFileSync(path.join(root,'releases',plan.id,'.verified'),'utf8'),plan.id);
   assert.equal(fs.existsSync(path.join(root,'staging',plan.id)),false);
   fs.unlinkSync(real(pointer));
+  fs.unlinkSync(real('/data/storage/el2/base/files/steamohos-native/storage-location.txt'));
   const beforeRediscovery={fetches,activates,extractions};
   await installer.initialize(context);
   assert.equal(installer.installed(),true,'lost private pointer rediscovers the verified existing installation');
@@ -238,8 +267,22 @@ async function main() {
   const invalid=path.join(temporary,'invalid.zip');fs.writeFileSync(invalid,Buffer.alloc(bundle.length,0));
   await assert.rejects(installer.importLocal(context,invalid),e=>e.code==='LOCAL_CHECKSUM');
   assert.equal(extractions,unpackBefore,'bad local bundle is never extracted');assert.equal(installer.installed(),true);assertProtected();
-  metadata.id=sha('another-release');
-  await assert.rejects(installer.importLocal(context,bundlePath),e=>e.code==='LOCAL_VERSION');metadata.id=plan.id;
+  metadata.id=sha('older-host-same-official-archives');
+  await installer.importLocal(context,bundlePath);metadata.id=plan.id;
+  assert.equal(installer.installed(),true,'a host-only update reuses the pinned official offline bundle');
+  const legacyBundle=Buffer.from('previous-published-bundle-with-the-same-official-zips');
+  const legacyPath=path.join(temporary,'legacy-offline.zip');fs.writeFileSync(legacyPath,legacyBundle);
+  metadata.compatiblePackages=[{bytes:legacyBundle.length,sha256:sha(legacyBundle)}];
+  await installer.importLocal(context,legacyPath);
+  assert.equal(installer.installed(),true,'verified older publication accepted without changing client selection');
+  assertProtected();assert.equal(fetches,networkBefore,'legacy import never falls back to network');
+  fs.writeFileSync(legacyPath,Buffer.alloc(legacyBundle.length,0));
+  const beforeCorruptLegacy=extractions;
+  await assert.rejects(installer.importLocal(context,legacyPath),e=>e.code==='LOCAL_CHECKSUM');
+  assert.equal(extractions,beforeCorruptLegacy,'same-size corruption of a legacy publication is rejected before extraction');
+  metadata.compatiblePackages=Array(17).fill({bytes:bundle.length,sha256:sha(bundle)});
+  await assert.rejects(installer.importLocal(context,bundlePath),e=>e.code==='LOCAL_VERSION');
+  delete metadata.compatiblePackages;assertProtected();
   assert.equal(fetches,networkBefore,'bad import never uses network');assertProtected();
   const pauseLocal=value=>{if(value.message==='正在读取本地组件包')installer.pause();};
   installer.subscribe(pauseLocal);await installer.importLocal(context,bundlePath);installer.unsubscribe(pauseLocal);
@@ -256,10 +299,36 @@ async function main() {
   assert.equal(installer.installed(),true,'reset then import restores verified marker');assertProtected();
   const pending=installer.install(context,true);
   await assert.rejects(installer.resetComponents(context),/暂停/);await pending;assertProtected();
+  const publicRoot=readText(pointer).trim();
+  await installer.selectLocation(context,'private');
+  assert.equal(installer.location(),'private');assert.equal(installer.installed(),false);
+  assert.equal(fs.existsSync(real(paths.LINUX_STEAM_PRIVATE_ROOT)),false,'selection creates no new Steam library');
+  assert.equal(await storage.recoverLinuxSteamExternalStorage({}), '','explicit private selection cannot rediscover public games as active');
+  assertProtected();
+  await installer.selectLocation(context,'download');
+  assert.equal(readText(pointer).trim(),publicRoot);assert.equal(installer.installed(),true);assertProtected();
+  const oldId=plan.id, beforeUpgradeFetches=fetches;
+  const upgradeLoader=Buffer.from('new-loader');content.set('release/runtime/ld-linux-aarch64.so.1',upgradeLoader);
+  const loader=plan.files.find(f=>f.path.includes('ld-linux'));loader.bytes=upgradeLoader.length;loader.sha256=sha(upgradeLoader);
+  plan.releaseManifest=JSON.stringify({schemaVersion:1,layout:'SteamLinuxARM64',executionModel:'native_aarch64',
+    files:[...content].filter(([p])=>p.startsWith('release/')).map(([p,b])=>({path:p.substring(8),sha256:sha(b),bytes:b.length}))})+'\n';
+  plan.id=sha(plan.releaseManifest);
+  api.LinuxSteamInstallService.instance=null;
+  const upgraded=api.LinuxSteamInstallService.getInstance();
+  const uiPath=path.join(root,'client/.steam/steam/steamui/index.html');fs.writeFileSync(uiPath,'damaged');
+  await assert.rejects(upgraded.ensureReady(context),e=>e.code==='UPDATE_REQUIRED');
+  assert.equal(fs.readFileSync(path.join(root,'active-version.txt'),'utf8'),oldId,'failed adapter update keeps previous activation');
+  assert.equal(fetches,beforeUpgradeFetches,'automatic adapter update never falls back to downloads');assertProtected();
+  fs.writeFileSync(uiPath,'UI');await upgraded.ensureReady(context);
+  assert.equal(fetches,beforeUpgradeFetches,'matching official client files are reused offline');
+  assert.equal(fs.readFileSync(path.join(root,'active-version.txt'),'utf8'),plan.id);
+  assert.equal(fs.readFileSync(path.join(root,'releases',plan.id,'runtime/ld-linux-aarch64.so.1'),'utf8'),'new-loader');assertProtected();
+  console.log('PASS: HAP adapter upgrade reuses checksum-matched official files without network; damaged client blocks activation and keeps old install/game data');
   const clientDir=path.join(root,'client/.steam/steam/steamrtarm64');
   const outsideClient=path.join(temporary,'outside-client');fs.renameSync(clientDir,outsideClient);fs.symlinkSync(outsideClient,clientDir);
   await installer.resetComponents(context);assertProtected();
   assert.equal(fs.readFileSync(path.join(outsideClient,'icudtl.dat'),'utf8'),'ICU','reset never follows symlinked client parents');
+  assertProtected();
   console.log('PASS: 206 resume, ignored Range, early response/dataEnd, interrupted transfer, checksum retry, 404 preserves partial, invalid/416 range, pause/restart, verified cache, production manifest and path/source boundaries');
   console.log('PASS: missing private pointer rediscovers verified components without download; empty, symlinked and unavailable download roots are handled safely');
   console.log('PASS: actual installer space preflight, corrupt unpacked file, activation only after success, concurrent install, cache/staging cleanup, existing userdata preserved and ready idempotence');

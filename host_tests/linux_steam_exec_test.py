@@ -99,9 +99,9 @@ int main(int argc, char **argv) {
                                 ALSA_PLUGIN_DIR=str(signed),SDL_AUDIO_DRIVER="alsa",
                                 STEAMOHOS_GAMEPAD_SOCKET="/var/tmp/exec-fixture-gamepad")
             environment.pop("STEAMOHOS_EXEC_GENERATION", None)
-            for testCase in range(26):
-                mode = testCase % 13
-                memory = testCase >= 13
+            for testCase in range(28):
+                mode = testCase % 14
+                memory = testCase >= 14
                 environment.update(STEAMOHOS_NATIVE_MEMORY="1" if memory else "0", STEAMOHOS_EXTERNAL_RUNTIME=str(signed))
                 with self.subTest(mode=mode, nativeMemory=memory):
                     environment.pop("EXEC_FIXTURE_CPU",None)

@@ -337,14 +337,16 @@ export class AppSessionService {
       const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
         app.steam.appId ? 'play' : 'open';
       launchArguments = steamLaunchArguments(action, app.steam.appId,
-        SteamLocalService.getInstance().isCompatibility(), action === 'play' ? launchArguments : []);
+        SteamLocalService.getInstance().isCompatibility(), action === 'play' ? launchArguments : [],
+        app.steam.clientAction ?? 'library');
       if (action === 'open') {
         const steam = SteamLocalService.getInstance();
         // The bundled "2" launcher owns cold-start flags. A running client
         // must receive the open URI directly instead of rerunning the batch.
         const client = steam.clientCard();
         const running = steam.processesFor(client, this.getNativeProcesses()).length > 0;
-        launchExecutable = running ? steam.getClientDirectory() + '/steam.exe' : client.launchTarget.executable;
+        launchExecutable = running || (app.steam.clientAction && app.steam.clientAction !== 'library') ?
+          steam.getClientDirectory() + '/steam.exe' : client.launchTarget.executable;
         if (launchExecutable.toLowerCase().endsWith('.bat')) launchArguments = [];
       }
       // Do not let old per-process diagnostics reintroduce conflicting GPU flags.

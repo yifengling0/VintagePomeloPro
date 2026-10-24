@@ -1,10 +1,11 @@
+import { LinuxSteamStorageLocation } from './LinuxSteamPaths';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, statfs } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { LinuxSteamDeploymentPlan, LinuxSteamDownloadArchive, LinuxSteamInstallSnapshot, LinuxSteamInstallPhase,
   validateLinuxSteamDeployment, linuxSteamInstallBusy } from '../model/LinuxSteamDownloadModels';
 import { LinuxSteamLibraryService } from './LinuxSteamLibraryService';
-import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage, recoverLinuxSteamExternalStorage } from './LinuxSteamDiagnosticData';
+import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage, recoverLinuxSteamExternalStorage, selectLinuxSteamStorage, linuxSteamStorageLocation } from './LinuxSteamDiagnosticData';
 import { ConfigurationFiles } from './ConfigurationFiles';
 import { ensureSmokeDirectory, readSmokeText } from './ManagedSmokePayloadService';
 import { LinuxSteamComponentDownload, LinuxSteamDownloadError } from './LinuxSteamComponentDownload';
@@ -13,7 +14,10 @@ import { reclaimLinuxSteamReleases } from './LinuxSteamReleaseRetention';
 const BASE = '/data/storage/el2/base/files/steamohos-native';
 const STATE = `${BASE}/component-download.json`;
 export type LinuxSteamInstallListener = (value: LinuxSteamInstallSnapshot) => void;
-interface OfflinePackage { schemaVersion: number; id: string; bytes: number; sha256: string; fileName: string; }
+interface OfflinePackageIdentity { bytes: number; sha256: string; }
+interface OfflinePackage extends OfflinePackageIdentity {
+  schemaVersion: number; id: string; fileName: string; compatiblePackages?: OfflinePackageIdentity[];
+}
 
 function removeInstallationScratch(path: string): void {
   if (!fs.accessSync(path)) return;
@@ -115,6 +119,15 @@ export class LinuxSteamInstallService {
     else if (!this.installed() && this.value.phase === 'ready') { this.value.phase = 'idle'; this.value.receivedBytes = 0; }
     this.publish();
   }
+  location(): LinuxSteamStorageLocation { return linuxSteamStorageLocation(); }
+  async selectLocation(context: common.Context, location: LinuxSteamStorageLocation): Promise<void> {
+    if (this.operation) throw new Error('请先暂停当前安装任务');
+    await selectLinuxSteamStorage(context, location);
+    this.value.phase = this.installed() ? 'ready' : 'idle';
+    this.value.message = this.installed() ? '此位置的 Steam 组件已就绪' : '此位置尚未安装 Steam 运行组件';
+    this.value.receivedBytes = 0; this.value.completedComponents = 0; this.value.preparedFiles = 0;
+    this.value.speedBytes = 0; this.value.error = ''; this.value.errorCode = ''; this.publish();
+  }
   pause(): void {
     if (!this.operation) return;
     this.paused = true; this.transfer?.pause(); this.value.message = '正在暂停，已下载内容会保留'; this.publish();
@@ -133,27 +146,47 @@ export class LinuxSteamInstallService {
   isBusy(): boolean { return this.operation !== null; }
   private async importArchives(context: common.Context, plan: LinuxSteamDeploymentPlan, root: string,
     staging: string, uri: string): Promise<void> {
+    // The bundle contains only official archives. A host/GNU adapter update
+    // need not invalidate the same large offline bundle: its whole-file hash
+    // is still pinned in this HAP, and every required official ZIP is verified
+    // below against the CURRENT deployment before any component activation.
     const metadata = JSON.parse(ConfigurationFiles.text(await context.resourceManager.getRawFileContent('linux-steam/offline-package.json'))) as OfflinePackage;
-    if (metadata.schemaVersion !== 1 || metadata.id !== plan.id || !/^[a-f0-9]{64}$/.test(metadata.sha256) ||
+    if (metadata.schemaVersion !== 1 || !/^[a-f0-9]{64}$/.test(metadata.id) || !/^[a-f0-9]{64}$/.test(metadata.sha256) ||
       !Number.isSafeInteger(metadata.bytes) || metadata.bytes <= 0 || metadata.bytes > 536870912) {
       throw new LinuxSteamDownloadError('LOCAL_VERSION', '本地包配置不兼容，请更新应用');
     }
-    if (await statfs.getFreeSize(root) < plan.requiredSpaceBytes + metadata.bytes * 2) {
+    if (!Array.isArray(metadata.compatiblePackages ?? []) || (metadata.compatiblePackages?.length ?? 0) > 16) {
+      throw new LinuxSteamDownloadError('LOCAL_VERSION', '本地包配置不兼容，请更新应用');
+    }
+    const accepted: OfflinePackageIdentity[] = [metadata, ...(metadata.compatiblePackages ?? [])];
+    if (accepted.some((item: OfflinePackageIdentity): boolean => !Number.isSafeInteger(item.bytes) ||
+      item.bytes <= 0 || item.bytes > 536870912 || !/^[a-f0-9]{64}$/.test(item.sha256))) {
+      throw new LinuxSteamDownloadError('LOCAL_VERSION', '本地包配置不兼容，请更新应用');
+    }
+    const freeBytes = await statfs.getFreeSize(root);
+    const input = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+    let inputBytes = 0;
+    try { inputBytes = fs.statSync(input.fd).size; }
+    catch (error) { fs.closeSync(input); throw new Error((error as Error).message); }
+    if (!accepted.some((item: OfflinePackageIdentity): boolean => item.bytes === inputBytes)) {
+      fs.closeSync(input);
+      throw new LinuxSteamDownloadError('LOCAL_PACKAGE', '组件包不匹配，请更新应用或选择配套的 HmosDeck Steam 组件包');
+    }
+    if (freeBytes < plan.requiredSpaceBytes + inputBytes * 2) {
+      fs.closeSync(input);
       throw new LinuxSteamDownloadError('SPACE', '本地导入需要约 3.8 GB 可用空间，请清理空间后重试');
     }
-    this.value.component = '本地组件包'; this.value.totalBytes = metadata.bytes;
+    this.value.component = '本地组件包'; this.value.totalBytes = inputBytes;
     this.value.receivedBytes = 0; this.stage('installing', '正在读取本地组件包');
-    const input = fs.openSync(uri, fs.OpenMode.READ_ONLY);
     const archivePath = `${staging}/local-import.zip`;
     let output: fs.File | null = null;
     try {
-      if (fs.statSync(input.fd).size !== metadata.bytes) throw new LinuxSteamDownloadError('LOCAL_PACKAGE', '组件包不适用于当前应用版本，请选择配套的 HmosDeck Steam 组件包');
       if (fs.accessSync(archivePath)) fs.unlinkSync(archivePath);
       output = fs.openSync(archivePath, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.NOFOLLOW);
       const buffer = new ArrayBuffer(1048576); let copied = 0;
-      while (copied < metadata.bytes) {
+      while (copied < inputBytes) {
         this.checkPaused();
-        const count = fs.readSync(input.fd, buffer, { length: Math.min(buffer.byteLength, metadata.bytes - copied) });
+        const count = fs.readSync(input.fd, buffer, { length: Math.min(buffer.byteLength, inputBytes - copied) });
         if (count <= 0) throw new LinuxSteamDownloadError('LOCAL_READ', '组件包读取中断，请重新选择文件');
         let sent = 0;
         while (sent < count) { const n = fs.writeSync(output.fd, buffer.slice(sent, count));
@@ -164,7 +197,8 @@ export class LinuxSteamInstallService {
       fs.fsyncSync(output.fd);
     } finally { fs.closeSync(input); if (output) fs.closeSync(output); }
     this.stage('verifying', '正在验证本地组件包');
-    if (await ConfigurationFiles.fileHash(archivePath) !== metadata.sha256) {
+    const actualHash = await ConfigurationFiles.fileHash(archivePath);
+    if (!accepted.some((item: OfflinePackageIdentity): boolean => item.bytes === inputBytes && item.sha256 === actualHash)) {
       fs.unlinkSync(archivePath);
       throw new LinuxSteamDownloadError('LOCAL_CHECKSUM', '组件包校验失败或版本不匹配，原有组件和游戏库未更改');
     }
@@ -219,7 +253,40 @@ export class LinuxSteamInstallService {
     if (fs.accessSync(destination)) fs.unlinkSync(destination);
     fs.renameSync(temporary, destination);
   }
-  private async performInstall(context: common.Context, force: boolean, uri: string): Promise<void> {
+  // Host adapter upgrades reuse only checksum-matched installed official files.
+  // They never download implicitly or read games, userdata or configuration.
+  private async reuseInstalledArchive(root: string, staging: string, archive: LinuxSteamDownloadArchive): Promise<boolean> {
+    const active = readSmokeText(`${root}/active-version.txt`).trim();
+    const plan = this.plan;
+    if (!plan || !/^[a-f0-9]{64}$/.test(active) || active === plan.id || !this.installed()) return false;
+    const files = plan.files.filter((file): boolean => file.archive === archive.id);
+    for (const file of files) {
+      this.checkPaused();
+      const source = file.path.startsWith('release/') ? `${root}/releases/${active}/${file.path.substring(8)}` :
+        `${root}/client/.steam/steam/${file.path.substring(7)}`;
+      if (!safeInstallationParents(root, source) || !fs.accessSync(source)) return false;
+      const stat = fs.lstatSync(source);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== file.bytes ||
+        await ConfigurationFiles.fileHash(source) !== file.sha256) return false;
+    }
+    for (const file of files) {
+      this.checkPaused();
+      const source = file.path.startsWith('release/') ? `${root}/releases/${active}/${file.path.substring(8)}` :
+        `${root}/client/.steam/steam/${file.path.substring(7)}`;
+      const destination = `${staging}/${file.path}`;
+      installationDirectory(destination.substring(0, destination.lastIndexOf('/')));
+      if (fs.accessSync(destination)) {
+        if (!fs.lstatSync(destination).isFile() || fs.lstatSync(destination).isSymbolicLink()) throw new Error('组件临时目标无效');
+        fs.unlinkSync(destination);
+      }
+      await fs.copyFile(source, destination);
+      if (await ConfigurationFiles.fileHash(destination) !== file.sha256) throw new Error('已有组件复用校验失败');
+      this.value.preparedFiles++;
+      if (this.value.preparedFiles % 32 === 0) this.publish(false);
+    }
+    return true;
+  }
+  private async performInstall(context: common.Context, force: boolean, uri: string, installedOnly: boolean = false): Promise<void> {
     this.value.error = ''; this.value.errorCode = '';
     try {
       await this.initialize(context);
@@ -249,6 +316,14 @@ export class LinuxSteamInstallService {
       for (const archive of archives) {
         this.checkPaused(); this.value.component = archive.name;
         const cache = `${root}/downloads/${archive.sha256}.zip`;
+        if (!uri && !archive.url.startsWith('rawfile://')) {
+          this.stage('verifying', `正在复用已安装的 ${archive.name}`);
+          if (await this.reuseInstalledArchive(root, staging, archive)) {
+            completed += archive.bytes; this.value.receivedBytes = completed;
+            this.value.completedComponents++; this.publish(); continue;
+          }
+          if (installedOnly) throw new LinuxSteamDownloadError('UPDATE_REQUIRED', '已有 Steam 组件不完整，请在组件页选择在线修复或导入；原游戏和存档已保留');
+        }
         if (archive.url.startsWith('rawfile://')) {
           this.stage('installing', '正在准备应用内置的 GNU 运行组件');
           await this.embedded(context, archive, cache);
@@ -404,7 +479,22 @@ export class LinuxSteamInstallService {
     }
   }
   async ensureReady(context: common.Context): Promise<void> {
+    await this.initialize(context);
     if (!this.installed()) throw new Error('请先下载 Steam 运行组件，下载进度和重试入口可在 Steam 页面查看');
+    const activeRoot = LinuxSteamLibraryService.getInstance().externalRoot();
+    const plan = this.plan;
+    if (plan && readSmokeText(`${activeRoot}/active-version.txt`).trim() !== plan.id) {
+      if (readSmokeText(`${activeRoot}/client/.steam/steam/.packaged-data-version`).trim() !== plan.clientDataId) {
+        throw new Error('Steam 组件需要更新，请在组件页选择在线更新或导入；原游戏和存档会保留');
+      }
+      if (this.operation) await this.operation;
+      else {
+        this.paused = false;
+        const task = this.performInstall(context, true, '', true); this.operation = task;
+        try { await task; } finally { if (this.operation === task) this.operation = null; this.transfer = null; }
+      }
+      if (readSmokeText(`${activeRoot}/active-version.txt`).trim() !== plan.id) throw new Error('运行组件配套更新尚未完成，请在组件页继续');
+    }
     await prepareLinuxSteamClientData(context, false);
     const root = LinuxSteamLibraryService.getInstance().externalRoot();
     if (!fs.accessSync(`${root}/client/.steam/steam/steamui/index.html`)) throw new Error('Steam 资源不完整，请修复运行组件');

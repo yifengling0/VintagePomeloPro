@@ -124,8 +124,8 @@ async function sessionTests(shutdownMode = 'normal') {
       files.set(base+'/client-tmp/deck-command-ack.json',JSON.stringify({version:1,generation,requestId:Number(id),status:rejected?'failed':'dispatched',exitCode:rejected?1:0}));
     }
   }};
-  let foreground=true,recoverPending=false,recoverAttempts=0,restores=0,presentationResets=0;
-  class Host {async restore(){restores++;return true;} async start() {launches++;} stop(){stopped++;} isForeground(){return foreground;}}
+  let foreground=true,recoverPending=false,recoverAttempts=0,restores=0,presentationResets=0,failHost=false;
+  class Host {exited=false; hasExited(){return this.exited;} async restore(){restores++;return true;} async start() {launches++;if(failHost){failHost=false;throw new Error('create failed');}} stop(){stopped++;} isForeground(){return foreground;}}
   class Recovery {start(){}stop(){}poll(){}beginBigPicture(){presentationResets++;}needed(){return recoverPending;}take(){recoverPending=false;return ++recoverAttempts;}}
   class Games {start(){}stop(){}}
   const nativeStart=()=>{starts++;const generation=files.get(base+'/session-generation.txt').trim();
@@ -133,8 +133,10 @@ async function sessionTests(shutdownMode = 'normal') {
     return nativePromise;
   };
   const api=load('service/LinuxSteamSessionService.ets',{
+    './LinuxSteamDiagnosticData':{linuxSteamDownloadHome:async()=>'/z'},
+    './LinuxSteamDownloadPolicy':{applyLinuxSteamDownloadPolicy(){}},
     '@kit.ArkUI':{promptAction:{showToast(){}}},
-    '@kit.PerformanceAnalysisKit':{hilog:{info(){}}},
+    './LogService':{hilog:{info(){},warn(){}}},
     '@ohos.util':{default:{generateRandomUUID:()=> 'abcd-9876'}},
     'libsmoke_napi.so':{default:{startLinuxSteamSession:nativeStart}},
     '../model/AppModels':{DisplayMode:{DESKTOP:1},WinePresentationMode:{DESKTOP:1}},
@@ -143,6 +145,7 @@ async function sessionTests(shutdownMode = 'normal') {
     './LinuxSteamInstallService':{LinuxSteamInstallService:singleton({ensureReady:async()=>{await componentsGate;}})},
     './LinuxSteamLibraryService':{LinuxSteamLibraryService:singleton({externalRoot:()=>root})},
     './LinuxSteamGameLaunch':{LinuxSteamGameLaunch:Games},'./LinuxSteamWindowHost':{LinuxSteamWindowHost:Host},
+    './ManagedLinuxSteamBridgeService':{ManagedLinuxSteamBridgeService:{synchronizeCompatibility:async()=>{}}},
     './LinuxSteamPageRecovery':{LinuxSteamPageRecovery:Recovery},
     './WineEngineService':{WineEngineService:singleton({ensureReady:async()=>true})},
     './HostWindowTasks':{HostWindowTasks:singleton({snapshot:()=>[{key:'steam-1',source:'steam-linux'}],activate:async()=>true,foregroundRevision:()=>foregroundRevision,showLauncher:async()=>{homes++;foregroundRevision++;},expectSteamGame:()=>1,cancelExpectedSteamGame:()=>{}})},
@@ -194,6 +197,21 @@ async function sessionTests(shutdownMode = 'normal') {
   foreground=true;service.poll();await service.tail;
   assert.equal(commands.at(-1).action,'library');assert.equal(recoverAttempts,1);assert.equal(starts,1,'renderer repair never restarts Steam');
   assert.equal(commands.at(-1).id,'9','fixed maintenance commands cannot leave recovery using a replayed request');
+  const liveGeneration=service.snapshot().generation;
+  service.host.exited=true;
+  await Promise.all([service.open('library'), service.open('downloads')]);
+  assert.equal(launches,2,'concurrent explicit requests replace one confirmed dead Wine host');
+  assert.equal(starts,1,'Wine host recovery never restarts Linux Steam or login');
+  assert.equal(stopped,1,'old binding is released once before replacement');
+  assert.equal(service.snapshot().generation,liveGeneration,'native generation survives Wine host exit');
+  assert.equal(service.host.hasExited(),false);
+  service.host.exited=true; failHost=true;
+  await assert.rejects(service.open('library'),/Steam 窗口恢复失败/);
+  assert.equal(service.host,null,'failed replacement is discarded so retry remains possible');
+  assert.equal(starts,1,'failed Wine replacement preserves the native session');
+  await service.open('library');
+  assert.equal(launches,4,'explicit retry creates a new replacement');
+  const stopsBeforeShutdown=stopped;
   recoverPending=true;service.recoverPage();
   if (shutdownMode === 'rejected' || shutdownMode === 'timeout') {
     await assert.rejects(service.open('shutdown'), shutdownMode === 'rejected' ? /Steam 操作未完成/ : /Steam 没有确认/);
@@ -209,7 +227,7 @@ async function sessionTests(shutdownMode = 'normal') {
     assert.equal(service.snapshot().state,'stopped');
   }
   assert.equal(recoverAttempts,1,'new user shutdown cancels pending repair');
-  assert.equal(stopped,1,'host cleaned after real native worker exit');
+  assert.equal(stopped,stopsBeforeShutdown+1,'replacement host cleaned after real native worker exit');
   console.log('Deck ArkTS session: concurrent start, command ordering, AppID, fresh generation, mode ACK, stale state and shutdown '+shutdownScenario+' PASS');
 }
 async function taskTests() {
@@ -236,6 +254,46 @@ async function taskTests() {
   tasks.setActivator(async()=>true);
   assert.equal(await tasks.activate(key),true);
   assert.equal(tasks.isLauncherForeground(),false);
+  tasks.markLauncherForeground();
+  assert.equal(await tasks.activateSteamLaunchPrompt(key,'steam-host'),false,'A dialog without pending Play never steals focus');
+  const cancelledIntent=tasks.expectSteamGame('681820');
+  await tasks.activateSteamLaunchPrompt(key,'steam-host');
+  tasks.cancelExpectedSteamGame(cancelledIntent);
+  assert.equal(tasks.pendingSteamLaunch,null,'Dispatch cancellation uses the immutable Play identity after prompt attention');
+  tasks.markLauncherForeground();
+  const choice=tasks.foregroundRevision();
+  tasks.expectSteamGame('681820');
+  assert.equal(await tasks.activateSteamLaunchPrompt(key,'steam-host'),true,'An awaiting Play dialog is surfaced');
+  assert.equal(tasks.foregroundRevision(),choice,'Automatic prompt attention is not a new user choice');
+  tasks.noteInteraction(4);
+  assert.ok(tasks.pendingSteamLaunch,'Confirming a surfaced launch prompt preserves its game handoff');
+  let gameRaises=0;
+  tasks.setActivator(async task=>{if(task.sessionId==='pal4')gameRaises++;return true;});
+  tasks.registerSteamGame('pal4','681820');
+  tasks.onEvent(5,'created',JSON.stringify({clientPid:101,sessionId:'pal4'}));
+  await tasks.tail;
+  assert.equal(gameRaises,1,'The first real game window still activates after its prompt');
+  assert.equal(await tasks.activateSteamLaunchPrompt(key,'steam-host'),false,'A running game never yields to a Steam dialog');
+  tasks.onEvent(5,'destroyed','{}');tasks.finishSteamGame('pal4');await tasks.tail;
+  tasks.markLauncherForeground();tasks.expectSteamGame('681820');
+  let promptComplete;
+  tasks.setActivator(async()=>new Promise(resolve=>{promptComplete=resolve;}));
+  const prompt=tasks.activateSteamLaunchPrompt(key,'steam-host');await Promise.resolve();
+  tasks.markLauncherForeground();promptComplete(true);
+  assert.equal(await prompt,false,'A later user return to Deck cancels pending automatic attention');
+  tasks.expectSteamGame('681820');
+  tasks.setActivator(async()=>{tasks.pendingSteamLaunch.expiresAt=0;return true;});
+  assert.equal(await tasks.activateSteamLaunchPrompt(key,'steam-host'),false,'An expired asynchronous activation cannot complete');
+  tasks.markLauncherForeground();tasks.expectSteamGame('681820');
+  tasks.setActivator(async()=>true);
+  await tasks.activateSteamLaunchPrompt(key,'steam-host');
+  tasks.onEvent(6,'created',JSON.stringify({clientPid:102,sessionId:'other'}));
+  tasks.noteInteraction(6);
+  assert.equal(tasks.pendingSteamLaunch,null,'Interacting with another task still cancels launch focus');
+  tasks.onEvent(6,'destroyed','{}');
+  tasks.expectSteamGame('681820');tasks.registerSteamGame('loading-pal4','681820');
+  assert.equal(await tasks.activateSteamLaunchPrompt(key,'steam-host'),false,'Even before its first frame, a started game prevents attention stealing');
+  tasks.finishSteamGame('loading-pal4');
   tasks.markLauncherForeground();
   tasks.onEvent(4,'destroyed','{}');
   assert.equal(tasks.snapshot().length,0);

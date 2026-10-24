@@ -13,6 +13,7 @@ import re
 import shutil
 import struct
 import zipfile
+from stamp_wine_builtin_identity import stamp_archive
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -73,8 +74,9 @@ def main():
     marker_name = 'linux-steam-bridge.json'
     temporary = archive.with_suffix('.steam-pending.zip')
     with zipfile.ZipFile(archive) as staged:
+        inf = stamp_archive(staged, {name: path.read_bytes() for name, path in modules.items()})
         installed = marker_name in staged.namelist() and staged.read(marker_name) == encoded and all(
-            hashlib.sha256(staged.read(record['path'])).hexdigest() == record['sha256'] for record in marker['files'])
+            hashlib.sha256(staged.read(record['path'])).hexdigest() == record['sha256'] for record in marker['files']) and staged.read('share/wine/wine.inf') == inf
     if current != args.expected_payload_sha256 and not installed:
         parser.error('Wine base payload digest differs; do not mix Wine builds')
     try:
@@ -82,13 +84,14 @@ def main():
         if not installed:
             with zipfile.ZipFile(archive) as source, zipfile.ZipFile(temporary,'w') as target:
                 for item in source.infolist():
-                    if item.filename in modules or item.filename == marker_name:
+                    if item.filename in modules or item.filename in {marker_name, 'share/wine/wine.inf'}:
                         continue
                     with source.open(item) as reader, target.open(item,'w') as writer:
                         shutil.copyfileobj(reader, writer, 4 * 1024 * 1024)
                 for name,path in modules.items():
                     target.write(path,name,compress_type=zipfile.ZIP_DEFLATED,compresslevel=6)
                 target.writestr(marker_name,encoded,compress_type=zipfile.ZIP_DEFLATED)
+                target.writestr('share/wine/wine.inf', inf, compress_type=zipfile.ZIP_DEFLATED)
             with zipfile.ZipFile(temporary) as staged:
                 for record in marker['files']:
                     if hashlib.sha256(staged.read(record['path'])).hexdigest() != record['sha256']:

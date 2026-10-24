@@ -98,18 +98,36 @@ std::string FaultRegisters(int tid, int signal) {
     iovec view{registers, sizeof(registers)};
     std::ostringstream text;
     text << "STEAMOHOS_NATIVE_FAULT tid=" << tid << " signal=" << signal;
+    siginfo_t information{};
+    if (!ptrace(PTRACE_GETSIGINFO, tid, nullptr, &information))
+        text << " code=" << information.si_code << " address=0x" << std::hex << reinterpret_cast<uintptr_t>(information.si_addr);
     if (ptrace(PTRACE_GETREGSET, tid, reinterpret_cast<void*>(NT_PRSTATUS), &view) < 0)
         text << " registers_errno=" << errno;
     else {
-        uintptr_t frame = 0, stack = 0;
+        uintptr_t frame = 0, stack = 0, pc = 0;
 #if defined(__aarch64__)
         text << " pc=0x" << std::hex << registers[32] << " lr=0x" << registers[30]
              << " sp=0x" << registers[31];
         frame = registers[29]; stack = registers[31];
+        pc = registers[32];
 #elif defined(__x86_64__)
         text << " pc=0x" << std::hex << registers[16] << " sp=0x" << registers[19];
         frame = registers[4]; stack = registers[19];
+        pc = registers[16];
 #endif
+        // Anonymous external ELF has no pathname in /proc/maps. Identify its
+        // nearby ELF base using only the public ELF signature, never dump code.
+        const uintptr_t page = static_cast<uintptr_t>(sysconf(_SC_PAGESIZE));
+        for (uintptr_t offset = 0; page && offset < 1024 * 1024 && offset <= pc; offset += page) {
+            const uintptr_t address = (pc & ~(page - 1)) - offset;
+            errno = 0;
+            const unsigned long word = static_cast<unsigned long>(ptrace(PTRACE_PEEKDATA, tid,
+                reinterpret_cast<void*>(address), nullptr));
+            if (!errno && (word & 0xffffffffffffUL) == 0x0102464c457fUL) {
+                text << " elfBase=0x" << std::hex << address << " elfOffset=0x" << pc - address;
+                break;
+            }
+        }
         // Read only frame-chain return addresses. No stack dump or arguments.
         for (unsigned depth = 0; depth < 16 && frame >= stack && frame - stack < 8 * 1024 * 1024 &&
              frame % sizeof(uintptr_t) == 0; ++depth) {
@@ -278,7 +296,8 @@ static NativeExecResult RunNativeProcess(const std::vector<std::string>& argv,
                 const unsigned event = static_cast<unsigned>(status) >> 16;
                 if (!tracingStarted) {
                     const auto flags = PTRACE_O_TRACESYSGOOD | PTRACE_O_EXITKILL | PTRACE_O_TRACEEXEC |
-                        (options.traceSignals ? PTRACE_O_TRACECLONE : 0);
+                        (options.traceSignals ? PTRACE_O_TRACECLONE : 0) |
+                        (options.traceForks ? PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK : 0);
                     if (ptrace(PTRACE_SETOPTIONS, waited, nullptr, reinterpret_cast<void*>(flags)) < 0) {
                         r.waitError = errno; kill(pid, SIGKILL); killed = true;
                     }
@@ -294,7 +313,8 @@ static NativeExecResult RunNativeProcess(const std::vector<std::string>& argv,
                                reinterpret_cast<void*>(sizeof(information)),&information)>=0 && information.operation==1)
                         trace[traceCount++ % 32]={static_cast<unsigned long>(information.number),static_cast<unsigned long>(information.pc)};
                 }
-                if (options.traceSignals && signal == SIGTRAP && event == PTRACE_EVENT_CLONE) {
+                if (options.traceSignals && signal == SIGTRAP && (event == PTRACE_EVENT_CLONE ||
+                    (options.traceForks && (event == PTRACE_EVENT_FORK || event == PTRACE_EVENT_VFORK)))) {
                     unsigned long tid = 0;
                     if (ptrace(PTRACE_GETEVENTMSG, waited, nullptr, &tid) < 0 || !tid || tracees.size() >= 512) {
                         r.waitError = errno ? errno : EOVERFLOW; kill(pid, SIGKILL); killed = true;

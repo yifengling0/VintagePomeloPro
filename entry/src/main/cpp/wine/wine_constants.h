@@ -18,8 +18,10 @@
 // Wine 临时文件目录 (TMPDIR)
 #define WINE_TMPDIR          "/data/storage/el2/base/cache"
 
-// Wine 子进程 stderr 日志目录
+// Legacy/opt-in CEF diagnostic output (may be cleared by the OS).
 #define WINE_LOG_DIR         "/data/storage/el2/base/temp"
+// Wine/wineserver stderr survives cache cleanup and app restarts.
+#define WINE_STDERR_DIR      WINE_FILES_DIR "/wine-logs"
 
 // -- Wine 产物架构子目录 (由 wine 架构 WINE_ARCH 决定, 非设备架构) --
 // 方案① (x86_64 设备) / 方案② (arm64 设备 + x86_64 wine) → x86_64-*;

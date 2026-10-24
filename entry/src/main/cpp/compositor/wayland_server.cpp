@@ -246,11 +246,18 @@ void WaylandServer::StartMoveGrabAt(uint32_t toplevelId, uint32_t serial, wl_fix
 }
 
 void WaylandServer::EndMoveGrab() {
+    const auto resize = moveGrab_.ResizeTarget();
+    const auto bounds = moveGrab_.ResizeBounds();
     uint32_t tl = moveGrab_.GetToplevelId();
     moveGrab_.EndMoveGrab(toplevelMgr_);
+    if (resize) NotifyToplevelResize(resize, bounds.width, bounds.height, false);
     if (Policy().OhosWindowPerToplevel() && tl != 0) {
         PostToplevelEvent(tl, ToplevelEventType::MoveEnd);
     }
+}
+
+void WaylandServer::StartExternalResizeGrabAt(uint32_t id, uint32_t serial, wl_fixed_t x, wl_fixed_t y, uint32_t edges) {
+    moveGrab_.StartExternalResizeGrab(toplevelMgr_, id, serial, wl_fixed_to_int(x), wl_fixed_to_int(y), edges);
 }
 
 bool WaylandServer::ProcessMoveGrabMotion(wl_fixed_t wx, wl_fixed_t wy) {
@@ -258,6 +265,10 @@ bool WaylandServer::ProcessMoveGrabMotion(wl_fixed_t wx, wl_fixed_t wy) {
     // 这里截断为整数全局坐标交 MoveGrabHandler 绝对定位
     if (!moveGrab_.ProcessMoveGrabMotion(toplevelMgr_, wl_fixed_to_int(wx),
                                          wl_fixed_to_int(wy))) return false;
+    if (const auto id = moveGrab_.ResizeTarget()) {
+        const auto bounds = moveGrab_.ResizeBounds();
+        NotifyToplevelResize(id, bounds.width, bounds.height, true);
+    }
     MarkDesktopRootDirtyLocked();
     return true;
 }

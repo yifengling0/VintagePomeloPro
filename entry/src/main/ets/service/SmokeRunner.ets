@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
-import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage } from './LinuxSteamDiagnosticData';
+import { FaultLogger } from '@kit.PerformanceAnalysisKit';
+import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage, linuxSteamDownloadHome } from './LinuxSteamDiagnosticData';
 import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
 import { auditLinuxSteamStorage } from './LinuxSteamStorageAudit';
 import { isolateLinuxSteamForCleanDownload, restoreLinuxSteamAfterCleanDownload } from './LinuxSteamCleanInstallDiagnostic';
@@ -84,6 +85,14 @@ interface WineStartupEvidence {
   initStatus: string;
   dispatchStatus: string;
   isolated: boolean;
+}
+
+interface LinuxSteamFaultSummary {
+  pid: number;
+  timestamp: number;
+  type: number;
+  signal: string;
+  frames: string[];
 }
 
 interface LinuxSteamGnuControl {
@@ -247,6 +256,23 @@ export class SmokeRunner {
         writeSmokeText(`${resultsDir}/isolation.json`, await isolateLinuxSteamForCleanDownload(this.context));
         await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId, testId: 'clean-download-isolation',
           status: 'PASS', stage: 'old_resources_preserved', message: 'Empty component directory; private app data preserved' }], driveC);
+        return;
+      }
+      // Explicit read-only diagnostic. The legacy query is needed for faults
+      // predating this session; only bounded signal/stack metadata is exported.
+      if (request.suite === 'linux-steam-faults') {
+        const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+        if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create fault audit directory');
+        const faults = await FaultLogger.query(FaultLogger.FaultType.NO_SPECIFIC);
+        const summaries: LinuxSteamFaultSummary[] = faults.slice(0, 10).map((fault: FaultLogger.FaultLogInfo): LinuxSteamFaultSummary => {
+          const signal = fault.reason.match(/SIG[A-Z0-9]+(?:\([^)]{0,80}\))?/);
+          const frames: string[] = fault.fullLog.split('\n').filter((line: string): boolean => /^\s*#\d+\s+pc\b/.test(line)).slice(0, 12)
+            .map((line: string): string => line.replace(/(?:\/[^\s/()]+)+\/([^\s/()]+)/g, '$1').slice(0, 320));
+          return { pid: fault.pid, timestamp: fault.timestamp, type: fault.type, signal: signal ? signal[0] : 'unspecified', frames: frames };
+        });
+        writeSmokeText(`${resultsDir}/fault-summary.json`, JSON.stringify(summaries));
+        await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId, testId: 'fault-audit',
+          status: 'PASS', stage: 'metadata_collected', message: 'App-owned fault metadata only; no raw dump or account payload' }], driveC);
         return;
       }
       if (request.suite === 'linux-steam-storage') {
@@ -440,7 +466,9 @@ export class SmokeRunner {
     const useWineWindow = readSmokeText('/data/storage/el2/base/files/steamohos-native/client-launch.conf')
       .split('\n').some((line: string): boolean => line.trim() === 'wineWindowHost=1');
     if (useWineWindow) await windowHost.start(this.context, driveC, resultsDir);
-    launchService.start(`${external}/library`, resultsDir);
+    const zRoot = await linuxSteamDownloadHome(this.context);
+    writeSmokeText('/data/storage/el2/base/files/steamohos-native/wine-z-root.path', zRoot + '\n');
+    launchService.start(`${external}/library`, resultsDir, zRoot);
     let raw: string;
     try { raw = await probe(); } finally { launchService.stop(); windowHost.stop(); }
     writeSmokeText(`${resultsDir}/linux-steam-client.json`, raw);

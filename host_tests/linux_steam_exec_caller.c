@@ -1,6 +1,7 @@
 #define _GNU_SOURCE 1
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
@@ -50,6 +51,14 @@ int main(int argc,char**argv){
  unsetenv("STEAMOHOS_EXEC_GENERATION");
  char script[4096];snprintf(script,sizeof(script),"%s/script",argv[2]);
  assert(execve(script,bad,environ)==-1&&errno==ENOEXEC);
+ size_t retiredBytes=64*1024*1024;void *retired=MAP_FAILED;
+ if(mode==13){
+  retired=mmap((void*)0x3000000000UL,retiredBytes,PROT_READ|PROT_WRITE,
+               MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED_NOREPLACE,-1,0);
+  assert(retired!=MAP_FAILED);memset(retired,0x5a,retiredBytes);
+  char address[64];snprintf(address,sizeof(address),"%lx",(unsigned long)retired);
+  assert(!setenv("EXEC_FIXTURE_RETIRED",address,1));
+ }
  int channel[2];assert(!pipe(channel));assert(write(channel[1],"T",1)==1);
  int closeOnExec=open("/dev/null",O_RDONLY|O_CLOEXEC);assert(closeOnExec>=0);
  pid_t child=fork();assert(child>=0);
@@ -60,6 +69,7 @@ int main(int argc,char**argv){
   assert(signal(SIGUSR1,handler)!=SIG_ERR);assert(signal(SIGUSR2,SIG_IGN)!=SIG_ERR);
   sigset_t mask;sigemptyset(&mask);sigaddset(&mask,SIGTERM);assert(!sigprocmask(SIG_BLOCK,&mask,NULL));
   if(mode==0)execve(argv[1],args,environ);
+  if(mode==13)execve(argv[1],args,environ);
   if(mode==1)execv(argv[1],args);
   if(mode==2)execl(argv[1],"exec-target",pid,keep,closefd,(char*)NULL);
   if(mode==3)execvpe("target",args,environ);
@@ -94,5 +104,9 @@ int main(int argc,char**argv){
  }
  int status;assert(waitpid(child,&status,0)==child);
  if(!WIFEXITED(status)||WEXITSTATUS(status)){fprintf(stderr,"child_status=%d\n",status);return 82;}
+ if(mode==13){
+  for(size_t i=0;i<retiredBytes;i+=4096)assert(((unsigned char*)retired)[i]==0x5a);
+  assert(!munmap(retired,retiredBytes));
+ }
  assert(fcntl(closeOnExec,F_GETFD)>=0);close(closeOnExec);close(channel[0]);close(channel[1]);return 0;
 }
