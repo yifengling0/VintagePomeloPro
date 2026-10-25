@@ -28,6 +28,9 @@ export interface LinuxSteamHostResult {
 export const probeLinuxSteamHost: (() => Promise<LinuxSteamHostResult>) | undefined;
 export const injectLinuxSteamHostKeys: (() => boolean) | undefined;
 export const probeLinuxSteamGnu: (() => Promise<string>) | undefined;
+export const startLinuxProtonGame: ((ticket: number, wineLanguage?: string) => Promise<string>) | undefined;
+export const cancelLinuxProtonGame: ((ticket: number) => boolean) | undefined;
+export const probeLinuxProton: (() => Promise<string>) | undefined;
 
 export interface PointMap {
   px: number;
@@ -43,6 +46,7 @@ export const probeLinuxSteamGnuClient: (() => Promise<string>) | undefined;
 export interface LinuxSteamLaunchRequest {
   id: number; cancel: boolean; appId: string; cwd: string; install: string;
   role: 'game' | 'install_script' | 'driver_query';
+  backend?: 'ohos-wine' | 'gnu-proton' | 'gnu-proton-gl';
   argv: string[]; environment: string[];
 }
 export const startLinuxSteamLaunchBroker: ((library: string) => boolean) | undefined;

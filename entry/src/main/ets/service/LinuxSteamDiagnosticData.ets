@@ -1,3 +1,4 @@
+import { LinuxGnuProtonComponent } from './LinuxGnuProtonComponent';
 import { LINUX_STEAM_PRIVATE_ROOT, LinuxSteamStorageLocation } from './LinuxSteamPaths';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
@@ -80,8 +81,25 @@ export async function selectLinuxSteamStorage(context: common.Context, location:
 
 export async function linuxSteamDownloadHome(context: common.Context): Promise<string> {
   // Keep the ordinary Wine Z: mapping even when native Steam lives on C:.
+  // DOWNLOAD is an OS picker service and may return no URI while a desktop
+  // transition is in progress. Reuse a previously resolved, accessible home.
+  const cached = readSmokeText(`${BASE}/wine-z-root.path`).trim();
+  const external = readSmokeText(`${BASE}/external-root.path`).trim();
+  const candidates: string[] = [cached];
+  if (external !== LINUX_STEAM_PRIVATE_ROOT && existingExternalRoot(external)) {
+    candidates.push(external.substring(0, external.length - '/SteamLinuxARM64'.length));
+  }
+  for (const home of candidates) {
+    if (!home.startsWith('/') || home.split('/').includes('..') || /[\x00-\x1f]/.test(home)) continue;
+    try {
+      const stat = fs.lstatSync(home);
+      if (stat.isDirectory() && !stat.isSymbolicLink()) return home;
+    } catch (_) {}
+  }
   const root = await resolveLinuxSteamDownloadRoot(context);
-  return root.substring(0, root.length - '/SteamLinuxARM64'.length);
+  const home = root.substring(0, root.length - '/SteamLinuxARM64'.length);
+  ConfigurationFiles.json(`${BASE}/wine-z-root.path`, home + '\n');
+  return home;
 }
 
 export async function prepareLinuxSteamExternalStorage(context: common.Context): Promise<string> {
@@ -261,6 +279,8 @@ export async function prepareLinuxSteamClientData(context: common.Context, diagn
     writeSmokeText(`${xkb}/.data-version`, runtimeManifest.xwaylandProbe.data.sha256);
   }
   try {
+    await LinuxGnuProtonComponent.ensureReady(context);
+    await LinuxGnuProtonComponent.ensureReady(context);
     await prepareHmosDeckLibrary(root, runtime);
   } catch (error) {
     writeSmokeText(`${BASE}/single-library-error.json`, JSON.stringify({ message: (error as Error).message }));
@@ -330,7 +350,7 @@ export function isHmosDeckGameManifest(text: string, appId: string): boolean {
 // The global default cannot reliably beat per-app Linux mappings at priority
 // 100/101. Pin installed games at user-selection priority, while preserving
 // explicit native/custom choices. This runs before the GNU client starts.
-export function normalizeHmosDeckToolMappings(text: string, installedApps: string[]): string {
+export function normalizeHmosDeckToolMappings(text: string, installedApps: string[], defaultTool: string = 'hmosdeck_proton', includeDefault: boolean = true): string {
   const document = parseSteamVdf(text);
   let node = document;
   for (const key of ['installconfigstore', 'software', 'valve', 'steam', 'compattoolmapping']) {
@@ -344,19 +364,20 @@ export function normalizeHmosDeckToolMappings(text: string, installedApps: strin
     node = child;
   }
   let changed = false;
-  const apps = ['0', ...installedApps.filter((id: string): boolean => /^[1-9][0-9]{0,9}$/.test(id))];
+  const apps = [...(includeDefault ? ['0'] : []), ...installedApps.filter((id: string): boolean => /^[1-9][0-9]{0,9}$/.test(id))];
   for (const id of apps) {
     let mapping = node.child(id);
     const name = mapping?.text('name') ?? '';
     const minimumPriority = id === '0' ? 100 : 250;
     const priority = Number(mapping?.text('priority') ?? '');
-    if (name === 'hmosdeck_proton') {
+    if (name === 'hmosdeck_proton' || name === 'hmosdeck_gnu_proton' || name === 'hmosdeck_gnu_proton_gl') {
       if (!Number.isFinite(priority) || priority < minimumPriority) {
         mapping?.set('priority', minimumPriority.toString());
         changed = true;
       }
       continue;
     }
+    if (name.length > 0 && priority >= 250) continue;
     const automaticNative = id !== '0' && priority < 250 &&
       /^(?:native|SteamLinuxRuntime(?:_.*)?)$/i.test(name);
     if (name.length > 0 && name !== 'hmosdeck' && !/^proton(?:_|$)/.test(name) && !automaticNative) continue;
@@ -364,7 +385,7 @@ export function normalizeHmosDeckToolMappings(text: string, installedApps: strin
       mapping = new SteamVdfNode();
       node.children.set(id, mapping);
     }
-    mapping.set('name', 'hmosdeck_proton');
+    mapping.set('name', defaultTool);
     mapping.set('config', '');
     mapping.set('priority', minimumPriority.toString());
     changed = true;
@@ -372,12 +393,55 @@ export function normalizeHmosDeckToolMappings(text: string, installedApps: strin
   return changed ? serializeSteamVdf(document) : text;
 }
 
-function prepareHmosDeckToolDefaults(steam: string, apps: string[]): void {
+interface HmosDeckToolInitialization {
+  configuration: string;
+  initialized: string;
+}
+
+// Record only which defaults have been initialized, never the user's choice.
+// A cleared checkbox or changed global default remains Steam-owned on restart.
+export function initializeHmosDeckToolMappings(text: string, apps: string[], defaultTool: string,
+  initialized: string, legacyGnuMigrated: boolean = false): HmosDeckToolInitialization {
+  const state = parseSteamVdf(initialized);
+  const fresh = apps.filter((id: string): boolean => /^[1-9][0-9]{0,9}$/.test(id) && state.text(`app_${id}`) !== '1');
+  const globalReady = state.text('global') === '1';
+  let configuration = text;
+  if (defaultTool === 'hmosdeck_gnu_proton' && state.text('gnu_default') !== '1') {
+    if (!legacyGnuMigrated) {
+      const document = parseSteamVdf(configuration);
+      const mapping = document.child('installconfigstore')?.child('software')?.child('valve')?.child('steam')?.child('compattoolmapping')?.child('0');
+      // Only replace an old product default, never an explicit Steam selection.
+      if (mapping && ['hmosdeck', 'hmosdeck_proton'].includes(mapping.text('name')) &&
+        Number(mapping.text('priority')) < 250) {
+        mapping.set('name', defaultTool);
+        configuration = serializeSteamVdf(document);
+      }
+    }
+    state.set('gnu_default', '1');
+  }
+  configuration = normalizeHmosDeckToolMappings(configuration, fresh, defaultTool, !globalReady);
+  state.set('global', '1');
+  for (const id of fresh) state.set(`app_${id}`, '1');
+  return { configuration, initialized: serializeSteamVdf(state) };
+}
+
+function prepareHmosDeckToolDefaults(steam: string, apps: string[], defaultTool: string = 'hmosdeck_proton'): void {
   const path = `${steam}/config/config.vdf`;
   if (!ensureSmokeDirectory(`${steam}/config`)) throw new Error('Cannot prepare Linux Steam configuration');
   const before = fs.accessSync(path) ? fs.readTextSync(path, { encoding: 'utf-8' }) : '';
-  const after = normalizeHmosDeckToolMappings(before, apps);
-  if (before === after) return;
+  const statePath = `${steam}/config/hmosdeck-defaults-initialized.vdf`;
+  const stateBefore = fs.accessSync(statePath) ? fs.readTextSync(statePath, { encoding: 'utf-8' }) : '';
+  const result = initializeHmosDeckToolMappings(before, apps, defaultTool, stateBefore,
+    readSmokeText(`${BASE}/gnu-proton-default-v1`).trim() === '1');
+  const after = result.configuration;
+  const saveState = (): void => {
+    if (stateBefore === result.initialized) return;
+    const temporary = `${statePath}.write`;
+    writeSmokeText(temporary, result.initialized);
+    if (fs.readTextSync(temporary, { encoding: 'utf-8' }) !== result.initialized) throw new Error('Cannot verify Steam default initialization');
+    fs.renameSync(temporary, statePath);
+  };
+  if (before === after) { saveState(); return; }
   const backup = `${path}.before-hmosdeck-default-v1`;
   if (before.length > 0 && !fs.accessSync(backup)) {
     writeSmokeText(backup, before);
@@ -391,6 +455,7 @@ function prepareHmosDeckToolDefaults(steam: string, apps: string[]): void {
     throw new Error('Cannot verify Linux Steam default-tool configuration');
   }
   fs.renameSync(temporary, path);
+  saveState();
 }
 
 // Dedicated to native Linux Steam. Never imports the Windows Steam directory.
@@ -408,6 +473,30 @@ async function prepareHmosDeckLibrary(root: string, runtime: string): Promise<vo
     '"display_name" "HmosDeck (OHOS Wine)" "from_oslist" "windows" "to_oslist" "linux" } } }');
   writeSmokeText(`${tool}/toolmanifest.vdf`,
     '"manifest" { "version" "2" "commandline" "/hmosdeck %verb%" "compatmanager_layer_name" "proton" }');
+  const gnu = `${BASE}/proton-probe`;
+  const gnuReady = LinuxGnuProtonComponent.ready();
+  if (gnuReady) {
+    // Small local native launcher only. No duplicate Steam client or library.
+    copyExternalFile(`${gnu}/hmosdeck`, `${tool}/hmosdeck`);
+    for (const variant of ['gnu_proton', 'gnu_proton_gl']) {
+      const directory = `${steam}/compatibilitytools.d/hmosdeck_${variant}`;
+      if (!ensureSmokeDirectory(directory)) throw new Error('Cannot register GNU Proton');
+      copyExternalFile(`${gnu}/hmosdeck`, `${directory}/hmosdeck`);
+      // GNU exec resolves client helpers into the existing verified code root.
+      // Install the matching native helper there as well; client metadata alone
+      // cannot make a new executable appear in that runtime namespace.
+      const code = `${runtime}/compatibilitytools.d/hmosdeck_${variant}`;
+      if (!ensureSmokeDirectory(code)) throw new Error('Cannot prepare GNU Proton launcher');
+      copyExternalFile(`${gnu}/hmosdeck`, `${code}/hmosdeck`);
+      const flag = variant === 'gnu_proton' ? '--gnu-proton' : '--gnu-proton-gl';
+      const label = variant === 'gnu_proton' ? 'HmosDeck (GNU Proton / DXVK)' : 'HmosDeck (GNU Proton / WineD3D)';
+      writeSmokeText(`${directory}/compatibilitytool.vdf`,
+        `"compatibilitytools" { "compat_tools" { "hmosdeck_${variant}" { "install_path" "." "display_name" "${label}" "from_oslist" "windows" "to_oslist" "linux" } } }`);
+      writeSmokeText(`${directory}/toolmanifest.vdf`,
+        `"manifest" { "version" "2" "commandline" "/hmosdeck ${flag} %verb%" "compatmanager_layer_name" "proton" }`);
+    }
+
+  }
   migrateHmosDeckToolSelections(steam);
   const migration = await prepareSingleLinuxSteamLibrary(root);
   const games = migration.installedApps.filter((id: string): boolean => {
@@ -418,10 +507,10 @@ async function prepareHmosDeckLibrary(root: string, runtime: string): Promise<vo
         isHmosDeckGameManifest(fs.readTextSync(path, { encoding: 'utf-8' }), id);
     } catch (_) { return false; }
   });
-  prepareHmosDeckToolDefaults(steam, games);
+  prepareHmosDeckToolDefaults(steam, games, gnuReady ? 'hmosdeck_gnu_proton' : 'hmosdeck_proton');
   writeSmokeText(`${BASE}/single-library-migration.json`, JSON.stringify(migration));
   writeSmokeText(`${BASE}/game-library.json`, JSON.stringify({
     source: 'native_aarch64_linux_steam', library, windowsLibraryImported: false,
-    tool: 'hmosdeck_proton', steamApiAuthenticationVerified: false
+    tool: gnuReady ? 'hmosdeck_gnu_proton' : 'hmosdeck_proton', steamApiAuthenticationVerified: false
   }));
 }

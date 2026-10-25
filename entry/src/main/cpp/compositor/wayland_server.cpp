@@ -256,6 +256,12 @@ void WaylandServer::EndMoveGrab() {
     }
 }
 
+void WaylandServer::StartResizeGrab(uint32_t id, uint32_t serial, uint32_t edges) {
+    // Standard xdg-shell clients use the same geometry/grab path as XWayland.
+    StartExternalResizeGrabAt(id, serial, InputManager::GetInstance()->GetLastGlobalPointerX(),
+        InputManager::GetInstance()->GetLastGlobalPointerY(), edges);
+}
+
 void WaylandServer::StartExternalResizeGrabAt(uint32_t id, uint32_t serial, wl_fixed_t x, wl_fixed_t y, uint32_t edges) {
     moveGrab_.StartExternalResizeGrab(toplevelMgr_, id, serial, wl_fixed_to_int(x), wl_fixed_to_int(y), edges);
 }

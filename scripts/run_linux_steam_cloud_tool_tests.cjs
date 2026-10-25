@@ -23,6 +23,7 @@ const rulesCode = ts.transpileModule(fs.readFileSync(path.join(__dirname,
 }).outputText;
 vm.runInNewContext(rulesCode, { exports: rules });
 const dependencies = {
+  './LinuxGnuProtonComponent': { LinuxGnuProtonComponent: { ready: () => false } },
   './LinuxSteamPaths': {},
   '../steam/SteamLocalRules': rules,
   '@kit.CoreFileKit': { fileIo: {
@@ -34,7 +35,7 @@ const dependencies = {
   '@kit.BasicServicesKit': {}, './ConfigurationFiles': {}, './LinuxSteamReleaseRetention': {}, './LinuxSteamLibraryLayout': {},
   './ManagedSmokePayloadService': {
     ensureSmokeDirectory: () => true,
-    readSmokeText: name => files.get(name) || '',
+    readSmokeText: name => (files.get(name) || '').trim(),
     writeSmokeText: (name, text) => { if (name !== blocked) { files.set(name, text); writes.push(name); } }
   }
 };
@@ -72,6 +73,13 @@ assert.equal(tools.child('42').text('name'), 'GE-Proton-custom');
 assert.equal(tools.child('77').text('name'), 'proton_9', 'Do not rewrite a non-installed app');
 assert.equal(output.normalizeHmosDeckToolMappings(normalized, ['695630']), normalized);
 assert.ok(output.normalizeHmosDeckToolMappings('', []).includes('hmosdeck_proton'), 'Fresh clients need an OHOS tool default');
+const gnuDefault=output.normalizeHmosDeckToolMappings('', ['695630'], 'hmosdeck_gnu_proton');
+const gnuDocument=rules.parseSteamVdf(gnuDefault);
+const gnuTools=gnuDocument.child('installconfigstore').child('software').child('valve').child('steam').child('compattoolmapping');
+assert.equal(gnuTools.child('0').text('name'),'hmosdeck_gnu_proton');
+gnuTools.child('695630').set('name','hmosdeck_proton');
+const manualOhos=rules.serializeSteamVdf(gnuDocument);
+assert.equal(output.normalizeHmosDeckToolMappings(manualOhos,['695630'],'hmosdeck_gnu_proton'),manualOhos,'Explicit Steam choices remain unchanged');
 assert.throws(() => output.normalizeHmosDeckToolMappings('"InstallConfigStore" {', []));
 files.set(global, config);
 output.testPrepareDefaults(steam, ['695630']);
@@ -81,6 +89,7 @@ assert.equal(files.get(windows), '"name" "hmosdeck"');
 const repeatWrites = writes.length;
 output.testPrepareDefaults(steam, ['695630']);
 assert.equal(writes.length, repeatWrites);
+files.delete(steam + '/config/hmosdeck-defaults-initialized.vdf');
 files.set(global, config); files.delete(global + '.before-hmosdeck-default-v1');
 blocked = global + '.before-hmosdeck-default-v1';
 assert.throws(() => output.testPrepareDefaults(steam, ['695630']));
@@ -147,3 +156,19 @@ assert.deepEqual(games, ['730', '227300', '695630']);
 selections = mappings(output.normalizeHmosDeckToolMappings('', games));
 assert.deepEqual(Array.from(selections.children.keys()), ['0', '730', '227300', '695630']);
 console.log('Linux Steam priority upgrade, CS2 native-default override, shared-tool exclusion, explicit selection and repeated startup: PASS');
+
+
+const initialized = output.initializeHmosDeckToolMappings(oldDefault, ['695630'], 'hmosdeck_gnu_proton', '');
+assert.equal(mappings(initialized.configuration).child('0').text('name'), 'hmosdeck_gnu_proton');
+const userOhos = configuration('"0" { "name" "hmosdeck_proton" "priority" "100" } "695630" { "name" "hmosdeck_proton" "priority" "250" }');
+assert.equal(output.initializeHmosDeckToolMappings(userOhos, ['695630'], 'hmosdeck_gnu_proton', initialized.initialized).configuration, userOhos, 'Preserve global and per-game OHOS choices on restart');
+const userCleared = configuration('"0" { "name" "hmosdeck_gnu_proton" "priority" "100" }');
+assert.equal(output.initializeHmosDeckToolMappings(userCleared, ['695630'], 'hmosdeck_gnu_proton', initialized.initialized).configuration, userCleared, 'Do not re-pin a game after the user clears its checkbox');
+const explicitGlobal = configuration('"0" { "name" "hmosdeck_proton" "priority" "250" }');
+assert.equal(mappings(output.initializeHmosDeckToolMappings(explicitGlobal, [], 'hmosdeck_gnu_proton', '').configuration).child('0').text('name'), 'hmosdeck_proton', 'Initial GNU migration must preserve explicit global OHOS selection');
+const legacyChoice = output.initializeHmosDeckToolMappings(userOhos, ['695630'], 'hmosdeck_gnu_proton', '', true);
+assert.equal(mappings(legacyChoice.configuration).child('0').text('name'), 'hmosdeck_proton', 'Do not repeat the earlier global migration');
+const anotherGame = output.initializeHmosDeckToolMappings(userOhos, ['695630', '681820'], 'hmosdeck_gnu_proton', initialized.initialized);
+assert.equal(mappings(anotherGame.configuration).child('695630').text('name'), 'hmosdeck_proton');
+assert.equal(mappings(anotherGame.configuration).child('681820').text('name'), 'hmosdeck_gnu_proton');
+console.log('Steam-owned global/per-game choices, cleared checkbox, one-time migration and newly installed game initialization: PASS');

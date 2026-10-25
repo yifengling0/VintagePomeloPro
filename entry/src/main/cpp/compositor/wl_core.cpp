@@ -467,7 +467,7 @@ void WaylandServer::output_bind(wl_client* client, void* data, uint32_t version,
         wl_output_send_name(res, "Wine-Virtual-0");
         wl_output_send_description(res, "Virtual output for Wine Wayland driver");
     }
-    wl_output_send_done(res);
+    if (version >= 2) wl_output_send_done(res);
 }
 
 // -- surface 实现 --
@@ -514,6 +514,7 @@ void WaylandServer::surface_destroy(wl_client*, wl_resource* r) {
 void WaylandServer::surface_attach(wl_client*, wl_resource* surfRes, wl_resource* buffer, int32_t, int32_t) {
     auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(surfRes));
     sd->pendingBuffer = buffer;
+    sd->pendingBufferAttached = true;
     // 新 buffer → 重置 damage
     sd->damageX = 0; sd->damageY = 0;
     sd->damageW = 0; sd->damageH = 0;
@@ -572,6 +573,13 @@ void WaylandServer::surface_frame(wl_client* client, wl_resource* surfRes, uint3
 // 返回 true = 本次 commit 已处理完 (无 buffer, 无后续流程)。
 bool WaylandServer::HandleNullBufferCommit(SurfaceData* sd, wl_resource* surfRes) {
     if (sd->pendingBuffer) return false;
+    if (!sd->pendingBufferAttached) {
+        // A GPU-backed client commits callbacks/state without uploading a new
+        // SHM buffer. Keep its existing layer and acknowledge the commit.
+        FinishCommit(sd, surfRes);
+        return true;
+    }
+    sd->pendingBufferAttached = false;
     if (sd->isSubsurface) {
         uint32_t removedPopup = 0, popupParent = 0;
         {
@@ -1036,21 +1044,24 @@ void WaylandServer::UpdateInlineSubsurfaceOnCommit(SurfaceData* sd, wl_resource*
 // 首帧通知 ArkTS + 预设 pointer/keyboard focus。
 void WaylandServer::FinishCommit(SurfaceData* sd, wl_resource* surfRes) {
     // release buffer + frame done
-    wl_buffer_send_release(sd->pendingBuffer);
+    const bool hadBuffer = sd->pendingBuffer != nullptr;
+    if (hadBuffer) wl_buffer_send_release(sd->pendingBuffer);
 
-    uint32_t now = static_cast<uint32_t>(time(nullptr) * 1000);
+    const uint32_t now = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
     for (auto* cb : sd->frameCallbacks) {
         wl_callback_send_done(cb, now);
         wl_resource_destroy(cb);
     }
     sd->frameCallbacks.clear();
     sd->pendingBuffer = nullptr;
+    sd->pendingBufferAttached = false;
 
     // 首帧通知 + 预设 pointer/keyboard focus: 会话焦点策略 (session_.firstFrame
     // CAS 判定 + active 事件 + enter 预注入, 条件/顺序逐字) 收口于
     // WaylandServer::TryBeginSessionFirstFrame — 协议壳只陈述"首帧 commit
     // 发生", 不亲自做焦点决策 (参考 HarmonyBox, 完整说明见 wayland_server.cpp)
-    TryBeginSessionFirstFrame(sd->toplevelId, surfRes);
+    if (hadBuffer) TryBeginSessionFirstFrame(sd->toplevelId, surfRes);
 }
 
 void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
@@ -1139,7 +1150,9 @@ extern "C" void RegisterWlCoreGlobals(wl_display* display) {
     wl_global_create(display, &wl_compositor_interface, 4, self, WaylandServer::compositor_bind);
     wl_global_create(display, &wl_subcompositor_interface, 1, self, WaylandServer::subcompositor_bind);
     wl_global_create(display, &wp_viewporter_interface, 1, self, WaylandServer::viewporter_bind);
-    wl_global_create(display, &wl_output_interface, 3, self, WaylandServer::output_bind);
+    // v4 adds output name/description; output_bind already sends both.
+    // New Wine Wayland clients require v4 to enumerate a monitor.
+    wl_global_create(display, &wl_output_interface, 4, self, WaylandServer::output_bind);
     // dinput 老游戏的指针扩展 (warp 回中/指针约束/relative pointer,
     // 三者均在 PointerExtras::Register 注册, 见 pointer_extras.h 头注释)
     PointerExtras::GetInstance()->Register(display);

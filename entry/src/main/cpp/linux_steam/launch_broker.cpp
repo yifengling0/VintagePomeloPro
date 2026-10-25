@@ -122,7 +122,10 @@ bool LaunchBroker::Validate(LaunchRequest& r){
     r.argv.front()=executable;
     for(const auto& e:r.environment){auto at=e.find('=');if(at==std::string::npos)return false;
         const auto key=e.substr(0,at),value=e.substr(at+1);
-        if(key=="HMOSDECK_STEAM_BRIDGE") {
+        if(key=="HMOSDECK_RUNTIME") {
+            if(r.backend!="ohos-wine" || (value!="gnu-proton" && value!="gnu-proton-gl"))return false;
+            r.backend=value;
+        } else if(key=="HMOSDECK_STEAM_BRIDGE") {
             if(helper)return false;
             // Only the authenticated GNU tool can supply this per-game local
             // capability. Do not accept arbitrary Wine environment overrides.
@@ -146,7 +149,7 @@ std::vector<LaunchRequest> LaunchBroker::Drain(){
         ucred peer{};socklen_t size=sizeof(peer);
         if(clients.size()>=4||getsockopt(fd,SOL_SOCKET,SO_PEERCRED,&peer,&size)||peer.uid!=geteuid()||
             (ancestorStart? !Descendant(peer.pid,ancestor,ancestorStart,identityReader):windowProcess<=1)){close(fd);continue;}
-        clients.push_back({fd,peer.pid,++nextId,Now(),false,{}});}
+        clients.push_back({fd,peer.pid,++nextId,Now(),false,{},{}});}
     for(auto it=clients.begin();it!=clients.end();){bool closeClient=false;char bytes[65540];
         ssize_t n=recv(it->fd,bytes,sizeof(bytes),0);
         if(n>0){if(it->delivered)closeClient=true;else it->bytes.append(bytes,static_cast<size_t>(n));}
@@ -157,11 +160,17 @@ std::vector<LaunchRequest> LaunchBroker::Drain(){
                 if(size>LaunchMaxBytes)closeClient=true;
                 else if(it->bytes.size()>=size+4){LaunchRequest r;
                     if(it->bytes.size()!=size+4||!DecodeLaunch(it->bytes.substr(4),r)||!Validate(r))closeClient=true;
-                    else {r.id=it->id;it->delivered=true;it->bytes.clear();events.push_back(r);}}}
+                    else {r.id=it->id;it->delivered=true;it->bytes.clear();it->request=r;events.push_back(r);}}}
         }
         if(closeClient){if(it->delivered){LaunchRequest r;r.id=it->id;r.cancel=true;events.push_back(r);}close(it->fd);it=clients.erase(it);}else ++it;
     }
     return events;
+}
+bool LaunchBroker::GetRequest(uint32_t id,LaunchRequest& request){
+    std::lock_guard<std::mutex> guard(mutex);
+    auto it=std::find_if(clients.begin(),clients.end(),[&](const Client& c){return c.id==id&&c.delivered;});
+    if(it==clients.end())return false;
+    request=it->request;return true;
 }
 bool LaunchBroker::Reply(uint32_t id,uint32_t kind,uint32_t code){
     std::lock_guard<std::mutex> guard(mutex);

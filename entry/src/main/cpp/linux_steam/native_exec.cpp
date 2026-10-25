@@ -13,6 +13,7 @@
 #include <poll.h>
 #include <sstream>
 #include <sys/prctl.h>
+#include <sys/socket.h>
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -344,6 +345,14 @@ static NativeExecResult RunNativeProcess(const std::vector<std::string>& argv,
         }
         if (waited < 0 && errno != EINTR) { r.waitError = errno; break; }
         uint64_t now = Now();
+        if(options.cancellationFd>=0 && !killed) {
+            char byte;ssize_t received=recv(options.cancellationFd,&byte,1,MSG_PEEK|MSG_DONTWAIT);
+            if(received>=0 || (errno!=EAGAIN&&errno!=EWOULDBLOCK&&errno!=EINTR)) {
+                r.cancelled=true;
+                if(kill(pid,SIGKILL)&&errno!=ESRCH){r.waitError=errno;break;}
+                killed=true;deadline=now+1000;
+            }
+        }
         if (now >= deadline) {
             if (killed) { r.waitError = ETIMEDOUT; break; }
             r.timedOut = true;
@@ -375,7 +384,7 @@ static NativeExecResult RunNativeProcess(const std::vector<std::string>& argv,
         }
     }
     r.stage = !r.reaped ? "reap_unverified" : r.setupError ? "child_setup" : r.execError ? "execve" :
-              r.timedOut ? "timeout" : r.signal ? "signal" : r.exitCode ? "program_exit" : "completed";
+              r.cancelled ? "cancelled" : r.timedOut ? "timeout" : r.signal ? "signal" : r.exitCode ? "program_exit" : "completed";
     r.elapsedMs = Now() - start;
     r.hostTpUnchanged = __builtin_thread_pointer() == hostTp;
     closePipes();
@@ -411,6 +420,7 @@ std::string NativeExecJson(const NativeExecResult& r) {
       << ",\"execErrno\":" << r.execError << ",\"waitErrno\":" << r.waitError
       << ",\"exitCode\":" << r.exitCode << ",\"signal\":" << r.signal
       << ",\"timedOut\":" << (r.timedOut ? "true" : "false")
+      << ",\"cancelled\":" << (r.cancelled ? "true" : "false")
       << ",\"childReaped\":" << (r.reaped ? "true" : "false")
       << ",\"hostTpUnchanged\":" << (r.hostTpUnchanged ? "true" : "false")
       << ",\"outputTruncated\":" << (r.outputTruncated ? "true" : "false")

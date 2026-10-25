@@ -56,6 +56,12 @@ struct GameBridge {
 
 }
 int main(int argc,char** argv){
+    std::string backend="ohos-wine";
+    if(argc>1 && (!strcmp(argv[1],"--gnu-proton") || !strcmp(argv[1],"--gnu-proton-gl"))) {
+        backend=!strcmp(argv[1],"--gnu-proton-gl")?"gnu-proton-gl":"gnu-proton";
+        ++argv;--argc;
+        setenv("STEAMOHOS_WINE_PREFIX","/data/storage/el2/base/files/steamohos-native/proton-probe/prefix",1);
+    }
     // Replacement for the missing SDK script only. Run the verified official
     // reaper in this process; it retains its own process/lifetime semantics.
     if(argc>=2&&!strcmp(argv[1],"--")){
@@ -69,12 +75,14 @@ int main(int argc,char** argv){
         fputs("HMOSDECK: official reaper execution failed\n",stderr);return 71;
     }
     if(argc==3&&(!strcmp(argv[1],"getcompatpath")||!strcmp(argv[1],"getnativepath"))){
-        const std::string input=argv[2],zroot=Env("STEAMOHOS_Z_ROOT"),prefix=Env("STEAMOHOS_WINE_PREFIX");
+        const std::string input=argv[2],zroot=backend=="ohos-wine"?Env("STEAMOHOS_Z_ROOT"):"/",prefix=Env("STEAMOHOS_WINE_PREFIX");
         std::string path,base,relative;char drive=0;
         if(!strcmp(argv[1],"getcompatpath")) {
             if(input.empty()||input[0]!='/')return 64;
             if(!prefix.empty()&&input.compare(0,prefix.size()+9,prefix+"/drive_c/")==0) {
                 drive='C';relative=input.substr(prefix.size()+9);
+            } else if(zroot=="/") {
+                drive='Z';relative=input.substr(1);
             } else if(!zroot.empty()&&input.compare(0,zroot.size()+1,zroot+"/")==0) {
                 drive='Z';relative=input.substr(zroot.size()+1);
             } else return 64;
@@ -115,7 +123,8 @@ int main(int argc,char** argv){
                     }
                     closedir(directory);
                 }
-                path+="/"+actual;
+                if(path!="/")path+="/";
+                path+=actual;
             }
         }
         fprintf(stderr,"HMOSDECK: path_verb=%s drive=%c mapped=1\n",argv[1],drive);
@@ -170,7 +179,8 @@ int main(int argc,char** argv){
     if(driver){request.install=client;if(request.appId.empty())request.appId="0";}
     for(const char* key:{"SteamAppId","SteamGameId","SteamOverlayGameId"}){
         const char* value=Env(key);if(*value)request.environment.push_back(std::string(key)+"="+value);}
-    GameBridge bridge;if(!helper&&!bridge.Start(request.appId)){fputs("HMOSDECK: experimental Steam API helper unavailable\n",stderr);return 73;}
+    if(backend!="ohos-wine")request.environment.push_back("HMOSDECK_RUNTIME="+backend);
+    GameBridge bridge;if(backend=="ohos-wine"&&!helper&&!bridge.Start(request.appId)){fputs("HMOSDECK: experimental Steam API helper unavailable\n",stderr);return 73;}
     if(!bridge.credential.empty())request.environment.push_back("HMOSDECK_STEAM_BRIDGE="+bridge.credential);
     std::string frame=steamohos::EncodeLaunch(request);if(frame.size()>steamohos::LaunchMaxBytes+4)return 64;
     int fd=socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return 69;
@@ -191,7 +201,7 @@ int main(int argc,char** argv){
         const auto magic=ntohl(reply[0]),kind=ntohl(reply[1]),code=ntohl(reply[2]);
         if(magic!=steamohos::LaunchReplyMagic){close(fd);return 76;}
         if(kind==1){if(accepted){close(fd);return 76;}accepted=true;
-            fprintf(stderr,"HMOSDECK: OHOS Wine accepted appId=%s; Steam API authentication unverified\n",request.appId.c_str());continue;}
+            fprintf(stderr,"HMOSDECK: runtime=%s accepted appId=%s; Steam API authentication unverified\n",backend.c_str(),request.appId.c_str());continue;}
         close(fd);
         if(kind==2&&accepted)return static_cast<int>(code<=255?code:1);
         fputs(kind==4?"HMOSDECK: process ended; exit status unavailable\n":"HMOSDECK: host rejected game launch\n",stderr);

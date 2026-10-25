@@ -31,7 +31,7 @@ napi_value DrainGameLaunchBroker(napi_env env,napi_callback_info){
         napi_create_uint32(env,event.id,&id);napi_get_boolean(env,event.cancel,&cancel);
         napi_set_named_property(env,object,"id",id);napi_set_named_property(env,object,"cancel",cancel);
         Property(env,object,"appId",event.appId);Property(env,object,"cwd",event.cwd);Property(env,object,"install",event.install);
-        Property(env,object,"role",event.role);
+        Property(env,object,"role",event.role);Property(env,object,"backend",event.backend);
         Array(env,object,"argv",event.argv);Array(env,object,"environment",event.environment);napi_set_element(env,result,i,object);}
     return result;
 }

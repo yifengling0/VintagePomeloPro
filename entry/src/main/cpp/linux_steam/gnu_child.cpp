@@ -1,5 +1,6 @@
 #include "native_exec.h"
 #include "xwayland_probe.h"
+#include "proton_probe.h"
 #include <AbilityKit/native_child_process.h>
 #include <cerrno>
 #include <cstring>
@@ -211,7 +212,41 @@ extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(Nat
         if(forkBackend)parameterText.resize(parameterText.size()-7);
         const char* parameters = parameterText.c_str();
         const bool wayland = parameters && !strncmp(parameters, "wayland:", 8);
-        if (parameters && !strncmp(parameters, "xwayland:", 9)) {
+        if (parameterText.compare(0, 13, "proton-probe:") == 0) {
+            const std::string paths = parameterText.substr(13);
+            const auto separator = paths.find('\n');
+            const std::string waylandSocket = paths.substr(0, separator);
+            steamohos::ProtonProbeCapabilities capabilities;
+            capabilities.audioFd = audioFd;
+            size_t cursor = separator;
+            while (cursor != std::string::npos) {
+                const auto end = paths.find('\n', cursor + 1);
+                const std::string line = paths.substr(cursor + 1,
+                    end == std::string::npos ? end : end - cursor - 1);
+                if (line.compare(0, 6, "VTEST=") == 0) capabilities.vtestSocket = line.substr(6);
+                else if (line.compare(0, 6, "AUDIO=") == 0) capabilities.audioSocket = line.substr(6);
+                else if (line.compare(0, 8, "GAMEPAD=") == 0) capabilities.gamepadSocket = line.substr(8);
+                else if (line.compare(0, 9, "LANGUAGE=") == 0) capabilities.wineLanguage = line.substr(9);
+                cursor = end;
+            }
+            steamohos::LaunchRequest manual;const steamohos::LaunchRequest* launch=nullptr;
+            const auto manualAt=paths.find("\nLAUNCH=");
+            if(manualAt!=std::string::npos) {
+                const auto end=paths.find('\n',manualAt+8);
+                const auto id=paths.substr(manualAt+8,end==std::string::npos?end:end-manualAt-8);
+                if(id.empty()||id.size()>10||id.find_first_not_of("0123456789")!=id.npos)_exit(64);
+                const std::string file="/data/storage/el2/base/files/steamohos-native/proton-probe/launch-"+id+".request";
+                std::ifstream input(file,std::ios::binary);std::string bytes((std::istreambuf_iterator<char>(input)),{});
+                if(bytes.size()<4||bytes.size()>steamohos::LaunchMaxBytes+4||!steamohos::DecodeLaunch(bytes.substr(4),manual))_exit(64);
+                manual.id=static_cast<uint32_t>(strtoul(id.c_str(),nullptr,10));
+                for(const auto& e:manual.environment)if(e.compare(0,17,"HMOSDECK_RUNTIME=")==0)manual.backend=e.substr(17);
+                if(manual.backend!="gnu-proton"&&manual.backend!="gnu-proton-gl")_exit(64);
+                manual.role=manual.appId=="0"?"driver_query":manual.argv.front().find("/legacycompat/iscriptevaluator.exe")!=std::string::npos?"install_script":"game";
+                capabilities.cancellationFd=resultFd;launch=&manual;
+            }
+            json = external ? steamohos::ProbeGnuProton(directory, forkBackend, waylandSocket, capabilities, launch) :
+                "{\"schemaVersion\":1,\"status\":\"external_runtime_missing\",\"bootstrapVerified\":false}";
+        } else if (parameters && !strncmp(parameters, "xwayland:", 9)) {
             json = steamohos::ProbeXwayland(directory, parameters + 9, false, external ? externalBase : "");
         } else if (parameters && !strncmp(parameters, "steam:", 6)) {
             if (!external) json = "{\"schemaVersion\":1,\"status\":\"external_runtime_missing\",\"gnuExecutionVerified\":false,\"steamClientStarted\":false}";

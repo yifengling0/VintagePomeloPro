@@ -23,6 +23,7 @@ const deps = {
   '../model/AppModels': { DisplayMode: { DESKTOP: 1 }, WinePresentationMode: { MANAGED_WINDOWS: 1 } },
   './AppSessionService': { AppSessionService: singleton({ registerExternalLaunch() {} }) },
   './HostWindowTasks': { HostWindowTasks: singleton({ registerSteamGame(id) { launches.push(['registerGame', id]); }, finishSteamGame(id, known) { completions.push([id, known]); } }) },
+  './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ wineLanguage: 'zh_CN' }) }) },
   './WineEngineService': { WineEngineService: singleton({
     launchExecutable: (...args) => { if (failLaunch) throw Error('launch failed'); launches.push(args); return { pid: 100, sessionId: 'wine-100-1', reused: false }; },
     getMode: () => 1, getPresentationMode: () => 1
@@ -43,7 +44,7 @@ const output = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
   '../entry/src/main/ets/service/LinuxSteamGameLaunch.ets'), 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }
-}).outputText, { exports: output, setInterval: () => 1, clearInterval() {}, require(id) {
+}).outputText, { exports: output, setImmediate, setInterval: () => 1, clearInterval() {}, require(id) {
   assert.ok(id in deps, id); return deps[id];
 } });
 const request = () => ({ id: 1, appId: '695630', role: 'game', cwd: '/z/SteamLinuxARM64/library/steamapps/common/NewPAL',
@@ -148,6 +149,36 @@ assert.equal(privateLaunch[0], 'C:\\SteamLinuxARM64\\library\\steamapps\\common\
 assert.deepEqual(Array.from(privateLaunch[1]), ['C:\\SteamLinuxARM64\\library\\steamapps\\common\\中文 游戏\\installscript.vdf',
   '/quiet', 'https://example.com/a', '-path=C:\\old']);
 service.stop();
+// A GNU ticket must never enter the OHOS Wine launcher, including failures.
+let resolveGnu;
+const gnuCancelled=[];
+deps['libsmoke_napi.so'].default.startLinuxProtonGame = (id, language) => { assert.equal(language, 'zh_CN'); return new Promise(resolve => { resolveGnu=resolve; }); };
+deps['libsmoke_napi.so'].default.cancelLinuxProtonGame = id => { gnuCancelled.push(id); return true; };
+const taskHost=deps['./HostWindowTasks'].HostWindowTasks.getInstance();
+taskHost.snapshot=()=>[]; taskHost.foregroundRevision=()=>0;
+service.start('/z/SteamLinuxARM64/library','/results','/z');
+const beforeGnu=launchCount();requests=[{...request(),id:30,backend:'gnu-proton'}];await service.tick();
+assert.equal(launchCount(),beforeGnu);assert.equal(service.gnuSessions.length,1);
+assert.equal(evidence().runtimeBackend,'gnu-proton');
+requests=[{...request(),id:30,cancel:true}];await service.tick();assert.deepEqual(gnuCancelled,[30]);
+resolveGnu(JSON.stringify({status:'proton_game_cancelled',childExitVerified:true,prefix:{exitCode:-1,signal:9,cancelled:true,childReaped:true}}));
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(service.gnuSessions.length,0);assert.equal(evidence().exitCode,130);
+requests=[{...request(),id:31,backend:'gnu-proton-gl'}];await service.tick();
+resolveGnu(JSON.stringify({status:'proton_package_missing_or_wrong_arch'}));await new Promise(resolve=>setImmediate(resolve));
+assert.equal(launchCount(),beforeGnu,'A missing GNU runtime cannot silently run OHOS Wine');
+assert.equal(evidence().runtimeBackend,'gnu-proton-gl');assert.equal(evidence().exitCode,1);
+const fullGameResult=files.get('/results/gnu-proton-695630.json');
+const lastGameResult=files.get('/results/last-game-launch.json');
+requests=[{...query,id:33,backend:'gnu-proton'}];await service.tick();
+resolveGnu(JSON.stringify({status:'proton_game_exited',childExitVerified:true,prefix:{exitCode:0,childReaped:true}}));
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(files.get('/results/gnu-proton-695630.json'),fullGameResult,'A GNU helper cannot overwrite the complete game result');
+assert.equal(files.get('/results/last-game-launch.json'),lastGameResult,'A GNU helper cannot replace latest game status');
+assert.equal(JSON.parse(files.get('/results/gnu-proton-helper-driver_query-695630.json')).prefix.exitCode,0);
+requests=[{...request(),id:32,backend:'gnu-proton'}];await service.tick();service.stop();
+resolveGnu(JSON.stringify({status:'proton_game_exited',childExitVerified:true,prefix:{exitCode:0,childReaped:true}}));await new Promise(resolve=>setImmediate(resolve));
+assert.ok(gnuCancelled.includes(32),'Stopping Steam cancels its GNU session');
 for (const bad of ['/z-other/SteamLinuxARM64', '/z/../outside/game.exe', '/outside/game.exe']) {
   assert.throws(() => paths.linuxSteamWindowsPath(bad, '/z'));
 }

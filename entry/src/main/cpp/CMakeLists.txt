@@ -265,7 +265,8 @@ option(WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC "Build isolated native GNU exec diagnos
 if(WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC)
     enable_language(ASM)
     add_library(steamohos_gnu_child SHARED linux_steam/native_exec.cpp linux_steam/gnu_child.cpp
-        linux_steam/native_loader.cpp linux_steam/native_loader_entry.S linux_steam/xwayland_probe.cpp)
+        linux_steam/native_loader.cpp linux_steam/native_loader_entry.S linux_steam/xwayland_probe.cpp
+        linux_steam/proton_probe.cpp)
     target_compile_features(steamohos_gnu_child PRIVATE cxx_std_17)
     target_compile_options(steamohos_gnu_child PRIVATE -Wall -Wextra -Werror)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

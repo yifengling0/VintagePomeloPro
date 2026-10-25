@@ -32,6 +32,13 @@ int main(int argc,char** argv){
     auto id=events[0].id;assert(broker.Reply(id,1,0));uint32_t reply[3];assert(recv(fd,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply));assert(ntohl(reply[1])==1);
     assert(broker.Reply(id,2,23));assert(recv(fd,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply)&&ntohl(reply[2])==23);close(fd);
     auto rejected=[&](LaunchRequest request){int client=send(request);assert(broker.Drain().empty());char byte;assert(recv(client,&byte,1,0)==0);close(client);};
+    for(const std::string backend:{"gnu-proton","gnu-proton-gl"}) {
+        auto gnu=valid;gnu.environment.push_back("HMOSDECK_RUNTIME="+backend);
+        int client=send(gnu);auto delivered=broker.Drain();assert(delivered.size()==1&&delivered[0].backend==backend);
+        LaunchRequest snapshot;assert(broker.GetRequest(delivered[0].id,snapshot));assert(snapshot.argv==valid.argv&&snapshot.backend==backend&&snapshot.nonce.empty());
+        assert(broker.Reply(delivered[0].id,2,0));assert(!broker.GetRequest(delivered[0].id,snapshot));close(client);
+    }
+    auto invalidBackend=valid;invalidBackend.environment.push_back("HMOSDECK_RUNTIME=unknown");rejected(invalidBackend);
     auto bad=valid;bad.nonce[0]=bad.nonce[0]=='0'?'1':'0';rejected(bad);
     bad=valid;bad.environment={"LD_PRELOAD=/tmp/evil"};rejected(bad);
     for(const std::string& token:{"0:"+std::string(64,'a')+":3590","65536:"+std::string(64,'a')+":3590","1234:"+std::string(63,'a')+":3590","1234:"+std::string(64,'g')+":3590","1234:"+std::string(64,'a')+":3591"}) {

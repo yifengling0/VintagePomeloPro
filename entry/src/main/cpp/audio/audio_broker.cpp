@@ -1368,6 +1368,13 @@ void AudioBroker::TelemetryLoop()
             uint64_t wallMaxNs = 0;
             uint64_t ringReadTotalNs = 0;
             uint64_t metricsTotalNs = 0;
+            // Sample the platform sink on this worker, never on its real-time
+            // callback. A full SHM ring does not rule out a downstream xrun.
+            uint32_t sinkUnderflows = 0;
+            int32_t sinkUnderflowResult = -1;
+            int32_t sinkTimestampResult = -1;
+            int64_t sinkFramePosition = 0;
+            int64_t sinkTimestampNs = 0;
             uint32_t startBoundL = 0;
             uint32_t startBoundR = 0;
             uint32_t stopBoundL = 0;
@@ -1416,6 +1423,13 @@ void AudioBroker::TelemetryLoop()
                 snap.generation = slot->pcmGeneration.load(std::memory_order_relaxed);
                 snap.want = slot->wantStarted.load(std::memory_order_relaxed);
                 snap.physical = slot->rendererStarted;
+                if (slot->renderer && snap.physical)
+                {
+                    snap.sinkUnderflowResult = OH_AudioRenderer_GetUnderflowCount(
+                        slot->renderer, &snap.sinkUnderflows);
+                    snap.sinkTimestampResult = OH_AudioRenderer_GetTimestamp(
+                        slot->renderer, CLOCK_MONOTONIC, &snap.sinkFramePosition, &snap.sinkTimestampNs);
+                }
                 snap.wineStarted = slot->stream && slot->stream->started();
                 snap.fadeDir = slot->fadeDir.load(std::memory_order_relaxed);
                 snap.fadeRemaining = slot->fadeRemaining.load(std::memory_order_relaxed);
@@ -1552,6 +1566,12 @@ void AudioBroker::TelemetryLoop()
                         static_cast<unsigned long long>(snap.underrunEv),
                         static_cast<unsigned long long>(snap.requested),
                         static_cast<unsigned long long>(snap.consumed));
+            OH_LOG_INFO(LOG_APP,
+                        "[AudioB3] sink monoUs=%{public}llu stream=%{public}u ordinal=%{public}u underflowResult=%{public}d underflows=%{public}u timestampResult=%{public}d position=%{public}lld timestampNs=%{public}lld",
+                        static_cast<unsigned long long>(monoUs), snap.streamId, snap.ordinal,
+                        snap.sinkUnderflowResult, snap.sinkUnderflows, snap.sinkTimestampResult,
+                        static_cast<long long>(snap.sinkFramePosition),
+                        static_cast<long long>(snap.sinkTimestampNs));
         }
 
         const uint64_t getStatusAvgUs = getStatusCalls

@@ -64,6 +64,9 @@ static napi_value SmokeNapiInit(napi_env env, napi_value exports) {
         {"probeLinuxSteamGnuXwayland", nullptr, steamohos::ProbeGnuXwayland, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxSteamGnuWayland", nullptr, steamohos::ProbeGnuWayland, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxSteamGnu", nullptr, steamohos::ProbeGnu, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startLinuxProtonGame", nullptr, steamohos::StartProtonGame, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"cancelLinuxProtonGame", nullptr, steamohos::CancelProtonGame, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeLinuxProton", nullptr, steamohos::ProbeProton, nullptr, nullptr, nullptr, napi_default, nullptr},
 #endif
 #ifdef WINEHUA_ENABLE_STEAMOHOS_HOST
         {"probeLinuxSteamHost", nullptr, steamohos::ProbeHost, nullptr, nullptr, nullptr, napi_default, nullptr},

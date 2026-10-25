@@ -75,3 +75,6 @@ thirdparty/wine-valve-rpgxp-alpha/
 # Local experiment/build trees; source lives in entry/, scripts/, patches/, tests/.
 /workspace_temp/
 /build-fex-vm-contract-*/
+
+# Reproducible GNU Proton binary component; source/lock/builder are tracked.
+entry/src/main/resources/rawfile/linux-proton/gnu-proton.zip

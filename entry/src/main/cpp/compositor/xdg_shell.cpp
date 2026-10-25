@@ -77,7 +77,11 @@ static void tl_move(wl_client*, wl_resource* tlRes, wl_resource* /*seat*/, uint3
     if (!td || td->toplevelId == 0) return;
     WaylandServer::GetInstance()->StartMoveGrab(td->toplevelId, serial);
 }
-static void tl_resize(wl_client*, wl_resource*, wl_resource*, uint32_t, uint32_t) {}
+static void tl_resize(wl_client*, wl_resource* tlRes, wl_resource*, uint32_t serial, uint32_t edges) {
+    auto* td = static_cast<ToplevelData*>(wl_resource_get_user_data(tlRes));
+    if (!td || !td->toplevelId || !ExternalResizeGeometry::Valid(edges)) return;
+    WaylandServer::GetInstance()->StartResizeGrab(td->toplevelId, serial, edges);
+}
 static void fire_limits_event(ToplevelData* td, SurfaceData* sd) {
     if (!td || !sd || !td->limitsEvents.ShouldPublish(
             sd->toplevelId, sd->minWidth, sd->minHeight, sd->maxWidth, sd->maxHeight)) return;

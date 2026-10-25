@@ -21,6 +21,8 @@ struct SurfaceData {
     uint32_t clientPid = 0;
     uint32_t protocolId = 0;
     wl_resource* pendingBuffer = nullptr;
+    // attach(NULL) unmaps; a commit without attach preserves current content.
+    bool pendingBufferAttached = false;
     std::vector<wl_resource*> frameCallbacks;
 
     // per-surface pixel buffer

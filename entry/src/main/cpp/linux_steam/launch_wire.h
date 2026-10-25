@@ -13,7 +13,7 @@ struct LaunchRequest {
     bool cancel = false;
     std::string nonce, appId, verb, cwd, install;
     // Assigned by the host after path validation, never trusted from the wire.
-    std::string role = "game";
+    std::string role = "game", backend = "ohos-wine";
     std::vector<std::string> argv, environment;
 };
 inline void PutNumber(std::string& out, uint32_t n) { n=htonl(n); out.append(reinterpret_cast<char*>(&n),4); }

@@ -21,6 +21,7 @@ struct NativeExecOptions {
     // once after exit. Must not throw or manipulate the child. Never runs in GNU TLS.
     void (*parentPoll)(void*, int childPid, bool finished) = nullptr;
     void* context = nullptr;
+    int cancellationFd = -1; // Supervisor-only socket; EOF or a byte cancels this owned child.
     int diagnosticFd = -1; // Optional supervisor-only regular-file mirror, rotated at 8 MiB.
 };
 struct NativeExecResult {
@@ -29,7 +30,7 @@ struct NativeExecResult {
     std::string faultDiagnostics;
     int setupError = 0, execError = 0, waitError = 0;
     int exitCode = -1, signal = 0;
-    bool timedOut = false, reaped = false, outputTruncated = false;
+    bool timedOut = false, cancelled = false, reaped = false, outputTruncated = false;
     bool hostTpUnchanged = false;
     uint64_t elapsedMs = 0;
 };

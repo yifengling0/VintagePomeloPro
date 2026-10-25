@@ -1,3 +1,4 @@
+import { LinuxGnuProtonComponent } from './LinuxGnuProtonComponent';
 import { applyLinuxSteamDownloadPolicy } from './LinuxSteamDownloadPolicy';
 import { linuxSteamDownloadHome } from './LinuxSteamDiagnosticData';
 import { common } from '@kit.AbilityKit';
@@ -134,7 +135,10 @@ export class LinuxSteamSessionService {
     this.requestId = 0; this.publish();
     try {
       let stageAt = Date.now();
-      await LinuxSteamInstallService.getInstance().ensureReady(this.context);
+      const protonProgress = (message: string): void => { this.value.message = message; this.publish(); };
+      LinuxGnuProtonComponent.subscribe(protonProgress);
+      try { await LinuxSteamInstallService.getInstance().ensureReady(this.context); }
+      finally { LinuxGnuProtonComponent.unsubscribe(protonProgress); }
       this.elapsed('components', stageAt); stageAt = Date.now();
       const root = LinuxSteamLibraryService.getInstance().externalRoot();
       try { applyLinuxSteamDownloadPolicy(root); }
@@ -166,6 +170,7 @@ export class LinuxSteamSessionService {
       this.pageRecovery.start(`${root}/client/.steam/steam/logs/cef_log.txt`);
       this.value.state = 'starting'; this.value.message = '正在打开官方 Linux ARM64 Steam'; this.publish();
       this.timer = setInterval((): void => this.poll(), 400);
+      LinuxGnuProtonComponent.setSessionActive(true);
       this.worker = nativeStart().then((raw: string): void => {
         const result = JSON.parse(raw) as NativeSessionResult;
         ConfigurationFiles.json(`${BASE}/session/native-result.private.json`, raw);
@@ -175,6 +180,7 @@ export class LinuxSteamSessionService {
         this.value.state = 'failed'; this.value.message = error.message.substring(0, 240);
       }).finally((): void => {
         if (this.timer >= 0) clearInterval(this.timer); this.timer = -1;
+        LinuxGnuProtonComponent.setSessionActive(false);
         this.pageRecovery.stop();
         this.games?.stop(); this.host?.stop(); this.games = null; this.host = null; this.worker = null; this.publish();
       });
@@ -184,7 +190,10 @@ export class LinuxSteamSessionService {
       if (this.snapshot().state !== 'running') throw new Error(this.snapshot().state === 'starting' ?
         'Steam 启动较慢，后台仍在准备，请稍后点击打开；不会重复启动' : this.value.message);
     } catch (error) {
-      if (!this.worker) { this.games?.stop(); this.host?.stop(); this.games = null; this.host = null;
+      if (!this.worker) {
+        if (this.timer >= 0) clearInterval(this.timer); this.timer = -1;
+        LinuxGnuProtonComponent.setSessionActive(false);
+        this.games?.stop(); this.host?.stop(); this.games = null; this.host = null;
         this.value.state = 'failed'; this.value.message = (error as Error).message; this.publish(); }
       if (foregroundCurrent()) await HostWindowTasks.getInstance().showLauncher();
       promptAction.showToast({ message: (error as Error).message.substring(0, 180), duration: 5000 });

@@ -230,6 +230,7 @@ public:
     // 与事件补发, 属会话状态职责)。
     void StartMoveGrab(uint32_t toplevelId, uint32_t serial);
     void StartMoveGrabAt(uint32_t toplevelId, uint32_t serial, wl_fixed_t globalX, wl_fixed_t globalY);
+    void StartResizeGrab(uint32_t id, uint32_t serial, uint32_t edges);
     void StartExternalResizeGrabAt(uint32_t id, uint32_t serial, wl_fixed_t x, wl_fixed_t y, uint32_t edges);
     void EndMoveGrab();
     bool ProcessMoveGrabMotion(int32_t gx, int32_t gy);

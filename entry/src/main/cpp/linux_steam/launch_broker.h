@@ -16,9 +16,10 @@ public:
     void ForgetWindowProcess(pid_t supervisor);
     std::string Parameters();
     std::vector<LaunchRequest> Drain();
+    bool GetRequest(uint32_t id, LaunchRequest& request);
     bool Reply(uint32_t id, uint32_t kind, uint32_t code);
 private:
-    struct Client { int fd; pid_t pid; uint32_t id; uint64_t since; bool delivered=false; std::string bytes; };
+    struct Client { int fd; pid_t pid; uint32_t id; uint64_t since; bool delivered=false; std::string bytes; LaunchRequest request; };
     void Close();
     bool Validate(LaunchRequest& request);
     std::mutex mutex;

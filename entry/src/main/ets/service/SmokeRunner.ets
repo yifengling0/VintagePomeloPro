@@ -1,6 +1,11 @@
+import { fileIo as fs } from '@kit.CoreFileKit';
+import { LinuxGnuProtonComponent } from './LinuxGnuProtonComponent';
 import { common } from '@kit.AbilityKit';
 import { FaultLogger } from '@kit.PerformanceAnalysisKit';
 import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage, linuxSteamDownloadHome } from './LinuxSteamDiagnosticData';
+import { LinuxSteamSessionService } from './LinuxSteamSessionService';
+import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
+import { InputDispatcher } from './InputDispatcher';
 import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
 import { auditLinuxSteamStorage } from './LinuxSteamStorageAudit';
 import { isolateLinuxSteamForCleanDownload, restoreLinuxSteamAfterCleanDownload } from './LinuxSteamCleanInstallDiagnostic';
@@ -12,6 +17,7 @@ import {
   syncManagedSmoke, writeSmokeText
 } from './ManagedSmokePayloadService';
 import { WineEngineService } from './WineEngineService';
+import { WineWindowManager } from './WineWindowManager';
 import { AppSettingsStore } from './AppSettingsStore';
 import { WinePresentationMode } from '../model/AppModels';
 import { LinuxSteamGameLaunch } from './LinuxSteamGameLaunch';
@@ -100,6 +106,32 @@ interface LinuxSteamGnuControl {
   signal: number;
   childReaped: boolean;
   timedOut: boolean;
+}
+
+interface LinuxProtonResult {
+  status: string;
+  bootstrapVerified: boolean;
+  childExitVerified: boolean;
+  prefixRequested?: boolean;
+  prefixVerified?: boolean;
+  x64Requested?: boolean;
+  x64Verified?: boolean;
+  windowRequested?: boolean;
+  windowVerified?: boolean;
+  x86Requested?: boolean;
+  x86Verified?: boolean;
+  graphicsRequested?: boolean;
+  graphicsVerified?: boolean;
+  graphicsTransportSubmitted?: boolean;
+  vulkanQueueVerified?: boolean;
+  vulkanPresentationRequested?: boolean;
+  audioRequested?: boolean;
+  audioVerified?: boolean;
+  inputRequested?: boolean;
+  inputEnumerated?: boolean;
+  inputActionsVerified?: boolean;
+  prefixUpdateRequested?: boolean;
+  prefixUpdated?: boolean;
 }
 
 interface LinuxSteamGnuResult {
@@ -288,6 +320,10 @@ export class SmokeRunner {
         await this.runLinuxSteamGnu(request, driveC);
         return;
       }
+      if (request.suite === 'linux-proton') {
+        await this.runLinuxProton(request, driveC);
+        return;
+      }
       if (!WineEngineService.getInstance().isReady()) {
         await this.finishSuite(request, [
           this.failure(request, 'suites', 'engine not ready', -1)
@@ -415,6 +451,151 @@ export class SmokeRunner {
       testId: 'wine-startup-interrupted-recovery',
       status: interrupted && !firstReady && unfinished && recovered && preserved && initialized ? 'PASS' : 'FAIL',
       stage: 'recovered-without-reset', message: 'Disposable prefix only; original product data preserved' }], resultsDrive);
+  }
+
+  private async runLinuxProton(request: SmokeRequest, driveC: string): Promise<void> {
+    const probe = smokeNapi.probeLinuxProton;
+    if (!probe) {
+      await this.finishSuite(request, [this.unsupported(request, 'GNU Proton diagnostics are disabled')], driveC);
+      return;
+    }
+    if (!this.context) throw new Error('Proton diagnostic context unavailable');
+    await prepareLinuxSteamExternalStorage(this.context);
+    const resultsDir = `${driveC}/smoke/results/${request.runId}`;
+    if (!ensureSmokeDirectory(resultsDir)) throw new Error('Cannot create Proton result directory');
+    this.currentStatus = '验证独立 GNU ARM64 Proton';
+    this.notify();
+    const stage = readSmokeText('/data/storage/el2/base/files/steamohos-native/proton-probe/stage').trim();
+    if (stage === 'init-fresh') {
+      writeSmokeText('/data/storage/el2/base/files/steamohos-native/proton-probe/stage', 'init');
+      let raw: string;
+      try { raw = await LinuxGnuProtonComponent.verifyFreshPrefix(this.context, (): Promise<string> => probe()); }
+      finally {
+        writeSmokeText('/data/storage/el2/base/files/steamohos-native/proton-probe/stage', 'bootstrap');
+        for (const name of ['pe-map-debug', 'memory-map-debug']) {
+          const path = `/data/storage/el2/base/files/steamohos-native/proton-probe/${name}`;
+          if (fs.accessSync(path)) fs.unlinkSync(path);
+        }
+      }
+      writeSmokeText(`${resultsDir}/linux-proton.json`, raw);
+      const fresh = JSON.parse(raw) as LinuxProtonResult;
+      await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
+        testId: 'gnu-proton-automatic-delivery-empty-prefix', status: fresh.prefixUpdated && fresh.childExitVerified ? 'PASS' : 'FAIL',
+        stage: fresh.status, message: 'Real empty prefix initialized; original registry, configuration and saves restored' }], driveC);
+      return;
+    }
+    const gameTrial = stage === 'newpal' || stage === 'pal4' || stage === 'senrenbanka';
+    if (gameTrial) {
+      const session = LinuxSteamSessionService.getInstance();
+      session.initialize(this.context as common.UIAbilityContext);
+      try { await session.open('library'); }
+      catch (error) {
+        const message = (error as Error).message.substring(0, 240);
+        writeSmokeText(`${resultsDir}/linux-proton.json`, JSON.stringify({ schemaVersion: 1,
+          status: 'proton_steam_session_failed', gameVerified: false, message: message }));
+        await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
+          testId: 'gnu-proton-steam-session', status: 'FAIL', stage: 'proton_steam_session_failed',
+          message: message }], driveC);
+        return;
+      }
+    }
+    if (stage === 'native-vulkan' || stage === 'native-present' || stage === 'gl-shared' || stage === 'd3d9-x86' || stage === 'dxvk11-x86' || gameTrial || stage === 'glx' || stage === 'window' || stage === 'window-controls') {
+      // A hidden NativeImage consumer can exhaust its queue. Exercise the
+      // actual visible desktop, using the same phone/tablet presentation as
+      // normal launches, without changing persisted window preferences.
+      const alreadyActive = AppStorage.get<boolean>('desktopWindowActive') === true;
+      WineWindowManager.getInstance().openDesktopWindow();
+      AppStorage.setOrCreate('desktopEnterFullscreen', true);
+      // The smoke intent foregrounds EntryAbility. An already-running desktop
+      // is deduplicated by openDesktopWindow(), so explicitly resume that
+      // internal ability for this visible rendering diagnostic.
+      const rootId = WineWindowManager.getInstance().getDesktopRootId();
+      // session.open() above already foregrounded the desktop for newpal.
+      // Reusing EntryAbility's now-background context would be rejected by
+      // the OS and abort the probe before the GNU process is even launched.
+      if (!gameTrial && rootId > 0 && alreadyActive) {
+        // Desktop activation can race with the already-visible ability. A
+        // background-start rejection is a presentation failure, not a reason
+        // to skip the diagnostic child and leave no bounded result at all.
+        try {
+          await (this.context as common.UIAbilityContext).startAbility({ bundleName: 'com.vintage.pomelopro',
+            abilityName: 'DesktopAbility', parameters: { toplevelId: rootId } });
+        } catch (error) {
+          hilog.warn(DOMAIN, TAG, 'GNU diagnostic desktop resume failed: %{public}s', JSON.stringify(error));
+        }
+      }
+    }
+    let gameFocusTimer: number = -1;
+    if (gameTrial) {
+      const existing = new Set<number>(HostWindowTasks.getInstance().snapshot().map(
+        (task: HostWindowTask): number => task.toplevelId));
+      // The standalone GNU probe has no product game-launch ticket. Focus
+      // only its newly-created representative-game window, once, so the
+      // existing Steam window does not cover the rendering/input test.
+      gameFocusTimer = setInterval((): void => {
+        const game = HostWindowTasks.getInstance().snapshot().find((task: HostWindowTask): boolean =>
+          !existing.has(task.toplevelId) && /NewPAL|仙剑|仙劍|PAL4|Sword and Fairy|Senren|Banka|千恋|千戀/i.test(task.title) && task.source !== 'steam-linux');
+        if (!game) return;
+        clearInterval(gameFocusTimer); gameFocusTimer = -1;
+        testNapi.activateToplevel(game.toplevelId);
+        InputDispatcher.getInstance().setActiveToplevel(game.toplevelId);
+        hilog.info(DOMAIN, TAG, 'GNU representative game focused tl=%{public}d pid=%{public}d',
+          game.toplevelId, game.clientPid);
+      }, 250);
+    }
+    let raw: string;
+    try { raw = await probe(); }
+    finally { if (gameFocusTimer >= 0) clearInterval(gameFocusTimer); }
+    writeSmokeText(`${resultsDir}/linux-proton.json`, raw);
+    const result = JSON.parse(raw) as LinuxProtonResult;
+    if (stage === 'native-vulkan') {
+      await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
+        testId: 'gnu-vulkan-queue-and-submission', status: result.vulkanQueueVerified && result.childExitVerified &&
+          (!result.vulkanPresentationRequested || result.graphicsTransportSubmitted) ? 'PASS' : 'FAIL',
+        stage: result.status, message: 'GNU Vulkan queue and optional presentation submission; receiver evidence verifies consumption' }], driveC);
+      return;
+    }
+    if (stage === 'native-present' || stage === 'gl-shared' || stage === 'd3d9-x86' || stage === 'dxvk11-x86' || gameTrial) {
+      await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
+        testId: 'gnu-shared-present-submission',
+        status: result.graphicsTransportSubmitted && result.childExitVerified ? 'PASS' : 'FAIL',
+        stage: result.status,
+        message: 'GNU GPU submission only; sustained per-window NativeImage consumption requires receiver evidence' }], driveC);
+      return;
+    }
+    const tests: SmokeTestResult[] = [{ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-bootstrap', status: result.bootstrapVerified && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'GNU Wine version bootstrap only; graphics and games require further tests' }];
+    if (result.prefixRequested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-prefix', status: result.prefixVerified && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'Native ARM64 Windows cmd.exe in an isolated GNU Wine prefix' });
+    if (result.x64Requested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-x64', status: result.x64Verified && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'GNU Wine ARM64EC/FEX Windows x64 command diagnostic only' });
+    if (result.windowRequested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-window', status: result.windowVerified && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'Windows x64 GDI window through GNU Wine and existing Wayland host; no GPU/game claim' });
+    if (result.x86Requested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-x86', status: result.x86Verified && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'Original GNU Wine WoW64/FEX Windows x86 command' });
+    if (result.graphicsRequested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-gpu', status: result.graphicsVerified && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'Wine OpenGL, shared virgl GPU renderer, 120 frame color readbacks' });
+    if (result.audioRequested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-audio', status: result.audioVerified && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'Windows waveOut playback through GNU ALSA and OHOS AudioBroker' });
+    if (result.inputRequested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-input-enumeration', status: result.inputEnumerated && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'Windows XInput enumeration only; physical actions require separate verification' });
+    if (readSmokeText('/data/storage/el2/base/files/steamohos-native/proton-probe/stage').trim() === 'input-actions') {
+      tests.push({ schemaVersion: 1, runId: request.runId,
+        testId: 'linux-proton-input-actions', status: result.inputActionsVerified && result.childExitVerified ? 'PASS' : 'FAIL',
+        stage: result.status, message: 'Synthetic ControllerHub through SDL2 and Wine XInput: press/release, both stick directions, D-pad and triggers; physical hardware not verified' });
+    }
+    if (result.prefixUpdateRequested) tests.push({ schemaVersion: 1, runId: request.runId,
+      testId: 'linux-proton-prefix-update', status: result.prefixUpdated && result.childExitVerified ? 'PASS' : 'FAIL',
+      stage: result.status, message: 'Wine own prefix update in the isolated experiment' });
+    await this.finishSuite(request, tests, driveC);
   }
 
   private async runLinuxSteamGnu(request: SmokeRequest, driveC: string): Promise<void> {

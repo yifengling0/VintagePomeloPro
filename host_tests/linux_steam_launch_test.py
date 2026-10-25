@@ -20,6 +20,17 @@ class LaunchTest(unittest.TestCase):
             for path in ['C:\\..\\outside','X:\\unknown','C:relative','\\\\server\\share']:
                 self.assertEqual(convert('getnativepath',path).returncode,64)
             self.assertEqual(convert('getcompatpath',str(build/'elsewhere')).returncode,64)
+            for flag in ('--gnu-proton', '--gnu-proton-gl'):
+                def gnu(verb,path):
+                    return subprocess.run([str(build/'tool'),flag,verb,path],env=env,capture_output=True,text=True)
+                unix=str(zroot/'SteamLinuxARM64/library')
+                windows='Z:'+chr(92)+unix.lstrip('/').replace('/',chr(92))
+                self.assertEqual(gnu('getcompatpath',unix).stdout.strip(),windows)
+                self.assertEqual(gnu('getnativepath',windows).stdout.strip(),unix)
+                self.assertEqual(gnu('getcompatpath','/').stdout.strip(),'Z:'+chr(92))
+                self.assertEqual(gnu('getnativepath','Z:'+chr(92)).stdout.strip(),'/')
+                self.assertEqual(gnu('getnativepath','Z:'+chr(92)+'..'+chr(92)+'outside').returncode,64)
+
 
     def test_real_native_broker_and_tool(self):
         with tempfile.TemporaryDirectory(prefix='hmosdeck-launch-host-') as temporary:

@@ -15,4 +15,7 @@ napi_value ProbeGnuSteam(napi_env env, napi_callback_info info);
 napi_value ProbeGnuXwayland(napi_env env, napi_callback_info info);
 napi_value ProbeGnuWayland(napi_env env, napi_callback_info info);
 napi_value ProbeGnu(napi_env env, napi_callback_info info);
+napi_value StartProtonGame(napi_env env,napi_callback_info info);
+napi_value CancelProtonGame(napi_env env,napi_callback_info info);
+napi_value ProbeProton(napi_env env, napi_callback_info info);
 }
