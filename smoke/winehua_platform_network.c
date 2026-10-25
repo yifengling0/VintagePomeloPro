@@ -57,6 +57,11 @@ struct http_probe
     DWORD bytes;
     DWORD cert_query_error;
     DWORD cert_chain_error;
+    DWORD family;
+    DWORD reused; /* 0: connect callback, 1: no new connection, 2: unknown */
+    DWORD body_hash;
+    ULONGLONG dns_ms, connect_tls_ms, send_request_total_ms, ttfb_ms, read_ms, total_ms;
+    ULONGLONG dns_started, connect_started;
 };
 
 struct wininet_probe
@@ -95,32 +100,26 @@ static BOOL probe_adapters(struct adapter_probe *probe)
     return probe->query_result == ERROR_SUCCESS && probe->adapter_count > 0;
 }
 
-static DWORD probe_dns(const char *host, char *ip, size_t ip_size)
+static DWORD probe_dns(const char *host, DWORD *count, ULONGLONG *elapsed)
 {
     DNS_RECORD *records = NULL, *record;
+    ULONGLONG start = GetTickCount64();
     DNS_STATUS status = DnsQuery_A(host, DNS_TYPE_A, DNS_QUERY_STANDARD, NULL, &records, NULL);
 
-    ip[0] = 0;
+    *elapsed = GetTickCount64() - start;
+    *count = 0;
     if (!status)
-    {
         for (record = records; record; record = record->pNext)
-        {
-            if (record->wType == DNS_TYPE_A)
-            {
-                const BYTE *bytes = (const BYTE *)&record->Data.A.IpAddress;
-                snprintf(ip, ip_size, "%u.%u.%u.%u", bytes[0], bytes[1], bytes[2], bytes[3]);
-                break;
-            }
-        }
-    }
+            if (record->wType == DNS_TYPE_A) ++*count;
     if (records) DnsRecordListFree(records, DnsFreeRecordList);
     return status;
 }
 
-static DWORD probe_tcp(const char *host)
+static DWORD probe_tcp(const char *host, DWORD *family, ULONGLONG *elapsed)
 {
     ADDRINFOA hints, *addresses = NULL, *address;
     DWORD result = WSAHOST_NOT_FOUND;
+    ULONGLONG start, deadline;
     int ret;
 
     memset(&hints, 0, sizeof(hints));
@@ -129,10 +128,17 @@ static DWORD probe_tcp(const char *host)
     hints.ai_protocol = IPPROTO_TCP;
     ret = GetAddrInfoA(host, "443", &hints, &addresses);
     if (ret) return (DWORD)ret;
+    start = GetTickCount64();
+    deadline = start + 10000;
 
     for (address = addresses; address; address = address->ai_next)
     {
-        SOCKET socket_handle = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+        ULONGLONG now = GetTickCount64(), remaining;
+        SOCKET socket_handle;
+        if (now >= deadline) { result = WSAETIMEDOUT; break; }
+        remaining = deadline - now;
+        *family = address->ai_family;
+        socket_handle = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
         u_long nonblocking = 1;
         int socket_error = 0;
         int socket_error_size = sizeof(socket_error);
@@ -144,7 +150,12 @@ static DWORD probe_tcp(const char *host)
             result = WSAGetLastError();
             continue;
         }
-        ioctlsocket(socket_handle, FIONBIO, &nonblocking);
+        if (ioctlsocket(socket_handle, FIONBIO, &nonblocking))
+        {
+            result = WSAGetLastError();
+            closesocket(socket_handle);
+            continue;
+        }
         ret = connect(socket_handle, address->ai_addr, (int)address->ai_addrlen);
         if (!ret)
         {
@@ -159,8 +170,8 @@ static DWORD probe_tcp(const char *host)
             FD_ZERO(&error_set);
             FD_SET(socket_handle, &write_set);
             FD_SET(socket_handle, &error_set);
-            timeout.tv_sec = 10;
-            timeout.tv_usec = 0;
+            timeout.tv_sec = (long)(remaining / 1000);
+            timeout.tv_usec = (long)((remaining % 1000) * 1000);
             ret = select(0, NULL, &write_set, &error_set, &timeout);
             if (ret > 0 && !getsockopt(socket_handle, SOL_SOCKET, SO_ERROR,
                                       (char *)&socket_error, &socket_error_size))
@@ -173,6 +184,7 @@ static DWORD probe_tcp(const char *host)
         closesocket(socket_handle);
         if (!result) break;
     }
+    *elapsed = GetTickCount64() - start;
     FreeAddrInfoA(addresses);
     return result;
 }
@@ -211,15 +223,44 @@ static DWORD verify_certificate_chain(PCCERT_CONTEXT certificate, const WCHAR *h
     return result;
 }
 
+/* Callback payloads may contain endpoints. Never store or log those payloads. */
+static void CALLBACK network_timing_callback(HINTERNET handle, DWORD_PTR context, DWORD status,
+                                             void *information, DWORD information_size)
+{
+    struct http_probe *probe = (struct http_probe *)context;
+    ULONGLONG now = GetTickCount64();
+    (void)handle;
+    (void)information;
+    (void)information_size;
+    if (!probe) return;
+    switch (status)
+    {
+    case WINHTTP_CALLBACK_STATUS_RESOLVING_NAME: probe->dns_started = now; break;
+    case WINHTTP_CALLBACK_STATUS_NAME_RESOLVED: probe->dns_ms += now - probe->dns_started; break;
+    case WINHTTP_CALLBACK_STATUS_CONNECTING_TO_SERVER:
+        probe->connect_started = now;
+        probe->reused = 0;
+        break;
+    case WINHTTP_CALLBACK_STATUS_CONNECTED_TO_SERVER:
+        /* Wine emits CONNECTED after TLS. Do not present this as TCP-only. */
+        probe->connect_tls_ms += now - probe->connect_started;
+        break;
+    }
+}
+
 static BOOL probe_winhttp(const WCHAR *host, const WCHAR *path, struct http_probe *probe)
 {
     HINTERNET session = NULL, connection = NULL, request = NULL;
     PCCERT_CONTEXT certificate = NULL;
-    DWORD size, read;
+    DWORD size, read, i;
+    ULONGLONG start = GetTickCount64(), phase, read_start = 0;
+    WINHTTP_CONNECTION_INFO info;
     BYTE buffer[4096];
     BOOL ok = FALSE;
 
     memset(probe, 0, sizeof(*probe));
+    probe->reused = 2;
+    probe->body_hash = 2166136261u;
     session = WinHttpOpen(L"WineHua Steam network gate/2.0",
                           WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                           WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -235,10 +276,31 @@ static BOOL probe_winhttp(const WCHAR *host, const WCHAR *path, struct http_prob
                                  WINHTTP_FLAG_SECURE);
     if (!request) goto failed;
     probe->stage = HTTP_STAGE_REQUEST;
+    if (WinHttpSetStatusCallback(request, network_timing_callback,
+                                 WINHTTP_CALLBACK_FLAG_RESOLVE_NAME | WINHTTP_CALLBACK_FLAG_CONNECT_TO_SERVER,
+                                 0) == WINHTTP_INVALID_STATUS_CALLBACK) goto failed;
+    phase = GetTickCount64();
     if (!WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-                            WINHTTP_NO_REQUEST_DATA, 0, 0, 0)) goto failed;
+                            WINHTTP_NO_REQUEST_DATA, 0, 0, (DWORD_PTR)probe))
+    {
+        probe->send_request_total_ms = GetTickCount64() - phase;
+        goto failed;
+    }
+    probe->send_request_total_ms = GetTickCount64() - phase;
+    if (probe->reused == 2) probe->reused = 1;
     probe->stage = HTTP_STAGE_SENT;
-    if (!WinHttpReceiveResponse(request, NULL)) goto failed;
+    phase = GetTickCount64();
+    if (!WinHttpReceiveResponse(request, NULL))
+    {
+        probe->ttfb_ms = GetTickCount64() - phase;
+        goto failed;
+    }
+    probe->ttfb_ms = GetTickCount64() - phase;
+    memset(&info, 0, sizeof(info));
+    info.cbSize = sizeof(info);
+    size = sizeof(info);
+    if (WinHttpQueryOption(request, WINHTTP_OPTION_CONNECTION_INFO, &info, &size))
+        probe->family = info.RemoteAddress.ss_family;
     probe->stage = HTTP_STAGE_RESPONSE;
 
     size = sizeof(probe->status);
@@ -258,6 +320,7 @@ static BOOL probe_winhttp(const WCHAR *host, const WCHAR *path, struct http_prob
         certificate = NULL;
     }
 
+    read_start = GetTickCount64();
     for (;;)
     {
         read = 0;
@@ -268,6 +331,7 @@ static BOOL probe_winhttp(const WCHAR *host, const WCHAR *path, struct http_prob
             SetLastError(ERROR_FILE_TOO_LARGE);
             goto failed;
         }
+        for (i = 0; i < read; ++i) probe->body_hash = (probe->body_hash ^ buffer[i]) * 16777619u;
         probe->bytes += read;
         probe->stage = HTTP_STAGE_BODY;
     }
@@ -279,6 +343,8 @@ static BOOL probe_winhttp(const WCHAR *host, const WCHAR *path, struct http_prob
 failed:
     probe->error = GetLastError();
 done:
+    probe->total_ms = GetTickCount64() - start;
+    if (read_start) probe->read_ms = GetTickCount64() - read_start;
     if (certificate) CertFreeCertificateContext(certificate);
     if (request) WinHttpCloseHandle(request);
     if (connection) WinHttpCloseHandle(connection);
@@ -330,7 +396,9 @@ int main(int argc, char **argv)
     struct wininet_probe update_wininet;
     WSADATA winsock_data;
     SECURITY_STATUS schannel_status;
-    char metrics[4096], message[512], store_ip[32], update_ip[32];
+    char metrics[6144], message[512], timing[2048];
+    DWORD store_answers, update_answers, tcp_family = 0;
+    ULONGLONG store_dns_ms, update_dns_ms, tcp_ms = 0, wininet_ms, phase;
     DWORD store_dns, update_dns, tcp_error, root_error, root_count;
     BOOL ok = TRUE, store_ok, update_ok, wininet_ok;
     int winsock_status;
@@ -347,19 +415,21 @@ int main(int argc, char **argv)
         if (!probe_adapters(&adapters[i])) ok = FALSE;
     }
 
-    store_dns = probe_dns(STORE_HOST_A, store_ip, sizeof(store_ip));
-    update_dns = probe_dns(UPDATE_HOST_A, update_ip, sizeof(update_ip));
-    tcp_error = winsock_status ? (DWORD)winsock_status : probe_tcp(UPDATE_HOST_A);
+    store_dns = probe_dns(STORE_HOST_A, &store_answers, &store_dns_ms);
+    update_dns = probe_dns(UPDATE_HOST_A, &update_answers, &update_dns_ms);
+    tcp_error = winsock_status ? (DWORD)winsock_status : probe_tcp(UPDATE_HOST_A, &tcp_family, &tcp_ms);
     store_ok = probe_winhttp(STORE_HOST_W, L"/", &store_http);
     update_ok = probe_winhttp(UPDATE_HOST_W, UPDATE_PATH_W, &update_http);
+    phase = GetTickCount64();
     wininet_ok = winehua_probe_wininet_update(&update_wininet.stage, &update_wininet.error,
                                               &update_wininet.status, &update_wininet.bytes);
+    wininet_ms = GetTickCount64() - phase;
     probe_winhttp(SELF_SIGNED_HOST_W, L"/", &self_signed_http);
     probe_winhttp(WRONG_HOST_W, L"/", &wrong_host_http);
     schannel_status = probe_schannel();
     root_count = count_root_certificates(&root_error);
 
-    if (store_dns || !store_ip[0] || update_dns || !update_ip[0] || tcp_error ||
+    if (store_dns || !store_answers || update_dns || !update_answers || tcp_error ||
         !store_ok || !update_ok || !wininet_ok || schannel_status != SEC_E_OK ||
         root_error || !root_count ||
         self_signed_http.error != ERROR_WINHTTP_SECURE_FAILURE ||
@@ -372,8 +442,8 @@ int main(int argc, char **argv)
              "{\"flags\":15,\"size\":%lu,\"query\":%lu,\"adapters\":%lu,\"ipv4\":%lu},"
              "{\"flags\":39,\"size\":%lu,\"query\":%lu,\"adapters\":%lu,\"ipv4\":%lu},"
              "{\"flags\":46,\"size\":%lu,\"query\":%lu,\"adapters\":%lu,\"ipv4\":%lu}],"
-             "\"storeDnsError\":%lu,\"storeDnsIp\":\"%s\","
-             "\"updateDnsError\":%lu,\"updateDnsIp\":\"%s\",\"updateTcpError\":%lu,"
+             "\"storeDnsError\":%lu,\"storeDnsAnswers\":%lu,"
+             "\"updateDnsError\":%lu,\"updateDnsAnswers\":%lu,\"updateTcpError\":%lu,"
              "\"storeWinHttp\":{\"stage\":%lu,\"error\":%lu,\"status\":%lu,\"bytes\":%lu,\"certQueryError\":%lu,\"certChainError\":%lu},"
              "\"updateWinHttp\":{\"stage\":%lu,\"error\":%lu,\"status\":%lu,\"bytes\":%lu,\"certQueryError\":%lu,\"certChainError\":%lu},"
              "\"updateWinInet\":{\"stage\":%lu,\"error\":%lu,\"status\":%lu,\"bytes\":%lu},"
@@ -384,7 +454,7 @@ int main(int argc, char **argv)
              adapters[1].size_result, adapters[1].query_result, adapters[1].adapter_count, adapters[1].ipv4_count,
              adapters[2].size_result, adapters[2].query_result, adapters[2].adapter_count, adapters[2].ipv4_count,
              adapters[3].size_result, adapters[3].query_result, adapters[3].adapter_count, adapters[3].ipv4_count,
-             store_dns, store_ip, update_dns, update_ip, tcp_error,
+             store_dns, store_answers, update_dns, update_answers, tcp_error,
              store_http.stage, store_http.error, store_http.status, store_http.bytes,
              store_http.cert_query_error, store_http.cert_chain_error,
              update_http.stage, update_http.error, update_http.status, update_http.bytes,
@@ -393,9 +463,23 @@ int main(int argc, char **argv)
              (long)schannel_status, root_count, root_error,
              self_signed_http.stage, self_signed_http.error, self_signed_http.status,
              wrong_host_http.stage, wrong_host_http.error, wrong_host_http.status);
+    snprintf(timing, sizeof(timing),
+             ",\"timing\":{\"storeDnsMs\":%llu,\"updateDnsMs\":%llu,\"tcpConnectMs\":%llu,\"tcpFamily\":%lu,"
+             "\"wininetTotalMs\":%llu,\"winhttp\":{\"dnsMs\":%llu,\"connectTlsMs\":%llu,"
+             "\"sendRequestTotalMs\":%llu,\"ttfbMs\":%llu,\"readTotalMs\":%llu,\"totalMs\":%llu,"
+             "\"family\":%lu,\"reused\":%lu,\"bodyFnv1a\":%lu}}}",
+             (unsigned long long)store_dns_ms, (unsigned long long)update_dns_ms,
+             (unsigned long long)tcp_ms, tcp_family, (unsigned long long)wininet_ms,
+             (unsigned long long)update_http.dns_ms, (unsigned long long)update_http.connect_tls_ms,
+             (unsigned long long)update_http.send_request_total_ms, (unsigned long long)update_http.ttfb_ms,
+             (unsigned long long)update_http.read_ms, (unsigned long long)update_http.total_ms,
+             update_http.family, update_http.reused, update_http.body_hash);
+    /* Append only bounded, non-identifying numeric metrics to the JSON object. */
+    if (strlen(metrics) + strlen(timing) < sizeof(metrics))
+        strcpy(metrics + strlen(metrics) - 1, timing);
     snprintf(message, sizeof(message),
-             "Steam update DNS %s rc=%lu TCP=%lu; WinHTTP stage=%lu err=%lu status=%lu bytes=%lu cert=%lu; WinInet stage=%lu err=%lu status=%lu bytes=%lu",
-             update_ip[0] ? update_ip : "failed", update_dns, tcp_error,
+             "Network DNS rc=%lu TCP=%lu; WinHTTP stage=%lu err=%lu status=%lu bytes=%lu cert=%lu; WinInet stage=%lu err=%lu status=%lu bytes=%lu",
+             update_dns, tcp_error,
              update_http.stage, update_http.error, update_http.status, update_http.bytes,
              update_http.cert_chain_error, update_wininet.stage, update_wininet.error,
              update_wininet.status, update_wininet.bytes);

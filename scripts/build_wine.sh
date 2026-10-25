@@ -287,6 +287,11 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0060-ntdll-vm-protect-diagnostics
 # Preserve real IPv4 bindings and query permitted kernel routing metadata.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0061-iphlpapi-native-network-contract.patch" \
     "IPv4 adapter bindings and sandbox-safe native route metadata"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0066-winhttp-wininet-bounded-connect.patch" \
+    "Bounded WinHTTP candidates and WinINet timeout normalization"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0067-dnsapi-musl-transport-safety.patch" \
+    "Musl DNS transport deadline and buffer safety"
+
 
 # Wine 编译标志 (Unix .so + wineserver)
 WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB \
