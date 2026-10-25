@@ -34,6 +34,8 @@ export COMPATIBLE_SDK_VERSION
 # Wine 模拟层架构 (arm64 真机 → aarch64 原生 wine + FEX; x86_64 → x86_64 同目标)
 WINE_ARCH ?= $(if $(filter arm64-v8a,$(NATIVE_ARCH)),aarch64,x86_64)
 export WINE_ARCH
+VP_NETTLE_ASM ?= auto
+export VP_NETTLE_ASM
 FEX_EXACTSTORE_DIAGNOSTICS ?= 0
 export FEX_EXACTSTORE_DIAGNOSTICS
 
@@ -317,6 +319,7 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
 	    ! find $(ROOT)/patches/mesa -type f -name '*.patch' -newer $@ 2>/dev/null | grep -q . && \
 	    ! [ "$(SCRIPTS)/build_ohos_guest_vulkan.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_gnutls.sh" -nt $@ ] && \
+	    BUILD_DIR="$(BUILD_DIR)" bash "$(SCRIPTS)/build_gnutls.sh" --check-identity && \
 	    ! [ "$(SCRIPTS)/build_gstreamer.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_deps.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_libffi.sh" -nt $@ ] && \
@@ -1183,3 +1186,19 @@ test-wine-runtime-diagnostics:
 test: test-gstreamer-native
 test-gstreamer-native:
 	python3 $(ROOT)/host_tests/gstreamer_native_plugins_test.py
+.PHONY: test-winhttp-wininet-connect test-dnsapi-musl-transport test-nettle-arm64-dispatch
+test-wine-network-contract: test-winhttp-wininet-connect test-dnsapi-musl-transport test-nettle-arm64-dispatch
+
+test-winhttp-wininet-connect:
+	python3 $(ROOT)/host_tests/winhttp_wininet_connect_test.py --wine-src $(WINE_SRC)
+
+test-dnsapi-musl-transport:
+	python3 $(ROOT)/host_tests/dnsapi_musl_transport_test.py --wine-src $(WINE_SRC)
+
+test-nettle-arm64-dispatch:
+	python3 $(ROOT)/host_tests/nettle_arm64_dispatch_test.py
+
+# Targeted TLS dependency validation without rebuilding unrelated deps.
+.PHONY: gnutls
+gnutls:
+	BUILD_DIR="$(BUILD_DIR)" bash "$(SCRIPTS)/build_gnutls.sh"
