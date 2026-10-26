@@ -217,6 +217,27 @@ jobs:
           if ! command -v curl >/dev/null 2>&1; then
             packages+=(curl)
           fi
+          # Old buildenv images predate the native ARM64 Wine path. Keep the
+          # runtime fallback aligned with ci/Dockerfile.buildenv.
+          if ! command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 || \
+             [ ! -f /usr/aarch64-linux-gnu/lib/Scrt1.o ]; then
+            packages+=(gcc-aarch64-linux-gnu libc6-dev-arm64-cross)
+          fi
+          if ! command -v makeinfo >/dev/null 2>&1; then
+            packages+=(texinfo)
+          fi
+          if ! command -v wget >/dev/null 2>&1; then
+            packages+=(wget)
+          fi
+          if ! command -v xz >/dev/null 2>&1; then
+            packages+=(xz-utils)
+          fi
+          for spirv_tool in spirv-as spirv-dis spirv-val spirv-opt; do
+            if ! command -v "$spirv_tool" >/dev/null 2>&1; then
+              packages+=(spirv-tools)
+              break
+            fi
+          done
           if [ "${#packages[@]}" -gt 0 ]; then
             echo "Installing missing CI packages: ${packages[*]}"
             apt-get update
@@ -224,6 +245,27 @@ jobs:
           else
             echo "CI build dependencies already present"
           fi
+
+      - name: Verify native build prerequisites before compilation
+        run: |
+          set -euo pipefail
+          for tool in gcc g++ make cmake ninja meson bison flex autoconf automake \
+                      libtoolize pkg-config git python3 java zip file \
+                      glslangValidator spirv-as spirv-dis spirv-val spirv-opt \
+                      msgfmt curl wget makeinfo xz aarch64-linux-gnu-gcc \
+                      x86_64-w64-mingw32-g++ i686-w64-mingw32-g++ \
+                      x86_64-w64-mingw32-widl; do
+            command -v "$tool" >/dev/null || { echo "Missing CI tool: $tool" >&2; exit 1; }
+          done
+          test -f /usr/share/aclocal/ltdl.m4
+          python3 -c 'import yaml, mako, markupsafe'
+          # Compile and link a real probe, so a compiler without target libc
+          # startup objects is rejected here rather than in box64's CMake.
+          mkdir -p ci-artifacts
+          printf 'int main(void) { return 0; }\n' | \
+            aarch64-linux-gnu-gcc -x c - -o ci-artifacts/arm64-toolchain-probe
+          file ci-artifacts/arm64-toolchain-probe
+          rm ci-artifacts/arm64-toolchain-probe
 
       - name: Show environment
         run: |
