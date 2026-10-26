@@ -100,6 +100,17 @@ class CandidateTests(unittest.TestCase):
         value['pendingNative'] = [sorted(candidate.CMAKE_MODULES)[0]]
         return value
 
+    def test_intentional_x64_modules_do_not_allow_x64_dxvk_or_wine_replacements(self):
+        data = bytearray(512); data[:2] = b'MZ'
+        struct.pack_into('<I', data, 60, 128); data[128:132] = b'PE\0\0'
+        struct.pack_into('<HH', data, 132, 0x8664, 0)
+        for name in ('bin/aarch64-windows/xtajit64.dll', 'vkd3d/limited-500k/x64/d3d12.dll'):
+            candidate.validate_binary(name, bytes(data))
+        for name in ('bin/aarch64-windows/ntdll.dll', 'dxvk/modern-2.6/x64/d3d11.dll',
+                     'dxvk/legacy/arm64x/dxgi.dll'):
+            with self.assertRaisesRegex(ValueError, 'architecture mismatch'):
+                candidate.validate_binary(name, bytes(data))
+
     def test_only_cmake_modules_may_be_deferred_and_final_hap_requires_all(self):
         value = self.pending_receipt()
         inventory = set(value['libraries']) | set(value['pendingNative'])

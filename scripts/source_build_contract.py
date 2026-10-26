@@ -47,6 +47,13 @@ def validate_binary(name, data):
     else:
         kind = pe_kind(data)
         allowed = ('x86',) if '/i386-windows/' in name or '/x86/' in name else ('arm64', 'arm64ec', 'arm64x')
+        # VKD3D deliberately stays x64 for FEX (see assemble.sh); Wine's
+        # xtajit64 EC entry stub may carry AMD64 without an EC load-config.
+        # Do not broaden this to DXVK's x64 aliases: those must remain ARM64X.
+        if name == 'vkd3d/limited-500k/x64/d3d12.dll':
+            allowed = ('x64',)
+        elif name == 'bin/aarch64-windows/xtajit64.dll':
+            allowed += ('x64',)
         if kind not in allowed:
             raise ValueError('candidate PE architecture mismatch: ' + name)
 
