@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Record verified GNU dependency bytes and matching adapter source inputs."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -15,7 +16,7 @@ def main():
     a=p.parse_args()
     if not a.release_tag.startswith('build-deps-gnu-') or '/' in a.release_tag:
         p.error('Use a dedicated build-deps-gnu-* dependency release, not an app release')
-    subprocess.run(['git','cat-file','-e',a.source_commit+'^{commit}'],cwd=ROOT,check=True)
+    source_commit=subprocess.check_output(['git','rev-parse',a.source_commit+'^{commit}'],cwd=ROOT,text=True).strip()
     source_inputs={}
     for pattern in ['entry/src/main/cpp/linux_steam/gnu_fixture/*',
                     'entry/src/main/cpp/linux_steam/native_loader*',
@@ -26,6 +27,13 @@ def main():
             if path.is_file(): source_inputs[path.relative_to(ROOT).as_posix()]=sha(path)
     gitlinks={name:subprocess.check_output(['git','rev-parse','HEAD:thirdparty/'+name],cwd=ROOT,text=True).strip()
               for name in ['mesa','dxvk-modern','wine-valve']}
+    for name, expected in source_inputs.items():
+        committed=subprocess.check_output(['git','show',source_commit+':'+name],cwd=ROOT)
+        if hashlib.sha256(committed).hexdigest()!=expected:
+            raise ValueError('Source snapshot does not contain the selected adapter bytes: '+name)
+    for name, expected in gitlinks.items():
+        committed=subprocess.check_output(['git','rev-parse',source_commit+':thirdparty/'+name],cwd=ROOT,text=True).strip()
+        if committed!=expected: raise ValueError('Source snapshot has a different gitlink: '+name)
     rows=[]
     for name in DESTINATIONS:
         raw=ROOT/'entry/src/main/resources/rawfile'
@@ -35,7 +43,7 @@ def main():
             url='https://github.com/yifengling0/VintagePomeloPro/releases/download/'+a.release_tag+'/'+archive.name)
         verify_archive(archive,row,expected_members(ROOT,row))
         rows.append(row)
-    lock=dict(schemaVersion=1,sourceSnapshot=a.source_commit,releaseTag=a.release_tag,
+    lock=dict(schemaVersion=1,sourceSnapshot=source_commit,releaseTag=a.release_tag,
         buildPolicy='Compile OHOS host/ArkTS from source; restore checksum-pinned prebuilt GNU dependencies. GNU source rebuild is a separate pipeline.',
         sourceInputs=dict(sorted(source_inputs.items())),gitlinks=gitlinks,components=rows)
     output=ROOT/'docs/linux-steam/build-components.lock.json'

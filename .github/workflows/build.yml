@@ -28,8 +28,32 @@ permissions:
   packages: read
 
 jobs:
+  gnu-components:
+    name: Verify GNU dependencies from a clean checkout
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+          submodules: false
+          fetch-depth: 1
+      - name: Test provenance and dependency restore
+        run: |
+          python3 host_tests/ci_release_test.py
+          python3 host_tests/linux_runtime_components_test.py
+      - name: Fetch and verify published GNU dependency bytes
+        run: python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-clean-checkout.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gnu-clean-checkout-${{ github.sha }}
+          path: ci-artifacts/gnu-clean-checkout.json
+          if-no-files-found: error
+          retention-days: 14
+
   build:
     name: make NATIVE_ARCH=arm64-v8a hap-unsigned
+    needs: gnu-components
     runs-on: ubuntu-26.04
     timeout-minutes: 180
     outputs:
@@ -102,7 +126,6 @@ jobs:
           fi
           python3 scripts/verify_ci_release.py source --expected-sha "$expected_sha" \
             --release-tag "$RELEASE_TAG" --output ci-artifacts/ci-source.json
-          make test-ci-release
           echo "commit=$expected_sha" >> "$GITHUB_OUTPUT"
 
       - name: Upload source version manifest
@@ -219,7 +242,6 @@ jobs:
       - name: Restore and verify pinned Linux Steam and GNU Proton components
         run: |
           set -euo pipefail
-          make test-linux-runtime-components
           python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-components.json
 
       - name: Install ArkTS project dependencies

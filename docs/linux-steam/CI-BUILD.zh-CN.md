@@ -5,6 +5,8 @@
 FEX、Mesa/VirGL、DXVK、OHOS GNU 宿主和 ArkTS，生成 API 23 ARM64 未签名 HAP。
 `entry/build-profile.json5` 已提交两个 GNU 宿主 CMake 开关，不依赖本机命令行缓存。
 CI 显式安装 ArkTS 依赖；标准打包入口显式选择 Hvigor Release，避免默认 Debug。
+快速检查先在不初始化子模块的干净 checkout 上执行主机回归、从公开 URL 获取
+并逐文件验证两个 GNU 组件，成功后才开始完整的递归子模块与交叉编译任务。
 
 ## GNU 依赖的边界
 
@@ -52,6 +54,8 @@ python3 scripts/prepare_linux_runtime_components.py --verify-only
 ```
 
 锁文件不是自动重编器；不要仅更新哈希掩盖未重编的适配对象。
+生成器核验指定来源提交确实包含所记录的适配源码及 gitlink，拒绝把本地未提交
+的源码写成历史提交的构建身份。
 完整 GNU 从零构建编排仍是独立工作，当前发布不得声称已实现该能力。
 仅修改 OHOS 宿主或 ArkTS 不需重新发布同一 GNU 二进制，锁覆盖的 GNU 输入
 发生变化则必须重新验包。离线导入的客户端包与此构建依赖发布相互独立。

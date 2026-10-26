@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceSnapshot": "35b81edb8da962a7c7a213ff51997f0b64a3409a",
+  "sourceSnapshot": "7beeae4ddc215de9a5c9b2ff1822e936c9a50f19",
   "releaseTag": "build-deps-gnu-1.5.2-f9706f8cc0e7",
   "buildPolicy": "Compile OHOS host/ArkTS from source; restore checksum-pinned prebuilt GNU dependencies. GNU source rebuild is a separate pipeline.",
   "sourceInputs": {
