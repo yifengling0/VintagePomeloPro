@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Verify source-built candidates without claiming device acceptance of new bytes.
+
+The default release gates continue to use reviewed binary locks. This receipt
+requires a clean-checkout manifest made BEFORE compilation, checks effective
+graphics overlays, and pairs the rebuilt modules with their exact sources.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+
+from dxvk_runtime_contract import ROOT, source_digest
+from fex_simd_runtime import pe_kind
+from normalize_runtime_identity import load_identity
+from wined3d_runtime_contract import source_contract
+
+RECORD = 'source-build-candidate.json'
+POLICY = 'source-build-candidate'
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def elf_identity(data):
+    # Keep section names, flags, addresses and all loadable bytes; tolerate only
+    # the non-loadable metadata removed by Hvigor's release strip step.
+    return sha(repr(load_identity(data)).encode())
+
+
+def validate_binary(name, data):
+    if name.startswith('libs/'):
+        if data[:6] != b'\x7fELF\x02\x01' or int.from_bytes(data[18:20], 'little') != 183:
+            raise ValueError('candidate native library is not AArch64 ELF: ' + name)
+    else:
+        kind = pe_kind(data)
+        allowed = ('x86',) if '/i386-windows/' in name or '/x86/' in name else ('arm64', 'arm64ec', 'arm64x')
+        if kind not in allowed:
+            raise ValueError('candidate PE architecture mismatch: ' + name)
+
+
+def validate_member(record, section, name, data):
+    item = record[section][name]
+    validate_binary(name, data)
+    if section == 'libraries':
+        if elf_identity(data) != item['loadableSha256']:
+            raise ValueError('candidate loadable ELF changed: ' + name)
+    elif sha(data) != item['sha256'] or len(data) != item['bytes']:
+        raise ValueError('candidate payload changed: ' + name)
+
+
+def required_members():
+    core = json.loads((ROOT / 'docs/graphics/runtime-core.lock.json').read_text())
+    texture = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())
+    payload = set(core['payload'])
+    for profile, pin in texture['runtimes'].items():
+        payload.update('dxvk/' + profile + '/' + name for name in pin['files'])
+    # Venus is checked as ELF separately, with exact nested/top-level pairing.
+    return set(core['libraries']), payload
+
+
+def source_identity(manifest):
+    commit = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+    if manifest['commit'] != commit:
+        raise ValueError('candidate source manifest belongs to another checkout')
+    subprocess.run(['git', '-C', str(ROOT), 'diff', '--quiet', 'HEAD', '--ignore-submodules=all'], check=True)
+    patches = {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted((ROOT / 'patches').rglob('*.patch'))}
+    if patches != manifest['patches']:
+        raise ValueError('candidate patches differ from clean-checkout manifest')
+    for name, pin in manifest['submodules'].items():
+        actual = subprocess.check_output(['git', '-C', str(ROOT / name), 'rev-parse', 'HEAD'], text=True).strip()
+        if actual != pin:
+            raise ValueError('candidate gitlink changed: ' + name)
+    texture = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())
+    dxvk = {}
+    for profile, pin in texture['runtimes'].items():
+        name = 'thirdparty/' + ('dxvk' if profile == 'legacy' else 'dxvk-modern')
+        if manifest['submodules'][name] != pin['commit'] or source_digest(ROOT / name / 'src') != pin['sourceSha256']:
+            raise ValueError('candidate DXVK source differs from reviewed source: ' + profile)
+        dxvk[profile] = {'commit': pin['commit'], 'sourceSha256': pin['sourceSha256']}
+    if manifest['submodules']['thirdparty/mesa'] != texture['venus']['commit']:
+        raise ValueError('candidate Mesa source differs from reviewed source')
+    for patch in texture['venus']['patches']:
+        path = ROOT / patch['path']
+        if sha(path.read_bytes().replace(b'\r\n', b'\n')) != patch['sha256']:
+            raise ValueError('candidate Mesa overlay changed: ' + patch['path'])
+        subprocess.run(['git', '-C', str(ROOT / 'thirdparty/mesa'), 'apply', '--reverse', '--check', str(path)],
+                       check=True, capture_output=True)
+    return {'checkout': manifest, 'dxvk': dxvk,
+            'wineD3D': source_contract(ROOT / 'thirdparty/wine-valve')}
+
+
+def record(directory, libs, manifest, compilers):
+    sources = source_identity(manifest)
+    result = {'schemaVersion': 1, 'policy': POLICY, 'deviceValidated': False,
+              'sources': sources, 'libraries': {}, 'payload': {},
+              'compilers': [{'path': str(p), 'sha256': sha(p.read_bytes())} for p in compilers]}
+    libraries, payload = required_members()
+    for section, names in (('libraries', libraries), ('payload', payload)):
+        for name in sorted(names):
+            path = libs / Path(name).relative_to('libs') if section == 'libraries' else directory / name
+            data = path.read_bytes()
+            validate_binary(name, data)
+            result[section][name] = {'sha256': sha(data), 'bytes': len(data)}
+            if section == 'libraries':
+                result[section][name]['loadableSha256'] = elf_identity(data)
+    icd = directory / 'bin/guest_vulkan/lib/libvulkan_virtio.so'
+    result['venusSha256'] = sha(icd.read_bytes())
+    result['venusLoadableSha256'] = elf_identity(icd.read_bytes())
+    (directory / RECORD).write_text(json.dumps(result, indent=2) + '\n')
+    return result
+
+
+def load(read, manifest):
+    value = json.loads(read(RECORD))
+    if (value.get('schemaVersion') != 1 or value.get('policy') != POLICY or
+            value.get('deviceValidated') is not False or value['sources']['checkout'] != manifest):
+        raise ValueError('candidate receipt does not match the clean-checkout manifest')
+    libraries, payload = required_members()
+    if set(value.get('libraries', {})) != libraries or set(value.get('payload', {})) != payload:
+        raise ValueError('candidate receipt omits required compatibility modules')
+    if not value.get('compilers'):
+        raise ValueError('candidate receipt lacks compiler identities')
+    return value
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('--libs', type=Path, required=True)
+    parser.add_argument('--source-manifest', type=Path, required=True)
+    parser.add_argument('--compiler', type=Path, action='append', required=True)
+    args = parser.parse_args()
+    record(args.directory, args.libs, json.loads(args.source_manifest.read_text()), args.compiler)
+    print('Source-build candidate recorded; deviceValidated=false; reviewed release locks unchanged')

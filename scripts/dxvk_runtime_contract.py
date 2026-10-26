@@ -25,7 +25,7 @@ def source_digest(source):
     return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
-def validate_modern_runtime(archive, lock=None):
+def validate_modern_runtime(archive, lock=None, candidate=None):
     pinned = load_modern_lock()
     if lock is not None and lock['submodules']['dxvk-modern'] != pinned['commit']:
         raise ValueError('Modern DXVK source pin differs from its runtime lock')
@@ -36,6 +36,11 @@ def validate_modern_runtime(archive, lock=None):
         architecture, filename = Path(member).parts
         data = archive.read('dxvk/modern-2.6/' + member)
         actual = hashlib.sha256(data).hexdigest()
+        if candidate is not None:
+            from source_build_contract import validate_member
+            name = 'dxvk/modern-2.6/' + member
+            validate_member(candidate, 'payload', name, data)
+            expected = candidate['payload'][name]['sha256']
         if actual != expected or runtime.get(architecture, {}).get(filename) != actual:
             raise ValueError('stale or unpaired Modern DXVK payload: ' + member)
         if filename == 'd3d11.dll' and b'FP32 DenormFlushToZero disabled' not in data:

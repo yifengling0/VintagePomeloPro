@@ -367,7 +367,7 @@ def validate_platform_smoke_suites(archive: Archive) -> None:
             raise ValidationError(f"invalid platform process peer architecture: {test_id}")
 
 
-def validate_graphics_runtime_payload(archive: Archive, wine_arch: str) -> None:
+def validate_graphics_runtime_payload(archive: Archive, wine_arch: str, candidate=None) -> None:
     """Check that all packaged graphics profiles match the product policy."""
     required_files = [
         "vkd3d/limited-500k/x64/d3d12.dll",
@@ -408,7 +408,7 @@ def validate_graphics_runtime_payload(archive: Archive, wine_arch: str) -> None:
 
     if wine_arch == 'aarch64':
         try:
-            validate_modern_runtime(archive)
+            validate_modern_runtime(archive, candidate=candidate)
         except (KeyError, ValueError) as exc:
             raise ValidationError(str(exc)) from exc
 
@@ -501,7 +501,7 @@ def validate_gstreamer(payload: Archive, wine_arch: str, hap: Archive | None = N
             raise ValidationError("winegstreamer.so does not contain the packaged plugin inventory fingerprint")
 
 
-def validate_runtime_payload(archive: Archive) -> RuntimeInfo:
+def validate_runtime_payload(archive: Archive, candidate=None) -> RuntimeInfo:
     manifest_name = "runtime-components.json"
     manifest = json.loads(archive.read(manifest_name).decode("utf-8"))
     if not isinstance(manifest, dict):
@@ -523,12 +523,16 @@ def validate_runtime_payload(archive: Archive) -> RuntimeInfo:
         for filename in REQUIRED_WINDOWS_NETWORK_FILES:
             archive.require_file(f"bin/{windows_arch}/{filename}")
     validate_platform_smoke_suites(archive)
-    validate_graphics_runtime_payload(archive, wine_arch)
+    validate_graphics_runtime_payload(archive, wine_arch, candidate)
     if wine_arch == 'aarch64':
         try:
             validate_wined3d_runtime(json.loads(archive.read('wined3d-graphics.json')), archive.read)
-            validate_texture_runtime(archive, archive.read('bin/guest_vulkan/lib/libvulkan_virtio.so'))
-            validate_core(archive.read, 'payload')
+            validate_texture_runtime(archive, archive.read('bin/guest_vulkan/lib/libvulkan_virtio.so'), candidate=candidate)
+            validate_core(archive.read, 'payload', candidate)
+            if candidate is not None:
+                graphics = json.loads(archive.read('wined3d-graphics.json'))
+                require_equal({k: graphics[k] for k in ('patches', 'sourceFiles')},
+                              candidate['sources']['wineD3D'], 'candidate effective WineD3D sources')
             validate_builtin_identity(archive.zip)
         except (KeyError, ValueError, TypeError) as error:
             raise ValidationError('Runtime compatibility contract: ' + str(error)) from error
@@ -611,7 +615,7 @@ def find_runtime_manifest_name(hap: Archive) -> str:
     return candidates[0]
 
 
-def validate_hap(path: Path) -> RuntimeInfo:
+def validate_hap(path: Path, source_manifest=None) -> RuntimeInfo:
     hap = Archive(path)
     try:
         try:
@@ -635,17 +639,24 @@ def validate_hap(path: Path) -> RuntimeInfo:
 
         payload = Archive(io.BytesIO(payload_bytes))
         try:
-            info = validate_runtime_payload(payload)
+            candidate = None
+            if source_manifest is not None:
+                from source_build_contract import load
+                candidate = load(payload.read, source_manifest)
+                require_equal(runtime_manifest.get('validationPolicy'), 'source-build-candidate',
+                              'candidate validation policy')
+            info = validate_runtime_payload(payload, candidate)
             if info.wine_arch == 'aarch64':
                 require_equal(runtime_manifest.get('wineD3DGraphics'),
                               json.loads(payload.read('wined3d-graphics.json')),
                               'HAP WineD3D graphics contract')
                 try:
-                    validate_texture_runtime(payload, hap.read('libs/arm64-v8a/libvulkan_virtio.so'))
-                    validate_core(hap.read)
+                    validate_texture_runtime(payload, hap.read('libs/arm64-v8a/libvulkan_virtio.so'), candidate=candidate)
+                    validate_core(hap.read, candidate=candidate)
                     dxvk = json.loads(payload.read('dxvk/manifest.json'))
                     require_equal(dxvk['venusRuntime']['hostVirglrendererSha256'],
-                                  hashlib.sha256(hap.read('libs/arm64-v8a/libvirglrenderer.so.1')).hexdigest(),
+                                  candidate['libraries']['libs/arm64-v8a/libvirglrenderer.so.1']['sha256']
+                                  if candidate else hashlib.sha256(hap.read('libs/arm64-v8a/libvirglrenderer.so.1')).hexdigest(),
                                   'Venus host renderer identity')
                 except (KeyError, ValueError, TypeError) as error:
                     raise ValidationError('Runtime compatibility contract: ' + str(error)) from error
@@ -678,19 +689,28 @@ def main() -> None:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--payload", type=Path, help="wine-data.zip to validate")
     source.add_argument("--hap", type=Path, help="signed HAP to validate")
+    parser.add_argument('--source-build-manifest', type=Path,
+                        help='Explicit source-candidate policy; requires the pre-build clean-checkout manifest')
     args = parser.parse_args()
 
     try:
+        source_manifest = json.loads(args.source_build_manifest.read_text()) if args.source_build_manifest else None
         if args.payload:
             archive = Archive(args.payload)
             try:
-                info = validate_runtime_payload(archive)
+                candidate = None
+                if source_manifest is not None:
+                    from source_build_contract import load
+                    candidate = load(archive.read, source_manifest)
+                info = validate_runtime_payload(archive, candidate)
             finally:
                 archive.close()
             print(f"runtime payload PASS: wineArch={info.wine_arch}; native plugins require --hap verification")
         else:
-            info = validate_hap(args.hap)
+            info = validate_hap(args.hap, source_manifest)
             print(f"HAP runtime closure PASS: wineArch={info.wine_arch}")
+        if source_manifest is not None:
+            print('Source-built candidate only: deviceValidated=false; pinned release acceptance not granted')
     except (OSError, ValueError, ValidationError) as exc:
         raise SystemExit(f"runtime component validation failed: {exc}") from exc
 

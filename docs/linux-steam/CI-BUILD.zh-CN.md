@@ -41,6 +41,24 @@ make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 GUEST_ARCH=aarch64 \
 rawfile 和实际 HAP。CI 另行核验 GNU 宿主 ELF、运行时源码提交、架构、
 Wine/FEX/Mesa/DXVK 等 gitlink 及 payload 哈希，并上传小型构建清单。
 
+## 源码重编候选与实机验收的区别
+
+完整 CI 设置 `SOURCE_BUILD_MANIFEST=ci-artifacts/ci-source.json`，其输入必须是
+编译前生成的干净源码清单。组装时核对源码提交、所有 gitlink、补丁哈希、
+WineD3D 和 Mesa 的实际已应用补丁、两版 DXVK 的已审查源码，再记录编译器
+和所有受保护模块的产物身份。HAP 中保留 `source-build-candidate.json`，
+明确 `deviceValidated=false`。此模式仍检查原有模块清单、PE/ELF 架构、
+纹理修复标记、库依赖闭包、嵌套配对和产物哈希。Release strip 仅允许
+非加载元数据变化，实际加载段和节不得变化。
+
+未传 `--source-build-manifest` 的校验仍要求原有已验收二进制锁，不能靠
+包内自报字段切换模式。RC 发布另跑这道默认检查；源码重编成功不代表
+已经通过游戏或设备验收。新编二进制需回归后再审查更新发布锁。
+
+真实 `libz.so` 在依赖链起点从固定 SHA-256 的 zlib 1.3.1 源码编译，
+不会把 SDK 链接桩当成实现库。已有源码包可通过 `ZLIB_SOURCE_ARCHIVE`
+指定；默认下载到 `BUILD_DIR/downloads/`，增量复用同时校验输入和产物。
+
 ## 修改 GNU 适配源码后
 
 使用已提交的阶段构建脚本重编受影响 GNU 对象，更新组件包及逐文件清单，

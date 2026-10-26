@@ -1050,6 +1050,15 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
     # Catch SDK copies from optional/legacy paths too, before creating payloads.
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$NATIVE_LIBS" "$wine_data"
 
+    local candidate_args=()
+    if [ -n "${SOURCE_BUILD_MANIFEST:-}" ]; then
+        [ "$WINE_ARCH" = aarch64 ] || err "source candidate policy currently requires ARM64 Wine"
+        python3 "$SCRIPT_DIR/source_build_contract.py" --directory "$wine_data" \
+            --libs "$WINEHUA/entry/libs" --source-manifest "$SOURCE_BUILD_MANIFEST" \
+            --compiler "$OHOS_SDK/native/llvm/bin/clang" --compiler "$LLVM_MINGW/bin/clang"
+        candidate_args=(--source-build-manifest "$SOURCE_BUILD_MANIFEST")
+    fi
+
     # -- 3. 打包 zip → rawfile (不带 wine-data/ 前缀) --
     local rawfile_dir="$WINEHUA/entry/src/main/resources/rawfile"
     mkdir -p "$rawfile_dir"
@@ -1057,7 +1066,7 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
     cd "$wine_data"
     rm -f "$STAGING_DIR/$zip_name"
     zip -r "$STAGING_DIR/$zip_name" . -x '*.git*'
-    python3 "$SCRIPT_DIR/check_runtime_components.py" --payload "$STAGING_DIR/$zip_name"
+    python3 "$SCRIPT_DIR/check_runtime_components.py" --payload "$STAGING_DIR/$zip_name" "${candidate_args[@]}"
     cp "$STAGING_DIR/$zip_name" "$rawfile_dir/"
     local payload_sha
     payload_sha="$(sha256sum "$rawfile_dir/$zip_name" | awk '{print $1}')"
@@ -1079,6 +1088,15 @@ EOF
     python3 "$SCRIPT_DIR/verify_ci_release.py" runtime \
         --manifest "$rawfile_dir/wine-runtime-manifest.json" --wine-source "$WINE_SRC" \
         --native-arch "$NATIVE_ARCH" --wine-arch "$WINE_ARCH"
+    if [ -n "${SOURCE_BUILD_MANIFEST:-}" ]; then
+        python3 - "$rawfile_dir/wine-runtime-manifest.json" <<'PYCANDIDATE'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+value = json.loads(path.read_text())
+value.update(validationPolicy='source-build-candidate', deviceValidated=False)
+path.write_text(json.dumps(value, indent=2) + '\n')
+PYCANDIDATE
+    fi
     if [ "$WINE_ARCH" = aarch64 ]; then
         python3 "$SCRIPT_DIR/wined3d_runtime_contract.py" \
             --directory "$wine_data" --manifest "$rawfile_dir/wine-runtime-manifest.json"

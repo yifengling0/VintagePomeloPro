@@ -27,7 +27,7 @@ def encoded(value):
     return (json.dumps(value, indent=2) + '\n').encode()
 
 
-def validate(runtime, icd, lock=None):
+def validate(runtime, icd, lock=None, candidate=None):
     lock = lock or json.loads(LOCK.read_text())
     if lock.get('schemaVersion') != 1:
         raise ValueError('unsupported texture runtime lock')
@@ -38,17 +38,27 @@ def validate(runtime, icd, lock=None):
             raise ValueError('unpaired DXVK commit: ' + profile)
         for member, digest in pin['files'].items():
             arch, name = member.split('/')
+            if candidate is not None:
+                from source_build_contract import validate_member
+                path = 'dxvk/' + profile + '/' + member
+                validate_member(candidate, 'payload', path, runtime.read(path))
+                digest = candidate['payload'][path]['sha256']
             if sha(runtime.read('dxvk/' + profile + '/' + member)) != digest or record[arch][name] != digest:
                 raise ValueError('stale DXVK texture runtime: ' + profile + '/' + member)
     expected = lock['venus']['sha256']
     guest = json.loads(runtime.read('bin/guest_vulkan/manifest.json'))
-    if sha(icd) != expected or sha(runtime.read('bin/guest_vulkan/lib/libvulkan_virtio.so')) != expected:
+    top_matches = sha(icd) == expected
+    if candidate is not None:
+        from source_build_contract import elf_identity
+        expected = candidate['venusSha256']
+        top_matches = elf_identity(icd) == candidate['venusLoadableSha256']
+    if not top_matches or sha(runtime.read('bin/guest_vulkan/lib/libvulkan_virtio.so')) != expected:
         raise ValueError('unpaired top-level and nested Venus ICD')
     if guest['files']['lib/libvulkan_virtio.so'] != expected or manifest['venusRuntime']['guestIcdSha256'] != expected:
         raise ValueError('stale Venus runtime metadata')
     if guest['guestMesaCommit'] != lock['venus']['commit']:
         raise ValueError('stale Venus source identity')
-    validate_modern_runtime(runtime)
+    validate_modern_runtime(runtime, candidate=candidate)
 
 
 def package(rawfile, profiles, icd_path, host_path):

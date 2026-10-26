@@ -42,6 +42,7 @@ jobs:
         run: |
           python3 host_tests/ci_release_test.py
           python3 host_tests/linux_runtime_components_test.py
+          python3 host_tests/source_build_contract_test.py
       - name: Fetch and verify published GNU dependency bytes
         run: python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-clean-checkout.json
       - uses: actions/upload-artifact@v4
@@ -258,6 +259,8 @@ jobs:
           BUILD_GUEST_GFX: '1'
           BUILD_GUEST_VULKAN: '1'
           BUILD_WINE_MONO: '1'
+          # Rebuilt bytes are candidates, not the device-accepted binary lock.
+          SOURCE_BUILD_MANIFEST: ${{ github.workspace }}/ci-artifacts/ci-source.json
         run: |
           set -euxo pipefail
           make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 GUEST_ARCH=aarch64 hap-unsigned
@@ -367,6 +370,12 @@ jobs:
           cp ci-artifacts/ci-source.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-source.json"
           cp ci-artifacts/ci-artifact.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-artifact.json"
           ls -lh
+
+      # A successful source build is not hardware regression approval. RC
+      # publication still requires the reviewed final-byte compatibility locks.
+      - name: Verify reviewed runtime before RC publication
+        if: startsWith(steps.tag.outputs.tag, 'rc-')
+        run: python3 scripts/check_runtime_components.py --hap "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
 
       - name: Generate changelog
         env:
