@@ -58,6 +58,17 @@ make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64
   `url."https://x-access-token:<TOKEN>@github.com/".insteadOf "git@github.com:"` 改成 HTTPS 取。
 - 签名用仓库私有 `sign.py`（口令在本地配置里，不进仓库）；公开/CI 产物是 **unsigned HAP**。
 
+### 干净源码的 FEX 补丁预检
+
+CI 在长时间编译前执行 `python3 host_tests/fex_overlay_replay_test.py`：
+从 FEX 的固定 gitlink 提取补丁涉及的小型文件集，实际执行
+`build_fex.sh` 的 `FEX_PATCH_CHECK_ONLY=1` 路径两次，核对首次应用和增量
+重放的结果一致，再编译运行真实 VM tracker 的行为测试。预检不修改源码子模块。
+
+`fex-windows-vm-contract.patch` 是完整生产补丁序列之后的增量，必须最后应用；
+它不再重复携带 unaligned diagnostics、synthetic return、JIT 诊断和文件加载修复。
+历史 Steam 诊断补丁仍默认关闭。补丁预检通过只证明可重放，完整 HAP 仍须编译验证。
+
 ### 构建输入各自来自哪里（改代码前必看）
 
 | 输入 | 来源 | 说明 |

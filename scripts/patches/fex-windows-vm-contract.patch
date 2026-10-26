@@ -1,5 +1,3 @@
-Subject: [PATCH] Windows: preserve VM permissions and validate writable code
-
 --- a/FEXCore/Source/Interface/Core/Core.cpp
 +++ b/FEXCore/Source/Interface/Core/Core.cpp
 @@ -673,12 +673,9 @@
@@ -153,15 +151,7 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
  class SyscallHandler;
 --- a/Source/Windows/ARM64EC/Module.cpp
 +++ b/Source/Windows/ARM64EC/Module.cpp
-@@ -47,6 +47,7 @@
- #include "BTInterface.h"
- #include "Windows/Common/SHMStats.h"
- 
-+#include <atomic>
- #include <cstdint>
- #include <cstdio>
- #include <type_traits>
-@@ -60,6 +61,8 @@
+@@ -61,6 +61,8 @@
  #include <winnt.h>
  #include <wine/debug.h>
  
@@ -170,10 +160,11 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
  namespace Exception {
  class ECSyscallHandler;
  }
-@@ -292,8 +295,26 @@
+@@ -292,6 +294,22 @@
+   ImageTracker->HandleImageUnmap(Address, Size);
  }
  } // namespace
- 
++
 +class ScopedCallbackDisable {
 +private:
 +  bool Prev;
@@ -189,31 +180,10 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
 +    GetCPUArea().Area->InSyscallCallback = Prev;
 +  }
 +};
-+
+ 
  namespace Exception {
  static std::optional<FEX::Windows::TSOHandlerConfig> HandlerConfig;
-+static std::atomic<uint32_t> UnalignedEventCount {};
-+static std::atomic<uint32_t> UnalignedFailureCount {};
- static uintptr_t KiUserExceptionDispatcher;
- 
- struct alignas(16) KiUserExceptionDispatcherStackLayout {
-@@ -304,13 +325,13 @@
-   uint64_t Redzone[2];
- };
- 
--static bool HandleUnalignedAccess(const ThreadCPUArea CPUArea, ARM64_NT_CONTEXT& Context, bool IsJIT) {
-+static std::optional<int32_t> HandleUnalignedAccess(const ThreadCPUArea CPUArea, ARM64_NT_CONTEXT& Context, bool IsJIT) {
-   auto Thread = CPUArea.ThreadState();
-   FEXCORE_PROFILE_INSTANT_INCREMENT(Thread, AccumulatedSIGBUSCount, 1);
-   const auto Result =
-     FEXCore::ArchHelpers::Arm64::HandleUnalignedAccess(Thread, HandlerConfig->GetUnalignedHandlerType(), Context.Pc, &Context.X0, IsJIT);
-   Context.Pc += Result.value_or(0);
--  return Result.has_value();
-+  return Result;
- }
- 
- static void LoadStateFromECContext(FEXCore::Core::InternalThreadState* Thread, CONTEXT& Context) {
-@@ -537,10 +558,15 @@
+@@ -540,10 +558,15 @@
    }
  
    void MarkGuestExecutableRange(FEXCore::Core::InternalThreadState* Thread, uint64_t Start, uint64_t Length) override {
@@ -229,7 +199,7 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
      InvalidationTracker->InvalidateAlignedInterval(Start, Length, false);
    }
  
-@@ -656,21 +682,7 @@
+@@ -659,21 +682,7 @@
  
  void ProcessTerm(HANDLE Handle, BOOL After, NTSTATUS Status) {}
  
@@ -252,7 +222,7 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
  
  // Returns true if exception dispatch should be halted and the execution context restored to NativeContext
  bool ResetToConsistentStateImpl(const ThreadCPUArea CPUArea, EXCEPTION_RECORD* Exception, CONTEXT* GuestContext, ARM64_NT_CONTEXT* NativeContext) {
-@@ -687,10 +699,14 @@
+@@ -690,7 +699,7 @@
      return true;
    }
  
@@ -260,16 +230,8 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
 +  if (Exception->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && Exception->NumberParameters >= 2) {
      const auto FaultAddress = static_cast<uint64_t>(Exception->ExceptionInformation[1]);
  
--    if (FEX::Windows::CallRetStack::HandleAccessViolation(Thread, FaultAddress, NativeContext->X17)) {
-+    if (FEX::Windows::CallRetStack::HandleAccessViolation(
-+          Thread, FaultAddress, NativeContext->X17,
-+          CTX->IsAddressInCodeBuffer(Thread, NativeContext->Pc) ||
-+          (NativeContext->Pc >= SignalDelegator->GetConfig().DispatcherBegin &&
-+           NativeContext->Pc < SignalDelegator->GetConfig().DispatcherEnd))) {
-       return true;
-     }
- 
-@@ -700,7 +716,7 @@
+     if (FEX::Windows::CallRetStack::HandleAccessViolation(
+@@ -707,7 +716,7 @@
      }
  
      std::scoped_lock Lock(ThreadCreationMutex);
@@ -278,43 +240,7 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
        FEXCORE_PROFILE_INSTANT_INCREMENT(Thread, AccumulatedSMCCount, 1);
        if (CTX->IsAddressInCodeBuffer(Thread, NativeContext->Pc) && !CTX->IsCurrentBlockSingleInst(CPUArea.ThreadState()) &&
            CTX->IsAddressInCurrentBlock(Thread, FaultAddress & FEXCore::Utils::FEX_PAGE_MASK, FEXCore::Utils::FEX_PAGE_SIZE)) {
-@@ -720,10 +736,31 @@
-     }
-   }
- 
--  bool IsJIT = CTX->IsAddressInCodeBuffer(Thread, NativeContext->Pc);
--  if (Exception->ExceptionCode == EXCEPTION_DATATYPE_MISALIGNMENT && Exception::HandleUnalignedAccess(CPUArea, *NativeContext, IsJIT)) {
--    LogMan::Msg::DFmt("Handled unaligned atomic: new pc: {:X}", NativeContext->Pc);
--    return true;
-+  const bool IsJIT = CTX->IsAddressInCodeBuffer(Thread, NativeContext->Pc);
-+  if (Exception->ExceptionCode == EXCEPTION_DATATYPE_MISALIGNMENT) {
-+    const uint64_t OldPC = NativeContext->Pc;
-+    const uint32_t Opcode = *reinterpret_cast<const uint32_t*>(OldPC);
-+    const auto Result = Exception::HandleUnalignedAccess(CPUArea, *NativeContext, IsJIT);
-+    const uint32_t Event = Exception::UnalignedEventCount.fetch_add(1, std::memory_order_relaxed);
-+    uint32_t Failure = UINT32_MAX;
-+    if (!Result) {
-+      Failure = Exception::UnalignedFailureCount.fetch_add(1, std::memory_order_relaxed);
-+    }
-+
-+    // Keep enough early and periodic evidence to identify changing CEF fault
-+    // patterns without recreating the previous unbounded signal log storm.
-+    const bool ShouldLog = Event < 64 || (Event < 16384 && (Event % 256) == 0) || (!Result && Failure < 64);
-+    if (ShouldLog) {
-+      const auto Output = fextl::fmt::format(
-+        "[FEX-UNALIGNED] pid={} tid={} event={} failure={} code=0x{:08x} thread={} config={} pc=0x{:x} opcode=0x{:08x} jit={} handled={} skip={} next_pc=0x{:x}\n",
-+        GetCurrentProcessId(), GetCurrentThreadId(), Event, Failure, Exception->ExceptionCode, Thread != nullptr, Exception::HandlerConfig.has_value(), OldPC,
-+        Opcode, IsJIT, Result.has_value(), Result.value_or(-1), NativeContext->Pc);
-+      __wine_dbg_output(Output.c_str());
-+    }
-+
-+    if (Result) {
-+      return true;
-+    }
-   }
- 
-   if (!IsJIT && !IsDispatcherAddress(NativeContext->Pc)) {
-@@ -754,7 +791,7 @@
+@@ -782,7 +791,7 @@
  
  NTSTATUS ResetToConsistentState(EXCEPTION_RECORD* Exception, CONTEXT* GuestContext, ARM64_NT_CONTEXT* NativeContext) {
    bool Cont {};
@@ -663,80 +589,7 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
    const std::unordered_map<DWORD, FEXCore::Core::InternalThreadState*>& Threads;
 --- a/Source/Windows/WOW64/Module.cpp
 +++ b/Source/Windows/WOW64/Module.cpp
-@@ -52,6 +52,7 @@
- #include <type_traits>
- #include <atomic>
- #include <mutex>
-+#include <optional>
- #include <utility>
- #include <unordered_map>
- #include <ntstatus.h>
-@@ -123,6 +124,7 @@
- } // namespace BridgeInstrs
- 
- fextl::unique_ptr<FEXCore::Context::Context> CTX;
-+std::atomic<bool> CPUProcessReady {};
- fextl::unique_ptr<FEX::DummyHandlers::DummySignalDelegator> SignalDelegator;
- fextl::unique_ptr<WowSyscallHandler> SyscallHandler;
- fextl::unique_ptr<FEX::Windows::StatAlloc> StatAllocHandler;
-@@ -334,11 +336,13 @@
- }
- 
- static std::optional<FEX::Windows::TSOHandlerConfig> HandlerConfig;
--
--bool HandleUnalignedAccess(TLS TLS, CONTEXT* Context) {
-+static std::atomic<uint32_t> UnalignedEventCount {};
-+static std::atomic<uint32_t> UnalignedFailureCount {};
-+
-+std::optional<int32_t> HandleUnalignedAccess(TLS TLS, CONTEXT* Context) {
-   auto Thread = TLS.ThreadState();
-   if (!Thread->CTX->IsAddressInCodeBuffer(Thread, Context->Pc)) {
--    return false;
-+    return std::nullopt;
-   }
- 
-   const auto Result =
-@@ -434,6 +438,7 @@
-     const uint64_t ReturnRIP = *(uint32_t*)(Frame->State.gregs[FEXCore::X86State::REG_RSP]); // Return address from the stack
-     uint64_t ReturnRSP = Frame->State.gregs[FEXCore::X86State::REG_RSP] + 4;                 // Stack pointer after popping return address
-     uint64_t ReturnRAX = 0;
-+    const uint64_t EntryCallRetSP = Frame->State.callret_sp;
- 
-     if (Frame->State.rip == (uint64_t)BridgeInstrs::UnixCall) {
-       struct StackLayout {
-@@ -459,6 +464,7 @@
-     }
-     // If a new context has been set, use it directly and don't return to the syscall caller
-     if (Frame->State.rip == (uint64_t)BridgeInstrs::Syscall || Frame->State.rip == (uint64_t)BridgeInstrs::UnixCall) {
-+      FEX::Windows::CallRetStack::CompleteSyntheticReturn(Frame->Thread, EntryCallRetSP, ReturnRIP);
-       Frame->State.gregs[FEXCore::X86State::REG_RAX] = ReturnRAX;
-       Frame->State.gregs[FEXCore::X86State::REG_RSP] = ReturnRSP;
-       Frame->State.rip = ReturnRIP;
-@@ -509,10 +515,23 @@
- };
- 
- void BTCpuProcessInit() {
-+  CPUProcessReady.store(false, std::memory_order_relaxed);
-+  GetTLS().ThreadState() = nullptr;
-   FEX::Windows::InitCRTProcess();
-   const auto ExecutableName = FEX::Windows::BaseName(FEX::Windows::GetExecutableFilePath());
-   FEX::Config::LoadConfig(fextl::string {ExecutableName}, _environ, FEX::ReadPortabilityInformation());
-   FEXCore::Config::ReloadMetaLayer();
-+
-+  // One line for a manually requested symbol trace; no per-frame logging.
-+  if (const char* Directory = std::getenv("FEX_JITMAPDIR"); Directory && Directory[0]) {
-+    FEX_CONFIG_OPT(DiagnosticLibraryNaming, LIBRARYJITNAMING);
-+    FEX_CONFIG_OPT(DiagnosticGlobalNaming, GLOBALJITNAMING);
-+    FEX_CONFIG_OPT(DiagnosticBlockNaming, BLOCKJITNAMING);
-+    const auto Output = fextl::fmt::format(
-+      "[FEX-JIT-DIAG] wine_pid={} library={} global={} block={} directory={}\n",
-+      GetCurrentProcessId(), DiagnosticLibraryNaming(), DiagnosticGlobalNaming(), DiagnosticBlockNaming(), Directory);
-+    __wine_dbg_output(Output.c_str());
-+  }
-   FEX::Windows::Logging::Init();
- 
-   FEXCore::Config::Set(FEXCore::Config::CONFIG_INTERPRETER_INSTALLED, "0");
-@@ -542,6 +561,10 @@
+@@ -561,6 +561,10 @@
    CTX->InitCore();
    Context::HandlerConfig.emplace(*CTX);
    InvalidationTracker.emplace(*CTX, Threads);
@@ -747,63 +600,16 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
    ImageTracker.emplace(*CTX, false);
  
    auto MainModule = reinterpret_cast<__TEB*>(NtCurrentTeb())->Peb->ImageBaseAddress;
-@@ -592,6 +615,7 @@
-     LogMan::Msg::IFmt("[{}][{}] Sleeping for {} seconds", GetCurrentProcessId(), ExecutableName, StartupSleep());
-     std::this_thread::sleep_for(std::chrono::seconds(StartupSleep()));
-   }
-+  CPUProcessReady.store(true, std::memory_order_release);
- }
- 
- void BTCpuProcessTerm(HANDLE Handle, BOOL After, ULONG Status) {}
-@@ -599,6 +623,8 @@
- void BTCpuThreadInit() {
-   static constexpr size_t DefaultWow64CS {4};
-   std::scoped_lock Lock(ThreadCreationMutex);
-+  const auto TLS = GetTLS();
-+  TLS.ThreadState() = nullptr;
-   FEX::Windows::InitCRTThread();
-   auto* Thread = CTX->CreateThread(0, 0);
- 
-@@ -622,7 +648,6 @@
- 
-   FEX::Windows::CallRetStack::InitializeThread(Thread);
- 
--  const auto TLS = GetTLS();
-   TLS.ThreadState() = Thread;
-   TLS.ControlWord().fetch_or(ControlBits::WOW_CPU_AREA_DIRTY, std::memory_order::relaxed);
- 
-@@ -673,6 +698,7 @@
-     }
-   }
-   auto ThreadState = TLS.ThreadState();
-+  TLS.ThreadState() = nullptr;
- 
-   delete GetFrontendThreadData(ThreadState);
- 
-@@ -869,16 +895,20 @@
- 
- // Returns true if exception dispatch should be halted and the execution context restored to Ptrs->Context
- bool BTCpuResetToConsistentStateImpl(EXCEPTION_POINTERS* Ptrs) {
-+  // Native initialization faults must remain native Wine exceptions.
-+  // Reserved WOW64 TLS slots do not yet contain an FEX thread.
-+  if (!CPUProcessReady.load(std::memory_order_acquire)) return false;
-   auto* Context = Ptrs->ContextRecord;
-   auto* Exception = Ptrs->ExceptionRecord;
-   auto TLS = GetTLS();
-   auto Thread = TLS.ThreadState();
-+  if (!Thread) return false;
+@@ -901,7 +905,7 @@
+   if (!Thread) return false;
    FEXCORE_PROFILE_ACCUMULATION(Thread, AccumulatedSignalTime);
  
 -  if (Exception->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
 +  if (Exception->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && Exception->NumberParameters >= 2) {
      const auto FaultAddress = static_cast<uint64_t>(Exception->ExceptionInformation[1]);
  
--    if (FEX::Windows::CallRetStack::HandleAccessViolation(Thread, FaultAddress, Context->X25)) {
-+    if (FEX::Windows::CallRetStack::HandleAccessViolation(Thread, FaultAddress, Context->X25, IsAddressInJit(Context->Pc))) {
-       return true;
-     }
- 
-@@ -899,7 +929,7 @@
+     if (FEX::Windows::CallRetStack::HandleAccessViolation(Thread, FaultAddress, Context->X25, IsAddressInJit(Context->Pc))) {
+@@ -925,7 +929,7 @@
      if (Thread) {
        std::scoped_lock Lock(ThreadCreationMutex);
        FEXCORE_PROFILE_INSTANT_INCREMENT(Thread, AccumulatedSMCCount, 1);
@@ -812,7 +618,7 @@ Subject: [PATCH] Windows: preserve VM permissions and validate writable code
          if (CTX->IsAddressInCodeBuffer(Thread, Context->Pc) && !CTX->IsCurrentBlockSingleInst(Thread) &&
              CTX->IsAddressInCurrentBlock(Thread, FaultAddress & FEXCore::Utils::FEX_PAGE_MASK, FEXCore::Utils::FEX_PAGE_SIZE)) {
            Context::ReconstructThreadState(TLS, Context);
-@@ -965,6 +995,17 @@
+@@ -991,6 +995,17 @@
  void BTCpuFlushInstructionCacheHeavy(const void* Address, SIZE_T Size) {
    std::scoped_lock Lock(ThreadCreationMutex);
    InvalidationTracker->InvalidateAlignedInterval(reinterpret_cast<uint64_t>(Address), static_cast<uint64_t>(Size), false);

@@ -356,15 +356,17 @@ with tempfile.TemporaryDirectory(prefix='fex-vm-contract-') as folder:
     for rel in paths:
         p=src/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((fex/rel).read_bytes())
     if not args.baseline and not args.source:
-        # Replay the complete overlay while compiling only the actual tracker.
+        # Compile the actual tracker delta independently. Module integration
+        # depends on the preceding product overlays and is exercised by
+        # fex_overlay_replay_test.py against the complete build script.
         import re
         overlay=(root/'scripts/patches/fex-windows-vm-contract.patch').read_text()
-        for rel in re.findall(r'^--- a/(.+)$',overlay,re.M):
-            p=src/rel
-            if not p.exists():
-                p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((fex/rel).read_bytes())
-        with (root/'scripts/patches/fex-windows-vm-contract.patch').open('rb') as patch:
-            subprocess.run(['patch','-s','-p1','-d',str(src)],stdin=patch,check=True)
+        blocks=re.split(r'(?=^--- a/)',overlay,flags=re.M)
+        tracker=''.join(block for block in blocks if block.startswith(
+            '--- a/Source/Windows/Common/InvalidationTracker'))
+        assert tracker, 'VM tracker overlay missing'
+        subprocess.run(['patch','--batch','-s','-p1','-d',str(src)],
+            input=tracker,text=True,check=True)
     for rel,content in headers.items():
         p=stubs/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
     (tmp/'test.cpp').write_text(test)

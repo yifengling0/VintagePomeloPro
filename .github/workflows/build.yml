@@ -248,6 +248,11 @@ jobs:
           set -euo pipefail
           python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-components.json
 
+      # Replay first, before the hour-long native dependency build. This uses
+      # small fixtures and leaves the verified checkout untouched.
+      - name: Verify fresh and incremental FEX source overlays
+        run: python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
+
       - name: Install ArkTS project dependencies
         run: ohpm install --all
 

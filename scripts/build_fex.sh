@@ -107,16 +107,6 @@ for PATCH in \
     log "已应用 patch: $(basename "$PATCH")"
 done
 
-# VM contracts are independent of the earlier complete-patch-set shortcut.
-# Never assume this overlay exists merely because the legacy set is applied.
-PATCH="$SCRIPT_DIR/patches/fex-windows-vm-contract.patch"
-if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$PATCH" >/dev/null 2>&1; then
-    patch -d "$FEX_SRC" -p1 --dry-run -s < "$PATCH" >/dev/null || \
-        err "FEX VM contract patch 无法应用: $PATCH"
-    patch -d "$FEX_SRC" -p1 -s < "$PATCH"
-    log "已应用 patch: $(basename "$PATCH")"
-fi
-
 PATCH="$SCRIPT_DIR/patches/fex-wow64-exact-store.patch"
 if grep -Fq 'bool WindowsExactFloatStoreEnabled {}' "$FEX_SRC/FEXCore/Source/Interface/Context/Context.h" &&
    grep -Fq 'std::getenv("FEX_EXACTSTORE")' "$FEX_SRC/FEXCore/Source/Interface/Core/Core.cpp" &&
@@ -401,6 +391,22 @@ for fault_patch_name in fex-pop-memory-precise-stack.patch fex-memory-offset-fau
         log "Applied patch: $fault_patch_name"
     fi
 done
+
+# The VM overlay is a delta on the complete production series above, including
+# diagnostics, synthetic returns and early initialization guards. Apply it last
+# so the same fixes are neither duplicated nor silently omitted.
+PATCH="$SCRIPT_DIR/patches/fex-windows-vm-contract.patch"
+if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$PATCH" >/dev/null 2>&1; then
+    patch -d "$FEX_SRC" -p1 --dry-run -s < "$PATCH" >/dev/null || \
+        err "FEX VM contract patch 无法应用: $PATCH"
+    patch -d "$FEX_SRC" -p1 -s < "$PATCH"
+    log "已应用 patch: $(basename "$PATCH")"
+fi
+
+if [ "${FEX_PATCH_CHECK_ONLY:-0}" = 1 ]; then
+    log "FEX source overlays verified without compilation"
+    exit 0
+fi
 
 prepare_mul24_cache() {
     local build="$1" expected="$2" flags cached=0
