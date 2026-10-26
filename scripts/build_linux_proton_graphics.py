@@ -28,6 +28,7 @@ def main():
     p.add_argument('--xwayland-build', type=Path, required=True)
     p.add_argument('--extra-deps', type=Path, required=True)
     p.add_argument('--meson', type=Path, required=True)
+    p.add_argument('--runtime', type=Path, required=True, help='Verified shared GNU runtime; no machine-specific fallback')
     p.add_argument('--output', type=Path, required=True)
     a = p.parse_args()
     mesa = a.mesa_build.resolve(strict=True)
@@ -137,7 +138,7 @@ def main():
                  gallium.name: gallium, 'libdril_dri.so': build/'src/gallium/targets/dril/libdril_dri.so',
                  'libgbm.so.1': build/'src/gbm/libgbm.so.1.0.0',
                  'libEGL-proton.so.1': build/'src/egl/libEGL.so'}
-    runtime = Path('/home/liufeng/steamohos-client-20261019-external-v3-build/runtime')
+    runtime = a.runtime.resolve(strict=True)
     shared = set((output/'runtime-modules.list').read_text().splitlines())
     search = [extra/'usr/lib/aarch64-linux-gnu', mesa/'deps-root/usr/lib/aarch64-linux-gnu',
               mesa/'deps-root/lib/aarch64-linux-gnu', xwayland/'deps-root/usr/lib/aarch64-linux-gnu', runtime]

@@ -9,6 +9,9 @@ source "$SCRIPT_DIR/env.sh"
 # ============================================================
 assemble_pad() {
     log "=== 组装布局 ($NATIVE_ARCH) ==="
+    if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
+        python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py"
+    fi
 
     local wine_data="$STAGING_DIR/wine-data"
     local guest_arch="${GUEST_ARCH:-$WINE_ARCH}"
@@ -1073,6 +1076,9 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
   "smokeSuiteVersion": "$smoke_suite_version"
 }
 EOF
+    python3 "$SCRIPT_DIR/verify_ci_release.py" runtime \
+        --manifest "$rawfile_dir/wine-runtime-manifest.json" --wine-source "$WINE_SRC" \
+        --native-arch "$NATIVE_ARCH" --wine-arch "$WINE_ARCH"
     if [ "$WINE_ARCH" = aarch64 ]; then
         python3 "$SCRIPT_DIR/wined3d_runtime_contract.py" \
             --directory "$wine_data" --manifest "$rawfile_dir/wine-runtime-manifest.json"

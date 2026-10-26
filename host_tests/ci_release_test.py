@@ -118,31 +118,54 @@ class SourceTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             release.verify_source(self.root, self.sha, "")
 
+    def test_runtime_records_selected_wine_gitlink(self):
+        child = self.root / 'thirdparty/wine-valve'
+        init_repo(child)
+        git(self.root, 'submodule', 'add', './thirdparty/wine-valve', 'thirdparty/wine-valve')
+        commit(self.root)
+        target = self.root / 'build/runtime-manifest.json'
+        write(target, json.dumps(dict(schemaVersion=1, payload='wine-data.zip')))
+        identity = release.record_runtime(self.root, target, child, 'arm64-v8a', 'aarch64')
+        self.assertEqual(identity['submodules']['thirdparty/wine-valve'], git(child, 'rev-parse', 'HEAD'))
+        self.assertEqual(identity['commit'], git(self.root, 'rev-parse', 'HEAD'))
+        self.assertEqual(json.loads(target.read_text())['payload'], 'wine-data.zip')
+        with self.assertRaisesRegex(ValueError, 'pinned in-repository'):
+            release.record_runtime(self.root, target, self.root / 'untracked-wine', 'arm64-v8a', 'aarch64')
+
     def test_artifact_version_and_architecture(self):
-        modules = ("wine", "box64", "mesa", "virglrenderer", "gstreamer",
-                   "gnutls", "glib", "pcre2", "dxvk")
+        modules = ("wine-valve", "fex", "box64", "mesa", "virglrenderer", "gstreamer",
+                   "gnutls", "nettle", "glib", "pcre2", "dxvk", "dxvk-modern")
         submodules = {"thirdparty/" + module: hashlib.sha1(module.encode()).hexdigest()
                       for module in modules}
         manifest = {"commit": self.sha, "releaseTag": "rc-1.3.3", "app": APP,
                     "submodules": submodules}
         hap = self.root / "test.hap"
         def create(app, machine=183, stale_wine=False, corrupt_runtime=False,
-                   include_version=True):
+                   include_version=True, stale_mesa=False, missing_gnu_host=False):
             with zipfile.ZipFile(hap, "w") as archive:
                 archive.writestr("module.json", json.dumps({"app": dict(app, minAPIVersion=60100023, targetAPIVersion=60100023)}))
                 header = b"\x7fELF\x02\x01" + bytes(12) + machine.to_bytes(2, "little")
-                for name in ("box64.so", "libentry.so", "libwine_child.so", "libwinehua_vtest_server.so",
-                             "libvirglrenderer.so.1", "libvirgl_child.so"):
+                libraries = ["libentry.so", "libwine_child.so", "libwinehua_vtest_server.so",
+                             "libvirglrenderer.so.1", "libvirgl_child.so", "libsmoke_napi.so"]
+                if not missing_gnu_host:
+                    libraries.append('libsteamohos_gnu_child.so')
+                for name in libraries:
                     archive.writestr("libs/arm64-v8a/" + name, header)
                 archive.writestr("resources/rawfile/wine-data.zip", b"fixture")
-                version = {module: submodules["thirdparty/" + module][:10] for module in modules}
+                version = {module: submodules["thirdparty/" + module][:10] for module in ('wine-valve', 'fex')}
+                version['arch'] = 'arm64-v8a:aarch64'
                 if stale_wine:
-                    version["wine"] = "0" * 10
+                    version["wine-valve"] = "0" * 10
                 if include_version:
                     archive.writestr("resources/rawfile/wine_runtime.version",
                                      ";".join(f"{key}={value}" for key, value in version.items()))
+                provenance = dict(commit=self.sha, nativeArch='arm64-v8a', wineArch='aarch64',
+                                  wineSource='thirdparty/wine-valve', submodules=dict(submodules))
+                if stale_mesa:
+                    provenance['submodules']['thirdparty/mesa'] = '0' * 40
                 archive.writestr("resources/rawfile/wine-runtime-manifest.json", json.dumps({
                     "schemaVersion": 1, "payload": "wine-data.zip",
+                    "sourceBuild": provenance,
                     "payloadSha256": hashlib.sha256(b"stale" if corrupt_runtime else b"fixture").hexdigest()
                 }))
         create(APP)
@@ -154,7 +177,13 @@ class SourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "AArch64"):
             release.verify_artifact(hap, manifest)
         create(APP, stale_wine=True)
-        with self.assertRaisesRegex(ValueError, "wine runtime.*differs from pinned"):
+        with self.assertRaisesRegex(ValueError, "wine-valve runtime.*differs from pinned"):
+            release.verify_artifact(hap, manifest)
+        create(APP, stale_mesa=True)
+        with self.assertRaisesRegex(ValueError, 'runtime submodule.*mesa'):
+            release.verify_artifact(hap, manifest)
+        create(APP, missing_gnu_host=True)
+        with self.assertRaises(KeyError):
             release.verify_artifact(hap, manifest)
         create(APP, corrupt_runtime=True)
         with self.assertRaisesRegex(ValueError, "SHA-256 manifest"):
@@ -171,6 +200,12 @@ class PackagingTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         for name in ("package.sh", "env.sh"):
             write(self.root / "scripts" / name, (ROOT / "scripts" / name).read_text(encoding="utf-8"))
+        # These tests isolate unsigned/signing behavior. Runtime byte validation
+        # has dedicated component tests, and the fake hvigor below emits no ELF.
+        for name in ('normalize_runtime_identity.py', 'runtime_library_guard.py',
+                     'prepare_steam_gpu_dependency.py', 'prepare_linux_runtime_components.py',
+                     'check_runtime_components.py'):
+            write(self.root / 'scripts' / name, '# packaging test validator stub\n')
         write(self.root / "AppScope/app.json5", json.dumps({"app": APP}))
         write(self.root / "entry/build-profile.json5", '{"abiFilters": ["arm64-v8a"]}')
         write(self.root / "entry/src/main/module.json5", '{}')
@@ -181,7 +216,15 @@ class PackagingTests(unittest.TestCase):
         self.hvigor = self.root / "tools/bin/hvigorw"
         write(self.hvigor, '#!/bin/bash\nmkdir -p entry/build/default/outputs/default\nprintf fixture > entry/build/default/outputs/default/entry-default-unsigned.hap\n')
         self.hvigor.chmod(0o755)
+        # No compiler runs in this fixture. Satisfy env.sh's toolchain identity
+        # probe without downloading a toolchain into every TemporaryDirectory.
+        llvm = self.root / 'llvm-fixture'
+        write(llvm / 'bin/arm64ec-w64-mingw32-clang', '#!/bin/sh\nexit 0\n')
+        write(llvm / 'bin/llvm-ar', '#!/bin/sh\nprintf "obj.arm64ec/fixture.o\\n"\n')
+        for tool in (llvm / 'bin').iterdir():
+            tool.chmod(0o755)
         self.env = dict(os.environ, TOOL_HOME=str(self.root / "tools"), WAYLAND_SCANNER="/bin/true",
+                        LLVM_MINGW=str(llvm),
                         NATIVE_ARCH="arm64-v8a", USER_PROFILE_DIR=str(self.root / "mount"),
                         USER_SIGNATURE_DIR=str(self.root / "signatures"))
 

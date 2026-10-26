@@ -548,6 +548,18 @@ $(foreach a,arm64-v8a x86_64,$(eval $(call native_rule,$(a))))
 .PHONY: assemble
 assemble: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/assemble)
 
+# Native GNU dependencies are generated binary inputs, not Git-tracked HAP
+# resources. Restore their pinned distribution on a clean arm64 checkout.
+.PHONY: linux-runtime-components test-linux-runtime-components test-ci-release
+linux-runtime-components:
+	python3 $(SCRIPTS)/prepare_linux_runtime_components.py
+
+test-linux-runtime-components:
+	python3 $(ROOT)/host_tests/linux_runtime_components_test.py
+
+test-ci-release:
+	python3 $(ROOT)/host_tests/ci_release_test.py
+
 define assemble_rule
 .PHONY: assemble-$(1)
 

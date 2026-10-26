@@ -3,17 +3,16 @@ name: Build VintagePomeloPro HAP (arm64-v8a, unsigned)
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, main_proton_steamarm64]
     tags:
       - 'dev-*'                 # 开发版 (直接发布, 不占 Latest 徽章)
       - 'rc-*'                  # RC 版 (占 Latest 徽章)
     paths-ignore:
-      - 'docs/**'
       - '**.md'
       - '.gitignore'
       - 'LICENSE*'
   pull_request:
-    branches: [master, main]
+    branches: [master, main, main_proton_steamarm64]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -217,27 +216,17 @@ jobs:
           echo "== nproc =="
           nproc
 
-      # 先单独构建运行时组件再打 HAP: 运行时构建失败与打包失败分开上报.
-      - name: Build guest graphics runtime (x64 + x86)
+      - name: Restore and verify pinned Linux Steam and GNU Proton components
         run: |
-          set -euxo pipefail
-          make NATIVE_ARCH=arm64-v8a dxvk
-          for dll in \
-            build/dxvk/legacy/x64/bin/d3d11.dll \
-            build/dxvk/legacy/x64/bin/dxgi.dll \
-            build/dxvk/legacy/x86/bin/d3d11.dll \
-            build/dxvk/legacy/x86/bin/dxgi.dll; do
-            test -s "$dll"
-          done
-          file build/dxvk/legacy/x64/bin/d3d11.dll \
-               build/dxvk/legacy/x64/bin/dxgi.dll \
-               build/dxvk/legacy/x86/bin/d3d11.dll \
-               build/dxvk/legacy/x86/bin/dxgi.dll
-          sha256sum build/dxvk/legacy/{x64,x86}/bin/{d3d11,dxgi}.dll
+          set -euo pipefail
+          make test-linux-runtime-components
+          python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-components.json
 
       - name: Build HAP
         env:
           NATIVE_ARCH: arm64-v8a
+          WINE_ARCH: aarch64
+          GUEST_ARCH: aarch64
           # 与上游一致: guest gfx 负责自动构建 host-tools/wayland-scanner
           # (build_native.sh 硬性依赖), 并产出完整 guest Mesa/VirGL 载荷;
           # wine-mono 必须与 appwiz.cpl 同包, 否则 assemble.sh 直接失败。
@@ -246,7 +235,8 @@ jobs:
           BUILD_WINE_MONO: '1'
         run: |
           set -euxo pipefail
-          make NATIVE_ARCH=arm64-v8a GUEST_ARCH=x86_64 hap-unsigned
+          make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 GUEST_ARCH=aarch64 hap-unsigned
+          make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 arm64ec-release-gate
 
       - name: Locate artifacts
         id: art
@@ -258,6 +248,7 @@ jobs:
           test -s "$hap"
           python3 scripts/verify_ci_release.py artifact --manifest ci-artifacts/ci-source.json \
             --hap "$hap" --output ci-artifacts/ci-artifact.json
+          python3 scripts/prepare_linux_runtime_components.py --hap "$hap" --report ci-artifacts/gnu-components-hap.json
           echo "hap=$hap" >> "$GITHUB_OUTPUT"
 
       - name: Upload HAP
@@ -268,6 +259,8 @@ jobs:
             ${{ steps.art.outputs.hap }}
             ci-artifacts/ci-source.json
             ci-artifacts/ci-artifact.json
+            ci-artifacts/gnu-components.json
+            ci-artifacts/gnu-components-hap.json
           if-no-files-found: error
           retention-days: 14
 

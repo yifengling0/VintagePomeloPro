@@ -70,6 +70,24 @@ def verify_source(root, expected_sha, release_tag):
             "submodules": submodules, "patches": patches}
 
 
+def record_runtime(root, manifest_path, wine_source, native_arch, wine_arch):
+    source = Path(wine_source).resolve().relative_to(root.resolve()).as_posix()
+    links = {}
+    for record in git(root, 'ls-tree', '-rz', 'HEAD').split('\0'):
+        if record:
+            meta, name = record.split('\t', 1)
+            mode, _, pinned = meta.split()
+            if mode == '160000':
+                links[name] = pinned
+    if source not in links:
+        raise ValueError('Wine source must be a pinned in-repository submodule')
+    value = json.loads(manifest_path.read_text(encoding='utf-8'))
+    value['sourceBuild'] = dict(commit=git(root, 'rev-parse', 'HEAD'),
+        nativeArch=native_arch, wineArch=wine_arch, wineSource=source, submodules=links)
+    manifest_path.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
+    return value['sourceBuild']
+
+
 def verify_artifact(hap, manifest):
     with zipfile.ZipFile(hap) as archive:
         app = json.loads(archive.read("module.json"))["app"]
@@ -85,8 +103,9 @@ def verify_artifact(hap, manifest):
                 and len(name.split("/")) > 2}
         if abis != {"arm64-v8a"}:
             raise ValueError(f"unexpected native ABIs: {sorted(abis)}")
-        for library in ("box64.so", "libentry.so", "libwine_child.so",
-                        "libwinehua_vtest_server.so", "libvirglrenderer.so.1", "libvirgl_child.so"):
+        for library in ("libentry.so", "libwine_child.so", "libsmoke_napi.so",
+                        "libsteamohos_gnu_child.so", "libwinehua_vtest_server.so",
+                        "libvirglrenderer.so.1", "libvirgl_child.so"):
             with archive.open("libs/arm64-v8a/" + library) as stream:
                 header = stream.read(20)
             if header[:6] != b"\x7fELF\x02\x01" or int.from_bytes(header[18:20], "little") != 183:
@@ -96,8 +115,7 @@ def verify_artifact(hap, manifest):
             raise ValueError("empty guest runtime")
         version = archive.read("resources/rawfile/wine_runtime.version").decode("utf-8").strip()
         runtime_fields = dict(field.split("=", 1) for field in version.split(";"))
-        for module in ("wine", "box64", "mesa", "virglrenderer", "gstreamer",
-                       "gnutls", "glib", "pcre2", "dxvk"):
+        for module in ("wine-valve", "fex"):
             pinned = manifest["submodules"]["thirdparty/" + module]
             recorded = runtime_fields.get(module, "")
             if len(recorded) < 7 or not pinned.startswith(recorded):
@@ -105,6 +123,18 @@ def verify_artifact(hap, manifest):
         runtime_manifest = json.loads(archive.read("resources/rawfile/wine-runtime-manifest.json"))
         if runtime_manifest.get("payload") != "wine-data.zip":
             raise ValueError("invalid HAP runtime manifest")
+        provenance = runtime_manifest.get('sourceBuild', {})
+        if (provenance.get('commit') != manifest['commit'] or
+                provenance.get('nativeArch') != 'arm64-v8a' or
+                provenance.get('wineArch') != 'aarch64' or
+                provenance.get('wineSource') != 'thirdparty/wine-valve' or
+                runtime_fields.get('arch') != 'arm64-v8a:aarch64'):
+            raise ValueError('HAP runtime source or architecture differs from checked-out source')
+        for module in ('wine-valve', 'fex', 'box64', 'mesa', 'virglrenderer',
+                       'gstreamer', 'gnutls', 'nettle', 'glib', 'pcre2', 'dxvk', 'dxvk-modern'):
+            name = 'thirdparty/' + module
+            if provenance.get('submodules', {}).get(name) != manifest['submodules'][name]:
+                raise ValueError('HAP runtime submodule differs from pinned source: ' + name)
         runtime_digest = hashlib.sha256()
         with archive.open(runtime) as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -131,11 +161,20 @@ def main():
     artifact.add_argument("--manifest", type=Path, required=True)
     artifact.add_argument("--hap", type=Path, required=True)
     artifact.add_argument("--output", type=Path, required=True)
+    runtime = modes.add_parser('runtime')
+    runtime.add_argument('--manifest', type=Path, required=True)
+    runtime.add_argument('--wine-source', required=True)
+    runtime.add_argument('--native-arch', required=True)
+    runtime.add_argument('--wine-arch', required=True)
     args = parser.parse_args()
     if args.mode == "source":
         result = verify_source(ROOT, args.expected_sha, args.release_tag)
-    else:
+    elif args.mode == 'artifact':
         result = verify_artifact(args.hap, json.loads(args.manifest.read_text(encoding="utf-8")))
+    else:
+        record_runtime(ROOT, args.manifest, args.wine_source, args.native_arch, args.wine_arch)
+        print('Recorded pinned source identity in runtime manifest')
+        return
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2))

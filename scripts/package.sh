@@ -260,6 +260,7 @@ with open('$module_json', 'w') as f:
     # 复用 arm64-v8a CMake 缓存 → libentry.so 走 aarch64 路径 → 部署后 wineboot 初始化
     # 失败 (c0000135 / 加载 el1 ntdll)。切换 WINE_ARCH 时清 entry/.cxx 强制重新 configure。
     local cmake_arch_marker="$BUILD_DIR/.cmake_wine_arch"
+    mkdir -p "$BUILD_DIR"
     # marker 不存在 (首次/旧构建缓存) 或 WINE_ARCH 变化 → 清 CMake 缓存强制重新 configure
     if [ ! -f "$cmake_arch_marker" ] || [ "$(cat "$cmake_arch_marker" 2>/dev/null)" != "$WINE_ARCH" ]; then
         log "  WINE_ARCH=$WINE_ARCH (上次: $(cat "$cmake_arch_marker" 2>/dev/null || echo 无)), 清 CMake 缓存 (entry/.cxx)"
@@ -296,9 +297,15 @@ with open('$module_json', 'w') as f:
         "$WINEHUA/entry/libs" "$WINEHUA/entry/src/main/resources/rawfile"
     cd "$WINEHUA"
     python3 "$SCRIPT_DIR/prepare_steam_gpu_dependency.py"
+    if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
+        python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --verify-only
+    fi
     hvigorw assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
+    if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
+        python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --hap "$unsigned_hap"
+    fi
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
     # Unsigned distribution packages need the same final-byte compatibility
     # checks as signed builds; checking only the rawfile misses native stripping.
