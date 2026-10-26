@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceSnapshot": "7beeae4ddc215de9a5c9b2ff1822e936c9a50f19",
-  "releaseTag": "build-deps-gnu-1.5.2-f9706f8cc0e7",
+  "sourceSnapshot": "86aaa10c1d213897b9d7ec8af6834229b37663d2",
+  "releaseTag": "build-deps-gnu-1.5.2-21f85e476cc5",
   "buildPolicy": "Compile OHOS host/ArkTS from source; restore checksum-pinned prebuilt GNU dependencies. GNU source rebuild is a separate pipeline.",
   "sourceInputs": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",
@@ -30,7 +30,7 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_locale.c": "3a436caa462b4f4ae2c58bbc8baef960f93122641936e39b45934e0eebcf4675",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_media.c": "fb287fb3d8b86d8490bd35930fb2ca379b7b9d406c2318c75775dab1e5ad2a1e",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_present.c": "1d522676723e9c5a7053e88ec69ea6a167ff956fc3d982ac57bf9448d0244c3c",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_steam_ready.cpp": "05fcf3a3fdf03ed5061e48115ac933ede79b7b428cce8cf021af2f1465be1f04",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_steam_ready.cpp": "48ae4ff0ff32653a256e9551c8650b1d2e5fd1da7304fc2fcdb6b7d1452a28aa",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vlc.c": "0bf282a19eb9794c5380d50d849abdbd857306421b4cd58935722394bd4b3e79",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan.c": "aaf35ba9122ba708419b05aaee0672f998eda6727ddf4b0fbd5bf54169b93f43",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp": "178eb26fd3a6943137d492253bf8dab16b656035904b585a9359c8530a438305",
@@ -87,6 +87,7 @@
     "scripts/build_linux_steam_gnu_wayland.py": "8ed0dc34b8ecbf7e8ee42faf4920fab545b8f0daf95b088b0cb4e8e1e22158a5",
     "scripts/build_linux_steam_lsof.py": "3ee4b4f7f6851a1126a5fe605dbb0c7a4c30f38105ac9863e1472764058d4df4",
     "scripts/build_linux_steam_offline_package.py": "d781b78975ba0d23ce331d95f1cbe5179866ef496eca1b4602073fa6dc4c3cbc",
+    "scripts/build_linux_steam_pe_components.py": "56ad7ed8377657e4c249c9573e5319500d7c2039fb39d8679b2d454bd3c854d8",
     "scripts/build_linux_steam_software_gl.py": "0117cd997e5caca72a13b8bf1f4de1899d7253a798ceaff8b66af21716224642",
     "scripts/build_linux_steam_steamclient_pe_probe.py": "dc24412dcafa83014ddd33d2532550c8af6103f97cc7d2915e03e1a5b1486c72",
     "scripts/build_linux_steam_steamclient_probe.py": "671a0774f2e7fbaf94de81ee62db7e4f71ebb17efd58897881c61ddf00c4cc21",
@@ -114,10 +115,10 @@
     },
     {
       "path": "linux-proton/gnu-proton.zip",
-      "bytes": 116676942,
-      "sha256": "3af1fd2e8ef02ca44e52def036e8401dd5075426abb2be6da9c72928ff9160c4",
-      "manifestSha256": "e72c80e5f598e69f5e93f0e2bd935498f4b5fbe190d5510eb83e126b94901353",
-      "url": "https://github.com/yifengling0/VintagePomeloPro/releases/download/build-deps-gnu-1.5.2-f9706f8cc0e7/gnu-proton.zip"
+      "bytes": 116677154,
+      "sha256": "97327f3a9e8155a11050dcf4960543d61841db44e22afc9531cd066b224085be",
+      "manifestSha256": "fe9d9bad4b898e67d2ca2f8d351cd36ab5d3393ff4852101d6748c2e0ca3b764",
+      "url": "https://github.com/yifengling0/VintagePomeloPro/releases/download/build-deps-gnu-1.5.2-21f85e476cc5/gnu-proton.zip"
     }
   ]
 }

@@ -103,7 +103,8 @@ export async function collectSteamStartupDiagnostics(downloadRoot: string = ''):
     await new Promise<void>((resolve): void => { setTimeout(resolve, 0); });
     if (remaining < 4096) { text += `\n=== ${label}: omitted (export size limit) ===\n`; return; }
     try {
-      const tail = redactSteamDiagnostic(readDiagnosticTail(path, Math.min(limit, Math.floor(remaining / 4)), whole));
+      const content = readDiagnosticTail(path, Math.min(limit, Math.floor(remaining / 4)), whole);
+      const tail = whole ? redactSteamDiagnostic(content) : content;
       const bytes = new util.TextEncoder().encodeInto(tail).byteLength;
       remaining -= bytes;
       text += `\n=== ${redactSteamDiagnostic(label)} ===\n${tail}\n`; found = true;
