@@ -834,10 +834,11 @@ import hashlib, json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 manifest = json.loads(path.read_text())
 for profile, runtime in manifest['runtimes'].items():
-    directory = path.parent / profile / 'arm64x'
-    if directory.is_dir():
-        runtime['arm64x'] = {name: hashlib.sha256((directory/name).read_bytes()).hexdigest()
-                            for name in ('d3d11.dll', 'dxgi.dll')}
+    for architecture in ('x86', 'x64', 'arm64x'):
+        directory = path.parent / profile / architecture
+        if directory.is_dir():
+            runtime[architecture] = {dll.name: hashlib.sha256(dll.read_bytes()).hexdigest()
+                                     for dll in sorted(directory.glob('*.dll'))}
 path.write_text(json.dumps(manifest, indent=2) + '\n')
 PYDXVK
     # Suite 编排定义由 automation/smoke.py 产出 (smoke/tests + smoke/suites),

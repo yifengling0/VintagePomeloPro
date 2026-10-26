@@ -14,7 +14,7 @@ SUITES = (
     'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
     'host_tests/smoke_build_arch_test.py', 'host_tests/wine_build_identity_test.py',
     'host_tests/gstreamer_native_plugins_test.py', 'host_tests/runtime_library_guard_test.py',
-    'scripts/test_check_runtime_components.py',
+    'scripts/test_check_runtime_components.py', 'host_tests/graphics_assembly_manifest_test.py',
 )
 
 
