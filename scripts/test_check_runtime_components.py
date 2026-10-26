@@ -6,11 +6,19 @@ import sys
 import unittest
 from pathlib import Path
 from zipfile import ZipFile
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_runtime_components import Archive, ValidationError, elf_needed, validate_graphics_runtime_payload
 
+
+# This unit tests product policy with tiny DLL fixtures. The production lock
+# and source/binary pairing have separate real-runtime contract coverage.
+MODERN_BYTES = {arch + '/' + name: (name + ' FP32 DenormFlushToZero disabled').encode()
+                for arch in ('x86', 'x64', 'arm64x') for name in ('d3d11.dll', 'dxgi.dll')}
+MODERN_LOCK = {'commit': 'fixture-modern-source',
+               'files': {name: hashlib.sha256(data).hexdigest() for name, data in MODERN_BYTES.items()}}
 
 ELF_HEADER = struct.Struct("<HHIQQQIHHHHHH")
 PROGRAM_HEADER = struct.Struct("<IIQQQQQQ")
@@ -57,7 +65,8 @@ def make_graphics_archive(vkd3d_enabled: bool) -> Archive:
         for profile in ("legacy", "modern-2.6"):
             for architecture in ("x86", "x64", "arm64x"):
                 for filename in ("d3d11.dll", "dxgi.dll"):
-                    archive.writestr(f"dxvk/{profile}/{architecture}/{filename}", filename)
+                    archive.writestr(f"dxvk/{profile}/{architecture}/{filename}",
+                                     MODERN_BYTES[architecture + "/" + filename])
         archive.writestr("vkd3d/limited-500k/x64/d3d12.dll", d3d12)
         archive.writestr("dxvk/manifest.json", json.dumps({
             "schemaVersion": 2,
@@ -68,6 +77,10 @@ def make_graphics_archive(vkd3d_enabled: bool) -> Archive:
                 "modern-2.6": {
                     "version": "2.6.2",
                     "state": "adapted-game-validated-capability-gated",
+                    "commit": MODERN_LOCK['commit'],
+                    **{arch: {name: MODERN_LOCK['files'][arch + '/' + name]
+                              for name in ('d3d11.dll', 'dxgi.dll')}
+                       for arch in ('x86', 'x64', 'arm64x')},
                 },
             },
         }))
@@ -82,15 +95,16 @@ def make_graphics_archive(vkd3d_enabled: bool) -> Archive:
     return Archive(stream)
 
 
+@patch('dxvk_runtime_contract.load_modern_lock', return_value=MODERN_LOCK)
 class GraphicsRuntimePolicyTest(unittest.TestCase):
-    def test_accepts_default_legacy_dxvk_and_disabled_vkd3d(self) -> None:
+    def test_accepts_default_legacy_dxvk_and_disabled_vkd3d(self, _lock) -> None:
         archive = make_graphics_archive(vkd3d_enabled=False)
         try:
             validate_graphics_runtime_payload(archive, "aarch64")
         finally:
             archive.close()
 
-    def test_rejects_vkd3d_manifest_marked_enabled(self) -> None:
+    def test_rejects_vkd3d_manifest_marked_enabled(self, _lock) -> None:
         archive = make_graphics_archive(vkd3d_enabled=True)
         try:
             with self.assertRaisesRegex(ValidationError, "VKD3D product enablement"):

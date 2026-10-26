@@ -40,18 +40,15 @@ jobs:
           fetch-depth: 1
       - name: Test provenance and dependency restore
         run: |
-          python3 host_tests/ci_release_test.py
-          python3 host_tests/linux_runtime_components_test.py
-          python3 host_tests/source_build_contract_test.py
-          python3 host_tests/linux_steam_pe_components_test.py
-          python3 host_tests/smoke_build_arch_test.py
-          python3 host_tests/wine_build_identity_test.py
+          python3 scripts/ci_preflight.py --report ci-artifacts/ci-preflight.json
       - name: Fetch and verify published GNU dependency bytes
         run: python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-clean-checkout.json
       - uses: actions/upload-artifact@v4
         with:
           name: gnu-clean-checkout-${{ github.sha }}
-          path: ci-artifacts/gnu-clean-checkout.json
+          path: |
+            ci-artifacts/gnu-clean-checkout.json
+            ci-artifacts/ci-preflight.json
           if-no-files-found: error
           retention-days: 14
 
@@ -299,6 +296,12 @@ jobs:
         run: |
           ohpm install --all
           # Dependency installation must not rewrite committed app inputs.
+          git diff --exit-code HEAD --ignore-submodules=all
+
+      - name: Configure every Native target before the long source build
+        run: |
+          python3 scripts/ci_preflight.py --skip-tests \
+            --sdk /apps/harmony/sdk/default/openharmony --report ci-artifacts/native-preflight.json
           git diff --exit-code HEAD --ignore-submodules=all
 
       - name: Build HAP

@@ -262,6 +262,11 @@ rawfile 侧另有 `wine-runtime-manifest.json`（payloadSha256），CI 用它校
 
 ---
 
+## 构建前集中检查
+
+`python3 scripts/ci_preflight.py --report ci-artifacts/ci-preflight.json` 一次收集依赖声明与锁文件、GNU 依赖源码清单、全部构建脚本语法和运行时契约回归的问题，不在第一个问题处停止。CI 在 GNU 依赖任务中执行；完整原生编译前再用 `--sdk <OHOS SDK> --skip-tests` 配置全部 CMake 目标，并检查目标源文件已提交。最终仍执行真实的完整 HAP 构建及产物校验。
+
+
 ## 协议生成文件与干净构建
 
 `build_native.sh` 将 Wayland 协议及头文件写入 `build/native_<NATIVE_ARCH>/protocols/`，不会改写跟踪的源码快照。CMake 优先使用这一组生成文件；仅使用预编译依赖的 DevEco 构建仍可回退到仓库快照。自定义 `BUILD_DIR` 时，可用 CMake 参数 `-DVPP_NATIVE_GENERATED_ROOT=<BUILD_DIR>/native_<NATIVE_ARCH>` 指定相同位置。
