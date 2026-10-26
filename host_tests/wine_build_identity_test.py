@@ -4,10 +4,17 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 GUARD = ROOT / 'scripts/wine_build_identity.py'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from wine_build_identity import ordered_overlays
+
+# Exercise the actual production inventory without requiring submodules or SDK.
+production = ordered_overlays(ROOT)
+assert production[-1]['path'] == 'patches/wine/0069-linux-steam-native-module-bootstrap.patch'
 
 
 def git(path, *args):
@@ -28,6 +35,21 @@ with tempfile.TemporaryDirectory(prefix='wine-identity-') as temporary:
     repo = base / 'repo'; (repo / 'scripts').mkdir(parents=True); (repo / 'patches/wine').mkdir(parents=True)
     (repo / 'patches/wine/0001-test.patch').write_text('ordered overlay\n')
     (repo / 'scripts/build_wine.sh').write_text('ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0001-test.patch" "test"\n')
+    script = repo / 'scripts/build_wine.sh'
+    registration = script.read_text()
+    expected = ordered_overlays(repo)
+    for expression in ('$ROOT/patches', '${ROOT}/patches', '${SCRIPT_DIR}/../patches'):
+        script.write_text(registration.replace('$SCRIPT_DIR/../patches', expression))
+        assert ordered_overlays(repo) == expected
+    for expression in ('$UNKNOWN/patches', '$ROOT/../outside'):
+        script.write_text(registration.replace('$SCRIPT_DIR/../patches', expression))
+        try:
+            ordered_overlays(repo)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('invalid overlay path accepted: ' + expression)
+    script.write_text(registration)
     (repo / 'scripts/env.sh').write_text('configuration\n')
     for name in ('gstreamer_plugins.json', 'gstreamer_inventory.py', 'wine_gstreamer_loader.h',
                  'wine_runtime_diagnostics.py', 'wine_runtime_diagnostics.h'):

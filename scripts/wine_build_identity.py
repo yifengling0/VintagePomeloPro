@@ -87,15 +87,32 @@ def source_identity(source):
             'untracked_files': files, 'generated_inputs': generated}
 
 
-def request_identity(args, source):
-    repo = args.repo.resolve()
+def ordered_overlays(repo):
+    repo = repo.resolve()
     script = repo / 'scripts/build_wine.sh'
     overlays = []
     for item in re.findall(r'^ensure_wine_patch\s+"([^"\n]+)"', script.read_text(), re.M):
-        path = Path(item.replace('$SCRIPT_DIR', str(script.parent))).resolve()
+        # Resolve only the two supported build variables. Never evaluate shell
+        # text or consult the caller's environment when hashing build inputs.
+        for token, value in (('${SCRIPT_DIR}', script.parent), ('$SCRIPT_DIR', script.parent),
+                             ('${ROOT}', repo), ('$ROOT', repo)):
+            item = item.replace(token, str(value))
+        if '$' in item or '`' in item:
+            raise ValueError('unresolved Wine overlay path: ' + item)
+        path = Path(item)
+        path = (path if path.is_absolute() else repo / path).resolve()
+        if not path.is_relative_to(repo / 'patches/wine'):
+            raise ValueError('Wine overlay escapes patches/wine: ' + str(path))
         overlays.append({'path': str(path.relative_to(repo)), 'sha256': file_hash(path)})
     if not overlays:
         raise ValueError('no ordered Wine overlays found in build_wine.sh')
+    return overlays
+
+
+def request_identity(args, source):
+    repo = args.repo.resolve()
+    script = repo / 'scripts/build_wine.sh'
+    overlays = ordered_overlays(repo)
     pin = optional_git(repo, 'ls-tree', 'HEAD', 'thirdparty/wine-valve')
     pin_line = pin.split() if pin else []
     active_pin = pin_line[2] if len(pin_line) >= 3 and pin_line[1] == 'commit' else None
