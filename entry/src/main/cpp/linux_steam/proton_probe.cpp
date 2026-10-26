@@ -423,8 +423,15 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                 variable = "LD_PRELOAD=" + root + "/libproton_probe.so";
         const auto ready = RunNativeLoader({loader, "--inhibit-cache", "--library-path", libraries,
             root + "/proton-steam-ready"}, readyEnvironment, 45000, options);
-        if (!Succeeded(ready) || ready.output.find("GNU_STEAM_READY authenticated=1") == std::string::npos)
-            return failure("proton_steam_account_not_ready");
+        if (!Succeeded(ready) || ready.output.find("GNU_STEAM_READY session_ready=1 ") == std::string::npos) {
+            // Keep the actual loader/IPC result. A missing SDK, a terminated
+            // probe and an unavailable local account must not look identical.
+            const char* status = ready.cancelled ? "proton_game_cancelled" :
+                ready.exitCode == 5 ? "proton_steam_account_not_ready" : "proton_steam_readiness_failed";
+            auto result = failure(status);
+            result.pop_back();
+            return result + ",\"steamReadiness\":" + NativeExecJson(ready) + "}";
+        }
     }
     if (stage == "native-present" || stage == "native-vulkan") {
         const bool vulkan=stage=="native-vulkan";

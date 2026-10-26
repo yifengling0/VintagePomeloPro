@@ -15,6 +15,8 @@ export function redactSteamDiagnostic(text: string): string {
     // Steam CDN URLs may carry short-lived credentials under opaque keys
     // such as t/k. Keep the host/path for routing diagnosis, remove the query.
     .replace(/(https?:\/\/[^\s?"'<>]+)\?[^\s"'<>]*/gi, '$1?<redacted>')
+    // content_log also prints host/path without an http:// prefix.
+    .replace(/(\b(?:[a-z0-9-]+\.)+[a-z]{2,}(?::[0-9]+)?\/[^\s?"'<>]*)\?[^\s"'<>]*/gi, '$1?<redacted>')
     .replace(/((?:access[_-]?token|refresh[_-]?token|auth[_-]?token|password|passwd|authorization|cookie|login[_-]?key|steamloginsecure|sessionid|ticket|machineauth|hmosdeck_steam_bridge|steamohos_launch_nonce)[\t ]*["']?[\t ]*[:=][\t ]*)[^\r\n]*/gi, '$1<redacted>')
     .replace(/(["'](?:access[_-]?token|refresh[_-]?token|password|passwd|login[_-]?key|sessionid|ticket)["'][\t ]+["'])[^"'\r\n]*/gi, '$1<redacted>')
     .replace(/((?:--?)(?:password|passwd|access-token|auth-token|ticket)[\t ]+)(?:"[^"]*"|'[^']*'|[^\s]+)/gi, '$1<redacted>')
@@ -91,17 +93,17 @@ function validAbsoluteDirectory(path: string): boolean {
 }
 
 export async function collectSteamStartupDiagnostics(downloadRoot: string = ''): Promise<string> {
-  let text = 'Steam / Wine diagnostics v3\nCollected=' + new Date().toISOString() +
+  let text = 'Steam / Wine diagnostics v4\nCollected=' + new Date().toISOString() +
     '\nRecent log tails only; credentials redacted. Missing files do not imply a failure.\n';
   let found = false;
   let remaining = REPORT_BYTES;
-  const append = async (label: string, path: string, limit: number = TAIL_BYTES): Promise<void> => {
+  const append = async (label: string, path: string, limit: number = TAIL_BYTES, whole: boolean = false): Promise<void> => {
     // Yield before every bounded source so dozens of Steam/VirGL log reads
     // cannot monopolize ArkUI and trip the system's input/IPC freeze watchdog.
     await new Promise<void>((resolve): void => { setTimeout(resolve, 0); });
     if (remaining < 4096) { text += `\n=== ${label}: omitted (export size limit) ===\n`; return; }
     try {
-      const tail = readDiagnosticTail(path, Math.min(limit, Math.floor(remaining / 4)));
+      const tail = redactSteamDiagnostic(readDiagnosticTail(path, Math.min(limit, Math.floor(remaining / 4)), whole));
       const bytes = new util.TextEncoder().encodeInto(tail).byteLength;
       remaining -= bytes;
       text += `\n=== ${redactSteamDiagnostic(label)} ===\n${tail}\n`; found = true;
@@ -118,6 +120,22 @@ export async function collectSteamStartupDiagnostics(downloadRoot: string = ''):
   await append('Steam API bridge server', `${wineTemp}/hmosdeck-steam-bridge-state.json`, 4096);
   await append('last game launch', `${launch}/last-game-launch.json`, 4096);
   await append('last client helper', `${launch}/last-client-helper.json`, 4096);
+  // The last game can be a successful launch after an earlier failure. Keep
+  // recent per-game results, including the readiness probe's own output, and
+  // keep helpers separate so install scripts cannot displace game evidence.
+  // These compact JSON files must be read whole: a tail starting inside their
+  // single line would otherwise silently discard every diagnostic field.
+  if (diagnosticDirectory(`${FILES}/.wine`) && diagnosticDirectory(`${FILES}/.wine/drive_c`) &&
+    diagnosticDirectory(`${FILES}/.wine/drive_c/hmosdeck`) && diagnosticDirectory(launch)) {
+    for (const name of diagnosticNames(launch, /^game-launch-[1-9][0-9]{0,9}\.json$/, 8))
+      await append(`game launch ${name}`, `${launch}/${name}`, 4096, true);
+    for (const name of diagnosticNames(launch, /^gnu-proton-[1-9][0-9]{0,9}\.json$/, 8))
+      await append(`GNU Proton game result ${name}`, `${launch}/${name}`, 1048576, true);
+    for (const name of diagnosticNames(launch, /^gnu-proton-helper-(?:install_script|driver_query)-(?:0|[1-9][0-9]{0,9})\.json$/, 4))
+      await append(`GNU Proton helper result ${name}`, `${launch}/${name}`, 262144, true);
+  }
+  await append('GNU Proton runtime', `${BASE}/proton-probe/probe-runtime.log`, LOG_TAIL_BYTES);
+
   await append('library state', `${launch}/library-state.private.json`, 32768);
   await append('Steam supervisor', `${BASE}/client-tmp/deck-session-state.json`, 4096);
   await append('native output', `${BASE}/client-native.private.log`);

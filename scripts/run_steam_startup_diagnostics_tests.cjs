@@ -173,6 +173,41 @@ assert.equal(descriptors.size, 0);
 assert.ok(!redact('"password" "vdf-secret"\nhttps://cdn.test/file?token-secret&k=another-secret').includes('secret'));
 console.log('Both Steam clients, legacy Windows installs, previous-day persistent Wine stderr, container DXVK, CDN credentials and unsafe/missing roots: PASS');
 
+// A later successful game/helper must not hide the GNU failure being reported.
+const gameResult = launch + '/gnu-proton-2490930.json';
+const helperResult = launch + '/gnu-proton-helper-install_script-1918680.json';
+set(gameResult, JSON.stringify({status: 'proton_steam_account_not_ready',
+  steamReadiness: {exitCode: 5, output: 'GNU_STEAM_READY session_ready=0 local_user=0\n'},
+  prefix: {output: 'x'.repeat(270000) + '\nerr:module could not load test.dll\n'}}));
+set(helperResult, '{"status":"proton_game_failed","prefix":{"exitCode":53}}');
+set(launch + '/game-launch-2490930.json', '{"appId":"2490930","status":"proton_steam_account_not_ready"}');
+set(launch + '/last-game-launch.json', '{"appId":"1437830","status":"gnu_proton_starting"}');
+set(launch + '/gnu-proton-2490930.json.secret', 'not-a-result');
+set(launch + '/gnu-proton-helper-unknown-2490930.json', 'not-a-helper');
+set(base + '/proton-probe/probe-runtime.log', 'GNU_STEAM_READY stage=sdk_load error=missing module\n');
+set(steam + '/client/.steam/steam/logs/content_log.txt',
+  'CDN: cdn.test/depot/123/manifest/456?t=bare-url-secret&k=opaque-secret\n' +
+  'cdn.test:80/depot/123?auth_key=other-secret\n');
+result = await collect();
+for (const text of ['GNU Proton game result gnu-proton-2490930.json', 'err:module could not load test.dll',
+  'GNU Proton helper result gnu-proton-helper-install_script-1918680.json', 'session_ready=0',
+  'GNU_STEAM_READY stage=sdk_load', '"appId":"1437830"']) assert.ok(result.includes(text), text);
+for (const secret of ['bare-url-secret', 'opaque-secret', 'other-secret', 'not-a-result', 'not-a-helper'])
+  assert.ok(!result.includes(secret), secret);
+links.add(gameResult);
+assert.ok(!(await collect()).includes('err:module could not load test.dll'), 'reject linked GNU result');
+links.clear();
+links.add(launch);
+assert.ok(!(await collect()).includes('err:module could not load test.dll'), 'reject linked result directory');
+links.clear();
+set(gameResult, 'x'.repeat(1048577));
+result = await collect();
+assert.match(result, /GNU Proton game result gnu-proton-2490930.json: unavailable/,
+  'oversized single-line JSON is explicitly unavailable, never a misleading empty tail');
+files.delete(gameResult); files.delete(helperResult);
+assert.equal(descriptors.size, 0);
+console.log('GNU game/helper/readiness output, large compact JSON, later launches, bare CDN queries and unsafe/oversized results: PASS');
+
 // Flood all eligible logs: output and individual reads remain bounded, while
 // each source explicitly records tail offsets/omitted files.
 for (const [name] of files) {

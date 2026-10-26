@@ -5899,7 +5899,7 @@
     {
       "path": "proton-steam-ready",
       "bytes": 75872,
-      "sha256": "8b6dab7d9f5aafcdfb0bb1793f9dc98754ff09c21d7faabdb2f7182745545e27",
+      "sha256": "b8faf66b16e9c950da29b5a50ad2e0afa974566250f28742107a2ef7a89d1ef3",
       "mode": 448
     },
     {
@@ -5909,8 +5909,8 @@
       "mode": 384
     }
   ],
-  "id": "f9706f8cc0e7aafb8ddf5baae1d2d96e75c7f10cba00e9a0c19ebc2b14c7086d",
-  "bytes": 116676942,
-  "sha256": "3af1fd2e8ef02ca44e52def036e8401dd5075426abb2be6da9c72928ff9160c4",
+  "id": "21f85e476cc5aa4d1919cd79c56502ae292e58bb2dd9ddaa319ab6df470cc543",
+  "bytes": 116677154,
+  "sha256": "97327f3a9e8155a11050dcf4960543d61841db44e22afc9531cd066b224085be",
   "installedBytes": 432748944
 }

@@ -98,6 +98,13 @@ def main():
     if not args.skip_tests:
         for suite in SUITES:
             check(suite, lambda p=suite: command([sys.executable, '-B', p]))
+        def steam_readiness():
+            binary = args.build_dir / 'proton-steam-ready-host-test'
+            binary.parent.mkdir(parents=True, exist_ok=True)
+            command(['c++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-Werror',
+                     'host_tests/proton_steam_ready_test.cpp', '-ldl', '-pthread', '-o', str(binary)])
+            command([str(binary.resolve())])
+        check('Steam local account readiness (online/offline/IPC)', steam_readiness)
     if args.sdk:
         def configure():
             query = args.build_dir / '.cmake/api/v1/query'

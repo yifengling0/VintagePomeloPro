@@ -300,7 +300,7 @@ jobs:
 
       - name: Test Proton runtime lifecycle and Steam downloads
         run: |
-          for suite in run_linux_proton_component_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests; do
+          for suite in run_linux_proton_component_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests; do
             /apps/harmony/tool/node/bin/node "scripts/$suite.cjs" \
               /apps/harmony/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript
           done
