@@ -1,3 +1,6 @@
+import { ProtonRuntimePanel } from './ProtonRuntimePanel';
+import { LinuxProtonRuntimeService, ProtonRuntimeListener } from '../../service/LinuxProtonRuntimeService';
+import { ProtonRuntimeSnapshot } from '../../model/LinuxProtonRuntimeModels';
 import { linuxSteamDownloadHttp1, setLinuxSteamDownloadHttp1 } from '../../service/LinuxSteamDownloadPolicy';
 import { LinuxSteamStorageLocation } from '../../service/LinuxSteamPaths';
 import { hilog } from '../../service/LogService';
@@ -28,6 +31,8 @@ export struct LinuxSteamPanel {
   @State private location: LinuxSteamStorageLocation = LinuxSteamInstallService.getInstance().location();
   @State private section: number = 0;
   @State private busy: boolean = false;
+  @State private protonBusy: boolean = false;
+  private protonListener: ProtonRuntimeListener | null = null;
   @State private error: string = '';
   @State private top: number = 32;
   @State private bottom: number = 16;
@@ -39,6 +44,8 @@ export struct LinuxSteamPanel {
   private disposeInsets: (() => void) | null = null;
   aboutToAppear(): void {
     const lifecycle = ++this.lifecycle;
+    this.protonListener = (value: ProtonRuntimeSnapshot): void => { this.protonBusy = value.busy; };
+    LinuxProtonRuntimeService.getInstance().subscribe(this.protonListener);
     const session = LinuxSteamSessionService.getInstance(); session.initialize(this.context);
     this.listener = (value: LinuxSteamSnapshot): void => { this.state = value; }; session.subscribe(this.listener);
     const installer = LinuxSteamInstallService.getInstance();
@@ -62,6 +69,7 @@ export struct LinuxSteamPanel {
   }
   aboutToDisappear(): void {
     this.lifecycle++;
+    if (this.protonListener) LinuxProtonRuntimeService.getInstance().unsubscribe(this.protonListener);
     if (this.listener) LinuxSteamSessionService.getInstance().unsubscribe(this.listener);
     if (this.installListener) LinuxSteamInstallService.getInstance().unsubscribe(this.installListener);
     if (this.windowsListener) SteamLocalService.getInstance().unsubscribe(this.windowsListener);
@@ -71,7 +79,7 @@ export struct LinuxSteamPanel {
   private errorMessage(): string {
     return this.error || (this.installState.phase === 'failed' ? `${this.installState.errorCode} · ${this.installState.error}` : '');
   }
-  private locked(): boolean { return this.busy || this.windowsBusy || linuxSteamInstallBusy(this.installState.phase); }
+  private locked(): boolean { return this.busy || this.windowsBusy || this.protonBusy || linuxSteamInstallBusy(this.installState.phase); }
   private locationLocked(): boolean {
     return this.locked() || !['stopped', 'failed'].includes(this.state.state);
   }
@@ -231,6 +239,7 @@ export struct LinuxSteamPanel {
         Text(this.locationLocked() && !this.locked() ? '退出 Steam 和游戏后可切换位置。' : '两处位置独立保存；切换不会搬移原有游戏和存档。')
           .fontSize(12).fontColor('#929DAB').width('100%')
       }.width('100%').alignItems(HorizontalAlign.Start)
+      ProtonRuntimePanel({ blocked: this.busy || this.windowsBusy || linuxSteamInstallBusy(this.installState.phase) || !['stopped', 'failed'].includes(this.state.state) })
       this.ProgressCard()
       Column({ space: 14 }) {
         Text(this.ready ? '更新与修复' : '选择安装方式').fontSize(20).fontWeight(FontWeight.Bold).fontColor('#F2F4F7').width('100%')

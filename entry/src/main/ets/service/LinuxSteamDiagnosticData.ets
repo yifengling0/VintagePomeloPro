@@ -280,7 +280,6 @@ export async function prepareLinuxSteamClientData(context: common.Context, diagn
   }
   try {
     await LinuxGnuProtonComponent.ensureReady(context);
-    await LinuxGnuProtonComponent.ensureReady(context);
     await prepareHmosDeckLibrary(root, runtime);
   } catch (error) {
     writeSmokeText(`${BASE}/single-library-error.json`, JSON.stringify({ message: (error as Error).message }));

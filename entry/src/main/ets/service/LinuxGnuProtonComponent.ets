@@ -1,3 +1,4 @@
+import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, statfs } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
@@ -108,7 +109,9 @@ export class LinuxGnuProtonComponent {
   private static prefixProbeActive = false;
   private static listeners: Set<Progress> = new Set<Progress>();
   static ready(): boolean { return LinuxGnuProtonComponent.verified; }
-  static setSessionActive(value: boolean): void { LinuxGnuProtonComponent.sessionActive = value; }
+  static setSessionActive(value: boolean): void {
+    LinuxGnuProtonComponent.sessionActive = value; LinuxProtonRuntimeService.getInstance().setSessionActive(value);
+  }
   static subscribe(listener: Progress): void { LinuxGnuProtonComponent.listeners.add(listener); }
   static unsubscribe(listener: Progress): void { LinuxGnuProtonComponent.listeners.delete(listener); }
   private static progress(message: string): void {
@@ -117,11 +120,14 @@ export class LinuxGnuProtonComponent {
   }
   static async ensureReady(context: common.Context): Promise<void> {
     if (LinuxGnuProtonComponent.pending) return LinuxGnuProtonComponent.pending;
+    const runtimes = LinuxProtonRuntimeService.getInstance();
+    if (runtimes.inUse() && LinuxGnuProtonComponent.verified) return;
+    runtimes.beginAdapter();
     const operation = LinuxGnuProtonComponent.install(context); LinuxGnuProtonComponent.pending = operation;
-    try { await operation; } finally { if (LinuxGnuProtonComponent.pending === operation) LinuxGnuProtonComponent.pending = null; }
+    try { await operation; } finally { if (LinuxGnuProtonComponent.pending === operation) LinuxGnuProtonComponent.pending = null; runtimes.endAdapter(); }
   }
   static async verifyFreshPrefix(context: common.Context, probe: () => Promise<string>): Promise<string> {
-    if (LinuxGnuProtonComponent.sessionActive || LinuxGnuProtonComponent.pending) throw new Error('请先退出 Steam 和游戏');
+    if (LinuxProtonRuntimeService.getInstance().inUse() || LinuxGnuProtonComponent.pending) throw new Error('请先退出 Steam 和游戏');
     restorePrefixProbe();
     if (!fs.accessSync(`${ROOT}/prefix`) || fs.accessSync(`${ROOT}/prefix-before-install-test`)) throw new Error('前缀诊断环境未就绪');
     ConfigurationFiles.json(`${ROOT}/prefix-install-test.json`, 'HMOSDECK_PREFIX_INSTALL_TEST_V1');
@@ -177,19 +183,29 @@ export class LinuxGnuProtonComponent {
     ConfigurationFiles.ensure(BASE); ConfigurationFiles.ensure(ROOT); ConfigurationFiles.ensure(SCRATCH);
     try {
       const data = await context.resourceManager.getRawFileContent('linux-proton/manifest.json');
-      const manifest = JSON.parse(ConfigurationFiles.text(data)) as ComponentManifest; validateProtonComponent(manifest);
+      let manifest = JSON.parse(ConfigurationFiles.text(data)) as ComponentManifest; validateProtonComponent(manifest);
+      const extractionBytes = manifest.installedBytes;
       // Never replace code or recover a partial activation under a live process.
       if (LinuxGnuProtonComponent.sessionActive) { if (LinuxGnuProtonComponent.verified) return; throw new Error('请退出 Steam 和游戏后安装 GNU Proton'); }
       if (!LinuxGnuProtonComponent.prefixProbeActive) restorePrefixProbe();
       recoverTransaction(); LinuxGnuProtonComponent.verified = false;
+      const runtimes = LinuxProtonRuntimeService.getInstance();
+      const selected = await runtimes.prepareSelected(context);
+      if (selected) {
+        // App upgrades own adapter files only. A user-selected upstream version
+        // must never be replaced by the bundled fallback during preparation.
+        const files = manifest.files.filter((file: ComponentFile): boolean => !file.path.startsWith('package/'));
+        manifest.files = files; manifest.installedBytes = files.reduce((total: number, file: ComponentFile): number => total + file.bytes, 0);
+      }
       let receipt: ComponentReceipt | undefined = undefined;
       try { receipt = JSON.parse(readSmokeText(RECEIPT)) as ComponentReceipt; } catch (_) {}
       let stamps = await LinuxGnuProtonComponent.matches(ROOT, manifest, receipt);
       if (stamps) {
         ConfigurationFiles.json(RECEIPT, JSON.stringify({ id: manifest.id, stamps }));
+        await runtimes.adoptEmbedded(context, !selected);
         LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪'); return;
       }
-      if (await statfs.getFreeSize(BASE) < manifest.installedBytes + manifest.bytes + 134217728) throw new Error('空间不足：GNU Proton 安装需要约 700 MB 可用空间');
+      if (await statfs.getFreeSize(BASE) < extractionBytes + manifest.bytes + 134217728) throw new Error('空间不足：GNU Proton 安装需要约 700 MB 可用空间');
       removeOwned(`${SCRATCH}/new`); removeOwned(`${SCRATCH}/old`);
       const archive = await LinuxGnuProtonComponent.embedded(context, manifest);
       LinuxGnuProtonComponent.progress('正在解压 GNU Proton'); ConfigurationFiles.ensure(`${SCRATCH}/new`);
@@ -210,7 +226,8 @@ export class LinuxGnuProtonComponent {
       }
       ConfigurationFiles.json(RECEIPT, JSON.stringify({ id: manifest.id, stamps }));
       transaction.committed = true; ConfigurationFiles.json(JOURNAL, JSON.stringify(transaction));
-      recoverTransaction(); LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪');
+      recoverTransaction(); await runtimes.adoptEmbedded(context, !selected);
+      LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪');
     } catch (error) {
       LinuxGnuProtonComponent.verified = false;
       try { recoverTransaction(); } catch (_) { throw new Error('Proton 更新未完成，请退出并重新打开应用恢复'); }

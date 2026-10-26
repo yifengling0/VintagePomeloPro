@@ -39,12 +39,12 @@ const config = {ConfigurationFiles: {fileHash: async p => sha(fs.readFileSync(re
   read: p => fs.readFileSync(real(p)),
   text: b => Buffer.from(b).toString('utf8'), bytes: s => Buffer.from(s),
   json: (p,s) => { assert.notEqual(s,'','OHOS empty text encoding is not a safe reset record');fs.writeFileSync(real(p),s); }}};
-let responses = [], calls = [];
+let responses = [], calls = [], urls = [];
 const http = {RequestMethod: {GET: 'GET'}, createHttp() {
   const events = {}; let destroyed = false;
   return {on: (n,f) => {events[n]=f;}, off: n => {delete events[n];}, destroy: () => {destroyed=true;},
     async requestInStream(url, options) {
-      calls.push(options.header.range || 'full');
+      urls.push(url); calls.push(options.header.range || 'full');
       assert.ok(responses.length,'unexpected HTTP request');
       const r = responses.shift();
       const status = r.status ?? 200;
@@ -76,6 +76,12 @@ async function run(name, initial, input, expectedRanges, expectedError) {
   return dest;
 }
 async function main() {
+  urls=[];
+  const projectUrl='https://github.com/yifengling0/VintagePomeloPro/releases/download/runtime/proton.zip';
+  responses=[{body:bytes}];
+  await new download.LinuxSteamComponentDownload().fetch({...archive,url:projectUrl},path.join(temporary,'project.zip'),()=>{});
+  assert.deepEqual(urls,[projectUrl],'project archives must never be rewritten as Valve CDN URLs');
+  urls=[];
   const end = bytes.length-1;
   await run('resume',bytes.subarray(0,5),[{status:206,range:`bytes 5-${end}/${bytes.length}`,body:bytes.subarray(5)}],['bytes=5-']);
   await run('ignored-range',bytes.subarray(0,5),[{body:bytes}],['bytes=5-']);
@@ -83,7 +89,9 @@ async function main() {
   await run('ohos-no-status',null,[{body:bytes,noStatus:true}],['full']);
   await run('ohos-no-status-resume',bytes.subarray(0,5),[{status:206,noStatus:true,range:`bytes 5-${end}/${bytes.length}`,body:bytes.subarray(5)}],['bytes=5-']);
   await run('interrupted',null,[{body:bytes.subarray(0,5),error:true},{status:206,range:`bytes 5-${end}/${bytes.length}`,body:bytes.subarray(5)}],['full','bytes=5-']);
+  urls=[];
   await run('checksum',null,[{body:Buffer.alloc(bytes.length)},{body:bytes}],['full','full']);
+  assert.deepEqual(urls,['https://client-update.steamstatic.com/test.zip','https://media.steampowered.com/client/test.zip']);
   const denied = await run('not-found',bytes.subarray(0,5),[{status:404,body:Buffer.from('error')}],['bytes=5-'],'HTTP_404');
   assert.deepEqual(fs.readFileSync(denied+'.part'),bytes.subarray(0,5),'error body preserves partial');
   const deniedOhos = await run('ohos-not-found',bytes.subarray(0,5),[{status:404,noStatus:true,body:Buffer.from('error')}],['bytes=5-'],'HTTP_404');
@@ -174,6 +182,7 @@ async function main() {
   let directoryResolutions=0, resolverUnavailable=false;
   const paths=load('service/LinuxSteamPaths.ets',{});
   const storage=load('service/LinuxSteamDiagnosticData.ets',{
+    './LinuxGnuProtonComponent':{LinuxGnuProtonComponent:{ensureReady:async()=>{}}},
     './LinuxSteamPaths': paths,
     '@kit.AbilityKit':{}, '@kit.CoreFileKit':{fileIo:io,
       fileUri:{FileUri:class {constructor(uri){this.path=uri;}}},

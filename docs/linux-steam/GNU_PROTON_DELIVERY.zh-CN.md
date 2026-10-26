@@ -1,6 +1,6 @@
 # GNU Proton 自动交付（1.5.2）
 
-Linux ARM64 Steam 客户端与 GNU Proton 分开维护。客户端仍可官网下载或导入既有兼容离线包；GNU Proton 的锁定闭包和 OHOS 适配随 HAP 提供，首次准备 Linux Steam 时自动校验、安装，完成后注册兼容工具，不自动打开购买、下载或切换用户已选的后端。
+Linux ARM64 Steam 客户端、上游 Proton 运行包与鸿蒙适配层分别维护。HAP 保留已验证的 GE-Proton ARM64 运行包兜底；组件页支持独立下载安装、导入、版本选择及回退。首次准备 Steam 会校验适配层并注册兼容工具，已有 Steam 游戏库及用户选择保持独立，维护结束不会自动启动 Steam。
 
 本版内置组件为社区 GE-Proton11-11 aarch64 的选择性闭包，非完整 SteamOS/rootfs。组件 983 个文件，压缩 116676942 字节，展开 432748944 字节；不含 Valve Steam 客户端、Windows Steam、游戏、账号、用户前缀或诊断 marker。GNU libc、Wayland 和媒体公共依赖复用已校验的 Linux Steam 支持运行库。游戏代码中的 x86/x64 仍由 GE 的 FEX 执行，ARM64 Steam 客户端不使用 QEMU。
 
@@ -13,7 +13,22 @@ Linux ARM64 Steam 客户端与 GNU Proton 分开维护。客户端仍可官网�
 5. 成功清单记录文件大小/mtime；常规启动复用未变化文件，变化文件重新哈希，缺失或损坏时重装。进行中的 Steam 会话不替换库。组件版本由内容标识决定，与 APP 版本号分开。
 6. 只有完整安装通过才注册 GNU 工具，不能以 `manual-launch.version` 单一 marker 判定可用。Steam 自己保存全局和逐游戏的选择，已有 OHOS Wine 选项保留。失败明确提示，不静默换后端。
 
-本版没有独立远端 Proton 自动更新服务；更新 HAP 可交付匹配的适配层，旧 Steam 客户端离线包继续按既有身份与 ABI 校验规则使用，不因 Proton 改动而强制重做客户端包。
+## 独立运行版本管理
+
+入口：Steam 组件页 → Proton 运行版本。默认使用内置兜底，无需额外操作。维护前正常退出 Steam 和游戏；启动准备、适配层安装与活跃 GNU 子进程均有维护锁，Steam 意外退出也不会提前允许替换仍在运行的游戏库文件。
+
+- **检查更新**：用户主动读取项目固定 HTTPS 版本列表，拒绝列表降级、身份冲突和未支持的架构/ABI。不在后台强制下载或切换版本。
+- **在线安装／修复、导入此版本 ZIP**：按列表校验归档及逐文件 SHA-256，校验和空间检查全部通过才激活。暂停下载保留有界的断点文件。导入只接受列表内已知归档，不执行任意用户提供的 Proton。
+- **已安装版本、回退**：通过同一文件系统的 rename 切换上游 package，保留当前和上一版本，支持移除其他闲置版本，最多保留 8 个。事务覆盖首次激活、普通切换、相同版本修复；中断时下次准备先恢复。切换不会复制整份前缀。
+- **查找 Steam 中的 Proton**：只读扫描本应用 Linux Steam 游戏库的 common 目录。当前只接受文件哈希匹配已维护列表的 GE-Proton ARM64，按清单复制到私有版本目录后激活；已知上游库别名读取原始普通文件，不复制符号链接。不会改动 Steam 的原包；Steam 更新原包后需重新检查/导入。
+
+目前目录仅发布 **GE-Proton11-11 ARM64**。版本切换/回退已用合成多版本文件系统回归，尚无第二个经过真机验证的版本。不支持直接启用普通 x86_64 Proton、任意 Proton Experimental 或其他未知 ABI。当前适配 ABI 为 `hmosdeck-ge-wine11-arm64ec-v1`，前缀 ABI 为 `wine11-arm64ec-v1`。这一阶段选择的是 GNU 后端的全局运行包；逐游戏 GNU/OHOS 后端仍交由 Steam 自身保存，并未新增一套冲突的游戏设置。
+
+上游包指纹由其文件清单决定，独立于适配库版本。活跃路径保持 `steamohos-native/proton-probe/package`，其他版本存于 `proton-runtimes/versions/<id>`，选择及事务分别在 `selection.json`、`activation.json`。适配层升级仅核对/替换非 package 文件，旧的完整组件安装也能原地登记，无需另存一份。首次初始化状态会在版本切换后重新确认，但注册表、用户字体、home、游戏库和存档不属于运行包维护范围。回退仅允许相同前缀 ABI，不能撤销新 Wine 或游戏自身对前缀/存档的迁移；未来跨 ABI 版本需要独立前缀方案。
+
+初期独立安装复用已发布的完整 `gnu-proton.zip`，只激活其中 package，上游字节不变，其余适配文件不会由独立更新覆盖。因此本轮无需重做 Linux Steam 客户端离线包或重发 GNU 二进制依赖。后续可发布只含上游的 ZIP，继续使用同一个运行身份。版本列表是固定项目 HTTPS 信任源及 SHA-256 校验，并非已实现离线签名验证的任意第三方仓库。
+
+当前仍由自有启动器调用 GE Wine/FEX，接入既有鸿蒙 GPU/音频后端。没有完整执行上游 Proton Python、pressure-vessel 与 Steam Linux Runtime 流程；能够管理受支持运行包不代表任意官方 Proton 可直接由 Steam 安装后运行。
 
 ## 运行路径
 
@@ -38,7 +53,20 @@ python3 scripts/build_linux_proton_component.py \
 
 `scripts/run_linux_proton_component_tests.cjs <typescript目录>` 覆盖空安装、重复启动、并发准备、空间不足、ZIP/文件损坏、激活失败回滚、中断恢复、修复和用户数据保留。显式 `linux-proton / init-fresh` smoke 入口临时保留原前缀，用自动交付组件初始化空前缀，再恢复原前缀；中断后普通安装准备会先恢复原前缀。
 
-真实手机结果及最终 HAP/APP 身份记录在工作区交付 verification.json。不能将成功进菜单外推为所有游戏、硬件或完整 SteamOS 兼容。
+版本清单由 `scripts/build_proton_runtime_catalog.py --write` 从锁定上游文件生成，源码 feed 位于 `docs/linux-steam/proton-runtimes/catalog.json`，HAP fallback 清单位于 `rawfile/linux-proton/runtime-catalog.json`。新增已验证版本必须递增 revision，并保持当前内置运行包在 fallback 列表首项；同一 ID 不允许换字节。CI 校验清单一致性和输入已跟踪状态。
+
+```sh
+# 从已校验组件生成仅含上游的 ZIP；相同成果会复用。
+python3 scripts/build_proton_runtime_catalog.py --write \
+  --split-output /path/to/proton-runtime.zip \
+  --archive-url https://github.com/yifengling0/VintagePomeloPro/releases/download/RELEASE/proton-runtime.zip
+```
+
+先上传不可变归档并核验公开下载哈希，再发布 feed。更改适配 ABI/图形通信协议仍需更新 HAP，不能只修改 catalog 伪装支持。上游运行包更新本身不要求重新发布 HAP；客户端离线包仍沿用已有兼容校验。
+
+本轮新增主机回归覆盖运行版本独立性、旧安装登记、在线/本地/Steam 导入、哈希错误、空间不足、切换每阶段中断及同 ID 修复、上一版回退、闲置版移除、输入链接拒绝、会话/启动/游戏互斥、前缀与存档保留、原 Valve CDN 下载行为。CI 在 HAP 构建前执行实际 ArkTS 服务回归。此次未操作手机或平板，不将历史游戏结果视作新管理界面真机验收。
+
+既有真实手机结果及最终 HAP/APP 身份记录在工作区交付 verification.json。不能将成功进菜单外推为所有游戏、硬件或完整 SteamOS 兼容。
 
 ## 首次初始化验收
 

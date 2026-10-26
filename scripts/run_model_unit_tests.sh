@@ -23,6 +23,9 @@ done
 "$NODE" "$ROOT/scripts/run_linux_steam_window_host_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_cloud_tool_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_library_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_linux_proton_component_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_linux_steam_game_launch_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_linux_steam_download_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 
 "$NODE" "$ROOT/scripts/run_local_save_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_value_added_service_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"

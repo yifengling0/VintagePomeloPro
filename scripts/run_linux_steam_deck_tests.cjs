@@ -133,6 +133,8 @@ async function sessionTests(shutdownMode = 'normal') {
     return nativePromise;
   };
   const api=load('service/LinuxSteamSessionService.ets',{
+    './LinuxProtonRuntimeService':{LinuxProtonRuntimeService:singleton({beginSessionPreparation(){},endSessionPreparation(){}})},
+    './LinuxGnuProtonComponent':{LinuxGnuProtonComponent:{subscribe(){},unsubscribe(){},setSessionActive(){}}},
     './LinuxSteamDiagnosticData':{linuxSteamDownloadHome:async()=>'/z'},
     './LinuxSteamDownloadPolicy':{applyLinuxSteamDownloadPolicy(){}},
     '@kit.ArkUI':{promptAction:{showToast(){}}},

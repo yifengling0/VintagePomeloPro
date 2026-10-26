@@ -1,3 +1,4 @@
+import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
 import { linuxSteamWindowsPath, linuxSteamLaunchArgument } from './LinuxSteamPaths';
 import smokeNapi, { LinuxSteamLaunchRequest } from 'libsmoke_napi.so';
 import testNapi from 'libentry.so';
@@ -104,9 +105,12 @@ export class LinuxSteamGameLaunch {
       role: request.role, backend: request.backend ?? 'gnu-proton', generation: this.generation,
       knownWindows: new Set<number>(tasks.snapshot().map((task: HostWindowTask): number => task.toplevelId)),
       focusRevision: tasks.foregroundRevision(), focused: false };
-    let completion: Promise<string>;
-    try { completion = launch(request.id, AppSettingsStore.getInstance().getGlobalSettings().wineLanguage); }
-    catch (error) { this.reject(request, 'GNU Proton 创建进程失败：' + (error as Error).message.substring(0, 160)); return; }
+    let completion: Promise<string>; let releaseRuntime: (() => void) | null = null;
+    try {
+      releaseRuntime = LinuxProtonRuntimeService.getInstance().holdGame();
+      completion = launch(request.id, AppSettingsStore.getInstance().getGlobalSettings().wineLanguage);
+    }
+    catch (error) { releaseRuntime?.(); this.reject(request, 'GNU Proton 创建进程失败：' + (error as Error).message.substring(0, 160)); return; }
     this.gnuSessions.push(session);
     if (request.role === 'game') tasks.registerSteamGame(session.sessionId, request.appId);
     this.record(request.appId, 'gnu_proton_starting', undefined, undefined, request.role, session.backend);
@@ -137,7 +141,7 @@ export class LinuxSteamGameLaunch {
       this.gnuSessions = this.gnuSessions.filter((item: GnuGameSession): boolean => item !== session);
       if (request.role === 'game') tasks.finishSteamGame(session.sessionId, false);
       promptAction.showToast({ message: 'GNU Proton：' + error.message.substring(0, 160), duration: 5000 });
-    });
+    }).finally((): void => { releaseRuntime?.(); });
   }
   private observeGnuWindows(): void {
     const tasks = HostWindowTasks.getInstance();

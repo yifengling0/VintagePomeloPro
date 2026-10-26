@@ -14,7 +14,7 @@ SUITES = (
     'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
     'host_tests/smoke_build_arch_test.py', 'host_tests/wine_build_identity_test.py',
     'host_tests/gstreamer_native_plugins_test.py', 'host_tests/runtime_library_guard_test.py',
-    'scripts/test_check_runtime_components.py', 'host_tests/graphics_assembly_manifest_test.py',
+    'host_tests/proton_runtime_catalog_test.py', 'scripts/test_check_runtime_components.py', 'host_tests/graphics_assembly_manifest_test.py',
 )
 
 
@@ -51,6 +51,19 @@ def package_inputs(root, tracked):
         raise ValueError('\n'.join(errors))
 
 
+def runtime_inputs(root, tracked):
+    required = (
+        'entry/src/main/ets/model/LinuxProtonRuntimeModels.ets',
+        'entry/src/main/ets/service/LinuxProtonRuntimeService.ets',
+        'entry/src/main/ets/components/hmosdeck/ProtonRuntimePanel.ets',
+        'entry/src/main/resources/rawfile/linux-proton/runtime-catalog.json',
+        'docs/linux-steam/proton-runtimes/catalog.json', 'scripts/build_proton_runtime_catalog.py',
+        'host_tests/proton_runtime_catalog_test.py', 'scripts/run_linux_proton_component_tests.cjs',
+    )
+    missing = [name for name in required if name not in tracked or not (root / name).is_file()]
+    if missing: raise ValueError('Uncommitted Proton manager input: ' + ', '.join(missing))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--report', type=Path)
@@ -75,6 +88,8 @@ def main():
         if result.returncode:
             raise ValueError(' '.join(map(str, argv)) + '\n' + result.stdout[-5000:])
     tracked = set(subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0'))
+    check('committed Proton manager inputs', lambda: runtime_inputs(ROOT, tracked))
+    check('independent Proton runtime catalog', lambda: command([sys.executable, '-B', 'scripts/build_proton_runtime_catalog.py']))
     check('declared dependency locks and committed GNU inputs', lambda: package_inputs(ROOT, tracked))
     for path in sorted((ROOT / 'scripts').glob('*.sh')):
         check(str(path.relative_to(ROOT)), lambda p=path: command(['bash', '-n', str(p)]))

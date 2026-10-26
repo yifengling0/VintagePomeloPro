@@ -148,7 +148,10 @@ export class LinuxSteamComponentDownload {
       if (archive.bytes > 4194304) header['range'] = `bytes=${offset}-${rangeEnd}`;
       else if (offset > 0) header['range'] = `bytes=${offset}-`;
       const bases = ['https://client-update.steamstatic.com/', 'https://media.steampowered.com/client/', 'https://cdn.akamai.steamstatic.com/client/'];
-      const url = bases[attempt] + archive.url.substring(archive.url.lastIndexOf('/') + 1);
+      // Project runtime archives use their pinned HTTPS source. Valve client
+      // archives retain the existing three-CDN fallback behavior.
+      const project = /^https:\/\/github\.com\/yifengling0\/VintagePomeloPro\/releases\/download\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\.zip$/.test(archive.url);
+      const url = project ? archive.url : bases[attempt] + archive.url.substring(archive.url.lastIndexOf('/') + 1);
       const code = await Promise.race([interruption, request.requestInStream(url, { method: http.RequestMethod.GET, header,
         connectTimeout: 20000, readTimeout: 120000, usingCache: false })]);
       this.check();

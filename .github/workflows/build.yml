@@ -298,6 +298,13 @@ jobs:
           # Dependency installation must not rewrite committed app inputs.
           git diff --exit-code HEAD --ignore-submodules=all
 
+      - name: Test Proton runtime lifecycle and Steam downloads
+        run: |
+          for suite in run_linux_proton_component_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests; do
+            /apps/harmony/tool/node/bin/node "scripts/$suite.cjs" \
+              /apps/harmony/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript
+          done
+
       - name: Configure every Native target before the long source build
         run: |
           python3 scripts/ci_preflight.py --skip-tests \

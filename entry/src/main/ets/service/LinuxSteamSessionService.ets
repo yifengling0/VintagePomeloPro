@@ -1,3 +1,4 @@
+import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
 import { LinuxGnuProtonComponent } from './LinuxGnuProtonComponent';
 import { applyLinuxSteamDownloadPolicy } from './LinuxSteamDownloadPolicy';
 import { linuxSteamDownloadHome } from './LinuxSteamDiagnosticData';
@@ -131,6 +132,7 @@ export class LinuxSteamSessionService {
     if (!this.context) throw new Error('Steam 服务尚未初始化');
     const nativeStart = smokeNapi.startLinuxSteamSession;
     if (!nativeStart) throw new Error('当前应用不包含 Linux Steam 支持，请更新应用');
+    const runtimes = LinuxProtonRuntimeService.getInstance(); runtimes.beginSessionPreparation();
     this.value = { state: 'preparing', presentation: 'desktop', message: '正在校验 Steam 运行组件', generation: util.generateRandomUUID() };
     this.requestId = 0; this.publish();
     try {
@@ -198,7 +200,7 @@ export class LinuxSteamSessionService {
       if (foregroundCurrent()) await HostWindowTasks.getInstance().showLauncher();
       promptAction.showToast({ message: (error as Error).message.substring(0, 180), duration: 5000 });
       throw new Error((error as Error).message);
-    }
+    } finally { runtimes.endSessionPreparation(); }
   }
   async open(action: LinuxSteamAction = 'library', appId: string = '0'): Promise<void> {
     if (action === 'launch' && !validLinuxSteamAppId(appId)) throw new Error('Steam AppID 无效');
