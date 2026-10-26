@@ -300,7 +300,8 @@ with open('$module_json', 'w') as f:
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --verify-only
     fi
-    hvigorw assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
+    # Match the validated distribution build; Hvigor otherwise defaults to Debug.
+    hvigorw --mode module -p product=default -p buildMode=release assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then

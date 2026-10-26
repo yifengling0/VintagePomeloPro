@@ -214,7 +214,7 @@ class PackagingTests(unittest.TestCase):
         write(self.root / "build-profile.json5", json.dumps(self.profile))
         write(self.root / "sign.py", 'raise SystemExit("unexpected signing invocation")')
         self.hvigor = self.root / "tools/bin/hvigorw"
-        write(self.hvigor, '#!/bin/bash\nmkdir -p entry/build/default/outputs/default\nprintf fixture > entry/build/default/outputs/default/entry-default-unsigned.hap\n')
+        write(self.hvigor, '#!/bin/bash\nprintf "%s\\n" "$@" > hvigor-arguments.txt\nmkdir -p entry/build/default/outputs/default\nprintf fixture > entry/build/default/outputs/default/entry-default-unsigned.hap\n')
         self.hvigor.chmod(0o755)
         # No compiler runs in this fixture. Satisfy env.sh's toolchain identity
         # probe without downloading a toolchain into every TemporaryDirectory.
@@ -239,6 +239,7 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertFalse((self.root / "entry/build/default/outputs/default/entry-default-signed.hap").exists())
         self.assertEqual(json.loads((self.root / "build-profile.json5").read_text()), self.profile)
+        self.assertIn('buildMode=release', (self.root / 'hvigor-arguments.txt').read_text().splitlines())
 
     def test_signed_default_still_requires_signing(self):
         result = self.run_package("hap")

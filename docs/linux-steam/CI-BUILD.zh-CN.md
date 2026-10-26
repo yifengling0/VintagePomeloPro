@@ -4,6 +4,7 @@
 `.github/workflows/build.yml`，从固定 gitlink 拉取子模块，编译 OHOS Wine、
 FEX、Mesa/VirGL、DXVK、OHOS GNU 宿主和 ArkTS，生成 API 23 ARM64 未签名 HAP。
 `entry/build-profile.json5` 已提交两个 GNU 宿主 CMake 开关，不依赖本机命令行缓存。
+CI 显式安装 ArkTS 依赖；标准打包入口显式选择 Hvigor Release，避免默认 Debug。
 
 ## GNU 依赖的边界
 

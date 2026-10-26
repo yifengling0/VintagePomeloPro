@@ -222,6 +222,9 @@ jobs:
           make test-linux-runtime-components
           python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-components.json
 
+      - name: Install ArkTS project dependencies
+        run: ohpm install --all
+
       - name: Build HAP
         env:
           NATIVE_ARCH: arm64-v8a
