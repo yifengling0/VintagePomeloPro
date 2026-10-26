@@ -304,7 +304,7 @@ with open('$module_json', 'w') as f:
     hvigorw --mode module -p product=default -p buildMode=release assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
     if [ -n "${SOURCE_BUILD_MANIFEST:-}" ]; then
-        # Five protected modules are source-built by Hvigor, after Wine assembly.
+        # All app CMake modules are source-built by Hvigor, after Wine assembly.
         # Bind those actual outputs into the receipt and repack incrementally.
         python3 "$SCRIPT_DIR/source_build_contract.py" --finalize-hap "$unsigned_hap" \
             --rawfile "$WINEHUA/entry/src/main/resources/rawfile" \

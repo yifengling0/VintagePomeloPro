@@ -92,9 +92,17 @@ def main():
                 '-DCMAKE_TOOLCHAIN_FILE=' + str(args.sdk / 'native/build/cmake/ohos.toolchain.cmake'),
                 '-DOHOS_ARCH=arm64-v8a', '-DOHOS_PLATFORM=OHOS', '-DCMAKE_BUILD_TYPE=Release',
                 '-DWINEHUA_ENABLE_STEAMOHOS_HOST=ON', '-DWINEHUA_ENABLE_STEAMOHOS_GNU_EXEC=ON'])
+            from source_build_contract import verify_native_targets
+            reply = args.build_dir / '.cmake/api/v1/reply'
+            index = json.loads(max(reply.glob('index-*.json'), key=lambda p: p.stat().st_mtime_ns).read_text())
+            model = json.loads((reply / index['reply']['codemodel-v2']['jsonFile']).read_text())
             missing = set()
-            for target in (args.build_dir / '.cmake/api/v1/reply').glob('target-*.json'):
-                for source in json.loads(target.read_text()).get('sources', []):
+            modules = set()
+            for reference in model['configurations'][0]['targets']:
+                target = json.loads((reply / reference['jsonFile']).read_text())
+                if target['type'] == 'SHARED_LIBRARY':
+                    modules.update('libs/arm64-v8a/' + Path(a['path']).name for a in target['artifacts'])
+                for source in target.get('sources', []):
                     if source.get('isGenerated'):
                         continue
                     path = (ROOT / 'entry/src/main/cpp' / source['path']).resolve()
@@ -103,6 +111,7 @@ def main():
                     relative = path.relative_to(ROOT).as_posix()
                     if not relative.startswith('build/native_') and relative not in tracked:
                         missing.add(relative)
+            verify_native_targets(modules)
             if missing:
                 raise ValueError('CMake depends on uncommitted native sources: ' + ', '.join(sorted(missing)))
         check('full Native CMake configuration and committed target sources', configure)

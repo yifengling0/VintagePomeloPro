@@ -645,6 +645,9 @@ def validate_hap(path: Path, source_manifest=None) -> RuntimeInfo:
             if source_manifest is not None:
                 from source_build_contract import load
                 candidate = load(payload.read, source_manifest)
+                from source_build_contract import validate_member
+                for name in candidate['libraries']:
+                    validate_member(candidate, 'libraries', name, hap.read(name))
                 require_equal(runtime_manifest.get('validationPolicy'), 'source-build-candidate',
                               'candidate validation policy')
             info = validate_runtime_payload(payload, candidate)

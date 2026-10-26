@@ -281,3 +281,12 @@ rawfile 侧另有 `wine-runtime-manifest.json`（payloadSha256），CI 用它校
 - [wine-internals.md](../architecture/wine-internals.md) — 项目架构概览
 - [.claude/rules/build-and-log.md](../../.claude/rules/build-and-log.md) — 构建命令、stamp 机制与调试日志
 - [.claude/rules/submodule-workflow.md](../../.claude/rules/submodule-workflow.md) — Submodule 管理方案
+
+### Hvigor 原生模块与首次组装
+
+源码候选首次组装时，全部 10 个应用 CMake 共享库延后到 Hvigor 编译后登记，
+包括 Steam 解压和 GNU 子进程模块；其他外部运行库仍必须在组装时存在。
+预检读取实际 CMake File API 目标清单，与候选清单双向核对，新增或遗漏模块
+都会在长编译前失败。首轮 HAP 提供实际 ELF 身份，登记后再次打包；最终
+检查要求全部模块存在、架构正确且可加载内容匹配，不接受待生成条目。
+组装依赖源码候选清单和图形锁文件，增量编译也不能复用其他提交的旧清单。

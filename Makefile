@@ -572,6 +572,9 @@ assemble-$(1): $$(STAMPS)/$(1)/assemble
 $$(STAMPS)/$(1)/assemble: $(SCRIPTS)/assemble.sh $(SCRIPTS)/env.sh \
 	$(SCRIPTS)/build_linux_steam_pe_components.py $(SCRIPTS)/generate_linux_steam_bridge.py \
 	$(SCRIPTS)/steam_bridge_codecs.py $(SCRIPTS)/steam_bridge_contracts.py \
+	$(SCRIPTS)/source_build_contract.py $(SCRIPTS)/normalize_runtime_identity.py \
+	$(ROOT)/docs/graphics/runtime-core.lock.json $(ROOT)/docs/graphics/texture-compat-runtime.lock.json \
+	$(SOURCE_BUILD_MANIFEST) \
 	$(ROOT)/docs/linux-steam/steam_bridge_sdk.lock.json \
 	$(wildcard $(ROOT)/entry/src/main/cpp/linux_steam/steam_bridge/*) \
 	$(DXVK_ARTIFACTS) $(DXVK_MODERN_ARTIFACTS) \

@@ -174,6 +174,42 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'cannot defer'):
             candidate.complete_native(value, lambda _: self.elf)
 
+    def test_cold_assembly_defers_the_complete_real_hvigor_inventory(self):
+        # First CI assembly has none of the application CMake outputs. External
+        # dependencies remain mandatory, and the final gate accepts no pending DLL.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compiler = root / 'clang'; compiler.write_bytes(b'compiler fixture')
+            venus = root / 'bin/guest_vulkan/lib/libvulkan_virtio.so'
+            venus.parent.mkdir(parents=True); venus.write_bytes(self.elf)
+            dependency = root / 'libs/arm64-v8a/libexternal.so'
+            dependency.parent.mkdir(parents=True); dependency.write_bytes(self.elf)
+            inventory = candidate.CMAKE_MODULES | {'libs/arm64-v8a/libexternal.so'}
+            with patch.object(candidate, 'source_identity', return_value={'checkout': {}}), \
+                    patch.object(candidate, 'required_members', return_value=(inventory, set())):
+                value = candidate.record(root, root / 'libs', {}, [compiler])
+                self.assertEqual(set(value['pendingNative']), candidate.CMAKE_MODULES)
+                self.assertEqual(set(value['libraries']), {'libs/arm64-v8a/libexternal.so'})
+                read = lambda _: json.dumps(value).encode()
+                candidate.load(read, {}, require_native=False)
+                with self.assertRaisesRegex(ValueError, 'omits required'):
+                    candidate.load(read, {})
+                candidate.complete_native(value, lambda _: self.elf)
+                candidate.load(read, {})
+                self.assertEqual(set(value['libraries']), inventory)
+                dependency.unlink()
+                with self.assertRaises(FileNotFoundError):
+                    candidate.record(root, root / 'libs', {}, [compiler])
+        real_libraries, _ = candidate.required_members()
+        self.assertTrue(candidate.CMAKE_MODULES <= real_libraries)
+
+    def test_new_or_omitted_hvigor_targets_fail_before_compilation(self):
+        candidate.verify_native_targets(candidate.CMAKE_MODULES)
+        with self.assertRaisesRegex(ValueError, 'missing:.*libsteamdecompress'):
+            candidate.verify_native_targets(candidate.CMAKE_MODULES - {'libs/arm64-v8a/libsteamdecompress.so'})
+        with self.assertRaisesRegex(ValueError, 'unregistered:.*libnew'):
+            candidate.verify_native_targets(candidate.CMAKE_MODULES | {'libs/arm64-v8a/libnew.so'})
+
     def test_record_defers_cmake_outputs_even_if_stale_outputs_exist(self):
         name = sorted(candidate.CMAKE_MODULES)[0]
         with tempfile.TemporaryDirectory() as directory:

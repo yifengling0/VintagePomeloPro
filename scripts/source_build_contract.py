@@ -27,7 +27,9 @@ POLICY = 'source-build-candidate'
 # into the final HAP. No other missing dependency may be deferred.
 CMAKE_MODULES = {'libs/arm64-v8a/' + name + '.so' for name in (
     'libvirgl_child', 'libdirect_surface_probe', 'libdirect_gpu_surface_probe',
-    'libdirect_vulkan_probe', 'libdirect_shared_buffer_probe')}
+    'libdirect_vulkan_probe', 'libdirect_shared_buffer_probe',
+    'libentry', 'libwine_child', 'libsmoke_napi', 'libsteamohos_gnu_child',
+    'libsteamdecompress')}
 
 
 def sha(data):
@@ -78,7 +80,15 @@ def required_members():
     for profile, pin in texture['runtimes'].items():
         payload.update('dxvk/' + profile + '/' + name for name in pin['files'])
     # Venus is checked as ELF separately, with exact nested/top-level pairing.
-    return set(core['libraries']), payload
+    return set(core['libraries']) | CMAKE_MODULES, payload
+
+
+def verify_native_targets(names):
+    actual = set(names)
+    if actual != CMAKE_MODULES:
+        raise ValueError('Hvigor Native inventory differs from the source receipt; missing: ' +
+                         ', '.join(sorted(CMAKE_MODULES - actual)) + '; unregistered: ' +
+                         ', '.join(sorted(actual - CMAKE_MODULES)))
 
 
 def source_identity(manifest):
