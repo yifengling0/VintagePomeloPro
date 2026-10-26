@@ -139,7 +139,8 @@ WINE_SMOKE_EXES := $(foreach p,$(WINE_SMOKE_PROGRAMS), \
 	$(BUILD_DIR)/wine-ohos-$(WINE_ARCH)/programs/$(p)/i386-windows/$(p).exe)
 # 源码型用例跟踪 smoke/ 全树; 产物型用例 (from_wine/from_vkd3d) 跟踪
 # 代表产物与 stamp, 重编后触发载荷重建, 防止 assemble 拷到陈旧 exe
-SMOKE_PAYLOAD_INPUTS := $(shell find $(ROOT)/smoke -maxdepth 3 -type f 2>/dev/null) \
+SMOKE_PAYLOAD_INPUTS := $(ROOT)/automation/smoke.py \
+	$(shell find $(ROOT)/smoke -maxdepth 3 -type f 2>/dev/null) \
 	$(WINE_SMOKE_EXES) \
 	$(VKD3D_PROTON_STAMP)
 

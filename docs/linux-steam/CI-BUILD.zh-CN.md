@@ -28,6 +28,11 @@ Proton SDK 头生成，和本次编译的 `kernelbase.dll`、GNU 服务端 SHA �
 `LINUX_STEAM_SDK_REFERENCE` 指定已有头文件缓存。增量产物同时校验源码、
 编译器和输出哈希；最终门禁拒绝接口桥缺失、错误架构及混合版本。
 
+图形 smoke 测试按实际编译器目标选择 Vulkan 导入库。ARM64 Wine 的 `x64`
+槽默认是原生 ARM64，但显式 AMD64 对照使用 x86_64：缺少该架构的 Wine
+导入库时，从本次 Wine Vulkan DLL 的导出表生成 AMD64 导入描述符，避免混入
+ARM64 实现对象。快速回归覆盖此架构选择，构建脚本变化会使测试载荷重新生成。
+
 ## 本地复现
 
 安装与 CI 一致的 HarmonyOS API 23、llvm-mingw 和宿主构建依赖后：

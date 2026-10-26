@@ -387,6 +387,43 @@ def resolve_vkd3d_artifact(env: dict, case: Case, arch: str) -> Path:
     return Path(env["VKD3D_PROTON_BUILD_ROOT"]) / case.from_vkd3d
 
 
+def resolve_vulkan_import(env: dict, case: Case, arch: str) -> Path:
+    """Select by the actual compiler target, including explicit AMD64 controls.
+
+    An ARM64 Wine build has no AMD64 import archive. Generate that archive
+    from this build's Vulkan DLL export table; it contains import descriptors,
+    not ARM64 implementation code. Never link an AMD64 probe to ARM64 objects.
+    """
+    compiler = case_cc(env, case, arch)
+    target = subprocess.check_output([compiler, "-dumpmachine"], text=True).strip().split("-")[0]
+    directories = {"aarch64": "aarch64-windows", "x86_64": "x86_64-windows",
+                   "i386": "i386-windows", "i686": "i386-windows"}
+    if target not in directories:
+        die(f"case {case.id}: unsupported Vulkan compiler target {target}")
+    root = Path(env["BUILD_DIR"]) / WINE_BUILD_DIRNAME / "dlls/vulkan-1"
+    library = root / directories[target] / "libvulkan-1.a"
+    if library.is_file():
+        return library
+    if target != "x86_64" or WINE_ARCH != "aarch64":
+        die(f"wine Vulkan import library missing: {library}")
+    dll = root / "aarch64-windows/vulkan-1.dll"
+    if not dll.is_file():
+        die(f"wine Vulkan export source missing: {dll}")
+    tools = Path(env["LLVM_MINGW"]) / "bin"
+    exports = subprocess.check_output([str(tools / "llvm-readobj"), "--coff-exports", str(dll)], text=True)
+    names = sorted(set(re.findall(r"^\s*Name:\s+(\w+)\s*$", exports, re.MULTILINE)))
+    if not {"vkCreateInstance", "vkDestroyInstance", "vkGetInstanceProcAddr"} <= set(names):
+        die(f"wine Vulkan DLL lacks required exports: {dll}")
+    output = Path(env["BUILD_DIR"]) / "smoke-imports/x86_64"
+    output.mkdir(parents=True, exist_ok=True)
+    definition = output / "vulkan-1.def"
+    definition.write_text("LIBRARY vulkan-1.dll\nEXPORTS\n" + "\n".join(names) + "\n")
+    library = output / "libvulkan-1.a"
+    subprocess.run([str(tools / "llvm-dlltool"), "-m", "i386:x86-64", "-d", str(definition),
+                    "-l", str(library), "-D", "vulkan-1.dll"], check=True)
+    return library
+
+
 def build_case(env: dict, case: Case, arch: str, dest: Path) -> None:
     """把一个用例的一个架构构建/拷贝到 dest。"""
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -416,11 +453,7 @@ def build_case(env: dict, case: Case, arch: str, dest: Path) -> None:
     if spec.get("dxvk_include"):
         command.append(f"-I{env['DXVK_SRC']}/include")
     if spec.get("vulkan_import"):
-        import_lib = (Path(env["BUILD_DIR"]) /
-                      f"{WINE_BUILD_DIRNAME}/dlls/vulkan-1/{WINE_ARCH_DIR[arch]}/libvulkan-1.a")
-        if not import_lib.is_file():
-            die(f"wine Vulkan import library missing: {import_lib}")
-        command.append(str(import_lib))
+        command.append(str(resolve_vulkan_import(env, case, arch)))
     command.extend(spec.get("libs", []))
     result = subprocess.run(command, capture_output=True, text=True, errors="replace")
     if result.returncode != 0:
