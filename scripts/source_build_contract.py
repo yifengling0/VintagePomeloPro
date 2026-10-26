@@ -76,7 +76,8 @@ def required_members():
     core = json.loads((ROOT / 'docs/graphics/runtime-core.lock.json').read_text())
     texture = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())
     payload = set(core['payload'])
-    payload.update(('bin/i386-windows/lsteamclient.dll', 'bin/aarch64-windows/lsteamclient.dll'))
+    from build_linux_steam_pe_components import MODULES as steam_modules
+    payload.update(steam_modules)
     for profile, pin in texture['runtimes'].items():
         payload.update('dxvk/' + profile + '/' + name for name in pin['files'])
     # Venus is checked as ELF separately, with exact nested/top-level pairing.

@@ -290,3 +290,6 @@ rawfile 侧另有 `wine-runtime-manifest.json`（payloadSha256），CI 用它校
 都会在长编译前失败。首轮 HAP 提供实际 ELF 身份，登记后再次打包；最终
 检查要求全部模块存在、架构正确且可加载内容匹配，不接受待生成条目。
 组装依赖源码候选清单和图形锁文件，增量编译也不能复用其他提交的旧清单。
+
+Steam PE 候选清单直接复用会话桥的完整模块定义，同时记录两种架构的
+`kernelbase.dll` 与 `lsteamclient.dll`，避免各验证器各自维护不一致的清单。
