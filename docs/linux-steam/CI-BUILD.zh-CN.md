@@ -33,6 +33,10 @@ cd VintagePomeloPro
 make test-ci-release test-linux-runtime-components
 python3 scripts/prepare_linux_runtime_components.py
 # build-profile.json5 使用工作流中的 unsigned profile，不导入任何私钥。
+# 在编译器应用已提交补丁之前，记录干净 checkout 的来源。
+python3 scripts/verify_ci_release.py source --expected-sha "$(git rev-parse HEAD)" \
+  --output ci-artifacts/ci-source.json
+SOURCE_BUILD_MANIFEST="$PWD/ci-artifacts/ci-source.json" \
 make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 GUEST_ARCH=aarch64 \
   BUILD_GUEST_GFX=1 BUILD_GUEST_VULKAN=1 BUILD_WINE_MONO=1 hap-unsigned
 ```
