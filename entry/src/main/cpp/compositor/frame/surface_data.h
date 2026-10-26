@@ -1,4 +1,5 @@
 #pragma once
+#include "compositor/resource_watch.h"
 #include <wayland-server-core.h>
 #include <atomic>
 #include <cstdint>
@@ -62,6 +63,7 @@ struct SurfaceData {
 
     // subsurface 父子追踪 (用于 popup 菜单合成到父 toplevel)
     wl_resource* parentSurface = nullptr;     // 父 wl_surface (仅 subsurface)
+    ResourceWatch parentSurfaceWatch{parentSurface};
     int32_t subsurfaceX = 0, subsurfaceY = 0; // wl_subsurface.set_position
     bool isSubsurface = false;
 

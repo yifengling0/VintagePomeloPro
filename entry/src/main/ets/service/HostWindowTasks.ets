@@ -12,6 +12,7 @@ export interface HostWindowTask {
   desktop: boolean;
 }
 
+export type HostTaskCloser = (task: HostWindowTask, force: boolean) => Promise<boolean>;
 export type HostTaskListener = (tasks: HostWindowTask[]) => void;
 export type HostTaskActivator = (task: HostWindowTask, current: () => boolean) => Promise<boolean>;
 
@@ -41,6 +42,10 @@ export class HostWindowTasks {
   private requestedKey: string = '';
   private tail: Promise<void> = Promise.resolve();
   private activator: HostTaskActivator | null = null;
+  private wineCloser: HostTaskCloser | null = null;
+  private wineGameEligible: ((sessionId: string) => boolean) | null = null;
+  private steamGameCloser: HostTaskCloser | null = null;
+  private steamClientHosts: Set<string> = new Set<string>();
   private launcher: (() => Promise<void>) | null = null;
 
   static getInstance(): HostWindowTasks {
@@ -49,6 +54,25 @@ export class HostWindowTasks {
   }
 
   setActivator(activator: HostTaskActivator): void { this.activator = activator; }
+  setWineCloser(closer: HostTaskCloser): void { this.wineCloser = closer; }
+  setWineGameEligibility(eligible: (sessionId: string) => boolean): void { this.wineGameEligible = eligible; this.publish(); }
+  setSteamGameCloser(closer: HostTaskCloser | null): void { this.steamGameCloser = closer; this.publish(); }
+  registerSteamClientHost(sessionId: string): void { this.steamClientHosts.add(sessionId); this.publish(); }
+  unregisterSteamClientHost(sessionId: string): void { this.steamClientHosts.delete(sessionId); this.publish(); }
+  controllableGames(): HostWindowTask[] {
+    return this.snapshot().filter((task: HostWindowTask): boolean =>
+      task.sessionId.length > 0 && task.sessionId !== 'desktop' && !this.steamClientHosts.has(task.sessionId) &&
+      (task.source === 'steam-game' ? this.steamGameCloser !== null : task.source === 'wine' &&
+        this.wineCloser !== null && this.wineGameEligible?.(task.sessionId) === true));
+  }
+  async controlGame(key: string, force: boolean): Promise<boolean> {
+    // Resolve the live window generation after any confirmation dialog. Never
+    // send a close/kill to an ID or PID recycled while the dialog was open.
+    const task = this.controllableGames().find((item: HostWindowTask): boolean => item.key === key);
+    if (!task) return false;
+    const closer = task.source === 'steam-game' ? this.steamGameCloser : this.wineCloser;
+    return closer ? closer(task, force) : false;
+  }
   setLauncher(launcher: () => Promise<void>): void { this.launcher = launcher; }
   markLauncherForeground(): void {
     ++this.request; ++this.foregroundChoice; this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
@@ -87,6 +111,7 @@ export class HostWindowTasks {
     this.requestedKey = '';
     this.windows.clear();
     this.steamSessions.clear();
+    this.steamClientHosts.clear();
     this.endedSteamSessions.clear();
     this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
     this.active = '';

@@ -42,6 +42,8 @@ int main()
     assert(!f.comp.BindExternalToplevel(4, 4, 100, 100, 4, 20, 92, 48));
     assert(!f.comp.BindExternalToplevel(4, 1, 100, 100, 4, 20, 92, 48));
     assert(!f.comp.BindExternalToplevel(4, 7, 100, 100, -1, 20, 92, 48));
+    assert(f.comp.BindExternalToplevel(4, 7, 100, 100, 480, 240, 92, 48));
+    assert(!f.comp.BindExternalToplevel(4, 7, 100, 100, 4097, 240, 92, 48));
     assert(f.comp.BindExternalToplevel(4, 7, 100, 100, 4, 20, 92, 48));
     InputTarget hit;
     assert(f.input.FindInputTargetAt(60, 50, hit));

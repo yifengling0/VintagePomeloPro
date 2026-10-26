@@ -202,6 +202,7 @@ public:
     /* wl_subsurface */
     static void subsurface_destroy(wl_client*, wl_resource* r);
     static void subsurface_resource_destroyed(wl_resource* r);
+    void RemoveSubsurfaceRole(wl_resource* childSurface);
     static void subsurface_set_position(wl_client*, wl_resource*, int32_t, int32_t);
     static void subsurface_place_above(wl_client*, wl_resource*, wl_resource*);
     static void subsurface_place_below(wl_client*, wl_resource*, wl_resource*);

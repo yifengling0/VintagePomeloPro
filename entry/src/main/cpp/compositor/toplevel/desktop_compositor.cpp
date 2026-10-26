@@ -171,7 +171,7 @@ bool DesktopCompositor::BindExternalToplevel(uint32_t source, uint32_t host,
     if (!policy_.RootCompositing() || !source || !host || source == host ||
         source == desktopRootToplevelId_ || host == desktopRootToplevelId_ ||
         !sourcePid || !hostPid || x < 0 || y < 0 || w < 1 || h < 1 ||
-        x > 256 || y > 256 || w > 4096 || h > 4096) return false;
+        x > 4096 || y > 4096 || w > 4096 || h > 4096) return false;
     ExternalWindow binding; binding.source = source; binding.host = host;
     binding.x = x; binding.y = y; binding.w = w; binding.h = h;
     for (const auto& [key, resource] : tmgr_.SurfaceResources()) {

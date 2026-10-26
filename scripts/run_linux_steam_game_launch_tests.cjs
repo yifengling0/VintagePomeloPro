@@ -19,12 +19,12 @@ const deps = {
     replyLinuxSteamLaunchBroker: (...args) => { replies.push(args); return replyAccepted; }
   } },
   'libentry.so': { default: {
-    getProcessList: () => [], queryWineProcess: () => processInfo, stopWineSession: id => stopped.push(id)
+    sendToplevelClose:id=>stopped.push(['close',id]), getWineSession:()=>({state:'running'}), getProcessList: () => [], queryWineProcess: () => processInfo, stopWineSession: id => stopped.push(id)
   } },
   '@kit.CoreFileKit': { fileIo: { listFileSync() { if (failAudit) throw Error('library updating'); return []; }, statSync() { throw Error('file removed'); } } }, '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
   '../model/AppModels': { DisplayMode: { DESKTOP: 1 }, WinePresentationMode: { MANAGED_WINDOWS: 1 } },
   './AppSessionService': { AppSessionService: singleton({ registerExternalLaunch() {} }) },
-  './HostWindowTasks': { HostWindowTasks: singleton({ registerSteamGame(id) { launches.push(['registerGame', id]); }, finishSteamGame(id, known) { completions.push([id, known]); } }) },
+  './HostWindowTasks': { HostWindowTasks: singleton({ setSteamGameCloser(closer){this.gameCloser=closer;}, registerSteamGame(id) { launches.push(['registerGame', id]); }, finishSteamGame(id, known) { completions.push([id, known]); } }) },
   './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ wineLanguage: 'zh_CN' }) }) },
   './WineEngineService': { WineEngineService: singleton({
     launchExecutable: (...args) => { if (failLaunch) throw Error('launch failed'); launches.push(args); return { pid: 100, sessionId: 'wine-100-1', reused: false }; },
@@ -162,7 +162,13 @@ service.start('/z/SteamLinuxARM64/library','/results','/z');
 const beforeGnu=launchCount();requests=[{...request(),id:30,backend:'gnu-proton'}];await service.tick();
 assert.equal(runtimeLeases,1);assert.equal(launchCount(),beforeGnu);assert.equal(service.gnuSessions.length,1);
 assert.equal(evidence().runtimeBackend,'gnu-proton');
-requests=[{...request(),id:30,cancel:true}];await service.tick();assert.deepEqual(gnuCancelled,[30]);
+const activeGnu=service.gnuSessions[0];
+assert.equal(await taskHost.gameCloser({sessionId:activeGnu.sessionId,toplevelId:77},false),true);
+assert.deepEqual(stopped.at(-1),['close',77]);
+assert.equal(await taskHost.gameCloser({sessionId:'steam-client',toplevelId:4},true),false,'Steam is never a kill target');
+assert.equal(await taskHost.gameCloser({sessionId:activeGnu.sessionId,toplevelId:77},true),true);
+assert.deepEqual(gnuCancelled,[30]);
+assert.equal(service.gnuSessions.length,1,'cancellation waits for native completion before notifying Steam');
 resolveGnu(JSON.stringify({status:'proton_game_cancelled',childExitVerified:true,prefix:{exitCode:-1,signal:9,cancelled:true,childReaped:true}}));
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(runtimeLeases,0);assert.equal(service.gnuSessions.length,0);assert.equal(evidence().exitCode,130);

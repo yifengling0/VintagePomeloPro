@@ -44,6 +44,7 @@ const deps = {
   './HostWindowTasks': { HostWindowTasks: singleton({ snapshot: () => tasks,
     refreshLinuxSteamOwnership: owns => {for(const task of tasks)if(owns(task.clientPid))task.source='steam-linux';},
     activateSteamLaunchPrompt: async (...args) => {calls.push(['prompt', ...args]); return true;},
+    registerSteamClientHost(){},unregisterSteamClientHost(){},
     isLauncherForeground: () => launcherForeground, isSteamGameForeground: () => steamGameForeground }) },
   './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ controllerOutputMode: 'dinput' }) }) },
   './GamepadManager': { GamepadManager: singleton({
@@ -77,7 +78,7 @@ vm.runInNewContext(code, { exports: output, clearInterval() {}, setInterval: () 
 } });
 function fixture() {
   const host = new output.LinuxSteamWindowHost();
-  Object.assign(host, { sessionId: 'wine-1', statePath, evidence: '/results/binding.json', started: Date.now() });
+  Object.assign(host, { desktopSeen:true, sessionId: 'wine-1', statePath, evidence: '/results/binding.json', started: Date.now() });
   return host;
 }
 function wine(minimized = 0, activation = 1, mode = 0, controlSerial = 100000, width = 1024, height = 640) {
@@ -159,11 +160,26 @@ native(2, 0); host.tick();
 focused = 99; host.tick();
 assert.ok(calls.some(c => c[0] === 'output' && c[1] === 'dinput'), 'Game focus restores the original controller mode');
 const beforeClose = calls.length; native(0, 0, 1); host.tick();
+assert.deepEqual(calls.slice(beforeClose), [],'native withdrawal waits for the owning supervisor');
+assert.equal(host.sessionId, 'wine-1', 'a restarting native client keeps its Wine host');
+host.stop();
 assert.deepEqual(calls.slice(beforeClose), [['unbind', 5], ['stop', 'wine-1']]);
-assert.equal(host.sessionId, '', 'Closed native client cannot rebind a stopped Wine host');
+assert.equal(host.sessionId,'','confirmed supervisor completion still cleans up');
 native(); wine(); const replaced = fixture(); replaced.tick();
 tasks[1].key = 'native-generation-2'; replaced.tick();
-assert.equal(replaced.sessionId, '', 'A reused Wayland ID cannot bind a different client generation');
+assert.equal(replaced.sessionId, 'wine-1', 'a verified replacement native surface keeps the host');
+assert.deepEqual(calls.filter(c=>c[0]==='bind').at(-1),['bind',4,5,200,100,0,0,1024,640]);
+tasks[0].key='wine-generation-2'; replaced.tick();
+assert.equal(replaced.sessionId,'','a replacement Wine host cannot inherit the binding');
+tasks[0].key='wine-generation-1';
+const unverifiedReplacement=fixture();native();wine();unverifiedReplacement.tick();
+const beforeUnverified=calls.filter(c=>c[0]==='bind').length;
+tasks[1].key='unverified-native-generation';nativeOwnershipAvailable=false;
+unverifiedReplacement.tick();
+assert.equal(calls.filter(c=>c[0]==='bind').length,beforeUnverified,'an unverified reused ID cannot rebind');
+nativeOwnershipAvailable=true;unverifiedReplacement.tick();
+assert.equal(calls.filter(c=>c[0]==='bind').length,beforeUnverified+1,'late ownership confirmation permits the replacement');
+unverifiedReplacement.stop();
 // Withdrawing Big Picture must not briefly restore the desktop rectangle.
 const transition = fixture(); native(2); wine(0,1,2); transition.tick();
 const beforeWithdrawal = writes.length;
@@ -177,6 +193,27 @@ assert.match(files.get(statePath+'.control'), /^\d+ 0 0 1 960 600\n$/,
 native(0,0,0,0,4096,4096); sized.tick();
 assert.match(files.get(statePath+'.control'), /^\d+ 0 0 1\n$/,'invalid dimensions cannot resize the host');
 console.log('Wine/native window state, no activation loops, taskbar restore, focus profile, exit and generation: PASS');
+
+// Login uses a full black host but keeps the native viewport at natural size.
+// An acknowledgment must settle before binding; desktop entry ends the canvas.
+tasks[1].key='native-generation-1';
+const login = fixture(); login.desktopSeen=false;
+files.set(base+'/wine-window-inventory.json',JSON.stringify({version:1,primary:123,windows:[{id:123,mapped:2,desktop:0}]}));
+native(0,0,0,0,960,600);wine(0,1,0,100000,1920,1080);
+const beforeLogin=calls.filter(c=>c[0]==='bind').length;login.tick();
+assert.equal(calls.filter(c=>c[0]==='bind').length,beforeLogin,'wait for the backdrop acknowledgment');
+assert.match(files.get(statePath+'.control'),/ 960 600 1\n$/);
+files.set(statePath,JSON.stringify({version:1,x:0,y:0,width:1920,height:1080,contentWidth:960,contentHeight:600,
+ startupBackdrop:1,mode:0,controlSerial:100000,minimized:0,activation:1,closed:0,geometryReady:1}));
+login.tick();
+assert.deepEqual(calls.filter(c=>c[0]==='bind').at(-1),['bind',4,5,200,100,480,240,960,600]);
+assert.deepEqual(calls.filter(c=>c[0]==='resize').at(-1),['resize',4,960,600],'black margin does not enlarge CEF');
+files.set(base+'/wine-window-inventory.json',JSON.stringify({version:1,primary:123,windows:[{id:123,mapped:2,desktop:1}]}));
+login.tick();assert.equal(login.startupBackdrop,false);assert.match(files.get(statePath+'.control'),/ 960 600\n$/);
+files.set(base+'/wine-window-inventory.json',JSON.stringify({version:1,primary:123,windows:[{id:123,mapped:2,desktop:0}]}));
+login.tick();assert.equal(login.startupBackdrop,false,'later game dialogs never reopen the login backdrop');
+login.stop();files.delete(base+'/wine-window-inventory.json');
+console.log('Centered login, natural CEF size, presentation acknowledgment and desktop handoff: PASS');
 
 // Native corner resize follows the applied HWND geometry until the X11
 // supervisor acknowledges the final command. Stale normalWidth cannot undo it.
@@ -245,7 +282,9 @@ assert.doesNotThrow(() => missingSurface.tick());
 assert.ok(missingSurface.host > 0,'a later verified surface still binds after evidence write failure');
 native(0,0,1);
 assert.doesNotThrow(() => diagnosticFailure.tick());
-assert.equal(diagnosticFailure.sessionId,'','native exit cleanup runs even with unavailable evidence');
+assert.equal(diagnosticFailure.sessionId,'wine-1','native withdrawal keeps its host even without diagnostics');
+assert.doesNotThrow(()=>diagnosticFailure.stop());
+assert.equal(diagnosticFailure.sessionId,'','supervisor cleanup runs even with unavailable evidence');
 failDiagnosticWrites = false;
 console.log('Binding, pending surface recovery and exit tolerate diagnostic ENOSPC: PASS');
 
@@ -258,6 +297,11 @@ pendingGeometry.tick();
 assert.equal(calls.filter(c => c[0] === 'resize').length,beforePending);
 
 (async () => {
+  const launchHost=fixture(); launchHost.hostKey='wine-generation-1';
+  const promptCount=calls.filter(c=>c[0]==='prompt').length;
+  assert.equal(await launchHost.restore(true),true);
+  assert.deepEqual(calls.filter(c=>c[0]==='prompt').slice(promptCount),
+    [['prompt','wine-generation-1','wine-1']], 'Showing Steam before Play preserves the game handoff');
   const initialPath = '/drive/hmosdeck/session/wine-window-state.json';
   files.set(initialPath,'old window state');
   files.set(initialPath+'.control','999 1 0 1 700 440\n');

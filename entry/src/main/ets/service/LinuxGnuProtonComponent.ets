@@ -1,4 +1,5 @@
 import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
+import { ensureLinuxProtonBootstrap } from './LinuxProtonBootstrap';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, statfs } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
@@ -191,6 +192,7 @@ export class LinuxGnuProtonComponent {
       recoverTransaction(); LinuxGnuProtonComponent.verified = false;
       const runtimes = LinuxProtonRuntimeService.getInstance();
       const selected = await runtimes.prepareSelected(context);
+      await ensureLinuxProtonBootstrap(context);
       if (selected) {
         // App upgrades own adapter files only. A user-selected upstream version
         // must never be replaced by the bundled fallback during preparation.

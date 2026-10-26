@@ -3,6 +3,8 @@ import { skinColor } from '../service/SkinColors';
 import { EngineState } from '../model/AppModels';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
+import { DeckLaunchFeedback, DeckLaunchFeedbackListener, DeckLaunchFeedbackService } from '../service/DeckLaunchFeedbackService';
+import { DeckLaunchScreen } from './hmosdeck/DeckLaunchScreen';
 
 /**
  * Blocks the actual Wine host window while the native runtime is preparing.
@@ -15,10 +17,14 @@ export struct WineEngineBlockingOverlay {
   @State private message: string = WineEngineService.getInstance().getMessage();
   @State private phaseText: string = WineEngineService.getInstance().getPhaseText();
   @State private elapsedSec: number = 0;
+  @State private launch: DeckLaunchFeedback | null = DeckLaunchFeedbackService.getInstance().snapshot();
+  private launchListener: DeckLaunchFeedbackListener | null = null;
   private listener: EngineStateListener | null = null;
   private phaseTicker: number = -1;
 
   aboutToAppear(): void {
+    this.launchListener = (feedback: DeckLaunchFeedback | null): void => { this.launch = feedback; };
+    DeckLaunchFeedbackService.getInstance().subscribe(this.launchListener);
     this.listener = (state: EngineState, message: string): void => {
       this.state = state;
       this.message = message;
@@ -36,6 +42,7 @@ export struct WineEngineBlockingOverlay {
   }
 
   aboutToDisappear(): void {
+    if (this.launchListener) DeckLaunchFeedbackService.getInstance().unsubscribe(this.launchListener);
     if (this.phaseTicker >= 0) {
       clearInterval(this.phaseTicker);
       this.phaseTicker = -1;
@@ -71,7 +78,11 @@ export struct WineEngineBlockingOverlay {
   }
 
   build() {
-    if (this.isBusy() || this.state === EngineState.ERROR) {
+    if (this.launch && this.state !== EngineState.ERROR) {
+      DeckLaunchScreen({ title: this.launch.title, cover: this.launch.cover,
+        builtin: this.launch.builtin, message: this.launch.message })
+        .width('100%').height('100%').zIndex(1000)
+    } else if (this.isBusy() || this.state === EngineState.ERROR) {
       Stack() {
         Column()
           .width('100%').height('100%')

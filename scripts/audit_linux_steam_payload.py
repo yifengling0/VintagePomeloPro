@@ -37,6 +37,12 @@ def audit(path):
                 if len(data) != item['bytes'] or digest(data) != item['sha256']:
                     raise ValueError('Missing or stale paired Wine bridge: '+item['path'])
         plan = json.loads(hap.read(raw+'linux-steam/deployment.json'))
+        supervisor = json.loads(hap.read(raw+'linux-steam/bootstrap/manifest.json'))
+        update = hap.read(raw+'linux-steam/bootstrap/'+supervisor['name'])
+        if len(update) != supervisor['bytes'] or digest(update) != supervisor['sha256'] or b'HMOSDECK_STEAM_RESTART ' not in update:
+            raise ValueError('HAP Steam lifetime supervisor is missing or stale')
+        if b'steamohos_gnu_steam_session_hap' not in hap.read('libs/arm64-v8a/libsteamohos_gnu_child.so'):
+            raise ValueError('Native session still selects the old Steam lifetime supervisor')
         offline = json.loads(hap.read(raw+'linux-steam/offline-package.json'))
         if plan['id'] != offline['id']:
             raise ValueError('Offline import and online installation use different releases')

@@ -8,7 +8,14 @@ struct wl_display;
 struct wl_global;
 struct wl_event_loop;
 struct wl_event_source;
+struct wl_list { wl_list* prev; wl_list* next; };
+inline void wl_list_init(wl_list* l) { l->prev = l->next = l; }
+inline void wl_list_remove(wl_list* l) { l->prev->next = l->next; l->next->prev = l->prev; }
+struct wl_listener { wl_list link; void (*notify)(wl_listener*, void*); };
 struct wl_resource { void* userData = nullptr; wl_client* client = nullptr; };
+// Scene tests have fixed resource lifetimes. Destruction notifications are
+// exercised separately by the real-libwayland XDG/subsurface ASan tests.
+inline void wl_resource_add_destroy_listener(wl_resource*, wl_listener* l) { wl_list_init(&l->link); }
 inline void* wl_resource_get_user_data(wl_resource* resource) { return resource->userData; }
 inline wl_client* wl_resource_get_client(wl_resource* resource) { return resource->client; }
 inline int wl_resource_get_version(wl_resource*) { return 8; }

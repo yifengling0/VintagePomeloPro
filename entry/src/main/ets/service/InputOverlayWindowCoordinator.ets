@@ -53,6 +53,9 @@ export class InputOverlayWindowCoordinator {
   private boundsSyncGeneration: number = 0;
   private visibilityGeneration: number = 0;
   private visibilityOp: Promise<void> = Promise.resolve();
+  private blockingOp: Promise<void> = Promise.resolve();
+  private engineBusy: boolean = false;
+  private launchBusy: boolean = false;
   private snapshot: InputOverlaySnapshot = {
     session: { sessionId: '', displayMode: DisplayMode.DESKTOP, toplevelId: 0, active: false },
     profileId: 'default', enabled: true, visible: false, controlsVisible: true, opacity: 72,
@@ -248,6 +251,24 @@ export class InputOverlayWindowCoordinator {
    * visibility so a compositor frame cannot bypass it.
    */
   async setEngineBusy(busy: boolean): Promise<void> {
+    this.engineBusy = busy;
+    await this.syncBlocking();
+  }
+
+  async setLaunchBusy(busy: boolean): Promise<void> {
+    this.launchBusy = busy;
+    await this.syncBlocking();
+  }
+
+  private async syncBlocking(): Promise<void> {
+    // Engine completion must not expose an empty native surface while Steam
+    // is still starting. Serialize window operations and read the latest reasons.
+    const pending = this.blockingOp.then((): Promise<void> => this.applyBlocking(this.engineBusy || this.launchBusy));
+    this.blockingOp = pending.catch((): void => {});
+    await pending;
+  }
+
+  private async applyBlocking(busy: boolean): Promise<void> {
     if (this.snapshot.blocking === busy && (!busy || this.snapshot.visible)) return;
     this.snapshot.blocking = busy;
     if (this.overlayWindow) {

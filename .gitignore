@@ -6,6 +6,10 @@
 *.exe
 # Self-owned Wine window adapter required by standard Linux Steam HAP builds.
 !entry/src/main/resources/rawfile/hmosdeck/hmosdeck-steam.exe
+# Pinned small GE helper closure; required without downloading the upstream archive.
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/lsass.exe
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/psapi.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/wevtsvc.dll
 .deps/
 .libs/
 

@@ -34,6 +34,10 @@ assert.ok(options.includes('presentBackend?: string;'));
 const calls = [], summaries = [];
 let syncCalls=0, restoreCalls=0;
 const imports = {
+ '@kit.CoreFileKit': {fileIo: {}}, '@kit.PerformanceAnalysisKit': {},
+ './LinuxGnuProtonComponent': {}, './LinuxSteamSessionService': {}, './HostWindowTasks': {},
+ './InputDispatcher': {}, './WineWindowManager': {}, './AppSettingsStore': {},
+ '../model/AppModels': {WinePresentationMode: {DESKTOP: 'desktop'}},
  './LinuxSteamDiagnosticData': {}, './LinuxSteamWindowHost': {}, './LinuxSteamStorageAudit': {},
  './LinuxSteamCleanInstallDiagnostic': {},
  './LinuxSteamGameLaunch': {}, 'libsmoke_napi.so': { default: {} },

@@ -45,6 +45,22 @@ export class LinuxSteamGameLaunch {
     if (!smokeNapi.startLinuxSteamLaunchBroker || !smokeNapi.startLinuxSteamLaunchBroker(library)) {
       throw new Error('Cannot create Linux Steam game launch service');
     }
+    HostWindowTasks.getInstance().setSteamGameCloser(async (task: HostWindowTask, force: boolean): Promise<boolean> => {
+      const gnu = this.gnuSessions.find((item: GnuGameSession): boolean =>
+        item.role === 'game' && item.sessionId === task.sessionId && item.generation === this.generation);
+      if (gnu) {
+        if (force) return smokeNapi.cancelLinuxProtonGame?.(gnu.id) ?? false;
+        testNapi.sendToplevelClose(task.toplevelId); return true;
+      }
+      const wine = this.sessions.find((item: GameSession): boolean => item.role === 'game' && item.sessionId === task.sessionId);
+      const native = wine ? testNapi.getWineSession(wine.sessionId) : null;
+      if (!wine || !native || native.state === 'stopped') return false;
+      if (force) testNapi.stopWineSession(wine.sessionId);
+      else testNapi.sendToplevelClose(task.toplevelId);
+      // Completion remains owned by waitpid/session observation, including the
+      // launch-broker exit reply and Steam Cloud. Do not report a fake exit here.
+      return true;
+    });
     this.results = results;
     this.library = library;
     this.zRoot = zRoot;
@@ -60,6 +76,7 @@ export class LinuxSteamGameLaunch {
     }, 200);
   }
   stop(): void {
+    HostWindowTasks.getInstance().setSteamGameCloser(null);
     this.generation++;
     if (this.timer >= 0) clearInterval(this.timer);
     this.timer = -1;

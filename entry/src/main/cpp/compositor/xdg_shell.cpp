@@ -2,6 +2,7 @@
 #include "protocols/xdg-shell-server-protocol.h"
 #include "wayland_server.h"
 #include "xdg_shell.h"
+#include "xdg_positioner.h"
 #include "xdg_configure.h"
 #include "direct/direct_wine_surface_controller.h"
 #include <algorithm>
@@ -353,7 +354,112 @@ static void xs_get_toplevel(wl_client* client, wl_resource* xsRes, uint32_t id) 
     XdgConfigureSend(tl, xsRes, 0, 0, {XDG_TOPLEVEL_STATE_ACTIVATED});
 }
 
-static void xs_get_popup(wl_client*, wl_resource*, uint32_t, wl_resource*, wl_resource*) {}
+// Every advertised positioner request needs a dispatch table. A null table
+// crashes libwayland before any compositor callback can run.
+static XdgPositionerState* positioner(wl_resource* r) {
+    return static_cast<XdgPositionerState*>(wl_resource_get_user_data(r));
+}
+static void xp_destroy(wl_client*, wl_resource* r) { wl_resource_destroy(r); }
+static void xp_size(wl_client*, wl_resource* r, int32_t w, int32_t h) {
+    if (w <= 0 || h <= 0) { wl_resource_post_error(r, XDG_POSITIONER_ERROR_INVALID_INPUT, "invalid popup size"); return; }
+    positioner(r)->width = w; positioner(r)->height = h;
+}
+static void xp_rect(wl_client*, wl_resource* r, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (w <= 0 || h <= 0) { wl_resource_post_error(r, XDG_POSITIONER_ERROR_INVALID_INPUT, "invalid anchor rectangle"); return; }
+    auto* p = positioner(r); p->x = x; p->y = y; p->rectWidth = w; p->rectHeight = h;
+}
+static void xp_anchor(wl_client*, wl_resource* r, uint32_t value) {
+    if (value > 8) { wl_resource_post_error(r, XDG_POSITIONER_ERROR_INVALID_INPUT, "invalid anchor"); return; }
+    positioner(r)->anchor = value;
+}
+static void xp_gravity(wl_client*, wl_resource* r, uint32_t value) {
+    if (value > 8) { wl_resource_post_error(r, XDG_POSITIONER_ERROR_INVALID_INPUT, "invalid gravity"); return; }
+    positioner(r)->gravity = value;
+}
+static void xp_adjustment(wl_client*, wl_resource* r, uint32_t value) {
+    if (value & ~63u) { wl_resource_post_error(r, XDG_POSITIONER_ERROR_INVALID_INPUT, "invalid constraint adjustment"); return; }
+    positioner(r)->adjustment = value;
+}
+static void xp_offset(wl_client*, wl_resource* r, int32_t x, int32_t y) {
+    positioner(r)->offsetX = x; positioner(r)->offsetY = y;
+}
+static void xp_reactive(wl_client*, wl_resource* r) { positioner(r)->reactive = true; }
+static void xp_parent_size(wl_client*, wl_resource* r, int32_t w, int32_t h) {
+    if (w <= 0 || h <= 0) { wl_resource_post_error(r, XDG_POSITIONER_ERROR_INVALID_INPUT, "invalid parent size"); return; }
+    positioner(r)->parentWidth = w; positioner(r)->parentHeight = h;
+}
+static void xp_parent_configure(wl_client*, wl_resource* r, uint32_t serial) { positioner(r)->parentConfigure = serial; }
+static const struct xdg_positioner_interface kPositionerImpl = {
+    .destroy = xp_destroy, .set_size = xp_size, .set_anchor_rect = xp_rect,
+    .set_anchor = xp_anchor, .set_gravity = xp_gravity,
+    .set_constraint_adjustment = xp_adjustment, .set_offset = xp_offset,
+    .set_reactive = xp_reactive, .set_parent_size = xp_parent_size,
+    .set_parent_configure = xp_parent_configure,
+};
+
+struct XdgPopupData {
+    wl_resource* child = nullptr;
+    wl_resource* parent = nullptr;
+    wl_resource* xdg = nullptr;
+    ResourceWatch childWatch{child}, parentWatch{parent}, xdgWatch{xdg};
+    XdgPositionerState placement;
+};
+static void popup_configure(wl_resource* r) {
+    auto* d = static_cast<XdgPopupData*>(wl_resource_get_user_data(r));
+    if (!d || !d->child || !d->parent || !d->xdg) { xdg_popup_send_popup_done(r); return; }
+    const int32_t x = d->placement.X(), y = d->placement.Y();
+    {
+        auto lk = gTmgr->Lock();
+        auto* sd = gTmgr->FindRegisteredSurfaceDataLocked(d->child);
+        auto* parent = gTmgr->FindRegisteredSurfaceDataLocked(d->parent);
+        if (!sd || !parent) return;
+        sd->parentSurfaceWatch.Set(d->parent);
+        sd->isSubsurface = true;
+        // XDG coordinates use parent window geometry. Existing subsurface
+        // rendering and hit-testing use the parent's wl_surface coordinates.
+        sd->subsurfaceX = XdgPositionerState::Coordinate(x, 0, 0, -1, 1, parent->committed.contentRect.x);
+        sd->subsurfaceY = XdgPositionerState::Coordinate(y, 0, 0, -1, 1, parent->committed.contentRect.y);
+        sd->committed.role = RoleFor(sd->hasToplevel, sd->isSubsurface);
+    }
+    xdg_popup_send_configure(r, x, y, d->placement.width, d->placement.height);
+    xdg_surface_send_configure(d->xdg, wl_display_next_serial(WaylandServer::GetInstance()->GetDisplay()));
+}
+static void popup_destroy(wl_client*, wl_resource* r) { wl_resource_destroy(r); }
+static void popup_resource_destroy(wl_resource* r) {
+    auto* d = static_cast<XdgPopupData*>(wl_resource_get_user_data(r));
+    if (d && d->child) WaylandServer::GetInstance()->RemoveSubsurfaceRole(d->child);
+    delete d;
+}
+// Wine owns pointer capture/dismissal for its Windows popup windows. Menus
+// reuse the native hit-test and parent composition path used by subsurfaces.
+static void popup_grab(wl_client*, wl_resource*, wl_resource*, uint32_t) {}
+static void popup_reposition(wl_client*, wl_resource* r, wl_resource* p, uint32_t token) {
+    auto* d = static_cast<XdgPopupData*>(wl_resource_get_user_data(r));
+    if (!positioner(p)->Complete()) {
+        wl_resource_post_error(r, XDG_WM_BASE_ERROR_INVALID_POSITIONER, "incomplete positioner"); return;
+    }
+    d->placement = *positioner(p);
+    xdg_popup_send_repositioned(r, token);
+    popup_configure(r);
+}
+static const struct xdg_popup_interface kPopupImpl = {
+    .destroy = popup_destroy, .grab = popup_grab, .reposition = popup_reposition,
+};
+static void xs_get_popup(wl_client* client, wl_resource* xsRes, uint32_t id,
+                         wl_resource* parentRes, wl_resource* p) {
+    auto* surface = static_cast<XdgSurface*>(wl_resource_get_user_data(xsRes));
+    auto* parent = parentRes ? static_cast<XdgSurface*>(wl_resource_get_user_data(parentRes)) : nullptr;
+    if (!surface || !surface->wlSurface || !parent || !parent->wlSurface || !positioner(p)->Complete()) {
+        wl_resource_post_error(xsRes, XDG_WM_BASE_ERROR_INVALID_POSITIONER, "popup requires a live parent and complete positioner"); return;
+    }
+    wl_resource* popup = wl_resource_create(client, &xdg_popup_interface, wl_resource_get_version(xsRes), id);
+    if (!popup) { wl_client_post_no_memory(client); return; }
+    auto* d = new XdgPopupData();
+    d->childWatch.Set(surface->wlSurface); d->parentWatch.Set(parent->wlSurface); d->xdgWatch.Set(xsRes);
+    d->placement = *positioner(p);
+    wl_resource_set_implementation(popup, &kPopupImpl, d, popup_resource_destroy);
+    popup_configure(popup);
+}
 static void xs_set_window_geometry(wl_client*, wl_resource* xsRes, int32_t x, int32_t y, int32_t w, int32_t h) {
     auto* d = static_cast<XdgSurface*>(wl_resource_get_user_data(xsRes));
     if (!d || !d->wlSurface) return;
@@ -411,9 +517,12 @@ static void xs_resource_destroy(wl_resource* r) {
 // -- xdg_wm_base 实现 --
 static void wm_destroy(wl_client*, wl_resource* r) { wl_resource_destroy(r); }
 
-static void wm_create_positioner(wl_client* c, wl_resource*, uint32_t id) {
-    wl_resource* p = wl_resource_create(c, &xdg_positioner_interface, 3, id);
-    wl_resource_set_implementation(p, nullptr, nullptr, nullptr);
+static void wm_create_positioner(wl_client* c, wl_resource* wm, uint32_t id) {
+    wl_resource* p = wl_resource_create(c, &xdg_positioner_interface, wl_resource_get_version(wm), id);
+    if (!p) { wl_client_post_no_memory(c); return; }
+    wl_resource_set_implementation(p, &kPositionerImpl, new XdgPositionerState(), [](wl_resource* r) {
+        delete positioner(r);
+    });
 }
 
 static void wm_get_xdg_surface(wl_client* client, wl_resource* wmRes,

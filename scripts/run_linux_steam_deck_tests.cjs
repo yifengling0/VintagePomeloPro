@@ -108,14 +108,14 @@ async function sessionTests(shutdownMode = 'normal') {
   let starts=0, launches=0, stopped=0, endNative, foregroundRevision=0, homes=0;
   let releaseComponents;
   const componentsGate=new Promise(resolve=>{releaseComponents=resolve;});
-  const commands=[]; let onDispatch=()=>{};
+  const commands=[]; const presentationEvents=[]; let onDispatch=()=>{};
   const base='/data/storage/el2/base/files/steamohos-native';
   const nativePromise=new Promise(resolve=>{endNative=resolve;});
   const config={read(file){if(!files.has(file))throw Error('missing');return files.get(file);},text:x=>x,json(file,text){
     files.set(file,text);
     if(file.endsWith('/deck-command.txt')) {
       const [version,generation,id,action,appId]=text.trim().split(' ');
-      commands.push({generation,id,action,appId}); onDispatch();
+      commands.push({generation,id,action,appId}); presentationEvents.push('dispatch:'+action); onDispatch();
       if (action === 'shutdown' && shutdownMode === 'timeout') return;
       if (action === 'shutdown' && shutdownMode === 'early') {
         endNative('{"status":"completed"}'); return; // Native exit wins the next ACK poll.
@@ -125,7 +125,7 @@ async function sessionTests(shutdownMode = 'normal') {
     }
   }};
   let foreground=true,recoverPending=false,recoverAttempts=0,restores=0,presentationResets=0,failHost=false;
-  class Host {exited=false; hasExited(){return this.exited;} async restore(){restores++;return true;} async start() {launches++;if(failHost){failHost=false;throw new Error('create failed');}} stop(){stopped++;} isForeground(){return foreground;}}
+  class Host {exited=false; hasExited(){return this.exited;} async restore(forLaunch=false){restores++;presentationEvents.push('restore:'+(forLaunch?'launch':'navigation'));return true;} async start() {launches++;if(failHost){failHost=false;throw new Error('create failed');}} stop(){stopped++;} isForeground(){return foreground;}}
   class Recovery {start(){}stop(){}poll(){}beginBigPicture(){presentationResets++;}needed(){return recoverPending;}take(){recoverPending=false;return ++recoverAttempts;}}
   class Games {start(){}stop(){}}
   const nativeStart=()=>{starts++;const generation=files.get(base+'/session-generation.txt').trim();
@@ -145,6 +145,7 @@ async function sessionTests(shutdownMode = 'normal') {
     '../model/LinuxSteamModels':models,
     './ConfigurationFiles':{ConfigurationFiles:config},
     './LinuxSteamInstallService':{LinuxSteamInstallService:singleton({ensureReady:async()=>{await componentsGate;}})},
+    './LinuxSteamClientSupervisor':{ensureLinuxSteamClientSupervisor:async()=>{}},
     './LinuxSteamLibraryService':{LinuxSteamLibraryService:singleton({externalRoot:()=>root})},
     './LinuxSteamGameLaunch':{LinuxSteamGameLaunch:Games},'./LinuxSteamWindowHost':{LinuxSteamWindowHost:Host},
     './ManagedLinuxSteamBridgeService':{ManagedLinuxSteamBridgeService:{synchronizeCompatibility:async()=>{}}},
@@ -170,13 +171,15 @@ async function sessionTests(shutdownMode = 'normal') {
   assert.deepEqual(commands.map(c=>c.action),['library','downloads','launch'],'commands serialized');
   assert.deepEqual(commands.map(c=>c.id),['1','2','3'],'monotonic requests');
   assert.equal(commands[2].appId,'3590');
-  assert.equal(restores,0,'The latest Play supersedes older navigation raises, and launch ACK must never restore Steam');
+  assert.equal(restores,1,'Play shows the live Steam client once, before forwarding the launch');
+  assert.deepEqual(presentationEvents,['dispatch:library','dispatch:downloads','restore:launch','dispatch:launch'],
+    'The latest Play cancels older navigation raises; no Steam raise may follow the game launch ACK');
   assert.equal(service.snapshot().state,'running');
   onDispatch=()=>{foregroundRevision++;};
   await service.open('downloads');
-  assert.equal(restores,0,'An explicit foreground choice made while dispatch waits must win');
+  assert.equal(restores,1,'An explicit foreground choice made while dispatch waits must win');
   onDispatch=()=>{};
-  await service.open('library');assert.equal(restores,1,'Current explicit navigation can still restore Steam');
+  await service.open('library');assert.equal(restores,2,'Current explicit navigation can still restore Steam');
   await assert.rejects(service.open('launch','../bad'),/AppID/);
   files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation:'old-generation',ready:true,closed:false,mode:2,updatedAt:now}));
   service.poll();assert.equal(service.snapshot().presentation,'desktop','ignore other-generation presentation');

@@ -557,6 +557,7 @@ assemble: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/assemble)
 .PHONY: linux-runtime-components test-linux-runtime-components test-ci-release
 linux-runtime-components:
 	python3 $(SCRIPTS)/prepare_linux_runtime_components.py
+	python3 $(SCRIPTS)/build_steam_client_session.py
 
 test-linux-runtime-components:
 	python3 $(ROOT)/host_tests/linux_runtime_components_test.py
@@ -1163,6 +1164,8 @@ migration-hap-check: graphics-contract-check
 .PHONY: test-xdg-resource-lifecycle
 test-xdg-resource-lifecycle:
 	python3 $(ROOT)/host_tests/xdg_resource_lifecycle_test.py
+	python3 $(ROOT)/host_tests/xdg_popup_test.py
+	python3 $(ROOT)/host_tests/subsurface_resource_test.py
 graphics-migration-check: test-xdg-resource-lifecycle
 
 .PHONY: test-program-compat

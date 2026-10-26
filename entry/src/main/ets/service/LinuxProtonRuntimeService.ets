@@ -80,7 +80,7 @@ function ownedPackage(path: string): void {
   if (fs.accessSync(path) && (!fs.lstatSync(path).isDirectory() || fs.lstatSync(path).isSymbolicLink())) throw new Error('Proton 运行目录无效');
 }
 function invalidateProvisioning(): void {
-  for (const name of ['hmosdeck-locale.state', 'hmosdeck-media.state']) {
+  for (const name of ['hmosdeck-locale.state', 'hmosdeck-media.state', 'hmosdeck-steam-registry.state']) {
     const path = `${ROOT}/prefix/${name}`;
     if (fs.accessSync(path)) {
       const stat = fs.lstatSync(path);

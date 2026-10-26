@@ -39,6 +39,7 @@ const makeManifest = version => {
 const catalog = () => ({schemaVersion:1,revision:catalogRevision,releases:[...runtimeReleases].reverse()});
 const exists = name => fs.existsSync(name);
 const deps = {
+  './LinuxProtonBootstrap': {ensureLinuxProtonBootstrap: async()=>{}},
   '@kit.AbilityKit': {}, '@kit.CoreFileKit': {fileIo: {
     accessSync: exists, mkdirSync: (name, recursive) => fs.mkdirSync(name,{recursive}),
     lstatSync: name => {const s=fs.lstatSync(name);return {size:s.size,mtime:s.mtimeMs,isFile:()=>s.isFile(),isDirectory:()=>s.isDirectory(),isSymbolicLink:()=>s.isSymbolicLink()};},
@@ -182,6 +183,8 @@ const context={resourceManager:{getRawFileContent:async(name)=>Buffer.from(JSON.
       const previous={...state()};const incoming=store+'/versions/'+v1.id+'/package';
       const outgoing=store+'/versions/'+v2.id+'/package';
       const journal={from:v2.id,to:v1.id,previous,committed:step==='committed',hadActive:true};
+      const provisioning=['hmosdeck-locale.state','hmosdeck-media.state','hmosdeck-steam-registry.state'];
+      for(const name of provisioning) write(root+'/prefix/'+name,'cached-old-runtime');
       write(store+'/activation.json',JSON.stringify(journal));
       if(step!=='journal') fs.renameSync(root+'/package',outgoing);
       if(['new-moved','state-saved','committed'].includes(step)) fs.renameSync(incoming,root+'/package');
@@ -189,6 +192,8 @@ const context={resourceManager:{getRawFileContent:async(name)=>Buffer.from(JSON.
       await service.ensureReady(context);
       assert.equal(state().activeId,step==='committed'?v1.id:v2.id);
       assert.ok(!exists(store+'/activation.json'));
+      for(const name of provisioning) assert.equal(exists(root+'/prefix/'+name),step!=='committed',
+        'only a committed runtime activation invalidates successful prefix provisioning');
       if(step==='committed') await manager().select(context,v2.id);
     }
     for(const step of ['journal','old-moved','new-moved','committed']) {

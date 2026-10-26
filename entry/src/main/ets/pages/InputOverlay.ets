@@ -142,12 +142,13 @@ struct InputOverlayPage {
     InputOverlayWindowCoordinator.getInstance().subscribe(this.listener);
     this.engineListener = (state: EngineState): void => {
       this.engineState = state;
-      const busy = state === EngineState.PREPARING || state === EngineState.SWITCHING;
+      const busy = state === EngineState.PREPARING || state === EngineState.SWITCHING || state === EngineState.ERROR;
       InputOverlayWindowCoordinator.getInstance().setEngineBusy(busy).catch(() => {});
     };
     WineEngineService.getInstance().subscribe(this.engineListener);
     InputOverlayWindowCoordinator.getInstance().setEngineBusy(
-      this.engineState === EngineState.PREPARING || this.engineState === EngineState.SWITCHING).catch(() => {});
+      this.engineState === EngineState.PREPARING || this.engineState === EngineState.SWITCHING ||
+      this.engineState === EngineState.ERROR).catch(() => {});
     this.settings = AppSettingsStore.getInstance().getGlobalSettings();
     this.loadProfile(this.snapshot.profileId);
   }

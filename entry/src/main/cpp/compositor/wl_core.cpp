@@ -184,7 +184,7 @@ void WaylandServer::subcompositor_get_subsurface(wl_client* client, wl_resource*
     auto lock = self->toplevelMgr_.Lock();
     auto* childSd = self->toplevelMgr_.FindRegisteredSurfaceDataLocked(surface);
     if (childSd) {
-        childSd->parentSurface = parent;
+        childSd->parentSurfaceWatch.Set(parent);
         childSd->isSubsurface = true;
         // CommittedSurface.role 即时同步 (重构第 5A2 步): role 随协议角色
         // 设置点更新, 不再由 commit 时从布尔分流; 判定单点 = RoleFor
@@ -291,7 +291,10 @@ void WaylandServer::subsurface_destroy(wl_client*, wl_resource* r) {
 }
 
 void WaylandServer::subsurface_resource_destroyed(wl_resource* r) {
-    auto* childSurf = SubsurfaceChild(r);
+    GetInstance()->RemoveSubsurfaceRole(SubsurfaceChild(r));
+}
+
+void WaylandServer::RemoveSubsurfaceRole(wl_resource* childSurf) {
     if (!childSurf) return;
     auto* self = GetInstance();
     uint32_t removedPopup = 0, popupParent = 0;
@@ -300,7 +303,7 @@ void WaylandServer::subsurface_resource_destroyed(wl_resource* r) {
         auto* sd = self->toplevelMgr_.FindRegisteredSurfaceDataLocked(childSurf);
         if (!sd) return;
         sd->isSubsurface = false;
-        sd->parentSurface = nullptr;
+        sd->parentSurfaceWatch.Set(nullptr);
         sd->committed.role = RoleFor(sd->hasToplevel, sd->isSubsurface);
         uint32_t removedParent = 0;
         DisplayPolicy::SubsurfaceRoute removedRoute = DisplayPolicy::SubsurfaceRoute::DesktopLayer;

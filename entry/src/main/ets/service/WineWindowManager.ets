@@ -228,6 +228,13 @@ export class WineWindowManager {
 
     HostWindowTasks.getInstance().setActivator(async (task: HostWindowTask,
       current: () => boolean): Promise<boolean> => this.restoreTask(task, current));
+    HostWindowTasks.getInstance().setWineCloser(async (task: HostWindowTask, force: boolean): Promise<boolean> => {
+      const session = testNapi.getWineSession(task.sessionId);
+      if (!session || session.state === 'stopped') return false;
+      if (force) testNapi.stopWineSession(task.sessionId);
+      else testNapi.sendToplevelClose(task.toplevelId);
+      return true;
+    });
     HostWindowTasks.getInstance().setLauncher(async (): Promise<void> => {
       const foreground = this.desktopAbilityForeground ? this.desktopAbilityCtx : this.uiAbilityContext;
       if (foreground) await foreground.startAbility({

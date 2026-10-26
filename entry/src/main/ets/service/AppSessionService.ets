@@ -91,6 +91,12 @@ export class AppSessionService {
 
   initialize(context: common.UIAbilityContext): void {
     this.context = context;
+    HostWindowTasks.getInstance().setWineGameEligibility((sessionId: string): boolean => {
+      const session = this.sessions.get(sessionId);
+      return !!session && session.state !== SessionState.STOPPED && session.state !== SessionState.ERROR &&
+        session.appId !== DESKTOP_APP_ID && session.appId !== STEAM_CLIENT_ID &&
+        session.appId !== 'steam-linux-client' && !isWineInfrastructurePath(session.executable);
+    });
     WineWindowManager.getInstance().setSessionAssociationCallback(
       (sessionId: string, clientPid: number, toplevelId: number): void => {
         this.associateToplevel(sessionId, clientPid, toplevelId);

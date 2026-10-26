@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "architecture": "aarch64-windows",
+  "distributionSha512": "4863f86773514ce7cc2c7867d393b725fcd9e32f7948a3b4035ae67a84b3e0ff4b179c479079a0dcf141c159faa19f67e7b82b3ed4c4b0ef9720226d55594661",
+  "files": [
+    {
+      "name": "lsass.exe",
+      "sourcePath": "files/lib/wine/aarch64-windows/lsass.exe",
+      "bytes": 458752,
+      "sha256": "62e6e97fe086046159add26414c15162d38d42c68c41f2591b8c0408e177b4fb"
+    },
+    {
+      "name": "psapi.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/psapi.dll",
+      "bytes": 655360,
+      "sha256": "525157a2c5379f3064781c3c3b767c16d1608d7b04b7097cf85190fc6ac9f50c"
+    },
+    {
+      "name": "wevtsvc.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/wevtsvc.dll",
+      "bytes": 589824,
+      "sha256": "55d09c35282c7b2cbc570caf098c8b3a0f0633a14d8842bcb108ec4f8f694c99"
+    }
+  ]
+}

@@ -169,3 +169,31 @@ const drain = async () => { for (let n = 0; n < 12; ++n) await Promise.resolve()
   assert.equal(r.snapshot().length, 0);
   console.log('Host task lifecycle, provenance, minimize/restore, modal focus, late association, ID reuse, exit focus and async switching: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+// Closing uses a live window generation and explicitly registered ownership.
+(async()=>{
+  const actions=new Registry(); const requests=[];
+  actions.setWineCloser(async(task,force)=>{requests.push([task.key,force,'wine']);return true;});
+    actions.setWineGameEligibility(session=>session==='local-game');
+  actions.setSteamGameCloser(async(task,force)=>{requests.push([task.key,force,'steam']);return true;});
+  actions.onEvent(901,'created',JSON.stringify({clientPid:21,sessionId:'local-game'}));
+  actions.onEvent(902,'created',JSON.stringify({clientPid:22,sessionId:'steam-host'}));
+  actions.registerSteamClientHost('steam-host');
+  actions.onEvent(903,'created',JSON.stringify({clientPid:23,sessionId:'desktop'}));
+  actions.onEvent(904,'created',JSON.stringify({clientPid:24,sessionId:''}),true);
+    actions.onEvent(906,'created',JSON.stringify({clientPid:27,sessionId:'wine-helper'}));
+  actions.registerSteamGame('gnu-game','1');
+  actions.onEvent(905,'created',JSON.stringify({clientPid:25,sessionId:'gnu-game'}));
+  assert.equal(actions.controllableGames().length,2,'Steam, its host, and the desktop cannot be killed as games');
+  const local=actions.controllableGames().find(t=>t.toplevelId===901);
+  const gnu=actions.controllableGames().find(t=>t.toplevelId===905);
+  assert.equal(await actions.controlGame(local.key,false),true);
+  assert.equal(await actions.controlGame(gnu.key,true),true);
+  assert.deepEqual(requests,[[local.key,false,'wine'],[gnu.key,true,'steam']]);
+  actions.onEvent(905,'destroyed','{}');
+  actions.onEvent(905,'created',JSON.stringify({clientPid:26,sessionId:'replacement'}));
+  assert.equal(await actions.controlGame(gnu.key,true),false,'recycled IDs cannot receive a stale kill');
+  actions.setSteamGameCloser(null);
+  assert.equal(await actions.controlGame(gnu.key,false),false);
+  console.log('Game close/force ownership, preserved client and stale-generation protection: PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});

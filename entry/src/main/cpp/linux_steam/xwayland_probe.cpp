@@ -549,7 +549,8 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
         if(session.steamClientGameBridge)
             session.environment.emplace_back("STEAMOHOS_STEAMCLIENT_GAME_BRIDGE=1");
         if(session.steamClientReadOnlyProbe||session.steamClientGameBridge)
-            session.argv.insert(session.argv.begin()+4,directory+"/steamohos_gnu_steam_session");
+            session.argv.insert(session.argv.begin()+4,directory+
+                (productSession ? "/steamohos_gnu_steam_session_hap" : "/steamohos_gnu_steam_session"));
         // Full-screen runs without an X11 window supervisor. Client-owned
         // mapped/parked windows must not be moved back into the viewport.
         // Bounds enforcement remains an explicit window-mode diagnostic.

@@ -570,7 +570,8 @@ struct Index {
       await win.setWindowDecorVisible(false);
     } catch (_) {
     }
-    await applyStatusOnlyImmersiveShell(win);
+    if (this.deckImmersive()) await applyDesktopFullscreenShell(win);
+    else await applyStatusOnlyImmersiveShell(win);
     if (DeviceCapabilityPolicy.usesManagedWineWindows()) {
       try {
         win.setWindowDecorHeight(48);
@@ -879,10 +880,16 @@ struct Index {
         return;
       }
       this.attachLauncherOrientation();
-      await applyStatusOnlyImmersiveShell(pageWindow);
-      this.startWindowInsetObserver(pageWindow);
+      if (this.deckImmersive()) await applyDesktopFullscreenShell(pageWindow);
+      else await applyStatusOnlyImmersiveShell(pageWindow);
+      if (this.consolePageVisible) this.startWindowInsetObserver(pageWindow);
     } catch (_) {
     }
+  }
+
+  private deckImmersive(): boolean {
+    return this.settings.uiSkin === UiSkin.DECK && !DeviceCapabilityPolicy.usesManagedWineWindows() &&
+      this.viewportWidth > this.viewportHeight && this.viewportHeight > 0;
   }
 
   private refreshPageInsets(pageWindow: window.Window): void {
@@ -942,8 +949,10 @@ struct Index {
     this.bentoOrder = AppSettingsStore.getInstance().getBentoOrder();
     WineWindowManager.getInstance().setOutputScalePercent(this.settings.outputScale);
     this.settingsCallback = (settings: GlobalSettings): void => {
+      const shellChanged = this.settings.uiSkin !== settings.uiSkin;
       if (this.settings.consoleCardLayout !== settings.consoleCardLayout) this.bentoPages = [];
       this.settings = settings;
+      if (shellChanged && this.consolePageVisible) void this.applyPageWindowShell();
       this.syncConsoleFocus();
       if (settings.uiSkin !== UiSkin.CONSOLE) {
         this.consoleDetailVisible = false;
@@ -3299,7 +3308,9 @@ struct Index {
         localArtwork: (app: AppDescriptor): string => this.consoleBackground(app),
         onLocalSettings: (app: AppDescriptor): void => this.openAppSettings(app)
       })
-        .padding({ top: this.statusBarHeightVp + 8, bottom: this.navBarInsetVp })
+        .padding({ top: this.deckImmersive() ? 0 : this.statusBarHeightVp + 8,
+          bottom: this.deckImmersive() ? 0 : this.navBarInsetVp,
+          left: this.cutoutLeftInsetVp, right: this.cutoutRightInsetVp })
         .visibility(this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
@@ -3357,9 +3368,12 @@ struct Index {
       const height = area.height as number;
       const geometryChanged = Math.abs(width - this.viewportWidth) > 1 ||
         Math.abs(height - this.viewportHeight) > 1;
+      const wasDeckImmersive = this.deckImmersive();
       if (geometryChanged) this.beginConsoleRingRelayout();
       this.viewportWidth = width;
       this.viewportHeight = height;
+      if (wasDeckImmersive !== this.deckImmersive() && this.consolePageVisible &&
+        !(this.showDesktopLayer() && !this.launcherVisible)) void this.applyPageWindowShell();
       if (this.viewportWidth > 0 && this.viewportHeight > 0) {
         this.screenW = this.viewportWidth;
         this.screenH = this.viewportHeight;

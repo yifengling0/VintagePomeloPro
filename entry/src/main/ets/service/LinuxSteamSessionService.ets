@@ -14,6 +14,7 @@ import { LinuxSteamInstallService } from './LinuxSteamInstallService';
 import { LinuxSteamLibraryService } from './LinuxSteamLibraryService';
 import { LinuxSteamGameLaunch } from './LinuxSteamGameLaunch';
 import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
+import { ensureLinuxSteamClientSupervisor } from './LinuxSteamClientSupervisor';
 import { LinuxSteamPageRecovery } from './LinuxSteamPageRecovery';
 import { WineEngineService } from './WineEngineService';
 import { ManagedLinuxSteamBridgeService } from './ManagedLinuxSteamBridgeService';
@@ -143,6 +144,7 @@ export class LinuxSteamSessionService {
       finally { LinuxGnuProtonComponent.unsubscribe(protonProgress); }
       this.elapsed('components', stageAt); stageAt = Date.now();
       const root = LinuxSteamLibraryService.getInstance().externalRoot();
+      await ensureLinuxSteamClientSupervisor(this.context, root);
       try { applyLinuxSteamDownloadPolicy(root); }
       catch (error) {
         hilog.warn(0, 'DeckLaunch', 'Download connection preference was not applied: %{public}s', (error as Error).message.substring(0, 160));
@@ -224,6 +226,19 @@ export class LinuxSteamSessionService {
               return; // A superseded request cannot create or foreground a replacement.
             }
             await this.ensureWindowHost();
+            if (action === 'launch' && launchTicket && foregroundCurrent()) {
+              // Show the existing client before forwarding Play. Raising it
+              // after the ACK can cover a game that has already appeared.
+              // Preserve the pending one-shot game handoff during this raise.
+              GamepadManager.getInstance().releaseAll();
+              let shown = this.host ? await this.host.restore(true) : false;
+              if (!shown && foregroundCurrent()) {
+                const steam = tasks.snapshot().find((task: HostWindowTask): boolean => task.source === 'steam-linux');
+                if (steam) shown = await tasks.activateSteamLaunchPrompt(steam.key, '');
+              }
+              if (!shown && foregroundCurrent()) throw new Error('Steam 窗口正在切换，请稍后重试');
+              this.elapsed('launchWindowRestore', stageAt); stageAt = Date.now();
+            }
           }
           await this.dispatch(action, appId);
         }

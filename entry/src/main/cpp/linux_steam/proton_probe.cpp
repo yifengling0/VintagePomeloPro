@@ -1,5 +1,6 @@
 #include "proton_probe.h"
 #include "proton_game_paths.h"
+#include "proton_setup_cache.h"
 #include "native_exec.h"
 #include <cerrno>
 #include <chrono>
@@ -18,6 +19,24 @@
 namespace steamohos {
 namespace {
 constexpr const char* Root = "/data/storage/el2/base/files/steamohos-native/proton-probe";
+struct ProtonLaunchTrace {
+    int fd;
+    const char* appId;
+    const char* role;
+    using Clock = std::chrono::steady_clock;
+    Clock::time_point began = Clock::now(), previous = began;
+    void Mark(const char* stage, bool cached = false) {
+        const auto now = Clock::now();
+        char line[256];
+        const int n = snprintf(line, sizeof(line),
+            "HMOSDECK_PROTON_STAGE appid=%s role=%s stage=%s elapsed_ms=%lld total_ms=%lld cached=%d\n",
+            appId, role, stage,
+            static_cast<long long>(std::chrono::duration_cast<std::chrono::milliseconds>(now - previous).count()),
+            static_cast<long long>(std::chrono::duration_cast<std::chrono::milliseconds>(now - began).count()), cached);
+        if (fd >= 0 && n > 0 && n < static_cast<int>(sizeof(line))) (void)write(fd, line, static_cast<size_t>(n));
+        previous = now;
+    }
+};
 bool NativeElf(const std::string& path) {
     const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) return false;
@@ -346,6 +365,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         ~DiagnosticFile() { if (fd >= 0) close(fd); }
     } diagnostic{open((root + "/probe-runtime.log").c_str(),
         O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600)};
+    ProtonLaunchTrace trace{diagnostic.fd, manual ? manual->appId.c_str() : "0", manual ? manual->role.c_str() : "probe"};
     NativeExecOptions options;
     options.libcForkOnly = forkBackend;
     options.workingDirectory = root;
@@ -423,6 +443,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                 variable = "LD_PRELOAD=" + root + "/libproton_probe.so";
         const auto ready = RunNativeLoader({loader, "--inhibit-cache", "--library-path", libraries,
             root + "/proton-steam-ready"}, readyEnvironment, 45000, options);
+        trace.Mark("steamSession");
         if (!Succeeded(ready) || ready.output.find("GNU_STEAM_READY session_ready=1 ") == std::string::npos) {
             // Keep the actual loader/IPC result. A missing SDK, a terminated
             // probe and an unavailable local account must not look identical.
@@ -475,6 +496,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
     const bool verified = Succeeded(dependencies) && Succeeded(wineVersion) && Succeeded(serverVersion) &&
         wineVersion.output.find("wine-") != std::string::npos &&
         serverVersion.output.find("Wine") != std::string::npos;
+    trace.Mark("bootstrap");
     NativeExecResult prefix, display;
     bool displayReady = false;
     std::string displayXkb;
@@ -510,6 +532,15 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         }
         if ((x86Requested || mediaRequested || initializeRequested) && !InstallProbeModules(root, package))
             return failure("proton_prefix_dependency_closure_missing_or_changed", true);
+        // Small, separately delivered bootstrap closure. It is shared by all
+        // games and Steam's 64-bit prerequisite helpers, not a per-game fix.
+        if (gameRequested || initializeRequested) {
+            for (const char* name : {"psapi.dll", "wevtsvc.dll", "lsass.exe"})
+                if (!LoaderReference(root + "/bootstrap/" + name,
+                    root + "/prefix/drive_c/windows/system32/" + name))
+                    return failure("proton_bootstrap_module_missing_or_changed", true);
+        }
+        trace.Mark("prefixModules");
         if (mediaRequested) {
             if (!ReferenceMediaRuntime(root, runtime))
                 return failure(("proton_media_reference_failed:"+MediaReferenceFailure).c_str(), true);
@@ -649,6 +680,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                 if(unlink((root+"/desktop-probe.once").c_str()) && errno!=ENOENT)
                     return failure("proton_locale_desktop_slot_reset_failed",true);
             }
+            trace.Mark("locale", existing == state);
         }
         if (gameRequested) {
             // A selectively installed WoW64 closure needs its own COM view.
@@ -673,6 +705,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                         NativeExecJson(mediaRegistration)+"}";
                 if(!WritePrivateFile(mediaStatePath,mediaState))return failure("proton_wow64_media_state_write_failed",true);
             }
+            trace.Mark("media", existingMedia == mediaState);
             // Each completed helper may release its Wine desktop. The guard
             // bounds recursive explorer launches within one invocation only.
             if(unlink((root+"/desktop-probe.once").c_str()) && errno!=ENOENT)
@@ -704,14 +737,21 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                 "\"SteamPath\"=\"C:\\\\Program Files (x86)\\\\Steam\"\r\n"
                 "\"SteamClientDll\"=\"C:\\\\Program Files (x86)\\\\Steam\\\\steamclient.dll\"\r\n"
                 "\"SteamClientDll64\"=\"C:\\\\Program Files (x86)\\\\Steam\\\\steamclient64.dll\"\r\n";
-            if (!WritePrivateFile(root + "/prefix/drive_c/proton-steam.reg", registry))
-                return failure("proton_steam_registry_file_failed", true);
-            const auto registration = RunNativeLoader({loader, "--inhibit-cache", "--library-path", libraries,
-                wine, "C:\\windows\\system32\\reg.exe", "import", "C:\\proton-steam.reg"},
-                provisioningEnvironment, 120000, options);
-            if (!Succeeded(registration))
+            NativeExecResult registration;
+            const auto registered = EnsureProtonSetup(root + "/prefix/hmosdeck-steam-registry.state",
+                root + "/prefix/user.reg", "steam-registry-v1\n" + registry, [&]() {
+                    if (!WritePrivateFile(root + "/prefix/drive_c/proton-steam.reg", registry)) return false;
+                    registration = RunNativeLoader({loader, "--inhibit-cache", "--library-path", libraries,
+                        wine, "C:\\windows\\system32\\reg.exe", "import", "C:\\proton-steam.reg"},
+                        provisioningEnvironment, 120000, options);
+                    return Succeeded(registration);
+                });
+            trace.Mark("steamRegistry", registered == ProtonSetupResult::Reused);
+            if (registered == ProtonSetupResult::Failed)
                 return "{\"schemaVersion\":1,\"status\":\"proton_steam_registry_import_failed\",\"runtimeBackend\":\"gnu-proton\",\"steamRegistrySetup\":"+
                     NativeExecJson(registration)+"}";
+            if (registered == ProtonSetupResult::StateWriteFailed)
+                return failure("proton_steam_registry_state_write_failed", true);
             // Registration is a separate Wine invocation and can release its
             // desktop. Give the game its own bounded desktop attempt, while
             // retaining the recursion guard within each invocation.
@@ -777,6 +817,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             // movies/menu input and making a timer look like a game crash.
             const uint32_t timeoutMs = gameRequested ? 600000 : controlsRequested ? 150000 : initializeRequested ? 120000 : 40000;
             options.persistentSession=manual && manual->role=="game";
+            trace.Mark("gameDispatch");
             prefix = RunNativeLoader(arguments, prefixEnvironment,options.persistentSession?0:timeoutMs, options);
         }
         // cleanup targets only this diagnostic prefix, including early returns.
