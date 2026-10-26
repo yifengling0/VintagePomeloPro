@@ -22,6 +22,12 @@ Valve 客户端仍由应用单独下载或由用户导入。
 缺失、损坏、源码变化或最终 HAP 漏包均报错，不会静默省略功能。
 CI 不需要开发机器的绝对路径、签名材料或增量构建目录。
 
+OHOS Wine 的两份 `lsteamclient.dll` 在标准组装阶段从已提交桥接源码和固定
+Proton SDK 头生成，和本次编译的 `kernelbase.dll`、GNU 服务端 SHA 配对，
+无需本机后置注入。SDK 头按逐文件 SHA 下载或复用；可用
+`LINUX_STEAM_SDK_REFERENCE` 指定已有头文件缓存。增量产物同时校验源码、
+编译器和输出哈希；最终门禁拒绝接口桥缺失、错误架构及混合版本。
+
 ## 本地复现
 
 安装与 CI 一致的 HarmonyOS API 23、llvm-mingw 和宿主构建依赖后：

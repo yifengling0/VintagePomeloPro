@@ -923,6 +923,17 @@ HKLM,%FontSubStr%,"Courier",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Courier New",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Fixedsys",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/wine.inf"
+    if [ "$WINE_ARCH" = aarch64 ]; then
+        # Ordinary clean builds must include the OHOS Wine bridge too, not only
+        # GNU Proton's separate bridge. No manual post-build ZIP injection.
+        local steam_reference=()
+        if [ -n "${LINUX_STEAM_SDK_REFERENCE:-}" ]; then
+            steam_reference=(--reference "$LINUX_STEAM_SDK_REFERENCE")
+        fi
+        python3 "$SCRIPT_DIR/build_linux_steam_pe_components.py" --mingw "$LLVM_MINGW/bin" \
+            --output "$BUILD_DIR/linux-steam-pe" --directory "$wine_data" \
+            --rawfile "$WINEHUA/entry/src/main/resources/rawfile" "${steam_reference[@]}"
+    fi
     # Preserve identical INF timestamps only when prefix-installed PE builtins
     # are also identical. Otherwise an FEX/ntdll update can keep old DLLs active.
     python3 "$SCRIPT_DIR/stamp_wine_builtin_identity.py" "$wine_data"

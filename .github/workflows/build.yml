@@ -43,6 +43,7 @@ jobs:
           python3 host_tests/ci_release_test.py
           python3 host_tests/linux_runtime_components_test.py
           python3 host_tests/source_build_contract_test.py
+          python3 host_tests/linux_steam_pe_components_test.py
           python3 host_tests/wine_build_identity_test.py
       - name: Fetch and verify published GNU dependency bytes
         run: python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-clean-checkout.json

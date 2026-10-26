@@ -568,7 +568,12 @@ define assemble_rule
 
 assemble-$(1): $$(STAMPS)/$(1)/assemble
 
-$$(STAMPS)/$(1)/assemble: $(SCRIPTS)/assemble.sh $(SCRIPTS)/env.sh $(DXVK_ARTIFACTS) $(DXVK_MODERN_ARTIFACTS) \
+$$(STAMPS)/$(1)/assemble: $(SCRIPTS)/assemble.sh $(SCRIPTS)/env.sh \
+	$(SCRIPTS)/build_linux_steam_pe_components.py $(SCRIPTS)/generate_linux_steam_bridge.py \
+	$(SCRIPTS)/steam_bridge_codecs.py $(SCRIPTS)/steam_bridge_contracts.py \
+	$(ROOT)/docs/linux-steam/steam_bridge_sdk.lock.json \
+	$(wildcard $(ROOT)/entry/src/main/cpp/linux_steam/steam_bridge/*) \
+	$(DXVK_ARTIFACTS) $(DXVK_MODERN_ARTIFACTS) \
 	$(VKD3D_PROTON_ARTIFACTS) $(SMOKE_PAYLOAD_MANIFEST) \
 	$$(STAMPS)/deps $$(STAMPS)/wine-$(1)-$(WINE_ARCH) $$(STAMPS)/$(1)/native \
 	$$(STAMPS)/$(1)/host-vulkan \

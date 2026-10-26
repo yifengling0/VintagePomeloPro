@@ -52,6 +52,8 @@ def validate_binary(name, data):
         # Do not broaden this to DXVK's x64 aliases: those must remain ARM64X.
         if name == 'vkd3d/limited-500k/x64/d3d12.dll':
             allowed = ('x64',)
+        elif name == 'bin/aarch64-windows/lsteamclient.dll':
+            allowed = ('x64',)
         elif name == 'bin/aarch64-windows/xtajit64.dll':
             allowed += ('x64',)
         if kind not in allowed:
@@ -72,6 +74,7 @@ def required_members():
     core = json.loads((ROOT / 'docs/graphics/runtime-core.lock.json').read_text())
     texture = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())
     payload = set(core['payload'])
+    payload.update(('bin/i386-windows/lsteamclient.dll', 'bin/aarch64-windows/lsteamclient.dll'))
     for profile, pin in texture['runtimes'].items():
         payload.update('dxvk/' + profile + '/' + name for name in pin['files'])
     # Venus is checked as ELF separately, with exact nested/top-level pairing.

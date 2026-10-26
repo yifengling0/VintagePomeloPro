@@ -526,6 +526,8 @@ def validate_runtime_payload(archive: Archive, candidate=None) -> RuntimeInfo:
     validate_graphics_runtime_payload(archive, wine_arch, candidate)
     if wine_arch == 'aarch64':
         try:
+            from build_linux_steam_pe_components import validate_payload as validate_steam_bridge
+            validate_steam_bridge(archive.read, candidate=candidate)
             validate_wined3d_runtime(json.loads(archive.read('wined3d-graphics.json')), archive.read)
             validate_texture_runtime(archive, archive.read('bin/guest_vulkan/lib/libvulkan_virtio.so'), candidate=candidate)
             validate_core(archive.read, 'payload', candidate)
