@@ -85,7 +85,11 @@ def source_identity(manifest):
     commit = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
     if manifest['commit'] != commit:
         raise ValueError('candidate source manifest belongs to another checkout')
-    subprocess.run(['git', '-C', str(ROOT), 'diff', '--quiet', 'HEAD', '--ignore-submodules=all'], check=True)
+    changed = subprocess.check_output(['git', '-C', str(ROOT), 'diff', '--name-only',
+                                       '-z', 'HEAD', '--ignore-submodules=all']).decode().split('\0')
+    changed = [name for name in changed if name]
+    if changed:
+        raise ValueError('candidate tracked source changed during build: ' + ', '.join(changed))
     patches = {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted((ROOT / 'patches').rglob('*.patch'))}
     if patches != manifest['patches']:
         raise ValueError('candidate patches differ from clean-checkout manifest')

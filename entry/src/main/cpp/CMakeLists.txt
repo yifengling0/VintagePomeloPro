@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(NATIVERENDER_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
+include("${NATIVERENDER_ROOT_PATH}/cmake/WaylandProtocols.cmake")
+
 include_directories(
     ${NATIVERENDER_ROOT_PATH}
     ${NATIVERENDER_ROOT_PATH}/protocols
@@ -131,8 +133,8 @@ add_library(entry SHARED
     compositor/xdg_shell.cpp
     compositor/winehua_toplevel.cpp
     input/text_input.cpp
-    protocols/xdg-shell-protocol.c
-    protocols/winehua-toplevel-protocol.c
+    ${VPP_WAYLAND_PROTOCOLS}/xdg-shell-protocol.c
+    ${VPP_WAYLAND_PROTOCOLS}/winehua-toplevel-protocol.c
     protocols/viewporter-server-protocol.c
     protocols/pointer-warp-v1-protocol.c
     protocols/pointer-constraints-unstable-v1-protocol.c

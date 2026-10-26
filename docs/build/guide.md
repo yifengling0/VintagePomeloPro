@@ -262,6 +262,13 @@ rawfile 侧另有 `wine-runtime-manifest.json`（payloadSha256），CI 用它校
 
 ---
 
+## 协议生成文件与干净构建
+
+`build_native.sh` 将 Wayland 协议及头文件写入 `build/native_<NATIVE_ARCH>/protocols/`，不会改写跟踪的源码快照。CMake 优先使用这一组生成文件；仅使用预编译依赖的 DevEco 构建仍可回退到仓库快照。自定义 `BUILD_DIR` 时，可用 CMake 参数 `-DVPP_NATIVE_GENERATED_ROOT=<BUILD_DIR>/native_<NATIVE_ARCH>` 指定相同位置。
+
+`python3 host_tests/native_protocol_build_test.py` 使用真实 scanner 和 CMake 编译检查首次生成、重复生成、缺失头文件重建及头文件搜索顺序。CI 在生成主机工具后运行它。来源校验仍拒绝已暂存或未暂存的跟踪文件变更，并列出路径；`ohpm install --all` 后也立即检查，避免编译结束才发现锁文件漂移。
+
+
 ## 相关文档
 
 - [env.md](env.md) — 从零搭建构建环境

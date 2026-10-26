@@ -1,6 +1,6 @@
 #!/bin/bash
 # build_native.sh — Native compositor (Wayland compositor) 依赖
-# 产物: entry/libs/$NATIVE_ARCH/ (.so) + entry/src/main/cpp/protocols/ (协议头文件)
+# 产物: entry/libs/$NATIVE_ARCH/ (.so) + build/native_$NATIVE_ARCH/protocols/ (协议头文件)
 # 注意: 协议文件 (xdg-shell-protocol.c 等) 架构无关, 只生成一次
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -9,8 +9,11 @@ source "$SCRIPT_DIR/env.sh"
 # NATIVE_TARGET 由 env.sh 按 NATIVE_ARCH 推导 (arm64-v8a→aarch64-linux-ohos,
 # x86_64→x86_64-linux-ohos); 这里显式断言, 防止环境残留/空值静默错配。
 : "${NATIVE_TARGET:?env.sh 未按 NATIVE_ARCH=$NATIVE_ARCH 推导出 NATIVE_TARGET}"
-WINEHUA_INC="$WINEHUA/entry/src/main/cpp/protocols"
 NATIVE_BUILD="$BUILD_DIR/native_${NATIVE_ARCH}"
+WINEHUA_PROTOCOL_SOURCE="$WINEHUA/entry/src/main/cpp/protocols"
+# Generated protocol C/headers belong to the architecture's build tree. Never
+# overwrite tracked protocol snapshots while compiling a clean source checkout.
+WINEHUA_INC="$NATIVE_BUILD/protocols"
 if [ "$HOST_OS" = "Darwin" ] || [ "$HOST_OS" = "HarmonyOS" ]; then
     export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
     export PKG_CONFIG_PATH_FOR_BUILD="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH_FOR_BUILD:+:$PKG_CONFIG_PATH_FOR_BUILD}"
@@ -232,13 +235,8 @@ build_wayland() {
 
 # ── 3. xdg-shell + wayland 协议文件 (架构无关, 只生成一次) ──
 build_protocols() {
-    if [ -f "$WINEHUA_INC/xdg-shell-protocol.c" ] \
-       && [ -f "$WINEHUA_INC/winehua-toplevel-protocol.c" ] \
-       && [ "$WINEHUA_INC/winehua-toplevel-protocol.c" -nt "$WINEHUA_INC/winehua-toplevel.xml" ]; then
-        log "协议文件已就绪，跳过"
-        return 0
-    fi
-
+    # Scanner output is small; regenerate it rather than trust checkout mtimes
+    # or leave a partial previous invocation looking complete.
     log "--- 生成 Wayland 协议文件 ---"
     local scanner="$WAYLAND_SCANNER"
 
@@ -256,7 +254,7 @@ build_protocols() {
 
     # WineHua 私有协议 (权威源在 winewayland.drv/Makefile.in 同文件, 双端
     # 同一 XML; server 侧只需 server-header + private-code)
-    local wh_xml="$WINEHUA_INC/winehua-toplevel.xml"
+    local wh_xml="$WINEHUA_PROTOCOL_SOURCE/winehua-toplevel.xml"
     "$scanner" server-header "$wh_xml" "$WINEHUA_INC/winehua-toplevel-server-protocol.h"
     "$scanner" private-code "$wh_xml" "$WINEHUA_INC/winehua-toplevel-protocol.c"
 
@@ -265,11 +263,6 @@ build_protocols() {
 
 # ── 4. wayland 头文件 (架构无关, 只安装一次) ──
 install_headers() {
-    if [ -f "$WINEHUA_INC/wayland-server-core.h" ]; then
-        log "wayland 头文件已就绪，跳过"
-        return 0
-    fi
-
     log "--- 安装 wayland 头文件 ---"
     local src="$ROOT/thirdparty/wayland"
     local build="$NATIVE_BUILD/wayland"
@@ -424,4 +417,4 @@ remove_native_egl_linker_stubs
 log "Native compositor 依赖就绪 ($NATIVE_ARCH)"
 log "  libs:  $NATIVE_LIBS"
 log "  inc:   $WINEHUA_INC"
-log "  proto: $WINEHUA/entry/src/main/cpp/xdg-shell-protocol.c"
+log "  proto: $WINEHUA_INC/xdg-shell-protocol.c"

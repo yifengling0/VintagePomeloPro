@@ -35,6 +35,45 @@ class CandidateTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.temp.cleanup()
 
+    def test_real_checkout_stays_strict_and_reports_staged_and_unstaged_paths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()
+            git('init', '-q')
+            (root / 'tracked.c').write_text('original source\n')
+            (root / '.gitignore').write_text('build/\n')
+            (root / 'patches').mkdir()
+            (root / 'docs/graphics').mkdir(parents=True)
+            (root / 'thirdparty/mesa').mkdir(parents=True)
+            # This small fixture exercises real Git state; graphics overlay
+            # behavior is covered by the separate production contract tests.
+            lock = root / 'docs/graphics/texture-compat-runtime.lock.json'
+            lock.write_text(json.dumps({'runtimes': {}, 'venus': {'commit': 'pin', 'patches': []}}))
+            git('add', '.')
+            git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'fixture')
+            commit = git('rev-parse', 'HEAD')
+            manifest = {'commit': commit, 'patches': {}, 'submodules': {'thirdparty/mesa': 'pin'}}
+            # Keep a real git call for the provenance check while removing the
+            # unrelated graphics checks after it succeeds.
+            with patch.object(candidate, 'ROOT', root):
+                for stage in (False, True):
+                    (root / 'tracked.c').write_text('modified source\n')
+                    if stage:
+                        git('add', 'tracked.c')
+                    with self.assertRaisesRegex(ValueError, 'changed during build: tracked.c'):
+                        candidate.source_identity(manifest)
+                    git('reset', '-q', 'HEAD', '--', 'tracked.c')
+                    git('checkout', '--', 'tracked.c')
+                (root / 'build').mkdir()
+                (root / 'build/generated.h').write_text('generated output\n')
+                # A clean checkout gets past the dirty-source check and reaches
+                # the independent submodule-pin guard.
+                with self.assertRaisesRegex(ValueError, 'gitlink changed'):
+                    candidate.source_identity(manifest)
+                with self.assertRaisesRegex(ValueError, 'another checkout'):
+                    candidate.source_identity(dict(manifest, commit='wrong'))
+
     def receipt(self):
         return {'schemaVersion': 1, 'policy': candidate.POLICY, 'deviceValidated': False,
                 'sources': {'checkout': {'commit': 'a' * 40}},

@@ -296,7 +296,10 @@ jobs:
         run: python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
 
       - name: Install ArkTS project dependencies
-        run: ohpm install --all
+        run: |
+          ohpm install --all
+          # Dependency installation must not rewrite committed app inputs.
+          git diff --exit-code HEAD --ignore-submodules=all
 
       - name: Build HAP
         env:
@@ -315,6 +318,7 @@ jobs:
           set -euxo pipefail
           make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 GUEST_ARCH=aarch64 hap-unsigned
           make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 arm64ec-release-gate
+          python3 host_tests/native_protocol_build_test.py
 
       - name: Locate artifacts
         id: art
@@ -352,6 +356,7 @@ jobs:
             build/**/CMakeFiles/CMakeOutput.log
             build/**/CMakeFiles/CMakeError.log
             build/**/config.log
+            ci-artifacts/*.json
           if-no-files-found: ignore
           retention-days: 7
 
