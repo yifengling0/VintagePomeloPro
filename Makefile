@@ -107,6 +107,7 @@ ARCHES := $(NATIVE_ARCH)
 
 # ── 关键产物 (用于验证构建是否完成) ──
 DEPS_SENTINEL   := $(BUILD_DIR)/sysroot-ext/usr/lib/$(WINE_ARCH)-linux-ohos/libfreetype.so.6
+ZLIB_RUNTIME_SENTINEL := $(BUILD_DIR)/zlib-runtime/$(WINE_ARCH)/lib/libz.so
 WINE_SENTINEL   := $(BUILD_DIR)/wine-native/tools/winegcc/winegcc
 GUEST_GFX_SENTINEL := $(BUILD_DIR)/guest_gfx/$(GUEST_ARCH)/winehua-guest-gfx.env
 MESA_OHOS_PATCH_INPUTS := $(SCRIPTS)/apply_mesa_ohos_patches.sh $(wildcard $(ROOT)/patches/mesa/*.patch)
@@ -269,6 +270,7 @@ $(foreach a,arm64-v8a x86_64,$(eval $(call host_vulkan_rule,$(a))))
 deps: $(STAMPS)/deps
 
 $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/build_gstreamer.sh \
+	$(SCRIPTS)/build_zlib_runtime.sh \
 	$(MESA_OHOS_PATCH_INPUTS) \
 	$(SCRIPTS)/build_ohos_guest_gfx.sh \
 	$(SCRIPTS)/build_ohos_guest_vulkan.sh $(ROOT)/smoke/guest_vulkan_smoke.c \
@@ -312,7 +314,7 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
 	if [ "$(BUILD_WINE_MONO)" = "1" ] && [ ! -s "$(WINE_MONO_SENTINEL)" ]; then \
 	    mono_ready=0; \
 	fi; \
-	if [ -f $@ ] && [ -f $(DEPS_SENTINEL) ] && [ "$$guest_gfx_ready" = "1" ] && \
+	if [ -f $@ ] && [ -f $(DEPS_SENTINEL) ] && [ -s $(ZLIB_RUNTIME_SENTINEL) ] && [ "$$guest_gfx_ready" = "1" ] && \
 	    [ "$$guest_vulkan_ready" = "1" ] && [ "$$mono_ready" = "1" ] && \
 	    ! [ "$(SCRIPTS)/build_ohos_guest_gfx.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/apply_mesa_ohos_patches.sh" -nt $@ ] && \
@@ -322,6 +324,7 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
 	    BUILD_DIR="$(BUILD_DIR)" bash "$(SCRIPTS)/build_gnutls.sh" --check-identity && \
 	    ! [ "$(SCRIPTS)/build_gstreamer.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_deps.sh" -nt $@ ] && \
+	    ! [ "$(SCRIPTS)/build_zlib_runtime.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_libffi.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_freetype.sh" -nt $@ ] && \
 	    ! [ "$(SCRIPTS)/build_wayland.sh" -nt $@ ] && \

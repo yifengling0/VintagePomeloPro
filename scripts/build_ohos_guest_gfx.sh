@@ -817,6 +817,12 @@ ensure_python_module "Mako" "mako"
 
 export PKG_CONFIG_LIBDIR="$SYSROOT_EXT_PC:$SYSROOT/usr/lib/pkgconfig"
 
+# Direct invocations need the same built runtime as the aggregate deps target.
+# Prepare it before Mesa, so a clean build cannot reach packaging with a stub.
+if [ "$PACKAGE_BUNDLE" -eq 1 ]; then
+    GUEST_ARCH="$WINE_ARCH" bash "$SCRIPT_DIR/build_zlib_runtime.sh"
+fi
+
 if [ -f "$BUILD_ROOT/build.ninja" ]; then
     meson setup "$BUILD_ROOT" "$SOURCE_ROOT" --reconfigure "${MESON_ARGS[@]}"
 else

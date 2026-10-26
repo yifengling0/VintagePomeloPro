@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/env.sh"
 log "=== 构建模拟层交叉编译依赖 (Wine用, $TARGET) → sysroot-ext ==="
 
 # 按依赖链顺序执行 (模拟层依赖, 架构 = WINE_ARCH 推导的 $TARGET)
+GUEST_ARCH="$WINE_ARCH" bash "$SCRIPT_DIR/build_zlib_runtime.sh"
 bash "$SCRIPT_DIR/build_freetype.sh"
 bash "$SCRIPT_DIR/build_libffi.sh"
 bash "$SCRIPT_DIR/build_wayland.sh"
