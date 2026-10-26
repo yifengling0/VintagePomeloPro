@@ -701,7 +701,7 @@ def main() -> None:
                 candidate = None
                 if source_manifest is not None:
                     from source_build_contract import load
-                    candidate = load(archive.read, source_manifest)
+                    candidate = load(archive.read, source_manifest, require_native=False)
                 info = validate_runtime_payload(archive, candidate)
             finally:
                 archive.close()

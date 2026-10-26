@@ -1,5 +1,6 @@
 """Candidate provenance must not turn source rebuilds into accepted releases."""
 import copy
+import io
 import json
 from pathlib import Path
 import struct
@@ -8,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -92,6 +94,90 @@ class CandidateTests(unittest.TestCase):
         data[-1] = 1
         with self.assertRaises(ValueError): candidate.validate_member(record, 'payload', name, bytes(data))
         with self.assertRaises(ValueError): candidate.validate_binary('dxvk/modern-2.6/arm64x/test.dll', bytes(data))
+
+    def pending_receipt(self):
+        value = self.receipt()
+        value['pendingNative'] = [sorted(candidate.CMAKE_MODULES)[0]]
+        return value
+
+    def test_only_cmake_modules_may_be_deferred_and_final_hap_requires_all(self):
+        value = self.pending_receipt()
+        inventory = set(value['libraries']) | set(value['pendingNative'])
+        with patch.object(candidate, 'required_members', return_value=(inventory, set())):
+            read = lambda _: json.dumps(value).encode()
+            candidate.load(read, value['sources']['checkout'], require_native=False)
+            with self.assertRaisesRegex(ValueError, 'omits required'):
+                candidate.load(read, value['sources']['checkout'])
+            changed = copy.deepcopy(value)
+            changed['pendingNative'] = ['libs/arm64-v8a/unbuilt-dependency.so']
+            with self.assertRaises(ValueError):
+                candidate.load(lambda _: json.dumps(changed).encode(),
+                               value['sources']['checkout'], require_native=False)
+            candidate.complete_native(value, lambda _: self.elf)
+            candidate.load(read, value['sources']['checkout'])
+
+    def test_deferred_module_must_be_aarch64_and_cannot_expand_inventory(self):
+        wrong = bytearray(self.elf); struct.pack_into('<H', wrong, 18, 62)
+        with self.assertRaisesRegex(ValueError, 'not AArch64'):
+            candidate.complete_native(self.pending_receipt(), lambda _: bytes(wrong))
+        value = self.receipt(); value['pendingNative'] = ['libs/arm64-v8a/other.so']
+        with self.assertRaisesRegex(ValueError, 'cannot defer'):
+            candidate.complete_native(value, lambda _: self.elf)
+
+    def test_record_defers_cmake_outputs_even_if_stale_outputs_exist(self):
+        name = sorted(candidate.CMAKE_MODULES)[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); libs = root / 'libs'
+            stale = root / name; stale.parent.mkdir(parents=True)
+            stale.write_bytes(b'stale previous build')
+            venus = root / 'bin/guest_vulkan/lib/libvulkan_virtio.so'
+            venus.parent.mkdir(parents=True); venus.write_bytes(self.elf)
+            with patch.object(candidate, 'source_identity', return_value={'checkout': {}}), \
+                    patch.object(candidate, 'required_members', return_value=({name}, set())):
+                result = candidate.record(root, libs, {}, [stale])
+            self.assertEqual(result['pendingNative'], [name])
+            self.assertEqual(result['libraries'], {})
+
+    def test_finalize_pairs_hvigor_outputs_without_changing_other_payload_members(self):
+        value = self.pending_receipt(); name = value['pendingNative'][0]
+        inventory = set(value['libraries']) | {name}
+        buffer = io.BytesIO()
+        with ZipFile(buffer, 'w') as payload:
+            payload.writestr(candidate.RECORD, json.dumps(value))
+            payload.writestr('retained-game-runtime.bin', b'keep this exact content')
+        before = buffer.getvalue()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); hap = root / 'first.hap'
+            payload_path = root / 'wine-data.zip'; payload_path.write_bytes(before)
+            outer = {'payloadSha256': candidate.sha(before), 'validationPolicy': candidate.POLICY,
+                     'sourceBuild': {'commit': 'a' * 40}, 'deviceValidated': False}
+            outer_path = root / 'wine-runtime-manifest.json'
+            outer_path.write_text(json.dumps(outer))
+            version_path = root / 'wine_runtime.version'
+            version_path.write_text('content=' + candidate.sha(before)[:16] + ';wine-valve=unchanged\n')
+            with ZipFile(hap, 'w') as output:
+                output.writestr('resources/rawfile/wine-data.zip', before)
+                output.writestr(name, self.elf)
+            with patch.object(candidate, 'required_members', return_value=(inventory, set())):
+                candidate.finalize(hap, root, value['sources']['checkout'])
+                with ZipFile(payload_path) as payload:
+                    result = candidate.load(payload.read, value['sources']['checkout'])
+                    self.assertEqual(payload.read('retained-game-runtime.bin'), b'keep this exact content')
+                    self.assertEqual(set(payload.namelist()),
+                                     {candidate.RECORD, 'retained-game-runtime.bin'})
+                self.assertEqual(result['pendingNative'], [])
+                candidate.validate_member(result, 'libraries', name, self.elf)
+                after = payload_path.read_bytes()
+                final_outer = json.loads(outer_path.read_text())
+                self.assertEqual(final_outer, dict(outer, payloadSha256=candidate.sha(after)))
+                self.assertEqual(version_path.read_text(),
+                                 'content=' + candidate.sha(after)[:16] + ';wine-valve=unchanged\n')
+                # A HAP with a different first-stage runtime cannot supply identities.
+                snapshot = (after, outer_path.read_bytes(), version_path.read_bytes())
+                with self.assertRaisesRegex(ValueError, 'another runtime'):
+                    candidate.finalize(hap, root, value['sources']['checkout'])
+                self.assertEqual(snapshot,
+                                 (payload_path.read_bytes(), outer_path.read_bytes(), version_path.read_bytes()))
 
 
 if __name__ == '__main__':

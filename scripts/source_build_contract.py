@@ -6,10 +6,14 @@ requires a clean-checkout manifest made BEFORE compilation, checks effective
 graphics overlays, and pairs the rebuilt modules with their exact sources.
 """
 import argparse
+import copy
 import hashlib
+import io
 import json
 from pathlib import Path
+import re
 import subprocess
+from zipfile import ZipFile
 
 from dxvk_runtime_contract import ROOT, source_digest
 from fex_simd_runtime import pe_kind
@@ -18,6 +22,12 @@ from wined3d_runtime_contract import source_contract
 
 RECORD = 'source-build-candidate.json'
 POLICY = 'source-build-candidate'
+# These modules are compiled by Hvigor after assemble.sh, not by build_native.sh.
+# Their final identities must come from the first source-built HAP and be paired
+# into the final HAP. No other missing dependency may be deferred.
+CMAKE_MODULES = {'libs/arm64-v8a/' + name + '.so' for name in (
+    'libvirgl_child', 'libdirect_surface_probe', 'libdirect_gpu_surface_probe',
+    'libdirect_vulkan_probe', 'libdirect_shared_buffer_probe')}
 
 
 def sha(data):
@@ -96,11 +106,15 @@ def record(directory, libs, manifest, compilers):
     sources = source_identity(manifest)
     result = {'schemaVersion': 1, 'policy': POLICY, 'deviceValidated': False,
               'sources': sources, 'libraries': {}, 'payload': {},
+              'pendingNative': [],
               'compilers': [{'path': str(p), 'sha256': sha(p.read_bytes())} for p in compilers]}
     libraries, payload = required_members()
     for section, names in (('libraries', libraries), ('payload', payload)):
         for name in sorted(names):
             path = libs / Path(name).relative_to('libs') if section == 'libraries' else directory / name
+            if section == 'libraries' and name in CMAKE_MODULES:
+                result['pendingNative'].append(name)
+                continue
             data = path.read_bytes()
             validate_binary(name, data)
             result[section][name] = {'sha256': sha(data), 'bytes': len(data)}
@@ -113,25 +127,82 @@ def record(directory, libs, manifest, compilers):
     return result
 
 
-def load(read, manifest):
+def load(read, manifest, require_native=True):
     value = json.loads(read(RECORD))
     if (value.get('schemaVersion') != 1 or value.get('policy') != POLICY or
             value.get('deviceValidated') is not False or value['sources']['checkout'] != manifest):
         raise ValueError('candidate receipt does not match the clean-checkout manifest')
     libraries, payload = required_members()
-    if set(value.get('libraries', {})) != libraries or set(value.get('payload', {})) != payload:
+    pending = set(value.get('pendingNative', []))
+    if (not pending <= CMAKE_MODULES or (require_native and pending) or
+            pending & set(value.get('libraries', {})) or
+            set(value.get('libraries', {})) | pending != libraries or set(value.get('payload', {})) != payload):
         raise ValueError('candidate receipt omits required compatibility modules')
     if not value.get('compilers'):
         raise ValueError('candidate receipt lacks compiler identities')
     return value
 
 
+def complete_native(value, read):
+    for name in value.get('pendingNative', []):
+        if name not in CMAKE_MODULES:
+            raise ValueError('cannot defer non-CMake runtime: ' + name)
+        data = read(name)
+        validate_binary(name, data)
+        value['libraries'][name] = {'sha256': sha(data), 'bytes': len(data),
+                                    'loadableSha256': elf_identity(data)}
+    value['pendingNative'] = []
+
+
+def finalize(hap_path, rawfile, manifest):
+    path = rawfile / 'wine-data.zip'
+    outer_path = rawfile / 'wine-runtime-manifest.json'
+    outer = json.loads(outer_path.read_text())
+    before = path.read_bytes()
+    if sha(before) != outer['payloadSha256'] or outer.get('validationPolicy') != POLICY:
+        raise ValueError('cannot finalize a stale or non-candidate runtime')
+    with ZipFile(hap_path) as hap, ZipFile(io.BytesIO(before)) as source:
+        if sha(hap.read('resources/rawfile/wine-data.zip')) != sha(before):
+            raise ValueError('native build HAP contains another runtime')
+        value = load(source.read, manifest, require_native=False)
+        complete_native(value, hap.read)
+        buffer = io.BytesIO()
+        with ZipFile(buffer, 'w', allowZip64=True) as output:
+            for item in source.infolist():
+                output.writestr(copy.copy(item), (json.dumps(value, indent=2) + '\n').encode()
+                                if item.filename == RECORD else source.read(item.filename))
+    data = buffer.getvalue()
+    with ZipFile(io.BytesIO(data)) as output:
+        load(output.read, manifest)
+    outer['payloadSha256'] = sha(data)
+    version_path = rawfile / 'wine_runtime.version'
+    version, count = re.subn(r'content=[^;\s]+', 'content=' + sha(data)[:16], version_path.read_text())
+    if count != 1:
+        raise ValueError('candidate runtime must have one content marker')
+    for target, contents in ((path, data), (outer_path, (json.dumps(outer, indent=2) + '\n').encode()),
+                             (version_path, version.encode())):
+        temporary = target.with_name(target.name + '.candidate.tmp')
+        temporary.write_bytes(contents)
+        temporary.replace(target)
+    print('Hvigor native module identities paired; final HAP must pass the complete candidate gate')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--directory', type=Path, required=True)
-    parser.add_argument('--libs', type=Path, required=True)
+    parser.add_argument('--directory', type=Path)
+    parser.add_argument('--libs', type=Path)
+    parser.add_argument('--finalize-hap', type=Path)
+    parser.add_argument('--rawfile', type=Path)
     parser.add_argument('--source-manifest', type=Path, required=True)
-    parser.add_argument('--compiler', type=Path, action='append', required=True)
+    parser.add_argument('--compiler', type=Path, action='append')
     args = parser.parse_args()
-    record(args.directory, args.libs, json.loads(args.source_manifest.read_text()), args.compiler)
-    print('Source-build candidate recorded; deviceValidated=false; reviewed release locks unchanged')
+    manifest = json.loads(args.source_manifest.read_text())
+    if args.finalize_hap:
+        if not args.rawfile:
+            parser.error('--finalize-hap requires --rawfile')
+        finalize(args.finalize_hap, args.rawfile, manifest)
+    else:
+        if not args.directory or not args.libs or not args.compiler:
+            parser.error('record requires --directory, --libs and --compiler')
+        record(args.directory, args.libs, manifest, args.compiler)
+        print('Source-build candidate recorded; deviceValidated=false; reviewed release locks unchanged')

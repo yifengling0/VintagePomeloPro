@@ -303,6 +303,16 @@ with open('$module_json', 'w') as f:
     # Match the validated distribution build; Hvigor otherwise defaults to Debug.
     hvigorw --mode module -p product=default -p buildMode=release assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
+    if [ -n "${SOURCE_BUILD_MANIFEST:-}" ]; then
+        # Five protected modules are source-built by Hvigor, after Wine assembly.
+        # Bind those actual outputs into the receipt and repack incrementally.
+        python3 "$SCRIPT_DIR/source_build_contract.py" --finalize-hap "$unsigned_hap" \
+            --rawfile "$WINEHUA/entry/src/main/resources/rawfile" \
+            --source-manifest "$SOURCE_BUILD_MANIFEST"
+        hvigorw --mode module -p product=default -p buildMode=release assembleHap || \
+            { err "hvigorw candidate receipt packaging failed"; return 1; }
+    fi
+
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --hap "$unsigned_hap"
