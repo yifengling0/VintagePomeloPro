@@ -12,11 +12,33 @@ VkResult fakeSubmit(VkQueue,uint32_t count,const VkSubmitInfo* submits,VkFence) 
     for(uint32_t i=0;i<count;i++)if(submits[i].signalSemaphoreCount)++signals;
     --inFlight;return submitResult.load();
 }
+VkResult fakeExtensions(const char*,uint32_t* count,VkExtensionProperties*) {*count=0;return VK_SUCCESS;}
+PFN_vkVoidFunction fakeInstanceGet(VkInstance,const char* name) {
+    return !strcmp(name,"vkEnumerateInstanceExtensionProperties")?reinterpret_cast<PFN_vkVoidFunction>(fakeExtensions):nullptr;
+}
 PFN_vkVoidFunction fakeGet(VkDevice,const char* name) {
     return !strcmp(name,"vkQueueSubmit")?reinterpret_cast<PFN_vkVoidFunction>(fakeSubmit):nullptr;
 }
 }
 int main() {
+    get=fakeInstanceGet;
+    uint32_t extensionCount=0;
+    assert(vkEnumerateInstanceExtensionProperties(nullptr,&extensionCount,nullptr)==VK_SUCCESS);
+    std::vector<VkExtensionProperties> extensionList(extensionCount);
+    assert(vkEnumerateInstanceExtensionProperties(nullptr,&extensionCount,extensionList.data())==VK_SUCCESS);
+    auto has=[&](const char* name){return std::any_of(extensionList.begin(),extensionList.end(),[&](const auto& v){return !strcmp(v.extensionName,name);});};
+    assert(has("VK_KHR_surface")&&has("VK_KHR_wayland_surface"));
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    assert(has("VK_KHR_xlib_surface")&&has("VK_KHR_xcb_surface"));
+    assert(intercept("vkCreateXlibSurfaceKHR")&&intercept("vkCreateXcbSurfaceKHR"));
+    VkXlibSurfaceCreateInfoKHR xlib{};VkSurfaceKHR rejected=VK_NULL_HANDLE;
+    assert(vkCreateXlibSurfaceKHR(VK_NULL_HANDLE,&xlib,nullptr,&rejected)==VK_ERROR_INITIALIZATION_FAILED);
+    VkXcbSurfaceCreateInfoKHR xcb{};
+    assert(vkCreateXcbSurfaceKHR(VK_NULL_HANDLE,&xcb,nullptr,&rejected)==VK_ERROR_INITIALIZATION_FAILED);
+#else
+    assert(!has("VK_KHR_xlib_surface")&&!has("VK_KHR_xcb_surface"));
+#endif
+
     VkDevice device=reinterpret_cast<VkDevice>(0x10000);
     VkQueue queue=reinterpret_cast<VkQueue>(0x20000);
     VkSemaphore semaphore=reinterpret_cast<VkSemaphore>(0x30000);

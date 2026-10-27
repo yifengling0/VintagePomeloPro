@@ -208,6 +208,17 @@ jobs:
           if ! command -v patch >/dev/null 2>&1; then
             packages+=(patch)
           fi
+          if ! command -v Xvfb >/dev/null 2>&1; then
+            packages+=(xvfb)
+          fi
+          if ! command -v wayland-scanner >/dev/null 2>&1 || \
+             [ ! -f /usr/include/wayland-server.h ] || [ ! -f /usr/include/xcb/xcbext.h ] || \
+             [ ! -f /usr/include/X11/Xlib.h ]; then
+            packages+=(libwayland-dev libxcb1-dev libx11-dev)
+          fi
+          if [ ! -f /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml ]; then
+            packages+=(wayland-protocols)
+          fi
           if ! command -v msgfmt >/dev/null 2>&1; then
             packages+=(gettext)
           fi
@@ -302,6 +313,7 @@ jobs:
         run: |
           python3 scripts/build_steam_client_session.py --verify-only
           python3 scripts/build_linux_steam_posix.py --verify-only
+          python3 scripts/build_linux_steam_native_graphics.py --verify-only
           python3 host_tests/proton_bootstrap_closure_test.py
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined host_tests/proton_setup_cache_test.cpp -o ci-artifacts/proton-setup-cache-test
           ci-artifacts/proton-setup-cache-test
@@ -311,6 +323,8 @@ jobs:
           done
           python3 host_tests/linux_steam_cloud_paths_test.py
           python3 host_tests/linux_steam_depot_links_test.py
+          python3 host_tests/linux_steam_native_fex_test.py
+          python3 host_tests/linux_steam_native_window_test.py
           python3 host_tests/linux_runtime_components_test.py
           python3 host_tests/steam_client_restart_test.py --output ci-artifacts/steam-client-restart
           for suite in run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests; do

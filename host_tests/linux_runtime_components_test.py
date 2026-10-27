@@ -86,6 +86,43 @@ class RestoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Missing or corrupt'):self.restore(True)
         self.assertEqual(self.calls,[])
 
+    def add_native_companions(self):
+        self.lock['hapCompanions'] = list(components.HAP_COMPANIONS)
+        for relative, name in components.HAP_COMPANIONS.items():
+            manifest = self.root / relative
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            binary = manifest.parent / name
+            binary.write_bytes(('compiled ' + name).encode())
+            manifest.write_text(json.dumps(dict(schemaVersion=1, architecture='aarch64-linux-gnu',
+                name=name, bytes=binary.stat().st_size, sha256=components.sha(binary),
+                sources={'adapter.c': components.sha(self.source)})))
+
+    def test_native_companions_checked_even_without_source_overrides(self):
+        self.add_native_companions()
+        self.assertEqual(self.restore()['status'], 'PASS')
+        (self.raw/'linux-steam/bootstrap/steamohos_fex').write_bytes(b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'override binary mismatch'): self.restore(True)
+
+    def test_unapproved_companion_rejected_before_network(self):
+        self.lock['hapCompanions'] = ['arbitrary-manifest.json']
+        with self.assertRaisesRegex(ValueError, 'Unapproved HAP'): self.restore()
+        self.assertEqual(self.calls, [])
+
+    def test_final_hap_requires_native_companions(self):
+        self.add_native_companions()
+        self.restore(); self.write_lock()
+        for corrupt in (False, True):
+            hap = self.root / 'native.hap'
+            with zipfile.ZipFile(hap, 'w') as archive:
+                for path in self.raw.rglob('*'):
+                    if path.is_file():
+                        data = b'corrupt' if corrupt and path.name == 'libsteamohos_native_vulkan.so' else path.read_bytes()
+                        archive.writestr('resources/rawfile/' + path.relative_to(self.raw).as_posix(), data)
+            if corrupt:
+                with self.assertRaisesRegex(ValueError, 'HAP companion'): components.verify_hap(hap, self.root)
+            else:
+                self.assertEqual(components.verify_hap(hap, self.root)['status'], 'PASS')
+
     def test_corrupt_rawfile_repaired_from_verified_cache(self):
         self.restore();target=self.raw/self.lock['components'][0]['path']
         target.write_bytes(b'damaged')

@@ -5,7 +5,10 @@
   "buildPolicy": "Compile OHOS host/ArkTS from source; restore checksum-pinned prebuilt GNU dependencies. GNU source rebuild is a separate pipeline.",
   "hapSourceOverrides": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/exec_compat.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/filesystem_compat.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json"
+    "entry/src/main/cpp/linux_steam/gnu_fixture/filesystem_compat.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/posix_compat.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/syscall_compat.S": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json"
   },
   "sourceInputs": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",
@@ -124,5 +127,10 @@
       "manifestSha256": "fe9d9bad4b898e67d2ca2f8d351cd36ab5d3393ff4852101d6748c2e0ca3b764",
       "url": "https://github.com/yifengling0/VintagePomeloPro/releases/download/build-deps-gnu-1.5.2-21f85e476cc5/gnu-proton.zip"
     }
+  ],
+  "hapCompanions": [
+    "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
+    "entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json",
+    "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json"
   ]
 }

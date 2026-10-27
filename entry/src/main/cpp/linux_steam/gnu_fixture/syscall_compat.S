@@ -15,12 +15,26 @@
 .type syscall, %function
 .hidden SteamOhosNextSyscall
 .hidden SteamOhosLandlockCreateRuleset
+.hidden SteamOhosFexOptionalCall
+.hidden SteamOhosFexFileCall
 .hidden SteamOhosOpenAt2
 .hidden SteamOhosCloseRange
 .hidden SteamOhosQueryRobustList
 .hidden SteamOhosSyscallUnavailable
 #if defined(__aarch64__)
 syscall:
+    cmp x0, #449 // futex_waitv
+    b.eq SteamOhosFexOptionalCall
+    cmp x0, #282 // userfaultfd
+    b.eq SteamOhosFexOptionalCall
+    cmp x0, #__NR_openat
+    b.eq SteamOhosFexFileCall
+    cmp x0, #__NR_faccessat
+    b.eq SteamOhosFexFileCall
+#ifdef __NR_faccessat2
+    cmp x0, #__NR_faccessat2
+    b.eq SteamOhosFexFileCall
+#endif
     cmp x0, #__NR_openat2
     b.eq 5f
     cmp x0, #__NR_get_robust_list
@@ -59,6 +73,20 @@ syscall:
     b SteamOhosSyscallUnavailable
 #elif defined(__x86_64__)
 syscall:
+    cmp $449, %rdi
+    je SteamOhosFexOptionalCall
+#ifdef __NR_userfaultfd
+    cmp $__NR_userfaultfd, %rdi
+    je SteamOhosFexOptionalCall
+#endif
+    cmp $__NR_openat, %rdi
+    je SteamOhosFexFileCall
+    cmp $__NR_faccessat, %rdi
+    je SteamOhosFexFileCall
+#ifdef __NR_faccessat2
+    cmp $__NR_faccessat2, %rdi
+    je SteamOhosFexFileCall
+#endif
     cmp $__NR_openat2, %rdi
     je 5f
     cmp $__NR_get_robust_list, %rdi

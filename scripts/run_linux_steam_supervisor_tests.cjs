@@ -6,7 +6,7 @@ const raw=path.join(__dirname,'../entry/src/main/resources/rawfile');
 const hash=d=>crypto.createHash('sha256').update(d).digest('hex');
 fs.mkdirSync(base,{recursive:true});fs.mkdirSync(release+'/runtime',{recursive:true});
 const pointer=base+'/external-active.path';fs.writeFileSync(pointer,release+'\n');
-let writes=0,corrupt=false,manifest=null;
+let writes=0,corrupt=false,manifest=null,damagedResource='';
 const deps={
  '@kit.CoreFileKit':{fileIo:{accessSync:fs.existsSync,lstatSync:fs.lstatSync,renameSync:fs.renameSync}},
  './ConfigurationFiles':{ConfigurationFiles:{text:d=>Buffer.from(d).toString(),read:p=>fs.readFileSync(p),
@@ -17,7 +17,7 @@ const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../entry/src/
  {compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText;
 const api={};vm.runInNewContext(code,{exports:api,require:id=>{assert.ok(id in deps,id);return deps[id];}});
 const context={resourceManager:{getRawFileContent:async p=>manifest&&p.endsWith('manifest.json')?Buffer.from(JSON.stringify(manifest)):
- corrupt&&p.endsWith(name)?Buffer.from('broken'):fs.readFileSync(path.join(raw,p))}};
+ (corrupt&&p.endsWith(name)||damagedResource&&p.endsWith('/'+damagedResource))?Buffer.from('broken'):fs.readFileSync(path.join(raw,p))}};
 (async()=>{try{
  fs.writeFileSync(release+'/runtime/user-file','preserve');
  await api.ensureLinuxSteamClientSupervisor(context,root);assert.equal(writes,1);
@@ -36,13 +36,22 @@ const context={resourceManager:{getRawFileContent:async p=>manifest&&p.endsWith(
  await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/位置无效/);fs.writeFileSync(pointer,release);
  const real=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/manifest.json')));
  manifest={...real,name:'../steam'};await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/清单无效/);manifest=null;
- const posix='libsteamohos_posix_hap.so',posixTarget=release+'/runtime/'+posix;
- const posixManifest=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/posix-manifest.json')));
+ const support=['posix-manifest.json','fex-manifest.json','native-graphics-manifest.json']
+   .map(n=>JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/'+n))));
  const beforePosix=writes;
  await api.ensureLinuxSteamPosixSupport(context,root);
- assert.equal(hash(fs.readFileSync(posixTarget)),posixManifest.sha256);
+ for(const item of support)assert.equal(hash(fs.readFileSync(release+'/runtime/'+item.name)),item.sha256);
+ assert.equal(writes,beforePosix+support.length,'all three HAP companions must be installed');
  await api.ensureLinuxSteamPosixSupport(context,root);
- assert.equal(writes,beforePosix+1,'HAP POSIX support is separately verified and reused');
+ assert.equal(writes,beforePosix+support.length,'verified companions must be reused');
+ for(const item of support){
+   const file=release+'/runtime/'+item.name;
+   fs.writeFileSync(file,'installed-old');damagedResource=item.name;
+   await assert.rejects(api.ensureLinuxSteamPosixSupport(context,root),/校验失败/);
+   assert.equal(fs.readFileSync(file,'utf8'),'installed-old','invalid payload cannot replace '+item.name);
+   damagedResource='';await api.ensureLinuxSteamPosixSupport(context,root);
+   assert.equal(hash(fs.readFileSync(file)),item.sha256);
+ }
  assert.deepEqual(fs.readFileSync(target),payload,'Cloud adapter cannot replace the session supervisor');
  fs.renameSync(release+'/runtime',release+'/runtime-old');fs.symlinkSync(release+'/runtime-old',release+'/runtime');
  await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/目录不安全/);

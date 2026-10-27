@@ -449,6 +449,10 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
         // Cloud roots follow each game's Steam-owned compatibility selection.
         session.environment.emplace_back("STEAMOHOS_WINE_PREFIX=" + base.substr(0, base.rfind('/')) + "/.wine");
         if(gnuReady)session.environment.emplace_back("STEAMOHOS_GNU_WINE_PREFIX=" + gnuPrefix);
+        // Expose the existing native receiver to Linux games independently of
+        // the CEF software-GL workaround. No new GPU receiver or pixel pipe.
+        if(gnuReady)session.environment.emplace_back("STEAMOHOS_NATIVE_GRAPHICS_ROOT="+base+"/proton-probe");
+        if(!vtestSocket.empty())session.environment.emplace_back("VTEST_SOCKET_NAME="+vtestSocket);
         session.environment.emplace_back("STEAMOHOS_LIBRARY_ROOT=" + externalRoot + "/library");
         std::ifstream zRootFile(base + "/wine-z-root.path");
         std::string zRoot; std::getline(zRootFile, zRoot);

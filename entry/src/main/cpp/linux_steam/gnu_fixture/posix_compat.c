@@ -3,6 +3,8 @@
 #include <sys/socket.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
+#include <fcntl.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -65,10 +67,19 @@ static int NativeDiagnostic(void) {
 __attribute__((visibility("hidden"))) extern long (*SteamOhosNextSyscall)(long,...);
 // Observe large virtual reservations without changing their address or flags.
 // In particular, CEF/V8 needs a CodeRange even when GPU acceleration is off.
+static int NativeFex(void) {
+    const char *value=getenv("STEAMOHOS_NATIVE_FEX");return value&&!strcmp(value,"1");
+}
+static void FexExecPolicy(int prot) {
+    if((prot&PROT_EXEC)&&NativeFex()) {
+        int saved=errno;(void)prctl(0x6a6974,0UL,0UL,0UL,0UL);errno=saved;
+    }
+}
 static void *(*next_mmap)(void *,size_t,int,int,int,off_t);
 void *mmap(void *address,size_t length,int prot,int flags,int fd,off_t offset) {
     if (!next_mmap) next_mmap=dlsym(RTLD_NEXT,"mmap");
     if (!next_mmap) { errno=ENOSYS; return MAP_FAILED; }
+    FexExecPolicy(prot);
     void *result=next_mmap(address,length,prot,flags,fd,offset);
     int saved=errno;
     static _Atomic unsigned diagnostics;
@@ -89,6 +100,7 @@ static int (*next_mprotect)(void *,size_t,int);
 int mprotect(void *address,size_t length,int prot) {
     if (!next_mprotect) next_mprotect=dlsym(RTLD_NEXT,"mprotect");
     if (!next_mprotect) { errno=ENOSYS; return -1; }
+    FexExecPolicy(prot);
     int result=next_mprotect(address,length,prot),saved=errno;
     static _Atomic unsigned diagnostics;
     if (NativeDiagnostic() && result<0 && atomic_fetch_add(&diagnostics,1)<64)
@@ -206,6 +218,13 @@ int connect(int fd, const struct sockaddr *address, socklen_t length) {
 // Ordinary dependency resolution still uses GNU rtld's signed --library-path.
 static const char *SignedLibrary(const char *name, char *mapped, size_t capacity) {
     if (!name) return name;
+    if(NativeFex()&&(!strcmp(name,"libvulkan.so.1")||!strcmp(name,"libvulkan.so"))) {
+        const char *code=getenv("STEAMOHOS_CODE_ROOT");
+        if(code&&code[0]=='/') {
+            int n=snprintf(mapped,capacity,"%s/libsteamohos_native_vulkan.so",code);
+            if(n>0&&(size_t)n<capacity)return mapped;
+        }
+    }
     const char *software=getenv("STEAMOHOS_SOFTWARE_GL");
     const char *runtime=getenv("STEAMOHOS_CODE_ROOT");
     if(software && !strcmp(software,"1") && runtime && runtime[0]=='/' &&
@@ -331,4 +350,28 @@ __attribute__((visibility("hidden"))) long SteamOhosOpenAt2(int directory,const 
     }
     if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
     return SteamOhosNextSyscall(SYS_openat2,directory,path,how,size);
+}
+
+// Linux FEX issues openat/faccessat through syscall@PLT, bypassing the usual
+// file wrappers. Reuse their real dirfd + emulated-depot-link semantics for
+// this namespace only. All other callers retain the original syscall ABI.
+__attribute__((visibility("hidden"))) long SteamOhosFexFileCall(long number,long a,long b,long c,long d,long e,long f) {
+    if(NativeFex()) {
+        if(number==SYS_openat)return openat((int)a,(const char*)b,(int)c,(mode_t)d);
+        if(number==SYS_faccessat)return faccessat((int)a,(const char*)b,(int)c,0);
+#ifdef SYS_faccessat2
+        // FEX falls back to faccessat on the actual unsupported API.
+        if(number==SYS_faccessat2){errno=ENOSYS;return -1;}
+#endif
+    }
+    if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
+    return SteamOhosNextSyscall(number,a,b,c,d,e,f);
+}
+
+// These optional Linux facilities are unavailable in the application sandbox.
+// FEX has ordinary fallbacks; only its own process receives ENOSYS here.
+__attribute__((visibility("hidden"))) long SteamOhosFexOptionalCall(long number,long a,long b,long c,long d,long e,long f) {
+    if(NativeFex()){errno=ENOSYS;return -1;}
+    if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
+    return SteamOhosNextSyscall(number,a,b,c,d,e,f);
 }

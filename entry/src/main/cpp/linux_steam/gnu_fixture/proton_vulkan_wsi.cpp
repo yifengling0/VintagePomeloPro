@@ -4,6 +4,10 @@
 // No host pointer crosses the libc boundary; no rendered pixels enter SHM.
 #define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WAYLAND_KHR
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+#define VK_USE_PLATFORM_XLIB_KHR
+#define VK_USE_PLATFORM_XCB_KHR
+#endif
 #include <vulkan/vulkan.h>
 #include <wayland-client.h>
 #include <dlfcn.h>
@@ -27,6 +31,9 @@
 #include <mutex>
 #include <vector>
 
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+#include "native_x11_window.h"
+#endif
 namespace {
 std::recursive_mutex stateMutex;
 void* icd;
@@ -76,6 +83,9 @@ void releaseAlias(Mapping& mapping) {
     if(mapping.alias&&freeVirtual){size_t zero=0;freeVirtual(reinterpret_cast<void*>(~uintptr_t(0)),&mapping.alias,&zero,0x8000);mapping.alias=nullptr;}
 }
 struct Surface {
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    std::unique_ptr<steamohos::NativeX11Window> nativeX11;
+#endif
     wl_display* display=nullptr;wl_surface* window=nullptr;wl_registry* registry=nullptr;
     wl_event_queue* queue=nullptr;wl_shm* shm=nullptr;wl_buffer* blank=nullptr;
     ~Surface() {
@@ -101,6 +111,11 @@ bool init() {
     std::lock_guard<std::recursive_mutex> lock(stateMutex);
     if(get)return true;
     const char* root=getenv("STEAMOHOS_CODE_ROOT");
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    const char* native=getenv("STEAMOHOS_NATIVE_FEX");
+    if(!native||strcmp(native,"1"))return false;
+    root=getenv("STEAMOHOS_NATIVE_GRAPHICS_ROOT");
+#endif
     if(!root||strcmp(root,"/data/storage/el2/base/files/steamohos-native/proton-probe"))return false;
     char path[4096];snprintf(path,sizeof(path),"%s/graphics/libvulkan_virtio.so",root);
     startupTrace("icd_open");
@@ -126,7 +141,11 @@ template<class T> VkResult enumerate(const std::vector<T>& values,uint32_t* coun
     uint32_t n=std::min(*count,static_cast<uint32_t>(values.size()));std::copy_n(values.begin(),n,out);*count=n;
     return n==values.size()?VK_SUCCESS:VK_INCOMPLETE;
 }
-bool surfaceExtension(const char* s) {return !strcmp(s,VK_KHR_SURFACE_EXTENSION_NAME)||!strcmp(s,VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME)||!strcmp(s,VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);}
+bool surfaceExtension(const char* s) {
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    if(!strcmp(s,VK_KHR_XLIB_SURFACE_EXTENSION_NAME)||!strcmp(s,VK_KHR_XCB_SURFACE_EXTENSION_NAME))return true;
+#endif
+    return !strcmp(s,VK_KHR_SURFACE_EXTENSION_NAME)||!strcmp(s,VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME)||!strcmp(s,VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);}
 void global(void* data,wl_registry* registry,uint32_t id,const char* name,uint32_t) {
     auto s=static_cast<Surface*>(data);if(!strcmp(name,"wl_shm"))s->shm=static_cast<wl_shm*>(wl_registry_bind(registry,id,&wl_shm_interface,1));
 }
@@ -173,9 +192,13 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(const char
     if(layer)return f(layer,count,out);
     uint32_t n=0;VkResult rc=f(nullptr,&n,nullptr);if(rc!=VK_SUCCESS)return rc;
     std::vector<VkExtensionProperties> values(n);rc=f(nullptr,&n,values.data());if(rc!=VK_SUCCESS)return rc;values.resize(n);
-    for(const char* name:{VK_KHR_SURFACE_EXTENSION_NAME,VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME})
+    for(const char* name:{VK_KHR_SURFACE_EXTENSION_NAME,VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+            ,VK_KHR_XLIB_SURFACE_EXTENSION_NAME,VK_KHR_XCB_SURFACE_EXTENSION_NAME
+#endif
+            })
         if(std::none_of(values.begin(),values.end(),[&](auto& p){return !strcmp(p.extensionName,name);})) {
-            VkExtensionProperties p{};strcpy(p.extensionName,name);p.specVersion=!strcmp(name,VK_KHR_SURFACE_EXTENSION_NAME)?25:!strcmp(name,VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME)?6:1;values.push_back(p);
+            VkExtensionProperties p{};strcpy(p.extensionName,name);p.specVersion=!strcmp(name,VK_KHR_SURFACE_EXTENSION_NAME)?25:!strcmp(name,VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME)?1:6;values.push_back(p);
         }
     return enumerate(values,count,out);
 }
@@ -243,6 +266,31 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateWaylandSurfaceKHR(VkInstance,const VkWayl
     auto s=std::make_shared<Surface>();s->display=info->display;s->window=info->surface;
     *handle=reinterpret_cast<VkSurfaceKHR>(s.get());std::lock_guard<std::recursive_mutex> lock(stateMutex);surfaces[*handle]=s;return VK_SUCCESS;
 }
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+VKAPI_ATTR VkBool32 VKAPI_CALL vkGetPhysicalDeviceWaylandPresentationSupportKHR(VkPhysicalDevice,uint32_t,wl_display*);
+static VkResult createX11Surface(uint32_t window,VkSurfaceKHR* handle) {
+    if(!handle||!window)return VK_ERROR_INITIALIZATION_FAILED;
+    auto surface=std::make_shared<Surface>();surface->nativeX11=std::make_unique<steamohos::NativeX11Window>();
+    if(!surface->nativeX11->Create(window))return VK_ERROR_INITIALIZATION_FAILED;
+    surface->display=surface->nativeX11->display;surface->window=surface->nativeX11->surface;
+    *handle=reinterpret_cast<VkSurfaceKHR>(surface.get());
+    std::lock_guard<std::recursive_mutex> lock(stateMutex);surfaces[*handle]=surface;return VK_SUCCESS;
+}
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateXlibSurfaceKHR(VkInstance,const VkXlibSurfaceCreateInfoKHR* info,const VkAllocationCallbacks*,VkSurfaceKHR* handle) {
+    if(!info||!info->dpy||info->flags||info->window>UINT32_MAX)return VK_ERROR_INITIALIZATION_FAILED;
+    return createX11Surface(static_cast<uint32_t>(info->window),handle);
+}
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateXcbSurfaceKHR(VkInstance,const VkXcbSurfaceCreateInfoKHR* info,const VkAllocationCallbacks*,VkSurfaceKHR* handle) {
+    if(!info||!info->connection||info->flags)return VK_ERROR_INITIALIZATION_FAILED;
+    return createX11Surface(info->window,handle);
+}
+VKAPI_ATTR VkBool32 VKAPI_CALL vkGetPhysicalDeviceXlibPresentationSupportKHR(VkPhysicalDevice physical,uint32_t family,Display*,VisualID) {
+    return vkGetPhysicalDeviceWaylandPresentationSupportKHR(physical,family,nullptr);
+}
+VKAPI_ATTR VkBool32 VKAPI_CALL vkGetPhysicalDeviceXcbPresentationSupportKHR(VkPhysicalDevice physical,uint32_t family,xcb_connection_t*,xcb_visualid_t) {
+    return vkGetPhysicalDeviceWaylandPresentationSupportKHR(physical,family,nullptr);
+}
+#endif
 VKAPI_ATTR void VKAPI_CALL vkDestroySurfaceKHR(VkInstance,VkSurfaceKHR surface,const VkAllocationCallbacks*) {
     std::lock_guard<std::recursive_mutex> lock(stateMutex);surfaces.erase(surface);
 }
@@ -256,7 +304,10 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDe
     *out=vkGetPhysicalDeviceWaylandPresentationSupportKHR(physical,family,nullptr);return VK_SUCCESS;
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice physical,VkSurfaceKHR surface,VkSurfaceCapabilitiesKHR* caps) {
-    if(!lookup(surfaces,surface))return VK_ERROR_SURFACE_LOST_KHR;
+    auto target=lookup(surfaces,surface);if(!target)return VK_ERROR_SURFACE_LOST_KHR;
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    if(target->nativeX11&&target->nativeX11->Lost())return VK_ERROR_SURFACE_LOST_KHR;
+#endif
     VkPhysicalDeviceProperties p;instanceProc<PFN_vkGetPhysicalDeviceProperties>(physicalInstance(physical),"vkGetPhysicalDeviceProperties")(physical,&p);
     *caps={};caps->minImageCount=2;caps->maxImageCount=3;caps->currentExtent={UINT32_MAX,UINT32_MAX};caps->minImageExtent={1,1};
     const uint32_t limit=std::min(p.limits.maxImageDimension2D,4096u); // geometry allocation cap, validated below
@@ -420,6 +471,10 @@ static PFN_vkVoidFunction intercept(const char* name) {
     PROC(vkEnumerateInstanceVersion);PROC(vkEnumerateInstanceExtensionProperties);PROC(vkEnumerateInstanceLayerProperties);
     PROC(vkCreateInstance);PROC(vkDestroyInstance);PROC(vkEnumeratePhysicalDevices);
     PROC(vkEnumerateDeviceExtensionProperties);PROC(vkCreateDevice);PROC(vkDestroyDevice);PROC(vkGetDeviceQueue);
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    PROC(vkCreateXlibSurfaceKHR);PROC(vkCreateXcbSurfaceKHR);
+    PROC(vkGetPhysicalDeviceXlibPresentationSupportKHR);PROC(vkGetPhysicalDeviceXcbPresentationSupportKHR);
+#endif
     PROC(vkCreateWaylandSurfaceKHR);PROC(vkDestroySurfaceKHR);PROC(vkGetPhysicalDeviceWaylandPresentationSupportKHR);
     PROC(vkGetPhysicalDeviceSurfaceSupportKHR);PROC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);PROC(vkGetPhysicalDeviceSurfaceFormatsKHR);PROC(vkGetPhysicalDeviceSurfacePresentModesKHR);
     PROC(vkGetPhysicalDeviceSurfaceCapabilities2KHR);PROC(vkGetPhysicalDeviceSurfaceFormats2KHR);

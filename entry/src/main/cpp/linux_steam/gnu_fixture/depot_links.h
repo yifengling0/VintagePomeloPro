@@ -169,6 +169,17 @@ static const char *DepotResolveImpl(const char *path,char resolved[PATH_MAX],int
     if(!path||!*path||!next_lstat||!next_open)return path;
     char absolute[PATH_MAX],root[PATH_MAX];
     if(!AbsolutePath(path,absolute)||!DepotScope(absolute,root))return path;
+    // FEX's installed rootfs is already within a scoped depot. Absolute guest
+    // symlinks are relative to THAT root, never the OHOS filesystem. Restrict
+    // this to the active game's validated runtime; Steam's own depot scans
+    // retain the existing package boundary.
+    const char *guest_root=getenv("STEAMOHOS_NATIVE_FEX_ROOTFS");
+    const char *native=getenv("STEAMOHOS_NATIVE_FEX");
+    int guest=native&&!strcmp(native,"1")&&guest_root&&Below(guest_root,root)&&Below(absolute,guest_root);
+    if(guest) {
+        if(strlen(guest_root)>=PATH_MAX){errno=ENAMETOOLONG;return NULL;}
+        strcpy(root,guest_root);
+    }
     char raw[PATH_MAX];
     if(path[0]=='/') {
         if(strlen(path)>=sizeof(raw)){errno=ENAMETOOLONG;return NULL;}
@@ -206,8 +217,9 @@ static const char *DepotResolveImpl(const char *path,char resolved[PATH_MAX],int
             if(++hops>40){errno=ELOOP;return NULL;}
             char next[PATH_MAX];int n;
             if(target[0]=='/') {
-                if(!Below(target,root)){errno=EACCES;return NULL;}
-                n=snprintf(next,sizeof(next),"%s%s",target+boundary,rest);strcpy(resolved,root);
+                if(!guest&&!Below(target,root)){errno=EACCES;return NULL;}
+                const char *relative=Below(target,root)?target+boundary:target;
+                n=snprintf(next,sizeof(next),"%s%s",relative,rest);strcpy(resolved,root);
             } else {
                 n=snprintf(next,sizeof(next),"%s%s",target,rest);resolved[used-1]=0;
             }

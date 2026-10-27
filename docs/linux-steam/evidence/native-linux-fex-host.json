@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "9c0a2d21",
+  "deviceAccess": false,
+  "experimental": true,
+  "implemented": [
+    "scoped-official-FEX-entry",
+    "installed-runtime-rootfs",
+    "private-server-IPC-and-guest-path-restoration",
+    "official-Steam-FEX-configuration",
+    "native-Xlib-XCB-Wayland-Vulkan-WSI",
+    "Venus-NativeImage-presentation-contract",
+    "XTEST-input-routing",
+    "HAP-atomic-companion-delivery",
+    "explicit-source-override-lock"
+  ],
+  "checks": {
+    "nativeFexLaunchContract": {
+      "status": "PASS",
+      "cases": 7,
+      "emulator": "host stand-in; not translation"
+    },
+    "nativeWindowAndInput": "PASS isolated real Xvfb + Wayland fixture; no OHOS GPU",
+    "wsiSynchronization": "PASS both Wine/native compile modes",
+    "existingGnuExec": "PASS 28 modes",
+    "depotLinkLifecycleAndScanning": "PASS",
+    "cleanComponentRestore": "PASS 13 tests",
+    "steamSupervisorDeliveryAndCorruption": "PASS",
+    "existingWineHandoff": "PASS",
+    "protonBootstrapClosure": "PASS",
+    "steamCloudPaths": "PASS",
+    "aarch64CompanionsBuild": "PASS",
+    "releaseHapBuild": "PASS",
+    "packagedGnuAndCompanionIntegrity": {
+      "status": "PASS",
+      "components": 2,
+      "hapCompanions": 3
+    },
+    "runtimeLibraryGuard": "PASS",
+    "diffWhitespace": "PASS"
+  },
+  "preexistingFailures": [
+    {
+      "check": "runtime-core binary lock",
+      "reason": "libvirgl_child.so differs from legacy 1.4.9 lock",
+      "unchangedFromPreviousTwoCandidates": true
+    },
+    {
+      "check": "graphics-package-identity",
+      "reason": "effective Wine patch order/registration",
+      "failsWithPreviousCandidate": true,
+      "winePatchStackModified": false
+    }
+  ],
+  "unverified": [
+    "real official ARM64 FEX execution",
+    "installed official thunk database layout",
+    "Banana gameplay",
+    "device Vulkan frames/performance",
+    "native audio",
+    "native gamepad"
+  ],
+  "notImplemented": [
+    "complete native GL/GLX shared presentation",
+    "arbitrary game shebang launchers"
+  ],
+  "companions": [
+    {
+      "name": "libsteamohos_posix_hap.so",
+      "architecture": "aarch64-linux-gnu",
+      "bytes": 234808,
+      "sha256": "199208318dce46dc5e54b6b1c34a99a565f8c28253b297ea6ab5e1b09684bc18"
+    },
+    {
+      "name": "steamohos_fex",
+      "architecture": "aarch64-linux-gnu",
+      "bytes": 88488,
+      "sha256": "983dd6e162bfdf88dd008b1d224f907fc5af9eab3725125ce8a3cc328bd2d0a5"
+    },
+    {
+      "name": "libsteamohos_native_vulkan.so",
+      "architecture": "aarch64-linux-gnu",
+      "bytes": 171408,
+      "sha256": "9274b9617f1edf738a6bc2cd1cd9c86e02069c9908e7cc66d956fdb0187cee4a"
+    }
+  ],
+  "baselineComparison": {
+    "baselinePackage": "VintagePomeloPro-1.5.2-depot-debug-signed.hap",
+    "candidatePackage": "entry-default-unsigned.hap",
+    "nativeDifferences": [
+      {
+        "path": "libs/arm64-v8a/libsteamohos_gnu_child.so",
+        "oldSha256": "25a0737ae5318fc0f13f2d8c23d36770bf1d60c7179e87976bb72e8b0c9f10e7",
+        "newSha256": "1fe6893975918d9fc2ccc1db45c974193e4cffa7d266d50f49deb0e9a49e6f9a"
+      }
+    ],
+    "payloads": [
+      {
+        "path": "resources/rawfile/wine-data.zip",
+        "unchanged": true,
+        "sha256": "b22fd627960e1bfeb43d8cc394a263de04f74d9a177ab9fe3c571e09070d63d6"
+      },
+      {
+        "path": "resources/rawfile/linux-proton/gnu-proton.zip",
+        "unchanged": true,
+        "sha256": "97327f3a9e8155a11050dcf4960543d61841db44e22afc9531cd066b224085be"
+      },
+      {
+        "path": "resources/rawfile/linux-steam/hmosdeck-gnu-arm64-v1.zip",
+        "unchanged": true,
+        "sha256": "8c98e7836a0ee3278095225ac90acb7a05b4204cd6a2cde7be7a0f853cc88523"
+      }
+    ],
+    "legacyRuntimeGate": {
+      "status": "FAIL_PREEXISTING",
+      "member": "libs/arm64-v8a/libvirgl_child.so",
+      "unchangedFromBothDeviceCandidates": true
+    }
+  },
+  "offlineSteamArchiveUpdateRequired": false
+}

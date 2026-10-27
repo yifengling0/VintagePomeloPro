@@ -22,6 +22,11 @@ DESTINATIONS = {
     'linux-steam/hmosdeck-gnu-arm64-v1.zip': 'linux-steam/deployment.json',
     'linux-proton/gnu-proton.zip': 'linux-proton/manifest.json',
 }
+HAP_COMPANIONS = {
+    'entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json': 'libsteamohos_posix_hap.so',
+    'entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json': 'steamohos_fex',
+    'entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json': 'libsteamohos_native_vulkan.so',
+}
 
 
 def digest(stream):
@@ -47,11 +52,14 @@ def verify_sources(root, lock):
     # companion may supersede selected adapter sources without repacking it.
     overrides=lock.get('hapSourceOverrides',{})
     verified={}
-    for manifest_name in set(overrides.values()):
+    for manifest_name in set(overrides.values()) | set(lock.get('hapCompanions', [])):
         safe_path(manifest_name)
+        if manifest_name not in HAP_COMPANIONS:
+            raise ValueError('Unapproved HAP source override manifest')
         manifest_path=root/manifest_name
         manifest=json.loads(manifest_path.read_text())
-        if manifest.get('name')!='libsteamohos_posix_hap.so' or manifest.get('architecture')!='aarch64-linux-gnu':
+        if (manifest.get('name') != HAP_COMPANIONS[manifest_name] or
+                manifest.get('schemaVersion') != 1 or manifest.get('architecture')!='aarch64-linux-gnu'):
             raise ValueError('Invalid HAP source override manifest')
         binary=manifest_path.parent/manifest['name']
         if binary.is_symlink() or sha(binary)!=manifest['sha256'] or binary.stat().st_size!=manifest['bytes']:
@@ -173,6 +181,18 @@ def verify_hap(path, root=ROOT):
     lock = json.loads((root/'docs/linux-steam/build-components.lock.json').read_text())
     verify_sources(root,lock)
     with zipfile.ZipFile(path) as archive:
+        for manifest_name in set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values()):
+            local = root / manifest_name
+            manifest = json.loads(local.read_text())
+            relative = local.relative_to(root / 'entry/src/main/resources/rawfile').as_posix()
+            if archive.read('resources/rawfile/' + relative) != local.read_bytes():
+                raise ValueError('HAP companion manifest mismatch: ' + manifest_name)
+            name = 'resources/rawfile/' + str(PurePosixPath(relative).parent / manifest['name'])
+            if archive.getinfo(name).file_size != manifest['bytes']:
+                raise ValueError('HAP companion size mismatch: ' + manifest['name'])
+            with archive.open(name) as stream:
+                if digest(stream) != manifest['sha256']:
+                    raise ValueError('HAP companion checksum mismatch: ' + manifest['name'])
         for row in lock['components']:
             name = 'resources/rawfile/' + row['path']
             info = archive.getinfo(name)
@@ -182,7 +202,8 @@ def verify_hap(path, root=ROOT):
             name = 'resources/rawfile/' + DESTINATIONS[row['path']]
             if hashlib.sha256(archive.read(name)).hexdigest() != row['manifestSha256']:
                 raise ValueError('HAP GNU manifest mismatch')
-    return dict(status='PASS',components=len(lock['components']))
+    return dict(status='PASS',components=len(lock['components']),
+                hapCompanions=len(set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values())))
 
 
 def main():

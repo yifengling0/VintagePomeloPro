@@ -1,5 +1,6 @@
 // Native GNU exec handoff for installed or verified external research images. No CPU translation.
 #include "../native_loader.h"
+#include "native_fex.h"
 #include <algorithm>
 #include <cerrno>
 #include <cstdarg>
@@ -111,6 +112,9 @@ std::string Executable(const char* filename, const std::string& code) {
         const std::string alias=std::string(home)+"/.steam/root";
         if(Under(path,alias))path=std::string(data)+path.substr(alias.size());
     }
+    // Exact official FEX entry only; never allow arbitrary depot scripts.
+    if (!steamohos::fex::Tool(path).empty()) return code+"/steamohos_fex";
+    if (steamohos::fex::Helper(path)) return steamohos::fex::Canonical(path);
     if (data && Under(path, data)) path = code + path.substr(strlen(data));
     if (!Under(path, code)) return {};
     return path;
@@ -185,6 +189,13 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
         if (n >= 120 || strnlen(arguments[n], 16384) >= 16384) return Fail(E2BIG);
         argv.emplace_back(arguments[n]);
     }
+    // Native FEX host thunks use the already delivered GNU graphics/audio
+    // closure, while Steam and Windows GNU Wine retain their original paths.
+    if (steamohos::fex::Helper(target)) {
+        const std::string graphics=steamohos::fex::Env("STEAMOHOS_NATIVE_GRAPHICS_ROOT");
+        if(graphics=="/data/storage/el2/base/files/steamohos-native/proton-probe")
+            argv[3]=graphics+"/graphics:"+graphics+":"+argv[3];
+    }
     std::vector<std::string> environment;
     if (supplied) for (size_t n=0; supplied[n]; ++n) {
         if (n >= 220 || strnlen(supplied[n], 16384) >= 16384) return Fail(E2BIG);
@@ -193,6 +204,8 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
     for (const char* key : {"STEAMOHOS_CODE_ROOT", "STEAMOHOS_STEAM_ROOT", "STEAMOHOS_TMP_ROOT",
             "STEAMOHOS_LAUNCH_SOCKET", "STEAMOHOS_LAUNCH_NONCE", "STEAMOHOS_Z_ROOT",
             "STEAMOHOS_WINE_PREFIX", "STEAMOHOS_GNU_WINE_PREFIX", "STEAMOHOS_LIBRARY_ROOT",
+            "STEAMOHOS_NATIVE_GRAPHICS_ROOT", "STEAMOHOS_NATIVE_FEX", "STEAMOHOS_NATIVE_FEX_TOOL", "STEAMOHOS_NATIVE_FEX_ROOTFS", "STEAMOHOS_NATIVE_FEX_IPC", "FEX_SERVERSOCKETPATH",
+            "FEX_PORTABLE", "FEX_ROOTFS", "FEX_APP_CONFIG_LOCATION", "FEX_APP_DATA_LOCATION", "FEX_APP_CONFIG", "FEX_THUNKHOSTLIBS", "FEX_THUNKGUESTLIBS", "FEX_X87REDUCEDPRECISION",
             "STEAMOHOS_AUDIO_BOOTSTRAP_FD", "STEAMOHOS_AUDIO_BOOTSTRAP_SOCKET", "ALSA_CONFIG_PATH", "ALSA_PLUGIN_DIR",
             "SDL_AUDIO_DRIVER", "STEAMOHOS_GAMEPAD_SOCKET",
             "STEAMOHOS_IPC_ROOT", "STEAMOHOS_SYSVIPC_ROOT", "STEAMOHOS_SOCKET_METADATA_ROOT", "STEAMOHOS_X11_SOCKET", "XLOCALEDIR", "GLIBC_TUNABLES", "SSL_CERT_FILE",

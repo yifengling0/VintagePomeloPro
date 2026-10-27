@@ -18,12 +18,16 @@ def main():
     p.add_argument('--rebuild',action='store_true')
     p.add_argument('--build-dir',type=Path,default=ROOT/'workspace_temp/linux-proton/posix-hap-build')
     a=p.parse_args()
-    inputs=[*SOURCES,*sorted(NATIVE.glob('*.h')),*sorted((NATIVE/'gnu_fixture').glob('*.h')),Path(__file__).resolve()]
+    wrapper=NATIVE/'gnu_fixture/steamohos_fex.cpp'
+    inputs=[*SOURCES,wrapper,*sorted(NATIVE.glob('*.h')),*sorted((NATIVE/'gnu_fixture').glob('*.h')),Path(__file__).resolve()]
     sources={str(path.relative_to(ROOT)):sha(path) for path in inputs}
     output=ROOT/'entry/src/main/resources/rawfile/linux-steam/bootstrap'
     binary=output/'libsteamohos_posix_hap.so';manifest=output/'posix-manifest.json'
     old=json.loads(manifest.read_text()) if manifest.exists() else {}
-    if not a.rebuild and old.get('sources')==sources and binary.is_file() and old.get('sha256')==sha(binary):
+    fex=output/'steamohos_fex';fex_manifest=output/'fex-manifest.json'
+    prior=json.loads(fex_manifest.read_text()) if fex_manifest.exists() else {}
+    wrapper_valid=fex.is_file() and prior.get('sources')==sources and prior.get('sha256')==sha(fex)
+    if not a.rebuild and wrapper_valid and old.get('sources')==sources and binary.is_file() and old.get('sha256')==sha(binary):
         print('Verified/reused HAP GNU POSIX adapter:',binary.stat().st_size,'bytes');return
     if a.verify_only:raise ValueError('HAP POSIX source/payload changed; rebuild with a GNU ARM64 compiler')
     machine=subprocess.check_output([a.cc,'-dumpmachine'],text=True).strip()
@@ -45,6 +49,11 @@ def main():
     pending.replace(binary)
     manifest.write_text(json.dumps(dict(schemaVersion=1,architecture='aarch64-linux-gnu',name=binary.name,
         bytes=len(data),sha256=sha(binary),sources=sources),indent=2)+'\n')
-    print('Built HAP GNU POSIX adapter:',len(data),'bytes')
+    pending=fex.with_suffix('.pending')
+    subprocess.run([cxx,*common,'-std=c++17',str(wrapper),'-o',str(pending)],check=True)
+    pending.replace(fex)
+    fex_manifest.write_text(json.dumps(dict(schemaVersion=1,architecture='aarch64-linux-gnu',name=fex.name,
+        bytes=fex.stat().st_size,sha256=sha(fex),sources=sources),indent=2)+'\n')
+    print('Built HAP GNU POSIX adapter:',len(data),'bytes; native FEX entry:',fex.stat().st_size,'bytes')
 
 if __name__=='__main__':main()
