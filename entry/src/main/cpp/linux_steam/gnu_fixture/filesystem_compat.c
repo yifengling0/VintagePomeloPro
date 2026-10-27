@@ -2,6 +2,7 @@
 #define _GNU_SOURCE 1
 #include <sys/types.h>
 #include <sys/time.h>
+#include <time.h>
 #include <utime.h>
 #include <sys/mman.h>
 #include <sys/file.h>
@@ -20,6 +21,8 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <pthread.h>
+#include <stdint.h>
+#include <link.h>
 #include "../cloud_tool_selection.h"
 
 static int (*next_stat)(const char *, struct stat *);
@@ -28,6 +31,14 @@ static ssize_t (*next_readlinkat)(int,const char*,char*,size_t);
 static void TraceAtFailure(int,const char*,int,int);
 static void TraceProcAccess(const char*,const char*,int,int);
 static int SingletonName(const char*);
+static int DepotScope(const char*,char[PATH_MAX]);
+static int DepotLinkTarget(const char*,char[PATH_MAX]);
+static int DepotCreateLink(const char*,const char*);
+static const char *DepotResolve(const char*,char[PATH_MAX],int);
+static uint64_t DepotProfileStart(const char*);
+static void DepotProfileEnd(const char*,uint64_t);
+static void DepotRememberDirectory(DIR*);
+static void DepotForgetDirectory(DIR*);
 static int SingletonTarget(const char*,char[PATH_MAX]);
 static const char *FollowSingleton(const char*,char[PATH_MAX]);
 static void InitializeSingletonProfile(void);
@@ -70,6 +81,12 @@ static int Below(const char *path,const char *root) {
 }
 static const char *CloudCompatPath(const char *,char[PATH_MAX]);
 static int CloudLinkTarget(const char *,char[PATH_MAX]);
+static int VirtualLinkTarget(const char *path,char target[PATH_MAX]) {
+    int length=CloudLinkTarget(path,target);
+    if(length<0)length=SingletonTarget(path,target);
+    if(length<0)length=DepotLinkTarget(path,target);
+    return length;
+}
 static int CloudLinkPath(const char *,char[PATH_MAX],char[PATH_MAX],const char **);
 static const char *FollowCloud(const char *,char[PATH_MAX],int);
 // Keep the built-in Steam library as the only visible target, with all
@@ -189,22 +206,26 @@ static const char *SandboxPath(const char *path, char mapped[PATH_MAX]) {
     static result (*next_##name) parameters; \
     result name parameters { \
         if (!next_##name) { errno=ENOSYS; return failure; } \
+        uint64_t depot_started=DepotProfileStart(path); \
         char mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX]; path=SandboxPath(path,mapped); \
-        path=FollowCloud(path,cloud,strcmp(#name,"unlink")&&strcmp(#name,"unlinkat")&&strcmp(#name,"rmdir")&&strcmp(#name,"lchown")); \
+        path=FollowCloud(path,cloud,strcmp(#name,"unlink")&&strcmp(#name,"unlinkat")&&strcmp(#name,"rmdir")&&strcmp(#name,"lchown")&&strcmp(#name,"mkdir")&&strcmp(#name,"mknod")&&strcmp(#name,"__xmknod")&&strcmp(#name,"mkfifo")); \
         if(strcmp(#name,"unlink")&&strcmp(#name,"unlinkat")&&strcmp(#name,"lstat")&&strcmp(#name,"lstat64")&& \
            strcmp(#name,"__lxstat")&&strcmp(#name,"__lxstat64"))path=FollowSingleton(path,followed); \
+        if(!path)return failure; \
         result value=next_##name arguments; int saved=errno; \
-        TraceProcAccess(#name,path,value==failure,saved); errno=saved; return value; \
+        TraceProcAccess(#name,path,value==failure,saved); DepotProfileEnd(#name,depot_started); errno=saved; return value; \
     }
 
 #define AT_FS(result,name,parameters,arguments,failure) \
     static result (*next_##name) parameters; \
     result name parameters { \
         if(!next_##name){errno=ENOSYS;return failure;} \
+        uint64_t depot_started=DepotProfileStart(path); \
         char absolute[PATH_MAX],mapped[PATH_MAX],cloud[PATH_MAX]; \
         path=SandboxAtPath(fd,path,absolute,mapped); \
-        path=FollowCloud(path,cloud,strcmp(#name,"unlinkat")); \
-        return next_##name arguments; \
+        path=FollowCloud(path,cloud,strcmp(#name,"unlinkat")&&strcmp(#name,"mkdirat")&&strcmp(#name,"mknodat")&&strcmp(#name,"__xmknodat")); \
+        if(!path)return failure; \
+        result value=next_##name arguments;int saved=errno;DepotProfileEnd(#name,depot_started);errno=saved;return value; \
     }
 FS(int, chdir, (const char *path), (path), -1)
 FS(int, mknod, (const char *path, mode_t mode, dev_t device), (path,mode,device), -1)
@@ -217,45 +238,53 @@ FS(int, stat, (const char *path, struct stat *buf), (path,buf), -1)
 static int (*next_lstat)(const char *path, struct stat *buf);
 int lstat(const char *path, struct stat *buf) {
     if(!next_lstat){errno=ENOSYS;return -1;}
+    uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
+    if(!path)return -1;
     int result=next_lstat(path,buf);int error=errno;
     TraceProcAccess("lstat",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
-    errno=error;return result;
+    DepotProfileEnd("lstat",depot_started);errno=error;return result;
 }
 FS(int, stat64, (const char *path, struct stat64 *buf), (path,buf), -1)
 static int (*next_lstat64)(const char *path, struct stat64 *buf);
 int lstat64(const char *path, struct stat64 *buf) {
     if(!next_lstat64){errno=ENOSYS;return -1;}
+    uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
+    if(!path)return -1;
     int result=next_lstat64(path,buf);int error=errno;
     TraceProcAccess("lstat64",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
-    errno=error;return result;
+    DepotProfileEnd("lstat64",depot_started);errno=error;return result;
 }
 FS(int, __xstat, (int version, const char *path, struct stat *buf), (version,path,buf), -1)
 static int (*next___lxstat)(int version, const char *path, struct stat *buf);
 int __lxstat(int version, const char *path, struct stat *buf) {
     if(!next___lxstat){errno=ENOSYS;return -1;}
+    uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
+    if(!path)return -1;
     int result=next___lxstat(version,path,buf);int error=errno;
     TraceProcAccess("__lxstat",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
-    errno=error;return result;
+    DepotProfileEnd("__lxstat",depot_started);errno=error;return result;
 }
 FS(int, __xstat64, (int version, const char *path, struct stat64 *buf), (version,path,buf), -1)
 static int (*next___lxstat64)(int version, const char *path, struct stat64 *buf);
 int __lxstat64(int version, const char *path, struct stat64 *buf) {
     if(!next___lxstat64){errno=ENOSYS;return -1;}
+    uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
+    if(!path)return -1;
     int result=next___lxstat64(version,path,buf);int error=errno;
     TraceProcAccess("__lxstat64",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
-    errno=error;return result;
+    DepotProfileEnd("__lxstat64",depot_started);errno=error;return result;
 }
 
 // Some OHOS procfs entries cannot be followed even though the descriptor is
@@ -303,9 +332,10 @@ int fstatat(int fd,const char *path,struct stat *buf,int flags) {
     path=SandboxAtPath(fd,path,absolute,mapped);
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
+    if(!path)return -1;
     int result=RecoverNative(next_fstatat(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
     if(result)TraceAtFailure(fd,path,flags,error);
-    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
+    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     errno=error;return result;
 }
@@ -316,9 +346,10 @@ int fstatat64(int fd,const char *path,struct stat64 *buf,int flags) {
     path=SandboxAtPath(fd,path,absolute,mapped);
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
+    if(!path)return -1;
     int result=RecoverLarge(next_fstatat64(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
     if(result)TraceAtFailure(fd,path,flags,error);
-    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
+    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     errno=error;return result;
 }
@@ -343,11 +374,12 @@ static int KnownStatVersion(int version) {
         path=SandboxAtPath(fd,path,absolute,mapped); \
         path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW)); \
         if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed); \
+        if(!path)return -1; \
         int result=next_##name(version,fd,path,buf,flags); \
         if(KnownStatVersion(version)){result=recover(result,fd,path,buf,flags);}int error=errno; \
         if(result)TraceAtFailure(fd,path,flags,error); \
         if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX]; \
-            int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target); \
+            int length=VirtualLinkTarget(path,target); \
             if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}} \
         errno=error;return result; \
     }
@@ -355,7 +387,14 @@ LEGACY_FSTATAT(__fxstatat,struct stat,RecoverNative)
 LEGACY_FSTATAT(__fxstatat64,struct stat64,RecoverLarge)
 
 FS(int, access, (const char *path, int mode), (path,mode), -1)
-AT_FS(int, faccessat, (int fd, const char *path, int mode, int flags), (fd,path,mode,flags), -1)
+static int (*next_faccessat)(int,const char*,int,int);
+int faccessat(int fd,const char *path,int mode,int flags) {
+    if(!next_faccessat){errno=ENOSYS;return -1;}
+    char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX];
+    path=FollowCloud(SandboxAtPath(fd,path,absolute,mapped),followed,!(flags&AT_SYMLINK_NOFOLLOW));
+    if(!path)return -1;
+    return next_faccessat(fd,path,mode,flags);
+}
 FS(int, chmod, (const char *path, mode_t mode), (path,mode), -1)
 FS(int, utime, (const char *path, const struct utimbuf *times), (path,times), -1)
 FS(int, utimes, (const char *path, const struct timeval times[2]), (path,times), -1)
@@ -385,7 +424,29 @@ AT_FS(int, scandirat, (int fd, const char *path, struct dirent ***names,
 AT_FS(int, scandirat64, (int fd, const char *path, struct dirent64 ***names,
    int (*filter)(const struct dirent64 *), int (*compare)(const struct dirent64 **,const struct dirent64 **)),
    (fd,path,names,filter,compare), -1)
-FS(DIR *, opendir, (const char *path), (path), NULL)
+static DIR *(*next_opendir)(const char*),*(*next_fdopendir)(int);
+static int (*next_closedir)(DIR*);
+DIR *opendir(const char *path) {
+    if(!next_opendir){errno=ENOSYS;return NULL;}
+    uint64_t started=DepotProfileStart(path);
+    char mapped[PATH_MAX],cloud[PATH_MAX],singleton[PATH_MAX];
+    path=FollowCloud(SandboxPath(path,mapped),cloud,1);
+    path=FollowSingleton(path,singleton);if(!path)return NULL;
+    DIR *directory=next_opendir(path);int saved=errno;
+    if(directory)DepotRememberDirectory(directory);
+    DepotProfileEnd("opendir",started);errno=saved;return directory;
+}
+DIR *fdopendir(int fd) {
+    if(!next_fdopendir){errno=ENOSYS;return NULL;}
+    DIR *directory=next_fdopendir(fd);int saved=errno;
+    if(directory)DepotRememberDirectory(directory);
+    errno=saved;return directory;
+}
+int closedir(DIR *directory) {
+    if(!next_closedir){errno=ENOSYS;return -1;}
+    int saved=errno;DepotForgetDirectory(directory);errno=saved;
+    return next_closedir(directory);
+}
 
 #define FORTIFIED_OPEN(name) \
     static int (*next_##name)(const char*,int); \
@@ -393,8 +454,8 @@ FS(DIR *, opendir, (const char *path), (path), NULL)
         if(!next_##name){errno=ENOSYS;return -1;} \
         char mapped[PATH_MAX],cloud[PATH_MAX],target[PATH_MAX],singleton[PATH_MAX]; \
         path=SandboxPath(path,mapped); \
-        if((flags&O_NOFOLLOW)&&CloudLinkTarget(path,target)>=0){errno=ELOOP;return -1;} \
-        path=FollowCloud(path,cloud,1);path=FollowSingleton(path,singleton); \
+        if((flags&O_NOFOLLOW)&&VirtualLinkTarget(path,target)>=0){errno=ELOOP;return -1;} \
+        path=FollowCloud(path,cloud,1);if(!path)return -1;path=FollowSingleton(path,singleton); \
         return next_##name(path,flags); \
     }
 FORTIFIED_OPEN(__open_2)
@@ -405,17 +466,18 @@ static int (*next_openat)(int,const char*,int,...), (*next_openat64)(int,const c
 #define OPEN(name, params, args, directory) \
     int name params { \
         if (!next_##name) { errno=ENOSYS; return -1; } \
+        uint64_t depot_started=DepotProfileStart(path); \
         mode_t mode=0; \
         if ((flags&O_CREAT) || (flags&O_TMPFILE)==O_TMPFILE) { \
             va_list values; va_start(values,flags); mode=va_arg(values,mode_t); va_end(values); \
         } \
         char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX],cloud_target[PATH_MAX]; \
         path=SandboxAtPath(directory,path,absolute,mapped); \
-        if(CloudLinkTarget(path,cloud_target)>=0) { \
+        if(VirtualLinkTarget(path,cloud_target)>=0) { \
             if((flags&O_CREAT)&&(flags&O_EXCL)){errno=EEXIST;return -1;} \
             if(flags&O_NOFOLLOW){errno=ELOOP;return -1;} \
         } \
-        path=FollowCloud(path,cloud,1); \
+        path=FollowCloud(path,cloud,1);if(!path)return -1; \
         if ((flags&O_CREAT)&&(flags&O_EXCL)&&SingletonName(path)) { \
             struct stat st; if(!next_lstat(path,&st)){errno=EEXIST;return -1;} \
         } \
@@ -424,7 +486,7 @@ static int (*next_openat)(int,const char*,int,...), (*next_openat64)(int,const c
         } \
         path=FollowSingleton(path,followed); \
         int value=next_##name args; int saved=errno; \
-        TraceProcAccess(#name,path,value<0,saved); errno=saved; return value; \
+        TraceProcAccess(#name,path,value<0,saved);DepotProfileEnd(#name,depot_started); errno=saved; return value; \
     }
 OPEN(open,(const char *path,int flags,...),(path,flags,mode),AT_FDCWD)
 OPEN(open64,(const char *path,int flags,...),(path,flags,mode),AT_FDCWD)
@@ -436,13 +498,16 @@ static int (*next_renameat)(int,const char*,int,const char*);
 int rename(const char *from,const char *to) {
     if(!next_rename){errno=ENOSYS;return -1;}
     char a[PATH_MAX],b[PATH_MAX],ca[PATH_MAX],cb[PATH_MAX];
-    return next_rename(FollowCloud(SandboxPath(from,a),ca,0),FollowCloud(SandboxPath(to,b),cb,0));
+    from=FollowCloud(SandboxPath(from,a),ca,0);if(!from)return -1;
+    to=FollowCloud(SandboxPath(to,b),cb,0);if(!to)return -1;
+    return next_rename(from,to);
 }
 int renameat(int fromfd,const char *from,int tofd,const char *to) {
     if(!next_renameat){errno=ENOSYS;return -1;}
     char a[PATH_MAX],b[PATH_MAX],aa[PATH_MAX],bb[PATH_MAX],ca[PATH_MAX],cb[PATH_MAX];
-    return next_renameat(fromfd,FollowCloud(SandboxAtPath(fromfd,from,aa,a),ca,0),
-                         tofd,FollowCloud(SandboxAtPath(tofd,to,bb,b),cb,0));
+    from=FollowCloud(SandboxAtPath(fromfd,from,aa,a),ca,0);if(!from)return -1;
+    to=FollowCloud(SandboxAtPath(tofd,to,bb,b),cb,0);if(!to)return -1;
+    return next_renameat(fromfd,from,tofd,to);
 }
 static ssize_t NativeExecutable(const char *path,char *buffer,size_t capacity) {
     const char *executable=getenv("STEAMOHOS_EXEC_PATH");
@@ -456,10 +521,10 @@ ssize_t readlink(const char *path,char *buffer,size_t capacity) {
     ssize_t result=NativeExecutable(path,buffer,capacity);if(result!=-2)return result;
     if(!next_readlink){errno=ENOSYS;return -1;}
     char mapped[PATH_MAX],target[PATH_MAX];path=SandboxPath(path,mapped);
-    int length=CloudLinkTarget(path,target);if(length<0)length=SingletonTarget(path,target);
+    int length=VirtualLinkTarget(path,target);
     if(length>=0){if(!capacity){errno=EINVAL;return -1;}
         size_t count=(size_t)length<capacity?(size_t)length:capacity;memcpy(buffer,target,count);return count;}
-    char cloud[PATH_MAX];path=FollowCloud(path,cloud,0);
+    char cloud[PATH_MAX];path=FollowCloud(path,cloud,0);if(!path)return -1;
     result=next_readlink(path,buffer,capacity);int saved=errno;
     TraceProcAccess("readlink",path,result<0,saved);errno=saved;return result;
 }
@@ -543,7 +608,8 @@ __attribute__((constructor)) static void InitializeFilesystem(void) {
     RESOLVE(fopen64);
     RESOLVE(freopen);
     RESOLVE(freopen64);
-    RESOLVE(opendir);RESOLVE(scandir);RESOLVE(scandir64);RESOLVE(scandirat);RESOLVE(scandirat64);
+    RESOLVE(opendir);RESOLVE(fdopendir);RESOLVE(closedir);
+    RESOLVE(scandir);RESOLVE(scandir64);RESOLVE(scandirat);RESOLVE(scandirat64);
     RESOLVE(__open_2);
     RESOLVE(__open64_2);
     RESOLVE(open);
@@ -646,7 +712,8 @@ static void InitializeFontconfig(void) {
 
 // The app sandbox forbids real symlinks even in private storage. Represent only
 // Chromium's reserved singleton links with exclusive, locked metadata files.
-// Ordinary symlink calls retain their real platform result.
+// Steam depot links have a separate scoped fallback; unrelated calls retain
+// their real platform result.
 static const char SingletonMagic[]="STEAMOHOS_CEF_SINGLETON_V1\n";
 static int SingletonName(const char *path) {
     if(!path||path[0]!='/')return 0;
@@ -703,8 +770,19 @@ static int (*next_symlinkat)(const char*,int,const char*);
 int symlink(const char *target,const char *linkpath) {
     char mapped[PATH_MAX];linkpath=SandboxPath(linkpath,mapped);
     int kind=SingletonName(linkpath);
-    if(!kind){if(!next_symlink)next_symlink=dlsym(RTLD_NEXT,"symlink");
-        if(!next_symlink){errno=ENOSYS;return -1;}return next_symlink(target,linkpath);}
+    if(!kind) {
+        if(!next_symlink)next_symlink=dlsym(RTLD_NEXT,"symlink");
+        if(!next_symlink){errno=ENOSYS;return -1;}
+        char depot[PATH_MAX],root[PATH_MAX];
+        linkpath=DepotResolve(linkpath,depot,0);if(!linkpath)return -1;
+        int result=next_symlink(target,linkpath),error=errno;
+        if(!result)return 0;
+        if((error==EPERM||error==EACCES||error==ENOTSUP||error==ENOSYS)&&
+           DepotScope(linkpath,root)&&strcmp(linkpath,root)) {
+            return DepotCreateLink(target,linkpath);
+        }
+        errno=error;return result;
+    }
     size_t length=strnlen(target,PATH_MAX);
     if(!length||length>=PATH_MAX){errno=length?ENAMETOOLONG:ENOENT;return -1;}
     if(kind!=3&&strchr(target,'/')){errno=ENOTSUP;return -1;}
@@ -732,7 +810,8 @@ int symlinkat(const char *target,int fd,const char *linkpath) {
     snprintf(descriptor,sizeof(descriptor),"/proc/self/fd/%d",fd);
     ssize_t length=next_readlink(descriptor,parent,sizeof(parent)-1);
     if(length>=0){parent[length]=0;int n=snprintf(absolute,sizeof(absolute),"%s/%s",parent,linkpath);
-        if(n>0&&n<(int)sizeof(absolute)&&SingletonName(absolute))return symlink(target,absolute);}
+        char root[PATH_MAX];
+        if(n>0&&n<(int)sizeof(absolute)&&(SingletonName(absolute)||DepotScope(absolute,root)))return symlink(target,absolute);}
     if(!next_symlinkat)next_symlinkat=dlsym(RTLD_NEXT,"symlinkat");
     if(!next_symlinkat){errno=ENOSYS;return -1;}return next_symlinkat(target,fd,linkpath);
 }
@@ -758,8 +837,8 @@ static const char *SandboxAtPath(int fd,const char *path,char absolute[PATH_MAX]
     const char *translated=SandboxPath(resolved,mapped);
     // Preserve real dirfd semantics for ordinary paths, including /proc magic
     // links and open-but-deleted directories. Only our explicit aliases change.
-    char link[PATH_MAX],target[PATH_MAX];const char *suffix;
-    return strcmp(resolved,translated)||SingletonName(translated)||CloudLinkPath(translated,link,target,&suffix)?translated:path;
+    char link[PATH_MAX],target[PATH_MAX],depot[PATH_MAX];const char *suffix;
+    return strcmp(resolved,translated)||SingletonName(translated)||CloudLinkPath(translated,link,target,&suffix)||DepotScope(translated,depot)?translated:path;
 }
 
 // Bounded GNU-only diagnostics: report the actual dirfd and proc magic-link
@@ -1003,6 +1082,9 @@ static int CloudLinkTarget(const char *path,char target[PATH_MAX]) {
 }
 static const char *FollowCloud(const char *path,char followed[PATH_MAX],int follow_leaf) {
     if(!path)return path;
+    char depot[PATH_MAX];const char *value=DepotResolve(path,depot,follow_leaf);
+    if(!value)return NULL;
+    if(value==depot){strcpy(followed,depot);path=followed;}
     char absolute[PATH_MAX],link[PATH_MAX],target[PATH_MAX];const char *suffix;
     if(!AbsolutePath(path,absolute))return path;
     int kind=CloudLinkPath(absolute,link,target,&suffix);
@@ -1025,7 +1107,8 @@ char *realpath(const char *path,char *resolved) {
     if(!next_realpath)next_realpath=dlsym(RTLD_NEXT,"realpath");
     if(!next_realpath){errno=ENOSYS;return NULL;}
     char mapped[PATH_MAX],cloud[PATH_MAX];
-    return next_realpath(FollowCloud(SandboxPath(path,mapped),cloud,1),resolved);
+    path=FollowCloud(SandboxPath(path,mapped),cloud,1);
+    return path?next_realpath(path,resolved):NULL;
 }
 
 /* Fortified GNU callers do not enter the public realpath symbol. Delegate to
@@ -1036,5 +1119,63 @@ char *__realpath_chk(const char *path,char *resolved,size_t capacity) {
     if(!next_checked)next_checked=dlsym(RTLD_NEXT,"__realpath_chk");
     if(!next_checked){errno=ENOSYS;return NULL;}
     char mapped[PATH_MAX],cloud[PATH_MAX];
-    return next_checked(FollowCloud(SandboxPath(path,mapped),cloud,1),resolved,capacity);
+    path=FollowCloud(SandboxPath(path,mapped),cloud,1);
+    return path?next_checked(path,resolved,capacity):NULL;
+}
+
+#include "depot_links.h"
+
+// Directory walkers must see the same link type as lstat. Otherwise uninstall
+// or verification may mistake a link record for an ordinary content file.
+static int DepotDirectoryLink(DIR *directory,const char *name) {
+    if(!strcmp(name,".")||!strcmp(name,"..")||!next_readlink)return 0;
+    if(!DepotDirectoryScope(directory))return 0;
+    // Work relative to the already-opened physical directory. No procfs path
+    // lookup or parent traversal per entry, including after directory rename.
+    int fd=dirfd(directory),saved=errno;struct stat physical;char target[PATH_MAX];
+    if(!next_fstatat||next_fstatat(fd,name,&physical,AT_SYMLINK_NOFOLLOW)){errno=saved;return 0;}
+    return DepotRawTargetAtKnown(fd,name,target,&physical)>=0;
+}
+#define DEPOT_READDIR(name,type) \
+    type *name(DIR *directory) { \
+        static type *(*next)(DIR*);if(!next)next=dlsym(RTLD_NEXT,#name); \
+        if(!next){errno=ENOSYS;return NULL;} \
+        type *entry=next(directory);int saved=errno; \
+        if(entry&&entry->d_type==DT_REG&&DepotDirectoryLink(directory,entry->d_name))entry->d_type=DT_LNK; \
+        errno=saved;return entry; \
+    }
+DEPOT_READDIR(readdir,struct dirent)
+DEPOT_READDIR(readdir64,struct dirent64)
+
+int statx(int fd,const char *path,int flags,unsigned mask,struct statx *buf) {
+    static int (*next)(int,const char*,int,unsigned,struct statx*);
+    if(!next)next=dlsym(RTLD_NEXT,"statx");
+    if(!next){errno=ENOSYS;return -1;}
+    char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX];
+    path=FollowCloud(SandboxAtPath(fd,path,absolute,mapped),followed,!(flags&AT_SYMLINK_NOFOLLOW));
+    if(!path)return -1;
+    int result=next(fd,path,flags,mask,buf),saved=errno;
+    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)) {
+        char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+        if(length>=0){buf->stx_mode=S_IFLNK|0777;buf->stx_size=(unsigned)length;buf->stx_blocks=0;}
+    }
+    errno=saved;return result;
+}
+int renameat2(int fromfd,const char *from,int tofd,const char *to,unsigned flags) {
+    static int (*next)(int,const char*,int,const char*,unsigned);
+    if(!next)next=dlsym(RTLD_NEXT,"renameat2");
+    if(!next){errno=ENOSYS;return -1;}
+    char aa[PATH_MAX],ab[PATH_MAX],ma[PATH_MAX],mb[PATH_MAX],a[PATH_MAX],b[PATH_MAX];
+    from=FollowCloud(SandboxAtPath(fromfd,from,aa,ma),a,0);if(!from)return -1;
+    to=FollowCloud(SandboxAtPath(tofd,to,ab,mb),b,0);if(!to)return -1;
+    return next(fromfd,from,tofd,to,flags);
+}
+int utimensat(int fd,const char *path,const struct timespec times[2],int flags) {
+    static int (*next)(int,const char*,const struct timespec[2],int);
+    if(!next)next=dlsym(RTLD_NEXT,"utimensat");
+    if(!next){errno=ENOSYS;return -1;}
+    char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX];
+    path=FollowCloud(SandboxAtPath(fd,path,absolute,mapped),followed,!(flags&AT_SYMLINK_NOFOLLOW));
+    if(!path)return -1;
+    return next(fd,path,times,flags);
 }

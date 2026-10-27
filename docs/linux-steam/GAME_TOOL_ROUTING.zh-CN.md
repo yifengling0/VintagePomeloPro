@@ -24,3 +24,7 @@ Linux ARM64 Steam 客户端保持原样，Windows 游戏由 OHOS Wine 执行：
 测试覆盖全新配置、75→100 升级、CS2 无独立映射、原生默认 100/101、用户明确选择、公共工具排除、重复启动不改写、备份失败保护、原子写入及 Windows Steam 隔离。配套游戏库迁移和诊断导出回归通过。
 
 这修正的是默认启动路径。没有宣称通用 Linux Runtime 符号链接已适配，也没有据此宣称 CS2 的图形、Steam API、联机或反作弊功能已经通过实机验证。
+
+## 原生 Linux Runtime 下载
+
+上述符号链接失败现已由[通用 Steam depot 链接适配](DEPOT_LINKS.zh-CN.md)处理，覆盖游戏包与公共运行时；Windows/GNU Proton 工具选择规则保持独立。原生游戏下载验收不能替代原生游戏执行验收。

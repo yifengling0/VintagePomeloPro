@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "scope": "Steam depot installation on an ARM64 OHOS tablet",
+  "runtimeAppId": "1070560",
+  "depotId": "1070561",
+  "depotManifestId": "8475493586714137016",
+  "nativeGameTrigger": "2923300",
+  "originalFailure": "creating symlink: Disk write failure",
+  "downloadBytes": 75258128,
+  "stagedBytes": 223012461,
+  "manifestEntries": 5559,
+  "manifestSymlinks": 760,
+  "simulatedLinkRecordBytes": 41083,
+  "targetResourcesCopied": false,
+  "baselineCpuSample": {
+    "seconds": 12,
+    "samples": 4018,
+    "samplesLost": 0,
+    "threeRepeatedPathProbeCallSitesPercent": 76.32
+  },
+  "directoryScanRegression": {
+    "entries": 256,
+    "shallowMetadataCalls": 257,
+    "sevenAdditionalLevelsMetadataCalls": 264,
+    "entryOrTargetContentsCached": false,
+    "streamScopeTableBytes": 4096,
+    "streamScopeTableSlots": 512
+  },
+  "optimizedDeviceObservation": {
+    "stagingStartedUtc": "2026-10-27T05:31:39Z",
+    "verifyingStartedUtc": "2026-10-27T05:32:07Z",
+    "stagingSeconds": 28,
+    "notControlledEndToEndBenchmark": true,
+    "installationCompleted": true,
+    "steamIntegrityVerificationCompleted": false,
+    "installerStagedVerificationCompleted": true,
+    "successfulVerificationStartedUtc": "2026-10-27T05:40:38Z",
+    "successfulVerificationFinishedUtc": "2026-10-27T05:42:53Z",
+    "successfulVerificationSeconds": 135,
+    "fullyInstalledUtc": "2026-10-27T05:46:35Z",
+    "schedulerFinishedUtc": "2026-10-27T05:46:36Z",
+    "schedulerResult": "No Error",
+    "stateFlags": "4",
+    "buildId": "26115262",
+    "stagingTimingFromEarlierResumedAttempt": true,
+    "commitWallSeconds": 222,
+    "commitWallTimingIncludesForegroundPreemption": true
+  },
+  "interruptions": [
+    "Earlier test builds restarted Steam before commit completed",
+    "Steam Controller Configs workshop 241100 preempted the Runtime queue at startup",
+    "Automatic screen lock suspended the app during an intermediate test",
+    "Earlier interrupted commit left 604 staged files absent; normal Steam Retry recovered them without manual moves or manifest edits",
+    "Another foreground app repeatedly suspended Steam; wall times are not a clean end-to-end benchmark"
+  ],
+  "hostRegressionsPassed": [
+    "depot install, verify, commit, update, remove",
+    "directory and file links, dirfd, statx, loops, dangling links and scope boundaries",
+    "exclusive creators and reader waiting for partial record publication",
+    "stream reuse, fdopendir, fork, cross-thread close, directory rename",
+    "existing filesystem, CEF singleton, Cloud paths, GNU exec and runtime components"
+  ],
+  "payloadAudit": {
+    "wineSha256": "b22fd627960e1bfeb43d8cc394a263de04f74d9a177ab9fe3c571e09070d63d6",
+    "linuxRelease": "bd6c3b38e7de36d6893cb7a4b6ecc2758f9a313a6c12b32a0f011c8b58249b5a",
+    "windowsSteamRequired": false,
+    "originalGnuDependencyClosureModified": false
+  },
+  "notValidated": [
+    "arbitrary native Linux game execution",
+    "official pressure-vessel container execution"
+  ],
+  "simulatedLinkAllocatedBytes": 6225920,
+  "installedLinkAudit": {
+    "buildid": "26115262",
+    "stateFlags": "4",
+    "links": 760,
+    "matchedOriginalTargets": 760,
+    "recordBytes": 41083,
+    "allocatedRecordBytes": 6225920
+  },
+  "bananaStatus": {
+    "installationCompleted": false,
+    "observedPhase": "Preallocating after normal Steam resume/reconfiguration",
+    "updateResult": "0",
+    "nativeGameExecutionValidated": false
+  }
+}

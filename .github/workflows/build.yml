@@ -310,6 +310,7 @@ jobs:
             "ci-artifacts/$suite-test"
           done
           python3 host_tests/linux_steam_cloud_paths_test.py
+          python3 host_tests/linux_steam_depot_links_test.py
           python3 host_tests/linux_runtime_components_test.py
           python3 host_tests/steam_client_restart_test.py --output ci-artifacts/steam-client-restart
           for suite in run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests; do
