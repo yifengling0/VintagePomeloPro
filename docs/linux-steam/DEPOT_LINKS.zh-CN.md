@@ -38,8 +38,18 @@ OHOS 应用在当前存储上不能创建真实 Unix symlink；简单切换 C/Z 
 
 另有 Steam 自身的手柄配置 Workshop（241100）在启动后以 First 优先级抢占 Runtime，日志表现为 `Priority (Suspended)`。应将队列抢占、暂存工作和屏幕锁定后的系统挂起分别计时；不能把测试中断或重启前后的等待相加宣称为一次安装耗时。
 
-优化后的一个缓存恢复轮次暂存耗时 28 秒，这不是完整安装耗时。随后通过 Steam 正常“重试”恢复此前中断提交留下的 604 个暂存缺失文件；没有手动移动文件、改安装状态或伪造校验成功。成功轮次的完整暂存校验为 05:40:38–05:42:53 UTC（135 秒），提交在 05:46:35 完成，05:46:36 调度返回 No Error。提交的 222 秒墙钟时间包含其他前台应用导致的挂起，不能当作纯 I/O 性能。当前文档存储的小文件校验和提交仍有分钟级开销；本次消除了重复父目录扫描的热点，尚未消除所有路径适配和底层存储开销。Banana 本体恢复后处于正常预分配阶段，其安装及运行未计为通过。
+优化后的一个缓存恢复轮次暂存耗时 28 秒，这不是完整安装耗时。随后通过 Steam 正常“重试”恢复此前中断提交留下的 604 个暂存缺失文件；没有手动移动文件、改安装状态或伪造校验成功。成功轮次的完整暂存校验为 05:40:38–05:42:53 UTC（135 秒），提交在 05:46:35 完成，05:46:36 调度返回 No Error。提交的 222 秒墙钟时间包含其他前台应用导致的挂起，不能当作纯 I/O 性能。当前文档存储的小文件校验和提交仍有分钟级开销；本次消除了重复父目录扫描的热点，尚未消除所有路径适配和底层存储开销。Banana 本体随后于 08:10:37 UTC 完成安装（StateFlags=4、BuildID=25834277、调度 No Error），运行仍未通过；安装结果不能外推为游戏执行成功。
 
 ## 边界
 
 这是 Steam 安装和管理文件的 libc 适配，不是内核挂载。未加载该适配器的外部程序看到的是小型记录文件。下载成功不等于压力容器、任意 Linux x86_64 游戏或官方原版 Proton 已完整支持；这些仍取决于执行器、容器、图形和音频链路，不能把本次安装修复当作运行验收。
+
+## Banana 安装完成后的启动调查
+
+后续三次 Steam 启动均在同一秒或一秒内结束。实际路径是官方 ARM64 reaper → `FEX-Emu/fex-compat-tool` → soldier → scout → `Banana.x86_64`。游戏文件头为 Linux x86_64 ELF，不是 Windows PE，因此不会自动经过已接通的 GNU Proton/Wine 图形和音频链路。
+
+已记录的最后一次 exec 尝试落在 FEX Python 脚本。`exec_compat.cpp` 仅对 `STEAMOHOS_CODE_ROOT` 内的 GNU 镜像作用户态重执行；游戏库里的脚本不在该范围内，进入普通内核 exec。文档存储中的该文件实际权限为 0660，同应用 shell 的只读帮助启动探针返回 inaccessible or not found。脚本还要求 `/usr/bin/env python3`，并默认依赖 `/usr/share/guestos/fex-mesa` 图形 provider/rootfs；当前最小 GNU 运行时未接入这套执行环境。未在 reaper 内取得 errno 专项跟踪，因此不能把 shell 文案单独当作精确错误码。
+
+用户看到的 `VK_KHR_surface`、`VK_KHR_xlib_surface` 缺失及 `BInit - Unable to initialize Vulkan` 可归属到 Steam 的 `vulkandriverquery` 探针，发生在上述游戏启动之前。当前没有 Banana 图像入口或游戏渲染初始化的日志，不能将探针警告误判为本次游戏退出的直接原因。官方 reaper 上报退出码 0 也不能当作游戏运行成功。
+
+要支持原生 Linux 游戏，需要通用地接入脚本/解释器及受约束的 ELF/FEX 执行、x86 GNU 依赖与路径语义，再对接现有 virgl/Vulkan WSI 接收端；不能只 chmod、增加一个 Vulkan 扩展名称或复制链接目标就宣称完成。未覆盖官方游戏库文件、未强制切换 Windows depot，也未修改已验证的 Windows 游戏启动路径。脱敏记录见 [原生启动证据](evidence/banana-native-launch-tablet.json)。

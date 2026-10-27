@@ -81,9 +81,14 @@
     "allocatedRecordBytes": 6225920
   },
   "bananaStatus": {
-    "installationCompleted": false,
-    "observedPhase": "Preallocating after normal Steam resume/reconfiguration",
-    "updateResult": "0",
-    "nativeGameExecutionValidated": false
+    "installationCompleted": true,
+    "stateFlags": "4",
+    "buildId": "25834277",
+    "depotId": "2923303",
+    "depotManifestId": "8921583821040354763",
+    "fullyInstalledUtc": "2026-10-27T08:10:37Z",
+    "schedulerResult": "No Error",
+    "nativeGameExecutionValidated": false,
+    "launchDiagnosis": "Native Linux FEX script execution chain is not integrated; Vulkan warnings are from Steam vulkandriverquery"
   }
 }
