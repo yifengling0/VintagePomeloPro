@@ -14,7 +14,7 @@ import { LinuxSteamInstallService } from './LinuxSteamInstallService';
 import { LinuxSteamLibraryService } from './LinuxSteamLibraryService';
 import { LinuxSteamGameLaunch } from './LinuxSteamGameLaunch';
 import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
-import { ensureLinuxSteamClientSupervisor } from './LinuxSteamClientSupervisor';
+import { ensureLinuxSteamClientSupervisor, ensureLinuxSteamPosixSupport } from './LinuxSteamClientSupervisor';
 import { LinuxSteamPageRecovery } from './LinuxSteamPageRecovery';
 import { WineEngineService } from './WineEngineService';
 import { ManagedLinuxSteamBridgeService } from './ManagedLinuxSteamBridgeService';
@@ -145,6 +145,7 @@ export class LinuxSteamSessionService {
       this.elapsed('components', stageAt); stageAt = Date.now();
       const root = LinuxSteamLibraryService.getInstance().externalRoot();
       await ensureLinuxSteamClientSupervisor(this.context, root);
+      await ensureLinuxSteamPosixSupport(this.context, root);
       try { applyLinuxSteamDownloadPolicy(root); }
       catch (error) {
         hilog.warn(0, 'DeckLaunch', 'Download connection preference was not applied: %{public}s', (error as Error).message.substring(0, 160));

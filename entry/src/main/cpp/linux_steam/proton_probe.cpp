@@ -1,6 +1,7 @@
 #include "proton_probe.h"
 #include "proton_game_paths.h"
 #include "proton_setup_cache.h"
+#include "proton_user_paths.h"
 #include "native_exec.h"
 #include <cerrno>
 #include <chrono>
@@ -293,11 +294,14 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             !S_ISDIR(st.st_mode) || st.st_uid != getuid())
             return failure("proton_private_directory_failed");
     }
+    if (!PrepareProtonUserPaths(root + "/prefix")) return failure("proton_user_paths_conflict_or_unavailable");
     // Keep the product exec/rtld allowlist intact. The experiment has a separate
     // code root, without modifying or duplicating the full Steam runtime.
     for (const char* name : {"ld-linux-aarch64.so.1", "libc.so.6", "libdl.so.2", "libpthread.so.0",
             "librt.so.1", "libm.so.6", "libstdc++.so.6", "libgcc_s.so.1", "libsteamohos_posix.so",
             "libfreetype.so.6", "libfontconfig.so.1", "libexpat.so.1", "libpng16.so.16", "libbrotlidec.so.1", "libbrotlicommon.so.1", "libz.so.1"}) {
+        // The Cloud adapter belongs to Steam. Games use their existing
+        // immutable dependency closure and registry-selected modern folders.
         if (!LoaderReference(runtime + '/' + name, root + '/' + name))
             return failure("proton_runtime_reference_failed");
     }

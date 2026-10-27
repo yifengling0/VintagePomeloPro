@@ -19,6 +19,8 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <pthread.h>
+#include "../cloud_tool_selection.h"
 
 static int (*next_stat)(const char *, struct stat *);
 static ssize_t (*next_readlink)(const char*,char*,size_t);
@@ -821,6 +823,46 @@ static int CloudAppId(const char *text,size_t length) {
     }
     return value<=4294967295ULL;
 }
+// Read Steam's persisted per-app choice; never replace another tool's prefix.
+// Cache only a stat-verified snapshot, not the selected backend itself.
+static const char *CloudPrefixForApp(const char *id,size_t length) {
+    const char *ohos=getenv("STEAMOHOS_WINE_PREFIX"),*gnu=getenv("STEAMOHOS_GNU_WINE_PREFIX");
+    if(!gnu||gnu[0]!='/')return ohos;
+    const char *steam=getenv("STEAMOHOS_STEAM_ROOT");
+    if(!steam||steam[0]!='/'||!CloudAppId(id,length))return NULL;
+    char config[PATH_MAX],app[11];struct stat status;
+    memcpy(app,id,length);app[length]=0;
+    int n=snprintf(config,sizeof(config),"%s/config/config.vdf",steam);
+    if(n<=0||n>=(int)sizeof(config)||next_stat(config,&status)||!S_ISREG(status.st_mode)||
+       status.st_size<=0||status.st_size>2*1024*1024)return NULL;
+    // External Steam data is owned by the OHOS document provider, not our
+    // process UID. Trust only this exact configured path, bounded regular-file
+    // reads and the known tool-name allowlist; private link records still
+    // require our UID. Requiring getuid() here disables public-library Cloud.
+    static pthread_mutex_t guard=PTHREAD_MUTEX_INITIALIZER;
+    static char *snapshot;static struct stat previous;static char previous_path[PATH_MAX];
+    pthread_mutex_lock(&guard);
+    if(!snapshot||strcmp(config,previous_path)||status.st_ino!=previous.st_ino||status.st_size!=previous.st_size||
+       status.st_mtim.tv_sec!=previous.st_mtim.tv_sec||status.st_mtim.tv_nsec!=previous.st_mtim.tv_nsec) {
+        int fd=next_open(config,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+        char *bytes=malloc((size_t)status.st_size+1);size_t used=0;
+        if(fd>=0&&bytes)while(used<(size_t)status.st_size) {
+            ssize_t count=read(fd,bytes+used,(size_t)status.st_size-used);
+            if(count<0&&errno==EINTR)continue;
+            if(count<=0)break;
+            used+=(size_t)count;
+        }
+        struct stat after;int valid=fd>=0&&!fstat(fd,&after)&&used==(size_t)status.st_size&&
+            after.st_ino==status.st_ino&&after.st_size==status.st_size&&
+            after.st_mtim.tv_sec==status.st_mtim.tv_sec&&after.st_mtim.tv_nsec==status.st_mtim.tv_nsec;
+        if(fd>=0)close(fd);
+        free(snapshot);snapshot=NULL;
+        if(valid){bytes[used]=0;snapshot=bytes;previous=status;strcpy(previous_path,config);}else free(bytes);
+    }
+    int kind=snapshot?CloudToolFromVdf(snapshot,app):0;
+    pthread_mutex_unlock(&guard);
+    return kind==2?gnu:kind==1?ohos:NULL;
+}
 static const char *CloudCompatPath(const char *path,char mapped[PATH_MAX]) {
     const char *ipc=getenv("STEAMOHOS_IPC_ROOT"),*prefix=getenv("STEAMOHOS_WINE_PREFIX");
     if(!path||!*path||!ipc||ipc[0]!='/'||!prefix||prefix[0]!='/')return path;
@@ -831,12 +873,14 @@ static const char *CloudCompatPath(const char *path,char mapped[PATH_MAX]) {
         char alias[PATH_MAX];int n=snprintf(alias,sizeof(alias),"%s/steamapps/compatdata",roots[i]);
         if(n<=0||n>=(int)sizeof(alias)||!Below(absolute,alias))continue;
         const char *relative=absolute+n;
+        if(!*relative)return path;
         if(*relative) {
             const char *id=relative+1,*end=strchr(id,'/');
             size_t length=end?(size_t)(end-id):strlen(id);
             if(!CloudAppId(id,length))return path;
+            if(!CloudPrefixForApp(id,length))return path;
         }
-        n=snprintf(mapped,PATH_MAX,"%s/hmosdeck-cloud-compatdata%s",ipc,relative);
+        n=snprintf(mapped,PATH_MAX,"%s/hmosdeck-cloud-v2-compatdata%s",ipc,relative);
         return n>0&&n<PATH_MAX?mapped:path;
     }
     return path;
@@ -853,7 +897,22 @@ static int CloudReadRecord(const char *path,const char *target) {
     struct stat status;char bytes[sizeof(CloudMagic)+PATH_MAX];ssize_t n=read(fd,bytes,sizeof(bytes));
     int valid=!fstat(fd,&status)&&S_ISREG(status.st_mode)&&status.st_uid==getuid();close(fd);
     size_t magic=sizeof(CloudMagic)-1,length=strlen(target);
-    return valid&&n==(ssize_t)(magic+length)&&!memcmp(bytes,CloudMagic,magic)&&!memcmp(bytes+magic,target,length);
+    if(!valid||n<(ssize_t)magic||memcmp(bytes,CloudMagic,magic))return 0;
+    if(n==(ssize_t)(magic+length)&&!memcmp(bytes+magic,target,length))return 1;
+    // A Steam-owned tool change can switch the same virtual prefix between
+    // our two backends. Accept only our two exact metadata targets; the data
+    // trees themselves are never rebound, overwritten or merged here.
+    const char *roots[]={getenv("STEAMOHOS_WINE_PREFIX"),getenv("STEAMOHOS_GNU_WINE_PREFIX")};
+    const char *suffixes[]={"/drive_c/users/steamuser","/drive_c/ProgramData"};
+    for(unsigned i=0;i<2;++i)if(roots[i]&&roots[i][0]=='/')for(unsigned j=0;j<2;++j) {
+        char expected[PATH_MAX];int size=snprintf(expected,sizeof(expected),"%s%s",roots[i],suffixes[j]);
+        if(size<=0||size>=(int)sizeof(expected)||strcmp(target,expected))continue;
+        for(unsigned k=0;k<2;++k)if(roots[k]&&roots[k][0]=='/') {
+            size=snprintf(expected,sizeof(expected),"%s%s",roots[k],suffixes[j]);
+            if(size>0&&size<(int)sizeof(expected)&&n==(ssize_t)(magic+(size_t)size)&&!memcmp(bytes+magic,expected,(size_t)size))return 1;
+        }
+    }
+    return 0;
 }
 static int CloudLink(const char *target,const char *path) {
     int fd=next_open(path,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);
@@ -886,7 +945,7 @@ int SteamOhosPrepareCloudPrefixes(void) {
     const char *ipc=getenv("STEAMOHOS_IPC_ROOT"),*prefix=getenv("STEAMOHOS_WINE_PREFIX");
     if(!ipc||ipc[0]!='/'||!prefix||prefix[0]!='/')return 0;
     char base[PATH_MAX],profile[PATH_MAX];struct stat status;
-    int n=snprintf(base,sizeof(base),"%s/hmosdeck-cloud-compatdata",ipc);
+    int n=snprintf(base,sizeof(base),"%s/hmosdeck-cloud-v2-compatdata",ipc);
     int m=snprintf(profile,sizeof(profile),"%s/drive_c/users/steamuser",prefix);
     if(n<=0||n>=(int)sizeof(base)||m<=0||m>=(int)sizeof(profile)||
        next_stat(profile,&status)||!S_ISDIR(status.st_mode))return CloudError("profile");
@@ -905,7 +964,11 @@ int SteamOhosPrepareCloudPrefixes(void) {
             if(length<17||strncmp(name,"appmanifest_",12)||strcmp(name+length-4,".acf")||
                !CloudAppId(name+12,length-16))continue;
             char id[11];memcpy(id,name+12,length-16);id[length-16]=0;
-            if(!CloudCreatePrefix(base,id,profile,prefix)){int error=errno;closedir(directory);errno=error;return CloudError("prefix-layout");}
+            const char *selected=CloudPrefixForApp(id,strlen(id));
+            if(!selected)continue;
+            char selected_profile[PATH_MAX];
+            int count=snprintf(selected_profile,sizeof(selected_profile),"%s/drive_c/users/steamuser",selected);
+            if(count<=0||count>=(int)sizeof(selected_profile)||!CloudCreatePrefix(base,id,selected_profile,selected)){int error=errno;closedir(directory);errno=error;return CloudError("prefix-layout");}
             ++prepared;
         }
         closedir(directory);
@@ -918,9 +981,10 @@ int SteamOhosPrepareCloudPrefixes(void) {
 static int CloudLinkPath(const char *path,char link[PATH_MAX],char target[PATH_MAX],const char **suffix) {
     const char *ipc=getenv("STEAMOHOS_IPC_ROOT"),*prefix=getenv("STEAMOHOS_WINE_PREFIX");
     if(!ipc||ipc[0]!='/'||!prefix||prefix[0]!='/'||!path)return 0;
-    char base[PATH_MAX];int n=snprintf(base,sizeof(base),"%s/hmosdeck-cloud-compatdata",ipc);
+    char base[PATH_MAX];int n=snprintf(base,sizeof(base),"%s/hmosdeck-cloud-v2-compatdata",ipc);
     if(n<=0||n>=(int)sizeof(base)||!Below(path,base)||path[n]!='/')return 0;
     const char *id=path+n+1,*end=strchr(id,'/');if(!end||!CloudAppId(id,(size_t)(end-id)))return 0;
+    prefix=CloudPrefixForApp(id,(size_t)(end-id));if(!prefix||prefix[0]!='/')return 0;
     const char *logical[]={"/pfx/drive_c/users/steamuser","/pfx/drive_c/ProgramData"};
     const char *native[]={"/drive_c/users/steamuser","/drive_c/ProgramData"};
     for(unsigned i=0;i<2;++i)if(Below(end,logical[i])) {

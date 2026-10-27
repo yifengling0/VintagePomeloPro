@@ -558,6 +558,7 @@ assemble: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/assemble)
 linux-runtime-components:
 	python3 $(SCRIPTS)/prepare_linux_runtime_components.py
 	python3 $(SCRIPTS)/build_steam_client_session.py
+	python3 $(SCRIPTS)/build_linux_steam_posix.py
 
 test-linux-runtime-components:
 	python3 $(ROOT)/host_tests/linux_runtime_components_test.py

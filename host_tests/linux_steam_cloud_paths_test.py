@@ -117,7 +117,7 @@ assert not os.path.lexists(prefix/'drive_c/users/steamuser/My Documents')
 # Repeated setup is idempotent; rm -r removes links, never user saves.
 assert api.SteamOhosPrepareCloudPrefixes()==2
 shutil.rmtree(library/'steamapps/compatdata/695630')
-assert not (ipc/'hmosdeck-cloud-compatdata/695630').exists()
+assert not (ipc/'hmosdeck-cloud-v2-compatdata/695630').exists()
 assert (prefix/'drive_c/users/steamuser/Documents/My Games/NewPAL/0.sav').read_bytes()==b'original-user-save'
 assert not (library/'steamapps/compatdata/695630').exists(), 'No lazy recreation during cleanup'
 print('PASS native Proton Cloud roots, atomic IO, dirfd, scope boundaries and save-preserving cleanup')
@@ -130,6 +130,53 @@ print('PASS native Proton Cloud roots, atomic IO, dirfd, scope boundaries and sa
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(original.read_bytes(), b"original-user-save")
             print(result.stdout, end="")
+
+    def test_backend_selection_and_tool_changes(self):
+        with tempfile.TemporaryDirectory(prefix='steamohos-cloud-backends-',dir='/var/tmp') as temporary:
+            base=Path(temporary); fixture=ROOT/'entry/src/main/cpp/linux_steam/gnu_fixture'
+            for path in ['ipc','library/steamapps','client/config','wine','gnu']:(base/path).mkdir(parents=True)
+            for backend in ['wine','gnu']:
+                profile=base/backend/'drive_c/users/steamuser'
+                for name in ['Documents','AppData/Roaming','AppData/Local']:
+                    (profile/name).mkdir(parents=True)
+                    (profile/name/'save.dat').write_bytes((backend+'/'+name).encode())
+                (base/backend/'drive_c/ProgramData').mkdir()
+            for app in ['42','43','44']:(base/f'library/steamapps/appmanifest_{app}.acf').write_text('"AppState" {}')
+            config='"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }'
+            path=base/'client/config/config.vdf'
+            path.write_text(config%'"0" { "name" "hmosdeck_gnu_proton" } "43" { "name" "hmosdeck_proton" } "44" { "name" "custom-proton" }')
+            # Public OHOS documents report the provider's UID rather than the
+            # app's UID. CI runs this case as root to reproduce that boundary.
+            if os.geteuid()==0:
+                os.chown(path,65534,65534)
+            binary=base/'compat.so'
+            subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',str(fixture/'filesystem_compat.c'),'-ldl','-o',str(binary)],check=True)
+            script=r'''
+import ctypes, os, shutil
+from pathlib import Path
+root=Path(os.environ['STEAMOHOS_LIBRARY_ROOT']); base=root.parent
+api=ctypes.CDLL(None)
+assert api.SteamOhosPrepareCloudPrefixes()==2
+user=lambda app:root/f'steamapps/compatdata/{app}/pfx/drive_c/users/steamuser'
+for alias,modern in [('My Documents','Documents'),('Application Data','AppData/Roaming'),('Local Settings/Application Data','AppData/Local')]:
+ assert (user(42)/alias/'save.dat').read_bytes()==('gnu/'+modern).encode()
+ assert (user(43)/alias/'save.dat').read_bytes()==('wine/'+modern).encode()
+assert not user(44).exists(), 'Other compatibility tools must retain their own compatdata'
+path=base/'client/config/config.vdf'
+old=path.read_text(); path.write_text(old.replace('hmosdeck_gnu_proton','hmosdeck_proton'))
+assert (user(42)/'My Documents/save.dat').read_bytes()==b'wine/Documents'
+assert api.SteamOhosPrepareCloudPrefixes()==2, 'Existing virtual metadata supports a Steam-owned tool change'
+shutil.rmtree(root/'steamapps/compatdata/42')
+for backend in ['wine','gnu']:
+ assert (base/backend/'drive_c/users/steamuser/Documents/save.dat').read_bytes()==(backend+'/Documents').encode()
+print('PASS GNU/OHOS per-game cloud roots, custom tool isolation, live config refresh and save-preserving cleanup')
+'''
+            environment={**os.environ,'LD_PRELOAD':str(binary),'STEAMOHOS_IPC_ROOT':str(base/'ipc'),
+                'STEAMOHOS_LIBRARY_ROOT':str(base/'library'),'STEAMOHOS_STEAM_ROOT':str(base/'client'),
+                'STEAMOHOS_WINE_PREFIX':str(base/'wine'),'STEAMOHOS_GNU_WINE_PREFIX':str(base/'gnu')}
+            result=subprocess.run([sys.executable,'-c',script],env=environment,capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            print(result.stdout,end='')
 
 if __name__ == "__main__":
     unittest.main()

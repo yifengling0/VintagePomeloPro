@@ -1,6 +1,7 @@
 #include "window_process_message.h"
 #include "xwayland_probe.h"
 #include "native_exec.h"
+#include "proton_user_paths.h"
 #include "gnu_fixture/deck_action_uri.h"
 #include <cerrno>
 #include <chrono>
@@ -428,20 +429,26 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
         const std::string ipc = base + "/client-ipc";
         if (mkdir(ipc.c_str(), 0700) && errno != EEXIST)
             return "{\"status\":\"steam_ipc_root_failed\",\"gnuExecutionVerified\":false}";
+        const std::string ohosPrefix=base.substr(0,base.rfind('/'))+"/.wine";
+        const std::string gnuPrefix=base+"/proton-probe/prefix";
+        const bool gnuReady=!access((base+"/proton-probe/package/files/lib/wine/aarch64-unix/wine").c_str(),R_OK);
+        if(!PrepareProtonUserPaths(ohosPrefix)||(gnuReady&&!PrepareProtonUserPaths(gnuPrefix)))
+            return "{\"status\":\"steam_cloud_user_paths_conflict_or_unavailable\",\"gnuExecutionVerified\":false}";
         const std::string steamRoot = home + "/.steam/steam";
         if (!EnsureDirectory(home + "/.steam") || !EnsureDirectory(steamRoot))
             return "{\"status\":\"steam_layout_failed\",\"layoutStage\":" + JsonString(LayoutFailure) +
                 ",\"layoutErrno\":" + std::to_string(errno) + ",\"gnuExecutionVerified\":false}";
         session.environment.emplace_back("DISPLAY=:57");
-        session.environment.emplace_back("LD_PRELOAD=" + directory + "/libsteamohos_posix.so");
+        session.environment.emplace_back("LD_PRELOAD=" + directory + "/libsteamohos_posix_hap.so");
         session.environment.emplace_back("STEAMOHOS_IPC_ROOT=" + ipc);
         // Each Steam launch, including every CEF/reaper child, gets one fresh
         // SysV namespace. Old sessions cannot exhaust or satisfy its keys.
         session.environment.emplace_back("STEAMOHOS_SYSVIPC_ROOT=" + session.directory + "/sysvipc");
         session.environment.emplace_back("STEAMOHOS_STEAM_ROOT=" + steamRoot);
         session.environment.emplace_back("STEAMOHOS_CODE_ROOT=" + directory);
-        // This diagnostic session launches the existing host prefix, not GNU Wine.
+        // Cloud roots follow each game's Steam-owned compatibility selection.
         session.environment.emplace_back("STEAMOHOS_WINE_PREFIX=" + base.substr(0, base.rfind('/')) + "/.wine");
+        if(gnuReady)session.environment.emplace_back("STEAMOHOS_GNU_WINE_PREFIX=" + gnuPrefix);
         session.environment.emplace_back("STEAMOHOS_LIBRARY_ROOT=" + externalRoot + "/library");
         std::ifstream zRootFile(base + "/wine-z-root.path");
         std::string zRoot; std::getline(zRootFile, zRoot);

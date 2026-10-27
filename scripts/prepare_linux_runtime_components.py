@@ -43,10 +43,28 @@ def safe_path(name):
 
 
 def verify_sources(root, lock):
+    # The released GNU ZIP remains immutable. An explicit, hash-verified HAP
+    # companion may supersede selected adapter sources without repacking it.
+    overrides=lock.get('hapSourceOverrides',{})
+    verified={}
+    for manifest_name in set(overrides.values()):
+        safe_path(manifest_name)
+        manifest_path=root/manifest_name
+        manifest=json.loads(manifest_path.read_text())
+        if manifest.get('name')!='libsteamohos_posix_hap.so' or manifest.get('architecture')!='aarch64-linux-gnu':
+            raise ValueError('Invalid HAP source override manifest')
+        binary=manifest_path.parent/manifest['name']
+        if binary.is_symlink() or sha(binary)!=manifest['sha256'] or binary.stat().st_size!=manifest['bytes']:
+            raise ValueError('HAP source override binary mismatch')
+        for name,expected in manifest['sources'].items():
+            safe_path(name)
+            if not (root/name).is_file() or sha(root/name)!=expected:raise ValueError('HAP source override source changed: '+name)
+        verified[manifest_name]=manifest['sources']
     for name, expected in lock['sourceInputs'].items():
         safe_path(name)
         source = root / name
-        if not source.is_file() or sha(source) != expected:
+        if not source.is_file() or (sha(source) != expected and
+                verified.get(overrides.get(name),{}).get(name)!=sha(source)):
             raise ValueError('GNU component source changed: ' + name +
                              '; rebuild and publish the matching dependency, then update the lock')
     for name, expected in lock.get('gitlinks',{}).items():

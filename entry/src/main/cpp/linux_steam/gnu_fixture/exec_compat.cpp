@@ -192,7 +192,7 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
     }
     for (const char* key : {"STEAMOHOS_CODE_ROOT", "STEAMOHOS_STEAM_ROOT", "STEAMOHOS_TMP_ROOT",
             "STEAMOHOS_LAUNCH_SOCKET", "STEAMOHOS_LAUNCH_NONCE", "STEAMOHOS_Z_ROOT",
-            "STEAMOHOS_WINE_PREFIX", "STEAMOHOS_LIBRARY_ROOT",
+            "STEAMOHOS_WINE_PREFIX", "STEAMOHOS_GNU_WINE_PREFIX", "STEAMOHOS_LIBRARY_ROOT",
             "STEAMOHOS_AUDIO_BOOTSTRAP_FD", "STEAMOHOS_AUDIO_BOOTSTRAP_SOCKET", "ALSA_CONFIG_PATH", "ALSA_PLUGIN_DIR",
             "SDL_AUDIO_DRIVER", "STEAMOHOS_GAMEPAD_SOCKET",
             "STEAMOHOS_IPC_ROOT", "STEAMOHOS_SYSVIPC_ROOT", "STEAMOHOS_SOCKET_METADATA_ROOT", "STEAMOHOS_X11_SOCKET", "XLOCALEDIR", "GLIBC_TUNABLES", "SSL_CERT_FILE",
@@ -201,7 +201,8 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
     }
     const char* software=getenv("STEAMOHOS_SOFTWARE_GL");
     const char* gamepad=getenv("STEAMOHOS_GAMEPAD_SOCKET");
-    Set(environment,"LD_PRELOAD",code+"/libsteamohos_posix.so"+
+    const std::string posix=code+(!access((code+"/libsteamohos_posix_hap.so").c_str(),R_OK)?"/libsteamohos_posix_hap.so":"/libsteamohos_posix.so");
+    Set(environment,"LD_PRELOAD",posix+
         (software && !strcmp(software,"1") ? ":"+code+"/libsteamohos_software_gl.so" : "")+
         (gamepad && *gamepad ? ":"+code+"/libsteamohos_gamepad.so" : ""));
     Set(environment, "STEAMOHOS_EXEC_PATH", target);

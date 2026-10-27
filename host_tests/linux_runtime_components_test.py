@@ -66,6 +66,22 @@ class RestoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'source changed'):self.restore()
         self.assertEqual(self.calls,[])
 
+    def test_explicit_hap_source_override_requires_matching_source_and_binary(self):
+        self.source.write_text('new source with an independently delivered HAP companion')
+        folder=self.raw/'linux-steam/bootstrap';folder.mkdir(parents=True)
+        binary=folder/'libsteamohos_posix_hap.so';binary.write_bytes(b'independent-companion')
+        manifest=folder/'posix-manifest.json'
+        data=dict(schemaVersion=1,architecture='aarch64-linux-gnu',name=binary.name,
+            bytes=binary.stat().st_size,sha256=components.sha(binary),sources={'adapter.c':components.sha(self.source)})
+        manifest.write_text(json.dumps(data))
+        self.lock['hapSourceOverrides']={'adapter.c':str(manifest.relative_to(self.root))}
+        self.assertEqual(self.restore()['status'],'PASS')
+        self.source.write_text('unbuilt change')
+        with self.assertRaisesRegex(ValueError,'override source changed'):self.restore(True)
+        self.source.write_text('new source with an independently delivered HAP companion')
+        binary.write_bytes(b'corrupted')
+        with self.assertRaisesRegex(ValueError,'override binary mismatch'):self.restore(True)
+
     def test_missing_payload_not_silently_omitted(self):
         with self.assertRaisesRegex(ValueError,'Missing or corrupt'):self.restore(True)
         self.assertEqual(self.calls,[])

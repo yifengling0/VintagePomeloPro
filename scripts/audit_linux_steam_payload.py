@@ -43,6 +43,12 @@ def audit(path):
             raise ValueError('HAP Steam lifetime supervisor is missing or stale')
         if b'steamohos_gnu_steam_session_hap' not in hap.read('libs/arm64-v8a/libsteamohos_gnu_child.so'):
             raise ValueError('Native session still selects the old Steam lifetime supervisor')
+        posix = json.loads(hap.read(raw+'linux-steam/bootstrap/posix-manifest.json'))
+        support = hap.read(raw+'linux-steam/bootstrap/'+posix['name'])
+        if len(support) != posix['bytes'] or digest(support) != posix['sha256'] or b'STEAMOHOS_GNU_WINE_PREFIX' not in support:
+            raise ValueError('HAP GNU/OHOS Cloud adapter is missing or stale')
+        if b'libsteamohos_posix_hap.so' not in hap.read('libs/arm64-v8a/libsteamohos_gnu_child.so'):
+            raise ValueError('Native session still selects the old Cloud filesystem adapter')
         offline = json.loads(hap.read(raw+'linux-steam/offline-package.json'))
         if plan['id'] != offline['id']:
             raise ValueError('Offline import and online installation use different releases')

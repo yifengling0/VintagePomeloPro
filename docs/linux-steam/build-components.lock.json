@@ -3,6 +3,10 @@
   "sourceSnapshot": "86aaa10c1d213897b9d7ec8af6834229b37663d2",
   "releaseTag": "build-deps-gnu-1.5.2-21f85e476cc5",
   "buildPolicy": "Compile OHOS host/ArkTS from source; restore checksum-pinned prebuilt GNU dependencies. GNU source rebuild is a separate pipeline.",
+  "hapSourceOverrides": {
+    "entry/src/main/cpp/linux_steam/gnu_fixture/exec_compat.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/filesystem_compat.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json"
+  },
   "sourceInputs": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",
     "entry/src/main/cpp/linux_steam/gnu_fixture/connection_identity.c": "8f8c8b628382bae0cca9aa97fbc33d69610f34aa5c7fcbfeea5f908a8c72ea43",

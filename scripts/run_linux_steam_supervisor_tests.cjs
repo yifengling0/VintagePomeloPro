@@ -36,6 +36,14 @@ const context={resourceManager:{getRawFileContent:async p=>manifest&&p.endsWith(
  await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/位置无效/);fs.writeFileSync(pointer,release);
  const real=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/manifest.json')));
  manifest={...real,name:'../steam'};await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/清单无效/);manifest=null;
+ const posix='libsteamohos_posix_hap.so',posixTarget=release+'/runtime/'+posix;
+ const posixManifest=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/posix-manifest.json')));
+ const beforePosix=writes;
+ await api.ensureLinuxSteamPosixSupport(context,root);
+ assert.equal(hash(fs.readFileSync(posixTarget)),posixManifest.sha256);
+ await api.ensureLinuxSteamPosixSupport(context,root);
+ assert.equal(writes,beforePosix+1,'HAP POSIX support is separately verified and reused');
+ assert.deepEqual(fs.readFileSync(target),payload,'Cloud adapter cannot replace the session supervisor');
  fs.renameSync(release+'/runtime',release+'/runtime-old');fs.symlinkSync(release+'/runtime-old',release+'/runtime');
  await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/目录不安全/);
  assert.equal(fs.readFileSync(release+'/runtime/user-file','utf8'),'preserve');
