@@ -132,5 +132,6 @@
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json",
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json"
-  ]
+  ],
+  "protonMedia": "docs/linux-steam/proton-media.lock.json"
 }

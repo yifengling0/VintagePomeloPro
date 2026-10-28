@@ -39,6 +39,7 @@ const makeManifest = version => {
 const catalog = () => ({schemaVersion:1,revision:catalogRevision,releases:[...runtimeReleases].reverse()});
 const exists = name => fs.existsSync(name);
 const deps = {
+  './LinuxProtonMedia': {ensureLinuxProtonMedia: async()=>{}},
   './LinuxProtonBootstrap': {ensureLinuxProtonBootstrap: async()=>{}},
   '@kit.AbilityKit': {}, '@kit.CoreFileKit': {fileIo: {
     accessSync: exists, mkdirSync: (name, recursive) => fs.mkdirSync(name,{recursive}),

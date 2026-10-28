@@ -48,6 +48,9 @@ def safe_path(name):
 
 
 def verify_sources(root, lock):
+    if lock.get("protonMedia"):
+        from prepare_linux_proton_media import verify as verify_media
+        verify_media(root)
     # The released GNU ZIP remains immutable. An explicit, hash-verified HAP
     # companion may supersede selected adapter sources without repacking it.
     overrides=lock.get('hapSourceOverrides',{})
@@ -181,6 +184,9 @@ def verify_hap(path, root=ROOT):
     lock = json.loads((root/'docs/linux-steam/build-components.lock.json').read_text())
     verify_sources(root,lock)
     with zipfile.ZipFile(path) as archive:
+        if lock.get("protonMedia"):
+            from prepare_linux_proton_media import verify as verify_media
+            verify_media(root, archive)
         for manifest_name in set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values()):
             local = root / manifest_name
             manifest = json.loads(local.read_text())

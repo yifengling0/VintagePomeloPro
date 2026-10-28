@@ -82,3 +82,6 @@ thirdparty/wine-valve-rpgxp-alpha/
 
 # Reproducible GNU Proton binary component; source/lock/builder are tracked.
 entry/src/main/resources/rawfile/linux-proton/gnu-proton.zip
+
+# Locked GNU media PE supplement, independent of historical Proton ZIPs.
+!entry/src/main/resources/rawfile/linux-proton/media/files/lib/wine/aarch64-windows/*.dll

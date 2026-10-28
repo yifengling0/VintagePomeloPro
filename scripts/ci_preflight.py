@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = (
-    'host_tests/ci_preflight_test.py', 'host_tests/ci_release_test.py', 'host_tests/linux_runtime_components_test.py',
+    'host_tests/linux_proton_media_test.py', 'host_tests/ci_preflight_test.py', 'host_tests/ci_release_test.py', 'host_tests/linux_runtime_components_test.py',
     'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
     'host_tests/smoke_build_arch_test.py', 'host_tests/wine_build_identity_test.py',
     'host_tests/gstreamer_native_plugins_test.py', 'host_tests/runtime_library_guard_test.py',
@@ -41,12 +41,21 @@ def package_inputs(root, tracked):
                     if path.is_file() and path.relative_to(root).as_posix() not in tracked:
                         errors.append('Uncommitted native type input: ' + str(path.relative_to(root)))
     lock = json.loads((root / 'docs/linux-steam/build-components.lock.json').read_text())
-    for relative, expected in lock['sourceInputs'].items():
+    for relative in lock['sourceInputs']:
         path = root / relative
         if relative not in tracked or not path.is_file():
             errors.append('Uncommitted GNU dependency input: ' + relative)
-        elif hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-            errors.append('GNU dependency input changed without a new dependency lock: ' + relative)
+    # The release ZIP is immutable; verify_sources validates approved companion
+    # binaries and their actual sources before accepting any source override.
+    if lock.get('components'):
+        from prepare_linux_runtime_components import verify_sources
+        try: verify_sources(root, lock)
+        except (OSError, ValueError, KeyError) as error: errors.append(str(error))
+    else:
+        for relative, expected in lock['sourceInputs'].items():
+            path = root / relative
+            if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                errors.append('GNU dependency input changed without a new dependency lock: ' + relative)
     if errors:
         raise ValueError('\n'.join(errors))
 

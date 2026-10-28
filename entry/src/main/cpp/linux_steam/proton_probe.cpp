@@ -152,8 +152,8 @@ bool SafeEndpoint(const std::string& path) {
         path.find_first_of("\r\n")==std::string::npos && !lstat(path.c_str(),&st) &&
         S_ISSOCK(st.st_mode) && st.st_uid==geteuid();
 }
-bool InstallProbeModules(const std::string& root,const std::string& package) {
-    std::ifstream list(root+"/prefix-modules.list");
+bool InstallProbeModules(const std::string& root,const std::string& package, const std::string& inventory = {}) {
+    std::ifstream list(inventory.empty() ? root+"/prefix-modules.list" : inventory);
     if(!list)return false;
     std::string line;unsigned count=0;
     while(std::getline(list,line)) {
@@ -172,8 +172,8 @@ bool InstallProbeModules(const std::string& root,const std::string& package) {
     return count>0;
 }
 std::string MediaReferenceFailure;
-bool ReferenceMediaRuntime(const std::string& root,const std::string& runtime) {
-    std::ifstream list(root+"/runtime-modules.list");std::string name;unsigned count=0;
+bool ReferenceMediaRuntime(const std::string& root,const std::string& runtime, const std::string& inventory = {}) {
+    std::ifstream list(inventory.empty() ? root+"/runtime-modules.list" : inventory);std::string name;unsigned count=0;
     if(!list)return false;
     while(std::getline(list,name)) {
         const std::string source = access((runtime+'/'+name).c_str(), R_OK) == 0 ?
@@ -351,7 +351,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         "LANG="+locale, "LC_ALL="+locale, "LC_CTYPE="+locale, "LC_MESSAGES="+locale,
         "STEAMOHOS_PROTON_LOCALE="+locale, "LOCPATH="+root+"/locale", "PATH=/system/bin", "HOME=" + root + "/home",
         "FONTCONFIG_FILE=" + fontConfig, "TMPDIR=" + root + "/tmp", "WINEPREFIX=" + root + "/prefix", "WINEARCH=win64",
-        "WINESERVER=" + server, "WINELOADER=" + wine, "WINEDLLPATH=" + package + "/files/lib/wine",
+        "WINESERVER=" + server, "WINELOADER=" + wine, "WINEDLLPATH=" + root + "/media/files/lib/wine:" + package + "/files/lib/wine",
         // Same default as wine_env_baseline.h for the existing ARM Wine/FEX
         // route. Strict software-F80 made VLC miss audio decode deadlines.
         // Respect legacy 2 GiB PE images; LAA images retain their own flag.
@@ -534,6 +534,9 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                     root + "/prefix/drive_c/proton-x86-cmd.exe"))
                 return failure("proton_x86_program_missing", true);
         }
+        if (!ReferenceMediaRuntime(root, runtime, root+"/media/runtime-modules.list") ||
+            !InstallProbeModules(root, root+"/media", root+"/media/prefix-modules.list"))
+            return failure(("proton_media_closure_failed:"+MediaReferenceFailure).c_str());
         if ((x86Requested || mediaRequested || initializeRequested) && !InstallProbeModules(root, package))
             return failure("proton_prefix_dependency_closure_missing_or_changed", true);
         // Small, separately delivered bootstrap closure. It is shared by all
