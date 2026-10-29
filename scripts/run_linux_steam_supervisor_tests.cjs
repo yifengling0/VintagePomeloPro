@@ -4,11 +4,21 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'steam-supervisor-')),base=temp+
 const release=root+'/releases/'+'a'.repeat(64),name='steamohos_gnu_steam_session_hap',target=release+'/runtime/'+name;
 const raw=path.join(__dirname,'../entry/src/main/resources/rawfile');
 const hash=d=>crypto.createHash('sha256').update(d).digest('hex');
+const core=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/native-guest-core-x86_64/manifest.json')));
+const driver=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/native-vulkan-driver/manifest.json')));
+// Exercise filesystem deployment with a small valid ELF fixture; source archive
+// identities and full payloads are checked by the component/package verifier.
+const driverElf=Buffer.alloc(1024);driverElf.set([127,69,76,70,2,1]);driverElf[18]=183;
+const driverFiles=Object.keys(driver.files);
+const driverFixture={...driver,files:Object.fromEntries(driverFiles.map(n=>[n,{bytes:driverElf.length,sha256:hash(driverElf)}]))};
+fs.mkdirSync(base+'/proton-probe/graphics',{recursive:true});
+for(const n of driverFiles)fs.writeFileSync(base+'/proton-probe/graphics/'+n,driverElf);
+
 fs.mkdirSync(base,{recursive:true});fs.mkdirSync(release+'/runtime',{recursive:true});
 const pointer=base+'/external-active.path';fs.writeFileSync(pointer,release+'\n');
 let writes=0,corrupt=false,manifest=null,damagedResource='';
 const deps={
- '@kit.CoreFileKit':{fileIo:{accessSync:fs.existsSync,lstatSync:fs.lstatSync,renameSync:fs.renameSync}},
+ '@kit.CoreFileKit':{fileIo:{accessSync:fs.existsSync,lstatSync:fs.lstatSync,renameSync:fs.renameSync,mkdirSync:fs.mkdirSync}},
  './ConfigurationFiles':{ConfigurationFiles:{text:d=>Buffer.from(d).toString(),read:p=>fs.readFileSync(p),
    hash:async d=>hash(d),fileHash:async p=>hash(fs.readFileSync(p)),write:(p,d)=>{writes++;fs.writeFileSync(p,d);}}}
 };
@@ -16,7 +26,8 @@ const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../entry/src/
  .replaceAll('/data/storage/el2/base/files/steamohos-native',base),
  {compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText;
 const api={};vm.runInNewContext(code,{exports:api,require:id=>{assert.ok(id in deps,id);return deps[id];}});
-const context={resourceManager:{getRawFileContent:async p=>manifest&&p.endsWith('manifest.json')?Buffer.from(JSON.stringify(manifest)):
+const context={resourceManager:{getRawFileContent:async p=>p==='linux-steam/bootstrap/native-vulkan-driver/manifest.json'?Buffer.from(JSON.stringify(driverFixture)):
+ manifest&&p.endsWith('manifest.json')?Buffer.from(JSON.stringify(manifest)):
  (corrupt&&p.endsWith(name)||damagedResource&&p.endsWith('/'+damagedResource))?Buffer.from('broken'):fs.readFileSync(path.join(raw,p))}};
 (async()=>{try{
  fs.writeFileSync(release+'/runtime/user-file','preserve');
@@ -41,9 +52,12 @@ const context={resourceManager:{getRawFileContent:async p=>manifest&&p.endsWith(
  const beforePosix=writes;
  await api.ensureLinuxSteamPosixSupport(context,root);
  for(const item of support)assert.equal(hash(fs.readFileSync(release+'/runtime/'+item.name)),item.sha256);
- assert.equal(writes,beforePosix+support.length,'all three HAP companions must be installed');
+ const installed=beforePosix+support.length+Object.keys(core.files).length+driverFiles.length+2;
+ assert.equal(writes,installed,'companions, guest core, native driver and manifests must be installed');
+ for(const [leaf,files] of [['native-guest-core-x86_64',core.files],['native-vulkan-driver',driverFixture.files]])
+   for(const [n,row] of Object.entries(files))assert.equal(hash(fs.readFileSync(release+'/runtime/'+leaf+'/'+n)),row.sha256);
  await api.ensureLinuxSteamPosixSupport(context,root);
- assert.equal(writes,beforePosix+support.length,'verified companions must be reused');
+ assert.equal(writes,installed+2,'verified binary payloads must be reused; only manifests are refreshed');
  for(const item of support){
    const file=release+'/runtime/'+item.name;
    fs.writeFileSync(file,'installed-old');damagedResource=item.name;

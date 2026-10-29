@@ -5,13 +5,6 @@ for name in ['source','build','output','meson-tools']:p.add_argument('--'+name,t
 a=p.parse_args();b=a.output.resolve();build=a.build.resolve(strict=True);source=a.source.resolve(strict=True)/'src/virtio/vulkan/vn_renderer_vtest.c'
 b.mkdir(parents=True,exist_ok=True)
 if b.is_relative_to(source.parents[3]):p.error('Keep generated variant outside shared Mesa sources')
-# The native memory context is negotiated; legacy Wine clients retain their ABI.
-patch=Path(__file__).resolve().parents[1]/'patches/mesa/0010-venus-ohos-native-memory-context.patch'
-source_root=a.source.resolve(strict=True)
-check=['patch','-d',str(source_root),'-p1','--batch','--fuzz=0']
-if subprocess.run(check+['--dry-run','-R','-i',str(patch)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode:
- subprocess.run(check+['--dry-run','-i',str(patch)],check=True)
- subprocess.run(check+['--no-backup-if-mismatch','-i',str(patch)],check=True)
 text=source.read_text();needle='const bool keep_wow64_map_fd = false;'
 assert text.count(needle)==1
 text=text.replace(needle,'const bool keep_wow64_map_fd = true; /* GNU private Wine WSI also creates a coherent low-address alias. */')

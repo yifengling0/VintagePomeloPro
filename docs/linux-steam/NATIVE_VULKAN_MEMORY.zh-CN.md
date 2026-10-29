@@ -28,7 +28,7 @@
 
 ## 新链路及隔离
 
-权威源码保存在 [receiver 补丁](../../patches/virglrenderer/0007-ohos-native-memory-context.patch) 和 [Venus 补丁](../../patches/mesa/0010-venus-ohos-native-memory-context.patch)。构建脚本已接入补丁，缓存中的修改不是唯一来源。
+权威源码保存在 [receiver 补丁](../../patches/virglrenderer/0007-ohos-native-memory-context.patch) 和 [Venus 补丁](../../patches/mesa/0010-venus-ohos-native-memory-context.patch)。实验构建入口 `scripts/diagnostics/build_native_proton_venus.py` 已接入补丁，缓存中的修改不是唯一来源。正式的 Venus 构建脚本和已发布依赖锁保持一致；诊断入口不会自动替换 HAP 驱动。
 
 1. 客体显式开启 `VN_OHOS_NATIVE_MEMORY=1`，先查询 vtest `GET_PARAM 0x57480101`，只接受精确版本 1，再发送 Venus context flag `1 << 16`。
 2. receiver 按 context 保存此能力。未知 flag、非 Venus capset、未协商激活和初始化后变更均拒绝。旧 Wine 不发送该查询，保留原内存契约。
