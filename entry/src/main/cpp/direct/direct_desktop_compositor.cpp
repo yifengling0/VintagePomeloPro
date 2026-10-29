@@ -80,6 +80,8 @@ struct DirectDesktopCompositor::Impl {
 
     DesktopCompositor& compositor;
     EGLDisplay display;
+    const uint32_t scope;
+    bool registered = false;
     bool initialized = false, available = false;
     GLuint program = 0, vbo = 0;
     std::unordered_map<uint64_t, Layer> layers;
@@ -91,7 +93,7 @@ struct DirectDesktopCompositor::Impl {
     PFNEGLWAITSYNCKHRPROC waitSync = nullptr;
     PFNEGLDUPNATIVEFENCEFDANDROIDPROC dupFence = nullptr;
 
-    Impl(DesktopCompositor& c, EGLDisplay d) : compositor(c), display(d) {}
+    Impl(DesktopCompositor& c, EGLDisplay d, uint32_t s) : compositor(c), display(d), scope(s) {}
 
     bool Initialize()
     {
@@ -137,8 +139,6 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
         glGenBuffers(1, &vbo); glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
         available = true;
-        SetDirectDesktopConsumer(this, true);
-        OH_LOG_INFO(LOG_APP, "GPU NativeBuffer desktop consumer enabled; cpuReadBytes=0 cpuUploadBytes=0");
         return true;
     }
 
@@ -247,6 +247,11 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
     bool Update()
     {
         if (!Initialize()) return false;
+        if (!registered) {
+            if (!SetDirectDesktopConsumer(this, true, scope)) return false;
+            registered = true;
+            OH_LOG_INFO(LOG_APP, "GPU NativeBuffer consumer scope=%{public}u; cpuReadBytes=0 cpuUploadBytes=0", scope);
+        }
         bool changed = false;
         auto sources = GetDirectDesktopSources(this);
         for (auto it = layers.begin(); it != layers.end();) {
@@ -295,7 +300,7 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
             DirectDesktopLayout layout;
             bool visible = layer.current && compositor.GetDirectDesktopLayout(
                 source.token.clientPid, source.token.toplevelId, source.token.wlSurfaceId,
-                layer.width, layer.height, source.token.generation, layout);
+                layer.width, layer.height, source.token.generation, layout, scope);
             changed |= visible != layer.visible || (visible && !SameLayout(layout, layer.layout));
             layer.visible = visible;
             layer.layout = std::move(layout);
@@ -357,14 +362,14 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
     ~Impl()
     {
         for (auto& [id, layer] : layers) Retire(layer);
-        SetDirectDesktopConsumer(this, false);
+        if (registered) SetDirectDesktopConsumer(this, false, scope);
         if (vbo) glDeleteBuffers(1, &vbo);
         if (program) glDeleteProgram(program);
     }
 };
 
-DirectDesktopCompositor::DirectDesktopCompositor(DesktopCompositor& c, EGLDisplay d)
-    : impl_(std::make_unique<Impl>(c, d)) {}
+DirectDesktopCompositor::DirectDesktopCompositor(DesktopCompositor& c, EGLDisplay d, uint32_t scope)
+    : impl_(std::make_unique<Impl>(c, d, scope)) {}
 DirectDesktopCompositor::~DirectDesktopCompositor() = default;
 bool DirectDesktopCompositor::Update() { return impl_->Update(); }
 void DirectDesktopCompositor::Draw(uint32_t root, int w, int h, const FitRect& fit)

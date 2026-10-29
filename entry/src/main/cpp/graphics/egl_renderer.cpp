@@ -1024,14 +1024,19 @@ void EglRenderer::RenderLoop() {
                 toplevelId_.load(std::memory_order_relaxed), nativeVsync ? "NativeVSync" : "deadline-60Hz");
 
     std::unique_ptr<winehua::direct::DirectDesktopCompositor> directDesktop;
-    if (compositor_.Policy().RootCompositing())
-        directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(compositor_, display_);
+    directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(
+        compositor_, display_, compositor_.Policy().RootCompositing() ? 0 : GetToplevelId());
 
     bool wasPaused = false;
     uint32_t lastIdentity = GetToplevelId();
     while (running_) {
         const uint32_t identity = GetToplevelId();
         if (identity != lastIdentity) {
+            // Retire old imported frames before the new window claims queues.
+            if (!compositor_.Policy().RootCompositing()) {
+                directDesktop.reset();
+                directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(compositor_, display_, identity);
+            }
             rendered = false;
             lastDrawW_ = lastDrawH_ = 0;
             previousZeroCopyScene = {};

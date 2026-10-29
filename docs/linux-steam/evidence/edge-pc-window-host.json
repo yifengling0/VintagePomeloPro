@@ -1,0 +1,119 @@
+{
+  "scope": "MatePad Edge PC-mode Wine/Steam host windows",
+  "baseCommit": "58d2a9b56e4f721fecda655258cfaa925bf2787a",
+  "sourceState": "uncommitted changes preserved; no blanket commit/reset",
+  "reference": {
+    "repository": "https://github.com/winehua/WineHua",
+    "branch": "main-ui",
+    "revision": "7725c536047b"
+  },
+  "device": {
+    "deviceType": "tablet",
+    "model": "QXS-W00",
+    "system": "OpenHarmony-7.0.0.105",
+    "transport": "USB"
+  },
+  "candidateChanges": [
+    "Read/observe settings.sceneboard.ispcmode in USER_PROPERTY; retain observer with live Ability owners; preserve static fallback and the last valid value on settings read failures.",
+    "PC windows keep system workspace orientation. Fusion session chooses Ability on PC and subwindow on tablet; the carrier remains pinned throughout the session.",
+    "Replace shared pending-ID FIFO with LocalStorage identity for toplevel, modal and popup scenes.",
+    "Desktop root has one scene owner. PC virtual desktop uses letterbox mapping and no tablet corner padding; surface resizes do not rewrite fixed desktop geometry.",
+    "Publish vdImmersive only after FULL_SCREEN; allow retry after request failure; guard intermediate MAXIMIZE during restoration. Honor floating preference and compare the actual window-mode key.",
+    "Managed GDI and GPU-capable windows share the PluginManager compositor; NativeBuffer Direct queue consumers retain per-toplevel isolation and fence synchronization without CPU image readback.",
+    "Managed title drag is owned by WMS and does not modify the Wayland virtual origin.",
+    "Border dragging marks resizing configures and suppresses Wine-to-host geometry feedback until the final content acknowledgment or a bounded resize-end fallback. Host configure requests drain on the Wayland event thread.",
+    "One IME coordinator attaches to the actual host window after Wine activates editable focus, follows WINDOW_ACTIVE/INACTIVE across visible PC windows, and removes only its own callbacks. Delayed callbacks cannot submit to a different host.",
+    "An attached IME delivers Enter through sendFunctionKey; legacy orphan-key-up synthesis remains available only when no IME session owns input."
+  ],
+  "validation": {
+    "releaseArm64Hap": "PASS",
+    "edgeWindowRegression": "PASS",
+    "mouseAndTwoFingerInput": "PASS",
+    "steamWindowHostRegression": "PASS",
+    "desktopOutputOrientation": "PASS",
+    "gitDiffCheck": "PASS",
+    "ciRegistration": "added; remote CI not run",
+    "wineImeRegression": "PASS; focus events, async ownership, deletes, composition, attach recovery, Enter ownership",
+    "managedNativeRouteAndScope": "PASS; ASan/UBSan production route, Direct scopes and move dispatch",
+    "hostResizeProtocolQueue": "PASS; production input queue coverage completed in prior phase",
+    "latestReleaseArm64Hap": "PASS; incremental release build and Windows CLI signing verify"
+  },
+  "deviceValidation": {
+    "result": "PASS for the tested host/window/input paths; the untested items below remain open",
+    "debugInstall": {
+      "result": "PASS",
+      "method": "Windows CLI hap-sign-tool using existing local signing material and an Edge-authorized debug profile"
+    },
+    "fusionGdi": "PASS; Notepad edit area and menus render; initial black-window route fixed",
+    "cornersAndBorderResize": {
+      "result": "PASS",
+      "widthPx": [
+        1976,
+        1776
+      ],
+      "heightPx": [
+        1482,
+        1322
+      ],
+      "appearance": "Wine content follows the host surface; no persistent letterbox; system rounded corners retained"
+    },
+    "managedMaximizeRestore": {
+      "result": "PASS",
+      "fullscreenPx": [
+        3120,
+        2080
+      ],
+      "restoredContentPx": [
+        1776,
+        1322
+      ],
+      "letterboxOffsetAfterSettlePx": [
+        0,
+        0
+      ]
+    },
+    "managedMinimizeRestore": "PASS; Wine minimize button followed by the system dock thumbnail returns to the prior window size and content",
+    "titleDrag": "PASS; touch and injected mouse drag change WMS position without accumulating a virtual-origin offset",
+    "chineseIme": {
+      "result": "PASS",
+      "path": "Injected physical key codes -> system pinyin candidates -> Space -> Wine text-input commit",
+      "windowTransfer": "Two real Wine windows; dock activation transfers the IME host; Chinese commits reach the selected window",
+      "enter": "Latest candidate: one Enter after Chinese commit moves the status from row 1 to row 2, column 1",
+      "delete": "Latest candidate: Backspace joins the line, Left and Delete remove the character; document returns to row 1, column 1",
+      "candidatePlacement": "System default position; exact caret positioning is not implemented"
+    },
+    "virtualDesktop": {
+      "result": "PASS in the earlier phase of this same Edge validation",
+      "screenPx": [
+        3120,
+        2080
+      ],
+      "verified": [
+        "fullscreen",
+        "restore",
+        "menu click coordinate mapping"
+      ],
+      "latestChange": "Subsequent changes address managed sizing and IME ownership; no virtual-desktop coordinate transform was changed"
+    },
+    "notVerified": [
+      "Actual ARM64 Linux Steam rendering on Edge (this app install has no full Steam components)",
+      "Managed D3D11/VirGL game GPU presentation on Edge",
+      "Physical hardware mouse/keyboard devices (device input was injected)",
+      "Live PC/tablet mode switching on the device (policy and carrier behavior have host regression coverage)"
+    ]
+  },
+  "candidate": {
+    "name": "VintagePomeloPro-1.5.2-edge-debug-signed.hap",
+    "bytes": 642739070,
+    "sha256": "df2a5a9e9bf09aca0728fcb5ebac67c347d9f2588f4e552003675f84e8bace0b",
+    "unsignedSha256": "5ad2a1cc50024710056a78f1d1e443bbd9d6471cc71474ff77a60dfefa790e50",
+    "libentrySha256": "43ad48b3d5af3c75523f59eacab3aed9ac1d7573f230c0c3c5bddf00c205a0f8",
+    "signatureVerified": true,
+    "profile": "debug",
+    "edgeAuthorized": true,
+    "tool": "Windows hap-sign-tool",
+    "accountSecretsPersisted": false
+  },
+  "userData": "App updated in place; test Notepad documents were not saved. No game, save, account, Steam component or other app data was removed.",
+  "updated": "2026-10-29"
+}

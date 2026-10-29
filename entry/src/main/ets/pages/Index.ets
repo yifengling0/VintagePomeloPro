@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { LauncherSupportActions } from '../components/LauncherSupportActions';
 import { DeckHome } from '../components/hmosdeck/DeckHome';
 import { LinuxSteamSessionService } from '../service/LinuxSteamSessionService';
@@ -247,6 +248,7 @@ struct Index {
   private launchChain: Promise<void> = Promise.resolve();
   // 浮窗模式: 桌面由 Index 承载 (main_ui 同构) — 悬浮窗态小窗缩略 / 全屏态铺满
   @StorageProp('desktopActive') desktopActive: boolean = false;
+  @StorageProp('desktopEmbeddedHost') desktopEmbeddedHost: boolean = false;
   @State @Watch('onLauncherVisibleChange') private launcherVisible: boolean = true;
   // 浮窗模式: overlay 缩小按钮经此通知 Index 缩回悬浮窗
   @StorageProp('desktopLauncherVisible') @Watch('onDesktopLauncherVisibleChange') desktopLauncherVisible: boolean = false;
@@ -286,6 +288,7 @@ struct Index {
   // 悬浮窗态 (launcherVisible=true): 小窗缩略 + 提示文字, 点击放大/按住拖动;
   // 全屏态 (launcherVisible=false): 铺满当前画面, 缩小按钮缩回小窗。
   private showDesktopLayer(): boolean {
+    if (!this.desktopEmbeddedHost) return false;
     if (this.settings.desktopWindowMode !== DesktopWindowMode.FLOATING) return false;
     if (!DeviceCapabilityPolicy.isTabletDevice() && !DeviceCapabilityPolicy.isPhoneDevice()) return false;
     if (!this.desktopActive) return false;
@@ -385,6 +388,7 @@ struct Index {
   }
 
   private restoreTabletLauncherOrientation(target: window.Window): void {
+    if (DeviceCapabilityPolicy.usesManagedWineWindows()) return;
     // DesktopAbility owns its requested game orientation. The launcher owns
     // sensor rotation and must reclaim it when shown after that desktop.
     if (this.showDesktopLayer() && !this.launcherVisible) return;
@@ -673,94 +677,8 @@ struct Index {
     return this.titleContentTopInsetVp;
   }
 
-  // -- IME: Wine 文本框聚焦拉起系统软键盘 (对齐上游 54d188d) --
-  private imeController: inputMethod.InputMethodController | null = null;
-
   private setupIme(): void {
-    testNapi.setImeCallback((active: number, x: number, y: number, w: number, h: number) => {
-      hilog.info(DOMAIN, 'IME', '[cb] active=%{public}d rect=[%{public}d,%{public}d %{public}dx%{public}d]',
-        active, x, y, w, h);
-      if (active === 1) {
-        this.imeAttach();
-      } else {
-        this.imeDetach();
-      }
-    });
-  }
-
-  private imeAttach(): void {
-    try {
-      const controller = inputMethod.getController();
-      this.imeController = controller;
-      // 每次激活都 attach; 先清掉已注册回调, 否则 on() 累积导致重复注入
-      controller.off('insertText');
-      controller.off('deleteLeft');
-      controller.off('deleteRight');
-      controller.off('sendKeyboardStatus');
-      controller.off('setPreviewText');
-      controller.off('sendFunctionKey');
-      const attr: inputMethod.InputAttribute = {
-        textInputType: inputMethod.TextInputType.TEXT,
-        // NEWLINE: 软键盘显示"换行"键。软键盘回车在本设备走 sendFunctionKey
-        // (onKeyEvent 收不到), 由 sendFunctionKey 回调注入回车 down+up 实现换行。
-        enterKeyType: inputMethod.EnterKeyType.NEWLINE
-      };
-      const cfg: inputMethod.TextConfig = { inputAttribute: attr };
-      controller.attach(true, cfg).then(() => {
-        controller.on('insertText', (text: string) => {
-          testNapi.wineTextInputCommit(text);   // 提交文本 → Wine commit_string
-        });
-        controller.on('deleteLeft', (len: number) => {
-          testNapi.imeBackspace();              // 退格 → Wine delete_surrounding
-        });
-        controller.on('deleteRight', (len: number) => {
-          testNapi.imeBackspace();
-        });
-        controller.on('sendKeyboardStatus', (status: inputMethod.KeyboardStatus) => {
-          hilog.info(DOMAIN, 'IME', '[keyboardStatus] %{public}d', status);
-        });
-        controller.on('setPreviewText', (text: string, range: inputMethod.Range) => {
-          testNapi.wineTextInputPreedit(text);  // 预上屏 → Wine preedit
-        });
-        // 软键盘回车 (DONE/NEWLINE 功能键): 本设备 onKeyEvent 收不到软键盘回车,
-        // 在 sendFunctionKey 回调直接向激活窗口注入回车 down+up 实现换行
-        controller.on('sendFunctionKey', (fk: inputMethod.FunctionKey) => {
-          hilog.info(DOMAIN, 'IME-TEST', '[sendFunctionKey] enterKeyType=%{public}d (0 UNSPEC 6 DONE 8 NEWLINE)',
-            fk.enterKeyType);
-          if (fk.enterKeyType === inputMethod.EnterKeyType.DONE ||
-              fk.enterKeyType === inputMethod.EnterKeyType.NEWLINE) {
-            const router = InputRouter.getInstance();
-            if (router.getActiveToplevel() > 0) {
-              router.sendKey(EVDEV_KEY_ENTER, true);
-              router.sendKey(EVDEV_KEY_ENTER, false);
-            }
-          }
-        });
-      }).catch((err: BusinessError) => {
-        hilog.error(DOMAIN, 'IME', '[attach] FAILED code=%{public}d msg=%{public}s', err.code, err.message);
-      });
-    } catch (e) {
-      hilog.error(DOMAIN, 'IME', '[attach] EXCEPTION: %{public}s', JSON.stringify(e));
-    }
-  }
-
-  private imeDetach(): void {
-    const c = this.imeController;
-    if (c) {
-      try {
-        c.off('insertText');
-        c.off('deleteLeft');
-        c.off('deleteRight');
-        c.off('sendKeyboardStatus');
-        c.off('setPreviewText');
-        c.off('sendFunctionKey');
-        c.hideTextInput();
-        c.detach();
-      } catch (e) {
-        hilog.error(DOMAIN, 'IME', '[detach] EXCEPTION: %{public}s', JSON.stringify(e));
-      }
-      this.imeController = null;
-    }
+    WineImeCoordinator.getInstance().initialize();
   }
 
   aboutToAppear(): void {

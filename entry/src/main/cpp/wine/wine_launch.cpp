@@ -397,6 +397,7 @@ static winehua::SessionEnvPolicy SessionPolicyFromLaunch(const LaunchParams& p, 
     s.audioBootstrapFd = audioFd;
     s.d3dBackend = p.d3dBackend;
     s.dxvkBackend = p.dxvkBackend;
+    s.extraEnv = p.cpuEnvironment;
     return s;
 }
 
@@ -439,6 +440,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
     // (wineserver 是纯 Unix ELF, 不能走 wine loader 的 PE 解析)。
     {
         winehua::SpawnRequest wsReq{winehua::SpawnKind::Wineserver};
+        wsReq.env = p->cpuEnvironment;
         // gamepad env 必须在此注入: winedevice (winebus 加载方) 是 wineserver
         // 的服务进程, env 继承自 wineserver。只注入 wineboot/explorer 链
         // (BuildSessionEnv) 时 winebus 读不到这些键, 门禁/模式全吃缺省 —
@@ -530,6 +532,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
         wbReq.desktopSurface = ws->IsDesktopMode();
         wbReq.env = {"LANG=" + p->wineLang + ".UTF-8",
                      "LC_ALL=" + p->wineLang + ".UTF-8"};
+        wbReq.env.insert(wbReq.env.end(), p->cpuEnvironment.begin(), p->cpuEnvironment.end());
         // wineboot 阶段也加载 winebus (winedevice 由 wineserver 拉起, 可能先于
         // 本 spawn 或后于它), 键注入与 wineserver 保持一致, 模式不靠缺省。
         winehua::controller::AppendWineGamepadEnv(wbReq.env);
@@ -584,6 +587,7 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
         winehua::SpawnRequest wbReq{winehua::SpawnKind::Wineboot};
         wbReq.env = {"LANG=" + p->wineLang + ".UTF-8",
                      "LC_ALL=" + p->wineLang + ".UTF-8"};
+        wbReq.env.insert(wbReq.env.end(), p->cpuEnvironment.begin(), p->cpuEnvironment.end());
         winehua::controller::AppendWineGamepadEnv(wbReq.env);
         const pid_t childPid = SpawnForLaunch(p, wbReq);
         if (childPid <= 0) {
@@ -597,7 +601,11 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
             return false;
         }
         OH_LOG_WARN(LOG_APP, "[Launch-Async] wineboot --init pid=%{public}d", childPid);
-        if (!WaitForLaunch(p, [childPid]() { return IsLaunchChildExited(childPid); }, 45000)) {
+        // A cold host can still be starting service children at 45 seconds.
+        // Match the bounded prefix-init budget; cancellation remains immediate.
+        if (!WaitForLaunch(p, [childPid]() { return IsLaunchChildExited(childPid); }, 120000)) {
+            OH_LOG_ERROR(LOG_APP, "[Launch-Async] wineboot seed wait ended before exit pid=%{public}d current=%{public}d budget_ms=120000",
+                         childPid, LaunchCurrent(p) ? 1 : 0);
             EmitLaunchState(p, "state:failed:wineboot");
             return false;
         }

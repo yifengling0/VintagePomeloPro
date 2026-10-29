@@ -282,7 +282,7 @@ void InputInjector::InjectKeyboardEnter(uint32_t tl, wl_resource* surface) {
     OH_LOG_INFO(LOG_APP, "[Input] InjectKbdEnter OK sent=%{public}d", nSent);
     // IME: keyboard enter → text-input enter (Wine 收到后 enable, 等待文本框
     // SetIMECompositionRect → 非零光标矩形 → TextInput 判定激活)
-    TextInput::GetInstance()->OnKeyboardEnter(surface);
+    TextInput::GetInstance()->OnKeyboardEnter(tl, surface);
 }
 
 void InputInjector::InjectKeyboardKey(uint32_t key, uint32_t state) {

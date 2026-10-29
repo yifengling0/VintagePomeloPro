@@ -8,7 +8,9 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/filesystem_compat.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
     "entry/src/main/cpp/linux_steam/gnu_fixture/posix_compat.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
     "entry/src/main/cpp/linux_steam/gnu_fixture/syscall_compat.S": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json"
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json",
+    "entry/src/main/cpp/linux_steam/native_loader.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/socket_metadata.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json"
   },
   "sourceInputs": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",

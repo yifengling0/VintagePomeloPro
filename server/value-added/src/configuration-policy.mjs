@@ -9,7 +9,7 @@ const keys = {
   vintage_pomelo_input_profiles: ['profiles_v6', 'deleted_profiles_v1']
 };
 const globalKeys = ['defaultDisplayMode','wineLanguage','desktopOrientation','desktopWindowMode','keepScreenOn',
-  'box64Preset','desktopInputProfileId','viewMode','uiSkin','consoleCardLayout','consolePalette','themeMode','useGlassEffect',
+  'wineTranslationEngine','box64Preset','desktopInputProfileId','viewMode','uiSkin','consoleCardLayout','consolePalette','themeMode','useGlassEffect',
   'virtualInputEnabled','showVirtualControls','autoHideVirtualControls','controlBarDirection','controlBarPositionX',
   'controlBarPositionY','virtualMouseConfig','controlOpacity','gamepadDeadzone','controllerOutputMode','outputScale',
   'd3dRendererPreference','preserveUserDataOnReset','showFpsHud','performanceHud'];

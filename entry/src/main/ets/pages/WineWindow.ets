@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { AxisEventGate } from '../service/InputEventGate';
 import { hilog } from '../service/LogService';
 import testNapi from 'libentry.so';
@@ -36,7 +37,8 @@ class WineXComponentController extends XComponentController {
       const h = Math.round(rect.surfaceHeight / s);
       hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceChanged tl=%{public}d → notifyToplevelResize(%{public}d, %{public}d)',
         this.toplevelId, w, h);
-      testNapi.notifyToplevelResize(this.toplevelId, w, h);
+      testNapi.notifyToplevelResize(this.toplevelId, w, h,
+        WineWindowManager.getInstance().isHostWindowResizing(this.toplevelId));
     } catch (e) {
       hilog.error(DOMAIN, 'WineWindow', 'ERR onSurfaceChanged resizeRenderer: %{public}s', JSON.stringify(e));
     }
@@ -53,13 +55,13 @@ class WineXComponentController extends XComponentController {
   }
 }
 
-@Entry
+@Entry({ useSharedStorage: true })
 @Component
 struct WineWindow {
   private axisTraceCount: number = 0;
   private axisEventGate: AxisEventGate = new AxisEventGate();
   controller: WineXComponentController = new WineXComponentController();
-  @State toplevelId: number = 0;
+  @LocalStorageProp('wineToplevelId') toplevelId: number = 0;
   @State surfacePxW: number = 1;
   @State surfacePxH: number = 1;
 
@@ -98,8 +100,7 @@ struct WineWindow {
   private scrollLogCounter: number = 0;
 
   aboutToAppear(): void {
-    // 关键: aboutToAppear 是 loadContent 的同步调用, 在下一个 Ability 覆盖前读取
-    this.toplevelId = testNapi.getCurrentToplevelId() as number;
+    // LocalStorage is passed by the owner before this scene is constructed.
     // 同步设置给 controller: 保证 onSurfaceCreated 拿到正确的 toplevelId
     this.controller.toplevelId = this.toplevelId;
     hilog.info(DOMAIN, 'WineWindow', 'aboutToAppear tl=%{public}d', this.toplevelId);
@@ -245,12 +246,11 @@ struct WineWindow {
                 testNapi.sendPointerEvent(this.toplevelId, MouseAction.Press, this.pendingPx, this.pendingPy, btnLeft);
                 testNapi.sendPointerEvent(this.toplevelId, MouseAction.Move, px, py, btnLeft);
               } else if (this.isDragging) {
-                // Pad 多窗口 (subWindow 承载): 触摸拖动 wine 标题栏 → wine 已发
+                // Managed window (Ability/subWindow): 触摸拖动 wine 标题栏 → wine 已发
                 // move 请求 (moveGrabPending), 由 OHOS startMoving 接管系统拖拽。
                 // 必须在触摸路径处理 — 本状态机的合成 mouse Move 被守卫吞掉,
                 // onMouse 分支到不了。startMoving 后系统接管。
-                if (WineWindowManager.getInstance().shouldStartMoving(this.toplevelId) &&
-                    WineWindowManager.getInstance().fusionUsesSubWindow()) {
+                if (WineWindowManager.getInstance().shouldStartMoving(this.toplevelId)) {
                   try {
                     const win = WineWindowManager.getInstance().getWindow(this.toplevelId);
                     if (win) {
@@ -438,7 +438,8 @@ struct WineWindow {
       if (evdevCode === EVDEV_KEY_ENTER) {
         if (pressed) {
           this.lastEnterDownTs = Date.now();
-        } else if (Date.now() - this.lastEnterDownTs > WineWindow.ENTER_SYNTH_WINDOW_MS) {
+        } else if (Date.now() - this.lastEnterDownTs > WineWindow.ENTER_SYNTH_WINDOW_MS &&
+          !WineImeCoordinator.getInstance().hasAttachedSession()) {
           hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] ENTER SYNTH down (missing down)');
           testNapi.sendKeyEvent(this.toplevelId, EVDEV_KEY_ENTER, true);
         }

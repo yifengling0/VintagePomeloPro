@@ -1,0 +1,543 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-29",
+  "baseCommit": "58d2a9b56e4f721fecda655258cfaa925bf2787a",
+  "sourceDirty": true,
+  "scope": "Connected tablet; existing cold/product and bounded research client startup logs. No phone operations.",
+  "hostStages": [
+    {
+      "deviceLocalTime": "10-29 07:10:40.822",
+      "process": 17826,
+      "stage": "actionDispatch",
+      "elapsedMs": 457
+    },
+    {
+      "deviceLocalTime": "10-29 07:11:12.141",
+      "process": 21621,
+      "stage": "components",
+      "elapsedMs": 660
+    },
+    {
+      "deviceLocalTime": "10-29 07:11:22.301",
+      "process": 21621,
+      "stage": "wineDesktop",
+      "elapsedMs": 10160
+    },
+    {
+      "deviceLocalTime": "10-29 07:11:23.911",
+      "process": 21621,
+      "stage": "windowHost",
+      "elapsedMs": 1610
+    },
+    {
+      "deviceLocalTime": "10-29 07:11:33.023",
+      "process": 21621,
+      "stage": "nativeClientReady",
+      "elapsedMs": 9111
+    },
+    {
+      "deviceLocalTime": "10-29 07:11:33.023",
+      "process": 21621,
+      "stage": "actionDispatch",
+      "elapsedMs": 21546
+    },
+    {
+      "deviceLocalTime": "10-29 07:19:56.605",
+      "process": 29451,
+      "stage": "components",
+      "elapsedMs": 676
+    },
+    {
+      "deviceLocalTime": "10-29 07:20:07.630",
+      "process": 29451,
+      "stage": "wineDesktop",
+      "elapsedMs": 11024
+    },
+    {
+      "deviceLocalTime": "10-29 07:20:09.374",
+      "process": 29451,
+      "stage": "windowHost",
+      "elapsedMs": 1743
+    },
+    {
+      "deviceLocalTime": "10-29 07:20:50.356",
+      "process": 29451,
+      "stage": "nativeClientReady",
+      "elapsedMs": 40982
+    },
+    {
+      "deviceLocalTime": "10-29 07:20:50.356",
+      "process": 29451,
+      "stage": "actionDispatch",
+      "elapsedMs": 54430
+    },
+    {
+      "deviceLocalTime": "10-29 07:22:12.992",
+      "process": 31214,
+      "stage": "components",
+      "elapsedMs": 483
+    },
+    {
+      "deviceLocalTime": "10-29 07:22:23.115",
+      "process": 31214,
+      "stage": "wineDesktop",
+      "elapsedMs": 10123
+    },
+    {
+      "deviceLocalTime": "10-29 07:22:24.356",
+      "process": 31214,
+      "stage": "windowHost",
+      "elapsedMs": 1241
+    },
+    {
+      "deviceLocalTime": "10-29 07:22:31.980",
+      "process": 31214,
+      "stage": "nativeClientReady",
+      "elapsedMs": 7623
+    },
+    {
+      "deviceLocalTime": "10-29 07:22:31.980",
+      "process": 31214,
+      "stage": "actionDispatch",
+      "elapsedMs": 19474
+    }
+  ],
+  "officialUiTimings": [
+    {
+      "utc": "2026-10-28 23:07:00",
+      "stage": "AppStore",
+      "elapsedMs": 605.6
+    },
+    {
+      "utc": "2026-10-28 23:07:01",
+      "stage": "FriendStore (steamui)",
+      "elapsedMs": 534.5
+    },
+    {
+      "utc": "2026-10-28 23:07:01",
+      "stage": "CollectionStore",
+      "elapsedMs": 444.3
+    },
+    {
+      "utc": "2026-10-28 23:08:10",
+      "stage": "DynamicUserStore",
+      "result": "fetch_failed"
+    },
+    {
+      "utc": "2026-10-28 23:08:10",
+      "stage": "DynamicUserStore",
+      "elapsedMs": 68757.2
+    },
+    {
+      "utc": "2026-10-28 23:08:10",
+      "stage": "SteamApp Init - After Login total time",
+      "elapsedMs": 71382.98291015625
+    },
+    {
+      "utc": "2026-10-28 23:08:10",
+      "stage": "WaitForServicesInitialized",
+      "elapsedMs": 69609.64208984375
+    },
+    {
+      "utc": "2026-10-28 23:11:42",
+      "stage": "AppStore",
+      "elapsedMs": 655.4
+    },
+    {
+      "utc": "2026-10-28 23:11:42",
+      "stage": "FriendStore (steamui)",
+      "elapsedMs": 447.0
+    },
+    {
+      "utc": "2026-10-28 23:11:43",
+      "stage": "CollectionStore",
+      "elapsedMs": 384.8
+    },
+    {
+      "utc": "2026-10-28 23:12:52",
+      "stage": "DynamicUserStore",
+      "result": "fetch_failed"
+    },
+    {
+      "utc": "2026-10-28 23:12:52",
+      "stage": "DynamicUserStore",
+      "elapsedMs": 68851.2
+    },
+    {
+      "utc": "2026-10-28 23:12:52",
+      "stage": "SteamApp Init - After Login total time",
+      "elapsedMs": 71326.81884765625
+    },
+    {
+      "utc": "2026-10-28 23:12:52",
+      "stage": "WaitForServicesInitialized",
+      "elapsedMs": 69704.45385742188
+    },
+    {
+      "utc": "2026-10-28 23:14:29",
+      "stage": "AppStore",
+      "elapsedMs": 421.2
+    },
+    {
+      "utc": "2026-10-28 23:14:29",
+      "stage": "FriendStore (steamui)",
+      "elapsedMs": 50.2
+    },
+    {
+      "utc": "2026-10-28 23:14:29",
+      "stage": "CollectionStore",
+      "elapsedMs": 44.3
+    },
+    {
+      "utc": "2026-10-28 23:22:56",
+      "stage": "AppStore",
+      "elapsedMs": 700.1
+    },
+    {
+      "utc": "2026-10-28 23:22:57",
+      "stage": "FriendStore (steamui)",
+      "elapsedMs": 662.7
+    },
+    {
+      "utc": "2026-10-28 23:22:57",
+      "stage": "CollectionStore",
+      "elapsedMs": 175.8
+    },
+    {
+      "utc": "2026-10-28 23:27:04",
+      "stage": "AppStore",
+      "elapsedMs": 643.4
+    },
+    {
+      "utc": "2026-10-28 23:27:05",
+      "stage": "FriendStore (steamui)",
+      "elapsedMs": 611.2
+    },
+    {
+      "utc": "2026-10-28 23:27:05",
+      "stage": "CollectionStore",
+      "elapsedMs": 535.8
+    },
+    {
+      "utc": "2026-10-28 23:31:57",
+      "stage": "AppStore",
+      "elapsedMs": 559.1
+    },
+    {
+      "utc": "2026-10-28 23:31:57",
+      "stage": "FriendStore (steamui)",
+      "elapsedMs": 122.3
+    },
+    {
+      "utc": "2026-10-28 23:31:57",
+      "stage": "CollectionStore",
+      "elapsedMs": 77.9
+    },
+    {
+      "utc": "2026-10-28 23:38:44",
+      "stage": "DynamicUserStore",
+      "result": "fetch_failed"
+    },
+    {
+      "utc": "2026-10-28 23:38:44",
+      "stage": "DynamicUserStore",
+      "elapsedMs": 407690.5
+    },
+    {
+      "utc": "2026-10-28 23:38:44",
+      "stage": "SteamApp Init - After Login total time",
+      "elapsedMs": 410218.6640625
+    },
+    {
+      "utc": "2026-10-28 23:38:44",
+      "stage": "WaitForServicesInitialized",
+      "elapsedMs": 406894.4528808594
+    }
+  ],
+  "officialLoginStates": [
+    {
+      "utc": "2026-10-28 13:16:36",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 13:16:36",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 13:17:06",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 13:17:11",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 13:26:01",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 13:26:02",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 13:26:05",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 13:26:10",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 13:37:59",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 13:37:59",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 13:38:03",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 13:38:09",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 13:43:11",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 13:43:11",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 13:43:15",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 13:43:20",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 13:48:31",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 13:48:31",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 13:48:35",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 13:48:41",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 14:17:04",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 14:17:04",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 14:17:33",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 14:17:38",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 15:38:04",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 15:38:04",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 15:38:24",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 15:38:29",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 16:07:14",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 16:07:14",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 16:07:19",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 16:07:24",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 16:10:59",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 16:10:59",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 16:11:19",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 16:11:25",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 16:25:08",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 16:25:08",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 16:25:11",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 16:25:16",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 23:02:34",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 23:02:34",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 23:02:55",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 23:03:04",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 23:06:43",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 23:06:44",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 23:06:53",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 23:06:59",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 23:11:32",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 23:11:32",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 23:11:35",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 23:11:41",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 23:22:31",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 23:22:31",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 23:22:49",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 23:22:54",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 23:26:56",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 23:26:56",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 23:26:58",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 23:27:03",
+      "state": "Success"
+    },
+    {
+      "utc": "2026-10-28 23:31:47",
+      "state": "WaitingForNetwork"
+    },
+    {
+      "utc": "2026-10-28 23:31:47",
+      "state": "WaitingForServerResponse"
+    },
+    {
+      "utc": "2026-10-28 23:31:49",
+      "state": "WaitingForLibraryReady"
+    },
+    {
+      "utc": "2026-10-28 23:31:55",
+      "state": "Success"
+    }
+  ],
+  "criticalObservation": {
+    "loginStartUtc": "2026-10-28 23:31:47",
+    "loginSuccessUtc": "2026-10-28 23:31:55",
+    "dynamicUserStoreMs": 407690.5,
+    "allPostLoginServicesMs": 410218.6640625,
+    "fetchFailureUtc": "2026-10-28 23:38:44",
+    "libraryVisibleAfterFailure": true,
+    "screenshotInspected": true
+  },
+  "officialSourceInspection": {
+    "resource": "steamui/sp.js",
+    "requestPath": "/dynamicstore/userdata/",
+    "request": "fetch(url, {credentials: include})",
+    "timeoutOrAbortSignalPresent": false,
+    "failureHandling": "Official client catches fetch failure and returns fallback data; library initialization then continues."
+  },
+  "otherObservedIssues": [
+    "Repeated SDL HIDAPI/libusb discovery is noisy, but the measured ControllerStore completed in 71 ms. It does not explain the 408 s service dependency.",
+    "Earlier separate cycle had local WebSocket source-query failure. Query concurrency fix has host/sanitizer evidence; rare-failure rate is still unproven."
+  ],
+  "conclusion": "Dominant observed delay is an official optional store-data request awaited by UI initialization. Existing phase logs do not support attributing this minute-scale delay to FEX/Proton initialization or the native game GPU renderer.",
+  "limits": [
+    "Underlying fetch failure is not yet classified as DNS, TCP, TLS, proxy or server response failure.",
+    "No official Steam JS/binary changes, forced offline mode or credential-verification bypass were applied.",
+    "No before/after network-controlled test establishes whether recent source changes caused the increased request duration.",
+    "Native Banana yellow-screen/Steamworks and graphics acceptance remain separate unfinished work."
+  ],
+  "nextImplementationDecision": "Bound or defer the optional DynamicUserStore dependency while preserving real request failures, login, entitlement, cloud saves and download traffic; do not reduce a global Steam session timeout or fake a successful response."
+}

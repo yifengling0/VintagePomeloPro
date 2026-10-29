@@ -86,6 +86,7 @@ export interface ExternalImageProbeResult {
   exportFromImportedHandleTypes: number;
 }
 export interface DirectVulkanProbeResult {
+  nativeBufferMemory?: string;
   gate: string;
   status: string;
   launchMode: string;
@@ -115,7 +116,7 @@ export const runDirectVulkanProbe: (earlyPhoneFork?: boolean) => Promise<DirectV
 export const runDirectVulkanInlineProbe: () => Promise<DirectVulkanProbeResult>;
 export const preparePhoneDirectForkServer: () => number;
 export const runDirectVulkanForkServerProbe: () => Promise<DirectVulkanProbeResult>;
-export const runDirectVulkanCreateProbe: () => Promise<DirectVulkanProbeResult>;
+export const runDirectVulkanCreateProbe: (nativeMemory?: boolean) => Promise<DirectVulkanProbeResult>;
 export const runDirectVulkanSystemCreateProbe: () => Promise<DirectVulkanProbeResult>;
 export interface DirectWineIpcProbeResult {
   gate: string;
@@ -182,7 +183,7 @@ export const setHostShadowProfile: (profile: string) => boolean;
 export const launchClient: (exePath: string, argv: string[], sockPath: string, libPath: string,
   homeDir: string, d3dBackend?: string, dxvkBackend?: string, wineLang?: string,
   containerId?: string, directNcpSession?: boolean, desktopVulkanCompositor?: boolean,
-  desktopStallSeconds?: number) => number;
+  desktopStallSeconds?: number, cpuEnvironment?: string[]) => number;
 export const stopClient: () => void;
 export const stopAll: () => void;
 export const setStateCallback: (cb: (state: string) => void) => void;
@@ -308,6 +309,8 @@ export const readPerformanceCounters: (appCpu: boolean, systemCpu: boolean) => P
 export const wineTextInputCommit: (text: string) => boolean;
 export const wineTextInputPreedit: (text: string) => boolean;
 export const wineTextInputEnabled: () => boolean;
+export const wineTextInputActive: () => boolean;
+export const wineTextInputFocusedToplevel: () => number;
 /** The current native implementation accepts but ignores armed. */
 export const wineTextInputSetArmed: (armed: boolean) => void;
 export const runHostVulkanProbe: (surfaceId: BigInt, runId: string) => boolean;

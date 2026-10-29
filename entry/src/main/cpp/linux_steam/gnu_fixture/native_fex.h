@@ -80,6 +80,7 @@ public:
     }
 };
 inline bool Reject(Plan& plan,const char* stage) {plan.error=stage;return false;}
+inline bool RestoreRuntimeUsr(const std::string&,const std::string&,std::string&);
 inline bool Runtime(const std::string& path,std::string& package,std::string& family) {
     const auto actual=Canonical(path);
     for(const auto& lib:Libraries())for(const char* name:{"SteamLinuxRuntime_soldier","SteamLinuxRuntime_sniper","SteamLinuxRuntime"}) {
@@ -101,6 +102,8 @@ inline bool FindRoot(Plan& plan) {
         auto root=it->path().string()+"/files";
         if(Canonical(root)!=root)continue;
         RootInspection scoped(root);if(!scoped.valid)return Reject(plan,"runtime_rootfs_scope_failed");
+        const auto manifest=it->path().string()+"/usr-mtree.txt.gz";
+        if(!Canonical(manifest).empty()&&!RestoreRuntimeUsr(root,manifest,plan.error))return false;
         for(const char* ld:{"/lib64/ld-linux-x86-64.so.2","/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"})
             if(ElfMachine(root+ld)==62){roots.push_back(root);break;}
     }
@@ -116,7 +119,8 @@ inline bool MakePlan(int argc,char* const argv[],Plan& plan) {
     plan.compat=Canonical(Env("STEAM_COMPAT_DATA_PATH"));
     // The compatibility directory may not exist yet; only create it below an
     // existing library's compatdata, with a bounded numeric Steam AppID.
-    std::string requested=Env("STEAM_COMPAT_DATA_PATH");
+    const std::string original=Env("STEAM_COMPAT_DATA_PATH");
+    std::string requested=original;
     if(!plan.compat.empty())requested=plan.compat;
     else {
         auto parent=Canonical(fs::path(requested).parent_path().string());
@@ -126,12 +130,20 @@ inline bool MakePlan(int argc,char* const argv[],Plan& plan) {
     for(const auto& lib:Libraries()) {
         auto apps=Canonical(lib+"/steamapps");if(apps.empty())continue;
         std::string prefix=apps+"/compatdata/";
-        if(requested.compare(0,prefix.size(),prefix))continue;
-        std::string id=requested.substr(prefix.size());
+        // Cloud metadata is intentionally redirected into our private IPC
+        // directory. Validate the logical library path AND the exact mapped
+        // destination, rather than rejecting that existing filesystem layer.
+        const std::string logical=lib+"/steamapps/compatdata/";
+        const std::string normalized=fs::path(original).lexically_normal().string();
+        const bool fromLibrary=normalized.compare(0,logical.size(),logical)==0;
+        if(!fromLibrary&&requested.compare(0,prefix.size(),prefix))continue;
+        std::string id=fromLibrary?normalized.substr(logical.size()):requested.substr(prefix.size());
         if(id.empty()||id.size()>10||id[0]=='0'||id.find_first_not_of("0123456789")!=std::string::npos)continue;
         if(std::stoull(id)>4294967295ULL)continue;
-        // Do not follow a user-provided compatdata symlink outside the library.
-        if(!plan.compat.empty()&&plan.compat!=requested)continue;
+        const auto ipc=Canonical(Env("STEAMOHOS_IPC_ROOT"));
+        const auto privateBase=ipc.empty()?std::string{}:ipc+"/hmosdeck-cloud-v2-compatdata/";
+        if(requested!=prefix+id && (!fromLibrary||privateBase.empty()||requested!=privateBase+id))continue;
+        // Arbitrary compatdata symlinks outside those two scopes still fail.
         plan.compat=requested;scoped=true;
     }
     if(!scoped)return Reject(plan,"compatdata_outside_library");
@@ -165,4 +177,5 @@ inline bool MakePlan(int argc,char* const argv[],Plan& plan) {
     return true;
 }
 }
+#include "runtime_mtree.h"
 #endif

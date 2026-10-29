@@ -71,6 +71,27 @@ async function seedLegacyBackup(c,f){
  return {head,manifest};
 }
 (async()=>{
+ await test('Wine CPU choice migrates to FEX and survives settings, restart and cloud snapshot',async()=>{
+  const f=fixture();await f.initialize();
+  assert.equal(f.settings.getGlobalSettings().wineTranslationEngine,'fex');
+  const store=f.getStore('vintage_pomelo_pro');
+  await store.put('global_settings_v1',JSON.stringify({box64Preset:'performance'}));
+  f.settings.reloadConfiguration();assert.equal(f.settings.getGlobalSettings().wineTranslationEngine,'fex');
+  await store.put('global_settings_v1',JSON.stringify({wineTranslationEngine:'invalid'}));
+  f.settings.reloadConfiguration();assert.equal(f.settings.getGlobalSettings().wineTranslationEngine,'fex');
+  const value=f.settings.getGlobalSettings();value.wineTranslationEngine='box64';value.box64Preset='performance';
+  await f.settings.saveGlobalSettings(value);
+  for(const [name,arg] of [['setViewMode','grid'],['setDefaultDisplayMode','desktop'],['setShowVirtualControls',true],['setBox64Preset','stability']]) {
+    await f.settings[name](arg);assert.equal(f.settings.getGlobalSettings().wineTranslationEngine,'box64');
+  }
+  f.settings.reloadConfiguration();assert.equal(f.settings.getGlobalSettings().wineTranslationEngine,'box64');
+  const cloud=JSON.parse(Buffer.from((await f.repo.cloudSnapshot())[0].bytes).toString('utf8'));
+  const saved=cloud.modules.find(m=>m.name==='settings').entries.find(e=>e.key==='global_settings_v1');
+  assert.equal(JSON.parse(saved.value).wineTranslationEngine,'box64');
+  const restored=f.settings.getGlobalSettings();restored.wineTranslationEngine='fex';await f.settings.saveGlobalSettings(restored);
+  assert.equal(f.settings.getGlobalSettings().box64Preset,'stability','Switching away preserves the saved Box64 preset');
+  f.dispose();
+ });
  await test('complete game layout survives reinstall and a Chinese directory move',async()=>{
   const f=fixture();await f.initialize();const game=path.join(f.library,'games','游戏 A');fs.mkdirSync(game,{recursive:true});const exe=path.join(game,'game.exe');fs.writeFileSync(exe,'executable');
   const p=f.models.createDefaultInputProfile();p.id='app-legacy';p.cursorSpeed=1.8;p.elements[0].x=0.42;

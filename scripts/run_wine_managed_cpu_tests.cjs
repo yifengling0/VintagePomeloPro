@@ -15,6 +15,8 @@ const PREFIX_DIR = base + '/.wine';
 const pathExists = p => nodefs.existsSync(p);
 const hilog = { info() {} };
 const DOMAIN = 0, TAG = 'test';
+const WineTranslationEngine = { BOX64: 'box64', FEX: 'fex' };
+const normalizeWineTranslationEngine = value => value === 'box64' ? 'box64' : 'fex';
 let copies = 0, failCopy = false, failRename = false, shortRead = false;
 const fs = {
   OpenMode: { READ_ONLY: 'r' },
@@ -89,6 +91,26 @@ try {
   nodefs.unlinkSync(system32 + '/' + ec);
   service.syncManagedFexModules();
   assert.deepEqual(nodefs.readFileSync(system32 + '/' + ec), fixed);
+  service.requireSelectedCpuModule('fex');
+  assert.throws(() => service.requireSelectedCpuModule('box64'), /Box64 转译组件缺失/);
+  const box = 'wowbox64.dll';
+  nodefs.writeFileSync(native + '/' + box, '');
+  assert.throws(() => service.requireSelectedCpuModule('box64'), /Box64 转译组件缺失/);
+  nodefs.writeFileSync(native + '/' + box, fixed);
+  service.requireSelectedCpuModule('box64');
+  service.syncManagedFexModules();
+  assert.deepEqual(nodefs.readFileSync(system32 + '/' + box), fixed);
+  nodefs.writeFileSync(system32 + '/' + box, old);
+  failCopy = true;
+  assert.throws(() => service.syncManagedFexModules(), /Incomplete managed CPU module copy/);
+  assert.deepEqual(nodefs.readFileSync(system32 + '/' + box), old);
+  assert.equal(pathExists(system32 + '/' + box + '.winehua-update'), false);
+  failCopy = false;
+  service.syncManagedFexModules();
+  assert.deepEqual(nodefs.readFileSync(system32 + '/' + box), fixed);
+  const clean = base + '/clean';
+  service.syncManagedFexModules(clean);
+  for (const name of [wow, ec, box]) assert.deepEqual(nodefs.readFileSync(clean + '/drive_c/windows/system32/' + name), fixed);
   const beforeIcu = copies;
   service.syncManagedIcuModules();
   assert.equal(copies, beforeIcu, 'Historical payload without ICU record remains supported');

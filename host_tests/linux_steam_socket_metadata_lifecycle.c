@@ -103,12 +103,23 @@ int main(void) {
     int delayed_error=errno;
     REQUIRE(!clock_gettime(CLOCK_MONOTONIC,&ended));
     long elapsed=(ended.tv_sec-began.tv_sec)*1000+(ended.tv_nsec-began.tv_nsec)/1000000;
-    REQUIRE(elapsed<1600);
-    if(delayed>=0){REQUIRE(inode(delayed)==initial.inode);close(delayed);}
-    else REQUIRE(delayed_error==ETIMEDOUT||delayed_error==EIO||delayed_error==EPROTO||delayed_error==EPIPE);
+    if(delayed<0||elapsed>=300)fprintf(stderr,"head_of_line elapsed=%ld error=%d\n",elapsed,delayed_error);
+    REQUIRE(delayed>=0&&elapsed<300);
+    REQUIRE(inode(delayed)==initial.inode);close(delayed);
+    long independent_elapsed=elapsed;
     close(abandoned);poll(NULL,0,30);
     delayed=borrow(child,initial.descriptor,initial.inode);REQUIRE(delayed>=0&&inode(delayed)==initial.inode);close(delayed);
     REQUIRE(descriptors()==baseline);
+    // Several slow or abandoned readers must not delay an independent query.
+    int stalled[8];
+    for(unsigned i=0;i<8;++i){stalled[i]=query_channel(child);REQUIRE(send(stalled[i],"x",1,MSG_NOSIGNAL)==1);}
+    REQUIRE(!clock_gettime(CLOCK_MONOTONIC,&began));
+    delayed=borrow(child,initial.descriptor,initial.inode);
+    REQUIRE(!clock_gettime(CLOCK_MONOTONIC,&ended));
+    elapsed=(ended.tv_sec-began.tv_sec)*1000+(ended.tv_nsec-began.tv_nsec)/1000000;
+    REQUIRE(delayed>=0&&inode(delayed)==initial.inode&&elapsed<300);close(delayed);
+    for(unsigned i=0;i<8;++i)close(stalled[i]);
+    poll(NULL,0,80);REQUIRE(descriptors()==baseline);
     rejected(child,initial.descriptor,initial.inode+1,ESTALE);
     REQUIRE(write(commands[1],"C",1)==1);char reply;REQUIRE(read(responses[0],&reply,1)==1&&reply=='C');
     rejected(child,initial.descriptor,initial.inode,EBADF);
@@ -128,6 +139,7 @@ int main(void) {
     REQUIRE(snprintf(own_path,sizeof(own_path),"%s/%d",directory,getpid())<(int)sizeof(own_path));
     REQUIRE(!symlink(own_path,path));rejected(child,own,inode(own),EACCES);REQUIRE(!unlink(path));
     REQUIRE(descriptors()==baseline);close(own);close(commands[1]);close(responses[0]);
-    puts("SOCKET_METADATA lifecycle verified=1 queries=512 fragmented_query=1 fd_leaks=0 bounded_abandoned=1 closed_rejected=1 reused_rejected=1 wrong_peer_rejected=1 exit_cleanup=1");
+    printf("SOCKET_METADATA independent_latency_ms=%ld stalled8_latency_ms=%ld\n",independent_elapsed,elapsed);
+    puts("SOCKET_METADATA lifecycle verified=1 queries=512 fragmented_query=1 fd_leaks=0 bounded_abandoned=1 independent_queries=1 closed_rejected=1 reused_rejected=1 wrong_peer_rejected=1 exit_cleanup=1");
     return 0;
 }

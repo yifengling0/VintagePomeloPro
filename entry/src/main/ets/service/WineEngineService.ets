@@ -17,7 +17,9 @@ import {
   canTransitionEngineState,
   LaunchKind,
   resolveWinePresentationMode,
-  box64PresetEnvString
+  WineTranslationEngine,
+  normalizeWineTranslationEngine,
+  resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
 import { syncManagedSmoke } from './ManagedSmokePayloadService';
@@ -952,6 +954,7 @@ export class WineEngineService {
       const prefixDirectory = this.activePrefixMode === 'clean' ?
         FILES_BASE + '/containers/clean/prefix' : PREFIX_DIR;
       const socket = prefixDirectory + '/wine-wayland';
+      this.requireSelectedCpuModule(settings.wineTranslationEngine);
       if (this.activePrefixMode === 'clean') {
         this.syncManagedFexModules(prefixDirectory);
         this.syncManagedIcuModules(prefixDirectory);
@@ -963,15 +966,16 @@ export class WineEngineService {
       }
       // Native runs wineboot --init only for a new prefix. Existing prefixes
       // are migrated above before any wineserver process starts.
-      // proton 方案③ launchClient 12 参布局 (containerSession 语义):
+      // proton 方案③ launchClient 参数布局 (containerSession 语义):
       // exe, argv, sock, libPath, home, d3d, dxvk, lang, containerId,
-      // directNcp, desktopVulkanCompositor, desktopStallSeconds
+      // directNcp, desktopVulkanCompositor, desktopStallSeconds, cpuEnvironment
       // Native derives the automatic product/LAB transport and compositor from the applied
       // graphics policy; these booleans remain defaults for older callers.
       const wineUnixSubdir = pathExists(`${WINE_BIN}/aarch64-unix`) ? 'aarch64-unix' : 'x86_64-unix';
       const launched = testNapi.launchClient(BOX64, [], socket, WINE_BIN + ':' + WINE_BIN + '/' + wineUnixSubdir,
         homeDirectory, this.d3dBackend, this.d3dBackend, this.activeWineLanguage,
-        this.activePrefixMode === 'clean' ? 'clean' : 'default', false, false, 0);
+        this.activePrefixMode === 'clean' ? 'clean' : 'default', false, false, 0,
+        resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset));
       if (launched !== 0) {
         this.failStartup(generation, 'Wine 启动请求未被接受，请重试');
         return;
@@ -984,7 +988,7 @@ export class WineEngineService {
       hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', detail);
       // Component verification has actionable product messages. Preserve them
       // instead of serializing Error to {} and hiding the cause from the user.
-      this.failStartup(generation, detail.startsWith('Linux Steam 接口桥') ? detail :
+      this.failStartup(generation, (detail.startsWith('Linux Steam 接口桥') || detail.startsWith('Box64 转译组件')) ? detail :
         'Wine 引擎准备失败，请重试');
     }
   }
@@ -1075,7 +1079,8 @@ export class WineEngineService {
     // Carry the already-applied LAB id into the child launch. Native resolves
     // the Guest half from the same policy authority that configured Host;
     // product sessions add no experiment override.
-    const launchEnvironment = envOverrides.slice();
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset).concat(envOverrides);
     // 旧 Windows 游戏（梦幻群侠传/XYQ 系）用 GDI 把文字画进位图后再二值化成字形
     // 遮罩：启动器.exe 0x4a5b40 只把 > 0x7ffe 的像素当笔画。灰度抗锯齿会把 12px
     // 汉字笔画变成灰色，于是被当成透明，游戏内文字只剩零散笔画碎片，看起来像乱码。
@@ -1748,12 +1753,22 @@ export class WineEngineService {
     }
   }
 
+  private requireSelectedCpuModule(engine: string): void {
+    if (normalizeWineTranslationEngine(engine) !== WineTranslationEngine.BOX64) return;
+    const module = WINE_BIN + '/aarch64-windows/wowbox64.dll';
+    if (!pathExists(module) || !fs.statSync(module).isFile() || fs.statSync(module).size === 0) {
+      throw new Error('Box64 转译组件缺失，请重新安装完整 Wine 运行组件');
+    }
+  }
+
   private syncManagedFexModules(prefixDirectory: string = PREFIX_DIR): void {
     // These two CPU modules are paired with the app's Wine runtime. They are
     // ordinary MinGW PE files, so wineboot's WineFakeDlls update skips them.
     // Run before starting Wine, including after an interrupted runtime refresh.
     const system32 = prefixDirectory + '/drive_c/windows/system32';
     const names: string[] = ['libwow64fex.dll', 'libarm64ecfex.dll'];
+    const boxModule = WINE_BIN + '/aarch64-windows/wowbox64.dll';
+    if (pathExists(boxModule)) names.push('wowbox64.dll');
     if (!names.some((name: string): boolean => pathExists(WINE_BIN + '/aarch64-windows/' + name))) {
       return; // Historical x64-only Wine runtime.
     }
@@ -1865,6 +1880,7 @@ export class WineEngineService {
     const prefixMatches = this.prefixVersionMatches(bundledVersion);
     const fontSubstitutesCurrent = this.prefixFontSubstitutesCurrent();
     if (missingBefore.length === 0 && versionMatches) {
+      this.requireSelectedCpuModule(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine);
       this.syncManagedFexModules();
       this.syncManagedIcuModules();
       await ManagedLinuxSteamBridgeService.synchronize(WINE_ROOT, PREFIX_DIR);
@@ -1929,6 +1945,7 @@ export class WineEngineService {
       if (missingAfter.length > 0) {
         throw new Error('Wine runtime incomplete after extract: ' + missingAfter.join(', '));
       }
+      this.requireSelectedCpuModule(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine);
       this.syncManagedFexModules();
       this.syncManagedIcuModules();
       await ManagedLinuxSteamBridgeService.synchronize(WINE_ROOT, PREFIX_DIR);

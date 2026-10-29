@@ -155,7 +155,24 @@ export enum D3DRendererPreference {
   VIRGL = 'virgl'
 }
 
-/** Box64 兼容性预设：默认档不注入任何覆盖（沿用系统当前已验证的配置）。 */
+/** Original OHOS Wine WoW64 backend selection. */
+export enum WineTranslationEngine {
+  FEX = 'fex',
+  BOX64 = 'box64'
+}
+
+export function normalizeWineTranslationEngine(value: string): WineTranslationEngine {
+  return value === WineTranslationEngine.BOX64 ? WineTranslationEngine.BOX64 : WineTranslationEngine.FEX;
+}
+
+/** OHOS Wine WoW64 only. GNU/Linux Steam keeps its own Proton/FEX policy. */
+export function resolveWineCpuEnvironment(engine: string, preset: string): string[] {
+  if (normalizeWineTranslationEngine(engine) === WineTranslationEngine.BOX64) {
+    return ['WINEHUA_WOW64_ENGINE=box'].concat(resolveBox64PresetEnv(preset));
+  }
+  return ['WINEHUA_WOW64_ENGINE=fex'];
+}
+
 export const BOX64_PRESET_DEFAULT = 'default';
 export const BOX64_PRESET_STABILITY = 'stability';
 export const BOX64_PRESET_CONSERVATIVE = 'conservative';
@@ -536,6 +553,8 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
 }
 
 export interface GlobalSettings {
+  /** Original OHOS Wine 32-bit WoW64 backend; ARM64EC remains unchanged. */
+  wineTranslationEngine: WineTranslationEngine;
   defaultDisplayMode: DisplayMode;
   /** Windows/Wine system language. Existing installs migrate to Chinese. */
   wineLanguage: WineLanguage;
@@ -1192,6 +1211,7 @@ export function createBuiltInInputProfiles(): InputProfile[] {
 
 export function createDefaultGlobalSettings(): GlobalSettings {
   return {
+    wineTranslationEngine: WineTranslationEngine.FEX,
     defaultDisplayMode: DisplayMode.DESKTOP,
     wineLanguage: WineLanguage.CHINESE,
     desktopOrientation: ScreenOrientationSetting.SENSOR_LANDSCAPE,

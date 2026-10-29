@@ -182,7 +182,10 @@ public:
         if (!Check(vkCreateDescriptorPool(g.Device(), &pool, nullptr, &pool_), "scene_descriptor_pool")) return false;
         if (!CreatePipeline()) return false;
         cadence_.Initialize();
-        SetDirectDesktopConsumer(this, true);
+        if (!SetDirectDesktopConsumer(this, true)) {
+            OH_LOG_ERROR(LOG_APP, "Vulkan desktop queue ownership already held");
+            return false;
+        }
         desktopVulkanActive.store(true, std::memory_order_relaxed);
         OH_LOG_INFO(LOG_APP, "Vulkan desktop enabled surface=%{public}llu extent=%{public}ux%{public}u slots=2 preTransform=identity directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
                     (unsigned long long)surfaceId, g.OutputExtent().width, g.OutputExtent().height);

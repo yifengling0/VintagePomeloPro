@@ -267,6 +267,11 @@ void WaylandServer::StartExternalResizeGrabAt(uint32_t id, uint32_t serial, wl_f
 }
 
 bool WaylandServer::ProcessMoveGrabMotion(wl_fixed_t wx, wl_fixed_t wy) {
+    // WMS moves managed outputs. Until startMoving takes over, local input
+    // still uses the unchanged host origin; mutating the virtual origin here
+    // feeds each motion back into the next and makes coordinates run away.
+    if (Policy().OhosWindowPerToplevel() && moveGrab_.IsActive() && !moveGrab_.ResizeTarget())
+        return true;
     // 注意: InputManager 在 grab 激活时注入的是桌面全局坐标 (wl_fixed_t),
     // 这里截断为整数全局坐标交 MoveGrabHandler 绝对定位
     if (!moveGrab_.ProcessMoveGrabMotion(toplevelMgr_, wl_fixed_to_int(wx),

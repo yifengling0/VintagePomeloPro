@@ -25,8 +25,16 @@ const TAG = 'WineWM';
 const DESKTOP_SESSION_ID = 'desktop';
 export type SessionAssociationCallback = (sessionId: string, clientPid: number, toplevelId: number) => void;
 
+class HostResizeState {
+  width: number = 0;
+  height: number = 0;
+  ending: boolean = false;
+  timer: number = -1;
+}
+
 export class WineWindowManager {
   private static instance: WineWindowManager | null = null;
+  private hostResizes: Map<number, HostResizeState> = new Map();
   private windowStage: window.WindowStage | null = null;
   private mainWindow: window.Window | null = null;
   private uiAbilityContext: common.UIAbilityContext | null = null;
@@ -67,6 +75,12 @@ export class WineWindowManager {
   // 自身藏光标 (启动瞬时 toplevelId==desktopRootId)"与"游戏子窗口真相对模式"。
   private pointerLockToplevel: number = 0;
   private desktopRootId: number = 0;
+  private desktopEmbeddedHost: boolean | null = null;
+
+  usesEmbeddedDesktopHost(): boolean {
+    return this.desktopEmbeddedHost ?? (!DeviceCapabilityPolicy.usesManagedWineWindows() &&
+      AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING);
+  }
   private startupForegroundGuard: (() => boolean) | null = null;
   // 桌面启动器/悬浮窗可见性 (浮窗模式): Index 悬浮窗态=true → DesktopLayer
   // 跳过 root resize (桌面分辨率保持全屏, 缩略显示靠 letterbox); 全屏态=false
@@ -117,13 +131,19 @@ export class WineWindowManager {
   // -- Pad 多窗口承载判定: 非 desktop 模式下, 每窗口是独立 UIAbility 主窗口
   //    (PC/2in1 现状) 还是主窗口 stage 下的 subWindow (Pad 多窗口)。
   //    调试键 winehua.fusionHost 可跨设备强制 (subwindow|ability)。
+  private fusionSubWindowHost: boolean | null = null;
+
+  private resolveFusionSubWindowHost(): boolean {
+    const forced = AppStorage.get<string>('winehua.fusionHost') ?? '';
+    if (forced === 'subwindow' || forced === 'ability') return forced === 'subwindow';
+    return DeviceCapabilityPolicy.isTabletDevice() && !DeviceCapabilityPolicy.usesManagedWineWindows();
+  }
+
   fusionUsesSubWindow(): boolean {
     if (this.isDesktopMode) return false;
-    if (DeviceCapabilityPolicy.isTabletDevice()) {
-      return AppStorage.get<string>('winehua.fusionHost') !== 'ability';
-    }
-    const forced = AppStorage.get<string>('winehua.fusionHost') ?? '';
-    return forced === 'subwindow';
+    // Keep a live session's carrier stable across PC/tablet mode changes.
+    // A new session picks up the current mode without rebuilding live surfaces.
+    return this.fusionSubWindowHost ?? this.resolveFusionSubWindowHost();
   }
 
   // toplevelId -> UIAbilityContext (用于 terminateSelf)
@@ -272,6 +292,9 @@ export class WineWindowManager {
 
   setPresentationMode(mode: WinePresentationMode): void {
     HostWindowTasks.getInstance().reset();
+    this.fusionSubWindowHost = null;
+    this.desktopEmbeddedHost = null;
+    AppStorage.setOrCreate('desktopEmbeddedHost', false);
     this.startupForegroundGuard = null;
     this.presentationMode = mode;
     this.isDesktopMode = mode === WinePresentationMode.DESKTOP;
@@ -423,6 +446,45 @@ export class WineWindowManager {
       toplevelId, this.abilityContexts.size);
   }
 
+  isHostWindowResizing(id: number): boolean {
+    return this.hostResizes.has(id);
+  }
+
+  onHostWindowRectChange(id: number, change: window.RectChangeOptions): void {
+    if (this.isDesktopMode || !this.windows.has(id)) return;
+    const reason = change.reason;
+    const drag = reason === window.RectChangeReason.DRAG_START || reason === window.RectChangeReason.DRAG;
+    const end = reason === window.RectChangeReason.DRAG_END;
+    if (!drag && !end) return;
+    let state = this.hostResizes.get(id);
+    if (!state) {
+      if (!drag) return;
+      state = new HostResizeState();
+      this.hostResizes.set(id, state);
+    }
+    if (state.timer >= 0) clearTimeout(state.timer);
+    const scale = this.getEffectiveScale();
+    state.width = Math.max(1, Math.round(change.rect.width / scale));
+    state.height = Math.max(1, Math.round(change.rect.height / scale));
+    state.ending = end;
+    testNapi.notifyToplevelResize(id, state.width, state.height, true);
+    if (end) {
+      // Normally finish after Wine acknowledges this exact content size. The
+      // bound also ends size-move when an unresponsive client never commits.
+      state.timer = setTimeout((): void => this.finishHostResize(id), 500);
+      const accepted = this.lastResizeWineDim.get(id);
+      if (accepted && accepted[0] === state.width && accepted[1] === state.height) this.finishHostResize(id);
+    }
+  }
+
+  private finishHostResize(id: number): void {
+    const state = this.hostResizes.get(id);
+    if (!state) return;
+    if (state.timer >= 0) clearTimeout(state.timer);
+    this.hostResizes.delete(id);
+    testNapi.notifyToplevelResizeEnd(id);
+  }
+
   registerWindow(toplevelId: number, win: window.Window): void {
     this.windows.set(toplevelId, win);
     hilog.info(DOMAIN, TAG, '[MW]  registerWindow #%{public}d (total=%{public}d, pendingStarts=%{public}s)',
@@ -490,6 +552,9 @@ export class WineWindowManager {
     this.surfaceSizes.delete(toplevelId);
     this.lastResizeTargetH.delete(toplevelId);
     this.lastResizeWineDim.delete(toplevelId);
+    const hostResize = this.hostResizes.get(toplevelId);
+    if (hostResize && hostResize.timer >= 0) clearTimeout(hostResize.timer);
+    this.hostResizes.delete(toplevelId);
     this.lastPreMaximizeDim.delete(toplevelId);
     this.lastTitles.delete(toplevelId);
     this.lastArgb.delete(toplevelId);
@@ -776,7 +841,12 @@ export class WineWindowManager {
         if (this.presentationMode === WinePresentationMode.DESKTOP) {
           hilog.info(DOMAIN, TAG, '[MW] desktop_root #%{public}d -> start DesktopAbility', id);
           if (this.sessionAssociationCallback) this.sessionAssociationCallback(DESKTOP_SESSION_ID, 0, id);
+          if (this.desktopRootId !== id || this.desktopEmbeddedHost === null) {
+            this.desktopEmbeddedHost = !DeviceCapabilityPolicy.usesManagedWineWindows() &&
+              AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING;
+          }
           this.desktopRootId = id;
+          AppStorage.setOrCreate('desktopEmbeddedHost', this.desktopEmbeddedHost);
           // 浮窗模式: Index 承载桌面 (desktopActive 驱动 @StorageProp)
           AppStorage.setOrCreate('desktopActive', true);
           // The user may have navigated elsewhere while the engine booted.
@@ -950,25 +1020,23 @@ export class WineWindowManager {
    * PC 沉浸全屏: 铺满屏幕并禁用顶/底边 hover 标题栏、关闭条和 Dock。
    * 默认无参 maximize() 是 ENTER_IMMERSIVE, 会弹出关闭条抢走边缘鼠标。
    */
-  enterImmersiveFullscreen(win: window.Window, logId: number = 0): void {
+  async enterImmersiveFullscreen(win: window.Window, logId: number = 0): Promise<boolean> {
     const label = logId > 0 ? '#' + logId.toString() : 'desktop';
     try {
-      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s → DISABLE_TITLE_AND_DOCK_HOVER', label);
-      win.maximize(window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER).then(() => {
-        hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s OK (DISABLE_HOVER)', label);
-      }).catch((err: Error) => {
-        hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s DISABLE_HOVER failed, fallback: %{public}s',
-          label, JSON.stringify(err));
-        win.maximize().then(() => {
-          hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s OK (ENTER_IMMERSIVE fallback)', label);
-        }).catch((fallbackErr: Error) => {
-          hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s fallback failed: %{public}s',
-            label, JSON.stringify(fallbackErr));
-        });
-      });
+      await win.maximize(window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER);
+      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s accepted (DISABLE_HOVER)', label);
+      return true;
     } catch (err) {
-      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s exception: %{public}s',
+      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s DISABLE_HOVER failed, fallback: %{public}s',
         label, JSON.stringify(err));
+    }
+    try {
+      await win.maximize();
+      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s accepted (fallback)', label);
+      return true;
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s failed: %{public}s', label, JSON.stringify(err));
+      return false;
     }
   }
 
@@ -1063,6 +1131,13 @@ export class WineWindowManager {
             //  保存目标尺寸, 供 surface 事件校准 titleBarH + 重新 resize
             this.lastResizeTargetH.set(toplevelId, winH);
             this.lastResizeWineDim.set(toplevelId, [w, h]);
+            const hostResize = this.hostResizes.get(toplevelId);
+            if (hostResize) {
+              // Intermediate Wine buffers cannot resize the WMS window back
+              // underneath the user's pointer. Wait for the requested frame.
+              if (hostResize.ending && w === hostResize.width && h === hostResize.height) this.finishHostResize(toplevelId);
+              break;
+            }
             hilog.info(DOMAIN, TAG, '[MW-RESIZE] tl=%{public}d wine=%{public}dx%{public}d window=%{public}dx%{public}d scale=%{public}s',
               toplevelId, w, h, winW, winH, s.toFixed(1));
             win.resize(winW, winH);
@@ -1179,6 +1254,7 @@ export class WineWindowManager {
       hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: modal, skip Ability', id);
       return;
     }
+    if (this.fusionSubWindowHost === null) this.fusionSubWindowHost = this.resolveFusionSubWindowHost();
     if (this.fusionUsesSubWindow()) {
       this.startFusionSubWindow(id, data);
       return;
@@ -1271,7 +1347,8 @@ export class WineWindowManager {
       this.registerWindow(winId, subWin);
       try { testNapi.registerHostWindow(subWin.getWindowProperties().id); } catch (_) { /* ignore */ }
       try {
-        subWin.on('windowRectChange', () => {
+        subWin.on('windowRectChange', (change: window.RectChangeOptions) => {
+            this.onHostWindowRectChange(winId, change);
           PopupWindowManager.getInstance().repositionPopups(winId, subWin, this.getEffectiveScale());
         });
       } catch (_) { /* ignore */ }
@@ -1370,7 +1447,7 @@ export class WineWindowManager {
   private startDesktopAbility(rootId: number): void {
     // 浮窗模式 (平板/手机): 桌面由 Index 页面承载 (DesktopLayer floating 切换),
     // 不启动 DesktopAbility — 放大/缩小都在当前画面 (Index) 内完成, 不切窗口。
-    if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
+    if (this.usesEmbeddedDesktopHost()) {
       hilog.info(DOMAIN, TAG, '[MW] floating mode: desktop hosted by Index, skip DesktopAbility #%{public}d', rootId);
       return;
     }
@@ -1474,7 +1551,9 @@ export class WineWindowManager {
     try {
       const win = await window.getLastWindow(this.desktopAbilityCtx);
       if (win) {
-        await this.exitImmersiveFullscreen(win, true, 0);
+        AppStorage.setOrCreate('vdRestoring', true);
+        try { await this.exitImmersiveFullscreen(win, true, 0); }
+        finally { AppStorage.setOrCreate('vdRestoring', false); }
         AppStorage.setOrCreate('vdImmersive', false);
         hilog.info(DOMAIN, TAG, '[MW] recoverDesktopWindow OK');
       }

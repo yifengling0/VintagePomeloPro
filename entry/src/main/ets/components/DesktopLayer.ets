@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { hilog } from '../service/LogService';
 import { common } from '@kit.AbilityKit';
 import { display, window } from '@kit.ArkUI';
@@ -23,6 +24,7 @@ import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoor
 import { AxisEventGate, InputEventGate } from '../service/InputEventGate';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
 import { FpsHud } from '../components/FpsHud';
+import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 
 const DOMAIN = 0x0000;
 
@@ -45,7 +47,8 @@ class DesktopController extends XComponentController {
         // 浮窗模式: 桌面分辨率由 prepareOutputForOrientation 设定, XComponent
         // 只做 letterbox 显示口。动画中/缩略态/全屏态都不要 syncOutputSize,
         // 否则 explorer 会再提交 desktop-shell。
-        if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
+        if (DeviceCapabilityPolicy.usesManagedWineWindows() ||
+          AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
           hilog.info(DOMAIN, 'LIFE', '[XComp] floating: skip root resize, letterbox full desktop');
           return;
         }
@@ -118,6 +121,7 @@ export struct DesktopLayer {
   // overlay 关掉宿主 IME 后跨窗口把焦点要回桌面 XComponent, 蓝牙可打印键才继续走 KeyEvent。
   @StorageLink('wineDesktopKeyFocusToken') @Watch('onDesktopKeyFocusToken')
     private wineDesktopKeyFocusToken: number = 0;
+  @StorageLink('hostPcMode') @Watch('onDesktopWindowModeChanged') private hostPcMode: string = 'unknown';
   @State private cornerSafeMargin: number = 0;
   // 悬浮窗态 (Index 桌面层容器处于小窗缩略显示): 桌面 XComponent 所有输入
   // 一律旁路 — 点击放大/拖动由 Index 悬浮交互层统一处理, 本组件不转发
@@ -313,7 +317,8 @@ export struct DesktopLayer {
     if (code === EVDEV_KEY_ENTER) {
       if (pressed) {
         this.lastEnterDownTs = Date.now();
-      } else if (Date.now() - this.lastEnterDownTs > DesktopLayer.ENTER_SYNTH_WINDOW_MS) {
+      } else if (Date.now() - this.lastEnterDownTs > DesktopLayer.ENTER_SYNTH_WINDOW_MS &&
+          !WineImeCoordinator.getInstance().hasAttachedSession()) {
         hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] ENTER SYNTH down (missing down)');
         InputRouter.getInstance().sendKey(EVDEV_KEY_ENTER, true);
       }

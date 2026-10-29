@@ -169,61 +169,112 @@ static int receive_reply(int channel,int *response,int *descriptor,int64_t deadl
     }
     return (int)received;
 }
-static void serve(int channel) {
-    struct Request request;struct stat status;int error=0;
-    if(peer_is(channel,0))return;
-    int64_t now=milliseconds();if(now<0)return;
-    const int64_t deadline=now+1000;
-    if(transfer(channel,&request,sizeof(request),0,deadline))return;
-    int duplicate=-1;
-    if(request.version==1&&request.descriptor>=0&&request.inode) {
-        duplicate=fcntl(request.descriptor,F_DUPFD_CLOEXEC,0);
-        if(duplicate<0)error=errno;
-        else if(socket_stat(duplicate,request.inode,&status))error=errno;
-    } else if(request.version==2&&request.descriptor==-1&&!request.inode) {
-        struct EndpointPair pair;
-        if(transfer(channel,&pair,sizeof(pair),0,deadline))return;
-        duplicate=find_peer(&pair);if(duplicate<0)error=errno;
-    } else error=EINVAL;
-    struct iovec io={.iov_base=&error,.iov_len=sizeof(error)};
+
+// One incomplete peer must not consume every other peer's transaction budget.
+// Keep a fixed set of nonblocking channels; neither threads nor FDs grow with
+// incoming queries. The caller and each accepted channel retain a 1s deadline.
+#define QUERY_CHANNELS 32
+struct QueryChannel {
+    int fd, duplicate, response, replying, rights_sent;
+    size_t used;
+    int64_t deadline;
+    struct Request request;
+    struct EndpointPair pair;
+};
+static struct QueryChannel channels[QUERY_CHANNELS];
+static void close_query(struct QueryChannel *q) {
+    if(q->fd>=0)close(q->fd);
+    if(q->duplicate>=0)close(q->duplicate);
+    memset(q,0,sizeof(*q));q->fd=q->duplicate=-1;
+}
+static void resolve_query(struct QueryChannel *q) {
+    struct stat status;
+    q->duplicate=-1;q->response=0;
+    if(q->request.version==1&&q->request.descriptor>=0&&q->request.inode) {
+        q->duplicate=fcntl(q->request.descriptor,F_DUPFD_CLOEXEC,0);
+        if(q->duplicate<0)q->response=errno;
+        else if(socket_stat(q->duplicate,q->request.inode,&status))q->response=errno;
+    } else if(q->request.version==2&&q->request.descriptor==-1&&!q->request.inode) {
+        q->duplicate=find_peer(&q->pair);if(q->duplicate<0)q->response=errno;
+    } else q->response=EINVAL;
+    q->replying=1;q->used=0;
+}
+static void step_query(struct QueryChannel *q,short events,int64_t current) {
+    if(current>=q->deadline||(events&(POLLERR|POLLNVAL))){close_query(q);return;}
+    if(!q->replying&&(events&(POLLIN|POLLHUP))) {
+        // At most two reads: fixed request header, then optional endpoint pair.
+        for(unsigned step=0;step<2&&!q->replying;++step) {
+            size_t size=sizeof(q->request);
+            void *buffer=&q->request;
+            if(q->used>=size&&q->request.version==2) {
+                buffer=&q->pair;size+=sizeof(q->pair);
+            }
+            size_t offset=q->used-(buffer==(void*)&q->pair?sizeof(q->request):0);
+            ssize_t n=recv(q->fd,(char*)buffer+offset,size-q->used,MSG_DONTWAIT);
+            if(n<0&&(errno==EINTR||errno==EAGAIN||errno==EWOULDBLOCK))return;
+            if(n<=0){close_query(q);return;}
+            q->used+=(size_t)n;
+            if(q->used<sizeof(q->request))return;
+            if(q->request.version==2&&q->used<sizeof(q->request)+sizeof(q->pair))continue;
+            resolve_query(q);
+        }
+    }
+    if(!q->replying)return;
+    struct iovec io={.iov_base=(char*)&q->response+q->used,.iov_len=sizeof(q->response)-q->used};
     union {struct cmsghdr aligned;char bytes[CMSG_SPACE(sizeof(int))];} ancillary={0};
     struct msghdr message={.msg_iov=&io,.msg_iovlen=1};
-    if(!error) {
+    if(!q->response&&!q->rights_sent) {
         message.msg_control=ancillary.bytes;message.msg_controllen=sizeof(ancillary.bytes);
         struct cmsghdr *header=CMSG_FIRSTHDR(&message);
         header->cmsg_level=SOL_SOCKET;header->cmsg_type=SCM_RIGHTS;header->cmsg_len=CMSG_LEN(sizeof(int));
-        memcpy(CMSG_DATA(header),&duplicate,sizeof(duplicate));
+        memcpy(CMSG_DATA(header),&q->duplicate,sizeof(q->duplicate));
     }
-    for(;;) {
-        if(wait_io(channel,POLLOUT,deadline))break;
-        ssize_t n=sendmsg(channel,&message,MSG_NOSIGNAL|MSG_DONTWAIT);
-        if(n<0&&(errno==EINTR||errno==EAGAIN||errno==EWOULDBLOCK))continue;
-        // SCM_RIGHTS is sent only with the first successful byte. Continue
-        // a short stream write without sending another duplicate descriptor.
-        if(n>0&&(size_t)n<sizeof(error))
-            transfer(channel,(char*)&error+n,sizeof(error)-(size_t)n,1,deadline);
-        break;
-    }
-    if(duplicate>=0)close(duplicate);
+    ssize_t n=sendmsg(q->fd,&message,MSG_NOSIGNAL|MSG_DONTWAIT);
+    if(n<0&&(errno==EINTR||errno==EAGAIN||errno==EWOULDBLOCK))return;
+    if(n<=0){close_query(q);return;}
+    q->rights_sent=1;q->used+=(size_t)n;
+    if(q->used==sizeof(q->response))close_query(q);
 }
 static void *run(void *unused) {
     (void)unused;
     while(!__atomic_load_n(&stopping,__ATOMIC_ACQUIRE)) {
-        struct pollfd ready={.fd=listener,.events=POLLIN};
-        if(poll(&ready,1,50)<=0)continue;
-        int channel=accept4(listener,NULL,NULL,SOCK_CLOEXEC);
-        if(channel<0)continue;
-        serve(channel);close(channel);
+        struct pollfd ready[QUERY_CHANNELS+1];
+        int available=0;
+        for(unsigned i=0;i<QUERY_CHANNELS;++i) {
+            available+=channels[i].fd<0;
+            ready[i+1]=(struct pollfd){.fd=channels[i].fd,.events=channels[i].replying?POLLOUT:POLLIN};
+        }
+        ready[0]=(struct pollfd){.fd=available?listener:-1,.events=POLLIN};
+        if(poll(ready,QUERY_CHANNELS+1,25)<0&&errno!=EINTR)break;
+        // Serialize state updates with fork, never while waiting on peer I/O.
+        pthread_mutex_lock(&guard);
+        int64_t current=milliseconds();
+        for(unsigned i=0;i<QUERY_CHANNELS;++i)
+            if(channels[i].fd>=0)step_query(&channels[i],ready[i+1].revents,current);
+        if(available&&(ready[0].revents&POLLIN)) {
+            for(unsigned i=0;i<QUERY_CHANNELS;++i)if(channels[i].fd<0) {
+                int channel=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);
+                if(channel<0)break;
+                if(peer_is(channel,0)){close(channel);continue;}
+                channels[i].fd=channel;channels[i].deadline=milliseconds()+1000;
+            }
+        }
+        pthread_mutex_unlock(&guard);
     }
+    pthread_mutex_lock(&guard);
+    for(unsigned i=0;i<QUERY_CHANNELS;++i)close_query(&channels[i]);
+    pthread_mutex_unlock(&guard);
     return NULL;
 }
 static void before_fork(void){pthread_mutex_lock(&guard);}
 static void after_parent(void){pthread_mutex_unlock(&guard);}
 static void after_child(void) {
     if(listener>=0)close(listener);
+    for(unsigned i=0;i<QUERY_CHANNELS;++i)close_query(&channels[i]);
     listener=-1;owner=0;endpoint[0]=0;stopping=0;pthread_mutex_unlock(&guard);
 }
 __attribute__((constructor)) static void initialize(void) {
+    for(unsigned i=0;i<QUERY_CHANNELS;++i)channels[i].fd=channels[i].duplicate=-1;
     pthread_atfork(before_fork,after_parent,after_child);
 }
 void SteamOhosObserveSocket(int fd) {
@@ -242,12 +293,13 @@ void SteamOhosObserveSocket(int fd) {
         } else if(errno!=ENOENT)goto done;
         listener=socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK,0);
         struct sockaddr_un path={.sun_family=AF_UNIX};strcpy(path.sun_path,endpoint);
-        if(listener<0||bind(listener,(struct sockaddr*)&path,sizeof(path))||listen(listener,8))goto failed;
+        if(listener<0||bind(listener,(struct sockaddr*)&path,sizeof(path))||listen(listener,QUERY_CHANNELS))goto failed;
         owner=getpid();stopping=0;
         int result=pthread_create(&worker,NULL,run,NULL);
         if(result){owner=0;errno=result;goto failed;}
         goto done;
 failed:
+        fprintf(stderr,"STEAMOHOS_SOCKET_QUERY op=start pid=%d errno=%d\n",getpid(),errno);
         if(listener>=0)close(listener);
         listener=-1;unlink(endpoint);
     }
@@ -286,7 +338,14 @@ static int query_socket(pid_t pid,const struct Request *request,const struct End
     }
 done:
     close(channel);
-    if(error){if(fd>=0)close(fd);errno=error;return -1;}
+    if(error){
+        static unsigned reports;
+        if(__atomic_fetch_add(&reports,1,__ATOMIC_RELAXED)<16)
+            fprintf(stderr,"STEAMOHOS_SOCKET_QUERY op=query peer=%d descriptor=%d version=%u errno=%d\n",
+                pid,request->descriptor,request->version,error);
+        if(fd>=0)close(fd);
+        errno=error;return -1;
+    }
     return fd;
 }
 int SteamOhosBorrowSocket(pid_t pid,int descriptor,uint64_t inode) {

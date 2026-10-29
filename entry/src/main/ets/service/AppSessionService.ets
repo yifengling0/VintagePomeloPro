@@ -3,6 +3,8 @@ import { hilog } from './LogService';
 import testNapi from 'libentry.so';
 import {
   BOX64_PRESET_DEFAULT,
+  WineTranslationEngine,
+  normalizeWineTranslationEngine,
   AppDescriptor,
   DesktopWindowMode,
   DisplayMode,
@@ -317,7 +319,8 @@ export class AppSessionService {
     const appSettings = AppSettingsStore.getInstance().getAppSettings(app.id);
     const presetId = appSettings.box64Preset !== BOX64_PRESET_DEFAULT
       ? appSettings.box64Preset : settings.box64Preset;
-    const envOverrides = resolveBox64PresetEnv(presetId).concat(resolveMfCompatEnv(appSettings));
+    const useBox64 = normalizeWineTranslationEngine(settings.wineTranslationEngine) === WineTranslationEngine.BOX64;
+    const envOverrides = (useBox64 ? resolveBox64PresetEnv(presetId) : []).concat(resolveMfCompatEnv(appSettings));
     hilog.info(DOMAIN, '[SESS]', 'launch: app=%{public}s preset=%{public}s env=%{public}s',
       app.id, presetId, JSON.stringify(envOverrides));
     // 图形预设旗标不写进 settings.arguments，避免和设定页自定义框互相污染。
@@ -329,7 +332,7 @@ export class AppSessionService {
       JSON.stringify(launchArguments), appSettings.graphicsLaunchPreset);
     // Unity 兼容档：自动追加 -force-gfx-direct（跳过 GDI 间接渲染），
     // 已存在同名参数时不重复注入；只对选中 Unity 档的游戏生效。
-    if (isUnityCompatPreset(presetId)) {
+    if (useBox64 && isUnityCompatPreset(presetId)) {
       for (const extra of UNITY_COMPAT_LAUNCH_ARGS) {
         if (!launchArguments.some((arg: string) => arg.toLowerCase() === extra.toLowerCase())) {
           launchArguments.push(extra);

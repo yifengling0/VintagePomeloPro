@@ -9,6 +9,8 @@ import { hilog } from '../service/LogService';
 import {
   BOX64_APP_PRESET_IDS,
   BOX64_PRESET_DEFAULT,
+  WineTranslationEngine,
+  normalizeWineTranslationEngine,
   GRAPHICS_LAUNCH_PRESET_IDS,
   AppDescriptor,
   AppSettings as StoredAppSettings,
@@ -823,28 +825,30 @@ struct AppSettingsPage {
 
           Column({ space: 12 }) {
             Text('兼容性').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
-            Text('Box64 兼容性预设').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
-            Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')
-              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-              ForEach(BOX64_APP_PRESET_IDS, (preset: string) => {
-                Button(box64PresetLabel(preset))
-                  .height(42)
-                  .padding({ left: 12, right: 12 })
-                  .margin({ right: 8, bottom: 8 })
-                  .borderRadius(14)
-                  .fontSize(12)
-                  .fontColor(this.value.box64Preset === preset ?
-                    '#FFFFFFFF' : skinColor('text_primary'))
-                  .backgroundColor(this.value.box64Preset === preset ?
-                    skinColor('accent') : skinColor('search_background'))
-                  .id('app-settings-box64-' + preset)
-                  .onClick(() => this.setBox64Preset(preset))
-              }, (preset: string): string => preset)
-            }.width('100%')
-            Text(this.value.box64Preset === BOX64_PRESET_DEFAULT ?
-              '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
-              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            if (normalizeWineTranslationEngine(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine) === WineTranslationEngine.BOX64) {
+              Text('Box64 兼容性预设').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+              Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+                ForEach(BOX64_APP_PRESET_IDS, (preset: string) => {
+                  Button(box64PresetLabel(preset))
+                    .height(42)
+                    .padding({ left: 12, right: 12 })
+                    .margin({ right: 8, bottom: 8 })
+                    .borderRadius(14)
+                    .fontSize(12)
+                    .fontColor(this.value.box64Preset === preset ?
+                      '#FFFFFFFF' : skinColor('text_primary'))
+                    .backgroundColor(this.value.box64Preset === preset ?
+                      skinColor('accent') : skinColor('search_background'))
+                    .id('app-settings-box64-' + preset)
+                    .onClick(() => this.setBox64Preset(preset))
+                }, (preset: string): string => preset)
+              }.width('100%')
+              Text(this.value.box64Preset === BOX64_PRESET_DEFAULT ?
+                '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            }
             Text('Media Foundation 视频').fontSize(13).fontColor(skinColor('text_secondary'))
               .width('100%').margin({ top: 8 })
             Text('默认关闭。不要因为游戏是 Unity 就自动打开；仅在开场视频黑屏、花屏、有声无画或卡死时按需启用。')

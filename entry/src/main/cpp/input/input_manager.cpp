@@ -760,6 +760,13 @@ void InputManager::SubmitEnterLeave(uint32_t tl, wl_resource* targetSurf,
 //  事件队列 flush (Wayland 线程 — pipe 回调 → poll 去重 → dispatch → flush)
 // ========================================================================
 
+void InputManager::RequestHostResize(uint32_t id, int32_t width, int32_t height, bool resizing) {
+    // Resolve resources and send configure only on the Wayland event thread.
+    // The input pipe also wakes/flushed clients when a GDI window is idle.
+    if (id && ((width > 0 && height > 0) || (width == 0 && height == 0 && !resizing)))
+        queue_.Enqueue(InputQueue::Event::HOST_RESIZE, id, nullptr, width, height, 0, resizing ? 1U : 0U);
+}
+
 void InputManager::RequestToplevelActivation(uint32_t id) {
     if (id) queue_.Enqueue(InputQueue::Event::ACTIVATE_TOPLEVEL, id, nullptr, 0, 0, 0, 0);
 }
@@ -787,6 +794,9 @@ void InputManager::FlushQueue() {
 
     for (auto& ev : batch) {
         switch (ev.type) {
+            case InputQueue::Event::HOST_RESIZE:
+                WaylandServer::GetInstance()->NotifyToplevelResize(ev.tl, ev.x, ev.y, ev.state != 0);
+                break;
             case InputQueue::Event::EXTERNAL_RESIZE:
                 if ((tracker_.PressedButtons() & 1U) && !moveGrab_->IsActive() &&
                     resolver_->CanMoveExternalHost(ev.btn_or_key, ev.tl) &&

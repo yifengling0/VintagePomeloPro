@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { ValueAddedService } from '../service/valueadded/ValueAddedService';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
@@ -73,6 +74,7 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 日志服务最先初始化，保证后续 ArkTS/native 日志都能实时落盘。
     AppLog.init();
+    DeviceCapabilityPolicy.startPcModeMonitoring(this.context);
     SmokeRunner.getInstance().initialize(this.context);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     const useForkNcp = DeviceCapabilityPolicy.isPhoneDevice();
@@ -94,6 +96,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
     if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
     this.membershipRouteTimer = -1;
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
@@ -151,6 +154,8 @@ export default class EntryAbility extends UIAbility {
       let mainWin = windowStage.getMainWindowSync();
       if (mainWin) {
         this.mainWindow = mainWin;
+        WineImeCoordinator.getInstance().observeWindow(0, mainWin);
+        WineImeCoordinator.getInstance().foreground(0, mainWin);
         DeviceCapabilityPolicy.enableSensorRotation(mainWin, 'EntryAbility');
         mainWin.setWindowDecorVisible(false);
         if (DeviceCapabilityPolicy.isPhoneDevice()) {
@@ -436,9 +441,13 @@ export default class EntryAbility extends UIAbility {
       longSeconds: Number.isFinite(requestedSeconds) && requestedSeconds > 0 ? requestedSeconds : 3600,
       source: 'want'
     };
-    const ready = await engine.ensureSmokeReady(settings.defaultDisplayMode,
-      WinePresentationMode.DESKTOP, homeDirectory, request.prefix || 'reuse');
-    if (!ready) throw new Error('Wine engine did not become ready for smoke');
+    // This isolated driver diagnostic does not need a Wine prefix, compositor,
+    // or receiver. Avoid starting them and perturbing the memory measurement.
+    if (request.suite !== 'native-buffer-memory') {
+      const ready = await engine.ensureSmokeReady(settings.defaultDisplayMode,
+        WinePresentationMode.DESKTOP, homeDirectory, request.prefix || 'reuse');
+      if (!ready) throw new Error('Wine engine did not become ready for smoke');
+    }
     SmokeRunner.getInstance().start(request);
     hilog.info(DOMAIN, 'EntryAbility',
       'smoke runner accepted suite=%{public}s runId=%{public}s prefix=%{public}s',
@@ -466,6 +475,7 @@ export default class EntryAbility extends UIAbility {
     }
     this.titleButtonRectCallback = null;
     this.windowRectCallback = null;
+    WineImeCoordinator.getInstance().unobserveWindow(this.mainWindow);
     this.mainWindow = null;
     AppStorage.setOrCreate('libraryTitleButtonInsetVp', 0);
   }
@@ -508,6 +518,8 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow);
+    DeviceCapabilityPolicy.refreshPcMode(this.context);
     AccountAutomaticSyncService.getInstance().setForeground(true);
     ValueAddedService.getInstance().onForeground();
     // Ability has brought to foreground
@@ -516,6 +528,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    WineImeCoordinator.getInstance().background(this.mainWindow);
     AccountAutomaticSyncService.getInstance().setForeground(false);
     ValueAddedService.getInstance().onBackground();
     // Ability has back to background

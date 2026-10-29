@@ -23,7 +23,35 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <link.h>
+#include <stdatomic.h>
 #include "../cloud_tool_selection.h"
+
+// ELF preinit arrays run before preload constructors (FEX's allocator probes
+// files there). Resolve the same libc functions on first use instead of
+// reporting ENOSYS for an otherwise supported API. pthread_once preserves
+// concurrent/fork behaviour; the guard prevents dlsym re-entry from deadlocking.
+static void ResolveFilesystemSymbols(void);
+static pthread_once_t filesystem_symbols_once=PTHREAD_ONCE_INIT;
+static __thread int resolving_filesystem_symbols;
+static void EnsureFilesystemSymbols(void) {
+    if(resolving_filesystem_symbols)return;
+    resolving_filesystem_symbols=1;
+    pthread_once(&filesystem_symbols_once,ResolveFilesystemSymbols);
+    resolving_filesystem_symbols=0;
+}
+
+static void TraceNativeFile(const char *operation,const char *path,long result,int error) {
+    const char *active=getenv("STEAMOHOS_NATIVE_FEX"),*diagnostic=getenv("STEAMOHOS_NATIVE_MEMORY");
+    if(!active||strcmp(active,"1")||!diagnostic||strcmp(diagnostic,"1"))return;
+    static _Atomic unsigned reports,graphics;
+    // A separate small budget keeps late renderer failures visible after the
+    // ELF loader exhausts the ordinary file trace. Never dump env/credentials.
+    const int renderer=path&&(strstr(path,"libvulkan")||strstr(path,"libGL")||
+        strstr(path,"libX11")||strstr(path,"libxcb")||strstr(path,"libSDL"));
+    if((renderer&&atomic_fetch_add(&graphics,1)<96)||atomic_fetch_add(&reports,1)<96)
+        fprintf(stderr,"STEAMOHOS_NATIVE_FILE pid=%d op=%s path=%.350s result=%ld errno=%d\n",
+            getpid(),operation,path?path:"<null>",result,result<0?error:0);
+}
 
 static int (*next_stat)(const char *, struct stat *);
 static ssize_t (*next_readlink)(const char*,char*,size_t);
@@ -44,6 +72,7 @@ static const char *FollowSingleton(const char*,char[PATH_MAX]);
 static void InitializeSingletonProfile(void);
 static const char *AtPath(int,const char*,char[PATH_MAX]);
 static const char *SandboxAtPath(int,const char*,char[PATH_MAX],char[PATH_MAX]);
+#include "native_guest_abi.h"
 static int AbsolutePath(const char *path, char normalized[PATH_MAX]) {
     char combined[PATH_MAX];
     if (path[0] == '/') {
@@ -119,6 +148,7 @@ static const char *LibraryAppsPath(const char *path,char mapped[PATH_MAX]) {
 }
 static int PrivateShmDirectory(const char *name, const char **leaf);
 static const char *SandboxPath(const char *path, char mapped[PATH_MAX]) {
+    if(!next_stat||!next_readlink)EnsureFilesystemSymbols();
     if (!path || !*path) return path;
     // Chromium opens /dev/shm files directly rather than calling shm_open.
     // Both APIs must see the same private inodes. Restrict this alias to the
@@ -205,7 +235,7 @@ static const char *SandboxPath(const char *path, char mapped[PATH_MAX]) {
 #define FS(result, name, parameters, arguments, failure) \
     static result (*next_##name) parameters; \
     result name parameters { \
-        if (!next_##name) { errno=ENOSYS; return failure; } \
+        if(!next_##name){EnsureFilesystemSymbols();} if (!next_##name) { errno=ENOSYS; return failure; } \
         uint64_t depot_started=DepotProfileStart(path); \
         char mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX]; path=SandboxPath(path,mapped); \
         path=FollowCloud(path,cloud,strcmp(#name,"unlink")&&strcmp(#name,"unlinkat")&&strcmp(#name,"rmdir")&&strcmp(#name,"lchown")&&strcmp(#name,"mkdir")&&strcmp(#name,"mknod")&&strcmp(#name,"__xmknod")&&strcmp(#name,"mkfifo")); \
@@ -213,13 +243,13 @@ static const char *SandboxPath(const char *path, char mapped[PATH_MAX]) {
            strcmp(#name,"__lxstat")&&strcmp(#name,"__lxstat64"))path=FollowSingleton(path,followed); \
         if(!path)return failure; \
         result value=next_##name arguments; int saved=errno; \
-        TraceProcAccess(#name,path,value==failure,saved); DepotProfileEnd(#name,depot_started); errno=saved; return value; \
+        TraceNativeFile(#name,path,(long)(intptr_t)value,saved);TraceProcAccess(#name,path,value==failure,saved); DepotProfileEnd(#name,depot_started); errno=saved; return value; \
     }
 
 #define AT_FS(result,name,parameters,arguments,failure) \
     static result (*next_##name) parameters; \
     result name parameters { \
-        if(!next_##name){errno=ENOSYS;return failure;} \
+        if(!next_##name){EnsureFilesystemSymbols();} if(!next_##name){errno=ENOSYS;return failure;} \
         uint64_t depot_started=DepotProfileStart(path); \
         char absolute[PATH_MAX],mapped[PATH_MAX],cloud[PATH_MAX]; \
         path=SandboxAtPath(fd,path,absolute,mapped); \
@@ -237,7 +267,7 @@ AT_FS(int, mkdirat, (int fd, const char *path, mode_t mode), (fd,path,mode), -1)
 FS(int, stat, (const char *path, struct stat *buf), (path,buf), -1)
 static int (*next_lstat)(const char *path, struct stat *buf);
 int lstat(const char *path, struct stat *buf) {
-    if(!next_lstat){errno=ENOSYS;return -1;}
+    if(!next_lstat){EnsureFilesystemSymbols();} if(!next_lstat){errno=ENOSYS;return -1;}
     uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
     if(!path)return -1;
@@ -250,7 +280,7 @@ int lstat(const char *path, struct stat *buf) {
 FS(int, stat64, (const char *path, struct stat64 *buf), (path,buf), -1)
 static int (*next_lstat64)(const char *path, struct stat64 *buf);
 int lstat64(const char *path, struct stat64 *buf) {
-    if(!next_lstat64){errno=ENOSYS;return -1;}
+    if(!next_lstat64){EnsureFilesystemSymbols();} if(!next_lstat64){errno=ENOSYS;return -1;}
     uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
     if(!path)return -1;
@@ -263,7 +293,7 @@ int lstat64(const char *path, struct stat64 *buf) {
 FS(int, __xstat, (int version, const char *path, struct stat *buf), (version,path,buf), -1)
 static int (*next___lxstat)(int version, const char *path, struct stat *buf);
 int __lxstat(int version, const char *path, struct stat *buf) {
-    if(!next___lxstat){errno=ENOSYS;return -1;}
+    if(!next___lxstat){EnsureFilesystemSymbols();} if(!next___lxstat){errno=ENOSYS;return -1;}
     uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
     if(!path)return -1;
@@ -276,7 +306,7 @@ int __lxstat(int version, const char *path, struct stat *buf) {
 FS(int, __xstat64, (int version, const char *path, struct stat64 *buf), (version,path,buf), -1)
 static int (*next___lxstat64)(int version, const char *path, struct stat64 *buf);
 int __lxstat64(int version, const char *path, struct stat64 *buf) {
-    if(!next___lxstat64){errno=ENOSYS;return -1;}
+    if(!next___lxstat64){EnsureFilesystemSymbols();} if(!next___lxstat64){errno=ENOSYS;return -1;}
     uint64_t depot_started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX];path=FollowCloud(SandboxPath(path,mapped),cloud,0);
     if(!path)return -1;
@@ -327,7 +357,7 @@ PROC_FSTAT_RECOVERY(Large,struct stat64,fstat64)
 
 static int (*next_fstatat)(int,const char*,struct stat*,int);
 int fstatat(int fd,const char *path,struct stat *buf,int flags) {
-    if(!next_fstatat){errno=ENOSYS;return -1;}
+    if(!next_fstatat){EnsureFilesystemSymbols();} if(!next_fstatat){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX];
     path=SandboxAtPath(fd,path,absolute,mapped);
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
@@ -341,7 +371,7 @@ int fstatat(int fd,const char *path,struct stat *buf,int flags) {
 }
 static int (*next_fstatat64)(int,const char*,struct stat64*,int);
 int fstatat64(int fd,const char *path,struct stat64 *buf,int flags) {
-    if(!next_fstatat64){errno=ENOSYS;return -1;}
+    if(!next_fstatat64){EnsureFilesystemSymbols();} if(!next_fstatat64){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX];
     path=SandboxAtPath(fd,path,absolute,mapped);
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
@@ -369,7 +399,7 @@ static int KnownStatVersion(int version) {
 #define LEGACY_FSTATAT(name,type,recover) \
     static int (*next_##name)(int,int,const char*,type*,int); \
     int name(int version,int fd,const char *path,type *buf,int flags) { \
-        if(!next_##name){errno=ENOSYS;return -1;} \
+        if(!next_##name){EnsureFilesystemSymbols();} if(!next_##name){errno=ENOSYS;return -1;} \
         char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX]; \
         path=SandboxAtPath(fd,path,absolute,mapped); \
         path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW)); \
@@ -389,7 +419,7 @@ LEGACY_FSTATAT(__fxstatat64,struct stat64,RecoverLarge)
 FS(int, access, (const char *path, int mode), (path,mode), -1)
 static int (*next_faccessat)(int,const char*,int,int);
 int faccessat(int fd,const char *path,int mode,int flags) {
-    if(!next_faccessat){errno=ENOSYS;return -1;}
+    if(!next_faccessat){EnsureFilesystemSymbols();} if(!next_faccessat){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX];
     path=FollowCloud(SandboxAtPath(fd,path,absolute,mapped),followed,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!path)return -1;
@@ -427,7 +457,7 @@ AT_FS(int, scandirat64, (int fd, const char *path, struct dirent64 ***names,
 static DIR *(*next_opendir)(const char*),*(*next_fdopendir)(int);
 static int (*next_closedir)(DIR*);
 DIR *opendir(const char *path) {
-    if(!next_opendir){errno=ENOSYS;return NULL;}
+    if(!next_opendir){EnsureFilesystemSymbols();} if(!next_opendir){errno=ENOSYS;return NULL;}
     uint64_t started=DepotProfileStart(path);
     char mapped[PATH_MAX],cloud[PATH_MAX],singleton[PATH_MAX];
     path=FollowCloud(SandboxPath(path,mapped),cloud,1);
@@ -437,13 +467,13 @@ DIR *opendir(const char *path) {
     DepotProfileEnd("opendir",started);errno=saved;return directory;
 }
 DIR *fdopendir(int fd) {
-    if(!next_fdopendir){errno=ENOSYS;return NULL;}
+    if(!next_fdopendir){EnsureFilesystemSymbols();} if(!next_fdopendir){errno=ENOSYS;return NULL;}
     DIR *directory=next_fdopendir(fd);int saved=errno;
     if(directory)DepotRememberDirectory(directory);
     errno=saved;return directory;
 }
 int closedir(DIR *directory) {
-    if(!next_closedir){errno=ENOSYS;return -1;}
+    if(!next_closedir){EnsureFilesystemSymbols();} if(!next_closedir){errno=ENOSYS;return -1;}
     int saved=errno;DepotForgetDirectory(directory);errno=saved;
     return next_closedir(directory);
 }
@@ -451,7 +481,7 @@ int closedir(DIR *directory) {
 #define FORTIFIED_OPEN(name) \
     static int (*next_##name)(const char*,int); \
     int name(const char *path,int flags) { \
-        if(!next_##name){errno=ENOSYS;return -1;} \
+        if(!next_##name){EnsureFilesystemSymbols();} if(!next_##name){errno=ENOSYS;return -1;} \
         char mapped[PATH_MAX],cloud[PATH_MAX],target[PATH_MAX],singleton[PATH_MAX]; \
         path=SandboxPath(path,mapped); \
         if((flags&O_NOFOLLOW)&&VirtualLinkTarget(path,target)>=0){errno=ELOOP;return -1;} \
@@ -465,7 +495,7 @@ static int (*next_open)(const char*,int,...), (*next_open64)(const char*,int,...
 static int (*next_openat)(int,const char*,int,...), (*next_openat64)(int,const char*,int,...);
 #define OPEN(name, params, args, directory) \
     int name params { \
-        if (!next_##name) { errno=ENOSYS; return -1; } \
+        if(!next_##name){EnsureFilesystemSymbols();} if (!next_##name) { errno=ENOSYS; return -1; } \
         uint64_t depot_started=DepotProfileStart(path); \
         mode_t mode=0; \
         if ((flags&O_CREAT) || (flags&O_TMPFILE)==O_TMPFILE) { \
@@ -486,7 +516,7 @@ static int (*next_openat)(int,const char*,int,...), (*next_openat64)(int,const c
         } \
         path=FollowSingleton(path,followed); \
         int value=next_##name args; int saved=errno; \
-        TraceProcAccess(#name,path,value<0,saved);DepotProfileEnd(#name,depot_started); errno=saved; return value; \
+        TraceNativeFile(#name,path,value,saved);TraceProcAccess(#name,path,value<0,saved);DepotProfileEnd(#name,depot_started); errno=saved; return value; \
     }
 OPEN(open,(const char *path,int flags,...),(path,flags,mode),AT_FDCWD)
 OPEN(open64,(const char *path,int flags,...),(path,flags,mode),AT_FDCWD)
@@ -496,14 +526,14 @@ OPEN(openat64,(int fd,const char *path,int flags,...),(fd,path,flags,mode),fd)
 static int (*next_rename)(const char*,const char*);
 static int (*next_renameat)(int,const char*,int,const char*);
 int rename(const char *from,const char *to) {
-    if(!next_rename){errno=ENOSYS;return -1;}
+    if(!next_rename){EnsureFilesystemSymbols();} if(!next_rename){errno=ENOSYS;return -1;}
     char a[PATH_MAX],b[PATH_MAX],ca[PATH_MAX],cb[PATH_MAX];
     from=FollowCloud(SandboxPath(from,a),ca,0);if(!from)return -1;
     to=FollowCloud(SandboxPath(to,b),cb,0);if(!to)return -1;
     return next_rename(from,to);
 }
 int renameat(int fromfd,const char *from,int tofd,const char *to) {
-    if(!next_renameat){errno=ENOSYS;return -1;}
+    if(!next_renameat){EnsureFilesystemSymbols();} if(!next_renameat){errno=ENOSYS;return -1;}
     char a[PATH_MAX],b[PATH_MAX],aa[PATH_MAX],bb[PATH_MAX],ca[PATH_MAX],cb[PATH_MAX];
     from=FollowCloud(SandboxAtPath(fromfd,from,aa,a),ca,0);if(!from)return -1;
     to=FollowCloud(SandboxAtPath(tofd,to,bb,b),cb,0);if(!to)return -1;
@@ -519,7 +549,7 @@ static ssize_t NativeExecutable(const char *path,char *buffer,size_t capacity) {
 }
 ssize_t readlink(const char *path,char *buffer,size_t capacity) {
     ssize_t result=NativeExecutable(path,buffer,capacity);if(result!=-2)return result;
-    if(!next_readlink){errno=ENOSYS;return -1;}
+    if(!next_readlink){EnsureFilesystemSymbols();} if(!next_readlink){errno=ENOSYS;return -1;}
     char mapped[PATH_MAX],target[PATH_MAX];path=SandboxPath(path,mapped);
     int length=VirtualLinkTarget(path,target);
     if(length>=0){if(!capacity){errno=EINVAL;return -1;}
@@ -530,7 +560,7 @@ ssize_t readlink(const char *path,char *buffer,size_t capacity) {
 }
 ssize_t readlinkat(int fd,const char *path,char *buffer,size_t capacity) {
     ssize_t result=NativeExecutable(path,buffer,capacity);if(result!=-2)return result;
-    if(!next_readlinkat){errno=ENOSYS;return -1;}
+    if(!next_readlinkat){EnsureFilesystemSymbols();} if(!next_readlinkat){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],parent[PATH_MAX];
     if(path[0]!='/'&&fd!=AT_FDCWD){
         char descriptor[64];snprintf(descriptor,sizeof(descriptor),"/proc/self/fd/%d",fd);
@@ -550,7 +580,7 @@ static char *(*next_mkdtemp)(char*);
 // and the six generated characters, without requiring a larger caller buffer.
 #define TEMPFILE(name, params, arguments, suffix_count) \
     int name params { \
-        if(!next_##name){errno=ENOSYS;return -1;} \
+        if(!next_##name){EnsureFilesystemSymbols();} if(!next_##name){errno=ENOSYS;return -1;} \
         char mapped[PATH_MAX]; const char *translated=SandboxPath(pattern,mapped); \
         if(translated==pattern)return next_##name arguments; \
         char *original=pattern;pattern=mapped; \
@@ -566,7 +596,7 @@ TEMPFILE(mkstemps64,(char *pattern,int suffix),(pattern,suffix),suffix)
 TEMPFILE(mkostemp,(char *pattern,int flags),(pattern,flags),0)
 TEMPFILE(mkostemp64,(char *pattern,int flags),(pattern,flags),0)
 char *mkdtemp(char *pattern) {
-    if(!next_mkdtemp){errno=ENOSYS;return NULL;}
+    if(!next_mkdtemp){EnsureFilesystemSymbols();} if(!next_mkdtemp){errno=ENOSYS;return NULL;}
     char mapped[PATH_MAX];const char *translated=SandboxPath(pattern,mapped);
     if(translated==pattern)return next_mkdtemp(pattern);
     if(!next_mkdtemp(mapped))return NULL;
@@ -575,7 +605,7 @@ char *mkdtemp(char *pattern) {
 }
 
 static void InitializeFontconfig(void);
-__attribute__((constructor)) static void InitializeFilesystem(void) {
+static void ResolveFilesystemSymbols(void) {
 #define RESOLVE(name) next_##name=dlsym(RTLD_NEXT,#name)
     RESOLVE(chdir);RESOLVE(mknod);RESOLVE(mknodat);RESOLVE(__xmknod);RESOLVE(__xmknodat);
     RESOLVE(mkdir);
@@ -623,6 +653,9 @@ __attribute__((constructor)) static void InitializeFilesystem(void) {
     RESOLVE(mkstemp);RESOLVE(mkstemp64);RESOLVE(mkstemps);RESOLVE(mkstemps64);
     RESOLVE(mkostemp);RESOLVE(mkostemp64);RESOLVE(mkdtemp);
     dlerror();
+}
+__attribute__((constructor)) static void InitializeFilesystem(void) {
+    EnsureFilesystemSymbols();
     InitializeSingleLibrary();
     InitializeSingletonProfile();
     InitializeFontconfig();
@@ -825,6 +858,7 @@ int SteamOhosUnixSocketPath(const char *path,char *mapped,size_t capacity) {
 }
 
 static const char *AtPath(int fd,const char *path,char absolute[PATH_MAX]) {
+    if(!next_readlink)EnsureFilesystemSymbols();
     if(!path||path[0]=='/'||fd==AT_FDCWD||!*path)return path;
     char descriptor[64],parent[PATH_MAX];snprintf(descriptor,sizeof(descriptor),"/proc/self/fd/%d",fd);
     ssize_t count=next_readlink(descriptor,parent,sizeof(parent)-1);
@@ -837,8 +871,9 @@ static const char *SandboxAtPath(int fd,const char *path,char absolute[PATH_MAX]
     const char *translated=SandboxPath(resolved,mapped);
     // Preserve real dirfd semantics for ordinary paths, including /proc magic
     // links and open-but-deleted directories. Only our explicit aliases change.
-    char link[PATH_MAX],target[PATH_MAX],depot[PATH_MAX];const char *suffix;
-    return strcmp(resolved,translated)||SingletonName(translated)||CloudLinkPath(translated,link,target,&suffix)||DepotScope(translated,depot)?translated:path;
+    char link[PATH_MAX],target[PATH_MAX],depot[PATH_MAX],interpreter[PATH_MAX];const char *suffix;
+    return strcmp(resolved,translated)||SteamOhosGuestInterpreter(translated,interpreter)!=translated||
+        SingletonName(translated)||CloudLinkPath(translated,link,target,&suffix)||DepotScope(translated,depot)?translated:path;
 }
 
 // Bounded GNU-only diagnostics: report the actual dirfd and proc magic-link
@@ -1085,6 +1120,10 @@ static const char *FollowCloud(const char *path,char followed[PATH_MAX],int foll
     char depot[PATH_MAX];const char *value=DepotResolve(path,depot,follow_leaf);
     if(!value)return NULL;
     if(value==depot){strcpy(followed,depot);path=followed;}
+    if(follow_leaf) {
+        char interpreter[PATH_MAX];const char *paired=SteamOhosGuestInterpreter(path,interpreter);
+        if(paired!=path){strcpy(followed,paired);return followed;}
+    }
     char absolute[PATH_MAX],link[PATH_MAX],target[PATH_MAX];const char *suffix;
     if(!AbsolutePath(path,absolute))return path;
     int kind=CloudLinkPath(absolute,link,target,&suffix);
@@ -1104,6 +1143,11 @@ static const char *FollowCloud(const char *path,char followed[PATH_MAX],int foll
 }
 char *realpath(const char *path,char *resolved) {
     static char *(*next_realpath)(const char*,char*);
+#if defined(__x86_64__)
+    // An unversioned interposer can select the old GLIBC_2.2.5 entry, which
+    // rejects realpath(path,NULL). Keep the current GNU allocation contract.
+    if(!next_realpath)next_realpath=dlvsym(RTLD_NEXT,"realpath","GLIBC_2.3");
+#endif
     if(!next_realpath)next_realpath=dlsym(RTLD_NEXT,"realpath");
     if(!next_realpath){errno=ENOSYS;return NULL;}
     char mapped[PATH_MAX],cloud[PATH_MAX];
@@ -1124,6 +1168,7 @@ char *__realpath_chk(const char *path,char *resolved,size_t capacity) {
 }
 
 #include "depot_links.h"
+#include "native_openat2.h"
 
 // Directory walkers must see the same link type as lstat. Otherwise uninstall
 // or verification may mistake a link record for an ordinary content file.

@@ -13,7 +13,7 @@ namespace winehua::direct {
 // a software renderer, and no CPU image mapping/upload is involved.
 class DirectDesktopCompositor {
 public:
-    DirectDesktopCompositor(DesktopCompositor& compositor, EGLDisplay display);
+    DirectDesktopCompositor(DesktopCompositor& compositor, EGLDisplay display, uint32_t scope = 0);
     ~DirectDesktopCompositor(); // called with its GL context current
     bool Update();
     void Draw(uint32_t rootId, int desktopW, int desktopH, const FitRect& fit);

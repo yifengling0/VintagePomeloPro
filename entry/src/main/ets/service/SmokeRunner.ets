@@ -101,6 +101,14 @@ interface LinuxSteamFaultSummary {
   frames: string[];
 }
 
+interface NativeBufferMemoryResult {
+  status: string;
+  nativeBufferProbeExit?: number;
+  nativeBufferProbeTruncated?: boolean;
+  childExitVerified?: boolean;
+  ncpExitSignal?: number;
+}
+
 interface LinuxSteamGnuControl {
   exitCode: number;
   signal: number;
@@ -316,7 +324,7 @@ export class SmokeRunner {
           status: 'PASS', stage: 'metadata_collected', message: 'Read-only bounded directory size audit' }], driveC);
         return;
       }
-      if (request.suite === 'linux-steam-gnu') {
+      if (request.suite === 'linux-steam-gnu' || request.suite === 'native-buffer-memory') {
         await this.runLinuxSteamGnu(request, driveC);
         return;
       }
@@ -609,8 +617,27 @@ export class SmokeRunner {
     if (!this.context) throw new Error('Steam diagnostic context is unavailable');
     const externalRoot = await prepareLinuxSteamExternalStorage(this.context);
     writeSmokeText(`${resultsDir}/external-storage.json`, JSON.stringify({ root: externalRoot, drive: 'Z:' }));
-    const raw = await probe();
-    writeSmokeText(`${resultsDir}/linux-steam-gnu.json`, raw);
+    const nativeMemory = request.suite === 'native-buffer-memory';
+    let raw: string;
+    let nativeControlPassed: boolean = false;
+    if (nativeMemory) {
+      const createControl = await testNapi.runDirectVulkanCreateProbe(true);
+      writeSmokeText(`${resultsDir}/native-create-control.json`, JSON.stringify(createControl));
+      raw = createControl.nativeBufferMemory || '{"status":"native_memory_control_failed"}';
+      nativeControlPassed = createControl.status === 'PASS';
+    } else {
+      raw = await probe();
+    }
+    writeSmokeText(`${resultsDir}/${nativeMemory ? 'native-buffer-memory' : 'linux-steam-gnu'}.json`, raw);
+    if (nativeMemory) {
+      const result = JSON.parse(raw) as NativeBufferMemoryResult;
+      await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
+        testId: 'native-buffer-memory',
+        status: result.nativeBufferProbeExit === 0 && !result.nativeBufferProbeTruncated &&
+          nativeControlPassed ? 'PASS' : 'FAIL',
+        stage: result.status, message: 'Bounded OHOS NativeBuffer memory test; no game or presentation readback' }], driveC);
+      return;
+    }
     const result = JSON.parse(raw) as LinuxSteamGnuResult;
     const failure = result.exitControl;
     const timeout = result.timeoutControl;

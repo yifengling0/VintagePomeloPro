@@ -7,6 +7,7 @@ This is not a claim that a HAP build recompiles GE Wine/glibc/Mesa from source.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -15,6 +16,13 @@ import stat
 import subprocess
 import urllib.request
 import zipfile
+_core_spec = importlib.util.spec_from_file_location('native_guest_core', Path(__file__).with_name('prepare_linux_native_guest_core.py'))
+native_guest_core = importlib.util.module_from_spec(_core_spec)
+_core_spec.loader.exec_module(native_guest_core)
+verify_native_guest_core = native_guest_core.verify
+_driver_spec = importlib.util.spec_from_file_location('native_vulkan_driver', Path(__file__).with_name('prepare_linux_native_vulkan_driver.py'))
+native_vulkan_driver = importlib.util.module_from_spec(_driver_spec)
+_driver_spec.loader.exec_module(native_vulkan_driver)
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'docs/linux-steam/build-components.lock.json'
@@ -51,6 +59,8 @@ def verify_sources(root, lock):
     if lock.get("protonMedia"):
         from prepare_linux_proton_media import verify as verify_media
         verify_media(root)
+    verify_native_guest_core(root)
+    native_vulkan_driver.verify(root)
     # The released GNU ZIP remains immutable. An explicit, hash-verified HAP
     # companion may supersede selected adapter sources without repacking it.
     overrides=lock.get('hapSourceOverrides',{})
@@ -187,6 +197,8 @@ def verify_hap(path, root=ROOT):
         if lock.get("protonMedia"):
             from prepare_linux_proton_media import verify as verify_media
             verify_media(root, archive)
+        verify_native_guest_core(root, archive)
+        native_vulkan_driver.verify(root, archive)
         for manifest_name in set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values()):
             local = root / manifest_name
             manifest = json.loads(local.read_text())

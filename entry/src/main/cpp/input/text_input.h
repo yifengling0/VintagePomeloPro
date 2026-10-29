@@ -55,6 +55,8 @@ public:
     void OnSurfaceDestroyed(wl_resource* surface);
 
     bool IsEnabled() const;
+    uint32_t FocusedToplevel() const;
+    bool IsActivated() const;
 
     // -- NAPI 线程入口 (preedit/commit 入队, Wayland 线程统一发送) --
     bool SendPreedit(const char* utf8, int32_t cursorBegin, int32_t cursorEnd);

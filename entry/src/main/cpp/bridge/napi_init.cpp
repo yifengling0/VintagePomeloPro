@@ -15,6 +15,7 @@
 #include "wine/container_session.h"
 #include "proc/wine_process.h"
 #include "wine/wine_launch.h"
+#include "wine/wine_cpu_policy.h"
 #include "wine/wine_exe.h"
 #include "phone_adapter/phone_adapter.h"
 #include "input/text_input.h"
@@ -344,8 +345,8 @@ static napi_value SetHostShadowProfile(napi_env env, napi_callback_info info) {
 }
 
 static napi_value LaunchClient(napi_env env, napi_callback_info info) {
-    size_t argc = 12;
-    napi_value args[12] = {};
+    size_t argc = 13;
+    napi_value args[13] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
     auto* p = new LaunchParams();
@@ -439,6 +440,30 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
         napi_value failed;
         napi_create_int32(env, -1, &failed);
         return failed;
+    }
+    if (argc >= 13) {
+        bool array = false;
+        uint32_t length = 0;
+        bool valid = napi_is_array(env, args[12], &array) == napi_ok && array &&
+            napi_get_array_length(env, args[12], &length) == napi_ok && length <= 32;
+        for (uint32_t index = 0; valid && index < length; ++index) {
+            napi_value item;
+            size_t size = 0;
+            valid = napi_get_element(env, args[12], index, &item) == napi_ok &&
+                napi_get_value_string_utf8(env, item, nullptr, 0, &size) == napi_ok && size <= 256;
+            if (!valid) break;
+            std::vector<char> line(size + 1);
+            valid = napi_get_value_string_utf8(env, item, line.data(), line.size(), &size) == napi_ok;
+            const std::string value(line.data(), size);
+            valid = valid && winehua::IsWineCpuEnvironmentLine(value);
+            if (valid) p->cpuEnvironment.push_back(value);
+        }
+        if (!valid) {
+            delete p;
+            napi_value failed;
+            napi_create_int32(env, -1, &failed);
+            return failed;
+        }
     }
     // Current product callers leave legacy Direct booleans false. Resolve
     // them from the same Native policy that owns the child environment.
@@ -719,6 +744,12 @@ static napi_value SetImeCallback(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
+static napi_value WineTextInputFocusedToplevel(napi_env env, napi_callback_info) {
+    napi_value value;
+    napi_create_uint32(env, TextInput::GetInstance()->FocusedToplevel(), &value);
+    return value;
+}
+
 // -- NAPI: sendImeCommit -- (ArkTS inputMethod insertText → Wine commit_string)
 static napi_value SendImeCommit(napi_env env, napi_callback_info info) {
     size_t argc = 1;
@@ -841,15 +872,9 @@ static napi_value CreateRenderer(napi_env env, napi_callback_info info) {
         return nullptr;
     }
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] createRenderer tl=%{public}u surfaceId=%{public}ld", tid, surfaceId);
-    // Only managed mode has a dedicated XComponent for this toplevel. A
-    // Direct producer must own that output exclusively; desktop mode keeps
-    // its EGL root until a separate multi-window overlay is implemented.
-    if (WaylandServer::GetInstance()->Policy().OhosWindowPerToplevel() &&
-        !PluginManager::GetInstance()->GetRendererForToplevel(tid) &&
-        DirectWineSurfaceBindOutput(tid, static_cast<uint64_t>(surfaceId))) {
-        OH_LOG_INFO(LOG_APP, "[MW-NAPI] Direct Vulkan output bound tl=%{public}u", tid);
-        return nullptr;
-    }
+    // Direct capability is not evidence that a window produces Vulkan frames.
+    // One compositor always owns the output, including GDI-only windows and
+    // later GDI/GPU transitions. Direct queues are imported as GPU layers.
     PluginManager::GetInstance()->CreateRenderer(tid, surfaceId);
     return nullptr;
 }
@@ -869,8 +894,7 @@ static napi_value ResizeRenderer(napi_env env, napi_callback_info info) {
     napi_get_value_int32(env, args[1], &w);
     napi_get_value_int32(env, args[2], &h);
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] resizeRenderer tl=%{public}u %{public}dx%{public}d", tid, w, h);
-    if (!DirectWineSurfaceResizeOutput(tid, w, h))
-        PluginManager::GetInstance()->ResizeRenderer(tid, w, h);
+    PluginManager::GetInstance()->ResizeRenderer(tid, w, h);
     return nullptr;
 }
 
@@ -884,8 +908,7 @@ static napi_value DestroyRenderer(napi_env env, napi_callback_info info) {
         napi_get_value_uint32(env, args[0], &tid);
     }
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] destroyRenderer tl=%{public}u", tid);
-    if (!DirectWineSurfaceUnbindOutput(tid))
-        PluginManager::GetInstance()->DestroyToplevel(tid);
+    PluginManager::GetInstance()->DestroyToplevel(tid);
     return nullptr;
 }
 
@@ -1121,7 +1144,7 @@ static napi_value NotifyToplevelResize(napi_env env, napi_callback_info info) {
     if (argc >= 4) napi_get_value_bool(env, args[3], &resizing);
     OH_LOG_INFO(LOG_APP, "[NAPI] notifyToplevelResize tl=%{public}u %{public}dx%{public}d resize=%{public}s",
                 tl, w, h, resizing ? "yes" : "no");
-    WaylandServer::GetInstance()->NotifyToplevelResize(tl, w, h, resizing);
+    InputManager::GetInstance()->RequestHostResize(tl, w, h, resizing);
     return nullptr;
 }
 
@@ -1135,7 +1158,7 @@ static napi_value NotifyToplevelResizeEnd(napi_env env, napi_callback_info info)
     uint32_t tl;
     napi_get_value_uint32(env, args[0], &tl);
     OH_LOG_INFO(LOG_APP, "[NAPI] notifyToplevelResizeEnd tl=%{public}u", tl);
-    WaylandServer::GetInstance()->NotifyToplevelResize(tl, 0, 0, false);
+    InputManager::GetInstance()->RequestHostResize(tl, 0, 0, false);
     return nullptr;
 }
 
@@ -1553,6 +1576,12 @@ static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
     return result;
 }
 
+static napi_value WineTextInputActive(napi_env env, napi_callback_info) {
+    napi_value result;
+    napi_get_boolean(env, TextInput::GetInstance()->IsActivated(), &result);
+    return result;
+}
+
 static napi_value WineTextInputEnabled(napi_env env, napi_callback_info) {
     napi_value result;
     napi_get_boolean(env, TextInput::GetInstance()->IsEnabled(), &result);
@@ -1864,7 +1893,9 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"setRendererPaused", nullptr, SetRendererPaused, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"wineTextInputPreedit", nullptr, WineTextInputPreedit, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"wineTextInputCommit", nullptr, WineTextInputCommit, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"wineTextInputActive", nullptr, WineTextInputActive, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"wineTextInputEnabled", nullptr, WineTextInputEnabled, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"wineTextInputFocusedToplevel", nullptr, WineTextInputFocusedToplevel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"wineTextInputSetArmed", nullptr, WineTextInputSetArmed, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"initAppLog", nullptr, InitAppLog, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"clearNativeLog", nullptr, ClearNativeLog, nullptr, nullptr, nullptr, napi_default, nullptr},

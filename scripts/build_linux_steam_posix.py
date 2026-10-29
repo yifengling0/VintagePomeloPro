@@ -50,7 +50,7 @@ def main():
     manifest.write_text(json.dumps(dict(schemaVersion=1,architecture='aarch64-linux-gnu',name=binary.name,
         bytes=len(data),sha256=sha(binary),sources=sources),indent=2)+'\n')
     pending=fex.with_suffix('.pending')
-    subprocess.run([cxx,*common,'-std=c++17',str(wrapper),'-o',str(pending)],check=True)
+    subprocess.run([cxx,*common,'-std=c++17',str(wrapper),'-ldl','-o',str(pending)],check=True)
     pending.replace(fex)
     fex_manifest.write_text(json.dumps(dict(schemaVersion=1,architecture='aarch64-linux-gnu',name=fex.name,
         bytes=fex.stat().st_size,sha256=sha(fex),sources=sources),indent=2)+'\n')

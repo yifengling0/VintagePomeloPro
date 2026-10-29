@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { common, Want } from '@kit.AbilityKit';
 import { mapMouseButton } from '../common/MouseMap';
 import {
@@ -162,7 +163,7 @@ struct InputOverlayPage {
     this.mouseLeftActive = false;
     this.resetTouchpadGesture();
     InputDispatcher.getInstance().releaseAll('overlay-page-disappear');
-    testNapi.wineTextInputSetArmed(false);
+    WineImeCoordinator.getInstance().setKeyboardVisible(false);
   }
 
   private cancelCursorTimers(): void {
@@ -454,7 +455,7 @@ struct InputOverlayPage {
     hilog.info(0x0000, 'HostKb', 'toggle host keyboard now=%{public}s',
       this.hostKeyboardActive ? 'on' : 'off');
     if (this.hostKeyboardActive) {
-      testNapi.wineTextInputSetArmed(true);
+      WineImeCoordinator.getInstance().setKeyboardVisible(true);
       this.hostImeReseedPending = true;
       this.hostImeBuffer = InputOverlayPage.HOST_SENTINEL;
       this.hostImeContent = InputOverlayPage.HOST_SENTINEL;
@@ -467,7 +468,7 @@ struct InputOverlayPage {
       }, 32);
     } else {
       focusController.clearFocus();
-      testNapi.wineTextInputSetArmed(false);
+      WineImeCoordinator.getInstance().setKeyboardVisible(false);
       this.pendingHostCommit = '';
       this.hostImeBuffer = '';
       this.hostImeContent = '';
@@ -497,7 +498,8 @@ struct InputOverlayPage {
     if (code === EVDEV_KEY_ENTER) {
       if (pressed) {
         this.lastEnterDownTs = Date.now();
-      } else if (Date.now() - this.lastEnterDownTs > InputOverlayPage.ENTER_SYNTH_WINDOW_MS) {
+      } else if (Date.now() - this.lastEnterDownTs > InputOverlayPage.ENTER_SYNTH_WINDOW_MS &&
+          !WineImeCoordinator.getInstance().hasAttachedSession()) {
         InputRouter.getInstance().sendKey(EVDEV_KEY_ENTER, true);
       }
     }

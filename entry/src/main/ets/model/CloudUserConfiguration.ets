@@ -4,7 +4,7 @@ export const CLOUD_CONFIGURATION_BYTES: number = 262144;
 export const CLOUD_CONFIGURATION_SCOPE: string = 'user-settings';
 export const CLOUD_GLOBAL_SETTINGS_KEYS: string[] = [
   'defaultDisplayMode', 'wineLanguage', 'desktopOrientation', 'desktopWindowMode', 'keepScreenOn',
-  'box64Preset', 'desktopInputProfileId', 'viewMode', 'uiSkin', 'consoleCardLayout', 'consolePalette',
+  'wineTranslationEngine', 'box64Preset', 'desktopInputProfileId', 'viewMode', 'uiSkin', 'consoleCardLayout', 'consolePalette',
   'themeMode', 'useGlassEffect', 'virtualInputEnabled', 'showVirtualControls', 'autoHideVirtualControls',
   'controlBarDirection', 'controlBarPositionX', 'controlBarPositionY', 'virtualMouseConfig', 'controlOpacity',
   'gamepadDeadzone', 'controllerOutputMode', 'outputScale', 'd3dRendererPreference', 'preserveUserDataOnReset',

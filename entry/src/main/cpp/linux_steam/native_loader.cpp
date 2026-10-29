@@ -1,4 +1,5 @@
 #include "native_loader.h"
+#include "native_kernel_maps.h"
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
@@ -238,33 +239,28 @@ bool NativeLoaderImage::PrepareExecCleanup() {
     // exec can reclaim it once a different TLS has taken ownership.
     const uintptr_t bootstrapTp = reinterpret_cast<uintptr_t>(__builtin_thread_pointer());
     const uintptr_t vdso = static_cast<uintptr_t>(getauxval(AT_SYSINFO_EHDR));
+    NativeKernelMaps kernelMaps(vdso,static_cast<uintptr_t>(page));
+    size_t kernelBytes=0;
     char line[8192]; uintptr_t previous = 0; size_t total = 0, tlsBytes = 0, hostBytes = 0;
     bool valid = true;
     while (fgets(line, sizeof(line), maps)) {
-        unsigned long first = 0, last = 0; int offset = 0;
-        if (!strchr(line, '\n') || sscanf(line, "%lx-%lx %*4s %*s %*s %*s %n", &first, &last, &offset) != 2 ||
+        unsigned long first = 0, last = 0; int offset = 0; char permissions[5]{};
+        if (!strchr(line, '\n') || sscanf(line, "%lx-%lx %4s %*s %*s %*s %n", &first, &last, permissions, &offset) != 3 ||
             !offset || first >= last || first < previous || first % page || last % page) { valid = false; break; }
         previous = last;
         if (first <= bootstrapTp && bootstrapTp < last) { tlsBytes = last - first; continue; }
         const char* name = line + offset;
+        if(kernelMaps.Keep(first,last,permissions,name)) {kernelBytes+=last-first;continue;}
         // Userspace exec cannot replace the kernel's initial stack/brk or
         // platform module bookkeeping. Keep those small anchors and signed
         // host modules; reclaim retired GNU anonymous images/arenas instead.
-        if ((vdso && first <= vdso && vdso < last) || !strncmp(name, "[stack]", 7) ||
+        if (!strncmp(name, "[stack]", 7) ||
             !strncmp(name, "[heap]", 6) || !strncmp(name, "/system/", 8) ||
             !strncmp(name, "/vendor/", 8) || !strncmp(name, "/chip_prod/", 11) ||
             !strncmp(name, "/data/storage/el1/", 18) || !strncmp(name, "/data/app/el1/", 14)) {
             hostBytes += last - first;
             continue;
         }
-        // Keep kernel-owned code/data named by the new auxv. Everything else
-        // belongs to the previous image, including heap, stacks, anonymous
-        // copied ELF segments and inherited shared-memory attachments.
-        bool kernel = !strncmp(name, "[vdso]", 6) || !strncmp(name, "[vvar]", 6) ||
-            !strncmp(name, "[vvar_vclock]", 13) || !strncmp(name, "[vectors]", 9) ||
-            !strncmp(name, "[vsyscall]", 10) || !strncmp(name, "[sigpage]", 9) ||
-            !strncmp(name, "[commpage]", 10);
-        if (kernel) continue;
         // VMAs may merge across our allocation boundaries; subtract intervals
         // instead of preserving a whole VMA containing one new loader page.
         uintptr_t cursor = first;
@@ -291,6 +287,7 @@ bool NativeLoaderImage::PrepareExecCleanup() {
     diagnostics = "STEAMOHOS_EXEC_RECLAIM mappings=" + std::to_string(cleanupCount_) +
         " virtual_bytes=" + std::to_string(total) + " bootstrap_tls_bytes=" + std::to_string(tlsBytes) +
         " host_anchor_bytes=" + std::to_string(hostBytes) +
+        " kernel_anchor_bytes=" + std::to_string(kernelBytes) +
         " loader_base=" + std::to_string(reinterpret_cast<uintptr_t>(image_)) + "\n";
     stage = "exec_cleanup_prepared";
 #if defined(__aarch64__)

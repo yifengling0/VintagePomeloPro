@@ -32,9 +32,10 @@ struct DirectDesktopSource {
     std::shared_ptr<DirectImageQueue> queue;
 };
 
-// One desktop renderer owns queue consumption; the production Vulkan presenter
-// worker drains its old submissions before publishing desktop sources.
-void SetDirectDesktopConsumer(const void* owner, bool enabled);
+// Scope 0 owns the desktop; a nonzero scope owns only that managed toplevel.
+// The worker drains its single-image presenter before publishing a queue.
+// Callers must retire their GPU reads before releasing ownership.
+bool SetDirectDesktopConsumer(const void* owner, bool enabled, uint32_t scope = 0);
 std::vector<DirectDesktopSource> GetDirectDesktopSources(const void* owner);
 
 } // namespace winehua::direct

@@ -124,8 +124,7 @@ export class ModalWindowManager {
     entry.h = Math.max(1, Number(d.h ?? 0));
     this.creating.add(modalId);
 
-    // 与 WineWindow 同模式: aboutToAppear 读 pending toplevelId (同步先后序)
-    testNapi.setPendingToplevel(modalId);
+    // Pass identity with this scene, independent of other pending windows.
 
     hilog.info(DOMAIN, TAG,
       '[MODAL] show #%{public}d owner=#%{public}d wine=%{public}dx%{public}d rel=(%{public}d,%{public}d) scale=%{public}s',
@@ -137,13 +136,14 @@ export class ModalWindowManager {
       isModal: true
     }).then(async (subWin) => {
       try {
-        await subWin.loadContent('pages/WineWindow');
+        const storage = new LocalStorage();
+        storage.setOrCreate('wineToplevelId', modalId);
+        await subWin.loadContent('pages/WineWindow', storage);
       } catch (e) {
         hilog.error(DOMAIN, TAG, '[MODAL] #%{public}d loadContent FAILED: %{public}s',
           modalId, JSON.stringify(e));
         this.creating.delete(modalId);
         this.pendingDestroy.delete(modalId);  // 失败路径同样清理, 防下次 show 闪灭
-        testNapi.cancelPendingToplevel(modalId);
         try { await subWin.destroyWindow(); } catch (_) { /* ignore */ }
         return;
       }
@@ -161,7 +161,6 @@ export class ModalWindowManager {
       if (this.pendingDestroy.has(modalId)) {
         this.pendingDestroy.delete(modalId);
         hilog.info(DOMAIN, TAG, '[MODAL] #%{public}d destroy requested while creating', modalId);
-        testNapi.cancelPendingToplevel(modalId);
         this.destroyEntry(entry);
         return;
       }
@@ -187,7 +186,6 @@ export class ModalWindowManager {
     }).catch((e: Error) => {
       this.creating.delete(modalId);
       this.pendingDestroy.delete(modalId);  // 失败路径同样清理
-      testNapi.cancelPendingToplevel(modalId);
       hilog.error(DOMAIN, TAG, '[MODAL] #%{public}d createSubWindow FAILED: %{public}s',
         modalId, JSON.stringify(e));
     });

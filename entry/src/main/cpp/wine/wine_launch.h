@@ -28,6 +28,7 @@ struct LaunchParams {
     bool directNcpSession = false;
     bool desktopVulkanCompositor = false;
     int desktopStallSeconds = 0; // opt-in startup diagnostic, never persisted
+    std::vector<std::string> cpuEnvironment; // original Wine WoW64 settings only
 };
 
 void LaunchThreadFunc(LaunchParams* p);

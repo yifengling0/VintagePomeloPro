@@ -36,6 +36,7 @@
 #include "wine/wine_constants.h"
 #include "wine_scheme.h"
 #include "wine/wine_env.h"
+#include "wine/wine_cpu_policy.h"
 #include "wine/prefix_registry_io.h"
 #include "wine/steam_client_args.h"
 #include <fcntl.h>
@@ -490,9 +491,7 @@ static void setup_wine_env(const char* binDir, const char* homeDir, const char *
 
 // 32 位 CPU 后端选择 (HODLL)。必须放在 entryParams 的 __env 覆盖之后执行，
 // 否则 Want 传入的 WINEHUA_WOW64_ENGINE 会被 setup_wine_env() 的默认值吃掉。
-// 背景: Wine 的 wow64.dll 通过 get_cpu_dll_name() 读取 HODLL 加载后端, 并要求
-// 后端导出完整 BTCpu* 契约 (含 BTCpuSuspendLocalThread)。wowbox64.dll 目前缺该
-// 导出, 而 libwow64fex.dll 完整提供。
+// Wine 的 wow64.dll 通过 get_cpu_dll_name() 读取 HODLL 加载后端。
 static bool is_steam_game_exe(int argc, char **argv)
 {
     for (int i = 1; i < argc; ++i)
@@ -571,7 +570,9 @@ static void select_wow64_backend(int argc, char **argv)
      * 的运行基座, 但仍保留为显式回退: WINEHUA_WOW64_ENGINE=box。
      * steamapps\common 下曾经秒崩的现象尚未在 FEX 基座下复查, 先保留路径判定
      * 只作为日志线索, 不再据此强制换引擎。 */
-    if (is_steam_client_exe(argc, argv))
+    const char *wow64_engine = getenv("WINEHUA_WOW64_ENGINE");
+    if (is_steam_client_exe(argc, argv) &&
+        (!wow64_engine || strcmp(wow64_engine, "box") != 0))
     {
         setenv("HODLL", "libwow64fex.dll", 1);
         OH_LOG_INFO(LOG_APP,
@@ -583,17 +584,12 @@ static void select_wow64_backend(int argc, char **argv)
     /* 日志线索: steamapps\common 下的游戏过去在 FEX 上秒崩, 因而被强制 box64。
      * 现在基座换成 FEX, 这里只记录, 便于按 exe 归类崩溃样本。 */
     if (is_steam_game_exe(argc, argv))
-        OH_LOG_INFO(LOG_APP, "[WineChild] steamapps game on FEX base (exe=%{public}s)",
-                    argv[1] ? argv[1] : "(null)");
-
-    const char *wow64_engine = getenv("WINEHUA_WOW64_ENGINE");
+        OH_LOG_INFO(LOG_APP, "[WineChild] steamapps game CPU backend=%{public}s (exe=%{public}s)",
+                    winehua::WineWow64CpuModule(wow64_engine), argv[1] ? argv[1] : "(null)");
 
     // Keep the Proton baseline on FEX. A partial prefix or a failed launch
     // does not establish an emulator failure and must not change this default.
-    if (wow64_engine && strcmp(wow64_engine, "box") == 0)
-        setenv("HODLL", "wowbox64.dll", 1);
-    else
-        setenv("HODLL", "libwow64fex.dll", 1);
+    setenv("HODLL", winehua::WineWow64CpuModule(wow64_engine), 1);
     OH_LOG_INFO(LOG_APP, "[WineChild] HODLL=%{public}s (WINEHUA_WOW64_ENGINE=%{public}s)",
                 getenv("HODLL") ? getenv("HODLL") : "?", wow64_engine ? wow64_engine : "(unset)");
 #endif

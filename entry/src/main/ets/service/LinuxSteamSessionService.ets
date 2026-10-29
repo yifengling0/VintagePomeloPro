@@ -27,7 +27,11 @@ const TMP = `${BASE}/client-tmp`;
 interface SupervisorState {
   version: number; generation: string; ready: boolean; closed: boolean; mode: number; updatedAt: number;
 }
-interface NativeSessionResult { status: string; }
+interface NativeClientResult {
+  stage: string; childReaped: boolean; exitCode: number; signal: number; timedOut: boolean;
+  setupErrno: number; execErrno: number; waitErrno: number;
+}
+interface NativeSessionResult { status: string; client?: NativeClientResult; }
 export type LinuxSteamSessionListener = (value: LinuxSteamSnapshot) => void;
 
 export class LinuxSteamSessionService {
@@ -68,6 +72,14 @@ export class LinuxSteamSessionService {
     try { ensureSmokeDirectory(`${BASE}/session`); ConfigurationFiles.json(`${BASE}/session/state.json`, JSON.stringify(this.snapshot())); } catch (_) {}
     this.listeners.forEach((listener: LinuxSteamSessionListener): void => listener(this.snapshot()));
   }
+  private nativeFailure(result: NativeSessionResult): string {
+    const client = result.client;
+    if (client?.signal) return `Steam 客户端异常退出（信号 ${client.signal}），可重新打开`;
+    if (client?.setupErrno || client?.execErrno) return `Steam 客户端启动失败（${client.stage}，错误 ${client.setupErrno || client.execErrno}），可重新打开`;
+    if (client?.timedOut) return 'Steam 客户端启动超时，可重新打开';
+    if (client?.childReaped && client.exitCode !== 0) return `Steam 客户端退出（返回码 ${client.exitCode}），可重新打开`;
+    return `Steam 启动未完成（${result.status}），可重新打开`;
+  }
   private async delay(): Promise<void> { await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 150); }); }
   private elapsed(stage: string, started: number): void {
     hilog.info(0, 'DeckLaunch', 'stage=%{public}s elapsedMs=%{public}d', stage, Date.now() - started);
@@ -89,7 +101,7 @@ export class LinuxSteamSessionService {
       if (presentation === 'bigPicture' && this.value.presentation !== 'bigPicture') this.pageRecovery.beginBigPicture();
       if (next !== this.value.state || presentation !== this.value.presentation) {
         this.value.state = next; this.value.presentation = presentation;
-        this.value.message = next === 'running' ? 'Steam 已打开，登录和同步状态请在客户端查看' : '正在打开 Steam';
+        this.value.message = next === 'running' ? 'Steam 窗口已打开，登录、同步及错误状态请在客户端查看' : '正在打开 Steam';
         this.publish();
       }
       this.pageRecovery.poll();
@@ -179,7 +191,9 @@ export class LinuxSteamSessionService {
       this.worker = nativeStart().then((raw: string): void => {
         const result = JSON.parse(raw) as NativeSessionResult;
         ConfigurationFiles.json(`${BASE}/session/native-result.private.json`, raw);
-        if (this.value.state !== 'stopping') throw new Error(`Steam 已退出（${result.status}），可重新打开`);
+        const cleanExit = result.client?.childReaped && result.client.exitCode === 0 &&
+          !result.client.signal && !result.client.timedOut;
+        if (this.value.state !== 'stopping' && !cleanExit) throw new Error(this.nativeFailure(result));
         this.value.state = 'stopped'; this.value.message = 'Steam 已退出';
       }).catch((error: Error): void => {
         this.value.state = 'failed'; this.value.message = error.message.substring(0, 240);
@@ -189,7 +203,7 @@ export class LinuxSteamSessionService {
         this.pageRecovery.stop();
         this.games?.stop(); this.host?.stop(); this.games = null; this.host = null; this.worker = null; this.publish();
       });
-      const deadline = Date.now() + 90000;
+      const deadline = Date.now() + 120000;
       while (this.value.state === 'starting' && Date.now() < deadline) { this.poll(); await this.delay(); }
       this.elapsed('nativeClientReady', stageAt);
       if (this.snapshot().state !== 'running') throw new Error(this.snapshot().state === 'starting' ?
@@ -312,7 +326,7 @@ export class LinuxSteamSessionService {
           '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session', true);
         if (generation !== this.value.generation || !this.worker || this.value.state !== 'running' || this.host !== replacement)
           throw new Error('Steam 窗口恢复已取消');
-        this.value.message = 'Steam 已打开，登录和同步状态请在客户端查看'; this.publish();
+        this.value.message = 'Steam 窗口已打开，登录、同步及错误状态请在客户端查看'; this.publish();
       } catch (error) {
         replacement.stop(); if (this.host === replacement) this.host = null;
         throw new Error(`Steam 窗口恢复失败：${(error as Error).message}`);

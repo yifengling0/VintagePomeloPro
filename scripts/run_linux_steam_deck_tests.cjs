@@ -145,7 +145,7 @@ async function sessionTests(shutdownMode = 'normal') {
     '../model/LinuxSteamModels':models,
     './ConfigurationFiles':{ConfigurationFiles:config},
     './LinuxSteamInstallService':{LinuxSteamInstallService:singleton({ensureReady:async()=>{await componentsGate;}})},
-    './LinuxSteamClientSupervisor':{ensureLinuxSteamClientSupervisor:async()=>{}},
+    './LinuxSteamClientSupervisor':{ensureLinuxSteamClientSupervisor:async()=>{},ensureLinuxSteamPosixSupport:async()=>{}},
     './LinuxSteamLibraryService':{LinuxSteamLibraryService:singleton({externalRoot:()=>root})},
     './LinuxSteamGameLaunch':{LinuxSteamGameLaunch:Games},'./LinuxSteamWindowHost':{LinuxSteamWindowHost:Host},
     './ManagedLinuxSteamBridgeService':{ManagedLinuxSteamBridgeService:{synchronizeCompatibility:async()=>{}}},
@@ -222,6 +222,17 @@ async function sessionTests(shutdownMode = 'normal') {
     await assert.rejects(service.open('shutdown'), shutdownMode === 'rejected' ? /Steam 操作未完成/ : /Steam 没有确认/);
     assert.equal(service.snapshot().state, 'running', 'Rejected shutdown must remain retryable');
     shutdownMode = 'normal';
+  }
+  const completed = {status:'steam_native_attempted',client:{childReaped:true,exitCode:0,signal:0,timedOut:false}};
+  assert.match(service.nativeFailure({status:'failed',client:{signal:11}}), /信号 11/);
+  assert.match(service.nativeFailure({status:'failed',client:{childReaped:true,exitCode:42}}), /返回码 42/);
+  assert.match(service.nativeFailure({status:'failed',client:{setupErrno:13,stage:'execve'}}), /错误 13/);
+  if (shutdownScenario === 'normal') {
+    endNative(JSON.stringify(completed));await service.worker;
+    assert.equal(service.snapshot().state,'stopped','Exit from Steam itself is a normal exit, not a launch failure');
+    assert.equal(stopped,stopsBeforeShutdown+1);
+    console.log('Deck ArkTS session: Steam menu clean exit and native failure diagnostics PASS');
+    return;
   }
   await service.open('shutdown');
   if (shutdownMode === 'early') {

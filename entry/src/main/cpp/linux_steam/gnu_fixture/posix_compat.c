@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 #include <sys/prctl.h>
 #include <fcntl.h>
 #include <sys/un.h>
@@ -70,6 +71,7 @@ __attribute__((visibility("hidden"))) extern long (*SteamOhosNextSyscall)(long,.
 static int NativeFex(void) {
     const char *value=getenv("STEAMOHOS_NATIVE_FEX");return value&&!strcmp(value,"1");
 }
+#include "native_guest_mapping.h"
 static void FexExecPolicy(int prot) {
     if((prot&PROT_EXEC)&&NativeFex()) {
         int saved=errno;(void)prctl(0x6a6974,0UL,0UL,0UL,0UL);errno=saved;
@@ -82,6 +84,19 @@ void *mmap(void *address,size_t length,int prot,int flags,int fd,off_t offset) {
     FexExecPolicy(prot);
     void *result=next_mmap(address,length,prot,flags,fd,offset);
     int saved=errno;
+    int guest=GuestElfDescriptor(fd);
+    if(result==MAP_FAILED&&(saved==EACCES||saved==EPERM)&&(prot&PROT_EXEC)&&guest) {
+        result=next_mmap(address,length,prot&~PROT_EXEC,flags,fd,offset);
+        int retry_error=errno;
+        TraceGuestProtection("mmap",saved,result!=MAP_FAILED);saved=retry_error;
+    }
+    if(result!=MAP_FAILED&&NativeFex())GuestFileUpdate(result,length,guest);
+    static _Atomic unsigned guest_diagnostics;
+    if(guest&&NativeDiagnostic()&&atomic_fetch_add(&guest_diagnostics,1)<32) {
+        struct stat st={0};(void)fstat(fd,&st);
+        fprintf(stderr,"STEAMOHOS_GUEST_MAP fd=%d address=%p length=%zu offset=%lld file_bytes=%lld prot=%x flags=%x errno=%d\n",
+            fd,result,length,(long long)offset,(long long)st.st_size,prot,flags,result==MAP_FAILED?saved:0);
+    }
     static _Atomic unsigned diagnostics;
     if (NativeDiagnostic() && length>=64u*1024u*1024u && atomic_fetch_add(&diagnostics,1)<128) {
         struct rlimit limit={0,0};getrlimit(RLIMIT_AS,&limit);
@@ -102,9 +117,39 @@ int mprotect(void *address,size_t length,int prot) {
     if (!next_mprotect) { errno=ENOSYS; return -1; }
     FexExecPolicy(prot);
     int result=next_mprotect(address,length,prot),saved=errno;
+    if(result<0&&(saved==EACCES||saved==EPERM)&&(prot&PROT_EXEC)&&GuestFileCovers(address,length)) {
+        result=next_mprotect(address,length,prot&~PROT_EXEC);
+        int retry_error=errno;
+        TraceGuestProtection("mprotect",saved,result==0);saved=retry_error;
+    }
     static _Atomic unsigned diagnostics;
     if (NativeDiagnostic() && result<0 && atomic_fetch_add(&diagnostics,1)<64)
         fprintf(stderr,"STEAMOHOS_MPROTECT pid=%d address=%p length=%zu prot=%x errno=%d\n",getpid(),address,length,prot,saved);
+    errno=saved;return result;
+}
+static int (*next_munmap)(void *,size_t);
+int munmap(void *address,size_t length) {
+    if(!next_munmap)next_munmap=dlsym(RTLD_NEXT,"munmap");
+    if(!next_munmap){errno=ENOSYS;return -1;}
+    int result=next_munmap(address,length),saved=errno;
+    if(!result&&NativeFex())GuestFileUpdate(address,length,0);
+    errno=saved;return result;
+}
+static void *(*next_mremap)(void *,size_t,size_t,int,...);
+void *mremap(void *address,size_t old_length,size_t new_length,int flags,...) {
+    if(!next_mremap)next_mremap=dlsym(RTLD_NEXT,"mremap");
+    if(!next_mremap){errno=ENOSYS;return MAP_FAILED;}
+    void *target=NULL;
+    if(flags&MREMAP_FIXED){va_list args;va_start(args,flags);target=va_arg(args,void*);va_end(args);}
+    int guest=GuestFileCovers(address,old_length);
+    void *result=next_mremap(address,old_length,new_length,flags,target);int saved=errno;
+    if(result!=MAP_FAILED&&NativeFex()) {
+#ifdef MREMAP_DONTUNMAP
+        if(!(flags&MREMAP_DONTUNMAP))
+#endif
+            GuestFileUpdate(address,old_length,0);
+        GuestFileUpdate(result,new_length,guest);
+    }
     errno=saved;return result;
 }
 static int (*next_connect)(int, const struct sockaddr *, socklen_t);
@@ -142,6 +187,22 @@ static int UnixEndpoint(int (*operation)(int,const struct sockaddr*,socklen_t),i
     if(address&&address->sa_family==AF_UNIX&&length>offset&&length<=sizeof(struct sockaddr_un)) {
         const struct sockaddr_un *source=(const struct sockaddr_un*)address;
         if(source->sun_path[0]) {
+            if(operation==next_bind && NativeFex() && NativeDiagnostic()) {
+                const char *root=getenv("XDG_RUNTIME_DIR");
+                char expected[108];
+                int count=root?snprintf(expected,sizeof(expected),"%s/FEX_gdbserver/%d-gdb",root,getpid()):-1;
+                if(count>0 && (size_t)count<sizeof(expected) &&
+                   length-offset>=(size_t)count &&
+                   !memcmp(source->sun_path,expected,(size_t)count) &&
+                   (length-offset==(size_t)count || !source->sun_path[count])) {
+                    struct sockaddr_un debug={.sun_family=AF_UNIX};
+                    int n=snprintf(debug.sun_path+1,sizeof(debug.sun_path)-1,
+                        "vpp-fex-gdb-%u-%d",(unsigned)geteuid(),getpid());
+                    int result=operation(fd,(const struct sockaddr*)&debug,offset+1+(size_t)n);
+                    fprintf(stderr,"STEAMOHOS_NATIVE_GDB abstract=%s result=%d\n",debug.sun_path+1,result);
+                    return result;
+                }
+            }
             char path[sizeof(source->sun_path)+1];size_t count=length-offset;
             memcpy(path,source->sun_path,count);path[count]=0;
             struct sockaddr_un target={.sun_family=AF_UNIX};
@@ -180,6 +241,7 @@ __attribute__((visibility("hidden"))) void SteamOhosPreloadCefGraphics(void) {
     }
 }
 __attribute__((constructor)) static void Initialize(void) {
+    pthread_atfork(GuestFileForkPrepare,GuestFileForkDone,GuestFileForkDone);
     SteamOhosNextSyscall = dlsym(RTLD_NEXT, "syscall");
     next_bind = dlsym(RTLD_NEXT,"bind");
     next_accept = dlsym(RTLD_NEXT,"accept");
@@ -224,6 +286,26 @@ static const char *SignedLibrary(const char *name, char *mapped, size_t capacity
             int n=snprintf(mapped,capacity,"%s/libsteamohos_native_vulkan.so",code);
             if(n>0&&(size_t)n<capacity)return mapped;
         }
+    }
+    // The native GLX provider is the same verified Mesa DRI closure as GNU
+    // Proton. DRIL is a separate driver entry library in Mesa 25, not a copy
+    // of Gallium. Resolve only this exact, host-owned driver directory.
+    const char *code_root=getenv("STEAMOHOS_CODE_ROOT");
+    const char *glx_root=getenv("STEAMOHOS_NATIVE_GLX_ROOT");
+    if(code_root&&glx_root) {
+        char expected[PATH_MAX],driver[PATH_MAX];
+        int n=snprintf(expected,sizeof(expected),"%s/native-vulkan-driver",code_root);
+        int d=snprintf(driver,sizeof(driver),"%s/swrast_dri.so",glx_root);
+        if(n>0&&(size_t)n<sizeof(expected)&&d>0&&(size_t)d<sizeof(driver)&&
+           !strcmp(glx_root,expected)&&!strcmp(name,driver)) {
+            n=snprintf(mapped,capacity,"%s/libdril_dri.so",glx_root);
+            if(n>0&&(size_t)n<capacity)return mapped;
+        }
+    }
+    if(NativeFex()&&code_root&&getenv("VTEST_SOCKET_NAME")&&
+       (!strcmp(name,"libGL.so.1")||!strcmp(name,"libGL.so"))) {
+        int n=snprintf(mapped,capacity,"%s/native-vulkan-driver/libGL.so.1",code_root);
+        if(n>0&&(size_t)n<capacity)return mapped;
     }
     const char *software=getenv("STEAMOHOS_SOFTWARE_GL");
     const char *runtime=getenv("STEAMOHOS_CODE_ROOT");
@@ -342,7 +424,18 @@ int accept4(int fd,struct sockaddr *address,socklen_t *length,int flags) {
 // Steam probes this newer optional API when preparing depot files. OHOS traps
 // it instead of returning ENOSYS. Preserve the unsupported-kernel contract;
 // never weaken open_how.resolve restrictions by pretending openat is openat2.
+extern long SteamOhosFexOpenAt2(int,const char*,const void*,size_t) __attribute__((weak));
 __attribute__((visibility("hidden"))) long SteamOhosOpenAt2(int directory,const char *path,const void *how,size_t size) {
+    if(NativeFex()&&SteamOhosFexOpenAt2) {
+        long result=SteamOhosFexOpenAt2(directory,path,how,size);int saved=errno;
+        static _Atomic unsigned graphics;
+        if(NativeDiagnostic()&&path&&(strstr(path,"libvulkan")||strstr(path,"libGL")||
+            strstr(path,"libX")||strstr(path,"libxcb")||strstr(path,"libSDL"))&&
+            atomic_fetch_add(&graphics,1)<128)
+            fprintf(stderr,"STEAMOHOS_NATIVE_GRAPHICS_OPEN pid=%d dirfd=%d path=%.350s result=%ld errno=%d\n",
+                getpid(),directory,path,result,result<0?saved:0);
+        errno=saved;return result;
+    }
     if(NativeDiagnostic()) {
         static _Atomic unsigned logged;
         if(atomic_fetch_add(&logged,1)==0)fputs("STEAMOHOS_CAPABILITY openat2 unsupported\n",stderr);
@@ -357,13 +450,37 @@ __attribute__((visibility("hidden"))) long SteamOhosOpenAt2(int directory,const 
 // this namespace only. All other callers retain the original syscall ABI.
 __attribute__((visibility("hidden"))) long SteamOhosFexFileCall(long number,long a,long b,long c,long d,long e,long f) {
     if(NativeFex()) {
-        if(number==SYS_openat)return openat((int)a,(const char*)b,(int)c,(mode_t)d);
+        if(number==SYS_openat) {
+            int result=openat((int)a,(const char*)b,(int)c,(mode_t)d),saved=errno;
+            static _Atomic unsigned reports;
+            if(atomic_fetch_add(&reports,1)<64)
+                fprintf(stderr,"STEAMOHOS_NATIVE_FEX_OPEN dirfd=%d path=%.300s result=%d errno=%d\n",
+                    (int)a,(const char*)b,result,result<0?saved:0);
+            errno=saved;return result;
+        }
         if(number==SYS_faccessat)return faccessat((int)a,(const char*)b,(int)c,0);
+#ifdef SYS_newfstatat
+        if(number==SYS_newfstatat)return fstatat((int)a,(const char*)b,(struct stat*)c,(int)d);
+#elif defined(SYS_fstatat64)
+        if(number==SYS_fstatat64)return fstatat((int)a,(const char*)b,(struct stat*)c,(int)d);
+#endif
+        if(number==SYS_readlinkat)return readlinkat((int)a,(const char*)b,(char*)c,(size_t)d);
+#ifdef SYS_statx
+        if(number==SYS_statx)return statx((int)a,(const char*)b,(int)c,(unsigned)d,(struct statx*)e);
+#endif
 #ifdef SYS_faccessat2
         // FEX falls back to faccessat on the actual unsupported API.
         if(number==SYS_faccessat2){errno=ENOSYS;return -1;}
 #endif
     }
+    if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
+    return SteamOhosNextSyscall(number,a,b,c,d,e,f);
+}
+
+extern long SteamOhosNativeFexSigaction(long,long,long,long,long,long,long) __attribute__((weak));
+__attribute__((visibility("hidden"))) long SteamOhosFexSignalCall(long number,long a,long b,long c,long d,long e,long f) {
+    if(NativeFex()&&SteamOhosNativeFexSigaction)
+        return SteamOhosNativeFexSigaction(number,a,b,c,d,e,f);
     if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
     return SteamOhosNextSyscall(number,a,b,c,d,e,f);
 }

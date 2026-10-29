@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include "native_x11_endpoint.h"
 #include <unistd.h>
 
 namespace steamohos {
@@ -111,6 +112,7 @@ void CleanupSysvIpc(const std::string& sessionDirectory) {
 }
 struct Session {
     int listener = -1, readyRead = -1, readyWrite = -1;
+    NativeX11Endpoint nativeX11;
     int ownershipFd = -1;
     std::string directory, socket;
     bool ready = false;
@@ -149,6 +151,7 @@ struct Session {
         // by GNU children using _exit or killed by the bounded diagnostic.
         if(!directory.empty())CleanupSocketMetadata(directory);
         if(!directory.empty())CleanupSysvIpc(directory);
+        if(!nativeX11.authority.empty()) {unlink(nativeX11.authority.c_str());nativeX11.authority.clear();}
         // Xwayland removes its generated XKM; only our private session files live here.
         if (!directory.empty()) rmdir(directory.c_str());
     }
@@ -421,7 +424,36 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
         session.environment.emplace_back("STEAMOHOS_NATIVE_MEMORY=1");
         session.environment.emplace_back("STEAMOHOS_EXTERNAL_RUNTIME=" + directory);
     }
-    const auto serverEnvironment = session.environment;
+    // FEX can issue connect with an inline host SVC. Such guest calls cannot
+    // see the GNU preload's private /tmp/.X11-unix alias. Give native games a
+    // direct loopback endpoint accepted by the SAME Xwayland server. No pixel
+    // proxy, extra server or fixed/public TCP port is involved.
+    if (steamClient) {
+        if (!session.nativeX11.Open(session.directory))
+            return "{\"status\":\"native_x11_loopback_failed\",\"gnuExecutionVerified\":false}";
+        session.environment.emplace_back("STEAMOHOS_NATIVE_X11_DISPLAY=" + session.nativeX11.display);
+        session.environment.emplace_back("XAUTHORITY=" + session.nativeX11.authority);
+        serverArgs.erase(std::find(serverArgs.begin(),serverArgs.end(),"-ac"));
+        serverArgs.insert(serverArgs.end(), {"-listenfd", std::to_string(session.nativeX11.fd),
+            "-auth", session.nativeX11.authority});
+    }
+    auto serverEnvironment = session.environment;
+    // Unity/SDL may request a GLX visual even when the actual renderer is
+    // Vulkan. Reuse the verified Proton Xwayland/DRI closure on the SAME X11
+    // server; the original non-GLX server cannot satisfy this negotiation.
+    const std::string nativeGraphics = directory + "/native-vulkan-driver";
+    if (steamClient && !vtestSocket.empty() &&
+        !access((nativeGraphics + "/Xwayland").c_str(), R_OK)) {
+        serverArgs[3] = nativeGraphics + ":" + directory;
+        serverArgs[4] = nativeGraphics + "/Xwayland";
+        serverEnvironment.emplace_back("LD_PRELOAD=" + directory + "/libsteamohos_posix_hap.so");
+        serverEnvironment.emplace_back("STEAMOHOS_CODE_ROOT=" + directory);
+        serverEnvironment.emplace_back("STEAMOHOS_NATIVE_GLX_ROOT=" + nativeGraphics);
+        serverEnvironment.emplace_back("LIBGL_DRIVERS_PATH=" + nativeGraphics);
+        serverEnvironment.emplace_back("GALLIUM_DRIVER=virpipe");
+        serverEnvironment.emplace_back("VTEST_SOCKET_NAME=" + vtestSocket);
+        serverEnvironment.emplace_back("XLIB_NO_SHM=1");
+    }
     if (steamClient) {
         const std::string home = (externalRoot.empty() ? base : externalRoot) + "/client";
         if (mkdir(home.c_str(), 0700) && errno != EEXIST)
@@ -599,6 +631,7 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
     session.clientOptions.libcForkOnly=forkBackend;
     options.persistentSession = productSession;
     options.passFds = {session.listener, session.readyWrite};
+    if (session.nativeX11.fd >= 0) options.passFds.push_back(session.nativeX11.fd);
     options.parentTask = Session::RunClient; options.context = &session;
     // Allow readiness and bounded preflights before the client's own budget.
     const auto server = RunNativeLoader(serverArgs, serverEnvironment, productSession ? 0 : steamClient ? session.clientTimeout + 20000 : 9000, options);

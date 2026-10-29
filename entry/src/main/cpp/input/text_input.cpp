@@ -393,6 +393,20 @@ void TextInput::NotifyActivated(bool active) {
     }
 }
 
+uint32_t TextInput::FocusedToplevel() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return focusedToplevel_;
+}
+
+bool TextInput::IsActivated() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!armed_ || !focusedSurface_) return false;
+    for (const Entry& entry : entries_) {
+        if (entry.activated && entry.enabled && entry.enteredSurface == focusedSurface_) return true;
+    }
+    return false;
+}
+
 bool TextInput::IsEnabled() const {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!armed_) return false;

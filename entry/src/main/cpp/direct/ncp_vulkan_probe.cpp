@@ -1,3 +1,4 @@
+#include "linux_steam/native_buffer_probe.h"
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
 
@@ -637,6 +638,7 @@ std::condition_variable g_createCondition;
 VulkanProbeResult g_createResult{};
 bool g_createReady = false;
 bool g_createFinished = false;
+bool g_nativeMemoryRequested = false;
 
 int OnDiagnosticRequest(uint32_t code, const OHIPCParcel* data, OHIPCParcel* reply, void*)
 {
@@ -644,6 +646,16 @@ int OnDiagnosticRequest(uint32_t code, const OHIPCParcel* data, OHIPCParcel* rep
     if (!data || OH_IPCParcel_ReadInt32(data, &version) != OH_IPC_SUCCESS ||
         version != static_cast<int32_t>(winehua::direct::kVulkanProbeVersion))
         return OH_IPC_CHECK_PARAM_ERROR;
+    if (code == winehua::direct::kVulkanProbeNativeMemoryRequest && reply) {
+        {
+            std::lock_guard<std::mutex> lock(g_createMutex);
+            if (!g_createReady || g_nativeMemoryRequested) return OH_IPC_CHECK_PARAM_ERROR;
+            g_nativeMemoryRequested = true;
+        }
+        g_createCondition.notify_all();
+        const auto json = steamohos::NativeBufferMemoryProbeJson();
+        return OH_IPCParcel_WriteString(reply, json.c_str());
+    }
     if (code == winehua::direct::kVulkanProbeFinishRequest) {
         {
             std::lock_guard<std::mutex> lock(g_createMutex);
@@ -703,7 +715,9 @@ extern "C" __attribute__((visibility("default"))) void NativeChildProcess_MainPr
                 result.loaderPath, result.vkResult, result.pixelCheck,
                 static_cast<unsigned long long>(result.elapsedMs));
     std::unique_lock<std::mutex> lock(g_createMutex);
-    g_createCondition.wait_for(lock, std::chrono::seconds(15), [] { return g_createFinished; });
+    g_createCondition.wait_for(lock, std::chrono::seconds(15), [] { return g_createFinished || g_nativeMemoryRequested; });
+    if (g_nativeMemoryRequested && !g_createFinished)
+        g_createCondition.wait_for(lock, std::chrono::seconds(85), [] { return g_createFinished; });
 }
 
 extern "C" __attribute__((visibility("default"))) void Main(NativeChildProcess_Args args)

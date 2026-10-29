@@ -40,6 +40,8 @@ struct ProbeWork {
     OHIPCRemoteProxy* proxy = nullptr;
     bool callbackReceived = false;
     bool systemCreate = false;
+    bool nativeMemory = false;
+    std::string nativeMemoryJson;
     bool prepared = false;
     bool forkServer = false;
     int32_t forkServerPid = -1;
@@ -391,6 +393,18 @@ void ExecuteCreateProbe(napi_env, void* data)
     }
     if (request) OH_IPCParcel_Destroy(request);
     if (reply) OH_IPCParcel_Destroy(reply);
+    if (work.nativeMemory && work.result.status == 0) {
+        request = OH_IPCParcel_Create(); reply = OH_IPCParcel_Create();
+        if (request && reply && OH_IPCParcel_WriteInt32(request, kVulkanProbeVersion) == OH_IPC_SUCCESS) {
+            const int memoryStatus = OH_IPCRemoteProxy_SendRequest(
+                work.proxy, kVulkanProbeNativeMemoryRequest, request, reply, nullptr);
+            const char* json = memoryStatus == OH_IPC_SUCCESS ? OH_IPCParcel_ReadString(reply) : nullptr;
+            if (json && strnlen(json, 131073) <= 131072) work.nativeMemoryJson = json;
+            else SetFailure(work, "native_memory_result_ipc");
+        } else SetFailure(work, "native_memory_request_alloc");
+        if (request) OH_IPCParcel_Destroy(request);
+        if (reply) OH_IPCParcel_Destroy(reply);
+    }
     // Release the child only after the result reply has been copied locally.
     request = OH_IPCParcel_Create();
     reply = OH_IPCParcel_Create();
@@ -449,6 +463,8 @@ void CompleteProbe(napi_env env, napi_status status, void* data)
     if (status != napi_ok) SetFailure(*work, "async_work");
     napi_value result;
     napi_create_object(env, &result);
+    if (work->nativeMemory)
+        SetString(env, result, "nativeBufferMemory", work->nativeMemoryJson.c_str());
     SetString(env, result, "gate", "D0");
     SetString(env, result, "launchMode", work->launchMode);
     SetString(env, result, "status", work->result.status == 0 ? "PASS" : "FAIL");
@@ -617,7 +633,7 @@ napi_value RunVulkanForkServerProbe(napi_env env, napi_callback_info)
     return promise;
 }
 
-napi_value QueueCreateProbe(napi_env env, bool systemCreate)
+napi_value QueueCreateProbe(napi_env env, bool systemCreate, bool nativeMemory = false)
 {
     auto* work = new (std::nothrow) ProbeWork();
     if (!work) {
@@ -625,6 +641,7 @@ napi_value QueueCreateProbe(napi_env env, bool systemCreate)
         return nullptr;
     }
     work->systemCreate = systemCreate;
+    work->nativeMemory = nativeMemory;
     napi_value promise;
     if (napi_create_promise(env, &work->deferred, &promise) != napi_ok) {
         delete work;
@@ -644,9 +661,15 @@ napi_value QueueCreateProbe(napi_env env, bool systemCreate)
     return promise;
 }
 
-napi_value RunVulkanCreateProbe(napi_env env, napi_callback_info)
+napi_value RunVulkanCreateProbe(napi_env env, napi_callback_info info)
 {
-    return QueueCreateProbe(env, false);
+    size_t argc = 1; napi_value argv[1]; bool nativeMemory = false;
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok ||
+        (argc && napi_get_value_bool(env, argv[0], &nativeMemory) != napi_ok)) {
+        napi_throw_type_error(env, nullptr, "Optional native memory argument must be boolean");
+        return nullptr;
+    }
+    return QueueCreateProbe(env, false, nativeMemory);
 }
 
 napi_value RunVulkanSystemCreateProbe(napi_env env, napi_callback_info)

@@ -22,7 +22,9 @@ function fixture() {
   let state = models.EngineState.PREPARING;
   let root = 7;
   let rootThrows = false;
-  const starts = [];
+  const starts = [], launches = [];
+  const globalSettings = models.createDefaultGlobalSettings();
+  const appSettings = models.createDefaultAppSettings('cpu-test');
   const processes = [];
   const queries = { processes: 0 };
   const stopRequests = [], killRequests = [];
@@ -37,6 +39,9 @@ function fixture() {
     raiseToplevel() {}
   };
   const engine = {
+    selectHostGraphicsBackendForExecutable: () => 'product-vulkan',
+    needsHostGraphicsRestart: () => false,
+    launchExecutable(...args) { launches.push(args);return {pid:42,sessionId:'cpu-test',reused:false}; },
     getState: () => state,
     isReady: () => state === models.EngineState.READY,
     getPresentationMode: () => models.WinePresentationMode.DESKTOP,
@@ -52,7 +57,9 @@ function fixture() {
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },
     './HostWindowTasks': taskExports,
     './AppSettingsStore': { AppSettingsStore: { getInstance: () => ({
-      getGlobalSettings: () => ({ desktopWindowMode: 'test-ability-mode' })
+      getGlobalSettings: () => ({...globalSettings,desktopWindowMode:'test-ability-mode'}),
+      getAppSettings: () => appSettings,
+      recordRecentLaunch: async () => {}
     }) } },
     './InputOverlayWindowCoordinator': {},
     './AppCatalogService': {},
@@ -70,7 +77,7 @@ function fixture() {
   const service = new exports.AppSessionService();
   service.initialize({ startAbility: async want => { starts.push(want); } });
   return {
-    service, starts, processes, queries, stopRequests, killRequests,
+    service, engine, starts, launches, globalSettings, appSettings, processes, queries, stopRequests, killRequests,
     acceptStop: () => { acceptStop = true; },
     setState: next => { state = next; },
     setRoot: next => { root = next; },
@@ -79,6 +86,22 @@ function fixture() {
 }
 
 (async () => {
+  for (const engine of ['fex','box64']) {
+    const f=fixture();f.setState(models.EngineState.READY);f.engine.getPresentationMode=()=>models.WinePresentationMode.MANAGED_WINDOWS;
+    f.globalSettings.wineTranslationEngine=engine;f.globalSettings.box64Preset='performance';
+    f.appSettings.box64Preset='unity';f.appSettings.disableMfDxgiDeviceManager=true;
+    f.processes.push({pid:42,path:'C:/game.exe',state:'running'});
+    const app={id:'cpu-test',launchKind:models.LaunchKind.WINE_EXE,
+      launchTarget:{executable:'C:/game.exe',arguments:[],workingDirectory:''}};
+    await f.service.launchReady(app,f.globalSettings,models.DisplayMode.DESKTOP,models.WinePresentationMode.MANAGED_WINDOWS,'/games');
+    assert.equal(f.launches.length,1);
+    const [,argv,,env]=f.launches[0];
+    const box=Array.from(env).filter(x=>x.startsWith('BOX64_'));
+    assert.equal(JSON.stringify(box),JSON.stringify(engine==='box64'?models.resolveBox64PresetEnv('unity'):[]));
+    assert.equal(argv.includes('-force-gfx-direct'),engine==='box64');
+    assert.ok(env.includes(models.MF_DXGI_DEVICE_MANAGER_DISABLE_ENV),'MF compatibility remains independent of CPU selection');
+  }
+
   // Real phone order: root callback, catalog reconciliation, then engine READY.
   // No fabricated native desktop process entry may be needed to keep the root.
   const f = fixture();

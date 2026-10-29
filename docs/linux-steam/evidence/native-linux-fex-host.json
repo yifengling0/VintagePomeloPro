@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "baseCommit": "9c0a2d21",
-  "deviceAccess": false,
+  "baseCommit": "58d2a9b56e4f721fecda655258cfaa925bf2787a",
+  "deviceAccess": true,
   "experimental": true,
   "implemented": [
     "scoped-official-FEX-entry",
@@ -12,19 +12,30 @@
     "Venus-NativeImage-presentation-contract",
     "XTEST-input-routing",
     "HAP-atomic-companion-delivery",
-    "explicit-source-override-lock"
+    "explicit-source-override-lock",
+    "cloud-logical-and-private-scope-validation",
+    "minimal-usr-mtree-link-restoration-with-cache",
+    "same-install-native-ELF-scope",
+    "lazy-preinit-file-symbols",
+    "native-file-syscall-metadata-routing",
+    "native-x86-noexec-file-mapping",
+    "native-guest-IPC-delivery",
+    "official-FEX-repeated-scalar-Env",
+    "host-empty-preload-removal",
+    "native-signal-context-repair"
   ],
   "checks": {
     "nativeFexLaunchContract": {
       "status": "PASS",
-      "cases": 7,
-      "emulator": "host stand-in; not translation"
+      "cases": 26,
+      "emulator": "host stand-in; not translation",
+      "additionalCoverage": "ELF preinit before adapter constructors; syscall dirfd lstat/readlink/statx; diagnostic kernel-signal old-action/query, handled resume and real fatal signal"
     },
     "nativeWindowAndInput": "PASS isolated real Xvfb + Wayland fixture; no OHOS GPU",
     "wsiSynchronization": "PASS both Wine/native compile modes",
     "existingGnuExec": "PASS 28 modes",
     "depotLinkLifecycleAndScanning": "PASS",
-    "cleanComponentRestore": "PASS 13 tests",
+    "cleanComponentRestore": "PASS 17 tests",
     "steamSupervisorDeliveryAndCorruption": "PASS",
     "existingWineHandoff": "PASS",
     "protonBootstrapClosure": "PASS",
@@ -37,7 +48,11 @@
       "hapCompanions": 3
     },
     "runtimeLibraryGuard": "PASS",
-    "diffWhitespace": "PASS"
+    "diffWhitespace": "PASS",
+    "nativeGuestMapping": "PASS injected noexec, real shared writeback/COW, offset, fixed collision, mprotect, remap, overwrite, fork, host/JIT isolation",
+    "cefStartupCompatibility": "PASS 3 launch scopes",
+    "nativeGuestIpc": "PASS compiled and loaded guest IPC semantics; restore/install manifest guard",
+    "officialFexConfigParser": "PASS real cached upstream tiny-json parser; four scalar Env properties; array rejected"
   },
   "preexistingFailures": [
     {
@@ -53,12 +68,11 @@
     }
   ],
   "unverified": [
-    "real official ARM64 FEX execution",
-    "installed official thunk database layout",
-    "Banana gameplay",
-    "device Vulkan frames/performance",
-    "native audio",
-    "native gamepad"
+    "Banana correct pixels/gameplay",
+    "sustained native performance/stability",
+    "native audio listening",
+    "native gamepad",
+    "normal game exit and reopening"
   ],
   "notImplemented": [
     "complete native GL/GLX shared presentation",
@@ -66,22 +80,22 @@
   ],
   "companions": [
     {
+      "architecture": "aarch64-linux-gnu",
       "name": "libsteamohos_posix_hap.so",
-      "architecture": "aarch64-linux-gnu",
-      "bytes": 234808,
-      "sha256": "199208318dce46dc5e54b6b1c34a99a565f8c28253b297ea6ab5e1b09684bc18"
+      "bytes": 303664,
+      "sha256": "75f8390c4e15fc39559ccc6047ab4b5717ac7d21121e6477b1bddfd655c18d21"
     },
     {
+      "architecture": "aarch64-linux-gnu",
       "name": "steamohos_fex",
-      "architecture": "aarch64-linux-gnu",
-      "bytes": 88488,
-      "sha256": "983dd6e162bfdf88dd008b1d224f907fc5af9eab3725125ce8a3cc328bd2d0a5"
+      "bytes": 158688,
+      "sha256": "bddcd67541949e1b063e00b60847e505d98a1ae2db32b5c84740060a3d4e8c62"
     },
     {
-      "name": "libsteamohos_native_vulkan.so",
       "architecture": "aarch64-linux-gnu",
-      "bytes": 171408,
-      "sha256": "9274b9617f1edf738a6bc2cd1cd9c86e02069c9908e7cc66d956fdb0187cee4a"
+      "name": "libsteamohos_native_vulkan.so",
+      "bytes": 174840,
+      "sha256": "b868bfad5e67c983049d95a5bf0b470117bedaef558950285651b34bf1ec29be"
     }
   ],
   "baselineComparison": {
@@ -115,7 +129,140 @@
       "status": "FAIL_PREEXISTING",
       "member": "libs/arm64-v8a/libvirgl_child.so",
       "unchangedFromBothDeviceCandidates": true
+    },
+    "historical": true,
+    "scope": "Earlier baseline comparison only; not a comparison of the 2026-10-29 HAP."
+  },
+  "offlineSteamArchiveUpdateRequired": false,
+  "workingTreeChanges": true,
+  "device": {
+    "platform": "OHOS tablet",
+    "officialSteamArm64": true,
+    "officialFexAndServerLoaded": true,
+    "installedRuntime": "SteamLinuxRuntime_soldier",
+    "runtimeMetadataLinks": 1666,
+    "runtimePayloadCopied": false,
+    "runtimeMetadataCacheHit": true,
+    "status": "Unity/Steam-API initialized; yellow-only output and app exit unresolved",
+    "bananaWindowObserved": true,
+    "noexec": {
+      "originalErrno": 13,
+      "successfulRetries": 3,
+      "sameFdOffsetAndFlags": true,
+      "payloadCopied": false
+    },
+    "privateGdbMarkerRemoved": true,
+    "gdbSessionEstablished": false,
+    "historicalFault": {
+      "terminalSignal": 11,
+      "fexPcOffset": "0x20b1a8",
+      "address": "0xfffffffffffffff8",
+      "altStackPointer": "0x0",
+      "savedInitialSignalRegisterX20": 7,
+      "initialSignalPcAddressAndCodeCaptured": false
+    },
+    "officialGuestReachedMainAndVulkan": true,
+    "steamApiInitialized": true,
+    "gameScriptInitialized": true,
+    "audioStreamInitialized": true,
+    "audioListeningVerified": false,
+    "gpu": {
+      "renderer": "Virtio-GPU Venus (Maleoon 910)",
+      "shaderCreationsSucceeded": 12,
+      "graphicsPipelinesSucceeded": 6,
+      "graphicsPipelineErrorsObserved": 0,
+      "drawCommandsRecordedAtLeast": 64,
+      "textureUploadCommandsRecorded": 1100,
+      "pixelReadbacks": 0,
+      "correctPixels": false
+    },
+    "normalLibraryAppExitObserved": true,
+    "appExitCause": "System ResourceLeak:Gpu Leak captured in bounded-upload diagnostic; normal-library exit also observed but exact cause not separately captured",
+    "gpuResourceKill": {
+      "observed": true,
+      "hostProcess": "Native_libvirgl_child1",
+      "reason": "ResourceLeak:Gpu Leak",
+      "foreground": true,
+      "signal": 9,
+      "reportedVirtualSize": 4575420,
+      "reportedVirtualSizeUnit": "not established from captured log; do not infer bytes",
+      "source": "bounded live system log capture",
+      "gameProcessAllocations": {
+        "loggedSamples": 96,
+        "lastLoggedLiveBytes": 660705280,
+        "laterTotalNotMeasured": true,
+        "allLoggedSamplesMemoryTypeIndex": 0,
+        "advertisedHeap0Bytes": 11712405504
+      },
+      "interpretation": "resource-overlimit kill established; actual leak versus legitimate allocation pressure unresolved"
     }
   },
-  "offlineSteamArchiveUpdateRequired": false
+  "candidate": {
+    "name": "VintagePomeloPro-1.5.2-depot-debug-signed.hap",
+    "bytes": 642740349,
+    "sha256": "9e6087a60299ee4ca39a6c33f6ca2694c0c8e2efdc3f6f21c80e84e10459b0c9",
+    "signatureVerified": true,
+    "buildMode": "release",
+    "profile": "debug",
+    "baseCommit": "58d2a9b56e4f721fecda655258cfaa925bf2787a",
+    "sourceDirty": true,
+    "sourceDiffSha256": "cce77d6953cb86344fd198c518d9a21b7218251a291d4ab6e8bb2a8df8dd1828"
+  },
+  "updatedAt": "2026-10-29",
+  "experiments": {
+    "allMappedUploadFlush": {
+      "releasePayload": false,
+      "result": "inconclusive; app exited; unsafe for readback and not a release fix",
+      "formalCompanionRestored": true,
+      "restored": true
+    },
+    "boundedReadOnlyUploadFlush": {
+      "releasePayload": false,
+      "result": "system killed app for GPU resource overlimit; no valid gameplay comparison",
+      "restored": true
+    },
+    "cachedMemoryNoncoherentProperties": {
+      "releasePayload": false,
+      "result": "rejected: Venus ring fatal; host failed lookup of memory object 77 in vkFlushMappedMemoryRanges; game signal 6/code134",
+      "restored": true,
+      "notAReleaseFix": true
+    }
+  },
+  "diagnosticsCleanup": {
+    "gpuDiagnosticMarkerRemoved": true,
+    "formalCompanionRestored": {
+      "sha256": "b868bfad5e67c983049d95a5bf0b470117bedaef558950285651b34bf1ec29be",
+      "bytes": 174840,
+      "restored": true
+    },
+    "edgeOperatedThisRound": false
+  },
+  "nextInvestigation": [
+    "Run selected HOST_VISIBLE memory type in its own process; skip unsupported types",
+    "Run bounded standalone OHOS NativeBuffer probe before changing shared Mesa/receiver",
+    "Require direct memory identity and GPU results before integrating fd-based sharing",
+    "Then verify correct Banana pixels, allocation/free lifecycle and stability"
+  ],
+  "memoryContractAnalysis": {
+    "evidence": "native-vulkan-memory.json",
+    "document": "../NATIVE_VULKAN_MEMORY.zh-CN.md",
+    "sourceAudit": "PASS; GPU not executed",
+    "status": "not-resolved",
+    "nativeBufferProbe": "Compiled only; no device run",
+    "renderModeRestored": "virgl",
+    "foregroundOperationsThisRound": 0
+  },
+  "nativeMemoryGuard": {
+    "rawfile": {
+      "bytes": 175800,
+      "sha256": "e92f697236f4c43be15c2f572858edef157773419fb69b08c5ea984d9a8ad14a",
+      "deviceInstalled": false,
+      "sourceSha256": "58f246b7cd5fc269a1f97f04fc8cda0a2026e7879c47a5257bb49ee170ea61d5"
+    },
+    "installedBaseline": {
+      "bytes": 174840,
+      "sha256": "b868bfad5e67c983049d95a5bf0b470117bedaef558950285651b34bf1ec29be"
+    },
+    "description": "Native-only map ownership/lifecycle guard; not a coherent-memory fix"
+  }
 }

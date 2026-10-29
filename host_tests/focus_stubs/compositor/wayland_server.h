@@ -8,6 +8,11 @@ public:
     static WaylandServer* GetInstance() { static WaylandServer server; return &server; }
     void RaiseToplevel(uint32_t, bool) {}
     void SetToplevelRestored(uint32_t) {}
+    uint32_t resizedHost=0;
+    int32_t resizeW=0,resizeH=0; bool resizing=false;
+    void NotifyToplevelResize(uint32_t id,int32_t w,int32_t h,bool active) {
+        resizedHost=id;resizeW=w;resizeH=h;resizing=active;
+    }
     int32_t moveX=0,moveY=0;
     bool ProcessMoveGrabMotion(int32_t x, int32_t y) {
         if (!movedHost) return false;

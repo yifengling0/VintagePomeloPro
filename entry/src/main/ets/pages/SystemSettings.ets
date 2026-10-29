@@ -19,6 +19,7 @@ import testNapi from 'libentry.so';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import {
   BOX64_PRESET_IDS,
+  WineTranslationEngine,
   ControlBarDirection,
   ConsoleCardLayout,
   ConsolePalette,
@@ -638,6 +639,7 @@ struct SystemSettingsPage {
        desktopOrientation: desktopOrientation,
       desktopWindowMode: desktopWindowMode,
       keepScreenOn: keepScreenOn,
+      wineTranslationEngine: this.settings.wineTranslationEngine,
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: desktopInputProfileId || 'default',
       viewMode: view,
@@ -1096,6 +1098,13 @@ struct SystemSettingsPage {
     promptAction.showToast({ message: '渲染策略已保存；重启 Wine 引擎后生效' });
   }
 
+  private updateTranslationEngine(engine: WineTranslationEngine): void {
+    if (engine === this.settings.wineTranslationEngine) return;
+    this.settings.wineTranslationEngine = engine;
+    void ThemeSettingsService.getInstance().update(this.settings);
+    promptAction.showToast({ message: '转译引擎已保存，新启动的 Windows 程序生效' });
+  }
+
   private updateBox64Preset(preset: string): void {
     if (preset === this.settings.box64Preset) return;
     this.settings = {
@@ -1104,6 +1113,7 @@ struct SystemSettingsPage {
       desktopOrientation: this.settings.desktopOrientation,
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
+      wineTranslationEngine: this.settings.wineTranslationEngine,
       box64Preset: preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -1164,6 +1174,7 @@ struct SystemSettingsPage {
       desktopOrientation: this.settings.desktopOrientation,
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
+      wineTranslationEngine: this.settings.wineTranslationEngine,
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -2342,28 +2353,46 @@ struct SystemSettingsPage {
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
 
-          Text('Box64 兼容性预设').fontSize(12).fontWeight(FontWeight.Medium)
+          Text('转译引擎').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')
-          Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-            ForEach(BOX64_PRESET_IDS, (preset: string) => {
-              Button(box64PresetLabel(preset))
-                .height(42)
-                .padding({ left: 14, right: 14 })
-                .margin({ right: 8, bottom: 8 })
-                .borderRadius(14)
-                .fontSize(13)
-                .fontColor(this.settings.box64Preset === preset ?
-                  '#FFFFFFFF' : skinColor('text_primary'))
-                .backgroundColor(this.settings.box64Preset === preset ?
-                  skinColor('accent') : skinColor('search_background'))
-                .id('box64-preset-' + preset)
-                .onClick((): void => this.updateBox64Preset(preset))
-            }, (preset: string): string => preset)
+          Row({ space: 8 }) {
+            Button('FEX').layoutWeight(1).height(44).borderRadius(14)
+              .fontColor(this.settings.wineTranslationEngine === WineTranslationEngine.FEX ? '#FFFFFFFF' : skinColor('text_primary'))
+              .backgroundColor(this.settings.wineTranslationEngine === WineTranslationEngine.FEX ? skinColor('accent') : skinColor('search_background'))
+              .id('wine-translation-fex')
+              .onClick((): void => this.updateTranslationEngine(WineTranslationEngine.FEX))
+            Button('Box64').layoutWeight(1).height(44).borderRadius(14)
+              .fontColor(this.settings.wineTranslationEngine === WineTranslationEngine.BOX64 ? '#FFFFFFFF' : skinColor('text_primary'))
+              .backgroundColor(this.settings.wineTranslationEngine === WineTranslationEngine.BOX64 ? skinColor('accent') : skinColor('search_background'))
+              .id('wine-translation-box64')
+              .onClick((): void => this.updateTranslationEngine(WineTranslationEngine.BOX64))
           }.width('100%')
-          Text(box64PresetDescription(this.settings.box64Preset))
+          Text('用于原 Wine 的 32 位 Windows 程序，默认 FEX。已运行的程序需退出重开；从 Wine 桌面启动时请先重启 Wine 引擎。')
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-          Text('预设会应用于之后启动的 Windows 程序；默认档使用系统当前已验证的兼容配置。')
-            .fontSize(11).fontColor('#C47A20').width('100%')
+          if (this.settings.wineTranslationEngine === WineTranslationEngine.BOX64) {
+            Text('Box64 兼容性预设').fontSize(12).fontWeight(FontWeight.Medium)
+              .fontColor(skinColor('text_secondary')).width('100%')
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+              ForEach(BOX64_PRESET_IDS, (preset: string) => {
+                Button(box64PresetLabel(preset))
+                  .height(42)
+                  .padding({ left: 14, right: 14 })
+                  .margin({ right: 8, bottom: 8 })
+                  .borderRadius(14)
+                  .fontSize(13)
+                  .fontColor(this.settings.box64Preset === preset ?
+                    '#FFFFFFFF' : skinColor('text_primary'))
+                  .backgroundColor(this.settings.box64Preset === preset ?
+                    skinColor('accent') : skinColor('search_background'))
+                  .id('box64-preset-' + preset)
+                  .onClick((): void => this.updateBox64Preset(preset))
+              }, (preset: string): string => preset)
+            }.width('100%')
+            Text(box64PresetDescription(this.settings.box64Preset))
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            Text('预设会应用于之后启动的 Windows 程序；默认档使用系统当前已验证的兼容配置。')
+              .fontSize(11).fontColor('#C47A20').width('100%')
+          }
 
           Text('会话维护').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')

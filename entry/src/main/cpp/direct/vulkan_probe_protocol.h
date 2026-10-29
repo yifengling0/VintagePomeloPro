@@ -10,6 +10,7 @@ constexpr char kVulkanProbeFdName[] = "direct_probe_result";
 constexpr char kVulkanProbeStageFdName[] = "direct_probe_stage";
 constexpr uint32_t kVulkanProbeReadRequest = 1;
 constexpr uint32_t kVulkanProbeFinishRequest = 2;
+constexpr uint32_t kVulkanProbeNativeMemoryRequest = 3;
 
 enum VulkanCapability : uint32_t {
     kInstanceSurface = 1u << 0,

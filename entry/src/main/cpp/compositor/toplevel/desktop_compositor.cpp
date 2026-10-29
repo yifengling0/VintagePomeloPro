@@ -705,10 +705,11 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
 
 bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
                                                uint32_t wlSurfaceId, int imageW, int imageH, uint64_t generation,
-                                               DirectDesktopLayout& out)
+                                               DirectDesktopLayout& out, uint32_t scope)
 {
     auto lk = tmgr_.Lock();
-    if (!policy_.RootCompositing() || !tmgr_.IsToplevelVisibleLocked(id, desktopRootToplevelId_))
+    if (!tmgr_.IsToplevelVisibleLocked(id, desktopRootToplevelId_) ||
+        (scope ? (scope != id || !policy_.OhosWindowPerToplevel()) : !policy_.RootCompositing()))
         return false;
     const auto* root = tmgr_.FindToplevelLocked(desktopRootToplevelId_);
     const auto* state = tmgr_.FindToplevelLocked(id);
@@ -716,7 +717,39 @@ bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
     auto* client = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
     auto* parent = client && client->isSubsurface && client->parentSurface
         ? tmgr_.FindRegisteredSurfaceDataLocked(client->parentSurface) : nullptr;
-    if (!root || !state || !client || !parent || !parent->hasToplevel || parent->toplevelId != id ||
+    if (scope && state && client && imageW > 0 && imageH > 0 && generation) {
+        // Legacy managed Wine WSI binds the queue to its exact toplevel;
+        // desktop WSI uses the independently declared client subsurface.
+        const bool ownToplevel = client->hasToplevel && client->toplevelId == id;
+        const bool ownChild = parent && parent->hasToplevel && parent->toplevelId == id &&
+            client->directOwnerKey == parent->surfaceKey && client->directVisible &&
+            client->directGeneration == generation &&
+            tmgr_.FindSurfaceResource(parent->surfaceKey) == client->parentSurface;
+        if (!ownToplevel && !ownChild) return false;
+        out = {};
+        DirectImageSampling sampling;
+        if (!ComputeDirectViewport(client->directViewport, imageW, imageH, out.w, out.h, sampling)) return false;
+        if (ownChild) {
+            const auto offset = ComputePopupOffset(client->subsurfaceX, client->subsurfaceY,
+                parent->committed.contentRect.x, parent->committed.contentRect.y);
+            out.x = offset.first; out.y = offset.second;
+        }
+        // Other OHOS windows have their own output. Only this window's later
+        // inline children can occlude its Direct layer.
+        const auto layers = BuildWindowLayerListLocked(id, state->Width(), state->Height());
+        if (ownChild) for (const auto& layer : layers)
+            if (layer.type == CompositorLayer::Type::Subsurface && layer.sub->surface == client->surface)
+                out.z = layer.zIndex;
+        for (const auto& layer : layers) {
+            if (layer.type != CompositorLayer::Type::Subsurface || !layer.visible || layer.zcActive ||
+                layer.sub->surface == client->surface || layer.zIndex <= out.z) continue;
+            out.occluders.push_back({layer.x, layer.y,
+                DisplaySizeAfterViewport(layer.sub->vpDstW, layer.w),
+                DisplaySizeAfterViewport(layer.sub->vpDstH, layer.h)});
+        }
+        return true;
+    }
+    if (scope || !root || !state || !client || !parent || !parent->hasToplevel || parent->toplevelId != id ||
         client->directOwnerKey != parent->surfaceKey || !client->directVisible ||
         client->directGeneration != generation || !generation ||
         tmgr_.FindSurfaceResource(parent->surfaceKey) != client->parentSurface) return false;

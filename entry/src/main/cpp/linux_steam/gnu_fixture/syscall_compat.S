@@ -17,12 +17,15 @@
 .hidden SteamOhosLandlockCreateRuleset
 .hidden SteamOhosFexOptionalCall
 .hidden SteamOhosFexFileCall
+.hidden SteamOhosFexSignalCall
 .hidden SteamOhosOpenAt2
 .hidden SteamOhosCloseRange
 .hidden SteamOhosQueryRobustList
 .hidden SteamOhosSyscallUnavailable
 #if defined(__aarch64__)
 syscall:
+    cmp x0, #__NR_rt_sigaction
+    b.eq SteamOhosFexSignalCall
     cmp x0, #449 // futex_waitv
     b.eq SteamOhosFexOptionalCall
     cmp x0, #282 // userfaultfd
@@ -31,6 +34,22 @@ syscall:
     b.eq SteamOhosFexFileCall
     cmp x0, #__NR_faccessat
     b.eq SteamOhosFexFileCall
+#ifdef __NR_newfstatat
+    cmp x0, #__NR_newfstatat
+    b.eq SteamOhosFexFileCall
+#endif
+#ifdef __NR_fstatat64
+    cmp x0, #__NR_fstatat64
+    b.eq SteamOhosFexFileCall
+#endif
+#ifdef __NR_readlinkat
+    cmp x0, #__NR_readlinkat
+    b.eq SteamOhosFexFileCall
+#endif
+#ifdef __NR_statx
+    cmp x0, #__NR_statx
+    b.eq SteamOhosFexFileCall
+#endif
 #ifdef __NR_faccessat2
     cmp x0, #__NR_faccessat2
     b.eq SteamOhosFexFileCall
@@ -73,6 +92,8 @@ syscall:
     b SteamOhosSyscallUnavailable
 #elif defined(__x86_64__)
 syscall:
+    cmp $__NR_rt_sigaction, %rdi
+    je SteamOhosFexSignalCall
     cmp $449, %rdi
     je SteamOhosFexOptionalCall
 #ifdef __NR_userfaultfd
@@ -83,6 +104,22 @@ syscall:
     je SteamOhosFexFileCall
     cmp $__NR_faccessat, %rdi
     je SteamOhosFexFileCall
+#ifdef __NR_newfstatat
+    cmp $__NR_newfstatat, %rdi
+    je SteamOhosFexFileCall
+#endif
+#ifdef __NR_fstatat64
+    cmp $__NR_fstatat64, %rdi
+    je SteamOhosFexFileCall
+#endif
+#ifdef __NR_readlinkat
+    cmp $__NR_readlinkat, %rdi
+    je SteamOhosFexFileCall
+#endif
+#ifdef __NR_statx
+    cmp $__NR_statx, %rdi
+    je SteamOhosFexFileCall
+#endif
 #ifdef __NR_faccessat2
     cmp $__NR_faccessat2, %rdi
     je SteamOhosFexFileCall

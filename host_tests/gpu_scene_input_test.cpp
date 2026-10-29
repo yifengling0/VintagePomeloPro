@@ -17,6 +17,7 @@
 #include "input/seat.h"
 #include "input/text_input.h"
 #include "input/input_manager.h"
+#include "compositor/wayland_server.h"
 #include "input/pointer_extras.h"
 #include "compositor/toplevel/move_grab.h"
 #include <string>
@@ -81,7 +82,8 @@ static void DrainInput() {
 }
 TextInput* TextInput::GetInstance() { static TextInput text; return &text; }
 static wl_resource* imeFocus;
-void TextInput::OnKeyboardEnter(uint32_t, wl_resource* s) { imeFocus = s; events.push_back({"ime.enter", nullptr, s}); }
+static uint32_t imeToplevel;
+void TextInput::OnKeyboardEnter(uint32_t id, wl_resource* s) { imeToplevel = id; imeFocus = s; events.push_back({"ime.enter", nullptr, s}); }
 void TextInput::OnKeyboardLeave() { events.push_back({"ime.leave", nullptr, imeFocus}); imeFocus = nullptr; }
 void TextInput::OnSurfaceDestroyed(wl_resource* s) { if (imeFocus == s) imeFocus = nullptr; }
 void TextInput::ResetKeyboardFocus() { events.push_back({"ime.reset", nullptr, nullptr}); }
@@ -230,7 +232,7 @@ int main(int argc, char** argv) {
         wl_resource kbd{nullptr,Client(1)}, otherKbd{nullptr,Client(2)}, ptr{nullptr,Client(1)};
         keyboards={&kbd,&otherKbd};pointers={&ptr};
         inject.InjectKeyboardEnter(4,&f.steam);
-        Expect("keyboard.enter",&f.steam,&kbd);Expect("ime.enter",&f.steam);
+        Expect("keyboard.enter",&f.steam,&kbd);Expect("ime.enter",&f.steam);assert(imeToplevel==4);
         assert(tracker.KeyboardFocusedSurface()==&f.steam);
         inject.InjectKeyboardEnter(5,&f.child);
         // Leave must target the actual OLD owner, not the new game.
@@ -257,7 +259,7 @@ int main(int argc, char** argv) {
         f.childData.parentSurface=&f.game;
         // Rapid A -> B -> A requests before a flush must all be respected.
         inject.InjectKeyboardEnter(4,&f.steam);
-        Expect("keyboard.enter",&f.steam,&kbd);Expect("ime.enter",&f.steam);
+        Expect("keyboard.enter",&f.steam,&kbd);Expect("ime.enter",&f.steam);assert(imeToplevel==4);
         InputQueue queue;
         queue.Enqueue(InputQueue::Event::KBD_ENTER,5,&f.child,0,0,0,0);
         queue.Enqueue(InputQueue::Event::KBD_ENTER,4,&f.steam,0,0,0,0);
@@ -266,7 +268,7 @@ int main(int argc, char** argv) {
         Expect("keyboard.leave",&f.steam,&kbd);Expect("ime.leave",&f.steam);
         Expect("keyboard.enter",&f.game,&kbd);Expect("ime.enter",&f.game);
         Expect("keyboard.leave",&f.game,&kbd);Expect("ime.leave",&f.game);
-        Expect("keyboard.enter",&f.steam,&kbd);Expect("ime.enter",&f.steam);
+        Expect("keyboard.enter",&f.steam,&kbd);Expect("ime.enter",&f.steam);assert(imeToplevel==4);
         assert(events.empty() && tracker.KeyboardFocusedSurface()==&f.steam);
         // Explicit leave/reset still clears focus, even with no seat resources.
         keyboards.clear();inject.InjectKeyboardLeave();
@@ -331,6 +333,15 @@ int main(int argc, char** argv) {
         auto* manager=InputManager::GetInstance();
         manager->BindCompositorDeps(f.tm,f.input,grab,f.policy,f.root);
         manager->Initialize(reinterpret_cast<wl_display*>(1));manager->ResetSessionState();
+        auto* resizeServer=WaylandServer::GetInstance();
+        resizeServer->resizedHost=0;
+        manager->RequestHostResize(4,720,500,true);
+        assert(resizeServer->resizedHost==0); // enqueue cannot touch protocol resources
+        DrainInput();
+        assert(resizeServer->resizedHost==4 && resizeServer->resizeW==720 && resizeServer->resizeH==500 && resizeServer->resizing);
+        manager->RequestHostResize(4,0,0,false);DrainInput();
+        assert(resizeServer->resizeW==0 && resizeServer->resizeH==0 && !resizeServer->resizing);
+
         manager->InjectKeyboardEnter(4,&f.steam);events.clear();
         manager->SendPointerEvent(0,1,80,50,0x110);
         assert(manager->GetKeyboardFocusedToplevel()==4);DrainInput();

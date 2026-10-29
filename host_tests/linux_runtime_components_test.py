@@ -22,15 +22,32 @@ class RestoreTests(unittest.TestCase):
         self.raw=self.root/'entry/src/main/resources/rawfile'
         self.cache=self.root/'build/cache'
         self.source=self.root/'adapter.c'; self.source.write_text('source v1')
+        self.core=self.raw/'linux-steam/bootstrap/native-guest-core-x86_64'
+        self.core.mkdir(parents=True)
+        # Small ELF identity fixtures; these tests validate packaging, not execution.
+        data=b'\x7fELF\x02\x01'+bytes(12)+b'\x3e\x00'+bytes(44)
+        for name in components.native_guest_core.ADAPTER_SOURCES:
+            source=self.root/name;source.parent.mkdir(parents=True,exist_ok=True);source.write_bytes((REPO/name).read_bytes())
+        for name in components.native_guest_core.NAMES:
+            (self.core/name).write_bytes(data)
+        (self.core/'manifest.json').write_text(json.dumps(dict(schemaVersion=1,
+            architecture='x86_64-linux-gnu',adapterSources=components.native_guest_core.adapter_sources(self.root),packages=[dict(source=s,path=p,sha256=h)
+                for s,p,h in components.native_guest_core.PACKAGES],
+            files={name:dict(bytes=len(data),sha256=hashlib.sha256(data).hexdigest())
+                for name in components.native_guest_core.NAMES})))
         self.downloads={}; self.calls=[]; self.lock=dict(schemaVersion=1,
             sourceInputs={'adapter.c':components.sha(self.source)},components=[])
         for relative,manifest in components.DESTINATIONS.items():
             member='adapter.so' if relative.startswith('linux-proton/') else 'release/runtime/adapter.so'
             data=(relative+' compiled').encode(); stream=io.BytesIO()
-            with zipfile.ZipFile(stream,'w') as z: z.writestr(member,data)
+            contents={member:data}
+            if relative.startswith('linux-proton/'):
+                contents.update({'graphics/'+name:b'verified driver fixture' for name in components.native_vulkan_driver.NAMES})
+            with zipfile.ZipFile(stream,'w') as z:
+                for name,payload in contents.items():z.writestr(name,payload)
             blob=stream.getvalue(); checksum=hashlib.sha256(blob).hexdigest()
             metadata=dict(path=member,bytes=len(data),sha256=hashlib.sha256(data).hexdigest())
-            value=dict(bytes=len(blob),sha256=checksum,files=[metadata])
+            value=dict(bytes=len(blob),sha256=checksum,files=[dict(path=name,bytes=len(payload),sha256=hashlib.sha256(payload).hexdigest()) for name,payload in contents.items()])
             if relative.startswith('linux-steam/'):
                 value=dict(archives=[dict(id='gnu-runtime',bytes=len(blob),sha256=checksum)],
                     files=[dict(**metadata,archive='gnu-runtime',zipPath=member)])
@@ -40,6 +57,9 @@ class RestoreTests(unittest.TestCase):
             self.lock['components'].append(dict(path=relative,bytes=len(blob),sha256=checksum,
                 manifestSha256=components.sha(target),url=url))
             self.downloads[url]=blob
+        driver=self.raw/components.native_vulkan_driver.RELATIVE
+        driver.parent.mkdir(parents=True,exist_ok=True)
+        driver.write_text(json.dumps(components.native_vulkan_driver.expected(self.root)))
         (self.root/'docs/linux-steam').mkdir(parents=True)
         self.write_lock()
 
@@ -66,9 +86,48 @@ class RestoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'source changed'):self.restore()
         self.assertEqual(self.calls,[])
 
+    def test_missing_and_corrupt_guest_core_fail_before_network(self):
+        target=self.core/'libc.so.6';data=target.read_bytes();target.unlink()
+        with self.assertRaises(FileNotFoundError):self.restore()
+        target.write_bytes(data[:-1]+b'x')
+        with self.assertRaisesRegex(ValueError,'Guest core mismatch'):self.restore()
+        self.assertEqual(self.calls,[])
+
+    def test_final_hap_requires_guest_core(self):
+        self.restore();self.write_lock()
+        hap=self.root/'missing-core.hap'
+        with zipfile.ZipFile(hap,'w') as z:
+            for path in self.raw.rglob('*'):
+                if path.is_file() and path.name!='libc.so.6':
+                    z.write(path,'resources/rawfile/'+path.relative_to(self.raw).as_posix())
+        with self.assertRaises(KeyError):components.verify_hap(hap,self.root)
+
+    def test_guest_ipc_required_in_restore_hap_and_device_installer(self):
+        name='libsteamohos_native_ipc.so'
+        self.assertIn(name,components.native_guest_core.NAMES)
+        installer=(REPO/'entry/src/main/ets/service/LinuxSteamClientSupervisor.ets').read_text()
+        self.assertIn("'"+name+"'",installer)
+        self.restore();self.write_lock()
+        target=self.core/name;payload=target.read_bytes();target.unlink()
+        with self.assertRaises(FileNotFoundError):self.restore(True)
+        target.write_bytes(payload)
+        hap=self.root/'missing-ipc.hap'
+        with zipfile.ZipFile(hap,'w') as z:
+            for path in self.raw.rglob('*'):
+                if path.is_file() and path.name!=name:
+                    z.write(path,'resources/rawfile/'+path.relative_to(self.raw).as_posix())
+        with self.assertRaises(KeyError):components.verify_hap(hap,self.root)
+
+    def test_driver_contract_must_match_original_proton_package(self):
+        path=self.raw/components.native_vulkan_driver.RELATIVE
+        value=json.loads(path.read_text());value['files']['libvulkan_virtio.so']['sha256']='0'*64
+        path.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError,'Native Vulkan driver manifest mismatch'):self.restore()
+        self.assertEqual(self.calls,[])
+
     def test_explicit_hap_source_override_requires_matching_source_and_binary(self):
         self.source.write_text('new source with an independently delivered HAP companion')
-        folder=self.raw/'linux-steam/bootstrap';folder.mkdir(parents=True)
+        folder=self.raw/'linux-steam/bootstrap';folder.mkdir(parents=True,exist_ok=True)
         binary=folder/'libsteamohos_posix_hap.so';binary.write_bytes(b'independent-companion')
         manifest=folder/'posix-manifest.json'
         data=dict(schemaVersion=1,architecture='aarch64-linux-gnu',name=binary.name,

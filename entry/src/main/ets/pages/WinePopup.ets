@@ -46,13 +46,13 @@ class PopupXComponentController extends XComponentController {
   }
 }
 
-@Entry
+@Entry({ useSharedStorage: true })
 @Component
 struct WinePopup {
   private axisTraceCount: number = 0;
   private axisEventGate: AxisEventGate = new AxisEventGate();
   controller: PopupXComponentController = new PopupXComponentController();
-  @State popupId: number = 0;
+  @LocalStorageProp('wineToplevelId') popupId: number = 0;
 
   // ── 触控状态机 (移植自 WineWindow.ets, 单窗口简化) ──
   // 单指: 短按→左键点击(含双击序列) / 长按→右键 / 移动超阈值→按住左键拖拽; 双指→滚轮
@@ -84,8 +84,7 @@ struct WinePopup {
   private scrollLogCounter: number = 0;
 
   aboutToAppear(): void {
-    // loadContent 同步调用, 与 setPendingToplevel 配对 (同 WineWindow)
-    this.popupId = testNapi.getCurrentToplevelId() as number;
+    // Identity belongs to this loadContent scene, independent of other windows.
     this.controller.popupId = this.popupId;
     hilog.info(DOMAIN, 'WinePopup', 'aboutToAppear popup=%{public}d', this.popupId);
   }

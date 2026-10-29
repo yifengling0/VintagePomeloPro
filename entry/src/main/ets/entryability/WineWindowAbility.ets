@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
 import { window } from '@kit.ArkUI';
@@ -6,6 +7,7 @@ import { WineWindowManager } from '../service/WineWindowManager';
 import { PopupWindowManager } from '../service/PopupWindowManager';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { ManagedWindowInput } from '../service/ManagedWindowInput';
+import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 
 const DOMAIN = 0x0000;
 const TAG = 'WWA';
@@ -19,6 +21,7 @@ export default class WineWindowAbility extends UIAbility {
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     try {
+      DeviceCapabilityPolicy.startPcModeMonitoring(this.context);
       const params = want.parameters ?? {};
       this.toplevelId = Number(params.toplevelId) || 0;
       const title = params.title as string ?? '';
@@ -61,9 +64,8 @@ export default class WineWindowAbility extends UIAbility {
     }
 
     try {
-      //  设置 pending toplevel, WineWindow.aboutToAppear 同步读取 (loadContent 期间同步调用)
-      hilog.info(DOMAIN, TAG, '[WWA] -> setPendingToplevel(%{public}d)', this.toplevelId);
-      testNapi.setPendingToplevel(this.toplevelId);
+      // Renderer identity is passed to loadContent in a scene-local storage below.
+      hilog.info(DOMAIN, TAG, '[WWA] -> LocalStorage window identity(%{public}d)', this.toplevelId);
 
       let mainWindow = windowStage.getMainWindowSync();
       hilog.info(DOMAIN, TAG, '[WWA] mainWindow=%{public}s', mainWindow ? 'ok' : 'NULL');
@@ -76,13 +78,16 @@ export default class WineWindowAbility extends UIAbility {
       // 注册 Window 引用
       WineWindowManager.getInstance().registerWindow(this.toplevelId, mainWindow);
       this.mainWindow = mainWindow;
+      WineImeCoordinator.getInstance().observeWindow(this.toplevelId, mainWindow, true);
+      if (this.foreground) WineImeCoordinator.getInstance().foreground(this.toplevelId, mainWindow, true);
       this.applyKeepScreenOn(mainWindow);
       testNapi.registerHostWindow(mainWindow.getWindowProperties().id);
       // 注册 WindowStage 引用 (popup 子窗口创建入口)
       WineWindowManager.getInstance().registerWindowStage(this.toplevelId, windowStage);
 
       // 父窗口移动/缩放 → 重新定位其 popup 子窗口
-      mainWindow.on('windowRectChange', () => {
+      mainWindow.on('windowRectChange', (change: window.RectChangeOptions) => {
+        WineWindowManager.getInstance().onHostWindowRectChange(this.toplevelId, change);
         ManagedWindowInput.getInstance().syncBounds(this.toplevelId);
         const mgr = WineWindowManager.getInstance();
         PopupWindowManager.getInstance().repositionPopups(
@@ -119,7 +124,9 @@ export default class WineWindowAbility extends UIAbility {
       });
 
       hilog.info(DOMAIN, TAG, '[WWA] -> loadContent pages/WineWindow...');
-      windowStage.loadContent('pages/WineWindow', (err) => {
+      const storage = new LocalStorage();
+      storage.setOrCreate('wineToplevelId', this.toplevelId);
+      windowStage.loadContent('pages/WineWindow', storage, (err) => {
         if (err.code) {
           hilog.error(DOMAIN, TAG, '[WWA] ERR #%{public}d loadContent FAILED: %{public}s',
             this.toplevelId, JSON.stringify(err));
@@ -155,6 +162,7 @@ export default class WineWindowAbility extends UIAbility {
 
   onForeground(): void {
     this.foreground = true;
+    if (this.mainWindow) WineImeCoordinator.getInstance().foreground(this.toplevelId, this.mainWindow, true);
     this.attachManagedInput();
     hilog.info(DOMAIN, TAG, '[WWA] onForeground tl=%{public}d', this.toplevelId);
     try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
@@ -162,6 +170,7 @@ export default class WineWindowAbility extends UIAbility {
 
   onBackground(): void {
     this.foreground = false;
+    WineImeCoordinator.getInstance().background(this.mainWindow);
     ManagedWindowInput.getInstance().background(this.toplevelId);
     hilog.info(DOMAIN, TAG, '[WWA] onBackground tl=%{public}d', this.toplevelId);
     // 与 master 相同: 融合 Ability 失焦不等于 surface 不可呈现, 不停渲染。
@@ -169,6 +178,7 @@ export default class WineWindowAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
     hilog.info(DOMAIN, TAG, '[WWA]  onDestroy tl=%{public}d (cleanedUp=%{public}s)',
       this.toplevelId, this.cleanedUp ? 'yes' : 'no');
     try {
@@ -189,6 +199,7 @@ export default class WineWindowAbility extends UIAbility {
       return;
     }
     this.cleanedUp = true;
+    WineImeCoordinator.getInstance().unobserveWindow(this.mainWindow);
     hilog.info(DOMAIN, TAG, '[WWA]  cleanup tl=%{public}d START: sendToplevelClose -> destroyToplevel -> unregisterAbility',
       this.toplevelId);
     try {

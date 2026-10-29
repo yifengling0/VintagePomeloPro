@@ -49,7 +49,12 @@ std::shared_ptr<std::recursive_mutex> queueLock(VkQueue queue) {
     std::lock_guard<std::recursive_mutex> lock(stateMutex);
     auto& value=queueLocks[queue];if(!value)value=std::make_shared<std::recursive_mutex>();return value;
 }
-struct Mapping { VkDeviceSize bytes=0; void* alias=nullptr; };
+struct Mapping {
+    VkDeviceSize bytes=0; void* alias=nullptr;
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    VkDevice owner=VK_NULL_HANDLE;VkDeviceSize offset=0,length=0;bool active=false;
+#endif
+};
 std::map<VkDeviceMemory,Mapping> mappings;
 using AllocateVirtual = int32_t(*)(void*,void**,uintptr_t,size_t*,uint32_t,uint32_t);
 using FreeVirtual = int32_t(*)(void*,void**,size_t*,uint32_t);
@@ -114,12 +119,29 @@ bool init() {
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
     const char* native=getenv("STEAMOHOS_NATIVE_FEX");
     if(!native||strcmp(native,"1"))return false;
-    root=getenv("STEAMOHOS_NATIVE_GRAPHICS_ROOT");
-#endif
+    // Reuse the verified Venus binary from GNU Proton, provisioned beside
+    // FEX's runtime. Its former private path is outside this rtld's scope.
+    if(!root||root[0]!='/')return false;
+#else
     if(!root||strcmp(root,"/data/storage/el2/base/files/steamohos-native/proton-probe"))return false;
-    char path[4096];snprintf(path,sizeof(path),"%s/graphics/libvulkan_virtio.so",root);
+#endif
+    char path[4096];
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    int pathSize=snprintf(path,sizeof(path),"%s/native-vulkan-driver/libvulkan_virtio.so",root);
+#else
+    int pathSize=snprintf(path,sizeof(path),"%s/graphics/libvulkan_virtio.so",root);
+#endif
+    if(pathSize<=0||pathSize>=(int)sizeof(path))return false;
     startupTrace("icd_open");
-    icd=dlopen(path,RTLD_NOW|RTLD_LOCAL);startupTrace("icd_opened",icd?"ok":"failed");if(!icd)return false;
+    icd=dlopen(path,RTLD_NOW|RTLD_LOCAL);startupTrace("icd_opened",icd?"ok":"failed");
+    if(!icd) {
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+        const char* reason=dlerror();
+        static std::atomic<unsigned> failures{0};
+        if(failures.fetch_add(1)<4)fprintf(stderr,"GNU_NATIVE_VULKAN icd_load_failed reason=%.800s\n",reason?reason:"unknown");
+#endif
+        return false;
+    }
     get=reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(icd,"vk_icdGetInstanceProcAddr"));
     present=reinterpret_cast<Present>(dlsym(icd,"vn_winehua_present"));
     startupTrace("icd_ready",get&&present?"ok":"missing");
@@ -180,6 +202,72 @@ void release(Swapchain& swap) {
     for(auto memory:swap.memories)if(memory)freeMemory(swap.device,memory,nullptr);
 }
 }
+
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+namespace {
+// Explicit, native-only diagnostic. All calls and results pass through; no
+// shader replacement, pixel readback or capability override is performed.
+bool nativeGpuTrace() {
+    static const bool enabled=access("/data/storage/el2/base/files/steamohos-native/native-vulkan-draw-debug",R_OK)==0;
+    return enabled;
+}
+std::atomic<unsigned> nativeShaders{0},nativeShaderErrors{0},nativePipelines{0},nativePipelineErrors{0},nativeDraws{0},nativeUploads{0};
+struct NativeCommand {VkDevice device;VkCommandPool pool;};
+std::map<VkCommandBuffer,NativeCommand> nativeCommands;
+VkDevice nativeCommandDevice(VkCommandBuffer command) {
+    std::lock_guard<std::recursive_mutex> guard(stateMutex);return nativeCommands.at(command).device;
+}
+VkResult VKAPI_CALL nativeCreateShaderModule(VkDevice device,const VkShaderModuleCreateInfo* info,const VkAllocationCallbacks* allocator,VkShaderModule* out) {
+    auto result=deviceProc<PFN_vkCreateShaderModule>(device,"vkCreateShaderModule")(device,info,allocator,out);
+    if(result==VK_SUCCESS)++nativeShaders;
+    else if(nativeShaderErrors.fetch_add(1)<8)fprintf(stderr,"GNU_NATIVE_GPU shader_result=%d code_bytes=%zu\n",result,info?info->codeSize:0);
+    return result;
+}
+VkResult VKAPI_CALL nativeCreateGraphicsPipelines(VkDevice device,VkPipelineCache cache,uint32_t count,const VkGraphicsPipelineCreateInfo* info,const VkAllocationCallbacks* allocator,VkPipeline* out) {
+    auto result=deviceProc<PFN_vkCreateGraphicsPipelines>(device,"vkCreateGraphicsPipelines")(device,cache,count,info,allocator,out);
+    if(result==VK_SUCCESS)nativePipelines+=count;
+    else if(nativePipelineErrors.fetch_add(1)<8)fprintf(stderr,"GNU_NATIVE_GPU pipeline_result=%d count=%u\n",result,count);
+    return result;
+}
+VkResult VKAPI_CALL nativeAllocateCommandBuffers(VkDevice device,const VkCommandBufferAllocateInfo* info,VkCommandBuffer* out) {
+    auto result=deviceProc<PFN_vkAllocateCommandBuffers>(device,"vkAllocateCommandBuffers")(device,info,out);
+    if(result==VK_SUCCESS){std::lock_guard<std::recursive_mutex> guard(stateMutex);for(unsigned i=0;i<info->commandBufferCount;++i)nativeCommands[out[i]]={device,info->commandPool};}
+    return result;
+}
+void VKAPI_CALL nativeFreeCommandBuffers(VkDevice device,VkCommandPool pool,uint32_t count,const VkCommandBuffer* commands) {
+    deviceProc<PFN_vkFreeCommandBuffers>(device,"vkFreeCommandBuffers")(device,pool,count,commands);
+    std::lock_guard<std::recursive_mutex> guard(stateMutex);for(unsigned i=0;i<count;++i)nativeCommands.erase(commands[i]);
+}
+void VKAPI_CALL nativeDestroyCommandPool(VkDevice device,VkCommandPool pool,const VkAllocationCallbacks* allocator) {
+    deviceProc<PFN_vkDestroyCommandPool>(device,"vkDestroyCommandPool")(device,pool,allocator);
+    std::lock_guard<std::recursive_mutex> guard(stateMutex);
+    for(auto it=nativeCommands.begin();it!=nativeCommands.end();)if(it->second.device==device&&it->second.pool==pool)it=nativeCommands.erase(it);else ++it;
+}
+void VKAPI_CALL nativeCmdDraw(VkCommandBuffer command,uint32_t vertices,uint32_t instances,uint32_t firstVertex,uint32_t firstInstance) {
+    ++nativeDraws;deviceProc<PFN_vkCmdDraw>(nativeCommandDevice(command),"vkCmdDraw")(command,vertices,instances,firstVertex,firstInstance);
+}
+void VKAPI_CALL nativeCmdDrawIndexed(VkCommandBuffer command,uint32_t indices,uint32_t instances,uint32_t firstIndex,int32_t vertexOffset,uint32_t firstInstance) {
+    ++nativeDraws;deviceProc<PFN_vkCmdDrawIndexed>(nativeCommandDevice(command),"vkCmdDrawIndexed")(command,indices,instances,firstIndex,vertexOffset,firstInstance);
+}
+void VKAPI_CALL nativeCmdCopyBufferToImage(VkCommandBuffer command,VkBuffer buffer,VkImage image,VkImageLayout layout,uint32_t count,const VkBufferImageCopy* regions) {
+    ++nativeUploads;deviceProc<PFN_vkCmdCopyBufferToImage>(nativeCommandDevice(command),"vkCmdCopyBufferToImage")(command,buffer,image,layout,count,regions);
+}
+void nativeGpuReport(uint32_t serial) {
+    static std::atomic<unsigned> reports{0};
+    if(nativeGpuTrace()&&(serial==1||serial%120==0)&&reports.fetch_add(1)<8)
+        fprintf(stderr,"GNU_NATIVE_GPU presents=%u shaders_ok=%u pipelines_ok=%u pipeline_errors=%u draws_recorded=%u uploads_recorded=%u pixel_readbacks=0\n",serial,nativeShaders.load(),nativePipelines.load(),nativePipelineErrors.load(),nativeDraws.load(),nativeUploads.load());
+}
+PFN_vkVoidFunction nativeGpuIntercept(const char* name) {
+    if(!nativeGpuTrace())return nullptr;
+#define NATIVE_GPU_PROC(n) if(!strcmp(name,"vk" #n))return reinterpret_cast<PFN_vkVoidFunction>(native##n)
+    NATIVE_GPU_PROC(CreateShaderModule);NATIVE_GPU_PROC(CreateGraphicsPipelines);
+    NATIVE_GPU_PROC(AllocateCommandBuffers);NATIVE_GPU_PROC(FreeCommandBuffers);NATIVE_GPU_PROC(DestroyCommandPool);
+    NATIVE_GPU_PROC(CmdDraw);NATIVE_GPU_PROC(CmdDrawIndexed);NATIVE_GPU_PROC(CmdCopyBufferToImage);
+#undef NATIVE_GPU_PROC
+    return nullptr;
+}
+}
+#endif
 extern "C" {
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceVersion(uint32_t* version) {
     if(!init())return VK_ERROR_INITIALIZATION_FAILED;
@@ -254,6 +342,9 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physical,const Vk
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyDevice(VkDevice device,const VkAllocationCallbacks* alloc) {
     auto destroy=deviceProc<PFN_vkDestroyDevice>(device,"vkDestroyDevice");
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    {std::lock_guard<std::recursive_mutex> lock(stateMutex);for(auto it=mappings.begin();it!=mappings.end();)if(it->second.owner==device){releaseAlias(it->second);it=mappings.erase(it);}else ++it;}
+#endif
     {std::lock_guard<std::recursive_mutex> lock(stateMutex);devices.erase(device);for(auto it=queues.begin();it!=queues.end();)if(it->second==device){queueLocks.erase(it->first);it=queues.erase(it);}else ++it;}
     if(destroy)destroy(device,alloc);
 }
@@ -413,6 +504,9 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue,const VkPresentIn
                 if(rc!=VK_SUCCESS)fprintf(stderr,"GNU_WINE_VULKAN present_failed=%d serial=%u\n",status,swap->serial);
                 wl_surface_commit(swap->surface->window);wl_display_flush(swap->surface->display);
                 swap->acquired[index]=false;swap->available.notify_one();
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+                nativeGpuReport(swap->serial);
+#endif
                 if(swap->serial%120==0)fprintf(stderr,"GNU_WINE_VULKAN frames=%u surface=%u pixel_readbacks=0\n",swap->serial,surface);
             }
         }
@@ -422,22 +516,45 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue,const VkPresentIn
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkAllocateMemory(VkDevice device,const VkMemoryAllocateInfo* info,const VkAllocationCallbacks* alloc,VkDeviceMemory* memory) {
     auto result=deviceProc<PFN_vkAllocateMemory>(device,"vkAllocateMemory")(device,info,alloc,memory);
-    if(result==VK_SUCCESS){std::lock_guard<std::recursive_mutex> lock(stateMutex);mappings[*memory]={info->allocationSize,nullptr};}return result;
+    if(result==VK_SUCCESS){std::lock_guard<std::recursive_mutex> lock(stateMutex);mappings[*memory]={info->allocationSize,nullptr};
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+        mappings[*memory].owner=device;
+#endif
+    }return result;
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory(VkDevice device,VkDeviceMemory memory,VkDeviceSize offset,VkDeviceSize size,VkMemoryMapFlags flags,void** out) {
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    std::lock_guard<std::recursive_mutex> nativeMemoryLock(stateMutex);
+    auto mapped=mappings.find(memory);
+    if(mapped==mappings.end()||mapped->second.owner!=device||mapped->second.active||
+       offset>=mapped->second.bytes||!size||
+       (size!=VK_WHOLE_SIZE&&size>mapped->second.bytes-offset))return VK_ERROR_MEMORY_MAP_FAILED;
+#endif
     auto map=deviceProc<PFN_vkMapMemory>(device,"vkMapMemory");auto rc=map(device,memory,offset,size,flags,out);
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    if(rc==VK_SUCCESS){mapped->second.offset=offset;mapped->second.length=size==VK_WHOLE_SIZE?mapped->second.bytes-offset:size;mapped->second.active=true;}
+#endif
     if(rc!=VK_SUCCESS||!getenv("STEAMOHOS_PROTON_VULKAN_MAP32")||reinterpret_cast<uintptr_t>(*out)<=UINT32_MAX)return rc;
     std::lock_guard<std::recursive_mutex> lock(stateMutex);auto it=mappings.find(memory);
     const VkDeviceSize bytes=it==mappings.end()||offset>it->second.bytes?0:size==VK_WHOLE_SIZE?it->second.bytes-offset:size;
     void* alias=nullptr;
     if(bytes&&bytes<=SIZE_MAX&&alias32(memory,offset,bytes,&alias,out)) {it->second.alias=alias;return VK_SUCCESS;}
     deviceProc<PFN_vkUnmapMemory>(device,"vkUnmapMemory")(device,memory);*out=nullptr;
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    mapped->second.active=false;
+#endif
     fprintf(stderr,"GNU_WINE_VULKAN shared_alias_failed bytes=%" PRIu64 " errno=%d\n",bytes,errno);return VK_ERROR_MEMORY_MAP_FAILED;
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory2KHR(VkDevice device,const VkMemoryMapInfoKHR* info,void** out) {
     if(info->pNext)return VK_ERROR_FEATURE_NOT_PRESENT;return vkMapMemory(device,info->memory,info->offset,info->size,info->flags,out);
 }
 VKAPI_ATTR void VKAPI_CALL vkUnmapMemory(VkDevice device,VkDeviceMemory memory) {
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    std::lock_guard<std::recursive_mutex> nativeMemoryLock(stateMutex);
+    auto mapped=mappings.find(memory);
+    if(mapped==mappings.end()||mapped->second.owner!=device||!mapped->second.active)return;
+    mapped->second.active=false;
+#endif
     deviceProc<PFN_vkUnmapMemory>(device,"vkUnmapMemory")(device,memory);
     std::lock_guard<std::recursive_mutex> lock(stateMutex);auto it=mappings.find(memory);if(it!=mappings.end())releaseAlias(it->second);
 }
@@ -445,9 +562,52 @@ VKAPI_ATTR VkResult VKAPI_CALL vkUnmapMemory2KHR(VkDevice device,const VkMemoryU
     if(info->pNext||info->flags)return VK_ERROR_FEATURE_NOT_PRESENT;vkUnmapMemory(device,info->memory);return VK_SUCCESS;
 }
 VKAPI_ATTR void VKAPI_CALL vkFreeMemory(VkDevice device,VkDeviceMemory memory,const VkAllocationCallbacks* alloc) {
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    std::lock_guard<std::recursive_mutex> nativeMemoryLock(stateMutex);
+    auto mapped=mappings.find(memory);
+    if(memory&&(mapped==mappings.end()||mapped->second.owner!=device))return;
+#endif
     {std::lock_guard<std::recursive_mutex> lock(stateMutex);auto it=mappings.find(memory);if(it!=mappings.end()){releaseAlias(it->second);mappings.erase(it);}}
     deviceProc<PFN_vkFreeMemory>(device,"vkFreeMemory")(device,memory,alloc);
 }
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+// Invalid native application ranges must not dereference freed Venus handles
+// or poison the shared renderer's command ring. Preserve valid ranges in a
+// mixed batch, but report invalid input rather than claiming full success.
+static VkResult nativeMappedRanges(VkDevice device,uint32_t count,const VkMappedMemoryRange* ranges,bool invalidate) {
+    if(!count||!ranges||count>65536)return VK_ERROR_MEMORY_MAP_FAILED;
+    std::lock_guard<std::recursive_mutex> lock(stateMutex);
+    std::vector<VkMappedMemoryRange> valid;valid.reserve(count);
+    for(uint32_t i=0;i<count;++i) {
+        const auto& range=ranges[i];auto found=mappings.find(range.memory);
+        if(found==mappings.end())continue;
+        const auto& map=found->second;
+        if(map.owner!=device||!map.active||range.offset<map.offset||range.offset>=map.bytes)continue;
+        const auto size=range.size==VK_WHOLE_SIZE?map.bytes-range.offset:range.size;
+        const auto delta=range.offset-map.offset;
+        if(!size||delta>map.length||size>map.length-delta)continue;
+        valid.push_back(range);
+    }
+    const bool rejected=valid.size()!=count;
+    if(rejected) {
+        static std::atomic<unsigned> reports{0};
+        if(reports.fetch_add(1)<16)fprintf(stderr,"GNU_NATIVE_VULKAN invalid_mapped_ranges operation=%s input=%u valid=%zu result=%d\n",invalidate?"invalidate":"flush",count,valid.size(),VK_ERROR_MEMORY_MAP_FAILED);
+    }
+    VkResult result=VK_SUCCESS;
+    if(!valid.empty()) {
+        auto operation=deviceProc<PFN_vkFlushMappedMemoryRanges>(device,invalidate?"vkInvalidateMappedMemoryRanges":"vkFlushMappedMemoryRanges");
+        if(!operation)return VK_ERROR_INITIALIZATION_FAILED;
+        result=operation(device,valid.size(),valid.data());
+    }
+    return result==VK_SUCCESS&&rejected?VK_ERROR_MEMORY_MAP_FAILED:result;
+}
+VKAPI_ATTR VkResult VKAPI_CALL vkFlushMappedMemoryRanges(VkDevice device,uint32_t count,const VkMappedMemoryRange* ranges) {
+    return nativeMappedRanges(device,count,ranges,false);
+}
+VKAPI_ATTR VkResult VKAPI_CALL vkInvalidateMappedMemoryRanges(VkDevice device,uint32_t count,const VkMappedMemoryRange* ranges) {
+    return nativeMappedRanges(device,count,ranges,true);
+}
+#endif
 VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit(VkQueue queue,uint32_t count,const VkSubmitInfo* info,VkFence fence) {
     VkDevice d;{std::lock_guard<std::recursive_mutex> lock(stateMutex);auto it=queues.find(queue);if(it==queues.end())return VK_ERROR_INITIALIZATION_FAILED;d=it->second;}
     auto guard=queueLock(queue);std::lock_guard<std::recursive_mutex> lock(*guard);
@@ -465,6 +625,12 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueueWaitIdle(VkQueue queue) {
 }
 static PFN_vkVoidFunction intercept(const char* name) {
 #define PROC(n) if(!strcmp(name,#n))return reinterpret_cast<PFN_vkVoidFunction>(n)
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    if(auto trace=nativeGpuIntercept(name))return trace;
+#endif
+#ifdef STEAMOHOS_NATIVE_FEX_WSI
+    PROC(vkFlushMappedMemoryRanges);PROC(vkInvalidateMappedMemoryRanges);
+#endif
     PROC(vkAllocateMemory);PROC(vkMapMemory);PROC(vkMapMemory2KHR);PROC(vkUnmapMemory);PROC(vkUnmapMemory2KHR);PROC(vkFreeMemory);
     PROC(vkQueueSubmit);PROC(vkQueueSubmit2);PROC(vkQueueWaitIdle);
     if(!strcmp(name,"vkQueueSubmit2KHR"))return reinterpret_cast<PFN_vkVoidFunction>(vkQueueSubmit2);

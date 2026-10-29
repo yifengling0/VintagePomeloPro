@@ -246,6 +246,12 @@ jobs:
               break
             fi
           done
+          if [ ! -f /usr/include/alsa/pcm_external.h ]; then
+            packages+=(libasound2-dev)
+          fi
+          if [ ! -f /usr/include/libudev.h ]; then
+            packages+=(libudev-dev)
+          fi
           if [ "${#packages[@]}" -gt 0 ]; then
             echo "Installing missing CI packages: ${packages[*]}"
             apt-get update
@@ -324,10 +330,19 @@ jobs:
           python3 host_tests/linux_steam_cloud_paths_test.py
           python3 host_tests/linux_steam_depot_links_test.py
           python3 host_tests/linux_steam_native_fex_test.py
+          python3 host_tests/linux_steam_native_udev_test.py
+          python3 host_tests/linux_steam_native_guest_audio_test.py
+          python3 host_tests/linux_steam_native_guest_ipc_test.py
+          python3 host_tests/linux_steam_native_signal_context_test.py
+          python3 host_tests/linux_steam_native_kernel_maps_test.py
+          python3 host_tests/linux_steam_native_x11_endpoint_test.py
+          python3 host_tests/linux_steam_native_guest_mapping_test.py
+          python3 host_tests/linux_steam_native_guest_abi_test.py
           python3 host_tests/linux_steam_native_window_test.py
           python3 host_tests/linux_runtime_components_test.py
+          python3 host_tests/managed_render_route_test.py
           python3 host_tests/steam_client_restart_test.py --output ci-artifacts/steam-client-restart
-          for suite in run_linux_proton_media_tests run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests; do
+          for suite in run_linux_proton_media_tests run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_edge_window_tests run_wine_ime_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests; do
             /apps/harmony/tool/node/bin/node "scripts/$suite.cjs" \
               /apps/harmony/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript
           done

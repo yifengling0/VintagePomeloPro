@@ -21,7 +21,8 @@ import {
   createDefaultAppSettings,
   createDefaultGlobalSettings,
   normalizeGraphicsLaunchPreset,
-  normalizeWineLanguage
+  normalizeWineLanguage,
+  normalizeWineTranslationEngine
 } from '../model/AppModels';
 
 const STORE_NAME = 'vintage_pomelo_pro';
@@ -88,7 +89,6 @@ export class AppSettingsStore {
   private bentoOrder: string[] = [];
   private bentoWriteChain: Promise<void> = Promise.resolve();
   private libraryPath: string = '';
-  private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
 
   static getInstance(): AppSettingsStore {
@@ -97,7 +97,6 @@ export class AppSettingsStore {
   }
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
-    this.managedWineWindowsHost = this.detectManagedWineWindowsHost();
     if (this.store) return;
     this.store = await preferences.getPreferences(context, STORE_NAME);
     this.loadGlobal();
@@ -243,6 +242,7 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode ?? DesktopWindowMode.FULLSCREEN,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -276,8 +276,8 @@ export class AppSettingsStore {
 
   private detectManagedWineWindowsHost(): boolean {
     // Device model is commonly just "emulator" for both tablet and PC HVDs.
-    // Window topology must follow the declared device class so the tablet
-    // emulator keeps the composed Wine desktop while 2-in-1/PC stays multiton.
+    // Follow the runtime PC setting as well as the static device class;
+    // Edge reports tablet even while running a freeform PC workspace.
     return DeviceCapabilityPolicy.usesManagedWineWindows();
   }
 
@@ -286,7 +286,7 @@ export class AppSettingsStore {
     // WineWindowManager is created by EntryAbility before the settings store
     // finishes its asynchronous preference load. Detect the host on demand so
     // the first native callback never observes the temporary tablet default.
-    return this.managedWineWindowsHost || this.detectManagedWineWindowsHost();
+    return this.detectManagedWineWindowsHost();
   }
 
   private loadGlobal(): void {
@@ -309,6 +309,7 @@ export class AppSettingsStore {
         desktopWindowMode: stored.desktopWindowMode ??
           this.resolveDesktopWindowModeDefault(defaults.desktopWindowMode),
         keepScreenOn: stored.keepScreenOn ?? defaults.keepScreenOn,
+        wineTranslationEngine: normalizeWineTranslationEngine(stored.wineTranslationEngine),
         box64Preset: stored.box64Preset ?? defaults.box64Preset,
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
         viewMode: stored.viewMode ?? defaults.viewMode,
@@ -411,6 +412,7 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: value,
@@ -447,6 +449,7 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -483,6 +486,7 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -520,6 +524,7 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -556,6 +561,7 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       box64Preset: value,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,

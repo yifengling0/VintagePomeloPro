@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "architecture": "aarch64-linux-gnu",
+  "source": "linux-proton/gnu-proton.zip",
+  "files": {
+    "libvulkan_virtio.so": {
+      "bytes": 1649224,
+      "sha256": "31c0ceb85c69d03644cd9c90e3ab698fc779eecd2f457c070f68649ff50c5a23"
+    },
+    "libxcb-dri3.so.0": {
+      "bytes": 67608,
+      "sha256": "17c6579239f7f2ac06212a4c2d42b44104c0faf4568415f5d8bee91ac7972cae"
+    },
+    "libxcb-present.so.0": {
+      "bytes": 67560,
+      "sha256": "6efb8025908e3dbf4a395dbc22b42803737ef79ec6184054b065343066f092bb"
+    },
+    "libxcb-xfixes.so.0": {
+      "bytes": 67568,
+      "sha256": "9401aca80a6548817079452bf49ec1f496a4539c8011c5f5fc534ab1d1b95e84"
+    },
+    "libxcb-sync.so.1": {
+      "bytes": 67648,
+      "sha256": "80aeeeb86f4cbdbdd0b25ef7d60acab187d3bec1571545952f112b373b53f014"
+    },
+    "libxcb-randr.so.0": {
+      "bytes": 67808,
+      "sha256": "c097159308384b38da759e53777ee3c8b709f9ae97214070da8057efd9744d47"
+    },
+    "libxcb-shm.so.0": {
+      "bytes": 67576,
+      "sha256": "4cefd6bc21493a15bfca3c88e7c3b14136acccc94b56c841a0f354f5c8cb9490"
+    },
+    "Xwayland": {
+      "bytes": 2405480,
+      "sha256": "c27f9ad22d17c893d58da12f967c6400c151e72b94431feecb5e37ebf87a0d96"
+    },
+    "libGL.so.1": {
+      "bytes": 716168,
+      "sha256": "59bc547767bf593a28089a1e779f971b3e42d37b1a7b8b5567ad3df212fa3295"
+    },
+    "libXxf86vm.so.1": {
+      "bytes": 18520,
+      "sha256": "f517c3a180c8529523d7e131e12f6eade6a55056dfb1506b43ba65cf397d2900"
+    },
+    "libdril_dri.so": {
+      "bytes": 149016,
+      "sha256": "c51a99ec53aa2457045cfca99c43b6881e534b202c692f16b9f689d58c99d59d"
+    },
+    "libgallium-25.0.1.so": {
+      "bytes": 17596000,
+      "sha256": "3803ce37526a3616ee8964f0994c98d42eb7e0e7b2df70b277c0642f5755dc15"
+    },
+    "libgbm.so.1": {
+      "bytes": 155704,
+      "sha256": "d105690f0a52daec95865a9453889b8095a39041f157275b280bec3efda12f92"
+    },
+    "libxcb-glx.so.0": {
+      "bytes": 133128,
+      "sha256": "8b660874c5e9ddc27a19e70ef75d20e2455526a61269c2d15ccdda27224d7e34"
+    }
+  }
+}

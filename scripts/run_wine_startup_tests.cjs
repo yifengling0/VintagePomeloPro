@@ -7,12 +7,14 @@ const path = require('node:path');
 const ts = require(process.argv[2]);
 const text = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/service/WineEngineService.ets'), 'utf8');
 const compiled = ts.transpileModule(text, {compilerOptions:{target:ts.ScriptTarget.ES2020, module:ts.ModuleKind.CommonJS}}).outputText;
+const modelExports = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/model/AppModels.ets'), 'utf8'), {compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText, {exports:modelExports,require:()=>({})});
 const State = {STOPPED:'stopped', PREPARING:'preparing', SWITCHING:'switching', READY:'ready', ERROR:'error'};
 function fixture() {
   let now=1000, next=0, launches=0, stops=0;
   const timers=new Map();
   let snapshot={generation:0,active:false,state:'idle',phase:''};
-  const settings={wineLanguage:'zh_CN',defaultDisplayMode:'desktop'};
+  const settings={wineLanguage:'zh_CN',defaultDisplayMode:'desktop',wineTranslationEngine:'fex',box64Preset:'default'};
   const wm={presentationMode:'desktop',applyModePolicy(){},setStartupForegroundGuard(){},prepareOutputForOrientation(){}};
   const napi={
     getWineStartupState:()=>JSON.stringify(snapshot),getProcessList:()=>[],
@@ -28,7 +30,7 @@ function fixture() {
       if(name==='libentry.so')return {default:napi};
       if(name==='@kit.CoreFileKit')return {fileIo:{accessSync:()=>false}};
       if(name.includes('LogService'))return {hilog:{info(){},warn(){},error(){}}};
-      if(name.includes('AppModels'))return {EngineState:State,WineLanguage:{CHINESE:'zh_CN'},
+      if(name.includes('AppModels'))return {...modelExports,EngineState:State,WineLanguage:{CHINESE:'zh_CN'},
         WinePresentationMode:{DESKTOP:'desktop',MANAGED_WINDOWS:'managed'},
         ScreenOrientationSetting:{SENSOR_LANDSCAPE:'landscape'},canTransitionEngineState:()=>true};
       if(name.includes('WineUpgradeGuard'))return {WineUpgradeGuard:class {needsReset(){return false;}}};
@@ -51,7 +53,7 @@ function fixture() {
     now=until;await flush();
   }
   const start=()=>s.startSession('desktop','desktop','/games','reuse');
-  return {s,napi,start,flush,advance,timers,stats:()=>({launches,stops}),snapshot:()=>snapshot};
+  return {s,napi,settings,start,flush,advance,timers,stats:()=>({launches,stops}),snapshot:()=>snapshot};
 }
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.exit(1);},15000);
@@ -61,6 +63,24 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
   await test('terminal before waiter/native callback is recovered from retained state',async()=>{
     const f=fixture();f.napi.launchClient=()=>{Object.assign(f.snapshot(),{generation:1,active:false,state:'ready',phase:'explorer'});return 0;};
     assert.equal(await f.start(),true);assert.equal(f.s.state,State.READY);assert.equal(f.timers.size,0);
+  });
+  await test('cold start and subsequent app launch select the same CPU policy',async()=>{
+    for (const engine of ['fex','box64']) {
+      const f=fixture();f.settings.wineTranslationEngine=engine;f.settings.box64Preset='performance';f.s.requireSelectedCpuModule=()=>{};
+      let cold,hot;
+      f.napi.launchClient=(...args)=>{cold=args[12];Object.assign(f.snapshot(),{generation:1,active:false,state:'ready'});return 0;};
+      f.napi.runWineExe=(...args)=>{hot=args[8];return {pid:42,sessionId:'test',reused:false};};
+      assert.equal(await f.start(),true);f.s.launchExecutable('C:/game.exe');
+      const expected=modelExports.resolveWineCpuEnvironment(engine,'performance');
+      assert.equal(JSON.stringify(cold),JSON.stringify(expected));
+      assert.equal(JSON.stringify(hot.slice(0,expected.length)),JSON.stringify(expected));
+      assert.equal(cold.some(x=>x.startsWith('BOX64_DYNAREC_')),engine==='box64');
+    }
+  });
+  await test('missing Box64 component reports a specific error before native startup',async()=>{
+    const f=fixture();f.settings.wineTranslationEngine='box64';
+    assert.equal(await f.start(),false);assert.match(f.s.message,/Box64 转译组件缺失/);
+    assert.equal(f.stats().launches,0);
   });
   await test('missing ready callback recovers by polling; duplicate phases do not renew clock',async()=>{
     const f=fixture();const p=f.start();await f.flush();await f.advance(1000);

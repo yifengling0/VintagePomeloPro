@@ -1,5 +1,6 @@
 #include "direct_wine_surface_controller.h"
 #include "direct_vulkan_presenter.h"
+#include "direct_consumer_scope.h"
 #include "proc/wine_child_ipc_launcher.h"
 
 #include <native_image/native_image.h>
@@ -42,7 +43,7 @@ struct Slot {
     bool active = true;
     bool desktopDrawable = false;
     std::shared_ptr<DirectImageQueue> consumer;
-    bool desktopReady = false;
+    const void* readyOwner = nullptr;
     DirectSurfaceToken attached{};
     uint64_t outputSurfaceId = 0;
     uint64_t outputRevision = 0;
@@ -218,25 +219,28 @@ public:
         return true;
     }
 
-    void SetDesktopConsumer(const void* owner, bool enabled)
+    bool SetDesktopConsumer(const void* owner, bool enabled, uint32_t scope)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (enabled) {
-            if (!desktopOwner_ || desktopOwner_ == owner) desktopOwner_ = owner;
-        } else if (desktopOwner_ == owner) {
-            desktopOwner_ = nullptr;
-            for (auto& [id, slot] : slots_) slot.desktopReady = false;
+            if (!desktopOwners_.Register(owner, scope)) return false;
+        } else {
+            desktopOwners_.Remove(owner);
+            for (auto& [id, slot] : slots_)
+                if (slot.readyOwner == owner) slot.readyOwner = nullptr;
         }
         condition_.notify_one();
+        return true;
     }
 
     std::vector<winehua::direct::DirectDesktopSource> DesktopSources(const void* owner)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         std::vector<winehua::direct::DirectDesktopSource> out;
-        if (desktopOwner_ != owner) return out;
+        if (!owner) return out;
         for (const auto& [id, slot] : slots_)
-            if (slot.active && slot.desktopReady && slot.consumer &&
+            if (slot.active && desktopOwners_.OwnerFor(slot.toplevelId) == owner &&
+                slot.readyOwner == owner && slot.consumer &&
                 slot.attached.generation && !slot.outputSurfaceId)
                 out.push_back({slot.attached, slot.consumer});
         return out;
@@ -287,7 +291,7 @@ private:
         std::shared_ptr<DirectImageQueue> image;
         uint64_t outputSurfaceId = 0;
         uint64_t outputRevision = 0;
-        bool desktop = false;
+        const void* desktop = nullptr;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             auto it = slots_.find(id);
@@ -295,7 +299,7 @@ private:
             image = it->second.consumer;
             outputSurfaceId = it->second.outputSurfaceId;
             outputRevision = it->second.outputRevision;
-            desktop = desktopOwner_ && !outputSurfaceId;
+            desktop = !outputSurfaceId ? desktopOwners_.OwnerFor(it->second.toplevelId) : nullptr;
         }
         auto& state = consumers_[id];
         { std::lock_guard<std::mutex> lock(mutex_);
@@ -320,8 +324,9 @@ private:
             state.presenter.reset(); // drain Vulkan reads before the desktop acquires
             std::lock_guard<std::mutex> lock(mutex_);
             auto it = slots_.find(id);
-            if (it != slots_.end() && it->second.consumer == image)
-                it->second.desktopReady = true;
+            if (it != slots_.end() && it->second.consumer == image &&
+                desktopOwners_.OwnerFor(it->second.toplevelId) == desktop)
+                it->second.readyOwner = desktop;
             return;
         }
         if (!image) return;
@@ -487,7 +492,7 @@ private:
                 oldImage = it->second.consumer;
                 oldToken = it->second.attached;
                 it->second.consumer = newImage;
-                it->second.desktopReady = false;
+                it->second.readyOwner = nullptr;
                 it->second.attached = token;
                 accepted = true;
             }
@@ -517,7 +522,7 @@ private:
     std::unordered_map<uint64_t, ConsumerState> consumers_;
     std::unordered_set<uint32_t> boundOutputs_;
     std::atomic<uint64_t> nextGeneration_{1};
-    const void* desktopOwner_ = nullptr;
+    winehua::direct::DirectConsumerScopes desktopOwners_;
 };
 
 Controller& GetController()
@@ -567,9 +572,9 @@ bool DirectImageQueue::Resize(int width, int height)
     return OH_ConsumerSurface_SetDefaultSize(image_, width, height) == 0;
 }
 
-void SetDirectDesktopConsumer(const void* owner, bool enabled)
+bool SetDirectDesktopConsumer(const void* owner, bool enabled, uint32_t scope)
 {
-    GetController().SetDesktopConsumer(owner, enabled);
+    return GetController().SetDesktopConsumer(owner, enabled, scope);
 }
 
 std::vector<DirectDesktopSource> GetDirectDesktopSources(const void* owner)
