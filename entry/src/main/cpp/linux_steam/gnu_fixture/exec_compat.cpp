@@ -3,6 +3,7 @@
 #include "native_fex.h"
 #include "native_signal_context.h"
 #include "native_seccomp.h"
+#include "native_executable.h"
 #include <algorithm>
 #include <cerrno>
 #include <cstdarg>
@@ -20,6 +21,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
+#include <sys/uio.h>
 #include <unistd.h>
 #include <ucontext.h>
 #include <sys/auxv.h>
@@ -138,19 +140,124 @@ __attribute__((no_stack_protector)) void FexFaultCode(void* context) {
     text("STEAMOHOS_FEX_FAULT_REGS");
     for(unsigned i=0;i<31;++i){text(" x");line[used++]='0'+i/10;line[used++]='0'+i%10;line[used++]='=';hex(state->uc_mcontext.regs[i]);}
     line[used++]='\n';RawCall(SYS_write,2,reinterpret_cast<long>(line),used);
-    long fd=RawCall(SYS_openat,AT_FDCWD,reinterpret_cast<long>("/proc/self/mem"),O_RDONLY|O_CLOEXEC);
-    if(fd<0)return;
-    uint64_t start=state->uc_mcontext.pc>=64?state->uc_mcontext.pc-64:0;
+    // /proc/self/mem is denied on some OHOS kernels. The kernel validates
+    // process_vm_readv ranges without dereferencing an unsafe fault pointer.
+    // A null indirect branch has no bytes at PC; its call site is still in LR.
+    const uint64_t instruction=state->uc_mcontext.pc?state->uc_mcontext.pc:state->uc_mcontext.regs[30];
+    uint64_t start=instruction>=64?instruction-64:0;
     unsigned char bytes[192];
-    long seek=RawCall(SYS_lseek,fd,start,SEEK_SET);
-    long count=seek>=0?RawCall(SYS_read,fd,reinterpret_cast<long>(bytes),sizeof(bytes)):-1;
-    RawCall(SYS_close,fd,0,0);
-    if(count<=0)return;
+    iovec local{bytes,sizeof(bytes)},remote{reinterpret_cast<void*>(start),sizeof(bytes)};
+    const long self=RawCall(SYS_getpid,0,0,0);
+    register long x8 asm("x8")=SYS_process_vm_readv;
+    register long x0 asm("x0")=self;
+    register long x1 asm("x1")=reinterpret_cast<long>(&local);
+    register long x2 asm("x2")=1;
+    register long x3 asm("x3")=reinterpret_cast<long>(&remote);
+    register long x4 asm("x4")=1;
+    register long x5 asm("x5")=0;
+    asm volatile("svc 0" : "+r"(x0) : "r"(x8),"r"(x1),"r"(x2),"r"(x3),"r"(x4),"r"(x5) : "memory","cc");
+    const long count=x0;
+    if(count<=0){used=0;text("STEAMOHOS_FEX_FAULT_CODE read_result=");hex(count);text("\n");RawCall(SYS_write,2,reinterpret_cast<long>(line),used);return;}
     used=0;text("STEAMOHOS_FEX_FAULT_CODE address=");hex(start);text(" bytes=");
     for(long n=0;n<count;++n){line[used++]=digits[bytes[n]>>4];line[used++]=digits[bytes[n]&15];}
     line[used++]='\n';RawCall(SYS_write,2,reinterpret_cast<long>(line),used);
+#if defined(STEAMOHOS_NATIVE_FAULT_ORIGIN)
+    // Capture the translated direct-call destination as well as its caller.
+    // A BL followed by a null PC does not identify which instruction failed.
+    // Read only this process through the kernel; never dereference JIT state.
+    auto slice=[&](const char* label,uint64_t address,size_t length)->uint64_t {
+        unsigned char data[512];
+        if(!address||length>sizeof(data))return 0;
+        iovec dst{data,length},src{reinterpret_cast<void*>(address),length};
+        register long n asm("x8")=SYS_process_vm_readv;
+        register long a0 asm("x0")=self;
+        register long a1 asm("x1")=reinterpret_cast<long>(&dst);
+        register long a2 asm("x2")=1;
+        register long a3 asm("x3")=reinterpret_cast<long>(&src);
+        register long a4 asm("x4")=1;
+        register long a5 asm("x5")=0;
+        asm volatile("svc 0" : "+r"(a0) : "r"(n),"r"(a1),"r"(a2),"r"(a3),"r"(a4),"r"(a5) : "memory","cc");
+        const long readCount=a0;
+        used=0;text(label);text(" address=");hex(address);text(" result=");hex(readCount);text("\n");
+        RawCall(SYS_write,2,reinterpret_cast<long>(line),used);
+        if(readCount>0) {
+            // Each write remains below the fixed log-line buffer capacity.
+            for(long offset=0;offset<readCount;offset+=192) {
+                used=0;text(label);text(" offset=");hex(offset);text(" bytes=");
+                const long end=std::min(readCount,offset+192);
+                for(long i=offset;i<end;++i){line[used++]=digits[data[i]>>4];line[used++]=digits[data[i]&15];}
+                line[used++]='\n';RawCall(SYS_write,2,reinterpret_cast<long>(line),used);
+            }
+        }
+        uint64_t first=0;
+        if(readCount>=8)for(unsigned i=0;i<8;++i)first|=static_cast<uint64_t>(data[i])<<(i*8);
+        return first;
+    };
+    const uint64_t lr=state->uc_mcontext.regs[30];
+    if(lr>=start+4&&lr<=start+static_cast<uint64_t>(count)) {
+        const size_t offset=lr-start-4;
+        const uint32_t call=static_cast<uint32_t>(bytes[offset])|
+            (static_cast<uint32_t>(bytes[offset+1])<<8)|
+            (static_cast<uint32_t>(bytes[offset+2])<<16)|
+            (static_cast<uint32_t>(bytes[offset+3])<<24);
+        if((call&0xfc000000u)==0x94000000u) {
+            const int64_t displacement=static_cast<int64_t>(static_cast<int32_t>((call&0x03ffffffu)<<6))>>4;
+            slice("STEAMOHOS_FEX_CALL_TARGET",lr-4+displacement,512);
+        }
+    }
+    slice("STEAMOHOS_FEX_CALL_STACK",state->uc_mcontext.regs[25],64);
+    const uint64_t block=slice("STEAMOHOS_FEX_STATE",state->uc_mcontext.regs[28],256);
+    // The saved CPU-state head identifies the most recent translated block,
+    // which may differ from the stale host LR after a guest RET. Capture it
+    // through process_vm_readv, never by dereferencing signal-time JIT state.
+    slice("STEAMOHOS_FEX_CURRENT_BLOCK",block,512);
+    for(unsigned offset=512;block&&offset<4096;offset+=512)
+        slice("STEAMOHOS_FEX_CURRENT_BLOCK_NEXT",block+offset,512);
+    // This Valve FEX ABI holds guest RSP/RBP in x8/x9. Keep the capture opt-in
+    // and bounded; an unreadable pointer is evidence, not a second fault.
+    const uint64_t guestSp=state->uc_mcontext.regs[8],guestBp=state->uc_mcontext.regs[9];
+    if(guestSp>=128)slice("STEAMOHOS_FEX_GUEST_STACK",guestSp-128,512);
+    if(guestBp>=128)slice("STEAMOHOS_FEX_GUEST_FRAME",guestBp-128,256);
+#endif
 #endif
 }
+#if defined(STEAMOHOS_NATIVE_FAULT_ORIGIN) && defined(__aarch64__)
+__attribute__((no_stack_protector)) void FexOriginLocation(void* context) {
+    if(!context)return;
+    const uintptr_t address=static_cast<ucontext_t*>(context)->uc_mcontext.regs[30];
+    long fd=RawCall(SYS_openat,AT_FDCWD,reinterpret_cast<long>("/proc/self/maps"),O_RDONLY|O_CLOEXEC);
+    if(fd<0)return;
+    char page[4096],line[1024];size_t used=0,total=0;bool found=false;
+    auto hex=[](const char*& p) {
+        uintptr_t value=0;
+        while((*p>='0'&&*p<='9')||(*p>='a'&&*p<='f')) {
+            value=(value<<4)|(*p<='9'?*p-'0':*p-'a'+10);++p;
+        }
+        return value;
+    };
+    // Scan bounded metadata, emitting only the map containing the call site.
+    while(!found&&total<4*1024*1024) {
+        long count=RawCall(SYS_read,fd,reinterpret_cast<long>(page),sizeof(page));
+        if(count<=0)break;
+        total+=count;
+        for(long i=0;i<count;++i) {
+            if(page[i]!='\n'){if(used<sizeof(line)-2)line[used++]=page[i];continue;}
+            line[used]=0;const char* p=line;const uintptr_t begin=hex(p);
+            if(*p++=='-') {
+                const uintptr_t end=hex(p);
+                if(begin<=address&&address<end) {
+                    static const char label[]="STEAMOHOS_FEX_ORIGIN_MAP ";
+                    RawCall(SYS_write,2,reinterpret_cast<long>(label),sizeof(label)-1);
+                    line[used++]='\n';RawCall(SYS_write,2,reinterpret_cast<long>(line),used);
+                    found=true;break;
+                }
+            }
+            used=0;
+        }
+    }
+    RawCall(SYS_close,fd,0,0);
+}
+#endif
 __attribute__((no_stack_protector)) void FexFaultMaps() {
     static const char begin[]="STEAMOHOS_FEX_FAULT_MAPS_BEGIN\n";
     static const char end[]="STEAMOHOS_FEX_FAULT_MAPS_END\n";
@@ -198,6 +305,24 @@ __attribute__((no_stack_protector)) void FexObservedSignal(int signal,siginfo_t*
     static std::atomic<unsigned> reports{0};
     if(FexSignalDiagnostics&&reports.fetch_add(1,std::memory_order_relaxed)<24)
         RecordFexFault("STEAMOHOS_FEX_SIGNAL",signal,info,context,&current,result,repaired);
+#if defined(STEAMOHOS_NATIVE_FAULT_ORIGIN)
+    // An exception inside a native thunk or syscall can leave the last guest
+    // PC at an unrelated instruction. Capture the actual host context before
+    // FEX reconstructs it. Keep this out of release builds and independent of
+    // the normal alignment-fault budget; do not consume or alter the signal.
+    static std::atomic<unsigned> origins{0};
+    if(FexSignalDiagnostics&&signal==SIGSEGV&&info&&info->si_code==SEGV_MAPERR) {
+        const unsigned index=origins.fetch_add(1,std::memory_order_relaxed);
+        if(index<8) {
+            RecordFexFault("STEAMOHOS_FEX_ORIGIN",signal,info,context,&current,result,repaired);
+            FexFaultCode(context);
+#if defined(__aarch64__)
+            FexOriginLocation(context);
+#endif
+            if(!index)FexFaultMaps();
+        }
+    }
+#endif
     auto handler=reinterpret_cast<void(*)(int,siginfo_t*,void*)>(FexObservedHandlers[signal].load(std::memory_order_relaxed));
     if(handler)handler(signal,info,context);
 }
@@ -316,18 +441,15 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
     // The actual original ELF must exist; never treat arbitrary scripts as an ELF.
     int input = open(target.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (input < 0) return -1;
-    unsigned char header[20]; ssize_t bytes = read(input, header, sizeof(header)); close(input);
+    unsigned char header[64]; ssize_t bytes = read(input, header, sizeof(header)); close(input);
 #if defined(__aarch64__)
-    constexpr unsigned machine = 183;
     const std::string loader = code + "/ld-linux-aarch64.so.1";
 #elif defined(__x86_64__)
-    constexpr unsigned machine = 62;
     const std::string loader = code + "/ld-linux-x86-64.so.2";
 #else
 #error Unsupported GNU native ISA
 #endif
-    if (bytes != sizeof(header) || memcmp(header, "\177ELF", 4) || header[4] != 2 || header[5] != 1 ||
-        (header[18] | (header[19] << 8)) != machine) return Fail(ENOEXEC);
+    if (bytes<0||!SteamOhosNativeExecutableHeader(header,static_cast<size_t>(bytes)))return Fail(ENOEXEC);
     std::vector<std::string> argv{loader, "--inhibit-cache", "--library-path",
         code + ':' + code + "/steamrtarm64:" + code + "/steamrtarm64/libs:" + code + "/steamrtarm64/video",
         "--argv0", arguments && arguments[0] ? arguments[0] : target, target};
@@ -366,8 +488,10 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
     const char* software=getenv("STEAMOHOS_SOFTWARE_GL");
     const char* gamepad=getenv("STEAMOHOS_GAMEPAD_SOCKET");
     const std::string posix=code+(!access((code+"/libsteamohos_posix_hap.so").c_str(),R_OK)?"/libsteamohos_posix_hap.so":"/libsteamohos_posix.so");
+    const auto repairedSoftware=code+"/native-game-support/libsteamohos_software_gl.so";
+    const auto softwareLibrary=access(repairedSoftware.c_str(),R_OK)?code+"/libsteamohos_software_gl.so":repairedSoftware;
     const std::string preload=posix+
-        (software && !strcmp(software,"1") ? ":"+code+"/libsteamohos_software_gl.so" : "")+
+        (software && !strcmp(software,"1") ? ":"+softwareLibrary : "")+
         (gamepad && *gamepad ? ":"+code+"/libsteamohos_gamepad.so" : "");
     if (steamohos::fex::Helper(target)) {
         // FEX copies its main envp into the x86 process, then APPENDS Config.Env.
@@ -457,6 +581,15 @@ int List(const char* path, const char* first, va_list values, bool search, bool 
     char* const* env = explicitEnvironment ? va_arg(values,char* const*) : environ;
     return search ? Search(path,argv.data(),env) : Handoff(path,argv.data(),env);
 }
+}
+// Filesystem preflight must use exactly the exec handoff's configured namespace.
+// No fallback for external depot programs, scripts or unregistered helpers.
+extern "C" int SteamOhosResolveUserExecutable(const char* filename,char* resolved,size_t capacity) {
+    const char* configured=getenv("STEAMOHOS_CODE_ROOT");
+    const std::string code=configured?configured:"";
+    const std::string target=Executable(filename,code);
+    if(!Under(target,code)||target.size()>=capacity)return 0;
+    memcpy(resolved,target.c_str(),target.size()+1);return 1;
 }
 // Native FEX signal ABI compatibility is independent of diagnostic logging.
 // Only SA_SIGINFO+SA_ONSTACK handlers need the stack-context repair. During

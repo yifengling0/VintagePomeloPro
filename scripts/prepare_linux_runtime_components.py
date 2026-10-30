@@ -61,11 +61,16 @@ def verify_sources(root, lock):
         verify_media(root)
     verify_native_guest_core(root)
     native_vulkan_driver.verify(root)
+    if lock.get('nativeRepairs'):
+        from prepare_linux_native_repairs import verify as verify_repairs
+        verify_repairs(root)
     # The released GNU ZIP remains immutable. An explicit, hash-verified HAP
     # companion may supersede selected adapter sources without repacking it.
     overrides=lock.get('hapSourceOverrides',{})
     verified={}
-    for manifest_name in set(overrides.values()) | set(lock.get('hapCompanions', [])):
+    if lock.get('nativeRepairs'):
+        verified['entry/src/main/resources/rawfile/'+lock['nativeRepairs']]=verify_repairs(root)['sources']
+    for manifest_name in (set(overrides.values()) | set(lock.get('hapCompanions', []))) - set(verified):
         safe_path(manifest_name)
         if manifest_name not in HAP_COMPANIONS:
             raise ValueError('Unapproved HAP source override manifest')
@@ -197,9 +202,13 @@ def verify_hap(path, root=ROOT):
         if lock.get("protonMedia"):
             from prepare_linux_proton_media import verify as verify_media
             verify_media(root, archive)
+        if lock.get('nativeRepairs'):
+            from prepare_linux_native_repairs import verify as verify_repairs
+            verify_repairs(root, archive)
         verify_native_guest_core(root, archive)
         native_vulkan_driver.verify(root, archive)
-        for manifest_name in set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values()):
+        repair_manifest='entry/src/main/resources/rawfile/'+lock.get('nativeRepairs','')
+        for manifest_name in (set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values())) - {repair_manifest}:
             local = root / manifest_name
             manifest = json.loads(local.read_text())
             relative = local.relative_to(root / 'entry/src/main/resources/rawfile').as_posix()

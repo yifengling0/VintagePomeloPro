@@ -47,7 +47,8 @@ def main():
         "0007-virgl-gpu-srgb-surface-storage.patch",
         "0001-xlib-present-with-a-valid-pipe-context.patch",
         "0002-xlib-prefer-compatible-screen-visual.patch",
-        "0003-xlib-fbconfig-and-compressed-formats.patch"]]
+        "0003-xlib-fbconfig-and-compressed-formats.patch",
+        "0011-softpipe-demand-zero-texture-cache.patch"]]
     for patch in patches:
         with patch.open("rb") as changes:
             subprocess.run(["patch","-p1","--forward","--batch"],cwd=source,stdin=changes,check=True)

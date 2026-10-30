@@ -53,6 +53,8 @@ export async function ensureLinuxSteamPosixSupport(context: common.Context, root
   await installSupport(context, root, 'libsteamohos_native_vulkan.so', 'native-graphics-manifest.json', 1048576);
   await installNativeGuestCore(context, root);
   await installNativeVulkanDriver(context, root);
+  await installNativeLibraries(context, root, 'native-game-support', 'aarch64-linux-gnu', 183,
+    ['FEX', 'FEXServer', 'libvulkan_virtio.so', 'libsteamohos_software_gl.so']);
 }
 
 // A paired GNU x86 loader/core for FEX guest libraries. Runtime game data and
@@ -97,7 +99,7 @@ async function installNativeLibraries(context: common.Context, root: string, lea
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Linux 游戏基础库目录不安全');
   for (const name of names) {
     const row = manifest.files[name];
-    if (!row || !Number.isSafeInteger(row.bytes) || row.bytes < 1024 || row.bytes > (sourceRoot ? 33554432 : 8388608) || !/^[a-f0-9]{64}$/.test(row.sha256)) throw new Error('Linux 游戏基础库记录无效');
+    if (!row || !Number.isSafeInteger(row.bytes) || row.bytes < 1024 || row.bytes > (sourceRoot || leaf === 'native-game-support' ? 33554432 : 8388608) || !/^[a-f0-9]{64}$/.test(row.sha256)) throw new Error('Linux 游戏基础库记录无效');
     const path = `${directory}/${name}`;
     for (const member of [path, `${path}.pending`]) {
       if (fs.accessSync(member) && (!fs.lstatSync(member).isFile() || fs.lstatSync(member).isSymbolicLink())) throw new Error('Linux 游戏基础库文件不安全');

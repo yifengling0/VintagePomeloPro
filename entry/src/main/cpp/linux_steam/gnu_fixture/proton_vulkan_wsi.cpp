@@ -127,7 +127,7 @@ bool init() {
 #endif
     char path[4096];
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
-    int pathSize=snprintf(path,sizeof(path),"%s/native-vulkan-driver/libvulkan_virtio.so",root);
+    int pathSize=snprintf(path,sizeof(path),"%s/native-game-support/libvulkan_virtio.so",root);
 #else
     int pathSize=snprintf(path,sizeof(path),"%s/graphics/libvulkan_virtio.so",root);
 #endif
@@ -268,6 +268,9 @@ PFN_vkVoidFunction nativeGpuIntercept(const char* name) {
 }
 }
 #endif
+#if defined(STEAMOHOS_NATIVE_FEX_WSI) && defined(STEAMOHOS_NATIVE_BC)
+#include "native_bc/runtime.h"
+#endif
 extern "C" {
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceVersion(uint32_t* version) {
     if(!init())return VK_ERROR_INITIALIZATION_FAILED;
@@ -303,7 +306,12 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance(const VkInstanceCreateInfo* info
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyInstance(VkInstance instance,const VkAllocationCallbacks* alloc) {
     {std::lock_guard<std::recursive_mutex> lock(stateMutex);
-    for(auto it=physicals.begin();it!=physicals.end();)if(it->second==instance)it=physicals.erase(it);else ++it;}
+    for(auto it=physicals.begin();it!=physicals.end();)if(it->second==instance) {
+#if defined(STEAMOHOS_NATIVE_FEX_WSI) && defined(STEAMOHOS_NATIVE_BC)
+        nativebc::supported.erase(it->first);
+#endif
+        it=physicals.erase(it);
+    }else ++it;}
     instanceProc<PFN_vkDestroyInstance>(instance,"vkDestroyInstance")(instance,alloc);
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDevices(VkInstance instance,uint32_t* count,VkPhysicalDevice* out) {
@@ -327,6 +335,11 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physical,const Vk
     std::vector<const char*> extensions;
     for(uint32_t i=0;i<info->enabledExtensionCount;i++)if(strcmp(info->ppEnabledExtensionNames[i],VK_KHR_SWAPCHAIN_EXTENSION_NAME))extensions.push_back(info->ppEnabledExtensionNames[i]);
     auto copy=*info;copy.enabledExtensionCount=extensions.size();copy.ppEnabledExtensionNames=extensions.data();
+#if defined(STEAMOHOS_NATIVE_FEX_WSI) && defined(STEAMOHOS_NATIVE_BC)
+    nativebc::DeviceInfo bc(physical,copy);
+    if(nativebc::support(physical)&&!bc.valid)return VK_ERROR_FEATURE_NOT_PRESENT;
+    copy=bc.info;
+#endif
     auto rc=instanceProc<PFN_vkCreateDevice>(instance,"vkCreateDevice")(physical,&copy,alloc,device);if(rc!=VK_SUCCESS)return rc;
     Device d{instance,physical,VK_NULL_HANDLE,instanceProc<PFN_vkGetDeviceProcAddr>(instance,"vkGetDeviceProcAddr")};
     // Acquire signals are submitted on the first graphics queue requested by the application.
@@ -342,6 +355,9 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physical,const Vk
 }
 VKAPI_ATTR void VKAPI_CALL vkDestroyDevice(VkDevice device,const VkAllocationCallbacks* alloc) {
     auto destroy=deviceProc<PFN_vkDestroyDevice>(device,"vkDestroyDevice");
+#if defined(STEAMOHOS_NATIVE_FEX_WSI) && defined(STEAMOHOS_NATIVE_BC)
+    nativebc::finish(device);
+#endif
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
     {std::lock_guard<std::recursive_mutex> lock(stateMutex);for(auto it=mappings.begin();it!=mappings.end();)if(it->second.owner==device){releaseAlias(it->second);it=mappings.erase(it);}else ++it;}
 #endif
@@ -515,12 +531,21 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue,const VkPresentIn
     return result;
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkAllocateMemory(VkDevice device,const VkMemoryAllocateInfo* info,const VkAllocationCallbacks* alloc,VkDeviceMemory* memory) {
+#if defined(STEAMOHOS_NATIVE_FEX_WSI) && defined(STEAMOHOS_NATIVE_BC)
+    nativebc::MemoryInfo bc(device,*info);
+    if(nativebc::active(device)&&!bc.valid)return VK_ERROR_FEATURE_NOT_PRESENT;
+    info=&bc.info;
+#endif
     auto result=deviceProc<PFN_vkAllocateMemory>(device,"vkAllocateMemory")(device,info,alloc,memory);
     if(result==VK_SUCCESS){std::lock_guard<std::recursive_mutex> lock(stateMutex);mappings[*memory]={info->allocationSize,nullptr};
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
         mappings[*memory].owner=device;
 #endif
-    }return result;
+    }
+#if defined(STEAMOHOS_NATIVE_FEX_WSI) && defined(STEAMOHOS_NATIVE_BC)
+    nativebc::reportMemory(device,result,info->allocationSize);
+#endif
+    return result;
 }
 VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory(VkDevice device,VkDeviceMemory memory,VkDeviceSize offset,VkDeviceSize size,VkMemoryMapFlags flags,void** out) {
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
@@ -625,6 +650,9 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueueWaitIdle(VkQueue queue) {
 }
 static PFN_vkVoidFunction intercept(const char* name) {
 #define PROC(n) if(!strcmp(name,#n))return reinterpret_cast<PFN_vkVoidFunction>(n)
+#if defined(STEAMOHOS_NATIVE_FEX_WSI) && defined(STEAMOHOS_NATIVE_BC)
+    if(auto bc=nativebc::intercept(name))return bc;
+#endif
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
     if(auto trace=nativeGpuIntercept(name))return trace;
 #endif

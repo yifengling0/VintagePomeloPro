@@ -1,5 +1,6 @@
 // HAP-owned entry for Steam's native Linux/FEX tool. Valve depots stay intact.
 #include "native_fex.h"
+#include "native_fex_core.h"
 #include <csignal>
 #include <cstdio>
 #include <poll.h>
@@ -113,7 +114,10 @@ int Run(int argc,char** argv) {
 #endif
     if(ElfMachine(plan.tool+"/usr/bin/FEX")!=hostMachine)return Error("fex_host_elf_missing");
     if(ElfMachine(plan.tool+"/usr/bin/FEXServer")!=hostMachine)return Error("fex_server_elf_missing");
-    // Keep the installed official emulator and its own matching thunk ABI.
+    const char* coreReason=nullptr;
+    const bool repairedCore=SelectCore(plan,hostMachine,&coreReason);
+    fprintf(stderr,"STEAMOHOS_NATIVE_FEX core=%s reason=%s patch=%s\n",repairedCore?"hap-matched":"depot",coreReason,repairedCore?"sigreturn-5901":"none");
+    // Keep the installed official package's matching thunk ABI.
     const std::string host=plan.tool+"/usr/lib/aarch64-linux-gnu/fex-emu/HostThunks";
     const bool guest32=ElfMachine(plan.argv[1])==3;
     // FEX appends _32 itself when selecting the guest overlay directory.

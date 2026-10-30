@@ -10,7 +10,9 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/syscall_compat.S": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json",
     "entry/src/main/cpp/linux_steam/native_loader.cpp": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/socket_metadata.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json"
+    "entry/src/main/cpp/linux_steam/gnu_fixture/socket_metadata.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
+    "scripts/build_linux_steam_client.py": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/manifest.json",
+    "scripts/build_linux_steam_software_gl.py": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/manifest.json"
   },
   "sourceInputs": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",
@@ -135,5 +137,6 @@
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json",
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json"
   ],
-  "protonMedia": "docs/linux-steam/proton-media.lock.json"
+  "protonMedia": "docs/linux-steam/proton-media.lock.json",
+  "nativeRepairs": "linux-steam/bootstrap/native-game-support/manifest.json"
 }

@@ -25,6 +25,7 @@
 #include <link.h>
 #include <stdatomic.h>
 #include "../cloud_tool_selection.h"
+#include "native_executable.h"
 
 // ELF preinit arrays run before preload constructors (FEX's allocator probes
 // files there). Resolve the same libc functions on first use instead of
@@ -41,6 +42,13 @@ static void EnsureFilesystemSymbols(void) {
 }
 
 static void TraceNativeFile(const char *operation,const char *path,long result,int error) {
+    // Exported logs should explain real save/install failures even when verbose
+    // native diagnostics are off. Bound output and never include file contents.
+    static _Atomic unsigned failures;
+    if(result<0&&(error==EACCES||error==EPERM||error==EROFS||error==ENOSPC||error==EDQUOT)&&
+       atomic_fetch_add(&failures,1)<32)
+        fprintf(stderr,"STEAMOHOS_FS_FAILURE pid=%d op=%s path=%.350s errno=%d\n",
+            getpid(),operation,path?path:"<null>",error);
     const char *active=getenv("STEAMOHOS_NATIVE_FEX"),*diagnostic=getenv("STEAMOHOS_NATIVE_MEMORY");
     if(!active||strcmp(active,"1")||!diagnostic||strcmp(diagnostic,"1"))return;
     static _Atomic unsigned reports,graphics;
@@ -54,6 +62,7 @@ static void TraceNativeFile(const char *operation,const char *path,long result,i
 }
 
 static int (*next_stat)(const char *, struct stat *);
+static int (*next_open)(const char*,int,...);
 static ssize_t (*next_readlink)(const char*,char*,size_t);
 static ssize_t (*next_readlinkat)(int,const char*,char*,size_t);
 static void TraceAtFailure(int,const char*,int,int);
@@ -243,7 +252,7 @@ static const char *SandboxPath(const char *path, char mapped[PATH_MAX]) {
            strcmp(#name,"__lxstat")&&strcmp(#name,"__lxstat64"))path=FollowSingleton(path,followed); \
         if(!path)return failure; \
         result value=next_##name arguments; int saved=errno; \
-        TraceNativeFile(#name,path,(long)(intptr_t)value,saved);TraceProcAccess(#name,path,value==failure,saved); DepotProfileEnd(#name,depot_started); errno=saved; return value; \
+        TraceNativeFile(#name,path,value==failure?-1L:(long)(intptr_t)value,saved);TraceProcAccess(#name,path,value==failure,saved); DepotProfileEnd(#name,depot_started); errno=saved; return value; \
     }
 
 #define AT_FS(result,name,parameters,arguments,failure) \
@@ -255,7 +264,9 @@ static const char *SandboxPath(const char *path, char mapped[PATH_MAX]) {
         path=SandboxAtPath(fd,path,absolute,mapped); \
         path=FollowCloud(path,cloud,strcmp(#name,"unlinkat")&&strcmp(#name,"mkdirat")&&strcmp(#name,"mknodat")&&strcmp(#name,"__xmknodat")); \
         if(!path)return failure; \
-        result value=next_##name arguments;int saved=errno;DepotProfileEnd(#name,depot_started);errno=saved;return value; \
+        result value=next_##name arguments;int saved=errno; \
+        TraceNativeFile(#name,path,value==failure?-1L:(long)(intptr_t)value,saved); \
+        DepotProfileEnd(#name,depot_started);errno=saved;return value; \
     }
 FS(int, chdir, (const char *path), (path), -1)
 FS(int, mknod, (const char *path, mode_t mode, dev_t device), (path,mode,device), -1)
@@ -416,14 +427,65 @@ static int KnownStatVersion(int version) {
 LEGACY_FSTATAT(__fxstatat,struct stat,RecoverNative)
 LEGACY_FSTATAT(__fxstatat64,struct stat64,RecoverLarge)
 
-FS(int, access, (const char *path, int mode), (path,mode), -1)
+static int (*next_access)(const char*,int);
 static int (*next_faccessat)(int,const char*,int,int);
+extern int SteamOhosResolveUserExecutable(const char*,char*,size_t) __attribute__((weak));
+static int UserExecutableAccess(const char *path,int mode,int flags) {
+    if(!(mode&X_OK)||(mode&~(R_OK|W_OK|X_OK))||(flags&~AT_EACCESS)||
+       !SteamOhosResolveUserExecutable)return 0;
+    char entry[PATH_MAX];
+    if(!SteamOhosResolveUserExecutable(path,entry,sizeof(entry)))return 0;
+#if defined(__aarch64__)
+    const char *loader="ld-linux-aarch64.so.1";
+#else
+    const char *loader="ld-linux-x86-64.so.2";
+#endif
+    char interpreter[PATH_MAX];
+    const char *code=getenv("STEAMOHOS_CODE_ROOT");
+    int length=code?snprintf(interpreter,sizeof(interpreter),"%s/%s",code,loader):-1;
+    if(length<=0||length>=(int)sizeof(interpreter)||
+       !next_faccessat||next_faccessat(AT_FDCWD,interpreter,R_OK,flags))return 0;
+    // X_OK describes our GNU loader capability in this namespace. All other
+    // requested permissions, directory traversal and real read access remain
+    // kernel checks; never turn missing/unreadable files into successes.
+    // rtld opens the configured code image before preload initialization.
+    // A readable data-side copy alone cannot grant executable mapping on OHOS.
+    if(next_faccessat(AT_FDCWD,entry,(mode&~X_OK)|R_OK,flags)||!next_open)return 0;
+    int fd=next_open(entry,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+    if(fd<0)return 0;
+    struct stat status;unsigned char header[64];
+    int regular=!fstat(fd,&status)&&S_ISREG(status.st_mode);
+    ssize_t bytes=regular?read(fd,header,sizeof(header)):-1;
+    close(fd);
+    return bytes>=0&&SteamOhosNativeExecutableHeader(header,(size_t)bytes);
+}
+static void TraceExecAccess(const char *op,const char *path,int result,int error,int fallback) {
+    static _Atomic unsigned failures;
+    if((result<0||fallback)&&atomic_fetch_add(&failures,1)<16)
+        fprintf(stderr,"STEAMOHOS_EXEC_ACCESS pid=%d op=%s path=%.350s result=%d errno=%d user_loader=%d\n",
+            getpid(),op,path?path:"<null>",result,result<0?error:0,fallback);
+}
+int access(const char *path,int mode) {
+    if(!next_access){EnsureFilesystemSymbols();}if(!next_access){errno=ENOSYS;return -1;}
+    char mapped[PATH_MAX],cloud[PATH_MAX],followed[PATH_MAX];
+    path=FollowCloud(SandboxPath(path,mapped),cloud,1);path=FollowSingleton(path,followed);
+    if(!path)return -1;
+    int result=next_access(path,mode),saved=errno,fallback=0;
+    if(result<0&&(saved==EACCES||saved==ENOENT)&&(fallback=UserExecutableAccess(path,mode,0)))result=0;
+    if(mode&X_OK)TraceExecAccess("access",path,result,saved,fallback);
+    errno=saved;return result;
+}
 int faccessat(int fd,const char *path,int mode,int flags) {
     if(!next_faccessat){EnsureFilesystemSymbols();} if(!next_faccessat){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX];
     path=FollowCloud(SandboxAtPath(fd,path,absolute,mapped),followed,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!path)return -1;
-    return next_faccessat(fd,path,mode,flags);
+    int result=next_faccessat(fd,path,mode,flags),saved=errno,fallback=0;
+    char entryAbsolute[PATH_MAX];
+    if(result<0&&(saved==EACCES||saved==ENOENT)&&
+       (fallback=UserExecutableAccess(AtPath(fd,path,entryAbsolute),mode,flags)))result=0;
+    if(mode&X_OK)TraceExecAccess("faccessat",path,result,saved,fallback);
+    errno=saved;return result;
 }
 FS(int, chmod, (const char *path, mode_t mode), (path,mode), -1)
 FS(int, utime, (const char *path, const struct utimbuf *times), (path,times), -1)
@@ -491,7 +553,7 @@ int closedir(DIR *directory) {
 FORTIFIED_OPEN(__open_2)
 FORTIFIED_OPEN(__open64_2)
 
-static int (*next_open)(const char*,int,...), (*next_open64)(const char*,int,...);
+static int (*next_open64)(const char*,int,...);
 static int (*next_openat)(int,const char*,int,...), (*next_openat64)(int,const char*,int,...);
 #define OPEN(name, params, args, directory) \
     int name params { \
@@ -530,14 +592,16 @@ int rename(const char *from,const char *to) {
     char a[PATH_MAX],b[PATH_MAX],ca[PATH_MAX],cb[PATH_MAX];
     from=FollowCloud(SandboxPath(from,a),ca,0);if(!from)return -1;
     to=FollowCloud(SandboxPath(to,b),cb,0);if(!to)return -1;
-    return next_rename(from,to);
+    int result=next_rename(from,to),saved=errno;
+    TraceNativeFile("rename",to,result,saved);errno=saved;return result;
 }
 int renameat(int fromfd,const char *from,int tofd,const char *to) {
     if(!next_renameat){EnsureFilesystemSymbols();} if(!next_renameat){errno=ENOSYS;return -1;}
     char a[PATH_MAX],b[PATH_MAX],aa[PATH_MAX],bb[PATH_MAX],ca[PATH_MAX],cb[PATH_MAX];
     from=FollowCloud(SandboxAtPath(fromfd,from,aa,a),ca,0);if(!from)return -1;
     to=FollowCloud(SandboxAtPath(tofd,to,bb,b),cb,0);if(!to)return -1;
-    return next_renameat(fromfd,from,tofd,to);
+    int result=next_renameat(fromfd,from,tofd,to),saved=errno;
+    TraceNativeFile("renameat",to,result,saved);errno=saved;return result;
 }
 static ssize_t NativeExecutable(const char *path,char *buffer,size_t capacity) {
     const char *executable=getenv("STEAMOHOS_EXEC_PATH");
@@ -1213,7 +1277,8 @@ int renameat2(int fromfd,const char *from,int tofd,const char *to,unsigned flags
     char aa[PATH_MAX],ab[PATH_MAX],ma[PATH_MAX],mb[PATH_MAX],a[PATH_MAX],b[PATH_MAX];
     from=FollowCloud(SandboxAtPath(fromfd,from,aa,ma),a,0);if(!from)return -1;
     to=FollowCloud(SandboxAtPath(tofd,to,ab,mb),b,0);if(!to)return -1;
-    return next(fromfd,from,tofd,to,flags);
+    int result=next(fromfd,from,tofd,to,flags),saved=errno;
+    TraceNativeFile("renameat2",to,result,saved);errno=saved;return result;
 }
 int utimensat(int fd,const char *path,const struct timespec times[2],int flags) {
     static int (*next)(int,const char*,const struct timespec[2],int);

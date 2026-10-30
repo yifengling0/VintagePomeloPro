@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <unistd.h>
 #ifndef PROBE_BYTES
 #define PROBE_BYTES 65536u
@@ -19,6 +20,15 @@ __asm__(".symver dlopen,dlopen@GLIBC_2.2.5\n.symver dlsym,dlsym@GLIBC_2.2.5\n.sy
 GLOBALS(DECLARE) DEVICES(DECLARE)
 #define CHECK(call) do { VkResult r=(call);if(r!=VK_SUCCESS){fprintf(stderr,"VK_COHERENCE error line=%d result=%d call=%s\n",__LINE__,r,#call);return 2;} } while(0)
 static uint32_t pattern(uint32_t i, uint32_t seed) {return (i*2654435761u)^seed;}
+#ifdef PROBE_IMAGES
+#include "native_vk_image_probe.h"
+#endif
+#ifdef PROBE_TEXTURES
+#include "native_texture_probe.h"
+#endif
+#ifdef PROBE_BC
+#include "native_bc_probe.h"
+#endif
 static int run_probe(unsigned requested_type) {
  setvbuf(stdout,NULL,_IONBF,0);setvbuf(stderr,NULL,_IONBF,0);
  fprintf(stderr,"VK_COHERENCE begin requested_type=%u bytes=%u display_readbacks=0\n",requested_type,(unsigned)PROBE_BYTES);
@@ -27,7 +37,13 @@ static int run_probe(unsigned requested_type) {
  PFN_vkGetInstanceProcAddr get=(PFN_vkGetInstanceProcAddr)dlsym(lib,"vkGetInstanceProcAddr");
  if(!get)return 2;
  vkCreateInstance=(PFN_vkCreateInstance)get(VK_NULL_HANDLE,"vkCreateInstance");
- VkApplicationInfo app={.sType=VK_STRUCTURE_TYPE_APPLICATION_INFO,.pApplicationName="Coherent buffer contract probe",.apiVersion=VK_API_VERSION_1_2};
+ VkApplicationInfo app={.sType=VK_STRUCTURE_TYPE_APPLICATION_INFO,.pApplicationName="Coherent buffer contract probe",
+#ifdef PROBE_API11
+ .apiVersion=VK_API_VERSION_1_1
+#else
+ .apiVersion=VK_API_VERSION_1_2
+#endif
+ };
  VkInstanceCreateInfo ii={.sType=VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,.pApplicationInfo=&app};
  VkInstance instance;CHECK(vkCreateInstance(&ii,NULL,&instance));
 #define LOAD_INSTANCE(n) n=(PFN_##n)get(instance,#n);if(!n)return 2;
@@ -49,11 +65,30 @@ static int run_probe(unsigned requested_type) {
  uint32_t family=0;while(family<count&&!(families[family].queueFlags&VK_QUEUE_GRAPHICS_BIT))family++;
  if(family==count)return 2;
  float priority=1;VkDeviceQueueCreateInfo qi={.sType=VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,.queueFamilyIndex=family,.queueCount=1,.pQueuePriorities=&priority};
- VkPhysicalDeviceTimelineSemaphoreFeatures timeline={.sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES};
+ VkPhysicalDeviceBufferDeviceAddressFeatures address={.sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES};
+ VkPhysicalDeviceTimelineSemaphoreFeatures timeline={.sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,.pNext=&address};
  VkPhysicalDeviceFeatures2 features={.sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,.pNext=&timeline};
  vkGetPhysicalDeviceFeatures2(physical,&features);
  fprintf(stderr,"VK_COHERENCE timeline_supported=%u\n",timeline.timelineSemaphore);
+ fprintf(stderr,"VK_COHERENCE buffer_device_address=%u etc2=%u astc=%u bc=%u queue_compute=%u\n",
+  address.bufferDeviceAddress,features.features.textureCompressionETC2,features.features.textureCompressionASTC_LDR,
+  features.features.textureCompressionBC,!!(families[family].queueFlags&VK_QUEUE_COMPUTE_BIT));
+ timeline.pNext=NULL; /* This diagnostic does not use or require device addresses. */
+#ifdef PROBE_BC
+ if(!address.bufferDeviceAddress||!features.features.textureCompressionBC)return 3;
+ timeline.pNext=&address;
+#endif
  VkDeviceCreateInfo di={.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,.pNext=&timeline,.queueCreateInfoCount=1,.pQueueCreateInfos=&qi};
+#ifdef PROBE_API11
+ di.pNext=NULL; /* Match Unity: no 1.2 core features requested by the app. */
+#endif
+#ifdef PROBE_TEXTURES
+ if(!features.features.textureCompressionETC2||!(families[family].queueFlags&VK_QUEUE_COMPUTE_BIT))return 3;
+ VkPhysicalDeviceFeatures enabled={.textureCompressionETC2=VK_TRUE};di.pEnabledFeatures=&enabled;
+#endif
+#ifdef PROBE_BC
+ VkPhysicalDeviceFeatures enabled={.textureCompressionBC=VK_TRUE};di.pEnabledFeatures=&enabled;
+#endif
  VkDevice device;CHECK(vkCreateDevice(physical,&di,NULL,&device));
 #define LOAD_DEVICE(n) n=(PFN_##n)vkGetDeviceProcAddr(device,#n);if(!n){fprintf(stderr,"VK_COHERENCE missing=%s\n",#n);return 2;}
  DEVICES(LOAD_DEVICE)
@@ -112,6 +147,15 @@ static int run_probe(unsigned requested_type) {
   fprintf(stderr,"VK_COHERENCE phase=%u after_invalidate_wrong=%u first=%08x expected=%08x\n",phase,afterWrong,maps[1][0],expected);
   failed+=coherent?(wrong!=0 || afterWrong!=0):afterWrong!=0;vkDestroyFence(device,fence,NULL);
  }
+#ifdef PROBE_IMAGES
+ if(!failed)failed+=run_image_probe(device,queue,family,requested_type,&memory,&props)!=0;
+#endif
+#ifdef PROBE_TEXTURES
+ if(!failed)failed+=run_texture_probe(physical,device,queue,family,requested_type,&memory,get,instance)!=0;
+#endif
+#ifdef PROBE_BC
+ if(!failed)failed+=run_bc_probe(physical,device,queue,family,requested_type,&memory,get,instance)!=0;
+#endif
  vkDestroyCommandPool(device,pool,NULL);
  for(unsigned i=0;i<2;i++){vkUnmapMemory(device,allocations[i]);vkDestroyBuffer(device,buffers[i],NULL);vkFreeMemory(device,allocations[i],NULL);}
  vkDestroyDevice(device,NULL);vkDestroyInstance(instance,NULL);
@@ -122,7 +166,7 @@ static void deadline(int n) { (void)n; _Exit(3); }
 #define PROBE_MEMORY_TYPE 0
 #endif
 int main(int argc,char **argv) {
- signal(SIGALRM,deadline); alarm(75);
+ signal(SIGALRM,deadline); alarm(180);
  unsigned type=PROBE_MEMORY_TYPE;
 #ifdef PROBE_STEAM_LAUNCH
  /* Steam may append game launch arguments; diagnostic selection is compiled in. */

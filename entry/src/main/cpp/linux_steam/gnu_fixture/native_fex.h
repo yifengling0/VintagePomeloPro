@@ -48,6 +48,18 @@ inline bool Helper(const std::string& path) {
     if(root.empty()||Canonical(root)!=root)return false;
     bool library=false;for(const auto& lib:Libraries())if(root==lib+"/steamapps/common/FEX-Emu")library=true;
     if(!library)return false;
+    // HAP-owned pair is constrained to this selected runtime. Depot updates
+    // never get to redirect execution to another shared-storage directory.
+    const auto code=Env("STEAMOHOS_CODE_ROOT");
+    const auto directory=code+"/native-game-support";
+    struct stat supportStatus{};
+    // realpath(code) aliases Steam's client data; runtime-only companions do
+    // not. Validate this dedicated directory instead of comparing those two
+    // different namespaces. The app installer already checks all its parents.
+    const auto support=Canonical(directory);
+    if(!code.empty()&&fs::path(code).lexically_normal().string()==code&&
+       !lstat(directory.c_str(),&supportStatus)&&S_ISDIR(supportStatus.st_mode)&&!support.empty())
+        for(const char* name:{"FEX","FEXServer"})if(actual==support+"/"+name)return true;
     for(const char* name:{"FEX","FEXServer","FEXServerManager","FEXBash"})
         if(actual==root+"/usr/bin/"+name)return true;
     return false;

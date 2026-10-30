@@ -56,6 +56,7 @@ static PFN_vkUnmapMemory vkUnmapMemory;
 static PFN_vkWaitForFences vkWaitForFences;
 
 static PFN_vkGetMemoryNativeBufferOHOS get_native_buffer;
+static PFN_vkGetPhysicalDeviceImageFormatProperties2 probe_image_properties;
 enum { BYTES = 65536, WORDS = BYTES / 4 };
 struct allocation {
     OH_NativeBuffer *native;
@@ -279,6 +280,7 @@ static int run_case(VkPhysicalDevice physical, VkDevice device, VkQueue queue, u
     }
     passed = failed_phases == 0;
 done:
+    if (result == VK_TIMEOUT) _Exit(3);
     if (fence) vkDestroyFence(device, fence, NULL);
     if (pool) vkDestroyCommandPool(device, pool, NULL);
     for (unsigned i = 0; i < 2; ++i) release_allocation(device, &a[i]);
@@ -287,6 +289,8 @@ done:
     return passed;
 #undef TRY
 }
+#include "native_image_memory_probe.h"
+
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_message(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
     VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *data, void *user)
 {
@@ -381,6 +385,8 @@ int main(void)
     LOAD_INSTANCE(vkGetDeviceProcAddr);
     LOAD_INSTANCE(vkGetPhysicalDeviceMemoryProperties);
     LOAD_INSTANCE(vkGetPhysicalDeviceExternalBufferProperties);
+    probe_image_properties = (PFN_vkGetPhysicalDeviceImageFormatProperties2)
+        vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceImageFormatProperties2");
 #undef LOAD_INSTANCE
     VkPhysicalDevice physical; uint32_t count = 1;
     result = vkEnumeratePhysicalDevices(instance, &count, &physical);
@@ -475,8 +481,9 @@ int main(void)
             passed += run_case(physical, device, queue, family, properties, handles[i], usages[u]);
         }
     }
+    const int images_passed = run_image_memory_cases(physical, device, queue, family);
     vkDestroyDevice(device, NULL); vkDestroyInstance(instance, NULL);
     printf("NATIVE_BLOB stage=complete regularPassed=%d importedPassedCases=%d importedAttemptedCases=%d exportedPassedCases=%d exportedAttemptedCases=%d\n", baseline, passed, attempted, exports_passed, exports_attempted);
     alarm(0);
-    return baseline && attempted > 0 && passed == attempted && exports_attempted > 0 && exports_passed == exports_attempted ? 0 : 1;
+    return baseline && images_passed && attempted > 0 && passed == attempted && exports_attempted > 0 && exports_passed == exports_attempted ? 0 : 1;
 }

@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "architecture": "aarch64-linux-gnu",
+  "sourceRevision": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+  "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+  "upstreamStatus": "published issue diff; not merged upstream",
+  "sourceSubmodules": {
+    "External/fmt": "407c905e45ad75fc29bf0f9bb7c5c2fd3475976f",
+    "External/range-v3": "ca1388fb9da8e69314dda222dc7b139ca84e092f",
+    "External/unordered_dense": "3234af2c03549bc85656bfd3a86993bf1cd8aef1",
+    "External/xxhash": "e626a72bc2321cd320e953a0ccf1584cad60f363",
+    "Source/Common/cpp-optparse": "9f94388a339fcbb0bc95c17768eb786c85988f6e",
+    "External/jemalloc_glibc": "8436195ad5e1bc347d9b39743af3d29abee59f06",
+    "External/rpmalloc": "1d85c246cd827ead6865f4f880d4fef53f2b1864",
+    "External/drm-headers": "3e49836995c1dcb3df709440ad2f270b569c6a5f"
+  },
+  "buildInputs": {
+    "source": {
+      "revision": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+      "submodules": {
+        "External/fmt": "407c905e45ad75fc29bf0f9bb7c5c2fd3475976f",
+        "External/range-v3": "ca1388fb9da8e69314dda222dc7b139ca84e092f",
+        "External/unordered_dense": "3234af2c03549bc85656bfd3a86993bf1cd8aef1",
+        "External/xxhash": "e626a72bc2321cd320e953a0ccf1584cad60f363",
+        "Source/Common/cpp-optparse": "9f94388a339fcbb0bc95c17768eb786c85988f6e",
+        "External/jemalloc_glibc": "8436195ad5e1bc347d9b39743af3d29abee59f06",
+        "External/rpmalloc": "1d85c246cd827ead6865f4f880d4fef53f2b1864",
+        "External/drm-headers": "3e49836995c1dcb3df709440ad2f270b569c6a5f"
+      }
+    },
+    "patchSha256": null,
+    "compilerSha256": "40593718d9d66d00226811ae9afd6d60ec291eedb9497ac835a1657568bfb23d",
+    "toolchainSha256": "efdb4d6be628decdc46811188ec6b83d8c835ae5f3e1d78689964c336f748408",
+    "options": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DBUILD_FEXCONFIG=OFF",
+      "-DBUILD_FEX_LINUX_TESTS=OFF",
+      "-DBUILD_STEAM_SUPPORT=ON",
+      "-DBUILD_TESTING=OFF",
+      "-DBUILD_THUNKS=OFF",
+      "-DENABLE_LTO=OFF",
+      "-DENABLE_LIBCXX=OFF",
+      "-DENABLE_GDB_SYMBOLS=OFF",
+      "-DENABLE_JEMALLOC_GLIBC_ALLOC=ON",
+      "-DENABLE_FEX_ALLOCATOR=ON",
+      "-DENABLE_OFFLINE_TELEMETRY=OFF",
+      "-DENABLE_VIXL_DISASSEMBLER=OFF",
+      "-DENABLE_ZYDIS=OFF",
+      "-DTUNE_CPU=generic",
+      "-DOVERRIDE_VERSION=FEX-2607-g37265b1-vpp-sigret",
+      "-DOVERRIDE_HASH=37265b109a4bba9e10241972dfcb3d1fdb8f3f9a"
+    ],
+    "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e"
+  },
+  "sources": {
+    "scripts/prepare_linux_native_repairs.py": "0890ce0345bc5e1b78e8fc1a06dfdddb3a2ea3b90fa37042185c8cd2707bf95a",
+    "scripts/diagnostics/build_native_fex_pop.py": "e462958a9e401ccc7471cb42d9512db4949c75b0235af204600fc8b0852999f7",
+    "scripts/patches/fex-upstream-5901-restore-sigreturn-state.patch": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+    "scripts/patches/fex-upstream-5901-restore-sigreturn-state.provenance.json": "91561a0333bdf224f6986f11841818e5d88dce6a20b5d654f60f961b4e173244",
+    "scripts/build_linux_proton_venus.py": "600b8aab8e1dd6451394753fb422f819c2574a1910583b97f6dfacd56d983c1e",
+    "scripts/build_linux_steam_software_gl.py": "5eadcac5106d6d06da994056e68c7ddb53ac9f26508b7d9aeae8f36db2157f43",
+    "scripts/build_linux_steam_client.py": "f565c60f4542c993837e6c02cdc5f021b1f9004c4104010673b857d1121b6bc5",
+    "patches/mesa/0011-softpipe-demand-zero-texture-cache.patch": "e0f47385f626ec1327729de025c199d5eff547842870e33ba28ebf66b12aaadb",
+    "patches/virglrenderer/0007-ohos-native-memory-context.patch": "08961ec7b1b7541cf457a2219f99acdeba8ecc41bcfbfbb53cb54aaa23f998fc",
+    "patches/virglrenderer/0008-ohos-native-resource-contract.patch": "d76273608a059f790baba0850f633a77627d99a08aefafe7137c5f320b521c7d",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex_core.h": "9e0441dc42937b9b9ef2b4072ce558e3abafccfc706441738645f5919f128e65",
+    "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/NOTICE.txt": "86849f353017930420065e032e51c2c249799a5763f9766719c710be2b279a49"
+  },
+  "files": {
+    "FEX": {
+      "bytes": 4353112,
+      "sha256": "66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca"
+    },
+    "FEXServer": {
+      "bytes": 428504,
+      "sha256": "059cf9217bc5221b5865242e53647e7b4bb9fe93bb4a0ed9940fe6e72e2a1683"
+    },
+    "libvulkan_virtio.so": {
+      "bytes": 1649248,
+      "sha256": "53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7"
+    },
+    "libsteamohos_software_gl.so": {
+      "bytes": 17137080,
+      "sha256": "a8ebce2b8fc9678a709f741735bb0805da460ee7a55727ebda5d06bc060785df"
+    }
+  }
+}

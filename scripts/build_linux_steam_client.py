@@ -283,6 +283,7 @@ def main():
                fixture / "exec_compat.cpp", fixture / "syscall_compat.S", fixture / "socket_metadata.c", fixture / "xlib.cpp", fixture / "desktop_session.c", fixture / "deck_session_control.h", fixture / "deck_action_uri.h", fixture / "wine_window_bridge.h", fixture / "pointer_observer.h", fixture / "graphics_loader.c", fixture / "connection_identity.c", fixture / "steamclient_probe.c", fixture / "steamclient_session.c", fixture / "steamclient_rpc.c", fixture / "steamclient_identity.c", fixture / "steamclient_probe.h", fixture / "hmosdeck.cpp", fixture / "sdl_gamepad.c", fixture / "sdl3_virtual_abi.h", fixture / "alsa_hmosdeck.c", fixture / "hmosdeck-asound.conf", native / "launch_wire.h", native / "native_loader.cpp",
                native / "native_loader.h", native / "native_loader_entry.S",
                ROOT / "host_tests/linux_steam_sysvipc_test.c", Path(__file__)]
+    sources.append(fixture / "native_executable.h")
     manifest["steamClientProbe"] = {"files": sorted(names),
         "executables": ["steamrtarm64/steam", "steamohos_gnu_xlib", "steamohos_gnu_desktop", "steamohos_gnu_sysvipc", "steamohos_gnu_graphics_loader", "steamohos_gnu_connection_identity", "steamohos_gnu_steamclient", "steamohos_gnu_steam_session", "compatibilitytools.d/hmosdeck/hmosdeck"] +
             (["steamohos_gnu_glx"] if args.mesa_build else []) + (["steamohos_shell", "steamohos_taskset", "steamohos_lsof"] if args.client_deps else []),

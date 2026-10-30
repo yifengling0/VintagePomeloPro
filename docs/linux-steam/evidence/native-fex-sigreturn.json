@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "date": "2026-10-31",
+  "status": "diagnostic-combination-passes-normal-delivery-still-blocked-by-existing-database",
+  "device": "ordinary MatePad MLR-AL10",
+  "sourceRevision": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+  "upstream": {
+    "source": "https://github.com/FEX-Emu/FEX/issues/5901",
+    "title": "rt_sigreturn leaves InSyscallInfo stale, causing later signal frames to overwrite the guest stack",
+    "author": "chrispouliot",
+    "createdAt": "2026-09-02T20:15:12Z",
+    "updatedAt": "2026-09-02T20:18:08Z",
+    "sha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+    "importMethod": "Exact existing diff block from published upstream issue; no generated FEX changes",
+    "upstreamStatus": "open"
+  },
+  "probe": {
+    "sha256": "3aab5b541d0e5a39c994285dc34983706bcdac848c47e7688b31a106a48b80ef",
+    "blockSize": 8,
+    "threads": 4,
+    "signal": "SIGUSR1",
+    "intervalMicroseconds": 100,
+    "signalStack": "current",
+    "gpuCalls": 0,
+    "official": "reproducible SIGSEGV",
+    "fixed": {
+      "cases": 196608,
+      "signals": 242,
+      "guardMismatches": 0,
+      "exit": 0
+    },
+    "receipts": [
+      {
+        "name": "native-vp8-predictor8-current-stack-device-result.json",
+        "bytes": 3300,
+        "sha256": "eebb61ac38df9f2f2a23664551e2d0f43bbdb5d751c7a91e18b8746737594605"
+      },
+      {
+        "name": "native-vp8-predictor8-current-stack-sigreturn-device-result.json",
+        "bytes": 1427,
+        "sha256": "00fe12d35ff6d731fd3a9d9fb7ec4918427b0e5a567f28b9c48e0fb54d88e42b"
+      }
+    ]
+  },
+  "diagnosticFullGame": [
+    {
+      "receipt": {
+        "name": "native-banana-signal-frames-sigreturn-result.json",
+        "bytes": 1154,
+        "sha256": "5208562c6463e7d515dc812835a9ee881c6d95bbd504d4b3463e27a3d4782c78"
+      },
+      "freshGame": true,
+      "stopReason": "application-ended",
+      "elapsedSeconds": 62.7,
+      "bcUploads": 0,
+      "componentIdentityVerifiedAfterStartup": false,
+      "softwareGlVerifiedAfterStartup": true,
+      "launchProtocol": "steam://run",
+      "fexSha256": "66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca",
+      "fexPatchSha256": null,
+      "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+      "allocationStatsAvailable": false
+    },
+    {
+      "receipt": {
+        "name": "native-bc-banana-sigreturn-result.json",
+        "bytes": 1053,
+        "sha256": "758c07e4615607fdc481d237bd6dc0c2b32aade350b25ebc6f468332850d9a1c"
+      },
+      "freshGame": true,
+      "stopReason": "deadline",
+      "elapsedSeconds": 482.7,
+      "bcUploads": 0,
+      "componentIdentityVerifiedAfterStartup": false,
+      "softwareGlVerifiedAfterStartup": true,
+      "launchProtocol": "steam://run",
+      "fexSha256": "66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca",
+      "fexPatchSha256": null,
+      "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+      "allocationStatsAvailable": false
+    },
+    {
+      "receipt": {
+        "name": "native-bc-banana-sigreturn-private-config-result.json",
+        "bytes": 1232,
+        "sha256": "36c2d4d8e898434e3dd19da4f9b4d266388d0373057ff4d627e8aee39bc8a090"
+      },
+      "freshGame": true,
+      "stopReason": "deadline",
+      "elapsedSeconds": 245.6,
+      "bcUploads": 0,
+      "componentIdentityVerifiedAfterStartup": false,
+      "softwareGlVerifiedAfterStartup": true,
+      "launchProtocol": "steam://run",
+      "fexSha256": "66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca",
+      "fexPatchSha256": null,
+      "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+      "isolatedConfiguration": true,
+      "originalConfigurationUnchanged": true,
+      "allocationStatsAvailable": false
+    },
+    {
+      "receipt": {
+        "name": "native-bc-banana-sigreturn-private-config-bc-result.json",
+        "bytes": 1364,
+        "sha256": "e7f1fdabe4483af021c45d81264c1933353c6b0825f279dc0da7679e8db1cbab"
+      },
+      "freshGame": true,
+      "stopReason": "deadline",
+      "elapsedSeconds": 483.4,
+      "bcUploads": 768,
+      "componentIdentityVerifiedAfterStartup": true,
+      "softwareGlVerifiedAfterStartup": true,
+      "launchProtocol": "steam://run",
+      "fexSha256": "66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca",
+      "fexPatchSha256": null,
+      "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+      "isolatedConfiguration": true,
+      "originalConfigurationUnchanged": true,
+      "allocationPeakBytes": 2426604288,
+      "allocationFailures": 0
+    }
+  ],
+  "input": {
+    "uiVisible": true,
+    "displayFps": 60,
+    "countBefore": 64,
+    "countAfter": 65,
+    "receipt": {
+      "name": "native-banana-sigreturn-bc-input-result.json",
+      "bytes": 429,
+      "sha256": "8c77108d2de57f65b289725a10abdf08481fc1bf63634261495b52dbcf7f5958"
+    }
+  },
+  "releaseEnabled": true,
+  "normalDeliveryEvidence": "native-game-delivery.json",
+  "boundaries": [
+    "Only verbatim published sigreturn diff in delivered FEX; no memory POP patch",
+    "Diagnostic successful run also used private config and a different launch protocol",
+    "No direct capture of first invalid write in original full game",
+    "First 62.7-second entire-UID termination had no established cause",
+    "Original data preserved; normal delivery currently reports SQLite missing table",
+    "Device coverage is x86_64 guest, not i386",
+    "Default release diagnostics remain disabled; no CPU presentation readback"
+  ]
+}

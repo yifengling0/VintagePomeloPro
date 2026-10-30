@@ -30,6 +30,7 @@ done
 "$NODE" "$ROOT/scripts/run_linux_proton_bootstrap_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_supervisor_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 python3 "$ROOT/host_tests/managed_render_route_test.py"
+python3 "$ROOT/host_tests/compositor_migration_test.py" --asan
 python3 "$ROOT/host_tests/proton_bootstrap_closure_test.py"
 g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined "$ROOT/host_tests/proton_setup_cache_test.cpp" -o "$OUTPUT/proton-setup-cache-test"
 "$OUTPUT/proton-setup-cache-test"
@@ -38,6 +39,7 @@ g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined "$ROOT/host_te
 g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined "$ROOT/host_tests/cloud_tool_selection_test.cpp" -o "$OUTPUT/cloud-tool-selection-test"
 "$OUTPUT/cloud-tool-selection-test"
 python3 "$ROOT/host_tests/linux_steam_cloud_paths_test.py"
+python3 "$ROOT/host_tests/linux_steam_exec_access_test.py"
 python3 "$ROOT/host_tests/steam_client_restart_test.py" --output "$OUTPUT/steam-client-restart"
 "$NODE" "$ROOT/scripts/run_linux_steam_game_launch_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_download_tests.cjs" "${TSC%/tsc.js}/typescript.js"

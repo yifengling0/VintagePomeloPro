@@ -52,12 +52,14 @@ const context={resourceManager:{getRawFileContent:async p=>p==='linux-steam/boot
  const beforePosix=writes;
  await api.ensureLinuxSteamPosixSupport(context,root);
  for(const item of support)assert.equal(hash(fs.readFileSync(release+'/runtime/'+item.name)),item.sha256);
- const installed=beforePosix+support.length+Object.keys(core.files).length+driverFiles.length+2;
+ const repairs=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/native-game-support/manifest.json')));
+ const installed=beforePosix+support.length+Object.keys(core.files).length+driverFiles.length+Object.keys(repairs.files).length+3;
  assert.equal(writes,installed,'companions, guest core, native driver and manifests must be installed');
  for(const [leaf,files] of [['native-guest-core-x86_64',core.files],['native-vulkan-driver',driverFixture.files]])
    for(const [n,row] of Object.entries(files))assert.equal(hash(fs.readFileSync(release+'/runtime/'+leaf+'/'+n)),row.sha256);
  await api.ensureLinuxSteamPosixSupport(context,root);
- assert.equal(writes,installed+2,'verified binary payloads must be reused; only manifests are refreshed');
+ assert.equal(writes,installed+3,'verified binary payloads must be reused; only manifests are refreshed');
+ for(const [n,row] of Object.entries(repairs.files))assert.equal(hash(fs.readFileSync(release+'/runtime/native-game-support/'+n)),row.sha256);
  for(const item of support){
    const file=release+'/runtime/'+item.name;
    fs.writeFileSync(file,'installed-old');damagedResource=item.name;
@@ -65,6 +67,16 @@ const context={resourceManager:{getRawFileContent:async p=>p==='linux-steam/boot
    assert.equal(fs.readFileSync(file,'utf8'),'installed-old','invalid payload cannot replace '+item.name);
    damagedResource='';await api.ensureLinuxSteamPosixSupport(context,root);
    assert.equal(hash(fs.readFileSync(file)),item.sha256);
+ }
+ for(const [n,row] of Object.entries(repairs.files)) {
+   const file=release+'/runtime/native-game-support/'+n;
+   fs.writeFileSync(file,'installed-old');damagedResource=n;
+   await assert.rejects(api.ensureLinuxSteamPosixSupport(context,root),/校验失败/);
+   assert.equal(fs.readFileSync(file,'utf8'),'installed-old');
+   damagedResource='';await api.ensureLinuxSteamPosixSupport(context,root);
+   assert.equal(hash(fs.readFileSync(file)),row.sha256);
+   fs.unlinkSync(file);await api.ensureLinuxSteamPosixSupport(context,root);
+   assert.equal(hash(fs.readFileSync(file)),row.sha256,'missing repairs must self-install');
  }
  assert.deepEqual(fs.readFileSync(target),payload,'Cloud adapter cannot replace the session supervisor');
  fs.renameSync(release+'/runtime',release+'/runtime-old');fs.symlinkSync(release+'/runtime-old',release+'/runtime');

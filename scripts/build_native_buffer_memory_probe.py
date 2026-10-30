@@ -32,7 +32,7 @@ def main():
     # Feed a single captured source revision to clang. Editors or parallel
     # tasks may rewrite a shared checkout while the compiler is starting.
     source_data = SOURCE.read_bytes()
-    inputs = {str(p): sha(p) for p in [SOURCE, Path(__file__), compiler,
+    inputs = {str(p): sha(p) for p in [SOURCE, SOURCE.with_name('native_image_memory_probe.h'), Path(__file__), compiler,
         headers / 'native_buffer/buffer_common.h', headers / 'native_buffer/native_buffer.h',
         headers / 'native_window/external_window.h', headers / 'native_window/buffer_handle.h',
         headers / 'vulkan/vulkan.h', headers / 'vulkan/vulkan_ohos.h', headers / 'vulkan/vulkan_core.h']}
@@ -42,7 +42,7 @@ def main():
     binary = out / 'native-buffer-memory-probe'
     record = out / 'native-buffer-memory-probe-build.json'
     command = [str(compiler), '--target=aarch64-linux-ohos', '--sysroot=' + str(sdk / 'sysroot'),
-        '-std=c11', '-O2', '-g0', '-Wall', '-Wextra', '-Werror', '-x', 'c', '-',
+        '-std=c11', '-O2', '-g0', '-Wall', '-Wextra', '-Werror', '-I' + str(SOURCE.parent), '-x', 'c', '-',
         '-Wl,-z,relro,-z,now', '-ldl', '-lnative_buffer', '-lnative_window', '-o', str(binary)]
     if record.exists() and binary.is_file():
         prior = json.loads(record.read_text())
@@ -58,8 +58,8 @@ def main():
         raise ValueError('Expected AArch64 ELF')
     result = dict(inputs=inputs, command=command, architecture='aarch64-linux-ohos',
         bytes=binary.stat().st_size, sha256=sha(binary), deviceExecuted=False,
-        scope='capability query + two 64 KiB BLOB buffers; no frames, Venus or FEX',
-        bounds='one ordinary control, at most two export and six import cases, three submissions each, 5s per wait; run with outer 90s timeout',
+        scope='system Vulkan buffer import/export + optimal UNORM/sRGB images; synthetic pixels only; no presented readback, Venus or FEX',
+        bounds='two 64 KiB staging buffers; image <=4 MiB; at most six image cases, eight rounds each; 5s per fence, 75s process alarm; outer 90s timeout',
         appPayloadModified=False)
     record.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps({k: result[k] for k in ['architecture', 'bytes', 'sha256', 'deviceExecuted', 'appPayloadModified']}))

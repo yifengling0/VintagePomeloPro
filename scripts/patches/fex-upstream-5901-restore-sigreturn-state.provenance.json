@@ -1,0 +1,10 @@
+{
+  "source": "https://github.com/FEX-Emu/FEX/issues/5901",
+  "title": "rt_sigreturn leaves InSyscallInfo stale, causing later signal frames to overwrite the guest stack",
+  "author": "chrispouliot",
+  "createdAt": "2026-09-02T20:15:12Z",
+  "updatedAt": "2026-09-02T20:18:08Z",
+  "sha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+  "importMethod": "Exact existing diff block from published upstream issue; no generated FEX changes",
+  "upstreamStatus": "open"
+}
