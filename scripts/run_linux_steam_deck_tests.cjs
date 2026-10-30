@@ -14,6 +14,91 @@ function load(relative, deps, globals={}) {
   return out;
 }
 const models = load('model/LinuxSteamModels.ets', {});
+const {mergeDeckSteamGames} = load('model/DeckSteamLibrary.ets', {
+  './AppModels': {LaunchKind: {STEAM_GAME: 'steam-game'}}, './LinuxSteamModels': models
+});
+const linuxGame = {appId:'3590',name:'仙剑奇侠传',directory:'/linux/Pal',cover:'/linux/cover.jpg',hero:'',lastPlayed:12345,updating:false};
+const windowsGame = {id:'steam-game-3590',title:'仙剑奇侠传',source:'download',directory:'/windows/Pal',
+  coverPath:'/windows/cover.jpg',backgroundPath:'',available:true,displayModeOverride:'desktop',
+  launchTarget:{kind:'steam-game',executable:'/windows/Steam/steam.exe',arguments:['-custom'],workingDirectory:'/windows/Steam'},
+  steam:{clientId:'steam-client',appId:'3590',state:'installed'}};
+const dualGames = mergeDeckSteamGames([linuxGame], [windowsGame]);
+assert.equal(dualGames.length,2,'the same AppID installed in both clients keeps two cards');
+assert.equal(new Set(dualGames.map(game=>game.key)).size,2,'focus and card keys include the source');
+assert.equal(dualGames[0].backend,'linux');
+const winCard = dualGames.find(game=>game.backend==='windows');
+assert.equal(winCard.appId,linuxGame.appId,'the real Steam AppID is preserved');
+assert.equal(winCard.windowsCard,windowsGame,'Windows launch settings and authentication descriptor are retained');
+assert.equal(winCard.cover,windowsGame.coverPath);
+assert.equal(mergeDeckSteamGames([], [windowsGame]).length,1,'Windows-only library');
+assert.equal(mergeDeckSteamGames([linuxGame], []).length,1,'Linux-only library');
+assert.equal(mergeDeckSteamGames([], []).length,0);
+assert.equal(mergeDeckSteamGames([linuxGame,linuxGame], [windowsGame,windowsGame]).length,2,'deduplicate within each source');
+for (const card of [
+  {...windowsGame,available:false}, {...windowsGame,steam:{...windowsGame.steam,state:'installing'}},
+  {...windowsGame,launchTarget:{...windowsGame.launchTarget,kind:'steam-client'}},
+  {...windowsGame,steam:{...windowsGame.steam,state:'install-request'}},
+  {...windowsGame,steam:{...windowsGame.steam,appId:''}}, {...windowsGame,steam:undefined},
+  {...windowsGame,steam:{...windowsGame.steam,appId:'228980'}}
+]) assert.equal(mergeDeckSteamGames([], [card]).length,0,'clients, install requests, missing games and redistributables stay out');
+assert.equal('key' in linuxGame,false,'merging does not mutate the Linux catalog');
+assert.equal('backend' in windowsGame,false,'merging does not mutate the Windows catalog');
+assert.equal(mergeDeckSteamGames([linuxGame],[]).some(game=>game.key===winCard.key),false,'Windows uninstall removes its card only');
+console.log('Deck dual Steam catalog: Linux/Windows/empty libraries, same-AppID cards, covers, launch identity, filters, dedupe and uninstall PASS');
+
+async function dualLibraryRoutingTests() {
+  // Exercise the actual component methods without mounting ArkUI or starting clients.
+  const home = fs.readFileSync(path.join(__dirname,'../entry/src/main/ets/components/hmosdeck/DeckHome.ets'),'utf8');
+  const start = home.indexOf('  private async openLocal(');
+  const fragment = home.slice(start,home.indexOf('  @Builder',start));
+  const libraryStart = home.indexOf('  private async refreshLibrary(');
+  const libraryFragment = home.slice(libraryStart,home.indexOf('  private filteredLocal(',libraryStart));
+  const out = {};
+  const events = [];
+  let linuxInstalled = false;
+  let blocked = false;
+  const service = {installed:()=>['windows'],choose:async()=> 'windows',
+    assertCanOpen(backend){if(blocked)throw Error('other client running');events.push(['guard',backend]);},
+    open:async(context,backend,action)=>events.push(['client',backend,action])};
+  const code = ts.transpileModule('export class Router {\n'+fragment+libraryFragment+'\n}',
+    {compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText;
+  vm.runInNewContext(code,{exports:out,
+    SteamClientService:{getInstance:()=>service},
+    LinuxSteamInstallService:{getInstance:()=>({installed:()=>linuxInstalled})},
+    LinuxSteamSessionService:{getInstance:()=>({open:async(action,id)=>events.push(['linux',action,id])})},
+    LinuxSteamLibraryService:{getInstance:()=>({scan:force=>events.push(['scan-linux',force])})},
+    getContext:()=>({}),promptAction:{showToast(){}}});
+  const router = new out.Router();
+  router.games = dualGames;
+  router.libraryTab='steam';router.query='仙剑';
+  assert.equal(router.filtered().length,2,'name search includes both sources');
+  router.query='unknown';assert.equal(router.filtered().length,0);
+  router.query='';router.libraryTab='local';assert.equal(router.filtered().length,0,'Steam games stay out of the local tab');
+  router.libraryTab='steam';
+  router.cover = game=>game.cover;
+  router.localCover = game=>game.coverPath;
+  router.localBuiltin = ()=>undefined;
+  router.manageComponents = ()=>events.push(['components']);
+  router.onLocalSettings = ()=>{throw Error('unexpected settings');};
+  router.onLocalLaunch = async card=>{service.assertCanOpen('windows');events.push(['windows',card]);};
+  router.beginLaunch = async(title,cover,message,builtin,action)=>action();
+  await router.openGame(winCard);
+  assert.equal(events[0][1],'windows','Windows-only launches do not require Linux Steam');
+  assert.equal(events[1][0],'windows');assert.equal(events[1][1],windowsGame);
+  events.length=0;linuxInstalled=true;
+  await router.openGame(dualGames.find(game=>game.backend==='linux'));
+  assert.equal(JSON.stringify(events),JSON.stringify([['guard','linux'],['linux','launch','3590']]),'Linux cards use Linux Steam even when the client chooser prefers Windows');
+  events.length=0;blocked=true;
+  await assert.rejects(router.openGame(winCard),/other client running/);
+  assert.equal(events.length,0,'existing cross-client exclusion is preserved');
+  router.busy=true;blocked=false;
+  await router.openGame(winCard);assert.equal(events.length,0,'busy launch is not duplicated');
+  router.onRefresh=async()=>{await Promise.resolve();events.push(['scan-windows']);};
+  router.refresh=()=>events.push(['render']);
+  await router.refreshLibrary();
+  assert.equal(JSON.stringify(events),JSON.stringify([['scan-windows'],['scan-linux',true],['render']]),'manual refresh waits for the Windows catalog before reloading both sources');
+  console.log('Deck dual Steam: search, refresh ordering, original Windows settings, Linux AppID dispatch, client isolation and busy guard PASS');
+}
 const {deckLayout} = load('model/DeckLayout.ets', {});
 for (const [width,height] of [[320,640],[360,800],[412,915],[600,960],[800,360],[1280,800],[1024,600]]) {
   const l=deckLayout(width,height);
@@ -316,4 +401,4 @@ async function taskTests() {
   assert.equal(tasks.hasForegroundTask(),false);
   console.log('Deck tasks: launcher focus, cancelled in-flight restore, stable window identities and explicit restore PASS');
 }
-(async()=>{await sessionTests();await sessionTests('early');await sessionTests('rejected');await sessionTests('timeout');await taskTests();})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{await dualLibraryRoutingTests();await sessionTests();await sessionTests('early');await sessionTests('rejected');await sessionTests('timeout');await taskTests();})().catch(error=>{console.error(error);process.exitCode=1;});

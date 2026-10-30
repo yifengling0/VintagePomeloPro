@@ -73,9 +73,12 @@ struct DirectDesktopCompositor::Impl {
         GLuint texture = 0;
         int width = 0, height = 0;
         bool visible = false;
+        bool layoutObserved = false;
+        const char* lastRejection = nullptr;
         DirectDesktopLayout layout;
         uint64_t frames = 0, imports = 0, reuses = 0, draws = 0;
         uint64_t acquireWaits = 0, releaseFences = 0;
+        uint64_t importFailures = 0;
     };
 
     DesktopCompositor& compositor;
@@ -235,7 +238,12 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         imageTarget(GL_TEXTURE_2D, imported);
-        if (glGetError() != GL_NO_ERROR) {
+        const GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            if (++layer.importFailures == 1 || layer.importFailures % 120 == 0)
+                OH_LOG_ERROR(LOG_APP, "GPU texture import failed scope=%{public}u top=%{public}u wl=%{public}u error=0x%{public}x failures=%{public}llu",
+                    scope, layer.source.token.toplevelId, layer.source.token.wlSurfaceId,
+                    error, (unsigned long long)layer.importFailures);
             glDeleteTextures(1, &texture); destroyImage(display, imported); return 0;
         }
         OH_NativeWindow_NativeObjectReference(buffer);
@@ -298,9 +306,19 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
             }
             if (fence >= 0) close(fence);
             DirectDesktopLayout layout;
+            const char* rejection = nullptr;
             bool visible = layer.current && compositor.GetDirectDesktopLayout(
                 source.token.clientPid, source.token.toplevelId, source.token.wlSurfaceId,
-                layer.width, layer.height, source.token.generation, layout, scope);
+                layer.width, layer.height, source.token.generation, layout, scope, &rejection);
+            if (layer.current && (!layer.layoutObserved || visible != layer.visible ||
+                rejection != layer.lastRejection))
+                OH_LOG_INFO(LOG_APP, "GPU layout scope=%{public}u top=%{public}u wl=%{public}u gen=%{public}llu image=%{public}dx%{public}d current=%{public}d visible=%{public}d reason=%{public}s rect=%{public}d,%{public}d+%{public}dx%{public}d occluders=%{public}zu",
+                    scope, source.token.toplevelId, source.token.wlSurfaceId,
+                    (unsigned long long)source.token.generation, layer.width, layer.height,
+                    layer.current ? 1 : 0, visible ? 1 : 0, rejection ? rejection : "ready", layout.x, layout.y, layout.w, layout.h,
+                    layout.occluders.size());
+            layer.layoutObserved = layer.current != nullptr;
+            layer.lastRejection = rejection;
             changed |= visible != layer.visible || (visible && !SameLayout(layout, layer.layout));
             layer.visible = visible;
             layer.layout = std::move(layout);

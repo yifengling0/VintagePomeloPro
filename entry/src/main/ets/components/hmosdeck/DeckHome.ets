@@ -1,6 +1,7 @@
 import { AppDescriptor, AppSource } from '../../model/AppModels';
 import { builtinCoverResource } from '../../model/BuiltinArtwork';
-import { LinuxSteamAction, LinuxSteamGame, LinuxSteamSnapshot } from '../../model/LinuxSteamModels';
+import { LinuxSteamAction, LinuxSteamSnapshot } from '../../model/LinuxSteamModels';
+import { DeckSteamGame, mergeDeckSteamGames } from '../../model/DeckSteamLibrary';
 import { LinuxSteamLibraryService } from '../../service/LinuxSteamLibraryService';
 import { LinuxSteamInstallService } from '../../service/LinuxSteamInstallService';
 import { SteamClientService } from '../../service/SteamClientService';
@@ -23,6 +24,8 @@ import { deckLayout, DeckLayout } from '../../model/DeckLayout';
 export struct DeckHome {
   @Prop @Watch('visibilityChanged') active: boolean = false;
   @Prop localGames: AppDescriptor[] = [];
+  @Prop @Watch('refresh') windowsSteamGames: AppDescriptor[] = [];
+  onRefresh: () => Promise<void> = async (): Promise<void> => {};
   onClassic: () => void = (): void => {};
   onSettings: () => void = (): void => {};
   onResources: () => void = (): void => {};
@@ -32,7 +35,7 @@ export struct DeckHome {
   onLocalLaunch: (game: AppDescriptor) => Promise<void> = async (_game: AppDescriptor): Promise<void> => {};
   onLocalSettings: (game: AppDescriptor) => void = (_game: AppDescriptor): void => {};
   localArtwork: (game: AppDescriptor) => string = (game: AppDescriptor): string => game.backgroundPath ?? '';
-  @State private games: LinuxSteamGame[] = [];
+  @State private games: DeckSteamGame[] = [];
   @State private page: string = 'steam';
   @State private selected: string = '';
   @State private query: string = '';
@@ -125,9 +128,9 @@ export struct DeckHome {
   }
   private refresh(): void {
     this.steamReady = SteamClientService.getInstance().installed().length > 0;
-    this.games = LinuxSteamLibraryService.getInstance().scan();
+    this.games = mergeDeckSteamGames(LinuxSteamLibraryService.getInstance().scan(), this.windowsSteamGames);
     LinuxSteamArtworkService.getInstance().ensure(this.games);
-    if (!this.games.some((g: LinuxSteamGame): boolean => g.appId === this.selected)) this.selected = this.games[0]?.appId ?? '';
+    if (!this.games.some((g: DeckSteamGame): boolean => g.key === this.selected)) this.selected = this.games[0]?.key ?? '';
     this.tasks = HostWindowTasks.getInstance().snapshot().filter((task: HostWindowTask): boolean =>
       task.source !== 'steam-linux' && task.title !== '运行窗口');
   }
@@ -141,13 +144,22 @@ export struct DeckHome {
     }
     this.refresh();
   }
-  private cover(game: LinuxSteamGame): string {
+  private async refreshLibrary(): Promise<void> {
+    try {
+      await this.onRefresh();
+      LinuxSteamLibraryService.getInstance().scan(true);
+      this.refresh();
+    } catch (_) {
+      promptAction.showToast({ message: '游戏库刷新失败，请稍后重试' });
+    }
+  }
+  private cover(game: DeckSteamGame): string {
     return this.artRevision >= 0 ? LinuxSteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
   }
-  private filtered(): LinuxSteamGame[] {
+  private filtered(): DeckSteamGame[] {
     if (this.libraryTab !== 'steam') return [];
     const query = this.query.trim().toLocaleLowerCase();
-    return this.games.filter((g: LinuxSteamGame): boolean => !query || g.name.toLocaleLowerCase().includes(query));
+    return this.games.filter((g: DeckSteamGame): boolean => !query || g.name.toLocaleLowerCase().includes(query));
   }
   private filteredLocal(): AppDescriptor[] {
     const query = this.query.trim().toLocaleLowerCase();
@@ -263,7 +275,7 @@ export struct DeckHome {
     else if (this.page === 'options') ids.push('deck-options-back', 'deck-components', 'deck-big-picture', 'deck-desktop', 'deck-steam-downloads', 'deck-account');
     else if (this.page === 'library') {
       ids.push('deck-category-steam', 'deck-category-tools', 'deck-category-local');
-      for (const game of this.filtered()) ids.push('deck-game-' + game.appId);
+      for (const game of this.filtered()) ids.push('deck-game-' + game.key);
       for (const game of this.filteredLocal()) ids.push('deck-local-' + game.id, 'deck-local-settings-' + game.id);
     } else for (const task of this.tasks) {
       ids.push('deck-task-' + task.key);
@@ -320,8 +332,8 @@ export struct DeckHome {
       const game = this.localGames.find((g: AppDescriptor): boolean => 'deck-local-' + g.id === id);
       if (game) void this.openLocal(game);
     } else if (id.startsWith('deck-game-')) {
-      const game = this.games.find((g: LinuxSteamGame): boolean => 'deck-game-' + g.appId === id);
-      if (game) void this.open('launch', game.appId);
+      const game = this.games.find((g: DeckSteamGame): boolean => 'deck-game-' + g.key === id);
+      if (game) void this.openGame(game);
     } else if (id.startsWith('deck-task-close-')) {
       void this.controlGame(id.substring('deck-task-close-'.length), false);
     } else if (id.startsWith('deck-task-kill-')) {
@@ -369,6 +381,11 @@ export struct DeckHome {
     await this.beginLaunch(game.title, this.localCover(game), '正在准备游戏窗口…',
       this.localBuiltin(game), async (): Promise<void> => { await this.onLocalLaunch(game); });
   }
+  private async openGame(game: DeckSteamGame): Promise<void> {
+    if (game.backend === 'windows') {
+      if (game.windowsCard) await this.openLocal(game.windowsCard);
+    } else await this.open('launch', game.appId);
+  }
   private async open(action: LinuxSteamAction, id: string = '0'): Promise<void> {
     if (this.busy) return;
     const service = SteamClientService.getInstance();
@@ -380,7 +397,7 @@ export struct DeckHome {
     catch (error) { promptAction.showToast({ message: (error as Error).message }); return; }
     if (!backend) return;
     const selected = backend;
-    const game = action === 'launch' ? this.games.find((g: LinuxSteamGame): boolean => g.appId === id) : undefined;
+    const game = action === 'launch' ? this.games.find((g: DeckSteamGame): boolean => g.backend === 'linux' && g.appId === id) : undefined;
     await this.beginLaunch(game?.name ?? 'Steam', game ? this.cover(game) : '',
       game ? '正在交给 Steam 启动，请稍候…' : '正在打开 Steam…', undefined, async (): Promise<void> => {
         if (action === 'launch') {
@@ -596,33 +613,34 @@ export struct DeckHome {
             .placeholderColor('#69727F').backgroundColor('#1A1D22').borderRadius(10).layoutWeight(1)
             .onChange((text: string): void => { this.query = text; }).id('deck-search')
           Button('刷新').height(42).fontSize(13).fontColor('#9AA3AF').backgroundColor('#1A1D22').borderRadius(10)
-            .onClick((): void => { LinuxSteamLibraryService.getInstance().scan(true); this.refresh(); }).id('deck-refresh')
+            .onClick((): void => { void this.refreshLibrary(); }).id('deck-refresh')
         }.margin({ bottom: 24 })
         if (this.filtered().length + this.filteredLocal().length > 0) {
           Grid() {
-            ForEach(this.filtered(), (game: LinuxSteamGame) => {
+            ForEach(this.filtered(), (game: DeckSteamGame) => {
               GridItem() {
                 Column({ space: 10 }) {
                   Button({ type: ButtonType.Normal }) {
-                    DeckArtwork({ name: game.name, source: this.cover(game), appId: game.appId, badge: 'Steam' })
+                    DeckArtwork({ name: game.name, source: this.cover(game), appId: game.key,
+                      badge: game.backend === 'linux' ? 'Steam · Linux' : 'Steam · Windows' })
                   }.width('100%').height(this.coverHeight()).padding(0).borderRadius(14).backgroundColor('#1A1D22')
-                    .border({ width: this.hot('deck-game-' + game.appId) ? 2 : 0, color: '#1A9FFF', radius: 14 })
+                    .border({ width: this.hot('deck-game-' + game.key) ? 2 : 0, color: '#1A9FFF', radius: 14 })
                     .focusBox({ strokeWidth: LengthMetrics.vp(0) })
-                    .shadow({ radius: this.hot('deck-game-' + game.appId) ? 18 : 2, color: this.hot('deck-game-' + game.appId) ? '#481A9FFF' : '#66000000', offsetY: 4 })
+                    .shadow({ radius: this.hot('deck-game-' + game.key) ? 18 : 2, color: this.hot('deck-game-' + game.key) ? '#481A9FFF' : '#66000000', offsetY: 4 })
                     .animation({ duration: this.motion ? 300 : 0, curve: DeckMotion.ease })
-                    .scale({ x: this.tileScale('deck-game-' + game.appId), y: this.tileScale('deck-game-' + game.appId), centerY: '90%' })
+                    .scale({ x: this.tileScale('deck-game-' + game.key), y: this.tileScale('deck-game-' + game.key), centerY: '90%' })
                     .animation({ duration: 0, curve: this.motion ? DeckMotion.tile : Curve.Linear })
-                    .translate({ y: this.hot('deck-game-' + game.appId) ? -5 : 0 })
+                    .translate({ y: this.hot('deck-game-' + game.key) ? -5 : 0 })
                     .animation({ duration: 0, curve: this.motion ? DeckMotion.tileLift : Curve.Linear })
-                    .onTouch((event: TouchEvent): void => this.touch('deck-game-' + game.appId, event))
-                    .onHover((hot: boolean): void => { this.hovered = hot ? 'deck-game-' + game.appId : ''; })
-                    .onFocus((): void => { this.selected = game.appId; this.focus = 'deck-game-' + game.appId; })
-                    .onClick((): void => { void this.open('launch', game.appId); }).id('deck-game-' + game.appId)
+                    .onTouch((event: TouchEvent): void => this.touch('deck-game-' + game.key, event))
+                    .onHover((hot: boolean): void => { this.hovered = hot ? 'deck-game-' + game.key : ''; })
+                    .onFocus((): void => { this.selected = game.key; this.focus = 'deck-game-' + game.key; })
+                    .onClick((): void => { void this.openGame(game); }).id('deck-game-' + game.key)
                   Text(game.name).fontSize(13).fontColor('#F2F4F7').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
                   Text(game.updating ? '更新中 · 在 Steam 查看' : '已安装').fontSize(11).fontColor(game.updating ? '#1A9FFF' : '#69727F').width('100%')
                 }.width('100%').height('100%')
               }.height(this.coverHeight() + 54)
-            }, (game: LinuxSteamGame): string => game.appId)
+            }, (game: DeckSteamGame): string => game.key)
             ForEach(this.filteredLocal(), (game: AppDescriptor) => {
               GridItem() {
                 Column({ space: 10 }) {

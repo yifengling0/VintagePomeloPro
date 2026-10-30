@@ -3216,6 +3216,8 @@ struct Index {
       DeckHome({
         active: this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() && this.consolePageVisible,
         localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
+        windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
+        onRefresh: (): Promise<void> => this.rescan(),
         onClassic: (): void => { void this.setLauncherSkin(UiSkin.CLASSIC); },
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
         onResources: (): void => this.openSidebarPage('pages/LinuxSteam'),

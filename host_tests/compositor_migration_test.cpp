@@ -66,6 +66,7 @@ struct Scene {
         childData.subsurfaceX = x; childData.subsurfaceY = y;
         DesktopCompositor::SubsurfaceLayer s;
         s.surface = &child; s.surfaceKey = 3; s.parentToplevel = 2;
+        s.route = policy.RouteForSubsurface(childData.inputRegionEmpty, childData.vpSrcW);
         s.x = s.localX = x; s.y = s.localY = y; s.w = w; s.h = h;
         s.vpDstW = w; s.vpDstH = h; s.opaque = true;
         s.dmgW = damageW; s.dmgH = damageW;
@@ -142,6 +143,87 @@ static GpuDesktopLayer DirectLayer(const GpuDesktopScene& scene) {
     return {};
 }
 int main() {
+    { // Managed WSI binds the GPU queue to the toplevel, while the client
+      // SHM surface can retain a full-window white frame. GPU must cover it,
+      // just as a whole-window NativeImage layer covers inline SHM children.
+      Scene s(800,600); s.policy = DisplayPolicy{false}; s.root = 0;
+      s.setWindow(2,408,334,0xffffffff); s.sub(4,30,400,300,0xffffffff);
+      // The parent's viewport crops the decorated SHM buffer. It is not a
+      // viewport of the smaller native swapchain image (Edge: 968x674/960x640).
+      s.parentData.directViewport.width=408; s.parentData.directViewport.height=334;
+      s.parentData.directViewport.destinationW=408; s.parentData.directViewport.destinationH=334;
+      s.childData.directViewport.destinationW=400; s.childData.directViewport.destinationH=300;
+      constexpr uint64_t parentKey = (100ull << 32) | 2;
+      s.parentData.surfaceKey = parentKey;
+      s.tm.RegisterSurfaceResource(parentKey, &s.parent);
+      DirectDesktopLayout layout;
+      CHECK(s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,2),
+            "managed whole-window Direct resolves its own output");
+      CHECK(layout.x==4 && layout.y==30 && layout.w==400 && layout.h==300,
+            "managed Direct uses client coordinates rather than decorated SHM viewport");
+      CHECK(layout.occluders.empty(),
+            "managed client SHM does not occlude its own GPU content");
+      s.childData.directViewport.destinationW=200; s.childData.directViewport.destinationH=150;
+      CHECK(s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,2) &&
+            layout.x==4 && layout.y==30 && layout.w==200 && layout.h==150,
+            "managed Direct follows client viewport resize independently of parent SHM");
+      SurfaceData sibling; wl_resource siblingResource{&sibling};
+      sibling.surface=&siblingResource; sibling.isSubsurface=true;
+      sibling.parentSurface=&s.parent; sibling.inputRegionEmpty=false;
+      s.tm.RegisterSurfaceResource(9, &siblingResource);
+      CHECK(s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,2),
+            "popup input role cannot replace the managed GPU client");
+      sibling.inputRegionEmpty=true;
+      const char* rejection=nullptr;
+      CHECK(!s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,2,&rejection) &&
+            rejection && std::strcmp(rejection,"ambiguous_managed_client")==0,
+            "ambiguous legacy client identity is rejected instead of borrowing another drawable");
+      { auto lk=s.tm.Lock(); s.tm.UnregisterSurfaceResource(9); }
+      CHECK(s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,2),
+            "managed Direct recovers after a competing client retires");
+      CHECK(!s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,4),
+            "managed Direct cannot draw into another window");
+      CHECK(!s.comp.GetDirectDesktopLayout(101,2,2,400,300,10,layout,2),
+            "managed Direct cannot borrow another process surface");
+      { auto lk=s.tm.Lock(); s.tm.EnsureToplevelLocked(2).SetMinimized(true); }
+      CHECK(!s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,2),
+            "managed Direct honors minimization"); }
+    { // A producer bound directly to an undecorated window has no child.
+      Scene s(800,600); s.policy=DisplayPolicy{false}; s.root=0;
+      { auto lk=s.tm.Lock(); s.tm.UnregisterSurfaceResource(3); }
+      s.setWindow(2,400,300,0xff334455);
+      constexpr uint64_t parentKey=(100ull<<32)|2;
+      s.parentData.surfaceKey=parentKey; s.tm.RegisterSurfaceResource(parentKey,&s.parent);
+      s.parentData.directViewport.width=512; s.parentData.directViewport.height=512;
+      DirectDesktopLayout layout;
+      CHECK(s.comp.GetDirectDesktopLayout(100,2,2,400,300,10,layout,2) &&
+            layout.x==0 && layout.y==0 && layout.w==400 && layout.h==300,
+            "whole-window native image does not inherit an unrelated SHM crop");
+      const char* rejection=nullptr;
+      CHECK(!s.comp.GetDirectDesktopLayout(100,2,2,320,240,10,layout,2,&rejection) &&
+            rejection && std::strcmp(rejection,"managed_client_pending")==0,
+            "smaller image waits for its client identity instead of drawing over decorations"); }
+    { // Independently declared child drawables still obey sibling stacking.
+      Scene s(800,600); s.policy = DisplayPolicy{false}; s.root = 0;
+      s.setWindow(2,400,300,0xff334455); s.sub(20,30,200,100,0xff778899);
+      constexpr uint64_t childKey = (100ull << 32) | 3;
+      s.childData.surfaceKey=childKey; s.childData.directOwnerKey=2;
+      s.childData.directVisible=true; s.childData.directGeneration=10;
+      s.tm.RegisterSurfaceResource(childKey, &s.child);
+      SurfaceData menuData; wl_resource menu{&menuData};
+      DesktopCompositor::SubsurfaceLayer layer;
+      layer.surface=&menu; layer.surfaceKey=5; layer.parentToplevel=2;
+      layer.route=DisplayPolicy::SubsurfaceRoute::InlineClient;
+      layer.localX=50; layer.localY=60; layer.w=layer.h=40;
+      { auto lk=s.tm.Lock(); s.comp.UpsertSubsurfaceLayer(std::move(layer), std::vector<uint8_t>(40*40*4,255)); }
+      DirectDesktopLayout layout;
+      CHECK(s.comp.GetDirectDesktopLayout(100,2,3,200,100,10,layout,2),
+            "managed child Direct resolves its declared owner");
+      CHECK(layout.x==20 && layout.y==30 && layout.occluders.size()==1 &&
+            layout.occluders[0].x==50 && layout.occluders[0].y==60,
+            "managed child Direct keeps later sibling occlusion");
+      CHECK(!s.comp.GetDirectDesktopLayout(100,2,3,200,100,11,layout,2),
+            "managed child Direct rejects stale generations"); }
     { Scene s(800,600);s.setWindow(2,400,300,0xff334455);s.fullscreen(true);
       s.childData.subsurfaceX=100;s.childData.subsurfaceY=50;
       auto scene=DirectSnapshot(s,200,100);

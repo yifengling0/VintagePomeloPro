@@ -99,7 +99,8 @@ public:
     uint32_t FirstVisibleContentModalLocked(uint32_t id) const;
 
     bool GetDirectDesktopLayout(uint32_t pid, uint32_t toplevelId, uint32_t wlSurfaceId,
-                                int imageW, int imageH, uint64_t generation, DirectDesktopLayout& out, uint32_t scope = 0);
+                                int imageW, int imageH, uint64_t generation, DirectDesktopLayout& out,
+                                uint32_t scope = 0, const char** rejectionReason = nullptr);
 
     bool SnapshotGpuDesktopScene(const std::vector<GpuDesktopDirectSource>& direct,
                                  GpuDesktopSnapshotCache& cache, GpuDesktopScene& out,

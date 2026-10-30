@@ -705,14 +705,22 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
 
 bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
                                                uint32_t wlSurfaceId, int imageW, int imageH, uint64_t generation,
-                                               DirectDesktopLayout& out, uint32_t scope)
+                                               DirectDesktopLayout& out, uint32_t scope, const char** rejectionReason)
 {
     auto lk = tmgr_.Lock();
-    if (!tmgr_.IsToplevelVisibleLocked(id, desktopRootToplevelId_) ||
-        (scope ? (scope != id || !policy_.OhosWindowPerToplevel()) : !policy_.RootCompositing()))
+    if (rejectionReason) *rejectionReason = nullptr;
+    auto reject = [&](const char* reason) {
+        if (rejectionReason) *rejectionReason = reason;
         return false;
-    const auto* root = tmgr_.FindToplevelLocked(desktopRootToplevelId_);
+    };
     const auto* state = tmgr_.FindToplevelLocked(id);
+    if (!tmgr_.IsToplevelVisibleLocked(id, desktopRootToplevelId_))
+        return reject(id == desktopRootToplevelId_ ? "desktop_root" :
+            !state ? "missing_toplevel" : state->IsMinimized() ? "minimized" :
+            state->IsBackground() ? "background" : "no_shm_frame");
+    if (scope ? (scope != id || !policy_.OhosWindowPerToplevel()) : !policy_.RootCompositing())
+        return reject("scope_mismatch");
+    const auto* root = tmgr_.FindToplevelLocked(desktopRootToplevelId_);
     auto* resource = tmgr_.FindSurfaceResource((static_cast<uint64_t>(pid) << 32) | wlSurfaceId);
     auto* client = resource ? static_cast<SurfaceData*>(wl_resource_get_user_data(resource)) : nullptr;
     auto* parent = client && client->isSubsurface && client->parentSurface
@@ -725,14 +733,50 @@ bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
             client->directOwnerKey == parent->surfaceKey && client->directVisible &&
             client->directGeneration == generation &&
             tmgr_.FindSurfaceResource(parent->surfaceKey) == client->parentSurface;
-        if (!ownToplevel && !ownChild) return false;
+        if (!ownToplevel && !ownChild) return reject("surface_owner_mismatch");
         out = {};
         DirectImageSampling sampling;
-        if (!ComputeDirectViewport(client->directViewport, imageW, imageH, out.w, out.h, sampling)) return false;
         if (ownChild) {
+            if (!ComputeDirectViewport(client->directViewport, imageW, imageH, out.w, out.h, sampling))
+                return reject("invalid_viewport");
             const auto offset = ComputePopupOffset(client->subsurfaceX, client->subsurfaceY,
                 parent->committed.contentRect.x, parent->committed.contentRect.y);
             out.x = offset.first; out.y = offset.second;
+        } else {
+            // Legacy managed WSI identifies the queue by its parent toplevel,
+            // but that parent's viewport belongs to the decorated SHM buffer.
+            // Resolve the unique inline client by Wine's protocol role instead
+            // of applying that crop to a smaller native swapchain image.
+            const SurfaceData* drawable = nullptr;
+            for (const auto& [key, resource] : tmgr_.SurfaceResources()) {
+                const auto* child = static_cast<SurfaceData*>(wl_resource_get_user_data(resource));
+                if (!child || !child->isSubsurface || child->parentSurface != client->surface ||
+                    !DisplayPolicy::IsInlineClientSurface(child->inputRegionEmpty, child->vpSrcW)) continue;
+                if (drawable && drawable != child) return reject("ambiguous_managed_client");
+                drawable = child;
+            }
+            if (drawable) {
+                if (!ComputeDirectViewport(drawable->directViewport, imageW, imageH, out.w, out.h, sampling))
+                    return reject("invalid_client_viewport");
+                const auto offset = ComputePopupOffset(drawable->subsurfaceX, drawable->subsurfaceY,
+                    client->committed.contentRect.x, client->committed.contentRect.y);
+                out.x = offset.first; out.y = offset.second;
+            } else {
+                // A whole-window producer without a separate client is valid
+                // only when its image covers that exact window. Wait for the
+                // real client role if its decorated parent is larger.
+                if (imageW != state->Width() || imageH != state->Height())
+                    return reject("managed_client_pending");
+                out.w = imageW; out.h = imageH;
+            }
+            // Managed Wine WSI binds its entire-window GPU producer to the
+            // toplevel. Inline SHM clients are below that producer, exactly as
+            // for the whole-window ZC layer in BuildWindowLayerListLocked.
+            // Treating their retained white/GDI frames as later occluders
+            // clips away all Direct pixels. Menus/popups have separate OHOS
+            // outputs; only explicitly declared child drawables below need
+            // sibling occlusion within this output.
+            return true;
         }
         // Other OHOS windows have their own output. Only this window's later
         // inline children can occlude its Direct layer.
@@ -752,12 +796,13 @@ bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
     if (scope || !root || !state || !client || !parent || !parent->hasToplevel || parent->toplevelId != id ||
         client->directOwnerKey != parent->surfaceKey || !client->directVisible ||
         client->directGeneration != generation || !generation ||
-        tmgr_.FindSurfaceResource(parent->surfaceKey) != client->parentSurface) return false;
+        tmgr_.FindSurfaceResource(parent->surfaceKey) != client->parentSurface)
+        return reject(!client ? "missing_surface" : !parent ? "missing_parent" : "drawable_identity");
     out = {};
     out.x = state->X() + client->subsurfaceX;
     out.y = state->Y() + client->subsurfaceY;
     DirectImageSampling sampling;
-    if (!ComputeDirectViewport(client->directViewport, imageW, imageH, out.w, out.h, sampling)) return false;
+    if (!ComputeDirectViewport(client->directViewport, imageW, imageH, out.w, out.h, sampling)) return reject("invalid_viewport");
     out.fullscreen = state->IsFullscreen();
     if (imageW <= 0 || imageH <= 0) return false;
     const auto layers = BuildLayerListLocked(root->Width(), root->Height());

@@ -23,13 +23,6 @@
       "cover": ""
     },
     {
-      "id": "builtin-iexplore",
-      "title": "Internet Explorer",
-      "launchKind": "wine-system",
-      "launchParams": { "executable": "C:\\windows\\system32\\iexplore.exe", "arguments": [], "workingDirectory": "" },
-      "cover": ""
-    },
-    {
       "id": "builtin-control",
       "title": "控制面板",
       "launchKind": "wine-system",

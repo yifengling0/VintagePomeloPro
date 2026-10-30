@@ -617,7 +617,6 @@ export class AppCatalogService {
         { id: 'builtin-desktop', title: 'Wine 桌面', launchKind: 'wine-desktop', launchParams: { executable: 'explorer.exe' }, cover: '' },
         { id: 'builtin-explorer', title: '文件资源管理器', launchKind: 'wine-system', launchParams: { executable: 'explorer.exe', arguments: ['Z:\\'] }, cover: '' },
         { id: 'builtin-winecfg', title: 'Wine 配置', launchKind: 'wine-system', launchParams: { executable: 'winecfg.exe' }, cover: '' },
-        { id: 'builtin-iexplore', title: 'Internet Explorer', launchKind: 'wine-system', launchParams: { executable: 'C:\\windows\\system32\\iexplore.exe' }, cover: '' },
         { id: 'builtin-control', title: '控制面板', launchKind: 'wine-system', launchParams: { executable: 'control.exe' }, cover: '' },
         { id: 'builtin-taskmgr', title: '任务管理器', launchKind: 'wine-system', launchParams: { executable: 'taskmgr.exe' }, cover: '' },
         { id: 'builtin-regedit', title: '注册表编辑器', launchKind: 'wine-system', launchParams: { executable: 'regedit.exe' }, cover: '' },

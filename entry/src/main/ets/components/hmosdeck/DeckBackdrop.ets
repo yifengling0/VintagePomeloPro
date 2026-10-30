@@ -1,4 +1,4 @@
-import { LinuxSteamGame } from '../../model/LinuxSteamModels';
+import { DeckSteamGame } from '../../model/DeckSteamLibrary';
 import { LinuxSteamArtworkService } from '../../service/LinuxSteamArtworkService';
 import { DeckArtwork } from './DeckArtwork';
 import { DeckMotion } from './DeckMotion';
@@ -6,7 +6,7 @@ import { DeckMotion } from './DeckMotion';
 // ArkUI compositor animations: no JavaScript frame loop and no Android runtime.
 @Component
 export struct DeckBackdrop {
-  @Prop games: LinuxSteamGame[] = [];
+  @Prop games: DeckSteamGame[] = [];
   @Prop widthVp: number = 1000;
   @Prop heightVp: number = 650;
   @Prop portrait: boolean = false;
@@ -53,7 +53,7 @@ export struct DeckBackdrop {
   private fanX(index: number): number {
     return this.portrait ? this.widthVp * [0.25, 0.48, 0.09][index] : this.widthVp * [0.54, 0.70, 0.40][index];
   }
-  private cover(game: LinuxSteamGame): string {
+  private cover(game: DeckSteamGame): string {
     // Reading the revision makes an asynchronously committed cache entry reactive.
     return this.artRevision >= 0 ? LinuxSteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
   }
@@ -65,7 +65,7 @@ export struct DeckBackdrop {
     for (let i = 0; i < count; i++) values.push(i);
     return values;
   }
-  private wallGame(col: number, row: number): LinuxSteamGame {
+  private wallGame(col: number, row: number): DeckSteamGame {
     return this.games[(col * 5 + (row % this.perRun()) * 3) % this.games.length];
   }
   build() {
@@ -73,14 +73,14 @@ export struct DeckBackdrop {
       Column().width('100%').height('100%')
         .radialGradient({ center: ['68%', '45%'], radius: '65%', colors: [['#241A9FFF', 0], ['#001A9FFF', 1]] })
       if (this.games.length > 0 && this.games.length < 4) {
-        ForEach(this.games.slice(0, 3).reverse(), (game: LinuxSteamGame, index: number) => {
-          DeckArtwork({ name: game.name, source: this.cover(game), appId: game.appId })
+        ForEach(this.games.slice(0, 3).reverse(), (game: DeckSteamGame, index: number) => {
+          DeckArtwork({ name: game.name, source: this.cover(game), appId: 'backdrop-' + game.key })
             .width(this.fanHeight(this.games.length - 1 - index) * 2 / 3).height(this.fanHeight(this.games.length - 1 - index))
             .shadow({ radius: 28, color: '#99000000', offsetY: 18 })
             .rotate({ angle: [-9, 5, -17][this.games.length - 1 - index] + 2 * this.floatAt(this.games.length - 1 - index) })
             .position({ x: this.fanX(this.games.length - 1 - index),
               y: this.heightVp * (this.portrait ? [0.43, 0.51, 0.56] : [0.14, 0.24, 0.30])[this.games.length - 1 - index] - 12 * this.floatAt(this.games.length - 1 - index) })
-        }, (game: LinuxSteamGame): string => game.appId)
+        }, (game: DeckSteamGame): string => game.key)
       } else if (this.games.length >= 4) {
         Row({ space: 14 }) {
           ForEach(this.indices(Math.floor((this.wallWidth() + 14) / 126) + 1), (col: number) => {
