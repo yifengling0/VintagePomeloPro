@@ -1,5 +1,5 @@
 // Select a reviewed HAP core only for its matching official depot.
-// All implementation changes to FEX itself are the verbatim upstream patch.
+// Includes the published sigreturn fix and a scoped OHOS guest-VMA adapter.
 #ifndef STEAMOHOS_NATIVE_FEX_CORE_H
 #define STEAMOHOS_NATIVE_FEX_CORE_H
 #include "native_fex.h"
@@ -52,7 +52,7 @@ inline bool SelectCore(Plan& plan,unsigned machine,const char** reason=nullptr) 
     if(FileSha256(plan.tool+"/usr/bin/FEX")!=
        "f9cbb7a70e804b9930fed02fd9d1349d49d7808faace703063a9b4944bc3568e")return reject("depot_identity");
     if(ElfMachine(support+"/FEX")!=machine||ElfMachine(support+"/FEXServer")!=machine)return reject("core_elf");
-    if(FileSha256(support+"/FEX")!="66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca"||
+    if(FileSha256(support+"/FEX")!="1b2a7b7933722cf22b0b92c56fb81aeacdc2391556f7edf4fce6f4a35e0ca16c"||
        FileSha256(support+"/FEXServer")!="059cf9217bc5221b5865242e53647e7b4bb9fe93bb4a0ed9940fe6e72e2a1683")return reject("core_identity");
     plan.argv[0]=support+"/FEX";return true;
 }

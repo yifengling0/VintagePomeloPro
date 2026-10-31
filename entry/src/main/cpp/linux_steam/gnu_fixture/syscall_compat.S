@@ -17,6 +17,7 @@
 .hidden SteamOhosLandlockCreateRuleset
 .hidden SteamOhosFexOptionalCall
 .hidden SteamOhosFexFileCall
+.hidden SteamOhosFexExecCall
 .hidden SteamOhosFexSignalCall
 .hidden SteamOhosOpenAt2
 .hidden SteamOhosCloseRange
@@ -24,6 +25,10 @@
 .hidden SteamOhosSyscallUnavailable
 #if defined(__aarch64__)
 syscall:
+    cmp x0, #__NR_execve
+    b.eq SteamOhosFexExecCall
+    cmp x0, #__NR_execveat
+    b.eq SteamOhosFexExecCall
     cmp x0, #__NR_rt_sigaction
     b.eq SteamOhosFexSignalCall
     cmp x0, #449 // futex_waitv
@@ -92,6 +97,10 @@ syscall:
     b SteamOhosSyscallUnavailable
 #elif defined(__x86_64__)
 syscall:
+    cmp $__NR_execve, %rdi
+    je SteamOhosFexExecCall
+    cmp $__NR_execveat, %rdi
+    je SteamOhosFexExecCall
     cmp $__NR_rt_sigaction, %rdi
     je SteamOhosFexSignalCall
     cmp $449, %rdi

@@ -56,6 +56,8 @@ def safe_path(name):
 
 
 def verify_sources(root, lock):
+    from build_linux_proton_bootstrap import verify as verify_bootstrap
+    verify_bootstrap(root)
     if lock.get("protonMedia"):
         from prepare_linux_proton_media import verify as verify_media
         verify_media(root)

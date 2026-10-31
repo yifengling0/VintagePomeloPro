@@ -12,20 +12,21 @@ class SignalContext(unittest.TestCase):
 #include <cstring>
 #include <initializer_list>
 int main(){
- using steamohos::fex::UnsupportedFileHandleCall;
+ using steamohos::fex::UnsupportedSandboxCall;
  siginfo_t info{};ucontext_t context{};memset(&context,0x5a,sizeof(context));
  const auto originalContext=context;
  info.si_code=1;info.si_arch=0xc000003eu;info.si_syscall=SYS_name_to_handle_at;
- assert(!UnsupportedFileHandleCall(nullptr,&context));
- assert(!UnsupportedFileHandleCall(&info,nullptr));
- info.si_code=SI_USER;assert(!UnsupportedFileHandleCall(&info,&context));
- info.si_code=1;info.si_arch=0;assert(!UnsupportedFileHandleCall(&info,&context));
+ assert(!UnsupportedSandboxCall(nullptr,&context));
+ assert(!UnsupportedSandboxCall(&info,nullptr));
+ info.si_code=SI_USER;assert(!UnsupportedSandboxCall(&info,&context));
+ info.si_code=1;info.si_arch=0;assert(!UnsupportedSandboxCall(&info,&context));
  info.si_arch=0xc000003eu;info.si_syscall=SYS_write;
- assert(!UnsupportedFileHandleCall(&info,&context));
+ assert(!UnsupportedSandboxCall(&info,&context));
  assert(!memcmp(&context,&originalContext,sizeof(context)));
- for(int syscallNumber:{SYS_name_to_handle_at,SYS_open_by_handle_at}) {
+ for(int syscallNumber:{SYS_name_to_handle_at,SYS_open_by_handle_at,SYS_get_mempolicy,
+                       SYS_set_mempolicy,SYS_mbind,SYS_migrate_pages,SYS_move_pages,SYS_get_robust_list}) {
   info.si_syscall=syscallNumber;context=originalContext;
-  assert(UnsupportedFileHandleCall(&info,&context));
+  assert(UnsupportedSandboxCall(&info,&context));
   auto expected=originalContext;expected.uc_mcontext.gregs[REG_RAX]=-ENOSYS;
   assert(!memcmp(&context,&expected,sizeof(context)));
  }

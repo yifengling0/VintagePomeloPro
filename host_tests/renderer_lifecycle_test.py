@@ -20,6 +20,8 @@ prefix=r"""
 #include <algorithm>
 #include <cstdio>
 #include <utility>
+#include <thread>
+#include "graphics/renderer_repaint_state.h"
 #define OH_LOG_INFO(...)
 #define OH_LOG_WARN(...)
 #define OH_LOG_ERROR(...)
@@ -29,18 +31,22 @@ struct OHNativeWindow {};
 static OHNativeWindow window;
 static int windowResult;
 static int OH_NativeWindow_CreateNativeWindowFromSurfaceId(uint64_t, OHNativeWindow** out){*out=&window;return windowResult;}
-static void OH_NativeWindow_DestroyNativeWindow(OHNativeWindow*){}
 struct EglRenderer {
-    unsigned id=0;bool paused=false;
+    unsigned id=0;bool paused=false,valid=true;int64_t surface=0;
     explicit EglRenderer(int){}
     void SetToplevelId(unsigned x){id=x;}
     void SetPaused(bool x){paused=x;}
+    void SetSurfaceId(int64_t x){surface=x;}
+    int64_t GetSurfaceId(){return surface;}
+    bool IsValid(){return valid;}
+    void RequestRedraw(){}
     bool Init(OHNativeWindow*,int,int){return true;}
     void Shutdown(){++shutdowns;}
 };
 struct WaylandServer {
     static WaylandServer* GetInstance(){static WaylandServer s;return &s;}
     int GetDesktopCompositor(){return 0;}
+    void ForceToplevelRedraw(unsigned){}
 };
 struct PluginManager {
     std::unordered_map<uint32_t,std::unique_ptr<EglRenderer>> toplevelRenderers_;
@@ -49,10 +55,12 @@ struct PluginManager {
     void DestroyToplevel(uint32_t);
     void MoveRendererToToplevel(uint32_t,uint32_t);
     void SetRendererPaused(uint32_t,bool);
+    void RefreshRenderer(uint32_t);
+    void DestroyRendererForSurface(uint32_t,int64_t);
 };
 """
 methods='\n'.join(block(plugin,'void PluginManager::'+n+'(') for n in
-    ['CreateRenderer','DestroyToplevel','MoveRendererToToplevel','SetRendererPaused'])
+    ['CreateRenderer','DestroyToplevel','MoveRendererToToplevel','RefreshRenderer','SetRendererPaused','DestroyRendererForSurface'])
 management=r"""
 static void management(){
  PluginManager p;
@@ -76,6 +84,14 @@ static void management(){
  windowResult=1;p.SetRendererPaused(900,true);p.CreateRenderer(900,9);
  CHECK(!p.toplevelRenderers_.count(900));
  windowResult=0;p.CreateRenderer(900,9);CHECK(p.toplevelRenderers_[900]->paused);
+ auto *retained=p.toplevelRenderers_[900].get();windowResult=1;
+ p.CreateRenderer(900,10);CHECK(p.toplevelRenderers_[900].get()==retained);
+ windowResult=0;p.CreateRenderer(900,10);
+ p.DestroyRendererForSurface(900,9);CHECK(p.toplevelRenderers_.count(900));
+ p.MoveRendererToToplevel(900,901);p.DestroyRendererForSurface(900,10);
+ CHECK(!p.toplevelRenderers_.count(901));
+ p.CreateRenderer(902,11);p.toplevelRenderers_[902]->valid=false;
+ p.RefreshRenderer(902);CHECK(p.toplevelRenderers_[902]->valid);
 }
 """
 vkstub=r"""
@@ -140,8 +156,8 @@ vkmethods='\n'.join(block(vk,'    '+kind+' '+name+'(').replace(name+'(', 'Vulkan
     for kind,name in [('bool','DrainBackgroundBuffers'),('void','Return'),('void','Retire')])
 # Execute the production Render background/resume preamble; all output work is
 # deliberately outside this test. No replacement policy is recreated here.
-preamble=vk[vk.index('    bool Render(int expectedW, int expectedH, bool paused) {'):vk.index('        PublishFrameRates();')]
-vkmethods+='\n'+preamble.replace('bool Render(int expectedW, int expectedH, bool paused)', 'bool VulkanDesktopRenderer::Step(bool paused)',1)+'return true; }\n'
+preamble=vk[vk.index('    bool Render(int expectedW, int expectedH, bool paused, bool repaint) {'):vk.index('        PublishFrameRates();')]
+vkmethods+='\n'+preamble.replace('bool Render(int expectedW, int expectedH, bool paused, bool repaint)', 'bool VulkanDesktopRenderer::Step(bool paused)',1).replace('if (repaint)', 'if (false)')+'return true; }\n'
 vktest=r"""
 static void release(){
  VulkanDesktopRenderer v;auto q=std::make_shared<DirectImageQueue>();
@@ -200,11 +216,22 @@ static void retainedFrame(){
  v.Retire(v.layers_[1].current);CHECK(v.DrainBackgroundBuffers());
  CHECK(q->lastFence==777&&returns==baseReturns+93);
 }
-int main(){management();release();retainedFrame();printf("production renderer lifecycle: %u checks PASS\n",checks);}
+static void repaint(){
+ winehua::RendererRepaintState state;
+ auto request=state.CaptureRequest();CHECK(state.NeedsRedraw(request));
+ state.RequestRedraw();state.DidPresent(request);
+ request=state.CaptureRequest();CHECK(state.NeedsRedraw(request));
+ state.DidPresent(request);CHECK(!state.NeedsRedraw(request));
+ std::thread producer([&]{for(unsigned i=0;i<1000;++i)state.RequestRedraw();});
+ producer.join();CHECK(state.CaptureRequest()==request+1000);
+ CHECK(state.NeedsRedraw(state.CaptureRequest()));
+ state.DidPresent(state.CaptureRequest());CHECK(!state.NeedsRedraw(state.CaptureRequest()));
+}
+int main(){management();release();retainedFrame();repaint();printf("production renderer lifecycle: %u checks PASS\n",checks);}
 """
 with tempfile.TemporaryDirectory(prefix='renderer-lifecycle-') as d:
  d=Path(d);unit=d/'test.cpp';unit.write_text(prefix+methods+management+vkstub+vkmethods+vktest)
- command=['g++','-std=c++17','-O2','-Wall','-Wextra','-Werror']
+ command=['g++','-std=c++17','-O2','-Wall','-Wextra','-Werror','-pthread','-I',str(R/'entry/src/main/cpp')]
  if '--asan' in sys.argv:command+=['-fsanitize=address,undefined','-fno-omit-frame-pointer','-g','-no-pie']
  subprocess.run(command+[str(unit),'-o',str(d/'test')],check=True)
  subprocess.run([str(d/'test')],check=True,timeout=20)

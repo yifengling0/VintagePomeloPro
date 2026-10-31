@@ -284,7 +284,7 @@ bool ReadClientSettings(const std::string& path, Session& session) {
     const std::vector<std::string> allowed{"-cef-disable-gpu", "-cef-disable-gpu-compositing",
         "-cef-verbose-logging", "-cef-disable-breakpad", "-cef-disable-occlusion", "-cef-disable-sandbox", "-gamepadui"};
     unsigned arguments = 0;
-    std::string startupUri;
+    std::string startupUri, launchAppId;
     while (std::getline(stream, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.empty() || line[0] == '#') continue;
@@ -297,7 +297,7 @@ bool ReadClientSettings(const std::string& path, Session& session) {
             std::string action, app, extra;
             char buffer[96];
             if (!(actionStream >> action >> app) || (actionStream >> extra) ||
-                !startupUri.empty() || action == "shutdown" ||
+                !startupUri.empty() || !launchAppId.empty() || action == "shutdown" ||
                 std::find(session.argv.begin(),session.argv.end(),"-applaunch") != session.argv.end()) {
                 errno=EINVAL;return false;
             }
@@ -309,12 +309,12 @@ bool ReadClientSettings(const std::string& path, Session& session) {
             if(appId.empty()||appId.size()>10||appId[0]=='0'||
                appId.find_first_not_of("0123456789")!=std::string::npos||
                std::strtoull(appId.c_str(),nullptr,10)>4294967295ULL||
-               !startupUri.empty() || std::find(session.argv.begin(),session.argv.end(),"-applaunch")!=session.argv.end()) {
+               !startupUri.empty() || !launchAppId.empty() || std::find(session.argv.begin(),session.argv.end(),"-applaunch")!=session.argv.end()) {
                 errno=EINVAL;return false;
             }
             // Explicit research launch through the original Linux Steam client,
             // including its pre-launch Cloud sync and normal compatibility tool.
-            session.argv.emplace_back("-applaunch");session.argv.push_back(appId);
+            launchAppId = appId;
         } else if (line == "mesaDriver=virpipe") {
             session.sharedVirpipe = true;
             session.softwareGL = true;
@@ -379,6 +379,11 @@ bool ReadClientSettings(const std::string& path, Session& session) {
     // Let Steam queue this fixed URI across login/main-page initialization.
     // A visible login surface is not a safe point for a second navigation process.
     if(!startupUri.empty())session.argv.push_back(startupUri);
+    // Steam treats every argument after -applaunch/AppID as a game option.
+    // Settings order must never route CEF switches into an unmodified game.
+    if(!launchAppId.empty()) {
+        session.argv.emplace_back("-applaunch");session.argv.push_back(launchAppId);
+    }
     return true;
 }
 }

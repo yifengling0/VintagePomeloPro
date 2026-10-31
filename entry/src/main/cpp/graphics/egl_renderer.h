@@ -1,4 +1,5 @@
 #pragma once
+#include "renderer_repaint_state.h"
 #include "common/texture_upload_stats.h"
 #include <ace/xcomponent/native_interface_xcomponent.h>
 #include <native_window/external_window.h>
@@ -45,7 +46,11 @@ public:
 
     uint32_t GetToplevelId() const { return toplevelId_.load(std::memory_order_relaxed); }
     void SetToplevelId(uint32_t id) { toplevelId_.store(id, std::memory_order_relaxed); }
+    int64_t GetSurfaceId() const { return surfaceId_; }
+    void SetSurfaceId(int64_t id) { surfaceId_ = id; }
+    void RequestRedraw() { repaint_.RequestRedraw(); vsyncCv_.notify_all(); }
     void SetPaused(bool paused) {
+        if (!paused) RequestRedraw();
         renderPaused_.store(paused, std::memory_order_release);
         vsyncCv_.notify_all();
     }
@@ -54,6 +59,7 @@ public:
     // 循环里的"实测 == 已画"判定会误判 (2026-09-14 黑边根因)
     void SetSize(int w, int h) {
         expectW_ = w; expectH_ = h;
+        RequestRedraw();
     }
     // 拖拽缩放中: 整帧拉伸填满 surface (见 ComputeFrameDisplayRect)。拖拽时
     // 窗口先变、Wine 新帧未到的空档里, 等比 fit 会按旧帧比例留黑边; 拉伸让
@@ -221,6 +227,8 @@ private:
 
     std::atomic<uint32_t> toplevelId_{0};
     std::atomic<bool> renderPaused_{false};
+    int64_t surfaceId_ = 0;
+    winehua::RendererRepaintState repaint_;
 
     // frame compositor 引用 (构造注入, 见构造函数注释): 取帧/层几何/ZC
     // 状态机直连目标 — 渲染线程唯一需要的外部 compositor 入口。

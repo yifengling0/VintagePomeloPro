@@ -4,24 +4,20 @@ repo=Path('/data/src/winehua');source=repo/'workspace_temp/stardew-context-fix-2
 build=repo/'workspace_temp/main-proton-migration-implementation-20261016/virgl-build'
 out=repo/'workspace_temp/linux-proton'
 out.mkdir(parents=True,exist_ok=True)
-for name in ['0007-ohos-native-memory-context.patch','0008-ohos-native-resource-contract.patch']:
- patch=repo/'patches/virglrenderer'/name
- command=['patch','-d',str(source),'-p1','--batch','--fuzz=0']
- if subprocess.run(command+['--dry-run','-R','-i',str(patch)],
-                   stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode:
-  subprocess.run(command+['--dry-run','-i',str(patch)],check=True)
-  subprocess.run(command+['--no-backup-if-mismatch','-i',str(patch)],check=True)
+subprocess.run(['bash',str(repo/'scripts/apply_virglrenderer_ohos_patches.sh'),str(source)],check=True)
 rows=json.loads((build/'compile_commands.json').read_text())
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 inputs={'patch':sha(repo/'patches/virglrenderer/0007-ohos-native-memory-context.patch'),
         'resourcePatch':sha(repo/'patches/virglrenderer/0008-ohos-native-resource-contract.patch'),
+        'cleanupPatch':sha(repo/'patches/virglrenderer/0009-device-object-cleanup.patch'),
+        'fdPatch':sha(repo/'patches/virglrenderer/0010-render-resource-fd-close.patch'),
         'script':sha(Path(__file__)), 'archive':sha(build/'src/libvirgl.a'),
         'vtestArchive':sha(build/'vtest/libvtest.a'),
         'compileCommands':sha(build/'compile_commands.json')}
 # Cached-source edits and header changes must invalidate a diagnostic build.
 # A patch hash alone does not describe the actual compiler inputs.
 inputs['source']={str(p.relative_to(source)):sha(p) for directory in
-                 ['src/venus','src/proxy','vtest']
+                 ['src/venus','src/proxy','vtest','server']
                  for p in sorted((source/directory).glob('*'))
                  if p.is_file() and p.suffix in ['.c','.h']}
 record=out/'native-fd-host-build.json'
@@ -35,7 +31,7 @@ def run(c):
  return r.stdout
 objects={}
 for name in ['vkr_device.c','vkr_device_memory.c','vkr_physical_device.c','vkr_renderer.c','vkr_context.c',
-             'vkr_buffer.c','vkr_image.c','virglrenderer.c','vtest_renderer.c','proxy_context.c']:
+             'vkr_buffer.c','vkr_image.c','virglrenderer.c','vtest_renderer.c','proxy_context.c','render_context.c']:
  row=next(x for x in rows if Path(x['file']).name==name)
  cmd=shlex.split(row['command']);oldsrc=cmd[cmd.index('-c')+1]
  src=source/Path(oldsrc).relative_to('../virgl-color')

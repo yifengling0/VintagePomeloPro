@@ -542,7 +542,8 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         // Small, separately delivered bootstrap closure. It is shared by all
         // games and Steam's 64-bit prerequisite helpers, not a per-game fix.
         if (gameRequested || initializeRequested) {
-            for (const char* name : {"psapi.dll", "wevtsvc.dll", "lsass.exe"})
+            for (const char* name : {"psapi.dll", "wevtsvc.dll", "lsass.exe", "wsock32.dll", "mswsock.dll",
+                                     "dwmapi.dll", "dwrite.dll", "uiautomationcore.dll", "oleacc.dll"})
                 if (!LoaderReference(root + "/bootstrap/" + name,
                     root + "/prefix/drive_c/windows/system32/" + name))
                     return failure("proton_bootstrap_module_missing_or_changed", true);

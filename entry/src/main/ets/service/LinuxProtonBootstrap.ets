@@ -12,7 +12,8 @@ const ROOT = '/data/storage/el2/base/files/steamohos-native/proton-probe/bootstr
 export async function ensureLinuxProtonBootstrap(context: common.Context): Promise<void> {
   const raw = 'linux-proton/bootstrap';
   const manifest = JSON.parse(ConfigurationFiles.text(await context.resourceManager.getRawFileContent(`${raw}/manifest.json`))) as BootstrapManifest;
-  const required = new Set<string>(['lsass.exe', 'psapi.dll', 'wevtsvc.dll']);
+  const required = new Set<string>(['dwmapi.dll', 'dwrite.dll', 'lsass.exe', 'mswsock.dll', 'oleacc.dll',
+    'psapi.dll', 'uiautomationcore.dll', 'wevtsvc.dll', 'wsock32.dll']);
   if (manifest.schemaVersion !== 1 || manifest.architecture !== 'aarch64-windows' || manifest.files.length !== required.size) {
     throw new Error('Proton 启动支持清单无效');
   }

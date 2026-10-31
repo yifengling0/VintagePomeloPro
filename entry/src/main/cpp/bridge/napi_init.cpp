@@ -881,8 +881,8 @@ static napi_value CreateRenderer(napi_env env, napi_callback_info info) {
 
 // -- NAPI: resizeRenderer -- (XComponentController.onSurfaceChanged 调用)
 static napi_value ResizeRenderer(napi_env env, napi_callback_info info) {
-    size_t argc = 3;
-    napi_value args[3];
+    size_t argc = 4;
+    napi_value args[4];
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc < 3) {
         OH_LOG_ERROR(LOG_APP, "[MW-NAPI] resizeRenderer: need 3 args (toplevelId, w, h)");
@@ -894,21 +894,31 @@ static napi_value ResizeRenderer(napi_env env, napi_callback_info info) {
     napi_get_value_int32(env, args[1], &w);
     napi_get_value_int32(env, args[2], &h);
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] resizeRenderer tl=%{public}u %{public}dx%{public}d", tid, w, h);
-    PluginManager::GetInstance()->ResizeRenderer(tid, w, h);
+    int64_t surfaceId = 0;
+    if (argc >= 4) {
+        bool lossless = false;
+        if (napi_get_value_bigint_int64(env, args[3], &surfaceId, &lossless) != napi_ok || !lossless || !surfaceId) return nullptr;
+    }
+    PluginManager::GetInstance()->ResizeRenderer(tid, w, h, surfaceId);
     return nullptr;
 }
 
 // -- NAPI: destroyRenderer -- (XComponentController.onSurfaceDestroyed 调用)
 static napi_value DestroyRenderer(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1];
+    size_t argc = 2;
+    napi_value args[2];
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     uint32_t tid = 0;
     if (argc >= 1) {
         napi_get_value_uint32(env, args[0], &tid);
     }
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] destroyRenderer tl=%{public}u", tid);
-    PluginManager::GetInstance()->DestroyToplevel(tid);
+    int64_t surfaceId = 0;
+    if (argc >= 2) {
+        bool lossless = false;
+        if (napi_get_value_bigint_int64(env, args[1], &surfaceId, &lossless) != napi_ok || !lossless || !surfaceId) return nullptr;
+    }
+    PluginManager::GetInstance()->DestroyRendererForSurface(tid, surfaceId);
     return nullptr;
 }
 

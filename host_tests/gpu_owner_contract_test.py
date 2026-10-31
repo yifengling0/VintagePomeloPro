@@ -37,13 +37,13 @@ struct SurfaceData{uint32_t clientPid=100,protocolId=151,toplevelId=5;uint64_t s
 wl_resource* parentSurface=nullptr;int w=101,h=398,vpDstW=0,vpDstH=0,subsurfaceX=0,subsurfaceY=0;
 struct{struct{int x=0,y=0;}contentRect;}committed;std::atomic<uint64_t> shmCommitSerial{0};};
 void* wl_resource_get_user_data(wl_resource* p){return p?p->data:nullptr;}
-struct State{bool IsMinimized()const{return false;}bool IsBackground()const{return false;}bool IsFullscreen()const{return false;}
+struct State{bool minimized=false,background=false;bool IsMinimized()const{return minimized;}bool IsBackground()const{return background;}bool IsFullscreen()const{return false;}
 int Width()const{return 101;}int Height()const{return 398;}int X()const{return 0;}int Y()const{return 0;}int WineX()const{return 0;}int WineY()const{return 0;}};
-struct Manager{State state;std::mutex m;std::unordered_map<uint64_t,wl_resource*>resources;
+struct Manager{State state;bool shmVisible=true;std::mutex m;std::unordered_map<uint64_t,wl_resource*>resources;
 auto Lock(){return std::unique_lock<std::mutex>(m);}wl_resource* FindSurfaceResource(uint64_t k){auto it=resources.find(k);return it==resources.end()?nullptr:it->second;}
 SurfaceData* FindRegisteredSurfaceDataLocked(wl_resource* p){for(const auto& [key,res]:resources)if(res==p)return res->data;return nullptr;}
 const auto& SurfaceResources(){return resources;}State* FindToplevelLocked(uint32_t id){return id==5?&state:nullptr;}
-bool IsToplevelVisibleLocked(uint32_t id,uint32_t){return id==5;}};
+bool IsToplevelVisibleLocked(uint32_t id,uint32_t){return id==5&&shmVisible;}};
 struct Layer{wl_resource* surface=nullptr;int vpDstW=0,vpDstH=0,w=0,h=0;uint64_t shmCommitSerial=0;uint32_t parentToplevel=5;bool isExternal=false;};
 struct Comp{Manager tmgr_;uint32_t desktopRootToplevelId_=1;struct{bool RootCompositing(){return true;}}policy_;std::vector<Layer>subsurfaceLayers_;
 void ResolveSubsurfaceLayerPositionLocked(const Layer&,int&,int&){};};
@@ -113,6 +113,19 @@ int main(int argc,char** argv){
  assert(b.GetLayerInfo(producerKey,1,101,398,info,&reason));assert(info.clientPid==200&&info.bindingGeneration);}
  if(mode==8){owner.clientPid=200;peer.clientPid=300;peer.protocolId=152;b.comp_.tmgr_.resources.erase(ownerKey);b.comp_.tmgr_.resources[Key(200,151)]=&ownerRes;b.comp_.tmgr_.resources[Key(300,152)]=&peerRes;
  assert(!b.GetLayerInfo(producerKey,1,101,398,info,&reason));}
+ if(mode==9){
+ // A protocol-owned GPU toplevel has no SHM frame before its first present.
+ producer.hasToplevel=true;producer.toplevelId=5;producer.w=producer.h=0;
+ b.comp_.tmgr_.shmVisible=false;
+ assert(b.GetLayerInfo(producerKey,1,1200,800,info,&reason));
+ assert(info.parentToplevel==5&&info.width==1200&&info.height==800);
+ assert(info.bindingGeneration==0&&b.presentBindings_.empty()&&b.activeKeys_.empty()&&b.consumedSizes_.empty());
+ b.comp_.tmgr_.state.minimized=true;assert(!b.GetLayerInfo(producerKey,1,1200,800,info,&reason));
+ b.comp_.tmgr_.state.minimized=false;b.comp_.tmgr_.state.background=true;
+ assert(!b.GetLayerInfo(producerKey,1,1200,800,info,&reason));
+ b.comp_.tmgr_.state.background=false;assert(!b.GetLayerInfo(producerKey,7,1200,800,info,&reason));
+ b.comp_.tmgr_.resources.erase(producerKey);assert(!b.GetLayerInfo(producerKey,1,1200,800,info,&reason));
+ }
  puts("full GetLayerInfo owner contract passed");
 }
 '''
@@ -124,7 +137,7 @@ if args.baseline:
 with tempfile.TemporaryDirectory(prefix='owner-contract-') as d:
  p=Path(d)/'owner.cpp';p.write_text(STUB+functions+CASE)
  subprocess.run(['g++','-std=c++17','-Wall','-Wextra','-Werror','-pthread',str(p),'-o',str(p.with_suffix(''))],check=True)
- for mode in range(9):
+ for mode in range(9 if args.baseline else 10):
   result=subprocess.run([str(p.with_suffix('')),str(mode)],capture_output=True,text=True)
   if args.baseline and mode in (0,1,3):
    expected={0:'small role-less producer rejected',1:'active owner rejection is terminal',3:'claimed peer cannot hide ambiguity'}[mode]

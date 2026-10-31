@@ -1,5 +1,7 @@
 FEX source: https://github.com/FEX-Emu/FEX/tree/37265b109a4bba9e10241972dfcb3d1fdb8f3f9a
 Patch: https://github.com/FEX-Emu/FEX/issues/5901
+OHOS adaptation: scripts/patches/fex-ohos-guest-protection.patch and .h (MIT).
+Only FEX guest mprotect retries a host noexec denial; guest VMA permissions remain intact.
 
 MIT License
 

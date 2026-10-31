@@ -2,7 +2,7 @@
 """Package reviewed native-game repairs beside immutable Steam/Proton archives.
 
 Reuses explicit existing GNU build outputs. Never edits games or Valve depots.
-The FEX changes are the exact published upstream diff, whose provenance ships.
+FEX includes the published sigreturn diff and a scoped OHOS guest-VMA adapter.
 """
 import argparse, hashlib, json, re, shutil
 from pathlib import Path
@@ -17,7 +17,9 @@ SOURCE_NAMES=['scripts/prepare_linux_native_repairs.py','scripts/diagnostics/bui
  'patches/virglrenderer/0007-ohos-native-memory-context.patch',
  'patches/virglrenderer/0008-ohos-native-resource-contract.patch',
  'entry/src/main/cpp/linux_steam/gnu_fixture/native_fex_core.h',
- 'entry/src/main/resources/rawfile/'+RELATIVE+'/NOTICE.txt']
+ 'entry/src/main/resources/rawfile/'+RELATIVE+'/NOTICE.txt',
+ 'scripts/patches/fex-ohos-guest-protection.patch',
+ 'scripts/patches/fex-ohos-guest-protection.h']
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def verify(root=ROOT,hap=None):
  directory=root/'entry/src/main/resources/rawfile'/RELATIVE
@@ -63,7 +65,11 @@ def main():
   receipt=json.loads((a.fex_build/'sigreturn-manifest.json').read_text())
   patch=sha(ROOT/SOURCE_NAMES[2])
   if receipt.get('patchSha256') or receipt.get('upstreamSigreturnPatchSha256')!=patch:
-   raise ValueError('Only the reviewed upstream sigreturn fix is approved')
+   raise ValueError('The reviewed sigreturn baseline is required')
+  for key,name in [('ohosGuestProtectionPatchSha256','fex-ohos-guest-protection.patch'),
+                   ('ohosGuestProtectionHeaderSha256','fex-ohos-guest-protection.h')]:
+   if receipt['inputs'].get(key)!=sha(ROOT/'scripts/patches'/name):
+    raise ValueError('Missing or stale OHOS guest protection input: '+name)
   directory.mkdir(parents=True,exist_ok=True)
   inputs={'FEX':a.fex_build/'build/Bin/FEX','FEXServer':a.fex_build/'build/Bin/FEXServer',
    'libvulkan_virtio.so':a.venus,'libsteamohos_software_gl.so':a.software_gl}

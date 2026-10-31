@@ -74,6 +74,16 @@ class NativeFex(unittest.TestCase):
 #include <linux/seccomp.h>
 #include <stddef.h>
 #include <sys/prctl.h>
+// Bypass the interposed libc syscall() just as FEX's host SVC does.
+static long inline_syscall6(long nr,long a,long b,long c,long d,long e,long f) {
+ register long r10 __asm__("r10")=d;
+ register long r8 __asm__("r8")=e;
+ register long r9 __asm__("r9")=f;
+ long result;
+ __asm__ volatile("syscall":"=a"(result):"a"(nr),"D"(a),"S"(b),"d"(c),
+                  "r"(r10),"r"(r8),"r"(r9):"rcx","r11","memory");
+ return result;
+}
 static int preinit_ok;
 static volatile sig_atomic_t raw_signal_seen;
 static void raw_signal(int s,siginfo_t* i,void* c){(void)i;(void)c;raw_signal_seen=s;}
@@ -123,12 +133,25 @@ static void check_file_syscalls(void) {
 }
 int main(int n,char**v) {
  assert(preinit_ok);
+ if(n==4&&!strcmp(v[1],"reexec-result")) {
+  assert(!strcmp(v[2],"argument with spaces")&&!strcmp(v[3],"literal;$not-a-command"));
+  assert(!getenv("LD_PRELOAD")&&!getenv("LD_AUDIT"));
+  puts("FEX_SYSCALL_REEXEC_ARGV_ENV_OK");return 29;
+ }
  // The host adapter must be loaded (raw-syscall tests below), but ARM64
  // preload/search paths must not be present in the future guest environment.
  // Even an empty inherited entry shadows FEX's appended guest Config.Env.
  assert(!getenv("LD_PRELOAD"));
  assert(!getenv("LD_AUDIT"));
  assert(strstr(getenv("LD_LIBRARY_PATH"),"/lib/x86_64-linux-gnu"));
+ if(getenv("EXPECT_GUEST_PATH")) {
+  assert(!strcmp(getenv("PATH"),getenv("EXPECT_GUEST_PATH")));
+  pid_t utility=fork();assert(utility>=0);
+  if(!utility){execlp("true","true",NULL);_exit(87);}
+  int utilityStatus;assert(waitpid(utility,&utilityStatus,0)==utility);
+  assert(WIFEXITED(utilityStatus)&&WEXITSTATUS(utilityStatus)==0);
+  puts("GUEST_STANDARD_PATH_EXEC_OK");
+ }
  if(!getenv("EXPECT_GUEST_AUDIO"))assert(!strstr(getenv("LD_LIBRARY_PATH"),getenv("STEAMOHOS_CODE_ROOT")));
  if(getenv("EXPECT_GUEST_AUDIO"))assert(!strcmp(getenv("ALSA_PLUGIN_DIR"),getenv("EXPECT_GUEST_AUDIO")));
  if(getenv("EXPECT_GUEST_LIBRARY"))assert(strstr(getenv("LD_LIBRARY_PATH"),getenv("EXPECT_GUEST_LIBRARY")));
@@ -174,6 +197,15 @@ int main(int n,char**v) {
  puts("FEX_SERVER_REAL_HANDSHAKE_OK");
  printf("CONFIG=%s/Config.json\n",getenv("FEX_APP_CONFIG_LOCATION"));
  fflush(stdout);
+ if(n>2&&(!strcmp(v[2],"reexec-at")||!strcmp(v[2],"reexec-ve"))) {
+  char* args[]={v[0],"reexec-result","argument with spaces","literal;$not-a-command",NULL};
+  extern char** environ;
+  assert(syscall(SYS_execveat,-1,"relative",args,environ,0)==-1&&errno==EBADF);
+  assert(syscall(SYS_execveat,AT_FDCWD,"/proc/self/exe",args,environ,0x40000000)==-1&&errno==EINVAL);
+  if(!strcmp(v[2],"reexec-at"))syscall(SYS_execveat,AT_FDCWD,"/proc/self/exe",args,environ,0);
+  else syscall(SYS_execve,"/proc/self/exe",args,environ);
+  perror("FEX syscall reexec");return 88;
+ }
  if(n>2&&!strcmp(v[2],"optional-handles")) {
   struct sock_filter filter[]={
    BPF_STMT(BPF_LD|BPF_W|BPF_ABS,offsetof(struct seccomp_data,nr)),
@@ -190,6 +222,52 @@ int main(int n,char**v) {
   assert(syscall(SYS_open_by_handle_at,-1,unchanged,0)==-1&&errno==ENOSYS);
   assert(mount==0x5555);for(unsigned i=0;i<sizeof(unchanged);++i)assert(unchanged[i]==0x5a);
   puts("INLINE_OPTIONAL_HANDLES_UNSUPPORTED_AND_BUFFERS_PRESERVED");return 0;
+ }
+ if(n>2&&!strcmp(v[2],"optional-robust")) {
+  struct sock_filter filter[]={
+   BPF_STMT(BPF_LD|BPF_W|BPF_ABS,offsetof(struct seccomp_data,nr)),
+   BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,SYS_get_robust_list,0,1),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_TRAP),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ALLOW)};
+  struct sock_fprog policy={sizeof(filter)/sizeof(filter[0]),filter};
+  assert(!prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0));
+  assert(!prctl(PR_SET_SECCOMP,SECCOMP_MODE_FILTER,&policy));
+  void* head=(void*)0x12345678;size_t length=0x5678;
+  assert(inline_syscall6(SYS_get_robust_list,0,(long)&head,(long)&length,0,0,0)==-ENOSYS);
+  assert(inline_syscall6(SYS_get_robust_list,getpid(),(long)&head,(long)&length,0,0,0)==-ENOSYS);
+  assert(inline_syscall6(SYS_get_robust_list,2147483647,(long)&head,(long)&length,0,0,0)==-ENOSYS);
+  assert(head==(void*)0x12345678&&length==0x5678);
+  assert(inline_syscall6(SYS_getpid,0,0,0,0,0,0)==getpid());
+  puts("INLINE_OPTIONAL_ROBUST_UNSUPPORTED_AND_BUFFERS_PRESERVED");return 0;
+ }
+ if(n>2&&!strcmp(v[2],"optional-numa")) {
+  struct sock_filter filter[]={
+   BPF_STMT(BPF_LD|BPF_W|BPF_ABS,offsetof(struct seccomp_data,nr)),
+   BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,SYS_get_mempolicy,0,1),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_TRAP),
+   BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,SYS_set_mempolicy,0,1),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_TRAP),
+   BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,SYS_mbind,0,1),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_TRAP),
+   BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,SYS_migrate_pages,0,1),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_TRAP),
+   BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,SYS_move_pages,0,1),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_TRAP),
+   BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ALLOW)};
+  struct sock_fprog policy={sizeof(filter)/sizeof(filter[0]),filter};
+  assert(!prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0));
+  assert(!prctl(PR_SET_SECCOMP,SECCOMP_MODE_FILTER,&policy));
+  unsigned long mask=0x5555;int mode=0x1234,status=0x5678;
+  char memory[64];memset(memory,0x5a,sizeof(memory));void* pages[]={memory};
+  assert(inline_syscall6(SYS_get_mempolicy,(long)&mode,(long)&mask,8,0,0,0)==-ENOSYS);
+  assert(inline_syscall6(SYS_set_mempolicy,0,(long)&mask,8,0,0,0)==-ENOSYS);
+  assert(inline_syscall6(SYS_mbind,(long)memory,sizeof(memory),0,(long)&mask,8,0)==-ENOSYS);
+  assert(inline_syscall6(SYS_migrate_pages,0,8,(long)&mask,(long)&mask,0,0)==-ENOSYS);
+  assert(inline_syscall6(SYS_move_pages,0,1,(long)pages,0,(long)&status,0)==-ENOSYS);
+  assert(mask==0x5555&&mode==0x1234&&status==0x5678&&pages[0]==memory);
+  for(unsigned i=0;i<sizeof(memory);++i)assert(memory[i]==0x5a);
+  assert(inline_syscall6(SYS_getpid,0,0,0,0,0,0)==getpid());
+  puts("INLINE_OPTIONAL_NUMA_UNSUPPORTED_AND_BUFFERS_PRESERVED");return 0;
  }
  if(n>2&&!strcmp(v[2],"hold")){for(;;)pause();}
  if(n>2&&!strcmp(v[2],"raw-alt-signal")) {
@@ -223,7 +301,13 @@ int main(int n,char**v) {
   puts("RAW_SIGNAL_RESUMED_AND_RESTORED");fflush(stdout);raise(SIGSEGV);return 99;
  }
   if(n>2&&!strcmp(v[2],"fault")){raise(SIGSEGV);return 99;}
- assert(n==4&&!strcmp(v[2],"argument with spaces")&&!strcmp(v[3],"literal;$not-a-command"));
+ if(getenv("EXPECT_SCRIPT")) {
+  int offset=getenv("EXPECT_INTERPRETER_ARG")?1:0;
+  assert(n==5+offset&&strstr(v[1],"/usr/bin/bash"));
+  if(offset)assert(!strcmp(v[2],getenv("EXPECT_INTERPRETER_ARG")));
+  assert(!strcmp(v[2+offset],getenv("EXPECT_SCRIPT")));
+  assert(!strcmp(v[3+offset],"argument with spaces")&&!strcmp(v[4+offset],"literal;$not-a-command"));
+ } else assert(n==4&&!strcmp(v[2],"argument with spaces")&&!strcmp(v[3],"literal;$not-a-command"));
  fd=open(getenv("FEX_APP_CONFIG"),O_RDONLY);assert(fd>=0);close(fd);
  return 23;
 }
@@ -253,6 +337,32 @@ int main(int n,char**v) {
   for name in names:(core/name).write_bytes(b'\x7fELF\x02\x01'+bytes(12)+b'\x3e\x00')
   (core/'manifest.json').write_text('{}')
   return core
+ def test_runtime_script_preserves_argv_without_host_shell(self):
+  directory=self.rootfs/'usr/bin';directory.mkdir(exist_ok=True)
+  (directory/'bash').write_bytes(self.binary.read_bytes())
+  (self.rootfs/'bin').write_bytes(b'STEAMOHOS_DEPOT_SYMLINK_V1\n/usr/bin')
+  script=self.game/'launcher with spaces'
+  for suffix in ['', ' -e', ' -e -u']:
+   with self.subTest(suffix=suffix):
+    script.write_text('#!/bin/bash'+suffix+'\nnever evaluate this on host\n')
+    args=[str(script) if x==str(self.binary) else x for x in self.command('argument with spaces','literal;$not-a-command')]
+    env={**self.env,'EXPECT_SCRIPT':str(script)}
+    if suffix:env['EXPECT_INTERPRETER_ARG']=suffix.strip()
+    result=self.run_command(args,env)
+    self.assertEqual(result.returncode,23,result.stdout+result.stderr)
+ def test_invalid_script_and_missing_interpreter_fail_before_fex(self):
+  script=self.game/'invalid-launcher'
+  for content,stage in [('#!/missing/interpreter\nexit 0\n','script_interpreter_missing_or_invalid'),
+                        ('#!/bin/../bin/bash\n','game_not_x86_elf_or_script'),
+                        ('#!/bin/bash\x00\n','game_not_x86_elf_or_script'),
+                        ('#!/bin/bash'+' '*260+'\n','game_not_x86_elf_or_script'),
+                        ('not an executable\n','game_not_x86_elf_or_script')]:
+   with self.subTest(content=content[:30]):
+    script.write_text(content)
+    args=[str(script) if x==str(self.binary) else x for x in self.command('argument with spaces','literal;$not-a-command')]
+    result=self.run_command(args)
+    self.assertNotEqual(result.returncode,23)
+    self.assertIn('stage='+stage,result.stderr)
  def test_guest_audio_uses_guest_plugin_with_original_bootstrap(self):
   core=self.guest_audio_core(True)
   try:
@@ -272,7 +382,8 @@ int main(int n,char**v) {
      block=os.read(process.stdout.fileno(),1);self.assertTrue(block);content+=block
    document=fex_config(Path(content.decode().split('CONFIG=',1)[1].strip()).read_text())
    self.assertIn('LD_PRELOAD='+str(core/'libsteamohos_native_ipc.so'),document['Config']['Env'])
-   self.assertEqual(len(document['Config']['Env']),4)
+   self.assertEqual(len(document['Config']['Env']),5)
+   self.assertEqual(sum(v.startswith('PATH=') for v in document['Config']['Env']),1)
    process.send_signal(signal.SIGTERM);process.communicate(timeout=10)
   finally:
    if process and process.poll() is None:process.kill();process.communicate(timeout=5)
@@ -289,12 +400,28 @@ int main(int n,char**v) {
   self.assertIn('FEX_SERVER_REAL_HANDSHAKE_OK',result.stdout)
   self.assertIn('status=exited code=23',result.stderr)
   self.assertFalse(list((self.compat/'fex-emu').glob('hmosdeck-*')))
+ def test_nested_fex_syscall_exec_uses_validated_host_loader(self):
+  for mode in ['reexec-at','reexec-ve']:
+   with self.subTest(mode=mode):
+    result=self.run_command(self.command(mode))
+    self.assertEqual(result.returncode,29,result.stdout+result.stderr)
+    self.assertIn('FEX_SYSCALL_REEXEC_ARGV_ENV_OK',result.stdout)
+    self.assertIn('status=exited code=29',result.stderr)
  def test_host_and_guest_linker_environments_are_separate(self):
   game_libraries=str(self.game/'native-libs')
   result=self.run_command(env={**self.env,'LD_LIBRARY_PATH':str(self.code)+':'+game_libraries,
    'EXPECT_GUEST_LIBRARY':game_libraries})
   self.assertEqual(result.returncode,23,result.stdout+result.stderr)
   self.assertIn('FEX_SERVER_REAL_HANDSHAKE_OK',result.stdout)
+ def test_guest_path_exec_preserves_game_order_and_excludes_host_tools(self):
+  for supplied,expected in [
+   (str(self.game)+"/bin:"+str(self.code)+"/steamrtarm64:/system/bin:/bin",str(self.game)+"/bin:/bin:/usr/local/bin:/usr/bin"),
+   ("","/usr/local/bin:/usr/bin:/bin"),
+   ("/usr/bin:/bin:/usr/bin","/usr/bin:/bin:/usr/local/bin")]:
+   with self.subTest(path=supplied):
+    result=self.run_command(env={**self.env,'PATH':supplied,'EXPECT_GUEST_PATH':expected})
+    self.assertEqual(result.returncode,23,result.stdout+result.stderr)
+    self.assertIn('GUEST_STANDARD_PATH_EXEC_OK',result.stdout)
  def test_32_bit_thunks_use_fex_base_directory_contract(self):
   guest=self.tool/'usr/share/fex-emu/GuestThunks_32'
   host=self.tool/'usr/lib/aarch64-linux-gnu/fex-emu/HostThunks'
@@ -367,6 +494,14 @@ int main(int n,char**v) {
   result=self.run_command(self.command('optional-handles'))
   self.assertEqual(result.returncode,0,result.stdout+result.stderr)
   self.assertIn('INLINE_OPTIONAL_HANDLES_UNSUPPORTED_AND_BUFFERS_PRESERVED',result.stdout)
+ def test_robust_list_seccomp_reports_unsupported_without_fabricating_a_list(self):
+  result=self.run_command(self.command('optional-robust'))
+  self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+  self.assertIn('INLINE_OPTIONAL_ROBUST_UNSUPPORTED_AND_BUFFERS_PRESERVED',result.stdout)
+ def test_numa_seccomp_uses_linux_unsupported_contract(self):
+  result=self.run_command(self.command('optional-numa'))
+  self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+  self.assertIn('INLINE_OPTIONAL_NUMA_UNSUPPORTED_AND_BUFFERS_PRESERVED',result.stdout)
  def test_native_display_is_inherited_by_fex_and_server(self):
   result=self.run_command(env={**self.env,'DISPLAY':':57','STEAMOHOS_NATIVE_X11_DISPLAY':'127.0.0.1:22222','EXPECT_NATIVE_DISPLAY':'127.0.0.1:22222'})
   self.assertEqual(result.returncode,23,result.stdout+result.stderr)

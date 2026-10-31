@@ -31,7 +31,8 @@ public:
 
     // surfaceId 驱动的渲染器生命周期
     void CreateRenderer(uint32_t toplevelId, int64_t surfaceId);
-    void ResizeRenderer(uint32_t toplevelId, int w, int h);
+    void ResizeRenderer(uint32_t toplevelId, int w, int h, int64_t surfaceId = 0);
+    void DestroyRendererForSurface(uint32_t toplevelId, int64_t surfaceId);
     // 拖拽缩放中: 目标渲染器整帧拉伸填满 (EglRenderer::SetStretchFill)
     void SetRendererStretchFill(uint32_t toplevelId, bool on);
     void DestroyToplevel(uint32_t toplevelId);

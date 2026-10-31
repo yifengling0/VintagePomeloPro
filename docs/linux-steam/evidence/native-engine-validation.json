@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-31",
+  "device": "ordinary ARM64 tablet",
+  "repositoryBase": "00b8f589ef48dccbf0fd0d9f167fc98b63590922",
+  "scope": "Linux native depots; Windows/Proton results excluded",
+  "depots": {
+    "413150": "413153",
+    "646570": "646573",
+    "2868840": "2868843"
+  },
+  "guestJit": {
+    "priorFault": "memfd:doublemapper; mprotect RX EACCES; SEGV_ACCERR",
+    "repaired": false,
+    "evidence": [
+      "STEAMOHOS_NATIVE_FEX core=hap-matched reason=matched patch=sigreturn-5901+ohos-guest-vma",
+      "STEAMOHOS_NATIVE_FEX status=prepared guest_bits=64 runtime=SteamLinuxRuntime_sniper gl_thunk=1 vulkan_thunk=1 audio_thunk=0 wayland_thunk=1 guest_alsa=1 container=userspace",
+      "ERROR: QueuePresentKHR failed with error: -4",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_OPTIONAL sandbox_api=ENOSYS",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0",
+      "STEAMOHOS_FEX_GUEST_PROTECTION original_errno=13 retry_ok=1 guest_exec=1 host_exec=0"
+    ],
+    "limitations": "Permission retry passed. Default .NET dual mapping still stalls; temporary WX=0 crosses it but later exits 1; JIT execution is not accepted.",
+    "permissionBlockerCrossed": true
+  },
+  "gpuToplevel": {
+    "rootCause": "Explicit GPU xdg-toplevel attachment erroneously required prior SHM HasFrame",
+    "hostRegression": "10 owner modes, lifecycle and 20 scene/input modes passed",
+    "deviceValidation": "Vulkan swapchain created; no target-missing blocker in later run; game main menu unverified"
+  },
+  "java": {
+    "observed": "Default Java8 JIT crashes after xrandr/content progress. -Xint reaches SteamController and fails with robust_list not initialized.",
+    "deviceValidation": "suspended; temporary options restored"
+  },
+  "stardew": {
+    "observed": "Native title animation in previous run",
+    "deviceValidation": "input/exit and GL transport pending"
+  },
+  "privacy": "Only bounded sanitized diagnostic lines; no account/config/save or signed URLs.",
+  "priority": "Slay the Spire 2 native Linux; first game investigation suspended by user",
+  "guestPath": {
+    "scope": "native FEX child only",
+    "deviceValidation": "LWJGL xrandr and content-loading blocker crossed",
+    "hostRegression": "32 native-FEX tests plus signal boundary passed"
+  },
+  "robustList": {
+    "contract": "native-FEX SYS_SECCOMP allowlist returns raw ENOSYS",
+    "complete": false,
+    "limitation": "SteamController in first game requires real guest robust-list; not implemented by ENOSYS"
+  },
+  "spire2": {
+    "runtime": "sniper / Godot .NET 9.0.7",
+    "nativeDepot": "2868843",
+    "manifest": "7881097836989620034",
+    "defaultWx": "hostfxr initialized, no content loading observed",
+    "wxOff": "content/fonts/banks/display/SteamStats loaded, exit=1 signal=0, reproduced",
+    "fullSmc": "bounded approximately 6 minute observation at hostfxr; diagnostically stopped; slower and not accepted",
+    "fexErrorLogging": "same exit=1; no explicit fatal captured",
+    "accepted": false,
+    "headless": "Resources, Steamworks initialization and Steam stats received; same exit=1 signal=0. Does not require Vulkan presentation.",
+    "tieredCompilationOff": "Same later exit=1 signal=0; not accepted as a fix.",
+    "managedStartupHook": {
+      "bytes": 6144,
+      "initialized": false,
+      "validExceptionObservation": false,
+      "sameLaterExit": true,
+      "removed": true
+    },
+    "remaining": "Root cause of later exit is not established. Need effective native/guest termination and write-path evidence; no confirmed main menu.",
+    "upstreamResearch": {
+      "date": "2026-10-31",
+      "deviceAcceptanceChanged": false,
+      "productDefaultsChanged": false,
+      "sources": {
+        "sameNativeGame": "https://github.com/FEX-Emu/FEX/issues/5991",
+        "coreclrNative": "https://github.com/FEX-Emu/FEX/issues/5766",
+        "coreclrArm64ec": "https://github.com/FEX-Emu/FEX/issues/6014",
+        "rosettaCodeUpdate": "https://github.com/dotnet/runtime/issues/70910",
+        "rosettaLinuxFixed": "https://github.com/dotnet/runtime/issues/106819",
+        "fileSizeLimit": "https://github.com/dotnet/runtime/issues/117819",
+        "godotFinalizerDifferentVersion": "https://github.com/godotengine/godot/issues/123707",
+        "protonGpuDifferentFailure": "https://github.com/ValveSoftware/Proton/issues/9599"
+      },
+      "findings": [
+        "Same-game native FEX report has a validated startup workaround, not a confirmed OHOS root cause or upstream code fix.",
+        "CoreCLR x64 JIT and FEX translation coexist; Mono, Wine Mono and CoreCLR are not interchangeable.",
+        "Matched FEX already tracks shared aliases; verify OHOS backing identity/protection/invalidation instead of assuming missing upstream support.",
+        "Default scalar TSO=true is not proof of effective per-app configuration; capture overrides before forcing more switches.",
+        "Godot native hosting bypasses the ordinary Main startup-hook path; previous uninitialized probe cannot exclude managed exceptions."
+      ],
+      "nextValidation": [
+        "Capture effective FEX/Steam memory-order settings and compare W^X off plus forced scalar TSO.",
+        "Exercise repeated writes through shared JIT aliases and cross-thread publication in an owned fixture.",
+        "Obtain an effective native/guest exit observation or CoreCLR diagnostic before attributing later exit=1."
+      ]
+    }
+  },
+  "diagnosticsRestored": {
+    "646570": true,
+    "2868840": true,
+    "steamStartupConfig": "original restored; temporary CEF occlusion option removed"
+  },
+  "managedReadOnlyInspection": {
+    "source": "installed Linux depot 2868843 / sts2.dll",
+    "bytes": 9363456,
+    "sha256": "d13f3f150b1413b24c3a9c5575cdf5398dc74270877d55dec9a556dd8150bd03",
+    "purpose": "read-only startup/error-path inspection; no game patches",
+    "finding": "No direct Environment.Exit(1) in examined managed startup; zero-byte temporary profile is a lead, not proof of save/permission root cause.",
+    "temporaryCopyRetained": false
+  },
+  "memfdJitDiagnosis": {
+    "date": "2026-10-31",
+    "scope": "native Linux x86_64 FEX / actual app UID",
+    "kernel": {
+      "memfdFstat": "EACCES",
+      "memfdFstatatEmpty": "EFAULT",
+      "unlinkedPrivateFileStat": "success",
+      "chmodChownWorkaround": false
+    },
+    "baseline": {
+      "metadataFailure": true,
+      "expected": 2,
+      "actual": 1,
+      "anonymousRwxPassed": true
+    },
+    "unlinkedFileExperiment": {
+      "fixtureAccepted": true,
+      "events": [
+        "NATIVE_JIT observer_ready=1 bits=64",
+        "NATIVE_JIT_FILE probe=1 backing=unlinked-private-file metadata=kernel flags=cloexec",
+        "NATIVE_JIT mode=memfd-rw-rx stage=fstat result=0 errno=0 size_matches=1",
+        "NATIVE_JIT mode=memfd-rw-rx stage=patch slot=0 iterations=512 passed=1",
+        "NATIVE_JIT mode=memfd-rw-rx stage=patch slot=1 iterations=512 passed=1",
+        "NATIVE_JIT mode=memfd-rw-rx stage=cross-thread iterations=512 passed=1",
+        "NATIVE_JIT mode=anonymous-rwx stage=patch slot=0 iterations=512 passed=1",
+        "NATIVE_JIT mode=anonymous-rwx stage=patch slot=1 iterations=512 passed=1",
+        "NATIVE_JIT mode=anonymous-rwx stage=cross-thread iterations=512 passed=1",
+        "NATIVE_JIT_RESULT failures=0"
+      ],
+      "enabledByDefault": false,
+      "completeMemfdEmulation": false
+    },
+    "coreclr": {
+      "bytes": 7399440,
+      "sha256": "cdb3af6218b0b0612fcbbb73b38801889898ef5cc906a5476be75882c8de11e8",
+      "purpose": "dynamic import inspection only"
+    },
+    "nativeGameDefaultWx": "experimental file backend active; hostfxr/resources crossed; later exit 1; menu not accepted",
+    "strictOrdering": {
+      "accepted": false,
+      "exception": "System.AccessViolationException",
+      "stack": [
+        "ConcurrentDictionary.TryAddInternal",
+        "Godot.DisposablesTracker.RegisterDisposable",
+        "Godot.Variant.Disposer",
+        "ScriptManagerBridge.UpdateScriptClassInfo"
+      ],
+      "termination": "libcoreclr abort / SIGABRT / 134"
+    },
+    "upstreamUncheckedStat": "TrackMmap uses uninitialized st_dev/st_ino after unchecked fstat64 failure",
+    "productDefaultChanged": false,
+    "accepted": false
+  },
+  "coreclrContract": {
+    "date": "2026-10-31",
+    "runtimeVersion": "9.0.7",
+    "source": "installed native Linux game runtime",
+    "wxEnabled": false,
+    "fixtureAccepted": true,
+    "gameAccepted": false,
+    "deployedFiles": [
+      {
+        "destination": "/storage/media/100/local/files/Docs/Download/com.vintage.pomelopro/SteamLinuxARM64/library/steamapps/common/Slay the Spire 2/.hmosdeck-coreclr-host",
+        "sha256": "0808a679970435244d4c71ff221119c18255ea3a4cd6c5cb00318bd3481c834d",
+        "bytes": 16568
+      },
+      {
+        "destination": "/storage/media/100/local/files/Docs/Download/com.vintage.pomelopro/SteamLinuxARM64/library/steamapps/common/Slay the Spire 2/CoreClrContract.dll",
+        "sha256": "98a6598d3ceb8cf1876e751b2cc1c3cd36b287f1a4c5e3f9700f393725a33c00",
+        "bytes": 8192
+      }
+    ],
+    "events": [
+      "CORECLR_CONTRACT_HOST stage=initialize code=0",
+      "CORECLR_CONTRACT_HOST stage=delegate code=0",
+      "CORECLR_CONTRACT_HOST stage=load code=0",
+      "CORECLR_CONTRACT phase=entered version=9.0.7",
+      "CORECLR_CONTRACT phase=arithmetic passed=1 checksum=1607360",
+      "CORECLR_CONTRACT phase=dynamic-jit passed=1",
+      "CORECLR_CONTRACT phase=dictionary-gc passed=1 remaining=0",
+      "CORECLR_CONTRACT_RESULT passed=1",
+      "CORECLR_CONTRACT_HOST stage=initialize code=0",
+      "CORECLR_CONTRACT_HOST stage=delegate code=0",
+      "CORECLR_CONTRACT_HOST stage=load code=0",
+      "CORECLR_CONTRACT phase=entered version=9.0.7",
+      "CORECLR_CONTRACT phase=arithmetic passed=1 checksum=1607360",
+      "CORECLR_CONTRACT phase=dynamic-jit passed=1",
+      "CORECLR_CONTRACT phase=implicit-null-signal passed=1",
+      "CORECLR_CONTRACT phase=unmanaged-callback passed=1",
+      "CORECLR_CONTRACT phase=dictionary-gc passed=1 remaining=0",
+      "CORECLR_CONTRACT_RESULT passed=1"
+    ],
+    "conservativeGameTrial": {
+      "time": 1793456282.7301457,
+      "accepted": false,
+      "mode": "W^X off + scalar TSO + R2R/tiering/intrinsics off",
+      "result": "resources and display initialized; exit 1; no game main/exit trace observed",
+      "events": [
+        "STEAMOHOS_NATIVE_FEX status=prepared guest_bits=64 runtime=SteamLinuxRuntime_sniper gl_thunk=1 vulkan_thunk=1 audio_thunk=0 wayland_thunk=1 guest_alsa=1 container=userspace",
+        ".NET: hostfxr initialized",
+        "STEAMOHOS_NATIVE_FEX status=exited code=1 signal=0"
+      ]
+    },
+    "referenceRuntime": "Windows 9.0.16; Linux libc callback skipped",
+    "guestSignalObservation": {
+      "observerInitialized": true,
+      "coreclrHandlerRegistered": true,
+      "guestFaultEvents": 0,
+      "lastExit": "1 / signal 0",
+      "rootCauseProven": false,
+      "observerSha256": "4d7162dea20db1a4528acf039ff6618102a3cd343d23741761b44cc80fbb5904"
+    },
+    "diagnosticCleanup": {
+      "files": [
+        {
+          "file": ".hmosdeck-host-memfd-stat",
+          "status": "absent"
+        },
+        {
+          "file": ".hmosdeck-jit-contract",
+          "status": "absent"
+        },
+        {
+          "file": "native_guest_memfd_probe.so",
+          "status": "absent"
+        },
+        {
+          "file": "native_guest_signal_observer.so",
+          "status": "removed after exact checksum match"
+        },
+        {
+          "file": ".hmosdeck-coreclr-host",
+          "status": "removed after exact checksum match"
+        },
+        {
+          "file": "CoreClrContract.dll",
+          "status": "removed after exact checksum match"
+        },
+        {
+          "file": "native_guest_exit_observer.so",
+          "status": "removed after exact checksum match"
+        },
+        {
+          "file": "vpp-host-memfd-stat",
+          "status": "removed after exact checksum match"
+        }
+      ],
+      "gameOptionsRestored": true,
+      "clientLaunchRestored": true
+    }
+  },
+  "nativeCoreclrCapabilityFallback": {
+    "scope": "native FEX launcher child",
+    "trigger": "real memfd fstat denied with EACCES/EFAULT",
+    "respectsExplicitDotnetAndComplus": true,
+    "gameIdRules": false,
+    "hostOrGpuMemfdReplaced": false,
+    "sourceImplemented": true,
+    "gnuArm64Built": true,
+    "hapBuiltThisStage": false,
+    "newPackageDeviceAccepted": false,
+    "regressionsPassed": 34,
+    "payloads": {
+      "posix-manifest.json": "8bd536a75b40cda07e57306146bcdd4b1b4361062f69cd11700a271cc2a8b780",
+      "fex-manifest.json": "c02fd16c61a22d2e98a54bc8cece4a1235de8619475d3aeaab13ab239cb6bebf"
+    }
+  }
+}

@@ -1,6 +1,7 @@
 // HAP-owned entry for Steam's native Linux/FEX tool. Valve depots stay intact.
 #include "native_fex.h"
 #include "native_fex_core.h"
+#include "native_jit_capability.h"
 #include <csignal>
 #include <cstdio>
 #include <poll.h>
@@ -116,7 +117,11 @@ int Run(int argc,char** argv) {
     if(ElfMachine(plan.tool+"/usr/bin/FEXServer")!=hostMachine)return Error("fex_server_elf_missing");
     const char* coreReason=nullptr;
     const bool repairedCore=SelectCore(plan,hostMachine,&coreReason);
-    fprintf(stderr,"STEAMOHOS_NATIVE_FEX core=%s reason=%s patch=%s\n",repairedCore?"hap-matched":"depot",coreReason,repairedCore?"sigreturn-5901":"none");
+    fprintf(stderr,"STEAMOHOS_NATIVE_FEX core=%s reason=%s patch=%s\n",repairedCore?"hap-matched":"depot",coreReason,repairedCore?"sigreturn-5901+ohos-guest-vma":"none");
+    const auto jitPolicy=ApplyNativeJitCapability();
+    if(jitPolicy==NativeJitPolicy::EnvironmentError)return Error("jit_capability_environment",errno);
+    if(jitPolicy==NativeJitPolicy::MetadataDenied)
+        fprintf(stderr,"STEAMOHOS_NATIVE_JIT runtime=coreclr wx=0 reason=memfd_metadata_denied scope=native-child\n");
     // Keep the installed official package's matching thunk ABI.
     const std::string host=plan.tool+"/usr/lib/aarch64-linux-gnu/fex-emu/HostThunks";
     const bool guest32=ElfMachine(plan.argv[1])==3;
@@ -143,6 +148,27 @@ int Run(int argc,char** argv) {
     std::vector<char> writable(pattern.begin(),pattern.end());writable.push_back(0);
     char* created=mkdtemp(writable.data());if(!created)return Error("fex_config_create_failed",errno);
     config.directory=created;
+    // Steam's ARM host PATH contains OHOS tools only. Guest subprocesses
+    // (for example a JVM exec of xrandr) need the selected rootfs utilities.
+    // Preserve game-supplied search order, remove known host-only entries and
+    // append missing GNU defaults. This wrapper is a child; parent Steam and
+    // the independent OHOS Wine launch path keep their original environment.
+    std::vector<std::string> guestBins;
+    const auto hostCode=Env("STEAMOHOS_CODE_ROOT");
+    const auto suppliedPath=Env("PATH");size_t pathStart=0;
+    while(pathStart<suppliedPath.size()) {
+        const auto end=suppliedPath.find(':',pathStart);
+        const auto part=suppliedPath.substr(pathStart,end==std::string::npos?end:end-pathStart);
+        if(part!="/system/bin"&&part!=hostCode&&!Below(part,hostCode)&&
+           std::find(guestBins.begin(),guestBins.end(),part)==guestBins.end())guestBins.push_back(part);
+        if(end==std::string::npos)break;
+        pathStart=end+1;
+    }
+    for(const char* part:{"/usr/local/bin","/usr/bin","/bin"})
+        if(std::find(guestBins.begin(),guestBins.end(),part)==guestBins.end())guestBins.push_back(part);
+    std::string guestPath;
+    for(size_t i=0;i<guestBins.size();++i) {if(i)guestPath+=':';guestPath+=guestBins[i];}
+    Set("PATH",guestPath); // first envp entry, not only FEX's appended Config.Env
     std::string document="{\"Config\":{\"RootFS\":"+Quote(plan.rootfs)+
         ",\"ThunkHostLibs\":"+Quote(host)+",\"ThunkGuestLibs\":"+Quote(guestBase)+
         // FEX's tiny-json reader consumes each Config value as a scalar.
@@ -150,7 +176,7 @@ int Run(int argc,char** argv) {
         // FEX SaveLayerToJSON), NOT a JSON array. An array silently loses the
         // guest preload and lets Steamworks hit OHOS-denied SysV syscalls.
         ",\"X87ReducedPrecision\":\"1\",\"Env\":\"LD_PRELOAD=\",\"Env\":\"LD_AUDIT=\",\"Env\":"+
-        Quote("LD_LIBRARY_PATH="+Env("LD_LIBRARY_PATH"))+",\"Env\":"+Quote("STEAM_COMPAT_DATA_PATH="+Env("STEAM_COMPAT_DATA_PATH"))+"},\"ThunksDB\":{"+
+        Quote("LD_LIBRARY_PATH="+Env("LD_LIBRARY_PATH"))+",\"Env\":"+Quote("PATH="+guestPath)+",\"Env\":"+Quote("STEAM_COMPAT_DATA_PATH="+Env("STEAM_COMPAT_DATA_PATH"))+"},\"ThunksDB\":{"+
         "\"GL\":\""+(gl?"1":"0")+"\",\"Vulkan\":\""+(vk?"1":"0")+
         "\",\"asound\":\""+(alsa?"1":"0")+"\",\"WaylandClient\":\""+(wayland?"1":"0")+"\"}}\n";
     // Anonymous ELF loading is a runtime capability, not a request for FEX

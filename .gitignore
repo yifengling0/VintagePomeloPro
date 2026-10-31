@@ -10,6 +10,12 @@
 !entry/src/main/resources/rawfile/linux-proton/bootstrap/lsass.exe
 !entry/src/main/resources/rawfile/linux-proton/bootstrap/psapi.dll
 !entry/src/main/resources/rawfile/linux-proton/bootstrap/wevtsvc.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/wsock32.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/mswsock.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/dwmapi.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/dwrite.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/uiautomationcore.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/oleacc.dll
 .deps/
 .libs/
 

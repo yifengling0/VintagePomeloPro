@@ -15,8 +15,10 @@ const DOMAIN = 0x0000;
 // 不再使用 libraryname='entry', 从根本上消除多窗口 XComponent exports 冲突
 class WineXComponentController extends XComponentController {
   toplevelId: number = 0;
+  private surfaceId: string = '';
 
   onSurfaceCreated(surfaceId: string): void {
+    this.surfaceId = surfaceId;
     hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceCreated tl=%{public}d surfaceId=%{public}s',
       this.toplevelId, surfaceId);
     try {
@@ -27,10 +29,11 @@ class WineXComponentController extends XComponentController {
   }
 
   onSurfaceChanged(surfaceId: string, rect: SurfaceRect): void {
+    if (surfaceId !== this.surfaceId || rect.surfaceWidth <= 0 || rect.surfaceHeight <= 0) return;
     hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceChanged tl=%{public}d surfaceId=%{public}s rect=%{public}s',
       this.toplevelId, surfaceId, JSON.stringify(rect));
     try {
-      testNapi.resizeRenderer(this.toplevelId, rect.surfaceWidth, rect.surfaceHeight);
+      testNapi.resizeRenderer(this.toplevelId, rect.surfaceWidth, rect.surfaceHeight, BigInt(surfaceId));
       // surface 是物理像素, Wine 需要逻辑坐标 (统一经 getEffectiveScale, 不再硬编码 2.0)
       const s = WineWindowManager.getInstance().getEffectiveScale();
       const w = Math.round(rect.surfaceWidth / s);
@@ -48,7 +51,8 @@ class WineXComponentController extends XComponentController {
     hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceDestroyed tl=%{public}d surfaceId=%{public}s',
       this.toplevelId, surfaceId);
     try {
-      testNapi.destroyRenderer(this.toplevelId);
+      testNapi.destroyRenderer(this.toplevelId, BigInt(surfaceId));
+      if (this.surfaceId === surfaceId) this.surfaceId = '';
     } catch (e) {
       hilog.error(DOMAIN, 'WineWindow', 'ERR onSurfaceDestroyed destroyRenderer: %{public}s', JSON.stringify(e));
     }

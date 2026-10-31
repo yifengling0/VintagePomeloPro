@@ -15,8 +15,10 @@ const DOMAIN = 0x0000;
 // 无状态机则菜单点击全丢 — 与主窗口不对称的根因)。
 class PopupXComponentController extends XComponentController {
   popupId: number = 0;
+  private surfaceId: string = '';
 
   onSurfaceCreated(surfaceId: string): void {
+    this.surfaceId = surfaceId;
     hilog.info(DOMAIN, 'WinePopup', '[PopupCtrl] onSurfaceCreated popup=%{public}d surfaceId=%{public}s',
       this.popupId, surfaceId);
     try {
@@ -27,10 +29,11 @@ class PopupXComponentController extends XComponentController {
   }
 
   onSurfaceChanged(surfaceId: string, rect: SurfaceRect): void {
+    if (surfaceId !== this.surfaceId || rect.surfaceWidth <= 0 || rect.surfaceHeight <= 0) return;
     hilog.info(DOMAIN, 'WinePopup', '[PopupCtrl] onSurfaceChanged popup=%{public}d rect=%{public}s',
       this.popupId, JSON.stringify(rect));
     try {
-      testNapi.resizeRenderer(this.popupId, rect.surfaceWidth, rect.surfaceHeight);
+      testNapi.resizeRenderer(this.popupId, rect.surfaceWidth, rect.surfaceHeight, BigInt(surfaceId));
     } catch (e) {
       hilog.error(DOMAIN, 'WinePopup', 'ERR onSurfaceChanged resizeRenderer: %{public}s', JSON.stringify(e));
     }
@@ -39,7 +42,8 @@ class PopupXComponentController extends XComponentController {
   onSurfaceDestroyed(surfaceId: string): void {
     hilog.info(DOMAIN, 'WinePopup', '[PopupCtrl] onSurfaceDestroyed popup=%{public}d', this.popupId);
     try {
-      testNapi.destroyRenderer(this.popupId);
+      testNapi.destroyRenderer(this.popupId, BigInt(surfaceId));
+      if (this.surfaceId === surfaceId) this.surfaceId = '';
     } catch (e) {
       hilog.error(DOMAIN, 'WinePopup', 'ERR onSurfaceDestroyed destroyRenderer: %{public}s', JSON.stringify(e));
     }

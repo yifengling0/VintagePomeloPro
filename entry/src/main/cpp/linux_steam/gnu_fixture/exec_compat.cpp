@@ -63,10 +63,10 @@ __attribute__((no_stack_protector)) long RawCall(long number, long a, long b, lo
 #endif
 }
 __attribute__((no_stack_protector)) void ExecSigSys(int, siginfo_t* info, void* context) {
-    if(FexNativeScope && steamohos::fex::UnsupportedFileHandleCall(info,context)) {
+    if(FexNativeScope && steamohos::fex::UnsupportedSandboxCall(info,context)) {
         static std::atomic<unsigned> reports{0};
         if(reports.fetch_add(1,std::memory_order_relaxed)<8) {
-            static const char message[]="STEAMOHOS_FEX_OPTIONAL file_handle_api=ENOSYS\n";
+            static const char message[]="STEAMOHOS_FEX_OPTIONAL sandbox_api=ENOSYS\n";
             RawCall(SYS_write,2,reinterpret_cast<long>(message),sizeof(message)-1);
         }
         return;
@@ -637,6 +637,23 @@ extern "C" int sigaction(int signal, const struct sigaction* action, struct siga
 }
 extern "C" int execve(const char* path,char* const argv[],char* const env[]) noexcept {
     try { return Handoff(path,argv,env); } catch (...) { return Fail(ENOMEM); }
+}
+// FEX re-executes itself with execveat when a guest shell launches another
+// x86 ELF. Its kernel /proc/self/exe still belongs to the OHOS bootstrap.
+// Use the same validated GNU loader handoff as execve, preserving FEX's own
+// argument/env construction. FD, relative-path and flag semantics stay native.
+extern "C" long SteamOhosNativeFexExecCall(long number,long a,long b,long c,long d,long e,long f) {
+    try {
+        if (steamohos::fex::Active()) {
+            if (number == SYS_execve)
+                return Handoff(reinterpret_cast<const char*>(a), reinterpret_cast<char* const*>(b), reinterpret_cast<char* const*>(c));
+            if (number == SYS_execveat && !e && b && *reinterpret_cast<const char*>(b) == '/')
+                return Handoff(reinterpret_cast<const char*>(b), reinterpret_cast<char* const*>(c), reinterpret_cast<char* const*>(d));
+        }
+        auto next=&SteamOhosNextSyscall?SteamOhosNextSyscall:nullptr;
+        if (!next) return Fail(ENOSYS);
+        return next(number,a,b,c,d,e,f);
+    } catch (...) { return Fail(ENOMEM); }
 }
 extern "C" int execv(const char* path,char* const argv[]) noexcept { return execve(path,argv,environ); }
 extern "C" int execvp(const char* path,char* const argv[]) noexcept {

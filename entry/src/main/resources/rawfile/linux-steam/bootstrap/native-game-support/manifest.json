@@ -50,11 +50,13 @@
       "-DOVERRIDE_VERSION=FEX-2607-g37265b1-vpp-sigret",
       "-DOVERRIDE_HASH=37265b109a4bba9e10241972dfcb3d1fdb8f3f9a"
     ],
-    "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e"
+    "upstreamSigreturnPatchSha256": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
+    "ohosGuestProtectionPatchSha256": "57d2f6d01892c50ab4634b3216ff1f60417e509cc6d6e9b5e55a87a57266da2a",
+    "ohosGuestProtectionHeaderSha256": "bf5ae6f8558784f3dc0c8bcff207da568125b2e1b7bb40d8bf2d65bce2ccde0d"
   },
   "sources": {
-    "scripts/prepare_linux_native_repairs.py": "0890ce0345bc5e1b78e8fc1a06dfdddb3a2ea3b90fa37042185c8cd2707bf95a",
-    "scripts/diagnostics/build_native_fex_pop.py": "e462958a9e401ccc7471cb42d9512db4949c75b0235af204600fc8b0852999f7",
+    "scripts/prepare_linux_native_repairs.py": "1b16aa70744adb274163b7914b72d9c962c2e3d84c052f499864f9bb1c8f1649",
+    "scripts/diagnostics/build_native_fex_pop.py": "b547cfea15adede2f3b6f72a7ab9909d186c65b223a23721c281289e26783ac4",
     "scripts/patches/fex-upstream-5901-restore-sigreturn-state.patch": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
     "scripts/patches/fex-upstream-5901-restore-sigreturn-state.provenance.json": "91561a0333bdf224f6986f11841818e5d88dce6a20b5d654f60f961b4e173244",
     "scripts/build_linux_proton_venus.py": "600b8aab8e1dd6451394753fb422f819c2574a1910583b97f6dfacd56d983c1e",
@@ -63,13 +65,15 @@
     "patches/mesa/0011-softpipe-demand-zero-texture-cache.patch": "e0f47385f626ec1327729de025c199d5eff547842870e33ba28ebf66b12aaadb",
     "patches/virglrenderer/0007-ohos-native-memory-context.patch": "08961ec7b1b7541cf457a2219f99acdeba8ecc41bcfbfbb53cb54aaa23f998fc",
     "patches/virglrenderer/0008-ohos-native-resource-contract.patch": "d76273608a059f790baba0850f633a77627d99a08aefafe7137c5f320b521c7d",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex_core.h": "9e0441dc42937b9b9ef2b4072ce558e3abafccfc706441738645f5919f128e65",
-    "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/NOTICE.txt": "86849f353017930420065e032e51c2c249799a5763f9766719c710be2b279a49"
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex_core.h": "cd800c4cb18ecd5c14b121d5b52c88944b8f2b01132877df25d7c63a26c34edb",
+    "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/NOTICE.txt": "c1338a7d11829b7911123aba0b7cbddb0e6bca1b1f1dea6e60444bb7a3d2f2be",
+    "scripts/patches/fex-ohos-guest-protection.patch": "57d2f6d01892c50ab4634b3216ff1f60417e509cc6d6e9b5e55a87a57266da2a",
+    "scripts/patches/fex-ohos-guest-protection.h": "bf5ae6f8558784f3dc0c8bcff207da568125b2e1b7bb40d8bf2d65bce2ccde0d"
   },
   "files": {
     "FEX": {
-      "bytes": 4353112,
-      "sha256": "66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca"
+      "bytes": 4353576,
+      "sha256": "1b2a7b7933722cf22b0b92c56fb81aeacdc2391556f7edf4fce6f4a35e0ca16c"
     },
     "FEXServer": {
       "bytes": 428504,

@@ -1,0 +1,19 @@
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
+@@ -19,6 +19,7 @@
+ #include <sys/shm.h>
+ 
+ #include "LinuxSyscalls/Syscalls.h"
++#include "LinuxSyscalls/OhosGuestProtection.h"
+ #include "LinuxSyscalls/SignalDelegator.h"
+ 
+ #include <FEXCore/Debug/InternalThreadState.h>
+@@ -470,7 +471,7 @@
+ 
+   {
+     auto lk = FEXCore::GuardSignalDeferringSection(VMATracking.Mutex, Thread);
+-    Result = ::mprotect(addr, len, prot);
++    Result = FEX::Ohos::GuestMprotect(addr, len, prot);
+     if (Result == -1) {
+       return -errno;
+     }

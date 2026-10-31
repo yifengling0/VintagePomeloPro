@@ -348,7 +348,9 @@ fi
 
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0065-kernelbase-linux-steam-session-registry.patch" \
     "Process-local Linux Steam SDK bootstrap"
-ensure_wine_patch "$ROOT/patches/wine/0069-linux-steam-native-module-bootstrap.patch" "Linux Steam native PE bootstrap"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0069-linux-steam-native-module-bootstrap.patch" "Linux Steam native PE bootstrap"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0070-ddraw-clip-surface-bounds.patch" "DirectDraw clip to destination bounds"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0071-ime-key-scancode.patch" "IME passthrough scan code and release flags"
 
 # Normalize inherited temporary probes; keep the actual fault/exit paths intact.
 python3 "$SCRIPT_DIR/wine_runtime_diagnostics.py" --source "$WINE_SRC"

@@ -247,8 +247,8 @@ export const bindExternalToplevel: (source: number, host: number, sourcePid: num
 export const unbindExternalToplevel: (host: number) => void;
 export const getKeyboardFocusedToplevel: () => number;
 export const createRenderer: (toplevelId: number, surfaceId: BigInt) => void;
-export const resizeRenderer: (toplevelId: number, width: number, height: number) => void;
-export const destroyRenderer: (toplevelId: number) => void;
+export const resizeRenderer: (toplevelId: number, width: number, height: number, surfaceId?: bigint) => void;
+export const destroyRenderer: (toplevelId: number, surfaceId?: bigint) => void;
 export const sendPointerEvent: (toplevelId: number, action: number, px: number, py: number, button: number, rawDeltaX?: number, rawDeltaY?: number, fromMouse?: boolean) => void;
 export const sendKeyEvent: (toplevelId: number, evdevCode: number, pressed: boolean) => void;
 export const sendScrollEvent: (toplevelId: number, axis: number, value: number, scrollStep: number, px: number, py: number) => void;

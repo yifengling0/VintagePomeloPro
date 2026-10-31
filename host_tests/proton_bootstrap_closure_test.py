@@ -14,7 +14,9 @@ manifest = json.loads((raw/'bootstrap/manifest.json').read_text())
 base = json.loads((raw/'manifest.json').read_text())
 available = {Path(r['path']).name.lower() for r in base['files'] if '/aarch64-windows/' in r['path']}
 available.update(r['name'] for r in manifest['files'])
-assert {r['name'] for r in manifest['files']} == {'psapi.dll','wevtsvc.dll','lsass.exe'}
+assert {r['name'] for r in manifest['files']} == {
+    'psapi.dll','wevtsvc.dll','lsass.exe','wsock32.dll','mswsock.dll',
+    'dwmapi.dll','dwrite.dll','uiautomationcore.dll','oleacc.dll'}
 for row in manifest['files']:
     data = (raw/'bootstrap'/row['name']).read_bytes()
     assert len(data) == row['bytes'] and hashlib.sha256(data).hexdigest() == row['sha256']

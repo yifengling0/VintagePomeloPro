@@ -42,14 +42,6 @@ void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {
     OH_LOG_INFO(LOG_APP, "[MW-Create] toplevel=%{public}u surfaceId=%{public}ld existRender=%{public}zu",
                 toplevelId, surfaceId, toplevelRenderers_.size());
 
-    // 防御: 如果已有旧 renderer, 先 shutdown
-    auto old = toplevelRenderers_.find(toplevelId);
-    if (old != toplevelRenderers_.end()) {
-        OH_LOG_WARN(LOG_APP, "[MW-Create] WARN toplevel #%{public}u already has renderer, shutting down old", toplevelId);
-        old->second->Shutdown();
-        toplevelRenderers_.erase(old);
-    }
-
     OHNativeWindow* win = nullptr;
     int ret = OH_NativeWindow_CreateNativeWindowFromSurfaceId((uint64_t)surfaceId, &win);
     if (ret != 0 || !win) {
@@ -58,6 +50,13 @@ void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {
         return;
     }
     OH_LOG_INFO(LOG_APP, "[MW-Create] native window created %{public}p for toplevel #%{public}u", win, toplevelId);
+
+    // A failed replacement must not retire a healthy previous surface.
+    auto old = toplevelRenderers_.find(toplevelId);
+    if (old != toplevelRenderers_.end()) {
+        old->second->Shutdown();
+        toplevelRenderers_.erase(old);
+    }
 
     // 构造注入 frame compositor (重构第 6A 步): 渲染器取帧/ZC 状态机经
     // DesktopCompositor 直连 — 替代旧 WaylandServer 门面 26 处转发
@@ -68,16 +67,17 @@ void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {
         WaylandServer::GetInstance()->GetDesktopCompositor());
     // 初始尺寸 1x1, 真正尺寸由 ResizeRenderer (onSurfaceChanged) 设置
     r->SetToplevelId(toplevelId);
+    r->SetSurfaceId(surfaceId);
     const auto visibility = rendererPaused_.find(toplevelId);
     if (visibility != rendererPaused_.end()) r->SetPaused(visibility->second);
     if (r->Init(win, 1, 1)) {
         toplevelRenderers_[toplevelId] = std::move(r);
+        WaylandServer::GetInstance()->ForceToplevelRedraw(toplevelId);
         OH_LOG_INFO(LOG_APP, "[MW-Create] OK toplevel #%{public}u renderer created (total=%{public}zu)",
                     toplevelId, toplevelRenderers_.size());
     } else {
         OH_LOG_ERROR(LOG_APP, "[MW-Create] ERR toplevel #%{public}u EglRenderer::Init FAILED", toplevelId);
-        // 销毁刚才创建的 native window
-        OH_NativeWindow_DestroyNativeWindow(win);
+        // Init owns win on all paths; the renderer destructor cleans it up.
     }
 }
 
@@ -88,10 +88,16 @@ void PluginManager::SetRendererStretchFill(uint32_t toplevelId, bool on) {
     }
 }
 
-void PluginManager::ResizeRenderer(uint32_t toplevelId, int w, int h) {
+void PluginManager::ResizeRenderer(uint32_t toplevelId, int w, int h, int64_t surfaceId) {
+    if (w <= 0 || h <= 0) return;
     OH_LOG_INFO(LOG_APP, "[MW-Resize] toplevel=%{public}u size=%{public}dx%{public}d", toplevelId, w, h);
 
     auto rit = toplevelRenderers_.find(toplevelId);
+    if (rit != toplevelRenderers_.end() && surfaceId && rit->second->GetSurfaceId() != surfaceId) return;
+    if (surfaceId && (rit == toplevelRenderers_.end() || !rit->second->IsValid())) {
+        CreateRenderer(toplevelId, surfaceId);
+        rit = toplevelRenderers_.find(toplevelId);
+    }
     if (rit != toplevelRenderers_.end() && rit->second->IsValid()) {
         rit->second->SetSize(w, h);
         OH_LOG_INFO(LOG_APP, "[MW-Resize] toplevel #%{public}u renderer resized OK", toplevelId);
@@ -131,6 +137,17 @@ EglRenderer* PluginManager::GetRendererForToplevel(uint32_t tid) {
     return rit->second.get();
 }
 
+void PluginManager::DestroyRendererForSurface(uint32_t toplevelId, int64_t surfaceId) {
+    if (!surfaceId) { DestroyToplevel(toplevelId); return; }
+    // Root promotion may change the owning toplevel between callbacks.
+    for (const auto& entry : toplevelRenderers_) {
+        if (entry.second->GetSurfaceId() == surfaceId) {
+            DestroyToplevel(entry.first);
+            return;
+        }
+    }
+}
+
 EglRenderer* PluginManager::GetAnyRenderer() {
     if (toplevelRenderers_.empty()) return nullptr;
     return toplevelRenderers_.begin()->second.get();
@@ -164,6 +181,11 @@ void PluginManager::MoveRendererToToplevel(uint32_t oldId, uint32_t newId) {
 // ---- VPP additions ----
 void PluginManager::RefreshRenderer(uint32_t toplevelId) {
     auto it = toplevelRenderers_.find(toplevelId);
+    if (it != toplevelRenderers_.end() && !it->second->IsValid()) {
+        const auto surfaceId = it->second->GetSurfaceId();
+        CreateRenderer(toplevelId, surfaceId);
+        it = toplevelRenderers_.find(toplevelId);
+    }
     if (it == toplevelRenderers_.end() || !it->second->IsValid()) {
         OH_LOG_WARN(LOG_APP, "[MW-Refresh] toplevel #%{public}u renderer NOT found or invalid", toplevelId);
         return;
@@ -172,11 +194,13 @@ void PluginManager::RefreshRenderer(uint32_t toplevelId) {
     // 压测路径绝不能模拟 onSurfaceDestroyed/onSurfaceCreated：频繁释放 EGL
     // Surface 会与 ArkUI 的真实生命周期竞争。请求 Wayland 将当前帧重新提交，
     // 能覆盖 compositor/renderer 刷新，同时保留同一个 NativeWindow 与 EGLContext。
+    it->second->RequestRedraw();
     WaylandServer::GetInstance()->ForceToplevelRedraw(toplevelId);
 }
 
 void PluginManager::SetRendererPaused(uint32_t toplevelId, bool paused) {
     rendererPaused_[toplevelId] = paused;
+    if (!paused) RefreshRenderer(toplevelId);
     auto it = toplevelRenderers_.find(toplevelId);
     if (it != toplevelRenderers_.end()) it->second->SetPaused(paused);
 }

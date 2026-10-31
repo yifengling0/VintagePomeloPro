@@ -4,10 +4,34 @@
   "distributionSha512": "4863f86773514ce7cc2c7867d393b725fcd9e32f7948a3b4035ae67a84b3e0ff4b179c479079a0dcf141c159faa19f67e7b82b3ed4c4b0ef9720226d55594661",
   "files": [
     {
+      "name": "dwmapi.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/dwmapi.dll",
+      "bytes": 655360,
+      "sha256": "972054c4dc010020723c8cc252aada38d410c53282a7710e7fd7988e880969c8"
+    },
+    {
+      "name": "dwrite.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/dwrite.dll",
+      "bytes": 1572864,
+      "sha256": "db3e8898133bdec9c92a1bfd2e96d8dbbc7823caa377fa75395044b72cbf3343"
+    },
+    {
       "name": "lsass.exe",
       "sourcePath": "files/lib/wine/aarch64-windows/lsass.exe",
       "bytes": 458752,
       "sha256": "62e6e97fe086046159add26414c15162d38d42c68c41f2591b8c0408e177b4fb"
+    },
+    {
+      "name": "mswsock.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/mswsock.dll",
+      "bytes": 655360,
+      "sha256": "6d0dc67c2c9ee5a5dc6a9f477a4f7c77a12caab8fb0741ca105f6c3770299d7a"
+    },
+    {
+      "name": "oleacc.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/oleacc.dll",
+      "bytes": 851968,
+      "sha256": "65dc765d9f97bce7862d201d9cb22b8aacd8b7bb4ca20edfeea4b21b598da96e"
     },
     {
       "name": "psapi.dll",
@@ -16,10 +40,22 @@
       "sha256": "525157a2c5379f3064781c3c3b767c16d1608d7b04b7097cf85190fc6ac9f50c"
     },
     {
+      "name": "uiautomationcore.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/uiautomationcore.dll",
+      "bytes": 1572864,
+      "sha256": "088850a6e56a56cf6ab08e02a5ad18c83261a40e887ef7cececcc9b2b9c7eb75"
+    },
+    {
       "name": "wevtsvc.dll",
       "sourcePath": "files/lib/wine/aarch64-windows/wevtsvc.dll",
       "bytes": 589824,
       "sha256": "55d09c35282c7b2cbc570caf098c8b3a0f0633a14d8842bcb108ec4f8f694c99"
+    },
+    {
+      "name": "wsock32.dll",
+      "sourcePath": "files/lib/wine/aarch64-windows/wsock32.dll",
+      "bytes": 655360,
+      "sha256": "b48a17f77a43915c09e0b1ed0cb2f46fc7e85574fc4d5f70b598b06094cdbd1e"
     }
   ]
 }

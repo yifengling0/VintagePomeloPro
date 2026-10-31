@@ -76,6 +76,32 @@ struct Plan {
     std::string tool,rootfs,compat,install,runtime,error;
     std::vector<std::string> argv;
 };
+// Steam launch options may name an executable script rather than an ELF.
+// Preserve the script and its arguments; execute its interpreter from the
+// selected guest runtime, never through the OHOS host shell or eval.
+inline bool ReadInterpreter(const std::string& path, std::string& interpreter,
+                            std::string& argument) {
+    int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return false;
+    char bytes[257]{};const ssize_t n=read(fd,bytes,256);close(fd);
+    if(n<3||bytes[0]!='#'||bytes[1]!='!')return false;
+    const char* end=static_cast<const char*>(memchr(bytes,'\n',n));
+    if(!end||memchr(bytes,0,end-bytes))return false;
+    std::string line(bytes+2,static_cast<size_t>(end-bytes-2));
+    const auto begin=line.find_first_not_of(" \t");if(begin==std::string::npos)return false;
+    line.erase(0,begin);
+    const auto stop=line.find_first_of(" \t\r");
+    interpreter=line.substr(0,stop);
+    if(interpreter.empty()||interpreter[0]!='/'||
+       fs::path(interpreter).lexically_normal().string()!=interpreter)return false;
+    argument.clear();
+    if(stop!=std::string::npos) {
+        const auto first=line.find_first_not_of(" \t",stop);
+        if(first!=std::string::npos)argument=line.substr(first);
+        const auto last=argument.find_last_not_of(" \t\r");
+        argument=last==std::string::npos?std::string{}:argument.substr(0,last+1);
+    }
+    return true;
+}
 // The launcher inspects an installed root before activating FEX. Its absolute
 // depot links already have guest-root semantics during that inspection.
 // This process is single-threaded; restore both capability variables on exit.
@@ -180,10 +206,22 @@ inline bool MakePlan(int argc,char* const argv[],Plan& plan) {
     auto game=Canonical(argv[index]);
     if(!Below(game,plan.install))return Reject(plan,"game_command_outside_install");
     const unsigned machine=ElfMachine(game);
-    if(machine!=62&&machine!=3)return Reject(plan,"game_not_x86_elf");
+    std::string interpreter,interpreterArgument;
+    const bool script=machine!=62&&machine!=3;
+    if(script&&!ReadInterpreter(game,interpreter,interpreterArgument))return Reject(plan,"game_not_x86_elf_or_script");
     if(plan.runtime.empty())return Reject(plan,"runtime_wrapper_missing");
     if(!FindRoot(plan))return false;
     plan.argv.push_back(plan.tool+"/usr/bin/FEX");
+    if(script) {
+        RootInspection scope(plan.rootfs);
+        if(!scope.valid)return Reject(plan,"runtime_rootfs_scope_failed");
+        const auto executable=Canonical(plan.rootfs+interpreter);
+        const unsigned architecture=ElfMachine(executable);
+        if(!Below(executable,plan.rootfs)||(architecture!=62&&architecture!=3))
+            return Reject(plan,"script_interpreter_missing_or_invalid");
+        plan.argv.push_back(executable);
+        if(!interpreterArgument.empty())plan.argv.push_back(interpreterArgument);
+    }
     plan.argv.push_back(game);
     for(++index;index<argc;++index)plan.argv.emplace_back(argv[index]);
     return true;

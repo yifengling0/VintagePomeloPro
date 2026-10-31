@@ -39,11 +39,12 @@ class DesktopController extends XComponentController {
     this.bindDesktopRoot(rootId, true);
   }
   onSurfaceChanged(surfaceId: string, rect: SurfaceRect): void {
+    if (surfaceId !== this.surfaceId || rect.surfaceWidth <= 0 || rect.surfaceHeight <= 0) return;
     const rootId = this.rendererRootId || WineWindowManager.getInstance().getDesktopRootId();
     hilog.info(DOMAIN, 'LIFE', '[XComp] onSurfaceChanged rootId=%{public}d %{public}dx%{public}d', rootId, rect.surfaceWidth, rect.surfaceHeight);
     if (rootId > 0) {
       try {
-        testNapi.resizeRenderer(rootId, rect.surfaceWidth, rect.surfaceHeight);
+        testNapi.resizeRenderer(rootId, rect.surfaceWidth, rect.surfaceHeight, BigInt(surfaceId));
         // 浮窗模式: 桌面分辨率由 prepareOutputForOrientation 设定, XComponent
         // 只做 letterbox 显示口。动画中/缩略态/全屏态都不要 syncOutputSize,
         // 否则 explorer 会再提交 desktop-shell。
@@ -62,12 +63,13 @@ class DesktopController extends XComponentController {
       } catch (_) {}
     }
   }
-  onSurfaceDestroyed(_s: string): void {
+  onSurfaceDestroyed(surfaceId: string): void {
     const rootId = this.rendererRootId;
     hilog.warn(DOMAIN, 'LIFE', '[XComp] onSurfaceDestroyed rootId=%{public}d', rootId);
     if (rootId > 0) {
-      try { testNapi.destroyRenderer(rootId); } catch (_) {}
+      try { testNapi.destroyRenderer(rootId, BigInt(surfaceId)); } catch (_) {}
     }
+    if (this.surfaceId !== surfaceId) return;
     this.rendererRootId = 0;
     this.surfaceId = '';
   }
@@ -93,8 +95,8 @@ class DesktopController extends XComponentController {
   private bindDesktopRoot(rootId: number, force: boolean): boolean {
     if (rootId <= 0 || this.surfaceId.length === 0) return false;
     try {
-      if (this.rendererRootId > 0 && (this.rendererRootId !== rootId || force)) {
-        testNapi.destroyRenderer(this.rendererRootId);
+      if (this.rendererRootId > 0 && this.rendererRootId !== rootId) {
+        testNapi.destroyRenderer(this.rendererRootId, BigInt(this.surfaceId));
       } else if (this.rendererRootId === rootId && !force) {
         // 已绑定同一桌面根：无需重建 renderer，仅同步输入目标。
         InputOverlayWindowCoordinator.getInstance().setActiveToplevel(rootId);

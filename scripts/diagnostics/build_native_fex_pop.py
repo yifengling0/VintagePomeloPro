@@ -26,7 +26,8 @@ DOWNLOADS = {
 }
 PATCH_FILES = ['FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp',
                'FEXCore/Source/Interface/Core/OpcodeDispatcher.h',
-               'Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp']
+               'Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp',
+               'Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp']
 
 
 def sha(path):
@@ -66,6 +67,8 @@ def main():
     parser.add_argument('--stock-control', action='store_true')
     parser.add_argument('--upstream-sigreturn', action='store_true',
                         help='Apply the exact existing diff published in FEX issue 5901')
+    parser.add_argument('--ohos-guest-protection', action='store_true',
+                        help='Separate x86 guest permissions from host noexec memfd policy')
     args = parser.parse_args()
     if not 1 <= args.jobs <= 16:
         parser.error('Use 1-16 jobs')
@@ -134,6 +137,13 @@ def main():
         if sha(upstream_patch) != upstream_sha:
             raise ValueError('Published upstream patch checksum mismatch')
         subprocess.run(['patch', '-p1', '--fuzz=0', '--batch', '-i', str(upstream_patch)], cwd=source, check=True)
+    guest_patch = ROOT / 'scripts/patches/fex-ohos-guest-protection.patch'
+    guest_header = ROOT / 'scripts/patches/fex-ohos-guest-protection.h'
+    if args.ohos_guest_protection:
+        if not args.stock_control or not args.upstream_sigreturn:
+            parser.error('OHOS guest protection requires the reviewed sigreturn baseline')
+        subprocess.run(['patch', '-p1', '--fuzz=0', '--batch', '-i', str(guest_patch)], cwd=source, check=True)
+        (source / 'Source/Tools/LinuxEmulation/LinuxSyscalls/OhosGuestProtection.h').write_bytes(guest_header.read_bytes())
     version = ('FEX-2607-g37265b1-vpp-' + ('sigret' if args.stock_control else 'pop-sr')) if args.upstream_sigreturn else ('FEX-2607-76-g37265b1-vpp-' + ('stock' if args.stock_control else 'pop'))
     flags = (f'--target=aarch64-none-linux-gnu --gcc-toolchain={gnu} '
              f'--sysroot={gnu}/aarch64-none-linux-gnu/libc -isystem {uapi} '
@@ -158,7 +168,9 @@ def main():
         '-DOVERRIDE_HASH=' + REVISION]
     inputs = dict(source=lock, patchSha256=None if args.stock_control else sha(patch),
                   compilerSha256=sha(clang), toolchainSha256=sha(toolchain), options=options,
-                  upstreamSigreturnPatchSha256=upstream_sha if args.upstream_sigreturn else None)
+                  upstreamSigreturnPatchSha256=upstream_sha if args.upstream_sigreturn else None,
+                  ohosGuestProtectionPatchSha256=sha(guest_patch) if args.ohos_guest_protection else None,
+                  ohosGuestProtectionHeaderSha256=sha(guest_header) if args.ohos_guest_protection else None)
     manifest = output / ('sigreturn-manifest.json' if args.upstream_sigreturn else 'stock-manifest.json' if args.stock_control else 'manifest.json')
     old = json.loads(manifest.read_text()) if manifest.exists() else {}
     binary = output / 'build/Bin/FEX'

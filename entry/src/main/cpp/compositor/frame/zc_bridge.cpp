@@ -377,11 +377,17 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
     info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
     if (comp_.policy_.RootCompositing())
     {
-        if (rendererToplevelId != comp_.desktopRootToplevelId_ ||
-            (sd->toplevelId != comp_.desktopRootToplevelId_ &&
-             !comp_.tmgr_.IsToplevelVisibleLocked(sd->toplevelId, comp_.desktopRootToplevelId_)))
-            return reject(rendererToplevelId != comp_.desktopRootToplevelId_
-                              ? "renderer_not_desktop_root" : "toplevel_not_visible");
+        if (rendererToplevelId != comp_.desktopRootToplevelId_)
+            return reject("renderer_not_desktop_root");
+        // An explicit xdg-toplevel can be entirely GPU-backed. Requiring a
+        // prior SHM frame here prevents its first NativeImage from attaching.
+        // This query grants a target, not visible content: only successful
+        // NativeImage consumption activates the producer. Keep lifecycle
+        // exclusions even after a GPU producer has become active.
+        const auto* state = comp_.tmgr_.FindToplevelLocked(sd->toplevelId);
+        if (sd->toplevelId != comp_.desktopRootToplevelId_ && state &&
+            (state->IsBackground() || state->IsMinimized()))
+            return reject("toplevel_hidden");
         if (const auto* st = comp_.tmgr_.FindToplevelLocked(sd->toplevelId)) {
             info.x = st->X();
             info.y = st->Y();

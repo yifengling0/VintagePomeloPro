@@ -366,6 +366,16 @@ static int OwnProcDescriptor(int directory,const char *path,int flags) {
 PROC_FSTAT_RECOVERY(Native,struct stat,fstat)
 PROC_FSTAT_RECOVERY(Large,struct stat64,fstat64)
 
+// OHOS can reject fstatat(fd, "", ..., AT_EMPTY_PATH) even when fstat(fd)
+// succeeds. FEX forwards the GNU guest's descriptor query through this API.
+// Fall back only after that denial and only when the real fstat succeeds.
+// If both are denied (as for OHOS memfd), preserve the original failure.
+static int NativeEmptyPathStat(int fd,const char *path,int flags,int result,int error) {
+    const char *active=getenv("STEAMOHOS_NATIVE_FEX");
+    return result==-1&&(error==EFAULT||error==EACCES)&&fd!=AT_FDCWD&&
+        active&&!strcmp(active,"1")&&path&&!*path&&(flags&AT_EMPTY_PATH)&&
+        !(flags&~(AT_EMPTY_PATH|AT_SYMLINK_NOFOLLOW|AT_NO_AUTOMOUNT));
+}
 static int (*next_fstatat)(int,const char*,struct stat*,int);
 int fstatat(int fd,const char *path,struct stat *buf,int flags) {
     if(!next_fstatat){EnsureFilesystemSymbols();} if(!next_fstatat){errno=ENOSYS;return -1;}
@@ -375,6 +385,7 @@ int fstatat(int fd,const char *path,struct stat *buf,int flags) {
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
     if(!path)return -1;
     int result=RecoverNative(next_fstatat(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
+    if(NativeEmptyPathStat(fd,path,flags,result,error)&&!fstat(fd,buf))result=0;
     if(result)TraceAtFailure(fd,path,flags,error);
     if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
@@ -389,6 +400,7 @@ int fstatat64(int fd,const char *path,struct stat64 *buf,int flags) {
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
     if(!path)return -1;
     int result=RecoverLarge(next_fstatat64(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
+    if(NativeEmptyPathStat(fd,path,flags,result,error)&&!fstat64(fd,buf))result=0;
     if(result)TraceAtFailure(fd,path,flags,error);
     if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
@@ -407,7 +419,7 @@ static int KnownStatVersion(int version) {
 
 // Valve's CEF uses the GLIBC_2.17 entry point, not the newer public fstatat64.
 // Retain its version check and ABI while sharing the same sandbox aliases.
-#define LEGACY_FSTATAT(name,type,recover) \
+#define LEGACY_FSTATAT(name,type,recover,statfd) \
     static int (*next_##name)(int,int,const char*,type*,int); \
     int name(int version,int fd,const char *path,type *buf,int flags) { \
         if(!next_##name){EnsureFilesystemSymbols();} if(!next_##name){errno=ENOSYS;return -1;} \
@@ -418,14 +430,15 @@ static int KnownStatVersion(int version) {
         if(!path)return -1; \
         int result=next_##name(version,fd,path,buf,flags); \
         if(KnownStatVersion(version)){result=recover(result,fd,path,buf,flags);}int error=errno; \
+        if(KnownStatVersion(version)&&NativeEmptyPathStat(fd,path,flags,result,error)&&!statfd(fd,buf))result=0; \
         if(result)TraceAtFailure(fd,path,flags,error); \
         if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX]; \
             int length=VirtualLinkTarget(path,target); \
             if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}} \
         errno=error;return result; \
     }
-LEGACY_FSTATAT(__fxstatat,struct stat,RecoverNative)
-LEGACY_FSTATAT(__fxstatat64,struct stat64,RecoverLarge)
+LEGACY_FSTATAT(__fxstatat,struct stat,RecoverNative,fstat)
+LEGACY_FSTATAT(__fxstatat64,struct stat64,RecoverLarge,fstat64)
 
 static int (*next_access)(const char*,int);
 static int (*next_faccessat)(int,const char*,int,int);

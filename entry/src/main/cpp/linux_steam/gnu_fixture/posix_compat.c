@@ -111,6 +111,32 @@ void *mmap64(void *address,size_t length,int prot,int flags,int fd,off64_t offse
     _Static_assert(sizeof(off_t)==sizeof(off64_t),"native GNU offset ABI");
     return mmap(address,length,prot,flags,fd,(off_t)offset);
 }
+// Only called for a bounded diagnostic after a real protection failure.
+// Read the calling process's own VMA without allocating or dumping full maps.
+static void TraceProtectionRegion(void *address) {
+    if(!SteamOhosNextSyscall)return;
+    int fd=(int)SteamOhosNextSyscall(SYS_openat,AT_FDCWD,"/proc/self/maps",O_RDONLY|O_CLOEXEC,0);
+    if(fd<0)return;
+    char bytes[4096],line[768];size_t used=0;int done=0;
+    for(unsigned block=0;block<64&&!done;++block) {
+        long count=SteamOhosNextSyscall(SYS_read,fd,bytes,sizeof(bytes));
+        if(count<=0)break;
+        for(long i=0;i<count;++i) {
+            if(bytes[i]!='\n') {if(used+1<sizeof(line))line[used++]=bytes[i];continue;}
+            line[used]=0;unsigned long begin=0,end=0;char permissions[5]={0};
+            if(sscanf(line,"%lx-%lx %4s",&begin,&end,permissions)==3&&
+               (uintptr_t)address>=begin&&(uintptr_t)address<end) {
+                const char *name=strrchr(line,'/');
+                const char *kind=strstr(line,"memfd:")?"memfd":name?"file":"anonymous";
+                fprintf(stderr,"STEAMOHOS_PROTECTION_REGION pid=%d begin=%lx end=%lx permissions=%s kind=%s object=%.160s guest_file=%d\n",
+                    getpid(),begin,end,permissions,kind,name?name+1:"none",GuestFileCovers(address,1));
+                done=1;break;
+            }
+            used=0;
+        }
+    }
+    (void)SteamOhosNextSyscall(SYS_close,fd);
+}
 static int (*next_mprotect)(void *,size_t,int);
 int mprotect(void *address,size_t length,int prot) {
     if (!next_mprotect) next_mprotect=dlsym(RTLD_NEXT,"mprotect");
@@ -123,8 +149,10 @@ int mprotect(void *address,size_t length,int prot) {
         TraceGuestProtection("mprotect",saved,result==0);saved=retry_error;
     }
     static _Atomic unsigned diagnostics;
-    if (NativeDiagnostic() && result<0 && atomic_fetch_add(&diagnostics,1)<64)
+    if (NativeDiagnostic() && result<0 && atomic_fetch_add(&diagnostics,1)<64) {
         fprintf(stderr,"STEAMOHOS_MPROTECT pid=%d address=%p length=%zu prot=%x errno=%d\n",getpid(),address,length,prot,saved);
+        TraceProtectionRegion(address);
+    }
     errno=saved;return result;
 }
 static int (*next_munmap)(void *,size_t);
@@ -473,6 +501,14 @@ __attribute__((visibility("hidden"))) long SteamOhosFexFileCall(long number,long
         if(number==SYS_faccessat2){errno=ENOSYS;return -1;}
 #endif
     }
+    if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
+    return SteamOhosNextSyscall(number,a,b,c,d,e,f);
+}
+
+extern long SteamOhosNativeFexExecCall(long,long,long,long,long,long,long) __attribute__((weak));
+__attribute__((visibility("hidden"))) long SteamOhosFexExecCall(long number,long a,long b,long c,long d,long e,long f) {
+    if(NativeFex()&&SteamOhosNativeFexExecCall)
+        return SteamOhosNativeFexExecCall(number,a,b,c,d,e,f);
     if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
     return SteamOhosNextSyscall(number,a,b,c,d,e,f);
 }

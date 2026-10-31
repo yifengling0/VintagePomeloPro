@@ -192,7 +192,7 @@ public:
         return true;
     }
 
-    bool Render(int expectedW, int expectedH, bool paused) {
+    bool Render(int expectedW, int expectedH, bool paused, bool repaint) {
         // Visibility changes do not stop queue consumption. Drain submitted
         // reads once on background entry, then return retired buffers with
         // their original acquire fences without acquiring/presenting output.
@@ -226,6 +226,7 @@ public:
             renderedExtent_ = {};
         }
         PublishFrameRates();
+        if (repaint) renderedExtent_ = {};
         timings_.Begin();
         auto& g = *core_;
         auto& slot = g.Submission(frameIndex_ % 2);
@@ -437,6 +438,7 @@ public:
         result = vkQueuePresentKHR(g.Queue(), &present);
         timings_.Mark(DesktopPhaseTimings::Present);
         if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
+            ++presentationSerial_;
             desktopPresents.fetch_add(1, std::memory_order_relaxed);
             bool freshGameFrame = false;
             std::unordered_set<uint32_t> freshWindows;
@@ -475,6 +477,7 @@ public:
     int Height() const { return core_ ? core_->OutputExtent().height : 0; }
     int ContentWidth() const { return scene_.width; }
     int ContentHeight() const { return scene_.height; }
+    uint64_t PresentationSerial() const { return presentationSerial_; }
 
 private:
     bool Fail(const char* stage, VkResult result) {
@@ -900,6 +903,7 @@ private:
     GpuDesktopScene scene_;
     VkExtent2D renderedExtent_{};
     uint64_t frameIndex_ = 0, presents_ = 0, draws_ = 0;
+    uint64_t presentationSerial_ = 0;
     DirectFrameRate rootRate_;
     DesktopPhaseTimings timings_;
     winehua::DisplayCadence cadence_;
@@ -913,7 +917,8 @@ DirectVulkanDesktopCompositor::DirectVulkanDesktopCompositor(DesktopCompositor& 
     : renderer_(std::make_unique<VulkanDesktopRenderer>(compositor)) {}
 DirectVulkanDesktopCompositor::~DirectVulkanDesktopCompositor() = default;
 bool DirectVulkanDesktopCompositor::Initialize(OHNativeWindow* window) { return renderer_->Initialize(window); }
-bool DirectVulkanDesktopCompositor::Render(int width, int height, bool paused) { return renderer_->Render(width, height, paused); }
+bool DirectVulkanDesktopCompositor::Render(int width, int height, bool paused, bool repaint) { return renderer_->Render(width, height, paused, repaint); }
+uint64_t DirectVulkanDesktopCompositor::PresentationSerial() const { return renderer_->PresentationSerial(); }
 int DirectVulkanDesktopCompositor::Width() const { return renderer_->Width(); }
 int DirectVulkanDesktopCompositor::Height() const { return renderer_->Height(); }
 int DirectVulkanDesktopCompositor::ContentWidth() const { return renderer_->ContentWidth(); }

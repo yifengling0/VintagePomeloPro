@@ -7,6 +7,8 @@
 | 内容 | 修复 | 交付位置 |
 | --- | --- | --- |
 | FEX 信号恢复 | 原样应用公开 issue #5901 diff，恢复 InSyscallInfo，避免后续异步信号使用旧状态 | native-game-support/FEX 与配对 FEXServer |
+| FEX guest 内存权限 | guest mprotect 的执行位被宿主以 EACCES/EPERM 拒绝时，仅在 native-FEX guest syscall 层重试去除 host 执行位，VMA 跟踪保留 guest 权限；不修改 ARM64 JIT 分配器 | 本地 MIT 补丁与 companion FEX |
+| 可选 NUMA 系统调用 | OHOS seccomp 对五个可选 NUMA 调用触发 SIGSYS 时返回不支持语义 -ENOSYS，保留输出缓冲区与其他上下文 | HAP POSIX companion，限 native-FEX 作用域 |
 | Vulkan 资源合同 | 映射／导出内存属性、image/buffer 要求与绑定保持一致；复用已有 NativeBuffer/NativeImage receiver | OHOS 源码补丁 0007/0008、GNU Venus companion |
 | BC 纹理 | GPU 转码 BC1/2/3/7→ETC2/EAC，BC4/5→R/RG、BC6→RGBA16F；保留原 blocks 的精确 copy/readback | 仅 native-FEX WSI 启用 |
 | CEF 内存驻留 | softpipe 按需零页与有效位图，避免为尚未用到的纹理缓存触碰全部像素页 | GNU software GL companion、Mesa 补丁 0011 |
@@ -19,14 +21,14 @@
 
 `ensureLinuxSteamPosixSupport()` 在 Steam 启动前安装 POSIX、native WSI 和四个 `native-game-support` 组件。它使用随 HAP 携带的 manifest 逐文件核对大小、ARM64 ELF 与 SHA-256，通过 `.pending` 校验后原子发布；已有正确文件直接复用，缺失／损坏文件重装，符号链接或不安全目录拒绝。
 
-四个组件共 23,567,944 bytes。HAP 自带这些修复，不需要为了本次补丁更新两个不可变 GNU ZIP，原历史离线包继续由现有导入器处理。游戏库、账号、存档与 Steam 下载的官方 FEX 文件不被该安装步骤覆盖。不能将这句话理解为任意来源或任意未来格式的 ZIP 都受支持。
+四个组件共 23,568,408 bytes。HAP 自带这些修复，不需要为了本次补丁更新两个不可变 GNU ZIP，原历史离线包继续由现有导入器处理。游戏库、账号、存档与 Steam 下载的官方 FEX 文件不被该安装步骤覆盖。不能将这句话理解为任意来源或任意未来格式的 ZIP 都受支持。
 
 FEX selector 同时校验已知官方 core 与本次 HAP 配对 core/server。仅当官方 SHA-256 为 `f9cbb7a70e804b9930fed02fd9d1349d49d7808faace703063a9b4944bc3568e` 时启用补丁版；未知／新版本保留该 depot 的官方版本及 thunks，日志解释回退原因。当前锁定的是已验证 depot core，不代表已验证任意未来 thunk ABI。无 OpenSSL 新依赖，选择器使用最小 GNU 运行时既有 libgcrypt。
 
 实际启用日志：
 
 ```text
-STEAMOHOS_NATIVE_FEX core=hap-matched reason=matched patch=sigreturn-5901
+STEAMOHOS_NATIVE_FEX core=hap-matched reason=matched patch=sigreturn-5901+ohos-guest-vma
 ```
 
 安装器校验成功和命令 ACK 不是游戏启动成功。正式入口还必须核对新 Player.log、新 PID、实际画面与输入。

@@ -108,6 +108,18 @@ int main(int argc,char **argv) {
                 self.assertEqual(subprocess.run([str(runner), str(config)]).returncode, 1, value)
             config.write_text('launchAppId=695630\nstartupAction=library 0\n')
             self.assertEqual(subprocess.run([str(runner), str(config)]).returncode, 1)
+            # Client switches stay before -applaunch regardless of file order.
+            for options in ['launchAppId=646570\narg=-cef-disable-occlusion\n',
+                            'arg=-cef-disable-occlusion\nlaunchAppId=646570\n']:
+                config.write_text(options)
+                result = subprocess.run([str(runner), str(config)], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines()[-3:],
+                                 ['arg=-cef-disable-occlusion', 'arg=-applaunch', 'arg=646570'])
+            for options in ['launchAppId=646570\nlaunchAppId=413150\n',
+                            'launchAppId=646570\nstartupAction=library 0\n']:
+                config.write_text(options)
+                self.assertEqual(subprocess.run([str(runner), str(config)]).returncode, 1)
             # Manual login uses no observer, screenshots or synthetic input.
             for timeout in [1000, 60000, 900000, 14400000]:
                 config.write_text('timeoutMs=' + str(timeout) + '\n')

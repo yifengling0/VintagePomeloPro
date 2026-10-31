@@ -57,7 +57,7 @@ static void ComposeZeroCopySamplingTransform(const float* nativeTransform,
 }
 
 EglRenderer::EglRenderer(DesktopCompositor& compositor) : compositor_(compositor) {}
-EglRenderer::~EglRenderer() = default;
+EglRenderer::~EglRenderer() { Shutdown(); }
 
 void EglRenderer::OnVSync(long long timestamp, void* data)
 {
@@ -759,18 +759,25 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
         return false;
     }
 
-    EGLConfig cfg;
-    EGLint nCfg;
+    EGLConfig cfg = nullptr;
+    EGLint nCfg = 0;
     EGLint attrs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
         EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
         EGL_NONE
     };
-    eglChooseConfig(display_, attrs, &cfg, 1, &nCfg);
+    if (!eglChooseConfig(display_, attrs, &cfg, 1, &nCfg) || nCfg < 1) {
+        OH_LOG_ERROR(LOG_APP, "[EGL] no usable window config error=0x%{public}x", eglGetError());
+        return false;
+    }
 
     EGLint ctxAttrs[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
     context_ = eglCreateContext(display_, cfg, EGL_NO_CONTEXT, ctxAttrs);
+    if (context_ == EGL_NO_CONTEXT) {
+        OH_LOG_ERROR(LOG_APP, "[EGL] context creation failed error=0x%{public}x", eglGetError());
+        return false;
+    }
 
     // 异型窗口 (layered/shaped): 确保 native window buffer 带 alpha 通道,
     // 否则 per-pixel alpha 在 buffer 层就被丢弃 (默认可能是 RGBX)
@@ -844,7 +851,11 @@ uint32_t EglRenderer::DirectPassCapabilities() const
 
 void EglRenderer::VulkanRenderLoop() {
     while (running_) {
-        if (!vulkanDesktop_->Render(expectW_ > 0 ? expectW_ : width_, expectH_ > 0 ? expectH_ : height_, renderPaused_.load(std::memory_order_acquire))) break;
+        const auto request = repaint_.CaptureRequest();
+        const auto serial = vulkanDesktop_->PresentationSerial();
+        if (!vulkanDesktop_->Render(expectW_ > 0 ? expectW_ : width_, expectH_ > 0 ? expectH_ : height_,
+                renderPaused_.load(std::memory_order_acquire), repaint_.NeedsRedraw(request))) break;
+        if (vulkanDesktop_->PresentationSerial() != serial) repaint_.DidPresent(request);
         if (renderPaused_.load(std::memory_order_acquire)) {
             std::unique_lock<std::mutex> lock(vsyncMutex_);
             vsyncCv_.wait_for(lock, std::chrono::milliseconds(100), [&] {
@@ -867,6 +878,7 @@ void EglRenderer::VulkanRenderLoop() {
 void EglRenderer::RenderLoop() {
     if (!eglMakeCurrent(display_, surface_, surface_, context_)) {
         OH_LOG_ERROR(LOG_APP, "[EGL] eglMakeCurrent failed: 0x%{public}x", eglGetError());
+        running_ = false;
         return;
     }
 
@@ -1030,6 +1042,7 @@ void EglRenderer::RenderLoop() {
     bool wasPaused = false;
     uint32_t lastIdentity = GetToplevelId();
     while (running_) {
+        const uint64_t repaintRequest = repaint_.CaptureRequest();
         const uint32_t identity = GetToplevelId();
         if (identity != lastIdentity) {
             // Retire old imported frames before the new window claims queues.
@@ -1231,7 +1244,7 @@ void EglRenderer::RenderLoop() {
             EGLint curW = 0, curH = 0;
             eglQuerySurface(display_, surface_, EGL_WIDTH, &curW);
             eglQuerySurface(display_, surface_, EGL_HEIGHT, &curH);
-            if (curW == lastDrawW_ && curH == lastDrawH_) {
+            if (curW == lastDrawW_ && curH == lastDrawH_ && !repaint_.NeedsRedraw(repaintRequest)) {
                 loopCount++;
                 ++skipFrames_;   // 诊断: 统计跳过 swap 的帧数
                 if (loopDiagnostics) {
@@ -1398,21 +1411,33 @@ void EglRenderer::RenderLoop() {
         if (directDesktop) directDesktop->Draw(useToplevel, frameW_, frameH_, letterbox_);
 
         const uint64_t swapStartedUs = PerfNowUs();
+        if (renderPaused_.load(std::memory_order_acquire)) continue;
         const bool swapOk = eglSwapBuffers(display_, surface_) == EGL_TRUE;
+        const EGLint swapError = swapOk ? EGL_SUCCESS : eglGetError();
         // 记录"这次真正上屏的绘制尺寸" — 无帧循环据此判断当前 surface 是否已经
         // 与画面不一致 (不一致就重绘)。swap 失败时不记录, 下一轮会再试。
         if (swapOk) {
+            repaint_.DidPresent(repaintRequest);
             gAcceptedPresents.fetch_add(1, std::memory_order_relaxed);
             if (zeroCopyFrame) gAcceptedGpuPresents.fetch_add(1, std::memory_order_relaxed);
             lastDrawW_ = drawW;
             lastDrawH_ = drawH;
             swapFailStreak_ = 0;
-        } else if (++swapFailStreak_ == 1 || swapFailStreak_ % 120 == 0) {
+        } else {
+            repaint_.RequestRedraw();
+            ++swapFailStreak_;
+            if (swapFailStreak_ == 1 || swapFailStreak_ % 120 == 0) {
             // swap 失败: 画面没上屏, 循环会持续重试绘制 — 首次 + 每 120 次低频
             // 告警, 便于发现 surface 失效/buffer 饥饿这类持续失败
             OH_LOG_WARN(LOG_APP,
-                        "[MW-RNDR] tl=%{public}u eglSwapBuffers failed x%{public}d (draw=%{public}dx%{public}d)",
-                        toplevelId_.load(std::memory_order_relaxed), swapFailStreak_, drawW, drawH);
+                        "[MW-RNDR] tl=%{public}u eglSwapBuffers failed x%{public}d error=0x%{public}x (draw=%{public}dx%{public}d)",
+                        toplevelId_.load(std::memory_order_relaxed), swapFailStreak_, swapError, drawW, drawH);
+            }
+            if (swapFailStreak_ >= 3 && (swapError == EGL_BAD_SURFACE ||
+                swapError == EGL_BAD_NATIVE_WINDOW || swapError == EGL_CONTEXT_LOST)) {
+                running_ = false;
+                break;
+            }
         }
         const uint64_t frameEndedUs = PerfNowUs();
         loopPerf.NoteWork(frameEndedUs - frameStartedUs);
@@ -1452,6 +1477,8 @@ void EglRenderer::Shutdown() {
     running_ = false;
     vsyncCv_.notify_all();
     if (thread_.joinable()) thread_.join();
+    // Destroy the Vulkan surface before its NativeWindow; Shutdown is idempotent.
+    vulkanDesktop_.reset();
     if (display_ != EGL_NO_DISPLAY) {
         eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (surface_ != EGL_NO_SURFACE) {
@@ -1467,6 +1494,7 @@ void EglRenderer::Shutdown() {
         // 避免反复 init/terminate 导致 GPU 驱动竞争, 偶发性 SIGSEGV
         OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u Shutdown OK (display retained)", toplevelId_.load(std::memory_order_relaxed));
     }
+    display_ = EGL_NO_DISPLAY;
     // surfaceId 创建的 native window 在这里销毁 (EglRenderer 持有 window_ 指针)
     if (window_) {
         OH_NativeWindow_DestroyNativeWindow(window_);

@@ -30,12 +30,13 @@ const context = {resourceManager:{getRawFileContent:async name=>{
 }}};
 (async()=>{
   try {
-    await api.ensureLinuxProtonBootstrap(context);assert.equal(writes,3);
-    await api.ensureLinuxProtonBootstrap(context);assert.equal(writes,3,'second launch must reuse verified files');
+    const expected = JSON.parse(fs.readFileSync(path.join(raw,'linux-proton/bootstrap/manifest.json'))).files.length;
+    await api.ensureLinuxProtonBootstrap(context);assert.equal(writes,expected);
+    await api.ensureLinuxProtonBootstrap(context);assert.equal(writes,expected,'second launch must reuse verified files');
     fs.writeFileSync(path.join(root,'psapi.dll'),'broken');
     corrupt = 'psapi.dll';
     await assert.rejects(api.ensureLinuxProtonBootstrap(context),/校验失败/);
-    corrupt = '';await api.ensureLinuxProtonBootstrap(context);assert.equal(writes,4);
+    corrupt = '';await api.ensureLinuxProtonBootstrap(context);assert.equal(writes,expected+1);
     fs.unlinkSync(path.join(root,'psapi.dll'));fs.symlinkSync(path.join(root,'lsass.exe'),path.join(root,'psapi.dll'));
     await assert.rejects(api.ensureLinuxProtonBootstrap(context),/不安全/);
     const manifest = JSON.parse(fs.readFileSync(path.join(raw,'linux-proton/bootstrap/manifest.json')));

@@ -1,10 +1,10 @@
 # 原生 Linux 游戏的 FEX 与 Vulkan 适配
 
-以 Banana（2923300）的官方原生 Linux 安装链为输入，实现通用启动入口与 Vulkan WSI。2026-10-29 已在原平板覆盖安装标准候选，确认官方 ARM64 Steam → 官方 FEX → x86_64 Unity → Venus/Maleoon 的链路，Steam API 与游戏脚本均完成初始化，GPU 有持续提交与呈现。**仍只有黄色背景，未完成可玩性验收，并复现过运行中整个应用退出；不能作为游戏兼容通过或稳定性结论。**
+2026-10-31：原生 Linux 启动器已补齐有界 shebang 与 raw exec/re-exec 支持，继续通过官方 ARM64 Steam、匹配 FEX 和原生 Linux depot 启动。Banana 的修复交付及此前完整画面对照见 [交付记录](NATIVE_GAME_DELIVERY.zh-CN.md)；星露谷与两代尖塔的最新验证、独立故障及限制见 [引擎验证](NATIVE_ENGINE_VALIDATION.zh-CN.md)。本文保留早期黄屏、内存和信号调查作为历史证据，不能将下文旧状态当作当前验收结论。
 
 ## 启动和路径
 
-Steam 的 ARM64 reaper 仍负责启动与生命周期管理。只将已配置库内的 `FEX-Emu/fex-compat-tool`、`FEX-Emu/FEXCompatTool` 精确映射到 HAP 自有的 `steamohos_fex`；不改官方文件，不执行库内任意脚本。入口保留 run/waitforexitandrun、原始 argv 和 Steam 环境，识别 soldier/sniper 与 scout 包装层后，直接调用同一官方包中的 FEX。
+Steam 的 ARM64 reaper 仍负责启动与生命周期管理。只将已配置库内的 `FEX-Emu/fex-compat-tool`、`FEX-Emu/FEXCompatTool` 精确映射到 HAP 自有的 `steamohos_fex`；不改官方文件。对游戏目录内脚本仅做有界 shebang 解析，解释器必须来自选定 guest runtime；不使用 eval 或宿主 shell 执行任意脚本文本。入口保留 run/waitforexitandrun、原始 argv 和 Steam 环境，识别 soldier/sniper 与 scout 包装层后，直接调用同一官方包中的 FEX。
 
 运行环境复用 Steam 已安装 Runtime 下唯一的 `soldier_platform_*/files` 或 `sniper_platform_*/files`，不复制 rootfs。官方的精简 `/usr` 树需要按 `usr-mtree.txt.gz` 恢复链接：只创建缺失的链接元数据、必要目录及 `/usr → .` 别名，不复制或覆盖文件内容。解析有压缩/解压大小、行长、数量与路径边界限制；完整验证清单后才写入，已有冲突明确报错。缓存以清单内容指纹和 loader/根别名检查复用，避免每次遍历全部链接。启动前检查 loader 时临时采用 guest-root 的绝对链接语义，检查后恢复环境。游戏须为当前安装目录内的 x86 ELF。Runtime 缺失或存在歧义、路径越界、非支持入口、缺少 FEXServer 等情况明确报 `STEAMOHOS_NATIVE_FEX status=failed stage=...` 并返回 126。
 
@@ -96,4 +96,4 @@ HAP 新增独立 `libsteamohos_native_vulkan.so`，复用已交付 GNU Proton �
 
 本轮按用户要求仅做源码评审：[原生 Vulkan 内存同步分析](NATIVE_VULKAN_MEMORY.zh-CN.md)已用实际缓存函数体确认 legacy invalidate 与标准 Vulkan 读回语义的差异，以及 coherent 首次写入漏发布的分支。它们尚不能解释全部黄屏与资源增长。独立 NativeBuffer BLOB 探针已交叉编译，用于后续区分驱动共享映射与 Venus 协议；未在设备执行。仅在应用停止时恢复原有 VirGL 设置并读回核对，未操作任何设备前台。证据见 [内存同步记录](evidence/native-vulkan-memory.json)。
 
-现有 NativeImage/NativeBuffer 呈现保留，无 CPU 渲染像素读回。普通 GL/GLX 游戏的完整共享呈现、任意 shebang 启动器及原生手柄验收仍未完成。原诊断见 [安装与启动调查](DEPOT_LINKS.zh-CN.md)，小型结果见 [本轮证据](evidence/native-linux-fex-host.json)。
+现有 NativeImage/NativeBuffer 呈现保留，无 CPU 渲染像素读回。普通 GL/GLX 游戏的完整共享呈现及原生手柄验收仍未完成；有界 shebang 启动器已完成主机回归，星露谷原生入口已走通到菜单画面。原诊断见 [安装与启动调查](DEPOT_LINKS.zh-CN.md)，小型结果见 [本轮证据](evidence/native-linux-fex-host.json)。

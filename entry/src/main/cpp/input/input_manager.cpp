@@ -558,8 +558,8 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
 }
 
 void InputManager::SendKeyEvent(uint32_t tl, int evdevCode, bool pressed) {
-    // 窗口不可见时抑制输入
-    if (tracker_.IsInputSuppressed(tl)) {
+    // Suppress new presses while hidden, but allow releases to clear state.
+    if (pressed && tracker_.IsInputSuppressed(tl)) {
         // 抽样 120:1 (密钥重复按压/自动重复会出现高频, 与指针同一策略)
         static uint32_t sSuppressN = 0;
         if (++sSuppressN % 120 == 1)

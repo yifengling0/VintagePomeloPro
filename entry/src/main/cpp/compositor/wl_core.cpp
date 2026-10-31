@@ -830,9 +830,14 @@ void WaylandServer::CheckDesktopRootOnCommit(SurfaceData* sd, bool recognitionOp
         }
     }
     DesktopRootManager::CheckRootResult cr;
+    bool needsInitialFrame = false;
     {
         auto lk = toplevelMgr_.Lock();
         cr = desktopRootMgr_.CheckRootLocked(sd, recognitionOpportunity);
+        if (cr.fireDesktopRoot) {
+            const auto* root = toplevelMgr_.FindToplevelLocked(sd->toplevelId);
+            needsInitialFrame = !root || !root->HasFrame();
+        }
         MarkDesktopRootDirtyLocked();
     }
     if (cr.moveRendererTo)
@@ -846,6 +851,8 @@ void WaylandServer::CheckDesktopRootOnCommit(SurfaceData* sd, bool recognitionOp
         // 首帧不注入 enter, 桌面不激活 (症状: 桌面
         // 只在点击时才刷新, regedit 打开内容不完整, 菜单弹出后释放即关)
         ResetFirstFrame();
+        if (needsInitialFrame && session_.outputW > 0 && session_.outputH > 0)
+            NotifyToplevelResize(sd->toplevelId, session_.outputW, session_.outputH);
         PostToplevelEvent(sd->toplevelId, ToplevelEventType::DesktopRoot);
     }
 }
