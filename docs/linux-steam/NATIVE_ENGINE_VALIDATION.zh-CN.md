@@ -143,6 +143,18 @@ Windows 参考使用本机 9.0.16，不能称其与平板版本完全相同；Wi
 
 此前 empty-path stat 实验也已收紧：先执行原查询，遇到对应拒绝才尝试真实 fstat；两者均失败时保留原错误。它不再将 fstat 成功假定为 memfd 可用，也不伪造 inode。
 
-GNU ARM64 适配器与启动器已重编译并通过源码/载荷校验；新增能力策略、元数据拒绝合同及原生 FEX 启动回归共 34 项通过。本轮未重新打 HAP，平板安装包仍为上一候选；设备上的手动 W^X 对照不是新自动策略 HAP 的验收。还需将新包安装后复核自动日志和游戏后续退出。
+GNU ARM64 适配器与启动器已重编译并通过源码/载荷校验；新增能力策略、元数据拒绝合同及原生 FEX 启动回归共 35 项通过，信号栈边界回归另有 1 项通过。新签名 HAP 已安装普通平板，经正常 Deck／Steam 入口自动交付；设备适配器和启动器的 SHA-256 与 rawfile 一致，没有手动替换运行库，也没有在 LaunchOptions 设置 W^X。日志实际出现 `STEAMOHOS_NATIVE_JIT runtime=coreclr wx=0 reason=memfd_metadata_denied scope=native-child`，随后越过 hostfxr 并加载资源。**自动能力策略交付已通过，游戏仍退出 1，未通过游戏兼容性验收。**
 
 最新有界 guest 信号诊断成功初始化并观察到 CoreCLR 注册处理器，但没有收到可确认的游戏故障回调，仍以 1 / signal 0 退出。这不证明没有底层信号或内存错误，也不能把辅助 sh 的退出栈当作游戏根因。诊断探针、临时启动参数已恢复并按部署 SHA 清理；账号、游戏文件和存档未改。仍保留后续定位任务，不宣称尖塔二已修复。
+
+## 实际退出路径与调试器边界（2026-10-31）
+
+适配器新增默认关闭的 `STEAMOHOS_NATIVE_EXIT_TRACE=1` 诊断，仅在 native FEX 作用域记录 libc `syscall(SYS_exit_group/SYS_exit)` 的真实状态及宿主调用点，每进程最多 8 条。它不展开栈、不改变退出状态，也不记录完整环境或调用参数。真实系统调用子进程回归确认 exit／exit_group 仍返回 37，getpid、close 的返回值与 errno 不变，未同时开启两个作用域开关时不输出。
+
+没有连接调试器的游戏运行已捕获主 FEX 进程的 `exit_group status=1`。复用现有对象文件仅重链接本地符号镜像，核对其可执行 PT_LOAD 段与已交付 FEX 字节完全相同；将同进程主 ELF 基址与 caller 相减得到 RVA `0x253e10`，对应固定 revision `Thread.cpp` 中 guest exit_group handler 的宿主 syscall 返回点。OHOS maps 对该 RX 段不提供文件名和准确 ELF offset，日志里的 `map_offset=0x166e10` **不能直接当作 ELF RVA**。该证据确认进入了 guest 退出转发路径，不能据此排除 CLR 或游戏捕获异常后退出。
+
+另一次 opt-in guest RSP 调试捕获 `T0b`（SIGSEGV），但读取单寄存器时对端关闭，未取得完整寄存器、故障指令或异常栈；该次退出状态为 191，与不连接调试器时的 1 分开记录。后续一次调试连接未取得信号即退出 1。CoreCLR 也会使用 SIGSEGV 处理正常隐式空引用，单个信号不能直接认作最终故障。没有将调试会话的行为当作正常游戏结果。固定 FEX 的调试器源码也注明 SIGSEGV 后恢复能力有限；整组 `g` 查询曾在 all-stop 下挂起，因此后续只使用 `p`，仍不足以确定最终根因。
+
+在同一 HAP 和自动能力回退下，另行临时传入 Godot 的 `--disable-crash-handler`，不连接调试器，仍越过 hostfxr 并在资源加载后退出 1／signal 0。该对照没有形成修复，也不能证明游戏内的第三方崩溃处理器已被关闭。结束后已停止所选应用及全部同 UID 子进程、核对本任务 guest 调试转发为 0，恢复原始 LaunchOptions；不保留这些诊断开关。
+
+后续应先捕获可复现的 CoreCLR／Godot 内存故障位置，再验证同路径的修复；不通过禁用认证、替换游戏程序集、全局关闭内存优化或 AppID 专用规则掩盖失败。尖塔二仍为 `accepted=false`。

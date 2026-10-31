@@ -74,7 +74,7 @@
       "sameLaterExit": true,
       "removed": true
     },
-    "remaining": "Root cause of later exit is not established. Need effective native/guest termination and write-path evidence; no confirmed main menu.",
+    "remaining": "Later guest exit_group(1) and a debugger-observed SIGSEGV need a reproducible fault instruction/stack. CoreCLR capability fallback is delivered; game menu remains unaccepted.",
     "upstreamResearch": {
       "date": "2026-10-31",
       "deviceAcceptanceChanged": false,
@@ -101,6 +101,59 @@
         "Exercise repeated writes through shared JIT aliases and cross-thread publication in an owned fixture.",
         "Obtain an effective native/guest exit observation or CoreCLR diagnostic before attributing later exit=1."
       ]
+    },
+    "terminationDiagnosis": {
+      "productBaseCommit": "58328715",
+      "diagnosticEnabledByDefault": false,
+      "scope": "STEAMOHOS_NATIVE_FEX=1 and STEAMOHOS_NATIVE_EXIT_TRACE=1",
+      "maximumExitEventsPerProcess": 8,
+      "withoutDebugger": {
+        "guestExitGroupObserved": true,
+        "status": 1,
+        "signal": 0
+      },
+      "symbolization": {
+        "fexRevision": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+        "executableSegmentsMatchDelivered": true,
+        "callerRva": "0x253e10",
+        "mapsOffset": "0x166e10",
+        "mapsOffsetIsElfRva": false,
+        "site": "LinuxSyscalls/Syscalls/Thread.cpp guest exit_group handler / host syscall return",
+        "upstreamSourceEdited": false,
+        "symbolImageDeployed": false
+      },
+      "guestDebugger": {
+        "fullRegisterGCommandUsedInLatestTrials": false,
+        "singleRegisterQueriesUsed": true,
+        "signalStopObserved": "T0b / SIGSEGV",
+        "completeRegistersCaptured": false,
+        "completeExceptionStackCaptured": false,
+        "postSignalDebuggerTrialExit": 191,
+        "laterTrialExit": 1,
+        "limitation": "Peer closed before fault state was available; debugger results do not replace no-debugger runs."
+      },
+      "rootCauseProven": false,
+      "gameAccepted": false,
+      "godotCrashHandlerOffTrial": {
+        "accepted": false,
+        "comparison": "Godot --disable-crash-handler; automatic CoreCLR capability fallback",
+        "connectedDebugger": false,
+        "hostfxrCrossed": true,
+        "exitCode": 1,
+        "signal": 0,
+        "deadlineSeconds": 110,
+        "events": [
+          "STEAMOHOS_NATIVE_JIT runtime=coreclr wx=0 reason=memfd_metadata_denied scope=native-child",
+          "STEAMOHOS_NATIVE_FEX status=prepared guest_bits=64 runtime=SteamLinuxRuntime_sniper gl_thunk=1 vulkan_thunk=1 audio_thunk=0 wayland_thunk=1 guest_alsa=1 container=userspace",
+          "STEAMOHOS_NATIVE_EXIT pid=5000 tid=5000 syscall=exit_group status=127 caller=0x6306ce3e10 module=unknown map_offset=0x166e10",
+          ".NET: hostfxr initialized",
+          "STEAMOHOS_NATIVE_EXIT pid=5367 tid=5367 syscall=exit_group status=0 caller=0x6306ce3e10 module=unknown map_offset=0x166e10",
+          "STEAMOHOS_NATIVE_EXIT pid=5381 tid=5381 syscall=exit_group status=1 caller=0x6305e23e10 module=unknown map_offset=0x166e10",
+          "STEAMOHOS_NATIVE_EXIT pid=4921 tid=4921 syscall=exit_group status=1 caller=0x6306ce3e10 module=unknown map_offset=0x166e10",
+          "STEAMOHOS_NATIVE_FEX status=exited code=1 signal=0",
+          "STEAMOHOS_NATIVE_EXIT pid=5370 tid=5370 syscall=exit_group status=0 caller=0x6305e23e10 module=unknown map_offset=0x166e10"
+        ]
+      }
     }
   },
   "diagnosticsRestored": {
@@ -275,12 +328,44 @@
     "hostOrGpuMemfdReplaced": false,
     "sourceImplemented": true,
     "gnuArm64Built": true,
-    "hapBuiltThisStage": false,
-    "newPackageDeviceAccepted": false,
-    "regressionsPassed": 34,
+    "hapBuiltThisStage": true,
+    "newPackageDeviceAccepted": true,
+    "regressionsPassed": 35,
     "payloads": {
-      "posix-manifest.json": "8bd536a75b40cda07e57306146bcdd4b1b4361062f69cd11700a271cc2a8b780",
+      "posix-manifest.json": "f6ffbc74dcabfe0601d8b320c69fdf6767c11721a1c4cd48c18d0ad01e30860e",
       "fex-manifest.json": "c02fd16c61a22d2e98a54bc8cece4a1235de8619475d3aeaab13ab239cb6bebf"
+    },
+    "signalContextRegressionsPassed": 1,
+    "gameAccepted": false,
+    "acceptanceScope": "Automatic capability selection and standard HAP delivery; not complete game acceptance",
+    "delivery": {
+      "standardEntry": true,
+      "manualRuntimeDeployment": false,
+      "automaticCapabilityObserved": true,
+      "signedHap": {
+        "name": "VintagePomeloPro-1.5.3-pr78-debug-signed.hap",
+        "bytes": 672855623,
+        "sha256": "1b14964d4ed1fb2ff11f54b8918db23f98bb0cf91e71ec5e27757b7f65a204ef",
+        "signatureVerified": true,
+        "tabletAuthorized": true,
+        "payloadUnchanged": true,
+        "sourceUnsignedSha256": "614dd014506e7f51f9c976e1dd44a6a67e3f76a95166a9387750507f3ea59513"
+      },
+      "files": {
+        "libsteamohos_posix_hap.so": {
+          "sha256": "f6ffbc74dcabfe0601d8b320c69fdf6767c11721a1c4cd48c18d0ad01e30860e",
+          "bytes": 304288
+        },
+        "steamohos_fex": {
+          "sha256": "c02fd16c61a22d2e98a54bc8cece4a1235de8619475d3aeaab13ab239cb6bebf",
+          "bytes": 160184
+        }
+      },
+      "gameAccepted": false
+    },
+    "manifestSha256": {
+      "posix-manifest.json": "2c5095251a179e0fc708709a435cb1cae1488d6e21d746e20403ba2c0c519e1f",
+      "fex-manifest.json": "b5347f7d8671d12a38273059d7f587c094369f6c082ee6f7bffabf9b1ab7741a"
     }
   }
 }

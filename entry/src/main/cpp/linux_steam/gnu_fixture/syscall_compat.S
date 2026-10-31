@@ -18,6 +18,7 @@
 .hidden SteamOhosFexOptionalCall
 .hidden SteamOhosFexFileCall
 .hidden SteamOhosFexExecCall
+.hidden SteamOhosFexExitCall
 .hidden SteamOhosFexSignalCall
 .hidden SteamOhosOpenAt2
 .hidden SteamOhosCloseRange
@@ -25,6 +26,10 @@
 .hidden SteamOhosSyscallUnavailable
 #if defined(__aarch64__)
 syscall:
+    cmp x0, #__NR_exit_group
+    b.eq SteamOhosFexExitCall
+    cmp x0, #__NR_exit
+    b.eq SteamOhosFexExitCall
     cmp x0, #__NR_execve
     b.eq SteamOhosFexExecCall
     cmp x0, #__NR_execveat
@@ -97,6 +102,10 @@ syscall:
     b SteamOhosSyscallUnavailable
 #elif defined(__x86_64__)
 syscall:
+    cmp $__NR_exit_group, %rdi
+    je SteamOhosFexExitCall
+    cmp $__NR_exit, %rdi
+    je SteamOhosFexExitCall
     cmp $__NR_execve, %rdi
     je SteamOhosFexExecCall
     cmp $__NR_execveat, %rdi

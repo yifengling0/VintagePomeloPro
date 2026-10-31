@@ -506,6 +506,49 @@ __attribute__((visibility("hidden"))) long SteamOhosFexFileCall(long number,long
 }
 
 extern long SteamOhosNativeFexExecCall(long,long,long,long,long,long,long) __attribute__((weak));
+// FEX's guest exit_group handler calls the host libc syscall entry directly.
+// A guest LD_PRELOAD exit() observer cannot see that path. This opt-in trace
+// records its host caller without allocating/unwinding inside FEX's allocator
+// scope, and forwards every argument and the real termination status intact.
+static void TraceNativeExit(long number,long status,uintptr_t caller) {
+    const char *enabled=getenv("STEAMOHOS_NATIVE_EXIT_TRACE");
+    static _Atomic unsigned reports;
+    if(!NativeFex()||!enabled||strcmp(enabled,"1")||atomic_fetch_add(&reports,1)>=8)return;
+    int saved=errno;
+    char bytes[4096],line[768],message[384];size_t used=0;
+    unsigned long begin=0,end=0,offset=0;char object[161]="unknown";int matched=0;
+    int fd=(int)SteamOhosNextSyscall(SYS_openat,AT_FDCWD,"/proc/self/maps",O_RDONLY|O_CLOEXEC,0);
+    if(fd>=0) {
+        for(unsigned block=0;block<64&&!matched;++block) {
+            long count=SteamOhosNextSyscall(SYS_read,fd,bytes,sizeof(bytes));
+            if(count<=0)break;
+            for(long i=0;i<count;++i) {
+                if(bytes[i]!='\n'){if(used+1<sizeof(line))line[used++]=bytes[i];continue;}
+                line[used]=0;
+                if(sscanf(line,"%lx-%lx %*4s %lx",&begin,&end,&offset)==3&&caller>=begin&&caller<end) {
+                    const char *name=strrchr(line,'/');
+                    if(name)snprintf(object,sizeof(object),"%.160s",name+1);
+                    matched=1;break;
+                }
+                used=0;
+            }
+        }
+        (void)SteamOhosNextSyscall(SYS_close,fd);
+    }
+    int length=snprintf(message,sizeof(message),
+        "STEAMOHOS_NATIVE_EXIT pid=%ld tid=%ld syscall=%s status=%ld caller=%p module=%s map_offset=0x%lx\n",
+        SteamOhosNextSyscall(SYS_getpid),SteamOhosNextSyscall(SYS_gettid),
+        number==SYS_exit_group?"exit_group":"exit",status,(void*)caller,object,
+        matched?(unsigned long)(caller-begin)+offset:0UL);
+    if(length>0)(void)SteamOhosNextSyscall(SYS_write,STDERR_FILENO,message,
+        (size_t)length<sizeof(message)?(size_t)length:sizeof(message)-1);
+    errno=saved;
+}
+__attribute__((visibility("hidden"))) long SteamOhosFexExitCall(long number,long a,long b,long c,long d,long e,long f) {
+    if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
+    TraceNativeExit(number,a,(uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)));
+    return SteamOhosNextSyscall(number,a,b,c,d,e,f);
+}
 __attribute__((visibility("hidden"))) long SteamOhosFexExecCall(long number,long a,long b,long c,long d,long e,long f) {
     if(NativeFex()&&SteamOhosNativeFexExecCall)
         return SteamOhosNativeFexExecCall(number,a,b,c,d,e,f);

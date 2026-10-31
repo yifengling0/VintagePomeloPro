@@ -400,6 +400,30 @@ int main(int n,char**v) {
   self.assertIn('FEX_SERVER_REAL_HANDSHAKE_OK',result.stdout)
   self.assertIn('status=exited code=23',result.stderr)
   self.assertFalse(list((self.compat/'fex-emu').glob('hmosdeck-*')))
+ def test_native_exit_diagnostic_preserves_kernel_status_and_scope(self):
+  source=self.base/'exit-probe.c';binary=self.base/'exit-probe'
+  source.write_text(r'''#include <assert.h>
+#include <errno.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+int main(int n,char**v){
+ (void)v;assert(syscall(SYS_getpid)==getpid());
+ assert(syscall(SYS_close,-1)==-1&&errno==EBADF);
+ syscall(n>1?SYS_exit:SYS_exit_group,37);return 99;
+}
+''')
+  subprocess.run(['cc','-O2',str(source),'-o',str(binary)],check=True)
+  base={**os.environ,'LD_PRELOAD':str(self.code/'libsteamohos_posix.so')}
+  for native,trace in [('0','1'),('1','0'),('1','1')]:
+   for args in [[],['thread-exit']]:
+    result=subprocess.run([str(binary),*args],env={**base,'STEAMOHOS_NATIVE_FEX':native,
+        'STEAMOHOS_NATIVE_EXIT_TRACE':trace},capture_output=True,text=True,timeout=5)
+    self.assertEqual(result.returncode,37,result.stderr)
+    if native==trace=='1':
+     self.assertEqual(result.stderr.count('STEAMOHOS_NATIVE_EXIT '),1)
+     self.assertIn('syscall='+('exit' if args else 'exit_group')+' status=37',result.stderr)
+     self.assertRegex(result.stderr,r'module=exit-probe map_offset=0x[1-9a-f][0-9a-f]*')
+    else:self.assertNotIn('STEAMOHOS_NATIVE_EXIT ',result.stderr)
  def test_nested_fex_syscall_exec_uses_validated_host_loader(self):
   for mode in ['reexec-at','reexec-ve']:
    with self.subTest(mode=mode):
