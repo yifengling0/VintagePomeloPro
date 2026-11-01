@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import struct
 import sys
 import tempfile
@@ -60,7 +61,10 @@ with tempfile.TemporaryDirectory(prefix='fex-simd-runtime-') as temporary:
     else:
         raise AssertionError('pre-transform record unexpectedly accepted stripped FEX')
 
-    fex.refresh_staged(directory)
+    subprocess.run([
+        sys.executable, str(ROOT / 'scripts/fex_simd_runtime.py'),
+        'refresh-staged', '--directory', str(directory),
+    ], check=True)
     refreshed = json.loads((directory / fex.RECORD).read_text())
     assert refreshed['sourceHash'] == 'fixture-source'
     assert refreshed['patchSha256'] == 'a' * 64

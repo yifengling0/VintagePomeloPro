@@ -175,16 +175,24 @@ def update_rawfile(build, rawfile):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=['record', 'stage', 'refresh-staged', 'update-rawfile'])
-    parser.add_argument('--build', type=Path, required=True)
+    parser.add_argument('--build', type=Path)
     parser.add_argument('--patch', type=Path)
     parser.add_argument('--source-hash', default='detect')
     parser.add_argument('--directory', type=Path)
     args = parser.parse_args()
     if args.mode == 'record':
+        if args.build is None:
+            parser.error('--build is required for record')
         write_record(args.build, args.patch, args.source_hash)
     elif args.mode == 'stage':
+        if args.build is None or args.directory is None:
+            parser.error('--build and --directory are required for stage')
         stage(args.build, args.directory)
     elif args.mode == 'refresh-staged':
+        if args.directory is None:
+            parser.error('--directory is required for refresh-staged')
         refresh_staged(args.directory)
     else:
+        if args.build is None or args.directory is None:
+            parser.error('--build and --directory are required for update-rawfile')
         update_rawfile(args.build, args.directory)
