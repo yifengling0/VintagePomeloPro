@@ -22,6 +22,8 @@ ADAPTER_SOURCES=['entry/src/main/cpp/linux_steam/gnu_fixture/native_udev.c',
  'entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c',
  'entry/src/main/cpp/protocols/audio_ipc_protocol.h',
  'entry/src/main/cpp/linux_steam/gnu_fixture/sysvipc_compat.c',
+ 'entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_robust.c',
+ 'entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_syscall.S',
  'scripts/prepare_linux_native_guest_core.py']
 def adapter_sources(root):return {name:sha(root/name) for name in ADAPTER_SOURCES}
 def sha(p):
@@ -74,6 +76,8 @@ def main():
  # same app-private file/lock protocol as Steam, compiled for the guest ABI.
  subprocess.run([compiler,'-O2','-g0','-Wall','-Wextra','-Werror','-fPIC','-shared',
   str(ROOT/'entry/src/main/cpp/linux_steam/gnu_fixture/sysvipc_compat.c'),
+  str(ROOT/'entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_robust.c'),
+  str(ROOT/'entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_syscall.S'),'-ldl',
   '-pthread','-Wl,-z,relro,-z,now','-o',str(pending)],check=True)
  pending.replace(ipc)
  chosen={'libudev.so.1':proxy.read_bytes(),audio.name:audio.read_bytes(),ipc.name:ipc.read_bytes()};links={};copyrights={}  

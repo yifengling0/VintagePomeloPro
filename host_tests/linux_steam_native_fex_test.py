@@ -223,7 +223,14 @@ int main(int n,char**v) {
   assert(mount==0x5555);for(unsigned i=0;i<sizeof(unchanged);++i)assert(unchanged[i]==0x5a);
   puts("INLINE_OPTIONAL_HANDLES_UNSUPPORTED_AND_BUFFERS_PRESERVED");return 0;
  }
- if(n>2&&!strcmp(v[2],"optional-robust")) {
+ if(n>2&&(!strcmp(v[2],"optional-robust")||!strcmp(v[2],"optional-robust-raw"))) {
+  const int registered=!strcmp(v[2],"optional-robust-raw");
+  struct KernelAction {void* handler;unsigned long flags;void* restorer;unsigned long mask;} original,action,queried;
+  if(registered) {
+   assert(!syscall(SYS_rt_sigaction,SIGSYS,NULL,&original,8));action=original;
+   action.handler=(void*)raw_signal;action.flags|=SA_SIGINFO|SA_ONSTACK;
+   assert(!syscall(SYS_rt_sigaction,SIGSYS,&action,NULL,8));
+  }
   struct sock_filter filter[]={
    BPF_STMT(BPF_LD|BPF_W|BPF_ABS,offsetof(struct seccomp_data,nr)),
    BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,SYS_get_robust_list,0,1),
@@ -238,6 +245,14 @@ int main(int n,char**v) {
   assert(inline_syscall6(SYS_get_robust_list,2147483647,(long)&head,(long)&length,0,0,0)==-ENOSYS);
   assert(head==(void*)0x12345678&&length==0x5678);
   assert(inline_syscall6(SYS_getpid,0,0,0,0,0,0)==getpid());
+  if(registered) {
+   assert(!raw_signal_seen);
+   assert(!syscall(SYS_rt_sigaction,SIGSYS,NULL,&queried,8));
+   assert(!memcmp(&action,&queried,sizeof(action)));
+   raise(SIGSYS);assert(raw_signal_seen==SIGSYS);
+   assert(!syscall(SYS_rt_sigaction,SIGSYS,&original,NULL,8));
+   puts("REGISTERED_SIGSYS_PRESERVED_AND_OPTIONAL_TRAP_RESUMED");
+  }
   puts("INLINE_OPTIONAL_ROBUST_UNSUPPORTED_AND_BUFFERS_PRESERVED");return 0;
  }
  if(n>2&&!strcmp(v[2],"optional-numa")) {
@@ -522,6 +537,11 @@ int main(int n,char**v){
   result=self.run_command(self.command('optional-robust'))
   self.assertEqual(result.returncode,0,result.stdout+result.stderr)
   self.assertIn('INLINE_OPTIONAL_ROBUST_UNSUPPORTED_AND_BUFFERS_PRESERVED',result.stdout)
+ def test_optional_trap_after_fex_registers_sigsys_handler(self):
+  environment={**self.env};environment.pop('STEAMOHOS_NATIVE_MEMORY',None)
+  result=self.run_command(self.command('optional-robust-raw'),env=environment)
+  self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+  self.assertIn('REGISTERED_SIGSYS_PRESERVED_AND_OPTIONAL_TRAP_RESUMED',result.stdout)
  def test_numa_seccomp_uses_linux_unsupported_contract(self):
   result=self.run_command(self.command('optional-numa'))
   self.assertEqual(result.returncode,0,result.stdout+result.stderr)

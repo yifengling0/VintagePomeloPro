@@ -25,7 +25,7 @@ struct Server {
    x.damage=[](wl_client*,wl_resource*,int32_t,int32_t,int32_t,int32_t){};
    x.frame=[](wl_client* c,wl_resource*,uint32_t id){auto* r=wl_resource_create(c,&wl_callback_interface,1,id);wl_callback_send_done(r,0);wl_resource_destroy(r);};
    x.set_opaque_region=[](wl_client*,wl_resource*,wl_resource*){};x.set_input_region=x.set_opaque_region;
-   x.commit=[](wl_client*,wl_resource* r){auto& s=Get(r);if(s.shell&&s.top){wl_array states;wl_array_init(&states);xdg_toplevel_send_configure(s.top,320,240,&states);xdg_surface_send_configure(s.shell,++s.serial);wl_array_release(&states);}};
+   x.commit=[](wl_client*,wl_resource* r){auto& s=Get(r);if(s.shell&&s.top){wl_array states;wl_array_init(&states);xdg_toplevel_send_configure(s.top,800,600,&states);xdg_surface_send_configure(s.shell,++s.serial);wl_array_release(&states);}};
    x.set_buffer_transform=[](wl_client*,wl_resource*,int32_t){};x.set_buffer_scale=x.set_buffer_transform;
    x.damage_buffer=x.damage;return x;
   }();wl_resource_set_implementation(r,&api,&s,nullptr);
@@ -100,6 +100,10 @@ int main() {
  xcb_map_window(x,window);xcb_flush(x);
  {
   steamohos::NativeX11Window bridge;assert(bridge.Create(window));assert(bridge.display&&bridge.surface);
+  // The fullscreen host output is independent of the game's drawable. A
+  // compositor configure must not resize X11 underneath its Vulkan swapchain.
+  auto* geometry=xcb_get_geometry_reply(x,xcb_get_geometry(x,window),nullptr);assert(geometry);
+  assert(geometry->width==320&&geometry->height==240);free(geometry);
   auto readyDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
   while(!server.inputReady&&std::chrono::steady_clock::now()<readyDeadline)poll(nullptr,0,1);
   assert(server.inputReady);

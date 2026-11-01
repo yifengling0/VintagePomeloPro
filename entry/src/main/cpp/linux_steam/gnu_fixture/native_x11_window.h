@@ -19,7 +19,7 @@ class NativeX11Window {
     xdg_surface* shell=nullptr;xdg_toplevel* top=nullptr;
     wl_seat* seat=nullptr;wl_pointer* pointer=nullptr;wl_keyboard* keyboard=nullptr;
     std::thread events;std::atomic<bool> stopping{false},lost{false};
-    bool configured=false;uint32_t width=0,height=0;
+    bool configured=false;
     double wheel[2]={0,0};int discrete[2]={0,0};std::array<bool,256> keys{};
     xcb_extension_t xtest{"XTEST",0};
     struct FakeInput {
@@ -144,7 +144,7 @@ public:
         x=xcb_connect(nullptr,nullptr);if(!x||xcb_connection_has_error(x))return false;
         xcb_generic_error_t* error=nullptr;
         auto* info=xcb_get_geometry_reply(x,xcb_get_geometry(x,xid),&error);free(error);
-        if(!info)return false;width=info->width;height=info->height;free(info);
+        if(!info)return false;free(info);
         const auto* test=xcb_get_extension_data(x,&xtest);if(!test||!test->present)return false;
         display=wl_display_connect(nullptr);if(!display)return false;
         registry=wl_display_get_registry(display);
@@ -160,13 +160,13 @@ public:
         top=xdg_surface_get_toplevel(shell);if(!top)return false;
         static const xdg_toplevel_listener topListener=[] {
             xdg_toplevel_listener t{};
-            t.configure=[](void* p,xdg_toplevel*,int32_t w,int32_t h,wl_array*) {
-                auto& s=*static_cast<NativeX11Window*>(p);
-                if(w>0&&h>0&&w<=4096&&h<=4096) {
-                    s.width=w;s.height=h;const uint32_t values[]={s.width,s.height};
-                    xcb_configure_window(s.x,s.xid,XCB_CONFIG_WINDOW_WIDTH|XCB_CONFIG_WINDOW_HEIGHT,values);xcb_flush(s.x);
-                }
-            };
+            // This dedicated surface is a fullscreen presentation host, not
+            // the game's X11 window manager. The host fits the real drawable
+            // and maps input back to it. Resizing X11 here changes the engine's
+            // canvas while its Vulkan swapchain can retain the old extent,
+            // producing a small image in one corner (and wrong pointer hits).
+            // Games retain their own resolution/fullscreen settings.
+            t.configure=[](void*,xdg_toplevel*,int32_t,int32_t,wl_array*) {};
             t.close=[](void* p,xdg_toplevel*){static_cast<NativeX11Window*>(p)->CloseRequest();};return t;
         }();
         xdg_toplevel_add_listener(top,&topListener,this);

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "date": "2026-10-31",
+  "date": "2026-11-01",
   "device": "ordinary ARM64 tablet",
   "repositoryBase": "00b8f589ef48dccbf0fd0d9f167fc98b63590922",
   "scope": "Linux native depots; Windows/Proton results excluded",
@@ -367,5 +367,144 @@
       "posix-manifest.json": "2c5095251a179e0fc708709a435cb1cae1488d6e21d746e20403ba2c0c519e1f",
       "fex-manifest.json": "b5347f7d8671d12a38273059d7f587c094369f6c082ee6f7bffabf9b1ab7741a"
     }
+  },
+  "currentAcceptance": {
+    "game": "2868840",
+    "linuxDepot": "2868843",
+    "manifest": "7881097836989620034",
+    "route": "ARM64 Linux Steam -> FEX x86_64 -> sniper -> Godot/MegaDot -> CoreCLR 9.0.7",
+    "menuObserved": true,
+    "battleObserved": true,
+    "userConfirmedPlayable": true,
+    "standardHapRuntimeDelivery": true,
+    "manualRuntimeDeployment": false,
+    "diagnosticLaunchOptionsStillActiveAtFirstSuccess": true,
+    "cleanLaunchAccepted": true,
+    "normalExitAccepted": false,
+    "sourceGameAssembliesChanged": false,
+    "fexSourceChanged": false,
+    "guestIpcSha256": "373d424b0922ab69f7f027250a5037c4b4833a859826a48d8e04251b81b17d5b",
+    "priorSections": "October 31 failure trials retained as historical observations",
+    "fullscreenAccepted": true,
+    "normalExitNote": "Prior WM_DELETE_WINDOW removed game process/window; menu quit and exit status not accepted",
+    "delivery": {
+      "name": "VintagePomeloPro-1.5.3-pr78-debug-signed.hap",
+      "bytes": 672859753,
+      "sha256": "a69b872413f4756c50a50d3cb32d2db1094139799a026584e90a8a450c416856",
+      "signatureVerified": true,
+      "tabletAuthorized": true,
+      "payloadUnchanged": true,
+      "sourceUnsignedSha256": "b7bd49b8033cd0cbd38c48578d59542c439442e27a7bf180eac0a5a9795e9f08"
+    },
+    "devicePayloads": {
+      "libsteamohos_posix_hap.so": {
+        "sha256": "0f22e00846f0e3548751638a67d035509c1ffcb7e92744d83789c49554568ee8",
+        "deviceMatches": true
+      },
+      "steamohos_fex": {
+        "sha256": "c02fd16c61a22d2e98a54bc8cece4a1235de8619475d3aeaab13ab239cb6bebf",
+        "deviceMatches": true
+      },
+      "libsteamohos_native_vulkan.so": {
+        "sha256": "7d27ef2a96e4a805c78bd3cf7d58ef33622c39d69db78c69615c40b18155014a",
+        "deviceMatches": true
+      },
+      "native-guest-core-x86_64/libsteamohos_native_ipc.so": {
+        "sha256": "373d424b0922ab69f7f027250a5037c4b4833a859826a48d8e04251b81b17d5b",
+        "deviceMatches": true
+      }
+    }
+  },
+  "guestRobustRepair": {
+    "kernelQueryPreferred": true,
+    "fallbackScope": "x86_64 guest preload; self/current tid; ENOSYS/EPERM/EACCES only",
+    "headSource": "actual guest glibc registered robust head discovered through real mutex linkage",
+    "fakeEmptyHead": false,
+    "ownerDeathChanged": false,
+    "steamFaultElfRva": "0x211e163",
+    "steamFaultFileOffset": "0x211d163",
+    "regression": "real kernel identity, four threads holding mutexes, invalid pointers, explicit registrations, owner-death and syscall ABI passed"
+  },
+  "fullscreenAndPerformance": {
+    "baselineFpsRange": [
+      18,
+      24
+    ],
+    "swapchain": [
+      1920,
+      1080
+    ],
+    "renderer": "Vulkan Forward+ / Venus / Maleoon 910",
+    "hostConfigure": [
+      1200,
+      800
+    ],
+    "output": [
+      2400,
+      1600
+    ],
+    "cpuPixelReadbacks": 0,
+    "cpuImageUploads": 0,
+    "sampleSeconds": 8,
+    "hostIdlePerTwoSecondsApprox": [
+      1.7,
+      1.8
+    ],
+    "causeCandidate": "fullscreen Wayland host incorrectly resized game X11 window independently of Vulkan swapchain",
+    "hostRegressionPassed": true,
+    "deviceFullscreenAccepted": true,
+    "performanceImprovementProven": false,
+    "currentSwapchain": [
+      1200,
+      800
+    ],
+    "currentX11Geometry": [
+      1200,
+      800
+    ],
+    "menuFpsApprox": 39,
+    "battleFpsObserved": [
+      15,
+      20
+    ],
+    "fullscreenRepair": "ack dedicated Wayland host configure without resizing X11 independently of swapchain"
+  },
+  "resolutionTrial": {
+    "samePausedBattle": true,
+    "samples": [
+      {
+        "label": "paused-640x360-fixed",
+        "extent": [
+          640,
+          360
+        ],
+        "seconds": 24.563,
+        "frameDelta": 600,
+        "fpsApprox": 24.4,
+        "maxQuantizationErrorFpsApprox": 4.9
+      },
+      {
+        "label": "paused-1200x800-fixed",
+        "extent": [
+          1200,
+          800
+        ],
+        "seconds": 24.468,
+        "frameDelta": 360,
+        "fpsApprox": 14.7,
+        "maxQuantizationErrorFpsApprox": 4.9
+      }
+    ],
+    "independentRenderScaleUi": false,
+    "lowerResolutionSuggestsBenefit": true,
+    "stablePerformanceImprovementAccepted": false,
+    "originalFullscreenRestored": true,
+    "userFpsCap": 30,
+    "userVsync": "off",
+    "msaa": "off",
+    "gameSaveChangedByDiagnostic": false,
+    "productResolutionControlImplemented": false,
+    "mixedInteractionSamplesExcluded": true,
+    "cpuOrGpuRootCauseProven": false
   }
 }

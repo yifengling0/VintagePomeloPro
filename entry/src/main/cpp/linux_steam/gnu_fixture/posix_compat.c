@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
+#include <sys/uio.h>
 #include <sys/stat.h>
 #include <sys/prctl.h>
 #include <fcntl.h>
@@ -510,7 +511,50 @@ extern long SteamOhosNativeFexExecCall(long,long,long,long,long,long,long) __att
 // A guest LD_PRELOAD exit() observer cannot see that path. This opt-in trace
 // records its host caller without allocating/unwinding inside FEX's allocator
 // scope, and forwards every argument and the real termination status intact.
-static void TraceNativeExit(long number,long status,uintptr_t caller) {
+static void TraceGuestExitState(uintptr_t frame) {
+#if defined(__aarch64__)
+    const char *enabled=getenv("STEAMOHOS_NATIVE_EXIT_STATE");
+    if(!frame||!enabled||strcmp(enabled,"1"))return;
+    // Diagnostic ABI for the matched FEX revision only. Let the kernel
+    // validate addresses; never dereference an arbitrary guest/frame pointer.
+    uint64_t state[20]={0};
+    struct iovec local={state,sizeof(state)},remote={(void*)frame,sizeof(state)};
+    long self=SteamOhosNextSyscall(SYS_getpid);
+    long result=SteamOhosNextSyscall(SYS_process_vm_readv,self,&local,1,&remote,1,0);
+    char line[1400];
+    int size=snprintf(line,sizeof(line),"STEAMOHOS_NATIVE_EXIT_STATE pid=%ld frame=%p read=%ld rip=0x%lx rsp=0x%lx rbp=0x%lx\n",
+        self,(void*)frame,result,(unsigned long)state[3],(unsigned long)state[8],(unsigned long)state[9]);
+    if(size>0)(void)SteamOhosNextSyscall(SYS_write,2,line,(size_t)size);
+    if(result!=(long)sizeof(state))return;
+    const uintptr_t addresses[]={state[3]>32?state[3]-32:0,state[8],state[9]};
+    const char *labels[]={"CODE","STACK","FRAME"};
+    for(unsigned part=0;part<3;++part) {
+        unsigned char data[512];local=(struct iovec){data,part?sizeof(data):96};
+        remote=(struct iovec){(void*)addresses[part],local.iov_len};
+        result=SteamOhosNextSyscall(SYS_process_vm_readv,self,&local,1,&remote,1,0);
+        if(result<=0)continue;
+        static const char digits[]="0123456789abcdef";
+        size=(int)snprintf(line,sizeof(line),"STEAMOHOS_NATIVE_EXIT_%s pid=%ld address=0x%lx bytes=",labels[part],self,(unsigned long)addresses[part]);
+        for(long n=0;n<result&&size+3<(int)sizeof(line);++n){line[size++]=digits[data[n]>>4];line[size++]=digits[data[n]&15];}
+        line[size++]='\n';(void)SteamOhosNextSyscall(SYS_write,2,line,(size_t)size);
+    }
+    int fd=(int)SteamOhosNextSyscall(SYS_openat,AT_FDCWD,"/proc/self/maps",O_RDONLY|O_CLOEXEC,0);
+    if(fd<0)return;
+    static const char begin[]="STEAMOHOS_NATIVE_EXIT_MAPS_BEGIN\n",end[]="STEAMOHOS_NATIVE_EXIT_MAPS_END\n";
+    (void)SteamOhosNextSyscall(SYS_write,2,begin,sizeof(begin)-1);
+    char page[4096];
+    for(unsigned block=0;block<256;++block) {
+        result=SteamOhosNextSyscall(SYS_read,fd,page,sizeof(page));
+        if(result<=0)break;
+        (void)SteamOhosNextSyscall(SYS_write,2,page,(size_t)result);
+    }
+    (void)SteamOhosNextSyscall(SYS_close,fd);
+    (void)SteamOhosNextSyscall(SYS_write,2,end,sizeof(end)-1);
+#else
+    (void)frame;
+#endif
+}
+static void TraceNativeExit(long number,long status,uintptr_t caller,uintptr_t frame) {
     const char *enabled=getenv("STEAMOHOS_NATIVE_EXIT_TRACE");
     static _Atomic unsigned reports;
     if(!NativeFex()||!enabled||strcmp(enabled,"1")||atomic_fetch_add(&reports,1)>=8)return;
@@ -542,11 +586,19 @@ static void TraceNativeExit(long number,long status,uintptr_t caller) {
         matched?(unsigned long)(caller-begin)+offset:0UL);
     if(length>0)(void)SteamOhosNextSyscall(SYS_write,STDERR_FILENO,message,
         (size_t)length<sizeof(message)?(size_t)length:sizeof(message)-1);
+    if(number==SYS_exit_group&&status)TraceGuestExitState(frame);
     errno=saved;
 }
-__attribute__((visibility("hidden"))) long SteamOhosFexExitCall(long number,long a,long b,long c,long d,long e,long f) {
+__attribute__((visibility("hidden"))) long SteamOhosFexExitCall(long number,long a,long b,long c,long d,long e,long f
+#if defined(__aarch64__)
+        ,uintptr_t frame
+#endif
+        ) {
+#if !defined(__aarch64__)
+    uintptr_t frame=0;
+#endif
     if(!SteamOhosNextSyscall)return SteamOhosSyscallUnavailable();
-    TraceNativeExit(number,a,(uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)));
+    TraceNativeExit(number,a,(uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)),frame);
     return SteamOhosNextSyscall(number,a,b,c,d,e,f);
 }
 __attribute__((visibility("hidden"))) long SteamOhosFexExecCall(long number,long a,long b,long c,long d,long e,long f) {

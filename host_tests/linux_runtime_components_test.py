@@ -4,12 +4,15 @@ import hashlib
 import importlib.util
 import io
 import json
+import struct
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 import zipfile
 
 REPO=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(REPO/'scripts'))
 spec=importlib.util.spec_from_file_location('components',REPO/'scripts/prepare_linux_runtime_components.py')
 components=importlib.util.module_from_spec(spec);spec.loader.exec_module(components)
 
@@ -61,6 +64,24 @@ class RestoreTests(unittest.TestCase):
         driver.parent.mkdir(parents=True,exist_ok=True)
         driver.write_text(json.dumps(components.native_vulkan_driver.expected(self.root)))
         (self.root/'docs/linux-steam').mkdir(parents=True)
+        # verify_sources also validates the independently delivered Proton
+        # bootstrap. Keep the packaging fixture complete with small PE64
+        # identities, rather than depending on a developer's full runtime.
+        import build_linux_proton_bootstrap as bootstrap
+        pe=bytearray(512);pe[:2]=b'MZ';struct.pack_into('<I',pe,60,64)
+        pe[64:68]=b'PE\0\0';struct.pack_into('<H',pe,68,0xaa64)
+        struct.pack_into('<H',pe,84,240);struct.pack_into('<H',pe,88,0x20b)
+        folder=self.raw/'linux-proton/bootstrap';folder.mkdir(parents=True,exist_ok=True)
+        files=[]
+        for name in bootstrap.NAMES:
+            (folder/name).write_bytes(pe)
+            files.append(dict(name=name,sourcePath='files/lib/wine/aarch64-windows/'+name,
+                bytes=len(pe),sha256=hashlib.sha256(pe).hexdigest()))
+        (folder/'manifest.json').write_text(json.dumps(dict(schemaVersion=1,
+            architecture='aarch64-windows',distributionSha512='fixture',files=files)))
+        (self.root/'docs/linux-steam/gnu-proton-probe.lock.json').write_text(json.dumps(
+            dict(distribution=dict(sha512='fixture'),selected=[])))
+        (self.root/'docs/linux-steam/proton-media.lock.json').write_text(json.dumps(dict(files=[])))
         self.write_lock()
 
     def write_lock(self):

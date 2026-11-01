@@ -1,4 +1,4 @@
-# 原生 Linux 引擎验证（2026-10-31）
+# 原生 Linux 引擎验证（更新至 2026-11-01）
 
 本轮只操作普通平板；两代尖塔均通过 Steam 切换为默认 Linux Runtime 并完成原生 depot 安装，核对入口为 x86-64 ELF。Windows depot、原 OHOS Wine 或 GNU Proton 的启动结果不能替代以下原生验收。
 
@@ -6,7 +6,22 @@
 | --- | --- | --- | --- |
 | 星露谷 413150 | 413153 | 官方 FEX → guest shell → .NET/SDL/OpenGL，曾出现有动画的标题菜单 | 窗口尺寸、输入、正常退出及 GL 共享呈现验收 |
 | 杀戮尖塔 646570 | 646573 | 官方 FEX → scout-on-soldier → Java 8/libGDX；补齐 guest PATH 后越过显示模式初始化，默认 JIT 与解释执行暴露不同后续故障；按用户要求暂停专项调查 | 菜单与可玩性；不能归为 DXVK 或 Steam 认证失败 |
-| 杀戮尖塔二 2868840 | 2868843 | 官方 FEX → sniper → Godot/.NET 9.0.7，Vulkan swapchain 与音频初始化成功；默认双映射停在 .NET 初始化，临时关闭 W^X 后越过并加载资源，随后退出码 1 | 菜单、输入、游戏运行与退出 |
+| 杀戮尖塔二 2868840 | 2868843 | 官方 FEX → sniper → Godot/.NET 9.0.7，标准 HAP 自动交付修正后进入菜单和战斗，用户确认可玩 | 帧率优化、正常菜单退出与长期稳定性；已通过全屏显示和无诊断正常入口 |
+
+## 2026-11-01：尖塔二已进入战斗，显示与性能继续验收
+
+普通平板通过标准 HAP 自动交付运行时，从官方 ARM64 Linux Steam 启动 Linux depot 2868843（manifest 7881097836989620034），经 FEX、sniper、Godot/MegaDot、CoreCLR 9.0.7 进入菜单并实际战斗。用户确认“可以哦，能玩了”，本机截图也确认战斗画面。没有切换 Windows depot、Wine 或 Proton，没有修改游戏程序集或 FEX 源码。下方 10 月 31 日的退出 1、菜单未通过等记录是此前诊断历史，不能作为最新状态。
+
+最终跨过启动阻断的两处自有适配器修正：
+
+1. FEX 安装 guest SIGSYS handler 后，原来的 host seccomp 适配可能被它抢先消费。`FexObservedSignal` 在委托前，仅对真实 host 架构、`SYS_SECCOMP`、已列明可选调用处理 raw `-ENOSYS`，其他信号继续原处理链。真实 seccomp 回归先失败、修正后通过；单独该修复尚不能进入菜单。
+2. 真实故障帧位于 `steamclient.so` ELF RVA `0x211e163`（文件偏移 `0x211d163`）。Steam 查询 self robust-list 被 OHOS 拒绝，随后断言写 0，Sentry 将其包装为退出 1。新增 x86 guest preload 仅在 self/current tid 查询被 ENOSYS/EPERM/EACCES 拒绝时，返回 guest glibc 实际注册的 head 和真实长度。通过真实临时 robust mutex 链发现当前 libc 布局，后续线程验证该布局，显式成功注册保持原值。没有空链伪造、owner-death 改写或认证绕过。真实内核对照、多线程持锁查询、坏指针、显式注册、owner-death 和 syscall 六参数合同通过。
+
+此前按实际 memfd 元数据拒绝能力选择的 `DOTNET_EnableWriteXorExecute=0` 仍由 native-FEX 子启动器自动处理，保留用户显式选择，不再需要手动填写此参数。首个成功游戏实例仍带有可回退的退出诊断和 `--verbose`；随后已恢复原始空 LaunchOptions，关闭退出／模块诊断，经正常 Steam 入口再次进入菜单和战斗。POSIX、FEX 启动器、native Vulkan 和 guest IPC 的设备 SHA-256 均与 HAP rawfile 一致。
+
+图形链路是 Vulkan 1.2.309、Forward+、Venus/Maleoon 910；swapchain 1920×1080，三图像，`pixel_readbacks=0`。宿主合成统计也为零 CPU 图像回读与上传。战斗约 18～24 FPS。一次 8 秒有界采样中，每 2 秒约 1.7～1.8 秒在等待新源帧，宿主实际提交与绘制 CPU 累计仅几十毫秒；这只能说明该采样下宿主 CPU 合成不是主要耗时，尚不能区分游戏转译、GPU 负载和上游同步。
+
+已发现专用 fullscreen Wayland host 的 1200×800 configure 反向调整游戏 X11 geometry，而 Vulkan swapchain 保持 1920×1080，出现左上小画面和输入偏移。候选改为只 ack configure，保留游戏自身 drawable 尺寸，由宿主 fit 图像。真实 Xvfb/Wayland 回归用 800×600 host / 320×240 game 证明旧代码会改错 geometry，修复后 geometry 保持；键、鼠标、滚轮、关闭及两套 WSI 合同通过。候选 HAP 已标准安装验收：图像居中并铺满可用宽度；16:9 内容在 16:10 输出的上下留边保持比例。游戏自行生成的 1200×800 swapchain 与 X11 geometry 一致，用户继续进入战斗并出牌；实际 XTEST 点击也可打开暂停／设置。菜单约 39 FPS、战斗约 15～20 FPS，不能称全屏修复已提升性能。此修正没有改 Wine WSI、全局分辨率或游戏画质。
 
 ## 通用可选系统调用合同
 
@@ -158,3 +173,13 @@ GNU ARM64 适配器与启动器已重编译并通过源码/载荷校验；新增
 在同一 HAP 和自动能力回退下，另行临时传入 Godot 的 `--disable-crash-handler`，不连接调试器，仍越过 hostfxr 并在资源加载后退出 1／signal 0。该对照没有形成修复，也不能证明游戏内的第三方崩溃处理器已被关闭。结束后已停止所选应用及全部同 UID 子进程、核对本任务 guest 调试转发为 0，恢复原始 LaunchOptions；不保留这些诊断开关。
 
 后续应先捕获可复现的 CoreCLR／Godot 内存故障位置，再验证同路径的修复；不通过禁用认证、替换游戏程序集、全局关闭内存优化或 AppID 专用规则掩盖失败。尖塔二仍为 `accepted=false`。
+
+## 分辨率对照（2026-11-01）
+
+该版本游戏的视频设置在全屏时将“窗口化分辨率”显示为 N/A；没有独立的全屏内部渲染比例。退出游戏自己的全屏后，该设备下拉列表仅提供 1024×768。通过正常 X11 resize 可让游戏自行重建 960×540、640×360 的 Vulkan swapchain，宿主仍全屏 fit，保持 NativeBuffer 路径，不修改游戏程序或虚报 Vulkan 尺寸。
+
+前期 1024×768／960×540 约 20 FPS 的观察夹杂用户战斗与焦点切换，不作为同场景定量对照。用户暂停操作后，在同一战斗的暂停菜单做一次低／高分辨率对照：640×360 约 24.4 FPS（600 帧／24.56 秒），1200×800 约 14.7 FPS（360 帧／24.47 秒）。计数来自每 120 帧的现有日志，单段约有 ±4.9 FPS 量化误差；后续全屏截图也见约 19～23 FPS，尚不能声称获得稳定提升或已定位唯一瓶颈。640×360 的字明显模糊，没有作为产品默认。
+
+已通过游戏 UI 恢复全屏，保持用户的 30 FPS 上限、关闭 VSync、关闭 MSAA，并停在暂停菜单。未保存／退出战斗，不修改战斗存档。当前 HAP 未新增按游戏保存的分辨率控制。后续应把渲染尺寸和全屏输出解耦为通用用户选项，并分别测 GPU、转译和同步耗时；不应简单缩小 Vulkan 申报尺寸或全局强制低画质。
+
+另观察到 windowed X11 game 在其他 Steam X11 窗口下方时，单独 set_input_focus 不足以让 XTEST 点击命中；临时将真实 game window raise 后可操作暂停／设置。本轮没有据此修改产品焦点策略，也未将该现象认定为低帧率根因。

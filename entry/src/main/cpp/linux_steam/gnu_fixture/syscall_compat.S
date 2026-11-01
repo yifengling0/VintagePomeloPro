@@ -27,9 +27,9 @@
 #if defined(__aarch64__)
 syscall:
     cmp x0, #__NR_exit_group
-    b.eq SteamOhosFexExitCall
+    b.eq 6f
     cmp x0, #__NR_exit
-    b.eq SteamOhosFexExitCall
+    b.eq 6f
     cmp x0, #__NR_execve
     b.eq SteamOhosFexExecCall
     cmp x0, #__NR_execveat
@@ -98,6 +98,11 @@ syscall:
     mov x2, x3
     mov x3, x4
     b SteamOhosOpenAt2
+6:
+    // The pinned native FEX keeps its guest frame in callee-saved x28.
+    // x7 is not a libc syscall argument; preserve x0..x6 and the caller LR.
+    mov x7, x28
+    b SteamOhosFexExitCall
 2:
     b SteamOhosSyscallUnavailable
 #elif defined(__x86_64__)

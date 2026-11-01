@@ -62,15 +62,19 @@ __attribute__((no_stack_protector)) long RawCall(long number, long a, long b, lo
     return result;
 #endif
 }
-__attribute__((no_stack_protector)) void ExecSigSys(int, siginfo_t* info, void* context) {
+__attribute__((no_stack_protector)) bool ResumeUnsupportedFexCall(siginfo_t* info,void* context) {
     if(FexNativeScope && steamohos::fex::UnsupportedSandboxCall(info,context)) {
         static std::atomic<unsigned> reports{0};
         if(reports.fetch_add(1,std::memory_order_relaxed)<8) {
             static const char message[]="STEAMOHOS_FEX_OPTIONAL sandbox_api=ENOSYS\n";
             RawCall(SYS_write,2,reinterpret_cast<long>(message),sizeof(message)-1);
         }
-        return;
+        return true;
     }
+    return false;
+}
+__attribute__((no_stack_protector)) void ExecSigSys(int, siginfo_t* info, void* context) {
+    if(ResumeUnsupportedFexCall(info,context))return;
     static const char prefix[] = "STEAMOHOS_SIGSYS syscall=";
     RawCall(SYS_write, 2, reinterpret_cast<long>(prefix), sizeof(prefix)-1);
     char number[24]; int used = 0;
@@ -289,6 +293,11 @@ __attribute__((no_stack_protector)) void FexTerminalFault(int signal,siginfo_t* 
 // Preserve the original flags/mask/restorer, handler queries and fatal signals.
 std::atomic<uintptr_t> FexObservedHandlers[NSIG]{};
 __attribute__((no_stack_protector)) void FexObservedSignal(int signal,siginfo_t* info,void* context) {
+    // A guest-installed SIGSYS action makes FEX delegate before chaining the
+    // old host action. Resolve genuine host sandbox capability traps here,
+    // before they can be mistaken for a guest crash. User-generated signals
+    // and guest-architecture seccomp traps keep the registered handler.
+    if(signal==SIGSYS&&ResumeUnsupportedFexCall(info,context))return;
     stack_t current{};
     const long result=RawCall(SYS_sigaltstack,0,reinterpret_cast<long>(&current),0);
     bool repaired=false;
@@ -302,8 +311,9 @@ __attribute__((no_stack_protector)) void FexObservedSignal(int signal,siginfo_t*
 #endif
         repaired=steamohos::fex::RepairEmptySignalStack(state->uc_stack,current,interrupted);
     }
-    static std::atomic<unsigned> reports{0};
-    if(FexSignalDiagnostics&&reports.fetch_add(1,std::memory_order_relaxed)<24)
+    static std::atomic<unsigned> reports{0},sysReports{0};
+    auto& budget=signal==SIGSYS?sysReports:reports;
+    if(FexSignalDiagnostics&&budget.fetch_add(1,std::memory_order_relaxed)<(signal==SIGSYS?8u:24u))
         RecordFexFault("STEAMOHOS_FEX_SIGNAL",signal,info,context,&current,result,repaired);
 #if defined(STEAMOHOS_NATIVE_FAULT_ORIGIN)
     // An exception inside a native thunk or syscall can leave the last guest

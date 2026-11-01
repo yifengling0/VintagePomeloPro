@@ -25,7 +25,9 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",
     "entry/src/main/cpp/protocols/audio_ipc_protocol.h": "04183eb881704d48ea3b21e2f95fe9ae5afb9faca6fcce39689603d8bc61d42c",
     "entry/src/main/cpp/linux_steam/gnu_fixture/sysvipc_compat.c": "331a9577faa2bd1fcb20c57446cb850cf8130e92e69feee91a99dc06e9e32d84",
-    "scripts/prepare_linux_native_guest_core.py": "53c10d506ec679621a3c67959b71a27c34266398e67676cddc52c69a61457ae3"
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_robust.c": "6177bdf02fe4d821505ca60453cbf8b931a85d1e8105fdd751596c2d2627d1ff",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_syscall.S": "326f1224bc883e0bf190b2ade21c15208224b08c4acf6d984496d982772ce09c",
+    "scripts/prepare_linux_native_guest_core.py": "f9c841f654c5911e386988315d493ff6460b4fa4ef151e72b69dd10ba807682b"
   },
   "files": {
     "ld-linux-x86-64.so.2": {
@@ -89,8 +91,8 @@
       "sha256": "49fc6eb7d399cf1b143823583344a6723de1dc9cd9ed7c625ad0e9f8fd1ffe1f"
     },
     "libsteamohos_native_ipc.so": {
-      "bytes": 25776,
-      "sha256": "e78b3cb208d09c35ddc34a2fefccafff9e6be23c24f2c2b06f67945c28117d64"
+      "bytes": 30720,
+      "sha256": "373d424b0922ab69f7f027250a5037c4b4833a859826a48d8e04251b81b17d5b"
     }
   }
 }
