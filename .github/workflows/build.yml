@@ -344,6 +344,7 @@ jobs:
           python3 host_tests/linux_steam_exec_access_test.py
           python3 host_tests/linux_steam_depot_links_test.py
           python3 host_tests/linux_steam_native_fex_test.py
+          python3 host_tests/linux_steam_native_sdk_test.py
           python3 host_tests/linux_steam_native_repairs_test.py
           python3 host_tests/linux_steam_native_udev_test.py
           python3 host_tests/linux_steam_native_guest_audio_test.py

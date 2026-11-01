@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { fileIo as fs, statfs } from '@kit.CoreFileKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { LinuxSteamDeploymentPlan, LinuxSteamDownloadArchive, LinuxSteamInstallSnapshot, LinuxSteamInstallPhase,
-  validateLinuxSteamDeployment, linuxSteamInstallBusy } from '../model/LinuxSteamDownloadModels';
+  validateLinuxSteamDeployment, linuxSteamInstallBusy, linuxSteamComponentPath, linuxSteamSdkFile } from '../model/LinuxSteamDownloadModels';
 import { LinuxSteamLibraryService } from './LinuxSteamLibraryService';
 import { prepareLinuxSteamClientData, prepareLinuxSteamExternalStorage, recoverLinuxSteamExternalStorage, selectLinuxSteamStorage, linuxSteamStorageLocation } from './LinuxSteamDiagnosticData';
 import { ConfigurationFiles } from './ConfigurationFiles';
@@ -81,6 +81,19 @@ export class LinuxSteamInstallService {
     const id = readSmokeText(`${root}/active-version.txt`).trim();
     return /^[a-f0-9]{64}$/.test(id) && readSmokeText(`${root}/releases/${id}/.verified`).trim() === id;
   }
+  private nativeSdkReady(root: string): boolean {
+    if (!this.plan) return false;
+    try {
+      for (const file of this.plan.files) {
+        if (!linuxSteamSdkFile(file.path)) continue;
+        const path = linuxSteamComponentPath(root, this.plan.id, file.path);
+        if (!safeInstallationParents(root, path)) return false;
+        const stat = fs.lstatSync(path);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== file.bytes) return false;
+      }
+      return true;
+    } catch (_) { return false; }
+  }
   snapshot(): LinuxSteamInstallSnapshot { return { phase: this.value.phase, message: this.value.message,
     component: this.value.component, receivedBytes: this.value.receivedBytes, totalBytes: this.value.totalBytes,
     speedBytes: this.value.speedBytes, completedComponents: this.value.completedComponents,
@@ -115,7 +128,16 @@ export class LinuxSteamInstallService {
       this.plan = plan; this.value.totalBytes = plan.downloadBytes; this.value.requiredSpaceBytes = plan.requiredSpaceBytes;
       this.value.totalComponents = plan.archives.length; this.value.totalFiles = plan.files.length;
     }
-    if (this.installed() && !this.operation) { this.value.phase = 'ready'; this.value.message = 'Steam 运行组件已就绪'; }
+    if (this.installed() && !this.operation) {
+      if (this.nativeSdkReady(LinuxSteamLibraryService.getInstance().externalRoot())) {
+        this.value.phase = 'ready'; this.value.message = 'Steam 运行组件已就绪';
+        this.value.error = ''; this.value.errorCode = '';
+      } else {
+        this.value.phase = 'failed'; this.value.message = 'Steam 接口组件需要修复';
+        this.value.errorCode = 'NATIVE_SDK';
+        this.value.error = '请选择在线修复或导入新版完整离线包，补齐 Linux 游戏接口；游戏、账号与存档会保留';
+      }
+    }
     else if (!this.installed() && this.value.phase === 'ready') { this.value.phase = 'idle'; this.value.receivedBytes = 0; }
     this.publish();
   }
@@ -253,17 +275,16 @@ export class LinuxSteamInstallService {
     if (fs.accessSync(destination)) fs.unlinkSync(destination);
     fs.renameSync(temporary, destination);
   }
-  // Host adapter upgrades reuse only checksum-matched installed official files.
+  // Upgrades and repairs reuse only checksum-matched installed official files.
   // They never download implicitly or read games, userdata or configuration.
   private async reuseInstalledArchive(root: string, staging: string, archive: LinuxSteamDownloadArchive): Promise<boolean> {
     const active = readSmokeText(`${root}/active-version.txt`).trim();
     const plan = this.plan;
-    if (!plan || !/^[a-f0-9]{64}$/.test(active) || active === plan.id || !this.installed()) return false;
+    if (!plan || !/^[a-f0-9]{64}$/.test(active) || !this.installed()) return false;
     const files = plan.files.filter((file): boolean => file.archive === archive.id);
     for (const file of files) {
       this.checkPaused();
-      const source = file.path.startsWith('release/') ? `${root}/releases/${active}/${file.path.substring(8)}` :
-        `${root}/client/.steam/steam/${file.path.substring(7)}`;
+      const source = linuxSteamComponentPath(root, active, file.path);
       if (!safeInstallationParents(root, source) || !fs.accessSync(source)) return false;
       const stat = fs.lstatSync(source);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== file.bytes ||
@@ -271,8 +292,7 @@ export class LinuxSteamInstallService {
     }
     for (const file of files) {
       this.checkPaused();
-      const source = file.path.startsWith('release/') ? `${root}/releases/${active}/${file.path.substring(8)}` :
-        `${root}/client/.steam/steam/${file.path.substring(7)}`;
+      const source = linuxSteamComponentPath(root, active, file.path);
       const destination = `${staging}/${file.path}`;
       installationDirectory(destination.substring(0, destination.lastIndexOf('/')));
       if (fs.accessSync(destination)) {
@@ -290,7 +310,9 @@ export class LinuxSteamInstallService {
     this.value.error = ''; this.value.errorCode = '';
     try {
       await this.initialize(context);
-      if (this.installed() && !force) return;
+      const existingRoot = LinuxSteamLibraryService.getInstance().externalRoot();
+      if (this.installed() && !force && readSmokeText(`${existingRoot}/active-version.txt`).trim() === this.plan?.id &&
+        this.nativeSdkReady(existingRoot)) return;
       this.stage('checking', '正在检查存储空间和运行组件');
       const root = await prepareLinuxSteamExternalStorage(context); this.checkPaused();
       const plan = this.plan;
@@ -400,8 +422,8 @@ export class LinuxSteamInstallService {
       }
       const home = `${root}/client/.steam/steam`; installationDirectory(home);
       for (const file of plan.files) {
-        if (!file.path.startsWith('client/')) continue;
-        this.checkPaused(); const destination = `${home}/${file.path.substring(7)}`;
+        if (file.path.startsWith('release/')) continue;
+        this.checkPaused(); const destination = linuxSteamComponentPath(root, plan.id, file.path);
         installationDirectory(destination.substring(0, destination.lastIndexOf('/')));
         if (fs.accessSync(destination) && fs.lstatSync(destination).isSymbolicLink()) throw new Error('Steam 资源目标含符号链接');
         const temporary = destination + '.component-update';
@@ -453,8 +475,8 @@ export class LinuxSteamInstallService {
       await reclaimLinuxSteamReleases(root, '', '', false);
       this.step = 'reset-client-resources';
       for (const file of plan.files) {
-        if (!file.path.startsWith('client/')) continue;
-        const destination = `${root}/client/.steam/steam/${file.path.substring(7)}`;
+        if (file.path.startsWith('release/')) continue;
+        const destination = linuxSteamComponentPath(root, plan.id, file.path);
         try {
           if (safeInstallationParents(root, destination) && fs.accessSync(destination) && fs.lstatSync(destination).isFile() && !fs.lstatSync(destination).isSymbolicLink() &&
             fs.statSync(destination).size === file.bytes && await ConfigurationFiles.fileHash(destination) === file.sha256) fs.unlinkSync(destination);
@@ -483,6 +505,11 @@ export class LinuxSteamInstallService {
     if (!this.installed()) throw new Error('请先下载 Steam 运行组件，下载进度和重试入口可在 Steam 页面查看');
     const activeRoot = LinuxSteamLibraryService.getInstance().externalRoot();
     const plan = this.plan;
+    // Installation hashes the files; startup only checks this small inventory.
+    // Do this before offline host migration, so old installs get a useful repair
+    // action instead of repeatedly preparing a release that cannot be activated.
+    if (!this.nativeSdkReady(activeRoot)) throw new LinuxSteamDownloadError('NATIVE_SDK',
+      'Linux 游戏的 Steam 接口组件缺失或损坏，请在 Steam 组件页在线修复或导入新版完整离线包；游戏和存档会保留');
     if (plan && readSmokeText(`${activeRoot}/active-version.txt`).trim() !== plan.id) {
       if (readSmokeText(`${activeRoot}/client/.steam/steam/.packaged-data-version`).trim() !== plan.clientDataId) {
         throw new Error('Steam 组件需要更新，请在组件页选择在线更新或导入；原游戏和存档会保留');

@@ -40,13 +40,16 @@ def compatible_bundle(path, expected):
         return False
 
 
-def build(plan_path, downloads, output, rawfile_dir, compatible_packages=()):
+def build(plan_path, downloads, output, rawfile_dir, compatible_packages=(), archive_caches=()):
     plan = json.loads(plan_path.read_text(encoding='utf-8'))
     sources = []
     for archive in plan['archives']:
         if archive['url'].startswith('rawfile://'):
             continue
-        source = downloads / archive['url'].rsplit('/', 1)[1]
+        filename = archive['url'].rsplit('/', 1)[1]
+        candidates = [folder / filename for folder in [downloads, *archive_caches]]
+        source = next((p for p in candidates if p.is_file() and p.stat().st_size == archive['bytes'] and
+                       file_hash(p) == archive['sha256']), candidates[0])
         if source.stat().st_size != archive['bytes'] or file_hash(source) != archive['sha256']:
             raise ValueError('Official ZIP checksum mismatch: ' + archive['id'])
         sources.append(('archives/' + archive['sha256'] + '.zip', source))
@@ -110,5 +113,7 @@ if __name__ == '__main__':
         parser.add_argument('--' + key, type=Path, required=True)
     parser.add_argument('--compatible-package', type=Path, action='append', default=[],
                         help='Validate and accept an earlier published bundle with the same official ZIPs')
+    parser.add_argument('--archive-cache', type=Path, action='append', default=[],
+                        help='Reuse official ZIPs from another cache without copying them')
     args = parser.parse_args()
-    print(json.dumps(build(args.plan, args.downloads, args.output, args.rawfile_dir, args.compatible_package)))
+    print(json.dumps(build(args.plan, args.downloads, args.output, args.rawfile_dir, args.compatible_package, args.archive_cache)))

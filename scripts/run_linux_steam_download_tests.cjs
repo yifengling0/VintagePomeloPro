@@ -125,6 +125,9 @@ async function main() {
   assert.equal(production.archives[0].url,'rawfile://linux-steam/hmosdeck-gnu-arm64-v1.zip');
   assert.equal(production.downloadBytes,production.archives.filter(x=>x.url.startsWith('https:')).reduce((n,x)=>n+x.bytes,0));
   for(const mutate of [p=>p.files[0].path='../escape',p=>p.files[0].path='client/userdata/1/save',
+    p=>p.files[0].path='sdk/sdk64/../../userdata/save',p=>p.files[0].path='sdk/sdk64/arbitrary.so',
+    p=>p.files=p.files.filter(f=>f.path!=='sdk/sdk64/steamclient.so'),
+    p=>p.files=p.files.filter(f=>f.path!=='sdk/sdk32/steamclient.so'),
     p=>p.files[0].zipPath='../other',p=>p.archives[1].url='https://evil.invalid/test',p=>p.files.push(p.files[0])]) {
     const p=structuredClone(production);mutate(p);assert.throws(()=>model.validateLinuxSteamDeployment(p));
   }
@@ -134,25 +137,32 @@ async function main() {
     ['release/runtime/manifest.json',Buffer.from('{}')],
     ['release/runtime/ld-linux-aarch64.so.1',Buffer.from('loader')],
     ['client/steamui/index.html',Buffer.from('UI')],
-    ['client/steamrtarm64/icudtl.dat',Buffer.from('ICU')]
+    ['client/steamrtarm64/icudtl.dat',Buffer.from('ICU')],
+    ['sdk/sdk32/steamclient.so',Buffer.from('test-i386-sdk')],
+    ['sdk/sdk32/crashhandler.so',Buffer.from('test-i386-crash-handler')],
+    ['sdk/sdk32/steamerrorreporter',Buffer.from('test-i386-error-reporter')],
+    ['sdk/sdk64/steamclient.so',Buffer.from('test-x86-sdk')],
+    ['sdk/sdk64/crashhandler.so',Buffer.from('test-x86-crash-handler')]
   ]);
-  const embedded=Buffer.from('embedded-zip'),official=Buffer.from('official-zip');
+  const embedded=Buffer.from('embedded-zip'),official=Buffer.from('official-zip'),nativeSdk=Buffer.from('sdk-zip');
+  const archiveBytes=new Map([['gnu-runtime',embedded],['official',official],['steam-native-sdk',nativeSdk]]);
   const manifest=JSON.stringify({schemaVersion:1,layout:'SteamLinuxARM64',executionModel:'native_aarch64',
     files:[...content].filter(([p])=>p.startsWith('release/')).map(([p,b])=>({path:p.substring(8),sha256:sha(b),bytes:b.length}))})+'\n';
   const plan={schemaVersion:1,hostAbi:1,id:sha(manifest),clientBuild:'1',clientDataId:sha('client-index'),
-    downloadBytes:official.length,requiredSpaceBytes:536880912,releaseManifest:manifest,archives:[
+    downloadBytes:official.length+nativeSdk.length,requiredSpaceBytes:536880912,releaseManifest:manifest,archives:[
       {id:'gnu-runtime',name:'GNU',url:'rawfile://linux-steam/hmosdeck-gnu-arm64-v1.zip',bytes:embedded.length,sha256:sha(embedded),unpackedBytes:100},
-      {id:'official',name:'Steam',url:'https://client-update.steamstatic.com/test.zip',bytes:official.length,sha256:sha(official),unpackedBytes:100}],
-    files:[...content].map(([p,b])=>({path:p,archive:p.includes('ld-linux')?'gnu-runtime':'official',source:p,zipPath:p,bytes:b.length,sha256:sha(b)}))};
+      {id:'official',name:'Steam',url:'https://client-update.steamstatic.com/test.zip',bytes:official.length,sha256:sha(official),unpackedBytes:100},
+      {id:'steam-native-sdk',name:'SDK',url:'https://client-update.steamstatic.com/sdk.zip',bytes:nativeSdk.length,sha256:sha(nativeSdk),unpackedBytes:100}],
+    files:[...content].map(([p,b])=>({path:p,archive:p.startsWith('sdk/')?'steam-native-sdk':p.includes('ld-linux')?'gnu-runtime':'official',source:p,zipPath:p,bytes:b.length,sha256:sha(b)}))};
   const embeddedPath=path.join(temporary,'gnu.zip');fs.writeFileSync(embeddedPath,embedded);
   const bundle=Buffer.from('pinned-offline-bundle');
   const bundlePath=path.join(temporary,'offline.zip');fs.writeFileSync(bundlePath,bundle);
   const metadata={schemaVersion:1,id:plan.id,bytes:bundle.length,sha256:sha(bundle),fileName:'offline.zip'};
-  let free=1, fetches=0, activates=0, corrupt=false, extractions=0;
+  let free=1, fetches=0, activates=0, corrupt=false, extractions=0, fetchedArchives=[];
   const dirs=p=>{fs.mkdirSync(real(p),{recursive:true});return true;};
   class Transfer {pause(){} async fetch(a,d,p,network=true){
     if(!network) {assert.equal(sha(fs.readFileSync(real(d))),a.sha256,'offline uses only verified local cache');}
-    else {fetches++;fs.writeFileSync(real(d),official);}p(official.length);
+    else {fetches++;fetchedArchives.push(a.id);fs.writeFileSync(real(d),archiveBytes.get(a.id));}p(a.bytes);
   }}
   const retention=load('service/LinuxSteamReleaseRetention.ets',{'@kit.CoreFileKit':{fileIo:io},'./ConfigurationFiles':config});
   const pointer='/data/storage/el2/base/files/steamohos-native/external-root.path';
@@ -215,11 +225,14 @@ async function main() {
     '@kit.AbilityKit':{},'@kit.CoreFileKit':{fileIo:io,statfs:{getFreeSize:async()=>free}},
     '@kit.BasicServicesKit':{zlib:{async decompressFile(file,where) {
       extractions++;
+      where=real(where);
       if(path.basename(file)==='local-import.zip') {
-        const target=path.join(where,'archives',sha(official)+'.zip');
-        fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,official);return;
+        for(const blob of [official,nativeSdk]) {
+          const target=path.join(where,'archives',sha(blob)+'.zip');
+          fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,blob);
+        }return;
       }
-      const group=path.basename(file).startsWith(sha(embedded))?'gnu-runtime':'official';
+      const group=plan.archives.find(a=>path.basename(file).startsWith(a.sha256)).id;
       for(const f of plan.files.filter(f=>f.archive===group)){
         const p=path.join(where,f.source);fs.mkdirSync(path.dirname(p),{recursive:true});
         fs.writeFileSync(p,corrupt && group==='official'?Buffer.from('bad'):content.get(f.path));
@@ -229,7 +242,7 @@ async function main() {
     './LinuxSteamDiagnosticData':{prepareLinuxSteamExternalStorage:storage.prepareLinuxSteamExternalStorage,
       recoverLinuxSteamExternalStorage:storage.recoverLinuxSteamExternalStorage,
       selectLinuxSteamStorage:storage.selectLinuxSteamStorage, linuxSteamStorageLocation:storage.linuxSteamStorageLocation,
-      prepareLinuxSteamClientData:async(_,__,id)=>{activates++;if(id)fs.writeFileSync(path.join(root,'active-version.txt'),id);}},
+      prepareLinuxSteamClientData:async(_,__,id)=>{activates++;if(id)fs.writeFileSync(real(path.join(readText(pointer).trim(),'active-version.txt')),id);}},
     './ConfigurationFiles':config,'./ManagedSmokePayloadService':{ensureSmokeDirectory:dirs,
       readSmokeText:p=>{try{return fs.readFileSync(real(p),'utf8');}catch{return '';}}},
     './LinuxSteamComponentDownload':{LinuxSteamComponentDownload:Transfer,LinuxSteamDownloadError:download.LinuxSteamDownloadError},
@@ -250,6 +263,10 @@ async function main() {
   await Promise.all([installer.install(context),installer.install(context)]);
   assert.equal(activates,1,'concurrent installs share one operation');
   assert.equal(installer.snapshot().phase,'ready');
+  const sdk=path.join(root,'client/.steam/sdk64');
+  assert.equal(fs.readFileSync(path.join(sdk,'steamclient.so'),'utf8'),'test-x86-sdk');
+  assert.equal(fs.readFileSync(path.join(sdk,'crashhandler.so'),'utf8'),'test-x86-crash-handler');
+  assert.equal(fs.existsSync(path.join(root,'client/.steam/steam/sdk64')),false,'SDK is a HOME sibling, not a child of the install');
   assert.equal(fs.readFileSync(path.join(user,'save'),'utf8'),'keep-user-data');
   assert.equal(fs.readFileSync(path.join(root,'active-version.txt'),'utf8'),plan.id);
   assert.equal(fs.readFileSync(path.join(root,'releases',plan.id,'.verified'),'utf8'),plan.id);
@@ -272,6 +289,23 @@ async function main() {
   ]);
   for(const [p,b] of protectedFiles){fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,b);}
   function assertProtected(){for(const [p,b] of protectedFiles)assert.equal(fs.readFileSync(p,'utf8'),b,p);}
+  // Simulate the shipped old install: verified host/client, no native SDK.
+  for(const f of plan.files.filter(f=>f.path.startsWith('sdk/'))) {
+    fs.unlinkSync(model.linuxSteamComponentPath(root,plan.id,f.path));
+  }
+  await installer.initialize(context);
+  assert.equal(installer.snapshot().phase,'failed');assert.equal(installer.snapshot().errorCode,'NATIVE_SDK');
+  const beforeMissingSdk={fetches,extractions};
+  await assert.rejects(installer.ensureReady(context),e=>e.code==='NATIVE_SDK');
+  assert.deepEqual({fetches,extractions},beforeMissingSdk,'launch gives repair guidance without downloading or staging');
+  fetchedArchives=[];
+  await installer.install(context);
+  assert.equal(installer.snapshot().phase,'ready','normal install must not skip a verified host missing SDK');
+  assert.deepEqual(fetchedArchives,['steam-native-sdk'],'online repair reuses valid official archives and downloads only missing SDK');
+  for(const f of plan.files.filter(f=>f.path.startsWith('sdk/'))) {
+    assert.deepEqual(fs.readFileSync(model.linuxSteamComponentPath(root,plan.id,f.path)),content.get(f.path));
+  }
+  assertProtected();
   const networkBefore=fetches, unpackBefore=extractions;
   const invalid=path.join(temporary,'invalid.zip');fs.writeFileSync(invalid,Buffer.alloc(bundle.length,0));
   await assert.rejects(installer.importLocal(context,invalid),e=>e.code==='LOCAL_CHECKSUM');
@@ -297,13 +331,22 @@ async function main() {
   installer.subscribe(pauseLocal);await installer.importLocal(context,bundlePath);installer.unsubscribe(pauseLocal);
   assert.equal(installer.snapshot().phase,'paused');assert.equal(installer.installed(),true);assertProtected();
   fs.writeFileSync(path.join(root,'client/.steam/steam/steamui/index.html'),'damaged');
+  fs.writeFileSync(path.join(sdk,'steamclient.so'),'damaged-sdk');
+  await assert.rejects(installer.ensureReady(context),e=>e.code==='NATIVE_SDK');
   await installer.importLocal(context,bundlePath);
+  assert.equal(fs.readFileSync(path.join(sdk,'steamclient.so'),'utf8'),'test-x86-sdk');
   assert.equal(fs.readFileSync(path.join(root,'client/.steam/steam/steamui/index.html'),'utf8'),'UI');
   assert.equal(fetches,networkBefore,'offline repair does not download');assert.equal(installer.installed(),true);assertProtected();
+  const sdkPath=path.join(sdk,'steamclient.so');
+  const originalSdk=fs.readFileSync(sdkPath);fs.writeFileSync(sdkPath,Buffer.alloc(originalSdk.length,0));
+  await installer.importLocal(context,bundlePath);
+  assert.deepEqual(fs.readFileSync(sdkPath),originalSdk,'offline repair verifies hashes even for same-size corruption');
+  assert.equal(fetches,networkBefore);assertProtected();
   await installer.resetComponents(context);
   assert.equal(installer.installed(),false);assert.equal(installer.snapshot().phase,'idle');assertProtected();
   assert.equal(fs.existsSync(path.join(root,'releases',plan.id,'runtime/steamrtarm64/steam')),false);
   assert.equal(fs.existsSync(path.join(root,'client/.steam/steam/steamui/index.html')),false);
+  assert.equal(fs.existsSync(path.join(sdk,'steamclient.so')),false,'reset removes only the checksum-matched SDK component');
   await installer.importLocal(context,bundlePath);
   assert.equal(installer.installed(),true,'reset then import restores verified marker');assertProtected();
   const pending=installer.install(context,true);
@@ -313,6 +356,13 @@ async function main() {
   assert.equal(installer.location(),'private');assert.equal(installer.installed(),false);
   assert.equal(fs.existsSync(real(paths.LINUX_STEAM_PRIVATE_ROOT)),false,'selection creates no new Steam library');
   assert.equal(await storage.recoverLinuxSteamExternalStorage({}), '','explicit private selection cannot rediscover public games as active');
+  // A fresh C-drive install uses the same SDK destination mapping.
+  await installer.install(context);
+  const privateRoot=real(paths.LINUX_STEAM_PRIVATE_ROOT);
+  assert.equal(installer.installed(),true,'C-drive install activates its own release');
+  for(const f of plan.files.filter(f=>f.path.startsWith('sdk/'))) {
+    assert.deepEqual(fs.readFileSync(model.linuxSteamComponentPath(privateRoot,plan.id,f.path)),content.get(f.path));
+  }
   assertProtected();
   await installer.selectLocation(context,'download');
   assert.equal(readText(pointer).trim(),publicRoot);assert.equal(installer.installed(),true);assertProtected();
@@ -342,5 +392,6 @@ async function main() {
   console.log('PASS: missing private pointer rediscovers verified components without download; empty, symlinked and unavailable download roots are handled safely');
   console.log('PASS: actual installer space preflight, corrupt unpacked file, activation only after success, concurrent install, cache/staging cleanup, existing userdata preserved and ready idempotence');
   console.log('PASS: wrong/corrupt offline bundles rejected before extraction, no-network repair, reset/reimport, maintenance locking; game files, install records, accounts, saves and unknown files preserved');
+  console.log('PASS: fresh Download/C installs include all five SDK files; old missing-SDK install reports repair and only downloads SDK; same-size damaged SDK repaired by hash');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>fs.rmSync(temporary,{recursive:true,force:true}));

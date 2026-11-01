@@ -167,8 +167,18 @@ def main():
     parser.add_argument("--project-url", required=True)
     parser.add_argument("--rawfile-dir", type=Path,
                         help="Also install deployment.json and the GNU ZIP into this generated rawfile directory")
+    parser.add_argument("--native-sdk-archive", type=Path,
+                        help="Reuse the pinned Valve x86 SDK ZIP from another cache (default: downloads/locked filename)")
     args = parser.parse_args()
     result = build(args.runtime, args.package_lock, args.downloads, args.output, args.project_url)
+    from linux_steam_native_sdk import LOCK, update_plan
+    sdk = json.loads(LOCK.read_text(encoding='utf-8'))['archive']
+    plan = update_plan(args.output / 'deployment.json', args.native_sdk_archive or
+                       args.downloads / sdk['url'].rsplit('/', 1)[1])
+    result.update(id=plan['id'], downloadBytes=plan['downloadBytes'], requiredSpaceBytes=plan['requiredSpaceBytes'],
+                  officialArchives=len(plan['archives'])-1, mappedFiles=len(plan['files']),
+                  deploymentSha256=digest(encode(plan)), nativeSdkFiles=5)
+    (args.output / 'distribution-summary.json').write_bytes(encode(result))
     if args.rawfile_dir:
         if args.project_url != 'rawfile://linux-steam/hmosdeck-gnu-arm64-v1.zip':
             raise ValueError('Rawfile installation requires the rawfile URL')

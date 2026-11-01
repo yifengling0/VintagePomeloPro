@@ -562,6 +562,7 @@ linux-runtime-components:
 
 test-linux-runtime-components:
 	python3 $(ROOT)/host_tests/linux_runtime_components_test.py
+	python3 $(ROOT)/host_tests/linux_steam_native_sdk_test.py
 
 test-ci-release:
 	python3 $(ROOT)/host_tests/ci_release_test.py

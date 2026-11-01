@@ -17,6 +17,12 @@ SHA-256、清单 SHA-256、适配源码 SHA-256 和关键子模块提交。
 发布资产包含项目运行时，不包含 Valve Steam 客户端、账号、游戏或存档。
 Valve 客户端仍由应用单独下载或由用户导入。
 
+Linux 原生游戏还需要与 ARM64 客户端不同的 x86 SDK。部署清单固定官方
+SDK ZIP，并将五个 32／64 位接口文件安装到 `client/.steam/sdk32`、`sdk64`。
+`native-sdk.lock.json` 与 `deliveryInputs` 固定交付工具身份，预检核对文件、
+归档及 releaseManifest；缺 SDK 不得发布。这里只改变交付清单时，GNU ZIP
+及原生编译输入保持原值，无需重新发布相同二进制依赖。
+
 `prepare_linux_runtime_components.py` 首先验证源码、清单和子模块身份，
 再复用本地相同包或下载固定资产，逐成员核验后原子安装到 rawfile。
 缺失、损坏、源码变化或最终 HAP 漏包均报错，不会静默省略功能。

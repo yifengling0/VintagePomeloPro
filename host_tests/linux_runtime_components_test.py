@@ -107,6 +107,29 @@ class RestoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'source changed'):self.restore()
         self.assertEqual(self.calls,[])
 
+    def test_delivery_only_changes_keep_binary_source_gate(self):
+        for name in components.DELIVERY_INPUTS:
+            target=self.root/name;target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes((REPO/name).read_bytes())
+        target=self.raw/'linux-steam/deployment.json'
+        target.write_bytes((REPO/'entry/src/main/resources/rawfile/linux-steam/deployment.json').read_bytes())
+        offline=self.raw/'linux-steam/offline-package.json'
+        original_offline=(REPO/'entry/src/main/resources/rawfile/linux-steam/offline-package.json').read_bytes()
+        offline.write_bytes(original_offline)
+        self.lock['deliveryInputs']={name:components.sha(self.root/name) for name in components.DELIVERY_INPUTS}
+        components.verify_sources(self.root,self.lock)
+        offline.write_text('{"archiveSetId":"old-package-missing-sdk"}')
+        with self.assertRaisesRegex(ValueError,'offline package'):components.verify_sources(self.root,self.lock)
+        offline.write_bytes(original_offline)
+        self.source.write_text('native change cannot be reclassified as delivery')
+        with self.assertRaisesRegex(ValueError,'source changed'):components.verify_sources(self.root,self.lock)
+        self.source.write_text('source v1')
+        self.lock['deliveryInputs']['adapter.c']=components.sha(self.source)
+        with self.assertRaisesRegex(ValueError,'Unapproved GNU delivery'):components.verify_sources(self.root,self.lock)
+        del self.lock['deliveryInputs']['adapter.c']
+        (self.root/'scripts/linux_steam_native_sdk.py').write_text('unexpected delivery change')
+        with self.assertRaisesRegex(ValueError,'delivery input changed'):components.verify_sources(self.root,self.lock)
+
     def test_missing_and_corrupt_guest_core_fail_before_network(self):
         target=self.core/'libc.so.6';data=target.read_bytes();target.unlink()
         with self.assertRaises(FileNotFoundError):self.restore()

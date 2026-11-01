@@ -92,12 +92,10 @@
     "scripts/build_linux_proton_window_probe.py": "58b621d71132b6c65b5ffb521c3c4b0fd5de7349e6e916d48f14b54fba1eec0c",
     "scripts/build_linux_steam_bridge.py": "e4dedf2ec96e844e8ca8a4fa476e046984b92da512887afce20684693539d939",
     "scripts/build_linux_steam_client.py": "7ce9df0c6642b497c3c558b46febbeadd8ffe25484ce647f898036c1ebb2d62f",
-    "scripts/build_linux_steam_distribution.py": "bbfcf21803ab3a05cee25acf5a2855531afcfe13e1380f31aa9da55167a5f3ba",
     "scripts/build_linux_steam_glibc.py": "190ba344e45e7ea163c17a60f955bb5dd9fab301ce46d277f9ad14eab5264d03",
     "scripts/build_linux_steam_gnu_fixture.py": "d3f7033df5b75d9e912786a17103a8080c33aa39d19770811dfc157a9b62aa8b",
     "scripts/build_linux_steam_gnu_wayland.py": "8ed0dc34b8ecbf7e8ee42faf4920fab545b8f0daf95b088b0cb4e8e1e22158a5",
     "scripts/build_linux_steam_lsof.py": "3ee4b4f7f6851a1126a5fe605dbb0c7a4c30f38105ac9863e1472764058d4df4",
-    "scripts/build_linux_steam_offline_package.py": "d781b78975ba0d23ce331d95f1cbe5179866ef496eca1b4602073fa6dc4c3cbc",
     "scripts/build_linux_steam_pe_components.py": "56ad7ed8377657e4c249c9573e5319500d7c2039fb39d8679b2d454bd3c854d8",
     "scripts/build_linux_steam_software_gl.py": "0117cd997e5caca72a13b8bf1f4de1899d7253a798ceaff8b66af21716224642",
     "scripts/build_linux_steam_steamclient_pe_probe.py": "dc24412dcafa83014ddd33d2532550c8af6103f97cc7d2915e03e1a5b1486c72",
@@ -121,7 +119,7 @@
       "path": "linux-steam/hmosdeck-gnu-arm64-v1.zip",
       "bytes": 45446683,
       "sha256": "8c98e7836a0ee3278095225ac90acb7a05b4204cd6a2cde7be7a0f853cc88523",
-      "manifestSha256": "62234b9bd9827f20e475b9c83a0379ca7a689dc7cbb2e90d3d4c4f6e6033a1b6",
+      "manifestSha256": "fef659c3be3824c541427e9bf0a7dbecddb181da43160dc78524f60af1337da3",
       "url": "https://github.com/yifengling0/VintagePomeloPro/releases/download/build-deps-gnu-1.5.2-f9706f8cc0e7/hmosdeck-gnu-arm64-v1.zip"
     },
     {
@@ -138,5 +136,11 @@
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json"
   ],
   "protonMedia": "docs/linux-steam/proton-media.lock.json",
-  "nativeRepairs": "linux-steam/bootstrap/native-game-support/manifest.json"
+  "nativeRepairs": "linux-steam/bootstrap/native-game-support/manifest.json",
+  "deliveryInputs": {
+    "docs/linux-steam/native-sdk.lock.json": "51ac597ca77df29f955fa7c687fd2cc6ddeb305908de5bc2e4482eb341c8c2f3",
+    "scripts/build_linux_steam_distribution.py": "f8a630c9cdff8ae4dfe8f3d5f066090c7d67b93e1c1a348ffb1e31f800338a5c",
+    "scripts/build_linux_steam_offline_package.py": "a7d40b2478bb3dfaeadc4043083390ed78c3ed54089e1aab11324956bb2832a7",
+    "scripts/linux_steam_native_sdk.py": "100d97dc791080d8b12d08795a468b275c750beed56838f65f0f5ebaf91d7f5e"
+  }
 }

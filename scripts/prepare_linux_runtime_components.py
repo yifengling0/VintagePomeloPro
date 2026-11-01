@@ -35,6 +35,14 @@ HAP_COMPANIONS = {
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json': 'steamohos_fex',
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json': 'libsteamohos_native_vulkan.so',
 }
+# These describe distribution only; they are not compilation inputs to the
+# immutable GNU dependency ZIP. Keep their identities separate and exact.
+DELIVERY_INPUTS = {
+    'scripts/build_linux_steam_distribution.py',
+    'scripts/build_linux_steam_offline_package.py',
+    'scripts/linux_steam_native_sdk.py',
+    'docs/linux-steam/native-sdk.lock.json',
+}
 
 
 def digest(stream):
@@ -56,6 +64,21 @@ def safe_path(name):
 
 
 def verify_sources(root, lock):
+    if 'deliveryInputs' in lock:
+        if set(lock['deliveryInputs']) != DELIVERY_INPUTS:
+            raise ValueError('Unapproved GNU delivery inputs')
+        for name, expected in lock['deliveryInputs'].items():
+            if sha(root / name) != expected:
+                raise ValueError('GNU delivery input changed: ' + name)
+        from linux_steam_native_sdk import verify_plan
+        plan = json.loads((root / 'entry/src/main/resources/rawfile/linux-steam/deployment.json').read_text())
+        verify_plan(plan, root / 'docs/linux-steam/native-sdk.lock.json')
+        offline = json.loads((root / 'entry/src/main/resources/rawfile/linux-steam/offline-package.json').read_text())
+        expected = {'archives/' + a['sha256'] + '.zip': (a['bytes'], a['sha256'])
+                    for a in plan['archives'] if not a['url'].startswith('rawfile://')}
+        archive_set = hashlib.sha256(json.dumps(expected, sort_keys=True).encode()).hexdigest()
+        if offline.get('archiveSetId') != archive_set:
+            raise ValueError('Steam offline package does not include the current official archive set')
     from build_linux_proton_bootstrap import verify as verify_bootstrap
     verify_bootstrap(root)
     if lock.get("protonMedia"):
@@ -201,6 +224,10 @@ def verify_hap(path, root=ROOT):
     lock = json.loads((root/'docs/linux-steam/build-components.lock.json').read_text())
     verify_sources(root,lock)
     with zipfile.ZipFile(path) as archive:
+        if 'deliveryInputs' in lock:
+            relative = 'linux-steam/offline-package.json'
+            if archive.read('resources/rawfile/' + relative) != (root/'entry/src/main/resources/rawfile'/relative).read_bytes():
+                raise ValueError('HAP Steam offline package metadata mismatch')
         if lock.get("protonMedia"):
             from prepare_linux_proton_media import verify as verify_media
             verify_media(root, archive)

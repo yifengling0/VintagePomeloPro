@@ -38,6 +38,17 @@ export function validLinuxSteamRelativePath(path: string): boolean {
   return path.length > 0 && path.length <= 1024 && !/^[\/]/.test(path) && !/[\\:\x00-\x1f]/.test(path) &&
     path.split('/').every((part: string): boolean => part.length > 0 && part !== '.' && part !== '..');
 }
+// SDK locations are component-owned siblings of the Steam installation, not
+// game/userdata paths. Keep the allowlist exact so imports cannot write HOME.
+export function linuxSteamSdkFile(path: string): boolean {
+  return /^sdk\/sdk(32|64)\/(steamclient\.so|crashhandler\.so)$/.test(path) || path === 'sdk/sdk32/steamerrorreporter';
+}
+export function linuxSteamComponentPath(root: string, release: string, path: string): string {
+  if (path.startsWith('release/')) return `${root}/releases/${release}/${path.substring(8)}`;
+  if (linuxSteamSdkFile(path)) return `${root}/client/.steam/${path.substring(4)}`;
+  if (path.startsWith('client/')) return `${root}/client/.steam/steam/${path.substring(7)}`;
+  throw new Error('组件文件目标无效');
+}
 export function validateLinuxSteamDeployment(plan: LinuxSteamDeploymentPlan): void {
   const hash = /^[a-f0-9]{64}$/;
   if (plan.schemaVersion !== 1 || plan.hostAbi !== 1 || !hash.test(plan.id) || !hash.test(plan.clientDataId) ||
@@ -58,7 +69,7 @@ export function validateLinuxSteamDeployment(plan: LinuxSteamDeploymentPlan): vo
   }
   const seen: Set<string> = new Set<string>(); let unpacked = 0;
   for (const item of plan.files) {
-    if (!validLinuxSteamRelativePath(item.path) || !/^(release\/runtime\/|client\/)/.test(item.path) ||
+    if (!validLinuxSteamRelativePath(item.path) || (!/^(release\/runtime\/|client\/)/.test(item.path) && !linuxSteamSdkFile(item.path)) ||
       !validLinuxSteamRelativePath(item.source) || item.zipPath.replace(/\\/g, '/') !== item.source ||
       !archives.has(item.archive) || seen.has(item.path) || !hash.test(item.sha256) ||
       !Number.isSafeInteger(item.bytes) || item.bytes < 0 || item.bytes > 536870912 ||
@@ -69,7 +80,10 @@ export function validateLinuxSteamDeployment(plan: LinuxSteamDeploymentPlan): vo
   }
   if (total !== plan.downloadBytes || !Number.isSafeInteger(plan.requiredSpaceBytes) ||
     plan.requiredSpaceBytes < total + unpacked + 536870912 || plan.requiredSpaceBytes > 17179869184 ||
-    !seen.has('release/runtime/steamrtarm64/steam') || !seen.has('client/steamui/index.html')) {
+    !seen.has('release/runtime/steamrtarm64/steam') || !seen.has('client/steamui/index.html') ||
+    !seen.has('sdk/sdk32/steamclient.so') || !seen.has('sdk/sdk32/crashhandler.so') ||
+    !seen.has('sdk/sdk32/steamerrorreporter') || !seen.has('sdk/sdk64/steamclient.so') ||
+    !seen.has('sdk/sdk64/crashhandler.so')) {
     throw new Error('组件清单不完整，请更新应用');
   }
 }

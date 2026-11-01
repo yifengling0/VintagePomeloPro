@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 
-from prepare_linux_runtime_components import ROOT, DESTINATIONS, sha, expected_members, verify_archive
+from prepare_linux_runtime_components import ROOT, DESTINATIONS, DELIVERY_INPUTS, sha, expected_members, verify_archive
 
 
 def main():
@@ -24,7 +24,8 @@ def main():
                     'scripts/wine_audio_contract.py','patches/glibc/*.patch',
                     'patches/wine/0058*','patches/wine/0062*']:
         for path in ROOT.glob(pattern):
-            if path.is_file(): source_inputs[path.relative_to(ROOT).as_posix()]=sha(path)
+            name = path.relative_to(ROOT).as_posix()
+            if path.is_file() and name not in DELIVERY_INPUTS: source_inputs[name]=sha(path)
     gitlinks={name:subprocess.check_output(['git','rev-parse','HEAD:thirdparty/'+name],cwd=ROOT,text=True).strip()
               for name in ['mesa','dxvk-modern','wine-valve']}
     for name, expected in source_inputs.items():
@@ -45,7 +46,8 @@ def main():
         rows.append(row)
     lock=dict(schemaVersion=1,sourceSnapshot=source_commit,releaseTag=a.release_tag,
         buildPolicy='Compile OHOS host/ArkTS from source; restore checksum-pinned prebuilt GNU dependencies. GNU source rebuild is a separate pipeline.',
-        sourceInputs=dict(sorted(source_inputs.items())),gitlinks=gitlinks,components=rows)
+        sourceInputs=dict(sorted(source_inputs.items())),gitlinks=gitlinks,components=rows,
+        deliveryInputs={name: sha(ROOT/name) for name in sorted(DELIVERY_INPUTS)})
     output=ROOT/'docs/linux-steam/build-components.lock.json'
     output.write_text(json.dumps(lock,indent=2)+'\n')
     print('Locked',len(rows),'verified archives and',len(source_inputs),'source inputs; no payload copied')
