@@ -1,5 +1,9 @@
 # Linux 原生游戏 Steam SDK 交付遗漏（2026-11-01）
 
+## 1.5.5 交付范围
+
+1.5.5（1005050）包含本说明中的 SDK 自动交付、旧安装缺失提示和增量修复，以及官方 CDN 403／404／410 回退修复。用户可以直接在线安装／修复；完整离线包是可选方式。已生成的 `SteamLinux-ARM64-1792110651-native-sdk-offline.zip` 与本版清单配套，不因应用版本号变化重复打包。旧的未含 SDK 离线包仍不作为完整的新清单组件包接受。
+
 ## 已确认的问题
 
 1.5.4 正式 HAP 对应的 Steam 在线安装清单和 11 个官方离线归档中，只有供 ARM64 Steam 使用的 `steamrtarm64/steamclient.so`，没有 x86 原生游戏使用的 `HOME/.steam/sdk64/steamclient.so`。GNU Proton 包也不能补足此项；尖塔二通过 FEX / sniper 运行 Linux 原生版本，不经过 Proton。
