@@ -334,7 +334,7 @@
       },
       {
         "path": "patches/virglrenderer/0007-ohos-native-memory-context.patch",
-        "sha256": "08961ec7b1b7541cf457a2219f99acdeba8ecc41bcfbfbb53cb54aaa23f998fc"
+        "sha256": "c638af6bd348dd636820e667ac2c992250011037758d71fe43b6d943996cf8bc"
       },
       {
         "path": "patches/virglrenderer/0008-ohos-native-resource-contract.patch",

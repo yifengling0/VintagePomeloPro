@@ -136,6 +136,11 @@ jobs:
             --release-tag "$RELEASE_TAG" --output ci-artifacts/ci-source.json
           echo "commit=$expected_sha" >> "$GITHUB_OUTPUT"
 
+      # Catch source-overlay drift against the exact recursive submodule before
+      # beginning the long Native and graphics build.
+      - name: Verify VirGL overlays against pinned source
+        run: python3 host_tests/virgl_patch_application_test.py --source thirdparty/virglrenderer
+
       - name: Upload source version manifest
         uses: actions/upload-artifact@v4
         with:

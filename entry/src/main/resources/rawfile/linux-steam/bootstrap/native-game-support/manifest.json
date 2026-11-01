@@ -63,7 +63,7 @@
     "scripts/build_linux_steam_software_gl.py": "5eadcac5106d6d06da994056e68c7ddb53ac9f26508b7d9aeae8f36db2157f43",
     "scripts/build_linux_steam_client.py": "f565c60f4542c993837e6c02cdc5f021b1f9004c4104010673b857d1121b6bc5",
     "patches/mesa/0011-softpipe-demand-zero-texture-cache.patch": "e0f47385f626ec1327729de025c199d5eff547842870e33ba28ebf66b12aaadb",
-    "patches/virglrenderer/0007-ohos-native-memory-context.patch": "08961ec7b1b7541cf457a2219f99acdeba8ecc41bcfbfbb53cb54aaa23f998fc",
+    "patches/virglrenderer/0007-ohos-native-memory-context.patch": "c638af6bd348dd636820e667ac2c992250011037758d71fe43b6d943996cf8bc",
     "patches/virglrenderer/0008-ohos-native-resource-contract.patch": "d76273608a059f790baba0850f633a77627d99a08aefafe7137c5f320b521c7d",
     "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex_core.h": "cd800c4cb18ecd5c14b121d5b52c88944b8f2b01132877df25d7c63a26c34edb",
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/NOTICE.txt": "c1338a7d11829b7911123aba0b7cbddb0e6bca1b1f1dea6e60444bb7a3d2f2be",
