@@ -16,6 +16,15 @@ spec.loader.exec_module(identity)
 
 
 class BuiltinIdentity(unittest.TestCase):
+    def test_assembly_stamps_after_final_pe_producer(self):
+        script = (ROOT / 'scripts/assemble.sh').read_text()
+        stamp = 'python3 "$SCRIPT_DIR/stamp_wine_builtin_identity.py" "$wine_data"'
+        self.assertEqual(script.count(stamp), 1)
+        self.assertGreater(script.index(stamp), script.index('python3 "$SCRIPT_DIR/icu_compat_runtime.py" stage'))
+        self.assertGreater(script.index(stamp), script.index('python3 "$SCRIPT_DIR/build_linux_steam_pe_components.py"'))
+        self.assertLess(script.index(stamp), script.index('python3 "$SCRIPT_DIR/source_build_contract.py"'))
+        self.assertIn('$(SCRIPTS)/stamp_wine_builtin_identity.py', (ROOT / 'Makefile').read_text())
+
     def test_targeted_archive_update_invalidates_existing_prefix_identity(self):
         members = {'share/wine/wine.inf': b'[Version]\r\n',
                    'bin/i386-windows/wined3d.dll': b'old',
@@ -80,6 +89,12 @@ class BuiltinIdentity(unittest.TestCase):
                 self.assertNotEqual(updated, baseline, name)
                 self.assertEqual(updated.count(identity.MARKER), 1)
                 baseline = updated
+            late = root / 'bin/i386-windows/icu.dll'
+            late.write_bytes(b'late-stage ICU builtin')
+            updated = run()
+            self.assertNotEqual(updated, baseline)
+            self.assertEqual(run(), updated)
+            baseline = updated
             (root / paths[0]).unlink()
             self.assertNotEqual(run(), baseline)
 

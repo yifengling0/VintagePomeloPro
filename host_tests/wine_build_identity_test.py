@@ -14,7 +14,8 @@ from wine_build_identity import ordered_overlays
 
 # Exercise the actual production inventory without requiring submodules or SDK.
 production = ordered_overlays(ROOT)
-assert production[-1]['path'] == 'patches/wine/0069-linux-steam-native-module-bootstrap.patch'
+reviewed = json.loads((ROOT / 'docs/graphics/graphics-stack.lock.yaml').read_text())['managed_patches']['wine-valve']
+assert production == reviewed, 'production overlay order/content differs from the reviewed graphics lock'
 
 
 def git(path, *args):

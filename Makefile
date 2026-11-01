@@ -572,6 +572,7 @@ define assemble_rule
 assemble-$(1): $$(STAMPS)/$(1)/assemble
 
 $$(STAMPS)/$(1)/assemble: $(SCRIPTS)/assemble.sh $(SCRIPTS)/env.sh \
+	$(SCRIPTS)/stamp_wine_builtin_identity.py \
 	$(SCRIPTS)/build_linux_steam_pe_components.py $(SCRIPTS)/generate_linux_steam_bridge.py \
 	$(SCRIPTS)/steam_bridge_codecs.py $(SCRIPTS)/steam_bridge_contracts.py \
 	$(SCRIPTS)/source_build_contract.py $(SCRIPTS)/normalize_runtime_identity.py \

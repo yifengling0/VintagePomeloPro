@@ -935,9 +935,6 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
             --output "$BUILD_DIR/linux-steam-pe" --directory "$wine_data" \
             --rawfile "$WINEHUA/entry/src/main/resources/rawfile" "${steam_reference[@]}"
     fi
-    # Preserve identical INF timestamps only when prefix-installed PE builtins
-    # are also identical. Otherwise an FEX/ntdll update can keep old DLLs active.
-    python3 "$SCRIPT_DIR/stamp_wine_builtin_identity.py" "$wine_data"
     # XKB
     if [ -d "$SYSROOT_EXT_SHARE/X11/xkb" ]; then
         cp -r "$SYSROOT_EXT_SHARE/X11/xkb" "$wine_data/share/X11/"
@@ -1053,6 +1050,10 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
         python3 "$SCRIPT_DIR/icu_compat_runtime.py" stage \
             --output "${ICU_COMPAT_OUTPUT:-$BUILD_DIR/icu-compat/output}" --directory "$wine_data"
     fi
+
+    # ICU staging above can add/replace prefix-installed PE builtins. Stamp only
+    # after every PE producer so wineboot sees the final DLL content identity.
+    python3 "$SCRIPT_DIR/stamp_wine_builtin_identity.py" "$wine_data"
 
     if [ "$WINE_ARCH" = aarch64 ]; then
         python3 "$SCRIPT_DIR/wined3d_runtime_contract.py" \
