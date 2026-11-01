@@ -590,6 +590,11 @@ EOF
     else
         warn "  $pe_strip not found, skipping strip"
     fi
+    if [ "$WINE_ARCH" = "aarch64" ]; then
+        # The broad PE strip above also transforms the staged FEX modules.
+        # Bind the repair identity to their final packaged bytes, not pre-strip build outputs.
+        python3 "$SCRIPT_DIR/fex_simd_runtime.py" refresh-staged --directory "$wine_data"
+    fi
     # i386-windows/ (32-bit PE DLL for WoW64)
     # 主构建 --enable-archs=i386,x86_64 已产出全部 32-bit PE, 直接取自 wine-ohos,
     # 无需独立的 i686-mingw32 构建.

@@ -110,6 +110,26 @@ def stage(build, directory):
         target.write_bytes(value)
     (directory / RECORD).write_text(json.dumps(record, indent=2) + '\n')
 
+def refresh_staged(directory):
+    # Rebind module hashes after package transforms such as PE symbol stripping.
+    record_path = directory / RECORD
+    record = json.loads(record_path.read_text())
+    if record.get('schemaVersion') != 1 or record.get('repairVersion') != 1:
+        raise ValueError('unsupported FEX SIMD repair record')
+    if set(record.get('modules', {})) != set(MEMBERS):
+        raise ValueError('incomplete FEX SIMD repair pair')
+    data = {}
+    for key, name in MEMBERS.items():
+        item = record['modules'][key]
+        if item.get('member') != name:
+            raise ValueError('unexpected FEX module path')
+        data[name] = (directory / name).read_bytes()
+        item['sha256'] = sha(data[name])
+    validate(record, data.__getitem__)
+    temporary = record_path.with_name(record_path.name + '.tmp')
+    temporary.write_text(json.dumps(record, indent=2) + '\n')
+    temporary.replace(record_path)
+
 def update_rawfile(build, rawfile):
     record_bytes = (build / RECORD).read_bytes()
     record = json.loads(record_bytes)
@@ -154,7 +174,7 @@ def update_rawfile(build, rawfile):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['record', 'stage', 'update-rawfile'])
+    parser.add_argument('mode', choices=['record', 'stage', 'refresh-staged', 'update-rawfile'])
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--patch', type=Path)
     parser.add_argument('--source-hash', default='detect')
@@ -164,5 +184,7 @@ if __name__ == '__main__':
         write_record(args.build, args.patch, args.source_hash)
     elif args.mode == 'stage':
         stage(args.build, args.directory)
+    elif args.mode == 'refresh-staged':
+        refresh_staged(args.directory)
     else:
         update_rawfile(args.build, args.directory)
