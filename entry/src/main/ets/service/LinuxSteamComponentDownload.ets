@@ -57,7 +57,12 @@ export class LinuxSteamComponentDownload {
         this.check();
         const failure = error as LinuxSteamDownloadError;
         if (failure.code === 'HTTP_416' && fs.accessSync(partial)) fs.unlinkSync(partial);
-        if (attempt === 2 || ['DISK', 'HTTP_403', 'HTTP_404', 'HTTP_410'].includes(failure.code)) throw error as Error;
+        // A missing/denied object on one CDN is not proof that the other
+        // official mirrors lack the same pinned archive. Keep the partial
+        // file and try each mirror; non-Valve sources have no such fallback.
+        const valve = /^https:\/\/client-update\.steamstatic\.com\/[A-Za-z0-9_.-]+$/.test(archive.url);
+        if (attempt === 2 || failure.code === 'DISK' ||
+          (!valve && ['HTTP_403', 'HTTP_404', 'HTTP_410'].includes(failure.code))) throw error as Error;
         await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 500 * (attempt + 1)); });
       }
     }

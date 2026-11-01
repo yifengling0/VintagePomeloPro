@@ -81,6 +81,10 @@ async function main() {
   responses=[{body:bytes}];
   await new download.LinuxSteamComponentDownload().fetch({...archive,url:projectUrl},path.join(temporary,'project.zip'),()=>{});
   assert.deepEqual(urls,[projectUrl],'project archives must never be rewritten as Valve CDN URLs');
+  urls=[];responses=[{status:404,body:Buffer.from('missing')}];
+  await assert.rejects(new download.LinuxSteamComponentDownload().fetch({...archive,url:projectUrl},
+    path.join(temporary,'project-missing.zip'),()=>{}),e=>e.code==='HTTP_404');
+  assert.deepEqual(urls,[projectUrl],'project 404 never switches to Valve mirrors');
   urls=[];
   const end = bytes.length-1;
   await run('resume',bytes.subarray(0,5),[{status:206,range:`bytes 5-${end}/${bytes.length}`,body:bytes.subarray(5)}],['bytes=5-']);
@@ -92,10 +96,21 @@ async function main() {
   urls=[];
   await run('checksum',null,[{body:Buffer.alloc(bytes.length)},{body:bytes}],['full','full']);
   assert.deepEqual(urls,['https://client-update.steamstatic.com/test.zip','https://media.steampowered.com/client/test.zip']);
-  const denied = await run('not-found',bytes.subarray(0,5),[{status:404,body:Buffer.from('error')}],['bytes=5-'],'HTTP_404');
+  const denied = await run('not-found',bytes.subarray(0,5),Array.from({length:3},()=>({status:404,body:Buffer.from('error')})),['bytes=5-','bytes=5-','bytes=5-'],'HTTP_404');
   assert.deepEqual(fs.readFileSync(denied+'.part'),bytes.subarray(0,5),'error body preserves partial');
-  const deniedOhos = await run('ohos-not-found',bytes.subarray(0,5),[{status:404,noStatus:true,body:Buffer.from('error')}],['bytes=5-'],'HTTP_404');
+  const deniedOhos = await run('ohos-not-found',bytes.subarray(0,5),Array.from({length:3},()=>({status:404,noStatus:true,body:Buffer.from('error')})),['bytes=5-','bytes=5-','bytes=5-'],'HTTP_404');
   assert.deepEqual(fs.readFileSync(deniedOhos+'.part'),bytes.subarray(0,5));
+  for(const code of [403,404,410]) {
+    urls=[];
+    await run('mirror-'+code,bytes.subarray(0,5),[{status:code,body:Buffer.from('CDN error')},
+      {status:206,range:`bytes 5-${end}/${bytes.length}`,body:bytes.subarray(5)}],['bytes=5-','bytes=5-']);
+    assert.deepEqual(urls,['https://client-update.steamstatic.com/test.zip','https://media.steampowered.com/client/test.zip']);
+  }
+  urls=[];
+  await run('third-mirror',bytes.subarray(0,5),[{status:403},{status:404},
+    {status:206,range:`bytes 5-${end}/${bytes.length}`,body:bytes.subarray(5)}],['bytes=5-','bytes=5-','bytes=5-']);
+  assert.equal(urls[2],'https://cdn.akamai.steamstatic.com/client/test.zip');
+  console.log('PASS: Valve CDN 403/404/410 preserves partial bytes and tries remaining official mirrors; project 404 retains its own source');
   await run('wrong-range',bytes.subarray(0,5),Array.from({length:3},()=>({status:206,range:`bytes 0-${end}/${bytes.length}`,body:bytes})),['bytes=5-','bytes=5-','bytes=5-'],'RANGE');
   await run('stale-range',bytes.subarray(0,5),[{status:416},{body:bytes}],['bytes=5-','full']);
   const large=Buffer.alloc(4194304+32,7);
