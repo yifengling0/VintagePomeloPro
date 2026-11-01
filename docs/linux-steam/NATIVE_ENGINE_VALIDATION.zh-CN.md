@@ -183,3 +183,69 @@ GNU ARM64 适配器与启动器已重编译并通过源码/载荷校验；新增
 已通过游戏 UI 恢复全屏，保持用户的 30 FPS 上限、关闭 VSync、关闭 MSAA，并停在暂停菜单。未保存／退出战斗，不修改战斗存档。当前 HAP 未新增按游戏保存的分辨率控制。后续应把渲染尺寸和全屏输出解耦为通用用户选项，并分别测 GPU、转译和同步耗时；不应简单缩小 Vulkan 申报尺寸或全局强制低画质。
 
 另观察到 windowed X11 game 在其他 Steam X11 窗口下方时，单独 set_input_focus 不足以让 XTEST 点击命中；临时将真实 game window raise 后可操作暂停／设置。本轮没有据此修改产品焦点策略，也未将该现象认定为低帧率根因。
+
+## 渲染前开销源码审查（2026-11-01）
+
+本节完成源码审查和运行中组件身份核对，没有更换产品代码、游戏设置或设备运行库，也没有中断战斗。
+分辨率试验已有一定差异且计数误差较大，不能得出“完全不受分辨率影响”或“已经证明 CPU 瓶颈”的结论。
+尖塔二的主体仍是 **FEX x86-64 → Godot/MegaDot + CoreCLR → Vulkan Forward+ → GNU Venus → OHOS Vulkan → NativeBuffer**；
+宿主可能使用 GLES 合成，不代表游戏经过 WineD3D / VirGL / DXVK。
+
+### 已确认存在的固定开销及处理顺序
+
+| 优先级 | 操作与源码 | 优化方向与正确性边界 |
+| --- | --- | --- |
+| 1 | `gnu_fixture/native_bc/runtime.h` 的 `bindPipeline()`、`push()` 对普通命令也持 `stateMutex`；push 状态按 exact key 删除旧项，再新建 byte vector / 复制数据，持锁调用底层 Vulkan。`deviceProc()` 又在同一递归锁下查设备表及函数地址 | 先按 device 缓存 dispatch，复用 push 存储并保留更新顺序、layout 生命周期和重叠 range / shader stage 语义；再将命令录制状态放到每个 command buffer，缩短共享表锁。不能直接移除 BC 注入前后所需的状态恢复。Godot 多线程录制可能因此串行，实际占比尚未测出 |
+| 1 | `vn_queue.c:vn_queue_submit()` 在每次提交前调用 `vn_device_memory_flush_persistent_mappings()`。后者扫描映射列表，对 HOST_COHERENT 且曾显式 flush 的 allocation 按整个映射范围逐项同步 RPC。write-seen 保持至 unmap；不是精确的本次 dirty 范围。native launcher 目前也启用这份 shadow 兼容策略 | 仅在成功协商 native-memory-v1、确认同一 backing 且真实 HOST_COHERENT 时，评估免除 shadow 重复发布；旧 shadow context 维持原保护，非 coherent 的显式 flush / invalidate 必须保留。仍需发布的 ranges 可在合法同步边界批量处理，不能简单清除 write-seen 后漏掉后续直接写入 |
+| 2 | `proton_vulkan_wsi.cpp` 的 acquire 额外 QueueSubmit 用于 signal semaphore/fence，present 另一次空 submit 消费 wait semaphore；二者也进入上述映射扫描 | 先消除这些提交附带的重复内存处理。信号与等待语义必须保留，不能因 commandBufferCount=0 就跳过整个 submit |
+| 2 | `vn_renderer_vtest.c:vn_winehua_present()` 每帧 ring roundtrip / wait-all 后，再持 socket mutex 发同步 private present；WSI 同时持 swapchain 和 queue 锁 | 长期将 present 及其 producer 序号纳入有序队列，减少跨传输往返，保留图像和对象存活、错误返回、有限在途帧及 resize / device-lost 处理。当前 drain 等宿主解码和 driver QueueSubmit，不等同于 GPU 完成；直接删除会重现跨传输顺序错误 |
+| 3 | NativeBuffer 三槽旧 fence、NativeWindow RequestBuffer / FlushBuffer、GPU copy / barrier，以及 FEX / CoreCLR / 引擎脚本 | 先分开计时，再判断是 buffer 背压、GPU 工作还是 guest 帧生成。不放宽同步冒险复用图像，不通过全局关闭 TSO 或改游戏 DLL 换取帧率 |
+
+### GL 路径可参考的部分
+
+`virgl_surface_presenter.cpp` 的正常呈现每帧有 producer fence / glFlush、切换 presenter EGL context、GPU wait / 绘制、consumer fence / glFlush、eglSwapBuffers 和恢复 producer context。这些属于固定成本，GL 游戏需要单独测量；`glFinish` 只在 fence / context 失败时回退，不是正常每帧操作。后续可研究减少 context 切换与重复状态处理，但必须保持共享纹理读写顺序。它不能直接解释当前 Vulkan 游戏的低帧率。
+
+当前已确认的保护和优化继续保留：NativeBuffer 显示链没有 CPU 像素回读；NativeBuffer 正常呈现没有 post-present CPU fence wait；宿主 GLES 合成已使用 `eglSwapInterval(0)` 避免与 NativeVSync 双重等待。`EnsureVulkanLocked()` 的 QueueWaitIdle 只在重建路径，不应算作稳态每帧等待。
+
+### 本轮核对与下一轮计时
+
+- 运行中安装目录的 GNU Venus SHA-256 与 HAP payload 相同：`53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7`。现有 GNU build receipt 指向同一产物；库中包含 `VN_WINEHUA_PERF_SUMMARY` / `VN_WINEHUA_PERF_LOG` 和 ring / present 统计。
+- 实际 GNU Mesa snapshot 的 device-memory / queue 代码与当前第三方源码相同；vtest 的额外差异是已登记的 native-memory-v1 协商，不能误判为遗漏修复。
+- 有界日志尾部仍记录 `pixel_readbacks=0`；draw / startup verbose 标记均未开启。此次没有得到 guest frame perf 分段统计，也没有完整 GPU scene 时间，不对任何一项声称已实测为最大瓶颈。设备拒绝枚举 proc task，原线程 CPU 采样不能作为证据。
+- 下一轮在可安全退出战斗后重启游戏，复用现有低频统计，按同一场景、固定 FPS cap / 尺寸、预热及交替顺序采集：push / bind 调用与锁等待、persistent flush 数量 / 范围 / 耗时、ring reply top / drain、present RPC、NativeBuffer request / fence / flush。GPU copy 时间只表示 presenter 工作，不代表整场景 GPU 时间。
+- 先处理可证明重复的分配 / 查表与 native coherent 发布，再评估有序异步 present。以帧时间分布、可见图像、BC / 非 BC 资源、多线程命令录制和长时稳定性共同验收，不以单个 FPS 截图作为完成标准。
+
+## Native BC 命令录制优化与候选包验收（2026-11-01）
+
+本轮已实现通用 native BC 录制热路径优化，区别于上一节只做源码审查的历史状态。每个 command buffer 分配时缓存底层 bind / push 函数及设备 BC capability；重复 exact-key push constants 更新复用 byte vector，以 rotate 保留重叠范围与 shader stages 的最终更新顺序；共享表和状态更新仍加锁，底层普通 bind / push 转发移到锁外。没有修改游戏、FEX 上游源码、BC shader、Vulkan 同步／内存发布策略或旧 OHOS Wine 图形路径。
+
+真实生产源码夹具在预热后执行 10,000 次重复 push / bind，新增堆分配和 proc 查询均为 0；重叠范围／stage replay、layout 销毁后的保留生命周期、缺失 layout 错误、底层调用不持共享锁、两个录制线程可同时进入底层均通过。ASan／UBSan、native 与 Wine WSI、真实 X11／XTEST／Wayland 回归、GNU ARM64 构建及最终 HAP 图形合同通过。新夹具已登记到 CI，未声称远端 CI 已执行。
+
+普通平板已覆盖安装新签名 HAP，账号、游戏库和存档保留。经标准安装自动交付的 POSIX、FEX 启动器、native Vulkan 和 guest IPC SHA-256 与 HAP rawfile 一致；native WSI 为 `7789fe17bd47fd1f06d6eca442c3412ed62e454b558c5019ac772ae4ddac867e`。尖塔二仍为 Linux 原生 Godot/MegaDot + CoreCLR → FEX → Venus → Maleoon → NativeBuffer，未切换 Windows depot 或 OHOS Wine。设备 X11 与 swapchain 均为 1200×800；全屏主菜单、中文／纹理、设置页往返及菜单确认退出通过，真实子进程退出码 0、signal 0，ps 确认进程已结束。引擎退出仍报告资源泄漏告警，不能称所有引擎告警已解决。
+
+主菜单预热后连续 93.16 秒呈现 2760 帧，约 29.63 FPS，120 帧日志计数带来的单段量化边界约 ±1.29 FPS；采样全程核实了同一 live PID、surface 和尺寸，pixel_readbacks 为 0。当前视频设置实际显示帧数上限 30、VSync 开启、MSAA 关闭，本轮没有更改设置。此前暂停战斗样本缺少进程／swapchain 身份，已排除出对照；不同场景和不同 VSync 条件不能混用。此结果只验收短时菜单呈现，**没有证明战斗提速、P95 帧时间改善或长期稳定性**。
+
+本轮普通 Deck 冷启动曾在 Steam 登录成功后继续加载，游戏尚未进入渲染；重试临时使用 CEF `-cef-disable-occlusion` 诊断和官方 Steam 启动，随后进入游戏。日志另见 `CPrepareConfigWorker failed`，没有证明它是全部启动延迟的根因。游戏内报告到主菜单约 71 秒；不能归为认证或 BC 录制的单一耗时。本轮未将 CEF 诊断改为产品默认，也未重新验收普通冷启动稳定性。原启动配置已恢复核对，游戏和临时 Steam 会话已退出，不遗留诊断启动选项。
+
+候选与唯一回退签名 HAP 均复用固定任务目录。后续先做同场景战斗对照，并量化 persistent-map 发布、ring／drain、present RPC 和 NativeBuffer 背压；不能通过直接删同步来换取未经验证的 FPS。
+
+## 尖塔二战斗性能对照与手动交付核验（2026-11-01）
+
+普通平板以正常 Deck 游戏库卡片进行优化版 → 上一版 → 优化版三次启动，均进入 Linux 原生尖塔二；未使用临时 CEF 参数或手动替换设备 ELF。完整签名 HAP 的 SHA-256 已核对，ZIP 条目 CRC／大小筛查只发现 native Vulkan 支持库和清单不同，对差异条目另做 SHA-256；每版运行库也核对设备 SHA。路径仍为 Linux ARM64 Steam → FEX → Godot/MegaDot + CoreCLR → Venus → Maleoon → NativeBuffer，不是 Wine／DXVK。
+
+相同存档为 Silent、暗港第 14 层、进阶 10、SKULKING_COLONY_ELITE、第 1 回合，人物 40/70、敌人 80/80、金币 112。尺寸固定 1200×800、上限 30 FPS；没有更改游戏设置。保存配置在上一版退出后和优化版复测前均为 `vsync=off`、`msaa=0`；前节菜单记录的“VSync 开启”来自当时画面的解释，不作为本轮设置证据，菜单结果也不混入战斗对照。
+
+| 顺序／场景 | 秒数 | 呈现帧数 | 区间平均 FPS |
+| --- | ---: | ---: | ---: |
+| 优化版，战斗暂停 | 93.20 | 1800 | 19.31 |
+| 上一版，同一战斗暂停 | 92.97 | 1920 | 20.65 |
+| 优化版复测，同一战斗暂停 | 93.48 | 1800 | 19.26 |
+| 优化版，取消暂停后第 1 回合待机 | 92.95 | 1800 | 19.36 |
+
+每段均核实同一 live PID、surface、尺寸，日志为 `pixel_readbacks=0`。120 帧日志步长对应每段约 ±1.29 FPS 量化边界，并非统计置信区间；没有单帧或 P95 数据，设备温度／频率也未受控。优化版两段约 19.3 FPS、上一版约 20.7 FPS，**没有证实战斗提速，也不能排除小幅回退**。用户反馈实际出牌感觉有所改善，作为主观反馈单独保留，不能替代上述计数。取消暂停后的待机也约 19.4 FPS；没有测试出牌特效和敌人回合开销。
+
+采样期间未出牌／结束回合；取消暂停的连续区间前后 76 份存档 SHA-256 完全相同。继续游戏和正常退出本身会重写 current_run、prefs／progress，所以不宣称整个测试期间所有存档字节未变，也不恢复覆盖用户存档。上一版通过游戏菜单正常退出，真实游戏子进程 code=0、signal=0，ps 确认结束。最后用户继续手动战斗后停止所有前台自动化，保留优化版和现场。
+
+通用交付核验：`LinuxSteamSessionService` 在写普通 `startupAction` 前调用 `ensureLinuxSteamPosixSupport`，从 HAP 的清单／SHA 自动更新 companion，不依赖调试脚本复制文件。设备 POSIX、FEX 启动器、native Vulkan 和 guest IPC 四项均与 rawfile SHA 一致；启动配置除正常卡片的 `startupAction=launch 2868840` 外与原配置一致，无临时 `-cef-disable-occlusion`／超时改写。CoreCLR 能力回退由启动器实际探测并自动选择，未为本轮写游戏专用开关。共享交付服务的缓存复用、损坏修复、原子替换和路径保护回归再次通过。此前 GNU ARM64 构建、主机语义／并发／ASan／UBSan 及图形合同结果继续保留；本轮 source/payload verify-only 通过。相关测试已登记 CI，但未声称远端 CI 运行。
+
+尚存的启动耗时和重复存档时间戳拒绝独立保留：游戏内计时到首次主菜单分别约 72.6／76.3／75.9 秒，不能等同 Deck 点击总耗时。时间戳拒绝伴随重复云存档拉取，未证明它是全部启动或战斗性能的根因。后续优先对 persistent coherent-map 发布、ring／drain、present RPC 和 NativeBuffer 背压做分段计时，再决定优化；不直接删除同步。本轮只新增性能证据和交付核验，没有再改游戏／驱动参数。

@@ -506,5 +506,1092 @@
     "productResolutionControlImplemented": false,
     "mixedInteractionSamplesExcluded": true,
     "cpuOrGpuRootCauseProven": false
+  },
+  "frameArchitectureReview": {
+    "date": "2026-11-01",
+    "productCodeChanged": false,
+    "gameRenderer": "native Linux Godot/MegaDot Vulkan Forward+ via FEX and Venus",
+    "measuredBottleneckEstablished": false,
+    "priorities": [
+      "BC command bookkeeping and lock contention",
+      "persistent-map publication on already shared coherent memory",
+      "cross-transport ordered present and extra submits",
+      "guest CPU / full-scene GPU / NativeBuffer backpressure attribution"
+    ],
+    "mesaSourceComparison": {
+      "vn_device_memory.c": {
+        "repositorySha256": "91d929cdb1343df833b0f82621302143a8996334d785c7eb37b01262e335004e",
+        "gnuSnapshotSha256": "91d929cdb1343df833b0f82621302143a8996334d785c7eb37b01262e335004e",
+        "same": true
+      },
+      "vn_queue.c": {
+        "repositorySha256": "f13d1fece257ffc636d984b9734f771983cebf34dcee82cc6d88e952b5c30c26",
+        "gnuSnapshotSha256": "f13d1fece257ffc636d984b9734f771983cebf34dcee82cc6d88e952b5c30c26",
+        "same": true
+      },
+      "vn_ring.c": {
+        "repositorySha256": "f74126457b1b63eb77ccd69a9668920f85c38e6a30eb2c7786674560a39a7390",
+        "gnuSnapshotSha256": "f74126457b1b63eb77ccd69a9668920f85c38e6a30eb2c7786674560a39a7390",
+        "same": true
+      },
+      "vn_renderer_vtest.c": {
+        "repositorySha256": "748be2ff12ed496a64384ad7e02edabfa744baf33acf7a3e3c2bda6d0bb39a2e",
+        "gnuSnapshotSha256": "d58a5140015b58c7d4462592290408ce2ef588a47039dda3f7fc2e95143fb145",
+        "same": false
+      }
+    },
+    "deviceReadOnlyCheck": {
+      "readOnly": true,
+      "tailLimitPerFile": 524288,
+      "samples": {
+        "framePerf": [],
+        "directPresent": [],
+        "wsiFrames": [
+          "GNU_WINE_VULKAN frames=23160 surface=3 pixel_readbacks=0",
+          "GNU_WINE_VULKAN frames=23280 surface=3 pixel_readbacks=0",
+          "GNU_WINE_VULKAN frames=23400 surface=3 pixel_readbacks=0",
+          "GNU_WINE_VULKAN frames=23520 surface=3 pixel_readbacks=0"
+        ],
+        "creation": [
+          "GNU_WINE_VULKAN create pid=27685 surface=3 size=1024x768 images=3",
+          "GNU_WINE_VULKAN create pid=27685 surface=3 size=960x540 images=3",
+          "GNU_WINE_VULKAN create pid=27685 surface=3 size=640x360 images=3",
+          "GNU_WINE_VULKAN create pid=27685 surface=3 size=1200x800 images=3"
+        ]
+      },
+      "venusPayload": {
+        "sha256": "53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7",
+        "deviceMatches": true
+      },
+      "verboseMarkers": {
+        "native-vulkan-draw-debug": "absent",
+        "proton-probe/vulkan-init-debug": "absent"
+      },
+      "notes": [
+        "Tail samples can precede this review and are not a controlled benchmark.",
+        "No per-thread CPU claim: proc task enumeration was denied by the device.",
+        "No graphics or gameplay settings changed; no launch, exit, input or restart."
+      ]
+    },
+    "preserved": [
+      "game session and saves",
+      "product synchronization",
+      "noncoherent flush/invalidate",
+      "old Wine graphics route"
+    ]
+  },
+  "nativeBcRecordingOptimization": {
+    "date": "2026-11-01",
+    "scope": "capability-gated native BC command recording",
+    "sourceSha256": "2d88fdfcd7afd5f2e0a020d3472e52bdbad50ce8ab64c5f95657d0c8c78e3dae",
+    "nativeWsiSha256": "7789fe17bd47fd1f06d6eca442c3412ed62e454b558c5019ac772ae4ddac867e",
+    "changes": [
+      "Cache device dispatch and BC capability when allocating command buffers",
+      "Reuse exact-key push-constant storage and preserve update ordering with rotation",
+      "Forward ordinary bind/push calls outside the global state lock; retain bookkeeping lock"
+    ],
+    "preserved": [
+      "overlapping ranges and shader stages",
+      "replay layout lifetime and error behavior",
+      "Vulkan synchronization and memory publication",
+      "BC shaders and conversion",
+      "NativeBuffer path without CPU pixel readback",
+      "ordinary OHOS Wine graphics"
+    ],
+    "hostRegression": {
+      "realProductionSource": true,
+      "hotPathIterations": 10000,
+      "newHotPathAllocations": 0,
+      "newHotPathProcQueries": 0,
+      "overlapAndStageReplay": "passed",
+      "layoutLifetime": "passed",
+      "missingLayoutError": "passed",
+      "driverForwardingUnlocked": "passed",
+      "twoRecordersEnterDriverConcurrently": "passed",
+      "asanUbsan": "passed",
+      "nativeAndWineWsiRegression": "passed",
+      "realX11XtestWaylandRegression": "passed",
+      "gnuArm64Build": "passed",
+      "sourcePayloadVerification": "passed",
+      "finalHapGraphicsContract": "passed",
+      "ciRegistration": ".github/workflows/build.yml; host_tests/linux_native_bc_recording_test.py",
+      "remoteCiExecutedThisRound": false
+    },
+    "device": {
+      "game": "Slay the Spire 2",
+      "appId": "2868840",
+      "path": "native Linux x86-64 Godot/MegaDot CoreCLR via FEX/Venus/Maleoon; NativeBuffer presentation",
+      "sourcePayload": {
+        "name": "VintagePomeloPro-1.5.3-pr78-debug-signed.hap",
+        "bytes": 672859746,
+        "sha256": "ba2a4bac57226e678b4dc7b55794a815c3c5eb56c4e2362e4a9b4e89a803d7cb",
+        "signatureVerified": true,
+        "tabletAuthorized": true,
+        "payloadUnchanged": true,
+        "sourceUnsignedSha256": "56504d8eb958f371ca77a194fcb4f39d5e3fc91d38bd4c36096217e395b81cb9"
+      },
+      "devicePayloads": {
+        "libsteamohos_posix_hap.so": {
+          "sha256": "0f22e00846f0e3548751638a67d035509c1ffcb7e92744d83789c49554568ee8",
+          "deviceMatches": true
+        },
+        "steamohos_fex": {
+          "sha256": "c02fd16c61a22d2e98a54bc8cece4a1235de8619475d3aeaab13ab239cb6bebf",
+          "deviceMatches": true
+        },
+        "libsteamohos_native_vulkan.so": {
+          "sha256": "7789fe17bd47fd1f06d6eca442c3412ed62e454b558c5019ac772ae4ddac867e",
+          "deviceMatches": true
+        },
+        "native-guest-core-x86_64/libsteamohos_native_ipc.so": {
+          "sha256": "373d424b0922ab69f7f027250a5037c4b4833a859826a48d8e04251b81b17d5b",
+          "deviceMatches": true
+        }
+      },
+      "observedX11Extent": [
+        1200,
+        800
+      ],
+      "observedVulkanExtent": [
+        1200,
+        800
+      ],
+      "mainMenuVisuallyAccepted": true,
+      "chineseAndTexturesVisuallyAccepted": true,
+      "settingsNavigationAccepted": true,
+      "userFpsCap": 30,
+      "userVsyncObserved": "on",
+      "msaaObserved": "off",
+      "gameSettingsChangedByTest": false,
+      "battleEnteredByTest": false,
+      "menuSample": {
+        "label": "optimized-main-menu",
+        "samples": [
+          {
+            "time": 1395982.2340000002,
+            "readSeconds": 0.21800000010989606,
+            "creation": [
+              "3582",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "1200",
+              "3"
+            ]
+          },
+          {
+            "time": 1395997.679,
+            "readSeconds": 0.26599999982863665,
+            "creation": [
+              "3582",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "1680",
+              "3"
+            ]
+          },
+          {
+            "time": 1396013.2655,
+            "readSeconds": 0.2190000000409782,
+            "creation": [
+              "3582",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "2160",
+              "3"
+            ]
+          },
+          {
+            "time": 1396028.7574999998,
+            "readSeconds": 0.2970000000204891,
+            "creation": [
+              "3582",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "2640",
+              "3"
+            ]
+          },
+          {
+            "time": 1396044.3585,
+            "readSeconds": 0.375,
+            "creation": [
+              "3582",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "3000",
+              "3"
+            ]
+          },
+          {
+            "time": 1396059.929,
+            "readSeconds": 0.26599999982863665,
+            "creation": [
+              "3582",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "3480",
+              "3"
+            ]
+          },
+          {
+            "time": 1396075.3905,
+            "readSeconds": 0.2190000000409782,
+            "creation": [
+              "3582",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "3960",
+              "3"
+            ]
+          }
+        ],
+        "inputSent": false,
+        "frameCounterQuantum": 120,
+        "note": "Log quantization; not per-frame timing, CPU attribution or a guaranteed identical scene.",
+        "durationSeconds": 93.15649999980815,
+        "presentedFrames": 2760,
+        "approxFps": 29.627562220625336,
+        "quantizationFpsBound": 1.2881548791576234,
+        "identityVerified": true
+      },
+      "stablePerformanceImprovementProven": false,
+      "sameSceneBaselineAvailable": false,
+      "normalMenuExit": {
+        "accepted": true,
+        "childExited": true,
+        "code": 0,
+        "signal": 0,
+        "pidAbsentFromPs": true
+      },
+      "startup": {
+        "ordinaryDeckAttempt": "Steam login succeeded but continued loading; no game render measurement accepted",
+        "retry": "temporary -cef-disable-occlusion diagnostic and official Steam launch; source/Steam/game unmodified",
+        "controllerPrepareAssertionObserved": true,
+        "causeEstablished": false,
+        "note": "Not a product default and not proof of a startup fix."
+      },
+      "restoration": {
+        "originalClientLaunchRestored": true,
+        "sha256": "1e1983445a46d8c123e00e08582c13eff4935270fbe6b518042a849abcb6d516",
+        "gameLaunchOptionsChanged": false,
+        "note": "The opt-in CEF diagnostic only affected this already-running client; future launches use the original config.",
+        "diagnosticSessionStoppedAndUidEmpty": true
+      },
+      "limits": [
+        "No P95/frame-time distribution or CPU/GPU attribution",
+        "Earlier paused-battle sample lacked process/swapchain identity and is excluded from comparisons",
+        "Menu runs under 30 FPS cap; battle improvement and long-term stability remain unqualified",
+        "Engine reported resource-leak warnings on exit; actual child exit was 0"
+      ]
+    },
+    "performanceImprovementProven": false,
+    "nextMeasurement": "Measure persistent coherent-map publication, ring/drain, present RPC and NativeBuffer backpressure before changing synchronization."
+  },
+  "nativeBcBattlePerformanceComparison": {
+    "date": "2026-11-01",
+    "game": "Slay the Spire 2",
+    "appId": 2868840,
+    "device": "ordinary tablet",
+    "renderPath": "Linux native x86-64 Godot/MegaDot CoreCLR via FEX -> Venus -> Maleoon -> NativeBuffer",
+    "scene": {
+      "character": "SILENT",
+      "act": "UNDERDOCKS",
+      "floor": 14,
+      "ascension": 10,
+      "encounter": "SKULKING_COLONY_ELITE",
+      "playerHp": [
+        40,
+        70
+      ],
+      "enemyHp": [
+        80,
+        80
+      ],
+      "gold": 112,
+      "turn": 1,
+      "playerCardsUsedDuringSampling": 0
+    },
+    "order": [
+      "battle-optimized-first",
+      "battle-previous-baseline",
+      "battle-optimized-repeat",
+      "battle-optimized-active-idle"
+    ],
+    "extent": [
+      1200,
+      800
+    ],
+    "fpsLimit": 30,
+    "gameSettingsChangedByTest": false,
+    "persistedVideoSettings": {
+      "after-previous": {
+        "fps_limit": 30,
+        "fullscreen": true,
+        "limit_fps_in_background": true,
+        "msaa": 0,
+        "vsync": "off"
+      },
+      "current-restart": {
+        "steam/<profile>/settings.save": {
+          "fps_limit": 30,
+          "fullscreen": true,
+          "limit_fps_in_background": true,
+          "msaa": 0,
+          "vsync": "off"
+        }
+      },
+      "current-menu": {
+        "steam/<profile>/settings.save": {
+          "fps_limit": 30,
+          "fullscreen": true,
+          "limit_fps_in_background": true,
+          "msaa": 0,
+          "vsync": "off"
+        }
+      }
+    },
+    "videoSettingsNote": "Persisted settings read after baseline exit and before final optimized sample say vsync=off. The earlier menu-only record said on from a visual interpretation; do not mix that earlier result into this comparison.",
+    "packages": {
+      "packages": {
+        "current": {
+          "name": "VintagePomeloPro-1.5.3-pr78-debug-signed.hap",
+          "bytes": 672859746,
+          "sha256": "ba2a4bac57226e678b4dc7b55794a815c3c5eb56c4e2362e4a9b4e89a803d7cb",
+          "signatureVerified": true,
+          "tabletAuthorized": true,
+          "payloadUnchanged": true,
+          "sourceUnsignedSha256": "56504d8eb958f371ca77a194fcb4f39d5e3fc91d38bd4c36096217e395b81cb9"
+        },
+        "previous": {
+          "name": "VintagePomeloPro-1.5.3-pr78-previous-signed.hap",
+          "bytes": 672859753,
+          "sha256": "a69b872413f4756c50a50d3cb32d2db1094139799a026584e90a8a450c416856",
+          "signatureVerified": true,
+          "tabletAuthorized": true,
+          "payloadUnchanged": true,
+          "sourceUnsignedSha256": "b7bd49b8033cd0cbd38c48578d59542c439442e27a7bf180eac0a5a9795e9f08"
+        }
+      },
+      "zipEntryCrcSizeDifferences": [
+        "resources/rawfile/linux-steam/bootstrap/libsteamohos_native_vulkan.so",
+        "resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json"
+      ],
+      "differentEntriesSha256": [
+        {
+          "name": "resources/rawfile/linux-steam/bootstrap/libsteamohos_native_vulkan.so",
+          "current": "7789fe17bd47fd1f06d6eca442c3412ed62e454b558c5019ac772ae4ddac867e",
+          "previous": "7d27ef2a96e4a805c78bd3cf7d58ef33622c39d69db78c69615c40b18155014a"
+        },
+        {
+          "name": "resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json",
+          "current": "cdfcc385e425a85823f8d18ff64a5582985437fb17bf66ff0a1559d144c7b47b",
+          "previous": "d05bbbb98bc28e9c8455330068e3adfa452dc3b76027cf3e09dfe18775c5e67b"
+        }
+      ],
+      "nativeWsi": {
+        "current": "7789fe17bd47fd1f06d6eca442c3412ed62e454b558c5019ac772ae4ddac867e",
+        "previous": "7d27ef2a96e4a805c78bd3cf7d58ef33622c39d69db78c69615c40b18155014a"
+      },
+      "note": "CRC/size screens unchanged ZIP entries; changed entries and complete signed HAPs have SHA-256 checks."
+    },
+    "samples": {
+      "battle-optimized-first": {
+        "label": "battle-optimized-first",
+        "samples": [
+          {
+            "time": 1402633.7185,
+            "readSeconds": 0.1869999999180436,
+            "creation": [
+              "25613",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "5520",
+              "3"
+            ]
+          },
+          {
+            "time": 1402649.179,
+            "readSeconds": 0.26599999982863665,
+            "creation": [
+              "25613",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "5760",
+              "3"
+            ]
+          },
+          {
+            "time": 1402664.7259999998,
+            "readSeconds": 0.3279999999795109,
+            "creation": [
+              "25613",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "6120",
+              "3"
+            ]
+          },
+          {
+            "time": 1402680.4215,
+            "readSeconds": 0.2809999999590218,
+            "creation": [
+              "25613",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "6360",
+              "3"
+            ]
+          },
+          {
+            "time": 1402695.929,
+            "readSeconds": 0.23400000017136335,
+            "creation": [
+              "25613",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "6720",
+              "3"
+            ]
+          },
+          {
+            "time": 1402711.4054999999,
+            "readSeconds": 0.28100000019185245,
+            "creation": [
+              "25613",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "6960",
+              "3"
+            ]
+          },
+          {
+            "time": 1402726.921,
+            "readSeconds": 0.25,
+            "creation": [
+              "25613",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "7320",
+              "3"
+            ]
+          }
+        ],
+        "inputSent": false,
+        "frameCounterQuantum": 120,
+        "note": "Log quantization; not per-frame timing, CPU attribution or a guaranteed identical scene.",
+        "durationSeconds": 93.20250000013039,
+        "presentedFrames": 1800,
+        "approxFps": 19.31278667415018,
+        "quantizationFpsBound": 1.2875191116100118,
+        "identityVerified": true
+      },
+      "battle-previous-baseline": {
+        "label": "battle-previous-baseline",
+        "samples": [
+          {
+            "time": 1403523.0855,
+            "readSeconds": 0.26500000013038516,
+            "creation": [
+              "31295",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "4800",
+              "3"
+            ]
+          },
+          {
+            "time": 1403538.562,
+            "readSeconds": 0.21800000010989606,
+            "creation": [
+              "31295",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "5160",
+              "3"
+            ]
+          },
+          {
+            "time": 1403554.023,
+            "readSeconds": 0.2339999999385327,
+            "creation": [
+              "31295",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "5400",
+              "3"
+            ]
+          },
+          {
+            "time": 1403569.5695000002,
+            "readSeconds": 0.2970000000204891,
+            "creation": [
+              "31295",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "5760",
+              "3"
+            ]
+          },
+          {
+            "time": 1403585.1245,
+            "readSeconds": 0.31299999984912574,
+            "creation": [
+              "31295",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "6000",
+              "3"
+            ]
+          },
+          {
+            "time": 1403600.5855,
+            "readSeconds": 0.2029999999795109,
+            "creation": [
+              "31295",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "6360",
+              "3"
+            ]
+          },
+          {
+            "time": 1403616.0545,
+            "readSeconds": 0.2970000000204891,
+            "creation": [
+              "31295",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "6720",
+              "3"
+            ]
+          }
+        ],
+        "inputSent": false,
+        "frameCounterQuantum": 120,
+        "note": "Log quantization; not per-frame timing, CPU attribution or a guaranteed identical scene.",
+        "durationSeconds": 92.96900000004098,
+        "presentedFrames": 1920,
+        "approxFps": 20.652045305415285,
+        "quantizationFpsBound": 1.2907528315884553,
+        "identityVerified": true
+      },
+      "battle-optimized-repeat": {
+        "label": "battle-optimized-repeat",
+        "samples": [
+          {
+            "time": 1404495.804,
+            "readSeconds": 0.23400000017136335,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "3600",
+              "3"
+            ]
+          },
+          {
+            "time": 1404511.273,
+            "readSeconds": 0.2660000000614673,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "3840",
+              "3"
+            ]
+          },
+          {
+            "time": 1404526.8355,
+            "readSeconds": 0.3589999999385327,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "4200",
+              "3"
+            ]
+          },
+          {
+            "time": 1404542.3824999998,
+            "readSeconds": 0.3589999999385327,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "4440",
+              "3"
+            ]
+          },
+          {
+            "time": 1404557.937,
+            "readSeconds": 0.3440000000409782,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "4800",
+              "3"
+            ]
+          },
+          {
+            "time": 1404573.6405,
+            "readSeconds": 0.625,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "5040",
+              "3"
+            ]
+          },
+          {
+            "time": 1404589.2804999999,
+            "readSeconds": 0.21899999980814755,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "5400",
+              "3"
+            ]
+          }
+        ],
+        "inputSent": false,
+        "frameCounterQuantum": 120,
+        "note": "Log quantization; not per-frame timing, CPU attribution or a guaranteed identical scene.",
+        "durationSeconds": 93.47649999987334,
+        "presentedFrames": 1800,
+        "approxFps": 19.256176686145064,
+        "quantizationFpsBound": 1.2837451124096708,
+        "identityVerified": true
+      },
+      "battle-optimized-active-idle": {
+        "label": "battle-optimized-active-idle",
+        "samples": [
+          {
+            "time": 1404809.554,
+            "readSeconds": 0.23400000017136335,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "9600",
+              "3"
+            ]
+          },
+          {
+            "time": 1404825.023,
+            "readSeconds": 0.2660000000614673,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "9840",
+              "3"
+            ]
+          },
+          {
+            "time": 1404840.476,
+            "readSeconds": 0.26599999982863665,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "10200",
+              "3"
+            ]
+          },
+          {
+            "time": 1404855.9134999998,
+            "readSeconds": 0.2029999999795109,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "10440",
+              "3"
+            ]
+          },
+          {
+            "time": 1404871.343,
+            "readSeconds": 0.25,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "10800",
+              "3"
+            ]
+          },
+          {
+            "time": 1404886.9135,
+            "readSeconds": 0.48499999986961484,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "11040",
+              "3"
+            ]
+          },
+          {
+            "time": 1404902.5074999998,
+            "readSeconds": 0.2970000000204891,
+            "creation": [
+              "37697",
+              "3",
+              "1200",
+              "800",
+              "3"
+            ],
+            "creationPidAlive": true,
+            "frames": [
+              "11400",
+              "3"
+            ]
+          }
+        ],
+        "inputSent": false,
+        "frameCounterQuantum": 120,
+        "note": "Log quantization; not per-frame timing, CPU attribution or a guaranteed identical scene.",
+        "durationSeconds": 92.95349999982864,
+        "presentedFrames": 1800,
+        "approxFps": 19.3645209701982,
+        "quantizationFpsBound": 1.29096806467988,
+        "identityVerified": true
+      }
+    },
+    "manualDelivery": {
+      "normalDeckLibraryEntryUsed": true,
+      "temporaryCefFlagsUsed": false,
+      "nonActionStartupConfigurationMatchesOriginal": true,
+      "ordinaryDeckStartupAction": "launch 2868840",
+      "originalConfigurationSha256": "1e1983445a46d8c123e00e08582c13eff4935270fbe6b518042a849abcb6d516",
+      "manualRuntimeReplacementUsed": false,
+      "automaticJitCapabilityFallbackObserved": true,
+      "devicePayloads": {
+        "libsteamohos_posix_hap.so": {
+          "sha256": "0f22e00846f0e3548751638a67d035509c1ffcb7e92744d83789c49554568ee8",
+          "deviceMatches": true
+        },
+        "steamohos_fex": {
+          "sha256": "c02fd16c61a22d2e98a54bc8cece4a1235de8619475d3aeaab13ab239cb6bebf",
+          "deviceMatches": true
+        },
+        "libsteamohos_native_vulkan.so": {
+          "sha256": "7789fe17bd47fd1f06d6eca442c3412ed62e454b558c5019ac772ae4ddac867e",
+          "deviceMatches": true
+        },
+        "native-guest-core-x86_64/libsteamohos_native_ipc.so": {
+          "sha256": "373d424b0922ab69f7f027250a5037c4b4833a859826a48d8e04251b81b17d5b",
+          "deviceMatches": true
+        }
+      },
+      "finalState": "Optimized HAP retained; user resumed combat after sampling; no further foreground inputs"
+    },
+    "privateScreenshotIdentities": {
+      "optimized-first": {
+        "sha256": "848c3c5618d550669521bb480a729823de7ea59479a07e784ec8fce384ed9375",
+        "privateLocalOnly": true
+      },
+      "previous-baseline": {
+        "sha256": "2812a713a90d4322086bf65389b932493e35cc438a6f6fcc47b04f97fdaf5570",
+        "privateLocalOnly": true
+      },
+      "optimized-repeat": {
+        "sha256": "fc0086c02c4a0e32ad1ba75b0be0f5291ce6cd23a012b3aa0ed0c58d0e54735a",
+        "privateLocalOnly": true
+      },
+      "optimized-active-idle": {
+        "sha256": "8f36930b9783c6d3a19f123869db0eccdefbec28e8d1cedb06db2c9f249379a2",
+        "privateLocalOnly": true
+      }
+    },
+    "saveChecks": {
+      "stages": {
+        "before-battle-tests": {
+          "fileCount": 76,
+          "changedRelativeNames": []
+        },
+        "current-menu": {
+          "fileCount": 76,
+          "changedRelativeNames": []
+        },
+        "optimized-first-battle": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "optimized-first-menu": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "optimized-first-exit": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "previous-menu": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "previous-battle": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "previous-saved-menu": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "optimized-repeat-battle": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "before-active-idle": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        },
+        "after-active-idle": {
+          "fileCount": 76,
+          "changedRelativeNames": [
+            "steam/<profile>/profile1/saves/current_run.save"
+          ]
+        }
+      },
+      "activeIdleIntervalAll76HashesUnchanged": true,
+      "testRestoredOrOverwroteUserSaves": false,
+      "note": "The game rewrites current_run on continue and updates progress/prefs on normal exit. No claim that all files stayed identical throughout reinstalls. User resumed playing after the last sample; no subsequent foreground actions."
+    },
+    "previousNormalExit": {
+      "time": 1793509472.6316032,
+      "pid": 31295,
+      "alive": false,
+      "creation": [
+        "GNU_WINE_VULKAN create pid=31295 surface=3 size=1200x800 images=3"
+      ],
+      "menuTicksMs": [
+        "76269",
+        "505377"
+      ],
+      "encounter": [
+        [
+          "ActiveCombat",
+          "SKULKING_COLONY_ELITE"
+        ]
+      ],
+      "quitConfirmed": true,
+      "exitStatuses": [
+        "STEAMOHOS_CHILD_STATUS parent=30513 child=33406 api=waitpid status=0 exited=1 code=0 signaled=0 signal=0",
+        "STEAMOHOS_CHILD_STATUS parent=30513 child=33407 api=waitpid status=0 exited=1 code=0 signaled=0 signal=0",
+        "STEAMOHOS_CHILD_STATUS parent=30513 child=33464 api=waitpid status=32512 exited=1 code=127 signaled=0 signal=0",
+        "STEAMOHOS_CHILD_STATUS parent=31293 child=31295 api=waitpid status=0 exited=1 code=0 signaled=0 signal=0"
+      ],
+      "timestampDeniedCount": 76,
+      "cpuPixelReadbackCounts": [
+        "0"
+      ]
+    },
+    "performanceImprovementProven": false,
+    "conclusion": "Optimized paused battle 19.31/19.26 FPS; previous 20.65 FPS; optimized active first-turn idle 19.36 FPS. No demonstrated uplift; small regressions are not excluded by this experiment.",
+    "limits": [
+      "120-frame log quantum, approximately +/-1.29 FPS per 93-second interval; not a confidence interval",
+      "No P95 or per-frame timing; no CPU/GPU or thermal attribution",
+      "Only one previous-version interval; temperature and DVFS were not controlled",
+      "Pause-to-menu transitions can briefly differ; no card effects or enemy turns benchmarked",
+      "Snapshots showing 2-3 FPS immediately after load/input are not sustained measurements or a proven overlay/focus root cause",
+      "Ordinary Deck launch passed current/previous/current without temporary CEF flags; this is not a guarantee for every game or repeated cold-start stability"
+    ],
+    "nextProfiling": "Measure persistent coherent-map publication, ring/drain, present RPC and NativeBuffer backpressure before changing synchronization.",
+    "finalPackageVerification": {
+      "status": "PASS",
+      "components": 2,
+      "hapCompanions": 4
+    },
+    "supervisorDeploymentRegression": "passed: cached reuse, corrupt repair, atomic replacement, foreign release and symlink guards",
+    "sourcePayloadVerification": "passed: build_linux_steam_native_graphics.py --verify-only"
   }
 }

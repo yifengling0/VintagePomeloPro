@@ -286,7 +286,15 @@ static void VKAPI_CALL destroyLayout(VkDevice d,VkPipelineLayout handle,const Vk
     deviceProc<PFN_vkDestroyPipelineLayout>(d,"vkDestroyPipelineLayout")(d,handle,a);
 }
 struct Push {std::shared_ptr<ReplayLayout> layout;VkShaderStageFlags stages;uint32_t offset;std::vector<uint8_t> bytes;};
-struct Command {VkDevice device;VkCommandPool pool;VkPipeline pipeline=VK_NULL_HANDLE;std::vector<Push> pushes;std::vector<Scratch> scratch;VkResult error=VK_SUCCESS;};
+struct Command {
+    VkDevice device;VkCommandPool pool;VkPipeline pipeline=VK_NULL_HANDLE;
+    std::vector<Push> pushes;std::vector<Scratch> scratch;VkResult error=VK_SUCCESS;
+    // Core Vulkan entry points and BC capability are immutable for this
+    // command buffer's device lifetime. Resolve once, not for every draw.
+    PFN_vkCmdBindPipeline bindPipeline=nullptr;
+    PFN_vkCmdPushConstants pushConstants=nullptr;
+    bool replayPush=false;
+};
 struct Tools {VkShaderModule shader=VK_NULL_HANDLE;VkPipelineLayout layout=VK_NULL_HANDLE;VkPipeline pipeline=VK_NULL_HANDLE;};
 static std::map<VkCommandBuffer,Command> commands;
 static std::map<VkDevice,Tools> tools;
@@ -302,7 +310,17 @@ static void clear(Command& c) {
 }
 static VkResult VKAPI_CALL allocateCommands(VkDevice device,const VkCommandBufferAllocateInfo* info,VkCommandBuffer* out) {
     auto rc=nativeAllocateCommandBuffers(device,info,out);
-    if(rc==VK_SUCCESS){std::lock_guard<std::recursive_mutex> lock(stateMutex);for(unsigned i=0;i<info->commandBufferCount;i++)commands.emplace(out[i],Command{device,info->commandPool});}
+    if(rc==VK_SUCCESS) {
+        std::lock_guard<std::recursive_mutex> lock(stateMutex);
+        const auto bind=deviceProc<PFN_vkCmdBindPipeline>(device,"vkCmdBindPipeline");
+        const auto push=deviceProc<PFN_vkCmdPushConstants>(device,"vkCmdPushConstants");
+        const bool replay=active(device);
+        for(unsigned i=0;i<info->commandBufferCount;i++) {
+            Command command{device,info->commandPool};
+            command.bindPipeline=bind;command.pushConstants=push;command.replayPush=replay;
+            commands.emplace(out[i],std::move(command));
+        }
+    }
     return rc;
 }
 static void VKAPI_CALL freeCommands(VkDevice device,VkCommandPool pool,uint32_t count,const VkCommandBuffer* handles) {
@@ -333,22 +351,42 @@ static VkResult VKAPI_CALL end(VkCommandBuffer cb) {
     auto rc=deviceProc<PFN_vkEndCommandBuffer>(c.device,"vkEndCommandBuffer")(cb);return rc==VK_SUCCESS?c.error:rc;
 }
 static void VKAPI_CALL bindPipeline(VkCommandBuffer cb,VkPipelineBindPoint point,VkPipeline pipeline) {
-    std::lock_guard<std::recursive_mutex> lock(stateMutex);auto& c=commands.at(cb);
-    if(point==VK_PIPELINE_BIND_POINT_COMPUTE)c.pipeline=pipeline;
-    deviceProc<PFN_vkCmdBindPipeline>(c.device,"vkCmdBindPipeline")(cb,point,pipeline);
+    PFN_vkCmdBindPipeline forward;
+    {
+        std::lock_guard<std::recursive_mutex> lock(stateMutex);auto& c=commands.at(cb);
+        if(point==VK_PIPELINE_BIND_POINT_COMPUTE)c.pipeline=pipeline;
+        forward=c.bindPipeline;
+    }
+    // Vulkan already requires external synchronization of this command
+    // buffer. An unrelated recorder must not wait for this driver's call.
+    forward(cb,point,pipeline);
 }
 static void VKAPI_CALL push(VkCommandBuffer cb,VkPipelineLayout layout,VkShaderStageFlags stages,uint32_t offset,uint32_t size,const void* data) {
-    std::lock_guard<std::recursive_mutex> lock(stateMutex);auto& c=commands.at(cb);
-    // Keep the latest update for every exact key, preserving update order and
-    // every shader stage. No fixed-size ring drops live application state.
-    auto found=replayLayouts.find(layout);
-    if(active(c.device)&&found==replayLayouts.end()){error(c,VK_ERROR_VALIDATION_FAILED_EXT,"untracked-push-layout");return;}
-    if(found!=replayLayouts.end()) {
-        auto replay=found->second;
-        c.pushes.erase(std::remove_if(c.pushes.begin(),c.pushes.end(),[&](const Push& p){return p.layout==replay&&p.stages==stages&&p.offset==offset&&p.bytes.size()==size;}),c.pushes.end());
-        Push p{replay,stages,offset,{}};p.bytes.assign(static_cast<const uint8_t*>(data),static_cast<const uint8_t*>(data)+size);c.pushes.push_back(std::move(p));
+    PFN_vkCmdPushConstants forward;
+    {
+        std::lock_guard<std::recursive_mutex> lock(stateMutex);auto& c=commands.at(cb);
+        auto found=replayLayouts.find(layout);
+        if(c.replayPush&&found==replayLayouts.end()){error(c,VK_ERROR_VALIDATION_FAILED_EXT,"untracked-push-layout");return;}
+        if(found!=replayLayouts.end()) {
+            const auto& replay=found->second;
+            auto previous=std::find_if(c.pushes.begin(),c.pushes.end(),[&](const Push& p){
+                return p.layout==replay&&p.stages==stages&&p.offset==offset&&p.bytes.size()==size;
+            });
+            if(previous!=c.pushes.end()) {
+                // Move the latest exact-key update to the end, retaining its
+                // byte allocation. Other overlapping/stage updates keep their
+                // original order, just as erase + append did before.
+                std::rotate(previous,previous+1,c.pushes.end());
+                if(size)memcpy(c.pushes.back().bytes.data(),data,size);
+            } else {
+                Push update{replay,stages,offset,{}};
+                update.bytes.assign(static_cast<const uint8_t*>(data),static_cast<const uint8_t*>(data)+size);
+                c.pushes.push_back(std::move(update));
+            }
+        }
+        forward=c.pushConstants;
     }
-    deviceProc<PFN_vkCmdPushConstants>(c.device,"vkCmdPushConstants")(cb,layout,stages,offset,size,data);
+    forward(cb,layout,stages,offset,size,data);
 }
 static void VKAPI_CALL execute(VkCommandBuffer cb,uint32_t count,const VkCommandBuffer* secondary) {
     std::lock_guard<std::recursive_mutex> lock(stateMutex);auto& c=commands.at(cb);

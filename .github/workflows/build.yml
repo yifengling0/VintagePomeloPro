@@ -342,6 +342,7 @@ jobs:
           python3 host_tests/linux_steam_native_guest_mapping_test.py
           python3 host_tests/linux_steam_native_guest_abi_test.py
           python3 host_tests/linux_steam_native_window_test.py
+          python3 host_tests/linux_native_bc_recording_test.py --build-dir workspace_temp/native-bc-recording
           python3 host_tests/linux_runtime_components_test.py
           python3 host_tests/managed_render_route_test.py
           python3 host_tests/compositor_migration_test.py --asan
