@@ -213,6 +213,10 @@ class CandidateTests(unittest.TestCase):
 
     def test_new_or_omitted_hvigor_targets_fail_before_compilation(self):
         candidate.verify_native_targets(candidate.CMAKE_MODULES)
+        probe = 'libs/arm64-v8a/libsteamohos_native_memory_probe.so'
+        self.assertIn(probe, candidate.CMAKE_MODULES)
+        with self.assertRaisesRegex(ValueError, 'missing:.*libsteamohos_native_memory_probe'):
+            candidate.verify_native_targets(candidate.CMAKE_MODULES - {probe})
         with self.assertRaisesRegex(ValueError, 'missing:.*libsteamdecompress'):
             candidate.verify_native_targets(candidate.CMAKE_MODULES - {'libs/arm64-v8a/libsteamdecompress.so'})
         with self.assertRaisesRegex(ValueError, 'unregistered:.*libnew'):
