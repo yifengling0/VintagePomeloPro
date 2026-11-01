@@ -15,7 +15,7 @@ stubs = r'''#include <cassert>
 #include <cstdio>
 using napi_env = void*;
 using napi_value = int64_t*;
-struct Callback { size_t argc; napi_value args[3]; };
+struct Callback { size_t argc; napi_value args[4]; };
 using napi_callback_info = Callback*;
 using napi_status = int;
 constexpr int napi_ok = 0;
@@ -40,8 +40,8 @@ struct PluginManager {
     uint32_t top=0; int64_t surface=0; int w=0, h=0;
     static PluginManager* GetInstance() { static PluginManager p; return &p; }
     void CreateRenderer(uint32_t t, int64_t s) { ++creates;top=t;surface=s; }
-    void ResizeRenderer(uint32_t t, int x, int y) { ++resizes;top=t;w=x;h=y; }
-    void DestroyToplevel(uint32_t t) { ++destroys;top=t; }
+    void ResizeRenderer(uint32_t t, int x, int y, int64_t s) { ++resizes;top=t;w=x;h=y;surface=s; }
+    void DestroyRendererForSurface(uint32_t t, int64_t s) { ++destroys;top=t;surface=s; }
 };
 '''
 tests = r'''
@@ -54,16 +54,29 @@ int main() {
     int64_t width=1280;
     c={3,{&top,&width,&height}};
     ResizeRenderer(nullptr,&c);
-    assert(p->resizes==1 && p->top==17 && p->w==1280 && p->h==720);
-    c={1,{&top,nullptr,nullptr}};
+    assert(p->resizes==1 && p->top==17 && p->w==1280 && p->h==720 && p->surface==0);
+    // Surface identity must survive NAPI routing so late callbacks cannot
+    // resize or destroy the replacement surface after root promotion.
+    c={4,{&top,&width,&height,&surface}};
+    ResizeRenderer(nullptr,&c);
+    assert(p->resizes==2 && p->surface==surface);
+    c={2,{&top,&surface,nullptr,nullptr}};
     DestroyRenderer(nullptr,&c);
-    assert(p->destroys==1 && p->top==17);
+    assert(p->destroys==1 && p->top==17 && p->surface==surface);
+    int64_t invalidSurface=0;
+    c={4,{&top,&width,&height,&invalidSurface}}; ResizeRenderer(nullptr,&c);
+    c={2,{&top,&invalidSurface,nullptr,nullptr}}; DestroyRenderer(nullptr,&c);
+    assert(p->resizes==2 && p->destroys==1);
+    // Legacy callers omit surface identity; preserve the explicit zero route.
+    c={1,{&top,nullptr,nullptr,nullptr}};
+    DestroyRenderer(nullptr,&c);
+    assert(p->destroys==2 && p->top==17 && p->surface==0);
     // Two windows keep distinct IDs; no global pending renderer identity.
     top=18; surface=10000000004LL;
     c={2,{&top,&surface,nullptr}}; CreateRenderer(nullptr,&c);
     assert(p->creates==2 && p->top==18 && p->surface==surface);
     c.argc=0; CreateRenderer(nullptr,&c); ResizeRenderer(nullptr,&c);
-    assert(p->creates==2 && p->resizes==1);
+    assert(p->creates==2 && p->resizes==2);
     std::puts("PASS production managed renderer lifecycle: one compositor for GDI/GPU-capable windows");
 }
 '''
