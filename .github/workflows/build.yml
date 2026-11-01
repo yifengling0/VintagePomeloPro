@@ -38,6 +38,13 @@ jobs:
           ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
           submodules: false
           fetch-depth: 1
+      # GNU companion provenance includes the exact pinned Vulkan registry
+      # and headers. The first job otherwise has no initialized submodules.
+      - name: Restore pinned Mesa provenance inputs
+        run: |
+          git -c url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf=git@github.com: \
+            submodule update --init --depth=1 -- thirdparty/mesa
+
       - name: Test provenance and dependency restore
         run: |
           python3 scripts/ci_preflight.py --report ci-artifacts/ci-preflight.json
