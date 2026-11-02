@@ -36,6 +36,23 @@ static xim_bridge_activation_cb g_act_cb = 0;
 static void *g_act_user = 0;
 static int g_reader_started = 0;
 static pthread_t g_reader;
+static int g_active = 0;
+static int g_armed = 0;
+
+void xim_bridge_set_armed(int armed)
+{
+    pthread_mutex_lock(&g_chan_mutex);
+    g_armed = !!armed;
+    pthread_mutex_unlock(&g_chan_mutex);
+}
+
+int xim_bridge_is_active(void)
+{
+    pthread_mutex_lock(&g_chan_mutex);
+    int active = g_chan_fd >= 0 && g_armed && g_active;
+    pthread_mutex_unlock(&g_chan_mutex);
+    return active;
+}
 
 int xim_bridge_channel_init(void)
 {
@@ -155,6 +172,7 @@ static void *ActivationReaderMain(void *arg)
         if (read_full(fd, payload, sizeof(payload)) != 0)
             break;
         pthread_mutex_lock(&g_chan_mutex);
+        if (fd == g_chan_fd) g_active = payload[0] == 1;
         cb = g_act_cb;
         user = g_act_user;
         pthread_mutex_unlock(&g_chan_mutex);
@@ -164,6 +182,9 @@ static void *ActivationReaderMain(void *arg)
                (int)payload[3], (int)payload[4], user);
     }
 
+    pthread_mutex_lock(&g_chan_mutex);
+    if (fd == g_chan_fd) g_active = 0;
+    pthread_mutex_unlock(&g_chan_mutex);
     OHERR("upstream reader exit (server gone?) — notify deactivate");
     if (cb)
         cb(0, 0, 0, 0, 0, user);
@@ -189,6 +210,7 @@ void xim_bridge_shutdown(void)
     int fd = g_chan_fd;
     int join = g_reader_started;
     g_chan_fd = -1;
+    g_active = 0;
     if (fd >= 0) shutdown(fd, SHUT_RDWR);
     pthread_mutex_unlock(&g_chan_mutex);
     if (join) pthread_join(g_reader, NULL);

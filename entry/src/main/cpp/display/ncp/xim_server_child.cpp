@@ -403,8 +403,10 @@ static void RxFeed(XimClient &c, const char *data, size_t n)
             words = c.lsb ? le : be;
         }
         size_t total = 4 + (size_t)words * 4;
-        if (total <= 4)
-            break; /* 防御: 0 字长声明避免死循环 */
+        /* Zero payload is valid for XIM_DISCONNECT. XCloseIM waits for its
+         * reply while Wine holds the loader lock. Always consume the 4-byte
+         * header, even when words==0, so an empty packet cannot stall the
+         * connection (and every other thread exiting behind that lock). */
         if (c.rx.size() < total)
             break;
         HandlePacket(c, c.rx.substr(0, total));

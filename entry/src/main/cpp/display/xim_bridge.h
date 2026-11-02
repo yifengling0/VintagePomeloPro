@@ -30,6 +30,11 @@ typedef void (*xim_bridge_activation_cb)(int active, int x, int y,
 void xim_bridge_set_activation_callback(xim_bridge_activation_cb cb,
                                         void *user);
 
+/* Query authoritative XIM focus, gated by the foreground host's IME policy.
+ * A Wayland text-input object is not created by an X11 Wine client. */
+void xim_bridge_set_armed(int armed);
+int xim_bridge_is_active(void);
+
 #ifdef __cplusplus
 }
 #endif

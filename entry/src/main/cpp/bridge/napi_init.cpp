@@ -1221,6 +1221,17 @@ static napi_value RaiseToplevel(napi_env env, napi_callback_info info) {
     napi_get_value_uint32(env, args[0], &tl);
     // 用户显式操作 (任务栏/窗口点击) 路径: 已 fullscreen 的目标会重新取
     // 全屏优先级号, 支撑两个全屏窗口间的主动切换
+    // X11 canvas children are hit-tested/raised by the Xwayland seat;
+    // the synthetic canvas id has no Wayland ToplevelManager surface.
+    if (winehua_x11_is_desktop(tl)) {
+        winehua_display_focus_select(tl, true);
+        return nullptr;
+    }
+    if (x11_toplevel_owns(tl)) {
+        winehua_display_focus_select(tl, true);
+        x11_toplevel_control(tl, 0, true);
+        return nullptr;
+    }
     WaylandServer::GetInstance()->RaiseToplevel(tl, true);
     return nullptr;
 }
@@ -1296,6 +1307,14 @@ static napi_value FindToplevelAt(napi_env env, napi_callback_info info) {
     napi_get_value_int32(env, args[0], &px);
     napi_get_value_int32(env, args[1], &py);
 
+    // The canvas uses X coordinates/scene hit-testing downstream. There is
+    // deliberately no EglRenderer or Wayland surface for this synthetic id.
+    // Never fall back to id=1: it may belong to another session/client.
+    if (const uint32_t desktop = winehua_x11_desktop_id()) {
+        napi_value result;
+        napi_create_uint32(env, desktop, &result);
+        return result;
+    }
     auto* ws = WaylandServer::GetInstance();
     uint32_t rootId = ws->GetDesktopRootToplevelId();
     wl_fixed_t wx, wy;
@@ -1634,13 +1653,15 @@ static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
 
 static napi_value WineTextInputActive(napi_env env, napi_callback_info) {
     napi_value result;
-    napi_get_boolean(env, TextInput::GetInstance()->IsActivated(), &result);
+    napi_get_boolean(env, winehua_display_focus_is_x11() ?
+        xim_bridge_is_active() : TextInput::GetInstance()->IsActivated(), &result);
     return result;
 }
 
 static napi_value WineTextInputEnabled(napi_env env, napi_callback_info) {
     napi_value result;
-    napi_get_boolean(env, TextInput::GetInstance()->IsEnabled(), &result);
+    napi_get_boolean(env, winehua_display_focus_is_x11() ?
+        xim_bridge_is_active() : TextInput::GetInstance()->IsEnabled(), &result);
     return result;
 }
 
@@ -1650,6 +1671,7 @@ static napi_value WineTextInputSetArmed(napi_env env, napi_callback_info info) {
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     bool armed = false;
     if (argc >= 1 && args[0] != nullptr) napi_get_value_bool(env, args[0], &armed);
+    xim_bridge_set_armed(armed);
     xim_bridge_set_activation_callback([](int active, int x, int y, int w, int h, void*) {
         if (winehua_display_focus_is_x11())
             TextInput::GetInstance()->NotifyExternalActivated(active != 0, x, y, w, h);
