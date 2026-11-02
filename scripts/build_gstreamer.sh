@@ -267,7 +267,7 @@ if [ ! -f "$SYSROOT_EXT_PC/gstreamer-video-1.0.pc" ] || \
         -Doverlaycomposition=disabled -Ddrm=disabled -Dgl=disabled -Dalsa=disabled \
         -Dcdparanoia=disabled -Dlibvisual=disabled -Dogg=disabled -Dopus=disabled \
         -Dpango=disabled -Dtheora=disabled -Dtremor=disabled -Dvorbis=disabled \
-        -Dxshm=disabled -Dxi=disabled
+        -Dxshm=disabled -Dxi=disabled -Dx11=disabled -Dxvideo=disabled
     meson compile -C "$build" -j "$JOBS"
     DESTDIR=/ meson install -C "$build"
     stage_pcs

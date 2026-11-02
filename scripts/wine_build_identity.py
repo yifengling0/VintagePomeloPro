@@ -130,6 +130,10 @@ def request_identity(args, source):
             'environment_script_sha256': file_hash(repo / 'scripts/env.sh'),
             'diagnostics_inputs': {name: file_hash(repo / 'scripts' / name) for name in
                                   ('wine_runtime_diagnostics.py', 'wine_runtime_diagnostics.h')},
+            'overlay_proof_sha256': file_hash(repo / 'scripts/verify_wine_overlay_stack.py')
+                if (repo / 'scripts/verify_wine_overlay_stack.py').is_file() else None,
+            'x11_config_check_sha256': file_hash(repo / 'scripts/verify_x11_wine_config.py')
+                if (repo / 'scripts/verify_x11_wine_config.py').is_file() else None,
             'gstreamer_inputs': {name: file_hash(repo / 'scripts' / name) for name in
                                   ('gstreamer_plugins.json', 'gstreamer_inventory.py', 'wine_gstreamer_loader.h')},
             'ordered_overlays': overlays, 'configuration': sorted(args.config), 'tools': tools}

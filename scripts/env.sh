@@ -103,9 +103,11 @@ export LLVM_MINGW
 # x86_64:    模拟器 / x86_64 设备
 NATIVE_ARCH="${NATIVE_ARCH:-arm64-v8a}"
 
-# ── Wine 模拟层架构 ──
-# arm64 真机 → aarch64 原生 wine + FEX 转译应用 (libarm64ecfex.dll)
+# ── Wine 模拟层架构 (guest 侧) ──
+# arm64 真机 → aarch64 原生 wine + FEX 转译应用 (libarm64ecfex.dll, Steam win64 链)
 # x86_64 模拟器 → x86_64 同目标 wine
+# 任何组件构建前先问: 它跑在 guest (Wine 世界) 还是 host (鸿蒙侧)? 两侧架构
+# 独立参数, 不得互相假设; host 侧产物进 HOST_EXT, guest 侧进 sysroot-ext。
 if [ -z "${WINE_ARCH:-}" ]; then
     [ "$NATIVE_ARCH" = "arm64-v8a" ] && WINE_ARCH=aarch64 || WINE_ARCH=x86_64
 fi
@@ -115,6 +117,11 @@ HOST_TRIPLE="${HOST_TRIPLE:-${WINE_ARCH}-unknown-linux-ohos}"  # wine configure 
 GNU_HOST="${GNU_HOST:-${WINE_ARCH}-linux-gnu}"              # autoconf 系 deps --host
 OHOS_ARCH="${OHOS_ARCH:-$( [ "$WINE_ARCH" = aarch64 ] && echo arm64-v8a || echo x86_64 )}"
 export TARGET HOST_TRIPLE GNU_HOST OHOS_ARCH
+# x11 链脚本的 guest 侧别名 (build_xcb_stack.sh / build_x11_client.sh):
+# guest = Wine 世界 = WINE_ARCH 侧; 保留本地 aarch64/x86_64 值域。
+GUEST_TARGET="$TARGET"
+GUEST_ARCH="${GUEST_ARCH:-$WINE_ARCH}"
+export GUEST_TARGET GUEST_ARCH
 
 # 根据 NATIVE_ARCH 推导 Native 层 LLVM target / meson cpu
 case "$NATIVE_ARCH" in
@@ -153,6 +160,22 @@ VKD3D_PROTON_SRC="$ROOT/thirdparty/vkd3d-proton"
 
 # 产物路径
 BUILD_DIR="${BUILD_DIR:-$ROOT/build}"   # 源码构建中间产物（同样允许覆盖，避免污染产品构建目录）
+# Isolate Wine provenance without duplicating shared dependency build trees.
+# Assembly must explicitly select the same root; never fall back to older Wine.
+WINE_BUILD_ROOT="${WINE_BUILD_ROOT:-$BUILD_DIR}"
+export WINE_BUILD_ROOT
+
+# ── Host 侧扩展 sysroot (host 组件的交叉构建产物: wlroots/Xwayland/pixman 等) ──
+# 与 guest 的 sysroot-ext 物理隔离, 随 NATIVE_ARCH 分目录。
+# guest 数据类产物 (协议 XML/XKB 数据) 无架构, 仍放 sysroot-ext 两侧共享。
+HOST_EXT="$BUILD_DIR/host-ext/${NATIVE_ARCH}"
+HOST_EXT_USR="$HOST_EXT/usr"
+HOST_EXT_INC="$HOST_EXT_USR/include"
+HOST_EXT_LIB="$HOST_EXT_USR/lib"
+HOST_EXT_PC="$HOST_EXT_USR/lib/pkgconfig"
+HOST_EXT_SHARE="$HOST_EXT_USR/share"
+
+# 顶层默认 pc 搜索路径 (gen_cross_file/gen_host_cross 各有隔离版 wrapper, 此处是默认值)。
 SYSROOT_EXT="$BUILD_DIR/sysroot-ext"  # 交叉编译扩展 (不污染 SDK)
 STAGING_DIR="$BUILD_DIR/staging"   # 打包临时目录
 DXVK_BUILD_ROOT="$BUILD_DIR/dxvk/legacy"
@@ -166,6 +189,10 @@ SYSROOT_EXT_LIB="$SYSROOT_EXT/usr/lib/$TARGET"
 # → x86_64 构建解析到 aarch64 .pc → 链接旧架构 .so (gstreamer 链实测必现)
 SYSROOT_EXT_PC="$SYSROOT_EXT/usr/lib/$TARGET/pkgconfig"
 SYSROOT_EXT_SHARE="$SYSROOT_EXT/usr/share"
+
+# 顶层默认 pc 搜索路径 (gen_cross_file/gen_host_cross 各有隔离版 wrapper, 此处是默认值)。
+# usr/share/pkgconfig 不可省: 纯数据包 (如 wayland-protocols) 的 pc 装在 share 下。
+export PKG_CONFIG_LIBDIR="$SYSROOT_EXT_PC:$SYSROOT_EXT/usr/share/pkgconfig:$SYSROOT/usr/lib/pkgconfig"
 
 # Linux/WSL 使用系统 pkg-config；macOS/HarmonyOS 使用当前工具链的 pkg-config。
 # wayland-scanner 各平台统一放项目内 build/host-tools（build_wayland.sh 现场编译），不写系统目录。
@@ -208,8 +235,9 @@ gen_cross_file() {
     cat > "$pcwrap" << PWEOF
 #!/bin/sh
 # PKG_CONFIG_LIBDIR 替换默认搜索路径 (--with-path 只是追加, 宿主 /usr/lib 仍混入)
-# SYSROOT_EXT_PC 已按架构隔离 (usr/lib/$TARGET/pkgconfig), 只加系统 pc 目录
-export PKG_CONFIG_LIBDIR="$SYSROOT_EXT_PC:$SYSROOT/usr/lib/pkgconfig"
+# SYSROOT_EXT_PC 已按架构隔离 (usr/lib/$TARGET/pkgconfig);
+# usr/share/pkgconfig 不可省: 纯数据包 (如 wayland-protocols) 的 pc 装在 share 下
+export PKG_CONFIG_LIBDIR="$SYSROOT_EXT_PC:$SYSROOT_EXT/usr/share/pkgconfig:$SYSROOT/usr/lib/pkgconfig"
 exec "$PKG_CONFIG_BIN" "\$@"
 PWEOF
     chmod +x "$pcwrap"
@@ -259,6 +287,59 @@ meson_build() {
     mkdir -p "$build"
     # meson 的 native 依赖查找 (如 wayland-scanner) 用 build.pkg_config_path 覆盖环境变量,
     # 必须在此显式给项目内 host-tools 路径, 否则构建机 .pc 永远搜不到
+    meson setup "$build" "$src" --cross-file "$cross" \
+        -Dbuild.pkg_config_path="$BUILD_DIR/host-tools/lib/pkgconfig" "$@"
+}
+
+# ── Host 侧交叉构建辅助 (架构侧别纪律见 .claude/rules/build-and-log.md) ──
+# 供 host 组件 (wlroots/Xwayland/pixman 等) 使用; 与 guest 的 meson_build 物理隔离:
+# 搜索顺序 = HOST_EXT(+share) → SDK sysroot → guest sysroot-ext 尾兜 (数据类 .pc
+# 如 wayland-protocols 无 -l)。新增 host 依赖一律装 HOST_EXT (先命中即正确);
+# 尾段 SYSROOT_EXT_PC(guest 库 pc) 在列是现状——host 查询若落到它, guest 架构
+# 会在链接期暴露; 名义口径「严禁混入」, 收紧该目录前先核实无消费方。
+gen_host_cross() {
+    local cross="$BUILD_DIR/ohos-host-${NATIVE_ARCH}-cross.txt"
+    local pcwrap="$BUILD_DIR/pkg-config-host-${NATIVE_ARCH}.sh"
+    # HOST_EXT_SHARE/pkgconfig 不可省: xorgproto 等纯数据包的 pc 装在 share 下
+    # (实测: 缺它时 xau.pc Requires xproto 解析失败, wlroots configure 中断;
+    # 同 build_wayland.sh wayland-protocols 教训, host 侧同款)
+    cat > "$pcwrap" << PWEOF
+#!/bin/sh
+export PKG_CONFIG_LIBDIR="$HOST_EXT_PC:$HOST_EXT_SHARE/pkgconfig:$BUILD_DIR/native_${NATIVE_ARCH}/libffi/install/lib/pkgconfig:$BUILD_DIR/native_${NATIVE_ARCH}/freetype/install/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig:$SYSROOT_EXT/usr/share/pkgconfig"
+exec "$PKG_CONFIG_BIN" "\$@"
+PWEOF
+    chmod +x "$pcwrap"
+    cat > "$cross" << XEOF
+[binaries]
+c = '$OHOS_SDK/native/llvm/bin/clang'
+cpp = '$OHOS_SDK/native/llvm/bin/clang++'
+ar = '$OHOS_SDK/native/llvm/bin/llvm-ar'
+strip = '$OHOS_SDK/native/llvm/bin/llvm-strip'
+pkg-config = '$pcwrap'
+wayland-scanner = '$WAYLAND_SCANNER'
+
+[built-in options]
+c_args = ['--target=$NATIVE_TARGET', '--sysroot=$SYSROOT', '-I$HOST_EXT_INC']
+c_link_args = ['--target=$NATIVE_TARGET', '--sysroot=$SYSROOT', '-fuse-ld=lld', '-L$HOST_EXT_LIB', '-L$NATIVE_LIBS']
+
+[host_machine]
+system = 'linux'
+cpu_family = '$NATIVE_CPU_FAMILY'
+cpu = '$NATIVE_CPU'
+endian = 'little'
+XEOF
+    echo "$cross"
+}
+
+# meson host 构建: 用法同 meson_build (builddir srcdir [选项...])
+meson_host_build() {
+    [ -n "$NATIVE_TARGET" ] || { echo "ERROR: NATIVE_TARGET 为空 (NATIVE_ARCH=all 不适用)" >&2; return 1; }
+    local build="$1" src="$2"
+    shift 2
+    local cross
+    cross="$(gen_host_cross)"
+    find "$src" -type f -exec touch {} + 2>/dev/null || true
+    mkdir -p "$build" "$HOST_EXT_INC" "$HOST_EXT_LIB" "$HOST_EXT_PC" "$HOST_EXT_SHARE"
     meson setup "$build" "$src" --cross-file "$cross" \
         -Dbuild.pkg_config_path="$BUILD_DIR/host-tools/lib/pkgconfig" "$@"
 }

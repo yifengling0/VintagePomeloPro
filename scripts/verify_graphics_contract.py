@@ -36,8 +36,19 @@ for engine,rows in lock['managed_patches'].items():
     elif engine=='virglrenderer':
         actual=re.findall(r'\b(\d{4}[-\w]+\.patch)\b',read('scripts/apply_virglrenderer_ohos_patches.sh'))
         check(actual==[Path(n).name for n in names],'VirGL patch order/registration')
+    elif engine in ('wlroots', 'xserver'):
+        script=read('scripts/build_'+('wlroots' if engine=='wlroots' else 'xwayland')+'.sh')
+        assignments=dict(re.findall(r'^(\w+)="\$SCRIPT_DIR/(patches/[^"\n]+)"',script,re.M))
+        if engine=='wlroots':
+            order=re.search(r'WLR_PATCH_SIG=\$\(cat (.*?) \| sha256sum',script)[1]
+            actual=['scripts/'+assignments[var] for var in re.findall(r'"\$(\w+)"',order)]
+        else:
+            actual=['scripts/'+assignments['XS_PATCH']]
+        check(actual==names,engine+' overlay order/registration')
     else:
         check(sorted(str(x.relative_to(R)) for x in (R/'patches'/engine).glob('*.patch'))==names,engine+' overlay inventory')
+for name,expected in lock['x11_integration']['build_inputs'].items():
+    check(sha(R/name)==expected,'X11 build recipe '+name)
 protocol=read('entry/src/main/cpp/graphics/virgl_ipc_protocol.h')
 for field,key in [('kProtocolVersion','whip_version'),('kHostConfigStringCount','host_config_strings')]:
     check(int(re.search(field+r'\s*=\s*(\d+)',protocol)[1])==lock['protocol'][key],field)

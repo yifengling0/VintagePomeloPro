@@ -15,7 +15,7 @@ if [ "${1:-}" = --unix-modules ]; then
     shift
     for module in "$@"; do
         case "$module" in
-            ntdll|win32u|opengl32|winevulkan|winewayland.drv|wineohos.drv|winegstreamer|wineserver) ;;
+            ntdll|win32u|opengl32|winevulkan|winewayland.drv|winex11.drv|wineohos.drv|winegstreamer|wineserver) ;;
             *) echo "unsupported Unix module: $module" >&2; exit 1 ;;
         esac
         WINE_UNIX_MODULES="${WINE_UNIX_MODULES:+$WINE_UNIX_MODULES }$module"
@@ -40,7 +40,7 @@ wine_build_identity() {
     local mode="$1"
     shift
     python3 "$SCRIPT_DIR/wine_build_identity.py" "$mode" "$@" \
-        --source "$WINE_SRC" --build "$BUILD_DIR" --repo "$SCRIPT_DIR/.." \
+        --source "$WINE_SRC" --build "$WINE_BUILD_ROOT" --repo "$SCRIPT_DIR/.." \
         --config "WINE_ARCH=$WINE_ARCH" --config "NATIVE_ARCH=$NATIVE_ARCH" \
         --config "GUEST_ARCH=$GUEST_ARCH" --config "HOST_TRIPLE=$HOST_TRIPLE" \
         --config "HOST_OS=$HOST_OS" --config "TARGET=$TARGET" \
@@ -145,6 +145,13 @@ ensure_wine_patch() {
                 log "$description already applied below Direct drawable overlays"
                 return
             fi
+        fi
+        # Diagnostics normalization and later overlays can rewrite earlier hunks.
+        # Compare with a clean full replay, never infer from a marker string.
+        if python3 "$SCRIPT_DIR/verify_wine_overlay_stack.py" --source "$WINE_SRC" \
+            --repo "$SCRIPT_DIR/.." --patch "$patch_file" >/dev/null 2>&1; then
+            log "$description already applied (full overlay proof)"
+            return
         fi
         patch -d "$WINE_SRC" -p1 --batch --force --dry-run < "$patch_file" >/dev/null
         patch -d "$WINE_SRC" -p1 --batch --force < "$patch_file" >/dev/null
@@ -338,6 +345,7 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0067-dnsapi-musl-transport-safety
 
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0066-ohos-native-gstreamer-plugins.patch" \
     "Load the packaged OHOS GStreamer inventory from the native namespace"
+if [ "${1:-}" != --check-patches ]; then
 python3 "$SCRIPT_DIR/gstreamer_inventory.py" \
     --plugins-dir "$SYSROOT_EXT_LIB/gstreamer-1.0" \
     --wine-arch "$WINE_ARCH" --native-arch "$NATIVE_ARCH" \
@@ -346,11 +354,19 @@ if ! cmp -s "$SCRIPT_DIR/wine_gstreamer_loader.h" "$WINE_SRC/dlls/winegstreamer/
     cp "$SCRIPT_DIR/wine_gstreamer_loader.h" "$WINE_SRC/dlls/winegstreamer/winehua_gstreamer_loader.h"
 fi
 
+fi
+
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0065-kernelbase-linux-steam-session-registry.patch" \
     "Process-local Linux Steam SDK bootstrap"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0069-linux-steam-native-module-bootstrap.patch" "Linux Steam native PE bootstrap"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0070-ddraw-clip-surface-bounds.patch" "DirectDraw clip to destination bounds"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0071-ime-key-scancode.patch" "IME passthrough scan code and release flags"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0072-ohos-x11-nativebuffer-display.patch" "OHOS X11 NativeBuffer display driver"
+
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0073-x11-desktop-role.patch" "X11 desktop protocol role"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0074-x11-child-window-identity.patch" "X11 child window identity"
+
+if [ "${1:-}" = --check-patches ]; then exit 0; fi
 
 # Normalize inherited temporary probes; keep the actual fault/exit paths intact.
 python3 "$SCRIPT_DIR/wine_runtime_diagnostics.py" --source "$WINE_SRC"
@@ -363,8 +379,8 @@ WINE_CFLAGS="-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNI
 
 build_native_tools() {
     log "--- Native 构建 (winegcc 等 host 工具) ---"
-    mkdir -p "$BUILD_DIR/wine-native"
-    cd "$BUILD_DIR/wine-native"
+    mkdir -p "$WINE_BUILD_ROOT/wine-native"
+    cd "$WINE_BUILD_ROOT/wine-native"
     if [ ! -f "Makefile" ]; then
         # 用 cache variables 骗过 configure, 避免 host 安装 wayland/xkbcommon/freetype/GL
         # 这些库仅供 winewayland.drv/winex11.drv 等 DLL 编译使用
@@ -411,9 +427,9 @@ build_native_tools() {
     # 确保 wrc 能加载 locale.nls (翻译资源编译需要)。build_native_tools
     # 只编 host 工具, 不跑生成 nls 数据的 make 规则, 故手动 symlink
     # 源码 nls 到 wine-native/nls/ (wrc 硬编码从 ../nls 找)
-    mkdir -p "$BUILD_DIR/wine-native/nls"
+    mkdir -p "$WINE_BUILD_ROOT/wine-native/nls"
     for nlsf in "$WINE_SRC"/nls/*.nls; do
-        ln -sf "$nlsf" "$BUILD_DIR/wine-native/nls/$(basename "$nlsf")"
+        ln -sf "$nlsf" "$WINE_BUILD_ROOT/wine-native/nls/$(basename "$nlsf")"
     done
 }
 
@@ -422,7 +438,7 @@ build_ohos_unix() {
 
     # 构建目录按 WINE_ARCH 隔离: 同工作树切换架构 (方案① x86_64 ↔ 方案③ arm64 原生)
     # 时不复用跨架构 configure 缓存。方案①/② (WINE_ARCH=x86_64) 共享 wine-ohos-x86_64。
-    local wine_build_dir="$BUILD_DIR/wine-ohos-$WINE_ARCH"
+    local wine_build_dir="$WINE_BUILD_ROOT/wine-ohos-$WINE_ARCH"
     mkdir -p "$wine_build_dir"
     cd "$wine_build_dir"
 
@@ -446,7 +462,7 @@ build_ohos_unix() {
     # W1 追加: configure.ac（或我们生成的 configure）比 config.status 新时也要重配,
     # 否则改了 configure.ac（例如排除 amd_ags_x64 模块）不会生效。
     if [ ! -f "Makefile" ] || [ "$WINE_SRC/configure.ac" -nt config.status ] \
-       || [ "$BUILD_DIR/configure" -nt config.status ] \
+       || [ "$WINE_BUILD_ROOT/configure" -nt config.status ] \
        || ! grep -q '#define SONAME_LIBFREETYPE' include/config.h 2>/dev/null \
        || ! grep -q '#define SONAME_LIBVULKAN "libvulkan.so.1"' include/config.h 2>/dev/null \
        || ! grep -q '#define SONAME_LIBGNUTLS' include/config.h 2>/dev/null \
@@ -481,6 +497,7 @@ build_ohos_unix() {
         export ac_cv_header_gst_gst_h=yes
         export ac_cv_lib_gstreamer_1_0_gst_pad_new=yes
         export ac_cv_lib_soname_gstreamer_1_0="libgstreamer-1.0.so.0"
+        export WINEHUA_ALLOW_X11_NO_GLX=1
         export WAYLAND_CLIENT_CFLAGS="-I$SYSROOT_EXT_INC"
         export WAYLAND_CLIENT_LIBS="-L$SYSROOT_EXT_LIB -lwayland-client"
         # Required on every build host; missing pkg-config metadata must not
@@ -526,10 +543,10 @@ build_ohos_unix() {
                 --enable-archs=arm64ec,aarch64,i386 \
                 --prefix=/opt/winehua \
                 --libdir='${prefix}' \
-                --with-wine-tools="$BUILD_DIR/wine-native" \
+                --with-wine-tools="$WINE_BUILD_ROOT/wine-native" \
                 --with-mingw="$LLVM_MINGW/bin/clang" \
                 --disable-tests \
-                --without-x --without-alsa \
+                --with-x --without-xshm --without-alsa \
                 --with-opengl --with-vulkan
         else
             CC="$CLANG --target=$TARGET --sysroot=$SYSROOT" \
@@ -542,15 +559,16 @@ build_ohos_unix() {
                 --enable-archs=i386,x86_64 \
                 --prefix=/opt/winehua \
                 --libdir='${prefix}' \
-                --with-wine-tools="$BUILD_DIR/wine-native" \
+                --with-wine-tools="$WINE_BUILD_ROOT/wine-native" \
                 --with-mingw="$MINGW_CC" \
                 --disable-tests \
-                --without-x --without-alsa \
+                --with-x --without-xshm --without-alsa \
                 --with-opengl --with-vulkan
         fi
     fi
 
     python3 "$SCRIPT_DIR/wine_graphics_capabilities.py" --build "$wine_build_dir"
+    python3 "$SCRIPT_DIR/verify_x11_wine_config.py" --header "$wine_build_dir/include/config.h"
 
     # arm64 用 llvm-mingw clang: aarch64-windows target 的默认 include 路径不含
     # generic-w64-mingw32 的 GL/gl.h (x86_64 用 GNU mingw gcc 自带 GL 头)。
@@ -621,11 +639,11 @@ build_ohos_unix() {
 build_wineserver() {
     log "--- 编译 wineserver (含 OHOS 修复) ---"
     # 目录按 WINE_ARCH 隔离 (方案①/② 共用 wine_server-x86_64, 产物形式不同 → 见 pie_mode)
-    local out="$BUILD_DIR/wine_server-$WINE_ARCH"
+    local out="$WINE_BUILD_ROOT/wine_server-$WINE_ARCH"
     # 数据文件在应用 sandbox 内
     local bindir="$WINE_DEVICE_ROOT/bin"
     local datadir="$WINE_DEVICE_ROOT/share"
-    local wine_include="-I$WINE_SRC/include -I$WINE_SRC/include/wine -I$WINE_SRC/server -I$BUILD_DIR/wine-ohos-$WINE_ARCH/include"
+    local wine_include="-I$WINE_SRC/include -I$WINE_SRC/include/wine -I$WINE_SRC/server -I$WINE_BUILD_ROOT/wine-ohos-$WINE_ARCH/include"
     # 目标架构 = WINE_ARCH 的 TARGET (wineserver 与 wine 同架构)。
     # 产物形式: box64+wine 方案 (arm64 设备 + x86_64 wine) → x86_64 PIE 可执行 (box64 转译);
     # 其余 (方案① x86_64 原生 / 方案③ arm64 原生) → native libwineserver.so (dlopen)。
@@ -716,10 +734,11 @@ fi
 
 # 从 configure.ac 重新生成 configure 到构建目录 (不污染源码树)
 # 我们的 configure.ac 新增了 wineohos.drv 等模块的 WINE_CONFIG_MAKEFILE
-CONFIGURE_BIN="$BUILD_DIR/configure"
+mkdir -p "$WINE_BUILD_ROOT"
+CONFIGURE_BIN="$WINE_BUILD_ROOT/configure"
 if [ ! -x "$CONFIGURE_BIN" ] || [ "$WINE_SRC/configure.ac" -nt "$CONFIGURE_BIN" ]; then
     log "--- 重新生成 configure (autoconf) ---"
-    (cd "$BUILD_DIR" && autoconf -I "$WINE_SRC" -o "$CONFIGURE_BIN" "$WINE_SRC/configure.ac")
+    (cd "$WINE_BUILD_ROOT" && autoconf -I "$WINE_SRC" -o "$CONFIGURE_BIN" "$WINE_SRC/configure.ac")
     chmod +x "$CONFIGURE_BIN"
 fi
 
