@@ -192,6 +192,9 @@ jobs:
              [ ! -e /usr/aarch64-linux-gnu/lib/Scrt1.o ]; then
             packages+=(gcc-aarch64-linux-gnu libc6-dev-arm64-cross)
           fi
+          if ! command -v xkbcomp >/dev/null 2>&1; then
+            packages+=(x11-xkb-utils)
+          fi
           if [ "${#packages[@]}" -gt 0 ]; then
             echo "Installing missing CI packages: ${packages[*]}"
             apt-get update

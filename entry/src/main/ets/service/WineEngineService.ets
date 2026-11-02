@@ -4,6 +4,8 @@ import { promptAction, router } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { BusinessError, zlib } from '@kit.BasicServicesKit';
 import { hilog } from './LogService';
+import displayRoute from 'libdisplay_route_napi.so';
+import { X11ClipboardService } from './X11ClipboardService';
 import testNapi, { ProductDirectProbeResult } from 'libentry.so';
 import {
   D3DRendererPreference,
@@ -959,10 +961,30 @@ export class WineEngineService {
         this.syncManagedFexModules(prefixDirectory);
         this.syncManagedIcuModules(prefixDirectory);
       }
+      if (displayRoute.setDisplayRoute(settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland') === false) {
+        this.failStartup(generation, '显示后端仍被上一会话占用，请完整退出后重试', false);
+        return;
+      }
       const serverReady = testNapi.startServer(socket) as boolean;
       if (!serverReady) {
         this.failStartup(generation, 'Wayland 服务启动失败');
         return;
+      }
+      if (settings.wineDisplayRoute === 'x11') {
+        this.handleEnginePhase('x11');
+        displayRoute.startDisplayRouteChain(BigInt(0), false, 0, 0, true,
+          this.presentationMode === WinePresentationMode.MANAGED_WINDOWS);
+        const deadline = Date.now() + 120000;
+        while (displayRoute.displayRoutePhase() !== 2) {
+          if (!this.startupCurrent(generation)) return;
+          if (displayRoute.displayRoutePhase() === 4 || Date.now() >= deadline) {
+            displayRoute.stopDisplayRouteChain();
+            this.failStartup(generation, 'X11 显示服务启动失败，请重试或切回 Wayland');
+            return;
+          }
+          await new Promise<void>((resolve: () => void) => setTimeout(resolve, 100));
+        }
+        X11ClipboardService.start();
       }
       // Native runs wineboot --init only for a new prefix. Existing prefixes
       // are migrated above before any wineserver process starts.
@@ -1243,8 +1265,15 @@ export class WineEngineService {
   }
 
   private async performNativeStop(): Promise<void> {
+    X11ClipboardService.stop();
     testNapi.stopAll();
     await this.waitForNativeShutdown();
+    displayRoute.stopDisplayRouteChain();
+    const displayDeadline = Date.now() + 5000;
+    while (displayRoute.displayRoutePhase() !== 0 && displayRoute.displayRoutePhase() !== 4) {
+      if (Date.now() >= displayDeadline) throw new Error('X11 显示服务停止超时');
+      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 50));
+    }
     await new Promise<void>((resolve: () => void) => setTimeout(resolve, 300));
   }
 
@@ -1389,13 +1418,14 @@ export class WineEngineService {
     this.readySafetyTimer = setInterval(() => this.pollStartup(generation), ENGINE_STARTUP_POLL_MS);
   }
 
-  private failStartup(generation: number, message: string): void {
+  private failStartup(generation: number, message: string, drain: boolean = true): void {
     if (!this.startupCurrent(generation)) return;
     this.captureInitializationDiagnostic();
     ++this.startupGeneration;
     this.nativeGeneration = 0;
     this.setState(EngineState.ERROR, message);
     this.finishWaiters(false);
+    if (!drain) return;
     this.drainNativeSession().catch((error: Error): void => {
       hilog.error(DOMAIN, TAG, 'startup cleanup incomplete: %{public}s', error.message);
     });
@@ -1420,7 +1450,7 @@ export class WineEngineService {
         }
         if (snapshot.phase && snapshot.phase !== this.enginePhase) this.handleEnginePhase(snapshot.phase);
       }
-      const phaseLimit = this.enginePhase === 'runtime' ? 120000 :
+      const phaseLimit = (this.enginePhase === 'runtime' || this.enginePhase === 'x11') ? 120000 :
         (this.enginePhase === 'wineboot' ? 125000 : 45000);
       if (this.getPreparationElapsedMs() >= ENGINE_STARTUP_TOTAL_MS || this.getPhaseElapsedMs() >= phaseLimit) {
         hilog.error(DOMAIN, TAG, 'startup timeout stage=%{public}s totalMs=%{public}d phaseMs=%{public}d',

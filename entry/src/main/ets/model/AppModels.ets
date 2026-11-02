@@ -555,6 +555,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
 export interface GlobalSettings {
   /** Original OHOS Wine 32-bit WoW64 backend; ARM64EC remains unchanged. */
   wineTranslationEngine: WineTranslationEngine;
+  wineDisplayRoute?: string;
   defaultDisplayMode: DisplayMode;
   /** Windows/Wine system language. Existing installs migrate to Chinese. */
   wineLanguage: WineLanguage;
@@ -1212,6 +1213,7 @@ export function createBuiltInInputProfiles(): InputProfile[] {
 export function createDefaultGlobalSettings(): GlobalSettings {
   return {
     wineTranslationEngine: WineTranslationEngine.FEX,
+    wineDisplayRoute: 'wayland',
     defaultDisplayMode: DisplayMode.DESKTOP,
     wineLanguage: WineLanguage.CHINESE,
     desktopOrientation: ScreenOrientationSetting.SENSOR_LANDSCAPE,

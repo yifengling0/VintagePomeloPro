@@ -3,6 +3,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+python3 "$SCRIPT_DIR/detach_build_hardlinks.py" "$NATIVE_LIBS"
 
 # ============================================================
 # 文件分流到 libs/ + rawfile/
@@ -16,8 +17,11 @@ assemble_pad() {
     local wine_data="$STAGING_DIR/wine-data"
     local guest_arch="${GUEST_ARCH:-$WINE_ARCH}"
     # Wine 构建目录按 WINE_ARCH 隔离 (build_wine.sh 的 wine-ohos-$WINE_ARCH / wine_server-$WINE_ARCH)
-    local wine_build_dir="$BUILD_DIR/wine-ohos-$WINE_ARCH"
-    local wine_server_dir="$BUILD_DIR/wine_server-$WINE_ARCH"
+    local wine_build_dir="$WINE_BUILD_ROOT/wine-ohos-$WINE_ARCH"
+    local wine_server_dir="$WINE_BUILD_ROOT/wine_server-$WINE_ARCH"
+    # Require a full build with matching effective source, toolchain and config.
+    # Targeted Unix/PE caches have different identities and cannot be assembled.
+    bash "$SCRIPT_DIR/build_wine.sh" --check-cached-identity
     # 方案② box64+wine: arm64 设备 + x86_64 wine 全转译 (wine/guest .so 由 box64 加载)
     local is_box64_scheme=0
     [ "$WINE_ARCH" = "x86_64" ] && [ "$NATIVE_ARCH" = "arm64-v8a" ] && is_box64_scheme=1
@@ -184,6 +188,31 @@ EOF
     # -- 1. 原生 .so → libs/$NATIVE_ARCH/ (由各 build 脚本完成) --
     mkdir -p "$NATIVE_LIBS"
 
+    # -- 1a. 显示路线 host 依赖 (build/host-ext) → libs/: entry/libs 是打包
+    # 视图, host-ext 是唯一构建落点——libxwayland_ohos.so 及其 NEEDED 闭包
+    # (pixman/drm/xcb 栈/X11/Xfont2/xkbfile/xcvt...) 真机加载全靠这份拷贝。
+    # 只拷 SONAME 级文件 (*.so.<纯数字>): 运行时按 DT_NEEDED 名加载, 多级别名
+    # (.so 链接名 / .so.X.Y.Z 实体名) 是同一库的多份拷贝, 徒增包体。
+    # HAP 不支持 symlink, cp -L 取实体; 静态库 (.a) 不进包。
+    # 例外: 无版本号 .so 按文件名直载的 (现仅 libxwayland_ohos.so) 逐个列名。
+    # glob 用 *.so.[0-9]* 再按 case 剔除带点实体名 —— 旧写法 *.so.[0-9] 只认
+    # 一位数 SONAME, libx.so.10 存在时构建成功、打包静默漏掉, 设备端 dlopen
+    # 失败且病灶离现象很远 (known-issues §1.3)。2026-09-30 实测: 放一个
+    # libfake2digit.so.10 进 host-ext, 旧写法日志报 41 files 且该库不在 entry/
+    # libs 里 (被静默漏); 改后 42 files 且拷入 (RED→GREEN 对照留档在本次提交)。
+    if [ -d "$HOST_EXT_LIB" ]; then
+        _n=0
+        for so in "$HOST_EXT_LIB"/*.so.[0-9]* "$HOST_EXT_LIB"/libxwayland_ohos.so; do
+            [ -e "$so" ] || continue
+            case "$so" in
+                *.so.*) case "${so##*.so.}" in *[!0-9]*) continue ;; esac ;;
+            esac
+            cp -L "$so" "$NATIVE_LIBS/"
+            _n=$((_n + 1))
+        done
+        log "  → host-ext .so → libs/$NATIVE_ARCH/: $_n files"
+    fi
+
     if [ "$NATIVE_ARCH" = "x86_64" ]; then
         # x86_64 Pad: Wine .so 是原生架构, 直接放 libs/
         log "  → Wine .so → libs/x86_64/"
@@ -229,6 +258,21 @@ EOF
         _pick_lib_pad "libxkbregistry.so.0.0.0"      "libxkbregistry.so.0"
         _pick_lib_pad "libxml2.so.2.12.0"            "libxml2.so.2"
         _pick_lib_pad "libffi.so.8.1.4"              "libffi.so.8"
+        # X11 客户端栈 (x11 路线 winex11.drv 运行时链, DT_NEEDED 逐级:
+        # winex11→X11/Xext→xcb→Xau/Xdmcp)
+        _pick_lib_pad "libX11.so.6.4.0"              "libX11.so.6"
+        _pick_lib_pad "libXext.so.6.4.0"             "libXext.so.6"
+        _pick_lib_pad "libxcb.so.1.1.0"              "libxcb.so.1"
+        _pick_lib_pad "libXau.so.6.0.0"              "libXau.so.6"
+        _pick_lib_pad "libXdmcp.so.6.0.0"            "libXdmcp.so.6"
+        _pick_lib_pad "libXrender.so.1" "libXrender.so.1"
+        _pick_lib_pad "libXfixes.so.3" "libXfixes.so.3"
+        _pick_lib_pad "libXi.so.6" "libXi.so.6"
+        _pick_lib_pad "libXrandr.so.2" "libXrandr.so.2"
+        _pick_lib_pad "libXinerama.so.1" "libXinerama.so.1"
+        _pick_lib_pad "libXcursor.so.1" "libXcursor.so.1"
+        _pick_lib_pad "libXcomposite.so.1" "libXcomposite.so.1"
+        _pick_lib_pad "libXxf86vm.so.1" "libXxf86vm.so.1"
         # GnuTLS 链 (schannel TLS 后端)
         _pick_lib_pad "libgnutls.so.30.37.1"         "libgnutls.so.30"   "libgnutls.so"
         _pick_lib_pad "libnettle.so.8.11"            "libnettle.so.8"
@@ -361,6 +405,21 @@ EOF
         _pick_lib_pad_rf "libxkbregistry.so.0.0.0"      "libxkbregistry.so.0"
         _pick_lib_pad_rf "libxml2.so.2.12.0"            "libxml2.so.2"
         _pick_lib_pad_rf "libffi.so.8.1.4"              "libffi.so.8"
+        # X11 客户端栈 (M1-T4: winex11.drv 运行时链, guest 侧构建, DT_NEEDED
+        # 逐级: winex11→X11/Xext→xcb→Xau/Xdmcp)
+        _pick_lib_pad_rf "libX11.so.6.4.0"              "libX11.so.6"
+        _pick_lib_pad_rf "libXext.so.6.4.0"             "libXext.so.6"
+        _pick_lib_pad_rf "libxcb.so.1.1.0"              "libxcb.so.1"
+        _pick_lib_pad_rf "libXau.so.6.0.0"              "libXau.so.6"
+        _pick_lib_pad_rf "libXdmcp.so.6.0.0"            "libXdmcp.so.6"
+        _pick_lib_pad_rf "libXrender.so.1" "libXrender.so.1"
+        _pick_lib_pad_rf "libXfixes.so.3" "libXfixes.so.3"
+        _pick_lib_pad_rf "libXi.so.6" "libXi.so.6"
+        _pick_lib_pad_rf "libXrandr.so.2" "libXrandr.so.2"
+        _pick_lib_pad_rf "libXinerama.so.1" "libXinerama.so.1"
+        _pick_lib_pad_rf "libXcursor.so.1" "libXcursor.so.1"
+        _pick_lib_pad_rf "libXcomposite.so.1" "libXcomposite.so.1"
+        _pick_lib_pad_rf "libXxf86vm.so.1" "libXxf86vm.so.1"
         # GnuTLS 链 (schannel TLS 后端, x86_64 guest) → rawfile
         _pick_lib_pad_rf "libgnutls.so.30.37.1"         "libgnutls.so.30"   "libgnutls.so"
         _pick_lib_pad_rf "libnettle.so.8.11"            "libnettle.so.8"
@@ -456,6 +515,8 @@ EOF
             fi
         }
         _pick_lib_pad "libfreetype.so.6.20.2"       "libfreetype.so.6"   "libfreetype.so"
+        # Keep the local real-zlib resolver and stub rejection. Xwayland and
+        # GStreamer must use the same complete inflate/deflate implementation.
         _pick_lib_pad "libz.so"                      "libz.so"
         _pick_lib_pad "libwayland-client.so.0.22.0"  "libwayland-client.so.0"
         _pick_lib_pad "libwayland-egl.so.1.22.0"     "libwayland-egl.so.1"
@@ -463,6 +524,21 @@ EOF
         _pick_lib_pad "libxkbregistry.so.0.0.0"      "libxkbregistry.so.0"
         _pick_lib_pad "libxml2.so.2.12.0"            "libxml2.so.2"
         _pick_lib_pad "libffi.so.8.1.4"              "libffi.so.8"
+        # X11 客户端栈 (x11 路线 winex11.drv 运行时链, DT_NEEDED 逐级:
+        # winex11→X11/Xext→xcb→Xau/Xdmcp)
+        _pick_lib_pad "libX11.so.6.4.0"              "libX11.so.6"
+        _pick_lib_pad "libXext.so.6.4.0"             "libXext.so.6"
+        _pick_lib_pad "libxcb.so.1.1.0"              "libxcb.so.1"
+        _pick_lib_pad "libXau.so.6.0.0"              "libXau.so.6"
+        _pick_lib_pad "libXdmcp.so.6.0.0"            "libXdmcp.so.6"
+        _pick_lib_pad "libXrender.so.1" "libXrender.so.1"
+        _pick_lib_pad "libXfixes.so.3" "libXfixes.so.3"
+        _pick_lib_pad "libXi.so.6" "libXi.so.6"
+        _pick_lib_pad "libXrandr.so.2" "libXrandr.so.2"
+        _pick_lib_pad "libXinerama.so.1" "libXinerama.so.1"
+        _pick_lib_pad "libXcursor.so.1" "libXcursor.so.1"
+        _pick_lib_pad "libXcomposite.so.1" "libXcomposite.so.1"
+        _pick_lib_pad "libXxf86vm.so.1" "libXxf86vm.so.1"
         # GnuTLS 链 (schannel TLS 后端)
         _pick_lib_pad "libgnutls.so.30.37.1"         "libgnutls.so.30"   "libgnutls.so"
         _pick_lib_pad "libnettle.so.8.11"            "libnettle.so.8"
@@ -945,6 +1021,18 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
         cp -r "$SYSROOT_EXT_SHARE/X11/xkb" "$wine_data/share/X11/"
     fi
 
+    # Xlib i18n 数据库: XLOCALEDIR (wine_env_baseline.h) 指向此处, 缺它
+    # XSupportsLocale() 失败 → winex11 xim_init 放弃 → XIM 链不通
+    # (2026-10-07 实测 "X does not support locale")。
+    if [ -d "$SYSROOT_EXT_SHARE/X11/locale" ]; then
+        cp -r "$SYSROOT_EXT_SHARE/X11/locale" "$wine_data/share/X11/"
+    fi
+    # 验收断言: C 基线 + zh_CN.UTF-8 (产品 locale, LANG=zh_CN.UTF-8) 必须在包内
+    for lc in C zh_CN.UTF-8; do
+        [ -f "$wine_data/share/X11/locale/$lc/XLC_LOCALE" ] ||
+            err "X11 locale data missing: $lc/XLC_LOCALE (libX11 构建段未产出? 查 build_x11_client.sh)"
+    done
+
     verify_runtime_components
 
     # guest GPU 库 (Mesa/VirGL, 供 GraphicsBroker 注入到 Wine LD_LIBRARY_PATH)
@@ -1077,6 +1165,48 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
         candidate_args=(--source-build-manifest "$SOURCE_BUILD_MANIFEST")
     fi
 
+    # XKB 键盘布局数据 → wine-data/xkb/ (xkeyboard-config, 架构无关)。
+    # Xwayland 的 XKB_BASE_DIRECTORY 是编译期宿主绝对路径, 设备上不存在 →
+    # 虚拟核心键盘激活失败 FatalError (T7 bring-up 实测); 运行时由 wlroots
+    # spawn 补丁的 -xkbdir 指向 files/wine/xkb (解压自本目录)。
+    local xkb_src="$SYSROOT_EXT/usr/share/X11/xkb"
+    [ -f "$xkb_src/rules/evdev" ] || err "xkb data missing: $xkb_src (run scripts/build_xkbconfig.sh)"
+    mkdir -p "$wine_data/xkb"
+    cp -a "$xkb_src/." "$wine_data/xkb/"
+    log "  xkb data → wine-data/xkb ($(du -sh "$wine_data/xkb" | cut -f1))"
+
+    # 预编译 keymap 缓存 → wine-data/xkm/server-0.xkm。
+    # Xwayland 加载 keymap 的正规路径是 fork/exec xkbcomp (xkb/ddxLoad.c
+    # RunXkbComp)——NCP 内 exec 被拒 (实测 errno 13) → keymap 加载失败 →
+    # "Failed to activate virtual core keyboard" FatalError (T7 实测)。
+    # RunXkbComp 先查 <XDG_RUNTIME_DIR>/server-0.xkm 缓存, 命中则跳过
+    # xkbcomp; .xkm 是架构无关数据, 宿主 xkbcomp 生成的设备端直接可用。
+    # NCP shim 启动时把本文件拷到 XDG_RUNTIME_DIR (setenv 同步补上) 命中缓存。
+    local xkm_tmp="$STAGING_DIR/xkm-build"
+    mkdir -p "$xkm_tmp" "$wine_data/xkm"
+    cat > "$xkm_tmp/keymap.txt" << 'XKB_KEYMAP'
+xkb_keymap {
+  xkb_keycodes { include "evdev" };
+  xkb_types { include "complete" };
+  xkb_compat { include "complete" };
+  xkb_symbols { include "pc+us" };
+};
+XKB_KEYMAP
+    # 注意 -R 会重锚所有相对路径, 源/目标均用绝对路径
+    # (SYSROOT_EXT/STAGING_DIR 定义即绝对, 不再拼 $PWD)
+    # xkbcomp 是宿主工具依赖 (版本敏感, 1.4.7 行为见「X keymap 双编译器
+    # 分叉」记档); 可 XKBCOMP_BIN 覆盖。落位项目内 host-tools 是既定方向
+    # (同 96239cc scanner), 阻塞项 = 宿主缺 libxkbfile 头, 原生构建待补。
+    XKBCOMP="${XKBCOMP_BIN:-/usr/bin/xkbcomp}"
+    [ -x "$XKBCOMP" ] || err "缺 xkbcomp: $XKBCOMP (装宿主包或设 XKBCOMP_BIN)"
+    "$XKBCOMP" -w 1 "-R$xkb_src" "$xkm_tmp/keymap.txt" \
+        "$wine_data/xkm/server-0.xkm" > "$xkm_tmp/xkbcomp.log" 2>&1
+    # xkm 魔数 = 0x0f "mkx" (xkbfile.h XKM file header)
+    if ! head -c 4 "$wine_data/xkm/server-0.xkm" 2>/dev/null | od -An -tx1 | grep -q "0f 6d 6b 78"; then
+        err "xkm 生成失败: $(head -3 "$xkm_tmp/xkbcomp.log") (需要宿主 xkbcomp)"
+    fi
+    log "  xkm cache → wine-data/xkm/server-0.xkm ($(stat -c%s "$wine_data/xkm/server-0.xkm") B)"
+
     # -- 3. 打包 zip → rawfile (不带 wine-data/ 前缀) --
     local rawfile_dir="$WINEHUA/entry/src/main/resources/rawfile"
     mkdir -p "$rawfile_dir"
@@ -1085,6 +1215,10 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
     rm -f "$STAGING_DIR/$zip_name"
     zip -r "$STAGING_DIR/$zip_name" . -x '*.git*'
     python3 "$SCRIPT_DIR/check_runtime_components.py" --payload "$STAGING_DIR/$zip_name" "${candidate_args[@]}"
+    if [ "$is_box64_scheme" != "1" ]; then
+        python3 "$SCRIPT_DIR/verify_x11_runtime.py" --libs "$NATIVE_LIBS" \
+            --payload "$STAGING_DIR/$zip_name" --native-arch "$NATIVE_ARCH" --defer-cmake
+    fi
     cp "$STAGING_DIR/$zip_name" "$rawfile_dir/"
     local payload_sha
     payload_sha="$(sha256sum "$rawfile_dir/$zip_name" | awk '{print $1}')"

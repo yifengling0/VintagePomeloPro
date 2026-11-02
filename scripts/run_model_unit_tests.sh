@@ -25,6 +25,7 @@ done
 "$NODE" "$ROOT/scripts/run_edge_window_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_desktop_restore_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_wine_ime_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_x11_clipboard_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_cloud_tool_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_library_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_proton_component_tests.cjs" "${TSC%/tsc.js}/typescript.js"

@@ -318,6 +318,9 @@ with open('$module_json', 'w') as f:
         python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --hap "$unsigned_hap"
     fi
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
+    if [ "$WINE_ARCH" = aarch64 ] || [ "$NATIVE_ARCH" = x86_64 ]; then
+        python3 "$SCRIPT_DIR/verify_x11_runtime.py" --hap "$unsigned_hap" --native-arch "$NATIVE_ARCH"
+    fi
     # Unsigned distribution packages need the same final-byte compatibility
     # checks as signed builds; checking only the rawfile misses native stripping.
     local candidate_args=()

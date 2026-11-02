@@ -29,7 +29,8 @@ CMAKE_MODULES = {'libs/arm64-v8a/' + name + '.so' for name in (
     'libvirgl_child', 'libdirect_surface_probe', 'libdirect_gpu_surface_probe',
     'libdirect_vulkan_probe', 'libdirect_shared_buffer_probe',
     'libentry', 'libwine_child', 'libsmoke_napi', 'libsteamohos_gnu_child',
-    'libsteamdecompress', 'libsteamohos_native_memory_probe')}
+    'libsteamdecompress', 'libsteamohos_native_memory_probe',
+    'libxwayland_child', 'libxclient_child', 'libxim_server_child', 'libdisplay_route_napi')}
 
 
 def sha(data):

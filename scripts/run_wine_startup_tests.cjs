@@ -16,6 +16,7 @@ function fixture() {
   let snapshot={generation:0,active:false,state:'idle',phase:''};
   const settings={wineLanguage:'zh_CN',defaultDisplayMode:'desktop',wineTranslationEngine:'fex',box64Preset:'default'};
   const wm={presentationMode:'desktop',applyModePolicy(){},setStartupForegroundGuard(){},prepareOutputForOrientation(){}};
+  const route={setDisplayRoute:()=>true,stopDisplayRouteChain(){},startDisplayRouteChain(){},displayRoutePhase:()=>0};
   const napi={
     getWineStartupState:()=>JSON.stringify(snapshot),getProcessList:()=>[],
     setHostGraphicsBackend:()=>true,startServer:()=>true,
@@ -28,6 +29,8 @@ function fixture() {
     clearTimeout:id=>timers.delete(id),clearInterval:id=>timers.delete(id),
     require(name) {
       if(name==='libentry.so')return {default:napi};
+      if(name.includes('X11ClipboardService'))return {X11ClipboardService:{start(){},stop(){}}};
+      if(name==='libdisplay_route_napi.so')return {default:route};
       if(name==='@kit.CoreFileKit')return {fileIo:{accessSync:()=>false}};
       if(name.includes('LogService'))return {hilog:{info(){},warn(){},error(){}}};
       if(name.includes('AppModels'))return {...modelExports,EngineState:State,WineLanguage:{CHINESE:'zh_CN'},
@@ -53,7 +56,7 @@ function fixture() {
     now=until;await flush();
   }
   const start=()=>s.startSession('desktop','desktop','/games','reuse');
-  return {s,napi,settings,start,flush,advance,timers,stats:()=>({launches,stops}),snapshot:()=>snapshot};
+  return {s,napi,route,settings,start,flush,advance,timers,stats:()=>({launches,stops}),snapshot:()=>snapshot};
 }
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.exit(1);},15000);
@@ -76,6 +79,22 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
       assert.equal(JSON.stringify(hot.slice(0,expected.length)),JSON.stringify(expected));
       assert.equal(cold.some(x=>x.startsWith('BOX64_DYNAREC_')),engine==='box64');
     }
+  });
+  await test('a pinned route rejection cannot start or kill an existing native session',async()=>{
+    const f=fixture();f.route.setDisplayRoute=()=>false;
+    assert.equal(await f.start(),false);assert.equal(f.stats().launches,0);assert.equal(f.stats().stops,0);
+    assert.match(f.s.message,/上一会话/);assert.equal(f.timers.size,0);
+  });
+  await test('X11 early failure is detected before Wine launch',async()=>{
+    const f=fixture();f.settings.wineDisplayRoute='x11';f.route.displayRoutePhase=()=>4;
+    assert.equal(await f.start(),false);assert.equal(f.stats().launches,0);assert.equal(f.stats().stops,1);
+    assert.match(f.s.message,/X11/);
+  });
+  await test('X11 readiness gates Wine and no late readiness revives a timed out session',async()=>{
+    const f=fixture();f.settings.wineDisplayRoute='x11';let phase=1;f.route.displayRoutePhase=()=>phase;
+    const p=f.start();await f.flush();assert.equal(f.stats().launches,0);
+    await f.advance(121000);assert.equal(await p,false);phase=2;await f.advance(1000);
+    assert.equal(f.stats().launches,0);assert.equal(f.stats().stops,1);
   });
   await test('missing Box64 component reports a specific error before native startup',async()=>{
     const f=fixture();f.settings.wineTranslationEngine='box64';

@@ -41,6 +41,9 @@ export FEX_EXACTSTORE_DIAGNOSTICS
 
 CONFIG    := $(NATIVE_ARCH)
 BUILD_DIR := $(ROOT)/build
+WINE_BUILD_ROOT ?= $(BUILD_DIR)
+export WINE_BUILD_ROOT
+WINE_STAMPS := $(WINE_BUILD_ROOT)/.stamps
 STAMPS    := $(BUILD_DIR)/.stamps
 SCRIPTS   := $(ROOT)/scripts
 # Keep the Wine source selector visible to make as well as the shell scripts.
@@ -108,7 +111,7 @@ ARCHES := $(NATIVE_ARCH)
 # ── 关键产物 (用于验证构建是否完成) ──
 DEPS_SENTINEL   := $(BUILD_DIR)/sysroot-ext/usr/lib/$(WINE_ARCH)-linux-ohos/libfreetype.so.6
 ZLIB_RUNTIME_SENTINEL := $(BUILD_DIR)/zlib-runtime/$(WINE_ARCH)/lib/libz.so
-WINE_SENTINEL   := $(BUILD_DIR)/wine-native/tools/winegcc/winegcc
+WINE_SENTINEL   := $(WINE_BUILD_ROOT)/wine-native/tools/winegcc/winegcc
 GUEST_GFX_SENTINEL := $(BUILD_DIR)/guest_gfx/$(GUEST_ARCH)/winehua-guest-gfx.env
 MESA_OHOS_PATCH_INPUTS := $(SCRIPTS)/apply_mesa_ohos_patches.sh $(wildcard $(ROOT)/patches/mesa/*.patch)
 GUEST_VULKAN_SENTINEL := $(BUILD_DIR)/guest_vulkan/$(GUEST_ARCH)/manifest.json
@@ -135,8 +138,8 @@ else
 SMOKE_PE_DIR_X64 := x86_64-windows
 endif
 WINE_SMOKE_EXES := $(foreach p,$(WINE_SMOKE_PROGRAMS), \
-	$(BUILD_DIR)/wine-ohos-$(WINE_ARCH)/programs/$(p)/$(SMOKE_PE_DIR_X64)/$(p).exe \
-	$(BUILD_DIR)/wine-ohos-$(WINE_ARCH)/programs/$(p)/i386-windows/$(p).exe)
+	$(WINE_BUILD_ROOT)/wine-ohos-$(WINE_ARCH)/programs/$(p)/$(SMOKE_PE_DIR_X64)/$(p).exe \
+	$(WINE_BUILD_ROOT)/wine-ohos-$(WINE_ARCH)/programs/$(p)/i386-windows/$(p).exe)
 # 源码型用例跟踪 smoke/ 全树; 产物型用例 (from_wine/from_vkd3d) 跟踪
 # 代表产物与 stamp, 重编后触发载荷重建, 防止 assemble 拷到陈旧 exe
 SMOKE_PAYLOAD_INPUTS := $(ROOT)/automation/smoke.py \
@@ -144,7 +147,7 @@ SMOKE_PAYLOAD_INPUTS := $(ROOT)/automation/smoke.py \
 	$(WINE_SMOKE_EXES) \
 	$(VKD3D_PROTON_STAMP)
 
-$(WINE_SMOKE_EXES): $(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH)
+$(WINE_SMOKE_EXES): $(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH)
 	@test -s "$@" || { echo "ERROR: wine smoke exe missing after wine build: $@" >&2; exit 1; }
 
 $(SMOKE_PAYLOAD_MANIFEST): $(SMOKE_PAYLOAD_INPUTS)
@@ -172,7 +175,7 @@ dxvk: $(DXVK_STAMP)
 # 必须显式前置 wine stamp, 否则干净环境 (无残留 build/) 中 dxvk 先于 wine 构建
 # → 链接失败 (CI 实测 2026-09-04: "no such file ... libvulkan-1.a")。
 $(DXVK_STAMP): $(SCRIPTS)/build_dxvk.sh $(SCRIPTS)/build_dxvk_arm64x.sh $(DXVK_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
-	$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
+	$(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
 	@echo "=== dxvk legacy ($(WINE_ARCH)) ==="
 	bash $(SCRIPTS)/build_dxvk.sh
 	@if [ "$(WINE_ARCH)" = "aarch64" ]; then bash $(SCRIPTS)/build_dxvk_arm64x.sh; fi
@@ -193,7 +196,7 @@ $(DXVK_ARTIFACTS): $(DXVK_STAMP)
 dxvk-modern: $(DXVK_MODERN_STAMP)
 
 $(DXVK_MODERN_STAMP): $(SCRIPTS)/build_dxvk_modern.sh $(SCRIPTS)/build_dxvk_modern_arm64x.sh $(DXVK_MODERN_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
-	$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
+	$(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
 	@echo "=== dxvk modern 2.6 ($(WINE_ARCH)) ==="
 	bash $(SCRIPTS)/build_dxvk_modern.sh
 	@if [ "$(WINE_ARCH)" = "aarch64" ]; then bash $(SCRIPTS)/build_dxvk_modern_arm64x.sh; fi
@@ -213,7 +216,7 @@ endif
 vkd3d-proton: $(VKD3D_PROTON_STAMP)
 
 $(VKD3D_PROTON_STAMP): $(SCRIPTS)/build_vkd3d_proton.sh $(VKD3D_PROTON_SOURCE_INPUTS) \
-	$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
+	$(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
 	@echo "=== vkd3d-proton 2.6 limited-500K ($(WINE_ARCH)) ==="
 	bash $(SCRIPTS)/build_vkd3d_proton.sh
 	touch $@
@@ -386,16 +389,17 @@ $(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/b
 # wine stamp 按 WINE_ARCH 区分: 方案② (arm64 设备 + x86_64 wine) 与方案③ (aarch64)
 # 的 NATIVE_ARCH 相同 (arm64-v8a), 共用 stamp 会让方案② 误用方案③ 的 stamp 跳过构建
 # → assemble 找不到 wine-ohos-x86_64。方案① (NATIVE_ARCH=x86_64) 无冲突但同样带后缀。
-wine: $(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH)
+wine: $(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH)
 
-WINE_DIAGNOSTIC_INPUTS := $(SCRIPTS)/wine_runtime_diagnostics.py $(SCRIPTS)/wine_runtime_diagnostics.h
+WINE_DIAGNOSTIC_INPUTS := $(SCRIPTS)/wine_runtime_diagnostics.py $(SCRIPTS)/wine_runtime_diagnostics.h $(SCRIPTS)/verify_wine_overlay_stack.py $(SCRIPTS)/verify_x11_wine_config.py
 
 # Focused Unix build uses the same ordered overlays and source identity checks.
 .PHONY: wine-ntdll
 wine-ntdll: $(WINE_DIAGNOSTIC_INPUTS)
 	BUILD_DIR="$(BUILD_DIR)" bash $(SCRIPTS)/build_wine.sh --unix-modules ntdll
 
-$(STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_build_identity.py $(WINE_DIAGNOSTIC_INPUTS) $(SCRIPTS)/env.sh $(STAMPS)/deps FORCE | $(STAMPS)
+$(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_wine.sh $(SCRIPTS)/wine_build_identity.py $(WINE_DIAGNOSTIC_INPUTS) $(SCRIPTS)/env.sh $(STAMPS)/deps FORCE | $(STAMPS)
+	@mkdir -p "$(WINE_STAMPS)"
 	@if [ -f "$@" ]; then mode=--check-cached-identity; else mode=--check-identity; fi; \
 	    BUILD_DIR="$(BUILD_DIR)" bash "$(SCRIPTS)/build_wine.sh" "$$mode"
 	@if [ -f $@ ] && [ -f $(WINE_SENTINEL) ] && \
@@ -1232,3 +1236,60 @@ test-nettle-arm64-dispatch:
 .PHONY: gnutls
 gnutls:
 	BUILD_DIR="$(BUILD_DIR)" bash "$(SCRIPTS)/build_gnutls.sh"
+
+# ============================================================
+# display-libs — 显示路线 host 侧基础库 (wlroots/Xwayland 消费)
+#   架构相关 → build/host-ext/<NATIVE_ARCH> (侧别纪律见 .claude/rules/build-and-log.md)
+# ============================================================
+.PHONY: display-libs
+display-libs: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/display-libs)
+
+define display_libs_rule
+.PHONY: display-libs-$(1)
+display-libs-$(1): $$(STAMPS)/$(1)/display-libs
+
+$$(STAMPS)/$(1)/display-libs: $(SCRIPTS)/build_display_libs.sh $(SCRIPTS)/env.sh FORCE | $$(STAMPS)/$(1)
+	@NATIVE_ARCH=$(1) bash $(SCRIPTS)/build_display_libs.sh && touch $$@
+endef
+$(foreach a,arm64-v8a x86_64,$(eval $(call display_libs_rule,$(a))))
+
+# ============================================================
+# display-route — M0 显示路线构建链 (全部 host 侧, 依赖顺序执行)
+#   xcb 栈 → libX11/libXext → native (wayland .so + host pc + 头) → wlroots
+#   → Xwayland (libxwayland_ohos.so, NCP 形态)
+#   各脚本自带就绪守卫。曾经的 FORCE (每次重跑做增量校验) 与 assemble 前置
+#   组合后 = assemble 永不跳过 → 每轮 make hap 重打包 wine-data.zip, sha 随
+#   strip/smoke 载荷时间戳漂移, 设备端升级卡每次重装必弹 (任务 #164,
+#   2026-10-17 拔除)。改脚本/stamp 触发; xcb/xserver 源码级变更需显式
+#   `make display-route` (脚本内部哨兵随后接管增量)。
+#   (M1 时在此追加 SIDE=guest 变体, 供 winex11.drv 消费)
+# ============================================================
+.PHONY: display-route
+display-route: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/display-route)
+
+define display_route_rule
+.PHONY: display-route-$(1)
+display-route-$(1): $$(STAMPS)/$(1)/display-route
+
+$$(STAMPS)/$(1)/display-route: $$(STAMPS)/$(1)/display-libs $(SCRIPTS)/build_xcb_stack.sh $(SCRIPTS)/build_x11_client.sh $(SCRIPTS)/build_native.sh $(SCRIPTS)/build_wlroots.sh $(SCRIPTS)/build_xwayland.sh $(SCRIPTS)/apply_managed_display_overlays.py $(wildcard $(SCRIPTS)/patches/wlroots*.patch $(SCRIPTS)/patches/xserver*.patch $(SCRIPTS)/patches/xtrans*.patch) $(SCRIPTS)/env.sh | $$(STAMPS)/$(1)
+	@NATIVE_ARCH=$(1) bash $(SCRIPTS)/build_xcb_stack.sh && \
+	NATIVE_ARCH=$(1) bash $(SCRIPTS)/build_x11_client.sh && \
+	NATIVE_ARCH=$(1) bash $(SCRIPTS)/build_native.sh && \
+	NATIVE_ARCH=$(1) bash $(SCRIPTS)/build_wlroots.sh && \
+	NATIVE_ARCH=$(1) bash $(SCRIPTS)/build_xwayland.sh && touch $$@
+endef
+$(foreach a,arm64-v8a x86_64,$(eval $(call display_route_rule,$(a))))
+
+
+# Native HAP links the OHOS display stack; GNU guest builders remain independent.
+$(STAMPS)/arm64-v8a/assemble: $(STAMPS)/arm64-v8a/display-route
+$(STAMPS)/x86_64/assemble: $(STAMPS)/x86_64/display-route
+
+.PHONY: test-x11-integration
+test-x11-integration:
+	python3 $(ROOT)/host_tests/display_spawn_fds_test.py
+	python3 $(ROOT)/host_tests/display_child_log_test.py
+	python3 $(ROOT)/host_tests/x11_runtime_contract_test.py
+	python3 $(ROOT)/host_tests/display_overlay_stack_test.py
+	python3 $(ROOT)/host_tests/x11_external_host_test.py
+	python3 $(ROOT)/host_tests/wine_overlay_proof_test.py

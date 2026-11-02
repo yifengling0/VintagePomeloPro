@@ -640,6 +640,7 @@ struct SystemSettingsPage {
       desktopWindowMode: desktopWindowMode,
       keepScreenOn: keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
+      wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: desktopInputProfileId || 'default',
       viewMode: view,
@@ -1114,6 +1115,7 @@ struct SystemSettingsPage {
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
+      wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -1175,6 +1177,7 @@ struct SystemSettingsPage {
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
+      wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -2352,6 +2355,19 @@ struct SystemSettingsPage {
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
+
+          Text('窗口后端').fontSize(12).fontWeight(FontWeight.Medium)
+            .fontColor(skinColor('text_secondary')).width('100%')
+          Row({ space: 8 }) {
+            Button('Wayland').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.wineDisplayRoute !== 'x11' ? skinColor('accent') : skinColor('search_background'))
+              .onClick((): void => { this.settings.wineDisplayRoute = 'wayland'; void ThemeSettingsService.getInstance().update(this.settings); })
+            Button('X11（实验）').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.wineDisplayRoute === 'x11' ? skinColor('accent') : skinColor('search_background'))
+              .onClick((): void => { this.settings.wineDisplayRoute = 'x11'; void ThemeSettingsService.getInstance().update(this.settings); })
+          }.width('100%')
+          Text('完整退出 Wine 后下次启动生效。Linux Steam 与 GNU Proton 保持原来的运行机制。')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
 
           Text('转译引擎').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')

@@ -264,6 +264,9 @@ jobs:
           if [ ! -f /usr/include/libudev.h ]; then
             packages+=(libudev-dev)
           fi
+          if ! command -v xkbcomp >/dev/null 2>&1; then
+            packages+=(x11-xkb-utils)
+          fi
           if [ "${#packages[@]}" -gt 0 ]; then
             echo "Installing missing CI packages: ${packages[*]}"
             apt-get update
@@ -326,6 +329,15 @@ jobs:
           ohpm install --all
           # Dependency installation must not rewrite committed app inputs.
           git diff --exit-code HEAD --ignore-submodules=all
+
+      - name: Test X11 window identities and Wine overlay verification
+        run: |
+          python3 host_tests/display_spawn_fds_test.py
+          python3 host_tests/display_child_log_test.py
+          python3 host_tests/x11_runtime_contract_test.py
+          python3 host_tests/display_overlay_stack_test.py
+          python3 host_tests/x11_external_host_test.py
+          python3 host_tests/wine_overlay_proof_test.py
 
       - name: Test Proton runtime lifecycle and Steam downloads
         run: |
