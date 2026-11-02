@@ -284,13 +284,11 @@ struct Index {
   }
 
   // ── 浮窗模式: 桌面由 Index 承载 (main_ui 同构) ──
-  // 显示条件: 浮窗模式 + 平板/手机 + 桌面 root 存在 (desktopActive)。
+  // 显示条件以会话创建时固定的宿主为准，后续设置/PC 模式切换不转移 renderer。
   // 悬浮窗态 (launcherVisible=true): 小窗缩略 + 提示文字, 点击放大/按住拖动;
   // 全屏态 (launcherVisible=false): 铺满当前画面, 缩小按钮缩回小窗。
   private showDesktopLayer(): boolean {
     if (!this.desktopEmbeddedHost) return false;
-    if (this.settings.desktopWindowMode !== DesktopWindowMode.FLOATING) return false;
-    if (!DeviceCapabilityPolicy.isTabletDevice() && !DeviceCapabilityPolicy.isPhoneDevice()) return false;
     if (!this.desktopActive) return false;
     return WineWindowManager.getInstance().getDesktopRootId() > 0;
   }

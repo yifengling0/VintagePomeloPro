@@ -6,7 +6,6 @@ import {
   WineTranslationEngine,
   normalizeWineTranslationEngine,
   AppDescriptor,
-  DesktopWindowMode,
   DisplayMode,
   EngineState,
   GlobalSettings,
@@ -563,22 +562,9 @@ export class AppSessionService {
       try { testNapi.raiseToplevel(session.toplevelId); } catch (_) {}
     }
     if (session.presentationMode === WinePresentationMode.DESKTOP) {
-      if (session.toplevelId <= 0) return;
-      // 浮窗模式: 桌面由 Index 承载 (DesktopLayer floating 切换), 不启动 DesktopAbility。
-      // 激活/提升程序窗口到桌面 root 合成, 并通知 Index 进全屏显示 (auto-promote
-      // 依赖本方法, 否则窗口不出现且 schedulePromoteRetry 无限重试)。
-      if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
-        try { testNapi.activateWineSession(session.sessionId); } catch (_) {}
-        try { testNapi.raiseToplevel(session.toplevelId); } catch (_) {}
-        AppStorage.setOrCreate('desktopEnterFullscreen', true);
-        return;
-      }
-      const want: Want = {
-        bundleName: 'com.vintage.pomelopro',
-        abilityName: 'DesktopAbility',
-        parameters: { toplevelId: session.toplevelId }
-      };
-      await this.context.startAbility(want);
+      // The root's pinned carrier owns presentation. FLOATING on PC/Edge
+      // still uses DesktopAbility; a game child is never its host identity.
+      await WineWindowManager.getInstance().resumeDesktopHost();
     } else if (session.presentationMode === WinePresentationMode.MANAGED_WINDOWS) {
       if (session.toplevelId <= 0) return;
       const managedWindow = WineWindowManager.getInstance().getWindow(session.toplevelId);
@@ -953,7 +939,9 @@ export class AppSessionService {
     setTimeout((): void => {
       const session = this.sessions.get(sessionId);
       if (!session || session.toplevelId !== tl) return;
-      if (WineWindowManager.getInstance().isDesktopAbilityForeground(tl)) return;
+      const windows = WineWindowManager.getInstance();
+      const rootId = windows.getDesktopRootId();
+      if (rootId <= 0 || windows.usesEmbeddedDesktopHost() || windows.isDesktopAbilityForeground(rootId)) return;
       hilog.info(DOMAIN, '[SESS]', 'auto-promote retry #%{public}d sid=%{public}s tl=%{public}d',
         attempt + 1, sessionId, tl);
       this.resume(session).catch((err: Error) => {

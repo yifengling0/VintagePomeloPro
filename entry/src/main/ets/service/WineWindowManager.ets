@@ -90,6 +90,7 @@ export class WineWindowManager {
   private desktopAbilityRunning: boolean = false;
   private desktopAbilityForeground: boolean = false;
   private desktopAbilityRootId: number = 0;
+  private desktopAbilityRequest: Promise<void> | null = null;
   private desktopAbilityCtx: common.UIAbilityContext | null = null;
   // 主窗口 windowStage (ARGB 异型子窗口/popup 回退宿主)
   private mainWindowStage: window.WindowStage | null = null;
@@ -302,6 +303,7 @@ export class WineWindowManager {
     this.desktopAbilityRunning = false;
     this.desktopAbilityForeground = false;
     this.desktopAbilityRootId = 0;
+    this.desktopAbilityRequest = null;
     this.destroyed.clear();
     this.deferredRaiseTimers.forEach((timer: number): void => clearTimeout(timer));
     this.deferredRaiseTimers.clear();
@@ -1403,6 +1405,7 @@ export class WineWindowManager {
       this.desktopAbilityRunning = false;
       this.desktopAbilityForeground = false;
       this.desktopAbilityRootId = 0;
+      this.desktopAbilityRequest = null;
       return;
     }
     // Desktop 模式: 非 root toplevel 销毁, C++ 自动停止合成
@@ -1445,69 +1448,72 @@ export class WineWindowManager {
   setStartupForegroundGuard(guard: (() => boolean) | null): void { this.startupForegroundGuard = guard; }
 
   private startDesktopAbility(rootId: number): void {
-    // 浮窗模式 (平板/手机): 桌面由 Index 页面承载 (DesktopLayer floating 切换),
-    // 不启动 DesktopAbility — 放大/缩小都在当前画面 (Index) 内完成, 不切窗口。
-    if (this.usesEmbeddedDesktopHost()) {
-      hilog.info(DOMAIN, TAG, '[MW] floating mode: desktop hosted by Index, skip DesktopAbility #%{public}d', rootId);
-      return;
-    }
-    // PC/2in1 融合模式 (FUSION, isDesktopMode=false): 每程序独立窗口, 不启动
-    // 桌面合成器 → suppress desktop root Ability。
-    // PC/2in1 虚拟桌面模式 (VIRTUAL, isDesktopMode=true): 用 DesktopAbility
-    // 独立浮动窗口承载 Wine 桌面 (DesktopAbility 内按 PC 分支浮动 + 保留标题栏)。
-    if (AppSettingsStore.getInstance().usesManagedWineWindows() && !this.isDesktopMode) {
-      hilog.warn(DOMAIN, TAG, '[MW] suppress DesktopAbility #%{public}d on managed-window host', rootId);
-      return;
-    }
-    // 同一个 explorer root 可能同时收到 created/promote 两次事件。只让
-    // 第一个事件唤起 Ability，避免 PC 上每次启动都弹出重复桌面窗口。
-    if (this.desktopAbilityRunning && this.desktopAbilityRootId === rootId) {
-      hilog.info(DOMAIN, TAG, '[MW] DesktopAbility already running for root #%{public}d, skip', rootId);
-      return;
-    }
-    this.desktopAbilityRunning = true;
-    this.desktopAbilityForeground = false;
-    this.desktopAbilityRootId = rootId;
-    // 浮窗模式: 桌面窗口打开 → Index 小浮窗隐藏 (AppStorage 驱动 @StorageProp)
-    AppStorage.setOrCreate('desktopWindowActive', true);
-    try {
-      const want: Want = {
-        bundleName: 'com.vintage.pomelopro',
-        abilityName: 'DesktopAbility',
-        parameters: {
-          toplevelId: rootId,
-          // Capture the setting at session creation. DesktopAbility applies it
-          // before loadContent so Wine never starts against a stale portrait
-          // output rectangle.
-          desktopOrientation: AppSettingsStore.getInstance().getGlobalSettings().desktopOrientation
-            ?? ScreenOrientationSetting.SENSOR_LANDSCAPE
-        }
-      };
-      this.uiAbilityContext!.startAbility(want).catch((err: Error) => {
-        hilog.error(DOMAIN, TAG, '[MW] startAbility(DesktopAbility) failed: %{public}s',
-          JSON.stringify(err));
-        if (this.desktopAbilityRootId === rootId) this.desktopAbilityRunning = false;
-      });
-      hilog.info(DOMAIN, TAG, '[MW] startAbility(DesktopAbility) #%{public}d OK', rootId);
-    } catch (e) {
-      hilog.error(DOMAIN, TAG, '[MW] startDesktopAbility error: %{public}s', JSON.stringify(e));
-      if (this.desktopAbilityRootId === rootId) this.desktopAbilityRunning = false;
-    }
+    this.requestDesktopAbility(rootId, false).catch((err: Error) => {
+      hilog.error(DOMAIN, TAG, '[MW] startAbility(DesktopAbility) failed: %{public}s', JSON.stringify(err));
+    });
   }
 
-  /**
-   * 浮窗模式: 重新拉起桌面窗口 (Index 小浮窗点击放大)。平板/手机浮窗模式下
-   * 用户缩小/关窗后 root 保留 (DesktopAbility.onDestroy 不杀 root), 引擎会话
-   * 后台继续; 点击小浮窗经此重新 startAbility(DesktopAbility) 全屏呈现。
-   * 复用 startDesktopAbility 的防重 (desktopAbilityRunning) — 窗口已打开时跳过。
-   */
-  openDesktopWindow(): void {
-    const rootId = this.desktopRootId;
-    if (rootId <= 0) {
-      hilog.warn(DOMAIN, TAG, '[MW] openDesktopWindow: no desktop root, skip');
-      return;
+  private requestDesktopAbility(rootId: number, restore: boolean): Promise<void> {
+    if (!this.isDesktopMode || rootId <= 0 || rootId !== this.desktopRootId || this.usesEmbeddedDesktopHost()) {
+      return Promise.resolve();
     }
-    this.startDesktopAbility(rootId);
+    if (this.desktopAbilityRootId === rootId) {
+      // PC windows can all remain FOREGROUND while another window covers the
+      // carrier. An explicit card click must still raise the singleton host.
+      if (!restore && this.desktopAbilityRunning) return Promise.resolve();
+      if (this.desktopAbilityRequest) return this.desktopAbilityRequest;
+    }
+    const context = this.uiAbilityContext;
+    if (!context) return Promise.reject(new Error('Desktop host context unavailable'));
+    // A root event creates the carrier once. Explicit restore also raises a
+    // covered carrier; concurrent root/game/card requests share one call.
+    this.desktopAbilityRunning = true;
+    if (this.desktopAbilityRootId !== rootId) this.desktopAbilityForeground = false;
+    this.desktopAbilityRootId = rootId;
+    AppStorage.setOrCreate('desktopWindowActive', true);
+    const want: Want = {
+      bundleName: 'com.vintage.pomelopro',
+      abilityName: 'DesktopAbility',
+      parameters: {
+        toplevelId: rootId,
+        desktopOrientation: AppSettingsStore.getInstance().getGlobalSettings().desktopOrientation
+          ?? ScreenOrientationSetting.SENSOR_LANDSCAPE
+      }
+    };
+    let started: Promise<void>;
+    try {
+      started = context.startAbility(want);
+    } catch (e) {
+      started = Promise.reject(e);
+    }
+    const request: Promise<void> = started.catch((err: Error): void => {
+      if (this.desktopAbilityRequest === request && this.desktopAbilityRootId === rootId &&
+        !this.desktopAbilityForeground) {
+        this.desktopAbilityRunning = false;
+        AppStorage.setOrCreate('desktopWindowActive', false);
+      }
+      throw err;
+    }).finally((): void => {
+      if (this.desktopAbilityRequest === request) this.desktopAbilityRequest = null;
+    });
+    this.desktopAbilityRequest = request;
+    return request;
+  }
+
+  /** Restore the pinned carrier, preserving the existing Wine root/processes. */
+  resumeDesktopHost(): Promise<void> {
+    const rootId = this.desktopRootId;
+    if (!this.isDesktopMode || rootId <= 0) return Promise.resolve();
+    if (this.usesEmbeddedDesktopHost()) {
+      AppStorage.setOrCreate('desktopEnterFullscreen', true);
+      return Promise.resolve();
+    }
+    return this.requestDesktopAbility(rootId, true);
+  }
+
+  openDesktopWindow(): void {
+    // Ensure the initial carrier only; foreground restoration uses resumeDesktopHost().
+    this.startDesktopAbility(this.desktopRootId);
   }
 
   /**
@@ -1598,6 +1604,8 @@ export class WineWindowManager {
     this.desktopAbilityRootId = rootId;
     this.desktopAbilityRunning = true;
     this.desktopAbilityForeground = true;
+    // Lifecycle confirmation supersedes an OS request still awaiting completion.
+    this.desktopAbilityRequest = null;
     HostWindowTasks.getInstance().markDesktopForeground();
     hilog.info(DOMAIN, TAG, '[MW] DesktopAbility foreground for root #%{public}d', rootId);
     // 完整桌面窗口前台: 若 wine 已相对模式, 从悬浮禁止隐藏重算为允许隐藏
@@ -1616,6 +1624,7 @@ export class WineWindowManager {
     if (this.desktopAbilityRootId !== rootId) return;
     this.desktopAbilityRunning = false;
     this.desktopAbilityForeground = false;
+    this.desktopAbilityRequest = null;
     // 浮窗模式: 桌面窗口关闭/缩小 → Index 小浮窗重现 (AppStorage 驱动 @StorageProp)
     AppStorage.setOrCreate('desktopWindowActive', false);
     hilog.info(DOMAIN, TAG, '[MW] DesktopAbility stopped for root #%{public}d', rootId);

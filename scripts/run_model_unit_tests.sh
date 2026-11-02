@@ -23,6 +23,7 @@ done
 "$NODE" "$ROOT/scripts/run_managed_window_input_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_window_host_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_edge_window_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_desktop_restore_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_wine_ime_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_cloud_tool_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_library_tests.cjs" "${TSC%/tsc.js}/typescript.js"

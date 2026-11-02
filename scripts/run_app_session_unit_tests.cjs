@@ -47,7 +47,9 @@ function fixture() {
     getPresentationMode: () => models.WinePresentationMode.DESKTOP,
     subscribe: listener => listener(state)
   };
-  const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root, isDesktopAbilityForeground:()=>false };
+  const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root,
+    isDesktopAbilityForeground:()=>false, usesEmbeddedDesktopHost:()=>false,
+    resumeDesktopHost:async()=>{ starts.push({abilityName:'DesktopAbility',parameters:{toplevelId:root}}); } };
   const dependencies = {
     'libentry.so': { default: native },
     './LogService': { hilog: { info() {}, warn() {}, error() {} } },
@@ -57,7 +59,7 @@ function fixture() {
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },
     './HostWindowTasks': taskExports,
     './AppSettingsStore': { AppSettingsStore: { getInstance: () => ({
-      getGlobalSettings: () => ({...globalSettings,desktopWindowMode:'test-ability-mode'}),
+      getGlobalSettings: () => globalSettings,
       getAppSettings: () => appSettings,
       recordRecentLaunch: async () => {}
     }) } },
