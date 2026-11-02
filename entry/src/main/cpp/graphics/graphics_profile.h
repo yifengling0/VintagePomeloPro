@@ -95,6 +95,10 @@ bool ResolveProductGraphicsPolicy(D3dBackendKind backend,
 // or failed capability checks leave product sessions on Venus.
 void SetProductDirectVulkanVerified(bool verified);
 bool IsProductDirectVulkanVerified();
+// Native Wine display capability, separate from the driver/buffer probe.
+// X11 uses the private Venus/XID presenter; OHOS Direct has no Xlib WSI.
+// Set before resolving Host and Guest, and hold for the complete session.
+void SetProductDirectPresentationSupported(bool supported);
 // A session owns both the guest transport and its desktop consumer. Explicit
 // LAB experiments remain separate from the automatically selected product.
 bool ResolveSessionGraphicsPolicy(std::string_view experiment,

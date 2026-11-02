@@ -57,6 +57,7 @@ static void TestCleanProcessGraphics() {
     assert(!Has(request.env, "WINEHUA_VULKAN_BACKEND=direct"));
     assert(Has(request.env, "WINEHUA_VK_PRECISE_MAP=0"));
     assert(Has(request.env, "VN_WINEHUA_STRONG_RING_BARRIER=1"));
+    assert(Has(request.env, "VN_WINEHUA_ALWAYS_NOTIFY_RING=1"));
     assert(Has(request.env, "DXVK_WINEHUA_PRECISE_SHADOW=1"));
     assert(Has(request.env, "FEX_SMCCHECKS=1") && Has(request.env, "FEX_X87REDUCEDPRECISION=0"));
     assert(Has(request.env, "WINEPREFIX=/kept-prefix"));
@@ -84,6 +85,7 @@ int main() {
     auto env = winehua::BuildSessionEnv(session);
     assert(Has(env, "WINEHUA_D3D_BACKEND=dxvk_legacy"));
     assert(Has(env, "WINEHUA_VULKAN_BACKEND=direct"));
+    assert(Has(env, "VN_WINEHUA_ALWAYS_NOTIFY_RING=0"));
     assert(Has(env, "DXVK_WINEHUA_PRECISE_SHADOW=0"));
     assert(Has(env, "WINEHUA_VK_PRECISE_MAP=0"));
     setenv("WINEHUA_GRAPHICS_PROFILE", "isolate-vulkan-direct-precise-map", 1);
@@ -106,6 +108,7 @@ int main() {
     setenv("WINEHUA_GRAPHICS_PROFILE", "observe-product-summary", 1);
     env = winehua::BuildSessionEnv(session);
     assert(Has(env, "WINEHUA_VULKAN_BACKEND=venus"));
+    assert(Has(env, "VN_WINEHUA_ALWAYS_NOTIFY_RING=1"));
     assert(Has(env, "DXVK_WINEHUA_PRECISE_SHADOW=1"));
     setenv("WINEHUA_GRAPHICS_PROFILE", "product-vulkan", 1);
     session.extraEnv = {"WINEHUA_GRAPHICS_PROFILE=isolate-vulkan-direct"};
@@ -151,5 +154,31 @@ int main() {
     assert(Has(env, "WINEHUA_VK_PRECISE_MAP=0"));
     assert(Has(env, "DXVK_WINEHUA_PRECISE_SHADOW=1"));
     assert(Has(env, "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1"));
-    std::cout << "PASS: automatic Direct, protected mapping contract and Venus fallback\n";
+    // A successful NativeBuffer driver probe does not provide Xlib WSI.
+    // Check both the desktop policy and the real child environment, including
+    // stale per-app Direct overrides; switching back must retain the probe.
+    winehua::SetProductDirectVulkanVerified(true);
+    winehua::SetProductDirectPresentationSupported(false);
+    assert(winehua::IsProductDirectVulkanVerified());
+    for (const auto backend : {winehua::D3dBackendKind::DxvkLegacy,
+                               winehua::D3dBackendKind::DxvkModern26}) {
+        assert(winehua::ResolveSessionGraphicsPolicy("", backend, &policy));
+        assert(!policy.guest.directVulkan && !policy.vulkanDesktop);
+        session.d3dBackend = backend == winehua::D3dBackendKind::DxvkLegacy
+            ? "dxvk_legacy" : "dxvk_modern_2_6";
+        session.extraEnv = {"WINEHUA_VULKAN_BACKEND=direct"};
+        env = winehua::BuildSessionEnv(session);
+        assert(Has(env, "WINEHUA_VULKAN_BACKEND=venus"));
+        assert(!Has(env, "WINEHUA_VULKAN_BACKEND=direct"));
+        assert(Has(env, "VN_WINEHUA_STRONG_RING_BARRIER=1"));
+    }
+    assert(!winehua::ResolveLabGraphicsExperiment("isolate-vulkan-direct",
+        winehua::D3dBackendKind::DxvkLegacy, &policy));
+    assert(winehua::ResolveSessionGraphicsPolicy("", winehua::D3dBackendKind::WineD3d, &policy));
+    assert(policy.route == winehua::kProductVirglRoute && !policy.guest.directVulkan);
+    winehua::SetProductDirectPresentationSupported(true);
+    assert(winehua::ResolveSessionGraphicsPolicy("", winehua::D3dBackendKind::DxvkLegacy, &policy));
+    assert(policy.guest.directVulkan && policy.vulkanDesktop);
+    winehua::SetProductDirectVulkanVerified(false);
+    std::cout << "PASS: automatic Direct, protected mapping, X11 presentation capability and Venus fallback\n";
 }

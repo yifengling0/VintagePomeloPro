@@ -8,6 +8,7 @@
 #include "audio_ipc_protocol.h"
 #include "env_spec.h"
 #include "graphics/graphics_broker.h"
+#include "graphics/graphics_profile.h"
 #include "compositor/wayland_server.h"
 #include "input/controller/controller_runtime.h"
 
@@ -63,6 +64,7 @@ extern "C" bool WineHua_SetDisplayRoute(const char* route)
     if (GetWineStartupSnapshot().active) return false;
     for (const auto& process : GetProcessListSnapshot())
         if (process.running && !process.independentRuntime) return false;
+    winehua::SetProductDirectPresentationSupported(!next);
     g_display_x11.store(next);
     return true;
 }
@@ -237,6 +239,7 @@ void AppendVulkanRuntimeEnv(std::vector<std::string>& env,
         "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring");
     UpsertEnvLine(env, "VN_WINEHUA_STRONG_RING_BARRIER=1");
     UpsertEnvLine(env, "VN_WINEHUA_REMOTE_MEMORY_SYNC=1");
+    UpsertEnvLine(env, "VN_WINEHUA_ALWAYS_NOTIFY_RING=1");
 
 #if defined(__aarch64__) && defined(WINEHUA_WINE_ARCH_IS_X86_64)
     const std::string guestVulkanLib = guestVulkanRoot + "/lib";
@@ -383,6 +386,7 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
             "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring",
             "VN_WINEHUA_STRONG_RING_BARRIER=1",
             "VN_WINEHUA_REMOTE_MEMORY_SYNC=1",
+            "VN_WINEHUA_ALWAYS_NOTIFY_RING=1",
             /* VN_WINEHUA_PERSISTENT_MAP_SYNC 两难（2026-09-18 实测）：
              * vkd3d 常驻 map 上传（Map 后每帧直写、无 Unmap，如 gears 的
              * instance buffer）必须靠它发布，去掉后 D3D12 渲染不出图；
@@ -545,6 +549,7 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
          * vulkan-1=b: 让 DXVK 走 winevulkan 而不是 exe 同目录的原生 loader。 */
         "WINEDLLOVERRIDES=" + std::string(winehua::DxvkDllOverrides(modern26)),
         "VN_WINEHUA_REMOTE_MEMORY_SYNC=1",
+        "VN_WINEHUA_ALWAYS_NOTIFY_RING=1",
         "WINEDLLPATH=" + wineDllPath,
         "WINEDLLDIR0=" + overlay64,
         "WINEDLLDIR1=" + overlay86,

@@ -924,6 +924,12 @@ export class WineEngineService {
         // Wayland desktop frame from being created at the old orientation.
         WineWindowManager.getInstance().prepareOutputForOrientation(orientation);
       }
+      // Display owns presentation capabilities. Select it before resolving
+      // the paired Host/Guest transport, including the desktop consumer.
+      if (displayRoute.setDisplayRoute(settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland') === false) {
+        this.failStartup(generation, '显示后端仍被上一会话占用，请完整退出后重试', false);
+        return;
+      }
       // Resolve the backend intent into one Native-owned Host/Guest route
       // before VirGL starts. ArkTS no longer duplicates shadow/upload flags.
       try {
@@ -960,10 +966,6 @@ export class WineEngineService {
       if (this.activePrefixMode === 'clean') {
         this.syncManagedFexModules(prefixDirectory);
         this.syncManagedIcuModules(prefixDirectory);
-      }
-      if (displayRoute.setDisplayRoute(settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland') === false) {
-        this.failStartup(generation, '显示后端仍被上一会话占用，请完整退出后重试', false);
-        return;
       }
       const serverReady = testNapi.startServer(socket) as boolean;
       if (!serverReady) {

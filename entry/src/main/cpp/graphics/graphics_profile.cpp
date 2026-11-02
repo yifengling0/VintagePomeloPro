@@ -19,6 +19,7 @@ constexpr std::string_view kIsolateVulkanDirectWhole = "isolate-vulkan-direct-wh
 constexpr std::string_view kIsolateShadowBoundBuffers = "isolate-shadow-bound-buffers";
 constexpr std::string_view kIsolateProductEglDesktop = "isolate-product-egl-desktop";
 std::atomic<bool> productDirectVerified{false};
+std::atomic<bool> productDirectPresentationSupported{true};
 
 void AppendBooleanEnvironment(std::vector<std::string>* environment,
                               std::string_view key, bool enabled)
@@ -60,6 +61,11 @@ bool SerializeGuestGraphicsEnvironment(
 
     AppendBooleanEnvironment(environment, "VN_WINEHUA_REMOTE_MEMORY_SYNC",
                              policy.preciseShadow);
+    // Guest and Host ring words live in separate shadow mappings. Coalescing
+    // can miss the renderer entering idle between two sub-millisecond submits.
+    // Direct Vulkan has no Venus ring and must not inherit this workaround.
+    AppendBooleanEnvironment(environment, "VN_WINEHUA_ALWAYS_NOTIFY_RING",
+                             policy.preciseShadow && !policy.directVulkan);
     if (runtime.dynamicMappedFlush)
         AppendBooleanEnvironment(environment,
                                  "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED",
@@ -152,13 +158,19 @@ bool IsProductDirectVulkanVerified()
     return productDirectVerified.load(std::memory_order_acquire);
 }
 
+void SetProductDirectPresentationSupported(bool supported)
+{
+    productDirectPresentationSupported.store(supported, std::memory_order_release);
+}
+
 bool ResolveProductGraphicsPolicy(D3dBackendKind backend,
                                   ProductGraphicsPolicy* policy)
 {
     if (!ResolveVenusProductGraphicsPolicy(backend, policy)) return false;
     // Legacy DXVK's D3D11 upload/readback contract is verified for PE32 and
     // PE64. Modern DXVK/VKD3D have not passed this WOW64 mapping gate.
-    if (backend == D3dBackendKind::DxvkLegacy && IsProductDirectVulkanVerified()) {
+    if (backend == D3dBackendKind::DxvkLegacy && IsProductDirectVulkanVerified() &&
+        productDirectPresentationSupported.load(std::memory_order_acquire)) {
         policy->guest = {};
         policy->guest.directVulkan = true;
         policy->guest.preciseShadow = true;
@@ -263,6 +275,8 @@ bool ResolveLabGraphicsExperiment(std::string_view id,
         resolved.host = {canonicalId, "full", "0"};
         resolved.guest = {};
     } else if (id == kIsolateVulkanDirect || id == kIsolateVulkanDirectPrecise || id == kIsolateVulkanDirectWhole) {
+        // A diagnostic cannot create a WSI the selected display cannot own.
+        if (!productDirectPresentationSupported.load(std::memory_order_acquire)) return false;
         // Limit the first device gate to the validated DXVK runtimes.
         if (!IsDxvkBackend(backend)) return false;
         if (id != kIsolateVulkanDirect && backend != D3dBackendKind::DxvkLegacy)
