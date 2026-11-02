@@ -66,6 +66,9 @@ public:
 
     bool Start(const std::string& socketPath);
     void Stop();
+    bool RetainExternalUser();
+    void ReleaseExternalUser();
+    bool HasExternalUsers() const { return externalUsers_.load() != 0; }
 
     // 状态回调 (首帧到达 -> 通知 ArkTS)
     void SetStateCallback(StateCb cb) { stateCb_ = std::move(cb); }
@@ -147,7 +150,11 @@ public:
     // 模式上报类调用 (给 wine 传环境/标记进程/日志)。
     // 模式存储位 = session_.policy (重构第 6B 步: 会话共享状态 POD — 旧为
     // private 字段, SetDesktopMode 经 NAPI 写 / 各处策略查询只读, 行为不变)
-    void SetDesktopMode(bool on) { session_.policy = DisplayPolicy::FromDesktopMode(on); }
+    void SetDesktopMode(bool on) {
+        // A retained GNU session owns this compositor policy until it ends.
+        if (HasExternalUsers()) return;
+        session_.policy = DisplayPolicy::FromDesktopMode(on);
+    }
     bool IsDesktopMode() const { return session_.policy.desktop; }
     const DisplayPolicy& Policy() const { return session_.policy; }
     uint32_t GetDesktopRootToplevelId() const { return session_.desktopRootToplevelId; }
@@ -278,6 +285,9 @@ private:
                                         SurfaceData* parentSd, ShmCommitInfo& fi);
     void FinishCommit(SurfaceData* sd, wl_resource* surfRes);
 
+    mutable std::recursive_mutex lifetimeMutex_;
+    std::atomic<unsigned> externalUsers_{0};
+    bool wineUser_ = false;
     wl_display* display_ = nullptr;
     std::thread thread_;
     std::atomic<bool> running_{false};

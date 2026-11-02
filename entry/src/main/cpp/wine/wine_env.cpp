@@ -1,4 +1,6 @@
 #include "wine_env.h"
+#include "wine_launch.h"
+#include "proc/wine_process.h"
 #include "wine_scheme.h"
 #include "wine_constants.h"
 #include "wine_d3d_policy.h"
@@ -9,6 +11,7 @@
 #include "compositor/wayland_server.h"
 #include "input/controller/controller_runtime.h"
 
+#include <atomic>
 #include <unistd.h>
 #include <algorithm>
 #include <cstring>
@@ -48,6 +51,23 @@ std::string WineLocaleFor(const std::string& wineLang) {
 }
 
 }  // namespace
+
+// Written only when a complete Wine session starts; settings do not mutate
+// this mirror while existing Wine processes are alive.
+static std::atomic<bool> g_display_x11{false};
+extern "C" bool WineHua_SetDisplayRoute(const char* route)
+{
+    if (!route || (strcmp(route, "x11") && strcmp(route, "wayland"))) return false;
+    const bool next = strcmp(route, "x11") == 0;
+    if (next == g_display_x11.load()) return true;
+    if (GetWineStartupSnapshot().active) return false;
+    for (const auto& process : GetProcessListSnapshot())
+        if (process.running && !process.independentRuntime) return false;
+    g_display_x11.store(next);
+    return true;
+}
+bool WineHua_DisplayRouteIsX11() { return g_display_x11.load(); }
+extern "C" size_t WineHua_DisplayRoute_DisplayName(char*, size_t);
 
 int CreateAudioBootstrapFd(const std::string& runtimeDir) {
     if (!winehua::AudioBroker::GetInstance().EnsureStarted(runtimeDir)) {
@@ -109,6 +129,15 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
         "XDG_RUNTIME_DIR=" + sockDir,
         "WAYLAND_DISPLAY=" + sockName,
     };
+    // M3a 显示路线: x11 时 stamp 两键 (后写胜出)。WAYLAND_DISPLAY 的删除由
+    // 子进程 wine_child.cpp 的既有路由分支完成 (route=x11 ⇒ unset), 这里
+    // 不表达删除语义。smoke 套件 env 里的同名键与本 stamp 同值, 无冲突。
+    if (WineHua_DisplayRouteIsX11()) {
+        env.push_back("WINEHUA_DISPLAY_ROUTE=x11");
+        char display[64] = {};
+        WineHua_DisplayRoute_DisplayName(display, sizeof(display));
+        env.push_back(std::string("DISPLAY=") + display);
+    } else env.push_back("WINEHUA_DISPLAY_ROUTE=wayland");
     {
         std::vector<std::string> baseline = winehua::BuildWineBaselineLines(
             {binDir, homeDir, prefixDir});
@@ -128,6 +157,7 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     // 单设 LANG 无效, 必须补 LC_ALL 才能解析出对应 LCID (见 WineLocaleFor),
     // 与 LANG 同取设置页 wineLang (zh_CN / zh_TW / ja_JP / en_US)。
     env.push_back("LC_ALL=" + locale + ".UTF-8");
+    if (WineHua_DisplayRouteIsX11()) env.push_back("XMODIFIERS=@im=winehua");
     // ==== Layer 1: Box64 性能调优 (仅方案②有实际消费者, 键值表见 wine_env_baseline.h) ====
     // NOTE: BOX64_DYNAREC_WEAKBARRIER=2 在桌面 DXVK 下会被 AppendStableDxvkEnv 覆盖为 0
     winehua::AppendBox64PerfStrings(env);
@@ -229,6 +259,14 @@ void AppendVulkanRuntimeEnv(std::vector<std::string>& env,
         UpsertEnvLine(env, "VK_DRIVER_FILES=" + guestVulkanIcd);
         UpsertEnvLine(env, "VK_ICD_FILENAMES=" + guestVulkanIcd);
     }
+}
+
+void RemoveEnvLine(std::vector<std::string>& env, const std::string& key)
+{
+    env.erase(std::remove_if(env.begin(), env.end(), [&](const std::string& existing) {
+        return existing.compare(0, key.size(), key) == 0 &&
+               existing.size() > key.size() && existing[key.size()] == '=';
+    }), env.end());
 }
 
 void AppendD3dBackendEnv(std::vector<std::string>& env,

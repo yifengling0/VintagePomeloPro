@@ -1861,6 +1861,10 @@ extern "C" void Main(NativeChildProcess_Args args)
 
     // Step B: entryParams 中的环境覆盖应用。
     apply_entry_param_env_overrides(envOverrides);
+    const char *displayRoute = getenv("WINEHUA_DISPLAY_ROUTE");
+    if (displayRoute && strcmp(displayRoute, "x11") == 0) unsetenv("WAYLAND_DISPLAY");
+    else unsetenv("DISPLAY");
+
 #if defined(__aarch64__) && !defined(WINEHUA_WINE_ARCH_IS_X86_64)
     OH_LOG_INFO(LOG_APP, "[WineChild] final FEX_X87REDUCEDPRECISION=%{public}s (after entry env)",
                 getenv("FEX_X87REDUCEDPRECISION"));

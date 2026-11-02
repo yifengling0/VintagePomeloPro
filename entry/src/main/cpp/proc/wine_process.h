@@ -33,6 +33,7 @@ struct WineProcessEntry {
     uint32_t toplevelId = 0;
     std::vector<uint32_t> toplevelIds{};
     bool applicationSession = false;
+    bool independentRuntime = false; // GNU/Xwayland lifetime is separate from OHOS Wine
 };
 
 // -- NAPI threadsafe 回调 (由 napi_init.cpp 设置) --
@@ -116,6 +117,8 @@ bool IsProcessAliveNotZombie(pid_t pid);
 // -- 进程注册表只读访问 (供 NAPI handler) --
 std::vector<WineProcessEntry> GetProcessListSnapshot();
 bool QueryProcessSnapshot(pid_t pid, WineProcessEntry* outEntry);
+// Reject independent GNU/graphics runtimes; accept proven Wine descendants.
+bool IsWineOwnedProcess(pid_t pid);
 
 // App session handles identify a registered process incarnation, never a PID
 // alone. Window association is exact-PID or proven ancestry, not basename/time.

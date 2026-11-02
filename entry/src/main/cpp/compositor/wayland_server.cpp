@@ -1,4 +1,7 @@
 #include "wayland_server.h"
+#include "display/x11_toplevel.h"
+#include "display/display_session.h"
+#include "graphics/graphics_broker.h"
 #include "input/seat.h"
 #include "input/text_input.h"
 #include "input/input_manager.h"
@@ -39,7 +42,9 @@ WaylandServer* WaylandServer::GetInstance() {
 }
 
 bool WaylandServer::Start(const std::string& socketPath) {
+    std::lock_guard<std::recursive_mutex> guard(lifetimeMutex_);
     if (running_) {
+        wineUser_ = true;
         OH_LOG_WARN(LOG_APP, "[WL] already running");
         return true;
     }
@@ -69,6 +74,7 @@ bool WaylandServer::Start(const std::string& socketPath) {
     if (wl_display_add_socket(display_, name.c_str()) != 0) {
         OH_LOG_ERROR(LOG_APP, "[WL] wl_display_add_socket(%{public}s) failed, errno=%{public}d",
                      name.c_str(), errno);
+        wl_display_destroy(display_); display_ = nullptr;
         return false;
     }
     OH_LOG_INFO(LOG_APP, "[WL] socket added: %{public}s", name.c_str());
@@ -94,6 +100,7 @@ bool WaylandServer::Start(const std::string& socketPath) {
     InputManager::GetInstance()->Initialize(display_);
     OH_LOG_INFO(LOG_APP, "[WL] globals registered (compositor+shm+xdg+subcompositor+viewporter+output+seat+input)");
 
+    wineUser_ = true;
     running_ = true;
     session_.firstFrame = false;   // 存储 = 会话共享 POD (重构第 6B 步)
     thread_ = std::thread(&WaylandServer::EventLoop, this);
@@ -101,9 +108,29 @@ bool WaylandServer::Start(const std::string& socketPath) {
     return true;
 }
 
+bool WaylandServer::RetainExternalUser() {
+    std::lock_guard<std::recursive_mutex> guard(lifetimeMutex_);
+    if (!running_) return false;
+    ++externalUsers_;
+    return true;
+}
+void WaylandServer::ReleaseExternalUser() {
+    std::lock_guard<std::recursive_mutex> guard(lifetimeMutex_);
+    if (!externalUsers_) return;
+    --externalUsers_;
+    if (!wineUser_ && !externalUsers_) {
+        winehua::GraphicsBroker::GetInstance().Stop();
+        Stop();
+    }
+}
 void WaylandServer::Stop() {
+    std::lock_guard<std::recursive_mutex> guard(lifetimeMutex_);
+    wineUser_ = false;
+    if (externalUsers_) return;
     if (!running_) return;
     running_ = false;
+    if (display_) wl_display_terminate(display_);
+    if (thread_.joinable()) thread_.join();
     // 主动清空全部 toplevel: stopAll 强杀 Wine 进程时, wl_display_terminate
     // 在 client 断开事件被 dispatch 之前终止事件循环, 依赖断开事件触发的
     // OnToplevelDestroyed 不会执行 → ToplevelManager 残留旧 toplevel (重启后
@@ -114,8 +141,6 @@ void WaylandServer::Stop() {
     InputManager::GetInstance()->Shutdown();
     Seat::GetInstance()->Unregister();
     TextInput::GetInstance()->Unregister();
-    if (display_) wl_display_terminate(display_);
-    if (thread_.joinable()) thread_.join();
     if (display_) {
         wl_display_destroy(display_);
         display_ = nullptr;
@@ -211,6 +236,7 @@ void WaylandServer::DestroyAllToplevels() {
 
 
 void WaylandServer::RaiseToplevel(uint32_t id, bool userInitiated) {
+    if (x11_toplevel_owns(id)) { x11_toplevel_control(id, 0, true); return; }
     auto lk = toplevelMgr_.Lock();
     toplevelMgr_.RaiseToplevel(id);
     // 全屏优先级: 仅"用户显式 raise (任务栏/窗口点击经 ArkTS 发起) 且目标
@@ -408,7 +434,8 @@ void WaylandServer::OnToplevelDestroyed(uint32_t toplevelId) {
     // 同步 join 会永久阻塞 Wayland 事件循环, 热重启 explorer 连接无人
     // 处理, 桌面永远起不来)。root renderer 的销毁由 ArkTS DesktopLayer
     // onSurfaceDestroyed 负责 (缓存 rootId 配对销毁, 与创建对称)
-    if (wasDesktopRoot) ResetSessionState();
+    // A Wine root can disappear while GNU clients still own this seat.
+    if (wasDesktopRoot && !HasExternalUsers()) ResetSessionState();
     // 通知 ArkTS 销毁 popup 子窗口 (锁外触发)
     for (uint32_t pid : cascadePopups) {
         PostToplevelEvent(toplevelId, ToplevelEventType::PopupHide,
@@ -451,6 +478,7 @@ void WaylandServer::ResetSessionState() {
 // (compositor/popup_manager.{h,cpp}, 重构第 5B2 步)
 
 void WaylandServer::SendToplevelClose(uint32_t toplevelId) {
+    if (x11_toplevel_owns(toplevelId)) { x11_toplevel_close(toplevelId); return; }
     wl_resource* tl = toplevelMgr_.FindToplevelResource(toplevelId);
     if (tl) {
         toplevelMgr_.UnregisterToplevelResource(toplevelId);
@@ -472,6 +500,7 @@ int32_t WaylandServer::GetWorkAreaHeight() {
 }
 
 void WaylandServer::SetToplevelMinimized(uint32_t id) {
+    if (x11_toplevel_owns(id)) { x11_toplevel_control(id, 1, true); return; }
     auto lk = toplevelMgr_.Lock();
     // 保留 operator[] 建档语义: pre-commit 最小化同样记录状态
     toplevelMgr_.EnsureToplevelLocked(id).SetMinimized(true);
@@ -479,6 +508,7 @@ void WaylandServer::SetToplevelMinimized(uint32_t id) {
 }
 
 void WaylandServer::SetToplevelRestored(uint32_t id) {
+    if (x11_toplevel_owns(id)) { x11_toplevel_control(id, 0, true); return; }
     // 清除 minimized 状态
     {
         auto lk = toplevelMgr_.Lock();
@@ -524,11 +554,13 @@ void WaylandServer::SetToplevelMaximized(uint32_t id) {
 // 裸状态赋值: 无 dirty/无日志 — 与旧 sd->maximized = x 直接赋值逐字等价,
 // dirty 由调用点随后的 SetToplevelMaximized (锚定) / configure 路径负责。
 void WaylandServer::SetToplevelMaximizedState(uint32_t id, bool on) {
+    if (x11_toplevel_owns(id)) { x11_toplevel_control(id, 2, on); return; }
     auto lk = toplevelMgr_.Lock();
     toplevelMgr_.EnsureToplevelLocked(id).SetMaximized(on);
 }
 
 void WaylandServer::SetToplevelFullscreen(uint32_t id, bool on) {
+    if (x11_toplevel_owns(id)) { x11_toplevel_control(id, 3, on); return; }
     OH_LOG_INFO(LOG_APP, "[MW] SetToplevelFullscreen id=%{public}u on=%{public}s",
                 id, on ? "yes" : "no");
     {

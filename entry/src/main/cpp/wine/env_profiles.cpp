@@ -156,11 +156,11 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
     if (FindEnvValue(p.extraEnv, "WINEHUA_VULKAN_RUNTIME") == "1" &&
         d3dBackend != "dxvk_legacy" && d3dBackend != "dxvk_modern_2_6")
         AppendVulkanRuntimeEnv(env, p.binDir);
-    // per-app 覆盖最后写入, 优先级最高
+    // Per-app overrides keep their original empty-value semantics. Display
+    // identity belongs to the entire native Wine session, never to one app.
     for (const std::string& line : p.extraEnv) {
-        // These keys are owned by the normalized backend policy above. A
-        // caller-provided environment must not reactivate an archived VKD3D
-        // route after the policy has selected the runtime overlay.
+        if (line.rfind("WINEHUA_DISPLAY_ROUTE=", 0) == 0 ||
+            line.rfind("WAYLAND_DISPLAY=", 0) == 0 || line.rfind("DISPLAY=", 0) == 0) continue;
         if (line.rfind("WINEHUA_D3D_BACKEND=", 0) == 0 ||
             line.rfind("WINEHUA_DXVK_ROOT=", 0) == 0 ||
             line.rfind("WINEHUA_DXVK_PROFILE=", 0) == 0 ||

@@ -284,6 +284,7 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
                 if (entry.pid != pid) continue;
                 entry.exeBasename = basename;
                 entry.exeFullPath = exeFullPath;
+                entry.independentRuntime = (exeFullPath.rfind("@runtime/", 0) == 0 || exeFullPath == "@engine/virgl");
                 if (stdoutFd >= 0 && entry.stdoutFd < 0) entry.stdoutFd = stdoutFd;
                 result = &entry;
                 break;
@@ -323,6 +324,7 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
                 .generation = ++nextGeneration
             });
             result = &gProcRegistry.back();
+            result->independentRuntime = (exeFullPath.rfind("@runtime/", 0) == 0 || exeFullPath == "@engine/virgl");
             OH_LOG_WARN(LOG_APP, "[ProcReg] add pid=%{public}d name=%{public}s total=%{public}zu",
                         pid, basename.c_str(), gProcRegistry.size());
         }
@@ -348,45 +350,22 @@ void KillAllProcesses() {
         {
             std::lock_guard<std::mutex> lock(gProcMutex);
             for (auto& entry : gProcRegistry) {
-                if (!entry.running) continue;
+                if (!entry.running || entry.independentRuntime) continue;
                 *(entry.readerActive) = false;
                 trackedPids.push_back(entry.pid);
             }
         }
-        // NCP termination may synchronously query/complete the registry.
-        // Keep PID replacement serialized, release the registry lock first.
+        // Snapshot before killing roots: orphan reparenting must not hide children.
+        std::vector<pid_t> descendants;
+        for (const auto root : trackedPids) {
+            const auto children = SnapshotProcessDescendants(root);
+            descendants.insert(descendants.end(), children.begin(), children.end());
+        }
+        for (const auto pid : descendants) kill(pid, SIGKILL);
+        // NCP callbacks may reenter the registry; gProcMutex is already released.
         for (pid_t pid : trackedPids) KillChildProcess(pid);
     }
 
-    const pid_t self = getpid();
-    // The early phone server belongs to the App lifetime. Runtime refresh and
-    // session restart must drain its Wine children without discarding the
-    // clean pre-ArkUI process from which Direct children are launched.
-    const pid_t directForkServer = Phone_GetDirectForkServerPid();
-    std::vector<pid_t> descendants = SnapshotProcessDescendants(self);
-    OH_LOG_INFO(LOG_APP,
-                "[ProcReg] killAll session descendants=%{public}zu tracked=%{public}zu",
-                descendants.size(), trackedPids.size());
-    for (pid_t pid : descendants)
-        if (pid != self && pid != directForkServer) kill(pid, SIGKILL);
-
-    /* AppSpawn children are not waitable by the main process.  Give the
-     * kernel a short, bounded opportunity to reap them and repeat the scan in
-     * case a broker child was forked while the first signal pass was running.
-     */
-    for (unsigned int pass = 0; pass < 20; ++pass)
-    {
-        bool anyAlive = false;
-        descendants = SnapshotProcessDescendants(self);
-        for (pid_t pid : descendants) {
-            if (pid == directForkServer) continue;
-            if (!IsProcessAliveNotZombie(pid)) continue;
-            anyAlive = true;
-            kill(pid, SIGKILL);
-        }
-        if (!anyAlive) break;
-        usleep(100000);
-    }
 }
 
 // stopAll 末尾调用: 后台 zombie 感知等待注册表进程 (含主 wineserver) 全部死亡,
@@ -402,7 +381,7 @@ void NotifyWhenSessionDrained() {
         while (waitedMs < kDrainTimeoutMs) {
             bool anyAlive = false;
             for (const auto& entry : GetProcessListSnapshot()) {
-                if (entry.running && IsProcessAliveNotZombie(entry.pid)) {
+                if (entry.running && !entry.independentRuntime && IsProcessAliveNotZombie(entry.pid)) {
                     anyAlive = true;
                     break;
                 }
@@ -787,6 +766,18 @@ std::string BeginRegisteredWineSession(pid_t pid) {
     // those windows now that the launch owner is known, using proven ancestry.
     for (const auto& [id, client] : windows) ReassociateSessionWindow(client.pid, id, client.generation);
     return session;
+}
+
+bool IsWineOwnedProcess(pid_t pid) {
+    for (unsigned depth = 0; pid > 1 && depth < 32; ++depth) {
+        WineProcessEntry process;
+        if (QueryProcessSnapshot(pid, &process))
+            return process.running && !process.independentRuntime;
+        pid_t parent = 0;
+        if (!ReadProcessParent(pid, &parent) || parent == pid) break;
+        pid = parent;
+    }
+    return false;
 }
 
 std::string AssociateWineSessionWindow(pid_t clientPid, uint32_t id) {

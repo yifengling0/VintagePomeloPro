@@ -67,7 +67,7 @@ public:
     // fromMouse: 来自物理鼠标 onMouse 通道 (触屏 onTouch 路径传 false) —
     //   相对模式下区分点击语义, 见 ACT_PRESS 处理
     void SendPointerEvent(uint32_t toplevelId, int action, double px, double py, int button,
-                          double rawDx = 0, double rawDy = 0, bool fromMouse = false);
+                          double rawDx = 0, double rawDy = 0, bool fromMouse = false, bool sourceLocal = false);
 
     // evdevCode: 已由 ArkTS KeyMap 映射的 evdev keycode
     // pressed: true=按下, false=释放
@@ -83,7 +83,7 @@ public:
     // value: 轴值 (正值=向下/向右, 负值=向上/向左)
     // scrollStep: negative = hardware continuous vp; nonnegative = virtual detents
     // px/py: 鼠标在组件上的物理像素坐标
-    void SendScrollEvent(uint32_t toplevelId, int axis, double value, int scrollStep, double px, double py);
+    void SendScrollEvent(uint32_t toplevelId, int axis, double value, int scrollStep, double px, double py, bool sourceLocal = false);
 
     // -- Wayland 线程注入 (编制层委托 InputInjector; 公开方法保留 —
     //    wl_core.cpp 首帧 focus 预设直接调用本方法) --

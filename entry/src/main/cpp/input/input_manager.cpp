@@ -228,7 +228,7 @@ void InputManager::SetToplevelVisible(uint32_t tl, bool visible) {
 }
 
 void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double py, int button,
-                                    double rawDx, double rawDy, bool fromMouse) {
+                                    double rawDx, double rawDy, bool fromMouse, bool sourceLocal) {
     // 窗口不可见时抑制输入
     if (tracker_.IsInputSuppressed(tl)) {
         // 抽样 120:1: 窗口不可见时 hover 移动也会走到这里 (125Hz 全量会
@@ -258,7 +258,12 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
     // 6A: 策略/rootId 经装配注入的共享引用直读 (与 WaylandServer getter 同值)
     wl_resource* targetSurf = nullptr;
     FitRect inputFit, displayFit;
-    if (policy_->CompositorRoutesInput() && tl != *desktopRootToplevelId_) {
+    if (sourceLocal) {
+        targetSurf = tmgr_->GetSurfaceForToplevel(tl);
+        if (!targetSurf) return;
+        wx = wl_fixed_from_double(px); wy = wl_fixed_from_double(py);
+        globalX = wx; globalY = wy;
+    } else if (policy_->CompositorRoutesInput() && tl != *desktopRootToplevelId_) {
         CoordTransform(px, py, *desktopRootToplevelId_, &wx, &wy, &displayFit);
         // 记录最近一次注入的桌面全局指针位置 (grab 建立时算固定偏移用)。
         // 4C1: 收进 InputSpaceMapper, 空间标签显式化为 Desktop (桌面逻辑坐标)
@@ -609,7 +614,7 @@ void InputManager::EnqueueModifiers() {
 }
 
 void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scrollStep,
-                                    double px, double py) {
+                                    double px, double py, bool sourceLocal) {
     if ((axis != 0 && axis != 1) || !std::isfinite(value) || value == 0 ||
         std::abs(value) > 32768 || !std::isfinite(px) || !std::isfinite(py)) return;
     // 窗口不可见时抑制输入 (缺段修复: scroll 此前绕过可见性检查, 与
@@ -640,7 +645,12 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
     // Overlay sessions may target the desktop root after a focus change. Axis
     // events still belong to the surface under the cursor, including an X11
     // client hosted inside Wine; never bypass hit testing for the root ID.
-    if (policy_->CompositorRoutesInput()) {
+    if (sourceLocal) {
+        targetSurf = tmgr_->GetSurfaceForToplevel(tl);
+        if (!targetSurf) return;
+        wx = wl_fixed_from_double(px); wy = wl_fixed_from_double(py);
+        globalX = wx; globalY = wy;
+    } else if (policy_->CompositorRoutesInput()) {
         CoordTransform(px, py, *desktopRootToplevelId_, &wx, &wy);
         // 缺段修复: 维护最近一次全局指针位置 (grab 偏移基准, 与
         // SendPointerEvent 桌面分支同一语义 — scroll 位置即指针位置);

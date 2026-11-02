@@ -152,10 +152,10 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         }
         consumer.geometryDirty = consumer.layerX != layer.x || consumer.layerY != layer.y ||
             consumer.layerW != layer.width || consumer.layerH != layer.height ||
-            consumer.fullscreen != (layer.fullscreen && compositor_.Policy().RootCompositing());
+            consumer.fullscreen != (layer.fullscreen && RootCompositing());
         consumer.layerX = layer.x; consumer.layerY = layer.y;
         consumer.layerW = layer.width; consumer.layerH = layer.height;
-        consumer.fullscreen = layer.fullscreen && compositor_.Policy().RootCompositing();
+        consumer.fullscreen = layer.fullscreen && RootCompositing();
         consumer.layer = layer;
         if (compositor_.zc().ConfirmFallback(consumer.surfaceKey, layer.shmCommitSerial)) {
             consumer.hasFrame = false;
@@ -268,7 +268,7 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
                     consumer.sourceW, consumer.sourceH, consumer.layerW, consumer.layerH,
                     consumer.layerX, consumer.layerY, queueSize,
                     sizeResult, usageResult, dropResult);
-        consumer.fullscreen = layer.fullscreen && compositor_.Policy().RootCompositing();
+        consumer.fullscreen = layer.fullscreen && RootCompositing();
         consumer.layer = layer;
         zeroCopyConsumers_.push_back(std::move(state));
         zeroCopySceneDirty_ = true;
@@ -314,7 +314,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
         {
             ZeroCopyLayerInfo layer;
             uint32_t rendererToplevelId = toplevelId_.load(std::memory_order_relaxed);
-            if (compositor_.Policy().RootCompositing())
+            if (RootCompositing())
                 rendererToplevelId = compositor_.DesktopRootToplevelId();
             const bool baselineValid = compositor_.GetZeroCopyLayerInfo(
                 consumer.surfaceKey, rendererToplevelId,
@@ -379,7 +379,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
 
     ZeroCopyLayerInfo layer;
     uint32_t rendererToplevelId = toplevelId_.load(std::memory_order_relaxed);
-    if (compositor_.Policy().RootCompositing()) rendererToplevelId = compositor_.DesktopRootToplevelId();
+    if (RootCompositing()) rendererToplevelId = compositor_.DesktopRootToplevelId();
     if (!compositor_.GetZeroCopyLayerInfo(consumer.surfaceKey, rendererToplevelId,
                                           consumer.sourceW, consumer.sourceH, layer) ||
         consumer.layer.bindingGeneration != layer.bindingGeneration)
@@ -391,7 +391,7 @@ bool EglRenderer::UpdateZeroCopyFrame(ZeroCopyConsumer& consumer, int& width, in
     consumer.layerY = layer.y;
     consumer.layerW = layer.width;
     consumer.layerH = layer.height;
-    consumer.fullscreen = layer.fullscreen && compositor_.Policy().RootCompositing();
+    consumer.fullscreen = layer.fullscreen && RootCompositing();
     width = consumer.sourceW;
     height = consumer.sourceH;
     consumer.layer = layer;
@@ -594,7 +594,7 @@ void EglRenderer::ShutdownZeroCopyConsumer()
 
 bool EglRenderer::SnapshotZeroCopyScene()
 {
-    if (!compositor_.Policy().RootCompositing()) return false;
+    if (!RootCompositing()) return false;
     std::vector<GpuDesktopLayer> sources;
     for (const auto& consumer : zeroCopyConsumers_) {
         if (!consumer->registered || !consumer->hasFrame) continue;
@@ -738,7 +738,7 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
     width_ = w;
     height_ = h;
 
-    if (compositor_.Policy().RootCompositing() && winehua::direct::DirectDesktopVulkanEnabled()) {
+    if (RootCompositing() && winehua::direct::DirectDesktopVulkanEnabled()) {
         vulkanDesktop_ = std::make_unique<winehua::direct::DirectVulkanDesktopCompositor>(compositor_);
         if (!vulkanDesktop_->Initialize(window)) { vulkanDesktop_.reset(); return false; }
         running_ = true;
@@ -1037,7 +1037,7 @@ void EglRenderer::RenderLoop() {
 
     std::unique_ptr<winehua::direct::DirectDesktopCompositor> directDesktop;
     directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(
-        compositor_, display_, compositor_.Policy().RootCompositing() ? 0 : GetToplevelId());
+        compositor_, display_, RootCompositing() ? 0 : GetToplevelId());
 
     bool wasPaused = false;
     uint32_t lastIdentity = GetToplevelId();
@@ -1046,7 +1046,7 @@ void EglRenderer::RenderLoop() {
         const uint32_t identity = GetToplevelId();
         if (identity != lastIdentity) {
             // Retire old imported frames before the new window claims queues.
-            if (!compositor_.Policy().RootCompositing()) {
+            if (!RootCompositing()) {
                 directDesktop.reset();
                 directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(compositor_, display_, identity);
             }
@@ -1067,7 +1067,7 @@ void EglRenderer::RenderLoop() {
                 lastDrawW_ = lastDrawH_ = 0;
                 previousZeroCopyScene = {};
                 compositor_.RequestFullRedraw(
-                    compositor_.Policy().RootCompositing() ? compositor_.DesktopRootToplevelId() : GetToplevelId());
+                    RootCompositing() ? compositor_.DesktopRootToplevelId() : GetToplevelId());
             }
             wasPaused = paused;
         }
@@ -1086,7 +1086,7 @@ void EglRenderer::RenderLoop() {
         // Desktop mode: root toplevel may be recreated, always use current ID
         // (6A: 配置经构造注入的 DesktopCompositor 引用直读 — 与旧
         // WaylandServer::Policy()/GetDesktopRootToplevelId() 同一引用成员, 同值)
-        if (compositor_.Policy().RootCompositing()) useToplevel = compositor_.DesktopRootToplevelId();
+        if (RootCompositing()) useToplevel = compositor_.DesktopRootToplevelId();
         diagnosticRoot = useToplevel;
         const bool directFrame = directDesktop && directDesktop->Update();
         TryAttachZeroCopySurface(useToplevel);
@@ -1501,4 +1501,8 @@ void EglRenderer::Shutdown() {
         window_ = nullptr;
         OH_LOG_INFO(LOG_APP, "[EGL] tl=%{public}u native window destroyed", toplevelId_.load(std::memory_order_relaxed));
     }
+}
+
+bool EglRenderer::RootCompositing() const {
+    return !isolatedToplevel_ && compositor_.Policy().RootCompositing();
 }

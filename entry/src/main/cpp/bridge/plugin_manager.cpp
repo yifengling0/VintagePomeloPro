@@ -1,5 +1,7 @@
 #include "plugin_manager.h"
 #include "compositor/wayland_server.h"
+#include "display/x11_toplevel.h"
+#include "display/display_session.h"
 #include <native_window/external_window.h>
 #include <algorithm>
 
@@ -37,6 +39,34 @@ void PluginManager::CancelPendingToplevel(uint32_t id) {
 }
 
 void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {
+    if (winehua_x11_is_desktop(toplevelId)) {
+        x11Surfaces_[toplevelId] = surfaceId;
+        WineHua_DisplayRoute_StartWithSurface(surfaceId, false, 0, 0, true, false);
+        return;
+    }
+    /* x11 多窗模式: per-xs 呈现归 x11_toplevel 映射层 (render pass 直画),
+     * 不建 EglRenderer 不进 toplevelRenderers_ —— 只把 surfaceId 的
+     * NativeWindow 回绑给映射层。spec §4。 */
+    if (x11_toplevel_owns(toplevelId)) {
+        OHNativeWindow* win = nullptr;
+        int ret = OH_NativeWindow_CreateNativeWindowFromSurfaceId((uint64_t)surfaceId, &win);
+        if (ret != 0 || !win) {
+            OH_LOG_ERROR(LOG_APP, "[MW-Create] x11 tl #%{public}u CreateNativeWindowFromSurfaceId FAILED ret=%{public}d",
+                         toplevelId, ret);
+            return;
+        }
+        /* I5 (review): attach 返回 false = toplevel 已死 (created 事件与
+         * createRenderer 之间 xs 销毁的竞态) —— 窗当场销毁, 不留泄漏。 */
+        if (!x11_toplevel_attach_window(toplevelId, win, 1, 1)) {
+            OH_LOG_WARN(LOG_APP, "[MW-Create] x11 tl #%{public}u gone before attach, window destroyed", toplevelId);
+            OH_NativeWindow_DestroyNativeWindow(win);
+            return;
+        }
+        x11Surfaces_[toplevelId] = surfaceId;
+        OH_LOG_INFO(LOG_APP, "[MW-Create] x11 tl #%{public}u window attached (no EglRenderer)", toplevelId);
+        return;
+    }
+
     OH_LOG_INFO(LOG_APP, "[MW-Life] CreateRenderer tl=%{public}u count=%{public}zu→%{public}zu",
                 toplevelId, toplevelRenderers_.size(), toplevelRenderers_.size() + 1);
     OH_LOG_INFO(LOG_APP, "[MW-Create] toplevel=%{public}u surfaceId=%{public}ld existRender=%{public}zu",
@@ -89,7 +119,21 @@ void PluginManager::SetRendererStretchFill(uint32_t toplevelId, bool on) {
 }
 
 void PluginManager::ResizeRenderer(uint32_t toplevelId, int w, int h, int64_t surfaceId) {
+    const auto x = x11Surfaces_.find(toplevelId);
+    if (x != x11Surfaces_.end() && surfaceId && x->second != surfaceId) return;
+    if (winehua_x11_is_desktop(toplevelId)) {
+        winehua_x11_canvas_size(w, h);
+        WineHua_DisplayRoute_CanvasResized();
+        return;
+    }
     if (w <= 0 || h <= 0) return;
+    /* x11 多窗模式: 无 EglRenderer, 尺寸同步给映射层 (per-xs 呈现按队列
+     * buffer 本体拉伸, 此处只记账)。 */
+    if (x11_toplevel_owns(toplevelId)) {
+        x11_toplevel_resize_window(toplevelId, w, h);
+        return;
+    }
+
     OH_LOG_INFO(LOG_APP, "[MW-Resize] toplevel=%{public}u size=%{public}dx%{public}d", toplevelId, w, h);
 
     auto rit = toplevelRenderers_.find(toplevelId);
@@ -116,7 +160,19 @@ void PluginManager::ResizeRenderer(uint32_t toplevelId, int w, int h, int64_t su
 }
 
 void PluginManager::DestroyToplevel(uint32_t toplevelId) {
+    x11Surfaces_.erase(toplevelId);
+    if (winehua_x11_is_desktop(toplevelId)) {
+        WineHua_DisplayRoute_DetachCanvas();
+        return;
+    }
     rendererPaused_.erase(toplevelId);
+    /* x11 多窗模式: 解绑回绑窗口后照走既有 ArkTS 关窗清理 (destroyed 事件
+     * 由映射层发, 这里是 surface 销毁侧的对称操作)。 */
+    if (x11_toplevel_owns(toplevelId)) {
+        x11_toplevel_detach_window(toplevelId);
+        return;
+    }
+
     OH_LOG_INFO(LOG_APP, "[MW-Life] DestroyRenderer tl=%{public}u count=%{public}zu→%{public}zu",
                 toplevelId, toplevelRenderers_.size(), toplevelRenderers_.size() > 0 ? toplevelRenderers_.size() - 1 : 0);
     auto it = toplevelRenderers_.find(toplevelId);
@@ -139,6 +195,11 @@ EglRenderer* PluginManager::GetRendererForToplevel(uint32_t tid) {
 
 void PluginManager::DestroyRendererForSurface(uint32_t toplevelId, int64_t surfaceId) {
     if (!surfaceId) { DestroyToplevel(toplevelId); return; }
+    const auto x = x11Surfaces_.find(toplevelId);
+    if (x != x11Surfaces_.end()) {
+        if (x->second == surfaceId) DestroyToplevel(toplevelId);
+        return;
+    }
     // Root promotion may change the owning toplevel between callbacks.
     for (const auto& entry : toplevelRenderers_) {
         if (entry.second->GetSurfaceId() == surfaceId) {

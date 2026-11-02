@@ -234,6 +234,19 @@ int main() {
     Check(progress.workerRunning && progress.workerObserved && !progress.failedPid,
           "live worker continues waiting");
 
+    constexpr pid_t independent = 99997001;
+    for (const auto* name : {"@runtime/libsteamohos_gnu_child.so", "@runtime/libxwayland_child.so", "@runtime/libxim_server_child.so", "@engine/virgl"}) {
+        AddProcess(independent, name, -1, ProcessRegistration::NativeChild);
+        Check(!IsWineOwnedProcess(independent), "independent runtime is not a Wine graphics owner");
+        syntheticParent = independent;
+        Check(!IsWineOwnedProcess(syntheticClient), "independent runtime descendants cannot claim Wine graphics");
+        syntheticParent = 0;
+        std::thread([=] { RemoveProcess(independent); }).join();
+    }
+    AddProcess(independent, "@engine/libwine_child.so", -1, ProcessRegistration::NativeChild);
+    Check(IsWineOwnedProcess(independent), "pending Wine launcher is a valid graphics owner");
+    std::thread([=] { RemoveProcess(independent); }).join();
+
     // Other modules' synchronous helper children are not ours to reap.
     const pid_t unowned = fork();
     Check(unowned >= 0, "unowned helper fork succeeds");
@@ -319,6 +332,10 @@ int main() {
     Check(game >= 0, "session child fork");
     if (!game) { for (;;) pause(); }
     AddProcess(game, "C:/game.exe", -1, ProcessRegistration::ForkChild);
+    Check(IsWineOwnedProcess(game), "registered Wine source owns its graphics");
+    syntheticParent = game;
+    Check(IsWineOwnedProcess(syntheticClient), "unregistered Wine descendant owns its graphics");
+    syntheticParent = 0;
     const auto early = AssociateWineSessionWindow(game, 701);
     const auto session = BeginRegisteredWineSession(game);
     Check(!session.empty() && session == early, "early event retains launch incarnation");

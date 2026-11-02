@@ -19,6 +19,11 @@
 #include "wine/wine_exe.h"
 #include "phone_adapter/phone_adapter.h"
 #include "input/text_input.h"
+#include "display/display_input.h"
+#include "display/display_session.h"
+#include "display/x11_external_host.h"
+#include "display/x11_toplevel.h"
+#include "display/xim_bridge.h"
 #include "input/game_controller_bridge.h"
 #include "input/controller/controller_napi.h"
 #include "direct/vulkan_probe_launcher.h"
@@ -616,20 +621,22 @@ static napi_value StopClient(napi_env, napi_callback_info) {
      * tree first can bypass its bounded shutdown and leave a stale Venus ring
      * across the next isolated session. */
     CancelWineLaunch();
-    winehua::GraphicsBroker::GetInstance().Stop();
+    if (!WaylandServer::GetInstance()->HasExternalUsers()) winehua::GraphicsBroker::GetInstance().Stop();
     KillAllProcesses();
     // 会话终结统一收口 (与桌面退出同路径): 杀进程后进程级一次性状态全部
     // 复位, 下次引擎启动从冷启动基线开始 (StopAll 走 WaylandServer::Stop
     // 全量重建, 无需这里处理)
-    WaylandServer::GetInstance()->ResetSessionState();
-    WaylandServer::GetInstance()->ResetFirstFrame();
+    if (!WaylandServer::GetInstance()->HasExternalUsers()) {
+        WaylandServer::GetInstance()->ResetSessionState();
+        WaylandServer::GetInstance()->ResetFirstFrame();
+    }
     return nullptr;
 }
 
 // -- NAPI: stopAll — 杀掉所有 Wine 进程 (含主 wineserver) + 停 Wayland server --
 static napi_value StopAll(napi_env, napi_callback_info) {
     CancelWineLaunch();
-    winehua::GraphicsBroker::GetInstance().Stop();
+    if (!WaylandServer::GetInstance()->HasExternalUsers()) winehua::GraphicsBroker::GetInstance().Stop();
     KillAllProcesses();
     WaylandServer::GetInstance()->Stop();
     // 会话终结信号: zombie 感知等待全部死亡后发一次 state:stopped —
@@ -746,7 +753,7 @@ static napi_value SetImeCallback(napi_env env, napi_callback_info info) {
 
 static napi_value WineTextInputFocusedToplevel(napi_env env, napi_callback_info) {
     napi_value value;
-    napi_create_uint32(env, TextInput::GetInstance()->FocusedToplevel(), &value);
+    napi_create_uint32(env, winehua_display_focus_is_x11() ? winehua_display_focus_id() : TextInput::GetInstance()->FocusedToplevel(), &value);
     return value;
 }
 
@@ -759,7 +766,8 @@ static napi_value SendImeCommit(napi_env env, napi_callback_info info) {
     napi_get_value_string_utf8(env, args[0], nullptr, 0, &len);
     std::string text(len, '\0');
     napi_get_value_string_utf8(env, args[0], &text[0], len + 1, &len);
-    TextInput::GetInstance()->SendCommitString(text.c_str());
+    if (winehua_display_focus_is_x11()) wl_ohos_input_post_text(text.c_str());
+    else TextInput::GetInstance()->SendCommitString(text.c_str());
     return nullptr;
 }
 
@@ -775,7 +783,7 @@ static napi_value SendImePreedit(napi_env env, napi_callback_info info) {
     int32_t b = 0, e = 0;
     napi_get_value_int32(env, args[1], &b);
     napi_get_value_int32(env, args[2], &e);
-    TextInput::GetInstance()->SendPreeditString(text.c_str(), b, e);
+    if (!winehua_display_focus_is_x11()) TextInput::GetInstance()->SendPreeditString(text.c_str(), b, e);
     return nullptr;
 }
 
@@ -785,6 +793,11 @@ static napi_value ImeBackspace(napi_env env, napi_callback_info info) {
     (void)env;
     (void)info;
     constexpr uint32_t KEY_BACKSPACE = 14;
+    if (winehua_display_focus_is_x11()) {
+        wl_ohos_input_post_key(KEY_BACKSPACE, true);
+        wl_ohos_input_post_key(KEY_BACKSPACE, false);
+        return nullptr;
+    }
     auto* im = InputManager::GetInstance();
     im->InjectKeyboardKey(KEY_BACKSPACE, WL_KEYBOARD_KEY_STATE_PRESSED);
     im->InjectKeyboardKey(KEY_BACKSPACE, WL_KEYBOARD_KEY_STATE_RELEASED);
@@ -849,7 +862,8 @@ static napi_value SendToplevelClose(napi_env env, napi_callback_info info) {
     uint32_t id = 0;
     napi_get_value_uint32(env, args[0], &id);
     OH_LOG_INFO(LOG_APP, "[MW-NAPI] sendToplevelClose id=%{public}u", id);
-    WaylandServer::GetInstance()->SendToplevelClose(id);
+    if (x11_toplevel_owns(id)) x11_toplevel_close(id);
+    else WaylandServer::GetInstance()->SendToplevelClose(id);
     return nullptr;
 }
 
@@ -970,7 +984,8 @@ static napi_value SetPhoneMode(napi_env env, napi_callback_info info) {
 }
 
 static napi_value GetDesktopRootId(napi_env env, napi_callback_info) {
-    uint32_t id = WaylandServer::GetInstance()->GetDesktopRootToplevelId();
+    uint32_t id = winehua_x11_desktop_id();
+    if (!id) id = WaylandServer::GetInstance()->GetDesktopRootToplevelId();
     napi_value r;
     napi_create_uint32(env, id, &r);
     return r;
@@ -1009,7 +1024,11 @@ static napi_value SendPointerEvent(napi_env env, napi_callback_info info) {
                     "px=(%{public}.0f,%{public}.0f) raw=(%{public}.1f,%{public}.1f) fromMouse=%{public}d",
                     tl, action, button, px, py, rawDx, rawDy, fromMouse ? 1 : 0);
     }
-    InputManager::GetInstance()->SendPointerEvent(tl, action, px, py, button, rawDx, rawDy, fromMouse);
+    if (winehua_x11_external_pointer(tl, action, px, py, button, rawDx, rawDy, fromMouse)) return nullptr;
+    if (action == 1) winehua_display_focus_select(tl, winehua_x11_is_desktop(tl) || x11_toplevel_owns(tl));
+    if (winehua_x11_is_desktop(tl)) winehua_x11_canvas_pointer_raw(action, px, py, button, rawDx, rawDy);
+    else if (x11_toplevel_owns(tl)) wl_ohos_input_post_mm_pointer_raw(tl, px, py, action, button, rawDx, rawDy);
+    else InputManager::GetInstance()->SendPointerEvent(tl, action, px, py, button, rawDx, rawDy, fromMouse);
     return nullptr;
 }
 
@@ -1119,7 +1138,17 @@ static napi_value SendKeyEvent(napi_env env, napi_callback_info info) {
     napi_get_value_bool(env, args[2], &pressed);
     OH_LOG_INFO(LOG_APP, "[PIPE] key tl=%{public}u evdev=%{public}d down=%{public}s",
                 tl, evdevCode, pressed ? "true" : "false");
-    InputManager::GetInstance()->SendKeyEvent(tl, evdevCode, pressed);
+    if (winehua_x11_is_desktop(tl) || x11_toplevel_owns(tl)) {
+        const uint32_t focused = winehua_display_focus_id();
+        if (focused && !winehua_display_focus_is_x11()) {
+            InputManager::GetInstance()->SendKeyEvent(focused, evdevCode, pressed);
+            return nullptr;
+        }
+    }
+    winehua_display_focus_select(tl, winehua_x11_is_desktop(tl) || x11_toplevel_owns(tl));
+    if (winehua_x11_is_desktop(tl)) wl_ohos_input_post_key(evdevCode, pressed);
+    else if (x11_toplevel_owns(tl)) x11_toplevel_input_key(tl, evdevCode, pressed);
+    else InputManager::GetInstance()->SendKeyEvent(tl, evdevCode, pressed);
     return nullptr;
 }
 
@@ -1137,7 +1166,15 @@ static napi_value SendScrollEvent(napi_env env, napi_callback_info info) {
     napi_get_value_double(env, args[5], &py);
     OH_LOG_INFO(LOG_APP, "[PIPE] scroll tl=%{public}u axis=%{public}s val=%{public}.1f step=%{public}d px=(%{public}.0f,%{public}.0f)",
                 tl, axis == 0 ? "VERT" : "HORIZ", value, scrollStep, px, py);
-    InputManager::GetInstance()->SendScrollEvent(tl, axis, value, scrollStep, px, py);
+    if (winehua_x11_external_scroll(tl, axis, value, scrollStep, px, py)) return nullptr;
+    if (winehua_x11_is_desktop(tl)) {
+        winehua_x11_canvas_pointer(3, px, py, 0);
+        wl_ohos_input_post_axis_value(axis, value, scrollStep < 0);
+    } else if (x11_toplevel_owns(tl)) {
+        x11_toplevel_input_pointer(tl, px, py, 3, 0);
+        wl_ohos_input_post_axis_value(axis, value, scrollStep < 0);
+    }
+    else InputManager::GetInstance()->SendScrollEvent(tl, axis, value, scrollStep, px, py);
     return nullptr;
 }
 
@@ -1154,7 +1191,9 @@ static napi_value NotifyToplevelResize(napi_env env, napi_callback_info info) {
     if (argc >= 4) napi_get_value_bool(env, args[3], &resizing);
     OH_LOG_INFO(LOG_APP, "[NAPI] notifyToplevelResize tl=%{public}u %{public}dx%{public}d resize=%{public}s",
                 tl, w, h, resizing ? "yes" : "no");
-    InputManager::GetInstance()->RequestHostResize(tl, w, h, resizing);
+    if (winehua_x11_is_desktop(tl)) WineHua_DisplayRoute_Resize(w, h);
+    else if (x11_toplevel_owns(tl)) x11_toplevel_geometry_size(tl, w, h);
+    else InputManager::GetInstance()->RequestHostResize(tl, w, h, resizing);
     return nullptr;
 }
 
@@ -1168,7 +1207,7 @@ static napi_value NotifyToplevelResizeEnd(napi_env env, napi_callback_info info)
     uint32_t tl;
     napi_get_value_uint32(env, args[0], &tl);
     OH_LOG_INFO(LOG_APP, "[NAPI] notifyToplevelResizeEnd tl=%{public}u", tl);
-    InputManager::GetInstance()->RequestHostResize(tl, 0, 0, false);
+    if (!x11_toplevel_owns(tl)) InputManager::GetInstance()->RequestHostResize(tl, 0, 0, false);
     return nullptr;
 }
 
@@ -1194,8 +1233,10 @@ static napi_value BindExternalToplevel(napi_env env, napi_callback_info info) {
     for (size_t i = 0; valid && i < count; ++i)
         valid = napi_get_value_int32(env, args[i], &values[i]) == napi_ok;
     bool bound = valid && values[0] > 0 && values[1] > 0 && values[2] > 0 && values[3] > 0 &&
-        WaylandServer::GetInstance()->GetDesktopCompositor().BindExternalToplevel(
-            values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7]);
+        (winehua_x11_host_owns(values[1])
+            ? winehua_x11_bind_external(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7])
+            : WaylandServer::GetInstance()->GetDesktopCompositor().BindExternalToplevel(
+                values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7]));
     napi_get_boolean(env, bound, &result); return result;
 }
 
@@ -1226,8 +1267,10 @@ static napi_value IsExternalHostResizing(napi_env env, napi_callback_info info) 
 static napi_value UnbindExternalToplevel(napi_env env, napi_callback_info info) {
     size_t count = 1; napi_value args[1]; uint32_t id = 0;
     napi_get_cb_info(env, info, &count, args, nullptr, nullptr);
-    if (count == 1 && napi_get_value_uint32(env, args[0], &id) == napi_ok)
+    if (count == 1 && napi_get_value_uint32(env, args[0], &id) == napi_ok) {
+        winehua_x11_unbind_external(id);
         WaylandServer::GetInstance()->GetDesktopCompositor().UnbindExternalToplevel(id);
+    }
     return nullptr;
 }
 
@@ -1237,7 +1280,8 @@ static napi_value ActivateToplevel(napi_env env, napi_callback_info info) {
     uint32_t id = 0;
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc == 1 && napi_get_value_uint32(env, args[0], &id) == napi_ok)
-        InputManager::GetInstance()->RequestToplevelActivation(id);
+        if (x11_toplevel_owns(id)) { winehua_display_focus_select(id, true); x11_toplevel_control(id, 0, true); }
+        else InputManager::GetInstance()->RequestToplevelActivation(id);
     return nullptr;
 }
 
@@ -1285,7 +1329,7 @@ static napi_value SetToplevelVisible(napi_env env, napi_callback_info info) {
 static napi_value GetProcessList(napi_env env, napi_callback_info info) {
     auto snapshot = GetProcessListSnapshot();
     snapshot.erase(std::remove_if(snapshot.begin(), snapshot.end(),
-        [](const WineProcessEntry& entry) { return !entry.running; }), snapshot.end());
+        [](const WineProcessEntry& entry) { return !entry.running || entry.independentRuntime; }), snapshot.end());
 
     napi_value arr;
     napi_create_array_with_length(env, snapshot.size(), &arr);
@@ -1580,7 +1624,9 @@ static napi_value WineTextInputCommit(napi_env env, napi_callback_info info) {
         size_t len = 0;
         napi_get_value_string_utf8(env, args[0], text, sizeof(text), &len);
     }
-    const bool delivered = TextInput::GetInstance()->SendCommitString(text);
+    const bool x11 = winehua_display_focus_is_x11();
+    if (x11) wl_ohos_input_post_text(text);
+    const bool delivered = x11 || TextInput::GetInstance()->SendCommitString(text);
     napi_value result;
     napi_get_boolean(env, delivered, &result);
     return result;
@@ -1604,7 +1650,12 @@ static napi_value WineTextInputSetArmed(napi_env env, napi_callback_info info) {
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     bool armed = false;
     if (argc >= 1 && args[0] != nullptr) napi_get_value_bool(env, args[0], &armed);
+    xim_bridge_set_activation_callback([](int active, int x, int y, int w, int h, void*) {
+        if (winehua_display_focus_is_x11())
+            TextInput::GetInstance()->NotifyExternalActivated(active != 0, x, y, w, h);
+    }, nullptr);
     TextInput::GetInstance()->SetArmed(armed);
+    if (!armed) TextInput::GetInstance()->RearmActivation();
     return nullptr;
 }
 

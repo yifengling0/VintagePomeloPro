@@ -41,6 +41,8 @@ public:
     // 获取/初始化共享的 EGLDisplay (首次调用时初始化, 线程安全)
     static EGLDisplay GetSharedDisplay();
 
+    // Fixed before Init: render a GNU source into an X11 host without changing session policy.
+    void SetIsolatedToplevel(bool isolated) { isolatedToplevel_ = isolated; }
     bool Init(OHNativeWindow* window, int w, int h);
     void Shutdown();
 
@@ -85,6 +87,8 @@ public:
     uint32_t DirectPassCapabilities() const override;
 
 private:
+    bool RootCompositing() const;
+    bool isolatedToplevel_ = false;
     struct ZeroCopyConsumer;
     void RenderLoop();
     void VulkanRenderLoop();

@@ -608,7 +608,11 @@ Ability_NativeChildProcess_ErrCode Phone_StartNativeChildProcess(
         StartChildMain(e.substr(0, pos), e.substr(pos + 1), args, hs[1]);
     }
 
-    AddProcess(child, "@engine/native-child", -1, ProcessRegistration::ForkChild);
+    const bool independent = e.rfind("libsteamohos_gnu_child.so:", 0) == 0 ||
+        e.rfind("libxwayland_child.so:", 0) == 0 ||
+        e.rfind("libxim_server_child.so:", 0) == 0;
+    AddProcess(child, std::string(independent ? "@runtime/" : "@engine/") + e.substr(0, pos),
+        -1, ProcessRegistration::ForkChild);
     close(hs[1]);
     bool ok = ParentWaitHandshake(hs[0]);
     for (auto* p = args.fdList.head; p; p = p->next) close(p->fd);

@@ -14,6 +14,8 @@
 #define LOG_TAG "WL_TextInput"
 #include <hilog/log.h>
 
+extern "C" void winehua_display_focus_select(uint32_t, bool) __attribute__((weak));
+
 TextInput* TextInput::GetInstance() {
     static TextInput s;
     return &s;
@@ -66,6 +68,7 @@ void TextInput::Shutdown() {
         pipeReadFd_ = pipeWriteFd_ = -1;
         opQueue_.clear();
         retired.swap(entries_);
+        surfaceRects_.clear();
         for (const Entry& entry : retired) wasActivated |= entry.activated;
         global = global_;
         global_ = nullptr;
@@ -202,6 +205,8 @@ void TextInput::ti_set_cursor_rectangle(wl_client*, wl_resource* r,
             entry.cursorY = y;
             entry.cursorW = w;
             entry.cursorH = h;
+            if (entry.enteredSurface && w > 0 && h > 0)
+                self->surfaceRects_[entry.enteredSurface] = {x, y, w, h};
             // 文本框聚焦后 Wine 调 SetIMECompositionRect → 非零矩形。
             // enter 时 Wine 发 0,0,0,0 (占位); 非零即真文本框, 立即激活。
             if (self->armed_ && entry.enteredSurface && entry.enabled && w > 0 && h > 0 && !entry.activated) {
@@ -226,6 +231,13 @@ void TextInput::ti_commit(wl_client*, wl_resource* r) {
         for (Entry& entry : self->entries_) {
             if (entry.res == r) {
                 entry.commitCount++;
+                if (entry.enteredSurface && (entry.cursorW <= 0 || entry.cursorH <= 0)) {
+                    const auto memo = self->surfaceRects_.find(entry.enteredSurface);
+                    if (memo != self->surfaceRects_.end()) {
+                        entry.cursorX = memo->second.x; entry.cursorY = memo->second.y;
+                        entry.cursorW = memo->second.w; entry.cursorH = memo->second.h;
+                    }
+                }
                 // 激活判定 (对齐上游): enabled + 非零光标矩形。
                 if (self->armed_ && entry.enteredSurface && entry.enabled && entry.cursorW > 0 && entry.cursorH > 0 &&
                     !entry.activated) {
@@ -260,6 +272,7 @@ void TextInput::OnKeyboardEnter(uint32_t toplevelId, wl_resource* surface) {
                         toplevelId, surface);
             return;
         }
+        if (winehua_display_focus_select) winehua_display_focus_select(toplevelId, false);
         focusedToplevel_ = toplevelId;
         focusedSurface_ = surface;
         wl_client* client = wl_resource_get_client(surface);
@@ -345,6 +358,7 @@ void TextInput::OnSurfaceDestroyed(wl_resource* surface) {
     bool wasActivated = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        surfaceRects_.erase(surface);
         if (focusedSurface_ == surface) {
             OH_LOG_INFO(LOG_APP, "[TextInput] focus surface destroyed surface=%{public}p tl=%{public}u",
                         surface, focusedToplevel_);
@@ -504,6 +518,12 @@ void TextInput::SetArmed(bool armed) {
     if (EnqueueOpLocked(std::move(op))) requestedArmed_ = armed;
 }
 
+void TextInput::RearmActivation() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    Op op; op.type = OpType::Rearm;
+    EnqueueOpLocked(std::move(op));
+}
+
 void TextInput::FlushOps() {
     std::vector<Op> batch;
     {
@@ -514,6 +534,11 @@ void TextInput::FlushOps() {
 
     for (const Op& op : batch) {
         switch (op.type) {
+        case OpType::Rearm: {
+            std::lock_guard<std::mutex> lock(mutex_);
+            for (auto& entry : entries_) entry.activated = false;
+            break;
+        }
         case OpType::SetArmed: {
             struct SendAction {
                 bool enter;
@@ -645,4 +670,10 @@ void TextInput::ResetKeyboardFocus() {
         }
     }
     if (active) NotifyActivated(false);
+}
+
+void TextInput::NotifyExternalActivated(bool active, int x, int y, int w, int h) {
+    ActivateCb cb;
+    { std::lock_guard<std::mutex> lock(mutex_); cb = activateCb_; }
+    if (cb) cb(active, x, y, w, h);
 }

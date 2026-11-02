@@ -4,6 +4,7 @@
 #include "audio_bootstrap_relay.h"
 #include "phone_adapter/phone_adapter.h"
 #include "proc/wine_process.h"
+#include "compositor/wayland_server.h"
 #include "input/controller/controller_hub.h"
 #include "input/controller/gamepad_bridge.h"
 #include "input/game_controller_bridge.h"
@@ -102,6 +103,10 @@ struct ProbeInputActions {
 };
 void ExecuteGnu(napi_env, void* data) {
     auto& work = *static_cast<GnuWork*>(data);
+    struct SharedDisplayLease {
+        bool acquired = WaylandServer::GetInstance()->RetainExternalUser();
+        ~SharedDisplayLease() { if (acquired) WaylandServer::GetInstance()->ReleaseExternalUser(); }
+    } lease;
     work.json = "{\"schemaVersion\":1,\"status\":\"ncp_setup_failed\",\"gnuExecutionVerified\":false}";
     if (!work.forkBackend) {
         static const int registered = OH_Ability_RegisterNativeChildProcessExitCallback(Exited);

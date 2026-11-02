@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 /*
  * zwp_text_input_manager_v3 的 compositor 服务端。
@@ -30,6 +31,7 @@ public:
     // active=0 (失焦/leave) → 收起。
     using ActivateCb = std::function<void(bool active, int x, int y, int w, int h)>;
     void SetActivateCallback(ActivateCb cb);
+    void NotifyExternalActivated(bool active, int x, int y, int w, int h);
 
     // Register before dispatch starts; Shutdown after its thread has joined and
     // before clients/display are destroyed. Both are idempotent.
@@ -63,6 +65,7 @@ public:
     bool SendCommit(const char* utf8);
     bool SendDeleteSurrounding(uint32_t before, uint32_t after);
     void SetArmed(bool armed);
+    void RearmActivation();
 
     // -- 协议请求 (client -> server, Wayland 线程) --
     static void manager_bind(wl_client* client, void* data, uint32_t version, uint32_t id);
@@ -90,7 +93,7 @@ private:
         bool activated = false;
     };
 
-    enum class OpType { Preedit, Commit, DeleteSurrounding, Done, SetArmed };
+    enum class OpType { Preedit, Commit, DeleteSurrounding, Done, SetArmed, Rearm };
 
     struct Op {
         OpType type = OpType::Preedit;
@@ -125,6 +128,8 @@ private:
     ActivateCb activateCb_ = nullptr;
     mutable std::mutex mutex_;
     std::vector<Entry> entries_;
+    struct RectMemo { int32_t x, y, w, h; };
+    std::unordered_map<wl_resource*, RectMemo> surfaceRects_;
 
     std::mutex opMutex_;
     std::vector<Op> opQueue_;

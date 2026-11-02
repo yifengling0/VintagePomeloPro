@@ -67,6 +67,9 @@ private:
     // 每个 toplevel 一个独立 EGLContext 渲染器
     std::unordered_map<uint32_t, std::unique_ptr<EglRenderer>> toplevelRenderers_;
 
+    // X11 renderer ownership follows the XComponent surface incarnation too.
+    std::unordered_map<uint32_t, int64_t> x11Surfaces_;
+
     // Visibility can arrive before XComponent creates its renderer.
     std::unordered_map<uint32_t, bool> rendererPaused_;
 
