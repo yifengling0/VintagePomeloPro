@@ -47,6 +47,19 @@ bool NativePresentEnabled()
     return mode && !std::strcmp(mode, "native-buffer");
 }
 
+bool ConfigureWsiRequestTimeout(OHNativeWindow* window, uint64_t displayPeriodNs)
+{
+    // OHOS WSI maps NativeWindow NO_BUFFER to SURFACE_LOST, rather than a
+    // retryable Vulkan timeout. A zero native timeout therefore tears down a
+    // healthy queue under normal consumer backpressure (and invalidates its
+    // retained frames). Wait at most two refreshes, capped at 50 ms. This is
+    // queue waiting only; it neither copies pixels nor waits for GPU idle.
+    const uint64_t boundedPeriod = std::min<uint64_t>(displayPeriodNs, 25000000ULL);
+    const int32_t timeoutMs = static_cast<int32_t>(
+        std::max<uint64_t>(1, (boundedPeriod * 2 + 999999) / 1000000));
+    return OH_NativeWindow_NativeWindowHandleOpt(window, SET_TIMEOUT, timeoutMs) == 0;
+}
+
 bool AsyncReleaseEnabled()
 {
     const char* mode = std::getenv("WINEHUA_VENUS_PRESENT_MODE");
@@ -192,6 +205,7 @@ struct VenusSurfaceQueueTarget::Impl {
         lastSerial_ = 0;
         serialRegressions_ = 0;
         failures_ = 0;
+        acquireRebuilds_ = 0;
         throttled_ = 0;
         firstPresentedNs_ = 0;
         totalPresentUs_ = 0;
@@ -336,8 +350,24 @@ struct VenusSurfaceQueueTarget::Impl {
         const VkFormat sourceFormat = static_cast<VkFormat>(format);
         const VkImageLayout sourceLayout = static_cast<VkImageLayout>(layout);
         int initError = 0;
-        if (device_ && (contextId_ != contextId || device_ != hostDevice))
+        if (device_ && (contextId_ != contextId || device_ != hostDevice)) {
+            // Do not use a borrowed old device for the incoming image. Keep a
+            // bounded diagnostic and a retry deadline while its owner retires it.
+            const uint64_t mismatchNs = NowNs();
+            if (!lastDeviceMismatchLogNs_ ||
+                mismatchNs - lastDeviceMismatchLogNs_ >= 2000000000ULL) {
+                OH_LOG_WARN(LOG_APP,
+                    "[VENUS-PRESENT][NCP] source device mismatch key=%{public}llu "
+                    "old_ctx=%{public}u new_ctx=%{public}u old_device=%{public}p "
+                    "new_device=%{public}p native=%{public}d serial=%{public}u",
+                    static_cast<unsigned long long>(surfaceKey_), contextId_, contextId,
+                    device_, hostDevice, nativeReady_, serial);
+                lastDeviceMismatchLogNs_ = mismatchNs;
+            }
+            if (nextPresentDeadlineNs)
+                *nextPresentDeadlineNs = mismatchNs + displayPeriodNs_;
             return -EAGAIN;
+        }
         if (!EnsureVulkanLocked(contextId, hostInstance, hostPhysical, hostDevice,
                                 hostQueue, queueFamily, width, height,
                                 sourceFormat, initError)) {
@@ -358,8 +388,12 @@ struct VenusSurfaceQueueTarget::Impl {
         frame.submitted = false;
         TracePresentStage("source-fence-ready", serial, image);
         if (nativeReady_)
+        {
+            totalWaitFenceUs_ += waitFenceUs;
             return NativePresentLocked(frame, sourceImage, sourceLayout, serial,
-                                       nextPresentDeadlineNs, releaseQueue, queueSyncData);
+                                       nextPresentDeadlineNs, releaseQueue, queueSyncData,
+                                       presentStartNs);
+        }
 
 
         uint32_t imageIndex = 0;
@@ -390,6 +424,13 @@ struct VenusSurfaceQueueTarget::Impl {
         if (result == VK_ERROR_OUT_OF_DATE_KHR ||
             result == VK_ERROR_SURFACE_LOST_KHR ||
             result == VK_ERROR_UNKNOWN) {
+            ++acquireRebuilds_;
+            if (acquireRebuilds_ <= 5 || !(acquireRebuilds_ % 60))
+                OH_LOG_WARN(LOG_APP,
+                    "[VENUS-PRESENT][NCP] acquire target rebuild result=%{public}d "
+                    "serial=%{public}u count=%{public}llu",
+                    static_cast<int32_t>(result), serial,
+                    static_cast<unsigned long long>(acquireRebuilds_));
             swapchainDirty_ = true;
             return -EAGAIN;
         }
@@ -665,7 +706,9 @@ struct VenusSurfaceQueueTarget::Impl {
         if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
             return FailLocked("queue present", result, serial);
 
-        lastPresentNs_ = timestamp;
+        // Pace start-to-start: presentation work is part of the frame budget,
+        // not an extra delay before the next refresh interval.
+        lastPresentNs_ = presentStartNs;
         ++framesPresented_;
         if (lastSerial_ && serial <= lastSerial_) ++serialRegressions_;
         lastSerial_ = serial;
@@ -796,7 +839,8 @@ private:
     int NativePresentLocked(Frame& frame, VkImage sourceImage,
                             VkImageLayout sourceLayout, uint32_t serial,
                             uint64_t* nextPresentDeadlineNs,
-                            void (*releaseQueue)(void*), void* queueSyncData)
+                            void (*releaseQueue)(void*), void* queueSyncData,
+                            uint64_t frameStartNs)
     {
         const uint64_t started = NowNs();
         const auto fallback = [&](const char* reason, VkResult result = VK_SUCCESS) {
@@ -833,6 +877,7 @@ private:
         submit.pCommandBuffers = &frame.command;
         submit.signalSemaphoreCount = 1;
         submit.pSignalSemaphores = &frame.released;
+        const uint64_t submittedNs = NowNs();
         result = vkQueueSubmit(queue_, 1, &submit, frame.complete);
         if (result != VK_SUCCESS) return fallback("submit", result);
         frame.submitted = true;
@@ -843,12 +888,19 @@ private:
         if (result != VK_SUCCESS) return fallback("signal-release", result);
         const uint64_t timestamp = NowNs();
         if (vkDirect_.EndFrame(releaseFd, timestamp)) return fallback("flush-buffer");
-        lastPresentNs_ = timestamp;
+        // Keep the actual submission timestamp for the consumer, but include
+        // acquire/submit/flush work in this frame's pacing budget.
+        lastPresentNs_ = frameStartNs;
+        if (nextPresentDeadlineNs)
+            *nextPresentDeadlineNs = frameStartNs + framePeriodNs_;
         ++framesPresented_;
         if (lastSerial_ && serial <= lastSerial_) ++serialRegressions_;
         lastSerial_ = serial;
         const uint64_t ended = NowNs();
         const uint64_t elapsedUs = (ended - started) / 1000;
+        totalAcquireUs_ += vkDirect_.LastRequestUs();
+        totalSubmitUs_ += (timestamp - submittedNs) / 1000;
+        totalQueuePresentUs_ += vkDirect_.LastFlushUs();
         totalPresentUs_ += elapsedUs;
         maxPresentUs_ = std::max(maxPresentUs_, elapsedUs);
         if (!firstPresentedNs_) firstPresentedNs_ = ended;
@@ -859,12 +911,18 @@ private:
             OH_LOG_INFO(LOG_APP,
                 "[VENUS-PRESENT][NCP] transport=direct-native-buffer frames=%{public}llu "
                 "size=%{public}ux%{public}u fps=%{public}llu.%{public}02llu "
-                "present_us_avg=%{public}llu post_present_cpu_wait=0 slots=%{public}zu",
+                "present_us_avg=%{public}llu post_present_cpu_wait=0 slots=%{public}zu "
+                "request_us_avg=%{public}llu submit_release_us_avg=%{public}llu "
+                "flush_us_avg=%{public}llu wait_slot_us_avg=%{public}llu",
                 static_cast<unsigned long long>(framesPresented_), sourceWidth_, sourceHeight_,
                 static_cast<unsigned long long>(fps / 100),
                 static_cast<unsigned long long>(fps % 100),
                 static_cast<unsigned long long>(totalPresentUs_ / framesPresented_),
-                vkDirect_.ImportedSlotCount());
+                vkDirect_.ImportedSlotCount(),
+                static_cast<unsigned long long>(totalAcquireUs_ / framesPresented_),
+                static_cast<unsigned long long>(totalSubmitUs_ / framesPresented_),
+                static_cast<unsigned long long>(totalQueuePresentUs_ / framesPresented_),
+                static_cast<unsigned long long>(totalWaitFenceUs_ / framesPresented_));
         }
         return 0;
     }
@@ -1116,6 +1174,19 @@ private:
             sourceFormat_ == sourceFormat;
         if (nativeReady_ && sameSource && !nativeFailed_) return true;
         if (swapchain_ && sameSource && !swapchainDirty_) return true;
+        if (swapchain_ && (++sourceRebuilds_ <= 5 || !(sourceRebuilds_ % 60))) {
+            OH_LOG_WARN(LOG_APP,
+                "[VENUS-PRESENT][NCP] rebuild target key=%{public}llu "
+                "dirty=%{public}d same_source=%{public}d ctx=%{public}u/%{public}u "
+                "queue_changed=%{public}d family=%{public}u/%{public}u "
+                "size=%{public}ux%{public}u/%{public}ux%{public}u "
+                "format=%{public}u/%{public}u count=%{public}llu",
+                static_cast<unsigned long long>(surfaceKey_), swapchainDirty_, sameSource,
+                contextId_, contextId, queue_ != queue, queueFamily_, queueFamily,
+                sourceWidth_, sourceHeight_, width, height,
+                static_cast<uint32_t>(sourceFormat_), static_cast<uint32_t>(sourceFormat),
+                static_cast<unsigned long long>(sourceRebuilds_));
+        }
         if (nativeReady_ && device_ && queue_) {
             // Geometry/fallback only, never the per-frame successful path.
             const VkResult idle = vkQueueWaitIdle(queue_);
@@ -1177,7 +1248,10 @@ private:
             windowLease_.Get(), SET_USAGE,
             static_cast<uint64_t>(NATIVEBUFFER_USAGE_HW_RENDER |
                                   NATIVEBUFFER_USAGE_HW_TEXTURE));
-        OH_NativeWindow_NativeWindowHandleOpt(windowLease_.Get(), SET_TIMEOUT, 0);
+        if (!ConfigureWsiRequestTimeout(windowLease_.Get(), displayPeriodNs_)) {
+            error = -EIO;
+            return false;
+        }
 
         VkSurfaceCreateInfoOHOS surfaceInfo{VK_STRUCTURE_TYPE_SURFACE_CREATE_INFO_OHOS};
         surfaceInfo.window = windowLease_.Get();
@@ -1560,9 +1634,12 @@ private:
     bool canBlit_ = false;
     bool useBlit_ = false;
     bool swapchainDirty_ = false;
+    uint64_t sourceRebuilds_ = 0;
     uint64_t displayPeriodNs_ = kDefaultFramePeriodNs;
     uint64_t framePeriodNs_ = kDefaultFramePeriodNs;
     uint64_t lastPresentNs_ = 0;
+    uint64_t lastDeviceMismatchLogNs_ = 0;
+    uint64_t acquireRebuilds_ = 0;
     uint64_t framesPresented_ = 0;
     uint32_t lastSerial_ = 0;
     uint64_t serialRegressions_ = 0;

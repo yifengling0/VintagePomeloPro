@@ -39,7 +39,8 @@ const char* NativeWindowVkBeginResultName(NativeWindowVkBeginResult) {return "be
 #define LOG_APP 0
 std::string events; int fail=0, aborted=0, closed=0, destroyed=0, abandoned=0; bool pending=false;
 uint64_t clockNs=100000000;
-uint64_t NowNs(){return clockNs+=1000;}
+uint64_t clockStepNs=1000;
+uint64_t NowNs(){return clockNs+=clockStepNs;}
 uint64_t NowUs(){return NowNs()/1000;}
 void CloseFd(int* fd){if(*fd>=0)++closed; *fd=-1;}
 struct Region {void* rects; int rectNumber;};
@@ -58,6 +59,7 @@ struct NativeWindowVkTarget {
  uintptr_t ColorImage(){return 10;} int ColorFormat(){return 37;}
  int SignalRelease(int,unsigned,const uintptr_t*,int* fd){events+='S';if(fail==6)return -1;*fd=77;return 0;}
  size_t ImportedSlotCount(){return 1;}
+ uint64_t LastRequestUs(){return 0;}uint64_t LastFlushUs(){return lastFlushUs_;}
  void Abandon(){++abandoned;current_=nullptr;}
  // END_FRAME
 };
@@ -65,8 +67,9 @@ struct Harness {
  struct Frame{uintptr_t command=1,acquired=2,released=3,complete=4;bool submitted=false;};
  NativeWindowVkTarget vkDirect_; bool nativeFailed_=false; int device_=1,queue_=2;
  unsigned sourceWidth_=800,sourceHeight_=600,lastSerial_=0;
- uint64_t displayPeriodNs_=16666667,lastPresentNs_=0,framesPresented_=0,serialRegressions_=0;
+ uint64_t displayPeriodNs_=16666667,framePeriodNs_=8333333,lastPresentNs_=0,framesPresented_=0,serialRegressions_=0;
  uint64_t throttled_=0,totalPresentUs_=0,maxPresentUs_=0,firstPresentedNs_=0;
+ uint64_t totalAcquireUs_=0,totalSubmitUs_=0,totalQueuePresentUs_=0,totalWaitFenceUs_=0;
  bool deviceReleasing_=true,surfaceAttached_=true;uint64_t surfaceKey_=123;
  bool MatchesDeviceLocked(uint32_t context,uintptr_t device){return context==1&&device==1;}
  void DestroyVulkanLocked(){assert(!pending);++destroyed;}
@@ -81,12 +84,20 @@ void unlock(void*){events+='U';}
 void reset(int which){fail=which;events.clear();pending=false;aborted=closed=destroyed=abandoned=0;}
 int main(){
  {reset(0);Harness h;Harness::Frame f;uint64_t deadline=0;
-  assert(h.NativePresentLocked(f,99,1,1,&deadline,unlock,nullptr)==0);
+  assert(h.NativePresentLocked(f,99,1,1,&deadline,unlock,nullptr,12345)==0);
   assert(events=="ACRQSUF"&&f.submitted&&pending&&!h.nativeFailed_);
   assert(h.vkDirect_.current_==nullptr&&aborted==0&&h.framesPresented_==1);}
+ // Nonzero acquire/submit/flush work belongs to the current frame budget.
+ for(uint64_t workStep : {1000ULL,1000000ULL,5000000ULL}) {
+  reset(0);Harness h;Harness::Frame f;uint64_t deadline=0;
+  clockStepNs=workStep;const uint64_t start=clockNs;
+  assert(h.NativePresentLocked(f,99,1,2,&deadline,unlock,nullptr,start)==0);
+  assert(h.lastPresentNs_==start&&deadline==start+h.framePeriodNs_);
+  assert(h.totalPresentUs_>0);clockStepNs=1000;
+ }
  for(int which=1;which<=9;++which){
   reset(which);Harness h;Harness::Frame f;uint64_t deadline=0;
-  int result=h.NativePresentLocked(f,99,1,1,&deadline,unlock,nullptr);
+  int result=h.NativePresentLocked(f,99,1,1,&deadline,unlock,nullptr,12345);
   if(which==8){assert(result==1&&deadline&&h.throttled_==1&&!h.nativeFailed_);continue;}
   assert(result==-EAGAIN&&h.nativeFailed_&&h.framesPresented_==0);
   assert(aborted==0); // No buffer returned while a failed submission may still own it.
@@ -110,6 +121,22 @@ code=code.replace("// END_FRAME",end)
 code=code.replace("// PRESENT",method(present,"    int NativePresentLocked("))
 code=code.replace("// RELEASE",method(present,"    bool FinishDeviceRelease("))
 code=code.replace("#include <cstdio>","#include <cstdio>\n#include <mutex>")
+code=code.replace("struct Harness {", r"""
+using OHNativeWindow=int;
+int wsiTimeout=0,wsiResult=0,wsiCalls=0;
+int OH_NativeWindow_NativeWindowHandleOpt(OHNativeWindow* window,int option,int32_t value) {
+ assert(window&&option==SET_TIMEOUT);wsiTimeout=value;++wsiCalls;return wsiResult;
+}
+""".replace("using OHNativeWindow=int;", "using OHNativeWindow=int;\nconstexpr int SET_TIMEOUT=2;")
+ +method(present,"bool ConfigureWsiRequestTimeout(")+"\nstruct Harness {")
+code=code.replace("int main(){", r"""int main(){
+ OHNativeWindow window=1;
+ for(auto sample : std::vector<std::pair<uint64_t,int>>{
+     {8333333,17},{16666667,34},{33333333,50},{0,1},{UINT64_MAX,50}}) {
+  assert(ConfigureWsiRequestTimeout(&window,sample.first));assert(wsiTimeout==sample.second);
+ }
+ wsiResult=-1;assert(!ConfigureWsiRequestTimeout(&window,8333333));assert(wsiCalls==6);
+""")
 with tempfile.TemporaryDirectory(prefix="vp-venus-native-") as tmp:
     path=Path(tmp)/"test.cpp"
     path.write_text(code)
