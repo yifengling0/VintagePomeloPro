@@ -123,7 +123,9 @@ WLR_RESTACK_PATCH="$SCRIPT_DIR/patches/wlroots-ohos-xwm-restack-event.patch"
 # 与宿主 DiagFlagFile 同一个 (.wine/drive_c/scene-damage-diag, 1s 缓存),
 # 关闭近零开销, 可常驻。
 WLR_DIAG_PATCH="$SCRIPT_DIR/patches/wlroots-scene-damage-diag.patch"
-WLR_PATCH_SIG=$(cat "$WLR_PATCH" "$WLR_SHM_PATCH" "$WLR_GLES2_PATCH" "$WLR_XWM_PATCH" "$WLR_RESTACK_PATCH" "$WLR_DIAG_PATCH" "$WLR_CHILD_IDENTITY_PATCH" | sha256sum | cut -d' ' -f1)
+WLR_VISIBLE_PATCH="$SCRIPT_DIR/patches/wlroots-ohos-gpu-visible-region.patch"
+WLR_CSD_PATCH="$SCRIPT_DIR/patches/wlroots-ohos-client-decorations.patch"
+WLR_PATCH_SIG=$(cat "$WLR_PATCH" "$WLR_SHM_PATCH" "$WLR_GLES2_PATCH" "$WLR_XWM_PATCH" "$WLR_RESTACK_PATCH" "$WLR_DIAG_PATCH" "$WLR_CHILD_IDENTITY_PATCH" "$WLR_VISIBLE_PATCH" "$WLR_CSD_PATCH" | sha256sum | cut -d' ' -f1)
 
 if [ -f "$OUT_LIB" ] && [ -f "$OUT_INC/wlr/backend.h" ] \
    && [ "$(cat "$HOST_EXT_LIB/.wlroots_patch_sig" 2>/dev/null)" = "$WLR_PATCH_SIG" ]; then
@@ -141,7 +143,7 @@ else
     # Unknown local edits are rejected before mutation; never reset shared source.
     python3 "$SCRIPT_DIR/apply_managed_display_overlays.py" --source "$WLR_SRC" --scratch "$BUILD_DIR" \
         "$WLR_PATCH" "$WLR_SHM_PATCH" "$WLR_GLES2_PATCH" "$WLR_XWM_PATCH" \
-        "$WLR_RESTACK_PATCH" "$WLR_DIAG_PATCH" "$WLR_CHILD_IDENTITY_PATCH"
+        "$WLR_RESTACK_PATCH" "$WLR_DIAG_PATCH" "$WLR_CHILD_IDENTITY_PATCH" "$WLR_VISIBLE_PATCH" "$WLR_CSD_PATCH"
     # 源级断言 (D25-B): sentinel 命中会把「树里是旧补丁」误判为已应用,
     # 新 hunks 静默丢失 —— apply 后核对插桩代码里的旗标路径串 (存在性,
     # 非精确计数: 注释+代码可多处命中, 实测 wlr_scene.c=2 surface.c=1)

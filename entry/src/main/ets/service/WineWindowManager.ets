@@ -25,6 +25,13 @@ const TAG = 'WineWM';
 const DESKTOP_SESSION_ID = 'desktop';
 export type SessionAssociationCallback = (sessionId: string, clientPid: number, toplevelId: number) => void;
 
+class RequestedHostGeometry {
+  x: number = 0;
+  y: number = 0;
+  w: number = 1;
+  h: number = 1;
+}
+
 class HostResizeState {
   width: number = 0;
   height: number = 0;
@@ -35,6 +42,10 @@ class HostResizeState {
 export class WineWindowManager {
   private static instance: WineWindowManager | null = null;
   private hostResizes: Map<number, HostResizeState> = new Map();
+  private requestedGeometry: Map<number, RequestedHostGeometry> = new Map();
+  private applyingGeometry: Set<number> = new Set();
+  private foregroundAbilities: Set<number> = new Set();
+  private restoringAbilities: Map<number, Promise<void>> = new Map();
   private windowStage: window.WindowStage | null = null;
   private mainWindow: window.Window | null = null;
   private uiAbilityContext: common.UIAbilityContext | null = null;
@@ -542,6 +553,7 @@ export class WineWindowManager {
     FusionWindowManager.getInstance().destroy(toplevelId);
     this.moveGrabPending.delete(toplevelId);
     this.clearPointerLockFor(toplevelId);
+    this.foregroundAbilities.delete(toplevelId);
     this.abilityContexts.delete(toplevelId);
     this.windows.delete(toplevelId);
     this.windowStages.delete(toplevelId);
@@ -620,11 +632,16 @@ export class WineWindowManager {
     if (!win) return false;
     InputDispatcher.getInstance().releaseAll('host-task-switch');
     try {
-      await win.showWindow();
-      if (!current()) return false;
-      // raiseToAppTop is for Pad subwindows; PC main windows use showWindow.
-      if (this.fusionUsesSubWindow()) await win.raiseToAppTop();
-      if (!current()) return false;
+      if (this.fusionUsesSubWindow()) {
+        await win.showWindow();
+        if (!current()) return false;
+        await win.raiseToAppTop();
+      } else {
+        // Window.restore() requires its Ability to be foreground. startAbility
+        // reuses the specified instance instead of creating a second window.
+        await this.foregroundWineWindow(task.toplevelId, win);
+      }
+      if (!current() || this.windows.get(task.toplevelId) !== win || this.destroyed.has(task.toplevelId)) return false;
       this.raiseWindowGroup(task.toplevelId);
       const target = HostWindowTasks.getInstance().focusTarget(task.toplevelId);
       if (target !== task.toplevelId) testNapi.activateToplevel(task.toplevelId);
@@ -635,6 +652,29 @@ export class WineWindowManager {
     } catch (error) {
       hilog.warn(DOMAIN, TAG, '[TASK] restore failed tl=%{public}d: %{public}s', task.toplevelId, JSON.stringify(error));
       return false;
+    }
+  }
+
+  noteAbilityForeground(id: number, foreground: boolean): void {
+    if (foreground && !this.destroyed.has(id)) this.foregroundAbilities.add(id);
+    else this.foregroundAbilities.delete(id);
+  }
+
+  private async foregroundWineWindow(id: number, win: window.Window): Promise<void> {
+    if (this.windows.get(id) !== win || this.destroyed.has(id)) return;
+    const pending = this.restoringAbilities.get(id);
+    if (pending) return pending;
+    const context = this.uiAbilityContext;
+    if (!context || !this.abilityContexts.has(id)) throw new Error('Wine window Ability is unavailable');
+    const request = context.startAbility({
+      bundleName: 'com.vintage.pomelopro', moduleName: 'entry', abilityName: 'WineWindowAbility',
+      parameters: { toplevelId: id, restoreWineWindow: true }
+    });
+    this.restoringAbilities.set(id, request);
+    try {
+      await request;
+    } finally {
+      if (this.restoringAbilities.get(id) === request) this.restoringAbilities.delete(id);
     }
   }
 
@@ -969,6 +1009,7 @@ export class WineWindowManager {
         break;
       case 'title':
       case 'resize':
+      case 'geometry':
         if (this.isDesktopMode && id !== this.desktopRootId) return;
         if (this.windows.has(id)) {
           hilog.info(DOMAIN, TAG, '[MW] -> applyEvent directly #%{public}d %{public}s', id, event);
@@ -1068,6 +1109,33 @@ export class WineWindowManager {
     }
   }
 
+  // One in-flight native operation, one latest request per live host. Dragging
+  // must not enqueue an unbounded chain or move a replacement window after await.
+  private async applyRequestedGeometry(id: number, win: window.Window): Promise<void> {
+    if (this.applyingGeometry.has(id)) return;
+    this.applyingGeometry.add(id);
+    try {
+      while (this.windows.get(id) === win && !this.destroyed.has(id)) {
+        const request = this.requestedGeometry.get(id);
+        if (!request) break;
+        this.requestedGeometry.delete(id);
+        const scale = this.getEffectiveScale();
+        const w = Math.max(1, Math.round(request.w * scale));
+        const h = Math.max(1, Math.round(request.h * scale));
+        const rect = win.getGlobalRect();
+        if (rect.width !== w || rect.height !== h) await win.resize(w, h);
+        if (this.windows.get(id) !== win || this.destroyed.has(id)) break;
+        const x = Math.round(request.x * scale), y = Math.round(request.y * scale);
+        if (rect.left !== x || rect.top !== y) await win.moveWindowToGlobal(x, y);
+      }
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, '[MW] requested geometry #%{public}d: %{public}s', id, JSON.stringify(err));
+    } finally {
+      this.requestedGeometry.delete(id);
+      this.applyingGeometry.delete(id);
+    }
+  }
+
   // -- apply 单个事件到 window.Window --
   private applyEvent(toplevelId: number, event: string, data: string): void {
     const win = this.windows.get(toplevelId);
@@ -1118,6 +1186,18 @@ export class WineWindowManager {
           }
         } catch (e) {
           hilog.warn(DOMAIN, TAG, '[MW] applyEvent title parse error: %{public}s', JSON.stringify(e));
+        }
+        break;
+      case 'geometry':
+        try {
+          const obj: Record<string, number> = JSON.parse(data) as Record<string, number>;
+          if (![obj.x, obj.y, obj.w, obj.h].every((v: number) => Number.isFinite(v)) || obj.w <= 0 || obj.h <= 0) break;
+          const request = new RequestedHostGeometry();
+          request.x = obj.x; request.y = obj.y; request.w = obj.w; request.h = obj.h;
+          this.requestedGeometry.set(toplevelId, request);
+          this.applyRequestedGeometry(toplevelId, win);
+        } catch (err) {
+          hilog.warn(DOMAIN, TAG, '[MW] geometry parse failed: %{public}s', JSON.stringify(err));
         }
         break;
       case 'resize':
@@ -1185,7 +1265,8 @@ export class WineWindowManager {
         break;
       case 'restored':
         hilog.info(DOMAIN, TAG, '[MW] showWindow #%{public}d', toplevelId);
-        win.showWindow().catch((e: Error) => {
+        if (this.foregroundAbilities.has(toplevelId)) break;
+        this.foregroundWineWindow(toplevelId, win).catch((e: Error) => {
           hilog.warn(DOMAIN, TAG, '[MW] showWindow #%{public}d failed: %{public}s', toplevelId, JSON.stringify(e));
         });
         break;
@@ -1250,7 +1331,7 @@ export class WineWindowManager {
     }
   }
 
-  // -- startAbility 启动 multiton 实例 (Pad 多窗口模式经 startFusionSubWindow 分叉) --
+  // -- startAbility 启动 specified 实例 (Pad 多窗口模式经 startFusionSubWindow 分叉) --
   private startWineWindowAbility(id: number, data: string): void {
     if (this.modalToplevelIds.has(id)) {
       hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: modal, skip Ability', id);

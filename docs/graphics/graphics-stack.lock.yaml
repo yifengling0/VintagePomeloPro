@@ -322,6 +322,18 @@
       {
         "path": "patches/wine/0074-x11-child-window-identity.patch",
         "sha256": "2b44588189dbc45e89795c569ce6a6bdcde95580cfd212530db8bbbad403bfb2"
+      },
+      {
+        "path": "patches/wine/0075-x11-thread-cleanup-diagnostics.patch",
+        "sha256": "57b4cb7eb59fb97a83432a6bc76fed4827cd6e7e852af6e57d808d385cf58815"
+      },
+      {
+        "path": "patches/wine/0076-x11-egl-default-visual.patch",
+        "sha256": "94fb38c3c6d7e74259a7940db05f54a7497c095fbc24181ccc7d2674575db093"
+      },
+      {
+        "path": "patches/wine/0077-x11-ohos-client-decorations.patch",
+        "sha256": "71a41de6527749cb547a92e40ff313a89b405cab1ade01aa0617f9ac33416762"
       }
     ],
     "virglrenderer": [
@@ -534,12 +546,24 @@
       {
         "path": "scripts/patches/wlroots-ohos-child-identity.patch",
         "sha256": "62fe30a6aa4a29b235ec639bc09f7639033f79cae055aa8162a6ee8f736e91ba"
+      },
+      {
+        "path": "scripts/patches/wlroots-ohos-gpu-visible-region.patch",
+        "sha256": "1cb6c1d1611265e11fac0077e9de876f0d4e52d344fd6e0e8753aec39f197ea9"
+      },
+      {
+        "path": "scripts/patches/wlroots-ohos-client-decorations.patch",
+        "sha256": "d15515e2cc33ff83164b5f2203ca9a0e41597ee3674a14cf2f9b9e7ac777e350"
       }
     ],
     "xserver": [
       {
         "path": "scripts/patches/xserver-xwayland-ohos-ncp.patch",
         "sha256": "a4694b2d671710a9615f475bbba567d9eef48ed9052edc78dba670072334299f"
+      },
+      {
+        "path": "scripts/patches/xserver-ohos-gpu-visible-region.patch",
+        "sha256": "9415483d21e434f7b933861e36ea7baaff6389df8ce3b00d13b3ab0272d18c6a"
       }
     ]
   },
@@ -576,7 +600,7 @@
       "dlls/win32u/opengl.c": "1787688407d96c8cbee48cfe0327b0be32f7ce46050e220c83cade298e7d28ec",
       "dlls/win32u/vulkan.c": "91f53506a3b581f53ffde7672b5f6ae1d1db71189a3be62d916af9c47184d611",
       "dlls/win32u/win32u_private.h": "49ceaca0721fc28a9ea98242209a92d4c42dd8a496d40aba3ceffc09be765797",
-      "dlls/win32u/window.c": "3ca89ad5bb03f2cb4b0727604a163e2ae6bb38b4e41d6db538ff3ae5c2b629f5",
+      "dlls/win32u/window.c": "b5bb628f3837a8db7507637ee477de15bc592a023f5a99df8be60f8c6771449e",
       "dlls/win32u/winstation.c": "5e188f7244499c155891f9054b1b2736606d4d541c1470861f84f864bdc76d13",
       "dlls/winebus.sys/bus_ohos.c": "04b538467b003d4dabbdc0620313a82e7eebd065807207bf0c690044627b2691",
       "dlls/winebus.sys/winehua_gamepad_protocol.h": "e4912c72659029ab5d60209d607e352dfab20c1f363ecf1d3d12e82c1940eb96",
@@ -614,11 +638,11 @@
       "dlls/winex11.drv/Makefile.in": "bc88815812285be06d61706288ccb5174332ff4a2f2fcfb636620b7e3b0bd70c",
       "dlls/winex11.drv/mouse.c": "88f2cfb578626a2689e09db88025d7558495b66b28efab52f12b4726758148e8",
       "dlls/winex11.drv/opengl.c": "3cdb5d04d693a348f2960c4ca6f922a59dd2b8c678f770241405cad0985dfd3f",
-      "dlls/winex11.drv/opengl_winehua.c": "b487d845d2640af01c3265289f022e061986dbda75e40edd0921100c9e364c82",
+      "dlls/winex11.drv/opengl_winehua.c": "7b6db8d8a2592a69a8d97cfe30a5bada8179aef625052a4fc94dab73ce04c4c7",
       "dlls/winex11.drv/vulkan.c": "328af6f05f3d2a7d2e496635c7f11adca7f150a063e859ded16a285241637c37",
-      "dlls/winex11.drv/window.c": "e74315be88f4a3d908cf5c602140b0dda5972e2bc065db0803b1aa06b42844de",
+      "dlls/winex11.drv/window.c": "b540fdc09206b4f5ed7dc0b1a4bf88ce81491a6248483476a5fa2f232039ff1b",
       "dlls/winex11.drv/x11drv.h": "2235ba387fb9a2732c7c8e897678eada910a003c134bb844e1726714b33a4955",
-      "dlls/winex11.drv/x11drv_main.c": "0cddc79898d3d1776fe3167b152c3a7a085ae96fdc3cb5e0f6d92501fbaf64a0",
+      "dlls/winex11.drv/x11drv_main.c": "b8771b96bf199758870d1738cf90d64885477e57342b7b45d783f6e7d72b5591",
       "include/Makefile.in": "9a83adcb193b2468741682355b9e5916bf8c760dd7b6330edd0f22440505f969",
       "include/wine/winehua_present.h": "5d793ac345bfb7a2b00010525c90166b9e0079322c9084f67042b148dd78d862",
       "include/wine/winehua_vulkan.h": "dbd825300c13664db7f26e8e4f39e0702e5449160ff15d2e814c61f8c62135a1"
@@ -649,11 +673,11 @@
       "scripts/build_display_libs.sh": "1ea02d0b70801411249e4acff2abf1582b4ec264d1244a81685c6beda828b754",
       "scripts/build_xcb_stack.sh": "75cde0e965168a45e09ec77b02b2aacc50757831f0cc1169ad741c7983938715",
       "scripts/build_x11_client.sh": "3ec15a46f32e6a3856573532008213ddcda6fdb23f64e53db06bbf1047e9537d",
-      "scripts/build_wlroots.sh": "836fb1355e047b982e4ea465cd7d63ece9f3f20d583095509b68d4e2c9b7b49c",
-      "scripts/build_xwayland.sh": "f0a5611dad36b705596cb306e679194666ec151670eec109cfa88b20463e4d50",
+      "scripts/build_wlroots.sh": "87b0f2ba5be46bfce78ffc57366cd853cbe5fb123b743f4aa7bed4c32889d33a",
+      "scripts/build_xwayland.sh": "520fc57cf717714309b2f29b5241d21f21b948641415fdfe39b4238b073477be",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "4ae756889fc7b2301173489274ba4a493470cec1d34c5c14a870fc7a8b844f13",
+      "scripts/build_wine.sh": "e719c600e5f6ed4b1f1e221b34677115b9ee9cf2771e8a131df7e9f06d67d38e",
       "scripts/env.sh": "011a97a8f96fc9d89f971ca6e8880843694be80cde43379277fdfe60a9eb8634",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }

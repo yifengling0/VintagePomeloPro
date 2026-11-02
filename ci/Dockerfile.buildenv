@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y \
         xz-utils \
         libexpat1-dev libxml2-dev libffi-dev \
         libfreetype-dev \
+        libpixman-1-dev libdrm-dev libwayland-dev \
         gcc-mingw-w64-i686 g++-mingw-w64-i686 \
         gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
         mingw-w64-tools \

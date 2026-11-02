@@ -43,7 +43,8 @@ for engine,rows in lock['managed_patches'].items():
             order=re.search(r'WLR_PATCH_SIG=\$\(cat (.*?) \| sha256sum',script)[1]
             actual=['scripts/'+assignments[var] for var in re.findall(r'"\$(\w+)"',order)]
         else:
-            actual=['scripts/'+assignments['XS_PATCH']]
+            order=re.search(r'XS_PATCH_SIG=\$\(cat (.*?) \| sha256sum',script)[1]
+            actual=['scripts/'+assignments[var] for var in re.findall(r'"\$(\w+)"',order)]
         check(actual==names,engine+' overlay order/registration')
     else:
         check(sorted(str(x.relative_to(R)) for x in (R/'patches'/engine).glob('*.patch'))==names,engine+' overlay inventory')

@@ -20,7 +20,8 @@ SYSTEM = frozenset(('libc.so', 'libm.so', 'libdl.so', 'libEGL.so', 'libGLESv2.so
     'libGLESv3.so', 'libvulkan.so', 'libace_napi.z.so', 'libace_ndk.z.so',
     'libhilog_ndk.z.so', 'libchild_process.so', 'libipc_capi.so', 'libohaudio.so',
     'libnative_window.so', 'libnative_image.so', 'libnative_buffer.so',
-    'libnative_vsync.so', 'libnative_window_manager.so', 'libohhidebug.so'))
+    'libnative_vsync.so', 'libnative_window_manager.so', 'libohhidebug.so',
+    'libdeviceinfo_ndk.z.so'))
 DATA = ('xkb/rules/evdev', 'xkb/symbols/us', 'xkb/types/complete', 'xkm/server-0.xkm',
     'share/X11/locale/C/XLC_LOCALE', 'share/X11/locale/zh_CN.UTF-8/XLC_LOCALE')
 

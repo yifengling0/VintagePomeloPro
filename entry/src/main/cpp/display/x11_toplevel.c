@@ -23,8 +23,10 @@
 #include <wlr/types/wlr_buffer.h> /* wlr_client_buffer 完整定义 (surface->buffer) */
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/xwayland/xwayland.h>
+#include <wlr/util/edges.h>
 
 #include "ohos_buffer.h"
+#include "ohos_egl_import.h"
 #include "display_input.h" /* Task 5: multimode pointer/key 路由口 */
 
 /* C++ 桥 (x11_toplevel_bridge.cpp): 事件投递单点。evt 值 = ToplevelEventType
@@ -34,6 +36,9 @@ void x11_toplevel_bridge_post_created(uint32_t id, int32_t w, int32_t h,
 void x11_toplevel_bridge_post_title(uint32_t id, const char *title);
 void x11_toplevel_bridge_post_resize(uint32_t id, int32_t w, int32_t h);
 void x11_toplevel_bridge_post_destroyed(uint32_t id);
+void x11_toplevel_bridge_post_move(uint32_t id, bool moving);
+void x11_toplevel_bridge_post_geometry(uint32_t id, int x, int y, int w, int h);
+void x11_toplevel_bridge_post_maximized(uint32_t id, bool maximized);
 /* M4b-T1: 状态面 (bus 既有枚举; activated 复用 Restored, 见
  * handle_request_activate 注释) */
 void x11_toplevel_bridge_post_minimized(uint32_t id, bool minimized);
@@ -117,6 +122,12 @@ struct x11_xs_entry {
     struct wl_listener dissociate; /* surface 解绑: 摘 surface_commit */
     struct wl_listener set_title;
     struct wl_listener request_configure;
+    struct wl_listener request_move, request_resize, request_maximize;
+    bool pointer_left_down, move_pending;
+    uint32_t resize_edges;
+    int pointer_x, pointer_y;
+    int resize_pointer_x, resize_pointer_y;
+    struct wlr_box resize_start, resize_last;
     struct wl_listener surface_commit; /* xs->surface->events.commit → dirty */
     /* M4b-T1: 状态面 (minimize/fullscreen/activate/parent 直译 bus 既有
      * 枚举, 不做策略) */
@@ -246,6 +257,9 @@ static void detach_listeners(struct x11_xs_entry *e)
     wl_list_remove(&e->dissociate.link);
     wl_list_remove(&e->set_title.link);
     wl_list_remove(&e->request_configure.link);
+    wl_list_remove(&e->request_move.link);
+    wl_list_remove(&e->request_resize.link);
+    wl_list_remove(&e->request_maximize.link);
     wl_list_remove(&e->surface_commit.link);
     wl_list_remove(&e->request_minimize.link);
     wl_list_remove(&e->request_fullscreen.link);
@@ -262,6 +276,9 @@ static void detach_listeners(struct x11_xs_entry *e)
                                         * 重置, 维持「全空链自引」不变量 */
     wl_list_init(&e->set_title.link);
     wl_list_init(&e->request_configure.link);
+    wl_list_init(&e->request_move.link);
+    wl_list_init(&e->request_resize.link);
+    wl_list_init(&e->request_maximize.link);
     wl_list_init(&e->surface_commit.link);
     wl_list_init(&e->request_minimize.link);
     wl_list_init(&e->request_fullscreen.link);
@@ -545,12 +562,15 @@ static void handle_associate(struct wl_listener *listener, void *data)
     pthread_mutex_unlock(&g_lock);
 }
 
+static void EndInteraction(struct x11_xs_entry *e);
+
 static void handle_dissociate(struct wl_listener *listener, void *data)
 {
     struct x11_xs_entry *e =
         wl_container_of(listener, e, dissociate);
     (void)data;
     pthread_mutex_lock(&g_lock);
+    EndInteraction(e);
     wl_list_remove(&e->surface_commit.link);
     wl_list_init(&e->surface_commit.link);
     /* popup: X unmap 对 OR 窗 = dissociate (无 withdrawn 路径) → popup_hide
@@ -572,6 +592,102 @@ static void handle_set_title(struct wl_listener *listener, void *data)
     }
     x11_toplevel_bridge_post_title(e->toplevelId,
                                    e->xs->title ? e->xs->title : "");
+    pthread_mutex_unlock(&g_lock);
+}
+
+/* CSD requests arrive on the XWM loop. Never create a grab from a late
+ * request after release, an unmapped window, or an override-redirect popup. */
+static bool CanInteract(const struct x11_xs_entry *e)
+{
+    return !e->dead && e->createdPosted && !e->is_popup && e->win &&
+        e->xs && e->xs->surface && !e->xs->minimized && !e->xs->fullscreen &&
+        e->pointer_left_down;
+}
+
+static void EndInteraction(struct x11_xs_entry *e)
+{
+    if (e->move_pending) x11_toplevel_bridge_post_move(e->toplevelId, false);
+    e->pointer_left_down = e->move_pending = false;
+    e->resize_edges = 0;
+}
+
+static void handle_request_move(struct wl_listener *listener, void *data)
+{
+    struct x11_xs_entry *e = wl_container_of(listener, e, request_move);
+    (void)data;
+    pthread_mutex_lock(&g_lock);
+    if (CanInteract(e) && !e->move_pending && !e->resize_edges) {
+        e->move_pending = true;
+        x11_toplevel_bridge_post_move(e->toplevelId, true);
+    }
+    pthread_mutex_unlock(&g_lock);
+}
+
+static bool ValidResizeEdges(uint32_t edges)
+{
+    const uint32_t all = WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+    return edges && !(edges & ~all) &&
+        (edges & (WLR_EDGE_TOP | WLR_EDGE_BOTTOM)) != (WLR_EDGE_TOP | WLR_EDGE_BOTTOM) &&
+        (edges & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) != (WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+}
+
+static void handle_request_resize(struct wl_listener *listener, void *data)
+{
+    struct x11_xs_entry *e = wl_container_of(listener, e, request_resize);
+    const struct wlr_xwayland_resize_event *ev = data;
+    pthread_mutex_lock(&g_lock);
+    if (ev && ev->surface == e->xs && ValidResizeEdges(ev->edges) && CanInteract(e) &&
+        !e->move_pending && !e->resize_edges) {
+        e->resize_edges = ev->edges;
+        e->resize_start = e->resize_last = (struct wlr_box){e->xs->x, e->xs->y, e->xs->width, e->xs->height};
+        e->resize_pointer_x = e->xs->x + e->pointer_x;
+        e->resize_pointer_y = e->xs->y + e->pointer_y;
+    }
+    pthread_mutex_unlock(&g_lock);
+}
+
+static struct wlr_box ResizeBounds(const struct x11_xs_entry *e, int gx, int gy)
+{
+    const struct wlr_box *s = &e->resize_start;
+    const int64_t dx = (int64_t)gx - e->resize_pointer_x;
+    const int64_t dy = (int64_t)gy - e->resize_pointer_y;
+    int64_t w = s->width, h = s->height;
+    if (e->resize_edges & WLR_EDGE_LEFT) w -= dx;
+    if (e->resize_edges & WLR_EDGE_RIGHT) w += dx;
+    if (e->resize_edges & WLR_EDGE_TOP) h -= dy;
+    if (e->resize_edges & WLR_EDGE_BOTTOM) h += dy;
+    int min_w = 1, min_h = 1, max_w = 32767, max_h = 32767;
+    if (e->xs->size_hints) {
+        const xcb_size_hints_t *hints = e->xs->size_hints;
+        if (hints->flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE) {
+            min_w = hints->min_width > 0 && hints->min_width < max_w ? hints->min_width : 1;
+            min_h = hints->min_height > 0 && hints->min_height < max_h ? hints->min_height : 1;
+        }
+        if (hints->flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) {
+            if (hints->max_width >= min_w && hints->max_width < max_w) max_w = hints->max_width;
+            if (hints->max_height >= min_h && hints->max_height < max_h) max_h = hints->max_height;
+        }
+    }
+    w = w < min_w ? min_w : w > max_w ? max_w : w;
+    h = h < min_h ? min_h : h > max_h ? max_h : h;
+    int64_t x = (e->resize_edges & WLR_EDGE_LEFT) ? (int64_t)s->x + s->width - w : s->x;
+    int64_t y = (e->resize_edges & WLR_EDGE_TOP) ? (int64_t)s->y + s->height - h : s->y;
+    x = x < -32768 ? -32768 : x > 32767 ? 32767 : x;
+    y = y < -32768 ? -32768 : y > 32767 ? 32767 : y;
+    return (struct wlr_box){(int)x, (int)y, (int)w, (int)h};
+}
+
+static void handle_request_maximize(struct wl_listener *listener, void *data)
+{
+    struct x11_xs_entry *e = wl_container_of(listener, e, request_maximize);
+    (void)data;
+    pthread_mutex_lock(&g_lock);
+    if (!e->dead && e->createdPosted && e->xs) {
+        EndInteraction(e);
+        const bool max = e->xs->maximized_horz && e->xs->maximized_vert;
+        wlr_xwayland_surface_set_maximized(e->xs, max, max);
+        x11_toplevel_bridge_post_maximized(e->toplevelId, max);
+    }
     pthread_mutex_unlock(&g_lock);
 }
 
@@ -825,6 +941,9 @@ void x11_toplevel_notify_new_surface(struct wlr_xwayland_surface *xs)
     wl_list_init(&e->dissociate.link);
     wl_list_init(&e->set_title.link);
     wl_list_init(&e->request_configure.link);
+    wl_list_init(&e->request_move.link);
+    wl_list_init(&e->request_resize.link);
+    wl_list_init(&e->request_maximize.link);
     wl_list_init(&e->surface_commit.link);
     wl_list_init(&e->request_minimize.link);
     wl_list_init(&e->request_fullscreen.link);
@@ -858,6 +977,12 @@ void x11_toplevel_notify_new_surface(struct wlr_xwayland_surface *xs)
     wl_signal_add(&xs->events.set_title, &e->set_title);
     e->request_configure.notify = handle_request_configure;
     wl_signal_add(&xs->events.request_configure, &e->request_configure);
+    e->request_move.notify = handle_request_move;
+    wl_signal_add(&xs->events.request_move, &e->request_move);
+    e->request_resize.notify = handle_request_resize;
+    wl_signal_add(&xs->events.request_resize, &e->request_resize);
+    e->request_maximize.notify = handle_request_maximize;
+    wl_signal_add(&xs->events.request_maximize, &e->request_maximize);
     e->request_minimize.notify = handle_request_minimize;
     wl_signal_add(&xs->events.request_minimize, &e->request_minimize);
     e->request_fullscreen.notify = handle_request_fullscreen;
@@ -1136,10 +1261,39 @@ static void mm_restack_target(struct wlr_xwayland_surface *xs,
 void x11_toplevel_input_pointer_dispatch(uint32_t toplevelId, int px, int py,
                                          int action, uint32_t button)
 {
+    /* Complete release even outside the client bounds. During resize the
+     * pointer can leave the old rectangle; dropping those events strands a grab.
+     * The host remains geometry authority: configure only after its rect event. */
+    pthread_mutex_lock(&g_lock);
+    struct x11_xs_entry *e = entry_of_id(toplevelId);
+    bool resized = false;
+    if (e && e->xs && e->win_w > 2 && e->win_h > 2) {
+        e->pointer_x = (int)((int64_t)px * e->xs->width / e->win_w);
+        e->pointer_y = (int)((int64_t)py * e->xs->height / e->win_h);
+        if (action == 1 && button == 0x110) {
+            EndInteraction(e);
+            e->pointer_left_down = true;
+        }
+        if (e->resize_edges && (action == 3 || action == 2)) {
+            const struct wlr_box b = ResizeBounds(e, e->xs->x + e->pointer_x, e->xs->y + e->pointer_y);
+            if (memcmp(&b, &e->resize_last, sizeof(b))) {
+                e->resize_last = b;
+                x11_toplevel_bridge_post_geometry(toplevelId, b.x, b.y, b.width, b.height);
+            }
+            resized = action == 3;
+        }
+        if (action == 2) EndInteraction(e);
+    }
+    pthread_mutex_unlock(&g_lock);
+    if (resized) return;
     struct wlr_xwayland_surface *xs;
     double lx, ly;
-    if (!mm_resolve_local(toplevelId, px, py, &xs, &lx, &ly))
+    if (!mm_resolve_local(toplevelId, px, py, &xs, &lx, &ly)) {
+        /* Release still needs to reach XWayland's seat outside the surface. */
+        if (action == 2 && e && e->xs)
+            wl_ohos_input_multimode_pointer(e->xs, e->pointer_x, e->pointer_y, action, button);
         return;
+    }
     /* 模态阻断 (任务 #167): 被禁用 owner 的点击照发 (wine 自丢弃), 但不做
      * X restack —— click-to-raise 是 WM 动作, 对模态禁用窗不生效 (Windows
      * 语义: 点击禁用 owner 无任何效果)。 */
@@ -1277,6 +1431,26 @@ void x11_toplevel_geometry_move(uint32_t toplevelId, int x, int y)
  * 路径)。 */
 /* 返回 false = 本帧没画出去 (M8: 调用方保留 dirty 下一帧重试)。
  * nocb (client 提前释放 buffer) 不算失败 —— 窗口内容已亡, 无帧可画。 */
+static bool GuestDestination(const struct x11_xs_entry *e, int width, int height,
+                             struct wlr_box *box)
+{
+    const uint32_t *f = e->xs->winehua_frame_extents;
+    int cw = (int)e->xs->width - (int)f[0] - (int)f[1];
+    int ch = (int)e->xs->height - (int)f[2] - (int)f[3];
+    if (cw <= 0 || ch <= 0 || width <= 0 || height <= 0) return false;
+    int x = (int)f[0] + e->guestX, y = (int)f[2] + e->guestY;
+    int w = e->guestW > 0 ? e->guestW : cw;
+    int h = e->guestH > 0 ? e->guestH : ch;
+    if (x < 0 || y < 0 || x > (int)e->xs->width || y > (int)e->xs->height ||
+        w > (int)e->xs->width - x || h > (int)e->xs->height - y) return false;
+    *box = (struct wlr_box){
+        .x = (int)((int64_t)x * width / e->xs->width),
+        .y = (int)((int64_t)y * height / e->xs->height),
+        .width = (int)((int64_t)w * width / e->xs->width),
+        .height = (int)((int64_t)h * height / e->xs->height)};
+    return box->width > 0 && box->height > 0;
+}
+
 static bool render_entry(struct x11_xs_entry *e)
 {
     if (!g_renderer) return true;
@@ -1309,6 +1483,12 @@ static bool render_entry(struct x11_xs_entry *e)
         return false;
     }
 
+    struct wlr_box guest_box;
+    if (e->guestFrame && !GuestDestination(e, dst->width, dst->height, &guest_box)) {
+        wl_ohos_present_buffer_abort(dst);
+        return false;
+    }
+
     struct wlr_render_pass *pass =
         wlr_renderer_begin_buffer_pass(g_renderer, dst, NULL);
     if (!pass) {
@@ -1331,17 +1511,16 @@ static bool render_entry(struct x11_xs_entry *e)
      * 即 NORMAL, 不变。 */
     if (e->guestFrame && e->guestFlip)
         opts.transform = WL_OUTPUT_TRANSFORM_FLIPPED_180;
-    if (e->guestFrame && e->guestW > 0 && e->guestH > 0) {
+    if (e->guestFrame) {
         if (cb && cb->texture) {
             struct wlr_render_texture_options base = opts;
             base.texture = cb->texture;
             base.transform = WL_OUTPUT_TRANSFORM_NORMAL;
             wlr_render_pass_add_texture(pass, &base);
         }
-        opts.dst_box.x = (int64_t)e->guestX * dst->width / e->xs->width;
-        opts.dst_box.y = (int64_t)e->guestY * dst->height / e->xs->height;
-        opts.dst_box.width = (int64_t)e->guestW * dst->width / e->xs->width;
-        opts.dst_box.height = (int64_t)e->guestH * dst->height / e->xs->height;
+        /* The GPU drawable covers the client area, never Wine's GDI frame.
+         * Explicit sub-drawables are relative to that same client origin. */
+        opts.dst_box = guest_box;
     }
     wlr_render_pass_add_texture(pass, &opts);
 
@@ -1351,7 +1530,8 @@ static bool render_entry(struct x11_xs_entry *e)
         return false;
     }
 
-    int32_t rc = wl_ohos_present_buffer_present(dst, -1);
+    int32_t rc = wl_ohos_present_buffer_present(dst,
+        wl_ohos_egl_export_release_fence());
     if (rc != 0) {
         /* 未归还的 buffer 销毁时才兜底 abort (只留日志), 显式归还防槽位泄漏 */
         if (!wl_ohos_present_buffer_returned(dst))
@@ -1404,6 +1584,24 @@ int x11_toplevel_guest_generation(uint32_t xwindow, uint64_t *generation)
     if (generation) *generation = e->generation;
     pthread_mutex_unlock(&g_lock);
     return 1;
+}
+
+void x11_toplevel_clear_guest_frame(uint32_t xwindow, uint64_t generation)
+{
+    pthread_mutex_lock(&g_lock);
+    struct x11_xs_entry *e = entry_of_window(xwindow);
+    if (e && (!generation || e->generation == generation)) {
+        if (e->guestTexture) {
+            wlr_texture_destroy(e->guestTexture);
+            e->guestTexture = NULL;
+        }
+        if (e->guestFrame) {
+            wlr_buffer_unlock(e->guestFrame);
+            e->guestFrame = NULL;
+        }
+        e->dirty = true;
+    }
+    pthread_mutex_unlock(&g_lock);
 }
 
 /* MW-GPU: fusion 承载窗挂 guest 零拷贝帧 (display_guest_frames 的 PullFrame

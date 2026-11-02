@@ -228,6 +228,10 @@ jobs:
              [ ! -f /usr/include/X11/Xlib.h ]; then
             packages+=(libwayland-dev libxcb1-dev libx11-dev)
           fi
+          # Real wlroots buffer/addon lifecycle regression uses native headers.
+          if ! pkg-config --exists pixman-1 libdrm; then
+            packages+=(libpixman-1-dev libdrm-dev)
+          fi
           if [ ! -f /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml ]; then
             packages+=(wayland-protocols)
           fi

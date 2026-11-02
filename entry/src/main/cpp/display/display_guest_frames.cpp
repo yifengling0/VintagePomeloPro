@@ -94,9 +94,7 @@ uint64_t NowNs()
  * 退订要在面销毁前完成 (宿主拿到的是这个面的生产窗)。 */
 void DropBinding(Binding &b, const char *reason)
 {
-    uint64_t generation = 0;
-    if (wl_ohos_output_client_xwindow_generation(b.surfaceId, &generation) && generation == b.generation)
-        wl_ohos_output_client_frame_clear(b.surfaceId);
+    wl_ohos_output_client_frame_retire(b.surfaceId, b.generation);
     if (b.surfaceKey)
     {
         /* ready 先撤再退订 (与 wayland 侧 zc_bridge 的次序一致): guest 下一拍
@@ -187,6 +185,13 @@ void TryAttach(const ZeroCopySurfaceInfo &s)
                     "[GUEST-FRAMES] consumer surface create failed key=%{public}llu "
                     "xwin=%{public}u",
                     static_cast<unsigned long long>(b.surfaceKey), b.surfaceId);
+        return;
+    }
+    // Frames are drained on VSync. Register a no-op notification rather than
+    // leaving SurfaceImage to log a missing listener for every producer frame.
+    OH_OnFrameAvailableListener listener{nullptr, [](void *) {}};
+    if (OH_NativeImage_SetOnFrameAvailableListener(b.image, listener) != 0) {
+        OH_NativeImage_Destroy(&b.image);
         return;
     }
     /* 尺寸/用途以宿主报的源尺寸为准, 缺失时退窗几何 (0 会被拒) */
@@ -379,15 +384,9 @@ extern "C" void display_guest_frames_tick(void)
     }
 
     LogStats(nowNs);
-    /* D23: 子窗 face 生命周期巡检 (2s 档与 LogStats 同门) —— 虚拟桌面的
-     * GL/dxvk 窗口销毁后, 节点没有 DestroyFrameNode 那样的显式销毁路径,
-     * 只能靠这里按查询失败回收 (鬼影 + 队列槽位泄漏的同一防线)。 */
-    static uint64_t lastSweepNs = 0;
-    if (nowNs - lastSweepNs >= 2000ull * 1000 * 1000)
-    {
-        lastSweepNs = nowNs;
-        wl_ohos_output_child_faces_sweep();
-    }
+    // Cached X geometry must advance even when a game pauses presentation in
+    // Wine's modal move/resize loop. Also retires destroyed/reused identities.
+    wl_ohos_output_child_faces_sweep();
 }
 
 extern "C" void display_guest_frames_shutdown(void)

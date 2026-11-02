@@ -69,8 +69,9 @@ struct WlOhosBuffer *BufferFromBase(struct wlr_buffer *base)
 void BufferDestroy(struct wlr_buffer *wlr_buf)
 {
     WlOhosBuffer *buf = BufferFromBase(wlr_buf);
-    /* 顺序要紧: 包装先于底层 buffer 释放 (包装持 OH_NativeBuffer 引用);
-     * 调用方 (gles2 buffer addon) 已在本步之前销毁 EGLImage。 */
+    /* wlroots delegates finalization to producers. Destroy renderer addons
+     * (EGLImage/texture/FBO) while their NativeBuffer backing is still alive. */
+    wlr_buffer_finish(wlr_buf);
     if (buf->window_buffer)
     {
         OH_NativeWindow_DestroyNativeWindowBuffer(buf->window_buffer);
@@ -250,6 +251,7 @@ void PresentUnmap(WlOhosPresentBuffer *buf)
 void PresentDestroy(struct wlr_buffer *wlr_buf)
 {
     WlOhosPresentBuffer *buf = PresentFromBase(wlr_buf);
+    wlr_buffer_finish(wlr_buf);
     PresentUnmap(buf);
     /* 未归还就销毁 = 调用方漏了 present/abort, 槽位会永久留在 dequeued
      * (泄漏几次 RequestBuffer 即饿死): 兜底归还并留证。
@@ -347,50 +349,45 @@ struct WlOhosConsumerBuffer *ConsumerFromBase(struct wlr_buffer *base)
 /* 队列归还 + 自持引用释放。Acquire 出来的 buffer 由本模块持一次引用
  * (native_image.h:281 契约: 用毕须 NativeObjectUnreference), 归还队列本身
  * 不退引用 —— 引用退在销毁时, 保证归还后到销毁前对象不会被队列回收。 */
-void ConsumerReleaseQueueSlot(WlOhosConsumerBuffer *buf, int fence_fd, bool logDrop)
+int32_t ConsumerReleaseQueueSlot(WlOhosConsumerBuffer *buf, int fence_fd)
 {
-    if (buf->returned)
-        return;
-    /* 不变量检查 (known-issues §2.6): 这格交出去之后, 有没有发生过
-     *   presented = 上过屏 (scene 渲染采样过它) —— 用 present 序号比对;
-     *   synced    = 发生过 GPU 同步 (glFinish 自增的计数动了)。
-     * 上屏过却没有同步点 = 安全性依赖的那条不变量破了 (有人拿掉了 present
-     * 路径的 glFinish, 或改了归还时机), 必须叫。两者都没有 = 这格没被采样
-     * 过就归还, 合法。 */
+    if (buf->returned) {
+        if (fence_fd >= 0) close(fence_fd);
+        return -1;
+    }
+    // Scene and per-window renderers release their reference after the last
+    // sampling command, but EGL swap does not imply GPU completion. Export a
+    // fence from that context before letting the producer reuse the slot.
+    if (buf->handoff_valid && fence_fd < 0)
+        fence_fd = wl_ohos_egl_export_release_fence();
     if (buf->handoff_valid) {
         const uint32_t now_seq = wl_ohos_output_present_seq();
         const uint64_t now_sync = wl_ohos_egl_sync_count();
         const bool presented = now_seq != buf->handoff_present_seq;
-        const bool synced = now_sync != buf->handoff_sync_count;
+        const bool synced = fence_fd >= 0 || now_sync != buf->handoff_sync_count;
         ++g_relTotal;
         if (synced)
             ++g_relSynced;
         else if (presented) {
             ++g_relViolations;
             if (g_relViolations <= 5u)
-                wlr_log(WLR_ERROR,
-                        "guest frame 不变量破损: 已上屏但交付后无 GPU 同步 "
-                        "(present %u→%u sync %llu→%llu) —— present 路径的 "
-                        "glFinish 是否还在?",
-                        buf->handoff_present_seq, now_seq,
-                        (unsigned long long)buf->handoff_sync_count,
-                        (unsigned long long)now_sync);
+                wlr_log(WLR_ERROR, "guest frame released without GPU completion");
         } else {
             ++g_relUnrendered;
         }
     }
-    if (logDrop)
-        wlr_log(WLR_ERROR, "ohos guest frame dropped without release, releasing");
-    if (buf->image && buf->window_buffer)
-        OH_NativeImage_ReleaseNativeWindowBuffer(buf->image, buf->window_buffer,
-                                                 fence_fd);
+    const int32_t rc = OH_NativeImage_ReleaseNativeWindowBuffer(
+        buf->image, buf->window_buffer, fence_fd); // SDK consumes fd, including errors.
     buf->returned = true;
+    if (rc != 0) wlr_log(WLR_ERROR, "guest frame queue release failed rc=%d", rc);
+    return rc;
 }
 
 void ConsumerDestroy(struct wlr_buffer *wlr_buf)
 {
     WlOhosConsumerBuffer *buf = ConsumerFromBase(wlr_buf);
-    ConsumerReleaseQueueSlot(buf, -1, true);
+    wlr_buffer_finish(wlr_buf);
+    ConsumerReleaseQueueSlot(buf, -1);
     if (buf->window_buffer)
         OH_NativeWindow_NativeObjectUnreference(buf->window_buffer);
     free(buf);
@@ -721,8 +718,16 @@ extern "C" struct wlr_buffer *wl_ohos_consumer_buffer_acquire(struct OH_NativeIm
             close(fence);
         return nullptr;
     }
-    /* 同步 fence 不往下传 (EGL_NATIVE_BUFFER_OHOS 导入由系统图形栈在首次使用
-     * 时消费 buffer 自带 fence, T4 输出侧同口径), 但必须关掉 —— SDK 契约。 */
+    if (!wl_ohos_egl_wait_acquire_fence(fence))
+    {
+        /* Not safe to sample. Preserve the previous displayed frame and return
+         * producer completion to the queue instead of reusing unfinished data. */
+        OH_NativeImage_ReleaseNativeWindowBuffer(image, wb, fence);
+        static uint32_t failed_waits;
+        if (++failed_waits <= 5u)
+            wlr_log(WLR_ERROR, "guest frame acquire fence wait failed; frame discarded");
+        return nullptr;
+    }
     if (fence >= 0)
         close(fence);
     /* SDK 契约 (native_image.h:281): Acquire 出的 OHNativeWindowBuffer 要自持
@@ -767,10 +772,7 @@ extern "C" int32_t wl_ohos_consumer_buffer_release(struct wlr_buffer *buffer, in
     WlOhosConsumerBuffer *buf = ConsumerFromBase(buffer);
     if (buf->returned)
         return -1;
-    const int32_t rc = OH_NativeImage_ReleaseNativeWindowBuffer(
-        buf->image, buf->window_buffer, fence_fd);
-    buf->returned = true;
-    return rc;
+    return ConsumerReleaseQueueSlot(buf, fence_fd);
 }
 
 extern "C" void wl_ohos_consumer_buffer_drop(struct wlr_buffer *buffer)

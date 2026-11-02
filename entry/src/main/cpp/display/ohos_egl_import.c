@@ -39,6 +39,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <unistd.h>
 
 #define WLR_USE_UNSTABLE
 #include <wlr/interfaces/wlr_buffer.h>
@@ -76,6 +79,16 @@ static struct wlr_renderer *g_renderer;
 static uint64_t g_eglSyncCount;
 static PFN_eglCreateImageKHR_ g_create_image;
 
+/* Native buffers already contain guest pixels or a completed scene. Import
+ * them as preserved images, as in the existing Direct/GLES presenters. EGL's
+ * default does not require the source contents to survive image creation. */
+static EGLImageKHR ImportNativeBufferPreserved(OHNativeWindowBuffer *buffer)
+{
+    const EGLint attributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    return g_create_image(g_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_OHOS,
+                          (EGLClientBuffer)buffer, attributes);
+}
+
 /* 导入器: wlr_buffer → EGLImage。谢绝 = 返回 false (wlroots 回落其它路径;
  * 渲染目标路径上没有其它路径, 该帧丢弃)。 */
 static bool ImportBufferImage(struct wlr_egl *egl, struct wlr_buffer *buffer,
@@ -106,9 +119,7 @@ static bool ImportBufferImage(struct wlr_egl *egl, struct wlr_buffer *buffer,
         return false;
     }
 
-    EGLImageKHR image = g_create_image(g_display, EGL_NO_CONTEXT,
-                                       EGL_NATIVE_BUFFER_OHOS,
-                                       (EGLClientBuffer)window_buffer, NULL);
+    EGLImageKHR image = ImportNativeBufferPreserved(window_buffer);
     if (image == EGL_NO_IMAGE_KHR)
     {
         static uint32_t failed;
@@ -457,8 +468,7 @@ bool wl_ohos_egl_present_probe(struct NativeWindow *window,
             PresentVerdict(marker_path, "fail:no-payload");
             goto out_abort;
         }
-        image = g_create_image(g_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_OHOS,
-                               (EGLClientBuffer)payload, NULL);
+        image = ImportNativeBufferPreserved(payload);
         if (image == EGL_NO_IMAGE_KHR)
         {
             P_ERR("eglCreateImageKHR(队列 buffer) 失败 eglErr=0x%{public}x "
@@ -658,6 +668,102 @@ void wl_ohos_egl_finish(void)
     ++g_eglSyncCount;
 }
 
+/* Acquire returns an explicit producer fence. Importing the NativeBuffer as
+ * an EGLImage does not enqueue that fence in the compositor command stream.
+ * Borrow the original FD so a failed wait can return it to the native queue. */
+bool wl_ohos_egl_wait_acquire_fence(int fd)
+{
+    if (fd < 0) return true;
+    bool queued = false;
+    if (g_renderer) {
+        EGLDisplay previous_display = eglGetCurrentDisplay();
+        EGLContext previous_context = eglGetCurrentContext();
+        EGLSurface previous_draw = eglGetCurrentSurface(EGL_DRAW);
+        EGLSurface previous_read = eglGetCurrentSurface(EGL_READ);
+        bool changed = previous_display != g_display || previous_context != g_context;
+        bool current = !changed ||
+            eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, g_context);
+        if (current) {
+            PFNEGLCREATESYNCKHRPROC create_sync =
+                (PFNEGLCREATESYNCKHRPROC)eglGetProcAddress("eglCreateSyncKHR");
+            PFNEGLDESTROYSYNCKHRPROC destroy_sync =
+                (PFNEGLDESTROYSYNCKHRPROC)eglGetProcAddress("eglDestroySyncKHR");
+            PFNEGLWAITSYNCKHRPROC wait_sync =
+                (PFNEGLWAITSYNCKHRPROC)eglGetProcAddress("eglWaitSyncKHR");
+            if (create_sync && destroy_sync && wait_sync) {
+                int imported_fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+                if (imported_fd >= 0) {
+                    const EGLint attrs[] = {
+                        EGL_SYNC_NATIVE_FENCE_FD_ANDROID, imported_fd, EGL_NONE};
+                    EGLSyncKHR sync = create_sync(g_display, EGL_SYNC_NATIVE_FENCE_ANDROID, attrs);
+                    if (sync != EGL_NO_SYNC_KHR) {
+                        // EGL owns the duplicate after successful import.
+                        queued = wait_sync(g_display, sync, 0) == EGL_TRUE;
+                        destroy_sync(g_display, sync);
+                    } else {
+                        close(imported_fd);
+                    }
+                }
+            }
+            if (changed && !eglMakeCurrent(
+                    previous_display != EGL_NO_DISPLAY ? previous_display : g_display,
+                    previous_draw, previous_read, previous_context))
+                TAG_ERR("acquire fence: previous EGL context restore failed");
+        }
+    }
+    if (queued) {
+        static bool logged;
+        if (!logged) { TAG_INFO("native acquire fence: GPU wait active"); logged = true; }
+        return true;
+    }
+    // Unsupported/failing fence import: bounded synchronization, never sample
+    // an unfinished frame or turn the fallback into a per-frame global finish.
+    struct pollfd pending = {.fd = fd, .events = POLLIN, .revents = 0};
+    int ready = poll(&pending, 1, 50);
+    return ready == 1 && (pending.revents & POLLIN) &&
+           !(pending.revents & (POLLERR | POLLNVAL));
+}
+
+/* Export completion for the compositor context, even when wlroots has
+ * unbound it after render_pass_submit. The queue owns the returned fd.
+ * Fence failures retain the old synchronous safety path, never a CPU copy. */
+int wl_ohos_egl_export_release_fence(void)
+{
+    if (!g_renderer) return -1;
+    EGLDisplay previous_display = eglGetCurrentDisplay();
+    EGLContext previous_context = eglGetCurrentContext();
+    EGLSurface previous_draw = eglGetCurrentSurface(EGL_DRAW);
+    EGLSurface previous_read = eglGetCurrentSurface(EGL_READ);
+    bool changed = previous_display != g_display || previous_context != g_context;
+    if (changed && !eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, g_context)) {
+        TAG_ERR("release fence: compositor context unavailable");
+        return -1;
+    }
+    PFNEGLCREATESYNCKHRPROC create_sync =
+        (PFNEGLCREATESYNCKHRPROC)eglGetProcAddress("eglCreateSyncKHR");
+    PFNEGLDESTROYSYNCKHRPROC destroy_sync =
+        (PFNEGLDESTROYSYNCKHRPROC)eglGetProcAddress("eglDestroySyncKHR");
+    PFNEGLDUPNATIVEFENCEFDANDROIDPROC dup_fence =
+        (PFNEGLDUPNATIVEFENCEFDANDROIDPROC)eglGetProcAddress("eglDupNativeFenceFDANDROID");
+    int fd = -1;
+    if (create_sync && destroy_sync && dup_fence) {
+        EGLSyncKHR sync = create_sync(g_display, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+        if (sync != EGL_NO_SYNC_KHR) {
+            glFlush();
+            fd = dup_fence(g_display, sync);
+            destroy_sync(g_display, sync);
+        }
+    }
+    if (fd < 0) {
+        glFinish();
+        ++g_eglSyncCount;
+    }
+    if (changed && !eglMakeCurrent(previous_display != EGL_NO_DISPLAY ? previous_display : g_display,
+                                  previous_draw, previous_read, previous_context))
+        TAG_ERR("release fence: previous EGL context restore failed");
+    return fd;
+}
+
 uint64_t wl_ohos_egl_sync_count(void)
 {
     return g_eglSyncCount;
@@ -706,6 +812,17 @@ bool wl_ohos_egl_canvas_size(int *w, int *h)
     return true;
 }
 
+/* Unlike explicit RequestBuffer callers, EGL acquires its default draw
+ * buffer lazily inside GL commands. A zero queue timeout turns ordinary
+ * compositor backpressure into GL_OUT_OF_MEMORY/EGL_BAD_ALLOC on OHOS.
+ * Allow two refresh intervals, always bounded for the shared event loop. */
+static int32_t CanvasBufferWaitMs(uint64_t period_ns)
+{
+    if (period_ns >= 25000000ull) return 50;
+    uint64_t ms = (period_ns * 2 + 999999ull) / 1000000ull;
+    return ms ? (int32_t)ms : 1;
+}
+
 bool wl_ohos_egl_window_surface_create(struct NativeWindow *window)
 {
     if (g_display == EGL_NO_DISPLAY || g_context == EGL_NO_CONTEXT)
@@ -736,7 +853,13 @@ bool wl_ohos_egl_window_surface_create(struct NativeWindow *window)
                 eglGetError());
         return false;
     }
-    TAG_INFO("canvas EGL window surface created");
+    const int32_t wait_ms = CanvasBufferWaitMs(wl_ohos_output_frame_period_ns());
+    const int32_t wait_rc = OH_NativeWindow_NativeWindowHandleOpt(
+        (OHNativeWindow *)window, SET_TIMEOUT, wait_ms);
+    if (wait_rc != 0)
+        TAG_ERR("canvas buffer wait setup failed rc=%{public}d", wait_rc);
+    TAG_INFO("canvas EGL window surface created buffer_wait_ms=%{public}d rc=%{public}d",
+             wait_ms, wait_rc);
     return true;
 }
 
@@ -813,6 +936,75 @@ static GLuint WindowBlitProgram(void)
     return p;
 }
 
+/* Errors belong to a GL command stream, not to the next function that asks
+ * for them. Drain the preceding pass separately so it cannot turn a valid
+ * NativeBuffer import into a false failure. Limit work and log volume. */
+static GLenum WindowPresentGlErrors(const char *stage)
+{
+    GLenum first = GL_NO_ERROR;
+    static uint32_t reports;
+    for (unsigned i = 0; i < 16; ++i) {
+        GLenum error = glGetError();
+        if (error == GL_NO_ERROR) break;
+        if (first == GL_NO_ERROR) first = error;
+        ++reports;
+        if (reports <= 8 || !(reports % 240))
+            TAG_ERR("canvas GL stage=%{public}s error=0x%{public}x count=%{public}u",
+                    stage, error, reports);
+    }
+    return first;
+}
+
+/* Bounded diagnostic readback, never part of the normal presentation path.
+ * Compare four matching scene/canvas points before swap. Only 32 bytes cross
+ * to CPU per sample; the local marker and 600-sample budget must both allow it.
+ * A prime sampling interval avoids phase-locking to periodic title updates. */
+static void WindowPresentStagePixels(GLuint texture, struct wlr_buffer *frame)
+{
+    static unsigned ticks, samples;
+    if (!wl_ohos_output_diagnostic_enabled("diag-gpu-stage-pixels") ||
+        samples >= 600 || ++ticks % 31)
+        return;
+    int dx = 0, dy = 0, dw = frame->width, dh = frame->height;
+    wl_ohos_output_desktop_rect(&dx, &dy, &dw, &dh);
+    if (dw <= 0 || dh <= 0) return;
+    GLint viewport[4], previous_fbo = 0;
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous_fbo);
+    GLuint fbo = 0;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, texture, 0);
+    uint8_t scene[4][4] = {{0}}, canvas[4][4] = {{0}};
+    bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    const int fractions[4][2] = {{1, 3}, {10, 3}, {1, 10}, {10, 10}};
+    if (complete) {
+        for (unsigned i = 0; i < 4; ++i)
+            glReadPixels(dx + dw * fractions[i][0] / 20,
+                         dy + dh * fractions[i][1] / 20,
+                         1, 1, GL_RGBA, GL_UNSIGNED_BYTE, scene[i]);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previous_fbo);
+    glDeleteFramebuffers(1, &fbo);
+    for (unsigned i = 0; i < 4; ++i)
+        glReadPixels(viewport[0] + viewport[2] * fractions[i][0] / 20,
+                     viewport[1] + viewport[3] - 1 - viewport[3] * fractions[i][1] / 20,
+                     1, 1, GL_RGBA, GL_UNSIGNED_BYTE, canvas[i]);
+    ++samples;
+    TAG_INFO("stage-pixels sample=%{public}u complete=%{public}d "
+             "scene=%{public}02x%{public}02x%{public}02x,%{public}02x%{public}02x%{public}02x,"
+             "%{public}02x%{public}02x%{public}02x,%{public}02x%{public}02x%{public}02x "
+             "canvas=%{public}02x%{public}02x%{public}02x,%{public}02x%{public}02x%{public}02x,"
+             "%{public}02x%{public}02x%{public}02x,%{public}02x%{public}02x%{public}02x",
+             samples, complete,
+             scene[0][0], scene[0][1], scene[0][2], scene[1][0], scene[1][1], scene[1][2],
+             scene[2][0], scene[2][1], scene[2][2], scene[3][0], scene[3][1], scene[3][2],
+             canvas[0][0], canvas[0][1], canvas[0][2], canvas[1][0], canvas[1][1], canvas[1][2],
+             canvas[2][0], canvas[2][1], canvas[2][2], canvas[3][0], canvas[3][1], canvas[3][2]);
+    WindowPresentGlErrors("stage-pixels");
+}
+
 int wl_ohos_egl_window_present(struct wlr_buffer *frame,
                                struct NativeWindow *window)
 {
@@ -849,10 +1041,11 @@ int wl_ohos_egl_window_present(struct wlr_buffer *frame,
             TAG_ERR("window present: allocator buffer 无 EGL 载荷");
         return 0;
     }
-    EGLImageKHR image =
-        g_create_image(g_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_OHOS,
-                       (EGLClientBuffer)payload, NULL);
-    if (image == EGL_NO_IMAGE_KHR)
+    const bool borrow_scene_texture =
+        wl_ohos_output_diagnostic_enabled("diag-canvas-scene-texture");
+    EGLImageKHR image = borrow_scene_texture ? EGL_NO_IMAGE_KHR :
+        ImportNativeBufferPreserved(payload);
+    if (!borrow_scene_texture && image == EGL_NO_IMAGE_KHR)
     {
         static uint32_t img_fail;
         if (img_fail++ < 5u)
@@ -867,26 +1060,41 @@ int wl_ohos_egl_window_present(struct wlr_buffer *frame,
         if (mc_fail++ < 5u)
             TAG_ERR("window present: eglMakeCurrent failed eglErr=0x%{public}x",
                     eglGetError());
-        destroy_image(g_display, image);
+        if (image != EGL_NO_IMAGE_KHR) destroy_image(g_display, image);
         return 0;
     }
 
+    WindowPresentGlErrors("before-import");
     int ok = 0;
     GLuint tex = 0;
-    glGenTextures(1, &tex);
+    glActiveTexture(GL_TEXTURE0);
+    if (borrow_scene_texture) {
+        // Reuse the exact texture attached to wlroots' scene render target.
+        // No new EGLImage sibling, re-import or CPU pixel transfer.
+        GLuint fbo = wlr_gles2_renderer_get_buffer_fbo(g_renderer, frame);
+        GLint previous_fbo = 0, type = 0, name = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous_fbo);
+        if (fbo) {
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+            glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &name);
+            glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previous_fbo);
+        }
+        if (type != GL_TEXTURE || name <= 0) goto out;
+        tex = (GLuint)name;
+    } else {
+        glGenTextures(1, &tex);
+    }
     glBindTexture(GL_TEXTURE_2D, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    img_tex(GL_TEXTURE_2D, image);
-    if (glGetError() != GL_NO_ERROR)
-    {
-        static uint32_t ti_fail;
-        if (ti_fail++ < 5u)
-            TAG_ERR("window present: EGLImage 挂纹理失败");
+    if (!borrow_scene_texture) img_tex(GL_TEXTURE_2D, image);
+    if (WindowPresentGlErrors("image-to-texture") != GL_NO_ERROR)
         goto out;
-    }
 
     {
         GLuint prog = WindowBlitProgram();
@@ -952,7 +1160,11 @@ int wl_ohos_egl_window_present(struct wlr_buffer *frame,
         glDisable(GL_SCISSOR_TEST);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         glFlush();
+        if (WindowPresentGlErrors("draw") != GL_NO_ERROR)
+            goto out;
     }
+
+    WindowPresentStagePixels(tex, frame);
 
     {
         int64_t ts = WinPresentNowNs();
@@ -967,14 +1179,17 @@ int wl_ohos_egl_window_present(struct wlr_buffer *frame,
     if (!ok)
     {
         static uint32_t sw_fail;
-        if (sw_fail++ < 5u)
-            TAG_ERR("eglSwapBuffers failed eglErr=0x%{public}x",
-                    eglGetError());
+        EGLint error = eglGetError();
+        ++sw_fail;
+        if (sw_fail <= 5u || !(sw_fail % 240))
+            TAG_ERR("eglSwapBuffers failed eglErr=0x%{public}x count=%{public}u",
+                    error, sw_fail);
+        WindowPresentGlErrors("swap");
     }
 
 out:
-    if (tex)
+    if (tex && !borrow_scene_texture)
         glDeleteTextures(1, &tex);
-    destroy_image(g_display, image);
+    if (image != EGL_NO_IMAGE_KHR) destroy_image(g_display, image);
     return ok;
 }

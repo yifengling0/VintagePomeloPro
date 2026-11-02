@@ -150,11 +150,12 @@ XS_BUILD="$BUILD_DIR/xwayland_build_$XS_VER"
 XS_PATCH="$SCRIPT_DIR/patches/xserver-xwayland-ohos-ncp.patch"
 # 守卫 = 产物存在 + 补丁签名一致 (补丁任一变更即重建; 只看文件存在会吃掉
 # 补丁改动 — 与 wayland 头文件守卫同款教训)
-XS_PATCH_SIG=$(sha256sum "$XS_PATCH" | cut -d' ' -f1)
+XS_VISIBLE_PATCH="$SCRIPT_DIR/patches/xserver-ohos-gpu-visible-region.patch"
+XS_PATCH_SIG=$(cat "$XS_PATCH" "$XS_VISIBLE_PATCH" | sha256sum | cut -d' ' -f1)
 if [ ! -f "$HOST_EXT_LIB/libxwayland_ohos.so" ] \
    || [ "$(cat "$HOST_EXT_LIB/.xwayland_ohos_sig" 2>/dev/null)" != "$XS_PATCH_SIG" ]; then
     [ -f "$XSERVE_SRC/hw/xwayland/meson.build" ] || err "thirdparty/xserver 缺源码"
-    python3 "$SCRIPT_DIR/apply_managed_display_overlays.py" --source "$XSERVE_SRC" --scratch "$BUILD_DIR" "$XS_PATCH"
+    python3 "$SCRIPT_DIR/apply_managed_display_overlays.py" --source "$XSERVE_SRC" --scratch "$BUILD_DIR" "$XS_PATCH" "$XS_VISIBLE_PATCH"
     # 24.1 独立分支无 xorg/xephyr/xnest 选项 (Xwayland-only 项目, 结构性裁剪);
     # xvfb/docs*/glamor 逐项关闭至依赖闭包最小 (sha1/libdecor/ei 走 auto 探测);
     # glx=false 同时让 include/meson.build:9 的 dri_dep 转 optional

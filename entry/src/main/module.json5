@@ -4,6 +4,7 @@
     "type": "entry",
     "description": "$string:module_desc",
     "mainElement": "EntryAbility",
+    "srcEntry": "./ets/entryability/WineAbilityStage.ets",
     "deviceTypes": [
       "phone",
       "tv",
@@ -88,7 +89,7 @@
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": false,
-        "launchType": "multiton",
+        "launchType": "specified",
         "removeMissionAfterTerminate": true
       }
     ],

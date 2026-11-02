@@ -89,8 +89,11 @@ typedef struct AppState {
     double last_render_angle;
     int renderer_ready;
     int automation;
+    int static_title; /* isolate X/GDI decoration updates from GPU presentation */
+    unsigned title_interval_ms; /* optional bounded decoration stress; default 500 */
     DWORD duration_ms;
     ULONGLONG run_start_ms;
+    D3D_FEATURE_LEVEL report_feature_level; /* survives resource teardown */
     HRESULT init_result;
     HRESULT present_result;
     char run_id[96];
@@ -281,6 +284,13 @@ static void parse_command_line(RendererKind *initial_renderer)
             *initial_renderer = RENDERER_D3D11;
         } else if (!wcscmp(argv[i], L"--automation")) {
             g_app.automation = 1;
+        } else if (!wcscmp(argv[i], L"--static-title")) {
+            g_app.static_title = 1;
+        } else if (!wcscmp(argv[i], L"--title-interval-ms") && i + 1 < argc) {
+            unsigned long interval = wcstoul(argv[++i], NULL, 10);
+            if (interval < 16) interval = 16;
+            if (interval > 5000) interval = 5000;
+            g_app.title_interval_ms = (unsigned)interval;
         } else if (!wcscmp(argv[i], L"--seconds") && i + 1 < argc) {
             unsigned long seconds = wcstoul(argv[++i], NULL, 10);
             if (seconds > 3600) seconds = 3600;
@@ -370,7 +380,7 @@ static void write_automation_result(const char *status_override, const char *mes
             "x86",
 #endif
             g_app.renderer == RENDERER_D3D11
-                ? feature_level_name(g_app.d3d11.feature_level) : "d3d9",
+                ? feature_level_name(g_app.report_feature_level) : "d3d9",
             (unsigned long)g_app.init_result,
             (unsigned long)g_app.present_result,
             g_app.total_frame_count, g_app.render_sequence,
@@ -399,7 +409,9 @@ static void update_title(double now, int force)
 {
     char title[384];
     double dt = now - g_app.last_title_time;
-    if (!force && dt < 0.5) {
+    const double title_interval = g_app.title_interval_ms ?
+        g_app.title_interval_ms / 1000.0 : 0.5;
+    if (!force && (g_app.static_title || dt < title_interval)) {
         return;
     }
     if (dt <= 0.0) {
@@ -540,21 +552,81 @@ static void render_d3d9(float angle)
 static void release_d3d11(void)
 {
     D3D11State *s = &g_app.d3d11;
-    if (s->context) ID3D11DeviceContext_ClearState(s->context);
-    if (s->raster_state) ID3D11RasterizerState_Release(s->raster_state);
-    if (s->depth_state) ID3D11DepthStencilState_Release(s->depth_state);
-    if (s->ps) ID3D11PixelShader_Release(s->ps);
-    if (s->vs) ID3D11VertexShader_Release(s->vs);
-    if (s->layout) ID3D11InputLayout_Release(s->layout);
-    if (s->cb) ID3D11Buffer_Release(s->cb);
-    if (s->ib) ID3D11Buffer_Release(s->ib);
-    if (s->vb) ID3D11Buffer_Release(s->vb);
-    if (s->dsv) ID3D11DepthStencilView_Release(s->dsv);
-    if (s->depth_texture) ID3D11Texture2D_Release(s->depth_texture);
-    if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-    if (s->swap_chain) IDXGISwapChain_Release(s->swap_chain);
-    if (s->context) ID3D11DeviceContext_Release(s->context);
-    if (s->device) ID3D11Device_Release(s->device);
+    if (s->context) {
+        app_log("release D3D11 context begin");
+        ID3D11DeviceContext_ClearState(s->context);
+        app_log("release D3D11 context end");
+    }
+    if (s->raster_state) {
+        app_log("release D3D11 raster_state begin");
+        ID3D11RasterizerState_Release(s->raster_state);
+        app_log("release D3D11 raster_state end");
+    }
+    if (s->depth_state) {
+        app_log("release D3D11 depth_state begin");
+        ID3D11DepthStencilState_Release(s->depth_state);
+        app_log("release D3D11 depth_state end");
+    }
+    if (s->ps) {
+        app_log("release D3D11 ps begin");
+        ID3D11PixelShader_Release(s->ps);
+        app_log("release D3D11 ps end");
+    }
+    if (s->vs) {
+        app_log("release D3D11 vs begin");
+        ID3D11VertexShader_Release(s->vs);
+        app_log("release D3D11 vs end");
+    }
+    if (s->layout) {
+        app_log("release D3D11 layout begin");
+        ID3D11InputLayout_Release(s->layout);
+        app_log("release D3D11 layout end");
+    }
+    if (s->cb) {
+        app_log("release D3D11 cb begin");
+        ID3D11Buffer_Release(s->cb);
+        app_log("release D3D11 cb end");
+    }
+    if (s->ib) {
+        app_log("release D3D11 ib begin");
+        ID3D11Buffer_Release(s->ib);
+        app_log("release D3D11 ib end");
+    }
+    if (s->vb) {
+        app_log("release D3D11 vb begin");
+        ID3D11Buffer_Release(s->vb);
+        app_log("release D3D11 vb end");
+    }
+    if (s->dsv) {
+        app_log("release D3D11 dsv begin");
+        ID3D11DepthStencilView_Release(s->dsv);
+        app_log("release D3D11 dsv end");
+    }
+    if (s->depth_texture) {
+        app_log("release D3D11 depth_texture begin");
+        ID3D11Texture2D_Release(s->depth_texture);
+        app_log("release D3D11 depth_texture end");
+    }
+    if (s->rtv) {
+        app_log("release D3D11 rtv begin");
+        ID3D11RenderTargetView_Release(s->rtv);
+        app_log("release D3D11 rtv end");
+    }
+    if (s->swap_chain) {
+        app_log("release D3D11 swap_chain begin");
+        IDXGISwapChain_Release(s->swap_chain);
+        app_log("release D3D11 swap_chain end");
+    }
+    if (s->context) {
+        app_log("release D3D11 context begin");
+        ID3D11DeviceContext_Release(s->context);
+        app_log("release D3D11 context end");
+    }
+    if (s->device) {
+        app_log("release D3D11 device begin");
+        ID3D11Device_Release(s->device);
+        app_log("release D3D11 device end");
+    }
     if (s->d3dcompiler) FreeLibrary(s->d3dcompiler);
     memset(s, 0, sizeof(*s));
 }
@@ -745,6 +817,7 @@ static HRESULT init_d3d11(void)
         set_d3d11_stage_hr("CreateDeviceAndSwapChain", hr);
         return hr;
     }
+    g_app.report_feature_level = s->feature_level;
     app_log("D3D11CreateDeviceAndSwapChain ok: feature level %s",
             feature_level_name(s->feature_level));
 
@@ -1086,8 +1159,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
         Sleep(1);
     }
 
-    write_automation_result(NULL, NULL);
+    /* A render PASS is only final after device/worker teardown returns. */
     release_renderer();
+    write_automation_result(NULL, NULL);
     return g_app.renderer_ready && SUCCEEDED(g_app.present_result) &&
         g_app.total_frame_count >= (g_app.automation ? 60u : 1u) ? 0 : 1;
 }

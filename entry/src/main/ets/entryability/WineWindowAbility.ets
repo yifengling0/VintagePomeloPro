@@ -52,6 +52,15 @@ export default class WineWindowAbility extends UIAbility {
     }
   }
 
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    const id = Number(want.parameters?.toplevelId);
+    if (id !== this.toplevelId || this.cleanedUp || WineWindowManager.getInstance().isDestroyed(id)) return;
+    // AMS restores and foregrounds the specified instance. Do not call
+    // Window.restore() here: Edge rejects it, and activating X again would
+    // echo a restored event back into startAbility.
+    hilog.info(DOMAIN, TAG, '[WWA] onNewWant reuse tl=%{public}d', this.toplevelId);
+  }
+
   onWindowStageCreate(windowStage: window.WindowStage): void {
     this.stage = windowStage;
     hilog.info(DOMAIN, TAG, '[WWA]  onWindowStageCreate tl=%{public}d cleanedUp=%{public}s',
@@ -164,12 +173,14 @@ export default class WineWindowAbility extends UIAbility {
     this.foreground = true;
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(this.toplevelId, this.mainWindow, true);
     this.attachManagedInput();
+    WineWindowManager.getInstance().noteAbilityForeground(this.toplevelId, true);
     hilog.info(DOMAIN, TAG, '[WWA] onForeground tl=%{public}d', this.toplevelId);
     try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
   }
 
   onBackground(): void {
     this.foreground = false;
+    WineWindowManager.getInstance().noteAbilityForeground(this.toplevelId, false);
     WineImeCoordinator.getInstance().background(this.mainWindow);
     ManagedWindowInput.getInstance().background(this.toplevelId);
     hilog.info(DOMAIN, TAG, '[WWA] onBackground tl=%{public}d', this.toplevelId);

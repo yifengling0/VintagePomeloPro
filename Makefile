@@ -1287,6 +1287,19 @@ $(STAMPS)/x86_64/assemble: $(STAMPS)/x86_64/display-route
 
 .PHONY: test-x11-integration
 test-x11-integration:
+	python3 $(ROOT)/host_tests/x11_visible_region_test.py
+	python3 $(ROOT)/host_tests/x11_desktop_input_test.py
+	python3 $(ROOT)/host_tests/x11_child_geometry_test.py
+	python3 $(ROOT)/host_tests/x11_surface_lifecycle_test.py
+	python3 $(ROOT)/host_tests/xim_transport_test.py
+	python3 $(ROOT)/host_tests/xim_activation_test.py
+	python3 $(ROOT)/host_tests/x11_egl_visual_test.py
+	python3 $(ROOT)/host_tests/x11_client_decorations_test.py
+	python3 $(ROOT)/host_tests/x11_multi_client_area_test.py
+	python3 $(ROOT)/host_tests/x11_window_controls_test.py
+	python3 $(ROOT)/host_tests/wine_ability_restore_test.py
+	python3 $(ROOT)/host_tests/x11_consumer_fence_test.py
+	python3 $(ROOT)/host_tests/ohos_buffer_lifecycle_test.py
 	python3 $(ROOT)/host_tests/display_spawn_fds_test.py
 	python3 $(ROOT)/host_tests/display_child_log_test.py
 	python3 $(ROOT)/host_tests/x11_runtime_contract_test.py

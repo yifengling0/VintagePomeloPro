@@ -68,6 +68,7 @@ enum class ToplevelEventType : uint32_t {
     // WineHua modal 关系 (winehua_toplevel.set_modal 上报)
     Modal,         // "modal"          1=置为模态 (modal/owner 报关系), 0=解除
     // 会话
+    Geometry,      // "geometry"       X11 CSD interactive resize (host coordinates)
     DesktopRoot,   // "desktop_root"   桌面 root 出现 (识别/PromotePending 两路径)
 };
 
@@ -94,6 +95,7 @@ inline const char* ToplevelEventName(ToplevelEventType evt) {
         case ToplevelEventType::MoveStart:     return "move_start";
         case ToplevelEventType::MoveEnd:       return "move_end";
         case ToplevelEventType::Modal:         return "modal";
+        case ToplevelEventType::Geometry:      return "geometry";
         case ToplevelEventType::DesktopRoot:   return "desktop_root";
     }
     return "unknown";  // 防御: 枚举越界永不发生 (仅编译器告警消噪)
@@ -162,6 +164,12 @@ public:
     static std::string JsonArgb(int32_t argb01) {
         char buf[32];
         snprintf(buf, sizeof(buf), "{\"argb\":%d}", argb01);
+        return buf;
+    }
+
+    static std::string JsonGeometry(int32_t x, int32_t y, int32_t w, int32_t h) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "{\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}", x, y, w, h);
         return buf;
     }
 

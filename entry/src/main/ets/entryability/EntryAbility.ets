@@ -315,7 +315,7 @@ export default class EntryAbility extends UIAbility {
       this.runAutomationLaunch(want).then((): void => {
         this.finishAutomationLaunch();
       }).catch((error: Error): void => {
-        hilog.error(DOMAIN, 'EntryAbility', 'automation launch failed: %{public}s', JSON.stringify(error));
+        hilog.error(DOMAIN, 'EntryAbility', 'automation launch failed: %{public}s', error.message + ' ' + JSON.stringify(error));
         this.finishAutomationLaunch();
       });
     }, 800);

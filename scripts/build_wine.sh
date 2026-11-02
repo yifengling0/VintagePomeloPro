@@ -365,6 +365,9 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0072-ohos-x11-nativebuffer-displa
 
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0073-x11-desktop-role.patch" "X11 desktop protocol role"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0074-x11-child-window-identity.patch" "X11 child window identity"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0075-x11-thread-cleanup-diagnostics.patch" "X11 thread cleanup diagnostics"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0076-x11-egl-default-visual.patch" "X11 EGL pbuffer default visual"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0077-x11-ohos-client-decorations.patch" "X11 OHOS client-side window decorations"
 
 if [ "${1:-}" = --check-patches ]; then exit 0; fi
 

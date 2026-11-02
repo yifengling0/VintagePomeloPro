@@ -131,6 +131,7 @@ int x11_toplevel_set_guest_frame(uint32_t xwindow, struct wlr_buffer *buffer,
  * 该 X 窗不在册。合成器 loop 线程调用 (与帧路由同拍)。 */
 int x11_toplevel_guest_anchor(uint32_t xwindow, int *x, int *y, int *w, int *h);
 int x11_toplevel_guest_generation(uint32_t xwindow, uint64_t *generation);
+void x11_toplevel_clear_guest_frame(uint32_t xwindow, uint64_t generation);
 
 #ifdef __cplusplus
 }
