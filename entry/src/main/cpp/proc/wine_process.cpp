@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
+#include <sys/syscall.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <dirent.h>
@@ -120,6 +121,35 @@ bool IsPidExited(pid_t pid) {
     return gExitedPids.count(pid) > 0;
 }
 
+// pidfd readiness is a kernel exit receipt, independent of sandbox /proc and
+// delivery of the system NCP callback. Unsupported/denied opens are UNKNOWN;
+// neither an open error nor a successful termination request proves death.
+static std::shared_ptr<int> OpenProcessLifetime(pid_t pid) {
+#ifdef SYS_pidfd_open
+    int fd;
+    do { fd = static_cast<int>(syscall(SYS_pidfd_open, pid, 0)); }
+    while (fd < 0 && errno == EINTR);
+    if (fd >= 0) {
+        OH_LOG_WARN(LOG_APP, "[ProcReg] kernel lifetime attached pid=%{public}d", pid);
+        return std::shared_ptr<int>(new int(fd), [](int* value) { close(*value); delete value; });
+    }
+    const int error = errno;
+    static std::atomic<bool> unavailableLogged{false};
+    if (!unavailableLogged.exchange(true))
+        OH_LOG_WARN(LOG_APP, "[ProcReg] kernel lifetime unavailable errno=%{public}d; retain exit callbacks", error);
+#endif
+    return {};
+}
+
+static bool KernelLifetimeExited(const WineProcessEntry& entry) {
+    if (!entry.lifetimeFd) return false;
+    pollfd pfd{*entry.lifetimeFd, POLLIN, 0};
+    int result;
+    do { result = poll(&pfd, 1, 0); } while (result < 0 && errno == EINTR);
+    // POLLNVAL/errors are not exit evidence; this handle is never externally closed.
+    return result > 0 && (pfd.revents & (POLLIN | POLLHUP));
+}
+
 bool IsProcessAliveNotZombie(pid_t pid) {
     if (pid <= 0 || IsPidExited(pid)) return false;
     WineProcessEntry entry{};
@@ -127,7 +157,7 @@ bool IsProcessAliveNotZombie(pid_t pid) {
         // Preserve the real wait status: ProcMon must not race the reaper by
         // completing a zombie with an unknown reason first.
         if (entry.waitPending) return true;
-        if (!entry.running) return false;
+        if (!entry.running || KernelLifetimeExited(entry)) return false;
     }
     char path[64];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
@@ -324,6 +354,8 @@ WineProcessEntry* AddProcess(pid_t pid, const std::string& exeFullPath, int stdo
                 .generation = ++nextGeneration
             });
             result = &gProcRegistry.back();
+            if (!earlyExit && registration == ProcessRegistration::NativeChild)
+                result->lifetimeFd = OpenProcessLifetime(pid);
             result->independentRuntime = (exeFullPath.rfind("@runtime/", 0) == 0 || exeFullPath == "@engine/virgl");
             OH_LOG_WARN(LOG_APP, "[ProcReg] add pid=%{public}d name=%{public}s total=%{public}zu",
                         pid, basename.c_str(), gProcRegistry.size());
@@ -369,9 +401,8 @@ void KillAllProcesses() {
 }
 
 // stopAll 末尾调用: 后台 zombie 感知等待注册表进程 (含主 wineserver) 全部死亡,
-// 完成发一次 state:stopped (蓝图「完全退出」判据的进程侧; Wayland server 由
-// 调用方在此之前同步停掉)。30s 封顶兜底: SIGKILL 下进程卡 D-state 不死时
-// 不至于永不发声 (ArkTS 侧另有超时硬放行, 双保险)。
+// 确认全部退出后才发 state:stopped；超时仅报告未决进程，不伪报停止。
+// 显示服务由 ArkTS 在进程停止确认后释放，不能提前拆掉活进程的宿主。
 void NotifyWhenSessionDrained() {
     const auto generation = GetWineStartupSnapshot().generation;
     const auto anchor = GetWineserverPid();
@@ -391,7 +422,16 @@ void NotifyWhenSessionDrained() {
             waitedMs += 100;
         }
         if (waitedMs >= kDrainTimeoutMs) {
-            OH_LOG_ERROR(LOG_APP, "[ProcReg] drain wait timeout: process survived SIGKILL");
+            size_t survivors = 0;
+            for (const auto& entry : GetProcessListSnapshot()) {
+                if (!entry.running || entry.independentRuntime) continue;
+                if (survivors++ < 16)
+                    OH_LOG_ERROR(LOG_APP, "[ProcReg] drain unresolved pid=%{public}d generation=%{public}llu name=%{public}s kernelHandle=%{public}d waitPending=%{public}d",
+                        entry.pid, static_cast<unsigned long long>(entry.generation),
+                        entry.exeBasename.c_str(), !!entry.lifetimeFd, entry.waitPending);
+            }
+            OH_LOG_ERROR(LOG_APP, "[ProcReg] drain wait timeout; unresolved=%{public}zu, retain session anchor", survivors);
+            return; // Do not publish a successful stop while exit is unconfirmed.
         }
         // A delayed old drain must not clear a replacement session's anchor.
         if (GetWineStartupSnapshot().generation != generation) return;
@@ -621,7 +661,7 @@ void RegisterNcpExitCallback() {
 
 // -- NCP 进程存活监控 --
 // NCP 子进程由 appspawn 创建，不是主进程的 fork() 子进程，
-// SIGCHLD 收不到它们的退出事件。通过 /proc/<pid> 轮询检测退出。
+// SIGCHLD 收不到它们的退出事件。优先使用系统回调及可选 pidfd 内核句柄。
 // 判活必须 zombie 感知 (fork 模式子进程退出后 /proc 不立即消失),
 // 否则已退出的进程会被长期误判为存活。
 // 注: 沙箱 /proc 对 NCP 可能不可见 — 真实退出以 NCP 退出回调为准,
@@ -636,7 +676,9 @@ static void ProcessMonitorLoop() {
 
         for (const auto& entry : GetProcessListSnapshot()) {
             if (!entry.running || entry.waitPending) continue;
-            if (!IsProcessAliveNotZombie(entry.pid))
+            if (KernelLifetimeExited(entry))
+                HandleProcessDeath(entry.pid, -1, "pidfd-exit", entry.generation);
+            else if (!IsProcessAliveNotZombie(entry.pid))
                 HandleProcessDeath(entry.pid, -1, "proc-zombie", entry.generation);
         }
     }

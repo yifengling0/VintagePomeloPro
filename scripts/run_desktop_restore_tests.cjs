@@ -122,7 +122,7 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
     executable:'C:/game.exe',arguments:[],workingDirectory:''}},settings,'/games');
   assert.equal(restored,child);checkCarrier();
   assert.ok(nativeCalls.some(([action,id])=>action==='raise'&&id===9),'game still receives focus');
-  return {wm,service,context,starts,desktop,child,values};
+  return {wm,service,context,starts,desktop,child,values,settings,models};
 }
 
 (async()=>{
@@ -143,6 +143,12 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   await Promise.all([f.service.resume(f.child),f.service.resume(f.desktop)]);
   assert.equal(f.starts.length,1,'covered PC foreground carrier is raised once for explicit concurrent restores');
   assert.equal(f.wm.isDesktopAbilityForeground(7),true,'raising a foreground carrier preserves lifecycle confirmation');
+  // Clicking the actual Desktop card is distinct from resume(game). On PC a
+  // covered window remains FOREGROUND; the card must still raise its carrier.
+  f.starts.length=0;f.service.sessions.set('desktop',f.desktop);
+  await f.service.launch({id:'builtin-desktop',available:true,launchTarget:{
+    kind:models.LaunchKind.WINE_DESKTOP,executable:'explorer.exe',arguments:[],workingDirectory:''}},f.settings,'/games');
+  assert.equal(f.starts.length,1,'explicit desktop card raises a covered FOREGROUND carrier');
   f.starts.length=0;
   f.wm.markDesktopAbilityBackground(7);
   let finish;

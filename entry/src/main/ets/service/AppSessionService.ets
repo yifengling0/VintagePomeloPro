@@ -197,18 +197,11 @@ export class AppSessionService {
       if (!ready) return null;
       const currentDesktop = this.syncDesktopSessionFromNative();
       if (currentDesktop && currentDesktop.toplevelId > 0) {
-        // The root event already starts the singleton DesktopAbility. Calling
-        // startAbility again here creates a visible PC desktop pop-up on every
-        // first launch; only explicitly restore a stopped/background ability.
-        if (!WineWindowManager.getInstance().isDesktopAbilityForeground(currentDesktop.toplevelId)) {
-          await this.resume(currentDesktop);
-        } else {
-          // The singleton DesktopAbility is already the visible host for this
-          // root. Calling startAbility again on PC creates a second mission/
-          // popup even though the Wine session is unchanged.
-          try { testNapi.activateWineSession(currentDesktop.sessionId); } catch (_) {}
-          try { testNapi.raiseToplevel(currentDesktop.toplevelId); } catch (_) {}
-        }
+        // Explicit Desktop-card activation must raise the pinned carrier even
+        // when PC reports it FOREGROUND underneath the home window. Root
+        // events still use the deduplicated initial-creation path; this never
+        // creates another Wine shell or changes the carrier root identity.
+        await this.resume(currentDesktop);
         return currentDesktop;
       }
       // 首次启动时 native launch thread 正在创建 explorer，不能抢跑出第二个 shell。

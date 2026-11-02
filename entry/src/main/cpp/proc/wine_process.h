@@ -30,6 +30,9 @@ struct WineProcessEntry {
     // early-server children keep their existing authoritative exit callbacks.
     bool waitPending = false;
     uint64_t generation = 0;
+    // Optional kernel lifetime handle. Shared snapshots retain ownership; PID
+    // reuse cannot make an old handle signal a new registered incarnation.
+    std::shared_ptr<int> lifetimeFd{};
     uint32_t toplevelId = 0;
     std::vector<uint32_t> toplevelIds{};
     bool applicationSession = false;

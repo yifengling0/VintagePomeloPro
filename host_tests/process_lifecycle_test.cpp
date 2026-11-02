@@ -156,6 +156,31 @@ int main() {
     Check(IsLaunchChildExited(hidden) && !Snapshot(hidden).running,
           "authoritative server exit completes hidden child wait");
     hiddenPid = -1;
+    // Simulate an NCP whose system callback was lost. Its kernel lifetime must
+    // finish even with /proc hidden, without stealing the actual owner's wait.
+    int lifetimePipe[2];
+    Check(pipe(lifetimePipe) == 0, "lifetime gate created");
+    const pid_t lostCallback = fork();
+    Check(lostCallback >= 0, "kernel lifetime child created");
+    if (lostCallback == 0) {
+        close(lifetimePipe[1]); char byte;
+        read(lifetimePipe[0], &byte, 1); _exit(23);
+    }
+    close(lifetimePipe[0]); hiddenPid = lostCallback;
+    AddProcess(lostCallback, "lost-ncp-callback.exe", -1, ProcessRegistration::NativeChild);
+    Check(!!Snapshot(lostCallback).lifetimeFd, "real kernel lifetime handle attached");
+    Check(IsProcessAliveNotZombie(lostCallback), "kernel handle keeps live hidden process alive");
+    close(lifetimePipe[1]);
+    AwaitExit(lostCallback);
+    Check(Snapshot(lostCallback).exitCodeSource == "pidfd-exit",
+          "kernel receipt finishes hidden process without callback");
+    int lifetimeStatus = 0;
+    Check(waitpid(lostCallback, &lifetimeStatus, 0) == lostCallback && WEXITSTATUS(lifetimeStatus) == 23,
+          "lifetime polling preserves real owner's wait status");
+    std::thread([&] { RemoveProcess(lostCallback, 23, "ncp-exit"); }).join();
+    Check(Snapshot(lostCallback).exitCode == 23,
+          "late authoritative status enriches kernel exit receipt");
+    hiddenPid = -1;
     const winehua::WinebootAttempt failedAttempt(GetProcessListSnapshot());
     const pid_t failed = ExitedChild(1);
     errno = EBUSY;
