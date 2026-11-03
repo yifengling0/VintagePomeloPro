@@ -21,6 +21,26 @@ static DWORD enum_mode_count(void)
     return i;
 }
 
+/* Preserve evidence when a host-sized mode disappears after switching. */
+static void probe_original_mode(const char *name, const DEVMODEA *original)
+{
+    DEVMODEA mode;
+    DWORD i, size_matches = 0, exact_matches = 0;
+    for (i = 0; i < 512; ++i)
+    {
+        memset(&mode, 0, sizeof(mode));
+        mode.dmSize = sizeof(mode);
+        if (!EnumDisplaySettingsA(NULL, i, &mode)) break;
+        if (mode.dmPelsWidth != original->dmPelsWidth || mode.dmPelsHeight != original->dmPelsHeight) continue;
+        ++size_matches;
+        if (mode.dmBitsPerPel == original->dmBitsPerPel &&
+            mode.dmDisplayFrequency == original->dmDisplayFrequency &&
+            mode.dmDisplayOrientation == original->dmDisplayOrientation &&
+            mode.dmDisplayFlags == original->dmDisplayFlags) ++exact_matches;
+    }
+    t_metric(name, "modes=%lu size_matches=%lu exact_matches=%lu", i, size_matches, exact_matches);
+}
+
 /* 四象限颜色（B 半段：本窗 DC 读回） */
 static void draw_quadrants(HDC dc, int w, int h)
 {
@@ -58,6 +78,11 @@ int main(int argc, char **argv)
     dm_orig.dmSize = sizeof(dm_orig);
     t_check("enum-current", EnumDisplaySettingsA(NULL, ENUM_CURRENT_SETTINGS, &dm_orig),
             "err=%lu", GetLastError());
+    t_metric("original-mode", "%lux%lu %lu-bpp %lu-Hz fields=%lx orientation=%lu flags=%lu",
+             dm_orig.dmPelsWidth, dm_orig.dmPelsHeight, dm_orig.dmBitsPerPel,
+             dm_orig.dmDisplayFrequency, dm_orig.dmFields, dm_orig.dmDisplayOrientation,
+             dm_orig.dmDisplayFlags);
+    probe_original_mode("original-list-before", &dm_orig);
     modes = enum_mode_count();
     t_metric("mode-table-size", "%lu", modes);
     t_check("mode-table-nonempty", modes >= 1, "modes=%lu", modes);
@@ -125,6 +150,7 @@ int main(int argc, char **argv)
     }
 
     /* 恢复原模式（成败都尝试，恢复失败也要暴露） */
+    probe_original_mode("original-list-after", &dm_orig);
     rc = ChangeDisplaySettingsA(&dm_orig, 0);
     t_check("restore-mode", rc == DISP_CHANGE_SUCCESSFUL, "rc=%ld", (long)rc);
     return t_finish();

@@ -264,3 +264,21 @@ Wayland 默认呈现对照：DX11/legacy 45 秒、5402 帧、render PASS，截�
 完整 CI preflight 已重跑，217 项全部通过。唯一修正是发布打包单测的隔离 fixture 补齐 X11 verifier stub（假 hvigor 不生成真实 ELF）；生产打包仍执行真实 X11 运行库闭包验证。此结果不等于干净源码的全量重编译已完成。
 
 脱敏证据：[帧间隔对照](evidence/x11-edge-frame-pacing.json)、[标题和窗口回归](evidence/x11-edge-caption-sync.json)。
+
+
+## 2026-11-03：当前包帧节奏复核与 API 验收边界
+
+在同一个签名 HAP `54558fd3…` 和同一个 pacing EXE `c5f82de5…` 上重新对照，未重打包或替换图形运行库。DX11 两个用例均为 70 秒：Wayland 8382 帧、2 次 >16.67ms、P99 12.25ms、标题刷新均值 3.05ms；X11 8271 帧、44 次 >16.67ms、P99 15.75ms、标题刷新均值 5.49ms。两轮角度回退均为 0。已在运行时分别保留无 Xwayland／有 Xwayland 的进程证据；X11 冷启动最初 4 秒尚无 Xwayland，后续初始化完成才取得肯定证据，未据过早查询误判路线。X11 取得本轮精确游戏 PID 的真实 exit0；Wayland DX11 本轮仍为 ipc-death/unknown，因此只计渲染／帧耗时结果，不计生命周期通过。
+
+D3D9 各 50 秒：Wayland 5816 帧、6 次 >16.67ms、P99 12.50ms；X11 5873 帧、8 次 >16.67ms、P99 14.50ms，均无角度回退且取得真实 exit0。明确请求 WineD3D，模块路径来自 Wine；测试程序 backend 字段仍为 unknown，不将其当作 VirGL 驱动身份的独立证明。Wayland D3D9 期间有一次 UI layout 查询，没有截屏；不将这组数据视为无扰动的精密显示时间线。上述复核支持标题同步事务是主要周期性顿挫来源，仍不能将 X11 剩余的 DX11 Render/Present 波动称为已解决。产品继续动态更新标题，没有固定标题来掩盖停顿。
+
+补做 11 个 Win32 API 用例，直接经产品正常 game 入口运行，并显式使用虚拟桌面。剪贴板三例（12/5/9 项）、owned/maximize（各14项）、GDI 文本/字体/基本图元（5/5/6项）通过。剪贴板范围仅为 Wine 内部，不等于系统剪贴板桥验收。原音频测试声明 stereo 却只生成单声道长度，且把 waveOutGetPosition 合法返回的 TIME_BYTES 当作 0；修正测试素材、检查 API 返回码并归一化三种合法单位后，X11 冷启动和 Wayland 对照均为 12/12，最后恢复 X11 的音频用例也为 12/12 且真实 exit0。没有改音频运行库，也没有据 API 结果声称物理声音质量已验收。
+
+保留两个未通过项目：
+
+- 冷启动切换显示模式后，恢复原 1560×1040 返回 BADMODE。新增有界枚举诊断证明，两条路线都是原尺寸切换前有 30 个模式、一个完整匹配，切换1280×800后仅18个模式、原尺寸零匹配。因此属于共有的动态模式表恢复问题，尚未证明具体源码阶段，不增加猜测性缓存或启用模拟模式来掩盖。
+- X11 虚拟桌面最小化返回 (0,777) 而非测试期望的 -32000 sentinel；IsIconic、三轮 placement、原位置及尺寸恢复均正常。Wayland 为26/26。Wine X11 虚拟桌面允许保留图标坐标，此处应继续核对窗口管理语义，不能只为断言通过强改坐标，也不能把它称为已有窗口恢复修复失效。
+
+`automation/smoke.py` 现在从生产 env 读取 WINE_SRC，将旧 recipe 的 programs include 指向实际选中的 wine-valve，18 个 ARM64 PE 验收程序共312,320字节，按输入和编译器收据复用；4项构建架构测试及两个生产标题回归通过。只保留当前和回退两份签名包。设备偏好已恢复 X11；产品默认路线仍为 Wayland。完整输入、GNU/Linux 游戏、媒体与干净 CI 等合入条件继续保留。
+
+脱敏记录：[API 验收](evidence/x11-edge-api-acceptance.json)、[当前包与既往帧间隔对照](evidence/x11-edge-frame-pacing.json)。

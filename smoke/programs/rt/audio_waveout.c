@@ -12,7 +12,7 @@
 #define CHUNK_MS 500
 #define SAMPLES (RATE * CHUNK_MS / 1000)
 
-static short g_pcm[SAMPLES];
+static short g_pcm[SAMPLES * 2];
 
 static void fill_sine(void)
 {
@@ -20,7 +20,20 @@ static void fill_sine(void)
     for (i = 0; i < SAMPLES; ++i)
     {
         double v = sin(2.0 * 3.141592653589793 * 440.0 * i / RATE);
-        g_pcm[i] = (short)(v * 16000.0);
+        g_pcm[2 * i] = g_pcm[2 * i + 1] = (short)(v * 16000.0);
+    }
+}
+
+/* waveOutGetPosition may return another supported unit. Check the API result
+ * and normalize that unit rather than treating a legal fallback as zero. */
+static DWORD position_ms(const MMTIME *time, const WAVEFORMATEX *format)
+{
+    switch (time->wType)
+    {
+    case TIME_MS: return time->u.ms;
+    case TIME_SAMPLES: return (DWORD)((ULONGLONG)time->u.sample * 1000 / format->nSamplesPerSec);
+    case TIME_BYTES: return (DWORD)((ULONGLONG)time->u.cb * 1000 / format->nAvgBytesPerSec);
+    default: return 0;
     }
 }
 
@@ -85,12 +98,15 @@ int main(int argc, char **argv)
     memset(&mm0, 0, sizeof(mm0));
     memset(&mm1, 0, sizeof(mm1));
     mm0.wType = TIME_MS;
-    waveOutGetPosition(out, &mm0, sizeof(mm0));
+    res = waveOutGetPosition(out, &mm0, sizeof(mm0));
+    t_check("get-position-before", res == MMSYSERR_NOERROR, "rc=%u type=%u", res, mm0.wType);
     Sleep(200);
     mm1.wType = TIME_MS;
-    waveOutGetPosition(out, &mm1, sizeof(mm1));
-    pos0 = mm0.wType == TIME_MS ? mm0.u.ms : 0;
-    pos1 = mm1.wType == TIME_MS ? mm1.u.ms : 0;
+    res = waveOutGetPosition(out, &mm1, sizeof(mm1));
+    t_check("get-position-after", res == MMSYSERR_NOERROR, "rc=%u type=%u", res, mm1.wType);
+    t_metric("position-units", "%u,%u", mm0.wType, mm1.wType);
+    pos0 = position_ms(&mm0, &fmt);
+    pos1 = position_ms(&mm1, &fmt);
     t_check("position-advances", pos1 > pos0,
             "pos %lu -> %lu ms", (unsigned long)pos0, (unsigned long)pos1);
     t_check("position-ms-scale", pos1 >= 100 && pos1 <= 2000,

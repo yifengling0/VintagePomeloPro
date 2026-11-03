@@ -167,7 +167,7 @@ def verify_hap_architectures(hap: Path) -> None:
 # 构建环境（路径知识的唯一来源是 scripts/env.sh，不在此重复）
 # ---------------------------------------------------------------------------
 
-_ENV_KEYS = ("BUILD_DIR", "DXVK_SRC", "VKD3D_PROTON_BUILD_ROOT", "LLVM_MINGW")
+_ENV_KEYS = ("BUILD_DIR", "DXVK_SRC", "VKD3D_PROTON_BUILD_ROOT", "LLVM_MINGW", "WINE_SRC")
 
 
 def load_build_env() -> dict:
@@ -448,8 +448,11 @@ def build_case(env: dict, case: Case, arch: str, dest: Path) -> None:
     for src in sources:
         if not Path(src).is_file():
             die(f"case {case.id}: source missing: {src}")
-    command = [case_cc(env, case, arch), *spec.get("cflags", ["-O2", "-s"]),
-               "-o", str(dest), *sources]
+    # Legacy case recipes name thirdparty/wine, but the selected runtime may
+    # be wine-valve. Use the same source selection as the production build.
+    flags = [f"-I{env['WINE_SRC']}/programs" if flag == "-Ithirdparty/wine/programs" else flag
+             for flag in spec.get("cflags", ["-O2", "-s"])]
+    command = [case_cc(env, case, arch), *flags, "-o", str(dest), *sources]
     if spec.get("dxvk_include"):
         command.append(f"-I{env['DXVK_SRC']}/include")
     if spec.get("vulkan_import"):

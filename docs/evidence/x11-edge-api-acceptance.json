@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-03",
+  "device": "MatePad Edge QXS-W00",
+  "branch": "feature/ohos-proton-x11-integration",
+  "signedHapSha256": "54558fd3fde1789494f119f53b7beebc0e6800af90d56bea2c2b0e07790fe0d0",
+  "entry": "normal winehua.mode=game with explicit virtual host; no upstream SmokeHook or inline runner",
+  "x11Cases": [
+    {
+      "case": "clip-basic",
+      "exeSha256": "35c60b75e1c0b715bcd26a689cda658029b410d4f205483a7570e2d011bc1655",
+      "status": "PASS",
+      "totalCount": 12,
+      "failedCount": 0,
+      "message": "12/12 checks passed",
+      "metrics": {
+        "payload_bytes": "54"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": false
+    },
+    {
+      "case": "clip-cross",
+      "exeSha256": "3cb17620bf57abed2d0c719062f4f7a39e4577b398822addf2736efe2384651b",
+      "status": "PASS",
+      "totalCount": 5,
+      "failedCount": 0,
+      "message": "5/5 checks passed",
+      "metrics": {},
+      "failures": [],
+      "realExitZeroConfirmed": true
+    },
+    {
+      "case": "clip-formats",
+      "exeSha256": "cec213f0907c48a105f800110f9e36cf84ce86371029bd3a5e09f4c8243bcdab",
+      "status": "PASS",
+      "totalCount": 9,
+      "failedCount": 0,
+      "message": "9/9 checks passed",
+      "metrics": {
+        "formats-enumerated": "3"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": true
+    },
+    {
+      "case": "win-fullscreen",
+      "exeSha256": "a4efdc1159e5a997e6590ed27acd9469ca678bbfd74871d55c3b08f7916cf059",
+      "status": "FAIL",
+      "totalCount": 12,
+      "failedCount": 1,
+      "message": "1/12 checks failed: restore-mode;",
+      "metrics": {
+        "original-mode": "1560x1040 32-bpp 60-Hz fields=7c00a0 orientation=0 flags=0",
+        "original-list-before": "modes=30 size_matches=3 exact_matches=1",
+        "mode-table-size": "30",
+        "change-disp-rc": "0",
+        "fullscreen-client": "1280x800",
+        "original-list-after": "modes=18 size_matches=0 exact_matches=0"
+      },
+      "failures": [
+        {
+          "name": "restore-mode",
+          "pass": false,
+          "detail": "rc=-2"
+        }
+      ],
+      "realExitZeroConfirmed": false
+    },
+    {
+      "case": "win-owned",
+      "exeSha256": "1bfddc77d7ff0616606655b381cec5cc9e677597b62599c0fb7bc8b6e5479d43",
+      "status": "PASS",
+      "totalCount": 14,
+      "failedCount": 0,
+      "message": "14/14 checks passed",
+      "metrics": {},
+      "failures": [],
+      "realExitZeroConfirmed": true
+    },
+    {
+      "case": "win-minimize",
+      "exeSha256": "455bd37a17e72abc44692db319e74a57c430175699ac765f0179655a2aae9ff4",
+      "status": "FAIL",
+      "totalCount": 26,
+      "failedCount": 3,
+      "message": "3/26 checks failed: minimized-sentinel; minimized-sentinel; minimized-sentinel;",
+      "metrics": {},
+      "failures": [
+        {
+          "name": "minimized-sentinel",
+          "pass": false,
+          "detail": "round 1 got 0,777"
+        },
+        {
+          "name": "minimized-sentinel",
+          "pass": false,
+          "detail": "round 2 got 0,777"
+        },
+        {
+          "name": "minimized-sentinel",
+          "pass": false,
+          "detail": "round 3 got 0,777"
+        }
+      ],
+      "realExitZeroConfirmed": false
+    },
+    {
+      "case": "win-maximize",
+      "exeSha256": "8c861cc90baac03460743c27bdcfa1b63d6addcf7babf8cea7dc164e10a95123",
+      "status": "PASS",
+      "totalCount": 14,
+      "failedCount": 0,
+      "message": "14/14 checks passed",
+      "metrics": {
+        "maximized": "1288x808"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": false
+    },
+    {
+      "case": "gdi-text",
+      "exeSha256": "8c2e284c81e36560c2accb9e6e1dcddc0687bc8b05b0a58cff14f7d779e0c4a1",
+      "status": "PASS",
+      "totalCount": 5,
+      "failedCount": 0,
+      "message": "5/5 checks passed",
+      "metrics": {
+        "chinese_extent": "80x24"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": true
+    },
+    {
+      "case": "font-enum",
+      "exeSha256": "0bf548cad1de7758e73d05f671bceae367e57b9c8748f07040e22a7325eb482b",
+      "status": "PASS",
+      "totalCount": 5,
+      "failedCount": 0,
+      "message": "5/5 checks passed",
+      "metrics": {
+        "font-families-ansi": "1084",
+        "font-families-gb": "170",
+        "font-first-gb-family": "Arial"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": true
+    },
+    {
+      "case": "gdi-primitives",
+      "exeSha256": "934c81ee3f4734a54467aea026919581d65ab252cec541c4fcfe0b006ec421bd",
+      "status": "PASS",
+      "totalCount": 6,
+      "failedCount": 0,
+      "message": "6/6 checks passed",
+      "metrics": {
+        "bpp": "32"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": true
+    },
+    {
+      "case": "audio-waveout",
+      "exeSha256": "63e509b8d78610a379524c24b83817c0f2f17f3a79f57a358a837549872901a6",
+      "status": "PASS",
+      "totalCount": 12,
+      "failedCount": 0,
+      "message": "12/12 checks passed",
+      "metrics": {
+        "position-units": "4,4",
+        "waveout-pos-ms": "490"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": true
+    }
+  ],
+  "waylandColdControls": [
+    {
+      "case": "win-minimize",
+      "exeSha256": "455bd37a17e72abc44692db319e74a57c430175699ac765f0179655a2aae9ff4",
+      "status": "PASS",
+      "totalCount": 26,
+      "failedCount": 0,
+      "message": "26/26 checks passed",
+      "metrics": {},
+      "failures": [],
+      "realExitZeroConfirmed": false
+    },
+    {
+      "case": "audio-waveout",
+      "exeSha256": "63e509b8d78610a379524c24b83817c0f2f17f3a79f57a358a837549872901a6",
+      "status": "PASS",
+      "totalCount": 12,
+      "failedCount": 0,
+      "message": "12/12 checks passed",
+      "metrics": {
+        "position-units": "4,4",
+        "waveout-pos-ms": "490"
+      },
+      "failures": [],
+      "realExitZeroConfirmed": false
+    },
+    {
+      "case": "win-fullscreen",
+      "exeSha256": "a4efdc1159e5a997e6590ed27acd9469ca678bbfd74871d55c3b08f7916cf059",
+      "status": "FAIL",
+      "totalCount": 12,
+      "failedCount": 1,
+      "message": "1/12 checks failed: restore-mode;",
+      "metrics": {
+        "original-mode": "1560x1040 32-bpp 60-Hz fields=7c00a0 orientation=0 flags=0",
+        "original-list-before": "modes=30 size_matches=3 exact_matches=1",
+        "mode-table-size": "30",
+        "change-disp-rc": "0",
+        "fullscreen-client": "1280x800",
+        "original-list-after": "modes=18 size_matches=0 exact_matches=0"
+      },
+      "failures": [
+        {
+          "name": "restore-mode",
+          "pass": false,
+          "detail": "rc=-2"
+        }
+      ],
+      "realExitZeroConfirmed": false
+    }
+  ],
+  "audioTestCorrection": {
+    "reason": "Original stereo fixture contained only half of the required samples, and legal TIME_BYTES was treated as zero.",
+    "changedRuntime": false,
+    "unitsAccepted": [
+      "TIME_MS",
+      "TIME_SAMPLES",
+      "TIME_BYTES"
+    ],
+    "currentChecks": 12,
+    "observedUnit": "TIME_BYTES",
+    "physicalListeningVerified": false
+  },
+  "findings": [
+    "Cold fullscreen mode restoration fails on both routes: original 1560x1040 exists before switch (30 modes, 1 exact match), disappears after 1280x800 (18 modes, 0 matches), restore returns BADMODE. No speculative mode cache or emulate-modeset workaround was added.",
+    "X11 minimized icon coordinates differ from the Win32 -32000 sentinel in virtual desktop; IsIconic and all three placement/restore cycles pass. Exact sentinel behavior remains open, not classified as a broken restoration.",
+    "Clipboard cases verify Wine-side formats, enumeration and cross-window transfer; they do not prove native system clipboard integration."
+  ],
+  "limitations": [
+    "No physical Chinese candidate selection, two-finger scrolling, relative mouse, controller or all-game/media acceptance.",
+    "This is targeted API acceptance, not complete X11 acceptance or a clean CI rebuild."
+  ]
+}
