@@ -368,6 +368,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0074-x11-child-window-identity.pa
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0075-x11-thread-cleanup-diagnostics.patch" "X11 thread cleanup diagnostics"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0076-x11-egl-default-visual.patch" "X11 EGL pbuffer default visual"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0077-x11-ohos-client-decorations.patch" "X11 OHOS client-side window decorations"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0078-ohos-single-blit-caption.patch" "OHOS atomic non-client caption drawing"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0079-x11-ohos-text-only-caption-refresh.patch" "X11 bounded text-only caption refresh"
 
 if [ "${1:-}" = --check-patches ]; then exit 0; fi
 

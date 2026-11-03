@@ -1304,6 +1304,8 @@ test-x11-integration:
 	python3 $(ROOT)/host_tests/wine_ability_restore_test.py
 	python3 $(ROOT)/host_tests/x11_consumer_fence_test.py
 	python3 $(ROOT)/host_tests/x11_canvas_sync_test.py
+	python3 $(ROOT)/host_tests/x11_caption_transaction_test.py
+	python3 $(ROOT)/host_tests/x11_caption_text_repaint_test.py
 	python3 $(ROOT)/host_tests/ohos_buffer_lifecycle_test.py
 	python3 $(ROOT)/host_tests/display_spawn_fds_test.py
 	python3 $(ROOT)/host_tests/display_child_log_test.py

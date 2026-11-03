@@ -334,6 +334,14 @@
       {
         "path": "patches/wine/0077-x11-ohos-client-decorations.patch",
         "sha256": "71a41de6527749cb547a92e40ff313a89b405cab1ade01aa0617f9ac33416762"
+      },
+      {
+        "path": "patches/wine/0078-ohos-single-blit-caption.patch",
+        "sha256": "4317a1e00931438248f579293e919205cb404b41040902a833b9df2ba5bb5952"
+      },
+      {
+        "path": "patches/wine/0079-x11-ohos-text-only-caption-refresh.patch",
+        "sha256": "844c4086b7a6e78e1c2e5519d931b9193d2181839232fdfc35cb3dc4bd2b43f5"
       }
     ],
     "virglrenderer": [
@@ -645,7 +653,8 @@
       "dlls/winex11.drv/x11drv_main.c": "b8771b96bf199758870d1738cf90d64885477e57342b7b45d783f6e7d72b5591",
       "include/Makefile.in": "9a83adcb193b2468741682355b9e5916bf8c760dd7b6330edd0f22440505f969",
       "include/wine/winehua_present.h": "5d793ac345bfb7a2b00010525c90166b9e0079322c9084f67042b148dd78d862",
-      "include/wine/winehua_vulkan.h": "dbd825300c13664db7f26e8e4f39e0702e5449160ff15d2e814c61f8c62135a1"
+      "include/wine/winehua_vulkan.h": "dbd825300c13664db7f26e8e4f39e0702e5449160ff15d2e814c61f8c62135a1",
+      "dlls/win32u/defwnd.c": "01907307b6d196c3f2d607512086c11f148298b9633f25ea6fdfe6178ba10941"
     },
     "virglrenderer": {
       "src/vrend/vrend_renderer.c": "c0f88e4f535655643e86f7a443c6e6c15ea122e445db9358d5ccda6f5ae03e51",
@@ -677,7 +686,7 @@
       "scripts/build_xwayland.sh": "520fc57cf717714309b2f29b5241d21f21b948641415fdfe39b4238b073477be",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "e719c600e5f6ed4b1f1e221b34677115b9ee9cf2771e8a131df7e9f06d67d38e",
+      "scripts/build_wine.sh": "4cc8e5037309fbe95313a208b59b2c1edbde30057a1cd770f935dde5f57111c0",
       "scripts/env.sh": "011a97a8f96fc9d89f971ca6e8880843694be80cde43379277fdfe60a9eb8634",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }
