@@ -102,6 +102,54 @@ def scan_cost(directory):
 short_cost=scan_cost(shallow);deep_cost=scan_cost(deep)
 assert deep_cost-short_cost<100,(short_cost,deep_cost)
 print('Directory scan metadata calls: shallow=%d, deep=%d for 256 entries'%(short_cost,deep_cost))
+# Steady-state nofollow metadata/readlink must traverse a depot only once.
+# Reuse the leaf metadata from the real syscall, without a persistent cache.
+leaf=deep/'0';components=len(leaf.relative_to(stage).parts)
+counter.depot_metadata_reset()
+assert stat.S_ISREG(leaf.lstat().st_mode)
+leaf_cost=counter.depot_metadata_count()
+assert leaf_cost<=2,(leaf_cost,components)
+counter.depot_metadata_reset()
+fails(lambda:os.readlink(leaf),errno.EINVAL)
+readlink_cost=counter.depot_metadata_count()
+assert readlink_cost<=2,(readlink_cost,components)
+# Physical success must not bypass the package boundary for '..', even when
+# the kernel could leave and re-enter the same package and reach a real file.
+fails(lambda:(stage/'../1070560/one/two/three/four/five/six/seven/scan/0').read_bytes(),errno.EACCES)
+# Intermediate emulated links still need the component walker; no metadata or
+# missing-path result is cached across replacement.
+os.symlink('one',stage/'parent-alias')
+assert (stage/'parent-alias/two/three/four/five/six/seven/scan/0').read_bytes()==leaf.read_bytes()
+os.unlink(stage/'parent-alias');os.symlink('steam-runtime',stage/'parent-alias')
+assert (stage/'parent-alias/etc/test.conf').read_bytes()==b'real-content'
+os.unlink(stage/'parent-alias')
+os.symlink('0',deep/'alias')
+assert os.readlink(deep/'alias')=='0'
+assert stat.S_ISLNK((deep/'alias').lstat().st_mode)
+os.unlink(deep/'alias');os.symlink('1',deep/'alias')
+assert os.readlink(deep/'alias')=='1'
+print('Single-lookup metadata calls: lstat=%d, readlink=%d, components=%d'%
+      (leaf_cost,readlink_cost,components))
+# Rootfs-style probes retain the real parent descriptor instead of rescanning
+# its deep absolute prefix, while a present emulated parent still resolves.
+fd=os.open(deep,os.O_RDONLY|os.O_DIRECTORY)
+for action in [lambda:os.stat('absent/one/two/three',dir_fd=fd,follow_symlinks=False),
+               lambda:os.readlink('absent/one/two/three',dir_fd=fd)]:
+ counter.depot_metadata_reset();fails(action,errno.ENOENT)
+ assert counter.depot_metadata_count()<=1,counter.depot_metadata_count()
+# The direct ENOENT must come from the original operation, including invalid
+# flags/buffer precedence, rather than a fabricated result from a stat probe.
+api.readlinkat.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_size_t]
+assert api.readlinkat(fd,b'absent/one',buf,0)==-1 and ctypes.get_errno()==errno.EINVAL
+api.fstatat.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_int]
+assert api.fstatat(fd,b'absent/one',buf,0x40000000)==-1 and ctypes.get_errno()==errno.EINVAL
+os.symlink('missing-directory',deep/'virtual-parent')
+fails(lambda:os.stat('virtual-parent/child',dir_fd=fd),errno.ENOENT)
+os.unlink(deep/'virtual-parent');os.mkdir(deep/'missing-directory')
+os.symlink('missing-directory',deep/'virtual-parent')
+(deep/'missing-directory/child').write_bytes(b'visible')
+assert os.stat('virtual-parent/child',dir_fd=fd).st_size==7
+os.unlink(deep/'virtual-parent');os.unlink(deep/'missing-directory/child');os.rmdir(deep/'missing-directory');os.close(fd)
 # An open directory remains usable after rename; record updates are visible
 # without stale per-directory or negative lookup caches.
 walking=stage/'walking';walking.mkdir();os.symlink('../later',walking/'link')

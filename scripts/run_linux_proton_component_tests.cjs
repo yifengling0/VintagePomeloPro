@@ -10,7 +10,7 @@ const base = home + '/steamohos-native', root = base + '/proton-probe', scratch 
 const hash = data => crypto.createHash('sha256').update(data).digest('hex');
 const write = (name, text) => { fs.mkdirSync(path.dirname(name), {recursive:true}); fs.writeFileSync(name,text); };
 let files = {}, manifest, hashes = 0, decompressions = 0, lowSpace = false, failActivation = false, badZip = false;
-let remoteCatalog, catalogRevision = 1, downloadFailure = false, renameFailure = '';
+let remoteCatalog, catalogRevision = 1, downloadFailure = false, renameFailure = '', downloads = 0;
 const archives = new Map(), runtimeReleases = [];
 const archive = Buffer.from('verified component archive');
 const archivePath = home + '/embedded.zip'; write(archivePath, archive);
@@ -74,6 +74,7 @@ deps['@kit.NetworkKit'] = {http:{RequestMethod:{GET:'GET'},HttpDataType:{STRING:
 })}};
 deps['./LinuxSteamComponentDownload'] = {LinuxSteamComponentDownload:class {
   pause(){} async fetch(descriptor,destination,progress) {
+    downloads++;
     if (downloadFailure) throw new Error('injected network failure');
     const data=archives.get(descriptor.sha256).packed;write(destination,data);progress(data.length);
   }
@@ -154,6 +155,18 @@ const context={resourceManager:{getRawFileContent:async(name)=>Buffer.from(JSON.
     catalogRevision++;await manager().checkUpdates(context);
     const keep = new Map(['prefix/user.reg','home/save'].map(name=>[name,fs.readFileSync(root+'/'+name)]));
     const originalPackage=fs.statSync(root+'/package').ino;
+    // Local input validation precedes active/inactive reuse and never downloads.
+    const local=home+'/local.zip', wrongSize=home+'/wrong-size.zip', invalidSameSize=home+'/invalid.zip';
+    write(local,archives.get(v1.archive.sha256).packed);
+    write(wrongSize,'wrong version');write(invalidSameSize,Buffer.alloc(v1.archive.bytes));
+    const beforeLocalDownloads=downloads, beforeLocalExtracts=decompressions;
+    await assert.rejects(manager().install(context,v1.id,wrongSize),/不匹配/);
+    await assert.rejects(manager().install(context,v1.id,invalidSameSize),/压缩包校验失败/);
+    await manager().install(context,v1.id,local);
+    assert.equal(downloads,beforeLocalDownloads);assert.equal(decompressions,beforeLocalExtracts);
+    assert.equal(fs.statSync(root+'/package').ino,originalPackage);
+    assert.equal(state().activeId,v1.id);
+    assert.ok(!exists(store+'/staging/runtime.zip'));
     downloadFailure=true;await assert.rejects(manager().install(context,v2.id),/network failure/);downloadFailure=false;
     lowSpace=true;await assert.rejects(manager().install(context,v2.id),/空间不足/);lowSpace=false;
     assert.equal(fs.statSync(root+'/package').ino,originalPackage);
@@ -165,6 +178,8 @@ const context={resourceManager:{getRawFileContent:async(name)=>Buffer.from(JSON.
     assert.equal(state().activeId,v1.id);assert.equal(fs.statSync(root+'/package').ino,originalPackage);
     await manager().install(context,v2.id);assert.equal(state().activeId,v2.id);assert.equal(state().previousId,v1.id);
     const v2Package=fs.statSync(root+'/package').ino;
+    await assert.rejects(manager().install(context,v1.id,invalidSameSize),/压缩包校验失败/);
+    assert.equal(state().activeId,v2.id,'bad local ZIP must not activate an installed inactive version');
     write(store+'/versions/'+v2.id+'/runtime.json','invalid metadata');
     await assert.rejects(service.ensureReady(context));
     await manager().install(context,v2.id);assert.equal(fs.statSync(root+'/package').ino,v2Package,'metadata repair must reuse verified bytes');
@@ -243,7 +258,12 @@ const context={resourceManager:{getRawFileContent:async(name)=>Buffer.from(JSON.
     assert.throws(()=>models.validateProtonRuntime({...v1,architecture:'x86_64'}),/不受支持/);
     assert.throws(()=>models.validateProtonRuntime({...v1,files:[...v1.files,{...v1.files[0],path:'package/../save'}]}));
     await assert.rejects(manager().remove(context,v2.id),/需保留/);
-    const v3=makeManifest('v3');catalogRevision++;await manager().checkUpdates(context);await manager().install(context,v3.id);
+    const v3=makeManifest('v3');catalogRevision++;await manager().checkUpdates(context);
+    write(local,archives.get(v3.archive.sha256).packed);
+    const offlineDownloads=downloads;
+    downloadFailure=true;await manager().install(context,v3.id,local);downloadFailure=false;
+    assert.equal(downloads,offlineDownloads,'fresh local import must not use the network');
+    assert.equal(state().activeId,v3.id);assert.equal(fs.readFileSync(root+'/package/proton','utf8'),'v3:package/proton');
     await manager().select(context,v2.id);await manager().select(context,v1.id);await manager().remove(context,v3.id);
     assert.ok(!exists(store+'/versions/'+v3.id));
     assert.equal(fs.readFileSync(root+'/hmosdeck','utf8'),'v2:hmosdeck','runtime updates must not replace adapter binaries');

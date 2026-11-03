@@ -174,7 +174,8 @@ export class LinuxSteamInstallService {
     // below against the CURRENT deployment before any component activation.
     const metadata = JSON.parse(ConfigurationFiles.text(await context.resourceManager.getRawFileContent('linux-steam/offline-package.json'))) as OfflinePackage;
     if (metadata.schemaVersion !== 1 || !/^[a-f0-9]{64}$/.test(metadata.id) || !/^[a-f0-9]{64}$/.test(metadata.sha256) ||
-      !Number.isSafeInteger(metadata.bytes) || metadata.bytes <= 0 || metadata.bytes > 536870912) {
+      !Number.isSafeInteger(metadata.bytes) || metadata.bytes <= 0 || metadata.bytes > 536870912 ||
+      !metadata.fileName || /[\\/:\x00-\x1f]/.test(metadata.fileName)) {
       throw new LinuxSteamDownloadError('LOCAL_VERSION', '本地包配置不兼容，请更新应用');
     }
     if (!Array.isArray(metadata.compatiblePackages ?? []) || (metadata.compatiblePackages?.length ?? 0) > 16) {
@@ -192,11 +193,12 @@ export class LinuxSteamInstallService {
     catch (error) { fs.closeSync(input); throw new Error((error as Error).message); }
     if (!accepted.some((item: OfflinePackageIdentity): boolean => item.bytes === inputBytes)) {
       fs.closeSync(input);
-      throw new LinuxSteamDownloadError('LOCAL_PACKAGE', '组件包不匹配，请更新应用或选择配套的 HmosDeck Steam 组件包');
+      throw new LinuxSteamDownloadError('LOCAL_PACKAGE', `请选择此版本配套的完整 Steam 包：${metadata.fileName}（约 ${Math.ceil(metadata.bytes / 1048576)} MiB）。当前文件可能是其他版本、Proton 包或下载不完整；无需解压`);
     }
-    if (freeBytes < plan.requiredSpaceBytes + inputBytes * 2) {
+    const requiredBytes = plan.requiredSpaceBytes + inputBytes * 2;
+    if (freeBytes < requiredBytes) {
       fs.closeSync(input);
-      throw new LinuxSteamDownloadError('SPACE', '本地导入需要约 3.8 GB 可用空间，请清理空间后重试');
+      throw new LinuxSteamDownloadError('SPACE', `本地导入需要约 ${(requiredBytes / 1073741824).toFixed(1)} GiB 可用空间，当前约 ${(freeBytes / 1073741824).toFixed(1)} GiB；请释放空间后重试`);
     }
     this.value.component = '本地组件包'; this.value.totalBytes = inputBytes;
     this.value.receivedBytes = 0; this.stage('installing', '正在读取本地组件包');
@@ -222,20 +224,32 @@ export class LinuxSteamInstallService {
     const actualHash = await ConfigurationFiles.fileHash(archivePath);
     if (!accepted.some((item: OfflinePackageIdentity): boolean => item.bytes === inputBytes && item.sha256 === actualHash)) {
       fs.unlinkSync(archivePath);
-      throw new LinuxSteamDownloadError('LOCAL_CHECKSUM', '组件包校验失败或版本不匹配，原有组件和游戏库未更改');
+      throw new LinuxSteamDownloadError('LOCAL_CHECKSUM', `文件校验不符，请重新获取配套的 ${metadata.fileName}；文件可能损坏或不属于此版本支持的包。原有组件和游戏库未更改`);
     }
     this.checkPaused();
     const unpacked = `${staging}/local-import`; removeInstallationScratch(unpacked); installationDirectory(unpacked);
     this.stage('installing', '正在提取本地组件包');
     // Whole-bundle hash is pinned in the signed HAP before any ZIP extraction.
-    await zlib.decompressFile(archivePath, unpacked, {});
+    try { await zlib.decompressFile(archivePath, unpacked, {}); }
+    catch (_) { throw new LinuxSteamDownloadError('LOCAL_UNPACK', '组件包解压失败，请确认空间充足并重新导入；原有组件和游戏库未更改'); }
+    // Verify the complete set before moving any archive into the shared cache.
     for (const archive of plan.archives) {
       if (archive.url.startsWith('rawfile://')) continue;
       this.checkPaused();
       const source = `${unpacked}/archives/${archive.sha256}.zip`;
-      if (fs.statSync(source).size !== archive.bytes || await ConfigurationFiles.fileHash(source) !== archive.sha256) {
+      if (!safeInstallationParents(unpacked, source) || !fs.accessSync(source)) {
+        throw new LinuxSteamDownloadError('LOCAL_INCOMPLETE', `离线包缺少 ${archive.name}，请选择配套的完整 Steam 包；未更改游戏库`);
+      }
+      const stat = fs.lstatSync(source);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== archive.bytes ||
+        await ConfigurationFiles.fileHash(source) !== archive.sha256) {
         throw new LinuxSteamDownloadError('LOCAL_CHECKSUM', '本地包中的组件校验失败，未更改游戏库');
       }
+    }
+    for (const archive of plan.archives) {
+      if (archive.url.startsWith('rawfile://')) continue;
+      this.checkPaused();
+      const source = `${unpacked}/archives/${archive.sha256}.zip`;
       const destination = `${root}/downloads/${archive.sha256}.zip`;
       if (fs.accessSync(destination)) fs.unlinkSync(destination);
       fs.renameSync(source, destination);

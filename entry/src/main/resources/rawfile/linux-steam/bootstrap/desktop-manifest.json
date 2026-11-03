@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "architecture": "aarch64-linux-gnu",
+  "name": "steamohos_gnu_desktop_hap",
+  "bytes": 77944,
+  "sha256": "03de038016cacf50d41f7c12bee99c2ab17babdaa27af41b17191b7369bda7f6",
+  "sources": {
+    "entry/src/main/cpp/linux_steam/gnu_fixture/desktop_session.c": "ef16615551cfe5046e3484ceec8482b6ffb08fd7cd7f57490c9090ed7619ad93",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "e1e2f7b59a01cbb55ad006d5dd85873a95440714b37b6a4db0524ac79e0c8ec0",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/deck_session_control.h": "ff2f010cc19d176fa4f125746dab988568d2c203efef6f58a5e8da4b855a2319",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/deck_action_uri.h": "ae19e5685c1fec9ec95fdf2138898bea5d0b242a92d9b617b7fdf9dea65bd211",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/pointer_observer.h": "edd492b4934e36da6ae54dbfc89b702d4ed835687f41f3742a281bf883cf8f1b",
+    "scripts/build_linux_steam_desktop.py": "3d898dfeeb3678508a31ba25f45dd40ac4fafd39a86e15b029120a589c5dd444"
+  }
+}

@@ -608,12 +608,12 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
             session.environment.emplace_back("STEAMOHOS_DISABLE_CAPTION_DRAG=1");
         if(session.desktopBounds)session.environment.emplace_back("STEAMOHOS_WINDOW_BOUNDS=1");
         if(session.desktopSession) {
-            session.argv.insert(session.argv.begin()+4,directory+"/steamohos_gnu_desktop");
+            session.argv.insert(session.argv.begin()+4,directory+(productSession ? "/steamohos_gnu_desktop_hap" : "/steamohos_gnu_desktop"));
             if(session.desktopInputProbe)session.environment.emplace_back("STEAMOHOS_DESKTOP_INPUT=1");
         }
         if(session.wineWindowHost) {
             session.environment.emplace_back("STEAMOHOS_WINE_WINDOW_BRIDGE=1");
-            if(!session.desktopSession)session.argv.insert(session.argv.begin()+4,directory+"/steamohos_gnu_desktop");
+            if(!session.desktopSession)session.argv.insert(session.argv.begin()+4,directory+(productSession ? "/steamohos_gnu_desktop_hap" : "/steamohos_gnu_desktop"));
         }
         if(session.softwareGL) {
             for(auto& value:session.environment)if(value.compare(0,11,"LD_PRELOAD=")==0)value+=":"+directory+"/libsteamohos_software_gl.so";

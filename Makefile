@@ -604,6 +604,26 @@ $(STAMPS)/arm64-v8a/assemble: $(STAMPS)/fex-$(CONFIG)-$(WINE_ARCH) $(STAMPS)/box
 # ============================================================
 # hap — HAP 构建 + 签名 (统一 rawfile zip)
 # ============================================================
+# Stable output/cache paths: component changes, not app dates, name the ZIPs.
+RELEASE_OFFLINE_DIR ?= $(BUILD_DIR)/release-offline
+STEAM_ARCHIVE_CACHE ?= $(BUILD_DIR)/cache/steam-official
+export RELEASE_OFFLINE_DIR STEAM_ARCHIVE_CACHE
+.PHONY: release-offline-packages verify-release-offline-packages
+release-offline-packages:
+	python3 $(SCRIPTS)/prepare_release_offline_packages.py --output-dir "$(RELEASE_OFFLINE_DIR)" --downloads "$(STEAM_ARCHIVE_CACHE)"
+
+# For store App packaging through DevEco/direct Hvigor, run this final gate
+# with RELEASE_HAP=/path/to/output.hap RELEASE_APP=/path/to/output.app.
+verify-release-offline-packages:
+	python3 $(SCRIPTS)/prepare_release_offline_packages.py --verify-only --output-dir "$(RELEASE_OFFLINE_DIR)" $(if $(RELEASE_HAP),--hap "$(RELEASE_HAP)") $(if $(RELEASE_APP),--app "$(RELEASE_APP)")
+
+.PHONY: app app-unsigned
+app: assemble
+	bash $(SCRIPTS)/package.sh app
+
+app-unsigned: assemble
+	bash $(SCRIPTS)/package.sh app-unsigned
+
 .PHONY: hap
 hap: assemble
 	@echo "=== hap ($(CONFIG)) ==="

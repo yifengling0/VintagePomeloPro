@@ -94,6 +94,40 @@ static int bridge_visible_client(struct wine_window_bridge *b,Window window) {
     if(children)XFree(children);
     return root==b->root&&parent==b->root;
 }
+/* Unknown legacy CEF windows retain the chooser behavior. Only retire a
+ * remembered client when both PIDs prove it is another application, and no
+ * transient/client-leader relation ties it to the primary. No focus polling. */
+static int bridge_unrelated_client(struct wine_window_bridge *b,Window window) {
+    Window transient=window;
+    for(unsigned depth=0;depth<16;++depth) {
+        Window parent=None;
+        if(!XGetTransientForHint(b->display,transient,&parent)||!parent||parent==transient)break;
+        if(parent==b->primary)return 0;
+        transient=parent;
+    }
+    Atom leader=XInternAtom(b->display,"WM_CLIENT_LEADER",False);
+    Atom pid=XInternAtom(b->display,"_NET_WM_PID",False);
+    unsigned long identities[2][2]={{0}};
+    Window windows[2]={b->primary,window};
+    for(unsigned i=0;i<2;++i) {
+        unsigned long *values=NULL,count=0;
+        if(bridge_property(b->display,windows[i],leader,XA_WINDOW,&values,&count)&&count==1)
+            identities[i][0]=values[0];
+        if(values)XFree(values);
+        values=NULL;count=0;
+        if(bridge_property(b->display,windows[i],pid,XA_CARDINAL,&values,&count)&&count==1)
+            identities[i][1]=values[0];
+        if(values)XFree(values);
+        XWMHints *hints=XGetWMHints(b->display,windows[i]);
+        // ICCCM WM_HINTS window_group is the older equivalent of a leader.
+        if(hints) {
+            if(!identities[i][0]&&(hints->flags&WindowGroupHint))identities[i][0]=hints->window_group;
+            XFree(hints);
+        }
+    }
+    if(identities[0][0]&&identities[0][0]==identities[1][0])return 0;
+    return identities[0][1]&&identities[1][1]&&identities[0][1]!=identities[1][1];
+}
 static void bridge_end_dialog_drag(struct wine_window_bridge *b) {
     if(b->dialog_drag)XUngrabPointer(b->display,CurrentTime);
     b->dialog_drag=None;
@@ -395,6 +429,7 @@ static void bridge_tick(struct wine_window_bridge *b) {
         } else if(e.type==ClientMessage&&e.xclient.message_type==b->active&&b->primary&&
                   (e.xclient.window==b->primary||bridge_visible_client(b,e.xclient.window))) {
             if(e.xclient.window!=b->primary)b->active_child=e.xclient.window;
+            else if(b->active_child&&bridge_unrelated_client(b,b->active_child))b->active_child=None;
             bridge_restore_client(b);++b->activation;
         } else if(e.type==ClientMessage&&e.xclient.message_type==b->moveresize&&e.xclient.window!=b->primary&&
                   (e.xclient.data.l[3]==0||e.xclient.data.l[3]==1)) {

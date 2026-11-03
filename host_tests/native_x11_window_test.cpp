@@ -92,10 +92,13 @@ int main() {
  std::thread thread([&]{wl_display_run(server.display);});
  int screenIndex=0;xcb_connection_t* x=xcb_connect(nullptr,&screenIndex);assert(x&&!xcb_connection_has_error(x));
  auto iterator=xcb_setup_roots_iterator(xcb_get_setup(x));for(int i=0;i<screenIndex;++i)xcb_screen_next(&iterator);auto* screen=iterator.data;
+ uint32_t rootEvents=XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY;
+ xcb_change_window_attributes(x,screen->root,XCB_CW_EVENT_MASK,&rootEvents);
  xcb_window_t window=xcb_generate_id(x);uint32_t mask=XCB_EVENT_MASK_KEY_PRESS|XCB_EVENT_MASK_KEY_RELEASE|XCB_EVENT_MASK_BUTTON_PRESS|XCB_EVENT_MASK_BUTTON_RELEASE|XCB_EVENT_MASK_STRUCTURE_NOTIFY;
  xcb_create_window(x,screen->root_depth,window,screen->root,0,0,320,240,0,XCB_WINDOW_CLASS_INPUT_OUTPUT,screen->root_visual,XCB_CW_EVENT_MASK,&mask);
  auto* atom=xcb_intern_atom_reply(x,xcb_intern_atom(x,0,16,"WM_DELETE_WINDOW"),nullptr);assert(atom);auto closeAtom=atom->atom;free(atom);
- auto* protocols=xcb_intern_atom_reply(x,xcb_intern_atom(x,0,12,"WM_PROTOCOLS"),nullptr);assert(protocols);
+ auto* activation=xcb_intern_atom_reply(x,xcb_intern_atom(x,0,18,"_NET_ACTIVE_WINDOW"),nullptr);assert(activation);auto activationAtom=activation->atom;free(activation);
+ auto* protocols=xcb_intern_atom_reply(x,xcb_intern_atom(x,0,12,"WM_PROTOCOLS"),nullptr);assert(protocols);auto protocolAtom=protocols->atom;
  xcb_change_property(x,XCB_PROP_MODE_REPLACE,window,protocols->atom,XCB_ATOM_ATOM,32,1,&closeAtom);free(protocols);
  xcb_map_window(x,window);xcb_flush(x);
  {
@@ -108,7 +111,7 @@ int main() {
   while(!server.inputReady&&std::chrono::steady_clock::now()<readyDeadline)poll(nullptr,0,1);
   assert(server.inputReady);
   assert(write(pipes[1],"i",1)==1);
-  unsigned keyPress=0,keyRelease=0,left=0,wheel=0;bool closed=false;
+  unsigned keyPress=0,keyRelease=0,left=0,wheel=0;bool closed=false,activated=false;
   auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
   assert(write(pipes[1],"c",1)==1);
   while(std::chrono::steady_clock::now()<deadline) {
@@ -117,13 +120,17 @@ int main() {
     if(type==XCB_KEY_PRESS){assert(reinterpret_cast<xcb_key_press_event_t*>(event)->detail==38);++keyPress;}
     if(type==XCB_KEY_RELEASE)++keyRelease;
     if(type==XCB_BUTTON_PRESS){auto detail=reinterpret_cast<xcb_button_press_event_t*>(event)->detail;if(detail==1)++left;else if(detail==5)++wheel;else assert(false);}
-    if(type==XCB_CLIENT_MESSAGE)closed=reinterpret_cast<xcb_client_message_event_t*>(event)->data.data32[0]==closeAtom;
+    if(type==XCB_CLIENT_MESSAGE) {
+     auto* message=reinterpret_cast<xcb_client_message_event_t*>(event);
+     if(message->type==protocolAtom&&message->window==window&&message->data.data32[0]==closeAtom)closed=true;
+     else if(message->type==activationAtom&&message->window==window&&message->format==32&&message->data.data32[0]==1)activated=true;
+    }
     free(event);
    }
-   if(keyPress==1&&keyRelease==1&&left==1&&wheel==1&&closed)break;
+   if(keyPress==1&&keyRelease==1&&left==1&&wheel==1&&closed&&activated)break;
    pollfd fd{xcb_get_file_descriptor(x),POLLIN,0};poll(&fd,1,10);
   }
-  assert(keyPress==1&&keyRelease==1&&left==1&&wheel==1&&closed);
+  assert(keyPress==1&&keyRelease==1&&left==1&&wheel==1&&closed&&activated);
  }
  xcb_destroy_window(x,window);xcb_disconnect(x);
  assert(write(pipes[1],"q",1)==1);thread.join();wl_event_source_remove(source);

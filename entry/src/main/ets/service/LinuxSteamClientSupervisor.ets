@@ -48,6 +48,7 @@ export async function ensureLinuxSteamClientSupervisor(context: common.Context, 
 }
 
 export async function ensureLinuxSteamPosixSupport(context: common.Context, root: string): Promise<void> {
+  await installSupport(context, root, 'steamohos_gnu_desktop_hap', 'desktop-manifest.json', 262144);
   await installSupport(context, root, 'libsteamohos_posix_hap.so', 'posix-manifest.json', 2097152);
   await installSupport(context, root, 'steamohos_fex', 'fex-manifest.json', 262144);
   await installSupport(context, root, 'libsteamohos_native_vulkan.so', 'native-graphics-manifest.json', 1048576);

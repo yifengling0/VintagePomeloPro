@@ -249,3 +249,25 @@ GNU ARM64 适配器与启动器已重编译并通过源码/载荷校验；新增
 通用交付核验：`LinuxSteamSessionService` 在写普通 `startupAction` 前调用 `ensureLinuxSteamPosixSupport`，从 HAP 的清单／SHA 自动更新 companion，不依赖调试脚本复制文件。设备 POSIX、FEX 启动器、native Vulkan 和 guest IPC 四项均与 rawfile SHA 一致；启动配置除正常卡片的 `startupAction=launch 2868840` 外与原配置一致，无临时 `-cef-disable-occlusion`／超时改写。CoreCLR 能力回退由启动器实际探测并自动选择，未为本轮写游戏专用开关。共享交付服务的缓存复用、损坏修复、原子替换和路径保护回归再次通过。此前 GNU ARM64 构建、主机语义／并发／ASan／UBSan 及图形合同结果继续保留；本轮 source/payload verify-only 通过。相关测试已登记 CI，但未声称远端 CI 运行。
 
 尚存的启动耗时和重复存档时间戳拒绝独立保留：游戏内计时到首次主菜单分别约 72.6／76.3／75.9 秒，不能等同 Deck 点击总耗时。时间戳拒绝伴随重复云存档拉取，未证明它是全部启动或战斗性能的根因。后续优先对 persistent coherent-map 发布、ring／drain、present RPC 和 NativeBuffer 背压做分段计时，再决定优化；不直接删除同步。本轮只新增性能证据和交付核验，没有再改游戏／驱动参数。
+
+
+## 同机 HSL 性能对照与输入焦点（2026-11-03）
+
+只使用普通平板，未操作 Edge、手机或修改 HSL。两边游戏均为 build 23811903、Linux depot 2868843 / manifest 7881097836989620034，ELF SHA-256 `0c21999e14b9ea44b7fa2cea38d3f27bbf63a784393d7932e2fa68a0819aa69a`。路线为 ARM64 Steam → FEX → sniper x86-64 Godot/MegaDot + CoreCLR 9.0.7 → 原生 Vulkan/Venus → Maleoon 910 → NativeBuffer。两边实际 swapchain 都是 **1920×1080**；X11 几何 1200×800 不是渲染分辨率。本问题不能归为 Wine、DXVK 或 GL 游戏开销。
+
+HSL 已登录并安装尖塔二，同设备第19层第1回合待机参考约 30.31 FPS。VPP 正常控制包预热后约13～18 FPS，最新40.77秒/720帧约17.66 FPS。其间用户手动出牌，后一次场景与 HSL 参考并非逐像素相同，因此这些是同机差距线索，不能当作严格交替基准。VPP 曾从2～3 FPS自然上升，未改变代码或画质；不将自然预热计作优化收益。两者稳态差距仍未解决，Release/O3 与持续 JIT 编译开销检查未支持“误用 Debug”或“每帧重编译”的解释。
+
+最初12秒/99 Hz/8097个样本、0丢失的 Hiperf 中，libc `__GI___fstatat64` 占11.66%，调用方为 `DepotLinkTarget` / `DepotResolveImpl` / `FollowCloud`。主线程32768次 resolve 累计15.20秒是累计操作时间，不是每帧耗时，嵌套计时不能相加。已减少通用 GNU 路径适配的重复遍历，复用真实叶子 metadata，并在原 syscall 返回真实 ENOENT 时结束合格的 dirfd 缺失探测。深9层普通叶子 lstat 为1次、readlink为2次 metadata，浅/深目录256个文件的扫描均257次。不存在持久负缓存或游戏名特判，链接并发发布、替换、rename、目录边界、权限和存档保护回归通过。最新6秒/99 Hz/1988样本、0丢失中，主线程 POSIX/readlinkat 调用点仍明显；采样比例不能等同帧耗时或全部根因。
+
+输入调查中，正常控制包的主菜单触摸、键盘和战斗暂停可操作，用户也确认有手动出牌，未复现持续全部输入失效。随后抓到更具体的异常：屏幕仍是游戏暂停菜单，X11 焦点却落到 Steam；HUD 同时升到30 FPS，游戏按钮无响应。该状态下的较高 HUD 不计为有效性能收益。通用修复在真实 Wayland pointer/keyboard enter 时发送 EWMH activation；窗口管理器仅在已知不同 PID 且无 transient、client leader 或 window group 关系时清理无关的旧 activeChild。保留旧 CEF 启动选择器行为，不周期抢焦点。新增回归在修改前失败，修改后 Xvfb 桌面、真实 XTEST/Wayland 键鼠滚轮和 native WSI 同步测试通过。
+
+新增小型 HAP 自带 `steamohos_gnu_desktop_hap`，与 POSIX/WSI 同样经资源清单和 SHA 自动安装；产品会话选择新宿主，诊断会话保留原宿主。这样窗口修复随应用交付，无须修改 Valve 文件或每次重打离线大包。构建脚本 `scripts/build_linux_steam_desktop.py` 支持 GNU ARM64 构建和 verify-only；CI、资源损坏修复/缓存复用/原子替换测试及最终 HAP 审计已接入。原生 WSI 和 POSIX companion 均已重建同步。实验分支全量增量 HAP 构建、最终包审计和本地签名验证通过，真机修复验收另记，不把主机测试当真机结论。
+
+FEX 上游源码本轮只读研究，临时诊断已撤销，未关闭 TSO、删除同步或修改游戏 DLL。未做本轮全部存档前后 SHA 校验，不宣称存档字节完全不变。后续区分文件路径/文档存储、guest 帧生成与 Venus 呈现背压，不以焦点修复解释全部性能差距。脱敏证据见 [同机性能调查](evidence/spire2-hsl-performance.json)。
+
+
+### 配套离线包和普通平板短时验收（2026-11-04）
+
+新候选 HAP 已通过完整编译、实际包审计和本地签名验证。在普通平板经系统文件选择器导入完整 Steam 离线 ZIP，13 个组件／5830 个文件全部验证并启用，最终状态 ready。原来缺少 native SDK 的旧包不能充当当前完整包；随应用更新的小型宿主不要求重打官方组件大包，组件变更则由发布流程准备新包并核对实际 HAP/App。详见 [离线交付](OFFLINE_RELEASE.zh-CN.md) 和 [脱敏验收](evidence/offline-release-delivery.json)。
+
+随后通过正常 Steam 会话启动 Linux 原生尖塔二，进入主菜单；实际触摸后 X11 焦点为游戏窗口，设置页可进入，Escape 返回，菜单确认退出后游戏窗口消失，父进程 waitid 报告正常退出状态 0。未手动调用 XSetInputFocus。新版 desktop、POSIX 和 native Vulkan 三项 companion 的设备 SHA 与 HAP 清单一致，确认用户正常安装可获得修复。只验证了短时菜单输入，不宣称间歇性长时焦点异常已完全消除，也不将本轮菜单 HUD 当作战斗性能结论。临时游戏画质／帧率四字段与启动配置已恢复；未推进战斗或覆盖用户存档。

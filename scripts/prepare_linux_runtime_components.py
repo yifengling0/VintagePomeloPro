@@ -31,6 +31,7 @@ DESTINATIONS = {
     'linux-proton/gnu-proton.zip': 'linux-proton/manifest.json',
 }
 HAP_COMPANIONS = {
+    'entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json': 'steamohos_gnu_desktop_hap',
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json': 'libsteamohos_posix_hap.so',
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json': 'steamohos_fex',
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json': 'libsteamohos_native_vulkan.so',
@@ -38,6 +39,7 @@ HAP_COMPANIONS = {
 # These describe distribution only; they are not compilation inputs to the
 # immutable GNU dependency ZIP. Keep their identities separate and exact.
 DELIVERY_INPUTS = {
+    'scripts/prepare_release_offline_packages.py',
     'scripts/build_linux_steam_distribution.py',
     'scripts/build_linux_steam_offline_package.py',
     'scripts/linux_steam_native_sdk.py',

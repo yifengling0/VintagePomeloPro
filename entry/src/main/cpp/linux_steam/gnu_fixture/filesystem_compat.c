@@ -70,6 +70,8 @@ static void TraceProcAccess(const char*,const char*,int,int);
 static int SingletonName(const char*);
 static int DepotScope(const char*,char[PATH_MAX]);
 static int DepotLinkTarget(const char*,char[PATH_MAX]);
+static int DepotRawTarget(const char*,char[PATH_MAX]);
+static int DepotRawTargetKnown(const char*,char[PATH_MAX],const struct stat*);
 static int DepotCreateLink(const char*,const char*);
 static const char *DepotResolve(const char*,char[PATH_MAX],int);
 static uint64_t DepotProfileStart(const char*);
@@ -123,6 +125,33 @@ static int VirtualLinkTarget(const char *path,char target[PATH_MAX]) {
     int length=CloudLinkTarget(path,target);
     if(length<0)length=SingletonTarget(path,target);
     if(length<0)length=DepotLinkTarget(path,target);
+    return length;
+}
+// Parents have already passed FollowCloud/DepotResolve. Reuse that traversal
+// and the caller's physical leaf metadata instead of walking the same depot a
+// second time for every lstat/readlink. Do not cache paths: concurrent record
+// publication, replacement and renamed directories must remain visible.
+static int VirtualLinkTargetResolved(const char *path,char target[PATH_MAX],
+                                     mode_t mode,off64_t size) {
+    if(!S_ISREG(mode))return -1;
+    int length=CloudLinkTarget(path,target);
+    if(length<0)length=SingletonTarget(path,target);
+    if(length<0) {
+        char root[PATH_MAX];
+        if(DepotScope(path,root)&&strcmp(path,root)) {
+            struct stat physical={0};physical.st_mode=mode;physical.st_size=size;
+            length=DepotRawTargetKnown(path,target,&physical);
+        }
+    }
+    return length;
+}
+static int VirtualLinkTargetResolvedPath(const char *path,char target[PATH_MAX]) {
+    int length=CloudLinkTarget(path,target);
+    if(length<0)length=SingletonTarget(path,target);
+    if(length<0) {
+        char root[PATH_MAX];
+        if(DepotScope(path,root)&&strcmp(path,root))length=DepotRawTarget(path,target);
+    }
     return length;
 }
 static int CloudLinkPath(const char *,char[PATH_MAX],char[PATH_MAX],const char **);
@@ -284,7 +313,7 @@ int lstat(const char *path, struct stat *buf) {
     if(!path)return -1;
     int result=next_lstat(path,buf);int error=errno;
     TraceProcAccess("lstat",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTargetResolved(path,target,buf->st_mode,buf->st_size);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     DepotProfileEnd("lstat",depot_started);errno=error;return result;
 }
@@ -297,7 +326,7 @@ int lstat64(const char *path, struct stat64 *buf) {
     if(!path)return -1;
     int result=next_lstat64(path,buf);int error=errno;
     TraceProcAccess("lstat64",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTargetResolved(path,target,buf->st_mode,buf->st_size);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     DepotProfileEnd("lstat64",depot_started);errno=error;return result;
 }
@@ -310,7 +339,7 @@ int __lxstat(int version, const char *path, struct stat *buf) {
     if(!path)return -1;
     int result=next___lxstat(version,path,buf);int error=errno;
     TraceProcAccess("__lxstat",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTargetResolved(path,target,buf->st_mode,buf->st_size);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     DepotProfileEnd("__lxstat",depot_started);errno=error;return result;
 }
@@ -323,7 +352,7 @@ int __lxstat64(int version, const char *path, struct stat64 *buf) {
     if(!path)return -1;
     int result=next___lxstat64(version,path,buf);int error=errno;
     TraceProcAccess("__lxstat64",path,result<0,error);
-    if(!result){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+    if(!result){char target[PATH_MAX];int length=VirtualLinkTargetResolved(path,target,buf->st_mode,buf->st_size);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     DepotProfileEnd("__lxstat64",depot_started);errno=error;return result;
 }
@@ -377,17 +406,39 @@ static int NativeEmptyPathStat(int fd,const char *path,int flags,int result,int 
         !(flags&~(AT_EMPTY_PATH|AT_SYMLINK_NOFOLLOW|AT_NO_AUTOMOUNT));
 }
 static int (*next_fstatat)(int,const char*,struct stat*,int);
+// A live dirfd already anchors its physical parent. For a scoped, unmapped
+// relative path with no '..', a real ENOENT is final: an emulated parent is a
+// regular record and would instead produce ENOTDIR; an emulated leaf exists.
+// Probe with the ORIGINAL syscall and accept only its ENOENT. This preserves
+// flags, buffer validation, publication races and kernel errno precedence, and
+// avoids a second metadata query merely to establish the same absence.
+static int DepotDirectAtPath(int fd,const char *path,const char *absolute) {
+    if(fd<0||!path||!*path||path[0]=='/'||!absolute)return 0;
+    char root[PATH_MAX];if(!DepotScope(absolute,root))return 0;
+    for(const char *part=path;*part;) {
+        const char *end=strchr(part,'/');if(!end)end=part+strlen(part);
+        if(end-part==2&&part[0]=='.'&&part[1]=='.')return 0;
+        part=*end?end+1:end;
+    }
+    return 1;
+}
 int fstatat(int fd,const char *path,struct stat *buf,int flags) {
     if(!next_fstatat){EnsureFilesystemSymbols();} if(!next_fstatat){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX];
+    const char *relative=path;
     path=SandboxAtPath(fd,path,absolute,mapped);
+    if(path==absolute&&DepotDirectAtPath(fd,relative,absolute)) {
+        int direct=next_fstatat(fd,relative,buf,flags);
+        if(direct<0&&(errno==ENOENT||(errno==EINVAL&&
+            (flags&~(AT_SYMLINK_NOFOLLOW|AT_NO_AUTOMOUNT|AT_EMPTY_PATH)))))return direct;
+    }
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
     if(!path)return -1;
     int result=RecoverNative(next_fstatat(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
     if(NativeEmptyPathStat(fd,path,flags,result,error)&&!fstat(fd,buf))result=0;
     if(result)TraceAtFailure(fd,path,flags,error);
-    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTargetResolved(path,target,buf->st_mode,buf->st_size);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     errno=error;return result;
 }
@@ -395,14 +446,20 @@ static int (*next_fstatat64)(int,const char*,struct stat64*,int);
 int fstatat64(int fd,const char *path,struct stat64 *buf,int flags) {
     if(!next_fstatat64){EnsureFilesystemSymbols();} if(!next_fstatat64){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],mapped[PATH_MAX],followed[PATH_MAX],cloud[PATH_MAX];
+    const char *relative=path;
     path=SandboxAtPath(fd,path,absolute,mapped);
+    if(path==absolute&&DepotDirectAtPath(fd,relative,absolute)) {
+        int direct=next_fstatat64(fd,relative,buf,flags);
+        if(direct<0&&(errno==ENOENT||(errno==EINVAL&&
+            (flags&~(AT_SYMLINK_NOFOLLOW|AT_NO_AUTOMOUNT|AT_EMPTY_PATH)))))return direct;
+    }
     path=FollowCloud(path,cloud,!(flags&AT_SYMLINK_NOFOLLOW));
     if(!(flags&AT_SYMLINK_NOFOLLOW))path=FollowSingleton(path,followed);
     if(!path)return -1;
     int result=RecoverLarge(next_fstatat64(fd,path,buf,flags),fd,path,buf,flags);int error=errno;
     if(NativeEmptyPathStat(fd,path,flags,result,error)&&!fstat64(fd,buf))result=0;
     if(result)TraceAtFailure(fd,path,flags,error);
-    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+    if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX];int length=VirtualLinkTargetResolved(path,target,buf->st_mode,buf->st_size);
         if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}}
     errno=error;return result;
 }
@@ -433,7 +490,7 @@ static int KnownStatVersion(int version) {
         if(KnownStatVersion(version)&&NativeEmptyPathStat(fd,path,flags,result,error)&&!statfd(fd,buf))result=0; \
         if(result)TraceAtFailure(fd,path,flags,error); \
         if(!result&&(flags&AT_SYMLINK_NOFOLLOW)){char target[PATH_MAX]; \
-            int length=VirtualLinkTarget(path,target); \
+            int length=VirtualLinkTargetResolved(path,target,buf->st_mode,buf->st_size); \
             if(length>=0){buf->st_mode=S_IFLNK|0777;buf->st_size=length;buf->st_blocks=0;}} \
         errno=error;return result; \
     }
@@ -625,17 +682,19 @@ static ssize_t NativeExecutable(const char *path,char *buffer,size_t capacity) {
     memcpy(buffer,executable,length);return length;
 }
 ssize_t readlink(const char *path,char *buffer,size_t capacity) {
+    if(!capacity){errno=EINVAL;return -1;}
     ssize_t result=NativeExecutable(path,buffer,capacity);if(result!=-2)return result;
     if(!next_readlink){EnsureFilesystemSymbols();} if(!next_readlink){errno=ENOSYS;return -1;}
-    char mapped[PATH_MAX],target[PATH_MAX];path=SandboxPath(path,mapped);
-    int length=VirtualLinkTarget(path,target);
+    char mapped[PATH_MAX],target[PATH_MAX],cloud[PATH_MAX];
+    path=FollowCloud(SandboxPath(path,mapped),cloud,0);if(!path)return -1;
+    int length=VirtualLinkTargetResolvedPath(path,target);
     if(length>=0){if(!capacity){errno=EINVAL;return -1;}
         size_t count=(size_t)length<capacity?(size_t)length:capacity;memcpy(buffer,target,count);return count;}
-    char cloud[PATH_MAX];path=FollowCloud(path,cloud,0);if(!path)return -1;
     result=next_readlink(path,buffer,capacity);int saved=errno;
     TraceProcAccess("readlink",path,result<0,saved);errno=saved;return result;
 }
 ssize_t readlinkat(int fd,const char *path,char *buffer,size_t capacity) {
+    if(!capacity){errno=EINVAL;return -1;}
     ssize_t result=NativeExecutable(path,buffer,capacity);if(result!=-2)return result;
     if(!next_readlinkat){EnsureFilesystemSymbols();} if(!next_readlinkat){errno=ENOSYS;return -1;}
     char absolute[PATH_MAX],parent[PATH_MAX];
@@ -643,7 +702,14 @@ ssize_t readlinkat(int fd,const char *path,char *buffer,size_t capacity) {
         char descriptor[64];snprintf(descriptor,sizeof(descriptor),"/proc/self/fd/%d",fd);
         ssize_t length=next_readlink(descriptor,parent,sizeof(parent)-1);
         if(length>=0){parent[length]=0;int n=snprintf(absolute,sizeof(absolute),"%s/%s",parent,path);
-            if(n>0&&n<(int)sizeof(absolute))return readlink(absolute,buffer,capacity);}
+            if(n>0&&n<(int)sizeof(absolute)) {
+                char mapped[PATH_MAX];const char *translated=SandboxPath(absolute,mapped);
+                if(translated==absolute&&DepotDirectAtPath(fd,path,absolute)) {
+                    ssize_t direct=next_readlinkat(fd,path,buffer,capacity);
+                    if(direct<0&&errno==ENOENT)return direct;
+                }
+                return readlink(absolute,buffer,capacity);
+            }}
     }
     if(path[0]=='/'||fd==AT_FDCWD)return readlink(path,buffer,capacity);
     char mapped[PATH_MAX];return next_readlinkat(fd,SandboxPath(path,mapped),buffer,capacity);
@@ -1278,7 +1344,11 @@ int statx(int fd,const char *path,int flags,unsigned mask,struct statx *buf) {
     if(!path)return -1;
     int result=next(fd,path,flags,mask,buf),saved=errno;
     if(!result&&(flags&AT_SYMLINK_NOFOLLOW)) {
-        char target[PATH_MAX];int length=VirtualLinkTarget(path,target);
+        char target[PATH_MAX];
+        const unsigned needed=STATX_TYPE|STATX_SIZE;
+        int length=(buf->stx_mask&needed)==needed&&buf->stx_size<=INT64_MAX
+            ?VirtualLinkTargetResolved(path,target,buf->stx_mode,(off64_t)buf->stx_size)
+            :VirtualLinkTargetResolvedPath(path,target);
         if(length>=0){buf->stx_mode=S_IFLNK|0777;buf->stx_size=(unsigned)length;buf->stx_blocks=0;}
     }
     errno=saved;return result;

@@ -128,6 +128,36 @@ static void dialog_restore_tests(Display *d,Window main) {
     XDestroyWindow(d,dialog);
     puts("X11_DIALOG activation primary-identity host-restore dismissed-focus PASS");
 }
+/* An unhinted CEF chooser stays attached to its Steam client. A native game
+ * must not retain a different application's Steam window on reactivation. */
+static void application_activation_tests(Display *d,Window main) {
+    Window other=XCreateSimpleWindow(d,DefaultRootWindow(d),200,120,300,220,0,0,0);
+    Atom pid=XInternAtom(d,"_NET_WM_PID",False),leader=XInternAtom(d,"WM_CLIENT_LEADER",False);
+    unsigned long main_pid=111,other_pid=222,group=main;
+    XChangeProperty(d,main,pid,XA_CARDINAL,32,PropModeReplace,(unsigned char*)&main_pid,1);
+    XChangeProperty(d,other,pid,XA_CARDINAL,32,PropModeReplace,(unsigned char*)&other_pid,1);
+    // Separate processes can still belong to one application group.
+    XChangeProperty(d,main,leader,XA_WINDOW,32,PropModeReplace,(unsigned char*)&group,1);
+    XChangeProperty(d,other,leader,XA_WINDOW,32,PropModeReplace,(unsigned char*)&group,1);
+    XMapWindow(d,other);XSync(d,False);usleep(150000);
+    request(d,other,"_NET_ACTIVE_WINDOW",1,NULL,NULL);focused_above(d,main,other);
+    request(d,main,"_NET_ACTIVE_WINDOW",1,NULL,NULL);focused_above(d,main,other);
+    XDeleteProperty(d,other,leader);
+    // An explicit transient hint also overrides the different process ID.
+    XSetTransientForHint(d,other,main);XSync(d,False);
+    request(d,main,"_NET_ACTIVE_WINDOW",1,NULL,NULL);focused_above(d,main,other);
+    XDeleteProperty(d,other,XA_WM_TRANSIENT_FOR);XSync(d,False);
+    request(d,main,"_NET_ACTIVE_WINDOW",1,NULL,NULL);
+    int matched=0;
+    for(int n=0;n<100;++n) {
+        Window focus;int revert;XGetInputFocus(d,&focus,&revert);
+        if(focus==main&&native_number("activeChild")==0){matched=1;break;}
+        usleep(20000);
+    }
+    assert(matched&&"reactivation retained another application's window");
+    XDeleteProperty(d,main,pid);XDeleteProperty(d,main,leader);XDestroyWindow(d,other);XSync(d,False);
+    puts("X11_ACTIVATION unrelated-client retired; CEF groups/transients preserved PASS");
+}
 static void caption_pointer_tests(Display *d,Window w,Window popup) {
     void *xtst=dlopen("libXtst.so.6",RTLD_NOW);assert(xtst);
     int (*motion)(Display*,int,int,int,unsigned long)=dlsym(xtst,"XTestFakeMotionEvent");
@@ -194,6 +224,7 @@ int main(void) {
     caption_pointer_tests(d,w,popup);
     dialog_restore_tests(d,w);
     dialog_resize_tests(d,w);
+    application_activation_tests(d,w);
     request(d,w,"WM_CHANGE_STATE",IconicState,NULL,NULL);state(w,0,1);
     /* Restore from Wine taskbar is a command to remap the same X11 window. */
     snprintf(path,sizeof(path),"%s/wine-window-command.txt",getenv("STEAMOHOS_TMP_ROOT"));

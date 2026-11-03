@@ -14,7 +14,8 @@
 namespace steamohos {
 class NativeX11Window {
     xcb_connection_t* x=nullptr;
-    xcb_window_t xid=0;
+    xcb_window_t xid=0,root=0;
+    xcb_atom_t activeWindow=XCB_ATOM_NONE;
     wl_registry* registry=nullptr;wl_compositor* compositor=nullptr;xdg_wm_base* wm=nullptr;
     xdg_surface* shell=nullptr;xdg_toplevel* top=nullptr;
     wl_seat* seat=nullptr;wl_pointer* pointer=nullptr;wl_keyboard* keyboard=nullptr;
@@ -34,6 +35,17 @@ class NativeX11Window {
         xcb_send_request(x,0,parts+2,&protocol);xcb_flush(x);
     }
     void Focus() {
+        // Activation belongs to the actual Wayland enter, not a periodic
+        // raise. Inform the shared X11 WM so it can retire an unrelated
+        // Steam client remembered before the game became foreground.
+        if(activeWindow&&root) {
+            xcb_client_message_event_t message{};
+            message.response_type=XCB_CLIENT_MESSAGE;message.window=xid;
+            message.type=activeWindow;message.format=32;message.data.data32[0]=1;
+            message.data.data32[1]=XCB_CURRENT_TIME;
+            xcb_send_event(x,0,root,XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT|XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+                reinterpret_cast<const char*>(&message));
+        }
         xcb_set_input_focus(x,XCB_INPUT_FOCUS_POINTER_ROOT,xid,XCB_CURRENT_TIME);xcb_flush(x);
     }
     void ReleaseKeys() {
@@ -144,7 +156,9 @@ public:
         x=xcb_connect(nullptr,nullptr);if(!x||xcb_connection_has_error(x))return false;
         xcb_generic_error_t* error=nullptr;
         auto* info=xcb_get_geometry_reply(x,xcb_get_geometry(x,xid),&error);free(error);
-        if(!info)return false;free(info);
+        if(!info)return false;root=info->root;free(info);
+        auto* activation=xcb_intern_atom_reply(x,xcb_intern_atom(x,0,18,"_NET_ACTIVE_WINDOW"),nullptr);
+        if(activation){activeWindow=activation->atom;free(activation);}
         const auto* test=xcb_get_extension_data(x,&xtest);if(!test||!test->present)return false;
         display=wl_display_connect(nullptr);if(!display)return false;
         registry=wl_display_get_registry(display);

@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-03T02:17:57.253074+00:00",
+  "scope": "Short basic checks on MatePad Edge; no new build/install; no extended stress run.",
+  "branch": "feature/ohos-proton-x11-integration",
+  "sourceHead": "c1971a322e00eb043b036e5e2d1fd8c3f829eb64",
+  "installedVersion": "1.5.5",
+  "signedHapSha256": "54558fd3fde1789494f119f53b7beebc0e6800af90d56bea2c2b0e07790fe0d0",
+  "packageReused": true,
+  "buildIdentityNote": "Source HEAD is the test record baseline, not a claim that this existing package was built from that commit.",
+  "api": [
+    {
+      "case": "clip-basic",
+      "status": "PASS",
+      "passed": 12,
+      "total": 12,
+      "exitZeroObserved": false
+    },
+    {
+      "case": "clip-cross",
+      "status": "PASS",
+      "passed": 5,
+      "total": 5,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "clip-formats",
+      "status": "PASS",
+      "passed": 9,
+      "total": 9,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "win-owned",
+      "status": "PASS",
+      "passed": 14,
+      "total": 14,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "win-minimize",
+      "status": "PASS",
+      "passed": 26,
+      "total": 26,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "win-maximize",
+      "status": "PASS",
+      "passed": 14,
+      "total": 14,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "gdi-text",
+      "status": "PASS",
+      "passed": 5,
+      "total": 5,
+      "exitZeroObserved": false
+    },
+    {
+      "case": "font-enum",
+      "status": "PASS",
+      "passed": 5,
+      "total": 5,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "gdi-primitives",
+      "status": "PASS",
+      "passed": 6,
+      "total": 6,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "audio-waveout",
+      "status": "PASS",
+      "passed": 12,
+      "total": 12,
+      "exitZeroObserved": true
+    },
+    {
+      "case": "win-fullscreen",
+      "status": "FAIL",
+      "passed": 11,
+      "total": 12,
+      "exitZeroObserved": false
+    }
+  ],
+  "graphics": [
+    {
+      "case": "pc-basic-dx11-product",
+      "status": "PASS",
+      "renderer": "D3D11",
+      "backend": "dxvk_legacy",
+      "frames": 7093,
+      "angleRegressions": 0,
+      "evidence": "pc-basic-dx11-product-evidence.json"
+    },
+    {
+      "case": "pc-basic-controls-product",
+      "status": "PASS",
+      "renderer": "D3D11",
+      "backend": "dxvk_legacy",
+      "frames": 12056,
+      "angleRegressions": 0,
+      "evidence": "pc-basic-controls-product-evidence.json"
+    },
+    {
+      "case": "virtual-basic-restore-product",
+      "status": "PASS",
+      "renderer": "D3D11",
+      "backend": "dxvk_legacy",
+      "frames": 7141,
+      "angleRegressions": 0,
+      "evidence": "virtual-basic-restore-product-evidence.json"
+    },
+    {
+      "case": "virtual-basic-d3d9-product",
+      "status": "PASS",
+      "renderer": "D3D9",
+      "backend": "unknown",
+      "frames": 1436,
+      "angleRegressions": 0,
+      "evidence": "virtual-basic-d3d9-product-evidence.json"
+    }
+  ],
+  "windowControls": {
+    "pc": [
+      "drag",
+      "maximize",
+      "restore",
+      "border-resize"
+    ],
+    "pcExit": "Escape; titlebar X was not independently confirmed in this short run",
+    "virtualDesktop": {
+      "fullscreenToWindowed": true,
+      "outerCloseAndReopen": true,
+      "sameAppAndXwaylandProcesses": true,
+      "desktopHostCount": 1,
+      "testedTheme": "classic"
+    }
+  },
+  "input": {
+    "status": "NOT_CONFIRMED",
+    "savedTestBytesHex": "0d0a4f4b",
+    "englishSaveObserved": true,
+    "chineseCommitObserved": false,
+    "note": "Automated focused notepad test did not retain Chinese text. This result does not invalidate earlier successful IME evidence, and does not independently pass Shift/backspace or physical candidate selection."
+  },
+  "steam": {
+    "status": "BLOCKED",
+    "code": "NATIVE_SDK",
+    "observed": "Deck shows missing/damaged Linux game Steam interface components; startup blocked before Steam process launch.",
+    "followup": "Repair component installation before Steam/GNU Proton/native Linux regression. No download started during this short check."
+  },
+  "remaining": [
+    "Shared fullscreen display-mode restore returns BADMODE (11/12 checks).",
+    "Chinese input needs a controlled recheck.",
+    "Physical two-finger scrolling, relative mouse and system clipboard not accepted by this run.",
+    "GNU Proton/Linux native game and media regressions not covered; clean full CI not run.",
+    "X11 DX11 frame pacing and reported light flicker remain subject to existing evidence; no claim of complete resolution."
+  ],
+  "historicalMinimizeNote": "This run passed 26/26. Prior X11 sentinel mismatch remains recorded separately, not erased.",
+  "limitations": [
+    "Wine-internal clipboard only.",
+    "waveOut progress/buffer completion only; physical audio quality not assessed.",
+    "D3D9 requested WineD3D; unknown backend field does not independently prove VirGL identity.",
+    "Some short log tails omit final exit callback; rendering PASS alone is not lifecycle acceptance.",
+    "DXVK 2.6 skipped per user instruction."
+  ],
+  "finalState": {
+    "theme": "deck",
+    "preferredBackend": "x11",
+    "verboseTagsRestoredToWarning": [
+      "WL_NAPI",
+      "SMOKE"
+    ]
+  }
+}

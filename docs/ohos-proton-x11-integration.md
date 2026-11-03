@@ -282,3 +282,27 @@ D3D9 各 50 秒：Wayland 5816 帧、6 次 >16.67ms、P99 12.50ms；X11 5873 帧
 `automation/smoke.py` 现在从生产 env 读取 WINE_SRC，将旧 recipe 的 programs include 指向实际选中的 wine-valve，18 个 ARM64 PE 验收程序共312,320字节，按输入和编译器收据复用；4项构建架构测试及两个生产标题回归通过。只保留当前和回退两份签名包。设备偏好已恢复 X11；产品默认路线仍为 Wayland。完整输入、GNU/Linux 游戏、媒体与干净 CI 等合入条件继续保留。
 
 脱敏记录：[API 验收](evidence/x11-edge-api-acceptance.json)、[当前包与既往帧间隔对照](evidence/x11-edge-frame-pacing.json)。
+
+
+## 2026-11-03：基础短测收尾
+
+按用户要求只做基础短测，复用 54558fd3… 签名包，未重新构建或安装。11 个 Win32 API 用例中 10 个通过；最小化本轮为 26/26，既往 sentinel 差异继续保留。全屏模式恢复仍为 11/12，恢复原显示模式返回 BADMODE，未修复。
+
+DX11/legacy 的 PC 短测 7093 帧、独立窗口控制用例 12056 帧、虚拟桌面 7141 帧；D3D9 请求 WineD3D 的短测 1436 帧，均 render PASS、angle regressions=0。PC 拖动、最大化、还原、边框缩放通过；该控制用例通过 Escape 正常退出，不把未确认的标题 × 算作通过。经典首页的虚拟桌面全屏还原、外层 × 关闭再打开通过，主应用与 Xwayland 进程保持且宿主唯一。D3D9 backend 字段 unknown，不能独立据此认定 VirGL 驱动身份。
+
+本轮记事本保存文件仅包含 CRLF+OK，中文自动提交未保留，因此输入未验收；不覆盖此前中文成功记录。Steam 从 Deck 正常入口尝试启动，被 NATIVE_SDK 完整性检查阻止，页面提示接口组件缺失或损坏，未进入 Steam 进程；本轮不展开组件大下载，也不将其误报为 X11 运行崩溃。Steam/GNU/Linux 游戏回归仍待组件修复后完成。
+
+已恢复 Deck 首页和 X11 偏好，WL_NAPI/SMOKE 详细日志降回 W。Wine 内剪贴板和 waveOut API 通过不代表系统剪贴板或物理声音质量通过；物理输入、媒体、GNU/Linux 游戏及完整干净 CI 未新增验收。按用户要求跳过 DXVK 2.6。当前仍为实验分支，不据本次基础检查宣称全部完成。
+
+脱敏记录：[基础短测](evidence/x11-edge-basic-smoke.json)。
+
+
+## 2026-11-04：源码交付与 CI 核对
+
+X11 的 0072–0079 Wine 补丁、Xwayland/wlroots 有序 overlay、输入与窗口恢复、NativeBuffer 呈现、消费者 fence、队列退休及标题事务均已进入受管理源码和构建配方。整套 Wine overlay 从子模块 HEAD 重放后与当前有效源码逐字节一致；图形锁与有效源码契约检查通过。子模块工作目录中的改动由外层补丁重建，不提交生成后的子模块工作树或依赖本地诊断 HAP。
+
+本轮 22 项 `test-x11-integration`、Venus 原生呈现及队列退休回归通过。CI 在完整 HAP 源码构建、应用 Wine 补丁后显式执行相同回归；干净 checkout 从固定子模块和受管理补丁编译 OHOS X11 运行库，GNU companion 与离线包另行核对。1.5.6 本地诊断载荷不作为 CI 输入，也不替代默认二进制锁验收。
+
+功能包含情况与验收状态分别记录：默认仍为 Wayland，X11 可选并按完整会话固定。剩余 DX11 长帧、动态显示模式恢复、完整物理输入与 GNU/Linux 游戏回归仍按前述记录保留；只有远端实际运行完成后才能确认干净构建通过，本轮不合回主线。
+
+本轮完整预检（含 Native SDK 配置）219 项通过；Steam/Proton 导入、原生窗口及 Xvfb 真实桌面/弹窗/焦点回归通过。CI 补齐桌面回归所需的 libXi 头文件依赖；发布打包单测的隔离 fixture 同步登记新的离线交付检查脚本，生产校验照常执行。

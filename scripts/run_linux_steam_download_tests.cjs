@@ -173,7 +173,7 @@ async function main() {
   const bundle=Buffer.from('pinned-offline-bundle');
   const bundlePath=path.join(temporary,'offline.zip');fs.writeFileSync(bundlePath,bundle);
   const metadata={schemaVersion:1,id:plan.id,bytes:bundle.length,sha256:sha(bundle),fileName:'offline.zip'};
-  let free=1, fetches=0, activates=0, corrupt=false, extractions=0, fetchedArchives=[];
+  let free=1, fetches=0, activates=0, corrupt=false, extractions=0, fetchedArchives=[], omitLocalSdk=false;
   const dirs=p=>{fs.mkdirSync(real(p),{recursive:true});return true;};
   class Transfer {pause(){} async fetch(a,d,p,network=true){
     if(!network) {assert.equal(sha(fs.readFileSync(real(d))),a.sha256,'offline uses only verified local cache');}
@@ -243,6 +243,7 @@ async function main() {
       where=real(where);
       if(path.basename(file)==='local-import.zip') {
         for(const blob of [official,nativeSdk]) {
+          if(omitLocalSdk && blob===nativeSdk)continue;
           const target=path.join(where,'archives',sha(blob)+'.zip');
           fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,blob);
         }return;
@@ -322,9 +323,23 @@ async function main() {
   }
   assertProtected();
   const networkBefore=fetches, unpackBefore=extractions;
+  const wrongVersion=path.join(temporary,'wrong-version.zip');fs.writeFileSync(wrongVersion,Buffer.alloc(bundle.length+1));
+  await assert.rejects(installer.importLocal(context,wrongVersion),e=>e.code==='LOCAL_PACKAGE' && e.message.includes(metadata.fileName));
+  assert.equal(extractions,unpackBefore,'wrong-size package is rejected before extraction');assertProtected();
+  free=plan.requiredSpaceBytes+bundle.length*2-1;
+  await assert.rejects(installer.importLocal(context,bundlePath),e=>e.code==='SPACE' && e.message.includes('GiB') && !e.message.includes('3.8 GB'));
+  free=2**34;
+  const officialCache=path.join(root,'downloads',sha(official)+'.zip');
+  fs.writeFileSync(officialCache,'keep-cache-until-complete-set-verified');
+  omitLocalSdk=true;
+  await assert.rejects(installer.importLocal(context,bundlePath),e=>e.code==='LOCAL_INCOMPLETE');
+  omitLocalSdk=false;
+  assert.equal(fs.readFileSync(officialCache,'utf8'),'keep-cache-until-complete-set-verified');
+  assert.equal(fetches,networkBefore);assertProtected();
   const invalid=path.join(temporary,'invalid.zip');fs.writeFileSync(invalid,Buffer.alloc(bundle.length,0));
+  const beforeBadHash=extractions;
   await assert.rejects(installer.importLocal(context,invalid),e=>e.code==='LOCAL_CHECKSUM');
-  assert.equal(extractions,unpackBefore,'bad local bundle is never extracted');assert.equal(installer.installed(),true);assertProtected();
+  assert.equal(extractions,beforeBadHash,'bad local bundle is never extracted');assert.equal(installer.installed(),true);assertProtected();
   metadata.id=sha('older-host-same-official-archives');
   await installer.importLocal(context,bundlePath);metadata.id=plan.id;
   assert.equal(installer.installed(),true,'a host-only update reuses the pinned official offline bundle');

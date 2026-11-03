@@ -299,6 +299,9 @@ with open('$module_json', 'w') as f:
     python3 "$SCRIPT_DIR/prepare_steam_gpu_dependency.py"
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --verify-only
+        python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" \
+            --output-dir "${RELEASE_OFFLINE_DIR:-$BUILD_DIR/release-offline}" \
+            --downloads "${STEAM_ARCHIVE_CACHE:-$BUILD_DIR/cache/steam-official}"
     fi
     # Match the validated distribution build; Hvigor otherwise defaults to Debug.
     hvigorw --mode module -p product=default -p buildMode=release assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
@@ -316,6 +319,8 @@ with open('$module_json', 'w') as f:
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --hap "$unsigned_hap"
+        python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" --verify-only \
+            --output-dir "${RELEASE_OFFLINE_DIR:-$BUILD_DIR/release-offline}" --hap "$unsigned_hap"
     fi
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
     if [ "$WINE_ARCH" = aarch64 ] || [ "$NATIVE_ARCH" = x86_64 ]; then
@@ -340,6 +345,24 @@ with open('$module_json', 'w') as f:
 
     ls -lh "$signed_hap"
     log "HAP 构建 + 签名完成 ($NATIVE_ARCH)"
+}
+
+# Store App uses the same offline gate, including its embedded HAP. Keep the
+# package output in Hvigor's normal directory rather than copying it to stage.
+package_app() {
+    local mode="${1:-signed}"
+    package_hap "$mode"
+    hvigorw --mode project -p product=default -p buildMode=release assembleApp || \
+        { err "hvigorw assembleApp 失败"; return 1; }
+    local apps=() app
+    mapfile -d '' apps < <(find "$WINEHUA/build/outputs/default" -maxdepth 1 -type f -name '*.app' -print0)
+    [ "${#apps[@]}" -gt 0 ] || err "App missing after assembleApp"
+    if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
+        for app in "${apps[@]}"; do
+            python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" --verify-only \
+                --output-dir "${RELEASE_OFFLINE_DIR:-$BUILD_DIR/release-offline}" --app "$app"
+        done
+    fi
 }
 
 # ============================================================
@@ -379,6 +402,8 @@ deploy() {
 case "${1:-}" in
     hap)  package_hap ;;
     hap-unsigned) package_hap unsigned ;;
+    app) package_app ;;
+    app-unsigned) package_app unsigned ;;
     signing-preflight)
         import_user_profile
         set_sdk_versions
@@ -388,5 +413,5 @@ case "${1:-}" in
     all)
         package_hap && deploy "${2:-}"
         ;;
-    *)    echo "用法: $0 {hap|hap-unsigned|signing-preflight|deploy|all} [device_ip]" >&2; exit 1 ;;
+    *)    echo "用法: $0 {hap|hap-unsigned|app|app-unsigned|signing-preflight|deploy|all} [device_ip]" >&2; exit 1 ;;
 esac

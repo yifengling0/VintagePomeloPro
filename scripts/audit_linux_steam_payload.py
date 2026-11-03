@@ -43,6 +43,12 @@ def audit(path):
             raise ValueError('HAP Steam lifetime supervisor is missing or stale')
         if b'steamohos_gnu_steam_session_hap' not in hap.read('libs/arm64-v8a/libsteamohos_gnu_child.so'):
             raise ValueError('Native session still selects the old Steam lifetime supervisor')
+        desktop = json.loads(hap.read(raw+'linux-steam/bootstrap/desktop-manifest.json'))
+        update = hap.read(raw+'linux-steam/bootstrap/'+desktop['name'])
+        if len(update) != desktop['bytes'] or digest(update) != desktop['sha256']:
+            raise ValueError('HAP X11 session host is missing or stale')
+        if b'steamohos_gnu_desktop_hap' not in hap.read('libs/arm64-v8a/libsteamohos_gnu_child.so'):
+            raise ValueError('Native session still selects the old X11 session host')
         posix = json.loads(hap.read(raw+'linux-steam/bootstrap/posix-manifest.json'))
         support = hap.read(raw+'linux-steam/bootstrap/'+posix['name'])
         if len(support) != posix['bytes'] or digest(support) != posix['sha256'] or b'STEAMOHOS_GNU_WINE_PREFIX' not in support:

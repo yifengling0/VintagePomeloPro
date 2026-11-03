@@ -310,13 +310,13 @@ export class LinuxProtonRuntimeService {
       removeScratch(`${SCRATCH}/removed-version`); this.publish('未使用的 Proton 版本已移除');
     });
   }
-  private async copy(inputPath: string, outputPath: string, size: number): Promise<void> {
+  private async copy(inputPath: string, outputPath: string, size: number, sizeError: string = 'Proton 输入大小已变化'): Promise<void> {
     parents(outputPath);
     const input = fs.openSync(inputPath, fs.OpenMode.READ_ONLY | fs.OpenMode.NOFOLLOW);
     let output: fs.File | null = null;
     try {
       output = fs.openSync(outputPath, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC | fs.OpenMode.NOFOLLOW);
-      if (fs.statSync(input.fd).size !== size) throw new Error('Proton 输入大小已变化');
+      if (fs.statSync(input.fd).size !== size) throw new Error(sizeError);
       const buffer = new ArrayBuffer(1048576); let copied = 0;
       while (copied < size) {
         const count = fs.readSync(input.fd, buffer, { length: Math.min(buffer.byteLength, size - copied) });
@@ -351,19 +351,32 @@ export class LinuxProtonRuntimeService {
   }
   async install(context: common.Context, id: string, uri: string = ''): Promise<void> {
     await this.operation(context, async (): Promise<void> => {
-      if (!selection().activeId && fs.accessSync(`${ROOT}/package`)) await this.adoptEmbedded(context);
       const release = this.find(id);
-      if (await this.reuseActive(release)) return;
-      if (fs.accessSync(`${idPath(id)}/package`) && await this.verify(idPath(id), release)) { await this.activate(id); return; }
-      if (!this.value.versions.some((item): boolean => item.id === id) && this.value.versions.length >= 8)
-        throw new Error('已保留 8 个 Proton 版本，请先移除不再使用的版本');
-      if (await statfs.getFreeSize(BASE) < release.archive.bytes + release.archive.unpackedBytes + 134217728) throw new Error('可用空间不足，原 Proton 版本未改变');
-      const archive = `${SCRATCH}/runtime.zip`; removeScratch(`${SCRATCH}/unpacked`);
-      if (uri) { removeScratch(archive + '.part'); removeScratch(archive + '.part.append-v1'); }
+      const archive = `${SCRATCH}/runtime.zip`;
       try {
+        // An explicit local input must be validated even when this version is
+        // already installed. Otherwise a wrong ZIP would appear to import OK.
+        if (uri) {
+          if (await statfs.getFreeSize(BASE) < release.archive.bytes + 134217728) throw new Error('可用空间不足，原 Proton 版本未改变');
+          removeScratch(archive + '.part'); removeScratch(archive + '.part.append-v1');
+          this.value.totalBytes = release.archive.bytes; this.value.receivedBytes = 0;
+          this.publish(`正在校验本地 ${release.name} 包`);
+          await this.copy(uri, archive, release.archive.bytes,
+            `所选 ZIP 与 ${release.name} 不匹配（应为 ${release.archive.bytes} 字节），请使用配套 Proton 离线包`);
+          if (await ConfigurationFiles.fileHash(archive) !== release.archive.sha256)
+            throw new Error('Proton 压缩包校验失败，可能损坏或版本不匹配；请使用配套 Proton 离线包');
+          this.value.receivedBytes = release.archive.bytes; this.value.totalBytes = 0;
+        }
+        if (!selection().activeId && fs.accessSync(`${ROOT}/package`)) await this.adoptEmbedded(context);
+        if (await this.reuseActive(release)) return;
+        if (fs.accessSync(`${idPath(id)}/package`) && await this.verify(idPath(id), release)) { await this.activate(id); return; }
+        if (!this.value.versions.some((item): boolean => item.id === id) && this.value.versions.length >= 8)
+          throw new Error('已保留 8 个 Proton 版本，请先移除不再使用的版本');
+        if (await statfs.getFreeSize(BASE) < (uri ? 0 : release.archive.bytes) + release.archive.unpackedBytes + 134217728)
+          throw new Error('可用空间不足，原 Proton 版本未改变');
+        removeScratch(`${SCRATCH}/unpacked`);
         this.value.totalBytes = release.archive.bytes; this.value.receivedBytes = 0;
-        if (uri) { this.publish('正在读取本地 Proton 包'); await this.copy(uri, archive, release.archive.bytes); }
-        else {
+        if (!uri) {
           this.transfer = new LinuxSteamComponentDownload(); this.publish(`正在下载 ${release.name}`);
           const download: LinuxSteamDownloadArchive = { id: release.id, name: release.name, url: release.archive.url,
             bytes: release.archive.bytes, sha256: release.archive.sha256, unpackedBytes: release.archive.unpackedBytes };
@@ -371,7 +384,7 @@ export class LinuxProtonRuntimeService {
             (bytes: number): void => { this.value.receivedBytes = bytes; this.publish(); });
         }
         this.transfer = null; this.value.totalBytes = 0;
-        if (await ConfigurationFiles.fileHash(archive) !== release.archive.sha256) throw new Error('Proton 压缩包校验失败');
+        if (!uri && await ConfigurationFiles.fileHash(archive) !== release.archive.sha256) throw new Error('Proton 压缩包校验失败');
         this.publish('正在解压 Proton 运行包'); directory(`${SCRATCH}/unpacked`);
         await zlib.decompressFile(archive, `${SCRATCH}/unpacked`, {});
         await this.accept(release, uri ? 'local' : 'download');

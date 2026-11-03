@@ -193,7 +193,32 @@ static const char *DepotResolveImpl(const char *path,char resolved[PATH_MAX],int
     // The ordinary library prefix has no virtual links. Keep uncollapsed
     // package-relative components whenever the caller provided that spelling.
     const char *source=Below(raw,root)?raw:absolute;
-    char pending[PATH_MAX];strcpy(pending,source+strlen(root));strcpy(resolved,root);
+    // A successful physical lookup proves that no parent is a record: the
+    // kernel cannot traverse a regular file as a directory. Most realpath/FEX
+    // probes concern ordinary directories and files, so one lookup avoids an
+    // ancestor walk for every progressively longer prefix. Do not use a
+    // negative cache: a failed lookup may hide a virtual parent or a record
+    // being published. Keep '..' on the bounded component walker, including
+    // attempts to leave and re-enter a package.
+    const char *suffix=source+strlen(root);int ordinary=1;
+    for(const char *part=suffix;*part;) {
+        while(*part=='/')++part;
+        const char *end=part;while(*end&&*end!='/')++end;
+        if(end-part==2&&part[0]=='.'&&part[1]=='.'){ordinary=0;break;}
+        part=end;
+    }
+    if(ordinary&&!guest) {
+        struct stat physical;
+        if(!next_lstat(source,&physical)) {
+            char target[PATH_MAX];
+            if(!follow_leaf||!S_ISREG(physical.st_mode)||
+               DepotRawTargetKnown(source,target,&physical)<0) {
+                if(source==raw)return path;
+                strcpy(resolved,source);return resolved;
+            }
+        }
+    }
+    char pending[PATH_MAX];strcpy(pending,suffix);strcpy(resolved,root);
     size_t boundary=strlen(root);unsigned hops=0;
     while(*pending) {
         char *part=pending;while(*part=='/')++part;

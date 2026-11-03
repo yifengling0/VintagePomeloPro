@@ -7,7 +7,7 @@
   "sources": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/posix_compat.c": "c32bdde6985f220c32440915697e52eed48735ed5a4c876a0cb009b772cf46c9",
     "entry/src/main/cpp/linux_steam/gnu_fixture/sysvipc_compat.c": "331a9577faa2bd1fcb20c57446cb850cf8130e92e69feee91a99dc06e9e32d84",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/filesystem_compat.c": "42fa0ebe794fbd6fb9c1b4ad87fe6a67919ad0d5f6f034b5a37e88b1306a2da6",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/filesystem_compat.c": "54280966be51c3da3c8f6fb41b20b872e859506ba311ff264ffae8146cf2a753",
     "entry/src/main/cpp/linux_steam/gnu_fixture/popen_compat.c": "a7322a8cc52a0fb521e28723fc3fc40aa614d813f9cdd2176438a6cf17e0a115",
     "entry/src/main/cpp/linux_steam/gnu_fixture/socket_metadata.c": "27e73f4615eabb6da178fd0f897be3ce6aa64e27efe6e1def9e4190307e93061",
     "entry/src/main/cpp/linux_steam/gnu_fixture/exec_compat.cpp": "819428ff7b5eab8ff9ea0342aaaf1634b56e64c5775aa8c2c12da47c82357e27",
@@ -35,7 +35,7 @@
     "entry/src/main/cpp/linux_steam/xwayland_probe.h": "b2604b510bafd1e7961c69285e0326f726bb3b6209451a6a12fee7aad6be941a",
     "entry/src/main/cpp/linux_steam/gnu_fixture/deck_action_uri.h": "ae19e5685c1fec9ec95fdf2138898bea5d0b242a92d9b617b7fdf9dea65bd211",
     "entry/src/main/cpp/linux_steam/gnu_fixture/deck_session_control.h": "ff2f010cc19d176fa4f125746dab988568d2c203efef6f58a5e8da4b855a2319",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/depot_links.h": "2ef7396450ad76483df7454e158befe10dcb1acdcdf0fbc9a0dbcbc617cb3c61",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/depot_links.h": "a0e3949aa34921ebcddb5407b189f625d3773d59bd5cd85a9a513cb5f3914cb0",
     "entry/src/main/cpp/linux_steam/gnu_fixture/lsof_socket_backend.h": "5bb8595ef05da2c9053bfef761a88f3e0080e4eaaf291100d024095c65841251",
     "entry/src/main/cpp/linux_steam/gnu_fixture/native_executable.h": "bd0bdcc1192f33aa09298485daa45c8fce14a2430c936e18ff903236a325f9ae",
     "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex.h": "1c736f7df8f7930a827cff750c3b5d9b21529002a67347942bd4c180fecb11d9",
@@ -47,7 +47,7 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/native_seccomp.h": "c72e56d7d8328297a875b171180fcaf55b6b565a4cde3dbd22892535b2121173",
     "entry/src/main/cpp/linux_steam/gnu_fixture/native_signal_context.h": "8f3c290636303776b910363fc3141ddbb1d61bfc45006a9c0bf59d5025700756",
     "entry/src/main/cpp/linux_steam/gnu_fixture/native_udev_api.h": "eccf219bf788c53cf025d04c3d22c0e136487d1785b9904ad92d4996e7a7cb83",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/native_x11_window.h": "f61540794b1c3f4855091285aa3a6fe894fe2bb3daad7b43d221332003129fa2",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_x11_window.h": "8fae1e825238022752a0b27eab29903cad3e5edd1553d930e611160ab04f9008",
     "entry/src/main/cpp/linux_steam/gnu_fixture/pointer_observer.h": "edd492b4934e36da6ae54dbfc89b702d4ed835687f41f3742a281bf883cf8f1b",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_audio_clock.h": "a63d4978ff2237e456eaa8a9fb5496ca8ab61922e2a38d002de664f2a4e37e72",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_dsound_observer.h": "d7647f5fdb2b7212c83ef167e1be7b91aa9a58d24ae28b309af85880c07834ab",
@@ -56,7 +56,7 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/runtime_mtree.h": "3fadc927aa904b41d331ecc25803ee5d02cead5e48450714179673d30e09cf45",
     "entry/src/main/cpp/linux_steam/gnu_fixture/sdl3_virtual_abi.h": "d49ed146cc43ec255a972203d1c2dc5b72b74bbd6c7565bc2ec58a0aa22dcbd7",
     "entry/src/main/cpp/linux_steam/gnu_fixture/steamclient_probe.h": "5b8ee45797420b54ca876a947773bd9d7dc1abe5f052e2ab046966eab19055c3",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "58e0cab3f8f92256265df933d21bcdfb46946f3a3448e42ccde98cf2d0b4a68d",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "e1e2f7b59a01cbb55ad006d5dd85873a95440714b37b6a4db0524ac79e0c8ec0",
     "scripts/build_linux_steam_posix.py": "f1444506ba53bbf4f6f63f9da5209a4e3a543df795aabdaffce9ab68e65b13f7"
   }
 }

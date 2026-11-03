@@ -228,6 +228,9 @@ jobs:
              [ ! -f /usr/include/X11/Xlib.h ]; then
             packages+=(libwayland-dev libxcb1-dev libx11-dev)
           fi
+          if [ ! -f /usr/include/X11/extensions/XInput2.h ]; then
+            packages+=(libxi-dev)
+          fi
           # Real wlroots buffer/addon lifecycle regression uses native headers.
           if ! pkg-config --exists pixman-1 libdrm; then
             packages+=(libpixman-1-dev libdrm-dev)
@@ -346,6 +349,7 @@ jobs:
       - name: Test Proton runtime lifecycle and Steam downloads
         run: |
           python3 scripts/build_steam_client_session.py --verify-only
+          python3 scripts/build_linux_steam_desktop.py --verify-only
           python3 scripts/build_linux_steam_posix.py --verify-only
           python3 scripts/build_linux_steam_native_graphics.py --verify-only
           python3 scripts/prepare_linux_native_repairs.py --verify-only
@@ -371,8 +375,11 @@ jobs:
           python3 host_tests/linux_steam_native_guest_mapping_test.py
           python3 host_tests/linux_steam_native_guest_abi_test.py
           python3 host_tests/linux_steam_native_window_test.py
+          python3 host_tests/linux_steam_desktop_test.py
           python3 host_tests/linux_native_bc_recording_test.py --build-dir workspace_temp/native-bc-recording
           python3 host_tests/linux_runtime_components_test.py
+          python3 host_tests/linux_steam_offline_package_test.py
+          python3 host_tests/release_offline_packages_test.py
           python3 host_tests/managed_render_route_test.py
           python3 host_tests/compositor_migration_test.py --asan
           python3 host_tests/steam_client_restart_test.py --output ci-artifacts/steam-client-restart
@@ -386,6 +393,13 @@ jobs:
           python3 scripts/ci_preflight.py --skip-tests \
             --sdk /apps/harmony/sdk/default/openharmony --report ci-artifacts/native-preflight.json
           git diff --exit-code HEAD --ignore-submodules=all
+
+      - name: Reuse pinned official Steam download archives
+        uses: actions/cache@v4
+        with:
+          path: build/cache/steam-official
+          key: steam-official-${{ hashFiles('entry/src/main/resources/rawfile/linux-steam/deployment.json', 'docs/linux-steam/native-sdk.lock.json') }}
+          restore-keys: steam-official-
 
       - name: Build HAP
         env:
@@ -407,6 +421,11 @@ jobs:
           python3 host_tests/native_protocol_build_test.py
           make test-xdg-resource-lifecycle
 
+      # These tests extract production functions from the patched Wine tree.
+      # Run after assemble, never against the pristine submodule checkout.
+      - name: Test patched X11 presentation and window lifecycle
+        run: make test-x11-integration test-venus-native-present
+
       - name: Locate artifacts
         id: art
         run: |
@@ -418,6 +437,16 @@ jobs:
           python3 scripts/verify_ci_release.py artifact --manifest ci-artifacts/ci-source.json \
             --hap "$hap" --output ci-artifacts/ci-artifact.json
           python3 scripts/prepare_linux_runtime_components.py --hap "$hap" --report ci-artifacts/gnu-components-hap.json
+          python3 scripts/prepare_release_offline_packages.py --verify-only --output-dir build/release-offline --hap "$hap"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          folder = Path('build/release-offline')
+          report = json.loads((folder / 'release-offline-packages.json').read_text())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for key, item in zip(('steam_offline', 'proton_offline'), report['packages']):
+                  output.write(f"{key}={folder / item['fileName']}\n")
+          PY
           echo "hap=$hap" >> "$GITHUB_OUTPUT"
 
       - name: Upload HAP
@@ -430,6 +459,19 @@ jobs:
             ci-artifacts/ci-artifact.json
             ci-artifacts/gnu-components.json
             ci-artifacts/gnu-components-hap.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload matching offline import packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: VintagePomeloPro-offline-${{ steps.source.outputs.commit }}
+          path: |
+            ${{ steps.art.outputs.steam_offline }}
+            ${{ steps.art.outputs.proton_offline }}
+            build/release-offline/release-offline-packages.json
+            build/release-offline/SHA256SUMS-current.txt
+            build/release-offline/OFFLINE-IMPORT.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -513,6 +555,15 @@ jobs:
           cp ci-artifacts/ci-artifact.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-artifact.json"
           ls -lh
 
+      - name: Download matching offline import packages
+        uses: actions/download-artifact@v4
+        with:
+          name: VintagePomeloPro-offline-${{ needs.build.outputs.source_sha }}
+          path: ./release-assets
+
+      - name: Verify offline packages match the published HAP
+        run: python3 scripts/prepare_release_offline_packages.py --verify-only --output-dir release-assets --hap "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
+
       # A successful source build is not hardware regression approval. RC
       # publication still requires the reviewed final-byte compatibility locks.
       - name: Verify reviewed runtime before RC publication
@@ -558,6 +609,9 @@ jobs:
           files: |
             release-assets/*.hap
             release-assets/*.json
+            release-assets/*.zip
+            release-assets/SHA256SUMS-current.txt
+            release-assets/OFFLINE-IMPORT.txt
           draft: false
           # dev-*/rc-* 均不标 pre-release (GitHub 规则: prerelease 不能是 latest)
           prerelease: false
