@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "https://github.com/PomeloTechLabs/HSL",
+  "sourceHead": "fa3dfeec72a0568133383763e77368b8502cf1f8",
+  "sourceWorkingTree": true,
+  "targetBaseline": "cc60f68587baecdc18f696a4c2f87787c7920e88",
+  "files": [
+    {
+      "source": "patches/mesa/0017-venus-gnu-wow64-shared-map-fd.patch",
+      "sourceSha256": "7b0684b9ee767d714fd8b773b3071b9050c9c2974fd15f89c6fff02ae06f6461",
+      "destination": "patches/linux-proton/mesa/0001-gnu-wow64-shared-map-fd.patch",
+      "adaptedSha256": "7b0684b9ee767d714fd8b773b3071b9050c9c2974fd15f89c6fff02ae06f6461"
+    },
+    {
+      "source": "patches/mesa/0018-venus-export-shared-map-entry.patch",
+      "sourceSha256": "57da418f8bea0442fe7fc503c5e779952d5c053922aa49efc25b483acd3f83c4",
+      "destination": "patches/linux-proton/mesa/0002-export-shared-map-entry.patch",
+      "adaptedSha256": "57da418f8bea0442fe7fc503c5e779952d5c053922aa49efc25b483acd3f83c4"
+    },
+    {
+      "source": "patches/mesa/0019-venus-validate-bc-aggregate-capability.patch",
+      "sourceSha256": "5639d4e9369ea3b63cf7bd49cd2511cecc75afbd3aa0079f594343b068db46c2",
+      "destination": "patches/linux-proton/mesa/0003-validate-bc-aggregate-capability.patch",
+      "adaptedSha256": "5639d4e9369ea3b63cf7bd49cd2511cecc75afbd3aa0079f594343b068db46c2"
+    },
+    {
+      "source": "patches/mesa/0020-venus-negotiate-precise-shadow-context.patch",
+      "sourceSha256": "05f53fc88ea841f71ee2657eb5f27663a5a51ce3c1f285451bc46145d06b62fa",
+      "destination": "patches/linux-proton/mesa/0004-negotiate-precise-shadow-context.patch",
+      "adaptedSha256": "05f53fc88ea841f71ee2657eb5f27663a5a51ce3c1f285451bc46145d06b62fa"
+    },
+    {
+      "source": "patches/virglrenderer/0019-negotiate-precise-shadow-per-context.patch",
+      "sourceSha256": "b1637acc773f220236f8cfb7a2f79c491c606582c067e5b44b0a1424588d4d4c",
+      "destination": "patches/virglrenderer/0011-negotiate-precise-shadow-per-context.patch",
+      "adaptedSha256": "b1637acc773f220236f8cfb7a2f79c491c606582c067e5b44b0a1424588d4d4c"
+    },
+    {
+      "source": "patches/virglrenderer/0020-validate-precise-context-at-renderer-entry.patch",
+      "sourceSha256": "5eb000c1eecb40af3919745b52cf76047e0fab7e83b5713eb9b4664d5372a330",
+      "destination": "patches/virglrenderer/0012-validate-precise-context-at-renderer-entry.patch",
+      "adaptedSha256": "5eb000c1eecb40af3919745b52cf76047e0fab7e83b5713eb9b4664d5372a330"
+    },
+    {
+      "source": "tests/venus_mapped_fd_test.py",
+      "sourceSha256": "4e880526ac6d4ed83c677a8c262433f418d3c923cf293f954a06be0ca06f9721",
+      "destination": "host_tests/gnu_venus_mapped_fd_test.py",
+      "adaptedSha256": "3fd5a495ce9cd0937f4018cc5a47bf7ed9689e48527bc254a13c634732f3e529"
+    },
+    {
+      "source": "tests/venus_bc_contract_test.py",
+      "sourceSha256": "4f448bb6fb08b3a8be2adbcf8114741d438be679211bd26918c3093010c63024",
+      "destination": "host_tests/gnu_venus_bc_contract_test.py",
+      "adaptedSha256": "2eeda159ed8b77f2259e02aedcfc3044124aa9a0ad3921eebde12a8a85058995"
+    },
+    {
+      "source": "tests/venus_precise_context_test.py",
+      "sourceSha256": "99670bff4170e9d4372e1ccfe9757bf70fd496a5529ed3c3c19d24955213605e",
+      "destination": "host_tests/venus_precise_context_test.py",
+      "adaptedSha256": "219d3eec6218ea80b3493737a361dc2c034b2c983f58282888fddbe19e6608fe"
+    },
+    {
+      "source": "scripts/dxvk_pe.py",
+      "sourceSha256": "8ab0934668fb39a80c5ec9249595dc76740364342bce0ab795eb1559a17f1b1f",
+      "destination": "scripts/dxvk_pe.py",
+      "adaptedSha256": "8ab0934668fb39a80c5ec9249595dc76740364342bce0ab795eb1559a17f1b1f"
+    },
+    {
+      "source": "scripts/build-dxvk-inputs.py",
+      "sourceSha256": "f1dbf91dc3aeca593f92cd7be2e0958c9e563a3fa45cba62e3f7c3f5d090cf58",
+      "destination": "scripts/build-dxvk-inputs.py",
+      "adaptedSha256": "43a46527d6bab7803cf4dbae993df5ca1150e736b4f1b0b706fe3522d08775a1"
+    },
+    {
+      "source": "scripts/build-dxvk-arm64x.py",
+      "sourceSha256": "64194d00b4a65fca6fd9532e3d37e85dc9aa678cb8c44d91834a3bad3690616e",
+      "destination": "scripts/build-dxvk-arm64x.py",
+      "adaptedSha256": "9f410e66d1688bcdd99d94ba2b4fb065f80f2117a3e047870201a4dcac5e912e"
+    },
+    {
+      "source": "scripts/build-dxvk-i386.py",
+      "sourceSha256": "f78fd32b2fa1cf279c56b6ac6650dc93cfc27535508ed392268679e336847d31",
+      "destination": "scripts/build-dxvk-i386.py",
+      "adaptedSha256": "06e88eaca30c73f5e206b4a118d0f6ffb6c34c0e39e844c414ec83fcdd455ccd"
+    },
+    {
+      "source": "components/dxvk.lock.json",
+      "sourceSha256": "644755890f7f193567e8aca6a8debb4db6160cc137f3c9d9f41d682ff992523f",
+      "destination": "docs/linux-steam/gnu-dxvk-source.lock.json",
+      "adaptedSha256": "afb646803a30f05b1811b8127df64f32eea24d7b88b1486d7ac81b5486ee4bfd",
+      "adaptation": "LF line endings only; source and binary pins unchanged"
+    }
+  ],
+  "duplicateFixes": [
+    {
+      "source": "patches/virglrenderer/0022-close-created-resource-sender-fd.patch",
+      "existing": "patches/virglrenderer/0010-render-resource-fd-close.patch"
+    }
+  ],
+  "excluded": [
+    "transfer-only shared-swapchain prototype",
+    "HSL application UI and prefix policy",
+    "rootfs and user state"
+  ],
+  "validation": {
+    "host": "passed; see hsl-dxvk-migration.zh-CN.md",
+    "releaseAssembleHap": "passed; payload and rebuilt renderer byte equality verified",
+    "device": "not run",
+    "performance": "not measured",
+    "preflight": "226 checks passed, including OHOS Native CMake full source configuration",
+    "rendererOverlayReplay": "clean application, idempotence, reverse and replay passed",
+    "hapComponents": "paired renderer, support manifest and all GNU component/payload bytes verified"
+  },
+  "delivery": {
+    "profile": "legacy-1.10.3",
+    "payloadBytes": 26912724,
+    "location": "entry/src/main/resources/rawfile/linux-proton/dxvk-support",
+    "componentArchiveChanged": false,
+    "nativeLinuxDriverChanged": false,
+    "nativeLegacyBuilder": "scripts/build_linux_proton_venus_legacy.py",
+    "modern26": "source pins and build tooling only; not enabled or device-qualified"
+  },
+  "referenceFiles": [
+    {
+      "source": "scripts/build-mesa-venus.py",
+      "sourceSha256": "b8cca69ac0db47125d87a77fdaffdbe935ce9f8730e4511acc3dc97cb9143db4",
+      "destination": "scripts/build_linux_proton_venus.py",
+      "adaptedSha256": "a1d819becc598a370aa60d865f4b5a190ad94ae428c906afb3846dd39d3e0f3c"
+    },
+    {
+      "source": "native/gnu/proton/proton_vulkan_wsi.cpp",
+      "sourceSha256": "74e8d65127c31ae108068fcd133adc55e3d866d04539a5ba1d37ab147d56b27d",
+      "destination": "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp",
+      "adaptedSha256": "0b78e5874fb402064cc054966350f0a7213a8af8aa32212c8319ebce4bbd7501"
+    },
+    {
+      "source": "native/gnu/proton/dxvk_routes.py",
+      "sourceSha256": "3737ea5e9478dff2bf1297ab66d4f7f91d8b1fd9aea0d7f78c2dcdd9dbd8c0c0",
+      "destination": "entry/src/main/cpp/linux_steam/proton_probe.cpp",
+      "adaptedSha256": "17d6986f5ca7937b219f8d390027f87211c16e4ab5b2c3e0a392fc493b09c60c"
+    }
+  ]
+}

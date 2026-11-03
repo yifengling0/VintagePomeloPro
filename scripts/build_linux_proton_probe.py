@@ -4,33 +4,23 @@ from pathlib import Path
 import argparse, hashlib, json, subprocess
 
 parser=argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--base-build',type=Path,required=True,help='Existing verified GNU runtime build with manifest and objects')
+parser.add_argument('--base-build',type=Path,help='Deprecated; shared runtime objects are no longer modified or reused')
 parser.add_argument('--output',type=Path,required=True,help='Reusable experiment directory outside the runtime')
 parser.add_argument('--cc',type=Path,required=True,help='GNU AArch64 gcc')
 args=parser.parse_args()
 root=Path(__file__).resolve().parents[1]
-base=args.base_build.resolve(strict=True)
+base=args.base_build.resolve(strict=True) if args.base_build else None
 task=args.output.resolve()
-if task.is_relative_to(base) or task==root:
+if (base and task.is_relative_to(base)) or task==root:
     parser.error('Keep the experiment outside the original GNU runtime/build')
 task.mkdir(parents=True,exist_ok=True)
 cc=args.cc.resolve(strict=True)
 cxx=cc.with_name(cc.name.replace('gcc','g++'))
 assert subprocess.check_output([str(cc),'-dumpmachine'],text=True).strip().startswith('aarch64')
 fixture = root/'entry/src/main/cpp/linux_steam/gnu_fixture'
-manifest = json.loads((base/'runtime/manifest.json').read_text())
-for name in ['posix_compat.c','sysvipc_compat.c','filesystem_compat.c','popen_compat.c','socket_metadata.c',
-             'exec_compat.cpp','syscall_compat.S']:
-    source = fixture/name
-    assert manifest['sources'][str(source.relative_to(root))] == hashlib.sha256(source.read_bytes()).hexdigest()
-
-for name in ['native_loader.cpp','native_loader_entry.S','native_loader.h']:
-    source=fixture.parent/name
-    assert manifest['sources'][str(source.relative_to(root))]==hashlib.sha256(source.read_bytes()).hexdigest()
-
 original = (fixture/'exec_compat.cpp').read_text()
-assert original.count('code+"/libsteamohos_posix.so"') == 1
-variant = original.replace('code+"/libsteamohos_posix.so"','code+"/libproton_probe.so"')
+posix_line=next(line for line in original.splitlines() if 'const std::string posix=' in line)
+variant=original.replace(posix_line,'    const std::string posix=code+"/dxvk-support/libproton_probe.so";')
 variant = '#include <poll.h>\n' + variant
 # Wine starts explorer/services with exec. Their ELF dependency search must
 # retain the private Proton closure, just like the first Wine process.
@@ -132,6 +122,9 @@ variant = variant.replace('    const char* software=getenv("STEAMOHOS_SOFTWARE_G
             "STEAMOHOS_PROTON_NATIVE_VULKAN", "STEAMOHOS_PROTON_VULKAN_MAP32",
             "WINEHUA_VTEST_PRESENT", "LIBGL_DRIVERS_PATH", "VN_DEBUG", "VN_PERF",
             "VN_WINEHUA_STRONG_RING_BARRIER", "VN_WINEHUA_REMOTE_MEMORY_SYNC",
+            "VPP_GNU_DXVK_PROFILE", "WINEHUA_DXVK_RELAXED_FEATURES", "DXVK_WINEHUA_COMMAND_QUERY_RESET",
+            "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED", "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT",
+            "DXVK_WINEHUA_PRECISE_SHADOW", "DXVK_WINEHUA_BATCH_MAPPED_FLUSH", "VN_OHOS_PRECISE_SHADOW",
             "VN_WINEHUA_PERSISTENT_MAP_SYNC", "VN_WINEHUA_DIRECT_FENCE_WAIT",
             "STEAMOHOS_PROTON_LOCALE", "LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "LOCPATH", "FONTCONFIG_FILE", "FONTCONFIG_PATH",
             "WINEPATH", "WINEDLLOVERRIDES", "WINE_USE_EGL", "WINE_DISABLE_FULLSCREEN_HACK", "WINE_LARGE_ADDRESS_AWARE",
@@ -212,8 +205,9 @@ static void ProtonTraceResource(const char *path,int value,int error) {
     fprintf(stderr,"HMOSDECK_RESOURCE_OPEN pid=%d fd=%d errno=%d path=%.1000s\n",getpid(),value,value<0?error:0,path);
 }
 ''' + 'static void TraceProcAccess(const char *operation,const char *path,int failed,int error) {', 1)
-filesystem = filesystem.replace('        TraceProcAccess(#name,path,value<0,saved); errno=saved; return value;',
-    '        ProtonTraceResource(path,value,saved); TraceProcAccess(#name,path,value<0,saved); errno=saved; return value;', 1)
+needle='TraceNativeFile(#name,path,value,saved);TraceProcAccess(#name,path,value<0,saved);'
+assert filesystem.count(needle)==1
+filesystem=filesystem.replace(needle,'ProtonTraceResource(path,value,saved);'+needle,1)
 (task/'filesystem_probe.c').write_text(filesystem)
 posix = (fixture/'posix_compat.c').read_text()
 posix = posix.replace('#define _GNU_SOURCE 1', '#define _GNU_SOURCE 1\n#include <sys/prctl.h>', 1)
@@ -319,7 +313,7 @@ posix = posix.replace(signed_library, signed_library + r'''
             return mapped;
         }
         if(!strcmp(name,"libvulkan.so.1") && getenv("STEAMOHOS_PROTON_NATIVE_VULKAN")) {
-            if(snprintf(mapped,capacity,"%s/graphics/libproton_vulkan.so",probe)>=(int)capacity)return name;
+            if(snprintf(mapped,capacity,"%s/%s/libproton_vulkan.so",probe,getenv("VPP_GNU_DXVK_PROFILE")?"dxvk-support":"graphics")>=(int)capacity)return name;
             return mapped;
         }
         if(!strcmp(name,"libEGL.so.1") && getenv("STEAMOHOS_PROTON_NATIVE_EGL")) {
@@ -492,14 +486,13 @@ __attribute__((constructor)) static void ProtonDiagnostic(int argc, char **argv,
 }
 """
 (task/'posix_probe.c').write_text(posix)
-objects = [base/(name+'.o') for name in ['sysvipc_compat.c',
-    'popen_compat.c','socket_metadata.c','native_loader.cpp','native_loader_entry.S']]
-binary = task/'libproton_probe.so'
-inputs = {'sources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in
-    [task/'exec_probe.cpp',task/'filesystem_probe.c',task/'posix_probe.c',task/'syscall_probe.S']},
-    'baseManifest':hashlib.sha256((base/'runtime/manifest.json').read_bytes()).hexdigest(),
-    'objects':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in objects},
-    'compilers':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [cc,cxx]}}
+shared=[fixture/name for name in ['sysvipc_compat.c','popen_compat.c','socket_metadata.c']]+[fixture.parent/'native_loader.cpp',fixture.parent/'native_loader_entry.S']
+objects=[task/(p.name+'.o') for p in shared]
+binary=task/'libproton_probe.so'
+inputs={'sources':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in
+ [task/'exec_probe.cpp',task/'filesystem_probe.c',task/'posix_probe.c',task/'syscall_probe.S',*shared,*fixture.glob('*.h'),*fixture.parent.glob('*.h')]},
+ 'script':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+ 'compilers':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [cc,cxx]}}
 identity = task/'posix-probe-identity.json'
 if identity.exists() and binary.exists():
     previous = json.loads(identity.read_text())
@@ -513,8 +506,10 @@ subprocess.run([str(cc),'-O2','-Wall','-Wextra','-Werror','-fPIC',
 for source in [task/'exec_probe.cpp',task/'syscall_probe.S']:
     subprocess.run([str(cxx),'-O2','-Wall','-Wextra','-Werror','-std=c++17','-fPIC',
         '-I'+str(fixture),'-c',str(source),'-o',str(source.with_suffix('.o'))],check=True)
-objects = [base/(name+'.o') for name in ['sysvipc_compat.c',
-    'popen_compat.c','socket_metadata.c','native_loader.cpp','native_loader_entry.S']]
+for source,target in zip(shared,objects):
+    compiler=cxx if source.suffix=='.cpp' else cc
+    flags=['-std=c++17'] if source.suffix=='.cpp' else []
+    subprocess.run([str(compiler),'-O2','-Wall','-Wextra','-fPIC',*flags,'-c',str(source),'-o',str(target)],check=True)
 binary = task/'libproton_probe.so'
 subprocess.run([str(cxx),'-shared',str(task/'exec_probe.o'),str(task/'syscall_probe.o'),
     str(task/'filesystem_probe.o'),
@@ -522,10 +517,10 @@ subprocess.run([str(cxx),'-shared',str(task/'exec_probe.o'),str(task/'syscall_pr
     *map(str,objects),'-pthread','-ldl','-Wl,-z,relro,-z,now','-Wl,-soname,libproton_probe.so',
     '-o',str(binary)],check=True)
 record = {'buildInputs':inputs,'name':binary.name,'bytes':binary.stat().st_size,
-    'sha256':hashlib.sha256(binary.read_bytes()).hexdigest(), 'baseManifest':str(base/'runtime/manifest.json'),
+    'sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),
     'delta':'Isolated optional syscall fallbacks, fork spawn, preloader skip, executable identity, C drive records, private PE read fallback, bounded desktop probe',
     'generatedSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [task/'exec_probe.cpp',task/'filesystem_probe.c',task/'posix_probe.c',task/'syscall_probe.S']},
-    'baseManifestSha256':hashlib.sha256((base/'runtime/manifest.json').read_bytes()).hexdigest(),
+
     'productRuntimeModified':False}
 (task/'posix-probe-identity.json').write_text(json.dumps(record,indent=2)+'\n')
 print(json.dumps(record),flush=True)

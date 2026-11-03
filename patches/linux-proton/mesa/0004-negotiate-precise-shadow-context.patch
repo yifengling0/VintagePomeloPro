@@ -1,0 +1,31 @@
+--- a/src/virtio/vtest/vtest_protocol.h
++++ b/src/virtio/vtest/vtest_protocol.h
+@@ -207,6 +207,7 @@
+ enum vcmd_param  {
+    VCMD_PARAM_MAX_TIMELINE_COUNT = 1,
+    VCMD_PARAM_OHOS_NATIVE_MEMORY_V1 = 0x57480101,
++   VCMD_PARAM_OHOS_PRECISE_SHADOW_V1 = 0x57480102,
+ };
+ #define VCMD_GET_PARAM_SIZE 1
+ #define VCMD_GET_PARAM_PARAM 0
+--- a/src/virtio/vulkan/vn_renderer_vtest.c
++++ b/src/virtio/vulkan/vn_renderer_vtest.c
+@@ -377,7 +377,17 @@
+          fprintf(stderr, "Venus: OHOS native-memory-v1 negotiation failed\n");
+          abort();
+       }
+-      flags = 1u << 16;
++      flags |= 1u << 16;
++   }
++   /* Opt-in only for clients publishing all writes through explicit ranges.
++    * Old peers must not silently run the incompatible legacy write-marker
++    * contract, and neighbouring native/CEF contexts must stay independent. */
++   if (debug_get_bool_option("VN_OHOS_PRECISE_SHADOW", false)) {
++      if (vtest_vcmd_get_param(vtest, VCMD_PARAM_OHOS_PRECISE_SHADOW_V1) != 1) {
++         fprintf(stderr, "Venus: OHOS precise-shadow-v1 negotiation failed\n");
++         abort();
++      }
++      flags |= 1u << 17;
+    }
+    vcmd_context_init[VCMD_CONTEXT_INIT_CAPSET_ID] = capset_id | flags;
+ 

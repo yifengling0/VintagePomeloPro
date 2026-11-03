@@ -384,6 +384,14 @@
       {
         "path": "patches/virglrenderer/0010-render-resource-fd-close.patch",
         "sha256": "c3e6561762ee5d4ab024acf350446def91159eaa6e1943c8b4d9d40f49a486e0"
+      },
+      {
+        "path": "patches/virglrenderer/0011-negotiate-precise-shadow-per-context.patch",
+        "sha256": "b1637acc773f220236f8cfb7a2f79c491c606582c067e5b44b0a1424588d4d4c"
+      },
+      {
+        "path": "patches/virglrenderer/0012-validate-precise-context-at-renderer-entry.patch",
+        "sha256": "5eb000c1eecb40af3919745b52cf76047e0fab7e83b5713eb9b4664d5372a330"
       }
     ],
     "mesa": [
@@ -660,11 +668,30 @@
       "src/vrend/vrend_renderer.c": "c0f88e4f535655643e86f7a443c6e6c15ea122e445db9358d5ccda6f5ae03e51",
       "src/vrend/vrend_shader.c": "ab200053b589e5381a58a5687c5cf38c8ceaf5a3fb587d3ab396ae8b9ea329aa",
       "src/vrend/vrend_shader.h": "f5122579e8a5d7c22f01da334a986e5571977990135cf74498bc4b65133b58b6",
-      "vtest/vtest_renderer.c": "7bdd7b2f34b3404ceda644d525e74943cfd2a53f3fb39c56663c87ebfc481625",
+      "vtest/vtest_renderer.c": "e8504bf51a6e8180d47f773417bb239352cacac92b25443c951150a5ddb41a1e",
       "server/render_context.c": "95696c32b639ba4f16aef9c648f1aaa0d80f1342558aa285ffd3703754977527",
       "src/venus/vkr_buffer.c": "32ba505a7b4c0e3fb67c050da4346e094a9d97e19d3c3efc68081b3396de4b3a",
-      "src/venus/vkr_device_memory.c": "e78d311ae50e6906518d6598cc5b2ff7383085da25847ebd634b5f44dcede24f",
-      "src/venus/vkr_device.c": "8fb694ad2ed01259e0cb35ddff25f6abef07e340a8a624cd295a5cb0df4dcf8c"
+      "src/venus/vkr_device_memory.c": "f51c405e2800bd7e1e7addfa414eafe4267e3406216de61e94db5ec494167ea9",
+      "src/venus/vkr_device.c": "8fb694ad2ed01259e0cb35ddff25f6abef07e340a8a624cd295a5cb0df4dcf8c",
+      "src/virglrenderer.h": "6ec183c8de6d7c5ffc5105385373d26eb0e651a39a7d02e6345a2e5a93b026fa",
+      "vtest/vtest_protocol.h": "37c0eb24269e0203e4f981533927f66dcc8576c892ee49e505db09b7ab026c10",
+      "src/venus/vkr_context.h": "1c86db045b7f8e3ecef6ad363a561a2c77a78213f45315e013a414cf668e1bf0",
+      "src/venus/vkr_renderer.c": "055414e0b2dd5d59c2ffe5054e6c1c8dfcbf8653735efdc92e3355efe8d54b25",
+      "src/meson.build": "1384bcf4ad54cd1c15fe71115efdee8b0bf1590412c5440bcdeb76f0dc1ad0d9",
+      "src/proxy/proxy_context.c": "4972526a0524bd5ee9ca3e2edda8d858450e2b28b9c2d3fe2b54b10c22582b00",
+      "src/proxy/proxy_context.h": "c11eadcd59b82bcd3741fb4149e97ce0da8188a6847f1b4a9964ec92fbcd3be6",
+      "src/venus/vkr_buffer.h": "ab4d196115f435db1da8302140a0110b4b67073622cfb01ec3256e1562046fe7",
+      "src/venus/vkr_context.c": "a1e480acf4396f2fc2a2e5e1690547debcc28c9865d702e2c751a61bb7630f78",
+      "src/venus/vkr_device.h": "cb3650c0878fe3bf821585afe6768255f4b17c15b55077b0294adcc6fa6f282a",
+      "src/venus/vkr_device_memory.h": "edd72e54955e2a8e6afb1e5912643fd9393e3adab2f07c29657cdd5231fa1b2c",
+      "src/venus/vkr_image.c": "9665bcdc96200c2ca12d36bc357bffa330f38a2d2dff3ea5270529aba63908f9",
+      "src/venus/vkr_image.h": "c61e4a5383ed6800b26d5a255dba4c7bb6595a65feb39f9847426f10348a4d14",
+      "src/venus/vkr_ohos_native_memory.h": "6a496a243a97fa93a758b55570bd0e85eeeb23e0cdc18f33dc2b8dfabad1b905",
+      "src/venus/vkr_ohos_native_resource.h": "ce3824d2b3735374129c192fc57f26a85a5b45119eaf00d1ec98dadf274eddf8",
+      "src/venus/vkr_physical_device.c": "bdb83f4492b09912d3f35d1ddcb09b338bedae138cef408d103682a8e7256e35",
+      "src/venus/vkr_physical_device.h": "5888201316c046a2edbe0592251a5f13191627a2d239505124416cf38ebc43c6",
+      "src/virgl_resource.h": "a3d31be53cadaa6836713a3a38da8964e30cdd35fe77f4f03db8ea3cffe948ab",
+      "src/virglrenderer.c": "3302226f94c97adf470e33ee26f673eed00ba7ced5535596bc7bf4e7b82bcc8d"
     }
   },
   "capability_decisions": {

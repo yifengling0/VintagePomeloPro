@@ -91,3 +91,6 @@ entry/src/main/resources/rawfile/linux-proton/gnu-proton.zip
 
 # Locked GNU media PE supplement, independent of historical Proton ZIPs.
 !entry/src/main/resources/rawfile/linux-proton/media/files/lib/wine/aarch64-windows/*.dll
+
+# Independently verified GNU DXVK/GE PE support (outside immutable upstream ZIP).
+!entry/src/main/resources/rawfile/linux-proton/dxvk-support/**/*.dll

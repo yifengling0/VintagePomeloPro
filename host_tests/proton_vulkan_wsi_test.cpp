@@ -50,7 +50,14 @@ PFN_vkVoidFunction fakeGet(VkDevice,const char* name) {
 }
 }
 int main() {
+    assert(aliasRangeFits(4097,4096,1));
+    assert(aliasRangeFits(4103,7,4096));
+    assert(!aliasRangeFits(4097,4096,2));
+    assert(!aliasRangeFits(4097,4098,1));
+    assert(!aliasRangeFits(UINT64_MAX,UINT64_MAX-1,3));
+    assert(!aliasRangeFits(4096,0,0));
     get=fakeInstanceGet;
+    present=[](VkQueue,VkImage,uint32_t,uint32_t,VkFormat,VkImageLayout,uint32_t,uint32_t,uint32_t,uint64_t*){return 0;};
     uint32_t extensionCount=0;
     assert(vkEnumerateInstanceExtensionProperties(nullptr,&extensionCount,nullptr)==VK_SUCCESS);
     std::vector<VkExtensionProperties> extensionList(extensionCount);

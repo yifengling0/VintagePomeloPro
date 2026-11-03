@@ -1,3 +1,4 @@
+import { prepareLinuxProtonDxvkPrefix } from './LinuxProtonDxvk';
 import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
 import { linuxSteamWindowsPath, linuxSteamLaunchArgument } from './LinuxSteamPaths';
 import smokeNapi, { LinuxSteamLaunchRequest } from 'libsmoke_napi.so';
@@ -293,6 +294,10 @@ export class LinuxSteamGameLaunch {
         if (!verified) { this.reject(request, '官方 Linux Steam 辅助程序校验失败'); continue; }
       }
       if (request.backend === 'gnu-proton' || request.backend === 'gnu-proton-gl') {
+        try {
+          if (request.backend === 'gnu-proton') await prepareLinuxProtonDxvkPrefix();
+        } catch (error) { this.reject(request, (error as Error).message); return; }
+        if (generation !== this.generation) return;
         this.beginGnu(request); continue;
       }
       const argv = request.argv.slice(1).map((argument: string): string => linuxSteamLaunchArgument(argument, this.zRoot));

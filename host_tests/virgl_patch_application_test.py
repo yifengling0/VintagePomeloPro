@@ -64,7 +64,13 @@ with tempfile.TemporaryDirectory(prefix='virgl-patch-files-') as temporary:
 
     for overlay in reversed(patches):
         patch(source, overlay, reverse=True)
-    assert snapshot(source) == baseline, 'reversing the VirGL overlay did not restore its input'
+    clean = snapshot(source)
+    # The caller may supply the reviewed fully-applied working tree too.
+    # Reversal must restore the clean input when that is what we started with;
+    # for already-applied input it must produce a different, replayable base.
+    if baseline != applied:
+        assert clean == baseline, 'reversing the VirGL overlay did not restore its input'
+    assert clean != applied, 'reversal failed to remove the overlay'
 
     subprocess.run(['bash', str(ROOT / 'scripts/apply_virglrenderer_ohos_patches.sh'),
                     str(source)], check=True, stdout=subprocess.PIPE)

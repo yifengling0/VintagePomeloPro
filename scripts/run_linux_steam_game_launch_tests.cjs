@@ -11,6 +11,7 @@ const helperDigests = new Map();
 const completions = [];
 let runtimeLeases=0;
 const deps = {
+  './LinuxProtonDxvk': {prepareLinuxProtonDxvkPrefix: async()=>{}},
   './LinuxProtonRuntimeService': {LinuxProtonRuntimeService:singleton({holdGame:()=>{runtimeLeases++;return()=>runtimeLeases--;}})},
   'libsmoke_napi.so': { default: {
     startLinuxSteamLaunchBroker: () => true,

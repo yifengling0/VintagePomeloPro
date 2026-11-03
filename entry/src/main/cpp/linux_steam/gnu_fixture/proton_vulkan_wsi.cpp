@@ -59,6 +59,11 @@ std::map<VkDeviceMemory,Mapping> mappings;
 using AllocateVirtual = int32_t(*)(void*,void**,uintptr_t,size_t*,uint32_t,uint32_t);
 using FreeVirtual = int32_t(*)(void*,void**,size_t*,uint32_t);
 FreeVirtual freeVirtual;
+bool aliasRangeFits(uint64_t backingSize, uint64_t offset, uint64_t bytes) {
+    // mmap may round past the last partial page; only requested bytes must
+    // fit the actual allocation. Subtraction avoids integer overflow.
+    return bytes && offset <= backingSize && bytes <= backingSize - offset;
+}
 bool alias32(VkDeviceMemory memory,VkDeviceSize memoryOffset,size_t bytes,void** base,void** out) {
     const char* root=getenv("STEAMOHOS_CODE_ROOT");if(!root||!bytes)return false;
     char path[4096];snprintf(path,sizeof(path),"%s/package/files/lib/wine/aarch64-unix/ntdll.so",root);
@@ -72,10 +77,11 @@ bool alias32(VkDeviceMemory memory,VkDeviceSize memoryOffset,size_t bytes,void**
     size_t length=(bytes+delta+page-1)&~(page-1);
     using MappedFd = int(*)(VkDeviceMemory,uint64_t*);
     auto mappedFd=reinterpret_cast<MappedFd>(dlsym(icd,"vn_winehua_mapped_memory_fd"));
-    uint64_t backingSize=0;int fd=mappedFd?mappedFd(memory,&backingSize):-1;
-    if(fd<0){fprintf(stderr,"GNU_WINE_VULKAN alias_fd_unavailable\n");return false;}
+    if(!mappedFd){errno=ENOSYS;fprintf(stderr,"GNU_WINE_VULKAN alias_fd_missing_entry\n");return false;}
+    uint64_t backingSize=0;int fd=mappedFd(memory,&backingSize);
+    if(fd<0){const int error=errno;fprintf(stderr,"GNU_WINE_VULKAN alias_fd_export_failed errno=%d\n",error);errno=error;return false;}
     const uint64_t fileOffset=memoryOffset-delta;
-    if(fileOffset>backingSize||length>backingSize-fileOffset){close(fd);return false;}
+    if(!aliasRangeFits(backingSize,memoryOffset,bytes)){close(fd);errno=EINVAL;return false;}
     void* placed=nullptr;size_t reserved=length;
     const int32_t status=alloc(reinterpret_cast<void*>(~uintptr_t(0)),&placed,0x7fffffff,&reserved,0x3000,0x04);
     if(status||!placed){close(fd);fprintf(stderr,"GNU_WINE_VULKAN alias_reserve_failed status=%x bytes=%zu\n",status,length);return false;}
@@ -114,7 +120,7 @@ void startupTrace(const char* stage, const char* detail="") {
 bool init() {
     startupTrace("init_enter");
     std::lock_guard<std::recursive_mutex> lock(stateMutex);
-    if(get)return true;
+    if(get && present)return true;
     const char* root=getenv("STEAMOHOS_CODE_ROOT");
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
     const char* native=getenv("STEAMOHOS_NATIVE_FEX");
@@ -129,7 +135,9 @@ bool init() {
 #ifdef STEAMOHOS_NATIVE_FEX_WSI
     int pathSize=snprintf(path,sizeof(path),"%s/native-game-support/libvulkan_virtio.so",root);
 #else
-    int pathSize=snprintf(path,sizeof(path),"%s/graphics/libvulkan_virtio.so",root);
+    const char* profile=getenv("VPP_GNU_DXVK_PROFILE");
+    const bool precise=profile && !strcmp(profile,"legacy-1.10.3");
+    int pathSize=snprintf(path,sizeof(path),"%s/%s/libvulkan_virtio.so",root,precise?"dxvk-support":"graphics");
 #endif
     if(pathSize<=0||pathSize>=(int)sizeof(path))return false;
     startupTrace("icd_open");
@@ -145,7 +153,9 @@ bool init() {
     get=reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(icd,"vk_icdGetInstanceProcAddr"));
     present=reinterpret_cast<Present>(dlsym(icd,"vn_winehua_present"));
     startupTrace("icd_ready",get&&present?"ok":"missing");
-    return get&&present;
+    if(get && present)return true;
+    get=nullptr;present=nullptr;dlclose(icd);icd=nullptr;
+    return false;
 }
 template<class T> T instanceProc(VkInstance instance,const char* name) {return reinterpret_cast<T>(get(instance,name));}
 template<class T> T deviceProc(VkDevice device,const char* name) {

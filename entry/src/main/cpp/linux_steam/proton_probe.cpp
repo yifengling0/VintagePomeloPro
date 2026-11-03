@@ -167,6 +167,12 @@ bool InstallProbeModules(const std::string& root,const std::string& package, con
         struct stat st{};
         if((mkdir(target.c_str(),0700)&&errno!=EEXIST) || lstat(target.c_str(),&st) ||
             !S_ISDIR(st.st_mode) || st.st_uid!=geteuid())return false;
+        // The immutable base inventory contains builtin i386 D3D11/DXGI.
+        // The independent DXVK layer owns this pair for both PE widths, and
+        // GL sessions explicitly select Wine's builtin loader. Do not compare
+        // that newer native pair with (or copy over it from) the old archive.
+        if (package==root+"/package" && arch=="i386-windows" &&
+            (name=="d3d11.dll" || name=="dxgi.dll")) continue;
         if(!LoaderReference(package+"/files/lib/wine/"+line,target+'/'+name))return false;
     }
     return count>0;
@@ -284,6 +290,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         !prefixRequested && !x64Requested && !x86Requested && !initializeRequested)
         return failure("proton_unsupported_stage");
     const std::string root(Root), package = root + "/package";
+    const std::string probeLibrary=root+"/dxvk-support/libproton_probe.so";
     const std::string wine = package + "/files/lib/wine/aarch64-unix/wine";
     const std::string server = package + "/files/bin-arm64/wineserver";
     if (!NativeElf(wine) || !NativeElf(server))
@@ -444,7 +451,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         auto readyEnvironment = environment;
         for (auto& variable : readyEnvironment)
             if (variable.compare(0, 11, "LD_PRELOAD=") == 0)
-                variable = "LD_PRELOAD=" + root + "/libproton_probe.so";
+                variable = "LD_PRELOAD=" + probeLibrary;
         const auto ready = RunNativeLoader({loader, "--inhibit-cache", "--library-path", libraries,
             root + "/proton-steam-ready"}, readyEnvironment, 45000, options);
         trace.Mark("steamSession");
@@ -504,7 +511,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
     NativeExecResult prefix, display;
     bool displayReady = false;
     std::string displayXkb;
-    const bool probeShim = NativeElf(root + "/libproton_probe.so");
+    const bool probeShim = NativeElf(probeLibrary);
     if ((prefixRequested || x64Requested || x86Requested || initializeRequested) && !verified) return failure("proton_bootstrap_failed");
     if (prefixRequested || x64Requested || x86Requested || initializeRequested) {
         if (!probeShim || !CDriveRecord(root))
@@ -569,18 +576,24 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             environment.emplace_back("STEAMOHOS_PROTON_NATIVE_EGL=1");
         }
         if (vulkanRequested) {
-            if (!SafeEndpoint(capabilities.vtestSocket) || !NativeElf(root+"/graphics/libproton_vulkan.so"))
+            if (!SafeEndpoint(capabilities.vtestSocket) || !NativeElf(root+"/dxvk-support/libproton_vulkan.so") || !NativeElf(root+"/dxvk-support/libvulkan_virtio.so"))
                 return failure("proton_vulkan_dependencies_missing",true);
             environment.emplace_back("VTEST_SOCKET_NAME="+capabilities.vtestSocket);
             environment.emplace_back("VN_DEBUG=vtest");
             environment.emplace_back("VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring");
             for (const char* name : {"VN_WINEHUA_STRONG_RING_BARRIER", "VN_WINEHUA_REMOTE_MEMORY_SYNC",
-                    "VN_WINEHUA_PERSISTENT_MAP_SYNC", "VN_WINEHUA_DIRECT_FENCE_WAIT"})
+                    "VN_WINEHUA_DIRECT_FENCE_WAIT"})
                 environment.emplace_back(std::string(name)+"=1");
             environment.emplace_back("STEAMOHOS_PROTON_NATIVE_VULKAN=1");
-            if (gameRequested) {
-                environment.emplace_back("WINEPATH=C:\\dxvk26");
-            }
+            // HSL's source-built legacy pair is installed for BOTH PE widths
+            // by the broker before any Wine/helper process. Never apply this
+            // explicit-range contract to native Linux, CEF or vanilla DXVK.
+            for (const char* setting : {"VPP_GNU_DXVK_PROFILE=legacy-1.10.3",
+                    "WINEHUA_DXVK_RELAXED_FEATURES=1", "DXVK_WINEHUA_COMMAND_QUERY_RESET=1",
+                    "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1", "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT=auto",
+                    "DXVK_WINEHUA_PRECISE_SHADOW=1", "DXVK_WINEHUA_BATCH_MAPPED_FLUSH=1",
+                    "VN_OHOS_PRECISE_SHADOW=1", "VN_WINEHUA_PERSISTENT_MAP_SYNC=0"})
+                environment.emplace_back(setting);
             environment.emplace_back("DXVK_LOG_PATH="+root+"/tmp");
             environment.emplace_back("DXVK_LOG_LEVEL=info");
         }
@@ -640,14 +653,14 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                 (graphicsRequested ? "winewayland.drv=d" : "winex11.drv=d")+
                 (audioRequested ? ";winepulse.drv=d;winealsa.drv=b" : "")+
                 (vulkanRequested ? ";d3d9=b;ddraw=b;wined3d=b;d3d11=n;dxgi=n;winevulkan=b" :
-                    (d3dRequested || gameRequested) ? ";d3d9=b;ddraw=b;wined3d=b" : ""));
+                    (d3dRequested || gameRequested) ? ";d3d9=b;ddraw=b;wined3d=b;d3d11=b;dxgi=b" : ""));
         }
         auto prefixEnvironment = environment;
         prefixEnvironment.emplace_back("WINELOADERNOEXEC=1");
         if (probeShim) {
             for (auto& variable : prefixEnvironment)
                 if (variable.compare(0, 11, "LD_PRELOAD=") == 0)
-                    variable = "LD_PRELOAD=" + root + "/libproton_probe.so";
+                    variable = "LD_PRELOAD=" + probeLibrary;
         }
         // Register helpers can start the private wineserver too. Reap it on
         // every subsequent exit, including failed registration/setup paths.
@@ -769,7 +782,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         std::string gameCommand;
         if(manual) gameCommand=ProtonGameWindowsPath(manual->argv.front(), manual->role=="game" ? manual->install : std::string());
         else if(gameRequested)gameCommand=std::string(1,selectedGame->drive-'a'+'A')+":\\"+selectedGame->executable;
-        const std::string command = localeRequested ? "C:\\proton-x86-locale.exe" : initializeRequested ? "wineboot.exe" : gameRequested ? gameCommand : vulkanRequested ? "C:\\dxvk26\\proton-x86-cube.exe" : d3dRequested ? "C:\\proton-x86-cube.exe" : mediaRequested ? "C:\\proton-x64-media.exe" : x86Requested ? "C:\\proton-x86-cmd.exe" : windowRequested ? "C:\\proton-x64-window.exe" : x64Requested ? "C:\\proton-x64-cmd.exe" : "cmd.exe";
+        const std::string command = localeRequested ? "C:\\proton-x86-locale.exe" : initializeRequested ? "wineboot.exe" : gameRequested ? gameCommand : d3dRequested ? "C:\\proton-x86-cube.exe" : mediaRequested ? "C:\\proton-x64-media.exe" : x86Requested ? "C:\\proton-x86-cmd.exe" : windowRequested ? "C:\\proton-x64-window.exe" : x64Requested ? "C:\\proton-x64-cmd.exe" : "cmd.exe";
         const std::string marker = x86Requested ? "HMOSDECK_GNU_X86_OK" : x64Requested ? "HMOSDECK_GNU_X64_OK" : "HMOSDECK_GNU_WINE_OK";
         if (x64Requested && !LoaderReference(package + "/files/lib/wine/x86_64-windows/cmd.exe",
                 root + "/prefix/drive_c/proton-x64-cmd.exe"))
@@ -854,7 +867,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         JsonString(gameRequested ? (prefix.cancelled ? "proton_game_cancelled" : prefix.timedOut ? "proton_game_trial_expired" : Succeeded(prefix) ? "proton_game_exited" : "proton_game_failed") : vulkanRequested ? (graphicsTransportSubmitted ? "proton_vulkan_submitted" : "proton_vulkan_failed") : sharedGraphicsRequested ? (graphicsTransportSubmitted ? "proton_native_egl_submitted" : "proton_native_egl_failed") : initializeRequested ? (Succeeded(prefix) ? "proton_prefix_updated" : "proton_prefix_update_failed") : graphicsRequested ? (graphicsVerified ? "proton_gpu_verified" : "proton_gpu_failed") : audioRequested ? (audioVerified ? "proton_audio_verified" : "proton_audio_failed") : inputRequested ? (inputEnumerated ? "proton_input_enumerated" : "proton_input_failed") : x86Requested ? (x86Verified ? "proton_x86_verified" : "proton_x86_failed") : windowRequested ? (windowVerified ? "proton_window_verified" : "proton_window_failed") : x64Requested ? (x64Verified ? "proton_x64_verified" : "proton_x64_failed") :
             prefixRequested ? (prefixVerified ? "proton_prefix_verified" : "proton_prefix_failed") :
             (verified ? "proton_bootstrap_verified" : "proton_bootstrap_failed")) +
-        ",\"runtimeBackend\":\"gnu-proton\",\"graphicsBackend\":"+JsonString(vulkanRequested?(gameRequested?"d3d9-wined3d-virgl+d3d11-dxvk26-venus-nativeimage":"dxvk26-venus-nativeimage"):"wined3d-virgl-nativeimage")+
+        ",\"runtimeBackend\":\"gnu-proton\",\"graphicsBackend\":"+JsonString(vulkanRequested?(gameRequested?"d3d9-wined3d-virgl+d3d11-dxvk-legacy-venus-nativeimage":"dxvk-legacy-venus-nativeimage"):"wined3d-virgl-nativeimage")+
         ",\"launchSource\":"+JsonString(manual?"linux-steam":"standalone-probe")+
         ",\"appId\":"+JsonString(manual?manual->appId:selectedGame?selectedGame->appid:"")+
         ",\"bootstrapVerified\":" + (verified ? "true" : "false") +

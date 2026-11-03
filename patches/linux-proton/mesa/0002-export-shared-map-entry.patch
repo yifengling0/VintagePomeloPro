@@ -1,0 +1,10 @@
+--- a/src/vulkan/vulkan.sym
++++ b/src/vulkan/vulkan.sym
+@@ -4,6 +4,7 @@
+ 		vk_icdGetPhysicalDeviceProcAddr;
+ 		vk_icdNegotiateLoaderICDInterfaceVersion;
+ 		vn_winehua_present;
++		vn_winehua_mapped_memory_fd;
+ 
+ 	local:
+ 		# When static linking LLVM, all its symbols are public API.

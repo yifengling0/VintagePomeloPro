@@ -55,11 +55,10 @@
     "ohosGuestProtectionHeaderSha256": "bf5ae6f8558784f3dc0c8bcff207da568125b2e1b7bb40d8bf2d65bce2ccde0d"
   },
   "sources": {
-    "scripts/prepare_linux_native_repairs.py": "1b16aa70744adb274163b7914b72d9c962c2e3d84c052f499864f9bb1c8f1649",
+    "scripts/prepare_linux_native_repairs.py": "ac2ee7409da6877b5424b72d7b072709b53a94701982586d736a689960033230",
     "scripts/diagnostics/build_native_fex_pop.py": "b547cfea15adede2f3b6f72a7ab9909d186c65b223a23721c281289e26783ac4",
     "scripts/patches/fex-upstream-5901-restore-sigreturn-state.patch": "de76b76140e2933a574ea5427b372aa2512980c694a9aa37f9aac8f37708ee3e",
     "scripts/patches/fex-upstream-5901-restore-sigreturn-state.provenance.json": "91561a0333bdf224f6986f11841818e5d88dce6a20b5d654f60f961b4e173244",
-    "scripts/build_linux_proton_venus.py": "600b8aab8e1dd6451394753fb422f819c2574a1910583b97f6dfacd56d983c1e",
     "scripts/build_linux_steam_software_gl.py": "5eadcac5106d6d06da994056e68c7ddb53ac9f26508b7d9aeae8f36db2157f43",
     "scripts/build_linux_steam_client.py": "f565c60f4542c993837e6c02cdc5f021b1f9004c4104010673b857d1121b6bc5",
     "patches/mesa/0011-softpipe-demand-zero-texture-cache.patch": "e0f47385f626ec1327729de025c199d5eff547842870e33ba28ebf66b12aaadb",
@@ -68,7 +67,8 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex_core.h": "cd800c4cb18ecd5c14b121d5b52c88944b8f2b01132877df25d7c63a26c34edb",
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/NOTICE.txt": "c1338a7d11829b7911123aba0b7cbddb0e6bca1b1f1dea6e60444bb7a3d2f2be",
     "scripts/patches/fex-ohos-guest-protection.patch": "57d2f6d01892c50ab4634b3216ff1f60417e509cc6d6e9b5e55a87a57266da2a",
-    "scripts/patches/fex-ohos-guest-protection.h": "bf5ae6f8558784f3dc0c8bcff207da568125b2e1b7bb40d8bf2d65bce2ccde0d"
+    "scripts/patches/fex-ohos-guest-protection.h": "bf5ae6f8558784f3dc0c8bcff207da568125b2e1b7bb40d8bf2d65bce2ccde0d",
+    "scripts/build_linux_proton_venus_legacy.py": "600b8aab8e1dd6451394753fb422f819c2574a1910583b97f6dfacd56d983c1e"
   },
   "files": {
     "FEX": {

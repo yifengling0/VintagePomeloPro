@@ -86,6 +86,8 @@ def verify_sources(root, lock):
     if lock.get("protonMedia"):
         from prepare_linux_proton_media import verify as verify_media
         verify_media(root)
+    from prepare_linux_proton_dxvk import verify as verify_dxvk
+    dxvk = verify_dxvk(root) if lock.get("protonDxvk") else None
     verify_native_guest_core(root)
     native_vulkan_driver.verify(root)
     if lock.get('nativeRepairs'):
@@ -94,7 +96,7 @@ def verify_sources(root, lock):
     # The released GNU ZIP remains immutable. An explicit, hash-verified HAP
     # companion may supersede selected adapter sources without repacking it.
     overrides=lock.get('hapSourceOverrides',{})
-    verified={}
+    verified={"entry/src/main/resources/rawfile/linux-proton/dxvk-support/manifest.json": dxvk["sources"]} if dxvk else {}
     if lock.get('nativeRepairs'):
         verified['entry/src/main/resources/rawfile/'+lock['nativeRepairs']]=verify_repairs(root)['sources']
     for manifest_name in (set(overrides.values()) | set(lock.get('hapCompanions', []))) - set(verified):
@@ -233,13 +235,18 @@ def verify_hap(path, root=ROOT):
         if lock.get("protonMedia"):
             from prepare_linux_proton_media import verify as verify_media
             verify_media(root, archive)
+        from prepare_linux_proton_dxvk import verify as verify_dxvk
+        if lock.get("protonDxvk"): verify_dxvk(root, archive)
         if lock.get('nativeRepairs'):
             from prepare_linux_native_repairs import verify as verify_repairs
             verify_repairs(root, archive)
         verify_native_guest_core(root, archive)
         native_vulkan_driver.verify(root, archive)
         repair_manifest='entry/src/main/resources/rawfile/'+lock.get('nativeRepairs','')
-        for manifest_name in (set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values())) - {repair_manifest}:
+        composite_manifests={repair_manifest}
+        if lock.get('protonDxvk'):
+            composite_manifests.add('entry/src/main/resources/rawfile/linux-proton/dxvk-support/manifest.json')
+        for manifest_name in (set(lock.get('hapCompanions', [])) | set(lock.get('hapSourceOverrides', {}).values())) - composite_manifests:
             local = root / manifest_name
             manifest = json.loads(local.read_text())
             relative = local.relative_to(root / 'entry/src/main/resources/rawfile').as_posix()

@@ -14,7 +14,9 @@
     "scripts/build_linux_steam_client.py": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/manifest.json",
     "scripts/build_linux_steam_software_gl.py": "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-game-support/manifest.json",
     "entry/src/main/cpp/linux_steam/gnu_fixture/desktop_session.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json"
+    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json",
+    "scripts/build_linux_proton_probe.py": "entry/src/main/resources/rawfile/linux-proton/dxvk-support/manifest.json",
+    "scripts/build_linux_proton_venus.py": "entry/src/main/resources/rawfile/linux-proton/dxvk-support/manifest.json"
   },
   "sourceInputs": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",
@@ -146,5 +148,6 @@
     "scripts/build_linux_steam_offline_package.py": "a7d40b2478bb3dfaeadc4043083390ed78c3ed54089e1aab11324956bb2832a7",
     "scripts/linux_steam_native_sdk.py": "100d97dc791080d8b12d08795a468b275c750beed56838f65f0f5ebaf91d7f5e",
     "scripts/prepare_release_offline_packages.py": "32ec0e8d2e013aedff278fa2ac8aebec24664feb8c735f61908d2f5e93b7d8bd"
-  }
+  },
+  "protonDxvk": "docs/linux-steam/gnu-dxvk-support.lock.json"
 }

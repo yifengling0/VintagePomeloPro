@@ -1,0 +1,501 @@
+{
+  "schemaVersion": 2,
+  "status": "winehua-arm64x-and-legacy-i386-source-built-static-validated-runtime-qualification-required",
+  "defaultEnabled": false,
+  "vppLineage": {
+    "repository": "https://github.com/yifengling0/VintagePomeloPro",
+    "ref": "feature/main_proton",
+    "commit": "e08ca925d3653fffa5d7e9ffd61bd5a1ea5ca38d",
+    "scripts": {
+      "scripts/build_dxvk_arm64x.sh": "53b3250569a2b5288c57d6254d4eb8dc54dbc9e17b5b42b4680823ccfd43d592",
+      "scripts/build_dxvk_modern_arm64x.sh": "992e30b74f3d77c37ab4597d4c1d5b38dd799406c019af7c4ba73021363df907"
+    }
+  },
+  "buildInputs": {
+    "archives": [
+      {
+        "name": "legacy",
+        "repository": "https://github.com/winehua/dxvk",
+        "commit": "7c5cc47f772b9564af177cea920da81a40ffd47c",
+        "path": "legacy",
+        "base": true,
+        "archiveUrl": "https://codeload.github.com/winehua/dxvk/tar.gz/7c5cc47f772b9564af177cea920da81a40ffd47c",
+        "archiveFile": "legacy-7c5cc47f772b9564af177cea920da81a40ffd47c.tar.gz",
+        "archiveBytes": 1258366,
+        "archiveSha256": "3d4a3059d702e921b12a7af114fdbe5fad511506c69cc5eb5d6686de83a3213b"
+      },
+      {
+        "name": "modern",
+        "repository": "https://github.com/winehua/dxvk",
+        "commit": "05a0a66d74cc41e6a90a8cb62d459c1c6a28c783",
+        "path": "modern",
+        "base": true,
+        "archiveUrl": "https://codeload.github.com/winehua/dxvk/tar.gz/05a0a66d74cc41e6a90a8cb62d459c1c6a28c783",
+        "archiveFile": "modern-05a0a66d74cc41e6a90a8cb62d459c1c6a28c783.tar.gz",
+        "archiveBytes": 1236645,
+        "archiveSha256": "420f4f95ed584d7294ec3ddfaf9ee629c0454c041146b7713c721db6bb7b1b6b",
+        "gitmodulesText": "[submodule \"include/native/directx\"]\n\tpath = include/native/directx\n\turl = https://github.com/Joshua-Ashton/mingw-directx-headers\n[submodule \"include/vulkan\"]\n\tpath = include/vulkan\n\turl = https://github.com/KhronosGroup/Vulkan-Headers\n[submodule \"include/spirv\"]\n\tpath = include/spirv\n\turl = https://github.com/KhronosGroup/SPIRV-Headers.git\n[submodule \"subprojects/libdisplay-info\"]\n\tpath = subprojects/libdisplay-info\n\turl = https://github.com/doitsujin/libdisplay-info.git\n\tbranch = windows\n"
+      },
+      {
+        "name": "Vulkan-Headers",
+        "repository": "https://github.com/KhronosGroup/Vulkan-Headers",
+        "commit": "234c4b7370a8ea3239a214c9e871e4b17c89f4ab",
+        "path": "modern/include/vulkan",
+        "archiveUrl": "https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/234c4b7370a8ea3239a214c9e871e4b17c89f4ab",
+        "archiveFile": "Vulkan-Headers-234c4b7370a8ea3239a214c9e871e4b17c89f4ab.tar.gz",
+        "archiveBytes": 2497311,
+        "archiveSha256": "b5dc57fc79fade0a2bc563bdbacf4f0902d0144c5ba85e9e162ab2995f9ac2ea"
+      },
+      {
+        "name": "SPIRV-Headers",
+        "repository": "https://github.com/KhronosGroup/SPIRV-Headers",
+        "commit": "8b246ff75c6615ba4532fe4fde20f1be090c3764",
+        "path": "modern/include/spirv",
+        "archiveUrl": "https://codeload.github.com/KhronosGroup/SPIRV-Headers/tar.gz/8b246ff75c6615ba4532fe4fde20f1be090c3764",
+        "archiveFile": "SPIRV-Headers-8b246ff75c6615ba4532fe4fde20f1be090c3764.tar.gz",
+        "archiveBytes": 472513,
+        "archiveSha256": "cfeed5f9a97d12a9761a26e7f5bd10fedb1a8ce92033075151ae3bc7206fc229"
+      },
+      {
+        "name": "libdisplay-info",
+        "repository": "https://github.com/doitsujin/libdisplay-info",
+        "commit": "275e6459c7ab1ddd4b125f28d0440716e4888078",
+        "path": "modern/subprojects/libdisplay-info",
+        "archiveUrl": "https://codeload.github.com/doitsujin/libdisplay-info/tar.gz/275e6459c7ab1ddd4b125f28d0440716e4888078",
+        "archiveFile": "libdisplay-info-275e6459c7ab1ddd4b125f28d0440716e4888078.tar.gz",
+        "archiveBytes": 95114,
+        "archiveSha256": "c83c3e600f90a3ac98932e9259de62ad8ad3a65dd5efb1d2abcb1e4d1c8f494a"
+      },
+      {
+        "name": "mingw-directx-headers",
+        "repository": "https://github.com/Joshua-Ashton/mingw-directx-headers",
+        "commit": "9df86f2341616ef1888ae59919feaa6d4fad693d",
+        "path": "modern/include/native/directx",
+        "archiveUrl": "https://codeload.github.com/Joshua-Ashton/mingw-directx-headers/tar.gz/9df86f2341616ef1888ae59919feaa6d4fad693d",
+        "archiveFile": "mingw-directx-headers-9df86f2341616ef1888ae59919feaa6d4fad693d.tar.gz",
+        "archiveBytes": 473287,
+        "archiveSha256": "9c1b8bbfd2d6c758fac4d93c2808a46bc1eee429fe656b4f21b29e02615aa8aa"
+      }
+    ],
+    "bcdec": {
+      "commit": "f6492f848273ae3f4220151c8049e1202669cd49",
+      "path": "dlls/d3dx9_36/bcdec.h",
+      "sha256": "ebfff36dd34ef7e9de508800cc24f7e2f78ffd77a958798244626eb9e34f67cf",
+      "bytes": 71166,
+      "stagedPath": "source/wine/dlls/d3dx9_36/bcdec.h",
+      "repository": "https://github.com/winehua/wine",
+      "url": "https://raw.githubusercontent.com/winehua/wine/f6492f848273ae3f4220151c8049e1202669cd49/dlls/d3dx9_36/bcdec.h"
+    },
+    "llvmMingw": {
+      "version": "20260826",
+      "archiveUrl": "https://github.com/mstorsjo/llvm-mingw/releases/download/20260826/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz",
+      "archiveFile": "llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz",
+      "archiveBytes": 83880560,
+      "archiveSha256": "cee8d2ce3da5145ce4dc882e70d0b0719a783d53a99752c60948fc0659975a65",
+      "licenseSha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee",
+      "binarySha256": {
+        "clang": "bab7f174d7e136ae093ad232d5a894ee00f0a8f9051bcff4eb6a70c132898248",
+        "ld.lld": "dcda7c2610feb4f37c6cb65de5455f6ad897f0938e2af056df8a0e97854d97a7",
+        "llvm-ar": "139ac1d7fef4a794e18f112519a01be1896d9590d850f8dad75845e74880ed05",
+        "llvm-dlltool": "139ac1d7fef4a794e18f112519a01be1896d9590d850f8dad75845e74880ed05",
+        "llvm-readobj": "3623944e3e499a13ae625240d9e32b3586a07850c234f5da922ff5b3621c13db"
+      },
+      "staticLibrarySha256": {
+        "libc++abi.a": "448194264c0f58d3d23c4387557976fff9252f8ea675a6d546f6719e40839505",
+        "libunwind.a": "40d14dfdb24bb69b8aba8202d3a0a8bd3afa80bda2b708e9f058bd15a8530b64",
+        "libc++.a": "8d158e691a1825987d6a9b50075afc6264bd89325a9b0d244724d2eda14253c6"
+      },
+      "i386StaticLibrarySha256": {
+        "libc++.a": "7d588d08c095592754e29e9309f90722691035360cd9e4e5372d0244ae52d1d1",
+        "libc++abi.a": "caa10181133318ef59cb82c9d8a4c113b09121dcb1bab0cb8d983e27e3326cf9",
+        "libunwind.a": "84f7b264347035f3597bb38b1ae534b3f543e1006ed43012685bb60a1ddc728f"
+      }
+    },
+    "hostPackages": [
+      {
+        "file": "glslang-tools_15.1.0+1.4.309.0-1_amd64.deb",
+        "bytes": 2329504,
+        "sha256": "c3025c4af63244296bc9d466746763c809d3f3f126408fc2c7b07070886a7759",
+        "metadata": "Package: glslang-tools\nVersion: 15.1.0+1.4.309.0-1\nArchitecture: amd64",
+        "url": "https://deb.debian.org/debian/pool/main/g/glslang/glslang-tools_15.1.0+1.4.309.0-1_amd64.deb",
+        "matchesAuthenticatedIndexSha256": true
+      },
+      {
+        "file": "spirv-tools_2025.1~rc1-1_amd64.deb",
+        "bytes": 4260164,
+        "sha256": "2cc272ef1340cf0b47de6c5fcccaf91574d7a8f4061abb718d6c639463e85aab",
+        "metadata": "Package: spirv-tools\nVersion: 2025.1~rc1-1\nArchitecture: amd64",
+        "url": "https://deb.debian.org/debian/pool/main/s/spirv-tools/spirv-tools_2025.1~rc1-1_amd64.deb",
+        "matchesAuthenticatedIndexSha256": true
+      }
+    ],
+    "hostBinaries": {
+      "glslangValidator": {
+        "bytes": 8676880,
+        "sha256": "3a4fb1feabbe3f2a61a42f067d67c0d2ee6a982ea863fb02c66b7aa271f830eb",
+        "version": "Glslang Version: 11:15.2.0\nESSL Version: OpenGL ES GLSL 3.20 glslang Khronos. 15.2.0\nGLSL Version: 4.60 glslang Khronos. 15.2.0\nSPIR-V Version 0x00010600, Revision 1\nGLSL.std.450 Version 100, Revision 1\nKhronos Tool ID 8\nSPIR-V Generator Version 11\nGL_KHR_vulkan_glsl version 100\nARB_GL_gl_spirv version 100"
+      },
+      "spirv-val": {
+        "bytes": 1989424,
+        "sha256": "f386e67676bc134802b6bfec6d96fff0f9437d0f60e4c97ee0afa59ab4f1c4ea",
+        "version": "SPIRV-Tools v2025.1 unknown hash, 2025-03-18T14:15:19+00:00\nTargets:\n  SPIR-V 1.0\n  SPIR-V 1.1\n  SPIR-V 1.2\n  SPIR-V 1.3\n  SPIR-V 1.4\n  SPIR-V 1.5\n  SPIR-V 1.6\n  SPIR-V 1.2 (under OpenCL 2.2 Full Profile semantics)\n  SPIR-V 1.0 (under Vulkan 1.0 semantics)\n  SPIR-V 1.3 (under Vulkan 1.1 semantics)\n  SPIR-V 1.4 (under Vulkan 1.1 semantics)\n  SPIR-V 1.5 (under Vulkan 1.2 semantics)\n  SPIR-V 1.6 (under Vulkan 1.3 semantics) SPIR-V 1.6 (under Vulkan 1.4 semantics)"
+      },
+      "spirv-opt": {
+        "bytes": 5290928,
+        "sha256": "0c7b37965b0df72d531dfbd0633cea6bd52e9e19bd2d3f4627062a52a30315d7",
+        "version": "SPIRV-Tools v2025.1 unknown hash, 2025-03-18T14:15:19+00:00"
+      }
+    }
+  },
+  "runtimePolicy": {
+    "officialUpstreamReleaseBinariesAllowed": false,
+    "variantStorage": "Independent immutable version/architecture directories; never overwrite GE component",
+    "ordinaryGameActivation": "Explicit per-prefix transaction after current real ABI/WSI/render evidence",
+    "preserveExistingD3d9": true,
+    "nativeProfile": "ARM64X dxgi+d3d11 only; native D3D10 and D3D9 are not built by this profile"
+  },
+  "variants": {
+    "legacy-1.10.3": {
+      "id": "legacy-1.10.3",
+      "originKind": "winehua-source-build",
+      "source": {
+        "repository": "https://github.com/winehua/dxvk",
+        "commit": "7c5cc47f772b9564af177cea920da81a40ffd47c",
+        "materializedTreeSha256": "070d27108758a8e03d7347b0e48450a9d0979a0a18714a198db0fc4497964f56",
+        "upstreamVersion": "1.10.3",
+        "upstreamCommit": "e4fd5e9e8d335e8a2c0814829207cbd421f7e40e",
+        "archiveFile": "legacy-7c5cc47f772b9564af177cea920da81a40ffd47c.tar.gz",
+        "sourceModified": false
+      },
+      "license": {
+        "sourcePath": "LICENSE",
+        "sha256": "240101b852af584ded719e7335a36f9a3aae3ac816774cf3f460c00d2c88c161",
+        "installedPath": "variants/legacy-1.10.3/LICENSE"
+      },
+      "architectures": {
+        "arm64x": {
+          "executionViews": [
+            "native-arm64",
+            "arm64ec-amd64-compatible"
+          ],
+          "profile": "VPP native dxgi+d3d11 only",
+          "buildReceiptSha256": "c489da7b86f131dc18d9d960d9d0bc67a5ad0d62affccf7ac39926c95b8b00a0",
+          "files": {
+            "dxgi.dll": {
+              "path": "bin/dxgi.dll",
+              "installedPath": "variants/legacy-1.10.3/arm64x/dxgi.dll",
+              "bytes": 5648896,
+              "sha256": "88f01189db175686dc272a6e510ee51562bc8e1247d740a14d00071ea4e9638b",
+              "peMachine": "0xaa64",
+              "optionalMagic": "0x20b",
+              "hybridArchitecture": "arm64x"
+            },
+            "d3d11.dll": {
+              "path": "bin/d3d11.dll",
+              "installedPath": "variants/legacy-1.10.3/arm64x/d3d11.dll",
+              "bytes": 8195072,
+              "sha256": "57ff14261a47eb995891dede311ee7e643916e2c60c1a4420ffa4d71a4cfb1af",
+              "peMachine": "0xaa64",
+              "optionalMagic": "0x20b",
+              "hybridArchitecture": "arm64x"
+            }
+          }
+        },
+        "i386": {
+          "executionViews": [
+            "x86-32-fex"
+          ],
+          "profile": "PE32 dxgi+d3d11 only; device qualification required",
+          "buildReceiptSha256": "df7c07b222b8c0707736cc76cae4151b997482b6041a3adbf118f8e0ca7d62a4",
+          "files": {
+            "dxgi.dll": {
+              "path": "bin/dxgi.dll",
+              "installedPath": "variants/legacy-1.10.3/i386/dxgi.dll",
+              "bytes": 3328512,
+              "sha256": "69880cc2820361c63ff033978ae0594a21ace5a792f4a205b4c27a8242913876",
+              "peMachine": "0x014c",
+              "optionalMagic": "0x10b"
+            },
+            "d3d11.dll": {
+              "path": "bin/d3d11.dll",
+              "installedPath": "variants/legacy-1.10.3/i386/d3d11.dll",
+              "bytes": 4740608,
+              "sha256": "54ec7ad5475ce968fb69f07864a1e697853f7a985069cb94017db3cc9141fc6b",
+              "peMachine": "0x014c",
+              "optionalMagic": "0x10b"
+            }
+          }
+        }
+      },
+      "requirements": {
+        "vulkanMinimumApi": "1.1",
+        "wineMinimumDocumented": "3.10",
+        "wineMinimumContext": "README build requirements; not proof of current ARM64EC ABI compatibility",
+        "requiredInstanceExtensions": [
+          "VK_KHR_surface",
+          "platform WSI extensions returned by current Wine Vulkan provider"
+        ],
+        "requiredDeviceExtensionsNamedInDxvk": [
+          "VK_KHR_image_format_list",
+          "VK_KHR_swapchain"
+        ],
+        "d3d11FeaturesUnconditional": [
+          "geometryShader",
+          "robustBufferAccess",
+          "shaderStorageImageWriteWithoutFormat",
+          "shaderDrawParameters"
+        ],
+        "d3d11FeaturesAdditiveByMinimumFeatureLevel": {
+          "9_1": [
+            "depthClamp",
+            "depthBiasClamp",
+            "fillModeNonSolid",
+            "sampleRateShading",
+            "shaderClipDistance",
+            "shaderCullDistance",
+            "textureCompressionBC",
+            "hostQueryReset"
+          ],
+          "9_2": [
+            "occlusionQueryPrecise"
+          ],
+          "9_3": [
+            "independentBlend",
+            "multiViewport"
+          ],
+          "10_0": [
+            "fullDrawIndexUint32",
+            "shaderImageGatherExtended",
+            "transformFeedback",
+            "geometryStreams"
+          ],
+          "10_1": [
+            "dualSrcBlend",
+            "imageCubeArray"
+          ],
+          "11_0": [
+            "drawIndirectFirstInstance",
+            "fragmentStoresAndAtomics",
+            "multiDrawIndirect",
+            "tessellationShader"
+          ],
+          "11_1": [
+            "logicOp",
+            "variableMultisampleRate",
+            "vertexPipelineStoresAndAtomics"
+          ]
+        },
+        "featureExtensionNote": "Features promoted to later Vulkan versions still need the applicable extension on a 1.1 device. Do not treat extension modes Optional as meaning D3D feature-level requirements are optional.",
+        "evidence": [
+          {
+            "sourcePath": "README.md",
+            "startLine": 37,
+            "endLine": 42,
+            "url": "https://github.com/doitsujin/dxvk/blob/e4fd5e9e8d335e8a2c0814829207cbd421f7e40e/README.md#L37-L42"
+          },
+          {
+            "sourcePath": "src/dxvk/dxvk_instance.cpp",
+            "startLine": 132,
+            "endLine": 132,
+            "url": "https://github.com/doitsujin/dxvk/blob/e4fd5e9e8d335e8a2c0814829207cbd421f7e40e/src/dxvk/dxvk_instance.cpp#L132"
+          },
+          {
+            "sourcePath": "src/dxvk/dxvk_device_filter.cpp",
+            "startLine": 20,
+            "endLine": 20,
+            "url": "https://github.com/doitsujin/dxvk/blob/e4fd5e9e8d335e8a2c0814829207cbd421f7e40e/src/dxvk/dxvk_device_filter.cpp#L20"
+          },
+          {
+            "sourcePath": "src/dxvk/dxvk_extensions.h",
+            "startLine": 304,
+            "endLine": 322,
+            "url": "https://github.com/doitsujin/dxvk/blob/e4fd5e9e8d335e8a2c0814829207cbd421f7e40e/src/dxvk/dxvk_extensions.h#L304-L322"
+          },
+          {
+            "sourcePath": "src/d3d11/d3d11_device.cpp",
+            "startLine": 1908,
+            "endLine": 2011,
+            "url": "https://github.com/doitsujin/dxvk/blob/e4fd5e9e8d335e8a2c0814829207cbd421f7e40e/src/d3d11/d3d11_device.cpp#L1908-L2011"
+          }
+        ],
+        "completeness": "Necessary source-derived checks, not an exhaustive automatically sufficient capability predicate. Validate current guest-selected adapter, actual D3D feature level, limits, formats and WSI through runtime probes; host capability alone is insufficient.",
+        "forkConditionalRelaxation": {
+          "features": [
+            "textureCompressionBC",
+            "multiViewport",
+            "transformFeedback",
+            "geometryStreams",
+            "dualSrcBlend"
+          ],
+          "condition": "legacy-fixed-profile",
+          "sourcePath": "src/d3d11/d3d11_device.cpp",
+          "sourceCommit": "7c5cc47f772b9564af177cea920da81a40ffd47c",
+          "lines": "2027-2116",
+          "scope": "Optional only for current controlled fixture with required fixed fork profile/real Venus identity; not general feature-level certification. hostQueryReset and other hard requirements remain required."
+        }
+      },
+      "requirementsScope": "Upstream necessary-feature matrix plus exact fork conditional relaxations; fixed-source/profile and real device identity required. Actual BC1-7 pixels and rendering remain independent gates."
+    },
+    "modern-2.6.2": {
+      "id": "modern-2.6.2",
+      "originKind": "winehua-source-build",
+      "source": {
+        "repository": "https://github.com/winehua/dxvk",
+        "commit": "05a0a66d74cc41e6a90a8cb62d459c1c6a28c783",
+        "materializedTreeSha256": "9907620451f734573bd0eaab565b2aec4aa3f6f9269a8fbe325855e9918a0f56",
+        "upstreamVersion": "2.6.2",
+        "upstreamCommit": "9d6f54a1ade20d1d27dd421024717a636f3d8c68",
+        "archiveFile": "modern-05a0a66d74cc41e6a90a8cb62d459c1c6a28c783.tar.gz",
+        "sourceModified": false
+      },
+      "license": {
+        "sourcePath": "LICENSE",
+        "sha256": "a5cb1a6ded7d2d7e92d550ba28edd21be2d1d4044662b399887351023e30ce64",
+        "installedPath": "variants/modern-2.6.2/LICENSE"
+      },
+      "architectures": {
+        "arm64x": {
+          "executionViews": [
+            "native-arm64",
+            "arm64ec-amd64-compatible"
+          ],
+          "profile": "VPP native dxgi+d3d11 only",
+          "buildReceiptSha256": "7f2966db4e1cc44531d7bde11c5a17f24c3d0c9119a0489be83cca6c7695a8ad",
+          "files": {
+            "dxgi.dll": {
+              "path": "bin/dxgi.dll",
+              "installedPath": "variants/modern-2.6.2/arm64x/dxgi.dll",
+              "bytes": 7109120,
+              "sha256": "e8dcdaac183e8182302e76089fc6a91a62dc09ea0e5c3253fa1a94563e9fc412",
+              "peMachine": "0xaa64",
+              "optionalMagic": "0x20b",
+              "hybridArchitecture": "arm64x"
+            },
+            "d3d11.dll": {
+              "path": "bin/d3d11.dll",
+              "installedPath": "variants/modern-2.6.2/arm64x/d3d11.dll",
+              "bytes": 10289664,
+              "sha256": "97af51471e99203733762d7651b029a971de80bdbcf8d7acd5ee994722ce1e9c",
+              "peMachine": "0xaa64",
+              "optionalMagic": "0x20b",
+              "hybridArchitecture": "arm64x"
+            }
+          }
+        }
+      },
+      "requirements": {
+        "vulkanMinimumApi": "1.3",
+        "wineMinimumDocumented": "7.1",
+        "wineMinimumContext": "README build requirements; not proof of current ARM64EC ABI compatibility",
+        "requiredInstanceExtensions": [
+          "VK_KHR_surface",
+          "platform WSI extensions returned by current Wine Vulkan provider"
+        ],
+        "requiredDeviceExtensionsNamedInDxvk": [
+          "VK_EXT_robustness2",
+          "VK_KHR_swapchain"
+        ],
+        "backendRequiredFeatures": [
+          "robustBufferAccess",
+          "multiDrawIndirect",
+          "shaderDrawParameters",
+          "vulkanMemoryModel",
+          "hostQueryReset",
+          "timelineSemaphore",
+          "synchronization2",
+          "dynamicRendering",
+          "robustBufferAccess2",
+          "nullDescriptor"
+        ],
+        "backendConditionalFeatures": [
+          {
+            "feature": "maintenance4",
+            "condition": "Required except VK_DRIVER_ID_AMD_OPEN_SOURCE and VK_DRIVER_ID_AMD_PROPRIETARY in this source"
+          }
+        ],
+        "d3d11BaselineFeatures": [
+          "depthBiasClamp",
+          "depthClamp",
+          "dualSrcBlend",
+          "fillModeNonSolid",
+          "fullDrawIndexUint32",
+          "geometryShader",
+          "imageCubeArray",
+          "independentBlend",
+          "multiViewport",
+          "occlusionQueryPrecise",
+          "sampleRateShading",
+          "shaderClipDistance",
+          "shaderCullDistance",
+          "shaderImageGatherExtended",
+          "textureCompressionBC",
+          "samplerMirrorClampToEdge",
+          "shaderDemoteToHelperInvocation",
+          "transformFeedback",
+          "geometryStreams"
+        ],
+        "d3d11HigherFeatureLevels": "Further features and limits determine exposed feature level; see D3D11DeviceFeatures::GetMaxFeatureLevel. Baseline passing does not imply 11_0/11_1/12_x availability.",
+        "evidence": [
+          {
+            "sourcePath": "README.md",
+            "startLine": 122,
+            "endLine": 129,
+            "url": "https://github.com/doitsujin/dxvk/blob/9d6f54a1ade20d1d27dd421024717a636f3d8c68/README.md#L122-L129"
+          },
+          {
+            "sourcePath": "src/dxvk/dxvk_instance.cpp",
+            "startLine": 188,
+            "endLine": 188,
+            "url": "https://github.com/doitsujin/dxvk/blob/9d6f54a1ade20d1d27dd421024717a636f3d8c68/src/dxvk/dxvk_instance.cpp#L188"
+          },
+          {
+            "sourcePath": "src/dxvk/dxvk_device_filter.cpp",
+            "startLine": 38,
+            "endLine": 44,
+            "url": "https://github.com/doitsujin/dxvk/blob/9d6f54a1ade20d1d27dd421024717a636f3d8c68/src/dxvk/dxvk_device_filter.cpp#L38-L44"
+          },
+          {
+            "sourcePath": "src/dxvk/dxvk_extensions.h",
+            "startLine": 314,
+            "endLine": 350,
+            "url": "https://github.com/doitsujin/dxvk/blob/9d6f54a1ade20d1d27dd421024717a636f3d8c68/src/dxvk/dxvk_extensions.h#L314-L350"
+          },
+          {
+            "sourcePath": "src/dxvk/dxvk_adapter.cpp",
+            "startLine": 326,
+            "endLine": 430,
+            "url": "https://github.com/doitsujin/dxvk/blob/9d6f54a1ade20d1d27dd421024717a636f3d8c68/src/dxvk/dxvk_adapter.cpp#L326-L430"
+          },
+          {
+            "sourcePath": "src/d3d11/d3d11_device.cpp",
+            "startLine": 1900,
+            "endLine": 2010,
+            "url": "https://github.com/doitsujin/dxvk/blob/9d6f54a1ade20d1d27dd421024717a636f3d8c68/src/d3d11/d3d11_device.cpp#L1900-L2010"
+          },
+          {
+            "sourcePath": "src/vulkan/vulkan_loader.cpp",
+            "startLine": 10,
+            "endLine": 38,
+            "url": "https://github.com/doitsujin/dxvk/blob/9d6f54a1ade20d1d27dd421024717a636f3d8c68/src/vulkan/vulkan_loader.cpp#L10-L38"
+          }
+        ],
+        "completeness": "Necessary source-derived checks, not an exhaustive automatically sufficient capability predicate. Validate current guest-selected adapter, actual D3D feature level, limits, formats and WSI through runtime probes; host capability alone is insufficient.",
+        "forkConditionalRelaxation": {
+          "features": [
+            "textureCompressionBC",
+            "multiViewport",
+            "transformFeedback",
+            "geometryStreams",
+            "dualSrcBlend"
+          ],
+          "condition": "venus-driver-id-22",
+          "sourcePath": "src/d3d11/d3d11_device.cpp",
+          "sourceCommit": "05a0a66d74cc41e6a90a8cb62d459c1c6a28c783",
+          "lines": "1984-2034",
+          "scope": "Optional only for current controlled fixture with required fixed fork profile/real Venus identity; not general feature-level certification. hostQueryReset and other hard requirements remain required."
+        }
+      },
+      "requirementsScope": "Upstream necessary-feature matrix plus exact fork conditional relaxations; fixed-source/profile and real device identity required. Actual BC1-7 pixels and rendering remain independent gates."
+    }
+  }
+}

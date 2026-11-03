@@ -10,6 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = (
+    'host_tests/linux_proton_dxvk_test.py',
     'host_tests/linux_proton_media_test.py', 'host_tests/ci_preflight_test.py', 'host_tests/ci_release_test.py', 'host_tests/linux_runtime_components_test.py',
     'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
     'host_tests/smoke_build_arch_test.py', 'host_tests/wine_build_identity_test.py', 'host_tests/wine_builtin_identity_test.py',

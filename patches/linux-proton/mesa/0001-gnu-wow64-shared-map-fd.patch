@@ -1,0 +1,103 @@
+--- a/src/virtio/vulkan/vn_renderer.h
++++ b/src/virtio/vulkan/vn_renderer.h
+@@ -179,6 +179,11 @@
+    int (*export_dma_buf)(struct vn_renderer *renderer,
+                          struct vn_renderer_bo *bo);
+ 
++   /* Private same-process mapping alias. This is not dma-buf export and
++    * does not confer Vulkan external-memory capability. Caller closes fd. */
++   int (*dup_mapped_fd)(struct vn_renderer *renderer,
++                        struct vn_renderer_bo *bo);
++
+    /* map is not thread-safe */
+    void *(*map)(struct vn_renderer *renderer, struct vn_renderer_bo *bo);
+ 
+--- a/src/virtio/vulkan/vn_renderer_vtest.c
++++ b/src/virtio/vulkan/vn_renderer_vtest.c
+@@ -914,6 +914,11 @@
+           * vtest_bo_destroy closes this fd on every normal destroy path. */
+ #if defined(__aarch64__) && defined(__OHOS__)
+          const bool keep_wow64_map_fd = true;
++#elif defined(__aarch64__)
++         /* GNU Wine uses the same owned low-address alias contract. Retain
++          * only in an explicitly selected map32 session, until BO destroy. */
++         const char *map32 = os_get_option("STEAMOHOS_PROTON_VULKAN_MAP32");
++         const bool keep_wow64_map_fd = map32 && !strcmp(map32, "1");
+ #else
+          const bool keep_wow64_map_fd = false;
+ #endif
+@@ -934,6 +939,18 @@
+    const struct vtest_bo *bo = (struct vtest_bo *)_bo;
+    const bool shareable = bo->blob_flags & VCMD_BLOB_FLAG_SHAREABLE;
+    return shareable ? os_dupfd_cloexec(bo->res_fd) : -1;
++}
++
++static int
++vtest_bo_dup_mapped_fd(struct vn_renderer *renderer,
++                        struct vn_renderer_bo *_bo)
++{
++   const struct vtest_bo *bo = (const struct vtest_bo *)_bo;
++   if (!bo->base.mmap_ptr || !bo->base.mmap_size || bo->res_fd < 0) {
++      errno = ENOTSUP;
++      return -1;
++   }
++   return os_dupfd_cloexec(bo->res_fd);
+ }
+ 
+ static bool
+@@ -1338,6 +1355,7 @@
+    vtest->base.bo_ops.create_from_dma_buf = NULL;
+    vtest->base.bo_ops.destroy = vtest_bo_destroy;
+    vtest->base.bo_ops.export_dma_buf = vtest_bo_export_dma_buf;
++   vtest->base.bo_ops.dup_mapped_fd = vtest_bo_dup_mapped_fd;
+    vtest->base.bo_ops.map = vtest_bo_map;
+    vtest->base.bo_ops.flush = vtest_bo_flush;
+    vtest->base.bo_ops.invalidate = vtest_bo_invalidate;
+--- a/src/virtio/vulkan/vn_device_memory.c
++++ b/src/virtio/vulkan/vn_device_memory.c
+@@ -616,6 +616,35 @@
+    return VK_SUCCESS;
+ }
+ 
++/* Same-process, borrowed-BO alias contract for GNU Wine WoW64. The caller
++ * must externally synchronize memory exactly as for vkMap/UnmapMemory. No
++ * dma-buf/external-memory feature is advertised by this private entry point. */
++__attribute__((visibility("default"))) int
++vn_winehua_mapped_memory_fd(VkDeviceMemory memory, uint64_t *backing_size)
++{
++   if (!backing_size) {
++      errno = EINVAL;
++      return -1;
++   }
++   *backing_size = 0;
++   if (memory == VK_NULL_HANDLE) {
++      errno = EINVAL;
++      return -1;
++   }
++   struct vn_device_memory *mem = vn_device_memory_from_handle(memory);
++   struct vn_device *dev =
++      container_of(mem->base.base.base.device, struct vn_device, base.base);
++   if (!mem->mapped || !mem->base_bo || !mem->base_bo->mmap_ptr ||
++       !dev->renderer->bo_ops.dup_mapped_fd) {
++      errno = ENOTSUP;
++      return -1;
++   }
++   const int fd = dev->renderer->bo_ops.dup_mapped_fd(dev->renderer, mem->base_bo);
++   if (fd >= 0)
++      *backing_size = mem->base.base.size;
++   return fd;
++}
++
+ void
+ vn_UnmapMemory(VkDevice device, VkDeviceMemory memory)
+ {
+--- a/src/virtio/vulkan/vn_device_memory.h
++++ b/src/virtio/vulkan/vn_device_memory.h
+@@ -81,4 +81,7 @@
+ void
+ vn_device_memory_flush_persistent_mappings(struct vn_device *dev);
+ 
++__attribute__((visibility("default"))) int
++vn_winehua_mapped_memory_fd(VkDeviceMemory memory, uint64_t *backing_size);
++
+ #endif /* VN_DEVICE_MEMORY_H */

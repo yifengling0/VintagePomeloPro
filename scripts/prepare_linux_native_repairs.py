@@ -12,7 +12,7 @@ NAMES=['FEX','FEXServer','libvulkan_virtio.so','libsteamohos_software_gl.so']
 SOURCE_NAMES=['scripts/prepare_linux_native_repairs.py','scripts/diagnostics/build_native_fex_pop.py',
  'scripts/patches/fex-upstream-5901-restore-sigreturn-state.patch',
  'scripts/patches/fex-upstream-5901-restore-sigreturn-state.provenance.json',
- 'scripts/build_linux_proton_venus.py','scripts/build_linux_steam_software_gl.py',
+ 'scripts/build_linux_proton_venus_legacy.py','scripts/build_linux_steam_software_gl.py',
  'scripts/build_linux_steam_client.py','patches/mesa/0011-softpipe-demand-zero-texture-cache.patch',
  'patches/virglrenderer/0007-ohos-native-memory-context.patch',
  'patches/virglrenderer/0008-ohos-native-resource-contract.patch',
