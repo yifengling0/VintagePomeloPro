@@ -13,7 +13,7 @@
     "api": 23
   },
   "protocol": {
-    "whip_version": 9,
+    "whip_version": 10,
     "host_config_strings": 11
   },
   "submodules": {

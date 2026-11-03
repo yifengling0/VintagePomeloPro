@@ -34,6 +34,8 @@ struct VkSubmitInfo {int sType; unsigned waitSemaphoreCount=0; const VkSemaphore
  unsigned signalSemaphoreCount=0; const VkSemaphore* pSignalSemaphores=nullptr;};
 enum class NativeWindowVkBeginResult {Ready, Deferred, Failed};
 const char* NativeWindowVkBeginResultName(NativeWindowVkBeginResult) {return "begin-failed";}
+#include "graphics/queue_retirement.h"
+#define OH_LOG_ERROR(...) ((void)0)
 #define OH_LOG_WARN(...) ((void)0)
 #define OH_LOG_INFO(...) ((void)0)
 #define LOG_APP 0
@@ -76,6 +78,7 @@ struct Harness {
  void ClearVulkanStateLocked(){events+='X';}
  void ReleaseWindowLocked(){events+='W';}
  std::mutex mutex_;
+ winehua::QueueRetirementProducer retirement_;
  int RecordPresentCopyLocked(Frame&,uintptr_t,int,uintptr_t,int,unsigned,unsigned,int,int,bool){events+='C';return fail==9?-1:0;}
  // PRESENT
  // RELEASE
@@ -141,5 +144,5 @@ with tempfile.TemporaryDirectory(prefix="vp-venus-native-") as tmp:
     path=Path(tmp)/"test.cpp"
     path.write_text(code)
     binary=Path(tmp)/"test"
-    subprocess.run(["c++","-std=c++17","-O2","-Wall","-Wextra",str(path),"-o",str(binary)],check=True)
+    subprocess.run(["c++","-I"+str(ROOT / "entry/src/main/cpp"),"-std=c++17","-O2","-Wall","-Wextra",str(path),"-o",str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

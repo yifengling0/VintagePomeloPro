@@ -4,6 +4,7 @@
 #include "native_window_lease.h"
 #include "native_window_vk_target.h"
 #include "presenter_common.h"
+#include "queue_retirement.h"
 
 #include <hilog/log.h>
 #include <native_buffer/native_buffer.h>
@@ -261,6 +262,12 @@ struct VenusSurfaceQueueTarget::Impl {
         return 0;
     }
 
+    bool SetQueueRetirementFd(int fd)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return retirement_.SetFd(fd);
+    }
+
     bool HasVulkanDevice()
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -272,6 +279,7 @@ struct VenusSurfaceQueueTarget::Impl {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!MatchesDeviceLocked(contextId, device)) return false;
         deviceReleasing_ = true;
+        retirement_.Begin(); // producer stopped; consumer can now drain the queue
         OH_LOG_INFO(LOG_APP,
                     "[VENUS-PRESENT][NCP] device release prepare key=%{public}llu "
                     "ctx=%{public}u device=%{public}p attached=%{public}d",
@@ -283,13 +291,18 @@ struct VenusSurfaceQueueTarget::Impl {
     bool FinishDeviceRelease(uint32_t contextId, uintptr_t device,
                              int32_t waitResult)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
         if (!MatchesDeviceLocked(contextId, device)) return false;
+        // No manager/target lock may be held while the compositor returns frames.
+        lock.unlock();
+        const bool consumerRetired = retirement_.Wait(400);
+        lock.lock();
+        if (!consumerRetired) OH_LOG_ERROR(LOG_APP, "[VENUS-PRESENT] consumer retirement timed out on device release");
         OH_LOG_INFO(LOG_APP,
                     "[VENUS-PRESENT][NCP] device release after-wait key=%{public}llu "
-                    "ctx=%{public}u device=%{public}p wait_result=%{public}d",
+                    "ctx=%{public}u device=%{public}p wait_result=%{public}d consumer_retired=%{public}d",
                     static_cast<unsigned long long>(surfaceKey_), contextId,
-                    device_, waitResult);
+                    device_, waitResult, consumerRetired);
         if (waitResult == VK_SUCCESS) {
             DestroyVulkanLocked();
         } else {
@@ -1172,8 +1185,8 @@ private:
             device_ == device && queue_ == queue && queueFamily_ == queueFamily &&
             sourceWidth_ == width && sourceHeight_ == height &&
             sourceFormat_ == sourceFormat;
-        if (nativeReady_ && sameSource && !nativeFailed_) return true;
-        if (swapchain_ && sameSource && !swapchainDirty_) return true;
+        if (nativeReady_ && sameSource && !nativeFailed_ && !retirement_.Pending()) return true;
+        if (swapchain_ && sameSource && !swapchainDirty_ && !retirement_.Pending()) return true;
         if (swapchain_ && (++sourceRebuilds_ <= 5 || !(sourceRebuilds_ % 60))) {
             OH_LOG_WARN(LOG_APP,
                 "[VENUS-PRESENT][NCP] rebuild target key=%{public}llu "
@@ -1208,6 +1221,13 @@ private:
          * The dirty path has already waited for the per-frame fence and has
          * no newly acquired image, so it must not perform an unbounded
          * vkQueueWaitIdle during recovery. */
+        if (swapchain_ || nativeReady_) {
+            const auto retirement = retirement_.Begin();
+            if (retirement != QueueRetirementResult::Ready) {
+                error = retirement == QueueRetirementResult::Pending ? -EAGAIN : -ETIMEDOUT;
+                return false;
+            }
+        }
         DestroyVulkanLocked();
         contextId_ = contextId;
         instance_ = instance;
@@ -1549,6 +1569,8 @@ private:
                         static_cast<unsigned long long>(surfaceKey_));
         }
         ClearVulkanStateLocked();
+        if (!retirement_.Complete())
+            OH_LOG_ERROR(LOG_APP, "[VENUS-PRESENT] consumer retirement resume failed");
     }
 
     void ClearVulkanStateLocked()
@@ -1604,6 +1626,7 @@ private:
     }
 
     std::mutex mutex_;
+    QueueRetirementProducer retirement_;
     NativeWindowLease windowLease_;
     NativeWindowVkTarget vkDirect_;
     bool nativeReady_ = false;
@@ -1685,6 +1708,11 @@ int VenusSurfaceQueueTarget::Detach(uint64_t surfaceKey)
 int VenusSurfaceQueueTarget::SetFramePeriod(uint64_t framePeriodNs)
 {
     return impl_->SetFramePeriod(framePeriodNs);
+}
+
+bool VenusSurfaceQueueTarget::SetQueueRetirementFd(int fd)
+{
+    return impl_->SetQueueRetirementFd(fd);
 }
 
 bool VenusSurfaceQueueTarget::HasVulkanDevice()

@@ -1005,96 +1005,60 @@ static void WindowPresentStagePixels(GLuint texture, struct wlr_buffer *frame)
     WindowPresentGlErrors("stage-pixels");
 }
 
+/* The output commit retains frame for this entire call. Sample the actual
+ * texture attached to the scene FBO in the SAME context, rather than importing
+ * another EGLImage sibling for the same storage every frame. GL ordering then
+ * covers both scene writes and the final read, including swapchain reuse. */
+static GLuint WindowSceneTexture(struct wlr_buffer *frame)
+{
+    const GLuint fbo = wlr_gles2_renderer_get_buffer_fbo(g_renderer, frame);
+    if (!fbo) return 0;
+    GLint previous_fbo = 0, type = 0, name = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+        GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+        GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &name);
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previous_fbo);
+    return type == GL_TEXTURE && name > 0 ? (GLuint)name : 0;
+}
+
 int wl_ohos_egl_window_present(struct wlr_buffer *frame,
                                struct NativeWindow *window)
 {
     if (g_win_surface == EGL_NO_SURFACE || g_display == EGL_NO_DISPLAY ||
         g_context == EGL_NO_CONTEXT)
         return 0;
-
-    typedef void (*PFN_img_tex)(GLenum, GLeglImageOES);
-    PFN_img_tex img_tex =
-        (PFN_img_tex)eglGetProcAddress("glEGLImageTargetTexture2DOES");
-    typedef EGLBoolean (*PFN_destroy_img)(EGLDisplay, EGLImageKHR);
-    PFN_destroy_img destroy_image =
-        (PFN_destroy_img)eglGetProcAddress("eglDestroyImageKHR");
-    if (!img_tex || !destroy_image)
-    {
-        static uint32_t api_fail;
-        if (api_fail++ < 5u)
-            TAG_ERR("window present: EGLImage 入口不可用");
-        return 0;
-    }
-
-    /* 场景帧导入: frame = 默认 swapchain 的 allocator buffer (OH_NativeBuffer
-     * 背书)。取其 OHNativeWindowBuffer 包装走 EGL_NATIVE_BUFFER_OHOS 导入
-     * (M2-T2 实测: 裸 OH_NativeBuffer 被拒, 包装载荷是唯一 accepted 形态;
-     * 探针 direct import ok 同款)。GPU-GPU 全程无 CPU 视图 —— vd21/vd22c
-     * 实测 CPU mmap 与 GPU 写入不可靠一致 (probe fail:pixel-compare、
-     * framedump 内容 ≠ 屏幕内容)。 */
-    OHNativeWindowBuffer *payload =
-        (OHNativeWindowBuffer *)wl_ohos_buffer_window_buffer(frame);
-    if (!payload)
-    {
-        static uint32_t h_fail;
-        if (h_fail++ < 5u)
-            TAG_ERR("window present: allocator buffer 无 EGL 载荷");
-        return 0;
-    }
-    const bool borrow_scene_texture =
-        wl_ohos_output_diagnostic_enabled("diag-canvas-scene-texture");
-    EGLImageKHR image = borrow_scene_texture ? EGL_NO_IMAGE_KHR :
-        ImportNativeBufferPreserved(payload);
-    if (!borrow_scene_texture && image == EGL_NO_IMAGE_KHR)
-    {
-        static uint32_t img_fail;
-        if (img_fail++ < 5u)
-            TAG_ERR("window present: EGLImage 导入失败 eglErr=0x%{public}x",
-                    eglGetError());
-        return 0;
-    }
-
-    if (!eglMakeCurrent(g_display, g_win_surface, g_win_surface, g_context))
-    {
+    if (!eglMakeCurrent(g_display, g_win_surface, g_win_surface, g_context)) {
         static uint32_t mc_fail;
         if (mc_fail++ < 5u)
             TAG_ERR("window present: eglMakeCurrent failed eglErr=0x%{public}x",
                     eglGetError());
-        if (image != EGL_NO_IMAGE_KHR) destroy_image(g_display, image);
         return 0;
     }
-
-    WindowPresentGlErrors("before-import");
-    int ok = 0;
-    GLuint tex = 0;
-    glActiveTexture(GL_TEXTURE0);
-    if (borrow_scene_texture) {
-        // Reuse the exact texture attached to wlroots' scene render target.
-        // No new EGLImage sibling, re-import or CPU pixel transfer.
-        GLuint fbo = wlr_gles2_renderer_get_buffer_fbo(g_renderer, frame);
-        GLint previous_fbo = 0, type = 0, name = 0;
-        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous_fbo);
-        if (fbo) {
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
-            glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &name);
-            glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previous_fbo);
-        }
-        if (type != GL_TEXTURE || name <= 0) goto out;
-        tex = (GLuint)name;
-    } else {
-        glGenTextures(1, &tex);
+    WindowPresentGlErrors("before-scene-texture");
+    const GLuint tex = WindowSceneTexture(frame);
+    if (!tex) {
+        static uint32_t source_fail;
+        if (source_fail++ < 5u)
+            TAG_ERR("window present: scene texture unavailable; retain previous frame");
+        return 0;
     }
+    int ok = 0;
+    // wlroots and the final blit share this context. Establish all state that
+    // affects a full canvas write before clear/draw, especially after a resize.
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDisable(GL_SCISSOR_TEST);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    if (!borrow_scene_texture) img_tex(GL_TEXTURE_2D, image);
-    if (WindowPresentGlErrors("image-to-texture") != GL_NO_ERROR)
-        goto out;
+    if (WindowPresentGlErrors("scene-texture") != GL_NO_ERROR) return 0;
 
     {
         GLuint prog = WindowBlitProgram();
@@ -1188,8 +1152,6 @@ int wl_ohos_egl_window_present(struct wlr_buffer *frame,
     }
 
 out:
-    if (tex && !borrow_scene_texture)
-        glDeleteTextures(1, &tex);
-    if (image != EGL_NO_IMAGE_KHR) destroy_image(g_display, image);
+    // tex belongs to the scene buffer addon; the output commit owns its lifetime.
     return ok;
 }

@@ -647,6 +647,10 @@ test-venus-low-map:
 .PHONY: test-venus-native-present
 test-venus-native-present:
 	python3 $(ROOT)/host_tests/venus_native_present_test.py
+	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror -pthread -I $(ROOT)/entry/src/main/cpp \
+	    -o $(HOST_TEST_DIR)/queue_retirement_test $(ROOT)/host_tests/queue_retirement_test.cpp
+	$(HOST_TEST_DIR)/queue_retirement_test
 
 test-venus-present-retry:
 	python3 $(ROOT)/host_tests/venus_present_retry_test.py
@@ -1299,6 +1303,7 @@ test-x11-integration:
 	python3 $(ROOT)/host_tests/x11_window_controls_test.py
 	python3 $(ROOT)/host_tests/wine_ability_restore_test.py
 	python3 $(ROOT)/host_tests/x11_consumer_fence_test.py
+	python3 $(ROOT)/host_tests/x11_canvas_sync_test.py
 	python3 $(ROOT)/host_tests/ohos_buffer_lifecycle_test.py
 	python3 $(ROOT)/host_tests/display_spawn_fds_test.py
 	python3 $(ROOT)/host_tests/display_child_log_test.py

@@ -77,7 +77,7 @@ public:
      * 的实际通道无关 (vkd3d 档位下 GL 程序的面是 virgl 通道, D23 实测:
      * blit=-22 每帧失败)。 */
     bool AttachZeroCopyTarget(uint64_t surfaceKey, OHNativeWindow* producerWindow,
-                              uint64_t framePeriodNs, bool vulkan);
+                              uint64_t framePeriodNs, bool vulkan, int retirementFd = -1);
     void SetZeroCopyFramePeriod(uint64_t surfaceKey, uint64_t framePeriodNs);
     void DetachZeroCopyTarget(uint64_t surfaceKey);
     bool QueryZeroCopySurfaces(std::vector<ZeroCopySurfaceInfo>& surfaces) const;
@@ -101,7 +101,7 @@ private:
     static void OnVirglIpcProcessStarted(int errorCode, OHIPCRemoteProxy* remoteProxy);
     bool SendVirglConfigureLocked();
     bool SendVirglTargetLocked(uint64_t surfaceKey, OHNativeWindow* producerWindow,
-                               uint64_t framePeriodNs, uint32_t flags);
+                               uint64_t framePeriodNs, uint32_t flags, int retirementFd);
     bool SendVirglFramePeriodLocked(uint64_t surfaceKey, uint64_t framePeriodNs);
     bool SendVirglDetachLocked(uint64_t surfaceKey);
     // 诊断 (2026-09-16): ZC surface 查询失败的带原因日志 (调用方持 virglIpcMutex_)

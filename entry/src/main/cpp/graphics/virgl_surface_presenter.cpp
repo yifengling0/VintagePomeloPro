@@ -503,7 +503,7 @@ private:
 class SurfaceQueuePresenterManager {
 public:
     int Attach(uint64_t surfaceKey, uint64_t framePeriodNs, uint32_t flags,
-               OHNativeWindow* window)
+               OHNativeWindow* window, int retirementFd)
     {
         if (!surfaceKey || !window) return -1;
         std::lock_guard<std::mutex> lock(mutex_);
@@ -527,7 +527,8 @@ public:
             }
             // 旧 venus target: detach + (有 device → 延迟释放 / 否则立即)。
             RetireTargetLocked(surfaceKey, entry.target);
-            entry.target = std::make_unique<winehua::VenusSurfaceQueueTarget>();
+            entry.target = std::make_shared<winehua::VenusSurfaceQueueTarget>();
+            if (!entry.target->SetQueueRetirementFd(retirementFd)) { entry.target.reset(); return -EINVAL; }
             result = entry.target->Attach(surfaceKey, framePeriodNs, window,
                                           releaseWindowWithUnreference);
         }
@@ -536,7 +537,7 @@ public:
             // 旧 venus target: detach + 延迟/立即释放; virgl target 复用。
             RetireTargetLocked(surfaceKey, entry.target);
             if (!entry.target)
-                entry.target = std::make_unique<SurfaceQueueTarget>();
+                entry.target = std::make_shared<SurfaceQueueTarget>();
             result = entry.target->Attach(surfaceKey, framePeriodNs, window,
                                           releaseWindowWithUnreference);
         }
@@ -586,25 +587,23 @@ public:
     int FinishVenusDeviceRelease(uint32_t contextId, uintptr_t device,
                                  int32_t waitResult)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        int matches = 0;
-        for (auto& [surfaceKey, entry] : surfaces_)
+        std::vector<std::shared_ptr<PresentTarget>> targets;
         {
-            static_cast<void>(surfaceKey);
-            if (entry.target && entry.target->FinishDeviceRelease(
-                    contextId, device, waitResult))
-                ++matches;
+            std::lock_guard<std::mutex> lock(mutex_);
+            for (auto& item : surfaces_) if (item.second.target) targets.push_back(item.second.target);
+            targets.insert(targets.end(), retiredVenusTargets_.begin(), retiredVenusTargets_.end());
         }
-        for (auto& target : retiredVenusTargets_)
-        {
+        int matches = 0;
+        for (auto& target : targets) {
             if (target->FinishDeviceRelease(contextId, device, waitResult)) ++matches;
         }
-        retiredVenusTargets_.erase(
-            std::remove_if(retiredVenusTargets_.begin(), retiredVenusTargets_.end(),
-                           [](const auto& target) {
-                               return !target->HasVulkanDevice();
-                           }),
-            retiredVenusTargets_.end());
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            retiredVenusTargets_.erase(
+                std::remove_if(retiredVenusTargets_.begin(), retiredVenusTargets_.end(),
+                               [](const auto& target) { return !target->HasVulkanDevice(); }),
+                retiredVenusTargets_.end());
+        }
         OH_LOG_INFO(LOG_APP,
                     "[VENUS-PRESENT][NCP] device release after-wait complete "
                     "ctx=%{public}u device=0x%{public}llx wait_result=%{public}d "
@@ -814,7 +813,7 @@ private:
     // (移入 retiredVenusTargets_, 待 device-owner callback), 否则立即释放。
     // virgl (非 vulkan) 目标不在本函数处理 — 其无延迟释放机制, 调用方按需
     // Detach + reset。
-    void RetireTargetLocked(uint64_t surfaceKey, std::unique_ptr<PresentTarget>& target)
+    void RetireTargetLocked(uint64_t surfaceKey, std::shared_ptr<PresentTarget>& target)
     {
         if (!target || !target->IsVulkan()) return;
         target->Detach(surfaceKey);
@@ -826,7 +825,7 @@ private:
 
     struct Entry {
         winehua::virgl_ipc::SurfaceInfo info;
-        std::unique_ptr<PresentTarget> target;
+        std::shared_ptr<PresentTarget> target;
         uint64_t lastPresentUs = 0;
         bool missingTargetLogged = false;
     };
@@ -834,7 +833,7 @@ private:
     mutable std::mutex mutex_;
     mutable std::unordered_map<uint64_t, Entry> surfaces_;
     // 仅存 venus (has Vk device) 目标; 类型为通用 present_target 接口
-    std::vector<std::unique_ptr<PresentTarget>> retiredVenusTargets_;
+    std::vector<std::shared_ptr<PresentTarget>> retiredVenusTargets_;
 };
 
 SurfaceQueuePresenterManager g_presenters;
@@ -844,9 +843,9 @@ SurfaceQueuePresenterManager g_presenters;
 namespace winehua {
 
 int AttachVirglSurfaceTarget(uint64_t surfaceKey, uint64_t framePeriodNs,
-                             uint32_t flags, OHNativeWindow* window)
+                             uint32_t flags, OHNativeWindow* window, int retirementFd)
 {
-    return g_presenters.Attach(surfaceKey, framePeriodNs, flags, window);
+    return g_presenters.Attach(surfaceKey, framePeriodNs, flags, window, retirementFd);
 }
 
 int DetachVirglSurfaceTarget(uint64_t surfaceKey)

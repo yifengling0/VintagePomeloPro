@@ -219,3 +219,15 @@ X11 虚拟桌面同包对照：从正常首页启动 DX11/legacy，内部标题�
 
 
 Wayland 默认呈现对照：DX11/legacy 45 秒、5402 帧、render PASS，截图约 120 FPS；但根 NCP 仅报告 IPC death / unknown(-1)，不计为正常退出通过。D3D9 请求 WineD3D 的 30 秒用例完成 3424 帧、render PASS、真实 exit0。Wayland 期间无 Xwayland 进程；此前 X11 stderr 中的 broken-pipe/abort6 属于显式停止旧显示宿主后保留的历史文件，不能用来证明 Wayland 游戏崩溃。原始证据与这一范围限制均保留。脱敏结果见 `docs/evidence/x11-edge-window-controls.json`。
+
+
+## 2026-11-03：持续轻闪复查（未完成视觉验收）
+
+用户仍报告 X11 轻闪，认为原 Wayland 没有此现象。不能将此前退出／缩放的队列退休修复视为持续轻闪修复。
+
+- 发现 X11 多窗口的输出 `RequestBuffer` 路径直接关闭消费者 fence，未等待系统合成器结束读取就复用缓冲区。现改为与 guest acquire 同一套 EGL GPU wait；不支持时有界等待，失败 abort 当前 slot 并保留上一帧。不增加正常路径 CPU 像素复制或 readback。
+- X11 虚拟桌面最终 blit 直接借用当前 scene FBO 的 color texture。同一 EGL context 内按命令顺序完成场景写入和最终采样，不再每帧为同一 NativeBuffer 新建／销毁 EGLImage sibling。输出 commit 持有 buffer，最终 blit 不销毁借用 texture；来源不可用则不 swap。
+- 最终画布在 clear/draw 前明确绑定默认 framebuffer、解除 array-buffer 绑定、恢复 color mask 并关闭 scissor，避免共享 GL 状态影响窗口调整后的完整写入。
+- 新增生产函数行为回归：1000 次输出 slot／scene 复用，fence FD 关闭、失败等待 abort、FBO 恢复和 texture 身份保持。`test-x11-integration`、Venus present／退休用例、图形栈契约和 40 ELF/PE/XKB/locale 闭包检查通过。
+- 对照使用同一 x64 D3D11 + DXVK legacy 程序：Wayland 60 秒 7202 帧；X11 100 秒对照；借用 scene texture 的旧候选诊断 90 秒 10581 帧。以上只说明程序持续呈现。Wayland 本轮退出仍只有 `ipc-death`，不能记作正常退出已通过。
+- 部分截图被首页／设置窗口覆盖，不能用于轻闪验收。固定坐标截图未发现整幅黑白也不能排除短于采样间隔的闪帧。新候选实机结果另记证据；仍不宣称轻闪已经根治，不将 X11 合回主线。

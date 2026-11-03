@@ -86,7 +86,7 @@ using VirglInProcessRunFn = int (*)(
     const char*, const char*, const char*, const char*, const char*,
     const char*);
 using VirglInProcessStopFn = int (*)();
-using VirglInProcessAttachFn = int (*)(uint64_t, uint64_t, uint32_t, OHNativeWindow*);
+using VirglInProcessAttachFn = int (*)(uint64_t, uint64_t, uint32_t, OHNativeWindow*, int);
 using VirglInProcessDetachFn = int (*)(uint64_t);
 using VirglInProcessSetFramePeriodFn = int (*)(uint64_t, uint64_t);
 using VirglInProcessQueryFn = int (*)(virgl_ipc::SurfaceQueryReply*);
@@ -356,7 +356,7 @@ bool GraphicsBroker::SendVirglConfigureLocked()
 bool GraphicsBroker::SendVirglTargetLocked(uint64_t surfaceKey,
                                            OHNativeWindow* producerWindow,
                                            uint64_t framePeriodNs,
-                                           uint32_t flags)
+                                           uint32_t flags, int retirementFd)
 {
     if (!virglIpcConfigured_ || !producerWindow || !surfaceKey)
         return false;
@@ -383,7 +383,7 @@ bool GraphicsBroker::SendVirglTargetLocked(uint64_t surfaceKey,
             return false;
         }
         auto attachFn = reinterpret_cast<VirglInProcessAttachFn>(virglInProcessAttach_);
-        const int result = attachFn ? attachFn(surfaceKey, framePeriodNs, flags, producerWindow) : -1;
+        const int result = attachFn ? attachFn(surfaceKey, framePeriodNs, flags, producerWindow, retirementFd) : -1;
         if (result != 0)
             OH_NativeWindow_NativeObjectUnreference(producerWindow);
         OH_LOG_INFO(LOG_APP,
@@ -408,6 +408,8 @@ bool GraphicsBroker::SendVirglTargetLocked(uint64_t surfaceKey,
         writeResult = OH_IPCParcel_WriteInt32(request, static_cast<int32_t>(flags));
     if (writeResult == OH_IPC_SUCCESS)
         writeResult = OH_NativeWindow_WriteToParcel(producerWindow, request);
+    if (writeResult == OH_IPC_SUCCESS && (flags & virgl_ipc::kSurfaceRetirementChannel))
+        writeResult = OH_IPCParcel_WriteFileDescriptor(request, retirementFd);
 
     int32_t childResult = -1;
     int32_t sendResult = writeResult;
@@ -509,7 +511,7 @@ bool GraphicsBroker::SendVirglDetachLocked(uint64_t surfaceKey)
 
 bool GraphicsBroker::AttachZeroCopyTarget(uint64_t surfaceKey,
                                           OHNativeWindow* producerWindow,
-                                          uint64_t framePeriodNs, bool vulkan)
+                                          uint64_t framePeriodNs, bool vulkan, int retirementFd)
 {
     if (!surfaceKey || !producerWindow || GetState().active != GraphicsBackend::Virgl)
         return false;
@@ -544,7 +546,8 @@ bool GraphicsBroker::AttachZeroCopyTarget(uint64_t surfaceKey,
     uint32_t flags = vulkan ? virgl_ipc::kSurfaceVulkan : 0;
     if (virglServerUsesInProcess_.load(std::memory_order_acquire))
         flags |= virgl_ipc::kSurfaceNativeObjectReference;
-    if (!SendVirglTargetLocked(surfaceKey, producerWindow, framePeriodNs, flags)) return false;
+    if (retirementFd >= 0) flags |= virgl_ipc::kSurfaceRetirementChannel;
+    if (!SendVirglTargetLocked(surfaceKey, producerWindow, framePeriodNs, flags, retirementFd)) return false;
     zeroCopyAttachedSurfaces_[surfaceKey] = producerWindow;
     return true;
 }

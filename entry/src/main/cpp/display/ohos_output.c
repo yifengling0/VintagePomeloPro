@@ -410,7 +410,6 @@ static int DiagFlagFile(const char *name)
         "force-copy-present", "force-timer-clock",
         "diag-present-timeline", "scene-damage-diag", "diag-full-scene-redraw",
         "diag-gpu-face-state", "diag-scene-no-occlusion", "diag-gpu-stage-pixels",
-        "diag-canvas-scene-texture",
     };
     static int val[sizeof(names) / sizeof(names[0])] = {0};
     static int64_t lastNs[sizeof(names) / sizeof(names[0])] = {0};
@@ -519,9 +518,9 @@ static void HandleOutputCommit(struct wl_listener *listener, void *data)
         return;
     ++g_out.frame_seq;
 
-    /* M3a-T7 画布 EGL swap 呈现: 提交的 buffer 是默认 swapchain 的
+    /* 画布 EGL swap 呈现: 提交的 buffer 是默认 swapchain 的
      * allocator buffer (OH_NativeBuffer 背书, gles2 渲染器本就经 EGLImage
-     * 画入), 导入为纹理 → blit 到窗口 EGLSurface → swap。全程 GPU-GPU,
+     * 画入), 直接采样其 FBO 纹理 → blit 到窗口 EGLSurface → swap。全程 GPU-GPU,
      * 不碰队列槽位、不 FlushBuffer、无 CPU 视图 —— 手工 FlushBuffer 对
      * 画布 surface 消费侧冻结 (vd12), CPU mmap 又与 GPU 写入不可靠一致
      * (vd21/22c: probe fail:pixel-compare + framedump 垃圾)。判据 = buffer

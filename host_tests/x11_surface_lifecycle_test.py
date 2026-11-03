@@ -15,6 +15,8 @@ prelude=r"""
 #include <cstdint>
 #include <iostream>
 #include <pthread.h>
+#include <memory>
+#include "graphics/queue_retirement.h"
 extern "C" {
 #include <wayland-server-core.h>
 }
@@ -63,8 +65,12 @@ void wlr_texture_destroy(void*){assert(queueAlive);++releases;}
 void wlr_buffer_unlock(void*){assert(queueAlive);++releases;}
 void x11_toplevel_clear_guest_frame(uint32_t,uint64_t);
 struct OH_NativeImage {bool alive=true;};
+struct wlr_buffer {};
+wlr_buffer* wl_ohos_consumer_buffer_acquire(OH_NativeImage*) { return nullptr; }
+void wl_ohos_consumer_buffer_drop(wlr_buffer*) { assert(false); }
 struct Binding {uint32_t surfaceId=9;uint64_t generation=1,surfaceKey=8;OH_NativeImage* image;
- void* producerWindow=nullptr;uint32_t clientPid=7;uint64_t frames=1;};
+ void* producerWindow=nullptr;uint32_t clientPid=7;uint64_t frames=1;
+ std::shared_ptr<winehua::QueueRetirementConsumer> retirement;};
 struct GraphicsBroker {
  static GraphicsBroker& GetInstance(){static GraphicsBroker b;return b;}
  void SetZeroCopySurfaceReady(uint64_t,bool){}
@@ -107,8 +113,8 @@ int main(){
 }
 """
 output='entry/src/main/cpp/display/ohos_output.c'
-source=prelude+function(output,'static void ClientSceneNodeDestroy(')+function(output,'static void ClientAssociate(')+function(output,'static void ClientDissociate(')+function('entry/src/main/cpp/display/x11_toplevel.c','void x11_toplevel_clear_guest_frame(')+function(output,'void wl_ohos_output_client_frame_retire(')+function('entry/src/main/cpp/display/display_guest_frames.cpp','void DropBinding(')+main
+source=prelude+function(output,'static void ClientSceneNodeDestroy(')+function(output,'static void ClientAssociate(')+function(output,'static void ClientDissociate(')+function('entry/src/main/cpp/display/x11_toplevel.c','void x11_toplevel_clear_guest_frame(')+function(output,'void wl_ohos_output_client_frame_retire(')+function('entry/src/main/cpp/display/display_guest_frames.cpp','bool RetireFrames(')+function('entry/src/main/cpp/display/display_guest_frames.cpp','void DropBinding(')+main
 cpp=BUILD/'probe.cpp';cpp.write_text(source)
 flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','wayland-server'],text=True))
-subprocess.run(['g++','-std=c++17','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-pthread',str(cpp),'-o',str(BUILD/'probe'),*flags],check=True)
+subprocess.run(['g++','-I'+str(ROOT/'entry/src/main/cpp'),'-std=c++17','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-pthread',str(cpp),'-o',str(BUILD/'probe'),*flags],check=True)
 subprocess.run([str(BUILD/'probe')],check=True,timeout=10)

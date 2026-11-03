@@ -538,6 +538,31 @@ static const struct wlr_allocator_interface kOneShotAllocatorImpl = {
     .destroy = OneShotAllocatorDestroy,
 };
 
+/* A dequeued slot can still be read by the system compositor. Queue ownership
+ * alone does not make it writable: enqueue its consumer fence in the same EGL
+ * context that will render into it. Never overwrite an unfinished output slot. */
+static OHNativeWindowBuffer *AcquirePresentQueueSlot(OHNativeWindow *window)
+{
+    OHNativeWindowBuffer *wb = nullptr;
+    int32_t fence = -1;
+    const int32_t rc = OH_NativeWindow_NativeWindowRequestBuffer(window, &wb, &fence);
+    if (rc != 0 || !wb) {
+        if (fence >= 0) close(fence);
+        wlr_log(WLR_DEBUG, "ohos present slot: RequestBuffer rc=%d", rc);
+        return nullptr;
+    }
+    const bool ready = wl_ohos_egl_wait_acquire_fence(fence);
+    if (fence >= 0) close(fence);
+    if (!ready) {
+        OH_NativeWindow_NativeWindowAbortBuffer(window, wb);
+        static uint32_t failed_waits;
+        if (++failed_waits <= 5u)
+            wlr_log(WLR_ERROR, "output slot acquire fence wait failed; frame retained");
+        return nullptr;
+    }
+    return wb;
+}
+
 extern "C" struct wlr_buffer *wl_ohos_present_slot_acquire(struct NativeWindow *window,
                                                            struct wlr_swapchain **out_swapchain)
 {
@@ -545,17 +570,8 @@ extern "C" struct wlr_buffer *wl_ohos_present_slot_acquire(struct NativeWindow *
         *out_swapchain = nullptr;
     if (!window)
         return nullptr;
-    OHNativeWindowBuffer *wb = nullptr;
-    int32_t fence = -1;
-    int32_t rc = OH_NativeWindow_NativeWindowRequestBuffer(window, &wb, &fence);
-    if (rc != 0 || !wb)
-    {
-        /* 队列空 (消费者未释放) 是正常背压, 调用方按丢帧处理 */
-        if (fence >= 0)
-            close(fence);
-        wlr_log(WLR_DEBUG, "ohos present slot: RequestBuffer rc=%d", rc);
-        return nullptr;
-    }
+    OHNativeWindowBuffer *wb = AcquirePresentQueueSlot(window);
+    if (!wb) return nullptr;
 
     /* 命中: 同一队列槽位回来了 —— 复用三元组。returned 按新一次 Request
      * 周期重置; swapchain 的槽位上一帧已随 commit 结束释放 (scene 的
@@ -570,9 +586,6 @@ extern "C" struct wlr_buffer *wl_ohos_present_slot_acquire(struct NativeWindow *
             g_present_slots[j] = g_present_slots[j + 1];
         g_present_slots[g_present_slot_count - 1] = hit;
         hit.buf->returned = false;
-        if (fence >= 0)
-            close(fence); /* Request 的 fence 只对「写前等消费者」有意义, 本路径
-                           * 不等待 (与既有拷贝路径同语义, 真机验证无撕裂) */
         if (out_swapchain)
             *out_swapchain = hit.swapchain;
         return &hit.buf->base;
@@ -584,16 +597,12 @@ extern "C" struct wlr_buffer *wl_ohos_present_slot_acquire(struct NativeWindow *
     {
         wlr_log(WLR_ERROR, "ohos present slot: bad handle %p", (void *)h);
         OH_NativeWindow_NativeWindowAbortBuffer(window, wb);
-        if (fence >= 0)
-            close(fence);
         return nullptr;
     }
     auto *buf = static_cast<WlOhosPresentBuffer *>(calloc(1, sizeof(WlOhosPresentBuffer)));
     if (!buf)
     {
         OH_NativeWindow_NativeWindowAbortBuffer(window, wb);
-        if (fence >= 0)
-            close(fence);
         return nullptr;
     }
     buf->window = window;
@@ -601,8 +610,6 @@ extern "C" struct wlr_buffer *wl_ohos_present_slot_acquire(struct NativeWindow *
     buf->stride = static_cast<size_t>(h->stride);
     buf->format = OhosFormatToDrm(h->format);
     wlr_buffer_init(&buf->base, &kPresentBufferImpl, h->width, h->height);
-    if (fence >= 0)
-        close(fence);
     wlr_log(WLR_DEBUG, "ohos present slot new %dx%d stride=%zu fmt=0x%x drm=0x%x",
             h->width, h->height, buf->stride, h->format, buf->format);
 
