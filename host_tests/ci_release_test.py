@@ -204,7 +204,7 @@ class PackagingTests(unittest.TestCase):
         # has dedicated component tests, and the fake hvigor below emits no ELF.
         for name in ('normalize_runtime_identity.py', 'runtime_library_guard.py',
                      'prepare_steam_gpu_dependency.py', 'prepare_linux_runtime_components.py',
-                     'check_runtime_components.py'):
+                     'check_runtime_components.py', 'verify_x11_runtime.py'):
             write(self.root / 'scripts' / name, '# packaging test validator stub\n')
         write(self.root / "AppScope/app.json5", json.dumps({"app": APP}))
         write(self.root / "entry/build-profile.json5", '{"abiFilters": ["arm64-v8a"]}')

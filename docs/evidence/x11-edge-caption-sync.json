@@ -144,7 +144,22 @@
       "requestedBackend": "DXVK 1.10",
       "reportedBackend": "dxvk_legacy",
       "angleRegressions": 0,
-      "realExitZeroConfirmed": false,
+      "realExitZeroConfirmed": true,
+      "note": "Exact game PID matched in a later bounded query; the initial short log tail omitted the callback. No runtime change was made.",
+      "initialExitCallbackObserved": false,
+      "exitEvidenceCollectedLater": true,
+      "exitSource": "ncp-exit"
+    },
+    {
+      "label": "virtual-exit-audit-product",
+      "actualHost": "DesktopAbility virtual, verified by layout",
+      "frames": 1384,
+      "status": "PASS",
+      "renderer": "D3D11",
+      "requestedBackend": "DXVK 1.10",
+      "reportedBackend": "dxvk_legacy",
+      "angleRegressions": 0,
+      "realExitZeroConfirmed": true,
       "note": ""
     }
   ],
@@ -156,5 +171,11 @@
     "uniqueClientFrames": 12,
     "stop": "sample-limit",
     "limitation": "Fixed initial geometry only; sparse screenshots cannot exclude sub-interval flicker."
+  },
+  "ciPreflight": {
+    "result": "PASS",
+    "checks": 217,
+    "testedBaseCommit": "00c181ff50faef58257d35516e93525cdbe9b9b5",
+    "fullCleanRebuild": false
   }
 }

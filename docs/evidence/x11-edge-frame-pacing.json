@@ -213,6 +213,37 @@
         "histogramBucketMs": 0.25,
         "histogramOverflowMs": 64
       }
+    },
+    {
+      "label": "pc-pacing-static-product",
+      "route": "x11, static title diagnostic control",
+      "durationSeconds": 70,
+      "signedHapSha256": "54558fd3fde1789494f119f53b7beebc0e6800af90d56bea2c2b0e07790fe0d0",
+      "frames": 8198,
+      "angleRegressions": 0,
+      "renderStatus": "PASS",
+      "realExitZeroConfirmed": true,
+      "framePacing": {
+        "scope": "CPU frame starts and render/Present return; not display timestamps",
+        "warmupFrames": 120,
+        "samples": 8077,
+        "titleSamples": 0,
+        "intervalMeanMs": 8.490412,
+        "intervalP95MsUpper": 12.25,
+        "intervalP99MsUpper": 15.5,
+        "intervalMaxMs": 22.8577,
+        "renderMeanMs": 7.300397,
+        "renderP99MsUpper": 14.0,
+        "renderMaxMs": 21.7468,
+        "titleMeanMs": 0.0,
+        "titleMaxMs": 0.0,
+        "over16_67Ms": 16,
+        "over25Ms": 0,
+        "over50Ms": 0,
+        "over16_67MsAfterTitle": 0,
+        "histogramBucketMs": 0.25,
+        "histogramOverflowMs": 64
+      }
     }
   ],
   "findings": [
