@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "baseline": "8c5d45519c777a52506065bd5810f05f1438c305",
+  "targetBranch": "feature/ohos-proton-x11-integration",
+  "source": {
+    "repository": "https://github.com/PomeloTechLabs/HSL",
+    "head": "fa3dfeec72a0568133383763e77368b8502cf1f8",
+    "workingTreeFiles": {
+      "scripts/proton_module_contract.py": "a890adba9305d469073cc96c36ece18417e6ebbcd0181af968a2597d03584f81",
+      "scripts/prepare-gnu-proton.py": "6e987c27d6e7981d2291a5e3955d9d65dc4d45c1032eabd645288d4d6ffb478e",
+      "native/gnu/proton/prepare-prefix.py": "6e2450d225fa81b3dad9b6db333a5855018472ec50c85b13e78a7557fddde38a",
+      "native/gnu/proton/syscall.S": "0286784938fe269338ad737824f129eea3d526845a392ba872a94cd1fcf390aa",
+      "native/fixtures/d3d11_probe.c": "3644b8d061ddc44ee21d99b5961be045efef3fa61649038e4f8c406de0c4b0bc",
+      "components/proton-ge.lock.json": "884450c568ac155824e9975dfb5bb10638a4f19102b03740b309f1eda1c00a28",
+      "native/gnu/proton/dxvk_routes.py": "3737ea5e9478dff2bf1297ab66d4f7f91d8b1fd9aea0d7f78c2dcdd9dbd8c0c0"
+    }
+  },
+  "completeWineDirectories": {
+    "schema": 1,
+    "source": "complete directories from locked GE archive",
+    "directories": {
+      "files/lib/wine/aarch64-windows": {
+        "files": 795,
+        "bytes": 749662208,
+        "membersSha256": "eab1fe72e3e20c3fe870e8775a9f8c458cf0a074e9faea46648e09f63a3732f1"
+      },
+      "files/lib/wine/i386-windows": {
+        "files": 842,
+        "bytes": 221908992,
+        "membersSha256": "5210517c24e1126cf2b22f619f14233ddb66f536d5add85c2391341256debe8f"
+      },
+      "files/lib/wine/aarch64-unix": {
+        "files": 44,
+        "bytes": 18622136,
+        "membersSha256": "3fec3700e65ffef38da5b21b94f2e0158115eb8a87cc9870858d5a3fa022fc52"
+      }
+    }
+  },
+  "prefixModuleFiles": 1637,
+  "archive": {
+    "bytes": 77471688,
+    "sha256": "887d1e651172c0fbc4b7ad309379e852bfd983781927033b23b3f0f6b10038e5",
+    "installedBytes": 593563648
+  },
+  "delivery": "Independent HAP supplement; missing original PE modules move directly into the one shared GNU prefix; only missing Unix companion PEs also populate package builtin paths. Existing base/media originals are reused. Historical online/offline components remain byte-identical.",
+  "preservation": "Add missing leaves only; user DLLs/links/registries/saves/libraries are not replaced. Existing backend groups remain prefix-local regular files.",
+  "fixes": [
+    "Complete original ARM64X/i386 module inventory, including dynamically loaded modules",
+    "Restore original PE builtin search paths for 21 missing Unix companions so WineVulkan exposes real Vulkan extensions",
+    "First-match GNU Wine optional-syscall dispatch returns ENOSYS for 374/282/449; native FEX dispatch unchanged",
+    "Bounded 64-bit D3D11 diagnostic: real module/backing paths, readback/BC/dynamic-map/parent-child evidence"
+  ],
+  "alreadyPresent": [
+    "ARM64X+i386 legacy DXVK 1.10.3",
+    "Vulkan bridge/compiler pairing",
+    "SNORM auto profile",
+    "precise shadow / persistent-map-sync=0",
+    "WSI alias32 tail/error fixes"
+  ],
+  "excluded": [
+    "Game-specific settings/patches",
+    "HSL UI/rootfs",
+    "shared-swapchain prototype",
+    "DXVK 2.6 activation"
+  ],
+  "validation": "See evidence/hsl-dxvk64-module-smoke.json; no all-game or performance compatibility claim",
+  "moduleManifestId": "2f39a3a5252432d8886ba73dd9865fc67ff07f2119cc53600f12b4d655edf2ca",
+  "builtinCompanion": {
+    "files": 21,
+    "bytes": 21757952,
+    "purpose": "Populate only missing original PE builtin search paths to bind the matching Unix .so, including WineVulkan; never copy user prefix overrides back into package"
+  }
+}

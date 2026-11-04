@@ -475,7 +475,8 @@ export class SmokeRunner {
     this.currentStatus = '验证独立 GNU ARM64 Proton';
     this.notify();
     const stage = readSmokeText('/data/storage/el2/base/files/steamohos-native/proton-probe/stage').trim();
-    if (stage === 'dxvk11-x86') await prepareLinuxProtonDxvkPrefix();
+    if (stage !== 'init-fresh') await LinuxGnuProtonComponent.ensureReady(this.context);
+    if (stage === 'dxvk11-x86' || stage === 'dxvk11-x64') await prepareLinuxProtonDxvkPrefix();
     if (stage === 'init-fresh') {
       writeSmokeText('/data/storage/el2/base/files/steamohos-native/proton-probe/stage', 'init');
       let raw: string;
@@ -509,7 +510,7 @@ export class SmokeRunner {
         return;
       }
     }
-    if (stage === 'native-vulkan' || stage === 'native-present' || stage === 'gl-shared' || stage === 'd3d9-x86' || stage === 'dxvk11-x86' || gameTrial || stage === 'glx' || stage === 'window' || stage === 'window-controls') {
+    if (stage === 'native-vulkan' || stage === 'native-present' || stage === 'gl-shared' || stage === 'd3d9-x86' || stage === 'dxvk11-x86' || stage === 'dxvk11-x64' || gameTrial || stage === 'glx' || stage === 'window' || stage === 'window-controls') {
       // A hidden NativeImage consumer can exhaust its queue. Exercise the
       // actual visible desktop, using the same phone/tablet presentation as
       // normal launches, without changing persisted window preferences.
@@ -565,7 +566,7 @@ export class SmokeRunner {
         stage: result.status, message: 'GNU Vulkan queue and optional presentation submission; receiver evidence verifies consumption' }], driveC);
       return;
     }
-    if (stage === 'native-present' || stage === 'gl-shared' || stage === 'd3d9-x86' || stage === 'dxvk11-x86' || gameTrial) {
+    if (stage === 'native-present' || stage === 'gl-shared' || stage === 'd3d9-x86' || stage === 'dxvk11-x86' || stage === 'dxvk11-x64' || gameTrial) {
       await this.finishSuite(request, [{ schemaVersion: 1, runId: request.runId,
         testId: 'gnu-shared-present-submission',
         status: result.graphicsTransportSubmitted && result.childExitVerified ? 'PASS' : 'FAIL',

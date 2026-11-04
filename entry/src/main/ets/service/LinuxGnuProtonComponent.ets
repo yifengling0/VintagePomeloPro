@@ -1,3 +1,4 @@
+import { ensureLinuxProtonModules } from './LinuxProtonModules';
 import { ensureLinuxProtonDxvk } from './LinuxProtonDxvk';
 import { ensureLinuxProtonMedia } from './LinuxProtonMedia';
 import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
@@ -206,7 +207,7 @@ export class LinuxGnuProtonComponent {
       let stamps = await LinuxGnuProtonComponent.matches(ROOT, manifest, receipt);
       if (stamps) {
         ConfigurationFiles.json(RECEIPT, JSON.stringify({ id: manifest.id, stamps }));
-        await runtimes.adoptEmbedded(context, !selected); await ensureLinuxProtonMedia(context); await ensureLinuxProtonDxvk(context);
+        await runtimes.adoptEmbedded(context, !selected); await ensureLinuxProtonMedia(context); await ensureLinuxProtonDxvk(context); await ensureLinuxProtonModules(context, LinuxGnuProtonComponent.progress);
         LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪'); return;
       }
       if (await statfs.getFreeSize(BASE) < extractionBytes + manifest.bytes + 134217728) throw new Error('空间不足：GNU Proton 安装需要约 700 MB 可用空间');
@@ -230,7 +231,7 @@ export class LinuxGnuProtonComponent {
       }
       ConfigurationFiles.json(RECEIPT, JSON.stringify({ id: manifest.id, stamps }));
       transaction.committed = true; ConfigurationFiles.json(JOURNAL, JSON.stringify(transaction));
-      recoverTransaction(); await runtimes.adoptEmbedded(context, !selected); await ensureLinuxProtonMedia(context); await ensureLinuxProtonDxvk(context);
+      recoverTransaction(); await runtimes.adoptEmbedded(context, !selected); await ensureLinuxProtonMedia(context); await ensureLinuxProtonDxvk(context); await ensureLinuxProtonModules(context, LinuxGnuProtonComponent.progress);
       LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪');
     } catch (error) {
       LinuxGnuProtonComponent.verified = false;

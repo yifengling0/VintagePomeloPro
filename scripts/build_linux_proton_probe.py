@@ -140,14 +140,8 @@ variant = variant.replace('    const char* software=getenv("STEAMOHOS_SOFTWARE_G
     }
 ''' + '    const char* software=getenv("STEAMOHOS_SOFTWARE_GL");', 1)
 (task/'exec_probe.cpp').write_text(variant)
-assembly = (fixture/'syscall_compat.S').read_text()
-assert assembly.count('    cmp x0, #__NR_openat2') == 1
-# On this sandbox optional userfaultfd and futex_waitv probes kill the caller.
-# Return the ordinary unsupported-feature error, allowing Wine's real fallback.
-# 374 is what this GE ARM64 binary actually issues (confirmed by disassembly);
-# 282 is the standard AArch64 userfaultfd number. No syscall is made here.
-assembly = assembly.replace('    cmp x0, #__NR_openat2',
-    '    cmp x0, #374\n    b.eq 2f\n    cmp x0, #282\n    b.eq 2f\n    cmp x0, #449\n    b.eq 2f\n    cmp x0, #__NR_openat2',1)
+from proton_optional_syscalls import proton_syscall_assembly
+assembly = proton_syscall_assembly((fixture/'syscall_compat.S').read_text())
 (task/'syscall_probe.S').write_text(assembly)
 filesystem = (fixture/'filesystem_compat.c').read_text()
 filesystem = 'static int CloudLink(const char*,const char*);\n' + filesystem

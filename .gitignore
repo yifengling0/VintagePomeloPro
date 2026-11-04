@@ -94,3 +94,6 @@ entry/src/main/resources/rawfile/linux-proton/gnu-proton.zip
 
 # Independently verified GNU DXVK/GE PE support (outside immutable upstream ZIP).
 !entry/src/main/resources/rawfile/linux-proton/dxvk-support/**/*.dll
+
+# Rebuilt from the pinned, complete GE module contract.
+/entry/src/main/resources/rawfile/linux-proton/modules-support/

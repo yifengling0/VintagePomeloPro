@@ -39,6 +39,7 @@ const makeManifest = version => {
 const catalog = () => ({schemaVersion:1,revision:catalogRevision,releases:[...runtimeReleases].reverse()});
 const exists = name => fs.existsSync(name);
 const deps = {
+  './LinuxProtonModules': {ensureLinuxProtonModules: async()=>{}},
   './LinuxProtonDxvk': {ensureLinuxProtonDxvk: async()=>{}},
   './LinuxProtonMedia': {ensureLinuxProtonMedia: async()=>{}},
   './LinuxProtonBootstrap': {ensureLinuxProtonBootstrap: async()=>{}},

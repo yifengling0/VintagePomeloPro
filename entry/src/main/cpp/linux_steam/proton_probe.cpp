@@ -260,11 +260,12 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
     const GameTrial* selectedGame = nullptr;
     for (const auto& game : games) if (stage == game.stage) selectedGame = &game;
     const bool gameRequested = selectedGame != nullptr || manual;
-    const bool vulkanRequested = stage == "dxvk11-x86" ||
+    const bool vulkanRequested = stage == "dxvk11-x86" || stage == "dxvk11-x64" ||
         (manual ? manual->backend=="gnu-proton" : gameRequested && access((std::string(Root) + "/game-dxvk").c_str(), R_OK) == 0);
     const bool localeRequested = stage == "locale" || stage == "locale-configure";
-    const bool d3dRequested = stage == "d3d9-x86" || stage == "dxvk11-x86";
-    const bool x86Requested = stage == "x86" || d3dRequested || gameRequested || localeRequested;
+    const bool d3d64Requested = stage == "dxvk11-x64";
+    const bool d3dRequested = stage == "d3d9-x86" || stage == "dxvk11-x86" || d3d64Requested;
+    const bool x86Requested = stage == "x86" || (d3dRequested && !d3d64Requested) || gameRequested || localeRequested;
     const bool initializeRequested = stage == "init";
     const bool graphicsRequested = stage == "glx";
     // The standard GNU tool exposes both APIs: legacy D3D9 stays on the
@@ -560,7 +561,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             if (!ReferenceMediaRuntime(root, runtime))
                 return failure(("proton_media_reference_failed:"+MediaReferenceFailure).c_str(), true);
             if ((graphicsRequested && !NativeElf(root + "/Xwayland")) ||
-                (!gameRequested && !localeRequested && access((root+(d3dRequested ? "/prefix/drive_c/proton-x86-cube.exe" : "/prefix/drive_c/proton-x64-media.exe")).c_str(),R_OK)))
+                (!gameRequested && !localeRequested && access((root+(d3d64Requested ? "/prefix/drive_c/proton-x64-d3d11.exe" : d3dRequested ? "/prefix/drive_c/proton-x86-cube.exe" : "/prefix/drive_c/proton-x64-media.exe")).c_str(),R_OK)))
                 return failure("proton_media_fixture_missing", true);
         }
         if (sharedGraphicsRequested) {
@@ -782,7 +783,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         std::string gameCommand;
         if(manual) gameCommand=ProtonGameWindowsPath(manual->argv.front(), manual->role=="game" ? manual->install : std::string());
         else if(gameRequested)gameCommand=std::string(1,selectedGame->drive-'a'+'A')+":\\"+selectedGame->executable;
-        const std::string command = localeRequested ? "C:\\proton-x86-locale.exe" : initializeRequested ? "wineboot.exe" : gameRequested ? gameCommand : d3dRequested ? "C:\\proton-x86-cube.exe" : mediaRequested ? "C:\\proton-x64-media.exe" : x86Requested ? "C:\\proton-x86-cmd.exe" : windowRequested ? "C:\\proton-x64-window.exe" : x64Requested ? "C:\\proton-x64-cmd.exe" : "cmd.exe";
+        const std::string command = localeRequested ? "C:\\proton-x86-locale.exe" : initializeRequested ? "wineboot.exe" : gameRequested ? gameCommand : d3d64Requested ? "C:\\proton-x64-d3d11.exe" : d3dRequested ? "C:\\proton-x86-cube.exe" : mediaRequested ? "C:\\proton-x64-media.exe" : x86Requested ? "C:\\proton-x86-cmd.exe" : windowRequested ? "C:\\proton-x64-window.exe" : x64Requested ? "C:\\proton-x64-cmd.exe" : "cmd.exe";
         const std::string marker = x86Requested ? "HMOSDECK_GNU_X86_OK" : x64Requested ? "HMOSDECK_GNU_X64_OK" : "HMOSDECK_GNU_WINE_OK";
         if (x64Requested && !LoaderReference(package + "/files/lib/wine/x86_64-windows/cmd.exe",
                 root + "/prefix/drive_c/proton-x64-cmd.exe"))
@@ -791,6 +792,10 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         if(d3dRequested) unlink(d3dResult.c_str());
         std::vector<std::string> arguments = gameRequested ?
             std::vector<std::string>{loader,"--inhibit-cache","--library-path",libraries,wine,"C:\\windows\\system32\\steam.exe",command} : d3dRequested ?
+            d3d64Requested ? std::vector<std::string>{loader,"--inhibit-cache","--library-path",libraries,wine,command,
+                // Each side of ResizeBuffers must reach the WSI's bounded
+                // 120-frame submission marker; its counter is per swapchain.
+                "--frames","240","--feature-level","11_0","--spawn-child"} :
             std::vector<std::string>{loader,"--inhibit-cache","--library-path",libraries,wine,command,
                 stage=="dxvk11-x86"?"--d3d11":"--d3d9","--automation","--seconds","12","--result","C:\\proton-d3d-result.json"} : localeRequested ?
             std::vector<std::string>{loader,"--inhibit-cache","--library-path",libraries,wine,command} : initializeRequested ?
@@ -836,7 +841,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             // A representative game is an interactive trial, not a 2-minute
             // bootstrap probe. Keep an explicit ceiling without cutting off
             // movies/menu input and making a timer look like a game crash.
-            const uint32_t timeoutMs = gameRequested ? 600000 : controlsRequested ? 150000 : initializeRequested ? 120000 : 40000;
+            const uint32_t timeoutMs = d3d64Requested ? 120000 : gameRequested ? 600000 : controlsRequested ? 150000 : initializeRequested ? 120000 : 40000;
             options.persistentSession=manual && manual->role=="game";
             trace.Mark("gameDispatch");
             prefix = RunNativeLoader(arguments, prefixEnvironment,options.persistentSession?0:timeoutMs, options);
@@ -845,7 +850,12 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
     }
     const bool graphicsVerified=graphicsRequested && displayReady && Succeeded(prefix) &&
         prefix.output.find("HMOSDECK_GNU_GPU_OK")!=std::string::npos;
-    const bool graphicsTransportSubmitted=(sharedGraphicsRequested || vulkanRequested) && Succeeded(prefix) &&
+    const bool d3d64Verified = !d3d64Requested || (
+        prefix.output.find("\"readbackVerified\":240")!=std::string::npos &&
+        prefix.output.find("\"renderVerified\":true")!=std::string::npos &&
+        prefix.output.find("\"childStillRunning\":false")!=std::string::npos &&
+        prefix.output.find("\"event\":\"child\"")!=std::string::npos);
+    const bool graphicsTransportSubmitted=d3d64Verified && (sharedGraphicsRequested || vulkanRequested) && Succeeded(prefix) &&
         (d3dRequested || prefix.output.find("HMOSDECK_GNU_GPU_SHARED_SUBMITTED")!=std::string::npos) &&
         (prefix.output.find("GNU_WINE_NATIVE_EGL frames=")!=std::string::npos || prefix.output.find("GNU_WINE_VULKAN frames=")!=std::string::npos);
     const bool audioVerified=audioRequested && Succeeded(prefix) &&

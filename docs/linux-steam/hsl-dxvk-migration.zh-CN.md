@@ -107,3 +107,9 @@ provenance、X11 闭包、图形契约、GStreamer／字体／WineD3D、APP/HAP
 本次 smoke 不替代 GNU Proton 新 DXVK 的双位宽游戏、全屏及性能验收；
 DXVK 2.6 仍按设备限制跳过。CI 另修正 renderer 补丁应用顺序，先应用
 受管补丁，再运行 precise-context 等行为检查。
+
+## 后续 64 位闭包与 GNU 实机补充
+
+缺失原 GE 模块、WineVulkan PE／Unix 配对及可选 syscall 修复，连同 GNU 双位宽
+基础 smoke，见 [HSL 64 位 DXVK 模块闭包移植](hsl-dxvk64-migration.zh-CN.md)。
+前文初次移植时的未验收结论按其记录时间保留，新验证范围以该补充为准。

@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-04T07:27:05.796407+00:00",
+  "baseline": "8c5d45519c777a52506065bd5810f05f1438c305",
+  "branch": "feature/ohos-proton-x11-integration",
+  "source": {
+    "repository": "https://github.com/PomeloTechLabs/HSL",
+    "head": "fa3dfeec72a0568133383763e77368b8502cf1f8",
+    "workingTreeFiles": {
+      "scripts/proton_module_contract.py": "a890adba9305d469073cc96c36ece18417e6ebbcd0181af968a2597d03584f81",
+      "scripts/prepare-gnu-proton.py": "6e987c27d6e7981d2291a5e3955d9d65dc4d45c1032eabd645288d4d6ffb478e",
+      "native/gnu/proton/prepare-prefix.py": "6e2450d225fa81b3dad9b6db333a5855018472ec50c85b13e78a7557fddde38a",
+      "native/gnu/proton/syscall.S": "0286784938fe269338ad737824f129eea3d526845a392ba872a94cd1fcf390aa",
+      "native/fixtures/d3d11_probe.c": "3644b8d061ddc44ee21d99b5961be045efef3fa61649038e4f8c406de0c4b0bc",
+      "components/proton-ge.lock.json": "884450c568ac155824e9975dfb5bb10638a4f19102b03740b309f1eda1c00a28",
+      "native/gnu/proton/dxvk_routes.py": "3737ea5e9478dff2bf1297ab66d4f7f91d8b1fd9aea0d7f78c2dcdd9dbd8c0c0"
+    }
+  },
+  "deviceModel": "MLR-AL10",
+  "version": "1.5.6",
+  "moduleManifestId": "2f39a3a5252432d8886ba73dd9865fc67ff07f2119cc53600f12b4d655edf2ca",
+  "moduleArchive": {
+    "bytes": 77471688,
+    "sha256": "887d1e651172c0fbc4b7ad309379e852bfd983781927033b23b3f0f6b10038e5"
+  },
+  "builtinCompanion": {
+    "files": 21,
+    "bytes": 21757952,
+    "purpose": "Populate only missing original PE builtin search paths to bind the matching Unix .so, including WineVulkan; never copy user prefix overrides back into package"
+  },
+  "candidate": {
+    "releaseHapSha256": "f78b32a83c041fcdb981a52e95ee779ef43844182d9ff40210e68885748a4e2f",
+    "debugSignedHapSha256": "8072f3de4d2d17e45e9c2de872f3b2289a6c2131ed1a913e253cc648c5f705f4",
+    "bytes": 818460084,
+    "signatureVerified": true,
+    "codeResourcesIdenticalToRelease": true,
+    "difference": "module.json app.debug=true only; authorized debug profile"
+  },
+  "diagnostic": {
+    "sourceSha256": "8cf4b6f33ed1b8bd1cd388035d837b8657ffecd128b27aec112690f2137275a8",
+    "bytes": 236544,
+    "sha256": "e19535cdde4cfed0143784656ae94126d2d6f62906a47dacc752305b239e9206",
+    "architecture": "x86_64-windows",
+    "role": "diagnostic only; not a performance benchmark"
+  },
+  "tests": [
+    {
+      "test": "GNU D3D11 DXVK legacy 64-bit parent/child",
+      "status": "PASS",
+      "architecture": "x86_64 fixture through GE/FEX and ARM64X EC view; not native ARM64 primary-image coverage",
+      "process": {
+        "stage": "completed",
+        "setupErrno": 0,
+        "execErrno": 0,
+        "waitErrno": 0,
+        "exitCode": 0,
+        "signal": 0,
+        "timedOut": false,
+        "cancelled": false,
+        "childReaped": true,
+        "hostTpUnchanged": true,
+        "outputTruncated": false,
+        "elapsedMs": 23222
+      },
+      "renderProcesses": [
+        {
+          "role": "parent",
+          "accepted": 240,
+          "readbackVerified": 240,
+          "renderVerified": true,
+          "bcVerified": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "mappedDiscardVerified": true,
+          "mappedNoOverwriteVerified": true,
+          "resize": {
+            "hresult": 0,
+            "width": 96,
+            "height": 64
+          },
+          "adapter": "Virtio-GPU Venus (Maleoon 910)",
+          "exitCode": 0
+        },
+        {
+          "role": "child",
+          "accepted": 240,
+          "readbackVerified": 240,
+          "renderVerified": true,
+          "bcVerified": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "mappedDiscardVerified": true,
+          "mappedNoOverwriteVerified": true,
+          "resize": {
+            "hresult": 0,
+            "width": 96,
+            "height": 64
+          },
+          "adapter": "Virtio-GPU Venus (Maleoon 910)",
+          "exitCode": 0
+        }
+      ],
+      "childExited": true,
+      "gpuSubmissionMarkers": 4,
+      "wsiPixelReadbacksPerMarker": 0,
+      "displayConsumptionVerified": false
+    },
+    {
+      "test": "GNU D3D11 DXVK legacy 32-bit",
+      "status": "PASS",
+      "x86Requested": true,
+      "x86Verified": true,
+      "x64Requested": false,
+      "process": {
+        "stage": "completed",
+        "setupErrno": 0,
+        "execErrno": 0,
+        "waitErrno": 0,
+        "exitCode": 0,
+        "signal": 0,
+        "timedOut": false,
+        "cancelled": false,
+        "childReaped": true,
+        "hostTpUnchanged": true,
+        "outputTruncated": false,
+        "elapsedMs": 25101
+      },
+      "highestObservedSubmissionMarker": 840,
+      "displayConsumptionVerified": false
+    },
+    {
+      "test": "GNU D3D9 WineD3D/VirGL x86",
+      "status": "PASS",
+      "process": {
+        "stage": "completed",
+        "setupErrno": 0,
+        "execErrno": 0,
+        "waitErrno": 0,
+        "exitCode": 0,
+        "signal": 0,
+        "timedOut": false,
+        "cancelled": false,
+        "childReaped": true,
+        "hostTpUnchanged": true,
+        "outputTruncated": false,
+        "elapsedMs": 23435
+      },
+      "frames": 1004,
+      "angleRegressions": 0,
+      "pixelTestStatus": "PASS"
+    },
+    {
+      "test": "Original OHOS Wine independent cold session",
+      "status": "PASS",
+      "passed": 4,
+      "total": 4,
+      "tests": [
+        {
+          "testId": "opengl-x64",
+          "status": "PASS"
+        },
+        {
+          "testId": "opengl-x86",
+          "status": "PASS"
+        },
+        {
+          "testId": "dns-api-x64",
+          "status": "PASS"
+        },
+        {
+          "testId": "dns-api-x86",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "moduleHashVerification": [
+    {
+      "path": "system32/concrt140.dll",
+      "sha256": "036a852519db36266c3d07513f48cc6cea00d9a95a6eaec2e903b37fb96885a4",
+      "lock": "gnu-proton-modules.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/mfplat.dll",
+      "sha256": "cd2e1cd6091b9e740d5eb491d259f5f543ed163409641e6910aa84ea74c4e057",
+      "lock": "gnu-proton-modules.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/winhttp.dll",
+      "sha256": "976c4c39a78ebe35afbccce1fcedf951134edd8d62b40802c7f59c2f2bae2d31",
+      "lock": "gnu-proton-modules.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/mfreadwrite.dll",
+      "sha256": "ea86b7de2583c28361260814a7adb03c3b061cabe45577d9e4fb0c1050186d51",
+      "lock": "gnu-proton-modules.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/d3d11.dll",
+      "sha256": "57ff14261a47eb995891dede311ee7e643916e2c60c1a4420ffa4d71a4cfb1af",
+      "lock": "gnu-dxvk-support.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/dxgi.dll",
+      "sha256": "88f01189db175686dc272a6e510ee51562bc8e1247d740a14d00071ea4e9638b",
+      "lock": "gnu-dxvk-support.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/winevulkan.dll",
+      "sha256": "ce3872f7c7d8494117c0f5190c06ec2f1d864a7dea93385e4b584cd1f6bd5b2e",
+      "lock": "gnu-proton-modules.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/vulkan-1.dll",
+      "sha256": "68adcfb292b9d30a1f694e4d2da82fdecfb523c5d8c020818ea1a9b9866525c2",
+      "lock": "gnu-proton-modules.lock.json",
+      "status": "PASS"
+    },
+    {
+      "path": "system32/d3dcompiler_47.dll",
+      "sha256": "ee18ed2bbc4d20e07ebb47c914fb3d4b0b13291f11e70afbef9143b7bca6be1d",
+      "lock": "gnu-proton-modules.lock.json",
+      "status": "PASS"
+    }
+  ],
+  "hostChecks": {
+    "preflight": "PASS",
+    "checks": 232,
+    "moduleContract": "PASS",
+    "moduleInstaller": "PASS",
+    "optionalSyscallArm64Assembly": "PASS",
+    "releaseAssembleHap": "PASS",
+    "hapRuntimeContent": "PASS"
+  },
+  "observedFailures": [
+    {
+      "condition": "First GNU 64-bit launch",
+      "symptom": "SIGSYS syscall=449",
+      "resolution": "GNU-only earliest optional-syscall ENOSYS dispatch; shared native FEX unchanged"
+    },
+    {
+      "condition": "Original PE copied only to prefix",
+      "symptom": "Required Vulkan extension VK_KHR_surface not supported",
+      "resolution": "Restore 21 missing original builtin companion PEs, paired to the same locked GE Unix libraries; automatic ensureReady recovery verified"
+    },
+    {
+      "condition": "Immediately switching a mixed diagnostic host from GNU diagnostics to original OHOS Wine",
+      "symptom": "Original GL x64/x86 produced frames but no compositor display sequence; AMD64 follow-up timed out",
+      "resolution": "Independent cold original Wine core passed 4/4; mixed diagnostic-host transition remains unqualified and was not fixed in this change"
+    }
+  ],
+  "boundaries": [
+    "Controlled rendering/readback and GPU submissions do not qualify sustained NativeImage receiver consumption or display FPS",
+    "Not an all-game, fullscreen, long-duration or performance qualification",
+    "DXVK 2.6 skipped for this device",
+    "Original smoke launcher ignores extra --tests/job_file/direct-ncp-session fields; no alternative execution mechanism inferred",
+    "Historical Steam/GNU online and offline archives remain unchanged; the updated HAP supplies the module layer",
+    "No game library, save, registry or user DLL was intentionally overwritten"
+  ]
+}

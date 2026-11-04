@@ -10,6 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = (
+    'host_tests/proton_optional_syscalls_test.py', 'host_tests/proton_module_contract_test.py', 'host_tests/linux_proton_modules_test.py',
     'host_tests/linux_proton_dxvk_test.py',
     'host_tests/linux_proton_media_test.py', 'host_tests/ci_preflight_test.py', 'host_tests/ci_release_test.py', 'host_tests/linux_runtime_components_test.py',
     'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
@@ -69,6 +70,10 @@ def runtime_inputs(root, tracked):
         'entry/src/main/resources/rawfile/linux-proton/runtime-catalog.json',
         'docs/linux-steam/proton-runtimes/catalog.json', 'scripts/build_proton_runtime_catalog.py',
         'host_tests/proton_runtime_catalog_test.py', 'scripts/run_linux_proton_component_tests.cjs',
+        'scripts/proton_module_contract.py', 'scripts/prepare_linux_proton_module_closure.py',
+        'scripts/proton_optional_syscalls.py', 'scripts/run_linux_proton_modules_tests.cjs',
+        'scripts/build_gnu_proton_d3d11_probe.py', 'smoke/gnu_proton_d3d11_probe.c',
+        'entry/src/main/ets/service/LinuxProtonModules.ets', 'docs/linux-steam/gnu-proton-modules.lock.json',
     )
     missing = [name for name in required if name not in tracked or not (root / name).is_file()]
     if missing: raise ValueError('Uncommitted Proton manager input: ' + ', '.join(missing))

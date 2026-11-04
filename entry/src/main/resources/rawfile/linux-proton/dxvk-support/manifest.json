@@ -88,10 +88,11 @@
     "patches/linux-proton/mesa/0003-validate-bc-aggregate-capability.patch": "5639d4e9369ea3b63cf7bd49cd2511cecc75afbd3aa0079f594343b068db46c2",
     "patches/linux-proton/mesa/0004-negotiate-precise-shadow-context.patch": "05f53fc88ea841f71ee2657eb5f27663a5a51ce3c1f285451bc46145d06b62fa",
     "patches/linux-proton/mesa-base/0001-gnu-venus-native-memory-base.patch": "22af0978c628ec5a1cf737b491f3912795b4bed44b9e9375ec0bb510c846493f",
-    "scripts/build_linux_proton_probe.py": "67a97522bb278b8171807c06f22198c3f229acbe7e1040e527d2d2b3f1a7029e",
+    "scripts/build_linux_proton_probe.py": "b491cc745d0a9b32ececb5e541f359e7723face0c78e5e30788c64e7bb014c41",
     "scripts/build_linux_proton_venus.py": "a1d819becc598a370aa60d865f4b5a190ad94ae428c906afb3846dd39d3e0f3c",
     "scripts/build_linux_proton_vulkan.py": "76c04e8e6ce00d6a77803c138fcefd096a7397a868247fa9dc025c807750763e",
-    "scripts/prepare_linux_proton_dxvk.py": "6cf8e7fe868de45431856516a4ba9863ff161f3fd373f8658a4b346a63352e4c"
+    "scripts/prepare_linux_proton_dxvk.py": "46377f7a76068915dc35c91e4b2f94e6be815f58bb8fdfeba931ce27e9a79a50",
+    "scripts/proton_optional_syscalls.py": "e420e7cd3c4759b096f45264983b987c7a1a630abdecf973fa1c93a9882590e3"
   },
   "files": [
     {
@@ -122,7 +123,7 @@
     {
       "path": "libproton_probe.so",
       "bytes": 306144,
-      "sha256": "a09eede65ab34402a3186c8a4ffdf9c7f39bb0c0b0834a1e8e78809063e11bb1"
+      "sha256": "05ecc87ee0c3ee2fcc6df4cf2feb501497094e0de70079a1d840dbd85051d929"
     },
     {
       "path": "libproton_vulkan.so",
@@ -155,5 +156,19 @@
   ],
   "installedBytes": 26912724,
   "deviceValidation": "pending VPP device validation; HSL evidence does not qualify VPP",
-  "id": "0342c6fbf4b21b25112316adc376fde55a4dff4238c3db11deaadd9bf9af4c25"
+  "probeBuild": {
+    "script": "b491cc745d0a9b32ececb5e541f359e7723face0c78e5e30788c64e7bb014c41",
+    "generatedSources": {
+      "exec_probe.cpp": "2d1dbe8505f155e1cd6876ddb35230a563920aa444180fd1ddbd0c49b1a7fb2f",
+      "filesystem_probe.c": "f1c642d28dd27929971a9654e125978df8c7e90047be5a827dc925d8f91c6eef",
+      "posix_probe.c": "bb9d98be022e125e4d5d915a527c585ae90a2b2a66f78fe0625b9cb85cee857a",
+      "syscall_probe.S": "df00b0018a6718f9ad8bfe52c901a66cc7106b1255b659308a2d12ed4b315324"
+    },
+    "compilers": {
+      "aarch64-none-linux-gnu-gcc": "4ccf77e0713eba0000fcd5167d6670a1c01d1f15c7676619c65cb1125518226c",
+      "aarch64-none-linux-gnu-g++": "04a5b454a306cb9c8a876b0349ee41dcd4bef1ffb7aaaa777a6f1c87920f1961"
+    },
+    "scope": "GNU Wine only; existing WSI/Venus/DXVK unchanged"
+  },
+  "id": "38f3afce42f040114eba9f71f0680d2ce84dad25e42ca61646c8a2fd2057a931"
 }

@@ -81,6 +81,9 @@ def verify_sources(root, lock):
         archive_set = hashlib.sha256(json.dumps(expected, sort_keys=True).encode()).hexdigest()
         if offline.get('archiveSetId') != archive_set:
             raise ValueError('Steam offline package does not include the current official archive set')
+    if lock.get('protonModules'):
+        from prepare_linux_proton_module_closure import verify_contract
+        verify_contract(root)
     from build_linux_proton_bootstrap import verify as verify_bootstrap
     verify_bootstrap(root)
     if lock.get("protonMedia"):
@@ -182,6 +185,9 @@ def prepare(root, lock, cache, verify_only=False, opener=urllib.request.urlopen)
     if {r['path'] for r in rows} != set(DESTINATIONS) or len(rows) != len(DESTINATIONS):
         raise ValueError('Both GNU component dependencies are required')
     verify_sources(root, lock)
+    if lock.get('protonModules'):
+        from prepare_linux_proton_module_closure import prepare as prepare_modules
+        prepare_modules(root, cache, verify_only)
     report = []
     for row in rows:
         members = expected_members(root, row)
@@ -228,6 +234,9 @@ def verify_hap(path, root=ROOT):
     lock = json.loads((root/'docs/linux-steam/build-components.lock.json').read_text())
     verify_sources(root,lock)
     with zipfile.ZipFile(path) as archive:
+        if lock.get('protonModules'):
+            from prepare_linux_proton_module_closure import verify as verify_modules
+            verify_modules(root, archive)
         if 'deliveryInputs' in lock:
             relative = 'linux-steam/offline-package.json'
             if archive.read('resources/rawfile/' + relative) != (root/'entry/src/main/resources/rawfile'/relative).read_bytes():

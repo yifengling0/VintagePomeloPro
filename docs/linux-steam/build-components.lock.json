@@ -149,5 +149,6 @@
     "scripts/linux_steam_native_sdk.py": "100d97dc791080d8b12d08795a468b275c750beed56838f65f0f5ebaf91d7f5e",
     "scripts/prepare_release_offline_packages.py": "32ec0e8d2e013aedff278fa2ac8aebec24664feb8c735f61908d2f5e93b7d8bd"
   },
-  "protonDxvk": "docs/linux-steam/gnu-dxvk-support.lock.json"
+  "protonDxvk": "docs/linux-steam/gnu-dxvk-support.lock.json",
+  "protonModules": "linux-proton/modules-support/manifest.json"
 }

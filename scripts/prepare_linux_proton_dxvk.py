@@ -33,7 +33,7 @@ def sha(path):
 def sources(root):
     fixture = root/'entry/src/main/cpp/linux_steam/gnu_fixture'
     paths = [root/'scripts'/n for n in ('prepare_linux_proton_dxvk.py',
-        'build_linux_proton_probe.py', 'build_linux_proton_venus.py', 'build_linux_proton_vulkan.py')]
+        'build_linux_proton_probe.py', 'proton_optional_syscalls.py', 'build_linux_proton_venus.py', 'build_linux_proton_vulkan.py')]
     paths += list((root/'patches/linux-proton/mesa').glob('*.patch')) + list((root/'patches/linux-proton/mesa-base').glob('*.patch'))
     paths += list(fixture.glob('*.h')) + list(fixture.parent.glob('*.h'))
     paths += [fixture/n for n in ('exec_compat.cpp', 'filesystem_compat.c', 'posix_compat.c',
@@ -139,12 +139,42 @@ def prepare(args):
     text=json.dumps(m,indent=2)+'\n';(ROOT/LOCK).write_text(text);(dest/'manifest.json').write_text(text)
     return verify()
 
+def refresh_probe(shim):
+    """Refresh only the independently rebuilt probe; keep qualified WSI/DXVK bytes."""
+    path=shim/'libproton_probe.so'
+    build=json.loads((shim/'posix-probe-identity.json').read_text())
+    if (build['sha256']!=sha(path) or build['bytes']!=path.stat().st_size or
+        build['buildInputs']['script']!=sha(ROOT/'scripts/build_linux_proton_probe.py')):
+        raise ValueError('Proton probe does not match its current builder')
+    m=json.loads((ROOT/LOCK).read_text())
+    current=sources(ROOT)
+    changed={n for n in set(m['sources'])|set(current) if m['sources'].get(n)!=current.get(n)}
+    allowed={'scripts/prepare_linux_proton_dxvk.py','scripts/build_linux_proton_probe.py','scripts/proton_optional_syscalls.py'}
+    if changed-allowed:raise ValueError('Other native inputs changed; use full support rebuild')
+    for row in m['files']:
+        source=ROOT/RAW/row['path']
+        if source.is_symlink() or source.stat().st_size!=row['bytes'] or sha(source)!=row['sha256']:
+            raise ValueError('Previous support payload changed: '+row['path'])
+    shutil.copyfile(path,ROOT/RAW/path.name)
+    row=next(r for r in m['files'] if r['path']==path.name)
+    row.update(bytes=path.stat().st_size,sha256=sha(path))
+    m['installedBytes']=sum(r['bytes'] for r in m['files']);m['sources']=current
+    m['probeBuild']=dict(script=build['buildInputs']['script'],generatedSources=build['generatedSources'],
+        compilers=build['buildInputs']['compilers'],scope='GNU Wine only; existing WSI/Venus/DXVK unchanged')
+    m.pop('id',None)
+    m['id']=hashlib.sha256(json.dumps(m,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    text=json.dumps(m,indent=2)+'\n';(ROOT/LOCK).write_text(text);(ROOT/RAW/'manifest.json').write_text(text)
+    return verify()
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--refresh',action='store_true');p.add_argument('--verify-only',action='store_true')
+    p.add_argument('--refresh-probe',action='store_true');p.add_argument('--refresh',action='store_true');p.add_argument('--verify-only',action='store_true')
     for n in ('archive','dxvk','shim','wsi','venus','license'):p.add_argument('--'+n,type=Path)
     a=p.parse_args()
-    if a.refresh:
+    if a.refresh_probe:
+        if a.refresh or a.verify_only or not a.shim:p.error('Probe refresh requires --shim only')
+        m=refresh_probe(a.shim)
+    elif a.refresh:
         if a.verify_only or not all(getattr(a,n) for n in ('archive','dxvk','shim','wsi','venus','license')):p.error('Refresh requires all verified build inputs')
         m=prepare(a)
     else:m=verify()
