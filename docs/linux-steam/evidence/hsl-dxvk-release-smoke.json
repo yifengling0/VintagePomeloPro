@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-04T01:39:35.814774+00:00",
+  "buildSourceCommit": "a88d80a5ab9c47dde5269bd83649b2233e219b74",
+  "version": "1.5.6",
+  "versionCode": 1005060,
+  "deviceModel": "MLR-AL10",
+  "deviceOS": "7.0.0.111(SP8C00E111R1P2)",
+  "releaseHapSha256": "3274b0fb5e0202af4cd543e4fdf99a4a5d2feb0da86aeb2c464fb8c5fe8a467f",
+  "debugSignedHapSha256": "4d4d190ac9e0650c8b9da717c5597c5c00fa803b7bd1e5f5f46fea8515e28b78",
+  "debugCandidateDifference": "module.json app.debug=true plus official signature metadata; all code/resources identical",
+  "tests": [
+    {
+      "testId": "opengl-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "opengl-x86",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "dns-api-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "dns-api-x86",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "d3d9-cube-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "d3d9-cube-x86",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "d3d9-cube-amd64-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "dxvk-legacy-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "dxvk-legacy-x86",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "dxvk-cube-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "audio-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "audio-x86",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "platform-process-x64",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "platform-process-x86",
+      "status": "PASS",
+      "authority": "host-judged",
+      "stage": ""
+    },
+    {
+      "testId": "clip-basic-x64",
+      "status": "PASS",
+      "authority": "completed-device-result",
+      "message": "12/12 checks passed"
+    },
+    {
+      "testId": "clip-basic-x86",
+      "status": "PASS",
+      "authority": "completed-device-result",
+      "message": "12/12 checks passed"
+    },
+    {
+      "testId": "win-minimize-x64",
+      "status": "PASS",
+      "authority": "completed-device-result",
+      "message": "26/26 checks passed"
+    },
+    {
+      "testId": "win-minimize-x86",
+      "status": "PASS",
+      "authority": "completed-device-result",
+      "message": "26/26 checks passed"
+    },
+    {
+      "testId": "win-owned-x64",
+      "status": "PASS",
+      "authority": "completed-device-result",
+      "message": "14/14 checks passed"
+    },
+    {
+      "testId": "win-owned-x86",
+      "status": "PASS",
+      "authority": "completed-device-result",
+      "message": "14/14 checks passed"
+    }
+  ],
+  "passed": 20,
+  "total": 20,
+  "completeWin32SuiteValidated": false,
+  "windowSelectionNote": "VPP Want adapter did not honor --tests; six completed results collected and the broader suite intentionally stopped. No full suite PASS claim.",
+  "gnuProtonDxvkDeviceQualified": false,
+  "dxvk26Tested": false,
+  "baselineWinePayloadIdentical": true,
+  "packageChecks": [
+    {
+      "command": [
+        "python3",
+        "scripts/runtime_library_guard.py",
+        "/home/liufeng/src/vpp-account-cloud/entry/build/proRelease/outputs/default/entry-default-unsigned.hap"
+      ],
+      "code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_x11_runtime.py",
+        "--hap",
+        "/home/liufeng/src/vpp-account-cloud/entry/build/proRelease/outputs/default/entry-default-unsigned.hap"
+      ],
+      "code": 0,
+      "output": "OHOS X11 closure PASS: 40 ELF libraries, PE drivers, XKB/XKM and locale data\n"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_graphics_contract.py",
+        "--hap",
+        "/home/liufeng/src/vpp-account-cloud/entry/build/proRelease/outputs/default/entry-default-unsigned.hap",
+        "--native-output-dir",
+        "/home/liufeng/src/vpp-account-cloud/entry/build/proRelease/intermediates/stripped_native_libs/default/arm64-v8a"
+      ],
+      "code": 0,
+      "output": "graphics-contract: final HAP module identities, actual MF code, runtime/lock hashes and native outputs PASS\ngraphics-contract: pins, ordered overlays, protocol, routes, lifetime and effective-source checks PASS\n"
+    }
+  ],
+  "media": {
+    "status": "PASS",
+    "gstreamerPlugins": 76,
+    "mediaClosure": "PASS",
+    "wineD3D": "PASS",
+    "smokePayload": "PASS",
+    "fonts": 14,
+    "nlsFiles": 76,
+    "gnuMediaFiles": 38
+  },
+  "strictHistoricalCoreGate": {
+    "passed": false,
+    "sameAsPrevious156": true,
+    "reason": "Unreviewed core runtime replacement: bin/aarch64-windows/msxml6.dll; historical 1.4.9 exact-byte lock retained, not relaxed."
+  }
+}

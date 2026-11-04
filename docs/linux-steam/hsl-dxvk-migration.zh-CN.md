@@ -81,7 +81,29 @@ receipt 并提交。下次启动先恢复未完成事务；这属于可恢复更
 - renderer 全部受管补丁的干净应用、重复应用、反向恢复及重放；完整预检
   226 项通过（包含全量 OHOS Native CMake 配置及源码入库检查）。
 
-本轮未操作设备，尚不能认定 VPP 的 DXVK 游戏兼容性、像素正确性和性能已通过。
+初次移植检查未操作设备，尚不能认定 GNU Proton 新 DXVK 的游戏兼容性、像素正确性和性能已通过。
 后续需实机验证 D3D11 双位宽、最小化／恢复／重开、窗口与全屏、D3D9 GL 回归、
 GNU GL 与 Linux 原生隔离，并检查是否有闪烁或 GPU 同步回退。DXVK 2.6 按当前
 设备限制继续跳过。
+
+## 1.5.6 交付前基础 smoke（2026-11-04）
+
+普通平板 MLR-AL10 上追加完成 20 项原 OHOS Wine 基础 smoke：
+OpenGL／DNS 4 项、D3D9 3 项、DXVK 1.10 D3D11 3 项、音频 2 项、
+跨架构进程 2 项、剪贴板／最小化恢复／owned 窗口 6 项均通过。
+图形项含 host 固定帧判定；窗口项采用六份已完成的设备结果，未把中断的
+完整 win32 套件记作通过。调试签名候选仅开启 module.json 的 debug 标志，
+执行代码及资源与未签名 Release HAP 相同。证据见
+`evidence/hsl-dxvk-release-smoke.json`。
+
+打包审计发现增量暂存缺少 X11 PE／locale 等原 Wine 文件，已复用上一份
+1.5.6 中与当前 Wine 源码相同的完整载荷，补回 X11 依赖；归一化 ELF strip
+元数据前后核对 loadable identity。原 Wine payload 与该基线逐字节相同，
+本轮新 renderer、GNU child 宿主和 GNU DXVK 支持层保留。最终 runtime
+provenance、X11 闭包、图形契约、GStreamer／字体／WineD3D、APP/HAP
+逐成员匹配及 AppGallery 正式签名验证均通过。严格历史 1.4.9 核心字节锁
+仍报与上一份 1.5.6 相同的 msxml6 差异，未重写锁或宣称完整发布门禁通过。
+
+本次 smoke 不替代 GNU Proton 新 DXVK 的双位宽游戏、全屏及性能验收；
+DXVK 2.6 仍按设备限制跳过。CI 另修正 renderer 补丁应用顺序，先应用
+受管补丁，再运行 precise-context 等行为检查。
