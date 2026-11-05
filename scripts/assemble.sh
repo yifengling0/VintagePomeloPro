@@ -603,6 +603,7 @@ EOF
         # Box64 wowbox64.dll → PE 目录 (arm64 原生转译 32 位 x86 应用, HODLL 可选引擎)
         local wowbox64_dll="$BUILD_DIR/box64-pe/wowbox64-prefix/src/wowbox64-build/wowbox64.dll"
         if [ -f "$wowbox64_dll" ]; then
+            python3 "$SCRIPT_DIR/apply_box64_wow64_patches.py" --verify-only --module "$wowbox64_dll"
             cp "$wowbox64_dll" "$wine_data/bin/$wine_pe_dir/"
             log "    wowbox64.dll → rawfile $wine_pe_dir/"
         else

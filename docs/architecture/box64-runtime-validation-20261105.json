@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-05",
+  "device": "ordinary-tablet MLR-AL10",
+  "appVersion": "1.5.6",
+  "runtimeMarker": "vpp-wow64-seh-x87-20261105-v2",
+  "moduleSha256": "9acb55f079d6e80768ed074271d7ba91c1247067534fccf3553dbaaa7db6b3b9",
+  "smoke": "PASS: null read/write VEH, x87, SSE, flags, resume, SMC rewrite and guest permissions",
+  "beforeGuestProtect": "0x20, expected 0x40",
+  "afterGuestProtect": "0x40",
+  "mathCases": 65536,
+  "boxX87Double2MathErrors": 1407,
+  "fexReducedMathErrors": 1398,
+  "fexStrictMathErrors": 0,
+  "gameAcceptance": "NOT PASSED: Box Aokana NVorbis / later Mono failures",
+  "checks": [
+    "managed source replay and drift rejection PASS",
+    "engine selection / configuration PASS",
+    "full ArkTS and unsigned HAP build PASS",
+    "HAP Wine payload hash matches manifest"
+  ],
+  "settingsDeviceAcceptance": "not completed: full HAP install previously refused for insufficient disk memory",
+  "deviceLibraryRestored": "original Box module restored after diagnostics",
+  "payloadSha256": "259d231511955b3cee4f821b7f9dcbf8c801e7c01ec0311830ac900681f44127"
+}

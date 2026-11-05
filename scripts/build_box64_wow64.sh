@@ -31,6 +31,7 @@ source "$SCRIPT_DIR/env.sh"
 
 BOX64_SRC="$ROOT/thirdparty/box64"
 BUILD="$BUILD_DIR/box64-pe"
+python3 "$SCRIPT_DIR/apply_box64_wow64_patches.py" --source "$BOX64_SRC"
 
 test -d "$BOX64_SRC/wine/wow64" || err "box64 源码缺失 wow64 支持: $BOX64_SRC/wine/wow64 (git submodule update --init)"
 command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 \
@@ -63,10 +64,14 @@ fi
 require_cmake_not_debug CMakeCache.txt "box64-pe"
 require_cmake_flag_var CMakeCache.txt CMAKE_C_FLAGS_RELEASE "box64-pe CMAKE_C_FLAGS_RELEASE"
 make -j"$JOBS" wowbox64
+# ExternalProject stamps do not notice edits in the shared source tree.
+# Always drive the incremental child build after managed overlays are applied.
+cmake --build "$BUILD/wowbox64-prefix/src/wowbox64-build" --target wowbox64 --parallel "$JOBS"
 
 # 产物定位 (ExternalProject 子构建目录; hangover boxpe/Dockerfile 的路径)
 DLL="$BUILD/wowbox64-prefix/src/wowbox64-build/wowbox64.dll"
 test -f "$DLL" || err "wowbox64 构建失败: $DLL 不存在"
+python3 "$SCRIPT_DIR/apply_box64_wow64_patches.py" --source "$BOX64_SRC" --verify-only --module "$DLL"
 WOW_CACHE="$BUILD/wowbox64-prefix/src/wowbox64-build/CMakeCache.txt"
 if [ -f "$WOW_CACHE" ]; then
     require_cmake_not_debug "$WOW_CACHE" "wowbox64.dll"

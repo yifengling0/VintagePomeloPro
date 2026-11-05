@@ -489,13 +489,16 @@ $(STAMPS)/box64-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_box64.sh $(SCRIPTS)/env
 # stamp 按 WINE_ARCH 隔离 (同 box64): 方案② skip-touch, 方案③ 真构建。
 box64-wow64: $(STAMPS)/box64-wow64-$(CONFIG)-$(WINE_ARCH)
 
-$(STAMPS)/box64-wow64-$(CONFIG)-$(WINE_ARCH): $(SCRIPTS)/build_box64_wow64.sh $(SCRIPTS)/env.sh FORCE | $(STAMPS)
+BOX64_WOW64_BUILD_INPUTS := $(SCRIPTS)/build_box64_wow64.sh $(SCRIPTS)/apply_box64_wow64_patches.py $(SCRIPTS)/env.sh $(ROOT)/docs/architecture/box64-wow64.lock.json $(wildcard $(ROOT)/patches/box64/*.patch)
+$(STAMPS)/box64-wow64-$(CONFIG)-$(WINE_ARCH): $(BOX64_WOW64_BUILD_INPUTS) FORCE | $(STAMPS)
 	@if [ "$(WINE_ARCH)" = "x86_64" ]; then \
 	    echo "  [box64-wow64] skip (非 arm64 原生 wine, WINE_ARCH=x86_64)"; \
 	    mkdir -p $(dir $@) && touch $@; \
 	elif [ -f $@ ] && \
 	    [ -f $(BUILD_DIR)/box64-pe/wowbox64-prefix/src/wowbox64-build/wowbox64.dll ] && \
 	    ! [ "$(SCRIPTS)/build_box64_wow64.sh" -nt $@ ] && \
+	    python3 $(SCRIPTS)/apply_box64_wow64_patches.py --verify-only \
+	      --module $(BUILD_DIR)/box64-pe/wowbox64-prefix/src/wowbox64-build/wowbox64.dll >/dev/null 2>&1 && \
 	    ! find $(ROOT)/thirdparty/box64 \
 	           -newer $@ -type f \
 	           \( -name '*.c' -o -name '*.h' -o -name '*.S' -o -name '*.py' \
