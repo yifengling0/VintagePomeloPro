@@ -20,6 +20,7 @@ set -euo pipefail
 mkdir -p "$BUILD_DIR/fex-pe/Bin" "$BUILD_DIR/fex-ec/Bin"
 printf x > "$BUILD_DIR/fex-pe/Bin/libwow64fex.dll"
 printf x > "$BUILD_DIR/fex-ec/Bin/libarm64ecfex.dll"
+printf '{}\n' > "$BUILD_DIR/fex-simd-zero.json"
 flags='-DFEX_WOW64_EXACT_STORE=1'
 if [ "${FEX_EXACTSTORE_DIAGNOSTICS:-0}" = 1 ]; then
     flags="$flags -DFEX_WOW64_EXACT_STORE_DIAGNOSTICS=1"
@@ -45,7 +46,7 @@ printf 'build\n' >> "$BUILD_DIR/builds.txt"
     run(1, 2)
     run(0, 3)
     # A hash change with restored mtime must still rebuild.
-    patch = root / 'scripts/patches/fex-wow64-exact-store-diagnostics.patch'
+    patch = root / 'scripts/patches/fex-smc-block-state.patch'
     old = patch.stat()
     patch.write_text(patch.read_text() + '\n')
     os.utime(patch, ns=(old.st_atime_ns, old.st_mtime_ns))

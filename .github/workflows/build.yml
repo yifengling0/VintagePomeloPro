@@ -329,7 +329,13 @@ jobs:
       # Replay first, before the hour-long native dependency build. This uses
       # small fixtures and leaves the verified checkout untouched.
       - name: Verify fresh and incremental FEX source overlays
-        run: python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
+        run: |
+          python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
+          python3 host_tests/fex_build_identity_test.py
+          python3 host_tests/fex_simd_runtime_test.py
+          # Compile both device probes; execution still requires Wine/FEX.
+          i686-w64-mingw32-gcc -O2 tests/runtime/fex_smc_blocks.c -o ci-artifacts/fex-smc-i686.exe
+          x86_64-w64-mingw32-gcc -O2 tests/runtime/fex_smc_blocks.c -o ci-artifacts/fex-smc-x86_64.exe
 
       - name: Install ArkTS project dependencies
         run: |

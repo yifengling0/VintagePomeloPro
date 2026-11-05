@@ -132,6 +132,17 @@ if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s < "$simd_zero_patch" >/dev/null 2>&
     log "Applied patch: $(basename "$simd_zero_patch")"
 fi
 
+
+# Full SMC validation splits IR blocks even within one guest basic block.
+# Block-local SSA constants / flags must never leak across those boundaries.
+smc_block_patch="$SCRIPT_DIR/patches/fex-smc-block-state.patch"
+if ! patch -d "$FEX_SRC" -p1 -R --dry-run -s --fuzz=0 < "$smc_block_patch" >/dev/null 2>&1; then
+    patch -d "$FEX_SRC" -p1 --dry-run -s --fuzz=0 < "$smc_block_patch" >/dev/null || \
+        err "FEX SMC block-state patch cannot be applied"
+    patch -d "$FEX_SRC" -p1 -s --fuzz=0 < "$smc_block_patch"
+    log "Applied patch: $(basename "$smc_block_patch")"
+fi
+
 # Counter instrumentation is deliberately a second overlay and build identity.
 # It is never part of clean OFF/ON timing DLLs.
 if [ "${FEX_EXACTSTORE_DIAGNOSTICS:-0}" = "1" ]; then

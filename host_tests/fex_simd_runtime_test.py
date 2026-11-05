@@ -71,4 +71,37 @@ with tempfile.TemporaryDirectory(prefix='fex-simd-runtime-') as temporary:
     assert refreshed['modules']['arm64ec']['sha256'] == digest(stripped)
     fex.validate(refreshed, lambda name: (directory / name).read_bytes())
 
+    # Historical records remain readable, but must not silently become a new
+    # release without the generic SMC fix. This also catches old build caches.
+    try:
+        fex.require_current(refreshed)
+    except ValueError as error:
+        assert 'predates required SMC repair' in str(error)
+    else:
+        raise AssertionError('legacy FEX repair accepted for new packaging')
+
+    current = json.loads(json.dumps(refreshed))
+    current['repairVersion'] = fex.REPAIR_VERSION
+    current['fixes'] = {'smcBlockState': {'upstreamCommit': fex.SMC_COMMIT,
+        'patchSha256': digest(fex.SMC_PATCH.read_bytes())}}
+    fex.validate(current, lambda name: (directory / name).read_bytes())
+    fex.require_current(current)
+    (directory / fex.RECORD).write_text(json.dumps(current))
+    fex.refresh_staged(directory)
+    assert json.loads((directory / fex.RECORD).read_text())['fixes'] == current['fixes']
+    current['fixes']['smcBlockState']['patchSha256'] = '0' * 64
+    try:
+        fex.require_current(current)
+    except ValueError as error:
+        assert 'patch changed' in str(error)
+    else:
+        raise AssertionError('stale SMC patch hash accepted')
+    del current['fixes']['smcBlockState']
+    try:
+        fex.validate(current, lambda name: (directory / name).read_bytes())
+    except ValueError as error:
+        assert 'SMC block-state repair identity' in str(error)
+    else:
+        raise AssertionError('missing required fix accepted')
+
 print('FEX staged identity follows final transformed module bytes PASS')

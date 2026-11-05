@@ -1,4 +1,4 @@
-"""Record and stage the paired FEX SIMD repair without changing other runtime members."""
+"""Record and stage paired FEX correctness repairs without changing other runtime members."""
 import argparse
 import copy
 import hashlib
@@ -9,7 +9,11 @@ import re
 import struct
 from zipfile import ZipFile
 
+# Keep the established filename for existing package readers.
 RECORD = 'fex-simd-zero.json'
+REPAIR_VERSION = 2
+SMC_COMMIT = 'b21c49352ea56f23ececbe3c87f0fc681be8024b'
+SMC_PATCH = Path(__file__).resolve().parent / 'patches/fex-smc-block-state.patch'
 MEMBERS = {'arm64ec': 'bin/aarch64-windows/libarm64ecfex.dll',
            'wow64': 'bin/aarch64-windows/libwow64fex.dll'}
 
@@ -71,10 +75,14 @@ def pe_kind(data):
             0x8664: 'x64', 0x14c: 'x86'}.get(machine, 'unknown')
 
 def validate(record, read):
-    if record.get('schemaVersion') != 1 or record.get('repairVersion') != 1:
+    if record.get('schemaVersion') != 1 or record.get('repairVersion') not in (1, REPAIR_VERSION):
         raise ValueError('unsupported FEX SIMD repair record')
     if not re.fullmatch('[0-9a-f]{64}', record.get('patchSha256', '')):
         raise ValueError('missing FEX SIMD patch identity')
+    if record['repairVersion'] == REPAIR_VERSION:
+        fix = record.get('fixes', {}).get('smcBlockState', {})
+        if fix.get('upstreamCommit') != SMC_COMMIT or not re.fullmatch('[0-9a-f]{64}', fix.get('patchSha256', '')):
+            raise ValueError('missing FEX SMC block-state repair identity')
     if set(record.get('modules', {})) != set(MEMBERS):
         raise ValueError('incomplete FEX SIMD repair pair')
     for key, name in MEMBERS.items():
@@ -91,9 +99,17 @@ def inputs(build):
     return {MEMBERS['arm64ec']: (build / 'fex-ec/Bin/libarm64ecfex.dll').read_bytes(),
             MEMBERS['wow64']: (build / 'fex-pe/Bin/libwow64fex.dll').read_bytes()}
 
+def require_current(record):
+    if record.get('repairVersion') != REPAIR_VERSION:
+        raise ValueError('FEX build predates required SMC repair; rebuild FEX before packaging')
+    if record.get('fixes', {}).get('smcBlockState', {}).get('patchSha256') != sha(SMC_PATCH.read_bytes()):
+        raise ValueError('FEX SMC patch changed; rebuild FEX before packaging')
+
+
 def write_record(build, patch, source_hash):
     data = inputs(build)
-    record = {'schemaVersion': 1, 'repairVersion': 1, 'sourceHash': source_hash,
+    record = {'schemaVersion': 1, 'repairVersion': REPAIR_VERSION, 'sourceHash': source_hash,
+              'fixes': {'smcBlockState': {'upstreamCommit': SMC_COMMIT, 'patchSha256': sha(SMC_PATCH.read_bytes())}},
               'patchSha256': sha(patch.read_bytes()),
               'modules': {key: {'member': name, 'sha256': sha(data[name])}
                           for key, name in MEMBERS.items()}}
@@ -104,6 +120,7 @@ def stage(build, directory):
     record = json.loads((build / RECORD).read_text())
     data = inputs(build)
     validate(record, data.__getitem__)
+    require_current(record)
     for name, value in data.items():
         target = directory / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -114,7 +131,7 @@ def refresh_staged(directory):
     # Rebind module hashes after package transforms such as PE symbol stripping.
     record_path = directory / RECORD
     record = json.loads(record_path.read_text())
-    if record.get('schemaVersion') != 1 or record.get('repairVersion') != 1:
+    if record.get('schemaVersion') != 1 or record.get('repairVersion') not in (1, REPAIR_VERSION):
         raise ValueError('unsupported FEX SIMD repair record')
     if set(record.get('modules', {})) != set(MEMBERS):
         raise ValueError('incomplete FEX SIMD repair pair')
@@ -135,6 +152,7 @@ def update_rawfile(build, rawfile):
     record = json.loads(record_bytes)
     updates = inputs(build)
     validate(record, updates.__getitem__)
+    require_current(record)
     updates[RECORD] = record_bytes
     payload_path = rawfile / 'wine-data.zip'
     manifest_path = rawfile / 'wine-runtime-manifest.json'
