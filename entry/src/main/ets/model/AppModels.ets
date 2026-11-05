@@ -165,6 +165,27 @@ export function normalizeWineTranslationEngine(value: string): WineTranslationEn
   return value === WineTranslationEngine.BOX64 ? WineTranslationEngine.BOX64 : WineTranslationEngine.FEX;
 }
 
+/** Per-game inheritance is explicit; old settings retain the global choice. */
+export const WINE_TRANSLATION_ENGINE_DEFAULT = 'default';
+export const APP_WINE_TRANSLATION_ENGINES: string[] = [
+  WINE_TRANSLATION_ENGINE_DEFAULT, WineTranslationEngine.FEX, WineTranslationEngine.BOX64
+];
+
+export function normalizeAppWineTranslationEngine(value: string | undefined): string {
+  return value === WineTranslationEngine.FEX || value === WineTranslationEngine.BOX64 ?
+    value : WINE_TRANSLATION_ENGINE_DEFAULT;
+}
+
+export function resolveAppWineTranslationEngine(globalEngine: string, appEngine: string | undefined): WineTranslationEngine {
+  const selected = normalizeAppWineTranslationEngine(appEngine);
+  return normalizeWineTranslationEngine(selected === WINE_TRANSLATION_ENGINE_DEFAULT ? globalEngine : selected);
+}
+
+export function appWineTranslationEngineLabel(value: string): string {
+  return value === WineTranslationEngine.FEX ? 'FEX' :
+    value === WineTranslationEngine.BOX64 ? 'Box64' : '跟随全局';
+}
+
 /** OHOS Wine WoW64 only. GNU/Linux Steam keeps its own Proton/FEX policy. */
 export function resolveWineCpuEnvironment(engine: string, preset: string): string[] {
   if (normalizeWineTranslationEngine(engine) === WineTranslationEngine.BOX64) {
@@ -515,6 +536,8 @@ export interface AppSettings {
   manualBackgroundPath: string;
   /** Kept separately from catalog discovery so a moved game can stay starred. */
   favorite: boolean;
+  /** 原 OHOS Wine 的每游戏 32 位 CPU 后端；default 跟随全局。 */
+  wineTranslationEngine: string;
   /** Box64 兼容性预设；'default' 表示跟随全局设置。 */
   box64Preset: string;
   /** 每游戏图形启动预设，只改 argv；默认不注入参数。 */
@@ -541,6 +564,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     backgroundMode: value.backgroundMode,
     manualBackgroundPath: value.manualBackgroundPath,
     favorite: value.favorite,
+    wineTranslationEngine: normalizeAppWineTranslationEngine(value.wineTranslationEngine),
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
     fexStrictPrecision: value.fexStrictPrecision === true,
@@ -1265,6 +1289,7 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     backgroundMode: GameBackgroundMode.AUTO,
     manualBackgroundPath: '',
     favorite: false,
+    wineTranslationEngine: WINE_TRANSLATION_ENGINE_DEFAULT,
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
     fexStrictPrecision: false,

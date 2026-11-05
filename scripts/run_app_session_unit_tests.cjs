@@ -100,9 +100,16 @@ function fixture() {
   assert.deepEqual(models.resolveFexCompatEnv('box64', strictSettings), []);
   assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(strictSettings))).fexStrictPrecision, true);
 
-  for (const engine of ['fex','box64']) {
+  assert.equal(precisionDefaults.wineTranslationEngine, 'default');
+  const oldEngineSettings = { ...precisionDefaults };
+  delete oldEngineSettings.wineTranslationEngine;
+  assert.equal(models.cloneAppSettings(oldEngineSettings).wineTranslationEngine, 'default');
+  assert.equal(models.normalizeAppWineTranslationEngine('invalid'), 'default');
+  for (const globalEngine of ['fex','box64']) for (const appEngine of ['default','fex','box64']) {
+    const engine = appEngine === 'default' ? globalEngine : appEngine;
+    assert.equal(models.resolveAppWineTranslationEngine(globalEngine, appEngine), engine);
     const f=fixture();f.setState(models.EngineState.READY);f.engine.getPresentationMode=()=>models.WinePresentationMode.MANAGED_WINDOWS;
-    f.globalSettings.wineTranslationEngine=engine;f.globalSettings.box64Preset='performance';
+    f.globalSettings.wineTranslationEngine=globalEngine;f.appSettings.wineTranslationEngine=appEngine;f.globalSettings.box64Preset='performance';
     f.appSettings.box64Preset='unity';f.appSettings.disableMfDxgiDeviceManager=true;
     f.appSettings.fexStrictPrecision=true;
     f.processes.push({pid:42,path:'C:/game.exe',state:'running'});
@@ -111,6 +118,9 @@ function fixture() {
     await f.service.launchReady(app,f.globalSettings,models.DisplayMode.DESKTOP,models.WinePresentationMode.MANAGED_WINDOWS,'/games');
     assert.equal(f.launches.length,1);
     const [,argv,,env]=f.launches[0];
+    assert.ok(env.includes('WINEHUA_WOW64_ENGINE=' + (engine==='box64'?'box':'fex')),
+      'Every app launch carries its resolved engine, overriding the desktop global choice');
+    assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(f.appSettings))).wineTranslationEngine, appEngine);
     const box=Array.from(env).filter(x=>x.startsWith('BOX64_'));
     assert.equal(JSON.stringify(box),JSON.stringify(engine==='box64'?models.resolveBox64PresetEnv('unity'):[]));
     assert.equal(argv.includes('-force-gfx-direct'),engine==='box64');

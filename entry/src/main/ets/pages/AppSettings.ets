@@ -10,7 +10,10 @@ import {
   BOX64_APP_PRESET_IDS,
   BOX64_PRESET_DEFAULT,
   WineTranslationEngine,
-  normalizeWineTranslationEngine,
+  APP_WINE_TRANSLATION_ENGINES,
+  normalizeAppWineTranslationEngine,
+  resolveAppWineTranslationEngine,
+  appWineTranslationEngineLabel,
   GRAPHICS_LAUNCH_PRESET_IDS,
   AppDescriptor,
   AppSettings as StoredAppSettings,
@@ -673,6 +676,20 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private selectedTranslationEngine(): WineTranslationEngine {
+    return resolveAppWineTranslationEngine(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine,
+      this.value.wineTranslationEngine);
+  }
+
+  private setTranslationEngine(engine: string): void {
+    const selected = normalizeAppWineTranslationEngine(engine);
+    if (selected === this.value.wineTranslationEngine) return;
+    const next = cloneAppSettings(this.value);
+    next.wineTranslationEngine = selected;
+    this.value = next;
+    void this.persist();
+  }
+
   private setBox64Preset(preset: string): void {
     if (preset === this.value.box64Preset) return;
     const next = cloneAppSettings(this.value);
@@ -833,7 +850,19 @@ struct AppSettingsPage {
 
           Column({ space: 12 }) {
             Text('兼容性').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
-            if (normalizeWineTranslationEngine(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine) === WineTranslationEngine.BOX64) {
+            Text('转译引擎').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+            Row({ space: 8 }) {
+              ForEach(APP_WINE_TRANSLATION_ENGINES, (engine: string) => {
+                Button(appWineTranslationEngineLabel(engine)).layoutWeight(1).height(42).borderRadius(14)
+                  .fontColor(this.value.wineTranslationEngine === engine ? '#FFFFFFFF' : skinColor('text_primary'))
+                  .backgroundColor(this.value.wineTranslationEngine === engine ? skinColor('accent') : skinColor('search_background'))
+                  .id('app-settings-engine-' + engine)
+                  .onClick((): void => this.setTranslationEngine(engine))
+              }, (engine: string): string => engine)
+            }.width('100%')
+            Text('仅用于原 Wine 的 32 位 Windows 程序，可按游戏保存。选择 Box64 后可设置兼容性预设；完全退出游戏后，从首页重新启动生效。Wine 桌面内直接启动使用全局设置，Linux Steam 的兼容工具由 Steam 管理。')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            if (this.selectedTranslationEngine() === WineTranslationEngine.BOX64) {
               Text('Box64 兼容性预设').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
               Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
@@ -857,7 +886,7 @@ struct AppSettingsPage {
                 '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             }
-            if (normalizeWineTranslationEngine(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine) === WineTranslationEngine.FEX) {
+            if (this.selectedTranslationEngine() === WineTranslationEngine.FEX) {
               Row() {
                 Column({ space: 4 }) {
                   Text('FEX 严格浮点精度').fontSize(15).fontWeight(FontWeight.Medium)

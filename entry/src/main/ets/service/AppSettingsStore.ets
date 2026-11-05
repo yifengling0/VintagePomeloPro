@@ -21,6 +21,7 @@ import {
   createDefaultAppSettings,
   createDefaultGlobalSettings,
   normalizeGraphicsLaunchPreset,
+  normalizeAppWineTranslationEngine,
   normalizeWineLanguage,
   normalizeWineTranslationEngine
 } from '../model/AppModels';
@@ -376,6 +377,7 @@ export class AppSettingsStore {
         GameBackgroundMode.MANUAL : GameBackgroundMode.AUTO,
       manualBackgroundPath: value.manualBackgroundPath ?? '',
       favorite: value.favorite ?? defaults.favorite,
+      wineTranslationEngine: normalizeAppWineTranslationEngine(value.wineTranslationEngine),
       box64Preset: value.box64Preset ?? defaults.box64Preset,
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),

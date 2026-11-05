@@ -1105,6 +1105,14 @@ export class WineEngineService {
     // product sessions add no experiment override.
     const settings = AppSettingsStore.getInstance().getGlobalSettings();
     const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset).concat(envOverrides);
+    // App overrides are last, matching native environment application. Validate
+    // the selected module even when the already-running desktop uses FEX.
+    let launchCpuEngine = settings.wineTranslationEngine;
+    for (const entry of launchEnvironment) {
+      if (entry === 'WINEHUA_WOW64_ENGINE=box') launchCpuEngine = WineTranslationEngine.BOX64;
+      else if (entry === 'WINEHUA_WOW64_ENGINE=fex') launchCpuEngine = WineTranslationEngine.FEX;
+    }
+    this.requireSelectedCpuModule(launchCpuEngine);
     // 旧 Windows 游戏（梦幻群侠传/XYQ 系）用 GDI 把文字画进位图后再二值化成字形
     // 遮罩：启动器.exe 0x4a5b40 只把 > 0x7ffe 的像素当笔画。灰度抗锯齿会把 12px
     // 汉字笔画变成灰色，于是被当成透明，游戏内文字只剩零散笔画碎片，看起来像乱码。
