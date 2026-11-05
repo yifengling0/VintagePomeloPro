@@ -62,11 +62,15 @@ class AssemblyManifestTests(unittest.TestCase):
                               return_value=lock['runtimes']['modern-2.6']):
                 with self.assertRaisesRegex(KeyError, 'd3d10.dll'):
                     validate(runtime, icd, lock)
-                subprocess.run([sys.executable, '-', str(manifest_path)], input=producer,
+                lock_path = root / 'texture.lock.json'
+                lock_path.write_text(json.dumps(lock))
+                subprocess.run([sys.executable, '-', str(manifest_path), str(lock_path)], input=producer,
                                text=True, check=True, capture_output=True)
                 validate(runtime, icd, lock)
                 generated = json.loads(manifest_path.read_text())
                 self.assertEqual(generated['venusRuntime'], seed['venusRuntime'])
+                self.assertEqual(generated['runtimes']['legacy']['managedPatches'], lock['runtimes']['legacy']['patches'])
+                self.assertEqual(generated['runtimes']['legacy']['effectiveSourceSha256'], lock['runtimes']['legacy']['patchedSourceSha256'])
                 for profile, record in lock['runtimes'].items():
                     for name, expected in record['files'].items():
                         architecture, dll = name.split('/')

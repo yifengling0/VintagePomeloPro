@@ -5,16 +5,35 @@
       "commit": "5dff1d7b3dc3c2cd7f51356b99213bcc427b1af9",
       "sourceSha256": "5d51aa800baffd4c13d74aa7ccb816b8ad37cf0d68b84ffa4953d3d60124df52",
       "files": {
-        "arm64x/d3d11.dll": "feda449b40cc80f16865985f75f6c916908a3ece07c90a9ad25a654a9c2dcd9f",
-        "arm64x/dxgi.dll": "a8f1f103aad02be221f2c44acbf360b0082fab13d87fd42b3211e0693c170489",
-        "x64/d3d11.dll": "feda449b40cc80f16865985f75f6c916908a3ece07c90a9ad25a654a9c2dcd9f",
-        "x64/dxgi.dll": "a8f1f103aad02be221f2c44acbf360b0082fab13d87fd42b3211e0693c170489",
-        "x86/d3d10.dll": "68c9b73cc998535c2ac96ab582671e01da41a68e44fc0e71afa1cdfc3eb0dcff",
-        "x86/d3d10_1.dll": "84a065b9af0767f7a664d4bfc946b8b3f3d3fccaaba1bab285c0116c11376886",
-        "x86/d3d10core.dll": "94c4995f685c67f6ebf679e1b1b8dfad03b326a138ab487aa20ac10311861714",
-        "x86/d3d11.dll": "56619fc1637f10a60a290689f4e0122870bbe66f619dc334c018b359087bdd03",
-        "x86/dxgi.dll": "f8e8645f0330b1f36848994900b4096abb61c0284a720f9f5b9cf6f3d46e5b96"
-      }
+        "arm64x/d3d11.dll": "f5a2bcd943ce6176905b86d319df204bc58eccd3f4b4e70bca0605c12f94cffa",
+        "arm64x/dxgi.dll": "57c8a1af71974572920de15a204ff21d0218821a0cd790f58422bd2e6ec4af77",
+        "x64/d3d11.dll": "f5a2bcd943ce6176905b86d319df204bc58eccd3f4b4e70bca0605c12f94cffa",
+        "x64/dxgi.dll": "57c8a1af71974572920de15a204ff21d0218821a0cd790f58422bd2e6ec4af77",
+        "x86/d3d10.dll": "46418d17575851359813dd27cb8176814db63f4e32b78b8cfb0384cf07b4c5e4",
+        "x86/d3d10_1.dll": "b5749edfa658eb1936d3aa2055a1c3707a6b17d36762b8aad8d300c421ae7caf",
+        "x86/d3d10core.dll": "e6dfcc4506f081b53f2b9b76577949623dd4f5f0629a53c06489506c6af3d377",
+        "x86/d3d11.dll": "6a9915261cb6da168d39ab0b3085794d3fc8b73a920c3d935d86d1b93ee83396",
+        "x86/dxgi.dll": "7f40d002b1675e64f312900738e6aad791c946c64aaa4333244b2f744a298c4d"
+      },
+      "patches": [
+        {
+          "path": "patches/dxvk/0001-bgra-uav-storage-view.patch",
+          "sha256": "e9fb7117abff5a6127b7e1a946a00c8153382cc96600974c2b0de9eaee9c4c8e"
+        },
+        {
+          "path": "patches/dxvk/0002-bc-family-capability-fallback.patch",
+          "sha256": "5f131d88f032642f8bccb5760c9099313aac3fefa9fd3e7145fe3892bed51b1b"
+        },
+        {
+          "path": "patches/dxvk/0003-sampler-stage-specialization.patch",
+          "sha256": "214962c829b7df882cb7e368eff00f02f24c38136ff3248551a9438a02e4c661"
+        },
+        {
+          "path": "patches/dxvk/0004-occlusion-query-generation-and-pass.patch",
+          "sha256": "75040831ab7c00ce863357ef8396c7b18aca2ac02c526ab59aee97d1a2a145da"
+        }
+      ],
+      "patchedSourceSha256": "ba82fd97b28b2f5bb64f474cfb016454927a04479a32427e735a1cfef31f2802"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",

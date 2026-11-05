@@ -174,7 +174,7 @@ dxvk: $(DXVK_STAMP)
 # arm64x 链接引用 wine 构建的 import lib (dlls/vulkan-1/aarch64-windows/libvulkan-1.a):
 # 必须显式前置 wine stamp, 否则干净环境 (无残留 build/) 中 dxvk 先于 wine 构建
 # → 链接失败 (CI 实测 2026-09-04: "no such file ... libvulkan-1.a")。
-$(DXVK_STAMP): $(SCRIPTS)/build_dxvk.sh $(SCRIPTS)/build_dxvk_arm64x.sh $(DXVK_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
+$(DXVK_STAMP): $(SCRIPTS)/build_dxvk.sh $(SCRIPTS)/build_dxvk_arm64x.sh $(SCRIPTS)/apply_dxvk_compat_patches.py $(wildcard $(ROOT)/patches/dxvk/*.patch) $(ROOT)/docs/graphics/texture-compat-runtime.lock.json $(DXVK_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
 	$(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
 	@echo "=== dxvk legacy ($(WINE_ARCH)) ==="
 	bash $(SCRIPTS)/build_dxvk.sh
@@ -1336,3 +1336,8 @@ test-x11-integration:
 	python3 $(ROOT)/host_tests/display_overlay_stack_test.py
 	python3 $(ROOT)/host_tests/x11_external_host_test.py
 	python3 $(ROOT)/host_tests/wine_overlay_proof_test.py
+
+.PHONY: test-wine-audio-downmix
+test: test-wine-audio-downmix
+test-wine-audio-downmix:
+	python3 $(ROOT)/host_tests/wine_audio_downmix_test.py

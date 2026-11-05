@@ -7,6 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+python3 "$SCRIPT_DIR/apply_dxvk_compat_patches.py" --source "$DXVK_SRC"
 
 [ -d "$DXVK_SRC" ] || err "DXVK fork missing: $DXVK_SRC"
 

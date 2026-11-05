@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-05T11:22:28.386317+00:00",
+  "device": "MatePad Edge / Maleoon 916B",
+  "appVersion": "1.5.5 (1005050), installed debug build",
+  "commit": "f29ae996668d86ae50291d370ece877ccfd770f0",
+  "runtime": {
+    "description": "Explicit-stage BC and per-sampler border specialization, sparse bool freeze; exact final-SPIRV diagnostic",
+    "profile": true,
+    "releaseEligible": false,
+    "binaries": {
+      "d3d11.dll": {
+        "sha256": "dde814aba9f236b501148dd927a2f152f6796fe4a9881e950c1ae52373ce3f3b",
+        "bytes": 8418816
+      },
+      "dxgi.dll": {
+        "sha256": "8c4bbb4c539fe6ac3eae9ab5027672bea70b53a6f9e796babdaf707bd484383d",
+        "bytes": 5733376
+      }
+    },
+    "patch": "edge-profile-diag.patch"
+  },
+  "scene": "Stationary forest from the existing Lv1 autosave; no story progression",
+  "targetFps": 30,
+  "qualified": false,
+  "records": [
+    {
+      "name": "edge-full-profile",
+      "route": "X11 / Venus",
+      "outputScale": 100,
+      "observedFps": 4.3,
+      "gpuTwoFramesMs": 465.0993631,
+      "mainPasses": [
+        {
+          "gpuMs": 109.58543775000001,
+          "cpuMs": 10.822000000000003,
+          "first": "frame=13945 draw=drawIndexed indexCount=6 instanceCount=1 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_3eba9c47a7410bf1d5495d57333a9f8e9db9d08f vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=13945 draw=drawIndexed indexCount=2328 instanceCount=2 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_f8b10fc5e1861fe2d44527b125219984e793c711 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 77
+        },
+        {
+          "gpuMs": 105.339875,
+          "cpuMs": 10.423999999999978,
+          "first": "frame=13946 draw=drawIndexed indexCount=6 instanceCount=1 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_3eba9c47a7410bf1d5495d57333a9f8e9db9d08f vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=13946 draw=drawIndexed indexCount=2328 instanceCount=2 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_f8b10fc5e1861fe2d44527b125219984e793c711 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 77
+        }
+      ],
+      "compute": [
+        {
+          "gpuMs": 39.1394,
+          "cpuMs": 0.0010000000000047748,
+          "before": "frame=13945 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=195x110x1 bgra-mask=0,0",
+          "after": "compute-end"
+        },
+        {
+          "gpuMs": 39.058,
+          "cpuMs": 0.0009999999999763531,
+          "before": "frame=13946 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=195x110x1 bgra-mask=0,0",
+          "after": "compute-end"
+        }
+      ],
+      "summarySha256": "29ead4f7f2ddff1c654d7fe638d77848eaffe0c4ff792152756d2f9feb963982",
+      "rawSha256": "a7eb9de5bde3d26d9b8b6a2e72f045ca9fd50121a95d0703f241c10555ccf2fd"
+    },
+    {
+      "name": "edge-native-profile",
+      "route": "Wayland / native Vulkan",
+      "outputScale": 100,
+      "observedFps": 5.8,
+      "gpuTwoFramesMs": 350.63339375,
+      "mainPasses": [
+        {
+          "gpuMs": 103.5704688,
+          "cpuMs": 10.659999999999997,
+          "first": "frame=9418 draw=drawIndexed indexCount=32271 instanceCount=22 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_73a14fc7bc7ec2f3cabb080b3f8c44498ee07ea2 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=9418 draw=drawIndexed indexCount=6234 instanceCount=1 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_3039ff72c314142bf911c807d94967687817fbdb vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 75
+        },
+        {
+          "gpuMs": 102.7722813,
+          "cpuMs": 2.230000000000018,
+          "first": "frame=9419 draw=drawIndexed indexCount=32271 instanceCount=21 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_73a14fc7bc7ec2f3cabb080b3f8c44498ee07ea2 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=9419 draw=drawIndexed indexCount=6234 instanceCount=1 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_3039ff72c314142bf911c807d94967687817fbdb vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 75
+        }
+      ],
+      "compute": [
+        {
+          "gpuMs": 39.6511,
+          "cpuMs": 0.003999999999962256,
+          "before": "frame=9419 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=195x110x1 bgra-mask=0,0",
+          "after": "compute-end"
+        },
+        {
+          "gpuMs": 38.983,
+          "cpuMs": 0.0069999999999765805,
+          "before": "frame=9418 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=195x110x1 bgra-mask=0,0",
+          "after": "compute-end"
+        }
+      ],
+      "summarySha256": "257cb11b3465e8c83785530a89ccb20a61dc1552e8cb927e20e9f2f1cb36e6c9",
+      "rawSha256": "a01eefc4e4c6424ceeec83c1b540080c480c77c4abc0a6a454a32fc595d55db7"
+    },
+    {
+      "name": "edge-lowres-profile",
+      "route": "Wayland / native Vulkan",
+      "outputScale": 150,
+      "observedFps": 11.4,
+      "gpuTwoFramesMs": 181.81571945,
+      "mainPasses": [
+        {
+          "gpuMs": 50.822374950000004,
+          "cpuMs": 3.1970000000000027,
+          "first": "frame=5187 draw=drawIndexed indexCount=32271 instanceCount=22 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_73a14fc7bc7ec2f3cabb080b3f8c44498ee07ea2 vp=1040x-585 rt=1040x696:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=5187 draw=drawIndexed indexCount=1344 instanceCount=3 firstIndex=3897 vertexOffset=0 firstInstance=0 fs=FS_41af70dc691f98a1ec715946718b009364965458 vp=1040x-585 rt=1040x696:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 71
+        },
+        {
+          "gpuMs": 50.189106249999995,
+          "cpuMs": 2.3837000000000046,
+          "first": "frame=5186 draw=drawIndexed indexCount=32271 instanceCount=21 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_73a14fc7bc7ec2f3cabb080b3f8c44498ee07ea2 vp=1040x-585 rt=1040x696:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=5186 draw=drawIndexed indexCount=1344 instanceCount=3 firstIndex=3897 vertexOffset=0 firstInstance=0 fs=FS_41af70dc691f98a1ec715946718b009364965458 vp=1040x-585 rt=1040x696:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 71
+        }
+      ],
+      "compute": [
+        {
+          "gpuMs": 16.3697,
+          "cpuMs": 0.003999999999990678,
+          "before": "frame=5187 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=130x74x1 bgra-mask=0,0",
+          "after": "compute-end"
+        },
+        {
+          "gpuMs": 16.0,
+          "cpuMs": 0.0040000000000048885,
+          "before": "frame=5186 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=130x74x1 bgra-mask=0,0",
+          "after": "compute-end"
+        }
+      ],
+      "summarySha256": "19ca5c115725f56c089216f9416e799ce3adce9e12203dfc09a63b7b278ff1dd",
+      "rawSha256": "e78b9ebc95d6b7431860195917eb016905b34fc38f55359f56de688673492c0f"
+    },
+    {
+      "name": "edge-no-border-profile",
+      "route": "Wayland / native Vulkan; border emulation disabled diagnostic",
+      "outputScale": 100,
+      "observedFps": 5.5,
+      "gpuTwoFramesMs": 367.05327040000003,
+      "mainPasses": [
+        {
+          "gpuMs": 108.58812485,
+          "cpuMs": 3.4630000000000223,
+          "first": "frame=10654 draw=drawIndexed indexCount=8346 instanceCount=1 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_1acc5c9c6a3959b7531e64191397218a31e27514 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=10654 draw=drawIndexed indexCount=2328 instanceCount=2 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_f8b10fc5e1861fe2d44527b125219984e793c711 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 77
+        },
+        {
+          "gpuMs": 107.90171875,
+          "cpuMs": 3.466000000000008,
+          "first": "frame=10653 draw=drawIndexed indexCount=8346 instanceCount=1 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_1acc5c9c6a3959b7531e64191397218a31e27514 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "last": "frame=10653 draw=drawIndexed indexCount=2328 instanceCount=2 firstIndex=0 vertexOffset=0 firstInstance=0 fs=FS_f8b10fc5e1861fe2d44527b125219984e793c711 vp=1560x-878 rt=1560x1040:VK_FORMAT_R16G16B16A16_SFLOAT:flags0:viewVK_FORMAT_R16G16B16A16_SFLOAT",
+          "draws": 77
+        }
+      ],
+      "compute": [
+        {
+          "gpuMs": 41.5363,
+          "cpuMs": 0.004000000000019099,
+          "before": "frame=10654 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=195x110x1 bgra-mask=0,0",
+          "after": "compute-end"
+        },
+        {
+          "gpuMs": 36.7609,
+          "cpuMs": 0.004000000000019099,
+          "before": "frame=10653 compute-begin cs=CS_911c688d855af060cba5d2d63af5223528b30e9f groups=195x110x1 bgra-mask=0,0",
+          "after": "compute-end"
+        }
+      ],
+      "summarySha256": "c46e2a62d73586d5f6ca23708d46ef154d5ed512f3adc27b61ecd6adc4f8b6c4",
+      "rawSha256": "0d11d2ca46ffed901ff4e3201ecb893c24db8328ae02e940ba9cff2261db4062"
+    }
+  ],
+  "combinedSampler": {
+    "route": "Wayland/native Vulkan",
+    "mode": "combined sampler diagnostic",
+    "fps": 15.3,
+    "qualified": false,
+    "reason": "Forest and character absent; incorrect black scene, not a valid performance result",
+    "releaseEligible": false
+  },
+  "limitations": [
+    "Two-frame bounded GPU timestamps, not a long benchmark. Shader compilation settled before map capture.",
+    "X11/Venus vs Wayland/native changes the Vulkan route as well as the window backend; not an isolated compositor comparison.",
+    "Existing previous tablet measurements with black captures do not qualify as playable-game performance.",
+    "GPU pass timestamps on this tiled GPU cannot attribute the entire pass to the first draw.",
+    "Earlier ScreenPercentage and ResX experiments did not change actual viewport sizes.",
+    "No release binaries or release defaults changed by these diagnostics."
+  ],
+  "restoration": {
+    "runtime": "managed BC-family/BGRA repair, diagnostic DLLs removed",
+    "displayRoute": {
+      "route": "x11",
+      "verified": true
+    },
+    "outputScale": 100,
+    "gameTemporaryConfigRemoved": true,
+    "engineConfigRestored": true,
+    "otherDevicesOperated": false,
+    "releasePackageChangedThisTurn": false,
+    "pairedDllHashesVerified": true
+  }
+}

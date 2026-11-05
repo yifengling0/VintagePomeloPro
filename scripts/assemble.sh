@@ -911,10 +911,14 @@ EOF
   }
 }
 EOF
-    python3 - "$wine_data/dxvk/manifest.json" <<'PYDXVK'
+    python3 - "$wine_data/dxvk/manifest.json" "$ROOT/docs/graphics/texture-compat-runtime.lock.json" <<'PYDXVK'
 import hashlib, json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 manifest = json.loads(path.read_text())
+legacy_pin = json.loads(pathlib.Path(sys.argv[2]).read_text())['runtimes']['legacy']
+if legacy_pin.get('patches'):
+    manifest['runtimes']['legacy']['managedPatches'] = legacy_pin['patches']
+    manifest['runtimes']['legacy']['effectiveSourceSha256'] = legacy_pin['patchedSourceSha256']
 for profile, runtime in manifest['runtimes'].items():
     for architecture in ('x86', 'x64', 'arm64x'):
         directory = path.parent / profile / architecture

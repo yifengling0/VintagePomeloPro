@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "deviceModel": "MLR-AL10",
+  "gpu": "Maleoon 910",
+  "driver": "292.366.2691",
+  "route": "Original OHOS Wine / FEX / Legacy DXVK ARM64X",
+  "baselineFailure": {
+    "format": "B8G8R8A8_TYPELESS",
+    "size": [
+      815,
+      815
+    ],
+    "bindFlags": 168,
+    "hresult": "80070057",
+    "nativeBgraStorage": false,
+    "nativeRgbaStorage": true
+  },
+  "gpuProbe": {
+    "passed": 31,
+    "sourceSha256": "36b82ae349d034031136273da6e5b45158e6c29c843f4da6e89a446ba820ccc8",
+    "binarySha256": "d5653c797b03ebbcad209d1b02bac839fbc6b0a4a89e578cf256f4355b6255d5",
+    "finalDlls": {
+      "arm64x/d3d11.dll": "34f0cba6a8c2267c306944fe474931d47e70e243214b8fdd40bde4c07abc6b24",
+      "arm64x/dxgi.dll": "d3bc3c6a5225d746b294613bfe1585f543e08bdc6983a1ca6864353fdbae9c70",
+      "x64/d3d11.dll": "34f0cba6a8c2267c306944fe474931d47e70e243214b8fdd40bde4c07abc6b24",
+      "x64/dxgi.dll": "d3bc3c6a5225d746b294613bfe1585f543e08bdc6983a1ca6864353fdbae9c70",
+      "x86/d3d10.dll": "26b4f96706298f5a659baf0952b114a69c4aa834f762437f78ebf4d25c6ccfda",
+      "x86/d3d10_1.dll": "78a7d9597b2326804434a70b34841e88df92948cf29211d8d6292df66b1c5a45",
+      "x86/d3d10core.dll": "a8d176553b6ef323157d0fa8af5e57309a3d9d130970b0d61f9513a280785e9f",
+      "x86/d3d11.dll": "670039674c411827bfe1bbd641790eaedd6bf46528209912024e8664d1c8ceb2",
+      "x86/dxgi.dll": "8f63cc46a5d9b895e3f1987e520ea65db29470f2d41171425967b0e2ae3c4eea"
+    },
+    "output": "MODULE d3d11.dll unix/data/storage/el2/base/files/wine/dxvk/legacy\\arm64x\\d3d11.dll\nMODULE dxgi.dll unix/data/storage/el2/base/files/wine/dxvk/legacy\\arm64x\\dxgi.dll\nENV log=debug\nfeatureLevel=b000\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nPASS 815x815 allocation\nBYTES ClearUAVFloat BGRA bytes actual=51,102,204,255 expected=51,102,204,255\nPASS ClearUAVFloat BGRA bytes\nBYTES ClearUAVUint BGRA bytes actual=51,102,204,255 expected=51,102,204,255\nPASS ClearUAVUint BGRA bytes\nBYTES UpdateSubresource bytes actual=51,102,204,255 expected=51,102,204,255\nPASS UpdateSubresource bytes\nBYTES copy emulated to native BGRA actual=51,102,204,255 expected=51,102,204,255\nPASS copy emulated to native BGRA\nBYTES copy native to emulated BGRA actual=204,153,51,255 expected=204,153,51,255\nPASS copy native to emulated BGRA\nBYTES CS BGRA UAV store actual=51,102,204,255 expected=51,102,204,255\nPASS CS BGRA UAV store\nBYTES same shader RGBA unmodified actual=204,102,51,255 expected=204,102,51,255\nPASS same shader RGBA unmodified\nBYTES same shader rebound BGRA actual=51,102,204,255 expected=51,102,204,255\nPASS same shader rebound BGRA\nBYTES emulated RTV clear BGRA bytes actual=51,102,204,255 expected=51,102,204,255\nPASS emulated RTV clear BGRA bytes\nBYTES mip1 array slice2 clear actual=51,102,204,255 expected=51,102,204,255\nPASS mip1 array slice2 clear\nFLOAT linear SRV after UAV store actual=0.80000,0.40000,0.20000,1.00000\nPASS linear SRV after UAV store\nFLOAT sRGB SRV after UAV store actual=0.60392,0.13284,0.03309,1.00000\nPASS sRGB SRV after UAV store\nRGBA support2=c0\nFLOAT typed BGRA UAV load actual=0.80000,0.40000,0.20000,1.00000\nPASS typed BGRA UAV load\nBYTES deferred UAV store and restore actual=51,102,204,255 expected=51,102,204,255\nPASS deferred UAV store and restore\nBYTES UAV slot 33 actual=51,102,204,255 expected=51,102,204,255\nPASS UAV slot 33\nBYTES pixel shader UAV store actual=51,102,204,255 expected=51,102,204,255\nPASS pixel shader UAV store\nPASS total=31\n"
+  },
+  "shaderValidation": [
+    {
+      "file": "CS_15a3eb58e14966811eda27d5354b5454872f3761.remapped.spv",
+      "sha256": "3b9ff1d7050e929a2737f0d72162137c846826a75b12837da6ff78f02a5e7b08",
+      "valid": true
+    },
+    {
+      "file": "CS_9e9765a82767996c78347ee4c3b244c1e18406d5.remapped.spv",
+      "sha256": "4e3bd2e4aa0c7397b25299cbab7ae98c187a2183f9c6d63ccc10682da7317151",
+      "valid": true
+    },
+    {
+      "file": "CS_d9caa9e862a4cde88ea5d31f8fe72d7c4afa5a25.remapped.spv",
+      "sha256": "5a79418560d8c1f2754a9d8c393d6d6af62f445fac7b66b38419a6be1efc5741",
+      "valid": true
+    },
+    {
+      "file": "CS_e588d56261cf5d8723f66e5bf5654fd38b243f3d.remapped.spv",
+      "sha256": "60fea7df49b40ce45f82bf16eeabba19ee7f186ecd8ab66045c4b0c4e1180297",
+      "valid": true
+    },
+    {
+      "file": "FS_b37bbc98a3c5589d54a0825757174f6199ea4ca5.remapped.spv",
+      "sha256": "9350b506e3e010a0adbc970ae066ba28247edf18f14ff8608a76be998c719c01",
+      "valid": true
+    },
+    {
+      "file": "VS_b4294bb2e3813af678b5597d8298c1e67871d327.remapped.spv",
+      "sha256": "f961237637cc497ebf2738a110e208bd4146a799034f0e186feb57eee89240f2",
+      "valid": true
+    }
+  ],
+  "patchValidation": {
+    "cleanSourceApply": true,
+    "idempotentApply": true,
+    "exactAffectedSources": true,
+    "files": 13
+  },
+  "runtimePackage": {
+    "oldRuntimeSha256": "d9c41b2b63e8613a391dc5602813e47a2ad29f2c500b05801139584893b8b56d",
+    "runtimeSha256": "a5f3633913aab4742276f85006be27447d3328e60d6b8e557929029fd1c121ab",
+    "updatedMembers": [
+      "dxvk/legacy/arm64x/d3d11.dll",
+      "dxvk/legacy/arm64x/dxgi.dll",
+      "dxvk/legacy/x64/d3d11.dll",
+      "dxvk/legacy/x64/dxgi.dll",
+      "dxvk/legacy/x86/d3d10.dll",
+      "dxvk/legacy/x86/d3d10_1.dll",
+      "dxvk/legacy/x86/d3d10core.dll",
+      "dxvk/legacy/x86/d3d11.dll",
+      "dxvk/legacy/x86/dxgi.dll",
+      "dxvk/manifest.json"
+    ],
+    "unchangedMembers": 2763,
+    "unchangedMembersVerifiedBeforeReplacement": true,
+    "legacyDlls": {
+      "arm64x/d3d11.dll": "34f0cba6a8c2267c306944fe474931d47e70e243214b8fdd40bde4c07abc6b24",
+      "arm64x/dxgi.dll": "d3bc3c6a5225d746b294613bfe1585f543e08bdc6983a1ca6864353fdbae9c70",
+      "x64/d3d11.dll": "34f0cba6a8c2267c306944fe474931d47e70e243214b8fdd40bde4c07abc6b24",
+      "x64/dxgi.dll": "d3bc3c6a5225d746b294613bfe1585f543e08bdc6983a1ca6864353fdbae9c70",
+      "x86/d3d10.dll": "26b4f96706298f5a659baf0952b114a69c4aa834f762437f78ebf4d25c6ccfda",
+      "x86/d3d10_1.dll": "78a7d9597b2326804434a70b34841e88df92948cf29211d8d6292df66b1c5a45",
+      "x86/d3d10core.dll": "a8d176553b6ef323157d0fa8af5e57309a3d9d130970b0d61f9513a280785e9f",
+      "x86/d3d11.dll": "670039674c411827bfe1bbd641790eaedd6bf46528209912024e8664d1c8ceb2",
+      "x86/dxgi.dll": "8f63cc46a5d9b895e3f1987e520ea65db29470f2d41171425967b0e2ae3c4eea"
+    },
+    "effectiveSourceSha256": "12185a9208fbc3d167721925e303c3f142618771d516493857ff4116221ee5e8"
+  },
+  "hostTests": {
+    "passed": 20,
+    "graphicsContract": true
+  },
+  "game": {
+    "name": "DRAGON QUEST III HD-2D Remake",
+    "result": "Final DLL recheck: Chinese title menu displayed; 59 FPS overlay observed",
+    "longGameplayValidated": false,
+    "finalDllRecheck": true,
+    "mapPerformanceQualified": false,
+    "mapPerformanceEvidence": "docs/graphics/ue4-map-performance.json"
+  },
+  "limits": [
+    "x86 binaries compiled and packaged, not run on device",
+    "DXVK 2.6 unchanged; this device is not qualified for it",
+    "No full clean CI or new HAP build performed",
+    "Shared/imported/GDI/MSAA textures excluded"
+  ],
+  "installedDllsMatchPackage": true,
+  "diagnosticFilesRemovedFromDevice": true
+}

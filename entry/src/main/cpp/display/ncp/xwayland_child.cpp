@@ -128,8 +128,19 @@ extern "C" __attribute__((visibility("default"))) void Main(NativeChildProcess_A
         size_t slash = xdgDir.rfind('/');
         if (slash != std::string::npos)
         {
+            // Xwayland may reserve :1 or higher when another app owns :0.
+            // The XKM payload is display-independent, but ddxLoad looks it up
+            // as server-<selected display>.xkm. Always stage that exact name.
+            const std::string displayNumber = !f[0].empty() && f[0][0] == ':'
+                ? f[0].substr(1) : std::string();
+            if (displayNumber.empty() || displayNumber.size() > 10 ||
+                displayNumber.find_first_not_of("0123456789") != std::string::npos)
+            {
+                OH_LOG_ERROR(LOG_APP, "invalid Xwayland display name %{public}s", f[0].c_str());
+                return;
+            }
             std::string src = xdgDir.substr(0, slash) + "/wine/xkm/server-0.xkm";
-            std::string dst = xdgDir + "/server-0.xkm";
+            std::string dst = xdgDir + "/server-" + displayNumber + ".xkm";
             int in = open(src.c_str(), O_RDONLY);
             if (in >= 0)
             {
@@ -155,9 +166,9 @@ extern "C" __attribute__((visibility("default"))) void Main(NativeChildProcess_A
                         while (ok && off < r)
                         {
                             ssize_t w = write(out, buf + off, (size_t)(r - off));
-                            if (w < 0)
+                            if (w <= 0)
                             {
-                                if (errno == EINTR)
+                                if (w < 0 && errno == EINTR)
                                     continue;
                                 ok = false;
                                 break;

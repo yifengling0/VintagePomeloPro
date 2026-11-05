@@ -45,6 +45,9 @@ def validate(runtime, icd, lock=None, candidate=None):
                 digest = candidate['payload'][path]['sha256']
             if sha(runtime.read('dxvk/' + profile + '/' + member)) != digest or record[arch][name] != digest:
                 raise ValueError('stale DXVK texture runtime: ' + profile + '/' + member)
+        if pin.get('patches') and (record.get('managedPatches') != pin['patches']
+                                   or record.get('effectiveSourceSha256') != pin['patchedSourceSha256']):
+            raise ValueError('stale DXVK managed overlay metadata: ' + profile)
     expected = lock['venus']['sha256']
     guest = json.loads(runtime.read('bin/guest_vulkan/manifest.json'))
     top_matches = sha(icd) == expected
@@ -68,7 +71,11 @@ def package(rawfile, profiles, icd_path, host_path):
         source = ROOT / 'thirdparty' / ('dxvk' if profile == 'legacy' else 'dxvk-modern')
         commit = subprocess.check_output(['git', '-c', 'safe.directory=' + str(source),
                                           '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
-        if commit != pin['commit'] or source_digest(source / 'src') != pin['sourceSha256']:
+        expected_source = pin['sourceSha256']
+        if profile == 'legacy':
+            from apply_dxvk_compat_patches import apply
+            expected_source = apply(source, verify_only=True)
+        if commit != pin['commit'] or source_digest(source / 'src') != expected_source:
             raise ValueError('DXVK source differs from texture lock: ' + profile)
         for member, digest in pin['files'].items():
             data = (profiles / profile / member).read_bytes()
@@ -89,6 +96,9 @@ def package(rawfile, profiles, icd_path, host_path):
             record = manifest['runtimes'][profile]
             record['commit'] = pin['commit']
             record['textureCompatibility'] = 'bounded-device-tested-candidate'
+            if pin.get('patches'):
+                record['managedPatches'] = pin['patches']
+                record['effectiveSourceSha256'] = pin['patchedSourceSha256']
             for member, digest in pin['files'].items():
                 arch, name = member.split('/')
                 record.setdefault(arch, {})[name] = digest

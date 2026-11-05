@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-05T16:16:25+0800",
+  "status": "BC startup regression fixed on Edge; UE4 post-title scene rendering/performance unresolved",
+  "device": "MatePad Edge QXS-W00",
+  "installedAppVersion": "1.5.5 / 1005050",
+  "route": "Original OHOS Wine / FEX / Legacy DXVK ARM64X / X11",
+  "gpu": "Virtio-GPU Venus (Maleoon 916B), driver 25.0.1",
+  "runtime": {
+    "d3d11.dll": {
+      "bytes": 8323072,
+      "sha256": "3531595ddf59ad86c3b5769ef57dcc16c97d80924a621013f6592c2d1d57dae0"
+    },
+    "dxgi.dll": {
+      "bytes": 5662720,
+      "sha256": "844a9066ad31d678f434e118e2bd91f1e710e6a33b8454e7534037c6cc7bc29f"
+    }
+  },
+  "wineDataSha256": "ad7f5136368d757bde0fc14b7b768a4ff227dffc1c9786ca104cd696a8a938b2",
+  "transfer": {
+    "fileCount": 190,
+    "totalBytes": 16532425687,
+    "sha256AllMatched": true,
+    "noHostGameCopy": true
+  },
+  "startupFailures": [
+    {
+      "format": "BC5_UNORM",
+      "dimensions": "64x64",
+      "mips": 7,
+      "hresult": "E_INVALIDARG"
+    },
+    {
+      "format": "BC1_TYPELESS",
+      "dimensions": "32x32x32",
+      "hresult": "E_INVALIDARG"
+    }
+  ],
+  "fix": {
+    "managedPatch": "patches/dxvk/0002-bc-family-capability-fallback.patch",
+    "selection": "Per-family sampled/filter/transfer and concrete/mutable 2D/3D image capability checks at adapter initialization",
+    "fallback": "Existing upload-time BC decompression; consistent typed/typeless/view/copy family representation",
+    "tradeoff": "A partially supported family falls back as a whole; native 2D resources in that family also expand if 3D support is missing. This increases memory use.",
+    "exclusions": "Existing mapped/RT/UAV/shared restrictions remain. No lossy compression, resizing, feature-bit spoofing or game-specific rule."
+  },
+  "probes": {
+    "coverage": "10 concrete BC formats (2D, seven mips); 5 typeless BC volumes; initialized BC1 depth slices and BC5 UNORM/SNORM GPU sampling",
+    "complete": true,
+    "failures": 0,
+    "normalRuntimeRestoredBeforeProbe": true,
+    "evidence": {
+      "file": "edge-bc-result.txt",
+      "bytes": 682,
+      "sha256": "6fd4da00563a0d1fcf9005ed6e65bf598f0d54b14a641959cabcea706fb99269"
+    }
+  },
+  "buildValidation": {
+    "arm64xIncrementalBuildPassed": true,
+    "x86IncrementalBuildPassed": true,
+    "x86DeviceTested": false,
+    "managedOverlayHostTestsPassed": 3,
+    "assemblyManifestHostTestsPassed": 1,
+    "diffCheckPassed": true,
+    "managedOverlayVerifyPassed": true,
+    "unchangedNonLegacyRuntimeMembers": 2763
+  },
+  "x11Keymap": {
+    "cause": "Installed NCP shim stages server-0.xkm only while another client can cause display :1 selection.",
+    "sourceFix": "entry/src/main/cpp/display/ncp/xwayland_child.cpp stages the actual display keymap and handles zero-progress writes.",
+    "incrementalCompilePassed": true,
+    "patchedShimInstalled": false,
+    "deviceWorkaround": "Stage the unchanged packaged XKM under server-1.xkm before launch. It is consumed by Xwayland; this is not a persistent fix to the old installed HAP."
+  },
+  "game": {
+    "titleVerified": true,
+    "titleVisuals": "Chinese menu, colors and title scene visible",
+    "normalX11TitleFpsObserved": 30.8,
+    "revertedExperiments": {
+      "menuFpsObserved": [
+        56.4,
+        59.9
+      ],
+      "mapRelatedFpsObserved": [
+        4.9,
+        5.1
+      ],
+      "mapVisuals": "Tutorial image visible; main scene captures black after closing tutorial",
+      "packaged": false,
+      "sourceRestored": true
+    },
+    "nativeVulkanWaylandComparison": {
+      "gpu": "Maleoon 916B native Vulkan, driver 598.836.102",
+      "swapchain": "1560x1040",
+      "titleFpsObserved": [
+        43.3,
+        48.0
+      ],
+      "postTitleFpsObserved": [
+        2.2,
+        2.3
+      ],
+      "postTitleVisuals": "Black client area; HUD continues advancing",
+      "sameSaveMapComparisonQualified": false,
+      "isolatedCompositorBenchmark": false,
+      "originalX11PreferenceRestored": true
+    },
+    "conclusion": "No qualified map visibility or playable-performance fix. Black scene and low FPS also observed on the native Vulkan route; current evidence does not isolate a specific shader or driver layer.",
+    "newHapBuilt": false,
+    "gnuProtonChanged": false,
+    "nativeDxvk2_6Changed": false
+  }
+}

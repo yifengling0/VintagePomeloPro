@@ -1,0 +1,1 @@
+Texture3D<float4> input:register(t0);RWStructuredBuffer<float4> output:register(u0);[numthreads(1,1,1)] void main(uint3 id:SV_DispatchThreadID){output[id.x+id.y*4]=input.Load(int4(id.xy,id.x,0));}

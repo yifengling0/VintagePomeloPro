@@ -165,6 +165,8 @@ def update_rawfile(build, rawfile):
         names = before.namelist()
         if len(names) != len(set(names)) or not set(MEMBERS.values()) <= set(names):
             raise ValueError('ambiguous or incomplete base FEX payload')
+        from stamp_wine_builtin_identity import stamp_archive
+        updates['share/wine/wine.inf'] = stamp_archive(before, updates)
         for entry in before.infolist():
             after.writestr(copy.copy(entry), updates.get(entry.filename, before.read(entry)))
         if RECORD not in names:

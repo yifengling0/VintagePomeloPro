@@ -6,10 +6,12 @@ import subprocess
 import struct
 import sys
 import tempfile
+from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import fex_simd_runtime as fex
+from stamp_wine_builtin_identity import stamp, validate_archive
 
 
 def pe(machine):
@@ -89,6 +91,40 @@ with tempfile.TemporaryDirectory(prefix='fex-simd-runtime-') as temporary:
     (directory / fex.RECORD).write_text(json.dumps(current))
     fex.refresh_staged(directory)
     assert json.loads((directory / fex.RECORD).read_text())['fixes'] == current['fixes']
+    # Targeted FEX delivery must also refresh Wineboot's builtin identity,
+    # otherwise an existing prefix can keep stale PE modules after extraction.
+    build, raw = directory / 'build', directory / 'raw'
+    raw.mkdir()
+    newer = {}
+    for key, name in fex.MEMBERS.items():
+        data = (directory / name).read_bytes() + b'new-fex-build'
+        newer[name] = data
+        target = build / ('fex-ec' if key == 'arm64ec' else 'fex-pe') / 'Bin' / Path(name).name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    delivery_record = json.loads(json.dumps(current))
+    for key, name in fex.MEMBERS.items():
+        delivery_record['modules'][key]['sha256'] = digest(newer[name])
+    (build / fex.RECORD).write_text(json.dumps(delivery_record))
+    old_inf = stamp(b'; fixture Wine INF\n', [(name, digest((directory / name).read_bytes()))
+                                               for name in fex.MEMBERS.values()])
+    with ZipFile(raw / 'wine-data.zip', 'w') as archive:
+        for name in fex.MEMBERS.values():
+            archive.writestr(name, (directory / name).read_bytes())
+        archive.writestr('share/wine/wine.inf', old_inf)
+        archive.writestr('preserved.txt', b'unchanged runtime data')
+    (raw / 'wine-runtime-manifest.json').write_text(json.dumps({
+        'payloadSha256': digest((raw / 'wine-data.zip').read_bytes())}))
+    (raw / 'wine_runtime.version').write_text('content=old;wine=fixture\n')
+    fex.update_rawfile(build, raw)
+    with ZipFile(raw / 'wine-data.zip') as archive:
+        validate_archive(archive)
+        assert archive.read('share/wine/wine.inf') != old_inf
+        assert archive.read('preserved.txt') == b'unchanged runtime data'
+        for name, data in newer.items():
+            assert archive.read(name) == data
+        fex.validate(json.loads(archive.read(fex.RECORD)), archive.read)
+
     current['fixes']['smcBlockState']['patchSha256'] = '0' * 64
     try:
         fex.require_current(current)

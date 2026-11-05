@@ -14,6 +14,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+python3 "$SCRIPT_DIR/apply_dxvk_compat_patches.py" --source "$DXVK_SRC"
 source "$SCRIPT_DIR/arm64x_build_cache.sh"
 
 [ -f "$DXVK_SRC/meson.build" ] || err "DXVK source missing: $DXVK_SRC"

@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "recordedAt": "2026-11-05T03:39:41.928741+00:00",
+  "status": "GPU sampler compatibility overhead identified; full game rendering/performance not qualified",
+  "route": "Original OHOS Wine / FEX / Legacy DXVK ARM64X",
+  "gpu": "Maleoon 910",
+  "scene": "Existing opening forest interruption save, stationary; no manual save or progression",
+  "mainPass": {
+    "attachment": "1200x800 R16G16B16A16_SFLOAT",
+    "viewport": "1200x675",
+    "draws": 77,
+    "baselineGpuMs": [
+      438.318,
+      435.739
+    ],
+    "baselineCpuRecordingMs": [
+      13.344,
+      6.82
+    ],
+    "virtualBcStageGpuMs": [
+      173.985,
+      189.738
+    ],
+    "combinedSamplerStageGpuMs": [
+      89.96,
+      91.304
+    ]
+  },
+  "twoFrameGpuTotalsMs": {
+    "baseline": 1100.665,
+    "baselineSameProcessRepeat": 1049.811,
+    "virtualBcStage": 519.326,
+    "virtualBcStageRepeat": 504.606,
+    "combinedSamplerStage": 258.643
+  },
+  "findings": [
+    "The render thread polls a D3D11 EVENT query waiting for submitted GPU work. Completion advances; this is not an infinite wait.",
+    "The CPU records the main HDR pass in roughly 6-14 ms while GPU execution costs roughly 90-440 ms in the measured configurations.",
+    "Software BC decoding and custom-border correction are emitted for eligible samples even when their runtime metadata is inactive.",
+    "Conservatively specializing inactive stage compatibility paths substantially reduces GPU time without skipping any draw in the reported optimization trials.",
+    "The BGRA UAV backing/view/swizzle repair remained enabled in every optimization trial. Observed sampled passes do not implicate its mapped resources as the main hot path."
+  ],
+  "shaderEvidence": {
+    "fragmentShader": "FS_3039ff72c314142bf911c807d94967687817fbdb",
+    "finalModuleBytes": 976324,
+    "finalModuleInstructions": 47793,
+    "finalModuleSpirvVal": "passed, Vulkan 1.1",
+    "offlineOptimizedBytes": 107316,
+    "offlineOptimizedInstructions": 5120,
+    "qualification": "Offline SPIRV-Tools output illustrates eliminable code. It was not substituted into the runtime or used as a measured GPU binary."
+  },
+  "visualCaveat": [
+    "Fresh map captures contain the HUD over a black client area, including a retest with packaged DLLs, no map profiler and state cache disabled.",
+    "Older forest screenshots may have been stale because the old capture helper did not remove the remote file first. Current capture helper removes it before every capture.",
+    "Therefore the 6-8 FPS observed with the candidate is not a qualified playable-game result; actual display versus capture remains to be confirmed."
+  ],
+  "experimentsOnly": {
+    "enabledAtlasSemantics": "Original BC atlas path remains active when metadata requires it; live 0/1/0 switching and deferred-context coverage are still pending.",
+    "borderProbe": "Earlier conditional border-path probe passed 42 cases / 4200 channels with zero observed error. The combined specialization variant needs its own GPU regression.",
+    "prototypeLimitation": "Stage is encoded in high slot bits in the reversible prototype. A production change must use an explicit stage argument and named specialization indices.",
+    "drawIsolation": "Shader-group omission was diagnostic only; all optimization totals above use an empty draw filter.",
+    "releaseRuntimeChanged": false,
+    "releaseLocksChanged": false,
+    "sourceInstrumentationRemoved": true,
+    "managedOverlayVerified": true
+  },
+  "nextSteps": [
+    "Resolve/confirm map visibility before accepting any game performance improvement.",
+    "Promote stage specialization to an explicit maintainable API and test enabled/disabled transitions, deferred contexts and state restore.",
+    "Profile remaining material/buffer sampling work after correctness is established, with controlled clock/thermal conditions."
+  ],
+  "evidence": [
+    {
+      "name": "baseline-repeat",
+      "configuration": "Managed BGRA overlay, repeated baseline",
+      "rawEvidenceSha256": "96994fded8cbf010b312dd433f92257ad580a5f04cb0a6d6f61cdd92808c8aaa"
+    },
+    {
+      "name": "live-baseline",
+      "configuration": "Baseline repeated within same process",
+      "rawEvidenceSha256": "6789b7dfe7bf8baee608e31ea6ec0106c562dfca0b54c6de980080c216ce50fc"
+    },
+    {
+      "name": "stage-fastpath",
+      "configuration": "Virtual BC stage specialization",
+      "rawEvidenceSha256": "b11aef3adfd0930fd8fb497cc54ca8d910737661f1d4332ba182fcae77c75214"
+    },
+    {
+      "name": "stage-repeat",
+      "configuration": "Virtual BC stage specialization repeated",
+      "rawEvidenceSha256": "070ae66a40c0586cdd8045f7682e6ab36c278549036fb9142e40a6b3681cdcd0"
+    },
+    {
+      "name": "sampler-stage",
+      "configuration": "Virtual BC plus conditional/custom-border stage specialization",
+      "rawEvidenceSha256": "d53b2a1e786ef8a31b5c24c3607309ac6f2ea23b691605be7e70565f146d4b3f"
+    }
+  ],
+  "restoration": {
+    "exactExperimentPatchesReversed": true,
+    "managedBgraOverlayVerifyPassed": true,
+    "normalIncrementalBuildPassed": true,
+    "managedOverlayHostTestsPassed": 3,
+    "deviceDllHashesRestoredBeforeDisconnect": true,
+    "packagedDllRetestStillCapturedBlackMap": true,
+    "latestDefaultAppRestart": "Not performed: USB disconnected; previous packaged clean launch only set HUD/log/state-cache diagnostics, without shader/path disabling flags.",
+    "deviceTemporaryShaderCleanup": "Pending: ordinary tablet USB disconnected and its known wireless address failed to connect; Edge not touched.",
+    "hostStorageCleanupBytes": 30285500,
+    "workspaceStorageMaintenance": "Applied with CompactLogs; zero additional actions or issues."
+  }
+}

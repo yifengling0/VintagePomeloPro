@@ -13,7 +13,7 @@ SUITES = (
     'host_tests/proton_optional_syscalls_test.py', 'host_tests/proton_module_contract_test.py', 'host_tests/linux_proton_modules_test.py',
     'host_tests/linux_proton_dxvk_test.py',
     'host_tests/linux_proton_media_test.py', 'host_tests/ci_preflight_test.py', 'host_tests/ci_release_test.py', 'host_tests/linux_runtime_components_test.py',
-    'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
+    'host_tests/wine_audio_downmix_test.py', 'host_tests/dxvk_compat_patches_test.py', 'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
     'host_tests/smoke_build_arch_test.py', 'host_tests/wine_build_identity_test.py', 'host_tests/wine_builtin_identity_test.py',
     'host_tests/gstreamer_native_plugins_test.py', 'host_tests/runtime_library_guard_test.py',
     'host_tests/proton_runtime_catalog_test.py', 'scripts/test_check_runtime_components.py', 'host_tests/graphics_assembly_manifest_test.py', 'host_tests/virgl_patch_overlap_test.py', 'host_tests/fex_simd_runtime_test.py',

@@ -342,6 +342,14 @@
       {
         "path": "patches/wine/0079-x11-ohos-text-only-caption-refresh.patch",
         "sha256": "844c4086b7a6e78e1c2e5519d931b9193d2181839232fdfc35cb3dc4bd2b43f5"
+      },
+      {
+        "path": "patches/wine/0080-wineohos-shared-multichannel-downmix.patch",
+        "sha256": "e03426fb91d393d9abb06d2e26494723cd7b31473460ef8d30fde4ac5fe2472f"
+      },
+      {
+        "path": "patches/wine/0081-wineohos-render-event-pacing.patch",
+        "sha256": "35668bf7592859a42084795242b302148d68bbcd8c3876816977f4ae2a2de9eb"
       }
     ],
     "virglrenderer": [
@@ -581,6 +589,24 @@
         "path": "scripts/patches/xserver-ohos-gpu-visible-region.patch",
         "sha256": "9415483d21e434f7b933861e36ea7baaff6389df8ce3b00d13b3ab0272d18c6a"
       }
+    ],
+    "dxvk": [
+      {
+        "path": "patches/dxvk/0001-bgra-uav-storage-view.patch",
+        "sha256": "e9fb7117abff5a6127b7e1a946a00c8153382cc96600974c2b0de9eaee9c4c8e"
+      },
+      {
+        "path": "patches/dxvk/0002-bc-family-capability-fallback.patch",
+        "sha256": "5f131d88f032642f8bccb5760c9099313aac3fefa9fd3e7145fe3892bed51b1b"
+      },
+      {
+        "path": "patches/dxvk/0003-sampler-stage-specialization.patch",
+        "sha256": "214962c829b7df882cb7e368eff00f02f24c38136ff3248551a9438a02e4c661"
+      },
+      {
+        "path": "patches/dxvk/0004-occlusion-query-generation-and-pass.patch",
+        "sha256": "75040831ab7c00ce863357ef8396c7b18aca2ac02c526ab59aee97d1a2a145da"
+      }
     ]
   },
   "effective_files": {
@@ -626,7 +652,7 @@
       "dlls/wined3d/glsl_shader.c": "e23b30e1072c748b79cdfa68d17b2832dcf09cc560fa3e82a19cf8b028d7cb65",
       "dlls/wined3d/resource.c": "743b54b92e67bd2d4626eb89d50b7a04e6d85904de4878041caff6c12cba9c03",
       "dlls/wined3d/swapchain.c": "076cbafe8283c764acbd4d34af84a627f6babac7a6fe4ee5e60f54acdf554316",
-      "dlls/wineohos.drv/ohos.c": "1e25b6ec4c65452cf43adba18a3e431246ec538003ec230a141e1e230fad08bd",
+      "dlls/wineohos.drv/ohos.c": "40e1ea02728db0e9dbdfbee1dd364f4b4816d7862a47db450e5f1475737f32c8",
       "dlls/winevulkan/make_vulkan": "30638559e8f7fa40032425c2291234c43a9e3e476dc3956beb723fcd9c43dbcf",
       "dlls/winewayland.drv/opengl_readback.c": "6e3e1afd37e7901c5774449bcf21da25371f968cba59fd2f57a65be2ef1bc829",
       "dlls/winewayland.drv/vulkan.c": "6d6c0da7036c65030245f2bc2c7c8ca1a653cf5d27bf3eb736b20c53070af791",
@@ -662,7 +688,8 @@
       "include/Makefile.in": "9a83adcb193b2468741682355b9e5916bf8c760dd7b6330edd0f22440505f969",
       "include/wine/winehua_present.h": "5d793ac345bfb7a2b00010525c90166b9e0079322c9084f67042b148dd78d862",
       "include/wine/winehua_vulkan.h": "dbd825300c13664db7f26e8e4f39e0702e5449160ff15d2e814c61f8c62135a1",
-      "dlls/win32u/defwnd.c": "01907307b6d196c3f2d607512086c11f148298b9633f25ea6fdfe6178ba10941"
+      "dlls/win32u/defwnd.c": "01907307b6d196c3f2d607512086c11f148298b9633f25ea6fdfe6178ba10941",
+      "dlls/wineohos.drv/ohos_audio_mix.h": "9c127f769482afd53df47bdde58c1be3477161acedb46a896677d392a9c8ba6c"
     },
     "virglrenderer": {
       "src/vrend/vrend_renderer.c": "c0f88e4f535655643e86f7a443c6e6c15ea122e445db9358d5ccda6f5ae03e51",
@@ -713,7 +740,7 @@
       "scripts/build_xwayland.sh": "520fc57cf717714309b2f29b5241d21f21b948641415fdfe39b4238b073477be",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "4cc8e5037309fbe95313a208b59b2c1edbde30057a1cd770f935dde5f57111c0",
+      "scripts/build_wine.sh": "135de38a69a20865b6b10c0ed38ca2f7447026ed54898b8424355690ee5ec259",
       "scripts/env.sh": "011a97a8f96fc9d89f971ca6e8880843694be80cde43379277fdfe60a9eb8634",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }

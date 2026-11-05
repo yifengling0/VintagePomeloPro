@@ -113,9 +113,13 @@ def source_identity(manifest):
     dxvk = {}
     for profile, pin in texture['runtimes'].items():
         name = 'thirdparty/' + ('dxvk' if profile == 'legacy' else 'dxvk-modern')
-        if manifest['submodules'][name] != pin['commit'] or source_digest(ROOT / name / 'src') != pin['sourceSha256']:
+        expected_source = pin['sourceSha256']
+        if profile == 'legacy':
+            from apply_dxvk_compat_patches import apply
+            expected_source = apply(ROOT / name, verify_only=True)
+        if manifest['submodules'][name] != pin['commit'] or source_digest(ROOT / name / 'src') != expected_source:
             raise ValueError('candidate DXVK source differs from reviewed source: ' + profile)
-        dxvk[profile] = {'commit': pin['commit'], 'sourceSha256': pin['sourceSha256']}
+        dxvk[profile] = {'commit': pin['commit'], 'sourceSha256': expected_source}
     if manifest['submodules']['thirdparty/mesa'] != texture['venus']['commit']:
         raise ValueError('candidate Mesa source differs from reviewed source')
     for patch in texture['venus']['patches']:

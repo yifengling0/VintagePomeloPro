@@ -371,6 +371,9 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0077-x11-ohos-client-decorations.
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0078-ohos-single-blit-caption.patch" "OHOS atomic non-client caption drawing"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0079-x11-ohos-text-only-caption-refresh.patch" "X11 bounded text-only caption refresh"
 
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0080-wineohos-shared-multichannel-downmix.patch" "OHOS shared multichannel speaker downmix"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0081-wineohos-render-event-pacing.patch" "OHOS render writable-period event pacing"
+
 if [ "${1:-}" = --check-patches ]; then exit 0; fi
 
 # Normalize inherited temporary probes; keep the actual fault/exit paths intact.
