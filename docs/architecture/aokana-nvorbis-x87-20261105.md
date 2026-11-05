@@ -36,3 +36,16 @@ Box64 使用不同的浮点实现，理论上可以规避 FEX 特有问题，但
 候选包安装被设备以 `9568288 / insufficient disk memory` 拒绝，保留了现有已安装版本、全部游戏和存档。因此新设置页的实机操作、保存重启及从首页手动启动验收尚未完成，不能将主机测试替代实机验收。调试包与校验记录保留在 `workspace_temp/aokana-video-packages/`。
 
 原始有界诊断保留在工作区固定任务 `workspace_temp/aokana-video/`，原始日志和设置文件不提交。归档 SHA-256：`b726c2dc83a2561c566c3ffab394a668a2f46535829b2a65c9c9cf3400166274`；游戏 EXE SHA-256：`9c6a938189d4e18dfdbd1891204e35d7b3ed1f8325f24386d354b5838721eb91`。
+
+
+## 上游已有方案调查（2026-11-05）
+
+用户决定暂缓 Box，集中验证 FEX。以下为公开源码、issue、维护者评论和提交的交叉核对，未向上游发送报告。
+
+- [X87ReducedPrecision 官方说明](https://github.com/FEX-Emu/FEX/blob/main/FEXCore/Source/Interface/Config/Config.json.in#L666)：用 FP64 模拟 x87 会降低准确性、可能导致渲染错误；通用默认 false。旧柚性能默认 1 是性能策略，不能代表全部 x87 兼容。
+- [#5827](https://github.com/FEX-Emu/FEX/issues/5827) 有独立的 FILD/FISTP 整数往返复现，缩减精度会损坏数据，使安装器报路径错误。[维护者回复](https://github.com/FEX-Emu/FEX/issues/5827#issuecomment-5312453428) 明确称它为有意的 hack。[#5411](https://github.com/FEX-Emu/FEX/issues/5411) 记录错误纹理；[#5988](https://github.com/FEX-Emu/FEX/issues/5988) 记录 ARM64EC Proton 启动崩溃，单独关闭缩减精度可启动。这些不是本游戏同一指令根因的证明，但确认该兼容开关有上游依据。
+- 已有的底层精度修复：[ffca27cb](https://github.com/FEX-Emu/FEX/commit/ffca27cbde1cf499860a76d440ccd9c8f694759a) 接入 Cephes；[0fbb6aa0](https://github.com/FEX-Emu/FEX/commit/0fbb6aa02f6951423b00207caec67da8d1550efb) 改为显式 SoftFloat float128_t，避免 Windows long double 等同 double 的问题。固定 FEX 源 86ff33bbe 包含二者（merge-base --is-ancestor 均为 0），也有 cephes_128bit API，无需重复移植。不能把本次故障误报为该库丢失。
+- 新的性能候选：[c76fccf2，2026-11-03](https://github.com/FEX-Emu/FEX/commit/c76fccf256a185a2a20008de2578fa5c8dab217f)，对 Clang >=22.1 允许 MinGW preserve_all，减少完整 x87 fallback 的调用保存开销，依据是 [LLVM PR #166436](https://github.com/llvm/llvm-project/pull/166436) 的 Windows ARM64 ABI 修正。旧柚固定源仍对所有 MinGW 禁用它；本机工具链为 Clang 23.1.0。适合作为后续独立候选，先验证 WOW64/ARM64EC 寄存器、异常展开及游戏。本轮没有直接开启或声称提速。
+- [PR #5626](https://github.com/FEX-Emu/FEX/pull/5626) 的 FYL2X/FYL2XP1 优化明确允许更多精度损失，不能当成本例的精度修复。本次定向检索未找到与此 Mono/NVorbis 完全匹配、可直接移植的 FEX 修复，不代表绝无相关报告。
+
+现成兼容方案是使用 FEX 已有完整精度实现：按游戏保存严格浮点精度，向实际新进程注入 FEX_X87REDUCEDPRECISION=0。此前相同 Mono 的 65536 组测试严格模式全通过，缩减模式有 1398 组差异。本轮又观察到 OP 结束后返回中文标题菜单。声音、完整剧情及输入尚未全部验收；新设置页因设备空间不足未安装，不能宣称全部完成。Box 保持原版，不继续实验。
