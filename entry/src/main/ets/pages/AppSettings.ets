@@ -697,6 +697,14 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private setFexStrictPrecision(enabled: boolean): void {
+    if (enabled === this.value.fexStrictPrecision) return;
+    const next = cloneAppSettings(this.value);
+    next.fexStrictPrecision = enabled;
+    this.value = next;
+    void this.persist();
+  }
+
 
 
   private setExtraLaunchArguments(text: string): void {
@@ -848,6 +856,19 @@ struct AppSettingsPage {
               Text(this.value.box64Preset === BOX64_PRESET_DEFAULT ?
                 '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            }
+            if (normalizeWineTranslationEngine(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine) === WineTranslationEngine.FEX) {
+              Row() {
+                Column({ space: 4 }) {
+                  Text('FEX 严格浮点精度').fontSize(15).fontWeight(FontWeight.Medium)
+                    .fontColor(skinColor('text_primary'))
+                  Text('用于浮点精度导致的启动或音频解码异常。可能降低帧率、延长加载；仅对此游戏生效，完全退出游戏后从首页重新启动。')
+                    .fontSize(11).fontColor(skinColor('text_secondary'))
+                }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+                Toggle({ type: ToggleType.Switch, isOn: this.value.fexStrictPrecision })
+                  .onChange((value: boolean): void => this.setFexStrictPrecision(value))
+              }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
+              .id('app-settings-fex-strict-precision')
             }
             Text('Media Foundation 视频').fontSize(13).fontColor(skinColor('text_secondary'))
               .width('100%').margin({ top: 8 })

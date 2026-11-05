@@ -24,6 +24,7 @@ import {
   resolveBox64PresetEnv,
   resolveLaunchDisplayMode,
   resolveMfCompatEnv,
+  resolveFexCompatEnv,
   resolveWinePresentationMode
 } from '../model/AppModels';
 import { isWineInfrastructurePath } from '../model/AppCatalogRules';
@@ -312,7 +313,8 @@ export class AppSessionService {
     const presetId = appSettings.box64Preset !== BOX64_PRESET_DEFAULT
       ? appSettings.box64Preset : settings.box64Preset;
     const useBox64 = normalizeWineTranslationEngine(settings.wineTranslationEngine) === WineTranslationEngine.BOX64;
-    const envOverrides = (useBox64 ? resolveBox64PresetEnv(presetId) : []).concat(resolveMfCompatEnv(appSettings));
+    const envOverrides = (useBox64 ? resolveBox64PresetEnv(presetId) : [])
+      .concat(resolveFexCompatEnv(settings.wineTranslationEngine, appSettings), resolveMfCompatEnv(appSettings));
     hilog.info(DOMAIN, '[SESS]', 'launch: app=%{public}s preset=%{public}s env=%{public}s',
       app.id, presetId, JSON.stringify(envOverrides));
     // 图形预设旗标不写进 settings.arguments，避免和设定页自定义框互相污染。

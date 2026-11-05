@@ -519,6 +519,8 @@ export interface AppSettings {
   box64Preset: string;
   /** 每游戏图形启动预设，只改 argv；默认不注入参数。 */
   graphicsLaunchPreset: string;
+  /** FEX 严格 x87 精度；仅影响此应用，默认保留性能策略。 */
+  fexStrictPrecision: boolean;
   /** 禁用 MF DXGI Device Manager；默认关。 */
   disableMfDxgiDeviceManager: boolean;
   /** 优先 Wine MPEG4 ByteStream Handler，失败仍回 GStreamer；默认关。 */
@@ -541,6 +543,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     favorite: value.favorite,
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
+    fexStrictPrecision: value.fexStrictPrecision === true,
     disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager === true,
     preferMfMpeg4Handler: value.preferMfMpeg4Handler === true,
     executable: value.executable,
@@ -1264,6 +1267,7 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     favorite: false,
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
+    fexStrictPrecision: false,
     disableMfDxgiDeviceManager: false,
     preferMfMpeg4Handler: false,
     executable: '',
@@ -1276,6 +1280,12 @@ export function createDefaultAppSettings(appId: string): AppSettings {
 }
 
 export const MF_DXGI_DEVICE_MANAGER_DISABLE_ENV = 'WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER=1';
+
+/** Original OHOS Wine only. Do not change Box64 or GNU Proton CPU policy. */
+export function resolveFexCompatEnv(engine: string, settings: AppSettings): string[] {
+  return normalizeWineTranslationEngine(engine) === WineTranslationEngine.FEX &&
+    settings.fexStrictPrecision === true ? ['FEX_X87REDUCEDPRECISION=0'] : [];
+}
 
 /** Per-game Media Foundation compat env; default settings emit nothing. */
 export function resolveMfCompatEnv(settings: AppSettings): string[] {

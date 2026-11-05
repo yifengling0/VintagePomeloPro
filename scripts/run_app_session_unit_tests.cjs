@@ -88,10 +88,23 @@ function fixture() {
 }
 
 (async () => {
+  const precisionDefaults = models.createDefaultAppSettings('precision');
+  assert.equal(precisionDefaults.fexStrictPrecision, false);
+  assert.deepEqual(models.resolveFexCompatEnv('fex', precisionDefaults), []);
+  const oldSettings = { ...precisionDefaults };
+  delete oldSettings.fexStrictPrecision;
+  assert.equal(models.cloneAppSettings(oldSettings).fexStrictPrecision, false);
+  const strictSettings = models.cloneAppSettings(precisionDefaults);
+  strictSettings.fexStrictPrecision = true;
+  assert.deepEqual(models.resolveFexCompatEnv('fex', strictSettings), ['FEX_X87REDUCEDPRECISION=0']);
+  assert.deepEqual(models.resolveFexCompatEnv('box64', strictSettings), []);
+  assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(strictSettings))).fexStrictPrecision, true);
+
   for (const engine of ['fex','box64']) {
     const f=fixture();f.setState(models.EngineState.READY);f.engine.getPresentationMode=()=>models.WinePresentationMode.MANAGED_WINDOWS;
     f.globalSettings.wineTranslationEngine=engine;f.globalSettings.box64Preset='performance';
     f.appSettings.box64Preset='unity';f.appSettings.disableMfDxgiDeviceManager=true;
+    f.appSettings.fexStrictPrecision=true;
     f.processes.push({pid:42,path:'C:/game.exe',state:'running'});
     const app={id:'cpu-test',launchKind:models.LaunchKind.WINE_EXE,
       launchTarget:{executable:'C:/game.exe',arguments:[],workingDirectory:''}};
@@ -102,6 +115,8 @@ function fixture() {
     assert.equal(JSON.stringify(box),JSON.stringify(engine==='box64'?models.resolveBox64PresetEnv('unity'):[]));
     assert.equal(argv.includes('-force-gfx-direct'),engine==='box64');
     assert.ok(env.includes(models.MF_DXGI_DEVICE_MANAGER_DISABLE_ENV),'MF compatibility remains independent of CPU selection');
+    assert.equal(env.includes('FEX_X87REDUCEDPRECISION=0'), engine==='fex',
+      'Strict x87 is delivered to the real game launch only under FEX');
   }
 
   // Real phone order: root callback, catalog reconciliation, then engine READY.

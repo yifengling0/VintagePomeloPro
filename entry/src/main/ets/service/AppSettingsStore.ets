@@ -379,6 +379,7 @@ export class AppSettingsStore {
       box64Preset: value.box64Preset ?? defaults.box64Preset,
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
+      fexStrictPrecision: value.fexStrictPrecision === true,
       disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager ?? defaults.disableMfDxgiDeviceManager,
       preferMfMpeg4Handler: value.preferMfMpeg4Handler ?? defaults.preferMfMpeg4Handler,
       executable: value.executable ?? defaults.executable,
