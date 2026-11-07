@@ -246,6 +246,16 @@ export class AppSessionService {
     return this.deferLaunchUntilReady(app, settings, mode, presentationMode, homeDirectory);
   }
 
+  /** A stale portable default may point at the game root while the exe is nested. */
+  private launchWorkingDirectory(app: AppDescriptor): string {
+    const configured = app.launchTarget.workingDirectory;
+    const executable = app.launchTarget.executable.replace(/\\/g, '/');
+    const slash = executable.lastIndexOf('/');
+    if (!app.directory || slash <= 0) return configured;
+    const executableDir = executable.substring(0, slash);
+    return configured === app.directory && executableDir !== app.directory ? executableDir : configured;
+  }
+
   private async launchReady(app: AppDescriptor, settings: GlobalSettings,
     mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string): Promise<RuntimeSession | null> {
@@ -377,7 +387,7 @@ export class AppSessionService {
     if (app.steam && !SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
     const result = WineEngineService.getInstance().launchExecutable(
       launchExecutable, launchArguments,
-      app.launchTarget.workingDirectory, envOverrides) as NativeLaunchResult;
+      this.launchWorkingDirectory(app), envOverrides) as NativeLaunchResult;
     if (!result || result.pid <= 0) {
       hilog.error(DOMAIN, '[SESS]', 'launch: runWineExe FAILED app=%{public}s exe=%{public}s state=%{public}s',
         app.id, launchExecutable, engine.getState());

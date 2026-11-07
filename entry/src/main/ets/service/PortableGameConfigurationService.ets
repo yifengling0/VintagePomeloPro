@@ -151,6 +151,17 @@ export class PortableGameConfigurationService {
         await settings.saveAppSettings(value, 'portable');
       }
     }
+    // Older builds stored the game root for an empty entry working directory.
+    // Migrate that auto-filled value so nested executables run from their own
+    // directory; an explicit user working directory is left untouched.
+    if (entry.workingDirectory === '' && entry.executable.indexOf('/') > 0) {
+      const current = settings.getAppSettings(id);
+      if (current.workingDirectory === directory) {
+        const corrected = cloneAppSettings(current);
+        corrected.workingDirectory = this.executableDirectory(directory, entry.executable);
+        await settings.saveAppSettings(corrected, 'portable');
+      }
+    }
     this.records = this.records.filter((r: PortableRecord): boolean =>
       !(r.directory === directory && r.appId === id) && !(r.appId === id && r.directory !== directory && !fs.accessSync(r.directory)));
     this.records.push(record);

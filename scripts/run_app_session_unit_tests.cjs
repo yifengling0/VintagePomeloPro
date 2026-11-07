@@ -160,6 +160,17 @@ function fixture() {
   assert.ok(!floatLaunchOn.launches[0][3].some(x => x.startsWith('DXVK_CONFIG_FILE=')),
     'floatControls on keeps the DXVK default');
 
+  const nestedApp = {id:'cpu-test',launchKind:models.LaunchKind.WINE_EXE,directory:'/games/PAL4',
+    launchTarget:{executable:'/games/PAL4/PAL4/pal4.exe',arguments:[],workingDirectory:'/games/PAL4'}};
+  const nested = fixture();
+  nested.setState(models.EngineState.READY);
+  nested.engine.getPresentationMode = () => models.WinePresentationMode.MANAGED_WINDOWS;
+  nested.processes.push({pid:42,path:'/games/PAL4/PAL4/pal4.exe',state:'running'});
+  await nested.service.launchReady(nestedApp, nested.globalSettings, models.DisplayMode.DESKTOP,
+    models.WinePresentationMode.MANAGED_WINDOWS, '/games');
+  assert.equal(nested.launches[0][2], '/games/PAL4/PAL4',
+    'stale game-root working directory is corrected to the executable directory');
+
   // Real phone order: root callback, catalog reconciliation, then engine READY.
   // No fabricated native desktop process entry may be needed to keep the root.
   const f = fixture();
