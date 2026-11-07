@@ -101,7 +101,7 @@ export class ValueAddedDomain {
     const value = randomBytes(16).toString('hex') + '.' + userId;
     const signature = createHmac('sha256', this.config.purchaseBindingSecret).update(value + '\n' + productId).digest('base64url');
     if (promotionalOfferId !== undefined) {
-      requireThat((productType === 2 || productType === 3) && typeof promotionalOfferId === 'string' &&
+      requireThat([1, 2, 3].includes(productType) && typeof promotionalOfferId === 'string' &&
         /^[a-zA-Z0-9._-]{1,64}$/.test(promotionalOfferId) && Object.hasOwn(product.promotionalPrices ?? {}, promotionalOfferId),
         'UNKNOWN_OFFER');
       return { developerPayload: value + '.' + signature,

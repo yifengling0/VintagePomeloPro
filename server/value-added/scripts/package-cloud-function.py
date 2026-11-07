@@ -48,7 +48,7 @@ with ZipFile(args.output, 'w', ZIP_DEFLATED) as z:
             'cancelStopsVerified', 'permissionClosedVerified', 'dedupVerified', 'retryAlarmVerified'])]:
         if path:
             report = json.loads(path.read_text())
-            allowed = set(fields) | {'operatorName', 'appId', 'projectId', 'environment', 'membershipProductId', 'oneTimeProductId', 'testedAt', 'notificationCategory'}
+            allowed = set(fields) | {'operatorName', 'appId', 'projectId', 'environment', 'membershipProductId', 'oneTimeProductId', 'lifetimeProductId', 'testedAt', 'notificationCategory'}
             if set(report) - allowed or any(report.get(field) is not True for field in fields):
                 raise SystemExit('Incomplete or unexpected release evidence: ' + name)
             if name == 'renewal-verification.json' and report.get('notificationCategory') != 'ACCOUNT':

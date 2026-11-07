@@ -16,9 +16,9 @@ const optionalFile = async path => path ? readFile(configFile(path), 'utf8') : '
 export function membershipProductsVerified(products, release) {
   const available = products.filter(p => p.kind === 'membership' && p.purchasesEnabled !== false);
   return available.length > 0 && available.every(p =>
-    p.type === 2 ? release.membershipProductId === p.id :
-      p.type === 3 && (p.policyVersion === LIFETIME_POLICY ?
-        release.lifetimeProductId === p.id : release.oneTimeProductId === p.id));
+    (p.type === 1 && p.policyVersion === LIFETIME_POLICY && release?.lifetimeProductId === p.id) ||
+    (p.type === 3 && p.policyVersion === MEMBERSHIP_POLICY && release?.oneTimeProductId === p.id) ||
+    (p.type === 2 && p.policyVersion === SUBSCRIPTION_POLICY && release?.membershipProductId === p.id));
 }
 export function protectedPem(encoded, literal = '') {
   if (!encoded) return literal;
@@ -48,7 +48,8 @@ export async function loadService(env = process.env) {
   for (const product of products) {
     requireThat(/^[a-zA-Z0-9._-]{1,128}$/.test(product.id) && !ids.has(product.id) &&
       ((product.type === 0 && product.kind === 'coffee') || (product.kind === 'membership' &&
-        ((product.type === 3 && [MEMBERSHIP_POLICY, LIFETIME_POLICY].includes(product.policyVersion)) ||
+        ((product.type === 1 && product.policyVersion === LIFETIME_POLICY) ||
+        (product.type === 3 && product.policyVersion === MEMBERSHIP_POLICY) ||
         (product.type === 2 && product.policyVersion === SUBSCRIPTION_POLICY &&
           /^[a-zA-Z0-9._-]{1,128}$/.test(product.subscriptionGroupId))))) &&
       (product.purchasesEnabled === undefined || typeof product.purchasesEnabled === 'boolean') &&

@@ -167,7 +167,7 @@ export class HuaweiPurchaseProvider {
   }
   signPromotion(productId, offerId, userId, now = Date.now()) {
     requireThat(this.ready || this.sandboxReady && this.config.environment === 'SANDBOX', 'NOT_CONFIGURED', 503);
-    const product = this.config.products.find(p => p.id === productId && (p.type === 2 || p.type === 3));
+    const product = this.config.products.find(p => p.id === productId && [1, 2, 3].includes(p.type));
     requireThat(Object.hasOwn(product?.promotionalPrices ?? {}, offerId) && /^[a-f0-9]{64}$/.test(userId), 'UNKNOWN_OFFER');
     const c = this.config, iat = Math.floor(now / 1000);
     const data = JSON.stringify({ productItem: { applicationId: c.appId, productId },
@@ -215,16 +215,18 @@ export class HuaweiPurchaseProvider {
       order.productType === String(productType) && order.productId === candidate.productId, 'INVALID_ORDER');
     const product = this.config.products.find(value => value.id === order.productId && value.type === productType);
     requireThat(product, 'UNKNOWN_PRODUCT');
-    requireThat(product.type === 0 || (product.type === 3 &&
-      [MEMBERSHIP_POLICY, LIFETIME_POLICY].includes(product.policyVersion)),
+    requireThat(product.type === 0 ||
+      (product.type === 1 && product.policyVersion === LIFETIME_POLICY) ||
+      (product.type === 3 && product.policyVersion === MEMBERSHIP_POLICY),
       'MEMBERSHIP_POLICY_UNKNOWN', 503);
     requireThat(Number.isFinite(order.purchaseTime) && Number.isFinite(order.signedTime) && order.signedTime <= Date.now() + 60000 &&
       typeof order.currency === 'string' && order.currency.length === 3 && Number.isFinite(order.price) && order.price >= 0,
       'INVALID_ORDER');
     const regularPrice = Array.isArray(product.prices?.[order.currency]) && product.prices[order.currency].includes(order.price);
     // One-time promotional offers carry the configured offer id on the official order.
-    const promotionalPrice = product.type === 3 && typeof order.offerId === 'string' &&
-      Array.isArray(product.promotionalPrices?.[order.offerId]?.[order.currency]) &&
+    const promotionalPrice = (product.type === 1 || product.type === 3) && typeof order.offerId === 'string' &&
+      Object.hasOwn(product.promotionalPrices ?? {}, order.offerId) &&
+      Array.isArray(product.promotionalPrices[order.offerId]?.[order.currency]) &&
       product.promotionalPrices[order.offerId][order.currency].includes(order.price);
     requireThat(regularPrice || promotionalPrice, 'ORDER_PRICE_MISMATCH');
     const revoked = order.revocationTime !== undefined || order.purchaseOrderRevocationReasonCode !== undefined;

@@ -570,8 +570,8 @@ export class ValueAddedService {
     let invalidMembership: Error | null = null;
     const configured: ProductRequest[] = [
       { productId: config.membershipProductId, productType: config.membershipProductType },
-      { productId: config.membershipOneTimePurchases === false ? '' : config.membershipOneTimeProductId ?? '', productType: 3 },
-      { productId: config.membershipLifetimePurchases === false ? '' : config.membershipLifetimeProductId ?? '', productType: 3 },
+      { productId: config.membershipOneTimePurchases === false ? '' : config.membershipOneTimeProductId ?? '', productType: iap.ProductType.NONRENEWABLE },
+      { productId: config.membershipLifetimePurchases === false ? '' : config.membershipLifetimeProductId ?? '', productType: iap.ProductType.NONCONSUMABLE },
       { productId: config.coffeeProductId, productType: iap.ProductType.CONSUMABLE }
     ];
     for (const item of configured) {
@@ -634,7 +634,7 @@ export class ValueAddedService {
     if (lifetime) {
       result.push({ id: lifetimeId, title: 'VIP',
         price: MembershipCampaigns.money(lifetime.microPrice, lifetime.currency),
-        type: 3, purpose: 'membership', microPrice: lifetime.microPrice, currency: lifetime.currency,
+        type: iap.ProductType.NONCONSUMABLE, purpose: 'membership', microPrice: lifetime.microPrice, currency: lifetime.currency,
         regularPrice: MembershipCampaigns.money(lifetime.originalMicroPrice, lifetime.currency),
         priceDescription: '一次买断，终身有效，不自动续费；登录后以华为收银台价格为准。',
         lifetime: true, campaignLabel: '限时优惠',
@@ -646,7 +646,8 @@ export class ValueAddedService {
   getMembershipProductIssues(): StoreProductIssue[] {
     this.guard();
     return this.productIssues.filter((issue: StoreProductIssue): boolean => issue.type !== 0)
-      .map((issue: StoreProductIssue): StoreProductIssue => ({ id: issue.id, type: issue.type, code: issue.code }));
+      .map((issue: StoreProductIssue): StoreProductIssue => ({ id: issue.id, type: issue.type, code: issue.code,
+        lifetime: issue.lifetime }));
   }
   private async verifyAndFinish(data: string, type: number, epoch: number): Promise<string> {
     if (!this.context) throw new Error('NOT_CONFIGURED');
@@ -658,8 +659,8 @@ export class ValueAddedService {
     if (!verdict.finishAllowed) return verdict.status;
     if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
     const allowed = this.config && ((verdict.productId === this.config.coffeeProductId && verdict.productType === 0) ||
-      (verdict.productId === this.config.membershipOneTimeProductId && verdict.productType === 3) ||
-      (verdict.productId === this.config.membershipLifetimeProductId && verdict.productType === 3) ||
+      (verdict.productId === this.config.membershipOneTimeProductId && verdict.productType === iap.ProductType.NONRENEWABLE) ||
+      (verdict.productId === this.config.membershipLifetimeProductId && verdict.productType === iap.ProductType.NONCONSUMABLE) ||
       (verdict.productId === this.config.membershipProductId && verdict.productType === this.config.membershipProductType));
     if (!allowed || type !== verdict.productType || !verdict.purchaseToken || !verdict.purchaseOrderId) {
       throw new Error('INVALID_ORDER');
@@ -815,14 +816,16 @@ export class ValueAddedService {
   async purchase(product: StoreProduct, confirmation?: MembershipConfirmation): Promise<string> {
     this.guard();
     if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
+    // A read-only campaign preview must never become payable through an official requery.
+    if (product.preview) throw new Error('PRICE_CHANGED');
     await this.refreshCapabilities(true);
     await this.checkPurchaseEnvironment();
     if (!this.capabilities.commerce) throw new Error('NOT_CONFIGURED');
     if (this.busy) throw new Error('BUSY');
     if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
     const allowed = (product.id === this.config.coffeeProductId && product.type === 0) ||
-      (product.id === this.config.membershipOneTimeProductId && product.type === 3) ||
-      (product.id === this.config.membershipLifetimeProductId && product.type === 3) ||
+      (product.id === this.config.membershipOneTimeProductId && product.type === iap.ProductType.NONRENEWABLE) ||
+      (product.id === this.config.membershipLifetimeProductId && product.type === iap.ProductType.NONCONSUMABLE) ||
       (product.id === this.config.membershipProductId && product.type === this.config.membershipProductType);
     if (!allowed) throw new Error('UNKNOWN_PRODUCT');
     if ((product.id === this.config.membershipOneTimeProductId && this.config.membershipOneTimePurchases === false) ||
@@ -954,10 +957,16 @@ export class ValueAddedService {
     try {
       // Coffee has its own independent recovery flow and must not block membership restoration.
       const types: number[] = [this.config.membershipProductType];
-      if (this.config.membershipOneTimeProductId && !types.includes(3)) types.push(3);
+      if (this.config.membershipOneTimeProductId && !types.includes(iap.ProductType.NONRENEWABLE)) {
+        types.push(iap.ProductType.NONRENEWABLE);
+      }
+      // Sale switches never suppress recovery of previously purchased memberships.
+      if (this.config.membershipLifetimeProductId && !types.includes(iap.ProductType.NONCONSUMABLE)) {
+        types.push(iap.ProductType.NONCONSUMABLE);
+      }
       for (const type of types) {
         const queries: number[] = type === 0 ? [iap.PurchaseQueryType.UNFINISHED] :
-          [iap.PurchaseQueryType.UNFINISHED, type === iap.ProductType.AUTORENEWABLE ?
+          [iap.PurchaseQueryType.UNFINISHED, type === iap.ProductType.AUTORENEWABLE || type === iap.ProductType.NONCONSUMABLE ?
             iap.PurchaseQueryType.CURRENT_ENTITLEMENT : iap.PurchaseQueryType.ALL];
         for (const query of queries) {
           let cursor = '';

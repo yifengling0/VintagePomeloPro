@@ -3,8 +3,11 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { X509Certificate, sign, createHash } from 'node:crypto';
+import { X509Certificate, sign, createHash, verify as verifySignature } from 'node:crypto';
 import {verifyHuaweiJws as verifyJws,hasHuaweiIapExtension,HuaweiPurchaseProvider} from '../src/huawei-providers.mjs';
+import { LIFETIME_EXPIRES_AT, LIFETIME_POLICY, MEMBERSHIP_POLICY, deriveMembership } from '../src/membership-policy.mjs';
+import { ValueAddedDomain } from '../src/domain.mjs';
+import { MemoryStore } from './memory-store.mjs';
 const verifyHuaweiJws=(jws,root,now)=>verifyJws(jws,root,now??Date.now(),process.env.VP_TEST_OPENSSL_PATH);
 const dir=mkdtempSync(join(tmpdir(),'vp-test-jws-')); const oldFetch=globalThis.fetch;
 const run=(...args)=>execFileSync('openssl',args,{cwd:dir,stdio:'pipe'});
@@ -65,6 +68,125 @@ try {
   latest={...payload,needFinish:false,finishStatus:'1'};assert.equal((await provider.verify(receipt,3)).needsFinish,false);
   latest={...payload,revocationTime:now};assert.equal((await provider.verify(receipt,3)).status,'revoked');
   for(const bad of [{...payload,applicationId:'other-app'},{...payload,purchaseToken:'other-token'},{...payload,environment:'NORMAL'},{...payload,price:200}]) {latest=bad;await assert.rejects(provider.verify(receipt,3));}
+  const lifetimeProduct={id:'VIP',type:1,kind:'membership',policyVersion:LIFETIME_POLICY,
+    prices:{CNY:[3800]},promotionalPrices:{time_limit:{CNY:[2800]}}};
+  const lifetimeProvider=new HuaweiPurchaseProvider({...provider.config,products:[lifetimeProduct]});
+  lifetimeProvider.enableSandboxTesting();
+  assert.equal(lifetimeProvider.ready,false);
+  assert.equal(lifetimeProvider.sandboxReady,true);
+  const oldTypeProvider=new HuaweiPurchaseProvider({...lifetimeProvider.config,products:[{...lifetimeProduct,type:3}]});
+  assert.notEqual(lifetimeProvider.fingerprint(),oldTypeProvider.fingerprint(),'type1 catalog must invalidate the old type3 probe fingerprint');
+  const lifetimeOrder={...payload,productId:'VIP',productType:'1',purchaseOrderId:'synthetic-vip-order',
+    purchaseToken:'synthetic-vip-token',price:3800};
+  let latestLifetime=lifetimeOrder,lifetimeCalls=0,latestSigningKey=key('leaf');
+  globalThis.fetch=async(url,opts)=>{
+    lifetimeCalls++;
+    assert.equal(url,'https://iap.cloud.huawei.com/order/harmony/v1/application/order/status/query');
+    assert.equal(opts.method,'POST');
+    assert.deepEqual(JSON.parse(opts.body),{purchaseOrderId:lifetimeOrder.purchaseOrderId,purchaseToken:lifetimeOrder.purchaseToken});
+    const [head,body,signature]=opts.headers.Authorization.slice(7).split('.');
+    const auth=JSON.parse(Buffer.from(body,'base64url'));
+    assert.equal(auth.digest,createHash('sha256').update(opts.body).digest('hex'));
+    assert.equal(auth.aud,'iap-v1');assert.equal(auth.aid,'test-app');assert.equal(auth.exp-auth.iat,300);
+    assert.ok(verifySignature('sha256',Buffer.from(head+'.'+body),
+      {key:new X509Certificate(pem('leaf')).publicKey,dsaEncoding:'ieee-p1363'},Buffer.from(signature,'base64url')));
+    return new Response(JSON.stringify({responseCode:'0',jwsPurchaseOrder:jws(latestLifetime,{privateKey:latestSigningKey})}));
+  };
+  const lifetimeReceipt=JSON.stringify({type:1,jwsPurchaseOrder:jws(lifetimeOrder)});
+  const lifetimeFact=await lifetimeProvider.verify(lifetimeReceipt,1);
+  assert.equal(lifetimeCalls,1);assert.equal(lifetimeFact.productType,1);
+  assert.equal(lifetimeFact.status,'purchased');assert.equal(lifetimeFact.needsFinish,true);
+  assert.equal(lifetimeFact.purchasedAt,lifetimeOrder.purchaseTime);assert.equal(lifetimeFact.expiresAt,LIFETIME_EXPIRES_AT);
+  latestLifetime={...lifetimeOrder,price:2800,offerId:'time_limit'};
+  assert.equal((await lifetimeProvider.verify(lifetimeReceipt,1)).expiresAt,LIFETIME_EXPIRES_AT);
+  for(const bad of [{price:2800},{price:2800,offerId:'unknown'},{price:2800,offerId:'__proto__'},
+    {price:2799,offerId:'time_limit'},{price:3801},{price:6800},{price:3800,currency:'USD'}]) {
+    latestLifetime={...lifetimeOrder,...bad};
+    await assert.rejects(lifetimeProvider.verify(lifetimeReceipt,1),/ORDER_PRICE_MISMATCH/);
+  }
+  const beforeWrongReceipt=lifetimeCalls;
+  await assert.rejects(lifetimeProvider.verify(JSON.stringify({type:3,jwsPurchaseOrder:jws({...lifetimeOrder,productType:'3'})}),1),/INVALID_ORDER/);
+  await assert.rejects(lifetimeProvider.verify(JSON.stringify({type:1,jwsPurchaseOrder:jws({...lifetimeOrder,productType:'3'})}),1),/INVALID_ORDER/);
+  await assert.rejects(lifetimeProvider.verify(JSON.stringify({type:1,jwsPurchaseOrder:jws(lifetimeOrder,{privateKey:key('wrongoid')})}),1),/INVALID_JWS/);
+  assert.equal(lifetimeCalls,beforeWrongReceipt,'untrusted/wrong-type receipts must not query even the mocked provider');
+  for(const bad of [{productType:'3'},{productId:'other'},{purchaseOrderId:'other'},
+    {purchaseToken:'other'},{applicationId:'other'},{environment:'NORMAL'}]) {
+    latestLifetime={...lifetimeOrder,...bad};
+    await assert.rejects(lifetimeProvider.verify(lifetimeReceipt,1),/INVALID_ORDER/);
+  }
+  latestLifetime=lifetimeOrder;latestSigningKey=key('wrongoid');
+  await assert.rejects(lifetimeProvider.verify(lifetimeReceipt,1),/INVALID_JWS/);
+  latestSigningKey=key('leaf');
+  for(const [needFinish,finishStatus,expected] of [[false,'1',false],[undefined,'1',false],[undefined,'2',true],[true,'2',true]]) {
+    latestLifetime={...lifetimeOrder,needFinish,finishStatus};
+    assert.equal((await lifetimeProvider.verify(lifetimeReceipt,1)).needsFinish,expected);
+  }
+  latestLifetime={...lifetimeOrder,needFinish:undefined,finishStatus:undefined};
+  await assert.rejects(lifetimeProvider.verify(lifetimeReceipt,1),/ORDER_FINISH_UNKNOWN/);
+  for(const revoked of [{revocationTime:now},{purchaseOrderRevocationReasonCode:'1'}]) {
+    latestLifetime={...lifetimeOrder,needFinish:undefined,finishStatus:undefined,...revoked};
+    const fact=await lifetimeProvider.verify(lifetimeReceipt,1);
+    assert.equal(fact.status,'revoked');assert.equal(fact.needsFinish,false);
+  }
+  const type3LifetimeOrder={...lifetimeOrder,productType:'3'};
+  latestLifetime=type3LifetimeOrder;
+  const type3LifetimeReceipt=JSON.stringify({type:3,jwsPurchaseOrder:jws(type3LifetimeOrder)});
+  await assert.rejects(lifetimeProvider.verify(type3LifetimeReceipt,3),/UNKNOWN_PRODUCT/);
+  for(const invalid of [{type:1,policyVersion:MEMBERSHIP_POLICY},{type:1,policyVersion:'huawei-subscription-v1'},
+    {type:3,policyVersion:LIFETIME_POLICY},{type:3,policyVersion:'unknown'}]) {
+    const invalidProvider=new HuaweiPurchaseProvider({...lifetimeProvider.config,products:[{...lifetimeProduct,...invalid}]});
+    latestLifetime=invalid.type===1?lifetimeOrder:type3LifetimeOrder;
+    await assert.rejects(invalidProvider.verify(invalid.type===1?lifetimeReceipt:type3LifetimeReceipt,invalid.type),/MEMBERSHIP_POLICY_UNKNOWN/);
+  }
+
+  // Full local path: real signing/verifying provider, synthetic official-format JWS,
+  // latest-order fetch mock, persistent domain facts, and the existing membership derivation.
+  const lifetimeStore=new MemoryStore(),owner='a'.repeat(64);
+  let domainTime=now;
+  const lifetimeConfig={appId:'test-app',products:[lifetimeProduct],purchaseBindingSecret:'synthetic-binding-secret'.repeat(3)};
+  const makeLifetimeDomain=()=>new ValueAddedDomain({store:lifetimeStore,accountProvider:{ready:true},
+    purchaseProvider:lifetimeProvider,config:lifetimeConfig,clock:()=>domainTime});
+  const lifetimeDomain=makeLifetimeDomain();
+  assert.equal(lifetimeDomain.capabilities().sandboxCommerce,true);
+  assert.equal(lifetimeDomain.capabilities().profiles,false);
+  const intent=await lifetimeDomain.intent(owner,{productId:'VIP',productType:1,promotionalOfferId:'time_limit'});
+  const [offerHead,offerBody,offerSignature]=intent.promotionalPurchase.jwsRepresentation.split('.');
+  const offer=JSON.parse(Buffer.from(offerBody,'base64url'));
+  assert.deepEqual(JSON.parse(offer.data).productItem,{applicationId:'test-app',productId:'VIP'});
+  assert.equal(JSON.parse(offer.data).offerInfo.offerId,'time_limit');
+  assert.equal(JSON.parse(offer.data).offerInfo.applicationUserName,owner);
+  assert.ok(verifySignature('sha256',Buffer.from(offerHead+'.'+offerBody),
+    {key:new X509Certificate(pem('leaf')).publicKey,dsaEncoding:'ieee-p1363'},Buffer.from(offerSignature,'base64url')));
+  const purchasedLifetime={...lifetimeOrder,price:2800,offerId:'time_limit',developerPayload:intent.developerPayload};
+  latestLifetime=purchasedLifetime;
+  const boundReceipt=JSON.stringify({type:1,jwsPurchaseOrder:jws(purchasedLifetime)});
+  const grant=await lifetimeDomain.verify(owner,{purchaseData:boundReceipt,productType:1});
+  assert.equal(grant.status,'GRANTED');assert.equal(grant.finishAllowed,true);assert.equal(grant.productType,1);
+  assert.equal(grant.purchaseOrderId,purchasedLifetime.purchaseOrderId);
+  const storedOrders=await lifetimeStore.list('orders:'+owner);
+  assert.equal(storedOrders.length,1);assert.equal(storedOrders[0].productType,1);
+  assert.equal(storedOrders[0].policyVersion,LIFETIME_POLICY);assert.equal(storedOrders[0].expiresAt,LIFETIME_EXPIRES_AT);
+  latestLifetime={...purchasedLifetime,needFinish:false,finishStatus:'1'};
+  assert.deepEqual(await lifetimeDomain.verify(owner,{purchaseData:boundReceipt,productType:1}),{status:'ALREADY_FINISHED',finishAllowed:false});
+  assert.equal((await lifetimeStore.list('orders:'+owner)).length,1);
+  domainTime+=100*366*86400000;
+  const queriesBeforeRestore=lifetimeCalls;
+  const restored=await makeLifetimeDomain().entitlement(owner);
+  assert.equal(restored.active,true);assert.equal(restored.lifetime,true);
+  assert.equal(restored.expiresAt,LIFETIME_EXPIRES_AT);assert.equal(restored.refreshRequired,false);
+  assert.equal(lifetimeCalls,queriesBeforeRestore,'permanent entitlement must not requery');
+  const persisted=await lifetimeStore.get('entitlement:'+owner);
+  assert.equal(deriveMembership(persisted.orders,domainTime,300000).lifetime,true);
+  latestLifetime={...purchasedLifetime,revocationTime:now};
+  assert.deepEqual(await lifetimeDomain.verify(owner,{purchaseData:boundReceipt,productType:1}),{status:'REVOKED',finishAllowed:false});
+  assert.equal((await lifetimeDomain.entitlement(owner)).active,false);
+  const refundedRows=structuredClone(lifetimeStore.rows);
+  latestLifetime=purchasedLifetime;
+  await assert.rejects(lifetimeDomain.verify(owner,{purchaseData:boundReceipt,productType:1}),/ORDER_REVOKED/);
+  assert.deepEqual(lifetimeStore.rows,refundedRows);
+  assert.equal((await lifetimeDomain.entitlement(owner)).active,false);
+  console.log('PASS: nonconsumable type1 official-format JWS/latest query, CNY 3800 and time_limit 2800 whitelist, wrong type/policy/price/signature, finish/refund, provider->domain->permanent entitlement');
+
   const subscribed={...payload,productId:'monthly',productType:'2',subscriptionId:'sub',subGroupId:'members',
     subGroupGenerationId:'generation',duration:'P1M',price:500};
   let subGroup={applicationId:'test-app',packageName:'test.package',environment:'SANDBOX',subGroupId:'members',

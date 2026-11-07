@@ -1,8 +1,25 @@
 #!/usr/bin/env node
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),crypto=require('node:crypto'),os=require('node:os');
+// --source transpiles the current models in memory; the compiled-model-dir interface stays compatible.
 const ts=require(process.argv[3]);
-const models=require(path.resolve(process.argv[2],'model/ValueAddedModels.js'));
-const app=require(path.resolve(process.argv[2],'model/AppModels.js'));
+const sourceRoot=path.join(__dirname,'../entry/src/main/ets'),modelCache=new Map();
+function loadModel(file,fromSource=process.argv[2]==='--source'){
+ if(!fromSource)return require(path.resolve(process.argv[2],file+'.js'));
+ if(modelCache.has(file))return modelCache.get(file).exports;
+ const module={exports:{}};modelCache.set(file,module);
+ const source=fs.readFileSync(path.join(sourceRoot,file+'.ets'),'utf8');
+ const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+ vm.runInNewContext(compiled,{module,exports:module.exports,require(id){
+  if(id==='@kit.LocalizationKit'&&file==='model/MembershipCampaign')return {intl:{NumberFormat:class{
+   constructor(_locale,options){this.currency=options.currency;}format(value){return this.currency+' '+value.toFixed(2);}
+  }}};
+  assert.ok(id.startsWith('.'),'unexpected model dependency '+id);
+  return loadModel(path.posix.normalize(path.posix.join(path.posix.dirname(file),id)),true);
+ }},{filename:file+'.ets'});
+ return module.exports;
+}
+const models=loadModel('model/ValueAddedModels');
+const app=loadModel('model/AppModels');
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'vp-account-service-'));
 const completionWatchdog=setTimeout(()=>{console.error('Value-added service tests did not finish');process.exitCode=1;},15000);
 let visible=true,requests=0,constructors=0,finishCalls=0,failFinish=true,writes=0,user='alice',authorizationState='', sdkError=0, wrongState=false;
@@ -43,7 +60,7 @@ const authentication={HuaweiIDProvider:class{constructor(){constructors++;}creat
  if(!request.permissions){assert.deepEqual(Array.from(request.scopes),['profile']);return {state:request.state,data:{openID:'sdk-open-id',nickName:'Test nickname',avatarUri:'https://avatar.example.test/a.png'}};}
  authorizationState=request.state;assert.deepEqual(Array.from(request.scopes),['profile']);assert.deepEqual(Array.from(request.permissions),['serviceauthcode']);return {state:request.state,data:{authorizationCode:'provider-code'}};}}};
 let sandboxActive=true,managedSubscriptions=0,purchaseCalls=0,promotionalOffers=[],latestPurchase,omitOfferSignature=false,createError=0,autoReceipts=[];const subscriptionQueries=[];
-const iap={IAPErrorCode:{USER_CANCELED:1,PRODUCT_OWNED:2},isSandboxActivated:async()=>sandboxActive,PeriodUnit:{MONTH:2},OfferPaymentMode:{PAY_AS_YOU_GO:2},ProductType:{CONSUMABLE:0,AUTORENEWABLE:2},PurchaseQueryType:{UNFINISHED:1,ALL:0,CURRENT_ENTITLEMENT:2},
+const iap={IAPErrorCode:{USER_CANCELED:1,PRODUCT_OWNED:2},isSandboxActivated:async()=>sandboxActive,PeriodUnit:{MONTH:2},OfferPaymentMode:{PAY_AS_YOU_GO:2},ProductType:{CONSUMABLE:0,NONCONSUMABLE:1,AUTORENEWABLE:2,NONRENEWABLE:3},PurchaseQueryType:{UNFINISHED:1,ALL:0,CURRENT_ENTITLEMENT:2},
  WindowScreenMode:{DIALOG_BOX:0},showManagedSubscriptions:async(_,options)=>{assert.equal(options.windowScreenMode,0);managedSubscriptions++;},
  queryProducts:async(_,{productType,productIds})=>[
   {id:productIds[0],type:productType,name:productType===0?'Coffee':'Membership',localPrice:productType===2?'¥5.00':'CNY 6.00',price:'6',
@@ -77,10 +94,9 @@ const imports={
  TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:crypto.randomUUID}},
  '@kit.CryptoArchitectureKit':{cryptoFramework:md},'@kit.CoreFileKit':{fileIo:adapter},
  '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>visible,deviceType:()=>visible?'tablet':'phone'}},
- '../../model/AppModels':app,'../../model/AccountSyncModels':require(path.resolve(process.argv[2], 'model/AccountSyncModels.js')),
-  '../../model/ValueAddedModels':models,'../../model/MembershipCommerce':require(path.resolve(process.argv[2],'model/MembershipCommerce.js')),
-  '../../model/MembershipCampaign':{MembershipCampaigns:{parse:()=>[],active:()=>undefined,
-    money:(micro,currency)=>currency+' '+(micro/1000000).toFixed(2),deadline:()=>''}},
+ '../../model/AppModels':app,'../../model/AccountSyncModels':loadModel('model/AccountSyncModels'),
+  '../../model/ValueAddedModels':models,'../../model/MembershipCommerce':loadModel('model/MembershipCommerce'),
+  '../../model/MembershipCampaign':loadModel('model/MembershipCampaign',true),
  '../InputProfileService':{InputProfileService:{getInstance:()=>({hasProfile:()=>true,getProfile:()=>profile,saveProfile:async()=>{writes++;}})}}
 };
 const source=fs.readFileSync(path.join(__dirname,'../entry/src/main/ets/service/valueadded/ValueAddedService.ets'),'utf8');
@@ -94,7 +110,192 @@ async function purchaseConfirmed(service, product){
  if(!product.purpose)product=(await service.products()).find(p=>p.id===product.id&&p.type===product.type);
  return service.purchase(product,{userId:service.getUserId(),quote:service.quoteKey(product),termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:product.type===2});
 }
-const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stringify(config))}};
+const context={filesDir:directory,resourceManager:{getRawFileContent:async name=>Buffer.from(JSON.stringify(
+ name==='membership_campaigns.json'?{schema:1,campaigns:[]}:config))}};
+async function testLifetimeMembership(){
+ const savedRoute=route,savedUser=user;
+ const savedIap=Object.fromEntries(['queryProducts','queryPurchases','createPurchase','finishPurchase'].map(name=>[name,iap[name]]));
+ const {NONCONSUMABLE:vipType,AUTORENEWABLE:monthlyType,NONRENEWABLE:legacyType,CONSUMABLE:coffeeType}=iap.ProductType;
+ const {UNFINISHED,CURRENT_ENTITLEMENT,ALL}=iap.PurchaseQueryType;
+ const vipConfig={...config,membershipProductId:'vip_monthly',membershipProductType:monthlyType,
+  membershipOneTimeProductId:'vip_monthly_once',membershipOneTimePurchases:false,
+  membershipLifetimeProductId:'VIP',membershipLifetimePurchases:true};
+ const campaign={schema:1,campaigns:[{productId:'VIP',offerId:'local_28',currency:'CNY',
+  originalMicroPrice:68000000,microPrice:28000000,endsAt:'2099-01-01T00:00:00+08:00'}]};
+ const makeContext=settings=>({...context,resourceManager:{getRawFileContent:async name=>Buffer.from(JSON.stringify(
+  name==='membership_campaigns.json'?campaign:settings))}});
+ const officialVip={id:'VIP',type:vipType,name:'VIP',price:'38',localPrice:'CNY 38.00',
+  microPrice:38000000,originalMicroPrice:68000000,currency:'CNY'};
+ let vipDetails=officialVip,lookupIssue='',coffeeMissing=false,pendingFinish=false;
+ const productQueries=[],purchaseQueries=[],intents=[],created=[],finished=[],verified=[],trace=[];
+ let queryReceipts=async()=>({purchaseDataList:[]});
+ const verdict=(productId,productType,order='vip-order')=>({status:'GRANTED',finishAllowed:true,
+  productId,productType,purchaseOrderId:order,purchaseToken:order+'-token'});
+ let verifyResponse=()=>verdict('VIP',vipType);
+ try {
+  iap.queryProducts=async(_,{productType,productIds})=>{
+   productQueries.push({productType,productIds:Array.from(productIds)});trace.push('query:'+productType);
+   if(productIds[0]==='VIP'){
+    assert.equal(productType,vipType,'lifetime lookup must use the official nonconsumable type');
+    if(lookupIssue==='missing')return [];
+    if(lookupIssue==='error')throw {code:1001860002};
+    if(lookupIssue==='invalid')return [{...vipDetails,microPrice:0}];
+    return [{...vipDetails}];
+   }
+   if(productIds[0]==='vip_monthly'){
+    assert.equal(productType,monthlyType);
+    return [{id:'vip_monthly',type:monthlyType,name:'Monthly',price:'5',localPrice:'CNY 5.00',
+     microPrice:5000000,currency:'CNY',subscriptionInfo:{periodUnit:iap.PeriodUnit.MONTH,periodCount:1}}];
+   }
+   assert.equal(productIds[0],'coffee','retired one-time month must never be advertised');assert.equal(productType,coffeeType);
+   return coffeeMissing?[]:[{id:'coffee',type:coffeeType,name:'Coffee',price:'6',localPrice:'CNY 6.00',microPrice:6000000,currency:'CNY'}];
+  };
+  iap.queryPurchases=async(_,args)=>{
+   purchaseQueries.push({productType:args.productType,queryType:args.queryType,continuationToken:args.continuationToken??''});
+   return queryReceipts(args);
+  };
+  iap.createPurchase=async(_,parameter)=>{
+   purchaseCalls++;latestPurchase=parameter;created.push({...parameter});trace.push('create:'+parameter.productType);
+   return {purchaseData:'opaque-vip-receipt'};
+  };
+  iap.finishPurchase=async(_,parameter)=>{
+   finishCalls++;finished.push({...parameter});trace.push('finish:'+parameter.productType);
+   if(pendingFinish&&parameter.purchaseOrderId==='vip-unfinished')throw Error('OFFLINE');
+  };
+  route=async(url,options)=>{
+   const endpoint=new URL(url).pathname;
+   if(endpoint==='/v1/purchases/intent'){
+    const body=JSON.parse(options.extraData);intents.push(body);trace.push('intent:'+body.productType);
+    assert.equal(body.productId,'VIP');assert.equal(body.productType,vipType);
+    return {developerPayload:'bound-vip-intent',...(body.promotionalOfferId?{promotionalPurchase:{
+     promotionalOfferId:body.promotionalOfferId,applicationUserName:user,jwsRepresentation:'AAA.BBB.CCC'}}:{})};
+   }
+   if(endpoint==='/v1/purchases/verify'){
+    const body=JSON.parse(options.extraData);verified.push(body);trace.push('verify:'+body.productType);
+    return verifyResponse(body);
+   }
+   return savedRoute(url,options);
+  };
+  const vipService=new mod.exports.ValueAddedService();await vipService.initialize(makeContext(vipConfig));await vipService.signIn();
+  productQueries.length=0;
+  const products=await vipService.products(),vipProduct=products.find(p=>p.id==='VIP'),monthlyProduct=products.find(p=>p.id==='vip_monthly');
+  assert.deepEqual(productQueries,[{productType:monthlyType,productIds:['vip_monthly']},
+   {productType:vipType,productIds:['VIP']},{productType:coffeeType,productIds:['coffee']}]);
+  assert.equal(vipProduct.type,1);assert.equal(vipProduct.lifetime,true);assert.equal(vipProduct.price,'CNY 38.00');
+  assert.equal(vipProduct.microPrice,38000000);assert.equal(vipProduct.promotion,undefined);
+  assert.equal(vipProduct.campaignLabel,undefined,'local 28 campaign cannot override the official 38 quote');
+  const preview=vipService.previewProducts().find(p=>p.id==='VIP');
+  assert.equal(preview.type,1);assert.equal(preview.preview,true);assert.equal(preview.lifetime,true);assert.equal(preview.price,'CNY 28.00');
+  const noPreviewCalls={requests,queries:productQueries.length,intents:intents.length,purchaseCalls,finishCalls};
+  for(const readOnly of [preview,{...vipProduct,preview:true},{...monthlyProduct,preview:true}]){
+   await assert.rejects(purchaseConfirmed(vipService,readOnly),/PRICE_CHANGED/);
+  }
+  assert.deepEqual({requests,queries:productQueries.length,intents:intents.length,purchaseCalls,finishCalls},noPreviewCalls,
+   'a direct preview call, including an otherwise payable official quote, cannot even begin checkout/requery');
+  await assert.rejects(purchaseConfirmed(vipService,{...vipProduct,type:legacyType}),/UNKNOWN_PRODUCT/);
+  await assert.rejects(purchaseConfirmed(vipService,{...vipProduct,price:'CNY 28.00',microPrice:28000000}),/PRICE_CHANGED/);
+  assert.equal(intents.length,0);assert.equal(created.length,0,'neither type-3 VIP nor an unconfirmed local discount reaches the cashier');
+  trace.length=0;
+  assert.equal(await purchaseConfirmed(vipService,vipProduct),'FINISHED');
+  assert.deepEqual(trace,['query:1','intent:1','create:1','verify:1','finish:1']);
+  assert.deepEqual(intents[0],{productId:'VIP',productType:1});
+  assert.deepEqual(created[0],{productId:'VIP',productType:1,developerPayload:'bound-vip-intent'});
+  assert.deepEqual(verified[0],{purchaseData:'opaque-vip-receipt',productType:1});
+  assert.deepEqual(finished[0],{productType:1,purchaseToken:'vip-order-token',purchaseOrderId:'vip-order'});
+  // Keep the existing official single-offer support, but never synthesize the local 28 offer.
+  vipDetails={...officialVip,price:'68',localPrice:'CNY 68.00',microPrice:68000000,
+   promotionalOffers:[{offerId:'official_38',microPrice:38000000,localPrice:'CNY 38.00'}]};
+  const officialOffer=(await vipService.products()).find(p=>p.id==='VIP');
+  assert.equal(officialOffer.price,'CNY 38.00');assert.equal(officialOffer.promotion.id,'official_38');
+  assert.equal(officialOffer.promotion.microPrice,38000000);assert.equal(officialOffer.campaignLabel,undefined);
+  assert.equal(await purchaseConfirmed(vipService,officialOffer),'FINISHED');
+  assert.equal(intents.at(-1).promotionalOfferId,'official_38');assert.equal(created.at(-1).promotionalOfferId,'official_38');
+  assert.equal(created.at(-1).jwsRepresentation,'AAA.BBB.CCC');vipDetails=officialVip;
+  const beforeInvalidFinish=finishCalls;
+  for(const invalid of [{productId:'unknown'},{productType:legacyType},{productId:'coffee',productType:coffeeType},
+   {productId:'vip_monthly',productType:monthlyType},{purchaseToken:''},{purchaseOrderId:''}]){
+   verifyResponse=()=>({...verdict('VIP',vipType),...invalid});
+   assert.equal(await purchaseConfirmed(vipService,vipProduct),'VERIFICATION_PENDING');
+   assert.equal(vipService.getPurchaseRecoveryStatus(),'INVALID_ORDER');assert.equal(finishCalls,beforeInvalidFinish);
+  }
+  verifyResponse=()=>({status:'ALREADY_FINISHED',finishAllowed:false});
+  assert.equal(await purchaseConfirmed(vipService,vipProduct),'ALREADY_FINISHED');assert.equal(finishCalls,beforeInvalidFinish);
+  for(const [mode,code] of [['missing','PRODUCT_MISSING'],['error','1001860002'],['invalid','INVALID_PRODUCT_PRICE']]){
+   lookupIssue=mode;coffeeMissing=true;await vipService.products();
+   assert.deepEqual(JSON.parse(JSON.stringify(vipService.getMembershipProductIssues())),[{id:'VIP',type:1,code,lifetime:true}]);
+   const issues=vipService.getMembershipProductIssues();issues[0].lifetime=false;
+   assert.equal(vipService.getMembershipProductIssues()[0].lifetime,true,'issue snapshots preserve and isolate lifetime metadata');
+  }
+  lookupIssue='';coffeeMissing=false;await vipService.products();assert.equal(vipService.getMembershipProductIssues().length,0);
+  assert.throws(()=>models.validateValueAddedConfig({...vipConfig,membershipProductType:vipType}),/NOT_CONFIGURED/);
+  console.log('Lifetime VIP: official queries 2/1/0, preview type1 nonpayable, type3 rejected, official 38 vs local 28, signed official offer, intent/create/verify/finish type1 and invalid verdicts PASS');
+
+  const retired=new mod.exports.ValueAddedService();
+  await retired.initialize(makeContext({...vipConfig,membershipLifetimePurchases:false}));await retired.signIn();
+  productQueries.length=0;await retired.products();
+  assert.deepEqual(productQueries.map(q=>q.productIds[0]),['vip_monthly','coffee']);
+  assert.equal(retired.previewProducts().length,0);assert.equal(retired.getMembershipProductIssues().length,0);
+  const beforeRetiredCheckout=purchaseCalls;
+  await assert.rejects(purchaseConfirmed(retired,vipProduct),/MEMBERSHIP_NOT_OPEN/);
+  await assert.rejects(retired.purchase({id:'vip_monthly_once',type:legacyType,purpose:'membership',price:'CNY 5.00'}),/MEMBERSHIP_NOT_OPEN/);
+  assert.equal(purchaseCalls,beforeRetiredCheckout);
+  const receiptTypes=new Map([['monthly-unfinished',monthlyType],['monthly-current',monthlyType],
+   ['legacy-unfinished',legacyType],['legacy-history',legacyType],['vip-unfinished',vipType],['vip-second',vipType],['vip-current',vipType]]);
+  const acknowledged=new Set();
+  verifyResponse=body=>{
+   const type=receiptTypes.get(body.purchaseData);assert.ok(type!==undefined);assert.equal(body.productType,type);
+   if(acknowledged.has(body.purchaseData))return {status:'ALREADY_FINISHED',finishAllowed:false};
+   return verdict(type===vipType?'VIP':type===monthlyType?'vip_monthly':'vip_monthly_once',type,body.purchaseData);
+  };
+  const finishBeforeRecovery=iap.finishPurchase;
+  iap.finishPurchase=async(ctx,parameter)=>{await finishBeforeRecovery(ctx,parameter);acknowledged.add(parameter.purchaseOrderId);};
+  queryReceipts=async({productType,queryType,continuationToken})=>{
+   if(productType===vipType&&queryType===UNFINISHED)return continuationToken?
+    {purchaseDataList:['vip-second']}:{purchaseDataList:['vip-unfinished'],continuationToken:'vip-page-2'};
+   const receipt=productType===monthlyType?(queryType===UNFINISHED?'monthly-unfinished':'monthly-current'):
+    productType===legacyType?(queryType===UNFINISHED?'legacy-unfinished':'legacy-history'):'vip-current';
+   return {purchaseDataList:[receipt]};
+  };
+  const expectedQueries=[{productType:2,queryType:UNFINISHED,continuationToken:''},{productType:2,queryType:CURRENT_ENTITLEMENT,continuationToken:''},
+   {productType:3,queryType:UNFINISHED,continuationToken:''},{productType:3,queryType:ALL,continuationToken:''},
+   {productType:1,queryType:UNFINISHED,continuationToken:''},{productType:1,queryType:UNFINISHED,continuationToken:'vip-page-2'},
+   {productType:1,queryType:CURRENT_ENTITLEMENT,continuationToken:''}];
+  purchaseQueries.length=0;pendingFinish=true;const finishBeforePending=finishCalls;
+  assert.deepEqual(await Promise.all([retired.restorePurchases(),retired.restorePurchases()]),['ACK_PENDING','ACK_PENDING']);
+  assert.deepEqual(purchaseQueries,expectedQueries,'disabled sale switches do not skip historical restoration, and concurrent restores coalesce');
+  assert.equal(finishCalls-finishBeforePending,7);assert.equal(acknowledged.size,6);assert.ok(retired.getPurchaseRecoveryCheckedAt()>0);
+  pendingFinish=false;purchaseQueries.length=0;const finishBeforeRetry=finishCalls;
+  assert.equal(await retired.restorePurchases(),'RESTORED');assert.deepEqual(purchaseQueries,expectedQueries);
+  assert.equal(finishCalls-finishBeforeRetry,1,'only the unacknowledged order finishes again');assert.equal(acknowledged.size,7);
+  assert.equal(purchaseCalls,beforeRetiredCheckout,'recovery never creates a payment');assert.equal(retired.busy,false);assert.equal(retired.restoring,null);
+  queryReceipts=async()=>({purchaseDataList:[]});
+  const legacyMain=new mod.exports.ValueAddedService();
+  await legacyMain.initialize(makeContext({...vipConfig,membershipProductId:'legacy-main',membershipProductType:legacyType,
+   membershipLifetimePurchases:false}));await legacyMain.signIn();purchaseQueries.length=0;
+  assert.equal(await legacyMain.restorePurchases(),'RESTORED');
+  assert.deepEqual(purchaseQueries,[{productType:3,queryType:UNFINISHED,continuationToken:''},{productType:3,queryType:ALL,continuationToken:''},
+   {productType:1,queryType:UNFINISHED,continuationToken:''},{productType:1,queryType:CURRENT_ENTITLEMENT,continuationToken:''}],
+   'a primary type3 plus a historical type3 ID is queried only once per query mode');
+  queryReceipts=async({productType,queryType})=>({purchaseDataList:[],
+   ...(productType===vipType&&queryType===UNFINISHED?{continuationToken:'loop'}:{})});purchaseQueries.length=0;
+  await assert.rejects(retired.restorePurchases(),/INVALID_PAGINATION/);
+  assert.equal(purchaseQueries.filter(q=>q.productType===vipType).length,2);assert.equal(retired.busy,false);assert.equal(retired.restoring,null);
+  let enterQuery,releaseQuery;const queryEntered=new Promise(resolve=>enterQuery=resolve),queryWait=new Promise(resolve=>releaseQuery=resolve);
+  queryReceipts=async({productType,queryType})=>{
+   if(productType===vipType&&queryType===UNFINISHED){enterQuery();await queryWait;return {purchaseDataList:['old-account-vip']};}
+   return {purchaseDataList:[]};
+  };
+  const beforeSwitchVerify=verified.length,beforeSwitchFinish=finishCalls;
+  const oldAccountRestore=retired.restorePurchases();await queryEntered;await retired.signOut();releaseQuery();
+  await assert.rejects(oldAccountRestore,/ACCOUNT_CHANGED/);
+  assert.equal(verified.length,beforeSwitchVerify);assert.equal(finishCalls,beforeSwitchFinish);
+  assert.equal(retired.getUserId(),'');assert.equal(retired.getPurchaseRecoveryStatus(),'');assert.equal(retired.busy,false);assert.equal(retired.restoring,null);
+  queryReceipts=async()=>({purchaseDataList:[]});user='bob';await retired.signIn();assert.equal(retired.getUserId(),'bob');await retired.signOut();
+  console.log('Lifetime recovery: disabled VIP/legacy sale, type1 unfinished/current pagination, type2 current, type3 ALL/dedup, coalesced restore, ACK_PENDING retry, duplicate cursor and account switch PASS');
+ } finally {
+  route=savedRoute;user=savedUser;Object.assign(iap,savedIap);
+ }
+}
 (async()=>{
  visible=false;await assert.rejects(service.initialize(context),/FEATURE_HIDDEN/);await assert.rejects(service.signIn(),/FEATURE_HIDDEN/);
  assert.equal(requests,0);assert.equal(constructors,0);visible=true;
@@ -216,7 +417,7 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
   {...config,membershipProductType:2,membershipOneTimeProductId:'once'}))}});
  iap.queryProducts=async(ctx,args)=>args.productIds[0]==='once'?[]:officialQuery(ctx,args);
  assert.equal((await onceService.products()).filter(p=>p.purpose==='membership').length,1);
- assert.deepEqual(JSON.parse(JSON.stringify(onceService.getMembershipProductIssues())),[{id:'once',type:3,code:'PRODUCT_MISSING'}]);
+ assert.deepEqual(JSON.parse(JSON.stringify(onceService.getMembershipProductIssues())),[{id:'once',type:3,code:'PRODUCT_MISSING',lifetime:false}]);
  iap.queryProducts=async(ctx,args)=>{if(args.productIds[0]==='once')throw {code:12345};return officialQuery(ctx,args);};
  assert.equal((await onceService.products()).filter(p=>p.purpose==='membership').length,1);
  assert.equal(onceService.getMembershipProductIssues()[0].code,'12345');
@@ -501,5 +702,6 @@ const context={filesDir:directory,resourceManager:{getRawFileContent:async()=>Bu
  user='other-frequency-owner';await frequent.signIn();assert.match(frequent.notificationBinding,/^other-frequency-owner:/);
  assert.ok(unbindCalls>0&&bindCalls>0);await frequent.signOut();user='alice';notificationToken='push-test-token';route=frequencyRoute;
  console.log('Cloud frequency: 5-minute capability cache/concurrent refresh, idle zero requests, token/permission transitions, registration/revoke dedup, failed revoke and logout race PASS');
+ await testLifetimeMembership();
  console.log('Value-added services: hidden guards, auth/ack, account-switch races, profile hash, settings routes/hash/allowlist PASS');
 })().finally(()=>{clearTimeout(completionWatchdog);fs.rmSync(directory,{recursive:true,force:true});}).catch(error=>{console.error(error);process.exitCode=1;});

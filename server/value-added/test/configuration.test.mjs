@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { protectedPem, protectedPushCredential, membershipProductsVerified } from '../src/main.mjs';
+import { protectedPem, protectedPushCredential, membershipProductsVerified, loadService } from '../src/main.mjs';
 import { loadPkixRuntime, PKIX_FILES } from '../src/pkix-runtime.mjs';
+import { LIFETIME_POLICY, MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY } from '../src/membership-policy.mjs';
 
 test('single-line protected PEM configuration preserves newlines and rejects malformed or noncanonical input', () => {
   const pem = '-----BEGIN PRIVATE KEY-----\nfixture\n-----END PRIVATE KEY-----\n';
@@ -40,12 +41,51 @@ test('bundled PKIX runtime rejects modified binary before executing or changing 
     await assert.rejects(loadPkixRuntime(url), /PKIX_NOT_CONFIGURED/);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
-test('release evidence covers every offered membership SKU while retired SKUs remain recoverable', () => {
-  const products = [{id:'auto',type:2,kind:'membership'}, {id:'once',type:3,kind:'membership',purchasesEnabled:false}];
-  assert.equal(membershipProductsVerified(products, {membershipProductId:'auto'}), true);
+test('release evidence covers every offered membership SKU with its exact type/policy while retired SKUs remain recoverable', () => {
+  const products = [{id:'auto',type:2,kind:'membership',policyVersion:SUBSCRIPTION_POLICY},
+    {id:'once',type:3,kind:'membership',policyVersion:MEMBERSHIP_POLICY,purchasesEnabled:false},
+    {id:'VIP',type:1,kind:'membership',policyVersion:LIFETIME_POLICY}];
+  const release = {membershipProductId:'auto',lifetimeProductId:'VIP'};
+  assert.equal(membershipProductsVerified(products, release), true);
   assert.equal(membershipProductsVerified(products, {oneTimeProductId:'once'}), false);
   products[1].purchasesEnabled = true;
-  assert.equal(membershipProductsVerified(products, {membershipProductId:'auto'}), false);
-  assert.equal(membershipProductsVerified(products, {membershipProductId:'auto',oneTimeProductId:'once'}), true);
+  assert.equal(membershipProductsVerified(products, release), false);
+  const complete = {...release,oneTimeProductId:'once'};
+  assert.equal(membershipProductsVerified(products, complete), true);
+  for (const product of products) {
+    for (const policyVersion of [undefined, 'unknown-policy', LIFETIME_POLICY, MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY]) {
+      if (policyVersion === product.policyVersion) continue;
+      const invalid = products.map(p => p === product ? {...p,policyVersion} : p);
+      assert.equal(membershipProductsVerified(invalid, complete), false, product.id + '/' + policyVersion);
+    }
+  }
+  assert.equal(membershipProductsVerified(products, undefined), false);
   assert.equal(membershipProductsVerified([], {}), false);
+});
+
+test('service catalog binds lifetime=1, calendar-month=3 and subscription=2 before provider initialization', async () => {
+  const products = JSON.parse(await readFile(new URL('../config/product-catalog.json', import.meta.url), 'utf8'));
+  assert.equal(products.find(p => p.id === 'VIP').type, 1);
+  const directory = await mkdtemp(join(tmpdir(), 'vp-catalog-binding-'));
+  const catalog = join(directory, 'catalog.json');
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw Error('NETWORK_FORBIDDEN_IN_CATALOG_TEST'); };
+  try {
+    await writeFile(catalog, JSON.stringify(products));
+    const domain = await loadService({VP_PRODUCT_CATALOG:catalog});
+    assert.equal(domain.capabilities().commerce, false);
+    assert.equal(domain.capabilities().membershipPurchases, false);
+    for (const product of products.filter(p => p.kind === 'membership')) {
+      for (const policyVersion of [undefined, 'unknown-policy', LIFETIME_POLICY, MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY]) {
+        if (policyVersion === product.policyVersion) continue;
+        await writeFile(catalog, JSON.stringify(products.map(p => p === product ? {...p,policyVersion} : p)));
+        await assert.rejects(loadService({VP_PRODUCT_CATALOG:catalog}), /INVALID_CATALOG/);
+      }
+      await writeFile(catalog, JSON.stringify(products.map(p => p === product ? {...p,type:product.type === 1 ? 3 : 1} : p)));
+      await assert.rejects(loadService({VP_PRODUCT_CATALOG:catalog}), /INVALID_CATALOG/);
+    }
+  } finally {
+    globalThis.fetch = oldFetch;
+    await rm(directory, {recursive:true,force:true});
+  }
 });

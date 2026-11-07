@@ -9,7 +9,7 @@
   },
   {
     "id": "VIP",
-    "type": 3,
+    "type": 1,
     "kind": "membership",
     "purchasesEnabled": true,
     "policyVersion": "lifetime-v1",
