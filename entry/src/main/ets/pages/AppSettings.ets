@@ -706,6 +706,14 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private setDxvkFloatControls(enabled: boolean): void {
+    if (enabled === this.value.dxvkFloatControls) return;
+    const next = cloneAppSettings(this.value);
+    next.dxvkFloatControls = enabled;
+    this.value = next;
+    void this.persist();
+  }
+
   private setDisableMfDxgiDeviceManager(enabled: boolean): void {
     if (enabled === this.value.disableMfDxgiDeviceManager) return;
     const next = cloneAppSettings(this.value);
@@ -862,6 +870,17 @@ struct AppSettingsPage {
             }.width('100%')
             Text('仅用于原 Wine 的 32 位 Windows 程序，可按游戏保存。选择 Box64 后可设置兼容性预设；完全退出游戏后，从首页重新启动生效。Wine 桌面内直接启动使用全局设置，Linux Steam 的兼容工具由 Steam 管理。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            Row({ space: 12 }) {
+              Column({ space: 4 }) {
+                Text('浮点控制（floatControls）').fontSize(13)
+                  .fontColor(skinColor('text_secondary')).width('100%')
+                Text('按 D3D11 语义保留 NaN 与 denormal。部分手机 GPU 开启后加载场景会崩溃，可关闭该游戏的浮点控制。')
+                  .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+              Toggle({ type: ToggleType.Switch, isOn: this.value.dxvkFloatControls })
+                .id('app-settings-float-controls')
+                .onChange((enabled: boolean): void => this.setDxvkFloatControls(enabled))
+            }.width('100%')
             if (this.selectedTranslationEngine() === WineTranslationEngine.BOX64) {
               Text('Box64 兼容性预设').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
               Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')

@@ -66,7 +66,9 @@ function fixture() {
     './InputOverlayWindowCoordinator': {},
     './AppCatalogService': {},
     '../steam/SteamLocalService': { SteamLocalService: { getInstance: () => ({ getCards: () => [], processesFor: () => [] }) } },
-    '../steam/SteamLocalRules': {}
+    '../steam/SteamLocalRules': {},
+    '@ohos.file.fs': { default: { mkdirSync() {}, OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 }, openSync() { return { fd: 1 }; }, writeSync() {}, closeSync() {} } },
+    './GameContainer': { DEFAULT_GAME_CONTAINER_ID: 'default', wineDriveCForContainer: () => '/data/storage/el2/base/files/.wine/drive_c' }
   };
   const exports = {};
   vm.runInNewContext(compiled, {
@@ -99,6 +101,13 @@ function fixture() {
   assert.deepEqual(models.resolveFexCompatEnv('fex', strictSettings), ['FEX_X87REDUCEDPRECISION=0']);
   assert.deepEqual(models.resolveFexCompatEnv('box64', strictSettings), []);
   assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(strictSettings))).fexStrictPrecision, true);
+  assert.equal(precisionDefaults.dxvkFloatControls, true);
+  const floatOff = models.cloneAppSettings(precisionDefaults);
+  floatOff.dxvkFloatControls = false;
+  assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(floatOff))).dxvkFloatControls, false);
+  const oldFloat = { ...precisionDefaults };
+  delete oldFloat.dxvkFloatControls;
+  assert.equal(models.cloneAppSettings(oldFloat).dxvkFloatControls, true);
 
   assert.equal(precisionDefaults.wineTranslationEngine, 'default');
   const oldEngineSettings = { ...precisionDefaults };
@@ -128,6 +137,28 @@ function fixture() {
     assert.equal(env.includes('FEX_X87REDUCEDPRECISION=0'), engine==='fex',
       'Strict x87 is delivered to the real game launch only under FEX');
   }
+
+  const floatApp = {id:'cpu-test',launchKind:models.LaunchKind.WINE_EXE,
+    launchTarget:{executable:'C:/game.exe',arguments:[],workingDirectory:''}};
+  const floatLaunchOff = fixture();
+  floatLaunchOff.setState(models.EngineState.READY);
+  floatLaunchOff.engine.getPresentationMode = () => models.WinePresentationMode.MANAGED_WINDOWS;
+  floatLaunchOff.appSettings.dxvkFloatControls = false;
+  floatLaunchOff.processes.push({pid:42,path:'C:/game.exe',state:'running'});
+  await floatLaunchOff.service.launchReady(floatApp, floatLaunchOff.globalSettings,
+    models.DisplayMode.DESKTOP, models.WinePresentationMode.MANAGED_WINDOWS, '/games');
+  assert.ok(floatLaunchOff.launches[0][3].includes(
+    'DXVK_CONFIG_FILE=C:\\users\\steamuser\\Documents\\vpp-float-controls.conf'),
+    'floatControls off injects the per-game DXVK config file');
+
+  const floatLaunchOn = fixture();
+  floatLaunchOn.setState(models.EngineState.READY);
+  floatLaunchOn.engine.getPresentationMode = () => models.WinePresentationMode.MANAGED_WINDOWS;
+  floatLaunchOn.processes.push({pid:42,path:'C:/game.exe',state:'running'});
+  await floatLaunchOn.service.launchReady(floatApp, floatLaunchOn.globalSettings,
+    models.DisplayMode.DESKTOP, models.WinePresentationMode.MANAGED_WINDOWS, '/games');
+  assert.ok(!floatLaunchOn.launches[0][3].some(x => x.startsWith('DXVK_CONFIG_FILE=')),
+    'floatControls on keeps the DXVK default');
 
   // Real phone order: root callback, catalog reconciliation, then engine READY.
   // No fabricated native desktop process entry may be needed to keep the root.

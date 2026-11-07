@@ -83,7 +83,7 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
     './HostWindowTasks':{HostWindowTasks:{getInstance:()=>hostTasks}},
     './AppSettingsStore':{AppSettingsStore:{getInstance:()=>store}},'./InputOverlayWindowCoordinator':{},
     './AppCatalogService':{},'../steam/SteamLocalService':{SteamLocalService:{getInstance:()=>({
-      getCards:()=>[],processesFor:()=>[]})}},'../steam/SteamLocalRules':{}
+      getCards:()=>[],processesFor:()=>[]})}},'../steam/SteamLocalRules':{},'@ohos.file.fs':{default:{mkdirSync(){},OpenMode:{CREATE:1,WRITE_ONLY:2,TRUNC:4},openSync(){return {fd:1};},writeSync(){},closeSync(){}}},'./GameContainer':{DEFAULT_GAME_CONTAINER_ID:'default',wineDriveCForContainer:()=>'/data/storage/el2/base/files/.wine/drive_c'}
   },globals).AppSessionService)();
   service.initialize(context);
   settings.desktopWindowMode=laterMode;currentPcMode=laterPcMode;policy.refreshPcMode({});

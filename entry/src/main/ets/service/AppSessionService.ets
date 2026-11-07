@@ -1,4 +1,5 @@
 import { common, Want } from '@kit.AbilityKit';
+import fs from '@ohos.file.fs';
 import { hilog } from './LogService';
 import testNapi from 'libentry.so';
 import {
@@ -36,6 +37,7 @@ import { AppSettingsStore } from './AppSettingsStore';
 import { AppCatalogService } from './AppCatalogService';
 import { SteamLocalService } from '../steam/SteamLocalService';
 import { STEAM_CLIENT_ID, steamLaunchArguments } from '../steam/SteamLocalRules';
+import { DEFAULT_GAME_CONTAINER_ID, wineDriveCForContainer } from './GameContainer';
 
 const DOMAIN = 0x0000;
 
@@ -316,6 +318,22 @@ export class AppSessionService {
     const useBox64 = cpuEngine === WineTranslationEngine.BOX64;
     const envOverrides = resolveWineCpuEnvironment(cpuEngine, presetId)
       .concat(resolveFexCompatEnv(cpuEngine, appSettings), resolveMfCompatEnv(appSettings));
+    if (appSettings.dxvkFloatControls === false) {
+      const documents = `${wineDriveCForContainer(DEFAULT_GAME_CONTAINER_ID)}/users/steamuser/Documents`;
+      try {
+        try { fs.mkdirSync(documents, true); } catch (_) {}
+        const configPath = `${documents}/vpp-float-controls.conf`;
+        const file = fs.openSync(configPath,
+          fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
+        fs.writeSync(file.fd, 'd3d11.floatControls = False\n');
+        fs.closeSync(file);
+        envOverrides.push('DXVK_CONFIG_FILE=C:\\users\\steamuser\\Documents\\vpp-float-controls.conf');
+        hilog.info(DOMAIN, '[SESS]', 'launch: floatControls disabled app=%{public}s', app.id);
+      } catch (err) {
+        hilog.warn(DOMAIN, '[SESS]', 'launch: floatControls config failed app=%{public}s err=%{public}s',
+          app.id, JSON.stringify(err));
+      }
+    }
     hilog.info(DOMAIN, '[SESS]', 'launch: app=%{public}s preset=%{public}s env=%{public}s',
       app.id, presetId, JSON.stringify(envOverrides));
     // 图形预设旗标不写进 settings.arguments，避免和设定页自定义框互相污染。
