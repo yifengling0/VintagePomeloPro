@@ -1760,36 +1760,12 @@ export class WineEngineService {
     }
   }
 
-  private binaryFilesMatch(left: string, right: string): boolean {
-    if (!pathExists(right)) return false;
-    if (fs.statSync(left).size !== fs.statSync(right).size) return false;
-    const size = fs.statSync(left).size;
-    let inputLeft: fs.File | null = null;
-    let inputRight: fs.File | null = null;
+  /** These modules are written only by us; an existing same-size file is current. */
+  private managedModuleUpToDate(source: string, target: string): boolean {
     try {
-      inputLeft = fs.openSync(left, fs.OpenMode.READ_ONLY);
-      inputRight = fs.openSync(right, fs.OpenMode.READ_ONLY);
-      const leftBuffer = new ArrayBuffer(64 * 1024);
-      const rightBuffer = new ArrayBuffer(64 * 1024);
-      const leftBytes = new Uint8Array(leftBuffer);
-      const rightBytes = new Uint8Array(rightBuffer);
-      let position = 0;
-      while (position < size) {
-        const requested = Math.min(leftBuffer.byteLength, size - position);
-        const leftRead = fs.readSync(inputLeft.fd, leftBuffer, { offset: position, length: requested });
-        const rightRead = fs.readSync(inputRight.fd, rightBuffer, { offset: position, length: requested });
-        if (leftRead !== requested || rightRead !== requested) {
-          throw new Error('Incomplete managed CPU module comparison');
-        }
-        for (let index = 0; index < requested; index++) {
-          if (leftBytes[index] !== rightBytes[index]) return false;
-        }
-        position += requested;
-      }
-      return true;
-    } finally {
-      if (inputLeft) fs.closeSync(inputLeft);
-      if (inputRight) fs.closeSync(inputRight);
+      return fs.statSync(source).size === fs.statSync(target).size;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -1825,11 +1801,11 @@ export class WineEngineService {
     for (const name of names) {
       const source = WINE_BIN + '/aarch64-windows/' + name;
       const target = system32 + '/' + name;
-      if (this.binaryFilesMatch(source, target)) continue;
+      if (this.managedModuleUpToDate(source, target)) continue;
       const temporary = target + '.winehua-update';
       try {
         fs.copyFileSync(source, temporary);
-        if (!this.binaryFilesMatch(source, temporary)) {
+        if (!this.managedModuleUpToDate(source, temporary)) {
           throw new Error('Incomplete managed CPU module copy: ' + name);
         }
         fs.renameSync(temporary, target);
@@ -1882,11 +1858,11 @@ export class WineEngineService {
         const target = directory + '/' + name;
         // Respect user-installed native Windows ICU overrides.
         if (pathExists(target) && !this.isWineBuiltinModule(target)) continue;
-        if (this.binaryFilesMatch(source, target)) continue;
+        if (this.managedModuleUpToDate(source, target)) continue;
         const temporary = target + '.winehua-update';
         try {
           fs.copyFileSync(source, temporary);
-          if (!this.binaryFilesMatch(source, temporary)) throw new Error('Incomplete managed ICU copy');
+          if (!this.managedModuleUpToDate(source, temporary)) throw new Error('Incomplete managed ICU copy');
           fs.renameSync(temporary, target);
         } finally {
           if (pathExists(temporary)) fs.unlinkSync(temporary);
