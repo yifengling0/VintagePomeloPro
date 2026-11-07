@@ -5,6 +5,8 @@ export interface DeckLaunchFeedback {
   cover: string;
   message: string;
   builtin?: Resource;
+  /** Classic launcher renders an in-theme preparing panel instead of the deck surface. */
+  classic?: boolean;
 }
 
 export type DeckLaunchFeedbackListener = (feedback: DeckLaunchFeedback | null) => void;
@@ -24,7 +26,8 @@ export class DeckLaunchFeedbackService {
 
   snapshot(): DeckLaunchFeedback | null {
     if (!this.value) return null;
-    return { title: this.value.title, cover: this.value.cover, message: this.value.message, builtin: this.value.builtin };
+    return { title: this.value.title, cover: this.value.cover, message: this.value.message,
+      builtin: this.value.builtin, classic: this.value.classic };
   }
 
   subscribe(listener: DeckLaunchFeedbackListener): void { this.listeners.add(listener); listener(this.snapshot()); }
@@ -33,7 +36,8 @@ export class DeckLaunchFeedbackService {
 
   begin(feedback: DeckLaunchFeedback): number {
     const ticket = ++this.ticket;
-    this.value = { title: feedback.title, cover: feedback.cover, message: feedback.message, builtin: feedback.builtin };
+    this.value = { title: feedback.title, cover: feedback.cover, message: feedback.message,
+      builtin: feedback.builtin, classic: feedback.classic };
     this.publish();
     void InputOverlayWindowCoordinator.getInstance().setLaunchBusy(true).catch((): void => {});
     return ticket;

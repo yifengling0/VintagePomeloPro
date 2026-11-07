@@ -84,6 +84,10 @@ async function main() {
   await Promise.all([engineOn, launchOn, engineOff, launchOff]);
   assert.equal(coordinator.getSnapshot().blocking, false, 'late show cannot restore a stale blocking reason');
   assert.equal(shows.filter(value => value === 'show').length, 1, 'one native show for overlapping reasons');
+  const classic = feedback.begin({ title: 'Local', cover: 'file:///cover.png', message: '准备中', classic: true });
+  assert.equal(feedback.snapshot().classic, true, 'classic launch requests keep their panel style');
+  feedback.finish(classic);
+  assert.equal(feedback.snapshot(), null);
   console.log('Deck launch feedback: stale completions, cross-window subscription, engine/launch overlap and queued window updates PASS');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

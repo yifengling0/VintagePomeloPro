@@ -67,6 +67,8 @@ import { GamepadManager, GamepadNavigationListener } from '../service/GamepadMan
 import { ConsoleUiSound } from '../service/ConsoleUiSound';
 import { InputProfileService } from '../service/InputProfileService';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
+import { DeckLaunchFeedbackService } from '../service/DeckLaunchFeedbackService';
+import { builtinCoverResource } from '../model/BuiltinArtwork';
 import { DesktopLayer } from '../components/DesktopLayer';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { LengthMetrics, window } from '@kit.ArkUI';
@@ -1290,8 +1292,19 @@ struct Index {
       this.refreshRunningState();
       return;
     }
+    const feedback = DeckLaunchFeedbackService.getInstance();
+    const ticket = feedback.begin({
+      title: app.title,
+      cover: this.launchFeedbackCover(app),
+      builtin: this.launchFeedbackBuiltin(app),
+      message: '正在准备游戏窗口…',
+      classic: true
+    });
     let session: RuntimeSession | null = null;
     try {
+      await new Promise<void>((resolve: () => void): void => {
+        setTimeout(resolve, 48);
+      });
       if (switchMode) {
         session = await AppSessionService.getInstance().switchModeAndLaunch(app, this.settings, root);
       } else {
@@ -1317,6 +1330,7 @@ struct Index {
     } catch (error) {
       promptAction.showToast({ message: app.steam ? (error as Error).message : '程序启动异常，请稍后重试' });
     } finally {
+      feedback.finish(ticket);
       this.refreshRunningState();
     }
   }
@@ -2142,6 +2156,16 @@ struct Index {
     const path = GameArtworkService.getInstance().resolve(app);
     this.consoleBackgroundCache.set(app.id, path);
     return path;
+  }
+
+  private launchFeedbackCover(app: AppDescriptor): string {
+    if (app.source === AppSource.BUILTIN) return '';
+    const path = app.coverPath || app.backgroundPath || '';
+    return path.length > 0 && !path.includes('://') ? 'file://' + path : path;
+  }
+
+  private launchFeedbackBuiltin(app: AppDescriptor): Resource | undefined {
+    return app.source === AppSource.BUILTIN ? builtinCoverResource(app.id, true) : undefined;
   }
 
   private consoleHasArtworkBackground(): boolean {

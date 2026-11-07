@@ -77,29 +77,43 @@ export struct WineEngineBlockingOverlay {
     return '首次启动会准备运行组件并初始化 Windows' + elapsed;
   }
 
+  private panelTitle(): string {
+    return this.launch && this.state !== EngineState.ERROR ? this.launch.title : this.title();
+  }
+
+  private panelMessage(): string {
+    return this.launch && this.state !== EngineState.ERROR ? this.launch.message : this.message;
+  }
+
+  private panelDetail(): string {
+    if (this.state === EngineState.ERROR) return '可重新启动，或返回主页检查 Wine 设置';
+    if (this.launch) return '请稍候，游戏窗口即将出现';
+    return this.detail();
+  }
+
   build() {
-    if (this.launch && this.state !== EngineState.ERROR) {
+    if (this.launch && !this.launch.classic && this.state !== EngineState.ERROR) {
       DeckLaunchScreen({ title: this.launch.title, cover: this.launch.cover,
         builtin: this.launch.builtin, message: this.launch.message })
         .width('100%').height('100%').zIndex(1000)
-    } else if (this.isBusy() || this.state === EngineState.ERROR) {
+    } else if (this.launch || this.isBusy() || this.state === EngineState.ERROR) {
       Stack() {
         Column()
           .width('100%').height('100%')
           .backgroundColor('#E80B1220')
           .hitTestBehavior(HitTestMode.Block)
         Column({ space: 16 }) {
-          if (this.isBusy()) {
+          if (this.isBusy() || (this.launch && this.state !== EngineState.ERROR)) {
             LoadingProgress().width(56).height(56).color(skinColor('accent'))
           }
-          Text(this.title())
+          Text(this.panelTitle())
             .fontSize(22).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
             .textAlign(TextAlign.Center)
             .id('wine-engine-blocking-title')
-          Text(this.message)
+          Text(this.panelMessage())
             .fontSize(15).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
-          Text(this.state === EngineState.ERROR ? '可重新启动，或返回主页检查 Wine 设置' : this.detail())
+          Text(this.panelDetail())
             .fontSize(13).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
           if (this.state === EngineState.ERROR) {
