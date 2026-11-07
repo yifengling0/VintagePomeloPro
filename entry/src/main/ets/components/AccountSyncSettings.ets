@@ -261,7 +261,8 @@ export struct AccountSyncSettings {
     this.profilesReady = service.getCapabilities().profiles;
     const entitlement = await this.refreshMemberState();
     if (!this.alive || owner !== service.getUserId()) return;
-    if (!this.vipActive) await this.refreshMembershipProducts(); else this.products = [];
+    if (this.vipActive || this.membershipUncertain) this.products = [];
+    else await this.refreshMembershipProducts();
     if (this.profilesReady && entitlement.active) this.cloudProfiles = await service.listCloudProfiles();
   }
   private async refreshMemberState(): Promise<MemberEntitlement> {
@@ -327,15 +328,25 @@ export struct AccountSyncSettings {
   private async refreshMembershipProducts(): Promise<void> {
     const service = ValueAddedService.getInstance(), owner = service.getUserId(), request = ++this.productRequest;
     this.clearConfirmation();
+    // Paying twice must never be suggested from an active or unconfirmed membership state.
+    if (this.vipActive || this.membershipUncertain) {
+      this.products = []; this.productIssues = []; this.membershipPriceStatus = '';
+      return;
+    }
     this.membershipPriceStatus = '正在加载价格';
     try {
       const products = await service.products();
       if (this.alive && owner === service.getUserId() && request === this.productRequest) {
         const membership = products.filter((product: StoreProduct): boolean => product.purpose === 'membership');
-        const preview = membership.length === 0 ? service.previewProducts() : [];
-        this.products = preview.length > 0 ? preview : products;
-        this.productIssues = preview.length > 0 ? [] : service.getMembershipProductIssues();
-        this.membershipPriceStatus = preview.length > 0 ?
+        const preview = service.previewProducts();
+        const missing = preview.filter((product: StoreProduct): boolean =>
+          !products.some((real: StoreProduct): boolean => real.id === product.id) &&
+          (product.lifetime === true || membership.length === 0));
+        this.products = products.concat(missing);
+        this.productIssues = service.getMembershipProductIssues()
+          .filter((issue: StoreProductIssue): boolean => !missing.some((product: StoreProduct): boolean =>
+            product.id === issue.id));
+        this.membershipPriceStatus = missing.length > 0 ?
           '活动预览：登录并连接服务后，以华为收银台价格为准。' :
           membership.length > 0 ? '' : '暂未查到会员商品，请稍后刷新。';
       }
@@ -432,10 +443,15 @@ export struct AccountSyncSettings {
       try { result = await service.purchase(product, confirmation); }
       catch (error) {
         this.clearConfirmation();
+        // The cashier may have completed before the error surfaced. Never offer another
+        // subscription from an unconfirmed state; refresh/restore must confirm it first.
+        this.membershipUncertain = true; this.products = []; this.productIssues = [];
         const failure = error as Error, code = (error as BusinessError).code;
         const detail = this.errorMessage(failure) + (Number.isInteger(code) ? '\n错误代码：' + code : '');
         await this.showPurchaseMessage('购买未完成', detail + '\n\n若已完成付款，请先刷新状态或恢复购买，不要重复支付。');
-        if (this.alive) await this.refreshMembershipProducts();
+        if (this.alive) {
+          try { await this.refreshAccount(); } catch (_) { /* keep the safe unconfirmed state */ }
+        }
         return;
       }
       if (!this.alive || confirmation.userId !== service.getUserId()) return;
@@ -446,6 +462,7 @@ export struct AccountSyncSettings {
         result === 'ALREADY_ACTIVE' ? '本期会员已生效，无需重复购买' :
         result === 'FINISHED' || result === 'RESTORED' || result === 'ALREADY_FINISHED' ? '会员状态已更新' : '订阅状态已更新';
       if (result === 'CANCELLED') return;
+      this.membershipUncertain = true; this.products = []; this.productIssues = [];
       if (result === 'VERIFICATION_PENDING') await this.showPurchaseMessage('付款已完成，会员待确认', this.status);
       AccountAutomaticSyncService.getInstance().requestSync(0);
       try { await this.refreshAccount(); }
@@ -468,8 +485,14 @@ export struct AccountSyncSettings {
   }
   private openCheckout(): void {
     const product = this.checkoutProduct();
-    if (this.busy || !this.commerceReady || !this.userId || this.vipActive || this.membershipUncertain ||
-      !product || product.preview) return;
+    if (!product) return;
+    if (product.preview) {
+      this.status = '当前价格是活动预览，尚未从华为获取官方商品价，暂不能发起支付。请稍后刷新，并确认 AGC 中 VIP 商品及优惠已生效。';
+      this.statusArea = 'membership';
+      void this.showPurchaseMessage('暂不能发起支付', this.status);
+      return;
+    }
+    if (this.busy || !this.commerceReady || !this.userId || this.vipActive || this.membershipUncertain) return;
     this.selectedProductId = product.id;
     this.membershipAccepted = false; this.autoRenewAccepted = false; this.checkoutLegalExpanded = false;
     this.status = ''; this.statusArea = 'membership'; this.showCheckout = true;
@@ -498,6 +521,7 @@ export struct AccountSyncSettings {
     if (!this.userId) return '登录后开通';
     if (!this.commerceReady) return '购买暂未开放';
     const product = this.checkoutProduct();
+    if (product?.preview) return '价格待华为核验';
     return product ? '开通' + this.productTitle(product) + ' · ' + product.price : '请选择套餐';
   }
   private openLegal(document: string): void {
@@ -881,7 +905,7 @@ export struct AccountSyncSettings {
   @Builder
   private Membership() {
     this.Heading('VIP 会员', '自动备份和恢复应用配置、输入方案；游戏存档不上传。')
-    if (!this.vipLifetime) {
+    if (!this.vipLifetime && !this.membershipUncertain) {
     Row({ space: 10 }) {
       Column({ space: 4 }) {
         Text('续费提醒').fontSize(14).fontColor(skinColor('text_primary'))
@@ -1011,7 +1035,7 @@ export struct AccountSyncSettings {
           }
           this.OperationStatus('membership')
           Flex({ wrap: FlexWrap.Wrap }) {
-            if (!this.vipLifetime) {
+            if (this.vipActive && !this.vipLifetime) {
               this.Action('管理订阅／取消自动续费', 'sync-manage-subscriptions', (): boolean => !this.busy,
                 (): void => this.manageMembership())
             }
