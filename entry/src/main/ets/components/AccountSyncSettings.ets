@@ -331,10 +331,13 @@ export struct AccountSyncSettings {
     try {
       const products = await service.products();
       if (this.alive && owner === service.getUserId() && request === this.productRequest) {
-        this.products = products;
-        this.productIssues = service.getMembershipProductIssues();
-        this.membershipPriceStatus = products.some((product: StoreProduct): boolean => product.purpose === 'membership') ? '' :
-          '暂未查到会员商品，请稍后刷新。';
+        const membership = products.filter((product: StoreProduct): boolean => product.purpose === 'membership');
+        const preview = membership.length === 0 ? service.previewProducts() : [];
+        this.products = preview.length > 0 ? preview : products;
+        this.productIssues = preview.length > 0 ? [] : service.getMembershipProductIssues();
+        this.membershipPriceStatus = preview.length > 0 ?
+          '活动预览：登录并连接服务后，以华为收银台价格为准。' :
+          membership.length > 0 ? '' : '暂未查到会员商品，请稍后刷新。';
       }
     } catch (_) {
       if (this.alive && owner === service.getUserId() && request === this.productRequest) {

@@ -13,8 +13,8 @@
       "productId": "VIP",
       "offerId": "time_limit",
       "currency": "CNY",
-      "originalMicroPrice": 68000000,
-      "microPrice": 38000000,
+      "originalMicroPrice": 38000000,
+      "microPrice": 28000000,
       "endsAt": "2027-01-01T00:00:00+08:00"
     }
   ]

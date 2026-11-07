@@ -480,12 +480,13 @@ export class ValueAddedService {
     return result;
   }
   private storeProduct(product: iap.Product): StoreProduct {
+    const config = this.config ?? this.previewConfig;
     const display: StoreProduct = { id: product.id, title: product.name, price: product.localPrice ?? product.price,
-      type: product.type, purpose: product.id === this.config?.coffeeProductId ? 'coffee' : 'membership',
+      type: product.type, purpose: product.id === config?.coffeeProductId ? 'coffee' : 'membership',
       microPrice: product.microPrice, currency: product.currency };
     if (display.purpose === 'membership' && (!display.price || !Number.isSafeInteger(display.microPrice) ||
       (display.microPrice ?? 0) <= 0 || !display.currency)) throw new Error('INVALID_PRODUCT_PRICE');
-    const lifetime = display.purpose === 'membership' && display.id === this.config?.membershipLifetimeProductId;
+    const lifetime = display.purpose === 'membership' && display.id === config?.membershipLifetimeProductId;
     const currency = product.currency ?? 'CNY';
     const originalMicroPrice = product.originalMicroPrice ?? 0;
     const campaign = display.purpose === 'membership' ?
@@ -508,7 +509,7 @@ export class ValueAddedService {
         }
       }
       if (!offer && product.type === iap.ProductType.AUTORENEWABLE) {
-        const configured = this.config?.membershipPromotionalOfferId;
+        const configured = config?.membershipPromotionalOfferId;
         const matches = offers.filter((value: iap.PromotionalOffer): boolean => value.offerId === configured);
         if (matches.length > 1) throw new Error('INVALID_OFFER');
         if (matches.length === 1) offer = matches[0];
@@ -561,8 +562,9 @@ export class ValueAddedService {
   async products(): Promise<StoreProduct[]> {
     this.guard();
     // Official product information is public; displaying prices does not grant paid access.
-    if (!this.context || !this.config) throw new Error('NOT_CONFIGURED');
-    const config = this.config, epoch = this.generation;
+    const config = this.config ?? this.previewConfig;
+    if (!this.context || !config) throw new Error('NOT_CONFIGURED');
+    const epoch = this.generation;
     const result: StoreProduct[] = [];
     const issues: StoreProductIssue[] = [];
     let invalidMembership: Error | null = null;
@@ -589,6 +591,12 @@ export class ValueAddedService {
       }
       for (const product of products) {
         if (product.id === item.productId && product.type === item.productType) {
+          const offers = product.promotionalOffers ?? [];
+          const offerText = offers.map((offer: iap.PromotionalOffer): string =>
+            offer.offerId + ':' + offer.microPrice).join(',');
+          console.info('[ValueAddedService] product ' + product.id + ' type=' + product.type +
+            ' micro=' + product.microPrice + ' original=' + product.originalMicroPrice +
+            ' offers=' + offers.length + ' [' + offerText + ']');
           try { result.push(this.storeProduct(product)); }
           catch (error) {
             issues.push({ id: item.productId, type: item.productType, code: this.safeDiagnostic(error as Error),
