@@ -19,6 +19,7 @@ import preferences from '@ohos.data.preferences';
 import { pushService, pushCommon } from '@kit.PushKit';
 import { notificationManager } from '@kit.NotificationKit';
 import { MembershipQuote, MembershipConfirmation, membershipQuoteKey, validateMembershipConfirmation } from '../../model/MembershipCommerce';
+import { MembershipCampaign, MembershipCampaigns } from '../../model/MembershipCampaign';
 
 interface AccountAttempt { attemptId: string; state: string; }
 interface AccountExchange { attemptId: string; state: string; code: string; clientId: string; }
@@ -43,13 +44,15 @@ interface ProfileIndex { profiles: ProfileSummary[]; }
 interface EmptyBody { }
 export interface StorePromotion {
   id: string; price: string; microPrice: number; paymentMode: number; periodUnit: number; periodCount: number;
+  label?: string; saving?: string; deadline?: string; endsAt?: string;
 }
 export interface StoreProduct extends MembershipQuote {
   id: string; title: string; price: string; type: number; purpose: 'membership' | 'coffee';
   regularPrice?: string; microPrice?: number; currency?: string; promotion?: StorePromotion; priceDescription?: string;
-  subscriptionGroupId?: string;
+  subscriptionGroupId?: string; lifetime?: boolean; campaignLabel?: string; campaignSaving?: string; campaignDeadline?: string;
+  preview?: boolean;
 }
-export interface StoreProductIssue { id: string; type: number; code: string; }
+export interface StoreProductIssue { id: string; type: number; code: string; lifetime?: boolean; }
 interface NotificationRegistration { installationId: string; token: string; enabled: boolean; }
 interface NotificationReady { ready: boolean; }
 export interface HuaweiAccountProfile { nickname: string; avatarUri: string; status: string; }
@@ -58,6 +61,7 @@ export interface HuaweiAccountProfile { nickname: string; avatarUri: string; sta
 export class ValueAddedService {
   private static instance: ValueAddedService | null = null;
   private config: ValueAddedConfig | null = null;
+  private previewConfig: ValueAddedConfig | null = null;
   private availability: string = 'checking';
   private context: common.UIAbilityContext | null = null;
   private session: AccountSession | null = null;
@@ -83,6 +87,7 @@ export class ValueAddedService {
   private notificationRetryTimer: number = -1;
   private reminderListeners: Set<(ready: boolean, enabled: boolean) => void> = new Set<(ready: boolean, enabled: boolean) => void>();
   private productIssues: StoreProductIssue[] = [];
+  private campaigns: MembershipCampaign[] = [];
   private busy: boolean = false;
   private initializing: Promise<void> | null = null;
   private identityStore: preferences.Preferences | null = null;
@@ -157,7 +162,15 @@ export class ValueAddedService {
       this.availability = 'identity_mismatch'; return;
     }
     this.context = context;
+    this.previewConfig = config;
     this.config = config;
+    this.campaigns = [];
+    try {
+      const campaignBytes = await context.resourceManager.getRawFileContent('membership_campaigns.json');
+      this.campaigns = MembershipCampaigns.parse(util.TextDecoder.create('utf-8').decodeToString(campaignBytes));
+    } catch (error) {
+      console.warn('[ValueAddedService] membership campaigns unavailable: ' + this.safeDiagnostic(error as Error));
+    }
     try {
       this.availability = 'checking';
       await this.refreshCapabilities();
@@ -460,7 +473,8 @@ export class ValueAddedService {
     const result = await this.request<MemberEntitlement>('/v1/entitlement', http.RequestMethod.GET, '');
     this.assertGeneration(epoch);
     if (revision !== this.entitlementRevision) return this.entitlement();
-    if (typeof result.active !== 'boolean' || !Number.isFinite(result.expiresAt) || !Number.isFinite(result.serverTime)) {
+    if (typeof result.active !== 'boolean' || (result.lifetime !== undefined && typeof result.lifetime !== 'boolean') ||
+      !Number.isFinite(result.expiresAt) || !Number.isFinite(result.serverTime)) {
       throw new Error('INVALID_ENTITLEMENT');
     }
     return result;
@@ -471,8 +485,56 @@ export class ValueAddedService {
       microPrice: product.microPrice, currency: product.currency };
     if (display.purpose === 'membership' && (!display.price || !Number.isSafeInteger(display.microPrice) ||
       (display.microPrice ?? 0) <= 0 || !display.currency)) throw new Error('INVALID_PRODUCT_PRICE');
+    const lifetime = display.purpose === 'membership' && display.id === this.config?.membershipLifetimeProductId;
+    const currency = product.currency ?? 'CNY';
+    const originalMicroPrice = product.originalMicroPrice ?? 0;
+    const campaign = display.purpose === 'membership' ?
+      MembershipCampaigns.active(this.campaigns, product.id, currency, Date.now()) : undefined;
+    let offer: iap.PromotionalOffer | undefined = undefined;
+    if (display.purpose === 'membership') {
+      const offers = product.promotionalOffers ?? [];
+      if (campaign) {
+        const campaignOfferId = campaign.offerId;
+        const campaignMicroPrice = campaign.microPrice;
+        const matches = offers.filter((value: iap.PromotionalOffer): boolean =>
+          value.offerId === campaignOfferId && value.microPrice === campaignMicroPrice);
+        // The campaign is display-only unless the official offer confirms its exact price.
+        if (matches.length === 1 && (!originalMicroPrice || originalMicroPrice === campaign.originalMicroPrice)) {
+          offer = matches[0];
+          display.campaignLabel = '限时优惠';
+          display.campaignSaving = MembershipCampaigns.money(
+            campaign.originalMicroPrice - campaign.microPrice, campaign.currency);
+          display.campaignDeadline = MembershipCampaigns.deadline(campaign);
+        }
+      }
+      if (!offer && product.type === iap.ProductType.AUTORENEWABLE) {
+        const configured = this.config?.membershipPromotionalOfferId;
+        const matches = offers.filter((value: iap.PromotionalOffer): boolean => value.offerId === configured);
+        if (matches.length > 1) throw new Error('INVALID_OFFER');
+        if (matches.length === 1) offer = matches[0];
+      } else if (!offer && product.type !== iap.ProductType.AUTORENEWABLE && offers.length === 1) {
+        offer = offers[0];
+      }
+    }
     if (product.type !== iap.ProductType.AUTORENEWABLE) {
-      if (display.purpose === 'membership') display.priceDescription = '本次支付 ' + display.price + '，开通一个日历月，到期不自动扣款。';
+      display.lifetime = lifetime;
+      const base = lifetime ? '一次买断，终身有效，不自动续费。' :
+        '本次支付 ' + display.price + '，开通一个日历月，到期不自动扣款。';
+      if (offer && Number.isSafeInteger(offer.microPrice) && offer.microPrice > 0 &&
+        Number.isSafeInteger(product.microPrice) && offer.microPrice < product.microPrice) {
+        const originalMicro = originalMicroPrice > offer.microPrice ? originalMicroPrice : product.microPrice;
+        display.regularPrice = product.originalLocalPrice ||
+          MembershipCampaigns.money(originalMicro, currency);
+        display.price = offer.localPrice || MembershipCampaigns.money(offer.microPrice, currency);
+        display.promotion = { id: offer.offerId, price: display.price, microPrice: offer.microPrice,
+          paymentMode: offer.paymentMode ?? 0, periodUnit: offer.periodUnit ?? 0, periodCount: offer.periodCount ?? 0,
+          label: display.campaignLabel || '优惠价', deadline: display.campaignDeadline,
+          saving: display.campaignSaving, endsAt: campaign?.endsAt };
+      } else if (originalMicroPrice > product.microPrice) {
+        display.regularPrice = product.originalLocalPrice ||
+          MembershipCampaigns.money(originalMicroPrice, currency);
+      }
+      display.priceDescription = base;
       return display;
     }
     if (product.subscriptionInfo?.periodUnit !== iap.PeriodUnit.MONTH || product.subscriptionInfo.periodCount !== 1) {
@@ -481,20 +543,17 @@ export class ValueAddedService {
     display.subscriptionGroupId = product.subscriptionInfo.groupId;
     const recurring = display.price + '／月';
     display.priceDescription = recurring + '，按月自动续费。';
-    const configuredOffer = this.config?.membershipPromotionalOfferId;
-    const offers = product.promotionalOffers?.filter((value: iap.PromotionalOffer): boolean => value.offerId === configuredOffer) ?? [];
-    if (offers.length > 1) throw new Error('INVALID_OFFER');
-    if (offers.length === 0) return display;
-    const offer = offers[0];
+    if (!offer) return display;
     // This product is a monthly subscription. Unsupported or malformed discounts never become a full-price fallback.
-    if (product.subscriptionInfo?.periodUnit !== iap.PeriodUnit.MONTH || product.subscriptionInfo.periodCount !== 1 ||
-      offer.paymentMode !== iap.OfferPaymentMode.PAY_AS_YOU_GO || offer.periodUnit !== iap.PeriodUnit.MONTH ||
+    if (offer.paymentMode !== iap.OfferPaymentMode.PAY_AS_YOU_GO || offer.periodUnit !== iap.PeriodUnit.MONTH ||
       !Number.isSafeInteger(offer.periodCount) || offer.periodCount === undefined || offer.periodCount < 1 || offer.periodCount > 12 ||
       !Number.isSafeInteger(offer.microPrice) || offer.microPrice <= 0 || !Number.isSafeInteger(product.microPrice) ||
       offer.microPrice >= product.microPrice || !offer.localPrice) throw new Error('INVALID_OFFER');
     display.regularPrice = display.price; display.price = offer.localPrice;
     display.promotion = { id: offer.offerId, price: offer.localPrice, microPrice: offer.microPrice,
-      paymentMode: offer.paymentMode, periodUnit: offer.periodUnit, periodCount: offer.periodCount };
+      paymentMode: offer.paymentMode, periodUnit: offer.periodUnit, periodCount: offer.periodCount,
+      label: display.campaignLabel || '优惠价', deadline: display.campaignDeadline,
+      saving: display.campaignSaving, endsAt: campaign?.endsAt };
     display.priceDescription = '前 ' + offer.periodCount + ' 个月，每月 ' + offer.localPrice +
       '；之后 ' + recurring + '自动续费。';
     return display;
@@ -510,6 +569,7 @@ export class ValueAddedService {
     const configured: ProductRequest[] = [
       { productId: config.membershipProductId, productType: config.membershipProductType },
       { productId: config.membershipOneTimePurchases === false ? '' : config.membershipOneTimeProductId ?? '', productType: 3 },
+      { productId: config.membershipLifetimePurchases === false ? '' : config.membershipLifetimeProductId ?? '', productType: 3 },
       { productId: config.coffeeProductId, productType: iap.ProductType.CONSUMABLE }
     ];
     for (const item of configured) {
@@ -518,18 +578,21 @@ export class ValueAddedService {
       try { products = await iap.queryProducts(this.context, { productType: item.productType, productIds: [item.productId] }); }
       catch (error) {
         if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
-        issues.push({ id: item.productId, type: item.productType, code: this.safeDiagnostic(error as Error) });
+        issues.push({ id: item.productId, type: item.productType, code: this.safeDiagnostic(error as Error),
+          lifetime: item.productId === config.membershipLifetimeProductId });
         continue;
       }
       if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
       if (!products.some((product: iap.Product): boolean => product.id === item.productId && product.type === item.productType)) {
-        issues.push({ id: item.productId, type: item.productType, code: 'PRODUCT_MISSING' });
+        issues.push({ id: item.productId, type: item.productType, code: 'PRODUCT_MISSING',
+          lifetime: item.productId === config.membershipLifetimeProductId });
       }
       for (const product of products) {
         if (product.id === item.productId && product.type === item.productType) {
           try { result.push(this.storeProduct(product)); }
           catch (error) {
-            issues.push({ id: item.productId, type: item.productType, code: this.safeDiagnostic(error as Error) });
+            issues.push({ id: item.productId, type: item.productType, code: this.safeDiagnostic(error as Error),
+              lifetime: item.productId === config.membershipLifetimeProductId });
             if (product.id !== config.coffeeProductId) invalidMembership = error as Error;
           }
         }
@@ -538,6 +601,38 @@ export class ValueAddedService {
     this.productIssues = issues;
     issues.forEach((issue: StoreProductIssue): void => console.warn('[ValueAddedService] product type ' + issue.type + ': ' + issue.code));
     if (invalidMembership && !result.some((item: StoreProduct): boolean => item.purpose === 'membership')) throw invalidMembership;
+    return result;
+  }
+  /** Read-only campaign preview; never a payable quote and never grants access. */
+  previewProducts(): StoreProduct[] {
+    const config = this.config ?? this.previewConfig;
+    if (!config) return [];
+    const now = Date.now();
+    const result: StoreProduct[] = [];
+    const subscription = MembershipCampaigns.active(this.campaigns, config.membershipProductId, 'CNY', now);
+    if (subscription) {
+      result.push({ id: config.membershipProductId, title: 'VIP',
+        price: MembershipCampaigns.money(subscription.microPrice, subscription.currency),
+        type: 2, purpose: 'membership', microPrice: subscription.microPrice, currency: subscription.currency,
+        regularPrice: MembershipCampaigns.money(subscription.originalMicroPrice, subscription.currency),
+        priceDescription: '连续包月，按月自动续费；登录后以华为收银台价格为准。',
+        subscriptionGroupId: config.membershipSubscriptionGroupId, campaignLabel: '限时优惠',
+        campaignSaving: MembershipCampaigns.money(subscription.originalMicroPrice - subscription.microPrice,
+          subscription.currency), campaignDeadline: MembershipCampaigns.deadline(subscription), preview: true });
+    }
+    const lifetimeId = config.membershipLifetimePurchases === false ? '' : config.membershipLifetimeProductId ?? '';
+    const lifetime = lifetimeId ?
+      MembershipCampaigns.active(this.campaigns, lifetimeId, 'CNY', now) : undefined;
+    if (lifetime) {
+      result.push({ id: lifetimeId, title: 'VIP',
+        price: MembershipCampaigns.money(lifetime.microPrice, lifetime.currency),
+        type: 3, purpose: 'membership', microPrice: lifetime.microPrice, currency: lifetime.currency,
+        regularPrice: MembershipCampaigns.money(lifetime.originalMicroPrice, lifetime.currency),
+        priceDescription: '一次买断，终身有效，不自动续费；登录后以华为收银台价格为准。',
+        lifetime: true, campaignLabel: '限时优惠',
+        campaignSaving: MembershipCampaigns.money(lifetime.originalMicroPrice - lifetime.microPrice,
+          lifetime.currency), campaignDeadline: MembershipCampaigns.deadline(lifetime), preview: true });
+    }
     return result;
   }
   getMembershipProductIssues(): StoreProductIssue[] {
@@ -556,6 +651,7 @@ export class ValueAddedService {
     if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
     const allowed = this.config && ((verdict.productId === this.config.coffeeProductId && verdict.productType === 0) ||
       (verdict.productId === this.config.membershipOneTimeProductId && verdict.productType === 3) ||
+      (verdict.productId === this.config.membershipLifetimeProductId && verdict.productType === 3) ||
       (verdict.productId === this.config.membershipProductId && verdict.productType === this.config.membershipProductType));
     if (!allowed || type !== verdict.productType || !verdict.purchaseToken || !verdict.purchaseOrderId) {
       throw new Error('INVALID_ORDER');
@@ -718,9 +814,11 @@ export class ValueAddedService {
     if (!this.validSession()) throw new Error('SIGN_IN_REQUIRED');
     const allowed = (product.id === this.config.coffeeProductId && product.type === 0) ||
       (product.id === this.config.membershipOneTimeProductId && product.type === 3) ||
+      (product.id === this.config.membershipLifetimeProductId && product.type === 3) ||
       (product.id === this.config.membershipProductId && product.type === this.config.membershipProductType);
     if (!allowed) throw new Error('UNKNOWN_PRODUCT');
-    if (product.id === this.config.membershipOneTimeProductId && this.config.membershipOneTimePurchases === false) {
+    if ((product.id === this.config.membershipOneTimeProductId && this.config.membershipOneTimePurchases === false) ||
+      (product.id === this.config.membershipLifetimeProductId && this.config.membershipLifetimePurchases === false)) {
       throw new Error('MEMBERSHIP_NOT_OPEN');
     }
     if (product.purpose !== (product.id === this.config.coffeeProductId ? 'coffee' : 'membership')) throw new Error('UNKNOWN_PRODUCT');
@@ -820,7 +918,8 @@ export class ValueAddedService {
   async confirmSubscriptionState(): Promise<MemberEntitlement> {
     this.invalidateEntitlement();
     const result = await this.request<MemberEntitlement>('/v1/entitlement/refresh', http.RequestMethod.POST, '{}');
-    if (typeof result.active !== 'boolean' || !Number.isFinite(result.expiresAt) || !Number.isFinite(result.serverTime)) {
+    if (typeof result.active !== 'boolean' || (result.lifetime !== undefined && typeof result.lifetime !== 'boolean') ||
+      !Number.isFinite(result.expiresAt) || !Number.isFinite(result.serverTime)) {
       throw new Error('INVALID_ENTITLEMENT');
     }
     return result;

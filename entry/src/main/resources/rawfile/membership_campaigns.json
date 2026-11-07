@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "campaigns": [
+    {
+      "productId": "vip_monthly_auto",
+      "offerId": "vip_2026_year_end",
+      "currency": "CNY",
+      "originalMicroPrice": 5000000,
+      "microPrice": 2000000,
+      "endsAt": "2027-01-01T00:00:00+08:00"
+    },
+    {
+      "productId": "VIP",
+      "offerId": "time_limit",
+      "currency": "CNY",
+      "originalMicroPrice": 68000000,
+      "microPrice": 38000000,
+      "endsAt": "2027-01-01T00:00:00+08:00"
+    }
+  ]
+}

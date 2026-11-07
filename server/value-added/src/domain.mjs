@@ -101,7 +101,7 @@ export class ValueAddedDomain {
     const value = randomBytes(16).toString('hex') + '.' + userId;
     const signature = createHmac('sha256', this.config.purchaseBindingSecret).update(value + '\n' + productId).digest('base64url');
     if (promotionalOfferId !== undefined) {
-      requireThat(productType === 2 && typeof promotionalOfferId === 'string' &&
+      requireThat((productType === 2 || productType === 3) && typeof promotionalOfferId === 'string' &&
         /^[a-zA-Z0-9._-]{1,64}$/.test(promotionalOfferId) && Object.hasOwn(product.promotionalPrices ?? {}, promotionalOfferId),
         'UNKNOWN_OFFER');
       return { developerPayload: value + '.' + signature,
@@ -149,7 +149,7 @@ export class ValueAddedDomain {
     const normalized = { userId, appId: fact.appId, productId: fact.productId, productType: fact.productType,
       orderId: fact.orderId, kind: product.kind, status: fact.status, purchasedAt: fact.purchasedAt,
       expiresAt: product.kind === 'membership' ? fact.expiresAt : 0, verifiedAt: now,
-      policyVersion: product.kind === 'membership' ? MEMBERSHIP_POLICY : 'coffee-v1',
+      policyVersion: product.kind === 'membership' ? (product.policyVersion ?? MEMBERSHIP_POLICY) : 'coffee-v1',
       tokenHash: digest(fact.purchaseToken), bindingHash: digest(fact.developerPayload) };
     await this.store.transaction(async tx => {
       const existing = await tx.get(key);

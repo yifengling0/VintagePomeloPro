@@ -7,7 +7,7 @@ import { HuaweiAccountProvider, HuaweiPurchaseProvider } from './huawei-provider
 import { ValueAddedDomain } from './domain.mjs';
 import { createApiServer } from './http-server.mjs';
 import { requireThat, ServiceError } from './errors.mjs';
-import { MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY } from './membership-policy.mjs';
+import { LIFETIME_POLICY, MEMBERSHIP_POLICY, SUBSCRIPTION_POLICY } from './membership-policy.mjs';
 import { loadPkixRuntime } from './pkix-runtime.mjs';
 import { HuaweiPushSender } from './huawei-push.mjs';
 const packageRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -17,7 +17,8 @@ export function membershipProductsVerified(products, release) {
   const available = products.filter(p => p.kind === 'membership' && p.purchasesEnabled !== false);
   return available.length > 0 && available.every(p =>
     p.type === 2 ? release.membershipProductId === p.id :
-      p.type === 3 && release.oneTimeProductId === p.id);
+      p.type === 3 && (p.policyVersion === LIFETIME_POLICY ?
+        release.lifetimeProductId === p.id : release.oneTimeProductId === p.id));
 }
 export function protectedPem(encoded, literal = '') {
   if (!encoded) return literal;
@@ -47,7 +48,7 @@ export async function loadService(env = process.env) {
   for (const product of products) {
     requireThat(/^[a-zA-Z0-9._-]{1,128}$/.test(product.id) && !ids.has(product.id) &&
       ((product.type === 0 && product.kind === 'coffee') || (product.kind === 'membership' &&
-        ((product.type === 3 && product.policyVersion === MEMBERSHIP_POLICY) ||
+        ((product.type === 3 && [MEMBERSHIP_POLICY, LIFETIME_POLICY].includes(product.policyVersion)) ||
         (product.type === 2 && product.policyVersion === SUBSCRIPTION_POLICY &&
           /^[a-zA-Z0-9._-]{1,128}$/.test(product.subscriptionGroupId))))) &&
       (product.purchasesEnabled === undefined || typeof product.purchasesEnabled === 'boolean') &&

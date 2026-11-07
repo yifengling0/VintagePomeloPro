@@ -27,6 +27,12 @@ if (config.membershipOneTimePurchases === true) {
 } else {
   check(single?.purchasesEnabled === false, 'Historical single-month SKU must be closed to new purchases');
 }
+const lifetime = products.find(p => p.id === config.membershipLifetimeProductId && p.type === 3);
+if (config.membershipLifetimePurchases === true) {
+  check(lifetime?.purchasesEnabled !== false && lifetime?.policyVersion === 'lifetime-v1' &&
+    Array.isArray(lifetime.prices?.CNY) && lifetime.prices.CNY.length > 0, 'Lifetime VIP product missing or not enabled');
+  check(release.lifetimeProductId === lifetime?.id, 'NORMAL lifetime SKU not verified');
+}
 check(automatic?.subscriptionGroupId === config.membershipSubscriptionGroupId && automatic?.prices?.CNY?.includes(500), 'Monthly subscription group/price mismatch');
 check(automatic?.purchasesEnabled !== false && release.membershipProductId === automatic?.id, 'NORMAL subscription SKU not verified');
 check(reminder.appId === config.accountClientId && typeof reminder.projectId === 'string' && !!reminder.projectId, 'Push application/project mismatch');

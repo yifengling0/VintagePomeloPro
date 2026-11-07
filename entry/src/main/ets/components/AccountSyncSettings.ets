@@ -35,6 +35,7 @@ export struct AccountSyncSettings {
   @State private statusArea: string = 'account';
   @State private membership: string = '未登录';
   @State private vipActive: boolean = false;
+  @State private vipLifetime: boolean = false;
   @State private membershipUncertain: boolean = false;
   @State private renewalKnown: boolean = false;
   @State private renewalEnabled: boolean = true;
@@ -275,12 +276,13 @@ export struct AccountSyncSettings {
     const service = ValueAddedService.getInstance();
     this.applyVip(entitlement, owner);
     this.membershipUncertain = entitlement.refreshRequired === true;
-    this.renewalDetail = entitlement.active && entitlement.autoRenew === false ? '自动续费已关闭，权益保留至 ' + this.expiryDate(entitlement.expiresAt) :
+    this.renewalDetail = this.vipLifetime ? '' :
+      entitlement.active && entitlement.autoRenew === false ? '自动续费已关闭，权益保留至 ' + this.expiryDate(entitlement.expiresAt) :
       entitlement.active && entitlement.autoRenew === true && entitlement.nextRenewalAt && entitlement.nextRenewalPrice ? '预计续费 ' + this.expiryDate(entitlement.nextRenewalAt) + '，' +
         (entitlement.renewalCurrency || '') + ' ' + (entitlement.nextRenewalPrice / 100).toFixed(2) + '，延长一个月' : '';
     this.membership = this.vipActive ?
-      '有效期至 ' + new Date(entitlement.expiresAt).toLocaleDateString() +
-        (entitlement.autoRenew === true ? ' · 自动续费已开启' : entitlement.autoRenew === false ? ' · 到期后不再续费' : '') :
+      (this.vipLifetime ? 'VIP 终身会员 · 长期有效' : '有效期至 ' + new Date(entitlement.expiresAt).toLocaleDateString() +
+        (entitlement.autoRenew === true ? ' · 自动续费已开启' : entitlement.autoRenew === false ? ' · 到期后不再续费' : '')) :
       entitlement.refreshRequired ? '会员状态待重新核验，请稍后刷新' :
       entitlement.billingRetry ? '续费未完成，请检查订阅' :
       entitlement.subscriptionStatus === '5' ? '订阅已撤销' :
@@ -291,7 +293,7 @@ export struct AccountSyncSettings {
   }
   private resetVip(): void {
     if (this.vipTimer >= 0) clearTimeout(this.vipTimer);
-    this.vipTimer = -1; this.vipActive = false; this.vipOwner = ''; this.vipDeadline = 0;
+    this.vipTimer = -1; this.vipActive = false; this.vipLifetime = false; this.vipOwner = ''; this.vipDeadline = 0;
     this.renewalKnown = false; this.renewalEnabled = true; this.membershipUncertain = false;
   }
   private applyVip(entitlement: MemberEntitlement, owner: string): void {
@@ -301,6 +303,7 @@ export struct AccountSyncSettings {
     this.vipOwner = owner;
     this.vipDeadline = Date.now() + entitlement.expiresAt - entitlement.serverTime;
     this.vipActive = true;
+    this.vipLifetime = entitlement.lifetime === true;
     this.renewalKnown = typeof entitlement.autoRenew === 'boolean';
     this.renewalEnabled = entitlement.autoRenew === true;
     this.updateVipExpiry();
@@ -308,7 +311,7 @@ export struct AccountSyncSettings {
   private updateVipExpiry(): void {
     if (this.vipTimer >= 0) clearTimeout(this.vipTimer);
     this.vipTimer = -1;
-    if (!this.alive || !this.vipActive) return;
+    if (!this.alive || !this.vipActive || this.vipLifetime) return;
     if (this.vipOwner !== ValueAddedService.getInstance().getUserId()) { this.resetVip(); return; }
     const remaining = this.vipDeadline - Date.now();
     if (remaining <= 0) {
@@ -335,8 +338,11 @@ export struct AccountSyncSettings {
       }
     } catch (_) {
       if (this.alive && owner === service.getUserId() && request === this.productRequest) {
-        this.products = []; this.productIssues = service.getMembershipProductIssues();
-        this.membershipPriceStatus = '价格暂时无法获取，请稍后刷新。';
+        const preview = service.previewProducts();
+        this.products = preview;
+        this.productIssues = preview.length > 0 ? [] : service.getMembershipProductIssues();
+        this.membershipPriceStatus = preview.length > 0 ?
+          '活动预览：登录并连接服务后，以华为收银台价格为准。' : '价格暂时无法获取，请稍后刷新。';
       }
     }
   }
@@ -446,7 +452,8 @@ export struct AccountSyncSettings {
     });
   }
   private canBuyMembership(product: StoreProduct): boolean {
-    return this.showCheckout && !this.busy && !this.vipActive && !this.membershipUncertain && this.commerceReady && !!this.userId && this.selectedProductId === product.id &&
+    return this.showCheckout && !this.busy && !this.vipActive && !this.membershipUncertain && this.commerceReady &&
+      !product.preview && !!this.userId && this.selectedProductId === product.id &&
       this.membershipAccepted && (product.type !== 2 || this.autoRenewAccepted);
   }
   private clearConfirmation(): void {
@@ -459,7 +466,7 @@ export struct AccountSyncSettings {
   private openCheckout(): void {
     const product = this.checkoutProduct();
     if (this.busy || !this.commerceReady || !this.userId || this.vipActive || this.membershipUncertain ||
-      !product) return;
+      !product || product.preview) return;
     this.selectedProductId = product.id;
     this.membershipAccepted = false; this.autoRenewAccepted = false; this.checkoutLegalExpanded = false;
     this.status = ''; this.statusArea = 'membership'; this.showCheckout = true;
@@ -469,11 +476,26 @@ export struct AccountSyncSettings {
     return products.find((product: StoreProduct): boolean => product.id === this.selectedProductId) ||
       (products.length === 1 ? products[0] : undefined);
   }
+  private productTitle(product: StoreProduct): string {
+    return product.type === 2 ? '连续包月' : product.lifetime ? '终身会员' : '单月会员';
+  }
+  private productIssueTitle(issue: StoreProductIssue): string {
+    return issue.lifetime ? '终身会员' : issue.type === 2 ? '连续包月' : '单月会员';
+  }
+  private productPromotionLabel(product: StoreProduct): string {
+    return product.campaignLabel || product.promotion?.label || '';
+  }
+  private productDeadline(product: StoreProduct): string {
+    return product.campaignDeadline || product.promotion?.deadline || '';
+  }
+  private productSaving(product: StoreProduct): string {
+    return product.campaignSaving || product.promotion?.saving || '';
+  }
   private checkoutButtonLabel(): string {
     if (!this.userId) return '登录后开通';
     if (!this.commerceReady) return '购买暂未开放';
     const product = this.checkoutProduct();
-    return product ? '开通' + (product.type === 2 ? '连续包月 · ' : '单月会员 · ') + product.price : '请选择套餐';
+    return product ? '开通' + this.productTitle(product) + ' · ' + product.price : '请选择套餐';
   }
   private openLegal(document: string): void {
     void router.pushUrl({ url: 'pages/MembershipLegal', params: { document: document } });
@@ -761,15 +783,40 @@ export struct AccountSyncSettings {
         Column({ space: 16 }) {
           if (!this.checkoutLegalExpanded) {
           Column({ space: 6 }) {
-            Text(product.type === 2 ? '连续包月' : '单月会员').fontSize(18).fontWeight(FontWeight.Medium)
+            Text(this.productTitle(product)).fontSize(18).fontWeight(FontWeight.Medium)
               .fontColor(skinColor('text_primary'))
             Text('本次支付 ' + product.price).fontSize(28).fontWeight(FontWeight.Bold)
               .fontColor(skinColor('text_primary')).id('sync-checkout-amount')
-            Text(product.priceDescription || '开通一个日历月，到期不自动扣款')
+            if (product.regularPrice || this.productPromotionLabel(product)) {
+              Row({ space: 8 }) {
+                if (this.productPromotionLabel(product)) {
+                  Text(this.productPromotionLabel(product)).fontSize(12).fontColor(skinColor('accent'))
+                    .padding({ left: 8, right: 8, top: 3, bottom: 3 }).borderRadius(10)
+                    .backgroundColor(skinColor('selected_background'))
+                }
+                if (product.regularPrice) {
+                  Text('原价 ' + product.regularPrice).fontSize(13).fontColor(skinColor('text_secondary'))
+                    .decoration({ type: TextDecorationType.LineThrough })
+                }
+                if (this.productSaving(product)) {
+                  Text('立省 ' + this.productSaving(product)).fontSize(13).fontColor(skinColor('accent'))
+                }
+              }.width('100%').justifyContent(FlexAlign.Center)
+            }
+            if (this.productDeadline(product)) {
+              Text(this.productDeadline(product)).fontSize(12).fontColor(skinColor('text_secondary'))
+                .textAlign(TextAlign.Center).id('sync-checkout-deadline')
+            }
+            Text(product.priceDescription || (product.lifetime ? '一次买断，终身有效，不自动续费。' :
+              '开通一个日历月，到期不自动扣款'))
               .fontSize(14).fontColor(skinColor('text_primary')).textAlign(TextAlign.Center)
           }.width('100%').padding(16).borderRadius(16).backgroundColor(skinColor('selected_background'))
           Text('会员权益：自动备份和恢复应用配置、输入方案。游戏存档不上传。')
             .fontSize(14).fontColor(skinColor('text_primary')).width('100%')
+          if (product.lifetime) {
+            Text('一次买断，长期有效；不自动续费，不涉及订阅取消。同一华为账号可通过“恢复购买”找回权益。')
+              .fontSize(13).fontColor(skinColor('text_primary')).width('100%')
+          }
           if (product.type === 2) {
             Text('按月自动扣款，优惠结束后 ' + (product.regularPrice || product.price) + '/月。华为可能提前24小时扣款，失败后可能重试。')
               .fontSize(14).fontColor(skinColor('text_primary')).width('100%')
@@ -816,7 +863,7 @@ export struct AccountSyncSettings {
         } else if (product.type === 2 && !this.reminderReady) {
           Text(this.reminderStatus).fontSize(12).fontColor(skinColor('text_secondary')).width('100%').id('sync-reminder-status')
         }
-        Button(this.busy ? '正在检查，请稍候…' : '确认并支付 ' + product.price + (product.type === 2 ? ' · 连续包月' : ' · 单月会员'))
+        Button(this.busy ? '正在检查，请稍候…' : '确认并支付 ' + product.price + ' · ' + this.productTitle(product))
           .width('100%').height(48).fontSize(16).fontWeight(FontWeight.Medium)
           .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF').enabled(this.canBuyMembership(product))
           .onClick((): void => this.buy(product)).id('sync-product-' + product.id)
@@ -831,6 +878,7 @@ export struct AccountSyncSettings {
   @Builder
   private Membership() {
     this.Heading('VIP 会员', '自动备份和恢复应用配置、输入方案；游戏存档不上传。')
+    if (!this.vipLifetime) {
     Row({ space: 10 }) {
       Column({ space: 4 }) {
         Text('续费提醒').fontSize(14).fontColor(skinColor('text_primary'))
@@ -847,6 +895,7 @@ export struct AccountSyncSettings {
           await this.refreshReminder(false);
         }); })
     }.width('100%').padding(12).borderRadius(12).backgroundColor(skinColor('search_background'))
+    }
     if (this.vipActive || this.membershipUncertain) {
       Text(this.membership).fontSize(14).fontColor(skinColor('text_primary')).width('100%')
       if (this.renewalDetail) { Text(this.renewalDetail).fontSize(13).fontColor(skinColor('text_secondary')).width('100%') }
@@ -855,12 +904,40 @@ export struct AccountSyncSettings {
         Button() {
           Row({ space: 12 }) {
             Column({ space: 6 }) {
-              Text(product.type === 2 ? '连续包月' : '单月会员').fontSize(16).fontWeight(FontWeight.Medium)
-                .fontColor(skinColor('text_primary'))
-              Text(product.priceDescription || '一个日历月，到期不自动扣款').fontSize(13)
-                .fontColor(skinColor('text_secondary')).textAlign(TextAlign.Start)
+              Row({ space: 8 }) {
+                Text(this.productTitle(product)).fontSize(16).fontWeight(FontWeight.Medium)
+                  .fontColor(skinColor('text_primary'))
+                if (this.productPromotionLabel(product)) {
+                  Text(this.productPromotionLabel(product)).fontSize(11).fontColor(skinColor('accent'))
+                    .padding({ left: 7, right: 7, top: 2, bottom: 2 }).borderRadius(9)
+                    .backgroundColor(skinColor('selected_background'))
+                }
+              }.width('100%')
+              Text(product.priceDescription || (product.lifetime ? '一次买断，终身有效' : '一个日历月，到期不自动扣款'))
+                .fontSize(13).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Start)
+              if (product.regularPrice || this.productSaving(product)) {
+                Row({ space: 8 }) {
+                  if (product.regularPrice) {
+                    Text('原价 ' + product.regularPrice).fontSize(12).fontColor(skinColor('text_secondary'))
+                      .decoration({ type: TextDecorationType.LineThrough })
+                  }
+                  if (this.productSaving(product)) {
+                    Text('立省 ' + this.productSaving(product)).fontSize(12).fontColor(skinColor('accent'))
+                  }
+                }.width('100%')
+              }
+              if (this.productDeadline(product)) {
+                Text(this.productDeadline(product)).fontSize(11).fontColor(skinColor('text_secondary'))
+                  .textAlign(TextAlign.Start).id('sync-product-deadline-' + product.id)
+              }
             }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-            Text(product.price).fontSize(22).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
+            Column({ space: 2 }) {
+              Text(product.price).fontSize(22).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
+              if (product.regularPrice) {
+                Text(product.regularPrice).fontSize(11).fontColor(skinColor('text_secondary'))
+                  .decoration({ type: TextDecorationType.LineThrough })
+              }
+            }.alignItems(HorizontalAlign.End)
             SymbolGlyph(this.selectedProductId === product.id ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
               .fontSize(22).fontColor([this.selectedProductId === product.id ? skinColor('accent') : skinColor('text_secondary')])
           }.width('100%').padding(16)
@@ -873,7 +950,7 @@ export struct AccountSyncSettings {
       ForEach(this.productIssues, (issue: StoreProductIssue) => {
         Row({ space: 12 }) {
           Column({ space: 4 }) {
-            Text(issue.type === 2 ? '连续包月' : '单月会员').fontSize(15).fontColor(skinColor('text_secondary'))
+            Text(this.productIssueTitle(issue)).fontSize(15).fontColor(skinColor('text_secondary'))
             Text('暂未获取到价格').fontSize(12).fontColor(skinColor('text_secondary'))
           }.layoutWeight(1).alignItems(HorizontalAlign.Start)
           Button('重试').fontSize(13).fontColor(skinColor('accent')).backgroundColor(Color.Transparent).enabled(!this.busy)
@@ -931,8 +1008,10 @@ export struct AccountSyncSettings {
           }
           this.OperationStatus('membership')
           Flex({ wrap: FlexWrap.Wrap }) {
-            this.Action('管理订阅／取消自动续费', 'sync-manage-subscriptions', (): boolean => !this.busy,
-              (): void => this.manageMembership())
+            if (!this.vipLifetime) {
+              this.Action('管理订阅／取消自动续费', 'sync-manage-subscriptions', (): boolean => !this.busy,
+                (): void => this.manageMembership())
+            }
             this.Action('恢复购买', 'sync-restore-purchases', (): boolean => !this.busy && !!this.userId,
               (): void => this.restoreMembership())
             this.Action('客服与帮助', 'membership-support', (): boolean => true, (): void => this.openLegal('support'))

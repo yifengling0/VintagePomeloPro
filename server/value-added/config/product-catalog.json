@@ -8,6 +8,15 @@
     "prices": { "CNY": [500] }
   },
   {
+    "id": "VIP",
+    "type": 3,
+    "kind": "membership",
+    "purchasesEnabled": true,
+    "policyVersion": "lifetime-v1",
+    "prices": { "CNY": [6800] },
+    "promotionalPrices": { "time_limit": { "CNY": [3800] } }
+  },
+  {
     "id": "vip_monthly_auto",
     "type": 2,
     "kind": "membership",

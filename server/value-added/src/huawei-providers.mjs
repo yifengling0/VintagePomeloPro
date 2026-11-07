@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash, createPrivateKey, randomUUID, sign, verify, X509Certificate } from 'node:crypto';
-import { addCalendarMonth, MEMBERSHIP_POLICY } from './membership-policy.mjs';
+import { addCalendarMonth, LIFETIME_EXPIRES_AT, LIFETIME_POLICY, MEMBERSHIP_POLICY } from './membership-policy.mjs';
 import { subscriptionFact } from './subscription.mjs';
 import { requireThat } from './errors.mjs';
 
@@ -167,7 +167,7 @@ export class HuaweiPurchaseProvider {
   }
   signPromotion(productId, offerId, userId, now = Date.now()) {
     requireThat(this.ready || this.sandboxReady && this.config.environment === 'SANDBOX', 'NOT_CONFIGURED', 503);
-    const product = this.config.products.find(p => p.id === productId && p.type === 2);
+    const product = this.config.products.find(p => p.id === productId && (p.type === 2 || p.type === 3));
     requireThat(Object.hasOwn(product?.promotionalPrices ?? {}, offerId) && /^[a-f0-9]{64}$/.test(userId), 'UNKNOWN_OFFER');
     const c = this.config, iat = Math.floor(now / 1000);
     const data = JSON.stringify({ productItem: { applicationId: c.appId, productId },
@@ -215,20 +215,26 @@ export class HuaweiPurchaseProvider {
       order.productType === String(productType) && order.productId === candidate.productId, 'INVALID_ORDER');
     const product = this.config.products.find(value => value.id === order.productId && value.type === productType);
     requireThat(product, 'UNKNOWN_PRODUCT');
-    requireThat(product.type === 0 || (product.type === 3 && product.policyVersion === MEMBERSHIP_POLICY),
+    requireThat(product.type === 0 || (product.type === 3 &&
+      [MEMBERSHIP_POLICY, LIFETIME_POLICY].includes(product.policyVersion)),
       'MEMBERSHIP_POLICY_UNKNOWN', 503);
     requireThat(Number.isFinite(order.purchaseTime) && Number.isFinite(order.signedTime) && order.signedTime <= Date.now() + 60000 &&
       typeof order.currency === 'string' && order.currency.length === 3 && Number.isFinite(order.price) && order.price >= 0,
       'INVALID_ORDER');
-    requireThat(Array.isArray(product.prices?.[order.currency]) && product.prices[order.currency].includes(order.price),
-      'ORDER_PRICE_MISMATCH');
+    const regularPrice = Array.isArray(product.prices?.[order.currency]) && product.prices[order.currency].includes(order.price);
+    // One-time promotional offers carry the configured offer id on the official order.
+    const promotionalPrice = product.type === 3 && typeof order.offerId === 'string' &&
+      Array.isArray(product.promotionalPrices?.[order.offerId]?.[order.currency]) &&
+      product.promotionalPrices[order.offerId][order.currency].includes(order.price);
+    requireThat(regularPrice || promotionalPrice, 'ORDER_PRICE_MISMATCH');
     const revoked = order.revocationTime !== undefined || order.purchaseOrderRevocationReasonCode !== undefined;
     // A non-renewing monthly pass is a separate grant anchored to its verified purchase time, never a local increment.
     requireThat(revoked || order.needFinish === false || order.needFinish === true ||
       ['1','2'].includes(order.finishStatus), 'ORDER_FINISH_UNKNOWN');
     const needsFinish = order.needFinish !== false && order.finishStatus !== '1' &&
       (order.needFinish === true || order.finishStatus === '2');
-    const expiresAt = product.kind === 'membership' ? addCalendarMonth(order.purchaseTime) : 0;
+    const lifetime = product.kind === 'membership' && product.policyVersion === LIFETIME_POLICY;
+    const expiresAt = product.kind === 'membership' ? (lifetime ? LIFETIME_EXPIRES_AT : addCalendarMonth(order.purchaseTime)) : 0;
     return { appId: order.applicationId, orderId: order.purchaseOrderId, productId: order.productId,
       productType, purchaseToken: order.purchaseToken, developerPayload: order.developerPayload,
       quantity: order.quantity === undefined ? 1 : order.quantity,

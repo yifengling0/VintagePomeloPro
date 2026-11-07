@@ -79,6 +79,8 @@ const imports={
  '../../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{supportsValueAddedFeatures:()=>visible,deviceType:()=>visible?'tablet':'phone'}},
  '../../model/AppModels':app,'../../model/AccountSyncModels':require(path.resolve(process.argv[2], 'model/AccountSyncModels.js')),
   '../../model/ValueAddedModels':models,'../../model/MembershipCommerce':require(path.resolve(process.argv[2],'model/MembershipCommerce.js')),
+  '../../model/MembershipCampaign':{MembershipCampaigns:{parse:()=>[],active:()=>undefined,
+    money:(micro,currency)=>currency+' '+(micro/1000000).toFixed(2),deadline:()=>''}},
  '../InputProfileService':{InputProfileService:{getInstance:()=>({hasProfile:()=>true,getProfile:()=>profile,saveProfile:async()=>{writes++;}})}}
 };
 const source=fs.readFileSync(path.join(__dirname,'../entry/src/main/ets/service/valueadded/ValueAddedService.ets'),'utf8');

@@ -19,6 +19,8 @@ export interface ValueAddedConfig {
   membershipPromotionalOfferId?: string;
   membershipOneTimeProductId?: string;
   membershipOneTimePurchases?: boolean;
+  membershipLifetimeProductId?: string;
+  membershipLifetimePurchases?: boolean;
   membershipSubscriptionGroupId?: string;
   membershipOperatorName?: string;
   coffeeProductId: string;
@@ -45,14 +47,19 @@ export function validateValueAddedConfig(config: ValueAddedConfig): void {
   if (config.membershipProductId && config.membershipProductId === config.coffeeProductId) {
     throw new Error('NOT_CONFIGURED');
   }
-  for (const id of [config.membershipOneTimeProductId, config.membershipSubscriptionGroupId]) {
+  for (const id of [config.membershipOneTimeProductId, config.membershipLifetimeProductId,
+    config.membershipSubscriptionGroupId]) {
     if (id !== undefined && (typeof id !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/.test(id))) throw new Error('NOT_CONFIGURED');
   }
   if (config.membershipOneTimeProductId && [config.membershipProductId, config.coffeeProductId].includes(config.membershipOneTimeProductId)) {
     throw new Error('NOT_CONFIGURED');
   }
-  if (config.membershipOneTimePurchases !== undefined && typeof config.membershipOneTimePurchases !== 'boolean') {
+  if (config.membershipLifetimeProductId && [config.membershipProductId, config.coffeeProductId,
+    config.membershipOneTimeProductId].includes(config.membershipLifetimeProductId)) {
     throw new Error('NOT_CONFIGURED');
+  }
+  for (const enabled of [config.membershipOneTimePurchases, config.membershipLifetimePurchases]) {
+    if (enabled !== undefined && typeof enabled !== 'boolean') throw new Error('NOT_CONFIGURED');
   }
   if (config.membershipOperatorName !== undefined && (typeof config.membershipOperatorName !== 'string' ||
     config.membershipOperatorName.length > 128 || /[\x00-\x1f]/.test(config.membershipOperatorName))) throw new Error('NOT_CONFIGURED');
@@ -72,6 +79,7 @@ export interface MemberEntitlement {
   subscriptionStatus?: string;
   autoRenew?: boolean;
   billingRetry?: boolean;
+  lifetime?: boolean;
   active: boolean;
   expiresAt: number;
   serverTime: number;
