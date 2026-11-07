@@ -49,6 +49,12 @@ export class PortableGameConfigurationService {
     } catch (_) { this.records = []; this.incompatible = true; }
   }
   async flush(): Promise<void> { await this.chain; }
+  /** Empty portable working directory means the executable's own directory. */
+  private executableDirectory(directory: string, executable: string): string {
+    const normalized = executable.replace(/\\/g, '/');
+    const index = normalized.lastIndexOf('/');
+    return index > 0 ? directory + '/' + normalized.substring(0, index) : directory;
+  }
   private relative(path: string, root: string): string {
     const p = path.replace(/\\/g, '/'), r = root.replace(/\\/g, '/').replace(/\/+$/, '');
     if (p === r) return '';
@@ -129,7 +135,8 @@ export class PortableGameConfigurationService {
       if (entry.settings !== '{}') {
         const value = JSON.parse(entry.settings) as AppSettings; value.appId = id;
         value.executable = directory + '/' + entry.executable;
-        value.workingDirectory = entry.workingDirectory ? directory + '/' + entry.workingDirectory : directory;
+        value.workingDirectory = entry.workingDirectory ? directory + '/' + entry.workingDirectory
+          : this.executableDirectory(directory, entry.executable);
         value.customCover = value.customCover ? directory + '/' + configurationRelativePath(value.customCover) : '';
         value.manualBackgroundPath = value.manualBackgroundPath ? directory + '/' + configurationRelativePath(value.manualBackgroundPath) : '';
         const binding = entry.input, profiles = InputProfileService.getInstance();
@@ -169,7 +176,8 @@ export class PortableGameConfigurationService {
         record.game.activeEntryUid = previous.entryUid;
         const restored = JSON.parse(previous.settings) as AppSettings;
         restored.appId = record.appId; restored.executable = record.directory + '/' + selected;
-        restored.workingDirectory = previous.workingDirectory ? record.directory + '/' + previous.workingDirectory : record.directory;
+        restored.workingDirectory = previous.workingDirectory ? record.directory + '/' + previous.workingDirectory
+          : this.executableDirectory(record.directory, selected);
         restored.customCover = restored.customCover ? record.directory + '/' + configurationRelativePath(restored.customCover) : '';
         restored.manualBackgroundPath = restored.manualBackgroundPath ? record.directory + '/' + configurationRelativePath(restored.manualBackgroundPath) : '';
         if (previous.input.mode === 'global') restored.inputProfileId = 'default';

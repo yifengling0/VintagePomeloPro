@@ -296,5 +296,18 @@ async function seedLegacyBackup(c,f){
   const writes=store.flushes;await g.portable.discover(game,path.join(game,'first.exe'),id);assert.equal(store.flushes,writes);
   const recovered=path.join(f.library,'recovered');fs.renameSync(game,recovered);fs.rmSync(path.join(recovered,'.pomelo'),{recursive:true});assert.equal(await g.portable.discover(recovered,path.join(recovered,'first.exe'),'copy'),id);same(g.settings.getAppSettings(id).arguments,['first']);f.dispose();
  });
+ await test('empty portable working directory follows the nested executable directory',async()=>{
+  const f=fixture();await f.initialize();const game=path.join(f.library,'PAL4'),exeDir=path.join(game,'PAL4');fs.mkdirSync(exeDir,{recursive:true});
+  const exe=path.join(exeDir,'pal4.exe');fs.writeFileSync(exe,'pal4');
+  const entryUid=crypto.randomUUID(),settings=f.models.createDefaultAppSettings('');settings.customTitle='PAL4';settings.executable='PAL4/pal4.exe';settings.workingDirectory='';
+  const side={formatVersion:1,minReaderVersion:1,minWriterVersion:1,writtenByAppVersion:'1.5.0',gameUid:crypto.randomUUID(),inputSchemaVersion:6,
+    entries:[{entryUid,executable:'PAL4/pal4.exe',workingDirectory:'',settings:JSON.stringify(settings),input:{mode:'global',sharedId:'',profile:null}}],
+    cardEntryUid:entryUid,activeEntryUid:entryUid};
+  fs.mkdirSync(path.join(game,'.pomelo'),{recursive:true});fs.writeFileSync(path.join(game,'.pomelo/game.json'),JSON.stringify(side));
+  const id=await f.portable.discover(game,exe,'legacy');
+  assert.equal(f.settings.getAppSettings(id).workingDirectory,exeDir,'nested games launch from their own directory, not the game root');
+  assert.equal(f.settings.getAppSettings(id).executable,exe);
+  f.dispose();
+ });
  console.log('PASS configuration integration scenarios: '+count);
 })().catch(e=>{console.error(e);process.exitCode=1;});
