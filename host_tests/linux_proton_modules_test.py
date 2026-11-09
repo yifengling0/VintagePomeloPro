@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+import urllib.error
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
@@ -39,6 +40,34 @@ class ModuleSupportTests(unittest.TestCase):
                 self.assertIn({k:r[k] for k in ('bytes','sha256')},[{k:v[k] for k in ('bytes','sha256')} for v in base['selected'] if v['path']==r['original']])
 
 class CleanModuleRestoreTests(unittest.TestCase):
+    def test_github_gateway_failure_uses_same_verified_release_asset(self):
+        for invalid in ('none', 'metadata', 'checksum'):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                data = b'verified source archive'
+                source = 'https://github.com/GloriousEggroll/proton-ge-custom/releases/download/test/ge.tar.gz'
+                dist = dict(file='ge.tar.gz', bytes=len(data), sha512=hashlib.sha512(data).hexdigest(), source=source)
+                (root / LOCK).parent.mkdir(parents=True)
+                (root / LOCK).write_text(json.dumps(dict(distribution=dist)))
+                asset_url = 'https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/assets/123'
+                metadata = dict(tag_name='test', assets=[dict(name='ge.tar.gz', size=len(data),
+                                                            browser_download_url=source, url=asset_url)])
+                if invalid == 'metadata': metadata['assets'][0]['size'] += 1
+                payload = data if invalid != 'checksum' else b'x' * len(data)
+                replies = [urllib.error.HTTPError(source, 504, 'gateway', {}, None),
+                           io.BytesIO(json.dumps(metadata).encode()), io.BytesIO(payload)]
+                with patch('prepare_linux_proton_module_closure.urllib.request.urlopen', side_effect=replies) as download, \
+                     patch('prepare_linux_proton_module_closure.build', return_value='built') as builder:
+                    if invalid == 'none':
+                        self.assertEqual(prepare(root), 'built')
+                        self.assertEqual(download.call_args.args[0].full_url, asset_url)
+                        self.assertEqual((root / 'build/linux-runtime-downloads/ge.tar.gz').read_bytes(), data)
+                    else:
+                        with self.assertRaises(ValueError): prepare(root)
+                        builder.assert_not_called()
+                        self.assertFalse((root / 'build/linux-runtime-downloads/ge.tar.gz').exists())
+                    self.assertFalse((root / 'build/linux-runtime-downloads/ge.tar.part').exists())
+
     def test_clean_download_uses_pinned_source_and_checks_archive(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)

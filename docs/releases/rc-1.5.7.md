@@ -25,11 +25,14 @@ subsequent fixes through this release; no history is replaced by a patch subset.
   failures stop the affected context instead of submitting stale contents.
 - Fixed clean-build Wayland header staging to follow the pinned versioned build
   directory and require the headers Wayland actually generates.
+- GE source downloads can use the official GitHub asset API when its browser
+  gateway fails. The original distribution size and SHA-512 remain mandatory.
 
 ## Validation and limits
 
 Membership backend tests: 101 passed; packaged purchase tests: 60 passed.
 Client checkout/recovery mocks and `proRelease` ArkTS compilation passed locally.
+The complete CI preflight passed all 237 local checks.
 The updated backend and installed client's checkout entry were confirmed by the
 user; a real NORMAL charge, delivery, renewal and refund were not exercised.
 Auto-renewing checkout still requires a working renewal-reminder service.

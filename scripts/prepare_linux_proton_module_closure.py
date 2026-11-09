@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 import stat
 import tarfile
+import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from proton_module_contract import DIRECTORIES, complete_module_lock, validate_module_lock, sha_file
@@ -143,6 +145,39 @@ def build(root, archive):
     return verify(root)
 
 
+def open_distribution(dist):
+    """Use GitHub's asset API if its browser-download gateway is unavailable."""
+    headers = {'User-Agent': 'VintagePomeloPro-build/1'}
+    try:
+        return urllib.request.urlopen(urllib.request.Request(dist['source'], headers=headers), timeout=90)
+    except urllib.error.HTTPError as error:
+        if error.code not in (429, 500, 502, 503, 504):
+            raise
+        error.close()
+    prefix = 'https://github.com/GloriousEggroll/proton-ge-custom/releases/download/'
+    tag, filename = dist['source'].removeprefix(prefix).split('/')
+    if filename != dist['file']:
+        raise ValueError('GE source filename differs from distribution')
+    api = 'https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/'
+    request = urllib.request.Request(api + 'tags/' + urllib.parse.quote(tag, safe=''),
+                                     headers={**headers, 'Accept': 'application/vnd.github+json'})
+    with urllib.request.urlopen(request, timeout=90) as response:
+        metadata = response.read(1024 * 1024 + 1)
+    if len(metadata) > 1024 * 1024:
+        raise ValueError('Oversized GE release metadata')
+    release = json.loads(metadata)
+    assets = [asset for asset in release.get('assets', [])
+              if asset.get('name') == filename and asset.get('size') == dist['bytes'] and
+              asset.get('browser_download_url') == dist['source']]
+    if release.get('tag_name') != tag or len(assets) != 1:
+        raise ValueError('GitHub asset differs from pinned GE distribution')
+    asset_url = assets[0].get('url', '')
+    if not asset_url.startswith(api + 'assets/') or not asset_url.removeprefix(api + 'assets/').isdigit():
+        raise ValueError('Unexpected GitHub GE asset API URL')
+    return urllib.request.urlopen(urllib.request.Request(asset_url,
+        headers={**headers, 'Accept': 'application/octet-stream'}), timeout=90)
+
+
 def prepare(root=ROOT, cache=None, verify_only=False, archive=None):
     if verify_only:return verify(root)
     try:return verify(root)
@@ -160,7 +195,7 @@ def prepare(root=ROOT, cache=None, verify_only=False, archive=None):
         pending=archive.with_suffix('.part')
         if pending.is_symlink():raise ValueError('Linked GE download')
         try:
-            with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'VintagePomeloPro-build/1'}),timeout=90) as src,pending.open('wb') as dst:
+            with open_distribution(dist) as src,pending.open('wb') as dst:
                 count=0
                 for chunk in iter(lambda:src.read(1048576),b''):
                     count+=len(chunk)
