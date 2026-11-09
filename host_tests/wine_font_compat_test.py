@@ -117,13 +117,19 @@ class WineFontCompatTest(unittest.TestCase):
         for relative in relatives - added:
             path = cls.tree / relative; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + relative], cwd=options.wine_src))
+        # The production overlap verifier reads pristine files via git show.
+        # This small fixture must provide its own immutable baseline as well.
+        subprocess.run(['git', 'init', '-q', str(cls.tree)], check=True)
+        subprocess.run(['git', '-C', str(cls.tree), 'add', '--all'], check=True)
+        subprocess.run(['git', '-C', str(cls.tree), '-c', 'user.name=Font Test',
+                        '-c', 'user.email=font-test@example.invalid', 'commit', '-qm', 'fixture'], check=True)
         # Exercise the actual production detector. Later overlays can change
         # surrounding context; its direction and copied-stack checks must be
         # tested with the same flags used by build_wine.sh.
         helper = function(script, 'ensure_wine_patch() {')
-        command = ('set -euo pipefail\nlog() { :; }\n' + helper +
+        command = ('set -euo pipefail\nSCRIPT_DIR="$1"\nshift\nlog() { :; }\n' + helper +
                    '\nWINE_SRC="$1"\nshift\nfor p in "$@"; do ensure_wine_patch "$p" font-test; done\n')
-        replay = ['bash', '-c', command, 'replay', str(cls.tree), *map(str, cls.patches)]
+        replay = ['bash', '-c', command, 'replay', str(ROOT / 'scripts'), str(cls.tree), *map(str, cls.patches)]
         subprocess.run(replay, check=True, capture_output=True, text=True)
         cls.once = {path: (cls.tree / path).read_bytes() for path in relatives}
         subprocess.run(replay, check=True, capture_output=True, text=True)

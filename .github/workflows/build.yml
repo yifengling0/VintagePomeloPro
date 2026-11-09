@@ -482,7 +482,7 @@ jobs:
           python3 host_tests/linux_steam_desktop_test.py
           python3 host_tests/linux_native_bc_recording_test.py --build-dir workspace_temp/native-bc-recording
           python3 host_tests/linux_runtime_components_test.py
-          make test-font-import
+          make test-font-import test-wine-font-compat
           python3 host_tests/verified_source_download_test.py
           python3 host_tests/linux_steam_offline_package_test.py
           python3 host_tests/release_offline_packages_test.py
