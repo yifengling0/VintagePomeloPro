@@ -307,6 +307,7 @@ jobs:
         run: |
           python3 host_tests/wayland_header_staging_test.py
           python3 host_tests/llvm_mingw_download_test.py
+          python3 host_tests/display_libs_download_test.py
 
       - name: Show environment
         run: |
@@ -335,6 +336,8 @@ jobs:
       # small fixtures and leaves the verified checkout untouched.
       - name: Verify fresh and incremental FEX source overlays
         run: |
+          # Fail early on verified display source downloads rather than after Wine builds.
+          bash scripts/build_display_libs.sh --fetch-only
           python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
           python3 host_tests/fex_build_identity_test.py
           python3 host_tests/fex_simd_runtime_test.py

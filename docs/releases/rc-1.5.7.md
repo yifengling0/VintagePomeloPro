@@ -28,6 +28,8 @@ subsequent fixes through this release; no history is replaced by a patch subset.
 - GE, GNU companion and pinned LLVM-MinGW downloads can use the official
   GitHub asset API when its browser gateway fails. The pinned sizes and
   SHA-512/SHA-256 digests remain mandatory.
+- Display sources use retry and a SHA-256-verified Pixman mirror; CI validates
+  these small downloads before the long Wine build.
 
 ## Validation and limits
 
