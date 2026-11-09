@@ -25,8 +25,9 @@ subsequent fixes through this release; no history is replaced by a patch subset.
   failures stop the affected context instead of submitting stale contents.
 - Fixed clean-build Wayland header staging to follow the pinned versioned build
   directory and require the headers Wayland actually generates.
-- GE source downloads can use the official GitHub asset API when its browser
-  gateway fails. The original distribution size and SHA-512 remain mandatory.
+- GE, GNU companion and pinned LLVM-MinGW downloads can use the official
+  GitHub asset API when its browser gateway fails. The pinned sizes and
+  SHA-512/SHA-256 digests remain mandatory.
 
 ## Validation and limits
 

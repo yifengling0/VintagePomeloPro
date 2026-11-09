@@ -304,7 +304,9 @@ jobs:
           rm ci-artifacts/arm64-toolchain-probe
 
       - name: Test versioned Wayland generated-header staging
-        run: python3 host_tests/wayland_header_staging_test.py
+        run: |
+          python3 host_tests/wayland_header_staging_test.py
+          python3 host_tests/llvm_mingw_download_test.py
 
       - name: Show environment
         run: |

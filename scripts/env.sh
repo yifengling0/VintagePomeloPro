@@ -78,8 +78,14 @@ if [ -z "${LLVM_MINGW}" ]; then
     echo "llvm-mingw 缺失, 自动下载 $LLVM_MINGW_VERSION (CI 同款 release) 到 $ROOT/.temp/  ..." >&2
     mkdir -p "$ROOT/.temp"
     tarball="$ROOT/.temp/$LLVM_MINGW_DIRNAME.tar.xz"
-    if ! curl -fL --retry 3 --connect-timeout 30 -o "$tarball" \
-         "https://github.com/mstorsjo/llvm-mingw/releases/download/$LLVM_MINGW_VERSION/$LLVM_MINGW_DIRNAME.tar.xz"; then
+    download_failed=0
+    if [ "$LLVM_MINGW_VERSION" = 20260826 ]; then
+        python3 "$ROOT/scripts/download_llvm_mingw.py" "$tarball" || download_failed=1
+    else
+        curl -fL --retry 3 --connect-timeout 30 -o "$tarball" \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/$LLVM_MINGW_VERSION/$LLVM_MINGW_DIRNAME.tar.xz" || download_failed=1
+    fi
+    if [ "$download_failed" = 1 ]; then
         echo "ERROR: 自动下载失败。请用以下任一方式准备工具链再构建:" >&2
         echo "  方式 A (推荐): http_proxy/https_proxy 正常后重试本命令;" >&2
         echo "  方式 B: 自行下载解压, 然后 export LLVM_MINGW=/path/to/$LLVM_MINGW_DIRNAME" >&2
