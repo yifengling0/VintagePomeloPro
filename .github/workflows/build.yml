@@ -304,6 +304,10 @@ jobs:
           if ! command -v xz >/dev/null 2>&1; then
             packages+=(xz-utils)
           fi
+          # Match the hosted preflight runner's cache compression format.
+          if ! command -v zstd >/dev/null 2>&1; then
+            packages+=(zstd)
+          fi
           for spirv_tool in spirv-as spirv-dis spirv-val spirv-opt; do
             if ! command -v "$spirv_tool" >/dev/null 2>&1; then
               packages+=(spirv-tools)
