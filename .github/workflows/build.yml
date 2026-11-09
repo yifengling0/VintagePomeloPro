@@ -119,7 +119,9 @@ jobs:
         shell: bash
 
     container:
-      image: ghcr.io/panedioic/winehua-buildenv:test
+      # Immutable image observed in the 2026-11-09 CI runs. Update this
+      # digest deliberately and rerun clean-build/device qualification.
+      image: ghcr.io/panedioic/winehua-buildenv@sha256:59f64bde2c1f6b54ad7505032622be94d52279b6c1523d54204992a2249b1a8c
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
