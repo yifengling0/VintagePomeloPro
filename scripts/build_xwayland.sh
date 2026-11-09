@@ -18,6 +18,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/download_verified_source.sh"
 
 XSERVE_SRC="$ROOT/thirdparty/xserver"
 XS_VER=$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" "$XSERVE_SRC/meson.build" | head -1)
@@ -42,10 +43,7 @@ chmod +x "$CCWRAP"
 DL="$BUILD_DIR/downloads"
 fetch_and_unpack() {  # $1=url  $2=sha256  $3=解压后目录名
     local tgz="$DL/$(basename "$1")"
-    if [ ! -f "$tgz" ]; then
-        log "--- 下载 $(basename "$1") ---"
-        curl -fsSL -o "$tgz" "$1"
-    fi
+    download_verified_source "$1" "$2" "$tgz"
     echo "$2  $tgz" | sha256sum -c - || err "sha256 不匹配: $tgz"
     [ -d "$BUILD_DIR/$3" ] || tar -C "$BUILD_DIR" -xf "$tgz"
 }

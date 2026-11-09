@@ -6,6 +6,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/download_verified_source.sh"
 
 SIDE="${SIDE:-host}"
 case "$SIDE" in
@@ -47,10 +48,7 @@ mkdir -p "$DL" "$PRE" "$INC" "$LIB" "$PC" "$SPC"
 # 共享目录下 guest 复用 host 的对象缓存, make 重链 arm64 .so 装进 guest 树)。
 fetch_and_unpack() {
     local tgz="$DL/$(basename "$1")"
-    if [ ! -f "$tgz" ]; then
-        log "--- 下载 $(basename "$1") ---"
-        curl -fsSL -o "$tgz" "$1"
-    fi
+    download_verified_source "$1" "$2" "$tgz"
     echo "$2  $tgz" | sha256sum -c - || { err "sha256 不匹配: $tgz"; }
     mkdir -p "$BUILD_DIR/x11/$SIDE/$T"
     [ -d "$BUILD_DIR/x11/$SIDE/$T/$3" ] || tar -C "$BUILD_DIR/x11/$SIDE/$T" -xf "$tgz"
