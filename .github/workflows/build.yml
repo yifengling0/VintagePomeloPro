@@ -444,6 +444,7 @@ jobs:
           # test with an empty host include directory before the long build.
           bash scripts/build_wayland.sh --scanner-only
           WAYLAND_SCANNER="$PWD/build/host-tools/bin/wayland-scanner" python3 host_tests/wlroots_protocol_headers_test.py
+          WAYLAND_SCANNER="$PWD/build/host-tools/bin/wayland-scanner" python3 host_tests/native_protocol_build_test.py
           python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
           python3 host_tests/fex_build_identity_test.py
           python3 host_tests/fex_simd_runtime_test.py
@@ -552,7 +553,6 @@ jobs:
           set -euxo pipefail
           make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 GUEST_ARCH=aarch64 hap-unsigned
           make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 arm64ec-release-gate
-          python3 host_tests/native_protocol_build_test.py
           make test-xdg-resource-lifecycle
 
       # These tests extract production functions from the patched Wine tree.

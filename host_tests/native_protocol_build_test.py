@@ -44,17 +44,31 @@ class ProtocolBuildTests(unittest.TestCase):
             for name in ('wayland-server-core.h', 'wayland-server.h', 'wayland-client-core.h',
                          'wayland-client.h', 'wayland-util.h'):
                 shutil.copyfile(headers / name, wayland / 'src' / name)
-            wlbuild = generated / 'wayland/src'
+            (wayland / 'meson.build').write_text("project('wayland', 'c',\n  version: '1.26.0')\n")
+            wlbuild = generated / 'wayland_1.26.0/src'
             wlbuild.mkdir(parents=True)
             for mode in ('server', 'client'):
                 subprocess.run([scanner, mode + '-header', str(xml),
                     str(wlbuild / ('wayland-' + mode + '-protocol.h'))], check=True, capture_output=True)
             # The version header normally comes from Meson's configure step.
-            (wlbuild / 'wayland-version.h').write_text('#define WAYLAND_VERSION_MAJOR 1\n')
+            (wlbuild / 'wayland-version.h').write_text('#define WAYLAND_VERSION "1.26.0"\n#define WAYLAND_VERSION_MAJOR 1\n')
             xdg = root / 'thirdparty/wayland-protocols/stable/xdg-shell/xdg-shell.xml'
             xdg.parent.mkdir(parents=True)
             xdg.write_text('<protocol name="xdg_shell"><interface name="xdg_wm_base" version="1">'
                            '<request name="destroy" type="destructor"/></interface></protocol>')
+            protocol_source = ROOT / 'thirdparty/wayland-protocols'
+            if not protocol_source.is_dir():
+                protocol_source = Path('/usr/share/wayland-protocols')
+            for relative in (
+                'unstable/relative-pointer/relative-pointer-unstable-v1.xml',
+                'unstable/pointer-constraints/pointer-constraints-unstable-v1.xml',
+                'unstable/text-input/text-input-unstable-v3.xml',
+                'staging/pointer-warp/pointer-warp-v1.xml',
+                'stable/viewporter/viewporter.xml',
+            ):
+                destination = root / 'thirdparty/wayland-protocols' / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(protocol_source / relative, destination)
             shutil.copyfile(ROOT / 'entry/src/main/cpp/protocols/winehua-toplevel.xml',
                             tracked / 'winehua-toplevel.xml')
             # A wrong include order must fail compilation, even if both bare
@@ -69,7 +83,7 @@ class ProtocolBuildTests(unittest.TestCase):
             def build_protocols():
                 subprocess.run(['bash', '-euo', 'pipefail', '-c',
                     'log() { :; }\n' + functions + '\nbuild_protocols\ninstall_headers\n'],
-                    env=env, check=True, capture_output=True)
+                    env=env, check=True)
             def hashes(path):
                 return {str(p.relative_to(path)): hashlib.sha256(p.read_bytes()).hexdigest()
                         for p in path.rglob('*') if p.is_file()}
