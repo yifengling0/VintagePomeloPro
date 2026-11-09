@@ -411,6 +411,10 @@ jobs:
           bash scripts/build_display_libs.sh --fetch-only
           python3 host_tests/verified_source_download_test.py
           python3 scripts/prefetch_x11_sources.py --downloads build/downloads
+          # wlroots host compilation needs generated protocol enum headers;
+          # test with an empty host include directory before the long build.
+          bash scripts/build_wayland.sh --scanner-only
+          WAYLAND_SCANNER="$PWD/build/host-tools/bin/wayland-scanner" python3 host_tests/wlroots_protocol_headers_test.py
           python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
           python3 host_tests/fex_build_identity_test.py
           python3 host_tests/fex_simd_runtime_test.py

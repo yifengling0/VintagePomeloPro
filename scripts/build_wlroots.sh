@@ -61,6 +61,14 @@ EOF
     log "xwayland.pc ($XWLR_PIN 暂存复刻) → $HOST_EXT_PC"
 fi
 
+# wayland-protocols 1.49 installs enum headers under the guest data
+# prefix, but its data-only .pc exports no Cflags. Generate only the required
+# architecture-independent headers in the host include tree; do not add the
+# entire guest sysroot to host compiler include paths.
+python3 "$SCRIPT_DIR/prepare_wlroots_protocol_headers.py" \
+    --wlroots "$WLR_SRC" --protocols "$ROOT/thirdparty/wayland-protocols" \
+    --scanner "$WAYLAND_SCANNER" --output "$HOST_EXT_INC/wayland-protocols"
+
 # ── host 侧 EGL / GLESv2 pc (M2-T4: wlroots gles2 渲染器) ──
 # OHOS SDK sysroot 只装 .so 不装 .pc, 而 wlroots gles2 依赖 egl/glesv2 两个
 # pkg-config 依赖项。这里按 SDK sysroot 实测路径生成(与 xwayland.pc 同款
