@@ -147,7 +147,7 @@ try {
   const makeLifetimeDomain=()=>new ValueAddedDomain({store:lifetimeStore,accountProvider:{ready:true},
     purchaseProvider:lifetimeProvider,config:lifetimeConfig,clock:()=>domainTime});
   const lifetimeDomain=makeLifetimeDomain();
-  assert.equal(lifetimeDomain.capabilities().sandboxCommerce,true);
+  assert.equal(lifetimeDomain.capabilities().sandboxCommerce,undefined);
   assert.equal(lifetimeDomain.capabilities().profiles,false);
   const intent=await lifetimeDomain.intent(owner,{productId:'VIP',productType:1,promotionalOfferId:'time_limit'});
   const [offerHead,offerBody,offerSignature]=intent.promotionalPurchase.jwsRepresentation.split('.');
@@ -216,5 +216,31 @@ try {
   subGroup=validGroup;
   globalThis.fetch=async()=>new Response(JSON.stringify({responseCode:'0',jwsSubGroupStatus:jws(subGroup,{privateKey:key('wrongoid')})}));
   await assert.rejects(autoProvider.verify(autoReceipt,2),/INVALID_JWS/);
+  const unified = new HuaweiPurchaseProvider({...provider.config,environment:'AUTO'});
+  unified.enableCommerce();
+  assert.equal(unified.commerceReady,true);assert.equal(unified.ready,false);assert.equal(unified.sandboxReady,false);
+  for (const environment of ['NORMAL','SANDBOX']) {
+    const candidate={...payload,environment};let official=candidate,queries=0;
+    globalThis.fetch=async()=>{queries++;return new Response(JSON.stringify({responseCode:'0',jwsPurchaseOrder:jws(official)}));};
+    const receipt=JSON.stringify({type:3,jwsPurchaseOrder:jws(candidate)});
+    assert.equal((await unified.verify(receipt,3)).environment,environment);
+    official={...candidate,environment:environment==='NORMAL'?'SANDBOX':'NORMAL'};
+    await assert.rejects(unified.verify(receipt,3),/INVALID_ORDER/);
+    const before=queries;
+    await assert.rejects(unified.verify(JSON.stringify({type:3,jwsPurchaseOrder:jws({...candidate,environment:'AUTO'})}),3),/INVALID_ORDER/);
+    assert.equal(queries,before);
+    const subscription={...subscribed,environment};
+    const group={...validGroup,environment,lastSubscriptionStatus:{...validGroup.lastSubscriptionStatus,
+      lastPurchaseOrder:subscription,renewalInfo:{...validGroup.lastSubscriptionStatus.renewalInfo,environment}}};
+    let officialGroup=group;
+    globalThis.fetch=async()=>new Response(JSON.stringify({responseCode:'0',jwsSubGroupStatus:jws(officialGroup)}));
+    const unifiedAuto=new HuaweiPurchaseProvider({...autoProvider.config,environment:'AUTO'});
+    const autoReceipt=JSON.stringify({type:2,jwsPurchaseOrder:jws(subscription)});
+    assert.equal((await unifiedAuto.verify(autoReceipt,2)).environment,environment);
+    assert.equal((await unifiedAuto.verify(JSON.stringify({type:2,jwsSubscriptionStatus:jws(group)}),2)).environment,environment);
+    officialGroup={...group,environment:environment==='NORMAL'?'SANDBOX':'NORMAL'};
+    await assert.rejects(unifiedAuto.verify(autoReceipt,2),/INVALID_SUBSCRIPTION/);
+  }
+  console.log('PASS: AUTO accepts signed NORMAL and SANDBOX orders/subscriptions and rejects cross-environment latest responses');
   console.log('PASS: synthetic JWS valid/alg/signature/OID/noncritical/root/expiry/chain/tamper + provider request digest/latest status/app/token/environment/price/finish/refund');
 } finally {globalThis.fetch=oldFetch;rmSync(dir,{recursive:true,force:true});}

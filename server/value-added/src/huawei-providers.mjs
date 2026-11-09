@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash, createPrivateKey, randomUUID, sign, verify, X509Certificate } from 'node:crypto';
 import { addCalendarMonth, LIFETIME_EXPIRES_AT, LIFETIME_POLICY, MEMBERSHIP_POLICY } from './membership-policy.mjs';
-import { subscriptionFact } from './subscription.mjs';
+import { subscriptionFact, matchesPurchaseEnvironment } from './subscription.mjs';
 import { requireThat } from './errors.mjs';
 
 async function fetchJson(url, options) {
@@ -135,7 +135,11 @@ export function iapAuthorization(config, body, now = Date.now()) {
 }
 
 export class HuaweiPurchaseProvider {
-  constructor(config) { this.config = config; this.ready = false; this.sandboxReady = false; }
+  constructor(config) { this.config = config; this.ready = false; this.sandboxReady = false; this.commerceReady = false; }
+  enableCommerce() {
+    this.checkConfiguration();
+    this.commerceReady = true;
+  }
   checkConfiguration() {
     let version = '';
     try { version = execFileSync(this.config.opensslPath ?? 'openssl', ['version'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }); }
@@ -157,16 +161,16 @@ export class HuaweiPurchaseProvider {
       'IAP_NOT_VERIFIED', 503);
     this.ready = true;
   }
-  fingerprint() {
+  fingerprint(environment = this.config.environment) {
     const c = this.config;
     requireThat(c.appId && c.packageName && c.issuerId && c.keyId && c.privateKeyPem && c.rootPem &&
-      ['SANDBOX','NORMAL'].includes(c.environment), 'NOT_CONFIGURED', 503);
+      ['SANDBOX','NORMAL','AUTO'].includes(environment), 'NOT_CONFIGURED', 503);
     return createHash('sha256').update(JSON.stringify({ appId: c.appId, packageName: c.packageName,
       issuerId: c.issuerId, keyId: c.keyId, root: new X509Certificate(c.rootPem).fingerprint256,
-      environment: c.environment, products: c.products, verifierDigest: c.verifierDigest ?? 'system-openssl3' })).digest('hex');
+      environment, products: c.products, verifierDigest: c.verifierDigest ?? 'system-openssl3' })).digest('hex');
   }
   signPromotion(productId, offerId, userId, now = Date.now()) {
-    requireThat(this.ready || this.sandboxReady && this.config.environment === 'SANDBOX', 'NOT_CONFIGURED', 503);
+    requireThat(this.commerceReady || this.ready || this.sandboxReady && this.config.environment === 'SANDBOX', 'NOT_CONFIGURED', 503);
     const product = this.config.products.find(p => p.id === productId && [1, 2, 3].includes(p.type));
     requireThat(Object.hasOwn(product?.promotionalPrices ?? {}, offerId) && /^[a-f0-9]{64}$/.test(userId), 'UNKNOWN_OFFER');
     const c = this.config, iat = Math.floor(now / 1000);
@@ -194,7 +198,7 @@ export class HuaweiPurchaseProvider {
       requireThat(data.jwsSubscriptionStatus === undefined, 'INVALID_ORDER');
       candidate = verifyHuaweiJws(data.jwsPurchaseOrder, this.config.rootPem, Date.now(), this.config.opensslPath);
     }
-    requireThat(candidate.applicationId === this.config.appId && candidate.environment === this.config.environment &&
+    requireThat(candidate.applicationId === this.config.appId && matchesPurchaseEnvironment(this.config.environment, candidate.environment) &&
       candidate.productType === String(productType), 'INVALID_ORDER');
     requireThat(typeof candidate.purchaseOrderId === 'string' && typeof candidate.purchaseToken === 'string', 'INVALID_ORDER');
     const body = JSON.stringify({ purchaseOrderId: candidate.purchaseOrderId, purchaseToken: candidate.purchaseToken });
@@ -210,7 +214,7 @@ export class HuaweiPurchaseProvider {
     }
     requireThat(response.responseCode === '0' && response.jwsPurchaseOrder, 'ORDER_NOT_VERIFIED', 502);
     const order = verifyHuaweiJws(response.jwsPurchaseOrder, this.config.rootPem, Date.now(), this.config.opensslPath);
-    requireThat(order.applicationId === this.config.appId && order.environment === this.config.environment &&
+    requireThat(order.applicationId === this.config.appId && order.environment === candidate.environment &&
       order.purchaseOrderId === candidate.purchaseOrderId && order.purchaseToken === candidate.purchaseToken &&
       order.productType === String(productType) && order.productId === candidate.productId, 'INVALID_ORDER');
     const product = this.config.products.find(value => value.id === order.productId && value.type === productType);
@@ -237,7 +241,7 @@ export class HuaweiPurchaseProvider {
       (order.needFinish === true || order.finishStatus === '2');
     const lifetime = product.kind === 'membership' && product.policyVersion === LIFETIME_POLICY;
     const expiresAt = product.kind === 'membership' ? (lifetime ? LIFETIME_EXPIRES_AT : addCalendarMonth(order.purchaseTime)) : 0;
-    return { appId: order.applicationId, orderId: order.purchaseOrderId, productId: order.productId,
+    return { appId: order.applicationId, environment: order.environment, orderId: order.purchaseOrderId, productId: order.productId,
       productType, purchaseToken: order.purchaseToken, developerPayload: order.developerPayload,
       quantity: order.quantity === undefined ? 1 : order.quantity,
       status: revoked ? 'revoked' : 'purchased', needsFinish,

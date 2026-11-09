@@ -4,8 +4,11 @@ import { SUBSCRIPTION_POLICY } from './membership-policy.mjs';
 
 const identifier = value => typeof value === 'string' && value.length > 0 && value.length <= 256;
 const timestamp = value => Number.isSafeInteger(value) && value > 0;
+export const matchesPurchaseEnvironment = (configured, actual) =>
+  ['NORMAL', 'SANDBOX'].includes(actual) && (configured === 'AUTO' || configured === actual);
 function identity(order, config, candidate) {
-  requireThat(order && order.applicationId === config.appId && order.environment === config.environment &&
+  requireThat(order && order.applicationId === config.appId && matchesPurchaseEnvironment(config.environment, order.environment) &&
+    order.environment === candidate.environment &&
     order.productType === '2' && order.productId === candidate.productId &&
     order.purchaseToken === candidate.purchaseToken && order.subscriptionId === candidate.subscriptionId &&
     order.subGroupId === candidate.subGroupId && order.subGroupGenerationId === candidate.subGroupGenerationId &&
@@ -15,7 +18,8 @@ function identity(order, config, candidate) {
 /** Input is the verified official group JWS. Client receipt dates never grant subscription time. */
 export function subscriptionFact(group, candidate, config, now) {
   requireThat(group && candidate && group.applicationId === config.appId && group.packageName === config.packageName &&
-    group.environment === config.environment && group.subGroupId === candidate.subGroupId &&
+    matchesPurchaseEnvironment(config.environment, group.environment) && group.environment === candidate.environment &&
+    group.subGroupId === candidate.subGroupId &&
     identifier(candidate.subscriptionId) && identifier(candidate.subGroupGenerationId) && identifier(candidate.subGroupId),
     'INVALID_SUBSCRIPTION');
   const product = config.products.find(value => value.id === candidate.productId && value.type === 2);
@@ -37,7 +41,7 @@ export function subscriptionFact(group, candidate, config, now) {
       typeof order.offerId === 'string' && Object.hasOwn(product.promotionalPrices ?? {}, order.offerId) &&
       product.promotionalPrices[order.offerId]?.[order.currency]?.includes(order.price)), 'ORDER_PRICE_MISMATCH');
   const renewal = current.renewalInfo;
-  requireThat(renewal && renewal.environment === config.environment && renewal.productId === order.productId &&
+  requireThat(renewal && renewal.environment === order.environment && renewal.productId === order.productId &&
     renewal.subGroupGenerationId === current.subGroupGenerationId && ['0', '1'].includes(renewal.autoRenewStatusCode) &&
     typeof renewal.hasInBillingRetryPeriod === 'boolean', 'INVALID_SUBSCRIPTION');
   const revoked = current.status === '5' || order.revocationTime !== undefined || order.purchaseOrderRevocationReasonCode !== undefined;
@@ -48,7 +52,7 @@ export function subscriptionFact(group, candidate, config, now) {
   // A same-account repurchase can keep its subscription/token/generation and replace
   // developerPayload. Both values come from verified official JWS; the domain must
   // validate both HMAC bindings against the authenticated account before recording.
-  return { appId: config.appId, orderId: order.purchaseOrderId, productId: order.productId, productType: 2,
+  return { appId: config.appId, environment: order.environment, orderId: order.purchaseOrderId, productId: order.productId, productType: 2,
     purchaseToken: current.purchaseToken, developerPayload: order.developerPayload || candidate.developerPayload,
     ...(candidate.developerPayload && order.developerPayload && candidate.developerPayload !== order.developerPayload ?
       { receiptDeveloperPayload: candidate.developerPayload } : {}), quantity: 1, status,

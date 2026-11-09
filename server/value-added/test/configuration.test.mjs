@@ -72,7 +72,10 @@ test('service catalog binds lifetime=1, calendar-month=3 and subscription=2 befo
   globalThis.fetch = async () => { throw Error('NETWORK_FORBIDDEN_IN_CATALOG_TEST'); };
   try {
     await writeFile(catalog, JSON.stringify(products));
-    const domain = await loadService({VP_PRODUCT_CATALOG:catalog});
+    const domain = await loadService({VP_PRODUCT_CATALOG:catalog, VP_IAP_ENVIRONMENT:'SANDBOX',
+      VP_MEMBERSHIP_SANDBOX_CHECKOUT:'enabled', VP_IAP_VERIFICATION_FILE:join(directory,'absent-old-probe.json')});
+    assert.equal(domain.purchaseProvider.config.environment, 'AUTO');
+    assert.equal(domain.capabilities().sandboxCommerce, undefined);
     assert.equal(domain.capabilities().commerce, false);
     assert.equal(domain.capabilities().membershipPurchases, false);
     for (const product of products.filter(p => p.kind === 'membership')) {

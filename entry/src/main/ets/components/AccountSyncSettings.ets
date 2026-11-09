@@ -148,9 +148,7 @@ export struct AccountSyncSettings {
     if (sdkCode === 1001860005) return '华为支付连接失败，请检查网络后重试';
     if (sdkCode === 1001860050) return '请先登录设备的华为账号后重试';
     if (sdkCode === 1001860054) return '当前华为账号所在地区暂不支持应用内支付';
-    if (sdkCode === 1001860057) return '当前安装包不支持沙盒支付，请安装调试签名版本';
-    if (sdkCode === 1001860058) return '当前华为账号尚未加入沙盒测试名单，请使用已登记的测试账号';
-    if (error.message === 'SANDBOX_REQUIRED') return '当前账号无法进行测试订阅，请检查测试账号配置';
+    if (sdkCode === 1001860057 || sdkCode === 1001860058) return '华为支付环境暂不可用，请更新应用后重试或联系客服';
     if (error.message === 'PRICE_CHANGED') return '商品优惠已变化，请刷新会员价格后重试';
     if (error.message === 'MEMBERSHIP_CONSENT_REQUIRED') return '请选择商品，并主动阅读和勾选相应协议';
     if (error.message === 'MEMBERSHIP_STATUS_UNKNOWN') return '本期会员状态待核验，请刷新或恢复购买，无需再次付款';
@@ -250,6 +248,24 @@ export struct AccountSyncSettings {
       await AccountAutomaticSyncService.getInstance().resolveProfile(id, useCloud); this.refreshAutomaticSync();
     });
   }
+  private refreshAccountStatus(): void {
+    void this.run('account', async (): Promise<void> => {
+      const service = ValueAddedService.getInstance(), owner = service.getUserId();
+      if (!owner) return;
+      let incomplete = false;
+      try { await service.restorePurchases(); }
+      catch (_) { incomplete = true; }
+      if (!this.alive || owner !== service.getUserId()) return;
+      // An obsolete receipt must not prevent fresh capability and reminder state.
+      try { await this.refreshAccount(true); }
+      finally {
+        if (this.alive && owner === service.getUserId()) await this.refreshReminder(false);
+      }
+      if (!this.alive || owner !== service.getUserId()) return;
+      if (incomplete) this.status = '当前状态已刷新，部分历史购买尚待恢复；若已付款，无需重复购买。';
+      AccountAutomaticSyncService.getInstance().requestSync(0, true);
+    });
+  }
   private async refreshAccount(force: boolean = false): Promise<void> {
     const service = ValueAddedService.getInstance();
     this.userId = service.getUserId();
@@ -281,7 +297,7 @@ export struct AccountSyncSettings {
       entitlement.active && entitlement.autoRenew === false ? '自动续费已关闭，权益保留至 ' + this.expiryDate(entitlement.expiresAt) :
       entitlement.active && entitlement.autoRenew === true && entitlement.nextRenewalAt && entitlement.nextRenewalPrice ? '预计续费 ' + this.expiryDate(entitlement.nextRenewalAt) + '，' +
         (entitlement.renewalCurrency || '') + ' ' + (entitlement.nextRenewalPrice / 100).toFixed(2) + '，延长一个月' : '';
-    this.membership = this.vipActive ?
+    this.membership = this.vipActive && entitlement.environment === 'SANDBOX' ? '测试会员权益 · 未产生正式扣款' : this.vipActive ?
       (this.vipLifetime ? 'VIP 终身会员 · 长期有效' : '有效期至 ' + new Date(entitlement.expiresAt).toLocaleDateString() +
         (entitlement.autoRenew === true ? ' · 自动续费已开启' : entitlement.autoRenew === false ? ' · 到期后不再续费' : '')) :
       entitlement.refreshRequired ? '会员状态待重新核验，请稍后刷新' :
@@ -431,9 +447,7 @@ export struct AccountSyncSettings {
       }
       if (!this.alive || confirmation.userId !== service.getUserId()) return;
       // This explicit payment action can request permission. A background readiness check must not lock the button forever.
-      const capability = service.getCapabilities();
-      const sandboxCheckout = capability.sandboxCommerce === true && capability.sandboxCheckout === true;
-      if (product.type === 2 && !sandboxCheckout && !await this.refreshReminder(true)) {
+      if (product.type === 2 && !await this.refreshReminder(true)) {
         if (this.alive && confirmation.userId === service.getUserId()) {
           await this.showPurchaseMessage('暂时无法开通', this.reminderStatus + '\n\n本次未发起支付，没有扣款。');
         }
@@ -537,12 +551,6 @@ export struct AccountSyncSettings {
         await service.refreshCapabilities(true);
         if (!this.alive || owner !== service.getUserId()) return false;
         this.commerceReady = service.getCapabilities().commerce && service.getCapabilities().membershipPurchases !== false && !!service.getMembershipOperator();
-      }
-      if (service.getCapabilities().sandboxCommerce === true && service.getCapabilities().sandboxCheckout === true &&
-        !service.getCapabilities().renewalReminders) {
-        this.reminderReady = false;
-        this.reminderStatus = '华为沙盒支付测试，不会真实扣款。续费提醒仍待接通，正式购买尚未开放。';
-        return false;
       }
       if (!service.getCapabilities().renewalReminders) throw new Error('REMINDERS_UNAVAILABLE');
       const ready = await service.prepareRenewalReminders(requestPermission, requestPermission);
@@ -696,9 +704,7 @@ export struct AccountSyncSettings {
           this.Action('连接同步', 'sync-account-connect', (): boolean => !this.busy, (): void => this.login())
         }
         if (this.userId) {
-          this.Action('刷新状态', 'sync-refresh-account', (): boolean => !this.busy, (): void => {
-            void this.run('account', async (): Promise<void> => { await ValueAddedService.getInstance().restorePurchases(); await this.refreshAccount(true); AccountAutomaticSyncService.getInstance().requestSync(0, true); });
-          })
+          this.Action('刷新状态', 'sync-refresh-account', (): boolean => !this.busy, (): void => this.refreshAccountStatus())
         }
         if (this.huaweiSignedIn || this.userId) {
           this.Action('退出', 'sync-account-logout', (): boolean => !this.busy, (): void => this.logout())

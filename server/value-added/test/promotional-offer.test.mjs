@@ -41,7 +41,7 @@ test('only configured offers can enter purchase intent; standard subscription an
 });
 test('known ¥2 discount and later ¥5 renewal keep official expiry; unknown discount cannot grant membership', () => {
   const now=Date.parse('2027-02-01T00:00:00+08:00');
-  const candidate={productId:'monthly',subscriptionId:'sub',purchaseToken:'token',subGroupId:'members',subGroupGenerationId:'gen',developerPayload:'bound'};
+  const candidate={environment:'SANDBOX',productId:'monthly',subscriptionId:'sub',purchaseToken:'token',subGroupId:'members',subGroupGenerationId:'gen',developerPayload:'bound'};
   const order={...candidate,applicationId:'app',environment:'SANDBOX',productType:'2',purchaseOrderId:'paid',duration:'P1M',
     purchaseTime:Date.parse('2026-12-20T00:00:00+08:00'),signedTime:now,finishStatus:'1',currency:'CNY',price:200,
     offerTypeCode:'2',offerId:'vip_2026_year_end'};

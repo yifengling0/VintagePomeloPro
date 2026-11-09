@@ -39,13 +39,14 @@ export function createApiDispatcher(domain) {
         const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.authorization ?? '');
         requireThat(match, 'SIGN_IN_REQUIRED', 401);
         const token = match[1], userId = await domain.authenticate(token);
+        const purchases = domain.sessionPurchases ? await domain.sessionPurchases(token) : domain;
         if (path === '/v1/auth/logout' && method === 'POST') { await body(request); result = await domain.logout(token); }
-        else if (path === '/v1/entitlement' && method === 'GET') result = await domain.entitlement(userId);
-        else if (path === '/v1/entitlement/refresh' && method === 'POST') { await body(request); result = await domain.entitlement(userId, true); }
+        else if (path === '/v1/entitlement' && method === 'GET') result = await purchases.entitlement(userId);
+        else if (path === '/v1/entitlement/refresh' && method === 'POST') { await body(request); result = await purchases.entitlement(userId, true); }
         else if (path === '/v1/notification-devices/register' && method === 'POST') result = await domain.reminders.register(userId, await body(request));
         else if (path === '/v1/notification-devices/revoke' && method === 'POST') result = await domain.reminders.revoke(userId, await body(request));
         else if (path === '/v1/notification-opened' && method === 'POST') result = await domain.reminders.opened(userId, await body(request));
-        else if (path === '/v1/purchases/intent' && method === 'POST') result = await domain.intent(userId, await body(request));
+        else if (path === '/v1/purchases/intent' && method === 'POST') result = await purchases.intent(userId, await body(request));
         else if (/^\/v1\/configuration\/(tablet|desktop)$/.test(path) && method === 'GET') result = await domain.configurations.current(userId,path.split('/')[3]);
         else if (path === '/v1/configuration/uploads' && method === 'POST') result = await domain.configurations.begin(userId,await body(request));
         else if (path === '/v1/configuration/cleanup' && method === 'POST') {await body(request);result=await domain.configurations.cleanup(userId);}
@@ -90,7 +91,10 @@ export function createApiDispatcher(domain) {
           else if (method === 'PUT') result = await domain.putPreferences(userId,deviceClass,await body(request));
           else throw new ServiceError('NOT_FOUND',404);
         }
-        else if (path === '/v1/purchases/verify' && method === 'POST') result = await domain.verify(userId, await body(request));
+        else if (path === '/v1/purchases/verify' && method === 'POST') {
+          result = await domain.verify(userId, await body(request));
+          if (domain.rememberPurchaseEnvironment) await domain.rememberPurchaseEnvironment(token, result.environment);
+        }
         else {
           const route = /^\/v1\/profiles\/(tablet|desktop)(?:\/([a-zA-Z0-9_-]{1,128}))?$/.exec(path);
           requireThat(route, 'NOT_FOUND', 404);

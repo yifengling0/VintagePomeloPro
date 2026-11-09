@@ -58,12 +58,15 @@ export async function loadService(env = process.env) {
     ids.add(product.id);
   }
   const config = { clientId: env.VP_ACCOUNT_CLIENT_ID ?? '', appId: env.VP_APP_ID ?? '', products,
-    identitySecret: env.VP_IDENTITY_HMAC_SECRET ?? '', purchaseBindingSecret: env.VP_PURCHASE_HMAC_SECRET ?? '' };
+    identitySecret: env.VP_IDENTITY_HMAC_SECRET ?? '', purchaseBindingSecret: env.VP_PURCHASE_HMAC_SECRET ?? '',
+    isolatePurchaseEnvironments: true };
   const keysReady = config.identitySecret.length >= 32 && config.purchaseBindingSecret.length >= 32;
   const accountProvider = new HuaweiAccountProvider({ clientId: config.clientId, clientSecret: env.VP_ACCOUNT_CLIENT_SECRET });
   accountProvider.ready = accountProvider.ready && keysReady;
   const purchaseProvider = new HuaweiPurchaseProvider({ appId: config.appId, packageName: env.VP_PACKAGE_NAME,
-    issuerId: env.VP_IAP_ISSUER_ID, keyId: env.VP_IAP_KEY_ID, environment: env.VP_IAP_ENVIRONMENT,
+    // The official signed receipt selects the environment. An old SANDBOX deployment
+    // setting must never force AppGallery users through a tester-only SDK check.
+    issuerId: env.VP_IAP_ISSUER_ID, keyId: env.VP_IAP_KEY_ID, environment: 'AUTO',
     privateKeyPem: protectedPem(env.VP_IAP_PRIVATE_KEY_BASE64, env.VP_IAP_PRIVATE_KEY_PEM) || await optionalFile(env.VP_IAP_PRIVATE_KEY_FILE),
     rootPem: protectedPem(env.VP_IAP_ROOT_CA_BASE64, env.VP_IAP_ROOT_CA_PEM) || await optionalFile(env.VP_IAP_ROOT_CA_FILE),
     products, ...await loadPkixRuntime() });
@@ -73,43 +76,31 @@ export async function loadService(env = process.env) {
       credentialJson: env.VP_AGC_CREDENTIAL_JSON || env.PROJECT_CREDENTIAL, zoneName: env.VP_AGC_ZONE });
     if (env.VP_CLOUDDB_VERIFICATION_FILE) await store.loadVerification(configFile(env.VP_CLOUDDB_VERIFICATION_FILE));
   }
-  // Sandbox checkout must be available to obtain the first real verification evidence.
-  // It never marks the provider production-ready or opens paid synchronization.
-  if (keysReady && accountProvider.ready && store.ready === true && products.length && env.VP_IAP_ENVIRONMENT === 'SANDBOX') {
-    purchaseProvider.enableSandboxTesting();
+  // Checkout requires working credentials and storage; each payment is still verified
+  // against Huawei. Optional deployment evidence controls paid sync, not the first sale.
+  if (keysReady && accountProvider.ready && store.ready === true && products.length) {
+    purchaseProvider.enableCommerce();
   }
   let iapEvidence = '';
-  if (env.VP_IAP_VERIFICATION_FILE) iapEvidence = await readFile(configFile(env.VP_IAP_VERIFICATION_FILE), 'utf8');
-  else {
-    try { iapEvidence = await readFile(configFile('./config/iap-verification.json'), 'utf8'); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
-  }
+  try { iapEvidence = await readFile(configFile(env.VP_IAP_VERIFICATION_FILE ?? './config/iap-verification.json'), 'utf8'); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (keysReady && accountProvider.ready && products.length && iapEvidence) {
-    purchaseProvider.enableAfterProbe(JSON.parse(iapEvidence));
+    const evidence = JSON.parse(iapEvidence);
+    if (evidence.environment === 'NORMAL' && evidence.queryAndSignatureVerified === true &&
+      evidence.providerFingerprint === purchaseProvider.fingerprint('NORMAL')) purchaseProvider.ready = true;
   }
   let objects={ready:false};
   if(env.VP_OBS_ENDPOINT&&env.VP_OBS_BUCKET&&env.VP_OBS_CREDENTIAL_FILE){
     objects=await connectObs(env);
     if(env.VP_OBS_VERIFICATION_FILE)await objects.enable(JSON.parse(await readFile(configFile(env.VP_OBS_VERIFICATION_FILE),'utf8')));
   }
-  const release = env.VP_MEMBERSHIP_RELEASE_FILE ? JSON.parse(await optionalFile(env.VP_MEMBERSHIP_RELEASE_FILE)) : {};
   config.enforceCheckoutReadiness = true;
-  config.membershipReleaseReady = typeof release.operatorName === 'string' && release.operatorName.trim().length > 0 &&
-    release.appId === config.appId && release.environment === 'NORMAL' && env.VP_IAP_ENVIRONMENT === 'NORMAL' &&
-    release.normalPaymentVerified === true && release.backupAccepted === true && release.supportVerified === true &&
-    release.cancelInAppVerified === true && release.agreementsReadVerified === true &&
-    membershipProductsVerified(products, release);
-  if (env.VP_MEMBERSHIP_SANDBOX_CHECKOUT === 'enabled' && env.VP_IAP_ENVIRONMENT === 'SANDBOX' && purchaseProvider.sandboxReady) {
-    config.sandboxCheckout = true;
-    config.membershipReleaseReady = true; // Only the explicit tester path; paid backup capabilities stay closed.
-  }
+  config.membershipReleaseReady = purchaseProvider.commerceReady &&
+    products.some(product => product.kind === 'membership' && product.purchasesEnabled !== false);
   const pushEvidence = env.VP_RENEWAL_VERIFICATION_FILE ? JSON.parse(await optionalFile(env.VP_RENEWAL_VERIFICATION_FILE)) : {};
   const credential = protectedPushCredential(env.VP_PUSH_CREDENTIAL_JSON || await optionalFile(env.VP_PUSH_CREDENTIAL_FILE), env);
-  const sandboxReminders = env.VP_RENEWAL_SANDBOX_TESTING === 'enabled' && env.VP_IAP_ENVIRONMENT === 'SANDBOX' && purchaseProvider.sandboxReady;
   const pushSender = new HuaweiPushSender({ credential, projectId: env.VP_PUSH_PROJECT_ID ?? '', receiptId: env.VP_PUSH_RECEIPT_ID ?? '',
-    // The provider permits sends without a receipt ID. Sandbox verification must
-    // be possible before delivery evidence exists; NORMAL still requires it all.
-    verified: sandboxReminders || !!env.VP_PUSH_RECEIPT_ID && (pushEvidence.appId === config.appId && pushEvidence.projectId === env.VP_PUSH_PROJECT_ID &&
+    verified: !!env.VP_PUSH_RECEIPT_ID && (pushEvidence.appId === config.appId && pushEvidence.projectId === env.VP_PUSH_PROJECT_ID &&
       pushEvidence.timerActive === true && pushEvidence.deviceDisplayed === true && pushEvidence.deepLinkOpened === true &&
       pushEvidence.notificationCategory === 'ACCOUNT' && pushEvidence.accountCategoryEligible === true && pushEvidence.receiptVerified === true &&
       pushEvidence.paginationVerified === true && pushEvidence.advanceNoticeVerified === true &&

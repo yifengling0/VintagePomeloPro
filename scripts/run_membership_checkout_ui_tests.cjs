@@ -4,7 +4,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), path = re
 const ts = require(process.argv[2]);
 const source = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/components/AccountSyncSettings.ets'), 'utf8');
 const names = ['buy', 'errorMessage', 'showPurchaseMessage', 'canBuyMembership', 'clearConfirmation', 'refreshReminder', 'openCheckout', 'selectProduct', 'checkoutProduct',
-  'manageMembership', 'restoreMembership', 'applyMembershipState', 'applyReminderState', 'expiryDate'];
+  'manageMembership', 'restoreMembership', 'refreshAccountStatus', 'refreshAccount', 'applyMembershipState', 'applyReminderState', 'expiryDate'];
 const methods = names.map(name => {
   const match = new RegExp('^  private (?:async )?' + name + '\\(', 'm').exec(source);
   assert.ok(match, name);
@@ -17,7 +17,7 @@ const product = { id: 'monthly', type: 2, price: '¥5.00' };
 let owner, capabilities, ready, permissionCalls, cashierCalls, refreshCalls, enabled, permissionAction;
 let purchaseError, purchaseResult, dialogCalls, toastCalls, dialogAction, accountError;
 let environmentError, environmentCalls;
-let subscription, confirmError, restoreError, manageAction, confirmAction, restoreAction, confirmCalls, restoreCalls;
+let subscription, confirmError, restoreError, manageAction, confirmAction, restoreAction, confirmCalls, restoreCalls, syncCalls;
 const prompt = {
   showDialog: async options => { dialogCalls.push(options); if (dialogAction) await dialogAction(); },
   showToast: options => toastCalls.push(options)
@@ -50,14 +50,14 @@ const mod = { exports: {} };
 vm.runInNewContext(js, { module: mod, ValueAddedService: { getInstance: () => service },
   skinColor: () => '#5569D8',
   console: { warn() {} },
-  MEMBERSHIP_TERMS_VERSION: '2026-10-16', AccountAutomaticSyncService: { getInstance: () => ({ requestSync() {} }) } });
+  MEMBERSHIP_TERMS_VERSION: '2026-10-16', AccountAutomaticSyncService: { getInstance: () => ({ requestSync() { syncCalls++; } }) } });
 function harness() {
   owner = 'alice'; capabilities = { commerce: true, membershipPurchases: true, renewalReminders: true };
   ready = true; enabled = true; permissionCalls = []; cashierCalls = 0; refreshCalls = 0; permissionAction = null;
   purchaseError = null; purchaseResult = 'CANCELLED'; dialogCalls = []; toastCalls = []; dialogAction = null; accountError = null;
   environmentError = null; environmentCalls = 0;
   subscription = { active: true, autoRenew: false, expiresAt: Date.now() + 86400000, serverTime: Date.now() };
-  confirmError = restoreError = manageAction = confirmAction = restoreAction = null; confirmCalls = restoreCalls = 0;
+  confirmError = restoreError = manageAction = confirmAction = restoreAction = null; confirmCalls = restoreCalls = syncCalls = 0;
   const ui = Object.assign(new mod.exports(), { alive: true, busy: false, userId: owner, commerceReady: true,
     membershipAccepted: false, autoRenewAccepted: false, selectedProductId: product.id, reminderReady: false,
     showCheckout: true, products: [{ ...product, purpose: 'membership' }], vipActive: false, membershipUncertain: false, membershipRequest: 0 });
@@ -104,18 +104,17 @@ function harness() {
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
   capabilities.renewalReminders = false; capabilities.sandboxCommerce = true; capabilities.sandboxCheckout = true;
   assert.equal(await ui.refreshReminder(false), false, 'sandbox checkout is not reminder readiness');
-  assert.match(ui.reminderStatus, /沙盒.*不会真实扣款/);
+  assert.match(ui.reminderStatus, /续费提醒服务暂不可用/);
   ui.buy(product); await ui.pending;
-  assert.equal(environmentCalls, 1); assert.equal(cashierCalls, 1); assert.equal(permissionCalls.length, 0);
+  assert.equal(environmentCalls, 1); assert.equal(cashierCalls, 0); assert.equal(permissionCalls.length, 0);
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
   capabilities.renewalReminders = false; capabilities.sandboxCheckout = true;
   ui.buy(product); await ui.pending;
   assert.equal(cashierCalls, 0, 'test flag without the sandbox environment cannot skip real renewal preflight');
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
   capabilities.sandboxCommerce = true; capabilities.sandboxCheckout = true;
-  environmentError = Object.assign(new Error('sandbox inactive'), {code:1001860058});
   ui.buy(product); await ui.pending;
-  assert.equal(cashierCalls, 0, 'official sandbox activation remains mandatory');
+  assert.equal(cashierCalls, 1, 'legacy sandbox flags do not create a separate checkout flow');
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; ready = false;
   ui.buy(product); await ui.pending;
@@ -132,7 +131,7 @@ function harness() {
   ui.buy(product); await ui.pending;
   assert.match(dialogCalls[0].message, /商品优惠已变化/); assert.equal(ui.showCheckout, false);
 
-  for (const [code, reason] of [[1001860002, /包名及签名/], [1001860057, /调试签名/], [1001860058, /测试名单/]]) {
+  for (const [code, reason] of [[1001860002, /包名及签名/], [1001860057, /支付环境暂不可用/], [1001860058, /支付环境暂不可用/]]) {
     ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
     environmentError = Object.assign(new Error('opaque SDK diagnostic'), { code });
     ui.buy(product); await ui.pending;
@@ -227,6 +226,32 @@ function harness() {
   ui.restoreMembership(); await ui.pending; assert.match(ui.status, /状态待确认/); assert.equal(ui.membershipUncertain, true);
   ui = harness(); restoreAction = async () => { owner = 'bob'; };
   ui.restoreMembership(); await ui.pending; assert.equal(confirmCalls, 0); assert.equal(ui.applied, undefined);
+  for (const failedRestore of [false, true]) {
+    ui = harness(); ui.commerceReady = false; ui.reminderStatus = 'stale sandbox message';
+    if (failedRestore) restoreError = new Error('INVALID_SUBSCRIPTION');
+    capabilities.renewalReminders = false;
+    const forced = [];
+    ui.refreshAccount = async force => { forced.push(force); await mod.exports.prototype.refreshAccount.call(ui, force); };
+    ui.refreshHuaweiIdentity = () => {};
+    ui.refreshMemberState = async () => subscription;
+    ui.refreshAccountStatus(); await ui.pending;
+    assert.deepEqual(forced, [true]); assert.equal(refreshCalls, 1);
+    assert.equal(ui.commerceReady, true, 'fresh checkout readiness survives a failed historical restore');
+    assert.match(ui.reminderStatus, /续费提醒服务暂不可用/);
+    assert.equal(cashierCalls, 0); assert.equal(permissionCalls.length, 0, 'status refresh never requests permission or payment');
+    assert.equal(syncCalls, 1);
+    if (failedRestore) assert.match(ui.status, /部分历史购买尚待恢复/);
+  }
+  ui = harness(); accountError = new Error('PROVIDER_UNAVAILABLE'); capabilities.renewalReminders = false;
+  ui.reminderStatus = 'stale sandbox message'; ui.refreshAccountStatus();
+  await assert.rejects(ui.pending, /PROVIDER_UNAVAILABLE/);
+  assert.match(ui.reminderStatus, /续费提醒服务暂不可用/); assert.equal(syncCalls, 0);
+  for (const closed of [false, true]) {
+    ui = harness(); restoreAction = async () => { if (closed) ui.alive = false; else owner = 'bob'; };
+    ui.refreshAccountStatus(); await ui.pending;
+    assert.equal(refreshCalls, 0); assert.equal(syncCalls, 0, 'closed pages and changed accounts discard refresh results');
+  }
+  console.log('Account refresh: failed historical restore cannot retain stale checkout/reminder state; account/page isolation PASS');
   // Run the real component lifecycle with a virtual clock: leaving details expanded
   // for 15 minutes must not install cloud polling or repeat the initial requests.
   const lifecycle=source.slice(source.indexOf('  aboutToAppear(): void {'),source.indexOf('  private errorMessage('));

@@ -26,14 +26,40 @@ export class ValueAddedDomain {
   capabilities() {
     const storage = this.store.ready === true;
     const sandbox = storage && this.purchaseProvider.sandboxReady === true && this.purchaseProvider.config?.environment === 'SANDBOX';
-    return { account: storage && this.accountProvider.ready, commerce: storage && this.purchaseProvider.ready || sandbox,
-      ...(sandbox ? { sandboxCommerce: true, sandboxCheckout: this.config.sandboxCheckout === true } : {}), renewalReminders: this.reminders.ready && this.reminders.timerReady,
+    return { account: storage && this.accountProvider.ready,
+      commerce: storage && (this.purchaseProvider.commerceReady === true || this.purchaseProvider.ready === true) || sandbox,
+      renewalReminders: this.reminders.ready && this.reminders.timerReady,
       membershipPurchases: !this.config.enforceCheckoutReadiness || this.config.membershipReleaseReady === true,
       profiles: storage && this.purchaseProvider.ready, preferences: storage && this.purchaseProvider.ready, cloudSaves: storage && this.purchaseProvider.ready && this.saves.objects.ready,
       configuration: storage && this.purchaseProvider.ready && this.configurations.objects.ready,
       reason: storage ? (this.purchaseProvider.ready ? '' : 'IAP_NOT_CONFIGURED') : 'CLOUDDB_NOT_VERIFIED' };
   }
   gate(feature) { requireThat(this.capabilities()[feature], 'NOT_CONFIGURED', 503); }
+  purchaseKey(kind, id, environment = this.purchaseEnvironment ?? 'NORMAL') {
+    const suffix = kind === 'entitlement' ? id : digest(this.config.appId + '\n' + id);
+    return kind + ':' + (this.config.isolatePurchaseEnvironments ? environment + ':' : '') + suffix;
+  }
+  scopedPurchases(environment) {
+    requireThat(['NORMAL', 'SANDBOX'].includes(environment), 'INVALID_ORDER');
+    return Object.assign(Object.create(this), { purchaseEnvironment: environment });
+  }
+  async sessionPurchases(token) {
+    if (!this.config.isolatePurchaseEnvironments) return this;
+    const session = await this.store.get('session:' + digest(token));
+    requireThat(session && !session.revoked && session.expiresAt > this.clock(), 'SIGN_IN_REQUIRED', 401);
+    return this.scopedPurchases(session.purchaseEnvironment ?? 'NORMAL');
+  }
+  async rememberPurchaseEnvironment(token, environment) {
+    if (!this.config.isolatePurchaseEnvironments || !['NORMAL', 'SANDBOX'].includes(environment)) return;
+    // Only the verified provider result reaches this method. No request flag, build
+    // signature, test-account list or global environment setting can grant access.
+    await this.store.transaction(async tx => {
+      const key = 'session:' + digest(token), session = await tx.get(key);
+      requireThat(session && !session.revoked && session.expiresAt > this.clock(), 'SIGN_IN_REQUIRED', 401);
+      const normal = session.normalPurchaseVerified === true || environment === 'NORMAL';
+      tx.put(key, { ...session, purchaseEnvironment: normal ? 'NORMAL' : 'SANDBOX', normalPurchaseVerified: normal }, 'session');
+    });
+  }
   async begin() {
     this.gate('account');
     const attemptId = random(), state = random();
@@ -83,16 +109,14 @@ export class ValueAddedDomain {
     const product = this.product(productId, productType);
     requireThat(product.purchasesEnabled !== false, 'PRODUCT_NOT_FOR_SALE', 409);
     if (product.kind === 'membership') {
-      const entitlement = await this.store.get('entitlement:' + userId);
+      const entitlement = await this.store.get(this.purchaseKey('entitlement', userId));
       requireThat(Object.keys(entitlement?.orders ?? {}).length < 256, 'ORDER_LIMIT', 409);
       if (this.config.enforceCheckoutReadiness) {
         requireThat(this.config.membershipReleaseReady, 'MEMBERSHIP_NOT_OPEN', 503);
         const current = await this.entitlement(userId);
         requireThat(!current.active, 'MEMBERSHIP_ALREADY_ACTIVE', 409);
         requireThat(!current.refreshRequired, 'MEMBERSHIP_STATUS_UNKNOWN', 409);
-        // Accelerated Huawei sandbox orders are not real paid subscriptions. This explicit
-        // test-only path never advertises reminders ready and cannot apply in NORMAL.
-        if (productType === 2 && !this.capabilities().sandboxCheckout) {
+        if (productType === 2) {
           requireThat(await this.reminders.available(userId), 'REMINDERS_UNAVAILABLE', 503);
         }
       }
@@ -123,9 +147,18 @@ export class ValueAddedDomain {
     const observedAt = this.clock();
     const fact = await this.purchaseProvider.verify(purchaseData, productType);
     const product = this.product(fact.productId, fact.productType);
+    const environment = fact.environment;
+    if (this.config.isolatePurchaseEnvironments) {
+      requireThat(['NORMAL', 'SANDBOX'].includes(environment), 'INVALID_ORDER');
+    }
+    const environmentResult = this.config.isolatePurchaseEnvironments && product.kind === 'membership' ? { environment } : {};
     if (productType === 2 && !fact.developerPayload && typeof fact.subscriptionId === 'string') {
-      const key = 'subscription:' + digest(this.config.appId + '\n' + fact.subscriptionId);
-      const known = await this.store.get(key);
+      let key = this.purchaseKey('subscription', fact.subscriptionId, environment);
+      let known = await this.store.get(key);
+      if (!known && this.config.isolatePurchaseEnvironments) {
+        key = 'subscription:' + digest(this.config.appId + '\n' + fact.subscriptionId);
+        known = await this.store.get(key);
+      }
       requireThat(known?.userId === userId && known.appId === fact.appId && known.productId === fact.productId &&
         known.generationId === fact.generationId && known.tokenHash === digest(fact.purchaseToken), 'ORDER_BINDING_MISMATCH', 403);
       const original = openReceipt(known.receiptCipher, this.config.purchaseBindingSecret, userId + '\n' + key);
@@ -145,15 +178,17 @@ export class ValueAddedDomain {
     requireThat(Number.isFinite(fact.purchasedAt) && fact.purchasedAt > 0 && fact.purchasedAt <= now + 60000, 'INVALID_ORDER');
     if (product.kind === 'membership') requireThat(Number.isFinite(fact.expiresAt) && fact.expiresAt > fact.purchasedAt, 'INVALID_ORDER');
     if (productType === 2) return this.recordSubscription(userId, fact, purchaseData, observedAt);
-    const key = 'order:' + digest(this.config.appId + '\n' + fact.orderId);
+    const key = this.purchaseKey('order', fact.orderId, environment);
     const normalized = { userId, appId: fact.appId, productId: fact.productId, productType: fact.productType,
+      ...environmentResult,
       orderId: fact.orderId, kind: product.kind, status: fact.status, purchasedAt: fact.purchasedAt,
       expiresAt: product.kind === 'membership' ? fact.expiresAt : 0, verifiedAt: now,
       policyVersion: product.kind === 'membership' ? (product.policyVersion ?? MEMBERSHIP_POLICY) : 'coffee-v1',
       tokenHash: digest(fact.purchaseToken), bindingHash: digest(fact.developerPayload) };
     await this.store.transaction(async tx => {
-      const existing = await tx.get(key);
-      const entitlementKey = 'entitlement:' + userId;
+      const existing = await tx.get(key) ?? (this.config.isolatePurchaseEnvironments ?
+        await tx.get('order:' + digest(this.config.appId + '\n' + fact.orderId)) : null);
+      const entitlementKey = this.purchaseKey('entitlement', userId, environment);
       const entitlement = product.kind === 'membership' ? await tx.get(entitlementKey) : null;
       if (existing) {
         requireThat(existing.userId === userId && existing.productId === normalized.productId && existing.appId === normalized.appId &&
@@ -171,13 +206,14 @@ export class ValueAddedDomain {
       if (product.kind === 'membership') {
         requireThat(facts[key] || Object.keys(facts).length < 256, 'ORDER_LIMIT', 409);
         facts[key] = { status: normalized.status, purchasedAt: normalized.purchasedAt, orderId: normalized.orderId,
-          policyVersion: normalized.policyVersion, verifiedAt: now };
+          policyVersion: normalized.policyVersion, verifiedAt: now, ...environmentResult };
       }
       tx.put(key, normalized, 'orders:' + userId);
       if (product.kind === 'membership') tx.put(entitlementKey, { ...entitlement, orders: facts }, 'entitlements');
     });
     const finishAllowed = fact.status === 'purchased' && fact.needsFinish === true;
     return { status: fact.status === 'purchased' ? (finishAllowed ? 'GRANTED' : 'ALREADY_FINISHED') : fact.status.toUpperCase(), finishAllowed,
+      ...environmentResult,
       ...(finishAllowed ? { productId: fact.productId, productType: fact.productType,
         purchaseOrderId: fact.orderId, purchaseToken: fact.purchaseToken } : {}) };
   }
@@ -187,9 +223,10 @@ export class ValueAddedDomain {
         fact[field].length > 0 && fact[field].length <= 256) &&
       ['1', '2', '3', '5'].includes(fact.subscriptionStatus) && typeof fact.autoRenew === 'boolean' &&
       typeof fact.billingRetry === 'boolean' && Number.isSafeInteger(fact.signedAt), 'INVALID_SUBSCRIPTION');
-    const key = 'subscription:' + digest(this.config.appId + '\n' + fact.subscriptionId);
+    const key = this.purchaseKey('subscription', fact.subscriptionId, fact.environment);
     const now = this.clock();
     const state = { userId, appId: fact.appId, productId: fact.productId, subscriptionId: fact.subscriptionId,
+      ...(this.config.isolatePurchaseEnvironments ? { environment: fact.environment } : {}),
       subscriptionGroupId: fact.subscriptionGroupId, generationId: fact.generationId, status: fact.status,
       subscriptionStatus: fact.subscriptionStatus, autoRenew: fact.autoRenew, billingRetry: fact.billingRetry,
       expiresAt: fact.expiresAt, orderId: fact.orderId, purchasedAt: fact.purchasedAt, signedAt: fact.signedAt,
@@ -198,7 +235,9 @@ export class ValueAddedDomain {
     state.nextRenewalAt = fact.nextRenewalAt; state.nextRenewalPrice = fact.nextRenewalPrice;
     state.renewalCurrency = fact.renewalCurrency;
     const accepted = await this.store.transaction(async tx => {
-      const existing = await tx.get(key), entitlementKey = 'entitlement:' + userId;
+      const existing = await tx.get(key) ?? (this.config.isolatePurchaseEnvironments ?
+        await tx.get('subscription:' + digest(this.config.appId + '\n' + fact.subscriptionId)) : null);
+      const entitlementKey = this.purchaseKey('entitlement', userId, fact.environment);
       const entitlement = await tx.get(entitlementKey) ?? { orders: {}, subscriptions: {} };
       if (existing) {
         requireThat(existing.userId === userId && existing.appId === state.appId && existing.productId === state.productId &&
@@ -226,6 +265,7 @@ export class ValueAddedDomain {
     const finishAllowed = accepted && fact.status === 'purchased' && fact.needsFinish === true;
     return { status: !accepted ? 'SUPERSEDED' : fact.status === 'purchased' ?
       (finishAllowed ? 'GRANTED' : 'ALREADY_FINISHED') : fact.status.toUpperCase(), finishAllowed,
+      ...(this.config.isolatePurchaseEnvironments ? { environment: fact.environment } : {}),
       ...(finishAllowed ? { productId: fact.productId, productType: 2,
         purchaseOrderId: fact.orderId, purchaseToken: fact.purchaseToken } : {}) };
   }
@@ -234,8 +274,9 @@ export class ValueAddedDomain {
       requireThat(!force, 'SUBSCRIPTION_STATUS_UNAVAILABLE', 503);
       return;
     }
-    if (this.subscriptionRefreshes.has(userId)) {
-      await this.subscriptionRefreshes.get(userId);
+    const refreshKey = this.purchaseKey('entitlement', userId);
+    if (this.subscriptionRefreshes.has(refreshKey)) {
+      await this.subscriptionRefreshes.get(refreshKey);
       if (!force) return;
     }
     const work = (async () => {
@@ -249,17 +290,19 @@ export class ValueAddedDomain {
         } catch (error) { if (force) throw error; /* Keep the old verification time. */ }
       }
     })();
-    this.subscriptionRefreshes.set(userId, work);
-    try { await work; } finally { this.subscriptionRefreshes.delete(userId); }
+    this.subscriptionRefreshes.set(refreshKey, work);
+    try { await work; } finally { this.subscriptionRefreshes.delete(refreshKey); }
   }
   async entitlement(userId, force = false) {
-    let value = await this.store.get('entitlement:' + userId);
+    const key = this.purchaseKey('entitlement', userId);
+    let value = await this.store.get(key);
     if (Object.keys(value?.subscriptions ?? {}).length) {
       await this.refreshSubscriptions(userId, value, force);
-      value = await this.store.get('entitlement:' + userId);
+      value = await this.store.get(key);
     }
     const now = this.clock();
-    return deriveMembership(value?.orders ?? {}, now, FRESH_MS, value?.subscriptions ?? {});
+    return { ...deriveMembership(value?.orders ?? {}, now, FRESH_MS, value?.subscriptions ?? {}),
+      ...(this.config.isolatePurchaseEnvironments ? { environment: this.purchaseEnvironment ?? 'NORMAL' } : {}) };
   }
   async requireMembership(userId) {
     this.gate('profiles');

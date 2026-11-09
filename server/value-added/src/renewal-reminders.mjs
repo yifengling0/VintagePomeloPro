@@ -57,6 +57,7 @@ export class RenewalReminders {
     return this.timerReady;
   }
   async record(tx, state, subscriptionKey) {
+    if (this.domain.config.isolatePurchaseEnvironments && state.environment !== 'NORMAL') return;
     const id = 'renewal-job:' + hash(subscriptionKey), previous = await tx.get(id);
     const next = { ...previous, id, userId: state.userId, subscriptionKey,
       nextRenewalAt: state.nextRenewalAt ?? 0, nextRenewalPrice: state.nextRenewalPrice ?? 0,
@@ -110,6 +111,17 @@ export class RenewalReminders {
     try {
       const stored = await store.get(job.subscriptionKey);
       requireThat(stored?.userId === job.userId, 'ORDER_OWNER_IMMUTABLE', 403);
+      if (this.domain.config.isolatePurchaseEnvironments && stored.environment !== 'NORMAL') {
+        // Legacy jobs have no reliable environment. Revalidate the encrypted official
+        // receipt, then retire the old job; a verified NORMAL order creates a new one.
+        const receipt = openReceipt(stored.receiptCipher, this.domain.config.purchaseBindingSecret, job.userId + '\n' + job.subscriptionKey);
+        await this.domain.verify(job.userId, { purchaseData: receipt, productType: 2 });
+        await store.transaction(async tx => {
+          const current = await tx.get(id);
+          if (current?.lease === lease) tx.put(id, { ...current, enabled: false, leaseUntil: 0 }, 'renewal-jobs');
+        });
+        return false;
+      }
       const receipt = openReceipt(stored.receiptCipher, this.domain.config.purchaseBindingSecret, job.userId + '\n' + job.subscriptionKey);
       // Always requery and verify official signatures immediately before sending.
       await this.domain.verify(job.userId, { purchaseData: receipt, productType: 2 });

@@ -116,7 +116,7 @@ test('new automatic purchases require a fresh timer heartbeat and registered dev
   f.advance(RENEWAL_TIMER_MAX_AGE_MS - DAY + 1);
   await assert.rejects(f.d.intent(user, { productId: 'auto', productType: 2 }), /REMINDERS_UNAVAILABLE/);
 });
-test('explicit sandbox checkout remains separate from reminder readiness and never applies to NORMAL', async () => {
+test('legacy sandbox flags never bypass renewal readiness in either environment', async () => {
   const f = await fixture();
   f.d.config.enforceCheckoutReadiness=true; f.d.config.membershipReleaseReady=true;
   f.fact.autoRenew=false; f.fact.status='expired'; f.fact.expiresAt-=8*DAY;
@@ -126,8 +126,8 @@ test('explicit sandbox checkout remains separate from reminder readiness and nev
   await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
   f.d.config.sandboxCheckout=true;
   assert.equal(f.d.capabilities().renewalReminders,false);
-  assert.equal(f.d.capabilities().sandboxCheckout,true);
-  await f.d.intent(user,{productId:'auto',productType:2});
+  assert.equal(f.d.capabilities().sandboxCheckout,undefined);
+  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
   f.d.purchaseProvider.config.environment='NORMAL';
   assert.equal(f.d.capabilities().sandboxCheckout,undefined);
   await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);

@@ -149,7 +149,7 @@ test('settings allowlist excludes paths, runtime knobs, account data and per-gam
 
 test('sandbox checkout accepts only verified facts and keeps paid backup gates closed',async()=>{
   const {d,provider,now}=make();provider.ready=false;provider.sandboxReady=true;provider.config={environment:'SANDBOX'};
-  const {userId}=await login(d);assert.equal(d.capabilities().commerce,true);assert.equal(d.capabilities().sandboxCommerce,true);
+  const {userId}=await login(d);assert.equal(d.capabilities().commerce,true);assert.equal(d.capabilities().sandboxCommerce,undefined);
   assert.equal(d.capabilities().profiles,false);assert.equal(d.capabilities().preferences,false);
   assert.equal((await d.entitlement(userId)).active,false);
   const fact=await receipt(d,userId,now());await verify(d,userId,fact);assert.equal((await d.entitlement(userId)).active,true);

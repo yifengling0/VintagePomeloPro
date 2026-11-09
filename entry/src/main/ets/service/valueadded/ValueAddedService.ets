@@ -230,10 +230,6 @@ export class ValueAddedService {
   }
   private async readCapabilities(): Promise<void> {
     const capabilities = await this.request<ServiceCapabilities>('/v1/capabilities', http.RequestMethod.GET, '', false);
-    if (capabilities.sandboxCommerce === true) {
-      try { capabilities.commerce = capabilities.commerce && await iap.isSandboxActivated(this.context); }
-      catch (_) { capabilities.commerce = false; }
-    }
     this.capabilities = capabilities;
     this.capabilitiesFetchedAt = Date.now();
   }
@@ -677,11 +673,8 @@ export class ValueAddedService {
   async checkPurchaseEnvironment(): Promise<void> {
     this.guard();
     if (!this.context) throw new Error('NOT_CONFIGURED');
-    if (this.capabilities.sandboxCommerce === true) {
-      const activated = await iap.isSandboxActivated(this.context);
-      console.info('[ValueAddedService] sandbox payment environment: ' + activated);
-      if (!activated) throw new Error('SANDBOX_REQUIRED');
-    }
+    // Huawei's cashier chooses the actual environment. The server verifies its
+    // signed order; installation signatures and tester eligibility never gate checkout.
   }
   quoteKey(product: StoreProduct): string {
     return membershipQuoteKey(product, product.promotion ? JSON.stringify(product.promotion) : '');
@@ -867,8 +860,7 @@ export class ValueAddedService {
         if (this.quoteKey(selected) !== this.quoteKey(product)) throw new Error('PRICE_CHANGED');
         if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
       }
-      const sandboxCheckout = this.capabilities.sandboxCommerce === true && this.capabilities.sandboxCheckout === true;
-      if (product.type === iap.ProductType.AUTORENEWABLE && !sandboxCheckout && !await this.prepareRenewalReminders(false, !this.notificationReady)) {
+      if (product.type === iap.ProductType.AUTORENEWABLE && !await this.prepareRenewalReminders(false, !this.notificationReady)) {
         throw new Error('RENEWAL_NOTIFICATION_REQUIRED');
       }
       const body: ProductRequest = { productId: product.id, productType: product.type,

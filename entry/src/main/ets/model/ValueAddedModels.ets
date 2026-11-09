@@ -71,6 +71,7 @@ export interface AccountSession {
   expiresAt: number;
 }
 export interface MemberEntitlement {
+  environment?: string;
   nextRenewalAt?: number;
   nextRenewalPrice?: number;
   renewalCurrency?: string;

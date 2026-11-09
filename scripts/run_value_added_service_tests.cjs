@@ -60,7 +60,7 @@ const authentication={HuaweiIDProvider:class{constructor(){constructors++;}creat
  if(!request.permissions){assert.deepEqual(Array.from(request.scopes),['profile']);return {state:request.state,data:{openID:'sdk-open-id',nickName:'Test nickname',avatarUri:'https://avatar.example.test/a.png'}};}
  authorizationState=request.state;assert.deepEqual(Array.from(request.scopes),['profile']);assert.deepEqual(Array.from(request.permissions),['serviceauthcode']);return {state:request.state,data:{authorizationCode:'provider-code'}};}}};
 let sandboxActive=true,managedSubscriptions=0,purchaseCalls=0,promotionalOffers=[],latestPurchase,omitOfferSignature=false,createError=0,autoReceipts=[];const subscriptionQueries=[];
-const iap={IAPErrorCode:{USER_CANCELED:1,PRODUCT_OWNED:2},isSandboxActivated:async()=>sandboxActive,PeriodUnit:{MONTH:2},OfferPaymentMode:{PAY_AS_YOU_GO:2},ProductType:{CONSUMABLE:0,NONCONSUMABLE:1,AUTORENEWABLE:2,NONRENEWABLE:3},PurchaseQueryType:{UNFINISHED:1,ALL:0,CURRENT_ENTITLEMENT:2},
+const iap={IAPErrorCode:{USER_CANCELED:1,PRODUCT_OWNED:2},isSandboxActivated:async()=>{throw Error("UNEXPECTED_SANDBOX_PREFLIGHT");},PeriodUnit:{MONTH:2},OfferPaymentMode:{PAY_AS_YOU_GO:2},ProductType:{CONSUMABLE:0,NONCONSUMABLE:1,AUTORENEWABLE:2,NONRENEWABLE:3},PurchaseQueryType:{UNFINISHED:1,ALL:0,CURRENT_ENTITLEMENT:2},
  WindowScreenMode:{DIALOG_BOX:0},showManagedSubscriptions:async(_,options)=>{assert.equal(options.windowScreenMode,0);managedSubscriptions++;},
  queryProducts:async(_,{productType,productIds})=>[
   {id:productIds[0],type:productType,name:productType===0?'Coffee':'Membership',localPrice:productType===2?'¥5.00':'CNY 6.00',price:'6',
@@ -460,11 +460,10 @@ async function testLifetimeMembership(){
  capabilityOverrides.renewalReminders=false;capabilityOverrides.sandboxCheckout=true;
  await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
  capabilityOverrides.sandboxCommerce=true;sandboxActive=false;
- await assert.rejects(purchaseConfirmed(autoService,autoProduct),/SANDBOX_REQUIRED/);
- assert.equal(purchaseCalls,callsBeforeReminderFailure,'test flags cannot replace official sandbox activation');
- sandboxActive=true;createError=iap.IAPErrorCode.USER_CANCELED;
- assert.equal(await purchaseConfirmed(autoService,autoProduct),'CANCELLED');
- assert.equal(purchaseCalls,callsBeforeReminderFailure+1,'official sandbox can exercise the cashier before reminder deployment');
+ await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
+ assert.equal(purchaseCalls,callsBeforeReminderFailure,'legacy test flags cannot bypass renewal readiness');
+ sandboxActive=true;
+ await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
  createError=0;delete capabilityOverrides.sandboxCommerce;delete capabilityOverrides.sandboxCheckout;
  capabilityOverrides.renewalReminders=true;
  await assert.rejects(autoService.purchase(autoProduct,{userId:autoService.getUserId(),quote:autoService.quoteKey(autoProduct),
@@ -551,12 +550,13 @@ async function testLifetimeMembership(){
  await purchaseConfirmed(sandboxService,(await sandboxService.products()).find(p=>p.type===2));
  const sandboxPurchaseCalls=purchaseCalls,sandboxFinishCalls=finishCalls,queryCount=subscriptionQueries.length;
  sandboxActive=false;
- await assert.rejects(purchaseConfirmed(sandboxService,{id:'month',type:2}),/SANDBOX_REQUIRED/);
- await assert.rejects(sandboxService.restorePurchases(),/SANDBOX_REQUIRED/);
- assert.equal(purchaseCalls,sandboxPurchaseCalls);assert.equal(finishCalls,sandboxFinishCalls);assert.equal(subscriptionQueries.length,queryCount);
- const notTester=new mod.exports.ValueAddedService();await notTester.initialize(sandboxContext);assert.equal(notTester.getCapabilities().commerce,false);
+ await sandboxService.checkPurchaseEnvironment();
+ await sandboxService.restorePurchases();
+ assert.equal(purchaseCalls,sandboxPurchaseCalls,'restoration never creates another payment');
+ assert.ok(subscriptionQueries.length>queryCount,'ordinary users can query official purchases without tester checks');
+ const notTester=new mod.exports.ValueAddedService();await notTester.initialize(sandboxContext);assert.equal(notTester.getCapabilities().commerce,true);
  sandboxActive=true;route=sandboxRoute;
- console.log('Sandbox checkout: official tester check, recheck before purchase/restore, no normal-mode purchase or paid sync unlock PASS');
+ console.log('Unified checkout: no tester preflight for purchase/restore and no implicit paid sync unlock PASS');
  console.log('Saved Huawei offer: official ¥2/¥5 and cycle text, display while gated, signed checkout, stale/missing/signature/mode safeguards PASS');
  console.log('Automatic subscription: SDK-compatible purchase parameters, current entitlement plus unfinished orders, official management page PASS');
 
