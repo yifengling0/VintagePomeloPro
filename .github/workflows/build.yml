@@ -378,6 +378,33 @@ jobs:
           echo "== nproc =="
           nproc
 
+      # Hvigor automatically runs entry:clean after a fresh checkout or a
+      # toolchain change, deleting the project root build/ directory. Trigger
+      # that clean before restoring downloads or compiling native libraries.
+      - name: Install ArkTS project dependencies
+        run: |
+          ohpm install --all
+          # Dependency installation must not rewrite committed app inputs.
+          git diff --exit-code HEAD --ignore-submodules=all
+
+      - name: Prepare Hvigor before restoring native build inputs
+        run: |
+          set -euo pipefail
+          if [ -d build ] && [ -n "$(ls -A build)" ]; then
+            echo "Refusing Hvigor prebuild: native build directory is not empty" >&2
+            exit 1
+          fi
+          hvigor=(/apps/harmony/bin/hvigorw --mode module -p module=entry@default -p product=default -p buildMode=release default@PreBuild)
+          "${hvigor[@]}"
+          # Exercise the real project a second time with a sentinel: a future
+          # Hvigor behavior change must fail before any expensive native work.
+          mkdir -p build
+          sentinel=build/.ci-hvigor-clean-sentinel
+          printf 'preserve native build outputs\n' > "$sentinel"
+          "${hvigor[@]}"
+          test -f "$sentinel" || { echo "Hvigor deleted the native build directory" >&2; exit 1; }
+          rm -f "$sentinel"
+
       - name: Restore pinned GNU source archive cache
         uses: actions/cache/restore@v4
         continue-on-error: true
@@ -434,12 +461,6 @@ jobs:
             build/downloads/*.tar.xz
             .temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz
           key: native-sources-v2-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/build_xcb_stack.sh', 'scripts/build_x11_client.sh', 'scripts/build_xwayland.sh', 'scripts/download_verified_source.sh', 'scripts/prefetch_x11_sources.py', 'scripts/download_llvm_mingw.py') }}
-
-      - name: Install ArkTS project dependencies
-        run: |
-          ohpm install --all
-          # Dependency installation must not rewrite committed app inputs.
-          git diff --exit-code HEAD --ignore-submodules=all
 
       - name: Test X11 window identities and Wine overlay verification
         run: |
