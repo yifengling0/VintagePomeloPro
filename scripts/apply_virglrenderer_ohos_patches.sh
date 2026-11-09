@@ -25,7 +25,7 @@ then
     echo "virglrenderer: complete reviewed overlay already applied"
     exit 0
 fi
-for name in 0001-fix-blit-srgb-capability-routing.patch 0002-gles-minimum-ubo-plain-sysvals.patch 0003-gles-query-conditional-render.patch 0004-resource-copy-preserve-srgb-bits.patch 0005-gles-attachment-srgb-write-policy.patch 0006-gl-present-producer-context.patch 0007-ohos-native-memory-context.patch 0008-ohos-native-resource-contract.patch 0009-device-object-cleanup.patch 0010-render-resource-fd-close.patch 0011-negotiate-precise-shadow-per-context.patch 0012-validate-precise-context-at-renderer-entry.patch; do
+for name in 0001-fix-blit-srgb-capability-routing.patch 0002-gles-minimum-ubo-plain-sysvals.patch 0003-gles-query-conditional-render.patch 0004-resource-copy-preserve-srgb-bits.patch 0005-gles-attachment-srgb-write-policy.patch 0006-gl-present-producer-context.patch 0007-ohos-native-memory-context.patch 0008-ohos-native-resource-contract.patch 0009-device-object-cleanup.patch 0010-render-resource-fd-close.patch 0011-negotiate-precise-shadow-per-context.patch 0012-validate-precise-context-at-renderer-entry.patch 0013-shadow-upload-retirement-and-failure.patch; do
     PATCH="$SCRIPT_DIR/../patches/virglrenderer/$name"
     # Source exports may sit inside a different Git repository (or have no
     # Git metadata in Docker). Check the actual files, with a fixed direction.

@@ -400,6 +400,10 @@
       {
         "path": "patches/virglrenderer/0012-validate-precise-context-at-renderer-entry.patch",
         "sha256": "5eb000c1eecb40af3919745b52cf76047e0fab7e83b5713eb9b4664d5372a330"
+      },
+      {
+        "path": "patches/virglrenderer/0013-shadow-upload-retirement-and-failure.patch",
+        "sha256": "0a62a33826b425a1e00a328ef5edbfe3e5fb55cfd612748df77f2c2da18ff5dd"
       }
     ],
     "mesa": [
@@ -606,6 +610,10 @@
       {
         "path": "patches/dxvk/0004-occlusion-query-generation-and-pass.patch",
         "sha256": "75040831ab7c00ce863357ef8396c7b18aca2ac02c526ab59aee97d1a2a145da"
+      },
+      {
+        "path": "patches/dxvk/0005-share-instance-between-factories.patch",
+        "sha256": "8f5dd58a4a673773e066fc0f5f55bf75d9b4f47f47e06fcd804a865606e32ffa"
       }
     ]
   },
@@ -718,7 +726,8 @@
       "src/venus/vkr_physical_device.c": "bdb83f4492b09912d3f35d1ddcb09b338bedae138cef408d103682a8e7256e35",
       "src/venus/vkr_physical_device.h": "5888201316c046a2edbe0592251a5f13191627a2d239505124416cf38ebc43c6",
       "src/virgl_resource.h": "a3d31be53cadaa6836713a3a38da8964e30cdd35fe77f4f03db8ea3cffe948ab",
-      "src/virglrenderer.c": "3302226f94c97adf470e33ee26f673eed00ba7ced5535596bc7bf4e7b82bcc8d"
+      "src/virglrenderer.c": "3302226f94c97adf470e33ee26f673eed00ba7ced5535596bc7bf4e7b82bcc8d",
+      "src/venus/vkr_queue.c": "dc00fd5d0f6c9eed125f435dea060e2f5dac06dd4eabdec882f5a14a229beafa"
     }
   },
   "capability_decisions": {

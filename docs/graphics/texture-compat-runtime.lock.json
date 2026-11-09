@@ -31,9 +31,13 @@
         {
           "path": "patches/dxvk/0004-occlusion-query-generation-and-pass.patch",
           "sha256": "75040831ab7c00ce863357ef8396c7b18aca2ac02c526ab59aee97d1a2a145da"
+        },
+        {
+          "path": "patches/dxvk/0005-share-instance-between-factories.patch",
+          "sha256": "8f5dd58a4a673773e066fc0f5f55bf75d9b4f47f47e06fcd804a865606e32ffa"
         }
       ],
-      "patchedSourceSha256": "ba82fd97b28b2f5bb64f474cfb016454927a04479a32427e735a1cfef31f2802"
+      "patchedSourceSha256": "6a30bf2d4e980ba47bf2e7ed617f1fb6057e514d08cfc5a291faaa5444f853cc"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",

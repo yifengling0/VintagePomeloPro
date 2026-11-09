@@ -657,7 +657,10 @@ copy_if_missing() {
 ensure_wayland_dev_headers() {
     local wl_src="$ROOT/thirdparty/wayland/src"
     local wl_egl="$ROOT/thirdparty/wayland/egl"
-    local wl_build="$BUILD_DIR/wayland_build/$WINE_ARCH/src"
+    local wl_version
+    wl_version=$(sed -n "s/^[[:space:]]*version[[:space:]]*:[[:space:]]*'\([^']*\)'.*/\1/p" "$ROOT/thirdparty/wayland/meson.build" | head -1)
+    [ -n "$wl_version" ] || err "Cannot determine pinned Wayland version"
+    local wl_build="$BUILD_DIR/wayland_build_$wl_version/$WINE_ARCH/src"
 
     mkdir -p "$SYSROOT_EXT_INC"
 
@@ -670,15 +673,12 @@ ensure_wayland_dev_headers() {
     copy_if_missing "$wl_egl/wayland-egl-core.h" "$SYSROOT_EXT_INC/wayland-egl-core.h"
     copy_if_missing "$wl_egl/wayland-egl-backend.h" "$SYSROOT_EXT_INC/wayland-egl-backend.h"
     copy_if_missing "$wl_build/wayland-version.h" "$SYSROOT_EXT_INC/wayland-version.h"
-    copy_if_missing "$wl_build/wayland-client-protocol-core.h" "$SYSROOT_EXT_INC/wayland-client-protocol-core.h"
     copy_if_missing "$wl_build/wayland-client-protocol.h" "$SYSROOT_EXT_INC/wayland-client-protocol.h"
-    copy_if_missing "$wl_build/wayland-server-protocol-core.h" "$SYSROOT_EXT_INC/wayland-server-protocol-core.h"
     copy_if_missing "$wl_build/wayland-server-protocol.h" "$SYSROOT_EXT_INC/wayland-server-protocol.h"
 
     [ -f "$SYSROOT_EXT_INC/wayland-server.h" ] || err "wayland-server.h is missing from sysroot-ext; run scripts/build_wayland.sh first"
     [ -f "$SYSROOT_EXT_INC/wayland-server-core.h" ] || err "wayland-server-core.h is missing from sysroot-ext; run scripts/build_wayland.sh first"
     [ -f "$SYSROOT_EXT_INC/wayland-server-protocol.h" ] || err "wayland-server-protocol.h is missing from sysroot-ext; run scripts/build_wayland.sh first"
-    [ -f "$SYSROOT_EXT_INC/wayland-server-protocol-core.h" ] || err "wayland-server-protocol-core.h is missing from sysroot-ext; run scripts/build_wayland.sh first"
 }
 
 setup_build_env
