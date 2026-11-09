@@ -398,10 +398,10 @@ jobs:
         continue-on-error: true
         with:
           path: |
-            build/downloads/pixman-*.tar.gz
-            build/downloads/libdrm-*.tar.xz
+            build/downloads/*.tar.gz
+            build/downloads/*.tar.xz
             .temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz
-          key: native-sources-v1-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/download_llvm_mingw.py') }}
+          key: native-sources-v2-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/build_xcb_stack.sh', 'scripts/build_x11_client.sh', 'scripts/build_xwayland.sh', 'scripts/download_verified_source.sh', 'scripts/prefetch_x11_sources.py', 'scripts/download_llvm_mingw.py') }}
 
       - name: Verify fresh and incremental FEX source overlays
         env:
@@ -409,6 +409,8 @@ jobs:
         run: |
           # Fail early on verified display source downloads rather than after Wine builds.
           bash scripts/build_display_libs.sh --fetch-only
+          python3 host_tests/verified_source_download_test.py
+          python3 scripts/prefetch_x11_sources.py --downloads build/downloads
           python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
           python3 host_tests/fex_build_identity_test.py
           python3 host_tests/fex_simd_runtime_test.py
@@ -422,10 +424,10 @@ jobs:
         continue-on-error: true
         with:
           path: |
-            build/downloads/pixman-*.tar.gz
-            build/downloads/libdrm-*.tar.xz
+            build/downloads/*.tar.gz
+            build/downloads/*.tar.xz
             .temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz
-          key: native-sources-v1-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/download_llvm_mingw.py') }}
+          key: native-sources-v2-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/build_xcb_stack.sh', 'scripts/build_x11_client.sh', 'scripts/build_xwayland.sh', 'scripts/download_verified_source.sh', 'scripts/prefetch_x11_sources.py', 'scripts/download_llvm_mingw.py') }}
 
       - name: Install ArkTS project dependencies
         run: |
@@ -483,7 +485,6 @@ jobs:
           python3 host_tests/linux_native_bc_recording_test.py --build-dir workspace_temp/native-bc-recording
           python3 host_tests/linux_runtime_components_test.py
           make test-font-import test-wine-font-compat
-          python3 host_tests/verified_source_download_test.py
           python3 host_tests/linux_steam_offline_package_test.py
           python3 host_tests/release_offline_packages_test.py
           python3 host_tests/managed_render_route_test.py

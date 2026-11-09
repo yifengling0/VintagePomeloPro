@@ -12,6 +12,9 @@ download_verified_source() {
     case "$url" in
         https://xorg.freedesktop.org/archive/individual/*)
             mirror="https://www.x.org/archive/individual/${url#https://xorg.freedesktop.org/archive/individual/}" ;;
+        https://github.com/dottedmag/libsha1/archive/*.tar.gz)
+            mirror="${url#https://github.com/dottedmag/libsha1/archive/}"
+            mirror="https://codeload.github.com/dottedmag/libsha1/tar.gz/${mirror%.tar.gz}" ;;
     esac
     for candidate in "$url" "$mirror"; do
         [ -n "$candidate" ] || continue

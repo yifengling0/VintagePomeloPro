@@ -3,15 +3,19 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import sys
+import shutil
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = ROOT / 'scripts/download_verified_source.sh'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from prefetch_x11_sources import sources
 
 
 class VerifiedSourceDownloadTest(unittest.TestCase):
-    def run_download(self, mode, existing=None):
+    def run_download(self, mode, existing=None, url="https://xorg.freedesktop.org/archive/individual/xcb/source.tar.xz"):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             target = root / 'source.tar.xz'
@@ -29,16 +33,30 @@ curl() {
     done
     echo "$last" >> "$CALLS"
     if [ "$MODE" = fail ]; then printf broken > "$output"; return 7; fi
-    if [[ "$last" == https://xorg.freedesktop.org/* ]]; then printf broken > "$output"; return 7; fi
+    if [[ "$last" == https://xorg.freedesktop.org/* || "$last" == https://github.com/dottedmag/* ]]; then printf broken > "$output"; return 7; fi
     if [ "$MODE" = bad ]; then printf invalid > "$output"; else printf verified > "$output"; fi
 }
-download_verified_source https://xorg.freedesktop.org/archive/individual/xcb/source.tar.xz "$CHECKSUM" "$TARGET"
+download_verified_source "$URL" "$CHECKSUM" "$TARGET"
 '''
             env = dict(os.environ, HELPER=str(HELPER), TARGET=str(target), MODE=mode,
-                       CHECKSUM=hashlib.sha256(b'verified').hexdigest(), CALLS=str(root / 'calls'))
+                       CHECKSUM=hashlib.sha256(b'verified').hexdigest(), CALLS=str(root / 'calls'), URL=url)
             proc = subprocess.run(['bash', '-c', shell], env=env, capture_output=True, text=True)
             calls = (root / 'calls').read_text().splitlines() if (root / 'calls').exists() else []
             return proc.returncode, target.read_bytes() if target.exists() else None, calls, list(root.glob('*.part.*'))
+
+    def test_inventory_fails_closed_on_unrecognized_download(self):
+        inventory = sources()
+        self.assertTrue(any(url.endswith('/xcb-util-wm-0.4.2.tar.xz') for url in inventory))
+        self.assertTrue(any('libsha1/archive/' in url and '$' not in url for url in inventory))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'scripts').mkdir()
+            for name in ('build_xcb_stack.sh', 'build_x11_client.sh', 'build_xwayland.sh'):
+                shutil.copyfile(ROOT / 'scripts' / name, root / 'scripts' / name)
+            path = root / 'scripts/build_xcb_stack.sh'
+            path.write_text(path.read_text() + '\nfetch_and_unpack "https://example.invalid/new.zip" "$UNKNOWN" output\n')
+            with self.assertRaisesRegex(ValueError, 'Unrecognized'):
+                sources(root)
 
     def test_cache_hit_needs_no_network(self):
         code, data, calls, parts = self.run_download('fail', b'verified')
@@ -49,6 +67,11 @@ download_verified_source https://xorg.freedesktop.org/archive/individual/xcb/sou
         self.assertEqual((code, data, parts), (0, b'verified', []))
         self.assertEqual(len(calls), 2)
         self.assertTrue(calls[1].startswith('https://www.x.org/'))
+
+    def test_github_source_can_use_codeload_mirror(self):
+        code, data, calls, parts = self.run_download('good', url='https://github.com/dottedmag/libsha1/archive/abc.tar.gz')
+        self.assertEqual((code, data, parts), (0, b'verified', []))
+        self.assertEqual(calls[1], 'https://codeload.github.com/dottedmag/libsha1/tar.gz/abc')
 
     def test_network_or_checksum_failure_never_publish_partial(self):
         for mode in ('fail', 'bad'):
