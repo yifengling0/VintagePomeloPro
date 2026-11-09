@@ -26,13 +26,18 @@ class OverlayTests(unittest.TestCase):
         self.patch = ROOT / self.pin['patches'][0]['path']
         self.names = sorted({name for row in self.pin['patches'] for name in re.findall(r'^diff --git a/(\S+) b/\S+$', (ROOT / row['path']).read_text(), re.M)})
         self.assertTrue(self.names)
-        archive = subprocess.check_output(['git', '-C', str(ROOT / 'thirdparty/dxvk'), 'archive', self.pin['commit'], *self.names])
+        repository = ROOT / 'thirdparty/dxvk'
+        present = set(subprocess.check_output(['git', '-C', str(repository), 'ls-tree', '-r',
+                                              '--name-only', self.pin['commit']], text=True).splitlines())
+        original_names = [name for name in self.names if name in present]
+        archive = subprocess.check_output(['git', '-C', str(repository), 'archive', self.pin['commit'], *original_names])
         with tarfile.open(fileobj=io.BytesIO(archive)) as files:
             files.extractall(self.source, filter='data')
         subprocess.run(['git', 'init', '-q', str(self.source)], check=True)
 
     def hashes(self):
-        return {name: hashlib.sha256((self.source / name).read_bytes()).hexdigest() for name in self.names}
+        return {name: hashlib.sha256((self.source / name).read_bytes()).hexdigest()
+                if (self.source / name).is_file() else None for name in self.names}
 
     def test_clean_apply_is_idempotent_and_verifiable(self):
         before = self.hashes()
@@ -40,6 +45,7 @@ class OverlayTests(unittest.TestCase):
             overlay.apply(self.source, verify_only=True)
         self.assertEqual(overlay.apply(self.source), self.pin['patchedSourceSha256'])
         after = self.hashes()
+        self.assertTrue(all(after.values()), 'every overlay file, including added headers, must be produced')
         self.assertNotEqual(before, after)
         overlay.apply(self.source)
         overlay.apply(self.source, verify_only=True)

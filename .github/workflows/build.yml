@@ -40,10 +40,10 @@ jobs:
           fetch-depth: 1
       # GNU companion provenance includes the exact pinned Vulkan registry
       # and headers. The first job otherwise has no initialized submodules.
-      - name: Restore pinned Mesa provenance inputs
+      - name: Restore pinned provenance and DXVK overlay test inputs
         run: |
           git -c url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf=git@github.com: \
-            submodule update --init --depth=1 -- thirdparty/mesa
+            submodule update --init --depth=1 -- thirdparty/mesa thirdparty/dxvk
 
       - name: Test provenance and dependency restore
         run: |
