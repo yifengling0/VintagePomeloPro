@@ -201,6 +201,10 @@ export struct LinuxSteamPanel {
         Text(`${this.installState.component} · 组件 ${this.installState.completedComponents}/${this.installState.totalComponents} · 文件 ${this.installState.preparedFiles}/${this.installState.totalFiles}`)
           .fontSize(12).fontColor('#929DAB').width('100%').id('linux-steam-install-files')
       }
+      // The global error banner is above this long page and can be offscreen
+      // after a local import. Keep the actionable reason beside its progress.
+      if (this.errorMessage()) Text(this.errorMessage()).fontSize(14).fontColor('#FFB5A7').width('100%')
+        .id('linux-steam-install-error')
       if (linuxSteamInstallBusy(this.installState.phase)) Button('暂停任务').height(38).fontSize(13).backgroundColor('#263343').fontColor('#D8E5F3')
         .onClick((): void => LinuxSteamInstallService.getInstance().pause()).id('linux-steam-install-pause')
     }.width('100%').alignItems(HorizontalAlign.Start).padding(20).backgroundColor('#121A24').borderRadius(14)
