@@ -28,6 +28,33 @@ permissions:
   packages: read
 
 jobs:
+  membership-checks:
+    name: Verify membership backend and checkout
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+          submodules: false
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/value-added/package-lock.json
+      - name: Install locked backend dependencies
+        run: npm ci --prefix server/value-added --ignore-scripts --no-audit --no-fund
+      - name: Test backend purchase verification and entitlements
+        run: npm test --prefix server/value-added
+      - name: Test client checkout and recovery
+        run: |
+          npm install --prefix "$RUNNER_TEMP/vpp-typescript" --no-save --no-package-lock \
+            --ignore-scripts --no-audit --no-fund typescript@4.9.5
+          ts="$RUNNER_TEMP/vpp-typescript/node_modules/typescript/lib/typescript.js"
+          node scripts/run_value_added_service_tests.cjs --source "$ts"
+          node scripts/run_membership_checkout_ui_tests.cjs "$ts"
+
   gnu-components:
     name: Verify GNU dependencies from a clean checkout
     runs-on: ubuntu-26.04
@@ -48,8 +75,26 @@ jobs:
       - name: Test provenance and dependency restore
         run: |
           python3 scripts/ci_preflight.py --report ci-artifacts/ci-preflight.json
+      - name: Restore verified GNU source archive cache
+        id: gnu-source-cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: |
+            build/linux-runtime-downloads/*.zip
+            build/linux-runtime-downloads/*.tar.gz
+          key: gnu-sources-v1-${{ runner.os }}-${{ hashFiles('docs/linux-steam/build-components.lock.json', 'docs/linux-steam/gnu-proton-modules.lock.json') }}
       - name: Fetch and verify published GNU dependency bytes
         run: python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-clean-checkout.json
+      - name: Save verified GNU source archives
+        if: steps.gnu-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: |
+            build/linux-runtime-downloads/*.zip
+            build/linux-runtime-downloads/*.tar.gz
+          key: gnu-sources-v1-${{ runner.os }}-${{ hashFiles('docs/linux-steam/build-components.lock.json', 'docs/linux-steam/gnu-proton-modules.lock.json') }}
       - uses: actions/upload-artifact@v4
         with:
           name: gnu-clean-checkout-${{ github.sha }}
@@ -61,7 +106,7 @@ jobs:
 
   build:
     name: make NATIVE_ARCH=arm64-v8a hap-unsigned
-    needs: gnu-components
+    needs: [gnu-components, membership-checks]
     runs-on: ubuntu-26.04
     timeout-minutes: 180
     outputs:
@@ -327,14 +372,36 @@ jobs:
           echo "== nproc =="
           nproc
 
-      - name: Restore and verify pinned Linux Steam and GNU Proton components
+      - name: Restore pinned GNU source archive cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: |
+            build/linux-runtime-downloads/*.zip
+            build/linux-runtime-downloads/*.tar.gz
+          key: gnu-sources-v1-${{ runner.os }}-${{ hashFiles('docs/linux-steam/build-components.lock.json', 'docs/linux-steam/gnu-proton-modules.lock.json') }}
+
+      - name: Verify restored Linux Steam and GNU Proton components
         run: |
           set -euo pipefail
           python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-components.json
 
       # Replay first, before the hour-long native dependency build. This uses
       # small fixtures and leaves the verified checkout untouched.
+      - name: Restore verified native source archives
+        id: native-source-cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: |
+            build/downloads/pixman-*.tar.gz
+            build/downloads/libdrm-*.tar.xz
+            .temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz
+          key: native-sources-v1-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/download_llvm_mingw.py') }}
+
       - name: Verify fresh and incremental FEX source overlays
+        env:
+          VP_KEEP_TOOLCHAIN_ARCHIVE: '1'
         run: |
           # Fail early on verified display source downloads rather than after Wine builds.
           bash scripts/build_display_libs.sh --fetch-only
@@ -344,6 +411,17 @@ jobs:
           # Compile both device probes; execution still requires Wine/FEX.
           i686-w64-mingw32-gcc -O2 tests/runtime/fex_smc_blocks.c -o ci-artifacts/fex-smc-i686.exe
           x86_64-w64-mingw32-gcc -O2 tests/runtime/fex_smc_blocks.c -o ci-artifacts/fex-smc-x86_64.exe
+
+      - name: Save verified native source archives
+        if: steps.native-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: |
+            build/downloads/pixman-*.tar.gz
+            build/downloads/libdrm-*.tar.xz
+            .temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz
+          key: native-sources-v1-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/download_llvm_mingw.py') }}
 
       - name: Install ArkTS project dependencies
         run: |

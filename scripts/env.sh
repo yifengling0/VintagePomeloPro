@@ -93,7 +93,7 @@ if [ -z "${LLVM_MINGW}" ]; then
         exit 1
     fi
     tar -xJf "$tarball" -C "$ROOT/.temp" || { echo "ERROR: 解压失败: $tarball" >&2; exit 1; }
-    rm -f "$tarball"
+    if [ "${VP_KEEP_TOOLCHAIN_ARCHIVE:-0}" != 1 ]; then rm -f "$tarball"; fi
     LLVM_MINGW="$ROOT/.temp/$LLVM_MINGW_DIRNAME"
 fi
 # 双图库校验: 版本合格才放行 (20260616 无 obj.arm64ec/ 成员)
