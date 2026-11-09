@@ -145,23 +145,26 @@ def build(root, archive):
     return verify(root)
 
 
-def open_distribution(dist):
+def open_distribution(dist, repository='GloriousEggroll/proton-ge-custom', opener=None):
     """Use GitHub's asset API if its browser-download gateway is unavailable."""
+    opener = opener or urllib.request.urlopen
+    prefix = 'https://github.com/' + repository + '/releases/download/'
+    if not dist['source'].startswith(prefix):
+        raise ValueError('Unexpected distribution URL')
     headers = {'User-Agent': 'VintagePomeloPro-build/1'}
     try:
-        return urllib.request.urlopen(urllib.request.Request(dist['source'], headers=headers), timeout=90)
+        return opener(urllib.request.Request(dist['source'], headers=headers), timeout=90)
     except urllib.error.HTTPError as error:
         if error.code not in (429, 500, 502, 503, 504):
             raise
         error.close()
-    prefix = 'https://github.com/GloriousEggroll/proton-ge-custom/releases/download/'
     tag, filename = dist['source'].removeprefix(prefix).split('/')
     if filename != dist['file']:
         raise ValueError('GE source filename differs from distribution')
-    api = 'https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/'
+    api = 'https://api.github.com/repos/' + repository + '/releases/'
     request = urllib.request.Request(api + 'tags/' + urllib.parse.quote(tag, safe=''),
                                      headers={**headers, 'Accept': 'application/vnd.github+json'})
-    with urllib.request.urlopen(request, timeout=90) as response:
+    with opener(request, timeout=90) as response:
         metadata = response.read(1024 * 1024 + 1)
     if len(metadata) > 1024 * 1024:
         raise ValueError('Oversized GE release metadata')
@@ -174,7 +177,7 @@ def open_distribution(dist):
     asset_url = assets[0].get('url', '')
     if not asset_url.startswith(api + 'assets/') or not asset_url.removeprefix(api + 'assets/').isdigit():
         raise ValueError('Unexpected GitHub GE asset API URL')
-    return urllib.request.urlopen(urllib.request.Request(asset_url,
+    return opener(urllib.request.Request(asset_url,
         headers={**headers, 'Accept': 'application/octet-stream'}), timeout=90)
 
 

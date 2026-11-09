@@ -102,6 +102,30 @@ class RestoreTests(unittest.TestCase):
         self.assertEqual(self.restore(True)['status'],'PASS')
         self.assertEqual(len(self.calls),2,'verified-only check must not download')
 
+    def test_gateway_failure_uses_verified_official_asset(self):
+        import urllib.error
+        original = self.lock['components'][0]
+        url = original['url']
+        tag, filename = url.split('/releases/download/', 1)[1].split('/')
+        api = 'https://api.github.com/repos/yifengling0/VintagePomeloPro/releases/'
+        asset_url = api + 'assets/123'
+        metadata = dict(tag_name=tag, assets=[dict(name=filename, size=original['bytes'],
+                                                   browser_download_url=url, url=asset_url)])
+        failed = False
+        def fallback(request, timeout):
+            nonlocal failed
+            self.calls.append(request.full_url)
+            if request.full_url == url and not failed:
+                failed = True
+                raise urllib.error.HTTPError(url, 504, 'gateway', {}, None)
+            if request.full_url == api + 'tags/' + tag:
+                return io.BytesIO(json.dumps(metadata).encode())
+            if request.full_url == asset_url:
+                return io.BytesIO(self.downloads[url])
+            return io.BytesIO(self.downloads[request.full_url])
+        self.assertEqual(components.prepare(self.root, self.lock, self.cache, False, fallback)['status'], 'PASS')
+        self.assertIn(asset_url, self.calls)
+
     def test_source_drift_fails_before_network(self):
         self.source.write_text('new source without rebuilt component')
         with self.assertRaisesRegex(ValueError,'source changed'):self.restore()

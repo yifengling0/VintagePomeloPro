@@ -208,8 +208,9 @@ def prepare(root, lock, cache, verify_only=False, opener=urllib.request.urlopen)
             temporary = saved.with_suffix('.part')
             if temporary.is_symlink(): raise ValueError('Linked download rejected')
             print('Downloading pinned GNU dependency:',row['path'],flush=True)
-            request = urllib.request.Request(url,headers={'User-Agent':'VintagePomeloPro-build/1'})
-            with opener(request,timeout=90) as response, temporary.open('wb') as output:
+            from prepare_linux_proton_module_closure import open_distribution
+            distribution = dict(source=url, file=url.rsplit('/', 1)[-1], bytes=row['bytes'])
+            with open_distribution(distribution, repository='yifengling0/VintagePomeloPro', opener=opener) as response, temporary.open('wb') as output:
                 count = 0
                 while block := response.read(1024 * 1024):
                     count += len(block)
