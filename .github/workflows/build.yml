@@ -144,6 +144,11 @@ jobs:
           git config --global \
             url."https://github.com/GitMirroring/libunistring.git".insteadOf \
             "https://git.savannah.gnu.org/git/libunistring.git"
+          # Old immutable tags still name the intermittently unavailable origin.
+          # This public mirror contains the same pinned Nettle git objects.
+          git config --global \
+            url."https://github.com/gnutls/nettle.git".insteadOf \
+            "https://git.lysator.liu.se/nettle/nettle.git"
 
       - name: Checkout with submodules
         uses: actions/checkout@v4

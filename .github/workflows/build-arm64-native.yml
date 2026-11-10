@@ -57,6 +57,13 @@ jobs:
           git config --global --add \
             url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf \
             "https://github.com/"
+          # Preserve exact pinned objects when these upstream hosts are unavailable.
+          git config --global \
+            url."https://github.com/GitMirroring/libunistring.git".insteadOf \
+            "https://git.savannah.gnu.org/git/libunistring.git"
+          git config --global \
+            url."https://github.com/gnutls/nettle.git".insteadOf \
+            "https://git.lysator.liu.se/nettle/nettle.git"
 
       - name: Checkout with submodules
         uses: actions/checkout@v4
