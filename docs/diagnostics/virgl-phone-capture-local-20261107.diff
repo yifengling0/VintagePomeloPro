@@ -1,0 +1,636 @@
+--- a/src/venus/vkr_command_buffer.c
++++ b/src/venus/vkr_command_buffer.c
+@@ -64,6 +64,7 @@
+ static bool
+ vkr_winehua_capture_trace_allow(void)
+ {
++   if (vkr_flight_enabled()) return true;
+    static atomic_uint emitted = ATOMIC_VAR_INIT(0);
+    const unsigned limit = vkr_winehua_capture_trace_limit();
+    const unsigned index =
+@@ -554,6 +555,10 @@
+ 
+    vn_replace_vkBeginCommandBuffer_args_handle(args);
+    args->ret = vk->BeginCommandBuffer(args->commandBuffer, args->pBeginInfo);
++   if (vkr_flight_enabled())
++      vkr_log("WineHuaCapture: begin ctx=%u cmdId=%" PRIu64
++              " hostCmd=0x%" PRIxPTR " result=%d", ((struct vkr_context *)dispatch->data)->ctx_id,
++              cmd->base.id, (uintptr_t)args->commandBuffer, args->ret);
+ }
+ 
+ static void
+@@ -566,6 +571,9 @@
+ 
+    vn_replace_vkEndCommandBuffer_args_handle(args);
+    args->ret = vk->EndCommandBuffer(args->commandBuffer);
++   if (vkr_flight_enabled())
++      vkr_log("WineHuaCapture: end cmdId=%" PRIu64 " result=%d",
++              cmd->base.id, args->ret);
+ }
+ 
+ static void
+@@ -769,6 +777,13 @@
+ vkr_dispatch_vkCmdDrawIndirect(UNUSED struct vn_dispatch_context *dispatch,
+                                struct vn_command_vkCmdDrawIndirect *args)
+ {
++   if (vkr_flight_enabled()) {
++      struct vkr_command_buffer *cmd = vkr_command_buffer_from_handle(args->commandBuffer);
++      struct vkr_buffer *buffer = vkr_buffer_from_handle(args->buffer);
++      vkr_log("WineHuaCapture: DrawIndirect cmdId=%" PRIu64
++              " bufferId=%" PRIu64 " offset=%" PRIu64,
++              cmd->base.id, buffer->base.id, (uint64_t)args->offset);
++   }
+    VKR_CMD_CALL(CmdDrawIndirect, args, args->buffer, args->offset, args->drawCount,
+                 args->stride);
+ }
+@@ -777,6 +792,13 @@
+ vkr_dispatch_vkCmdDrawIndexedIndirect(UNUSED struct vn_dispatch_context *dispatch,
+                                       struct vn_command_vkCmdDrawIndexedIndirect *args)
+ {
++   if (vkr_flight_enabled()) {
++      struct vkr_command_buffer *cmd = vkr_command_buffer_from_handle(args->commandBuffer);
++      struct vkr_buffer *buffer = vkr_buffer_from_handle(args->buffer);
++      vkr_log("WineHuaCapture: DrawIndexedIndirect cmdId=%" PRIu64
++              " bufferId=%" PRIu64 " offset=%" PRIu64,
++              cmd->base.id, buffer->base.id, (uint64_t)args->offset);
++   }
+    VKR_CMD_CALL(CmdDrawIndexedIndirect, args, args->buffer, args->offset, args->drawCount,
+                 args->stride);
+ }
+@@ -785,15 +807,37 @@
+ vkr_dispatch_vkCmdDispatch(UNUSED struct vn_dispatch_context *dispatch,
+                            struct vn_command_vkCmdDispatch *args)
+ {
++   if (vkr_flight_enabled()) {
++      struct vkr_command_buffer *cmd = vkr_command_buffer_from_handle(args->commandBuffer);
++      vkr_log("WineHuaCapture: dispatch cmdId=%" PRIu64 " groups=%u,%u,%u",
++              cmd->base.id, args->groupCountX, args->groupCountY, args->groupCountZ);
++   }
++   struct vkr_command_buffer *flight_cmd = vkr_command_buffer_from_handle(args->commandBuffer);
++   vkr_flight_checkpoint(flight_cmd->device, flight_cmd->base.handle.command_buffer,
++                          flight_cmd->base.id, "before-Dispatch");
+    VKR_CMD_CALL(CmdDispatch, args, args->groupCountX, args->groupCountY,
+                 args->groupCountZ);
++   vkr_flight_checkpoint(flight_cmd->device, flight_cmd->base.handle.command_buffer,
++                          flight_cmd->base.id, "after-Dispatch");
+ }
+ 
+ static void
+ vkr_dispatch_vkCmdDispatchIndirect(UNUSED struct vn_dispatch_context *dispatch,
+                                    struct vn_command_vkCmdDispatchIndirect *args)
+ {
++   if (vkr_flight_enabled()) {
++      struct vkr_command_buffer *cmd = vkr_command_buffer_from_handle(args->commandBuffer);
++      struct vkr_buffer *buffer = vkr_buffer_from_handle(args->buffer);
++      vkr_log("WineHuaCapture: DispatchIndirect cmdId=%" PRIu64
++              " bufferId=%" PRIu64 " offset=%" PRIu64,
++              cmd->base.id, buffer->base.id, (uint64_t)args->offset);
++   }
++   struct vkr_command_buffer *flight_cmd = vkr_command_buffer_from_handle(args->commandBuffer);
++   vkr_flight_checkpoint(flight_cmd->device, flight_cmd->base.handle.command_buffer,
++                          flight_cmd->base.id, "before-DispatchIndirect");
+    VKR_CMD_CALL(CmdDispatchIndirect, args, args->buffer, args->offset);
++   vkr_flight_checkpoint(flight_cmd->device, flight_cmd->base.handle.command_buffer,
++                          flight_cmd->base.id, "after-DispatchIndirect");
+ }
+ 
+ static void
+@@ -1151,7 +1195,10 @@
+               cmd ? cmd->base.id : 0,
+               cmd ? (uintptr_t)cmd->base.handle.command_buffer : 0);
+    }
++   struct vkr_command_buffer *flight_cmd = vkr_command_buffer_from_handle(args->commandBuffer);
+    VKR_CMD_CALL(CmdEndRenderPass, args);
++   vkr_flight_checkpoint(flight_cmd->device, flight_cmd->base.handle.command_buffer,
++                          flight_cmd->base.id, "after-render-pass");
+ }
+ 
+ static void
+--- a/src/venus/vkr_common.c
++++ b/src/venus/vkr_common.c
+@@ -230,12 +230,78 @@
+    vkr_debug_flags = debug_get_option_vkr_debug_flags();
+ }
+ 
++/* Local diagnostic: only TRACE_CAPTURE sessions use this bounded recorder.
++ * No pointers or referenced resources are retained, only formatted values. */
++#define VKR_FLIGHT_COUNT 8192u
++#define VKR_FLIGHT_BYTES 512u
++static once_flag vkr_flight_once = ONCE_FLAG_INIT;
++static mtx_t vkr_flight_mutex;
++static bool vkr_flight_active;
++static bool vkr_flight_dumped;
++static uint64_t vkr_flight_sequence;
++static char vkr_flight_records[VKR_FLIGHT_COUNT][VKR_FLIGHT_BYTES];
++
++static void vkr_flight_init(void)
++{
++   mtx_init(&vkr_flight_mutex, mtx_plain);
++   const char *value = os_get_option("WINEHUA_VKR_TRACE_CAPTURE");
++   vkr_flight_active = value && value[0] == '1';
++}
++
++bool vkr_flight_enabled(void)
++{
++   call_once(&vkr_flight_once, vkr_flight_init);
++   return vkr_flight_active;
++}
++
++static void vkr_flight_emit(const char *fmt, ...)
++{
++   va_list va;
++   va_start(va, fmt);
++   virgl_prefixed_logv("vkr", VIRGL_LOG_LEVEL_INFO, fmt, va);
++   va_end(va);
++}
++
++void vkr_flight_dump(void)
++{
++   if (!vkr_flight_enabled()) return;
++   mtx_lock(&vkr_flight_mutex);
++   if (!vkr_flight_dumped) {
++      vkr_flight_dumped = true;
++      const uint64_t first = vkr_flight_sequence > VKR_FLIGHT_COUNT
++         ? vkr_flight_sequence - VKR_FLIGHT_COUNT : 0;
++      vkr_flight_emit("WineHuaFlight: begin first=%" PRIu64 " end=%" PRIu64,
++                     first, vkr_flight_sequence);
++      for (uint64_t i = first; i < vkr_flight_sequence; i++)
++         vkr_flight_emit("Flight[ %" PRIu64 " ] %s", i,
++                        vkr_flight_records[i % VKR_FLIGHT_COUNT]);
++      vkr_flight_emit("WineHuaFlight: end");
++   }
++   mtx_unlock(&vkr_flight_mutex);
++}
++
+ void
+ vkr_log(const char *fmt, ...)
+ {
+    va_list va;
+ 
+    va_start(va, fmt);
++   if (vkr_flight_enabled()) {
++      char line[VKR_FLIGHT_BYTES];
++      vsnprintf(line, sizeof(line), fmt, va);
++      va_end(va);
++      mtx_lock(&vkr_flight_mutex);
++      if (!vkr_flight_dumped) {
++         memcpy(vkr_flight_records[vkr_flight_sequence % VKR_FLIGHT_COUNT],
++                line, strlen(line) + 1);
++         vkr_flight_sequence++;
++      }
++      mtx_unlock(&vkr_flight_mutex);
++      if (strstr(line, "CS error") || strstr(line, "result=-4") ||
++          strstr(line, "GPU upload wait failed"))
++         vkr_flight_dump();
++      return;
++   }
+    virgl_prefixed_logv("vkr", VIRGL_LOG_LEVEL_INFO, fmt, va);
+    va_end(va);
+ }
+--- a/src/venus/vkr_common.h
++++ b/src/venus/vkr_common.h
+@@ -186,6 +186,8 @@
+ 
+ void
+ vkr_log(const char *fmt, ...);
++bool vkr_flight_enabled(void);
++void vkr_flight_dump(void);
+ 
+ static inline uint32_t
+ vkr_api_version_cap_minor(uint32_t version, uint32_t cap)
+--- a/src/venus/vkr_descriptor_set.c
++++ b/src/venus/vkr_descriptor_set.c
+@@ -30,6 +30,7 @@
+ static bool
+ vkr_winehua_sample_trace_allow(void)
+ {
++   if (vkr_flight_enabled()) return true;
+    static atomic_uint emitted = ATOMIC_VAR_INIT(0);
+    const unsigned index =
+       atomic_fetch_add_explicit(&emitted, 1, memory_order_relaxed);
+@@ -59,6 +60,7 @@
+ static bool
+ vkr_winehua_capture_trace_allow(void)
+ {
++   if (vkr_flight_enabled()) return true;
+    static atomic_uint emitted = ATOMIC_VAR_INIT(0);
+    const unsigned index =
+       atomic_fetch_add_explicit(&emitted, 1, memory_order_relaxed);
+@@ -90,6 +92,7 @@
+ static bool
+ vkr_winehua_ubo_identity_trace_allow(void)
+ {
++   if (vkr_flight_enabled()) return true;
+    static atomic_uint emitted = ATOMIC_VAR_INIT(0);
+    const unsigned index =
+       atomic_fetch_add_explicit(&emitted, 1, memory_order_relaxed);
+--- a/src/venus/vkr_device.c
++++ b/src/venus/vkr_device.c
+@@ -16,6 +16,85 @@
+ #include "vkr_physical_device.h"
+ #include "vkr_queue.h"
+ #include "vkr_renderer.h"
++
++
++static void
++vkr_flight_checkpoint_cleanup(struct vkr_device *dev)
++{
++   struct vn_device_proc_table *vk = &dev->proc_table;
++   VkDevice d = dev->base.handle.device;
++   if (dev->flight_map) vk->UnmapMemory(d, dev->flight_memory);
++   if (dev->flight_buffer) vk->DestroyBuffer(d, dev->flight_buffer, NULL);
++   if (dev->flight_memory) vk->FreeMemory(d, dev->flight_memory, NULL);
++   dev->flight_map = NULL;
++   dev->flight_buffer = VK_NULL_HANDLE;
++   dev->flight_memory = VK_NULL_HANDLE;
++}
++
++static void
++vkr_flight_checkpoint_init(struct vkr_device *dev)
++{
++   if (!vkr_flight_enabled()) return;
++   struct vn_device_proc_table *vk = &dev->proc_table;
++   VkDevice d = dev->base.handle.device;
++   VkBufferCreateInfo bi = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
++      .size = 4096, .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
++      .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
++   if (vk->CreateBuffer(d, &bi, NULL, &dev->flight_buffer) != VK_SUCCESS) return;
++   VkMemoryRequirements req;
++   vk->GetBufferMemoryRequirements(d, dev->flight_buffer, &req);
++   VkPhysicalDeviceMemoryProperties props;
++   dev->physical_device->proc_table.GetPhysicalDeviceMemoryProperties(
++      dev->physical_device->base.handle.physical_device, &props);
++   uint32_t mt;
++   for (mt = 0; mt < props.memoryTypeCount; mt++)
++      if ((req.memoryTypeBits & (1u << mt)) &&
++          (props.memoryTypes[mt].propertyFlags &
++             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
++             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) break;
++   if (mt == props.memoryTypeCount) goto fail;
++   VkMemoryAllocateInfo ai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
++      .allocationSize = req.size, .memoryTypeIndex = mt};
++   if (vk->AllocateMemory(d, &ai, NULL, &dev->flight_memory) != VK_SUCCESS) goto fail;
++   if (vk->BindBufferMemory(d, dev->flight_buffer, dev->flight_memory, 0) != VK_SUCCESS) goto fail;
++   if (vk->MapMemory(d, dev->flight_memory, 0, VK_WHOLE_SIZE, 0,
++                    (void **)&dev->flight_map) != VK_SUCCESS) goto fail;
++   memset(dev->flight_map, 0, 4096);
++   atomic_init(&dev->flight_sequence, 0);
++   vkr_log("WineHuaCheckpoint: initialized coherent marker type=%u", mt);
++   return;
++fail:
++   vkr_flight_checkpoint_cleanup(dev);
++   vkr_log("WineHuaCheckpoint: unavailable");
++}
++
++void
++vkr_flight_checkpoint(struct vkr_device *dev, VkCommandBuffer cmd,
++                      uint64_t cmd_id, const char *phase)
++{
++   if (!dev->flight_map) return;
++   struct vn_device_proc_table *vk = &dev->proc_table;
++   const uint32_t seq = atomic_fetch_add(&dev->flight_sequence, 1) + 1;
++   VkMemoryBarrier barrier = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
++      .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
++      .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT};
++   vk->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
++      VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &barrier, 0, NULL, 0, NULL);
++   vk->CmdFillBuffer(cmd, dev->flight_buffer, 0, 4, seq);
++   vk->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
++      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_HOST_BIT,
++      0, 1, &barrier, 0, NULL, 0, NULL);
++   vkr_log("WineHuaCheckpoint: recorded marker=%u cmdId=%" PRIu64 " phase=%s",
++           seq, cmd_id, phase);
++}
++
++void
++vkr_flight_checkpoint_report(struct vkr_device *dev)
++{
++   if (dev->flight_map)
++      vkr_log("WineHuaCheckpoint: completed marker=%u recorded=%u",
++              *(volatile uint32_t *)dev->flight_map, atomic_load(&dev->flight_sequence));
++}
+ 
+ static VkResult
+ vkr_device_create_queues(struct vkr_context *ctx,
+@@ -277,6 +356,7 @@
+ 
+    list_add(&dev->base.track_head, &physical_dev->devices);
+ 
++   vkr_flight_checkpoint_init(dev);
+    vkr_context_add_object(ctx, &dev->base);
+ }
+ 
+@@ -439,6 +519,7 @@
+       free(sync);
+    }
+ 
++   vkr_flight_checkpoint_cleanup(dev);
+    mtx_destroy(&dev->free_sync_mutex);
+ 
+    if (destroy_vk || ctx->on_worker_thread)
+--- a/src/venus/vkr_device.h
++++ b/src/venus/vkr_device.h
+@@ -35,6 +35,11 @@
+    atomic_uint_fast64_t winehua_descriptor_wait_submit_generation;
+ #endif
+ 
++   /* Local diagnostic only: 4 KiB coherent GPU progress marker. */
++   VkBuffer flight_buffer;
++   VkDeviceMemory flight_memory;
++   uint32_t *flight_map;
++   atomic_uint flight_sequence;
+    void *mtl_device;
+ #ifdef __OHOS__
+    uint32_t ohos_native_export_handle;
+@@ -42,6 +47,9 @@
+ };
+ VKR_DEFINE_OBJECT_CAST(device, VK_OBJECT_TYPE_DEVICE, VkDevice)
+ 
++void vkr_flight_checkpoint(struct vkr_device *dev, VkCommandBuffer cmd,
++                           uint64_t cmd_id, const char *phase);
++void vkr_flight_checkpoint_report(struct vkr_device *dev);
+ void
+ vkr_context_init_device_dispatch(struct vkr_context *ctx);
+ 
+--- /dev/null
++++ b/src/venus/vkr_phone_replay.h
+@@ -0,0 +1,214 @@
++#include <vulkan/vulkan.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdint.h>
++#define CK(x) do { VkResult r=(x); if(r!=VK_SUCCESS){printf("FAIL %s result=%d\n",#x,r);fflush(stdout);return 2;} } while(0)
++#include <dlfcn.h>
++static PFN_vkAllocateCommandBuffers replay_vkAllocateCommandBuffers;
++#define vkAllocateCommandBuffers replay_vkAllocateCommandBuffers
++static PFN_vkAllocateDescriptorSets replay_vkAllocateDescriptorSets;
++#define vkAllocateDescriptorSets replay_vkAllocateDescriptorSets
++static PFN_vkAllocateMemory replay_vkAllocateMemory;
++#define vkAllocateMemory replay_vkAllocateMemory
++static PFN_vkBeginCommandBuffer replay_vkBeginCommandBuffer;
++#define vkBeginCommandBuffer replay_vkBeginCommandBuffer
++static PFN_vkBindBufferMemory replay_vkBindBufferMemory;
++#define vkBindBufferMemory replay_vkBindBufferMemory
++static PFN_vkCmdBindDescriptorSets replay_vkCmdBindDescriptorSets;
++#define vkCmdBindDescriptorSets replay_vkCmdBindDescriptorSets
++static PFN_vkCmdBindPipeline replay_vkCmdBindPipeline;
++#define vkCmdBindPipeline replay_vkCmdBindPipeline
++static PFN_vkCmdDispatch replay_vkCmdDispatch;
++#define vkCmdDispatch replay_vkCmdDispatch
++static PFN_vkCmdPipelineBarrier replay_vkCmdPipelineBarrier;
++#define vkCmdPipelineBarrier replay_vkCmdPipelineBarrier
++static PFN_vkCreateBuffer replay_vkCreateBuffer;
++#define vkCreateBuffer replay_vkCreateBuffer
++static PFN_vkCreateBufferView replay_vkCreateBufferView;
++#define vkCreateBufferView replay_vkCreateBufferView
++static PFN_vkCreateCommandPool replay_vkCreateCommandPool;
++#define vkCreateCommandPool replay_vkCreateCommandPool
++static PFN_vkCreateComputePipelines replay_vkCreateComputePipelines;
++#define vkCreateComputePipelines replay_vkCreateComputePipelines
++static PFN_vkCreateDescriptorPool replay_vkCreateDescriptorPool;
++#define vkCreateDescriptorPool replay_vkCreateDescriptorPool
++static PFN_vkCreateDescriptorSetLayout replay_vkCreateDescriptorSetLayout;
++#define vkCreateDescriptorSetLayout replay_vkCreateDescriptorSetLayout
++static PFN_vkCreateDevice replay_vkCreateDevice;
++#define vkCreateDevice replay_vkCreateDevice
++static PFN_vkCreateFence replay_vkCreateFence;
++#define vkCreateFence replay_vkCreateFence
++static PFN_vkCreateInstance replay_vkCreateInstance;
++#define vkCreateInstance replay_vkCreateInstance
++static PFN_vkCreatePipelineLayout replay_vkCreatePipelineLayout;
++#define vkCreatePipelineLayout replay_vkCreatePipelineLayout
++static PFN_vkCreateShaderModule replay_vkCreateShaderModule;
++#define vkCreateShaderModule replay_vkCreateShaderModule
++static PFN_vkDestroyBuffer replay_vkDestroyBuffer;
++#define vkDestroyBuffer replay_vkDestroyBuffer
++static PFN_vkDestroyBufferView replay_vkDestroyBufferView;
++#define vkDestroyBufferView replay_vkDestroyBufferView
++static PFN_vkDestroyCommandPool replay_vkDestroyCommandPool;
++#define vkDestroyCommandPool replay_vkDestroyCommandPool
++static PFN_vkDestroyDescriptorPool replay_vkDestroyDescriptorPool;
++#define vkDestroyDescriptorPool replay_vkDestroyDescriptorPool
++static PFN_vkDestroyDescriptorSetLayout replay_vkDestroyDescriptorSetLayout;
++#define vkDestroyDescriptorSetLayout replay_vkDestroyDescriptorSetLayout
++static PFN_vkDestroyDevice replay_vkDestroyDevice;
++#define vkDestroyDevice replay_vkDestroyDevice
++static PFN_vkDestroyFence replay_vkDestroyFence;
++#define vkDestroyFence replay_vkDestroyFence
++static PFN_vkDestroyInstance replay_vkDestroyInstance;
++#define vkDestroyInstance replay_vkDestroyInstance
++static PFN_vkDestroyPipeline replay_vkDestroyPipeline;
++#define vkDestroyPipeline replay_vkDestroyPipeline
++static PFN_vkDestroyPipelineLayout replay_vkDestroyPipelineLayout;
++#define vkDestroyPipelineLayout replay_vkDestroyPipelineLayout
++static PFN_vkDestroyShaderModule replay_vkDestroyShaderModule;
++#define vkDestroyShaderModule replay_vkDestroyShaderModule
++static PFN_vkEndCommandBuffer replay_vkEndCommandBuffer;
++#define vkEndCommandBuffer replay_vkEndCommandBuffer
++static PFN_vkEnumeratePhysicalDevices replay_vkEnumeratePhysicalDevices;
++#define vkEnumeratePhysicalDevices replay_vkEnumeratePhysicalDevices
++static PFN_vkFreeMemory replay_vkFreeMemory;
++#define vkFreeMemory replay_vkFreeMemory
++static PFN_vkGetBufferMemoryRequirements replay_vkGetBufferMemoryRequirements;
++#define vkGetBufferMemoryRequirements replay_vkGetBufferMemoryRequirements
++static PFN_vkGetDeviceQueue replay_vkGetDeviceQueue;
++#define vkGetDeviceQueue replay_vkGetDeviceQueue
++static PFN_vkGetPhysicalDeviceFeatures replay_vkGetPhysicalDeviceFeatures;
++#define vkGetPhysicalDeviceFeatures replay_vkGetPhysicalDeviceFeatures
++static PFN_vkGetPhysicalDeviceMemoryProperties replay_vkGetPhysicalDeviceMemoryProperties;
++#define vkGetPhysicalDeviceMemoryProperties replay_vkGetPhysicalDeviceMemoryProperties
++static PFN_vkGetPhysicalDeviceProperties replay_vkGetPhysicalDeviceProperties;
++#define vkGetPhysicalDeviceProperties replay_vkGetPhysicalDeviceProperties
++static PFN_vkGetPhysicalDeviceQueueFamilyProperties replay_vkGetPhysicalDeviceQueueFamilyProperties;
++#define vkGetPhysicalDeviceQueueFamilyProperties replay_vkGetPhysicalDeviceQueueFamilyProperties
++static PFN_vkMapMemory replay_vkMapMemory;
++#define vkMapMemory replay_vkMapMemory
++static PFN_vkQueueSubmit replay_vkQueueSubmit;
++#define vkQueueSubmit replay_vkQueueSubmit
++static PFN_vkUnmapMemory replay_vkUnmapMemory;
++#define vkUnmapMemory replay_vkUnmapMemory
++static PFN_vkUpdateDescriptorSets replay_vkUpdateDescriptorSets;
++#define vkUpdateDescriptorSets replay_vkUpdateDescriptorSets
++static PFN_vkWaitForFences replay_vkWaitForFences;
++#define vkWaitForFences replay_vkWaitForFences
++static VkDevice d; static VkPhysicalDevice p;
++static int buffer(VkDeviceSize n,VkBufferUsageFlags usage,VkBuffer*b,VkDeviceMemory*m,void**map){
++ VkBufferCreateInfo bi={.sType=VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,.size=n,.usage=usage,.sharingMode=VK_SHARING_MODE_EXCLUSIVE};CK(vkCreateBuffer(d,&bi,0,b));
++ VkMemoryRequirements req;vkGetBufferMemoryRequirements(d,*b,&req);VkPhysicalDeviceMemoryProperties props;vkGetPhysicalDeviceMemoryProperties(p,&props);
++ uint32_t i;for(i=0;i<props.memoryTypeCount;i++)if((req.memoryTypeBits&(1u<<i))&&(props.memoryTypes[i].propertyFlags&6)==6)break;
++ if(i==props.memoryTypeCount){puts("No coherent memory");return 3;}VkMemoryAllocateInfo ai={.sType=VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,.allocationSize=req.size,.memoryTypeIndex=i};CK(vkAllocateMemory(d,&ai,0,m));CK(vkBindBufferMemory(d,*b,*m,0));CK(vkMapMemory(d,*m,0,VK_WHOLE_SIZE,0,map));memset(*map,0,n);return 0;
++}
++static int vkr_phone_native_replay(const uint32_t *input_code, size_t input_size, int pattern){
++
++ void *native_vulkan=dlopen("libvulkan.so",RTLD_NOW|RTLD_LOCAL);
++ if(!native_vulkan){printf("native replay loader missing %s\n",dlerror());return 1;}
++ replay_vkAllocateCommandBuffers=(PFN_vkAllocateCommandBuffers)dlsym(native_vulkan,"vkAllocateCommandBuffers");if(!replay_vkAllocateCommandBuffers)return 1;
++ replay_vkAllocateDescriptorSets=(PFN_vkAllocateDescriptorSets)dlsym(native_vulkan,"vkAllocateDescriptorSets");if(!replay_vkAllocateDescriptorSets)return 1;
++ replay_vkAllocateMemory=(PFN_vkAllocateMemory)dlsym(native_vulkan,"vkAllocateMemory");if(!replay_vkAllocateMemory)return 1;
++ replay_vkBeginCommandBuffer=(PFN_vkBeginCommandBuffer)dlsym(native_vulkan,"vkBeginCommandBuffer");if(!replay_vkBeginCommandBuffer)return 1;
++ replay_vkBindBufferMemory=(PFN_vkBindBufferMemory)dlsym(native_vulkan,"vkBindBufferMemory");if(!replay_vkBindBufferMemory)return 1;
++ replay_vkCmdBindDescriptorSets=(PFN_vkCmdBindDescriptorSets)dlsym(native_vulkan,"vkCmdBindDescriptorSets");if(!replay_vkCmdBindDescriptorSets)return 1;
++ replay_vkCmdBindPipeline=(PFN_vkCmdBindPipeline)dlsym(native_vulkan,"vkCmdBindPipeline");if(!replay_vkCmdBindPipeline)return 1;
++ replay_vkCmdDispatch=(PFN_vkCmdDispatch)dlsym(native_vulkan,"vkCmdDispatch");if(!replay_vkCmdDispatch)return 1;
++ replay_vkCmdPipelineBarrier=(PFN_vkCmdPipelineBarrier)dlsym(native_vulkan,"vkCmdPipelineBarrier");if(!replay_vkCmdPipelineBarrier)return 1;
++ replay_vkCreateBuffer=(PFN_vkCreateBuffer)dlsym(native_vulkan,"vkCreateBuffer");if(!replay_vkCreateBuffer)return 1;
++ replay_vkCreateBufferView=(PFN_vkCreateBufferView)dlsym(native_vulkan,"vkCreateBufferView");if(!replay_vkCreateBufferView)return 1;
++ replay_vkCreateCommandPool=(PFN_vkCreateCommandPool)dlsym(native_vulkan,"vkCreateCommandPool");if(!replay_vkCreateCommandPool)return 1;
++ replay_vkCreateComputePipelines=(PFN_vkCreateComputePipelines)dlsym(native_vulkan,"vkCreateComputePipelines");if(!replay_vkCreateComputePipelines)return 1;
++ replay_vkCreateDescriptorPool=(PFN_vkCreateDescriptorPool)dlsym(native_vulkan,"vkCreateDescriptorPool");if(!replay_vkCreateDescriptorPool)return 1;
++ replay_vkCreateDescriptorSetLayout=(PFN_vkCreateDescriptorSetLayout)dlsym(native_vulkan,"vkCreateDescriptorSetLayout");if(!replay_vkCreateDescriptorSetLayout)return 1;
++ replay_vkCreateDevice=(PFN_vkCreateDevice)dlsym(native_vulkan,"vkCreateDevice");if(!replay_vkCreateDevice)return 1;
++ replay_vkCreateFence=(PFN_vkCreateFence)dlsym(native_vulkan,"vkCreateFence");if(!replay_vkCreateFence)return 1;
++ replay_vkCreateInstance=(PFN_vkCreateInstance)dlsym(native_vulkan,"vkCreateInstance");if(!replay_vkCreateInstance)return 1;
++ replay_vkCreatePipelineLayout=(PFN_vkCreatePipelineLayout)dlsym(native_vulkan,"vkCreatePipelineLayout");if(!replay_vkCreatePipelineLayout)return 1;
++ replay_vkCreateShaderModule=(PFN_vkCreateShaderModule)dlsym(native_vulkan,"vkCreateShaderModule");if(!replay_vkCreateShaderModule)return 1;
++ replay_vkDestroyBuffer=(PFN_vkDestroyBuffer)dlsym(native_vulkan,"vkDestroyBuffer");if(!replay_vkDestroyBuffer)return 1;
++ replay_vkDestroyBufferView=(PFN_vkDestroyBufferView)dlsym(native_vulkan,"vkDestroyBufferView");if(!replay_vkDestroyBufferView)return 1;
++ replay_vkDestroyCommandPool=(PFN_vkDestroyCommandPool)dlsym(native_vulkan,"vkDestroyCommandPool");if(!replay_vkDestroyCommandPool)return 1;
++ replay_vkDestroyDescriptorPool=(PFN_vkDestroyDescriptorPool)dlsym(native_vulkan,"vkDestroyDescriptorPool");if(!replay_vkDestroyDescriptorPool)return 1;
++ replay_vkDestroyDescriptorSetLayout=(PFN_vkDestroyDescriptorSetLayout)dlsym(native_vulkan,"vkDestroyDescriptorSetLayout");if(!replay_vkDestroyDescriptorSetLayout)return 1;
++ replay_vkDestroyDevice=(PFN_vkDestroyDevice)dlsym(native_vulkan,"vkDestroyDevice");if(!replay_vkDestroyDevice)return 1;
++ replay_vkDestroyFence=(PFN_vkDestroyFence)dlsym(native_vulkan,"vkDestroyFence");if(!replay_vkDestroyFence)return 1;
++ replay_vkDestroyInstance=(PFN_vkDestroyInstance)dlsym(native_vulkan,"vkDestroyInstance");if(!replay_vkDestroyInstance)return 1;
++ replay_vkDestroyPipeline=(PFN_vkDestroyPipeline)dlsym(native_vulkan,"vkDestroyPipeline");if(!replay_vkDestroyPipeline)return 1;
++ replay_vkDestroyPipelineLayout=(PFN_vkDestroyPipelineLayout)dlsym(native_vulkan,"vkDestroyPipelineLayout");if(!replay_vkDestroyPipelineLayout)return 1;
++ replay_vkDestroyShaderModule=(PFN_vkDestroyShaderModule)dlsym(native_vulkan,"vkDestroyShaderModule");if(!replay_vkDestroyShaderModule)return 1;
++ replay_vkEndCommandBuffer=(PFN_vkEndCommandBuffer)dlsym(native_vulkan,"vkEndCommandBuffer");if(!replay_vkEndCommandBuffer)return 1;
++ replay_vkEnumeratePhysicalDevices=(PFN_vkEnumeratePhysicalDevices)dlsym(native_vulkan,"vkEnumeratePhysicalDevices");if(!replay_vkEnumeratePhysicalDevices)return 1;
++ replay_vkFreeMemory=(PFN_vkFreeMemory)dlsym(native_vulkan,"vkFreeMemory");if(!replay_vkFreeMemory)return 1;
++ replay_vkGetBufferMemoryRequirements=(PFN_vkGetBufferMemoryRequirements)dlsym(native_vulkan,"vkGetBufferMemoryRequirements");if(!replay_vkGetBufferMemoryRequirements)return 1;
++ replay_vkGetDeviceQueue=(PFN_vkGetDeviceQueue)dlsym(native_vulkan,"vkGetDeviceQueue");if(!replay_vkGetDeviceQueue)return 1;
++ replay_vkGetPhysicalDeviceFeatures=(PFN_vkGetPhysicalDeviceFeatures)dlsym(native_vulkan,"vkGetPhysicalDeviceFeatures");if(!replay_vkGetPhysicalDeviceFeatures)return 1;
++ replay_vkGetPhysicalDeviceMemoryProperties=(PFN_vkGetPhysicalDeviceMemoryProperties)dlsym(native_vulkan,"vkGetPhysicalDeviceMemoryProperties");if(!replay_vkGetPhysicalDeviceMemoryProperties)return 1;
++ replay_vkGetPhysicalDeviceProperties=(PFN_vkGetPhysicalDeviceProperties)dlsym(native_vulkan,"vkGetPhysicalDeviceProperties");if(!replay_vkGetPhysicalDeviceProperties)return 1;
++ replay_vkGetPhysicalDeviceQueueFamilyProperties=(PFN_vkGetPhysicalDeviceQueueFamilyProperties)dlsym(native_vulkan,"vkGetPhysicalDeviceQueueFamilyProperties");if(!replay_vkGetPhysicalDeviceQueueFamilyProperties)return 1;
++ replay_vkMapMemory=(PFN_vkMapMemory)dlsym(native_vulkan,"vkMapMemory");if(!replay_vkMapMemory)return 1;
++ replay_vkQueueSubmit=(PFN_vkQueueSubmit)dlsym(native_vulkan,"vkQueueSubmit");if(!replay_vkQueueSubmit)return 1;
++ replay_vkUnmapMemory=(PFN_vkUnmapMemory)dlsym(native_vulkan,"vkUnmapMemory");if(!replay_vkUnmapMemory)return 1;
++ replay_vkUpdateDescriptorSets=(PFN_vkUpdateDescriptorSets)dlsym(native_vulkan,"vkUpdateDescriptorSets");if(!replay_vkUpdateDescriptorSets)return 1;
++ replay_vkWaitForFences=(PFN_vkWaitForFences)dlsym(native_vulkan,"vkWaitForFences");if(!replay_vkWaitForFences)return 1;
++ size_t size=input_size;uint32_t *code=malloc(size);if(!code)return 1;memcpy(code,input_code,size);
++ VkInstance inst;VkApplicationInfo app={.sType=VK_STRUCTURE_TYPE_APPLICATION_INFO,.pApplicationName="vpp-bounded-compute-replay",.apiVersion=VK_API_VERSION_1_1};VkInstanceCreateInfo ii={.sType=VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,.pApplicationInfo=&app};CK(vkCreateInstance(&ii,0,&inst));uint32_t count=1;CK(vkEnumeratePhysicalDevices(inst,&count,&p));VkPhysicalDeviceProperties props;vkGetPhysicalDeviceProperties(p,&props);printf("GPU %s driver=%u shaderBytes=%zu\n",props.deviceName,props.driverVersion,size);
++ VkPhysicalDeviceFeatures features;vkGetPhysicalDeviceFeatures(p,&features);uint32_t qn=0;vkGetPhysicalDeviceQueueFamilyProperties(p,&qn,0);VkQueueFamilyProperties*qs=calloc(qn,sizeof(*qs));vkGetPhysicalDeviceQueueFamilyProperties(p,&qn,qs);uint32_t qi;for(qi=0;qi<qn;qi++)if(qs[qi].queueFlags&VK_QUEUE_COMPUTE_BIT)break;float priority=1;VkDeviceQueueCreateInfo qci={.sType=VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,.queueFamilyIndex=qi,.queueCount=1,.pQueuePriorities=&priority};
++ const char*exts[]={"VK_KHR_shader_float_controls"};VkDeviceCreateInfo di={.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,.queueCreateInfoCount=1,.pQueueCreateInfos=&qci,.pEnabledFeatures=&features,.enabledExtensionCount=1,.ppEnabledExtensionNames=exts};CK(vkCreateDevice(p,&di,0,&d));VkQueue q;vkGetDeviceQueue(d,qi,0,&q);
++ VkDescriptorSetLayoutBinding binds[3]={{.binding=0,.descriptorType=VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,.descriptorCount=1,.stageFlags=VK_SHADER_STAGE_COMPUTE_BIT},{.binding=1,.descriptorType=VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,.descriptorCount=1,.stageFlags=VK_SHADER_STAGE_COMPUTE_BIT},{.binding=2,.descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,.descriptorCount=1,.stageFlags=VK_SHADER_STAGE_COMPUTE_BIT}};
++ VkDescriptorSetLayoutCreateInfo li={.sType=VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,.bindingCount=3,.pBindings=binds};VkDescriptorSetLayout layout;CK(vkCreateDescriptorSetLayout(d,&li,0,&layout));VkPipelineLayoutCreateInfo pli={.sType=VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,.setLayoutCount=1,.pSetLayouts=&layout};VkPipelineLayout pl;CK(vkCreatePipelineLayout(d,&pli,0,&pl));
++ VkShaderModuleCreateInfo si={.sType=VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,.codeSize=size,.pCode=code};VkShaderModule shader;CK(vkCreateShaderModule(d,&si,0,&shader));VkComputePipelineCreateInfo ci={.sType=VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,.stage={.sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,.stage=VK_SHADER_STAGE_COMPUTE_BIT,.module=shader,.pName="main"},.layout=pl};VkPipeline pipe;puts("compile begin");CK(vkCreateComputePipelines(d,0,1,&ci,0,&pipe));puts("compile OK");
++ VkBuffer bs[3];VkDeviceMemory ms[3];void*maps[3];CK(buffer(32,VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,&bs[0],&ms[0],&maps[0]));CK(buffer(65536,VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT,&bs[1],&ms[1],&maps[1]));CK(buffer(65536,VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT,&bs[2],&ms[2],&maps[2]));
++ uint32_t*ubo=maps[0];if(pattern){ubo[0]=1;ubo[1]=1;ubo[2]=0;ubo[3]=0;ubo[4]=1;}printf("UBO %u,%u,%u,%u,%u\n",ubo[0],ubo[1],ubo[2],ubo[3],ubo[4]);
++ VkBufferView views[2];for(int i=0;i<2;i++){VkBufferViewCreateInfo vi={.sType=VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,.buffer=bs[i+1],.format=VK_FORMAT_R32_UINT,.range=65536};CK(vkCreateBufferView(d,&vi,0,&views[i]));}
++ VkDescriptorPoolSize sizes[3]={{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,1},{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,1},{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,1}};VkDescriptorPoolCreateInfo dpi={.sType=VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,.maxSets=1,.poolSizeCount=3,.pPoolSizes=sizes};VkDescriptorPool pool;CK(vkCreateDescriptorPool(d,&dpi,0,&pool));VkDescriptorSetAllocateInfo da={.sType=VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,.descriptorPool=pool,.descriptorSetCount=1,.pSetLayouts=&layout};VkDescriptorSet set;CK(vkAllocateDescriptorSets(d,&da,&set));VkDescriptorBufferInfo binfo={bs[0],0,32};VkWriteDescriptorSet writes[3];memset(writes,0,sizeof(writes));for(int i=0;i<3;i++){writes[i].sType=VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;writes[i].dstSet=set;writes[i].dstBinding=i;writes[i].descriptorType=binds[i].descriptorType;writes[i].descriptorCount=1;}writes[0].pBufferInfo=&binfo;writes[1].pTexelBufferView=&views[0];writes[2].pTexelBufferView=&views[1];vkUpdateDescriptorSets(d,3,writes,0,0);
++ VkCommandPoolCreateInfo cpi={.sType=VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,.queueFamilyIndex=qi};VkCommandPool cp;CK(vkCreateCommandPool(d,&cpi,0,&cp));VkCommandBufferAllocateInfo cai={.sType=VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,.commandPool=cp,.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY,.commandBufferCount=1};VkCommandBuffer cb;CK(vkAllocateCommandBuffers(d,&cai,&cb));VkCommandBufferBeginInfo cbi={.sType=VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};CK(vkBeginCommandBuffer(cb,&cbi));vkCmdBindPipeline(cb,VK_PIPELINE_BIND_POINT_COMPUTE,pipe);vkCmdBindDescriptorSets(cb,VK_PIPELINE_BIND_POINT_COMPUTE,pl,0,1,&set,0,0);vkCmdDispatch(cb,1,1,1);VkMemoryBarrier barrier={.sType=VK_STRUCTURE_TYPE_MEMORY_BARRIER,.srcAccessMask=VK_ACCESS_SHADER_WRITE_BIT,.dstAccessMask=VK_ACCESS_HOST_READ_BIT};vkCmdPipelineBarrier(cb,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_HOST_BIT,0,1,&barrier,0,0,0,0);CK(vkEndCommandBuffer(cb));VkFenceCreateInfo fi={.sType=VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};VkFence fence;CK(vkCreateFence(d,&fi,0,&fence));VkSubmitInfo submit={.sType=VK_STRUCTURE_TYPE_SUBMIT_INFO,.commandBufferCount=1,.pCommandBuffers=&cb};puts("submit begin");CK(vkQueueSubmit(q,1,&submit,fence));VkResult result=vkWaitForFences(d,1,&fence,VK_TRUE,5000000000ull);printf("WAIT result=%d output0=%u\n",result,((uint32_t*)maps[2])[0]);if(result!=0)return 4;
++ vkDestroyFence(d,fence,0);vkDestroyCommandPool(d,cp,0);vkDestroyDescriptorPool(d,pool,0);vkDestroyBufferView(d,views[0],0);vkDestroyBufferView(d,views[1],0);for(int i=0;i<3;i++){vkUnmapMemory(d,ms[i]);vkDestroyBuffer(d,bs[i],0);vkFreeMemory(d,ms[i],0);}vkDestroyPipeline(d,pipe,0);vkDestroyShaderModule(d,shader,0);vkDestroyPipelineLayout(d,pl,0);vkDestroyDescriptorSetLayout(d,layout,0);vkDestroyDevice(d,0);vkDestroyInstance(inst,0);free(code);free(qs);puts("PASS native isolated replay");dlclose(native_vulkan);return 0;
++}
++
++#undef vkAllocateCommandBuffers
++#undef vkAllocateDescriptorSets
++#undef vkAllocateMemory
++#undef vkBeginCommandBuffer
++#undef vkBindBufferMemory
++#undef vkCmdBindDescriptorSets
++#undef vkCmdBindPipeline
++#undef vkCmdDispatch
++#undef vkCmdPipelineBarrier
++#undef vkCreateBuffer
++#undef vkCreateBufferView
++#undef vkCreateCommandPool
++#undef vkCreateComputePipelines
++#undef vkCreateDescriptorPool
++#undef vkCreateDescriptorSetLayout
++#undef vkCreateDevice
++#undef vkCreateFence
++#undef vkCreateInstance
++#undef vkCreatePipelineLayout
++#undef vkCreateShaderModule
++#undef vkDestroyBuffer
++#undef vkDestroyBufferView
++#undef vkDestroyCommandPool
++#undef vkDestroyDescriptorPool
++#undef vkDestroyDescriptorSetLayout
++#undef vkDestroyDevice
++#undef vkDestroyFence
++#undef vkDestroyInstance
++#undef vkDestroyPipeline
++#undef vkDestroyPipelineLayout
++#undef vkDestroyShaderModule
++#undef vkEndCommandBuffer
++#undef vkEnumeratePhysicalDevices
++#undef vkFreeMemory
++#undef vkGetBufferMemoryRequirements
++#undef vkGetDeviceQueue
++#undef vkGetPhysicalDeviceFeatures
++#undef vkGetPhysicalDeviceMemoryProperties
++#undef vkGetPhysicalDeviceProperties
++#undef vkGetPhysicalDeviceQueueFamilyProperties
++#undef vkMapMemory
++#undef vkQueueSubmit
++#undef vkUnmapMemory
++#undef vkUpdateDescriptorSets
++#undef vkWaitForFences
++#undef CK
+--- a/src/venus/vkr_pipeline.c
++++ b/src/venus/vkr_pipeline.c
+@@ -6,6 +6,7 @@
+ #include "vkr_pipeline.h"
+ 
+ #include "vkr_pipeline_gen.h"
++#include "vkr_phone_replay.h"
+ 
+ #include <string.h>
+ #include <stdlib.h>
+@@ -228,6 +229,27 @@
+    const uint32_t first_word = word_count ? effective->pCode[0] : 0;
+    const uint32_t last_word = word_count ? effective->pCode[word_count - 1] : 0;
+ 
++   static bool phone_replay_done;
++   if (vkr_flight_enabled() && !phone_replay_done &&
++       vkr_winehua_fnv1a32(original->pCode, original->codeSize) == 0x2fda934c) {
++      phone_replay_done = true;
++      vkr_log("WineHuaReplay: isolated native shader test begin");
++      int replay = vkr_phone_native_replay(original->pCode, original->codeSize, 0);
++      vkr_log("WineHuaReplay: isolated native zero-input result=%d", replay);
++      if (!replay) {
++         replay = vkr_phone_native_replay(original->pCode, original->codeSize, 1);
++         vkr_log("WineHuaReplay: isolated native partition-input result=%d", replay);
++      }
++      fprintf(stderr, "WineHuaReplay: native two-pattern result=%d\n", replay);
++      if (replay) {
++         vkr_flight_dump();
++         args->ret = VK_ERROR_DEVICE_LOST;
++         vkr_context_set_fatal(ctx);
++         free(frozen_code);
++         return;
++      }
++   }
++
+    obj = vkr_shader_module_create_and_add(dispatch->data, args);
+    if (obj) {
+       obj->winehua_code_hash = code_hash;
+@@ -322,6 +344,8 @@
+    if (trace) {
+       for (uint32_t i = 0; i < args->createInfoCount; i++) {
+          const VkGraphicsPipelineCreateInfo *info = &args->pCreateInfos[i];
++         vkr_log("WineHuaPipeline: identity ctx=%u index=%u requested=0x%" PRIxPTR,
++                 ctx->ctx_id, i, (uintptr_t)args->pPipelines[i]);
+          vkr_log("WineHuaPipeline: create[%u] stages=%u layout=%llu renderPass=%llu subpass=%u vertexInput=%p inputAssembly=%p viewport=%p raster=%p multisample=%p blend=%p dynamic=%p",
+                  i, info->stageCount,
+                  (unsigned long long)(uintptr_t)info->layout,
+--- a/src/venus/vkr_queue.c
++++ b/src/venus/vkr_queue.c
+@@ -1112,6 +1112,7 @@
+    if (args->ret == VK_SUCCESS && vkr_ohos_submit_postwait_enabled()) {
+       const VkResult wait_result =
+          vk->QueueWaitIdle(queue->base.handle.queue);
++      if (wait_result != VK_SUCCESS) vkr_flight_checkpoint_report(queue->device);
+       vkr_log("WineHuaFrameAssoc: submit-postwait api=submit submit=%" PRIu64
+               " queueId=%" PRIu64 " result=%d",
+               submit_id, queue->base.id, wait_result);
+@@ -1513,6 +1514,7 @@
+    if (args->ret == VK_SUCCESS && vkr_ohos_submit_postwait_enabled()) {
+       const VkResult wait_result =
+          vk->QueueWaitIdle(queue->base.handle.queue);
++      if (wait_result != VK_SUCCESS) vkr_flight_checkpoint_report(queue->device);
+       vkr_log("WineHuaFrameAssoc: submit-postwait api=submit2 submit=%" PRIu64
+               " queueId=%" PRIu64 " result=%d",
+               submit_id, queue->base.id, wait_result);
