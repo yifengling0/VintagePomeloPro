@@ -1,0 +1,143 @@
+--- a/dlls/nsiproxy.sys/ndis.c
++++ b/dlls/nsiproxy.sys/ndis.c
+@@ -25,6 +25,7 @@
+ #include "config.h"
+ 
+ #include <stdarg.h>
++#include <errno.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <sys/ioctl.h>
+@@ -328,11 +329,26 @@
+     return entry;
+ }
+ 
+-static unsigned int update_if_table( void )
++/* Never turn a rejected kernel query into an empty successful table. */
++static NTSTATUS if_table_error( void )
++{
++    switch (errno)
++    {
++    case EACCES: case EPERM: return STATUS_ACCESS_DENIED;
++    case ENOMEM: case ENOBUFS: return STATUS_NO_MEMORY;
++    case ENOSYS: case EOPNOTSUPP: return STATUS_NOT_SUPPORTED;
++    case EINVAL: return STATUS_INVALID_PARAMETER;
++    default: return STATUS_UNSUCCESSFUL;
++    }
++}
++
++static int update_if_table( void )
+ {
+     struct if_nameindex *indices = if_nameindex(), *entry;
+     unsigned int append_count = 0;
+     struct if_entry *if_entry;
++
++    if (!indices) return -1;
+ 
+     for (entry = indices; entry->if_index; entry++)
+     {
+@@ -531,7 +547,11 @@
+ 
+     pthread_mutex_lock( &if_list_lock );
+ 
+-    update_if_table();
++    if (update_if_table() < 0)
++    {
++        status = if_table_error();
++        goto done;
++    }
+ 
+     LIST_FOR_EACH_ENTRY( entry, &if_list, struct if_entry, entry )
+     {
+@@ -546,8 +566,10 @@
+         num++;
+     }
+ 
++done:
+     pthread_mutex_unlock( &if_list_lock );
+ 
++    if (status) return status;
+     if (!want_data || num <= *count) *count = num;
+     else status = STATUS_BUFFER_OVERFLOW;
+ 
+@@ -568,7 +590,11 @@
+ 
+     if (!(entry = find_entry_from_luid( (const NET_LUID *)key )))
+     {
+-        update_if_table();
++        if (update_if_table() < 0)
++        {
++            status = if_table_error();
++            goto done;
++        }
+         entry = find_entry_from_luid( (const NET_LUID *)key );
+     }
+     if (entry)
+@@ -577,6 +603,7 @@
+         status = STATUS_SUCCESS;
+     }
+ 
++done:
+     pthread_mutex_unlock( &if_list_lock );
+ 
+     return status;
+@@ -632,7 +659,11 @@
+ 
+     if (!(entry = find_entry_from_luid( (const NET_LUID *)key )))
+     {
+-        update_if_table();
++        if (update_if_table() < 0)
++        {
++            status = if_table_error();
++            goto done;
++        }
+         entry = find_entry_from_luid( (const NET_LUID *)key );
+     }
+     if (entry)
+@@ -648,6 +679,7 @@
+         }
+     }
+ 
++done:
+     pthread_mutex_unlock( &if_list_lock );
+ 
+     return status;
+@@ -668,7 +700,11 @@
+ 
+     if (!(entry = find_entry_from_index( *(UINT *)key )))
+     {
+-        update_if_table();
++        if (update_if_table() < 0)
++        {
++            status = if_table_error();
++            goto done;
++        }
+         entry = find_entry_from_index( *(UINT *)key );
+     }
+     if (entry)
+@@ -676,6 +712,7 @@
+         *(NET_LUID *)data = entry->if_luid;
+         status = STATUS_SUCCESS;
+     }
++done:
+     pthread_mutex_unlock( &if_list_lock );
+     return status;
+ }
+@@ -699,7 +736,7 @@
+                 goto done;
+             }
+         }
+-    } while (!updated++ && update_if_table());
++    } while (!updated++ && update_if_table() > 0);
+ 
+ done:
+     pthread_mutex_unlock( &if_list_lock );
+@@ -726,7 +763,7 @@
+                 goto done;
+             }
+         }
+-    } while (!updated++ && update_if_table());
++    } while (!updated++ && update_if_table() > 0);
+ 
+ done:
+     pthread_mutex_unlock( &if_list_lock );

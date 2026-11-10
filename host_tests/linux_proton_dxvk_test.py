@@ -14,14 +14,14 @@ from dxvk_pe import inspect_pe
 class DxvkSupportTests(unittest.TestCase):
     def test_real_complete_companion(self):
         m=verify()
-        self.assertEqual(len(m['files']),11)
+        self.assertEqual(len(m['files']),12)
         self.assertLess(m['installedBytes'],64*1048576)
         self.assertEqual(m['profile']['VN_WINEHUA_PERSISTENT_MAP_SYNC'],'0')
         self.assertEqual(m['profile']['VN_OHOS_PRECISE_SHADOW'],'1')
 
     def test_missing_each_width_and_bridge_fails_before_packaging(self):
         original=Path.stat
-        for name in ('dlls/arm64x/d3d11.dll','dlls/i386/d3d11.dll','pe/vulkan-1.dll','libvulkan_virtio.so'):
+        for name in ('dlls/arm64x/d3d11.dll','dlls/i386/d3d11.dll','pe/vulkan-1.dll','libvulkan_virtio.so','nsiproxy.so'):
             target=ROOT/RAW/name
             def missing(path,*args,**kwargs):
                 if path==target:raise FileNotFoundError(str(path))
@@ -59,11 +59,29 @@ class DxvkSupportTests(unittest.TestCase):
         runtime={Path(f['path']).name for f in deployment['files'] if f['path'].startswith('release/runtime/')}
         proton=json.loads((ROOT/'entry/src/main/resources/rawfile/linux-proton/manifest.json').read_text())
         runtime|={Path(f['path']).name for f in proton['files'] if f['path'].startswith(('graphics/','package/files/lib/'))}
-        for name in ('libproton_probe.so','libproton_vulkan.so','libvulkan_virtio.so'):
+        for name in ('libproton_probe.so','libproton_vulkan.so','libvulkan_virtio.so','nsiproxy.so'):
             dynamic=subprocess.check_output(['readelf','-d',str(ROOT/RAW/name)],text=True)
             needed=set(re.findall(r'\(NEEDED\).*\[([^\]]+)\]',dynamic))
             self.assertIn('libc.so.6',needed,'GNU ABI required, not OHOS libc.so')
             self.assertFalse(needed-runtime,name+' has unshipped GNU dependencies: '+','.join(sorted(needed-runtime)))
+
+    def test_network_unix_call_abi_and_paired_original(self):
+        m=verify()
+        lock=json.loads((ROOT/'docs/linux-steam/gnu-proton-network.lock.json').read_text())
+        self.assertEqual(m['network']['wineRevision'],lock['wineRevision'])
+        symbols=subprocess.check_output(['readelf','-Ws',str(ROOT/RAW/'nsiproxy.so')],text=True)
+        slots={name:int(size)//8 for size,name in re.findall(
+            r'\S+\s+(\d+)\s+OBJECT\s+GLOBAL\s+DEFAULT\s+\d+\s+(__wine_unix_call\w+)',symbols)}
+        self.assertEqual(slots,{'__wine_unix_call_funcs':7})
+        for key in ('backend','ntdll'):
+            changed=dict(m['network']);changed[key]={**changed[key],'sha256':'0'*64}
+            original=Path.read_text
+            def altered(path,*args,**kwargs):
+                if path==ROOT/'docs/linux-steam/gnu-dxvk-support.lock.json':
+                    return json.dumps({**m,'network':changed})
+                return original(path,*args,**kwargs)
+            with self.subTest(key=key),patch.object(Path,'read_text',altered):
+                with self.assertRaisesRegex(ValueError,'NSI PE/Unix'):verify()
 
     def test_pe_import_and_vulkan_forwarder_closure(self):
         upstream=json.loads((ROOT/'docs/linux-steam/gnu-proton-probe.lock.json').read_text())

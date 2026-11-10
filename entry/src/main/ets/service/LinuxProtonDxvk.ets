@@ -5,7 +5,8 @@ import { readSmokeText } from './ManagedSmokePayloadService';
 
 interface SupportFile { path: string; bytes: number; sha256: string; }
 interface SupportBackend { path: string; bytes: number; sha256: string; }
-interface SupportManifest { schemaVersion: number; architecture: string; id: string; installedBytes: number; files: SupportFile[]; backend: SupportBackend; }
+interface SupportNetwork { wineRevision: string; unixCallSlots: number; backend: SupportBackend; ntdll: SupportBackend; }
+interface SupportManifest { network: SupportNetwork; schemaVersion: number; architecture: string; id: string; installedBytes: number; files: SupportFile[]; backend: SupportBackend; }
 interface PrefixChange { path: string; before: string; after: string; }
 interface PrefixJournal { committed: boolean; previousReceipt: string; changes: PrefixChange[]; }
 interface PrefixReceipt { files: SupportFile[]; }
@@ -18,13 +19,20 @@ const TARGETS = ['system32/d3d11.dll', 'system32/dxgi.dll', 'syswow64/d3d11.dll'
 const pause = (): Promise<void> => new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 0); });
 
 export function validateLinuxProtonDxvk(manifest: SupportManifest): void {
-  const required = new Set<string>(['libproton_probe.so', 'libproton_vulkan.so', 'libvulkan_virtio.so', 'LICENSE.dxvk',
+  const required = new Set<string>(['libproton_probe.so', 'libproton_vulkan.so', 'libvulkan_virtio.so', 'nsiproxy.so', 'LICENSE.dxvk',
     'dlls/arm64x/d3d11.dll', 'dlls/arm64x/dxgi.dll', 'dlls/i386/d3d11.dll', 'dlls/i386/dxgi.dll',
     'pe/vulkan-1.dll', 'pe/winevulkan.dll', 'pe/d3dcompiler_47.dll']);
   if (manifest.schemaVersion !== 1 || manifest.architecture !== 'aarch64-linux-gnu' ||
       !/^[a-f0-9]{64}$/.test(manifest.id) || !Array.isArray(manifest.files) || manifest.files.length !== required.size ||
       manifest.backend.path !== 'files/lib/wine/aarch64-unix/winevulkan.so' ||
       !/^[a-f0-9]{64}$/.test(manifest.backend.sha256)) throw new Error('GNU DXVK 支持清单无效');
+  if (!manifest.network || !/^[a-f0-9]{40}$/.test(manifest.network.wineRevision) || manifest.network.unixCallSlots !== 7 ||
+      manifest.network.backend?.path !== 'files/lib/wine/aarch64-unix/nsiproxy.so' ||
+      manifest.network.ntdll?.path !== 'files/lib/wine/aarch64-unix/ntdll.so') throw new Error('GNU NSI 接口清单无效');
+  for (const backend of [manifest.backend, manifest.network.backend, manifest.network.ntdll]) {
+    if (!Number.isSafeInteger(backend.bytes) || backend.bytes < 1 || backend.bytes > 33554432 ||
+        !/^[a-f0-9]{64}$/.test(backend.sha256)) throw new Error('GNU NSI 接口版本无效');
+  }
   let bytes = 0;
   for (const file of manifest.files) {
     if (!required.delete(file.path) || !Number.isSafeInteger(file.bytes) || file.bytes < 1 || file.bytes > 33554432 ||
@@ -85,9 +93,11 @@ function durableCopy(source: string, target: string): void {
 export async function ensureLinuxProtonDxvk(context: common.Context): Promise<void> {
   const manifest = JSON.parse(ConfigurationFiles.text(await context.resourceManager.getRawFileContent(`${RAW}/manifest.json`))) as SupportManifest;
   validateLinuxProtonDxvk(manifest);
-  const backend = `${ROOT}/package/${manifest.backend.path}`;
-  if (!regular(backend) || fs.lstatSync(backend).size !== manifest.backend.bytes ||
-      await ConfigurationFiles.fileHash(backend) !== manifest.backend.sha256) throw new Error('GNU Proton 与 DXVK 的 Vulkan 接口版本不匹配');
+  for (const paired of [manifest.backend, manifest.network.backend, manifest.network.ntdll]) {
+    const backend = `${ROOT}/package/${paired.path}`;
+    if (!regular(backend) || fs.lstatSync(backend).size !== paired.bytes ||
+        await ConfigurationFiles.fileHash(backend) !== paired.sha256) throw new Error('GNU Proton 支持模块接口版本不匹配');
+  }
   ConfigurationFiles.ensure(SUPPORT);
   for (const file of manifest.files) {
     const target = `${SUPPORT}/${file.path}`; parents(SUPPORT, file.path);

@@ -204,6 +204,17 @@ assert filesystem.count(needle)==1
 filesystem=filesystem.replace(needle,'ProtonTraceResource(path,value,saved);'+needle,1)
 (task/'filesystem_probe.c').write_text(filesystem)
 posix = (fixture/'posix_compat.c').read_text()
+network_load = '    void *result = next_dlopen(target, flags);'
+assert posix.count(network_load) == 1
+posix = posix.replace(network_load, r"""
+    const char *protonRoot=getenv("STEAMOHOS_CODE_ROOT");
+    if(protonRoot && !strcmp(protonRoot,"/data/storage/el2/base/files/steamohos-native/proton-probe") &&
+       name && (!strcmp(name,"nsiproxy.so") ||
+       !strcmp(name,"/data/storage/el2/base/files/steamohos-native/proton-probe/package/files/lib/wine/aarch64-unix/nsiproxy.so"))) {
+        target="/data/storage/el2/base/files/steamohos-native/proton-probe/dxvk-support/nsiproxy.so";
+        fprintf(stderr,"HMOSDECK_PROTON_NSI paired_module=1\n");
+    }
+""" + network_load, 1)
 posix = posix.replace('#define _GNU_SOURCE 1', '#define _GNU_SOURCE 1\n#include <sys/prctl.h>', 1)
 # OHOS executable-memory policy belongs to the calling thread. Wine's Steam
 # helper creates the game from another thread, and fork does not establish the

@@ -8,7 +8,7 @@ const ts = require(path.resolve(process.argv[2]));
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vpp-dxvk-'));
 const hash = b => crypto.createHash('sha256').update(b).digest('hex');
 const write = (p,b) => {fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,b);};
-const names = ['libproton_probe.so','libproton_vulkan.so','libvulkan_virtio.so','LICENSE.dxvk',
+const names = ['libproton_probe.so','libproton_vulkan.so','libvulkan_virtio.so','nsiproxy.so','LICENSE.dxvk',
  'dlls/arm64x/d3d11.dll','dlls/arm64x/dxgi.dll','dlls/i386/d3d11.dll','dlls/i386/dxgi.dll',
  'pe/vulkan-1.dll','pe/winevulkan.dll','pe/d3dcompiler_47.dll'];
 const backend = Buffer.from('GE Unix bridge');
@@ -16,8 +16,11 @@ const blobs = Object.fromEntries(names.map(n=>[n,Buffer.from('source-built:'+n)]
 const manifest = {schemaVersion:1,architecture:'aarch64-linux-gnu',id:hash('support'),
  backend:{path:'files/lib/wine/aarch64-unix/winevulkan.so',bytes:backend.length,sha256:hash(backend)},
  files:names.map(n=>({path:n,bytes:blobs[n].length,sha256:hash(blobs[n])}))};
+manifest.network={wineRevision:'c53678ab22a85f0fad3588dd34f0452a463bd015',unixCallSlots:7,
+ backend:{path:'files/lib/wine/aarch64-unix/nsiproxy.so',bytes:backend.length,sha256:hash(backend)},
+ ntdll:{path:'files/lib/wine/aarch64-unix/ntdll.so',bytes:backend.length,sha256:hash(backend)}};
 manifest.installedBytes=manifest.files.reduce((n,f)=>n+f.bytes,0);
-write(root+'/package/'+manifest.backend.path,backend);
+for(const row of [manifest.backend,manifest.network.backend,manifest.network.ntdll])write(root+'/package/'+row.path,backend);
 write(root+'/home/save','unchanged');write(root+'/prefix/user.reg','unchanged registry');
 let failTarget = '', failOpen = '', copies = 0, space = 1e12;
 const openFds = new Set();
@@ -96,6 +99,12 @@ const builtin=Buffer.alloc(96);builtin.write('MZ');builtin.write('Wine builtin D
  assert.throws(()=>api.validateLinuxProtonDxvk(bad),/文件无效/);
  write(root+'/dxvk-prefix-state/journal.json',JSON.stringify({committed:false,previousReceipt:'',changes:[{path:'../../home/save',before:'',after:hash('bad')}]}));
  await assert.rejects(api.prepareLinuxProtonDxvkPrefix(),/路径无效/);
+ for(const paired of [manifest.network.backend,manifest.network.ntdll]) {
+  write(root+'/package/'+paired.path,'wrong GE version');
+  await assert.rejects(api.ensureLinuxProtonDxvk(context),/不匹配/);
+  write(root+'/package/'+paired.path,backend);
+ }
+ assert.throws(()=>api.validateLinuxProtonDxvk({...manifest,network:{...manifest.network,unixCallSlots:8}}),/清单无效/);
  write(root+'/package/'+manifest.backend.path,'wrong GE bridge');
  await assert.rejects(api.ensureLinuxProtonDxvk(context),/不匹配/);
  assert.equal(fs.readFileSync(root+'/home/save','utf8'),'unchanged');

@@ -30,6 +30,7 @@
   },
   "sources": {
     "docs/linux-steam/gnu-dxvk-source.lock.json": "afb646803a30f05b1811b8127df64f32eea24d7b88b1486d7ac81b5486ee4bfd",
+    "docs/linux-steam/gnu-proton-network.lock.json": "2bc647d9fd33e63c6c882f36197b83461e2f9d5ef92e2204e6af45d708eee204",
     "docs/linux-steam/gnu-venus-base.lock.json": "50637fbe63f363f607c9c702adbfbe9026ac6c2e9d95096187dd18a494866f40",
     "entry/src/main/cpp/linux_steam/audio_bootstrap_relay.h": "fe66d700ff62df438f8827d39ba038a9a17d292da3d68f1cabc3d46d38e963be",
     "entry/src/main/cpp/linux_steam/cloud_tool_selection.h": "21716bfe84ad5181d0fd3442f0428e9bda31f2080495c76767eba1d7852e0c60",
@@ -88,10 +89,13 @@
     "patches/linux-proton/mesa/0003-validate-bc-aggregate-capability.patch": "5639d4e9369ea3b63cf7bd49cd2511cecc75afbd3aa0079f594343b068db46c2",
     "patches/linux-proton/mesa/0004-negotiate-precise-shadow-context.patch": "05f53fc88ea841f71ee2657eb5f27663a5a51ce3c1f285451bc46145d06b62fa",
     "patches/linux-proton/mesa-base/0001-gnu-venus-native-memory-base.patch": "22af0978c628ec5a1cf737b491f3912795b4bed44b9e9375ec0bb510c846493f",
-    "scripts/build_linux_proton_probe.py": "b491cc745d0a9b32ececb5e541f359e7723face0c78e5e30788c64e7bb014c41",
+    "patches/linux-proton/wine-ge/0001-nsiproxy-propagate-interface-enumeration-failures.patch": "b852251c39c691b3f086dfb754fed4b23d3f0e94c67767af1430d8d8f03f3e87",
+    "scripts/build_linux_proton_network.py": "c79271473a7119a897184c64f691af00d3f2485826afe6b7bde549c2bbb8f308",
+    "scripts/build_linux_proton_probe.py": "e5d0eacfd01105a24faaf0d09d406ec263119fcb326a47717c4b49146d0e34b5",
     "scripts/build_linux_proton_venus.py": "a1d819becc598a370aa60d865f4b5a190ad94ae428c906afb3846dd39d3e0f3c",
     "scripts/build_linux_proton_vulkan.py": "76c04e8e6ce00d6a77803c138fcefd096a7397a868247fa9dc025c807750763e",
-    "scripts/prepare_linux_proton_dxvk.py": "46377f7a76068915dc35c91e4b2f94e6be815f58bb8fdfeba931ce27e9a79a50",
+    "scripts/prepare_linux_proton_dxvk.py": "815fdd3187b7a6b93d2be739d94cd172f967f4ac3770ef3b0f25ad591d3ac1ae",
+    "scripts/proton_network_contract.py": "d7af9a0069098b8d18183c0017c6d5673154dcc172808c5722d8d17a14956d79",
     "scripts/proton_optional_syscalls.py": "e420e7cd3c4759b096f45264983b987c7a1a630abdecf973fa1c93a9882590e3"
   },
   "files": [
@@ -123,7 +127,7 @@
     {
       "path": "libproton_probe.so",
       "bytes": 306144,
-      "sha256": "05ecc87ee0c3ee2fcc6df4cf2feb501497094e0de70079a1d840dbd85051d929"
+      "sha256": "92b172e017f299b35594ba47035eb99f359998c2292b705a16a878473d315557"
     },
     {
       "path": "libproton_vulkan.so",
@@ -134,6 +138,11 @@
       "path": "libvulkan_virtio.so",
       "bytes": 1649672,
       "sha256": "6256917346047931715c41385ff4cb522528a708247dff4444b9250e5743f98b"
+    },
+    {
+      "path": "nsiproxy.so",
+      "bytes": 85568,
+      "sha256": "1ddb19648df8d44b8bd677bf12c84271e6ca6bf4ab3542c0d0d2cf817adc2512"
     },
     {
       "path": "pe/d3dcompiler_47.dll",
@@ -154,14 +163,14 @@
       "source": "files/lib/wine/aarch64-windows/winevulkan.dll"
     }
   ],
-  "installedBytes": 26912724,
+  "installedBytes": 26998292,
   "deviceValidation": "pending VPP device validation; HSL evidence does not qualify VPP",
   "probeBuild": {
-    "script": "b491cc745d0a9b32ececb5e541f359e7723face0c78e5e30788c64e7bb014c41",
+    "script": "e5d0eacfd01105a24faaf0d09d406ec263119fcb326a47717c4b49146d0e34b5",
     "generatedSources": {
       "exec_probe.cpp": "2d1dbe8505f155e1cd6876ddb35230a563920aa444180fd1ddbd0c49b1a7fb2f",
       "filesystem_probe.c": "f1c642d28dd27929971a9654e125978df8c7e90047be5a827dc925d8f91c6eef",
-      "posix_probe.c": "bb9d98be022e125e4d5d915a527c585ae90a2b2a66f78fe0625b9cb85cee857a",
+      "posix_probe.c": "dd2992615bb093edc51e394774860b6af9f4f2bdea3b31b31464ab66f4253f23",
       "syscall_probe.S": "df00b0018a6718f9ad8bfe52c901a66cc7106b1255b659308a2d12ed4b315324"
     },
     "compilers": {
@@ -170,5 +179,23 @@
     },
     "scope": "GNU Wine only; existing WSI/Venus/DXVK unchanged"
   },
-  "id": "38f3afce42f040114eba9f71f0680d2ce84dad25e42ca61646c8a2fd2057a931"
+  "network": {
+    "wineRevision": "c53678ab22a85f0fad3588dd34f0452a463bd015",
+    "unixCallSlots": 7,
+    "backend": {
+      "path": "files/lib/wine/aarch64-unix/nsiproxy.so",
+      "bytes": 82656,
+      "type": "0",
+      "link": "",
+      "sha256": "4e7f1d962d8c47b6512a15a4c4ff8f1461b8cb85bbf57eccbfb0f3720dfffdbb"
+    },
+    "ntdll": {
+      "path": "files/lib/wine/aarch64-unix/ntdll.so",
+      "bytes": 756664,
+      "type": "0",
+      "link": "",
+      "sha256": "9b1e37c0873fee48c156568f2e02dace57653bb3f2234461852050a84165c184"
+    }
+  },
+  "id": "d694f51a255b27561de63502ca0f3619f0adddc43ba96109e5c639c2a111f48d"
 }

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "protonTag": "GE-Proton11-11",
+  "wineRevision": "c53678ab22a85f0fad3588dd34f0452a463bd015",
+  "architecture": "aarch64-linux-gnu",
+  "sourceRepository": "https://github.com/ValveSoftware/wine",
+  "unixCallSlots": 7,
+  "sources": {
+    "nsi.c": {
+      "path": "dlls/nsiproxy.sys/nsi.c",
+      "sha256": "e45ff6e9c22f129032fe1f27d72e0d402c419db4ba49a26b0e8f55c545df2de5",
+      "bytes": 11168
+    },
+    "ndis.c": {
+      "path": "dlls/nsiproxy.sys/ndis.c",
+      "sha256": "0872d9d93010244b85202b79f8d8c26c6a896f4fe48bcd682b1c179b2232732e",
+      "bytes": 22572
+    },
+    "Makefile.in": {
+      "path": "dlls/nsiproxy.sys/Makefile.in",
+      "sha256": "2b2d2952aa8b08fce3e907ff6693b94fc5d38af3fffd55802235acbbf2c2e3a2",
+      "bytes": 222
+    },
+    "icmp_echo.c": {
+      "path": "dlls/nsiproxy.sys/icmp_echo.c",
+      "sha256": "09df4a21056ee9f41a23b23c61308026f089a84fb8e5b26931e3eaf8c0620beb",
+      "bytes": 37593
+    },
+    "ip.c": {
+      "path": "dlls/nsiproxy.sys/ip.c",
+      "sha256": "5196d91b378d14fa47361690718ac744ff43b4bfe50328046e5e52510d16a0f6",
+      "bytes": 76571
+    },
+    "tcp.c": {
+      "path": "dlls/nsiproxy.sys/tcp.c",
+      "sha256": "2f59613262b8a7c151f3ec65f58eae0353149734a7f6b34071520d11894065e0",
+      "bytes": 15784
+    },
+    "udp.c": {
+      "path": "dlls/nsiproxy.sys/udp.c",
+      "sha256": "57009464f6d2ff860e91f6050503e60a0dd8d0499aa94c5911e58740f460e201",
+      "bytes": 9788
+    },
+    "unix_private.h": {
+      "path": "dlls/nsiproxy.sys/unix_private.h",
+      "sha256": "20c53a71b33f52962fe39afb1809776645dbb8e9ac06aea6031d35e79c41613d",
+      "bytes": 6317
+    },
+    "nsiproxy_private.h": {
+      "path": "dlls/nsiproxy.sys/nsiproxy_private.h",
+      "sha256": "5610637cc1e92bc12b2a0ac2f8f332eb81bf2cfdcfef3836c52672e52a9af3d6",
+      "bytes": 1980
+    }
+  },
+  "patches": [
+    {
+      "path": "patches/linux-proton/wine-ge/0001-nsiproxy-propagate-interface-enumeration-failures.patch",
+      "sha256": "b852251c39c691b3f086dfb754fed4b23d3f0e94c67767af1430d8d8f03f3e87"
+    }
+  ]
+}
