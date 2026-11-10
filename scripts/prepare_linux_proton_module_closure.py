@@ -16,7 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
-from proton_module_contract import DIRECTORIES, complete_module_lock, validate_module_lock, sha_file
+from proton_module_contract import DIRECTORIES, ASSEMBLIES, PREFIX_WINDOWS, complete_module_lock, validate_module_lock, sha_file
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = Path('docs/linux-steam/gnu-proton-modules.lock.json')
@@ -38,9 +38,16 @@ def rows_for(root, lock):
                   if r['path'].startswith(DIRECTORIES[2]+'/') and r['path'].endswith('.so')}
     rows = []
     for r in lock['selected']:
-        if not any(r['path'].startswith(d+'/') for d in DIRECTORIES[:2]):
+        if r['path'] in ASSEMBLIES:
+            rows.append(dict(path=r['path'].removeprefix(PREFIX_WINDOWS+'/'), original=r['path'],
+                             source='archive', bytes=r['bytes'], sha256=r['sha256']))
             continue
-        _, _, _, arch, name = r['path'].split('/')
+        if not any(r['path'].startswith(d+'/') for d in (DIRECTORIES[0], DIRECTORIES[1], DIRECTORIES[3], DIRECTORIES[4])):
+            continue
+        # ICU forwarder targets are shipped in their own original GE directories.
+        parts = r['path'].split('/')
+        arch, name = parts[-2:]
+        is_icu = r['path'].startswith('files/lib/wine/icu/')
         if not name or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789_.-' for c in name):
             raise ValueError('Unsafe Wine module basename: '+name)
         target = ('system32/' if arch == 'aarch64-windows' else 'syswow64/')
@@ -55,7 +62,7 @@ def rows_for(root, lock):
         # finding the original PE in its builtin search directory. A plain
         # system32 copy alone falls back without that association (zero Vulkan
         # extensions for winevulkan). Seed just these small companion PEs too.
-        if arch == 'aarch64-windows' and Path(name).stem in unix_names and r['path'] not in packaged:
+        if not is_icu and arch == 'aarch64-windows' and Path(name).stem in unix_names and r['path'] not in packaged:
             row['builtin'] = True
         rows.append(row)
     if len({r['path'] for r in rows}) != len(rows):

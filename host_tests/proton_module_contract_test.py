@@ -12,7 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'scripts'))
-from proton_module_contract import DIRECTORIES, complete_module_lock, validate_module_lock
+from proton_module_contract import DIRECTORIES, ASSEMBLIES, complete_module_lock, validate_module_lock
 
 
 class ModuleContract(unittest.TestCase):
@@ -31,7 +31,7 @@ class ModuleContract(unittest.TestCase):
     def test_complete_both_abis_including_unreferenced_dynamic_modules(self):
         with tempfile.TemporaryDirectory() as temporary:
             names = [directory+'/'+name for directory in DIRECTORIES
-                     for name in ('core.dll', 'dynamically-loaded.dll')]
+                     for name in ('core.dll', 'dynamically-loaded.dll')] + list(ASSEMBLIES)
             archive, lock = self.archive(Path(temporary), names)
             completed = complete_module_lock(lock, archive)
             validate_module_lock(completed)

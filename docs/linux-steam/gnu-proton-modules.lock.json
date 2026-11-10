@@ -9,7 +9,7 @@
     "source": "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/GE-Proton11-11/GE-Proton11-11-aarch64.tar.gz",
     "kind": "community GNU Proton; not a Valve binary distribution"
   },
-  "selectedBytes": 1004765788,
+  "selectedBytes": 1076449452,
   "selected": [
     {
       "path": "files/bin-arm64/wine",
@@ -11821,11 +11821,81 @@
       "sha256": "2f09dfd3dd3d2e3ea6143ca9aacd35f6a515c2ee11fd487e76e63a4bf04e42a9"
     },
     {
+      "path": "files/lib/wine/icu/aarch64-windows/icudt68.dll",
+      "bytes": 28569088,
+      "type": "0",
+      "link": "",
+      "sha256": "cf4479a3f39d95c77058f39c5f49d104ec4f6d43e365aa13a2312066d2f5b024"
+    },
+    {
+      "path": "files/lib/wine/icu/aarch64-windows/icuin68.dll",
+      "bytes": 2964992,
+      "type": "0",
+      "link": "",
+      "sha256": "87956cf4f8f8eb9e1860628fc5ce31e762d85ad3cfddad0824f0d45aaa4d5d78"
+    },
+    {
+      "path": "files/lib/wine/icu/aarch64-windows/icuuc68.dll",
+      "bytes": 2186752,
+      "type": "0",
+      "link": "",
+      "sha256": "c85a5848628cc5e17253e894bbea98868b76766714fe72673bd6ffefa0521f52"
+    },
+    {
+      "path": "files/lib/wine/icu/i386-windows/icudt68.dll",
+      "bytes": 28568576,
+      "type": "0",
+      "link": "",
+      "sha256": "fb652b4d18e452fae886f8fed404d6b430587e744a117ffaa32e05e73e839a97"
+    },
+    {
+      "path": "files/lib/wine/icu/i386-windows/icuin68.dll",
+      "bytes": 2691072,
+      "type": "0",
+      "link": "",
+      "sha256": "c7b8d528589f8e95e77ee42fe360b7d0be604bdb5ff2658d6ce15be2bec31d37"
+    },
+    {
+      "path": "files/lib/wine/icu/i386-windows/icuuc68.dll",
+      "bytes": 1788928,
+      "type": "0",
+      "link": "",
+      "sha256": "720c5009b6cc4ea641fc5bc803db9b425807989e8312512fc65b563268f284df"
+    },
+    {
       "path": "files/lib/wine/x86_64-windows/cmd.exe",
       "bytes": 1069056,
       "type": "0",
       "link": "",
       "sha256": "86173dd2397d4c9ff7c4a635179042fb7beb889d8fd8ed16483783db5ec31e7b"
+    },
+    {
+      "path": "files/share/default_pfx_arm64/drive_c/windows/winsxs/arm64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.2600.2982_none_deadbeef/comctl32.dll",
+      "bytes": 3276800,
+      "type": "0",
+      "link": "",
+      "sha256": "cd7efdd921a3e5f6299fcb319dcc2b65805cf3633462b57ec1e6643d2c8cfac0"
+    },
+    {
+      "path": "files/share/default_pfx_arm64/drive_c/windows/winsxs/manifests/arm64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.2600.2982_none_deadbeef.manifest",
+      "bytes": 1577,
+      "type": "0",
+      "link": "",
+      "sha256": "af8e6d77d043ae3f6ec9921a8bc8a2f497e6f94d0e7acecaf1db8fd79e516183"
+    },
+    {
+      "path": "files/share/default_pfx_arm64/drive_c/windows/winsxs/manifests/x86_microsoft.windows.common-controls_6595b64144ccf1df_6.0.2600.2982_none_deadbeef.manifest",
+      "bytes": 1575,
+      "type": "0",
+      "link": "",
+      "sha256": "e474cda20695dc5177cec629c489682f063265bbef59ffc597b3bf985873f229"
+    },
+    {
+      "path": "files/share/default_pfx_arm64/drive_c/windows/winsxs/x86_microsoft.windows.common-controls_6595b64144ccf1df_6.0.2600.2982_none_deadbeef/comctl32.dll",
+      "bytes": 1634304,
+      "type": "0",
+      "link": "",
+      "sha256": "74b5fb187fccaa25777c577c7a274c59047f49dc9abd205f77ece6e3d2df8b7b"
     },
     {
       "path": "files/share/wine/nls/c_037.nls",
@@ -12486,7 +12556,22 @@
         "files": 44,
         "bytes": 18622136,
         "membersSha256": "3fec3700e65ffef38da5b21b94f2e0158115eb8a87cc9870858d5a3fa022fc52"
+      },
+      "files/lib/wine/icu/aarch64-windows": {
+        "files": 3,
+        "bytes": 33720832,
+        "membersSha256": "fb534e8f68b5159c62b063d4562f7cf228f7047808e56ba743ea8e9ce1f6c2ea"
+      },
+      "files/lib/wine/icu/i386-windows": {
+        "files": 3,
+        "bytes": 33048576,
+        "membersSha256": "899c6e0bb0020a2709cbf713b05c32ee5f6b6b3243ed9e3b6c4c9f2e6ce7b40b"
       }
+    },
+    "assemblies": {
+      "files": 4,
+      "bytes": 4914256,
+      "membersSha256": "2d85d77299c14e2129386c1c4752538187d41f6f77ec755cb509b306c2008a12"
     }
   }
 }

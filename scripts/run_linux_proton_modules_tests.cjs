@@ -12,13 +12,17 @@ const payload={
  'system32/link.dll':Buffer.from('original builtin with user link'),
  'system32/drivers/test.sys':Buffer.from('original driver'),
  'syswow64/dynamic.dll':Buffer.from('original x86 module'),
- 'system32/base.dll':Buffer.from('original base module')
+ 'system32/base.dll':Buffer.from('original base module'),
+ 'system32/icuuc68.dll':Buffer.from('original ARM64 ICU'),
+ 'syswow64/icuuc68.dll':Buffer.from('original x86 ICU')
 };
-const files=Object.entries(payload).map(([p,b])=>{const arch=p.startsWith('system32/')?'aarch64-windows':'i386-windows';const original='files/lib/wine/'+arch+'/'+path.basename(p);return {path:p,original,source:p.endsWith('base.dll')?'package/'+original:'archive',bytes:b.length,sha256:hash(b)};});
+const commonControls='microsoft.windows.common-controls_6595b64144ccf1df_6.0.2600.2982_none_deadbeef';
+for(const arch of ['arm64','x86']){payload[`winsxs/${arch}_${commonControls}/comctl32.dll`]=Buffer.from('original '+arch+' v6');payload[`winsxs/manifests/${arch}_${commonControls}.manifest`]=Buffer.from('original '+arch+' manifest');}
+const files=Object.entries(payload).map(([p,b])=>{const arch=p.startsWith('system32/')?'aarch64-windows':'i386-windows';const original=p.startsWith('winsxs/')?'files/share/default_pfx_arm64/drive_c/windows/'+p:'files/lib/wine/'+(p.endsWith('icuuc68.dll')?'icu/':'')+arch+'/'+path.basename(p);return {path:p,original,source:p.endsWith('base.dll')?'package/'+original:'archive',bytes:b.length,sha256:hash(b)};});
 files.find(f=>f.path==='system32/user.dll').builtin=true;
-const dir=prefix=>({files:files.filter(f=>f.path.startsWith(prefix)).length,bytes:files.filter(f=>f.path.startsWith(prefix)).reduce((n,f)=>n+f.bytes,0),membersSha256:hash(prefix)});
+const dir=directory=>({files:files.filter(f=>f.original.startsWith(directory+'/')).length,bytes:files.filter(f=>f.original.startsWith(directory+'/')).reduce((n,f)=>n+f.bytes,0),membersSha256:hash(directory)});
 const manifest={schemaVersion:1,architecture:'aarch64-linux-gnu',id:hash('module support'),backend:{path:'files/lib/wine/aarch64-unix/winevulkan.so',bytes:backend.length,sha256:hash(backend)},files,
- closure:{schema:1,directories:{'files/lib/wine/aarch64-windows':dir('system32/'),'files/lib/wine/i386-windows':dir('syswow64/'),'files/lib/wine/aarch64-unix':{files:1,bytes:backend.length,membersSha256:hash(backend)}}},
+ closure:{schema:1,assemblies:{files:4,bytes:files.filter(f=>f.path.startsWith('winsxs/')).reduce((n,f)=>n+f.bytes,0),membersSha256:hash('sxs')},directories:{'files/lib/wine/aarch64-windows':dir('files/lib/wine/aarch64-windows'),'files/lib/wine/i386-windows':dir('files/lib/wine/i386-windows'),'files/lib/wine/icu/aarch64-windows':dir('files/lib/wine/icu/aarch64-windows'),'files/lib/wine/icu/i386-windows':dir('files/lib/wine/icu/i386-windows'),'files/lib/wine/aarch64-unix':{files:1,bytes:backend.length,membersSha256:hash(backend)}}},
  archive:{bytes:archive.length,sha256:hash(archive)}};
 manifest.installedBytes=files.reduce((n,f)=>n+f.bytes,0);manifest.archiveInstalledBytes=files.filter(f=>f.source==='archive').reduce((n,f)=>n+f.bytes,0);
 manifest.builtinInstalledBytes=files.filter(f=>f.builtin).reduce((n,f)=>n+f.bytes,0);
@@ -59,6 +63,11 @@ const context={resourceManager:{getRawFileContent:async()=>Buffer.from(JSON.stri
  // Retry through a new service instance: no prior receipt is required.
  await load().ensureLinuxProtonModules(context,()=>{});
  assert.deepEqual(fs.readFileSync(prefix+'syswow64/dynamic.dll'),payload['syswow64/dynamic.dll']);
+ assert.deepEqual(fs.readFileSync(prefix+'system32/icuuc68.dll'),payload['system32/icuuc68.dll']);
+ assert.deepEqual(fs.readFileSync(prefix+'syswow64/icuuc68.dll'),payload['syswow64/icuuc68.dll']);
+ for(const f of files.filter(f=>f.path.startsWith('winsxs/')))assert.deepEqual(fs.readFileSync(prefix+f.path),payload[f.path]);
+ const noAssembly={...manifest,files:files.filter(f=>!f.path.startsWith('winsxs/'))};assert.throws(()=>api.validateLinuxProtonModules(noAssembly),/不完整/);
+ assert.throws(()=>api.validateLinuxProtonModules({...manifest,files:files.map(f=>f.path.startsWith('winsxs/')?{...f,original:'files/share/other/'+f.path}:f)}),/来源无效/);
  assert.deepEqual(fs.readFileSync(prefix+'system32/drivers/test.sys'),payload['system32/drivers/test.sys']);
  assert.deepEqual(fs.readFileSync(prefix+'system32/base.dll'),payload['system32/base.dll']);
  assert.equal(fs.readFileSync(prefix+'system32/user.dll','utf8'),'user custom DLL');

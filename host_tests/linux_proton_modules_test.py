@@ -13,15 +13,21 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from prepare_linux_proton_module_closure import prepare, verify_contract, build, verify, RAW, LOCK, BASE, MEDIA
-from proton_module_contract import DIRECTORIES, complete_module_lock
+from proton_module_contract import DIRECTORIES, ASSEMBLIES, complete_module_lock
 
 class ModuleSupportTests(unittest.TestCase):
     def test_complete_both_pe_widths_and_dynamic_modules(self):
         manifest=verify_contract()
-        self.assertEqual(len(manifest['files']),1637)
+        self.assertEqual(len(manifest['files']),1647)
+        for name in ASSEMBLIES:
+            row=next(r for r in manifest['files'] if r['original']==name)
+            self.assertEqual(row['source'],'archive')
+            self.assertTrue(row['path'].startswith('winsxs/'))
         files={r['path']:r for r in manifest['files']}
         for path in ('system32/concrt140.dll','system32/d3d11.dll','system32/dxgi.dll',
-                     'system32/mfplat.dll','system32/winhttp.dll','system32/mfreadwrite.dll','syswow64/concrt140.dll'):
+                     'system32/mfplat.dll','system32/winhttp.dll','system32/mfreadwrite.dll','syswow64/concrt140.dll',
+                     'system32/icudt68.dll','system32/icuin68.dll','system32/icuuc68.dll',
+                     'syswow64/icudt68.dll','syswow64/icuin68.dll','syswow64/icuuc68.dll'):
             self.assertIn(path,files)
         self.assertEqual(manifest['closure']['directories']['files/lib/wine/aarch64-windows']['files'],795)
         self.assertLess(manifest['archiveInstalledBytes'],manifest['installedBytes'])
@@ -87,7 +93,7 @@ class CleanModuleRestoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
             archive=root/'ge.tar.gz'
-            names=[DIRECTORIES[0]+'/winevulkan.dll',DIRECTORIES[1]+'/concrt140.dll',DIRECTORIES[2]+'/winevulkan.so']
+            names=[DIRECTORIES[0]+'/winevulkan.dll',DIRECTORIES[1]+'/concrt140.dll',DIRECTORIES[2]+'/winevulkan.so',DIRECTORIES[3]+'/icuuc68.dll',DIRECTORIES[4]+'/icuuc68.dll'] + list(ASSEMBLIES)
             with tarfile.open(archive,'w:gz') as tar:
                 for name in names:
                     data=name.encode();info=tarfile.TarInfo('ge/'+name);info.size=len(data);tar.addfile(info,io.BytesIO(data))
@@ -96,7 +102,7 @@ class CleanModuleRestoreTests(unittest.TestCase):
             for path,value in [(BASE,base),(LOCK,lock),(MEDIA,dict(distribution=base['distribution'],files=[]))]:
                 (root/path).parent.mkdir(parents=True,exist_ok=True);(root/path).write_text(json.dumps(value))
             first=build(root,archive)
-            self.assertEqual(len(first['files']),2)
+            self.assertEqual(len(first['files']),8)
             self.assertTrue(all(r['source']=='archive' for r in first['files']))
             self.assertTrue(next(r for r in first['files'] if r['path']=='system32/winevulkan.dll')['builtin'])
             self.assertEqual(build(root,archive)['archive'],first['archive'],'same inputs reuse deterministic archive identity')

@@ -7,7 +7,7 @@ interface FileError { code: number; }
 interface ModuleFile extends ModuleArchive { path: string; original: string; source: string; builtin?: boolean; }
 interface ModuleBackend extends ModuleArchive { path: string; }
 interface DirectoryReceipt { files: number; bytes: number; membersSha256: string; }
-interface ModuleClosure { schema: number; directories: Record<string, DirectoryReceipt>; }
+interface ModuleClosure { schema: number; directories: Record<string, DirectoryReceipt>; assemblies: DirectoryReceipt; }
 interface ModuleArchive { bytes: number; sha256: string; }
 interface ModuleManifest {
   schemaVersion: number; architecture: string; id: string; backend: ModuleBackend;
@@ -18,6 +18,14 @@ const ROOT = '/data/storage/el2/base/files/steamohos-native/proton-probe';
 const WINDOWS = `${ROOT}/prefix/drive_c/windows`;
 const SCRATCH = `${ROOT}/module-install`;
 const RAW = 'linux-proton/modules-support';
+const COMMON_CONTROLS = 'microsoft.windows.common-controls_6595b64144ccf1df_6.0.2600.2982_none_deadbeef';
+function assemblyPath(path: string): boolean {
+  for (const arch of ['arm64', 'x86']) {
+    const name = `${arch}_${COMMON_CONTROLS}`;
+    if (path === `winsxs/${name}/comctl32.dll` || path === `winsxs/manifests/${name}.manifest`) return true;
+  }
+  return false;
+}
 const pause = (): Promise<void> => new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 0); });
 
 export function validateLinuxProtonModules(manifest: ModuleManifest): void {
@@ -29,29 +37,49 @@ export function validateLinuxProtonModules(manifest: ModuleManifest): void {
       manifest.backend.bytes < 1 || manifest.backend.bytes > 134217728 ||
       !Number.isSafeInteger(manifest.archive.bytes) || manifest.archive.bytes < 1 || manifest.archive.bytes > 536870912 ||
       !/^[a-f0-9]{64}$/.test(manifest.archive.sha256)) throw new Error('Proton 模块清单无效');
-  const seen = new Set<string>(); let total = 0; let added = 0; let builtins = 0; let count64 = 0; let count32 = 0; let bytes64 = 0; let bytes32 = 0;
+  const seen = new Set<string>(); let total = 0; let added = 0; let builtins = 0;
+  const counts: Record<string, number> = {}; const sizes: Record<string, number> = {};
+  let assemblyCount = 0; let assemblyBytes = 0;
   for (const file of manifest.files) {
-    if (!/^(system32|syswow64)\/(drivers\/)?[a-z0-9_.-]+$/.test(file.path) || seen.has(file.path) ||
+    const assembly = assemblyPath(file.path);
+    if ((!/^(system32|syswow64)\/(drivers\/)?[a-z0-9_.-]+$/.test(file.path) && !assembly) || seen.has(file.path) ||
         !Number.isSafeInteger(file.bytes) || file.bytes < 1 || file.bytes > 134217728 ||
         !/^[a-f0-9]{64}$/.test(file.sha256)) throw new Error('Proton 模块文件无效');
+    if (assembly) {
+      if (file.original !== `files/share/default_pfx_arm64/drive_c/windows/${file.path}` ||
+          file.source !== 'archive' || file.builtin !== undefined) throw new Error('Proton 程序集来源无效');
+      seen.add(file.path); total += file.bytes; added += file.bytes;
+      assemblyCount++; assemblyBytes += file.bytes;
+      continue;
+    }
     const name = file.path.split('/').pop() as string;
     const arch = file.path.startsWith('system32/') ? 'aarch64-windows' : 'i386-windows';
-    const original = `files/lib/wine/${arch}/${name}`;
+    const regular = `files/lib/wine/${arch}/${name}`;
+    const icu = `files/lib/wine/icu/${arch}/${name}`;
+    const isIcu = file.original === icu;
     const driver = name.endsWith('.sys') && name !== 'win32k.sys';
-    if (file.original !== original || file.path.includes('/drivers/') !== driver ||
-        !['archive', `package/${original}`, `media/${original}`].includes(file.source)) throw new Error('Proton 模块来源无效');
-    if (file.builtin !== undefined && (file.builtin !== true || arch !== 'aarch64-windows' || file.source.startsWith('package/')))
+    if ((file.original !== regular && !isIcu) || file.path.includes('/drivers/') !== driver ||
+        (isIcu && (driver || file.source !== 'archive')) ||
+        !['archive', `package/${regular}`, `media/${regular}`].includes(file.source)) throw new Error('Proton 模块来源无效');
+    if (file.builtin !== undefined && (file.builtin !== true || isIcu || arch !== 'aarch64-windows' || file.source.startsWith('package/')))
       throw new Error('Proton Unix 配套模块无效');
     seen.add(file.path); total += file.bytes;
     if (file.source === 'archive') added += file.bytes;
     if (file.builtin) builtins += file.bytes;
-    if (arch === 'aarch64-windows') { count64++; bytes64 += file.bytes; } else { count32++; bytes32 += file.bytes; }
+    const directory = `files/lib/wine/${isIcu ? 'icu/' : ''}${arch}`;
+    counts[directory] = (counts[directory] ?? 0) + 1;
+    sizes[directory] = (sizes[directory] ?? 0) + file.bytes;
   }
-  const dir64 = manifest.closure.directories['files/lib/wine/aarch64-windows'];
-  const dir32 = manifest.closure.directories['files/lib/wine/i386-windows'];
-  if (total !== manifest.installedBytes || added !== manifest.archiveInstalledBytes || builtins !== manifest.builtinInstalledBytes || total > 1610612736 ||
-      count64 !== dir64.files || bytes64 !== dir64.bytes || count32 !== dir32.files || bytes32 !== dir32.bytes)
+  if (!manifest.closure.assemblies || assemblyCount !== 4 ||
+      assemblyCount !== manifest.closure.assemblies.files || assemblyBytes !== manifest.closure.assemblies.bytes ||
+      total !== manifest.installedBytes || added !== manifest.archiveInstalledBytes || builtins !== manifest.builtinInstalledBytes || total > 1610612736)
     throw new Error('Proton 模块目录不完整');
+  for (const directory of ['files/lib/wine/aarch64-windows', 'files/lib/wine/i386-windows',
+    'files/lib/wine/icu/aarch64-windows', 'files/lib/wine/icu/i386-windows']) {
+    const receipt = manifest.closure.directories[directory];
+    if (!receipt || counts[directory] !== receipt.files || sizes[directory] !== receipt.bytes)
+      throw new Error('Proton 模块目录不完整');
+  }
 }
 function exists(path: string): boolean {
   try { fs.lstatSync(path); return true; } catch (error) {
@@ -111,7 +139,9 @@ async function inspectArchive(directory: string, wanted: Map<string, ModuleFile>
     const path = `${directory}/${name}`; const info = fs.lstatSync(path);
     if (info.isSymbolicLink()) throw new Error('Proton 模块压缩包不允许链接');
     if (info.isDirectory()) {
-      if (!['system32', 'syswow64', 'system32/drivers', 'syswow64/drivers'].includes(child)) throw new Error('Proton 模块压缩包目录无效');
+      let expectedDirectory = false;
+      for (const file of wanted.values()) { if (file.path.startsWith(child + '/')) expectedDirectory = true; }
+      if (!expectedDirectory) throw new Error('Proton 模块压缩包目录无效');
       await inspectArchive(path, wanted, seen, child);
     } else {
       const file = wanted.get(child);

@@ -7,7 +7,15 @@ from pathlib import Path, PurePosixPath
 import tarfile
 
 DIRECTORIES = tuple('files/lib/wine/'+arch for arch in
-                    ('aarch64-windows', 'i386-windows', 'aarch64-unix'))
+                    ('aarch64-windows', 'i386-windows', 'aarch64-unix',
+                     'icu/aarch64-windows', 'icu/i386-windows'))
+
+
+PREFIX_WINDOWS = 'files/share/default_pfx_arm64/drive_c/windows'
+COMMON_CONTROLS = 'microsoft.windows.common-controls_6595b64144ccf1df_6.0.2600.2982_none_deadbeef'
+ASSEMBLIES = tuple(PREFIX_WINDOWS+'/winsxs/'+path for arch in ('arm64', 'x86')
+    for path in (arch+'_'+COMMON_CONTROLS+'/comctl32.dll',
+                 'manifests/'+arch+'_'+COMMON_CONTROLS+'.manifest'))
 
 
 def sha_file(path, kind):
@@ -31,6 +39,10 @@ def validate_module_lock(lock):
     if closure.get('schema') != 1 or set(closure.get('directories', {})) != set(DIRECTORIES):
         raise ValueError('Complete same-distribution Wine module inventory required')
     selected = lock['selected']
+    assemblies = [row for row in selected if row['path'] in ASSEMBLIES]
+    if ({row['path'] for row in assemblies} != set(ASSEMBLIES) or
+            directory_receipt(assemblies) != closure.get('assemblies')):
+        raise ValueError('Complete original Common Controls assemblies required')
     if len({row['path'] for row in selected}) != len(selected):
         raise ValueError('Duplicate selected GE path')
     for directory in DIRECTORIES:
@@ -53,7 +65,7 @@ def complete_module_lock(lock, archive):
             if not member.name.startswith(prefix):
                 continue
             name = member.name[len(prefix):]
-            if not any(name.startswith(directory+'/') for directory in DIRECTORIES):
+            if name not in ASSEMBLIES and not any(name.startswith(directory+'/') for directory in DIRECTORIES):
                 continue
             if member.isdir():
                 continue
@@ -70,7 +82,7 @@ def complete_module_lock(lock, archive):
     if len(selected) != len(lock['selected']):
         raise ValueError('Duplicate selected GE path')
     for name, row in selected.items():
-        if any(name.startswith(directory+'/') for directory in DIRECTORIES):
+        if name in ASSEMBLIES or any(name.startswith(directory+'/') for directory in DIRECTORIES):
             if name not in modules or any(row[key] != modules[name][key] for key in ('bytes', 'sha256')):
                 raise ValueError('Selected module differs from locked distribution: '+name)
     selected.update(modules)
@@ -79,7 +91,8 @@ def complete_module_lock(lock, archive):
     result['wineModuleClosure'] = dict(schema=1, source='complete directories from locked GE archive',
         directories={directory: directory_receipt([row for name, row in modules.items()
                                                   if name.startswith(directory+'/')])
-                     for directory in DIRECTORIES})
+                     for directory in DIRECTORIES},
+        assemblies=directory_receipt([row for name, row in modules.items() if name in ASSEMBLIES]))
     validate_module_lock(result)
     return result
 
