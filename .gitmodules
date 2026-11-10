@@ -59,7 +59,7 @@
 	url = https://github.com/alisw/GMP.git
 [submodule "thirdparty/nettle"]
 	path = thirdparty/nettle
-	url = https://git.lysator.liu.se/nettle/nettle.git
+	url = https://github.com/gnutls/nettle.git
 [submodule "thirdparty/libtasn1"]
 	path = thirdparty/libtasn1
 	url = https://gitlab.com/gnutls/libtasn1.git
