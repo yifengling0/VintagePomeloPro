@@ -83,12 +83,12 @@ fi
 # device-side interaction flow, so the direct-game package leaves it out.
 if [ "${BUILD_WINE_MONO:-0}" = "1" ]; then
     # 必须与 mscoree 侧期望一致: appwiz.cpl addons.c MONO_VERSION /
-    # mscoree_private.h WINE_MONO_VERSION 均为 11.1.0. install_addon
+    # mscoree_private.h WINE_MONO_VERSION 均为 10.4.1. install_addon
     # 按 addon->file_name 精确匹配, 版本不一致 → 找不到 msi → 弹框卡死
-    WINE_MONO_VER="11.1.0"
+    WINE_MONO_VER="10.4.1"
     WINE_MONO_MSI="wine-mono-${WINE_MONO_VER}-x86.msi"
     WINE_MONO_URL="https://dl.winehq.org/wine/wine-mono/${WINE_MONO_VER}/${WINE_MONO_MSI}"
-    WINE_MONO_SHA256="deb0341431f8260b209fff6bc79ddcc5414b97f8e9236ab9fbdca4ce59e0a9b9"
+    WINE_MONO_SHA256="071f4b2887e1c97a11d791ff3d65be9429eed6dec4c2708888bfd546ba358e23"
     # mono msi 架构无关, 放架构无关路径 (不依赖 WINE_ARCH, 跨方案/跨架构共享)
     WINE_MONO_DIR="$BUILD_DIR/wine-mono"
     WINE_MONO_PATH="$WINE_MONO_DIR/$WINE_MONO_MSI"

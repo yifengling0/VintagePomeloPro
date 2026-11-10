@@ -21,8 +21,8 @@ from stamp_wine_builtin_identity import validate_archive as validate_builtin_ide
 
 from gstreamer_inventory import (VERSION as GSTREAMER_VERSION, PLUGINS,
     REQUIRED_PLUGINS, REQUIRED_ELEMENTS, fingerprint, check_elf)
-MONO_VERSION = "11.1.0"
-MONO_SHA256 = "deb0341431f8260b209fff6bc79ddcc5414b97f8e9236ab9fbdca4ce59e0a9b9"
+MONO_VERSION = "10.4.1"
+MONO_SHA256 = "071f4b2887e1c97a11d791ff3d65be9429eed6dec4c2708888bfd546ba358e23"
 DXVK_LEGACY_VERSION = "1.10.3"
 DXVK_MODERN_VERSION = "2.6.2"
 VKD3D_VERSION = "2.6"
@@ -567,8 +567,17 @@ def validate_runtime_payload(archive: Archive, candidate=None) -> RuntimeInfo:
         require_equal(mono.get("sha256"), MONO_SHA256, "Wine Mono manifest checksum")
         actual_mono_sha256 = hashlib.sha256(archive.read(mono_path)).hexdigest()
         require_equal(actual_mono_sha256, MONO_SHA256, "Wine Mono payload checksum")
-        for windows_arch in (pe_arch, "i386-windows"):
-            archive.require_file(f"bin/{windows_arch}/appwiz.cpl")
+        for windows_arch in {pe_arch, "i386-windows"}:
+            appwiz_path = f"bin/{windows_arch}/appwiz.cpl"
+            mscoree_path = f"bin/{windows_arch}/mscoree.dll"
+            archive.require_file(appwiz_path)
+            archive.require_file(mscoree_path)
+            filename = f"wine-mono-{MONO_VERSION}-x86.msi".encode("utf-16le")
+            if filename not in archive.read(appwiz_path):
+                raise ValidationError(f"{appwiz_path} expects a different Wine Mono MSI")
+            data = archive.read(mscoree_path)
+            if MONO_VERSION.encode() not in data and MONO_VERSION.encode("utf-16le") not in data:
+                raise ValidationError(f"{mscoree_path} expects a different Wine Mono version")
     elif mono_status == "disabled":
         require_equal(mono.get("sha256"), "", "disabled Wine Mono checksum")
         if mono_path in archive.name_set:
