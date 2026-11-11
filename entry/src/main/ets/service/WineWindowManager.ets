@@ -42,6 +42,7 @@ class HostResizeState {
 export class WineWindowManager {
   private static instance: WineWindowManager | null = null;
   private externalToplevels: Map<number, string> = new Map();
+  private nativeSteamFullscreenRequests: Map<number, window.Window> = new Map();
   private failedExternalStarts: Set<number> = new Set();
   private hostResizes: Map<number, HostResizeState> = new Map();
   private requestedGeometry: Map<number, RequestedHostGeometry> = new Map();
@@ -626,6 +627,43 @@ export class WineWindowManager {
     this.startWineWindowAbility(id, JSON.stringify({ title: task.title }));
     return true;
   }
+  // A Steam desktop layout is still a fullscreen tablet carrier. The native
+  // client need not send xdg fullscreen, and its buffer size is not host geometry.
+  private isNativeSteamClientToplevel(id: number): boolean {
+    const key = this.externalToplevels.get(id);
+    return key !== undefined && !this.destroyed.has(id) && !this.modalToplevelIds.has(id) &&
+      HostWindowTasks.getInstance().snapshot().some((task: HostWindowTask): boolean =>
+        task.key === key && task.toplevelId === id && task.source === 'steam-linux' && task.owner === 0);
+  }
+
+  async applyNativeSteamFullscreen(id: number): Promise<void> {
+    const win = this.windows.get(id);
+    if (!win || !this.loadedWindows.has(id) || !this.isNativeSteamClientToplevel(id) ||
+      this.nativeSteamFullscreenRequests.get(id) === win) return;
+    const key = this.externalToplevels.get(id);
+    const current = (): boolean => this.windows.get(id) === win &&
+      this.externalToplevels.get(id) === key && this.isNativeSteamClientToplevel(id);
+    this.nativeSteamFullscreenRequests.set(id, win);
+    this.pendingRaises.delete(id);
+    this.cancelDeferredRaise(id);
+    try {
+      await win.setWindowLayoutFullScreen(true);
+      if (!current()) return;
+      await win.setSpecificSystemBarEnabled('status', false);
+      if (!current()) return;
+      await win.setSpecificSystemBarEnabled('navigationIndicator', false);
+      if (!current()) return;
+      // PC/desktop mode also needs the WMS immersive presentation; merely
+      // hiding decor or resizing to the display leaves the shell title visible.
+      if (DeviceCapabilityPolicy.usesManagedWineWindows()) await this.enterImmersiveFullscreen(win, id);
+      if (current()) hilog.info(DOMAIN, TAG, '[MW] native Steam fullscreen layout applied #%{public}d', id);
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, '[MW] native Steam fullscreen #%{public}d failed: %{public}s', id, JSON.stringify(error));
+    } finally {
+      if (this.nativeSteamFullscreenRequests.get(id) === win) this.nativeSteamFullscreenRequests.delete(id);
+    }
+  }
+
   private desktopOwns(id: number): boolean { return this.isDesktopMode && !this.externalToplevels.has(id); }
 
   private async restoreTask(task: HostWindowTask, current: () => boolean): Promise<boolean> {
@@ -760,7 +798,7 @@ export class WineWindowManager {
   }
 
   private raiseManagedWindow(id: number): void {
-    if (this.fullscreenWindows.has(id)) return;
+    if (this.fullscreenWindows.has(id) || this.isNativeSteamClientToplevel(id)) return;
     const win = this.getWindow(id);
     if (!win) return;
     win.raiseToAppTop().catch((err: Error) => {
@@ -773,6 +811,10 @@ export class WineWindowManager {
     const win = this.windows.get(toplevelId);
     if (!win) return;
     this.loadedWindows.add(toplevelId);
+    if (this.isNativeSteamClientToplevel(toplevelId)) {
+      void this.applyNativeSteamFullscreen(toplevelId);
+      return;
+    }
 
     if (this.fullscreenWindows.has(toplevelId)) {
       this.pendingRaises.delete(toplevelId);
@@ -1192,6 +1234,9 @@ export class WineWindowManager {
       hilog.warn(DOMAIN, TAG, '[MW] applyEvent #%{public}d: window NOT FOUND (unregistered?)', toplevelId);
       return;
     }
+
+    if (this.isNativeSteamClientToplevel(toplevelId) &&
+      ['geometry', 'resize', 'limits', 'maximized', 'unmaximized', 'unfullscreen'].includes(event)) return;
 
     // Pad 多窗口 (subWindow 承载): 系统接口差异适配 —
     //   title     → subWindow decorEnabled:false 时 setWindowTitle 报 1300002,

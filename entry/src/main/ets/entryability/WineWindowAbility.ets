@@ -174,6 +174,7 @@ export default class WineWindowAbility extends UIAbility {
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(this.toplevelId, this.mainWindow, true);
     this.attachManagedInput();
     WineWindowManager.getInstance().noteAbilityForeground(this.toplevelId, true);
+    void WineWindowManager.getInstance().applyNativeSteamFullscreen(this.toplevelId);
     hilog.info(DOMAIN, TAG, '[WWA] onForeground tl=%{public}d', this.toplevelId);
     try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
   }

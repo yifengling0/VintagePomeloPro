@@ -114,11 +114,11 @@ async function sceneIdentityTests(){
 }
 
 async function carrierTests(){
-  let settingMode='floating';const starts=[],resizes=[];
+  let settingMode='floating';const starts=[],resizes=[];let nativeTasks=[];
   const wm=load('service/WineWindowManager.ets',{
     '@kit.AbilityKit':{},'@kit.ArkUI':{window:windowApi},'./LogService':{hilog},
     '@kit.BasicServicesKit':{},'@kit.InputKit':{},'libentry.so':{default:{setDesktopMode(){},notifyToplevelResize:(...x)=>resizes.push(x),notifyToplevelResizeEnd:id=>resizes.push([id,'end'])}},'libsmoke_napi.so':{default:{}},
-    './HostWindowTasks':{HostWindowTasks:{getInstance:()=>({reset(){},onEvent(){}})}},
+    './HostWindowTasks':{HostWindowTasks:{getInstance:()=>({reset(){},onEvent(){},snapshot:()=>nativeTasks})}},
     './InputDispatcher':{},'../model/AppModels':models,'./PopupWindowManager':{},'./ModalWindowManager':{},'./FusionWindowManager':{},
     './AppSettingsStore':{AppSettingsStore:{getInstance:()=>({usesManagedWineWindows:()=>policy.usesManagedWineWindows(),getGlobalSettings:()=>({desktopWindowMode:settingMode})})}},
     './DesktopModeService':{},'../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:policy}
@@ -171,6 +171,35 @@ async function carrierTests(){
   await new Promise(resolve=>setTimeout(resolve,550));
   assert.equal(wm.isHostWindowResizing(77),false,'unresponsive client cannot retain resize state forever');
   console.log('Managed border resize state, Wine acknowledgment, feedback isolation and bounded teardown PASS');
+
+  const calls=[];let resumeLayout;
+  const nativeWin={setWindowLayoutFullScreen:()=>new Promise(resolve=>{calls.push('layout');resumeLayout=resolve;}),
+    setSpecificSystemBarEnabled:async(name,enabled)=>calls.push([name,enabled]),
+    maximize:async mode=>calls.push(['maximize',mode]),resize:()=>calls.push('resize')};
+  nativeTasks=[{key:'88:1',toplevelId:88,source:'steam-linux',owner:0}];
+  wm.externalToplevels.set(88,'88:1');wm.registerWindow(88,nativeWin);
+  await wm.applyNativeSteamFullscreen(88);assert.equal(calls.length,0,'wait until content/decor is loaded');
+  wm.loadedWindows.add(88);setting='false';policy.refreshPcMode(ctx);
+  const first=wm.applyNativeSteamFullscreen(88);await wm.applyNativeSteamFullscreen(88);
+  assert.deepEqual(calls,['layout'],'foreground/load race shares one request');
+  resumeLayout();await first;
+  assert.deepEqual(calls,['layout',['status',false],['navigationIndicator',false]],'tablet uses fullscreen layout and hides both system bars');
+  wm.applyEvent(88,'resize',JSON.stringify({w:640,h:480}));
+  assert.equal(calls.includes('resize'),false,'client buffer cannot shrink the immersive carrier');
+  calls.length=0;setting='true';policy.refreshPcMode(ctx);
+  const pc=wm.applyNativeSteamFullscreen(88);resumeLayout();await pc;
+  assert.equal(calls.at(-1)[0],'maximize','desktop mode requests actual WMS immersive presentation');
+  calls.length=0;const stale=wm.applyNativeSteamFullscreen(88);
+  nativeTasks=[{key:'88:2',toplevelId:88,source:'steam-linux',owner:0}];resumeLayout();await stale;
+  assert.deepEqual(calls,['layout'],'reused ID cannot receive a stale fullscreen request');
+  calls.length=0;
+  for(const task of [{key:'88:1',toplevelId:88,source:'steam-game',owner:0},
+    {key:'88:1',toplevelId:88,source:'steam-linux',owner:9}]) {
+    nativeTasks=[task];await wm.applyNativeSteamFullscreen(88);
+  }
+  assert.equal(calls.length,0,'game windows and owned dialogs keep their own presentation');
+  console.log('Native Steam fullscreen: tablet/PC, content ordering, request deduplication, geometry isolation and stale ownership PASS');
+
 
 }
 
