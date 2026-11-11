@@ -45,7 +45,7 @@ SurfaceData* FindRegisteredSurfaceDataLocked(wl_resource* p){for(const auto& [ke
 const auto& SurfaceResources(){return resources;}State* FindToplevelLocked(uint32_t id){return id==5?&state:nullptr;}
 bool IsToplevelVisibleLocked(uint32_t id,uint32_t){return id==5&&shmVisible;}};
 struct Layer{wl_resource* surface=nullptr;int vpDstW=0,vpDstH=0,w=0,h=0;uint64_t shmCommitSerial=0;uint32_t parentToplevel=5;bool isExternal=false;};
-struct Comp{Manager tmgr_;uint32_t desktopRootToplevelId_=1;struct{bool RootCompositing(){return true;}}policy_;std::vector<Layer>subsurfaceLayers_;
+struct Comp{Manager tmgr_;std::unordered_set<uint32_t> isolatedToplevels_;uint32_t desktopRootToplevelId_=1;struct{bool RootCompositing(){return true;}}policy_;std::vector<Layer>subsurfaceLayers_;
 void ResolveSubsurfaceLayerPositionLocked(const Layer&,int&,int&){};};
 enum class ZeroCopySource{ShmLayer,ProtocolOnly};
 struct ZeroCopyLayerInfo{uint64_t surfaceKey=0,bindingGeneration=0,shmCommitSerial=0;uint32_t clientPid=0,surfaceId=0,parentToplevel=0;

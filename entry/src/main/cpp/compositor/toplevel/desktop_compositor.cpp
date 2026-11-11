@@ -41,6 +41,16 @@ void DesktopCompositor::MarkDesktopRootDirtyLocked()
     tmgr_.MarkToplevelDirtyLocked(desktopRootToplevelId_);
 }
 
+void DesktopCompositor::SetToplevelIsolated(uint32_t id, bool isolated)
+{
+    if (!id) return;
+    auto lock = tmgr_.Lock();
+    if (isolated) isolatedToplevels_.insert(id);
+    else isolatedToplevels_.erase(id);
+    MarkDesktopRootDirtyLocked();
+    desktopCompositionSignature_ = 0;
+}
+
 bool DesktopCompositor::UpdateSubsurfaceLayerLocalPosition(wl_resource* surface, int32_t x, int32_t y,
                                                            uint32_t& outParentToplevel,
                                                            DisplayPolicy::SubsurfaceRoute& outRoute)
@@ -448,6 +458,9 @@ std::vector<CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, 
     // --- 输出: zIndex 按输出顺序递增 (Root=0 → 后续 1..N) — 与旧行为一致
     // (旧 zIndex 分配顺序 = 最终输出顺序) ---
     for (auto& p : pending) {
+        // A separate Ability owns these pixels and input; the Wine desktop
+        // must not composite or hit-test a second copy of the same window.
+        if (isolatedToplevels_.count(p.layer.toplevelId)) continue;
         p.layer.zIndex = zIndex++;
         layers.push_back(std::move(p.layer));
     }
@@ -669,6 +682,7 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
     if (!zeroCopy.empty()) {
         std::vector<GpuDesktopLayer> native;
         for (auto source : zeroCopy) {
+            if (isolatedToplevels_.count(source.parentToplevel)) continue;
             uint64_t liveOwner = 0;
             uint32_t liveTop = 0;
             int liveW = 0, liveH = 0;

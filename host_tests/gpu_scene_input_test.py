@@ -95,7 +95,7 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
     command += [str(ROOT/'host_tests'/main)]+sources
     command += ['-Wl,--gc-sections','-o',str(temp/'test')]
     subprocess.run(command,check=True)
-    modes=[16] if args.warp_baseline else ([14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 20)))))
+    modes=[16] if args.warp_baseline else ([14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 21)))))
     if args.surface_lifetime_baseline:modes=[17]
     if args.external_window_host:modes=[0]
     for mode in modes:

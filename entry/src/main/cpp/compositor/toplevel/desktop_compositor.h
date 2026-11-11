@@ -73,6 +73,10 @@ public:
     // 只剩纯编排, 不再按 id==root 在自身内分 PC/Desktop 合成逻辑。
     bool TakeToplevelFrame(uint32_t id, std::vector<uint8_t>& out, PresentedFrame& frame);
 
+    // Independent host windows use local GPU geometry even while Wine's
+    // desktop policy is active. Protected by the existing toplevel mutex.
+    void SetToplevelIsolated(uint32_t id, bool isolated);
+
     // 本帧重绘矩形 (root 坐标, 局部合成范围)。full=true 走整帧合成路径
     // (几何/层序/root 帧/全屏变化时, 行为与旧实现一致); 局部时仅 R 内像素
     // 从快照沿 z 序重建, R 外复用上帧输出内容 (渲染线程帧缓冲跨帧保留)。
@@ -272,6 +276,7 @@ private:
     };
     // Guarded by tmgr_. Surface keys prevent ID reuse from inheriting a binding.
     std::unordered_map<uint32_t, ExternalWindow> externalWindows_;
+    std::unordered_set<uint32_t> isolatedToplevels_;
     bool ExternalWindowLiveLocked(const ExternalWindow& binding) const;
     uint64_t desktopCompositionSignature_ = 0;
     uint64_t desktopOutputRootFrameSerial_ = 0;

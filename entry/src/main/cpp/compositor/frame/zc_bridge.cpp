@@ -276,10 +276,14 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
         auto* parent = comp_.tmgr_.FindRegisteredSurfaceDataLocked(sd->parentSurface);
         if (!parent || !parent->hasToplevel) return reject("parent_without_toplevel");
         info.parentToplevel = parent->toplevelId;
+        const bool isolatedOwner = comp_.isolatedToplevels_.count(info.parentToplevel) != 0;
+        const bool isolatedRenderer = comp_.isolatedToplevels_.count(rendererToplevelId) != 0;
+        if ((isolatedOwner || isolatedRenderer) && rendererToplevelId != info.parentToplevel)
+            return reject("isolated_owner_mismatch");
         const auto* parentState = comp_.tmgr_.FindToplevelLocked(info.parentToplevel);
         info.width = displayWidth(sd->vpDstW, sd->w);
         info.height = displayHeight(sd->vpDstH, sd->h);
-        if (comp_.policy_.RootCompositing())
+        if (comp_.policy_.RootCompositing() && !isolatedRenderer)
         {
             if (rendererToplevelId != comp_.desktopRootToplevelId_)
                 return reject("renderer_not_desktop_root");
@@ -370,12 +374,16 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
 
     if (!sd->hasToplevel) return reject("surface_without_toplevel");
     info.parentToplevel = sd->toplevelId;
+    const bool isolatedOwner = comp_.isolatedToplevels_.count(info.parentToplevel) != 0;
+    const bool isolatedRenderer = comp_.isolatedToplevels_.count(rendererToplevelId) != 0;
+    if ((isolatedOwner || isolatedRenderer) && rendererToplevelId != info.parentToplevel)
+        return reject("isolated_owner_mismatch");
     info.width = displayWidth(sd->vpDstW, sd->w);
     info.height = displayHeight(sd->vpDstH, sd->h);
     if (info.width <= 0) info.width = fallbackWidth;
     if (info.height <= 0) info.height = fallbackHeight;
     info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
-    if (comp_.policy_.RootCompositing())
+    if (comp_.policy_.RootCompositing() && !isolatedRenderer)
     {
         if (rendererToplevelId != comp_.desktopRootToplevelId_)
             return reject("renderer_not_desktop_root");

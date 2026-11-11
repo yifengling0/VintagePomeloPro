@@ -179,7 +179,7 @@ struct CompositorLayer {
 static bool ShouldSkipFullscreenCascade(const CompositorLayer& l,uint32_t id,bool,Manager&){return id && l.type!=CompositorLayer::Type::Root && l.toplevelId!=id;}
 struct DesktopCompositor {
     Manager tmgr_;uint32_t desktopRootToplevelId_=1,fullscreen=0;int outputW_=1200,outputH_=800;
-    struct{bool RootCompositing(){return true;}}policy_;std::unordered_map<uint32_t,std::pair<int,int>> directDesktopContentSizes_;
+    struct{bool RootCompositing(){return true;}}policy_;std::unordered_set<uint32_t> isolatedToplevels_;std::unordered_map<uint32_t,std::pair<int,int>> directDesktopContentSizes_;
     std::vector<CompositorLayer> BuildLayerListLocked(int,int){
         std::vector<CompositorLayer> out(1);if(tmgr_.inZOrder && tmgr_.hasParent){CompositorLayer p;p.type=CompositorLayer::Type::Toplevel;p.toplevelId=5;
             p.visible=tmgr_.parent.frame && !tmgr_.parent.hidden && !tmgr_.parent.minimized;out.push_back(p);}return out;

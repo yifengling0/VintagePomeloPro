@@ -699,5 +699,41 @@ int main(int argc, char** argv) {
         }
         render.join();assert(reads==5000);
     }
+    if (mode == 20) {
+        // A native game keeps its own local GPU target while the shared
+        // compositor continues to serve the Steam/Wine desktop.
+        {auto lock=f.tm.Lock();
+         f.childData.w=f.width;f.childData.h=f.height;
+         f.tm.FindToplevelLocked(4)->ApplyFullscreen(false);}
+        ZeroCopyLayerInfo info;
+        assert(f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info));
+        f.comp.SetToplevelIsolated(5,true);
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info));
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(25),4,160,100,info));
+        assert(f.comp.GetZeroCopyLayerInfo(Key(25),5,160,100,info));
+        assert(info.parentToplevel==5&&!info.desktopCoordinates&&info.x==0&&info.y==0);
+        assert(info.width==160&&info.height==100);
+        assert(f.comp.GetZeroCopyLayerInfo(Key(5),5,160,100,info));
+        assert(!info.desktopCoordinates&&info.parentToplevel==5);
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(5),1,160,100,info));
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(4),5,160,100,info));
+        GpuDesktopScene scene;
+        for (bool external : {false,true}) {
+            f.gpu.external=external;
+            assert(f.comp.SnapshotGpuDesktopScene({},f.cache,scene,{f.gpu}));
+            assert(std::none_of(scene.layers.begin(),scene.layers.end(),
+                [](const auto& layer){return layer.parentToplevel==5;}));
+        }
+        InputTarget hit;
+        assert(f.input.FindInputTargetAt(80,50,hit)&&hit.toplevelId==4);
+        // Closing/reassigning the carrier restores the previous desktop route.
+        f.comp.SetToplevelIsolated(5,false);
+        assert(f.comp.GetZeroCopyLayerInfo(Key(25),1,160,100,info));
+        assert(info.desktopCoordinates);
+        assert(!f.comp.GetZeroCopyLayerInfo(Key(25),5,160,100,info));
+        assert(f.comp.SnapshotGpuDesktopScene({},f.cache,scene,{f.gpu}));
+        assert(std::any_of(scene.layers.begin(),scene.layers.end(),
+            [](const auto& layer){return layer.parentToplevel==5;}));
+    }
     std::puts("full production scene/input contract passed");
 }

@@ -268,6 +268,7 @@ void PluginManager::SetRendererPaused(uint32_t toplevelId, bool paused) {
 }
 
 void PluginManager::SetToplevelIsolated(uint32_t id, bool isolated) {
+    WaylandServer::GetInstance()->GetDesktopCompositor().SetToplevelIsolated(id, isolated);
     if (isolated) isolatedToplevels_[id] = true;
     else isolatedToplevels_.erase(id);
     auto it = toplevelRenderers_.find(id);

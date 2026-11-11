@@ -364,6 +364,7 @@ void WaylandServer::UnregisterToplevelResource(uint32_t toplevelId) {
 
 void WaylandServer::OnToplevelDestroyed(uint32_t toplevelId) {
     DirectWineSurfaceDestroyed(toplevelId);
+    desktopCompositor_.SetToplevelIsolated(toplevelId, false);
     std::vector<uint32_t> cascadePopups;
     bool wasDesktopRoot = false;
     {
