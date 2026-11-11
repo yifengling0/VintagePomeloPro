@@ -10,6 +10,9 @@
 #include <fcntl.h>
 #include <fstream>
 #include <linux/fs.h>
+#include <linux/futex.h>
+#include <poll.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -84,6 +87,59 @@ std::string ObserveMapping(const std::string& path) {
         ",\"denyWriteMmapErrno\":" + std::to_string(denyWriteError) +
         ",\"fullImageBytes\":" + std::to_string(fullImageBytes) +
         ",\"fullImageMmapErrno\":" + std::to_string(fullImageError) + '}';
+}
+// Failure-only control adapted from HSL kernel_contracts.cpp. This executes
+// OHOS syscalls without GNU TLS, preload, ptrace or changes to system policy.
+// Keep the native kernel observation separate from the failed GNU self-test.
+std::string ObserveHostRobust(bool sharedHead) {
+    struct Shared { robust_list_head head; robust_list node; uint32_t word; };
+    const size_t page = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+    auto* state = static_cast<Shared*>(mmap(nullptr, page, PROT_READ | PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+    auto* local = static_cast<robust_list_head*>(mmap(nullptr, page, PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    int ready[2] = {-1, -1};
+    if (state == MAP_FAILED || local == MAP_FAILED || pipe2(ready, O_CLOEXEC)) {
+        int error = errno;
+        if (state != MAP_FAILED) munmap(state, page);
+        if (local != MAP_FAILED) munmap(local, page);
+        return "{\"setupErrno\":" + std::to_string(error) + '}';
+    }
+    const pid_t child = fork();
+    if (!child) {
+        close(ready[0]);
+        auto* head = sharedHead ? &state->head : local;
+        head->list.next = &state->node;
+        head->futex_offset = reinterpret_cast<char*>(&state->word) - reinterpret_cast<char*>(&state->node);
+        state->node.next = &head->list;
+        state->word = static_cast<uint32_t>(syscall(SYS_gettid));
+        char marker = syscall(SYS_set_robust_list, head, sizeof(*head)) == 0 ? 'R' : 'E';
+        if (write(ready[1], &marker, 1) != 1) _exit(72);
+        for (;;) pause();
+    }
+    const int forkError = child < 0 ? errno : 0;
+    close(ready[1]);
+    pollfd waiting{ready[0], POLLIN, 0}; char marker = 0;
+    bool registered = child > 0 && poll(&waiting, 1, 300) > 0 && read(ready[0], &marker, 1) == 1 && marker == 'R';
+    int killError = child > 0 && kill(child, SIGKILL) ? errno : 0;
+    int status = 0, waitError = 0; bool reaped = false;
+    if (child > 0) {
+        for (unsigned i = 0; i < 100; ++i) {
+            pid_t result = waitpid(child, &status, WNOHANG);
+            if (result == child) { reaped = true; break; }
+            if (result < 0 && errno != EINTR) { waitError = errno; break; }
+            poll(nullptr, 0, 5);
+        }
+        if (!reaped && !waitError) waitError = ETIMEDOUT;
+    }
+    const uint32_t word = state->word;
+    close(ready[0]); munmap(state, page); munmap(local, page);
+    return "{\"head\":" + steamohos::JsonString(sharedHead ? "shared" : "private") +
+        ",\"forkErrno\":" + std::to_string(forkError) + ",\"registered\":" + (registered ? "true" : "false") +
+        ",\"killErrno\":" + std::to_string(killError) + ",\"reaped\":" + (reaped ? "true" : "false") +
+        ",\"waitErrno\":" + std::to_string(waitError) + ",\"waitStatus\":" + std::to_string(status) +
+        ",\"ownerTid\":" + std::to_string(child) + ",\"word\":" + std::to_string(word) +
+        ",\"ownerDied\":" + ((word & FUTEX_OWNER_DIED) ? "true" : "false") + '}';
 }
 // Diagnostic for native external-code loading and future CEF JIT. This runs
 // only a fixed two-instruction local function, never external input or a CPU interpreter.
@@ -370,6 +426,11 @@ extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(Nat
     }
     if (!json.empty() && json.back() == '}') {
         json.pop_back();
+        if (json.find("\"steamProcessAttempted\":false") != std::string::npos &&
+            json.find("\"ipcPreflight\":{") != std::string::npos) {
+            json += ",\"hostRobustControl\":{\"execution\":\"OHOS-kernel-control-not-GNU\",\"ptraceUsed\":false,\"cases\":[" +
+                ObserveHostRobust(false) + ',' + ObserveHostRobust(true) + "]}";
+        }
         json += ",\"executableMemoryPolicy\":" + memoryPolicy + '}';
     }
     size_t sent = 0;
