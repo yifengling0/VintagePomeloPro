@@ -27,6 +27,11 @@ permissions:
   contents: write
   packages: read
 
+# Keep only the latest branch push; tagged/manual releases keep their own run.
+concurrency:
+  group: vpp-hap-${{ github.workflow }}-${{ github.ref }}-${{ inputs.release_tag }}
+  cancel-in-progress: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') }}
+
 jobs:
   membership-checks:
     name: Verify membership backend and checkout
