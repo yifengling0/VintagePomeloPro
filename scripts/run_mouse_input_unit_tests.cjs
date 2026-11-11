@@ -237,14 +237,14 @@ assert.equal(virtual.shouldShowVirtualCursor(), false, 'toolbar hardware input a
 virtual.handleToolbarButtonTouch({ ...touch, source: 1, sourceTool: 3 }, () => {
   throw new Error('mouse touch copy must not toggle the toolbar');
 });
-const visibility = method('service/WineWindowManager.ets', 'canHideCursor');
+const visibility = ['desktopOwns', 'canHideCursor'].map(name => method('service/WineWindowManager.ets', name)).join('\n');
 const policyExports = {};
 vm.runInNewContext(ts.transpileModule('export class Policy {\n' + visibility + '\n}', {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText,
   { exports: policyExports, DeviceCapabilityPolicy: { usesManagedWineWindows: () => false } });
 const policy = new policyExports.Policy();
 Object.assign(policy, { isDesktopMode: true, desktopAbilityRunning: true, desktopAbilityForeground: true,
-  desktopLauncherVisible: true, desktopRootId: 1 });
+  desktopLauncherVisible: true, desktopRootId: 1, externalToplevels: new Set(), foregroundAbilities: new Set() });
 assert.equal(policy.canHideCursor(10), true, 'foreground tablet desktop ignores launcher flag');
 assert.equal(policy.canHideCursor(1), false, 'desktop shell stays visible');
 assert.equal(policy.canHideCursor(0), false, 'unidentified surface stays visible');

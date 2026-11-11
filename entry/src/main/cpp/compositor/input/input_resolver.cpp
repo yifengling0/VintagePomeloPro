@@ -22,6 +22,11 @@ InputResolver::InputResolver(ToplevelManager& tmgr, DesktopCompositor& composito
 {
 }
 
+bool InputResolver::IsToplevelIsolated(uint32_t id) const
+{
+    return compositor_.IsToplevelIsolated(id);
+}
+
 void InputResolver::ResolveRootSize(int& rootW, int& rootH) const
 {
     const auto* rootSt = tmgr_.FindToplevelLocked(desktopRootToplevelId_);

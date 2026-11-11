@@ -12,6 +12,8 @@ if [[ ! -x "$runtime_node" || ! -f "$runtime_typescript/lib/typescript.js" ]]; t
 fi
 mkdir -p ci-artifacts
 python3 scripts/build_linux_game_components.py --verify-only
+"$runtime_node" scripts/run_input_surface_bounds_tests.cjs "$runtime_typescript"
+"$runtime_node" scripts/run_mouse_input_unit_tests.cjs "$runtime_typescript"
 python3 host_tests/proton_bootstrap_closure_test.py
 g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined host_tests/proton_setup_cache_test.cpp -o ci-artifacts/proton-setup-cache-test
 ci-artifacts/proton-setup-cache-test

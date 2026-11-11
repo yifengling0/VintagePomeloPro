@@ -236,7 +236,7 @@ export const setOutputSize: (w: number, h: number) => void;
 export const setDisplayScale: (scale: number) => void;
 export const setDesktopMode: (enabled: boolean) => void;
 export const setPhoneMode: (enabled: boolean) => void;
-export const findToplevelAt: (px: number, py: number) => number;
+export const findToplevelAt: (px: number, py: number, presentationToplevel?: number) => number;
 export const raiseToplevel: (toplevelId: number) => void;
 // Queue restore, raise and keyboard focus on the compositor event-loop thread.
 export const activateToplevel: (toplevelId: number) => void;

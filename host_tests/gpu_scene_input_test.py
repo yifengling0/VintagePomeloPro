@@ -16,6 +16,7 @@ p.add_argument('--input-region-baseline',action='store_true',help='Reproduce Dir
 p.add_argument('--warp-baseline',action='store_true',help='Reproduce an inactive fullscreen window warping the foreground pointer')
 p.add_argument('--surface-lifetime-baseline',action='store_true')
 p.add_argument('--asan',action='store_true')
+p.add_argument('--isolated-input-baseline',action='store_true')
 p.add_argument('--external-window-host',action='store_true')
 args=p.parse_args()
 assert not (args.baseline and args.focus_baseline)
@@ -90,13 +91,20 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
         baseline=temp/'baseline-surface-lifetime.cpp'
         baseline.write_bytes(subprocess.check_output(['git','show','HEAD:entry/src/main/cpp/'+unit],cwd=ROOT))
         sources[sources.index(str(cpp/unit))]=str(baseline)
+    if args.isolated_input_baseline:
+        unit='input/input_manager.cpp'
+        baseline=temp/'baseline-isolated-input.cpp'
+        baseline.write_bytes(subprocess.check_output(['git','show','b5edc6db:'+unit.replace('input/', 'entry/src/main/cpp/input/', 1)],cwd=ROOT))
+        sources[sources.index(str(cpp/unit))]=str(baseline)
+        command+=['-I',str(cpp/'input')]
     if args.asan:command+=['-fsanitize=address,undefined','-fno-sanitize=vptr','-fno-omit-frame-pointer','-g']
     main = 'linux_steam_window_host_test.cpp' if args.external_window_host else 'gpu_scene_input_test.cpp'
     command += [str(ROOT/'host_tests'/main)]+sources
     command += ['-Wl,--gc-sections','-o',str(temp/'test')]
     subprocess.run(command,check=True)
-    modes=[16] if args.warp_baseline else ([14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 21)))))
+    modes=[16] if args.warp_baseline else ([14] if args.input_region_baseline else ([12] if args.viewport_baseline else ([9] if args.resize_baseline else ([6] if args.focus_baseline else range(1 if args.baseline else 22)))))
     if args.surface_lifetime_baseline:modes=[17]
+    if args.isolated_input_baseline:modes=[21]
     if args.external_window_host:modes=[0]
     for mode in modes:
         result=subprocess.run([str(temp/'test'),str(mode)],capture_output=True,text=True,timeout=20)
@@ -118,6 +126,9 @@ with tempfile.TemporaryDirectory(prefix='gpu-scene-input-') as directory:
         elif args.focus_baseline:
             assert result.returncode!=0 and 'GetKeyboardFocusedToplevel()==4' in result.stderr,result.stdout+result.stderr
             print('BASELINE RED: prior production click pre-sets the new focus before its queued leave')
+        elif args.isolated_input_baseline:
+            assert result.returncode!=0 and 'transformToplevel==5' in result.stderr,result.stdout+result.stderr
+            print('BASELINE RED: independent game input incorrectly uses the desktop root transform')
         elif args.baseline:
             assert result.returncode!=0 and 'render and real input share GPU-only candidate eligibility' in result.stderr,result.stdout+result.stderr
             print('BASELINE RED: real input rejects the GPU-only parent displayed by the renderer')

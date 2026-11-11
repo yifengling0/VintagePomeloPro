@@ -263,7 +263,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
         if (!targetSurf) return;
         wx = wl_fixed_from_double(px); wy = wl_fixed_from_double(py);
         globalX = wx; globalY = wy;
-    } else if (policy_->CompositorRoutesInput() && tl != *desktopRootToplevelId_) {
+    } else if (policy_->CompositorRoutesInput() && !resolver_->IsToplevelIsolated(tl) && tl != *desktopRootToplevelId_) {
         CoordTransform(px, py, *desktopRootToplevelId_, &wx, &wy, &displayFit);
         // 记录最近一次注入的桌面全局指针位置 (grab 建立时算固定偏移用)。
         // 4C1: 收进 InputSpaceMapper, 空间标签显式化为 Desktop (桌面逻辑坐标)
@@ -583,7 +583,7 @@ void InputManager::SendKeyEvent(uint32_t tl, int evdevCode, bool pressed) {
     // Focus is committed by the injector, after validating the queued target.
     // 桌面模式: 键盘事件永远发到 root, 不应覆盖点击建立的子窗口焦点
     // 6A: 策略/surface 查询经装配注入引用直调 (同值)
-    if (pressed && !policy_->CompositorRoutesInput()) {
+    if (pressed && (!policy_->CompositorRoutesInput() || resolver_->IsToplevelIsolated(tl))) {
         wl_resource* surf = tmgr_->GetSurfaceForToplevel(tl);
         if (surf) {
             queue_.Enqueue(InputQueue::Event::KBD_ENTER, tl, surf, 0, 0, 0, 0);
@@ -650,7 +650,7 @@ void InputManager::SendScrollEvent(uint32_t tl, int axis, double value, int scro
         if (!targetSurf) return;
         wx = wl_fixed_from_double(px); wy = wl_fixed_from_double(py);
         globalX = wx; globalY = wy;
-    } else if (policy_->CompositorRoutesInput()) {
+    } else if (policy_->CompositorRoutesInput() && !resolver_->IsToplevelIsolated(tl)) {
         CoordTransform(px, py, *desktopRootToplevelId_, &wx, &wy);
         // 缺段修复: 维护最近一次全局指针位置 (grab 偏移基准, 与
         // SendPointerEvent 桌面分支同一语义 — scroll 位置即指针位置);

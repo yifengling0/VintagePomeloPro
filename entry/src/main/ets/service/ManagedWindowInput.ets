@@ -56,7 +56,7 @@ export class ManagedWindowInput {
       await InputOverlayWindowCoordinator.getInstance().attach(stage, parent,
         task.sessionId || task.key, DisplayMode.DESKTOP, id,
         profile.id, settings.showVirtualControls, settings.controlOpacity,
-        settings.virtualInputEnabled, true);
+        settings.virtualInputEnabled, true, 'window-' + id);
       if (serial !== this.generation) return;
     });
     this.operations = run.catch((): void => {});

@@ -51,7 +51,7 @@ export class InputDispatcher {
 
   resolveToplevel(x: number, y: number, allowFocusChange: boolean = true): number {
     let found = 0;
-    try { found = testNapi.findToplevelAt(Math.round(x), Math.round(y)) as number; } catch (_) {}
+    try { found = testNapi.findToplevelAt(Math.round(x), Math.round(y), this.session.toplevelId) as number; } catch (_) {}
     if (found > 0 && allowFocusChange) this.setActiveToplevel(found);
     return found > 0 ? found : this.session.toplevelId;
   }

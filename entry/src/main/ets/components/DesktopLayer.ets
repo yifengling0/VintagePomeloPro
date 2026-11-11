@@ -20,7 +20,7 @@ import { InputRouter } from '../service/InputRouter';
 import { InputDispatcher } from '../service/InputDispatcher';
 import { GamepadActivityListener, GamepadConnectionListener, GamepadManager } from '../service/GamepadManager';
 import { InputProfileService } from '../service/InputProfileService';
-import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
+import { InputOverlaySurface, InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { AxisEventGate, InputEventGate } from '../service/InputEventGate';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
 import { FpsHud } from '../components/FpsHud';
@@ -116,6 +116,7 @@ class DesktopController extends XComponentController {
 
 @Component
 export struct DesktopLayer {
+  private inputSurface: InputOverlaySurface = new InputOverlaySurface();
   private axisTraceCount: number = 0;
   private axisEventGate: AxisEventGate = new AxisEventGate();
   @StorageLink('desktopToplevelId') @Watch('onDesktopToplevelChanged') private desktopToplevelId: number = 0;
@@ -220,6 +221,7 @@ export struct DesktopLayer {
   }
 
   aboutToDisappear(): void {
+    InputOverlayWindowCoordinator.getInstance().releaseSurfaceBounds(this.inputSurface);
     if (this.gamepadConnectionCallback) {
       GamepadManager.getInstance().unsubscribeConnection(this.gamepadConnectionCallback);
     }
@@ -335,6 +337,12 @@ export struct DesktopLayer {
         type: XComponentType.SURFACE,
         controller: this.controller
       }).width('100%').height('100%').backgroundColor('#000')
+        .onAreaChange((_old: Area, area: Area): void => {
+          if (this.floating) return;
+          InputOverlayWindowCoordinator.getInstance().updateSurfaceBounds(this.inputSurface, 'desktop',
+            vp2px(Number(area.globalPosition.x)), vp2px(Number(area.globalPosition.y)),
+            vp2px(Number(area.width)), vp2px(Number(area.height)));
+        })
         .focusable(true)
         .focusOnTouch(true)
         .defaultFocus(true)

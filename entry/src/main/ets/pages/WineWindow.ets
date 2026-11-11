@@ -8,6 +8,7 @@ import { WineWindowManager } from '../service/WineWindowManager';
 import { InputDeviceMapper } from '../service/InputDeviceMapper';
 import { FpsHud } from '../components/FpsHud';
 import { HostWindowTasks } from '../service/HostWindowTasks';
+import { InputOverlaySurface, InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 
 const DOMAIN = 0x0000;
 
@@ -62,6 +63,7 @@ class WineXComponentController extends XComponentController {
 @Entry({ useSharedStorage: true })
 @Component
 struct WineWindow {
+  private inputSurface: InputOverlaySurface = new InputOverlaySurface();
   private axisTraceCount: number = 0;
   private axisEventGate: AxisEventGate = new AxisEventGate();
   controller: WineXComponentController = new WineXComponentController();
@@ -110,6 +112,10 @@ struct WineWindow {
     hilog.info(DOMAIN, 'WineWindow', 'aboutToAppear tl=%{public}d', this.toplevelId);
   }
 
+  aboutToDisappear(): void {
+    InputOverlayWindowCoordinator.getInstance().releaseSurfaceBounds(this.inputSurface);
+  }
+
   build() {
     Stack() {
       XComponent({
@@ -124,6 +130,15 @@ struct WineWindow {
         // 为后续 ARGB 异型窗口方案 (子窗口路线) 预留
         .backgroundColor('#00000000')
         .focusable(false)
+        .onAreaChange((_o: Area, n: Area) => {
+          this.surfacePxW = vp2px(n.width as number);
+          this.surfacePxH = vp2px(n.height as number);
+          InputOverlayWindowCoordinator.getInstance().updateSurfaceBounds(this.inputSurface,
+            'window-' + this.toplevelId, vp2px(Number(n.globalPosition.x)), vp2px(Number(n.globalPosition.y)),
+            this.surfacePxW, this.surfacePxH);
+          hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onAreaChange tl=%{public}d w=%{public}d h=%{public}d',
+            this.toplevelId, Math.round(this.surfacePxW), Math.round(this.surfacePxH));
+        })
         // -- 触摸事件 (参考 DesktopWindow 桌面模式手势状态机, 单窗口无目标查找) --
         .onTouch((ev: TouchEvent) => {
           if (ev.type === TouchType.Down) HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
@@ -449,13 +464,6 @@ struct WineWindow {
         }
       }
       testNapi.sendKeyEvent(this.toplevelId, evdevCode, pressed);
-    })
-
-    .onAreaChange((_o: Area, n: Area) => {
-      this.surfacePxW = vp2px(n.width as number);
-      this.surfacePxH = vp2px(n.height as number);
-      hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onAreaChange tl=%{public}d w=%{public}d h=%{public}d',
-        this.toplevelId, Math.round(this.surfacePxW), Math.round(this.surfacePxH));
     })
   }
 }

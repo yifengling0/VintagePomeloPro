@@ -20,6 +20,7 @@ done
 "$NODE" "$ROOT/scripts/run_app_session_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_host_window_task_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_deck_launch_feedback_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_input_surface_bounds_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_membership_campaign_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_managed_window_input_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_window_host_tests.cjs" "${TSC%/tsc.js}/typescript.js"

@@ -56,6 +56,7 @@ struct InputTarget {
 // 否则按下拖到黑边松手会丢 release, 按键状态永久卡死 (见实现注释)。
 class InputResolver {
 public:
+    bool IsToplevelIsolated(uint32_t id) const;
     InputResolver(ToplevelManager& tmgr, DesktopCompositor& compositor,
                   const uint32_t& desktopRootToplevelId,
                   const int32_t& outputW, const int32_t& outputH);

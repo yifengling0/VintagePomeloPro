@@ -31,6 +31,7 @@ struct AxisEvent { wl_resource* resource; uint32_t axis; int32_t value; bool dis
 static std::vector<AxisEvent> axes;
 static double motionX, motionY;
 static unsigned motionCount;
+static uint32_t transformToplevel;
 void HostTestAxisEvent(wl_resource* r,uint32_t a,int32_t v,bool discrete) { axes.push_back({r,a,v,discrete}); }
 void HostTestMotionEvent(wl_resource*,wl_fixed_t x,wl_fixed_t y) { ++motionCount;motionX=wl_fixed_to_double(x);motionY=wl_fixed_to_double(y); }
 static std::vector<wl_resource*> keyboards, pointers;
@@ -55,7 +56,8 @@ void PointerExtras::SendRelativeMotion(wl_resource*, double, double) {}
 void PointerExtras::SendRelativeMotion(double, double) {}
 #endif
 InputSpaceMapper* InputSpaceMapper::GetInstance() { static InputSpaceMapper mapper;return &mapper; }
-void InputSpaceMapper::CoordTransform(double x,double y,uint32_t,wl_fixed_t* sx,wl_fixed_t* sy,FitRect* fit) {
+void InputSpaceMapper::CoordTransform(double x,double y,uint32_t tl,wl_fixed_t* sx,wl_fixed_t* sy,FitRect* fit) {
+    transformToplevel=tl;
     *sx=wl_fixed_from_double(x);*sy=wl_fixed_from_double(y);
     if(fit) { *fit={};fit->srcW=fit->dstW=160;fit->srcH=fit->dstH=100;fit->scale=1; }
 }
@@ -734,6 +736,36 @@ int main(int argc, char** argv) {
         assert(f.comp.SnapshotGpuDesktopScene({},f.cache,scene,{f.gpu}));
         assert(std::any_of(scene.layers.begin(),scene.layers.end(),
             [](const auto& layer){return layer.parentToplevel==5;}));
+    }
+    if (mode == 21) {
+        // Production InputManager must bypass the root scene for an isolated
+        // renderer. The shared desktop is deliberately still active and has
+        // another visible game/client beneath this presentation.
+        f.steam.client=f.game.client=f.child.client=Client(1);
+        wl_resource kbd{nullptr,Client(1)},ptr{nullptr,Client(1)};
+        keyboards={&kbd};pointers={&ptr};
+        f.comp.SetToplevelIsolated(5,true);
+        assert(f.input.IsToplevelIsolated(5)&&!f.input.IsToplevelIsolated(4));
+        MoveGrabHandler grab;
+        auto* manager=InputManager::GetInstance();
+        manager->BindCompositorDeps(f.tm,f.input,grab,f.policy,f.root);
+        manager->Initialize(reinterpret_cast<wl_display*>(1));
+        manager->ResetSessionState();
+        manager->SendPointerEvent(5,3,78,37,0);
+        assert(transformToplevel==5);DrainInput();
+        assert(motionCount>0&&motionX==78&&motionY==37);
+        assert(std::any_of(events.begin(),events.end(),[&](const auto& e){
+            return e.name=="pointer.enter"&&e.surface==&f.game;}));
+        events.clear();
+        manager->SendPointerEvent(5,1,78,37,0x110);DrainInput();
+        assert(manager->GetKeyboardFocusedToplevel()==5);
+        manager->SendScrollEvent(5,0,1,40,78,37);
+        assert(transformToplevel==5);DrainInput();
+        assert(!axes.empty()&&motionX==78&&motionY==37);
+        // Shared desktop inputs continue through the root renderer.
+        manager->SendPointerEvent(4,3,78,37,0);assert(transformToplevel==1);DrainInput();
+        manager->Shutdown();
+        f.comp.SetToplevelIsolated(5,false);assert(!f.input.IsToplevelIsolated(5));
     }
     std::puts("full production scene/input contract passed");
 }

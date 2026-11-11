@@ -2,6 +2,7 @@
 #include <napi/native_api.h>
 #include "common/fs_utils.h"
 #include "compositor/wayland_server.h"
+#include "compositor/toplevel/desktop_compositor.h"
 #include "bridge/plugin_manager.h"
 #include "input/input_manager.h"
 #include "input/pointer_extras.h"
@@ -1321,14 +1322,24 @@ static napi_value ActivateToplevel(napi_env env, napi_callback_info info) {
 // Desktop 模式: 接收物理像素坐标 (px, py), 通过 viewport 映射为 Wine 逻辑坐标后查找
 // resize 后 surface 和逻辑尺寸比例变化, 由 renderer viewport 保证映射正确
 static napi_value FindToplevelAt(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2];
+    size_t argc = 3;
+    napi_value args[3];
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc < 2) return nullptr;
     int32_t px, py;  // 物理像素坐标
     napi_get_value_int32(env, args[0], &px);
     napi_get_value_int32(env, args[1], &py);
 
+    // Optional presentation owner: an isolated game is absent from the root
+    // scene and its physical input must stay in its own renderer coordinate space.
+    uint32_t presentationId = 0;
+    if (argc >= 3) napi_get_value_uint32(env, args[2], &presentationId);
+    auto* ws = WaylandServer::GetInstance();
+    if (presentationId && ws->GetDesktopCompositor().IsToplevelIsolated(presentationId)) {
+        napi_value result;
+        napi_create_uint32(env, ws->GetToplevelManager().GetSurfaceForToplevel(presentationId) ? presentationId : 0, &result);
+        return result;
+    }
     // The canvas uses X coordinates/scene hit-testing downstream. There is
     // deliberately no EglRenderer or Wayland surface for this synthetic id.
     // Never fall back to id=1: it may belong to another session/client.
@@ -1337,7 +1348,6 @@ static napi_value FindToplevelAt(napi_env env, napi_callback_info info) {
         napi_create_uint32(env, desktop, &result);
         return result;
     }
-    auto* ws = WaylandServer::GetInstance();
     uint32_t rootId = ws->GetDesktopRootToplevelId();
     wl_fixed_t wx, wy;
     InputManager::GetInstance()->CoordTransform(px, py, rootId > 0 ? rootId : 1, &wx, &wy);

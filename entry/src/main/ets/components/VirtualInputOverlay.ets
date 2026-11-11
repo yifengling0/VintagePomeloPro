@@ -1174,7 +1174,7 @@ export struct VirtualInputOverlay {
       Math.abs(x - this.cachedMoveTlX) < 4 && Math.abs(y - this.cachedMoveTlY) < 4) {
       return this.cachedMoveTl;
     }
-    const found = (testNapi.findToplevelAt(x, y) as number) ?? 0;
+    const found = (testNapi.findToplevelAt(x, y, this.fallbackToplevelId()) as number) ?? 0;
     const tl = found > 0 ? found : this.fallbackToplevelId();
     this.cachedMoveTl = tl;
     this.cachedMoveTlX = x;

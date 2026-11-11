@@ -41,6 +41,12 @@ void DesktopCompositor::MarkDesktopRootDirtyLocked()
     tmgr_.MarkToplevelDirtyLocked(desktopRootToplevelId_);
 }
 
+bool DesktopCompositor::IsToplevelIsolated(uint32_t id) const
+{
+    auto lock = tmgr_.Lock();
+    return isolatedToplevels_.count(id) != 0;
+}
+
 void DesktopCompositor::SetToplevelIsolated(uint32_t id, bool isolated)
 {
     if (!id) return;

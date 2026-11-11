@@ -76,6 +76,7 @@ public:
     // Independent host windows use local GPU geometry even while Wine's
     // desktop policy is active. Protected by the existing toplevel mutex.
     void SetToplevelIsolated(uint32_t id, bool isolated);
+    bool IsToplevelIsolated(uint32_t id) const;
 
     // 本帧重绘矩形 (root 坐标, 局部合成范围)。full=true 走整帧合成路径
     // (几何/层序/root 帧/全屏变化时, 行为与旧实现一致); 局部时仅 R 内像素
