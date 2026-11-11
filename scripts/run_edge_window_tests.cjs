@@ -132,6 +132,11 @@ async function carrierTests(){
   assert.equal(starts[1].subwindow,20,'live tablet session cannot change carrier halfway through');
   wm.setPresentationMode('managed-windows');wm.startWineWindowAbility(30,'{}');await new Promise(setImmediate);
   assert.equal(starts[2].abilityName,'WineWindowAbility','new Edge PC session uses an independent Ability');
+  wm.startWineWindowAbility(30,'{}');await new Promise(setImmediate);
+  assert.equal(starts.length,3,'AMS acceptance does not release the carrier reservation before WindowStage');
+  wm.registerWindow(30,{});assert.equal(wm.pendingStarts.has(30),false);
+  wm.startWineWindowAbility(30,'{}');await new Promise(setImmediate);
+  assert.equal(starts.length,3,'registered windows cannot be launched again by ownership polling');
   setting='false';policy.refreshPcMode(ctx);assert.equal(wm.fusionUsesSubWindow(),false);
   wm.setPresentationMode('desktop');wm.onToplevelEvent(50,'desktop_root','{}');
   assert.equal(values.get('desktopEmbeddedHost'),true);assert.equal(starts.length,3);

@@ -501,6 +501,7 @@ export class WineWindowManager {
 
   registerWindow(toplevelId: number, win: window.Window): void {
     this.windows.set(toplevelId, win);
+    this.pendingStarts.delete(toplevelId);
     hilog.info(DOMAIN, TAG, '[MW]  registerWindow #%{public}d (total=%{public}d, pendingStarts=%{public}s)',
       toplevelId, this.windows.size, this.pendingStarts.has(toplevelId) ? 'yes' : 'no');
   }
@@ -1361,7 +1362,7 @@ export class WineWindowManager {
       this.startFusionSubWindow(id, data);
       return;
     }
-    if (this.pendingStarts.has(id)) {
+    if (this.pendingStarts.has(id) || this.windows.has(id) || this.abilityContexts.has(id)) {
       hilog.warn(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: already in flight, skip', id);
       return;
     }
@@ -1403,7 +1404,9 @@ export class WineWindowManager {
 
     this.uiAbilityContext.startAbility(want).then(() => {
       hilog.info(DOMAIN, TAG, '[MW] OK startAbility #%{public}d resolved (AMS accepted)', id);
-      this.pendingStarts.delete(id);
+      // AMS acknowledgement precedes onWindowStageCreate. Keep the reservation
+      // until registerWindow/destroy so native ownership polling cannot launch
+      // a duplicate Ability and close the live surface on its rejected request.
     }).catch((err: Error) => {
       hilog.error(DOMAIN, TAG, '[MW] ERR startAbility #%{public}d REJECTED: %{public}s',
         id, JSON.stringify(err));
