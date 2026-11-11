@@ -97,3 +97,23 @@ Windows Steam 性能聊天已交还共享构建目录与 USB Mini；后续串行
   Windows 游戏会准备 Wine，以及 native carrier 的归属和控制行为。
 
 robust owner-death 失败仍为间歇性待查；本轮启动成功不能作为该问题已修复的证据。
+
+## 2026-11-11：Mini 原生启动复测与全部后端延迟准备
+
+`9c964c6f` 已完成 260 项 preflight、完整运行库回归、ArkTS/OHOS native 编译及
+最终 GNU 2 组件/7 companion 校验，使用 release/internaltesting 签名覆盖安装 Mini。
+从普通 Linux Steam 入口约 19.7 秒发布 running，实际显示登录及库页，未出现 OHOS
+Wine 子进程；但可选 driver_query 选择 GNU 后仍准备了 GNU 前缀，未满足纯 Linux
+无 Wine 准备的完整目标。客户端约 113 秒后真实 signal 11 退出，尚未取得栈证据，
+不能依据同期 BadWindow 推断根因，也不能计为游戏或稳定性验收。
+
+- 冷态 driver_query 同时覆盖 OHOS Wine、GNU Proton 和 GNU WineD3D。GNU 只有
+  当前 Steam 代次中真实 Windows 进程完成准备和 dispatch 后才允许后续可选查询；
+  组件文件存在、失败准备或取消不能开启查询。查询未执行返回实际不可用状态，
+  保留请求的真实 backend，不伪造 GPU 信息。实际游戏和安装脚本仍正常准备运行库。
+- Native carrier 归属变化改用应用 LogService，导出日志包含首次空快照及后续变化；
+  不按标题或窗口出现顺序放宽凭据、PID/starttime 与代次校验。
+- 定向 Node 回归覆盖全部冷态后端、准备失败/取消、新代次重置、温态 GNU helper、
+  Windows 游戏首次初始化以及空/不变窗口快照。
+- 较早完整 CI `42996602647`（`21bfda35`）全部构建成功；当前修复的 CI 和
+  新包真机结果仍须分别跟进，历史通过不替代当前提交验收。

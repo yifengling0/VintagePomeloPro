@@ -38,6 +38,7 @@ export class LinuxSteamGameLaunch {
   private sessions: GameSession[] = [];
   private pending: LinuxSteamLaunchRequest[] = [];
   private gnuSessions: GnuGameSession[] = [];
+  private preparedGnuBackends: Set<string> = new Set<string>();
   private nativeSessions: GnuGameSession[] = [];
   private cancelled: Set<number> = new Set<number>();
   private preparing: LinuxSteamLaunchRequest | null = null;
@@ -51,6 +52,7 @@ export class LinuxSteamGameLaunch {
     return linuxSteamWindowsPath(path, this.zRoot);
   }
   start(library: string, results: string, zRoot: string, prepareWine?: () => Promise<void>, openCompatibility?: (appId: string) => Promise<void>): void {
+    this.preparedGnuBackends.clear();
     this.openCompatibility = openCompatibility ?? null;
     this.prepareWine = prepareWine ?? null;
     if (!smokeNapi.startLinuxSteamLaunchBroker || !smokeNapi.startLinuxSteamLaunchBroker(library)) {
@@ -129,6 +131,7 @@ export class LinuxSteamGameLaunch {
     this.preparing = null; this.cancelled.clear();
     this.generation++;
     this.pending = [];
+    this.preparedGnuBackends.clear();
     if (smokeNapi.stopLinuxSteamLaunchBroker) smokeNapi.stopLinuxSteamLaunchBroker();
   }
   private record(appId: string, status: string, exitCode?: number | null, exitCodeSource?: string, role: string = 'game', runtimeBackend: string = 'ohos-wine'): void {
@@ -195,6 +198,13 @@ export class LinuxSteamGameLaunch {
       catch (_) { result = { status: 'gnu_proton_result_invalid' }; }
       const process = result.prefix;
       const ended = process?.childReaped === true && result.childExitVerified === true;
+      // A component/prefix file alone cannot prove that this backend completed
+      // its setup. Only a real dispatched Windows process in this generation
+      // enables later optional inventory requests for the same backend.
+      if (request.role !== 'driver_query' && ended && !process?.cancelled &&
+        (result.status === 'proton_game_exited' || result.status === 'proton_game_failed')) {
+        this.preparedGnuBackends.add(session.backend);
+      }
       const code = ended ? (process?.cancelled ? 130 : (process?.signal ? 128 + process.signal : process?.exitCode ?? 1)) : 1;
       smokeNapi.replyLinuxSteamLaunchBroker?.(request.id, 2, code);
       this.record(request.appId, result.status, code, ended ? 'gnu-waitpid' : 'gnu-setup', request.role, session.backend);
@@ -388,11 +398,13 @@ export class LinuxSteamGameLaunch {
       // is optional; report an actual unavailable result until Wine is ready,
       // without fabricating GPU information or warming a Windows prefix.
       // A real Windows game/install script still prepares Wine below.
-      if (request.role === 'driver_query' && (!request.backend || request.backend === 'ohos-wine') &&
-        !WineEngineService.getInstance().isReady()) {
+      const backend = request.backend ?? 'ohos-wine';
+      const wineReady = backend === 'ohos-wine' ? WineEngineService.getInstance().isReady() :
+        this.preparedGnuBackends.has(backend);
+      if (request.role === 'driver_query' && !wineReady) {
         smokeNapi.replyLinuxSteamLaunchBroker?.(request.id, 3, 1);
         this.record(request.appId, 'driver_query_unavailable_wine_not_started', 1,
-          'optional-helper-not-executed', request.role);
+          'optional-helper-not-executed', request.role, backend);
         continue;
       }
       if (request.backend === 'gnu-proton' || request.backend === 'gnu-proton-gl') {

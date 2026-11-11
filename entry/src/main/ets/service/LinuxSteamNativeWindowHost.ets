@@ -3,7 +3,7 @@ import { InputProfileService } from './InputProfileService';
 import { GamepadManager } from './GamepadManager';
 import { AppSettingsStore } from './AppSettingsStore';
 import { common } from '@kit.AbilityKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { hilog } from './LogService';
 import testNapi from 'libentry.so';
 import smokeNapi from 'libsmoke_napi.so';
 import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
@@ -15,10 +15,11 @@ export class LinuxSteamNativeWindowHost {
   private navigation: boolean = false;
   private active: boolean = false;
   private timer: number = -1;
-  private lastWindows: string = '';
+  private lastWindows: string | null = null;
   async start(_context: common.Context, _driveC: string, _results: string,
     _recovering: boolean = false): Promise<void> {
     this.active = true;
+    this.lastWindows = null;
     this.refresh();
     this.timer = setInterval((): void => this.refresh(), 150);
   }

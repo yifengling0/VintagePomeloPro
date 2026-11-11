@@ -11,9 +11,10 @@ const helperDigests = new Map();
 const completions = [];
 let runtimeLeases=0;
 let maintenanceHeld=false;
+let maintenanceCalls=0;
 let engineReady=true;
 const deps = {
-  './LinuxProtonLease': {withLinuxProtonMaintenance: async action=>{maintenanceHeld=true;try{await action(77);}finally{maintenanceHeld=false;}}},
+  './LinuxProtonLease': {withLinuxProtonMaintenance: async action=>{maintenanceCalls++;maintenanceHeld=true;try{await action(77);}finally{maintenanceHeld=false;}}},
   './WineWindowManager': {WineWindowManager:singleton({manageExternalToplevel:()=>true})},
   './LinuxProtonDxvk': {prepareLinuxProtonDxvkPrefix: async()=>{}},
   './LinuxProtonRuntimeService': {LinuxProtonRuntimeService:singleton({holdGame:()=>{runtimeLeases++;return()=>runtimeLeases--;}})},
@@ -133,11 +134,17 @@ engineReady=false;
 service.start('/z/SteamLinuxARM64/library','/results','/z',async()=>{coldPreparations++;engineReady=true;});
 before=launchCount();
 const coldGameRegistrations=registrations.length;
-requests=[{...query,id:13,appId:'0',backend:'ohos-wine'}];await service.tick();
-assert.equal(coldPreparations,0);assert.equal(launchCount(),before);
-assert.equal(registrations.length,coldGameRegistrations);
-assert.deepEqual(replies.at(-1),[13,3,1],'Unexecuted query reports a real unavailable result');
-assert.equal(JSON.parse(files.get('/results/last-client-helper.json')).status,'driver_query_unavailable_wine_not_started');
+const coldMaintenance=maintenanceCalls;
+for(const backend of [undefined,'ohos-wine','gnu-proton','gnu-proton-gl']) {
+ requests=[{...query,id:13,appId:'0',backend}];await service.tick();
+ assert.equal(coldPreparations,0);assert.equal(launchCount(),before);
+ assert.equal(maintenanceCalls,coldMaintenance,'Optional inventory must never prepare a GNU prefix or DXVK');
+ assert.equal(registrations.length,coldGameRegistrations);
+ assert.deepEqual(replies.at(-1),[13,3,1],'Unexecuted query reports a real unavailable result');
+ const result=JSON.parse(files.get('/results/last-client-helper.json'));
+ assert.equal(result.status,'driver_query_unavailable_wine_not_started');
+ assert.equal(result.runtimeBackend,backend??'ohos-wine');
+}
 requests=[{...request(),id:14}];state=1;await service.tick();
 assert.equal(coldPreparations,1,'First Windows game prepares Wine');
 assert.equal(launchCount(),before+1);service.stop();
@@ -198,6 +205,13 @@ requests=[{...request(),id:31,backend:'gnu-proton-gl'}];await service.tick();
 resolveGnu(JSON.stringify({status:'proton_package_missing_or_wrong_arch'}));await new Promise(resolve=>setImmediate(resolve));
 assert.equal(launchCount(),beforeGnu,'A missing GNU runtime cannot silently run OHOS Wine');
 assert.equal(evidence().runtimeBackend,'gnu-proton-gl');assert.equal(evidence().exitCode,1);
+const failedSetupMaintenance=maintenanceCalls;
+requests=[{...query,id:34,backend:'gnu-proton'}];await service.tick();
+assert.equal(maintenanceCalls,failedSetupMaintenance,'Cancelled dispatch and failed setup cannot enable optional GNU inventory');
+assert.deepEqual(replies.at(-1),[34,3,1]);
+requests=[{...request(),id:35,backend:'gnu-proton'}];await service.tick();
+resolveGnu(JSON.stringify({status:'proton_game_exited',childExitVerified:true,prefix:{exitCode:0,childReaped:true}}));
+await new Promise(resolve=>setImmediate(resolve));
 const fullGameResult=files.get('/results/gnu-proton-695630.json');
 const lastGameResult=files.get('/results/last-game-launch.json');
 requests=[{...query,id:33,backend:'gnu-proton'}];await service.tick();
@@ -211,6 +225,11 @@ assert.equal(runtimeLeases,1,'Stopping Steam cannot release a still-running game
 resolveGnu(JSON.stringify({status:'proton_game_exited',childExitVerified:true,prefix:{exitCode:0,childReaped:true}}));await new Promise(resolve=>setImmediate(resolve));
 assert.equal(runtimeLeases,0,'Child completion releases runtime even when broker generation changed');
 assert.ok(gnuCancelled.includes(32),'Stopping Steam cancels its GNU session');
+const resetMaintenance=maintenanceCalls;
+service.start('/z/SteamLinuxARM64/library','/results','/z');
+requests=[{...query,id:36,backend:'gnu-proton'}];await service.tick();
+assert.equal(maintenanceCalls,resetMaintenance,'Readiness cannot leak into a new Steam generation');
+service.stop();
 // Native observation never initializes Wine, and real wrapper exit is preserved.
 service.start('/z/SteamLinuxARM64/library','/results','/z',async()=>{throw Error('Wine must stay lazy');});
 requests=[{...request(),id:70,backend:'linux-native',phase:'starting'}];await service.tick();
