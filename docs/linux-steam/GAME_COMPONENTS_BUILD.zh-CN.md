@@ -73,3 +73,7 @@ HAP companion source override 引用重编载荷。预检检查新 CMake 输入�
 该目标包含组件来源、启动/会话/worker、GNU/FEX/图形、离线包、字体及 ArkTS
 回归；会员后端仍由独立的锁定依赖 job 验证。输出复用 `ci-artifacts` 和已有
 测试目录，不复制大型运行库、游戏或源码。
+
+GNU Venus 回归从仓库固定 Mesa Git 对象只展开约 2.4 MiB 的目标源文件，
+再由原构建器核对 GNU 基线和补丁。这样可以在已应用 OHOS Mesa 补丁的增量
+构建目录运行同一套测试；不会 reset、改写共享 Mesa 源码，也不放宽生产载荷来源校验。

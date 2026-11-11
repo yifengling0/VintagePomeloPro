@@ -37,7 +37,8 @@ python3 host_tests/linux_steam_native_kernel_maps_test.py
 python3 host_tests/linux_steam_native_x11_endpoint_test.py
 python3 host_tests/linux_steam_native_guest_mapping_test.py
 python3 host_tests/linux_steam_native_guest_abi_test.py
-python3 scripts/build_linux_proton_venus.py --source thirdparty/mesa --output build/gnu-venus-overlays --prepare-only
+python3 scripts/prepare_game_runtime_test_source.py
+python3 scripts/build_linux_proton_venus.py --source workspace_temp/hsl-sync/mesa-test-base --output build/gnu-venus-overlays --prepare-only
 bash scripts/apply_virglrenderer_ohos_patches.sh thirdparty/virglrenderer
 python3 host_tests/gnu_venus_mapped_fd_test.py
 python3 host_tests/gnu_venus_bc_contract_test.py
