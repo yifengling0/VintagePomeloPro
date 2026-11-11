@@ -51,8 +51,10 @@ export class SteamLocalService {
   private context: common.UIAbilityContext | null = null;
   private root: string = '';
   private store: preferences.Preferences | null = null;
-  reloadConfiguration(): void { this.compatibility = this.store?.getSync('compatibility', false) as boolean ?? false; }
-  private compatibility: boolean = false;
+  reloadConfiguration(): void { this.compatibility = this.store?.getSync('compatibility', true) as boolean ?? true; }
+  // CEF GPU menus can remain white on Mini. Default only the Steam UI to
+  // software drawing; explicit saved choices and game graphics stay separate.
+  private compatibility: boolean = true;
   private importing: boolean = false;
   private committing: boolean = false;
   private listeners: SteamImportListener[] = [];
@@ -68,7 +70,7 @@ export class SteamLocalService {
     this.context = context;
     this.root = root;
     this.store = await preferences.getPreferences(context, 'steam_local_client');
-    this.compatibility = this.store.getSync('compatibility', false) as boolean;
+    this.compatibility = this.store.getSync('compatibility', true) as boolean;
     await this.recover();
   }
   getClientDirectory(): string { return this.root ? this.root + '/Steam' : ''; }

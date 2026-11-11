@@ -53,6 +53,21 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
 (async()=>{
  models=load('model/AppModels.ets');
  local=new (load('steam/SteamLocalService.ets').SteamLocalService)();local.root=tmp;
+ assert.equal(local.isCompatibility(),true,'new clients use software CEF');
+ const uiPreferences=new Map();
+ const uiStore={getSync:(key,fallback)=>uiPreferences.has(key)?uiPreferences.get(key):fallback,
+  put:async(key,value)=>{uiPreferences.set(key,value);},flush:async()=>{}};
+ mocks['@kit.ArkData'].preferences.getPreferences=async()=>uiStore;
+ await local.initialize({},tmp);
+ assert.equal(local.isCompatibility(),true,'missing preference uses software CEF after initialization');
+ await local.setCompatibility(false);local.reloadConfiguration();
+ assert.equal(local.isCompatibility(),false,'saved GPU choice survives reload');
+ await local.initialize({},tmp);
+ assert.equal(local.isCompatibility(),false,'saved GPU choice survives restart');
+ await local.setCompatibility(true);local.reloadConfiguration();
+ assert.equal(local.isCompatibility(),true,'software selection remains available');
+ local.store=null;local.context=null;
+
  const client=tmp+'/Steam', second=tmp+'/游戏 库';
  put(client+'/steam.exe');put(client+'/steamapps/common/中文 游戏/game.exe');
  put(second+'/steamapps/common/另一个/game.exe');
