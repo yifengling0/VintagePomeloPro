@@ -113,31 +113,35 @@ export async function collectSteamStartupDiagnostics(downloadRoot: string = ''):
   };
   await append('session', `${BASE}/session/state.json`, 4096);
   await append('native startup', `${BASE}/session/native-startup.json`, 4096);
+  await append('native session result', `${BASE}/session/native-result.private.json`, 1048576, true);
   await append('window binding', '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session/binding.json', 4096);
   await append('Wine window', '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session/wine-window-state.json', 4096);
-  const launch = '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session';
+  const legacyLaunch = '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session';
+  const currentLaunch = `${BASE}/session`;
   const wineTemp = '/data/storage/el2/base/files/.wine/drive_c/windows/temp';
   await append('Steam API bridge client', `${wineTemp}/hmosdeck-steam-api-state.json`, 4096);
   await append('Steam API bridge server', `${wineTemp}/hmosdeck-steam-bridge-state.json`, 4096);
-  await append('last game launch', `${launch}/last-game-launch.json`, 4096);
-  await append('last client helper', `${launch}/last-client-helper.json`, 4096);
-  // The last game can be a successful launch after an earlier failure. Keep
-  // recent per-game results, including the readiness probe's own output, and
-  // keep helpers separate so install scripts cannot displace game evidence.
-  // These compact JSON files must be read whole: a tail starting inside their
-  // single line would otherwise silently discard every diagnostic field.
-  if (diagnosticDirectory(`${FILES}/.wine`) && diagnosticDirectory(`${FILES}/.wine/drive_c`) &&
-    diagnosticDirectory(`${FILES}/.wine/drive_c/hmosdeck`) && diagnosticDirectory(launch)) {
-    for (const name of diagnosticNames(launch, /^game-launch-[1-9][0-9]{0,9}\.json$/, 8))
-      await append(`game launch ${name}`, `${launch}/${name}`, 4096, true);
-    for (const name of diagnosticNames(launch, /^gnu-proton-[1-9][0-9]{0,9}\.json$/, 8))
-      await append(`GNU Proton game result ${name}`, `${launch}/${name}`, 1048576, true);
-    for (const name of diagnosticNames(launch, /^gnu-proton-helper-(?:install_script|driver_query)-(?:0|[1-9][0-9]{0,9})\.json$/, 4))
-      await append(`GNU Proton helper result ${name}`, `${launch}/${name}`, 262144, true);
+  for (const launch of [legacyLaunch, currentLaunch]) {
+    const label = launch === legacyLaunch ? 'legacy ' : '';
+    await append(label + 'last game launch', `${launch}/last-game-launch.json`, 4096);
+    await append(label + 'last client helper', `${launch}/last-client-helper.json`, 4096);
+    // The last game can be a successful launch after an earlier failure. Keep
+    // recent per-game results, including the readiness probe's own output, and
+    // keep helpers separate so install scripts cannot displace game evidence.
+    // These compact JSON files must be read whole: a tail starting inside their
+    // single line would otherwise silently discard every diagnostic field.
+    if (diagnosticDirectory(launch)) {
+      for (const name of diagnosticNames(launch, /^game-launch-[1-9][0-9]{0,9}\.json$/, 8))
+        await append(`${label}game launch ${name}`, `${launch}/${name}`, 4096, true);
+      for (const name of diagnosticNames(launch, /^gnu-proton-[1-9][0-9]{0,9}\.json$/, 8))
+        await append(`${label}GNU Proton game result ${name}`, `${launch}/${name}`, 1048576, true);
+      for (const name of diagnosticNames(launch, /^gnu-proton-helper-(?:install_script|driver_query)-(?:0|[1-9][0-9]{0,9})\.json$/, 4))
+        await append(`${label}GNU Proton helper result ${name}`, `${launch}/${name}`, 262144, true);
+    }
   }
   await append('GNU Proton runtime', `${BASE}/proton-probe/probe-runtime.log`, LOG_TAIL_BYTES);
 
-  await append('library state', `${launch}/library-state.private.json`, 32768);
+  await append('library state', `${currentLaunch}/library-state.private.json`, 32768);
   await append('Steam supervisor', `${BASE}/client-tmp/deck-session-state.json`, 4096);
   await append('native output', `${BASE}/client-native.private.log`);
   // Persisted capture survives app restarts. Also include older releases'

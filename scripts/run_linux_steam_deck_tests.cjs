@@ -314,6 +314,8 @@ async function sessionTests(shutdownMode = 'normal') {
   }
   const completed = {status:'steam_native_attempted',client:{childReaped:true,exitCode:0,signal:0,timedOut:false}};
   assert.match(service.nativeFailure({status:'failed',client:{signal:11}}), /信号 11/);
+  assert.match(service.nativeFailure({status:'steam_native_attempted',ipcPreflight:{stage:'signal',signal:11},client:{stage:'not_started'}}), /自检异常.*信号 11/);
+  assert.match(service.nativeFailure({status:'failed',ipcPreflight:{stage:'exited',childReaped:true,exitCode:0},client:{signal:6}}), /客户端异常.*信号 6/);
   assert.match(service.nativeFailure({status:'failed',client:{childReaped:true,exitCode:42}}), /返回码 42/);
   assert.match(service.nativeFailure({status:'failed',client:{setupErrno:13,stage:'execve'}}), /错误 13/);
   if (shutdownScenario === 'normal') {

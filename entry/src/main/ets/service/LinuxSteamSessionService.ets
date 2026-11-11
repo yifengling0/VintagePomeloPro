@@ -32,7 +32,10 @@ interface NativeClientResult {
   stage: string; childReaped: boolean; exitCode: number; signal: number; timedOut: boolean;
   setupErrno: number; execErrno: number; waitErrno: number;
 }
-interface NativeSessionResult { status: string; client?: NativeClientResult; }
+interface NativeSessionResult {
+  status: string; client?: NativeClientResult; ipcPreflight?: NativeClientResult;
+  xlibPreflight?: NativeClientResult; glxPreflight?: NativeClientResult; loaderPreflight?: NativeClientResult;
+}
 export type LinuxSteamSessionListener = (value: LinuxSteamSnapshot) => void;
 
 export class LinuxSteamSessionService {
@@ -74,6 +77,15 @@ export class LinuxSteamSessionService {
     this.listeners.forEach((listener: LinuxSteamSessionListener): void => listener(this.snapshot()));
   }
   private nativeFailure(result: NativeSessionResult): string {
+    const preflights: (NativeClientResult | undefined)[] = [result.ipcPreflight, result.xlibPreflight,
+      result.glxPreflight, result.loaderPreflight];
+    for (const check of preflights) {
+      if (!check || check.stage === 'not_started') continue;
+      if (check.signal) return `Steam 运行环境自检异常（信号 ${check.signal}），可重新打开`;
+      if (check.setupErrno || check.execErrno) return `Steam 运行环境自检失败（${check.stage}，错误 ${check.setupErrno || check.execErrno}），可重新打开`;
+      if (check.timedOut) return 'Steam 运行环境自检超时，可重新打开';
+      if (check.childReaped && check.exitCode !== 0) return `Steam 运行环境自检失败（返回码 ${check.exitCode}），可重新打开`;
+    }
     const client = result.client;
     if (client?.signal) return `Steam 客户端异常退出（信号 ${client.signal}），可重新打开`;
     if (client?.setupErrno || client?.execErrno) return `Steam 客户端启动失败（${client.stage}，错误 ${client.setupErrno || client.execErrno}），可重新打开`;
