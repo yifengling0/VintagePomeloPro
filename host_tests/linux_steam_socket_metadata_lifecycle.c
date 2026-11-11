@@ -138,6 +138,16 @@ int main(void) {
     // A same-UID socket with the wrong kernel PID must not impersonate a peer.
     REQUIRE(snprintf(own_path,sizeof(own_path),"%s/%d",directory,getpid())<(int)sizeof(own_path));
     REQUIRE(!symlink(own_path,path));rejected(child,own,inode(own),EACCES);REQUIRE(!unlink(path));
+    // Wrong-peer authentication returns before our own worker necessarily
+    // observes EOF on its accepted channel. Require bounded reclamation rather
+    // than sampling that in-flight server FD as a permanent client leak.
+    struct timespec reclaim_start,reclaim_now;REQUIRE(!clock_gettime(CLOCK_MONOTONIC,&reclaim_start));
+    while(descriptors()!=baseline) {
+        REQUIRE(!clock_gettime(CLOCK_MONOTONIC,&reclaim_now));
+        long waited=(reclaim_now.tv_sec-reclaim_start.tv_sec)*1000+
+            (reclaim_now.tv_nsec-reclaim_start.tv_nsec)/1000000;
+        REQUIRE(waited<1500);poll(NULL,0,1);
+    }
     REQUIRE(descriptors()==baseline);close(own);close(commands[1]);close(responses[0]);
     printf("SOCKET_METADATA independent_latency_ms=%ld stalled8_latency_ms=%ld\n",independent_elapsed,elapsed);
     puts("SOCKET_METADATA lifecycle verified=1 queries=512 fragmented_query=1 fd_leaks=0 bounded_abandoned=1 independent_queries=1 closed_rejected=1 reused_rejected=1 wrong_peer_rejected=1 exit_cleanup=1");
