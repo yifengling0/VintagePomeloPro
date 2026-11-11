@@ -207,6 +207,7 @@ async function main() {
   let directoryResolutions=0, resolverUnavailable=false;
   const paths=load('service/LinuxSteamPaths.ets',{});
   const storage=load('service/LinuxSteamDiagnosticData.ets',{
+    './LinuxProtonRuntimeService':{LinuxProtonRuntimeService:{getInstance:()=>{throw new Error('Storage discovery must not access the Proton runtime');}}},
     './LinuxGnuProtonComponent':{LinuxGnuProtonComponent:{ensureReady:async()=>{}}},
     './LinuxSteamPaths': paths,
     '@kit.AbilityKit':{}, '@kit.CoreFileKit':{fileIo:io,
