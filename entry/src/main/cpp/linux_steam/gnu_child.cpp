@@ -170,10 +170,11 @@ struct PrivateLoader {
 }
 
 extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(NativeChildProcess_Args args) {
-    int resultFd = -1,audioFd=-1;
+    int resultFd = -1,audioFd=-1,maintenanceFd=-1;
     for (auto* node = args.fdList.head; node; node = node->next) {
         if (node->fdName && !strcmp(node->fdName, "gnu_result")) resultFd = node->fd;
         if (node->fdName && !strcmp(node->fdName, "hmosdeck_audio")) audioFd = node->fd;
+        if (node->fdName && !strcmp(node->fdName, "proton_lease")) maintenanceFd = node->fd;
     }
     if (resultFd < 0) return;
     Dl_info info{};
@@ -218,6 +219,7 @@ extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(Nat
             const std::string waylandSocket = paths.substr(0, separator);
             steamohos::ProtonProbeCapabilities capabilities;
             capabilities.audioFd = audioFd;
+            capabilities.maintenanceFd = maintenanceFd;
             size_t cursor = separator;
             while (cursor != std::string::npos) {
                 const auto end = paths.find('\n', cursor + 1);

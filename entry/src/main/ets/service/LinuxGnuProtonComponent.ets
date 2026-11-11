@@ -1,3 +1,4 @@
+import { withLinuxProtonMaintenance } from './LinuxProtonLease';
 import { ensureLinuxProtonModules } from './LinuxProtonModules';
 import { ensureLinuxProtonDxvk } from './LinuxProtonDxvk';
 import { ensureLinuxProtonMedia } from './LinuxProtonMedia';
@@ -14,9 +15,11 @@ const ROOT = `${BASE}/proton-probe`;
 const SCRATCH = `${BASE}/proton-component-install`;
 const RECEIPT = `${ROOT}/component-installed.json`;
 const JOURNAL = `${SCRATCH}/transaction.json`;
+const GROUP_READY = `${ROOT}/component-group-ready.json`;
 interface ComponentFile { path: string; bytes: number; sha256: string; mode: number; }
 interface ComponentManifest { schemaVersion: number; id: string; bytes: number; sha256: string; installedBytes: number; files: ComponentFile[]; }
 interface FileStamp { path: string; bytes: number; mtime: number; }
+interface ComponentIdentity { id?: string; activeId?: string; }
 interface ComponentReceipt { id: string; stamps: FileStamp[]; }
 interface Change { path: string; hadOld: boolean; }
 interface Transaction { committed: boolean; previousReceipt: string; changes: Change[]; }
@@ -127,7 +130,7 @@ export class LinuxGnuProtonComponent {
     const runtimes = LinuxProtonRuntimeService.getInstance();
     if (runtimes.inUse() && LinuxGnuProtonComponent.verified) return;
     runtimes.beginAdapter();
-    const operation = LinuxGnuProtonComponent.install(context); LinuxGnuProtonComponent.pending = operation;
+    const operation = withLinuxProtonMaintenance(async (): Promise<void> => LinuxGnuProtonComponent.install(context)); LinuxGnuProtonComponent.pending = operation;
     try { await operation; } finally { if (LinuxGnuProtonComponent.pending === operation) LinuxGnuProtonComponent.pending = null; runtimes.endAdapter(); }
   }
   static async verifyFreshPrefix(context: common.Context, probe: () => Promise<string>): Promise<string> {
@@ -183,6 +186,18 @@ export class LinuxGnuProtonComponent {
     if (await ConfigurationFiles.fileHash(path) !== manifest.sha256) throw new Error('Proton 压缩包校验失败，请重新安装应用');
     return path;
   }
+  private static publishGroup(): void {
+    const identity = (path: string, key: string = 'id'): string => {
+      const value = JSON.parse(readSmokeText(path)) as ComponentIdentity;
+      const id = key === 'activeId' ? value.activeId : value.id;
+      if (!id || !/^[a-f0-9]{64}$/.test(id)) throw new Error('Proton 组件整组身份不完整，请重试准备');
+      return id;
+    };
+    ConfigurationFiles.json(GROUP_READY, JSON.stringify({ schemaVersion: 2,
+      componentId: identity(RECEIPT), mediaId: identity(`${ROOT}/media-installed.json`),
+      modulesId: identity(`${ROOT}/modules-installed.json`), dxvkId: identity(`${ROOT}/dxvk-support/manifest.json`),
+      runtime: identity(`${BASE}/proton-runtimes/selection.json`, 'activeId') }));
+  }
   private static async install(context: common.Context): Promise<void> {
     ConfigurationFiles.ensure(BASE); ConfigurationFiles.ensure(ROOT); ConfigurationFiles.ensure(SCRATCH);
     try {
@@ -192,6 +207,7 @@ export class LinuxGnuProtonComponent {
       // Never replace code or recover a partial activation under a live process.
       if (LinuxGnuProtonComponent.sessionActive) { if (LinuxGnuProtonComponent.verified) return; throw new Error('请退出 Steam 和游戏后安装 GNU Proton'); }
       if (!LinuxGnuProtonComponent.prefixProbeActive) restorePrefixProbe();
+      if (fs.accessSync(GROUP_READY)) fs.unlinkSync(GROUP_READY);
       recoverTransaction(); LinuxGnuProtonComponent.verified = false;
       const runtimes = LinuxProtonRuntimeService.getInstance();
       const selected = await runtimes.prepareSelected(context);
@@ -208,6 +224,7 @@ export class LinuxGnuProtonComponent {
       if (stamps) {
         ConfigurationFiles.json(RECEIPT, JSON.stringify({ id: manifest.id, stamps }));
         await runtimes.adoptEmbedded(context, !selected); await ensureLinuxProtonMedia(context); await ensureLinuxProtonDxvk(context); await ensureLinuxProtonModules(context, LinuxGnuProtonComponent.progress);
+        LinuxGnuProtonComponent.publishGroup();
         LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪'); return;
       }
       if (await statfs.getFreeSize(BASE) < extractionBytes + manifest.bytes + 134217728) throw new Error('空间不足：GNU Proton 安装需要约 700 MB 可用空间');
@@ -232,7 +249,8 @@ export class LinuxGnuProtonComponent {
       ConfigurationFiles.json(RECEIPT, JSON.stringify({ id: manifest.id, stamps }));
       transaction.committed = true; ConfigurationFiles.json(JOURNAL, JSON.stringify(transaction));
       recoverTransaction(); await runtimes.adoptEmbedded(context, !selected); await ensureLinuxProtonMedia(context); await ensureLinuxProtonDxvk(context); await ensureLinuxProtonModules(context, LinuxGnuProtonComponent.progress);
-      LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪');
+      LinuxGnuProtonComponent.publishGroup();
+        LinuxGnuProtonComponent.verified = true; LinuxGnuProtonComponent.progress('GNU Proton 已就绪');
     } catch (error) {
       LinuxGnuProtonComponent.verified = false;
       try { recoverTransaction(); } catch (_) { throw new Error('Proton 更新未完成，请退出并重新打开应用恢复'); }

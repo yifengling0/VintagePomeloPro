@@ -12,6 +12,8 @@ public:
     void Stop();
     void SetAncestor(pid_t pid);
     bool OwnsProcess(pid_t pid);
+    bool OwnsGameProcess(uint32_t id, pid_t pid);
+    bool RegisterGameProcess(uint32_t id, pid_t supervisor, pid_t child);
     bool RegisterWindowProcess(pid_t supervisor, pid_t window);
     void ForgetWindowProcess(pid_t supervisor);
     std::string Parameters();
@@ -19,7 +21,8 @@ public:
     bool GetRequest(uint32_t id, LaunchRequest& request);
     bool Reply(uint32_t id, uint32_t kind, uint32_t code);
 private:
-    struct Client { int fd; pid_t pid; uint32_t id; uint64_t since; bool delivered=false; std::string bytes; LaunchRequest request; };
+    struct Client { int fd; pid_t pid; uint32_t id; uint64_t since; bool delivered=false; std::string bytes; LaunchRequest request;
+        pid_t gameProcess = -1; uint64_t gameStart = 0; pid_t gameParent = -1; };
     void Close();
     bool Validate(LaunchRequest& request);
     std::mutex mutex;

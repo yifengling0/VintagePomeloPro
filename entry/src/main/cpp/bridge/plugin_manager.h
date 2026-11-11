@@ -38,6 +38,7 @@ public:
     void DestroyToplevel(uint32_t toplevelId);
     // ---- VPP additions ----
     void RefreshRenderer(uint32_t toplevelId);
+    void SetToplevelIsolated(uint32_t id, bool isolated);
     void SetRendererPaused(uint32_t toplevelId, bool paused);
 
 
@@ -72,6 +73,8 @@ private:
 
     // Visibility can arrive before XComponent creates its renderer.
     std::unordered_map<uint32_t, bool> rendererPaused_;
+
+    std::unordered_map<uint32_t, bool> isolatedToplevels_;
 
     // pending queue: Ability 入队, WineWindow.aboutToAppear 出队 (FIFO);
     // deque 支持 CancelPendingToplevel 的定点删除 (queue 底层不可迭代)

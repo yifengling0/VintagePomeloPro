@@ -1,7 +1,7 @@
 // Product UI state is independent of the official Steam presentation.
 export type SteamPresentation = 'desktop' | 'bigPicture';
 export type LinuxSteamSessionState = 'stopped' | 'preparing' | 'starting' | 'running' | 'stopping' | 'failed';
-export type LinuxSteamAction = 'library' | 'downloads' | 'store' | 'account' | 'desktop' | 'bigPicture' | 'launch' | 'shutdown';
+export type LinuxSteamAction = 'library' | 'downloads' | 'store' | 'account' | 'desktop' | 'bigPicture' | 'launch' | 'properties' | 'shutdown';
 export interface LinuxSteamGame {
   appId: string;
   name: string;

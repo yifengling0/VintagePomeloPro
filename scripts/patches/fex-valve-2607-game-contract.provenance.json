@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "upstreamRevision": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+  "referenceRevision": "b001b25",
+  "patches": {
+    "0003-use-gnu-process-entry-points.patch": "1843921b77cf2de102ee9c996f5aef4787d4af564de3b205b8ab0a1348b2d744",
+    "0006-use-guest-glx-proc-entrypoints.patch": "9013923bf37c9c112d6e990013f22609e81e01f1d5c247b5854f2368d8202bcf",
+    "0007-forward-glx-errors-and-display-close.patch": "5632fc4e910b6b13063d2665ab71efa3944273abc5970a86baacf3fa6109f06f",
+    "0008-repack-i386-gl-pointer-arrays.patch": "a730c890feee8d7d25faa67a1e855c919b4a3dc3267a08bc7a68b4b67f3fc87c",
+    "0009-resolve-gl-extension-host-endpoints.patch": "d0619b50c2622721dfbcc5d616e16e31acf6afa108cadecbc6f6fcde894bf5f2",
+    "0012-use-audited-gnu-io-frontends.patch": "b2c417334e6117d78642285bbf9e60ea21b3e7c62d8737919c0e84599a1cd0ce",
+    "0017-route-namespace-passthrough-through-gnu.patch": "3ca9436356942b63111f663699e1c405ad4bffecb349e8943af68c2c3390f6e1",
+    "0019-preserve-i386-gl-opaque-handles.patch": "7c4df2ee428566f22ae704a30da27a875f3401606f4d61533a1613319077ddda",
+    "0020-copy-i386-gl-query-strings.patch": "f5325e045e95838904cfa6cf3aaabb104b502038aa11ea64255ef68ffac309d8",
+    "0021-use-typed-i386-gl-proc-entrypoints.patch": "e180813fc7f290dd201c2e8aa0e2aee76edcc6fe5190e063ffa384d3865081fa",
+    "0022-route-time64-file-updates-through-gnu.patch": "b6bfc5dd636bf6b9c1dc7878fe8509f92886eede4f2877a527660b41622385ce",
+    "0023-preserve-guest-signal-masks.patch": "7c40a05f262f5cd1d50caa5eec01620d91b92d942b74422fdfeeb487901a1842",
+    "0024-handle-i386-sigtimedwait-results.patch": "74f6752eb7fa238063de2e3527191bc989fa0b362e11b289db2940334f20778a",
+    "0025-preserve-fex-exec-guest-mask.patch": "cb685440be18e64f25357a45fb0229c6ac49d69f8ac9a59a32141281589612f8",
+    "0026-preserve-fex-exec-ignored-signals.patch": "ffd2f6d7bb0c63eb18ded31a958381b89f4f13986af757e5485071cae8f32924",
+    "0027-copy-i386-siginfo-with-guest-fault-checks.patch": "6a546f16f5ce3d13b6b61f5a650ec99bf866ef5f527ff76b37498a9608cf23f8",
+    "0028-avoid-optional-host-seccomp-traps.patch": "626e9c56f8d0a50764d326aa0eecc5be5f67f1c2927103ac04c19ab38faf26b5",
+    "0029-use-permission-free-guest-copies.patch": "69a268b66c2ad86893a789c213be4580f61b0bd21940df4515bbfa99ffad2b10",
+    "0030-route-guest-process-vm-through-gnu.patch": "6e357e83965121dbe190dec8d0ca2b7dcb1ec0d6e90a242836f2203983490c50",
+    "0031-reject-unimplemented-atomic-pidfd-clone.patch": "f93d0ab17c9501bbd9518197e4eb34ab65ad4d5c8a04c937c6da48d3cec4717c",
+    "0031-stop-owned-runtime-workers-at-last-guest-exit.patch": "66806d267c7cc8e3a4edbdc6a4513a8d0dc5867c22023cf030b85e3ea09b7aa5"
+  },
+  "adaptations": [
+    "Valve 2607 has no NeedsLoaderFD or FEX_EXECVEFD_PATH",
+    "Use VPP SteamOhosLocalCopy ABI; no HSL HostSysVIPC adapter",
+    "Preserve VPP OHOS guest protection and published sigreturn baseline",
+    "No experimental SMC or desktop applications"
+  ]
+}

@@ -1341,3 +1341,9 @@ test-x11-integration:
 test: test-wine-audio-downmix
 test-wine-audio-downmix:
 	python3 $(ROOT)/host_tests/wine_audio_downmix_test.py
+
+# Local and CI packaging share the same GNU payload/source gate.
+.PHONY: verify-linux-game-components
+verify-linux-game-components:
+	python3 $(ROOT)/scripts/build_linux_game_components.py --verify-only
+assemble: verify-linux-game-components

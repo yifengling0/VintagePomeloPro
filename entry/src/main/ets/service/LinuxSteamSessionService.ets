@@ -7,13 +7,14 @@ import { promptAction } from '@kit.ArkUI';
 import { hilog } from './LogService';
 import util from '@ohos.util';
 import smokeNapi from 'libsmoke_napi.so';
+import testNapi from 'libentry.so';
 import { DisplayMode, WinePresentationMode } from '../model/AppModels';
 import { LinuxSteamAction, LinuxSteamCommandAck, LinuxSteamSnapshot, validLinuxSteamAppId } from '../model/LinuxSteamModels';
 import { ConfigurationFiles } from './ConfigurationFiles';
 import { LinuxSteamInstallService } from './LinuxSteamInstallService';
 import { LinuxSteamLibraryService } from './LinuxSteamLibraryService';
 import { LinuxSteamGameLaunch } from './LinuxSteamGameLaunch';
-import { LinuxSteamWindowHost } from './LinuxSteamWindowHost';
+import { LinuxSteamNativeWindowHost } from './LinuxSteamNativeWindowHost';
 import { ensureLinuxSteamClientSupervisor, ensureLinuxSteamPosixSupport } from './LinuxSteamClientSupervisor';
 import { LinuxSteamPageRecovery } from './LinuxSteamPageRecovery';
 import { WineEngineService } from './WineEngineService';
@@ -44,7 +45,7 @@ export class LinuxSteamSessionService {
   private tail: Promise<void> = Promise.resolve();
   private requestId: number = 0;
   private timer: number = -1;
-  private host: LinuxSteamWindowHost | null = null;
+  private host: LinuxSteamNativeWindowHost | null = null;
   private games: LinuxSteamGameLaunch | null = null;
   private pageRecovery: LinuxSteamPageRecovery = new LinuxSteamPageRecovery();
   private recoveryQueued: boolean = false;
@@ -165,25 +166,32 @@ export class LinuxSteamSessionService {
       }
       const zRoot = await linuxSteamDownloadHome(this.context);
       ConfigurationFiles.json(`${BASE}/wine-z-root.path`, zRoot + '\n');
-      const engine = WineEngineService.getInstance();
-      this.value.message = '正在准备游戏桌面'; this.publish();
-      const ready = await engine.ensureReady(DisplayMode.DESKTOP, WinePresentationMode.DESKTOP,
-        zRoot, foregroundCurrent);
-      this.elapsed('wineDesktop', stageAt); stageAt = Date.now();
-      if (!ready) throw new Error(engine.getMessage() || '无法准备 Wine 桌面');
-      await ManagedLinuxSteamBridgeService.synchronizeCompatibility(this.context, `${root}/client/.steam/steam`, '/data/storage/el2/base/files/.wine');
+      // The compositor and graphics receiver are shared infrastructure. Linux
+      // sessions do not install a Wine prefix or start explorer/wineserver.
+      ensureSmokeDirectory('/data/storage/el2/base/files/.wine');
+      if (!testNapi.startServer('/data/storage/el2/base/files/.wine/wine-wayland') ||
+        !testNapi.prepareLinuxSteamDisplay()) throw new Error('无法准备 Steam 图形服务');
+      this.elapsed('nativeDisplay', stageAt); stageAt = Date.now();
       ensureSmokeDirectory(TMP); ensureSmokeDirectory(`${BASE}/session`);
       ConfigurationFiles.json(`${BASE}/session-generation.txt`, this.value.generation + '\n');
-      ConfigurationFiles.json(`${BASE}/client-launch.conf`, 'arg=-cef-disable-gpu\narg=-cef-disable-gpu-compositing\nsoftwareOpenGL=1\nsocketMetadata=1\nwineWindowHost=1\nsteamClientBridge=experimental\n' +
-        `startupAction=${action} ${action === 'launch' ? appId : '0'}\n`);
+      ConfigurationFiles.json(`${BASE}/client-launch.conf`, 'arg=-cef-disable-gpu\narg=-cef-disable-gpu-compositing\nsoftwareOpenGL=1\nsocketMetadata=1\ndesktopSession=observe\ndesktopGeometry=1280x800\nsteamClientBridge=experimental\n' +
+        `startupAction=${action} ${(action === 'launch' || action === 'properties') ? appId : '0'}\n`);
       const driveC = '/data/storage/el2/base/files/.wine/drive_c';
-      const results = `${driveC}/hmosdeck/session`;
+      const results = `${BASE}/session`;
       if (!ensureSmokeDirectory(results)) throw new Error('无法准备 Steam 会话目录');
       this.value.message = '正在创建 Steam 窗口'; this.publish();
-      this.host = new LinuxSteamWindowHost();
+      this.host = new LinuxSteamNativeWindowHost();
       await this.host.start(this.context, driveC, results);
       this.elapsed('windowHost', stageAt); stageAt = Date.now();
-      this.games = new LinuxSteamGameLaunch(); this.games.start(`${root}/library`, results, zRoot);
+      this.games = new LinuxSteamGameLaunch(); this.games.start(`${root}/library`, results, zRoot, async (): Promise<void> => {
+        if (!this.context) throw new Error('Steam 服务已结束');
+        const engine = WineEngineService.getInstance();
+        const ready = await engine.ensureReady(DisplayMode.DESKTOP, WinePresentationMode.DESKTOP, zRoot,
+          (): boolean => false);
+        if (!ready) throw new Error(engine.getMessage() || '无法准备 OHOS Wine');
+        await ManagedLinuxSteamBridgeService.synchronizeCompatibility(this.context,
+          `${root}/client/.steam/steam`, '/data/storage/el2/base/files/.wine');
+      }, async (failedAppId: string): Promise<void> => { await this.open('properties', failedAppId); });
       this.pageRecovery.start(`${root}/client/.steam/steam/logs/cef_log.txt`);
       this.value.state = 'starting'; this.value.message = '正在打开官方 Linux ARM64 Steam'; this.publish();
       this.timer = setInterval((): void => this.poll(), 400);
@@ -220,7 +228,7 @@ export class LinuxSteamSessionService {
     } finally { runtimes.endSessionPreparation(); }
   }
   async open(action: LinuxSteamAction = 'library', appId: string = '0'): Promise<void> {
-    if (action === 'launch' && !validLinuxSteamAppId(appId)) throw new Error('Steam AppID 无效');
+    if ((action === 'launch' || action === 'properties') && !validLinuxSteamAppId(appId)) throw new Error('Steam AppID 无效');
     const userAction = ++this.userAction;
     const tasks = HostWindowTasks.getInstance();
     const foregroundRevision = tasks.foregroundRevision();
@@ -280,7 +288,7 @@ export class LinuxSteamSessionService {
         previous.requestId > this.requestId && previous.requestId < 2147483647) this.requestId = previous.requestId;
     } catch (_) {}
     const requestId = ++this.requestId;
-    ConfigurationFiles.json(`${TMP}/deck-command.txt`, `1 ${generation} ${requestId} ${action} ${action === 'launch' ? appId : '0'}\n`);
+    ConfigurationFiles.json(`${TMP}/deck-command.txt`, `1 ${generation} ${requestId} ${action} ${(action === 'launch' || action === 'properties') ? appId : '0'}\n`);
     // The native client may exit before its dispatch ACK is observed. Record
     // the accepted local shutdown request before yielding to the worker.
     if (action === 'shutdown') {
@@ -318,12 +326,12 @@ export class LinuxSteamSessionService {
     const generation = this.value.generation;
     const previous = this.host;
     previous?.stop(); this.host = null;
-    const replacement = new LinuxSteamWindowHost(); this.host = replacement;
+    const replacement = new LinuxSteamNativeWindowHost(); this.host = replacement;
     this.value.message = '正在恢复 Steam 承载窗口'; this.publish();
     const operation = (async (): Promise<void> => {
       try {
         await replacement.start(context, '/data/storage/el2/base/files/.wine/drive_c',
-          '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session', true);
+          `${BASE}/session`, true);
         if (generation !== this.value.generation || !this.worker || this.value.state !== 'running' || this.host !== replacement)
           throw new Error('Steam 窗口恢复已取消');
         this.value.message = 'Steam 窗口已打开，登录、同步及错误状态请在客户端查看'; this.publish();

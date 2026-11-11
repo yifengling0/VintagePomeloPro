@@ -1,0 +1,25 @@
+{
+  "result": "PASS",
+  "rounds": [
+    {
+      "FEX": "6a0f84cd9dcd6832c8dce592bbe543dfe8867938e7f782ac43c4cd27c96c85a7",
+      "FEXServer": "059cf9217bc5221b5865242e53647e7b4bb9fe93bb4a0ed9940fe6e72e2a1683",
+      "usr/share/fex-emu/GuestThunks_32/libGL-guest.so": "fc0e9dfd7e366d3382c602a1c1c7f92b26032ff938d3e587b5ad36342d3786e1",
+      "usr/lib/aarch64-linux-gnu/fex-emu/HostThunks_32/libGL-host.so": "40f3e031ee93e5e351886b2f9d15289603cd6239bf217dd80447ce6b45b2c295",
+      "usr/share/fex-emu/GuestThunks/libGL-guest.so": "579289beb67b32c68dd093e3030730e0ddc45361e2a87c833485324bea26875b",
+      "usr/lib/aarch64-linux-gnu/fex-emu/HostThunks/libGL-host.so": "35e6741544902d2f0d9b1a1cbec529e07c0023d9e5739c200ac95eeb3b3f84fb"
+    },
+    {
+      "FEX": "6a0f84cd9dcd6832c8dce592bbe543dfe8867938e7f782ac43c4cd27c96c85a7",
+      "FEXServer": "059cf9217bc5221b5865242e53647e7b4bb9fe93bb4a0ed9940fe6e72e2a1683",
+      "usr/share/fex-emu/GuestThunks_32/libGL-guest.so": "fc0e9dfd7e366d3382c602a1c1c7f92b26032ff938d3e587b5ad36342d3786e1",
+      "usr/lib/aarch64-linux-gnu/fex-emu/HostThunks_32/libGL-host.so": "40f3e031ee93e5e351886b2f9d15289603cd6239bf217dd80447ce6b45b2c295",
+      "usr/share/fex-emu/GuestThunks/libGL-guest.so": "579289beb67b32c68dd093e3030730e0ddc45361e2a87c833485324bea26875b",
+      "usr/lib/aarch64-linux-gnu/fex-emu/HostThunks/libGL-host.so": "35e6741544902d2f0d9b1a1cbec529e07c0023d9e5739c200ac95eeb3b3f84fb"
+    }
+  ],
+  "sourceDateEpoch": 1783636776,
+  "vppBase": "03bbf50f",
+  "hslReference": "b001b25",
+  "kind": "host-component-rebuild; not device acceptance"
+}

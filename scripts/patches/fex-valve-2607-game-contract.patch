@@ -1,0 +1,1525 @@
+From: HSL contributors; VPP maintainers
+Subject: [PATCH] Backport shared game ABI contracts to Valve FEX 2607
+
+Based on HSL b001b25. Existing MIT notices retained. No experimental SMC changes.
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -36,6 +36,10 @@
+ option(ENABLE_GLIBC_ALLOCATOR_HOOK_FAULT "Enables glibc memory allocation hooking with fault for CI testing")
+ option(USE_PDB_DEBUGINFO "Build debug info in PDB format" FALSE)
+ option(BUILD_STEAM_SUPPORT "Enable Steam integration" FALSE)
++option(FEX_HSL_USER_PROCESS "Use paired GNU game process frontends" FALSE)
++if(FEX_HSL_USER_PROCESS)
++  add_compile_definitions(FEX_HSL_USER_PROCESS=1)
++endif()
+ 
+ set(X86_32_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Data/CMake/toolchain_x86_32.cmake" CACHE FILEPATH "Toolchain file for the (cross-)compiler targeting i686")
+ set(X86_64_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Data/CMake/toolchain_x86_64.cmake" CACHE FILEPATH "Toolchain file for the (cross-)compiler targeting x86_64")
+--- a/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
++++ b/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
+@@ -43,6 +43,8 @@
+ #include <FEXHeaderUtils/StringArgumentParser.h>
+ 
+ #include <atomic>
++#include <charconv>
++#include <optional>
+ #include <cerrno>
+ #include <cstdint>
+ #include <cstdio>
+@@ -379,6 +381,28 @@
+ 
+   int FEXFD {StealFEXFDFromEnv("FEX_EXECVEFD")};
+   int FEXSeccompFD {StealFEXFDFromEnv("FEX_SECCOMPFD")};
++  std::optional<uint64_t> GuestExecMask;
++  if (const char* Value = getenv("FEX_EXEC_GUEST_MASK")) {
++    uint64_t Mask {};
++    const auto Length = strlen(Value);
++    const auto Parsed = std::from_chars(Value, Value + Length, Mask, 16);
++    const bool Valid = Length == 16 && Parsed.ec == std::errc{} && Parsed.ptr == Value + Length;
++    unsetenv("FEX_EXEC_GUEST_MASK");
++    if (!Valid) return 1;
++    GuestExecMask = Mask;
++  }
++
++  std::optional<uint64_t> GuestExecIgnored;
++  if (const char* Value = getenv("FEX_EXEC_GUEST_IGNORE")) {
++    uint64_t Mask {};
++    const auto Length = strlen(Value);
++    const auto Parsed = std::from_chars(Value, Value + Length, Mask, 16);
++    const bool Valid = Length == 16 && Parsed.ec == std::errc{} && Parsed.ptr == Value + Length;
++    unsetenv("FEX_EXEC_GUEST_IGNORE");
++    if (!Valid) return 1;
++    GuestExecIgnored = Mask;
++  }
++
+ 
+   // Early init trivial handlers.
+   LogMan::Throw::InstallHandler(FEX::Logging::AssertHandler);
+@@ -571,6 +595,16 @@
+   auto ParentThread = SyscallHandler->TM.CreateThread(0, 0);
+   SyscallHandler->TM.TrackThread(ParentThread);
+   SignalDelegation->RegisterTLSState(ParentThread);
++  if (GuestExecMask) SignalDelegation->GuestSigProcMask(ParentThread, SIG_SETMASK, &*GuestExecMask, nullptr);
++  if (GuestExecIgnored) {
++    for (uint32_t Signal = 1; Signal <= FEX::HLE::SignalDelegator::MAX_SIGNALS; ++Signal) {
++      if (Signal == SIGKILL || Signal == SIGSTOP) continue;
++      FEX::HLE::GuestSigAction Action {};
++      Action.sigaction_handler.handler = (*GuestExecIgnored & (1ULL << (Signal - 1))) ? SIG_IGN : SIG_DFL;
++      SignalDelegation->RegisterGuestSignalHandler(Signal, &Action, nullptr);
++    }
++  }
++
+   ThunkHandler->RegisterTLSState(ParentThread);
+ 
+   SyscallHandler->DeserializeSeccompFD(ParentThread, FEXSeccompFD);
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/FileManagement.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/FileManagement.cpp
+@@ -45,6 +45,15 @@
+ #include <tiny-json.h>
+ 
+ namespace FEX::HLE {
++static int HostOpenat(int directory, const char* path, int flags, mode_t mode) {
++#ifdef FEX_HSL_USER_PROCESS
++  // Keep FEX's rootfs/thunk lookup; its final host operation uses the common
++  // GNU path frontend. Unsupported paths still enter HSL's captured fallback.
++  return ::openat(directory, path, flags, mode);
++#else
++  return ::syscall(SYSCALL_DEF(openat), directory, path, flags, mode);
++#endif
++}
+ bool FileManager::RootFSPathExists(const char* Filepath) const {
+   LOGMAN_THROW_A_FMT(Filepath && Filepath[0] == '/', "Filepath needs to be absolute");
+   return FHU::Filesystem::ExistsAt(RootFSFD, Filepath + 1);
+@@ -285,6 +294,13 @@
+ 
+       void SetupOverlay(const ThunkDBObject& DBDepend) {
+         auto ThunkPath = fextl::fmt::format("{}/{}", ThunkGuestPath, DBDepend.LibraryName);
++#ifdef FEX_HSL_USER_PROCESS
++        if (DBDepend.LibraryName == "libGL-guest.so") {
++          if (const char* Paired = getenv("VPP_PAIRED_GL_THUNKS"); Paired && Paired[0] == '/')
++            ThunkPath = fextl::fmt::format("{}/libGL-guest{}.so", Paired, Is64BitMode ? "64" : "32");
++        }
++#endif
++
+         if (!FHU::Filesystem::Exists(ThunkPath)) {
+           if (!Is64BitMode) {
+             // Guest libraries not existing is expected since not all libraries are thunked on 32-bit
+@@ -668,7 +684,7 @@
+       if (fd == -1 && errno == EXDEV) {
+         // This means a magic symlink (/proc/foo) was involved. In this case we
+         // just punt and do the access without RESOLVE_IN_ROOT.
+-        fd = ::syscall(SYSCALL_DEF(openat), Path.FD, Path.Path, flags, mode);
++        fd = HostOpenat(Path.FD, Path.Path, flags, mode);
+       }
+     }
+ 
+@@ -921,18 +937,18 @@
+       if (fd == -1 && errno == EXDEV) {
+         // This means a magic symlink (/proc/foo) was involved. In this case we
+         // just punt and do the access without RESOLVE_IN_ROOT.
+-        fd = ::syscall(SYSCALL_DEF(openat), Path.FD, Path.Path, flags, mode);
++        fd = HostOpenat(Path.FD, Path.Path, flags, mode);
+       }
+     }
+ 
+     // Open through RootFS failed (probably nonexistent), so open directly.
+     if (fd == -1) {
+-      fd = ::syscall(SYSCALL_DEF(openat), dirfs, SelfPath, flags, mode);
++      fd = HostOpenat(dirfs, SelfPath, flags, mode);
+     }
+ 
+     ReplaceEmuFd(fd, flags, mode);
+   } else {
+-    fd = ::syscall(SYSCALL_DEF(openat), dirfs, SelfPath, flags, mode);
++    fd = HostOpenat(dirfs, SelfPath, flags, mode);
+   }
+ 
+   return fd;
+--- /dev/null
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/HostUserCopy.h
+@@ -0,0 +1,41 @@
++// SPDX-License-Identifier: MIT
++#pragma once
++#include <cerrno>
++#include <cstddef>
++#include <sys/types.h>
++#include <sys/uio.h>
++#include <unistd.h>
++// GNU self-copy provided by HSL's same-ABI preload. Never enter process_vm
++// on normal_hap, change signal actions, or dereference guest user pointers.
++extern "C" long SteamOhosLocalCopy(void*,const void*,unsigned long) __attribute__((weak));
++namespace FEX::HLE {
++inline bool HslCopyUser(void* output,const void* input,size_t size) {
++  return !size || (SteamOhosLocalCopy && SteamOhosLocalCopy(output,input,size)==static_cast<long>(size));
++}
++// A normal_hap may only address this process. Use the same kernel-validated
++// GNU user-copy frontend for self copies, and reject a foreign pid before a
++// host process_vm call can raise SIGSYS. Returns bytes copied or -errno.
++inline long HslCopyIov(pid_t pid,struct iovec* destination,unsigned long destinationCount,
++                       struct iovec* source,unsigned long sourceCount,unsigned long flags) {
++  if(flags)return -EINVAL;
++  if(pid!=getpid())return -EPERM;
++  if(!SteamOhosLocalCopy)return -ENOSYS;
++  size_t copied=0;unsigned long destinationIndex=0,sourceIndex=0;
++  size_t destinationOffset=0,sourceOffset=0;
++  while(destinationIndex<destinationCount&&sourceIndex<sourceCount){
++    if(!destination[destinationIndex].iov_len){++destinationIndex;destinationOffset=0;continue;}
++    if(!source[sourceIndex].iov_len){++sourceIndex;sourceOffset=0;continue;}
++    const size_t destinationRemaining=destination[destinationIndex].iov_len-destinationOffset;
++    const size_t sourceRemaining=source[sourceIndex].iov_len-sourceOffset;
++    const size_t chunk=destinationRemaining<sourceRemaining?destinationRemaining:sourceRemaining;
++    void* target=static_cast<char*>(destination[destinationIndex].iov_base)+destinationOffset;
++    const void* input=static_cast<const char*>(source[sourceIndex].iov_base)+sourceOffset;
++    if(SteamOhosLocalCopy(target,input,chunk)!=static_cast<long>(chunk))
++      return copied?static_cast<long>(copied):-EFAULT;
++    copied+=chunk;destinationOffset+=chunk;sourceOffset+=chunk;
++    if(destinationOffset==destination[destinationIndex].iov_len){++destinationIndex;destinationOffset=0;}
++    if(sourceOffset==source[sourceIndex].iov_len){++sourceIndex;sourceOffset=0;}
++  }
++  return static_cast<long>(copied);
++}
++}
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+@@ -41,6 +41,12 @@
+ #define SS_AUTODISARM (1U << 31)
+ #endif
+ 
++#ifdef FEX_HSL_USER_PROCESS
++// Optional, versioned native GNU ABI. A stock/older adapter keeps raw capture.
++// The host adapter freezes the kernel word, preserves reserved signal bits,
++// and declines SIGSYS changes. Guest mask/required-host-signal logic is intact.
++extern "C" int HslSignalMaskNativeV1(int, const void*, void*, size_t, long*) __attribute__((weak));
++#endif
+ namespace FEX::HLE {
+ #ifdef ARCHITECTURE_x86_64
+ __attribute__((naked)) static void sigrestore() {
+@@ -49,6 +55,7 @@
+ #endif
+ 
+ constexpr static uint32_t X86_MINSIGSTKSZ = 2048;
++static void CheckForPendingSignals(const FEX::HLE::ThreadStateObject* Thread);
+ 
+ static FEX::HLE::ThreadStateObject* GetThreadFromAltStack(const stack_t& alt_stack) {
+   // The thread object lives just before the alt-stack begin.
+@@ -284,6 +291,7 @@
+         RestoreRTFrame_ia32(Thread, Context, Frame, ucontext);
+       }
+     }
++    CheckForPendingSignals(FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread));
+   }
+ }
+ 
+@@ -553,17 +561,35 @@
+   return true;
+ }
+ 
+-uint64_t SignalDelegator::GetNewSigMask(int Signal) const {
++uint64_t SignalDelegator::GetGuestSignalMaskForFrame(FEXCore::Core::InternalThreadState* Thread) const {
++  const auto* State = FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread);
++  // Linux sigsuspend saves the pre-suspend mask, not its temporary wait mask.
++  return State->SignalInfo.SuspendMaskRestorePending ? State->SignalInfo.PreviousSuspendMask.Val :
++                                                     State->SignalInfo.CurrentSignalMask.Val;
++}
++
++void SignalDelegator::RestoreGuestSignalMask(FEXCore::Core::InternalThreadState* Thread, void* UContext, uint64_t Mask) {
++  auto* State = FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread);
++  Mask &= ~((1ULL << (SIGKILL - 1)) | (1ULL << (SIGSTOP - 1)));
++  State->SignalInfo.CurrentSignalMask.Val = Mask;
++  const auto HostMask = GetHostSigMask(Mask);
++  memcpy(&static_cast<ucontext_t*>(UContext)->uc_sigmask, &HostMask, sizeof(HostMask));
++}
++
++uint64_t SignalDelegator::GetNewSigMask(const ThreadStateObject* Thread, int Signal) const {
+   const SignalHandler& Handler = HostHandlers[Signal];
+-  // Set up a new mask based on this signals signal mask
+-  uint64_t NewMask = Handler.GuestAction.sa_mask.Val;
+-
+-  // If NODEFER then the new signal mask includes this signal
++  uint64_t NewMask = Thread->SignalInfo.CurrentSignalMask.Val | Handler.GuestAction.sa_mask.Val;
++
++  // Unless NODEFER, defer another instance of this signal while its handler runs.
+   if (!(Handler.GuestAction.sa_flags & SA_NODEFER)) {
+     NewMask |= (1ULL << (Signal - 1));
+   }
+ 
+-  // Walk our required signals and stop masking them if requested
++  return NewMask & ~((1ULL << (SIGKILL - 1)) | (1ULL << (SIGSTOP - 1)));
++}
++
++uint64_t SignalDelegator::GetHostSigMask(uint64_t NewMask) const {
++  // Required host signals stay deliverable without changing the guest mask.
+   for (size_t i = 0; i < MAX_SIGNALS; ++i) {
+     if (HostHandlers[i + 1].Required.load(std::memory_order_relaxed)) {
+       // Never mask our required signals
+@@ -661,7 +687,8 @@
+ 
+     // Update our host signal mask so we don't hit race conditions with signals
+     // This allows us to maintain the expected signal mask through the guest signal handling and then all the way back again
+-    sigmask_val[0] = GetNewSigMask(Signal);
++    // Preserve earlier deferred host masks; guest handler entry has not happened yet.
++    sigmask_val[0] = GetHostSigMask(sigmask_val[0] | GetNewSigMask(ThreadObject, Signal));
+ 
+     // Now update the faulting page permissions so it will fault on write.
+     mprotect(reinterpret_cast<void*>(&Thread->InterruptFaultPage), sizeof(Thread->InterruptFaultPage), PROT_NONE);
+@@ -695,7 +722,9 @@
+   } else {
+     if (Handler.GuestHandler &&
+         Handler.GuestHandler(Thread, Signal, &SigInfo, UContext, &Handler.GuestAction, &ThreadObject->SignalInfo.GuestAltStack)) {
+-      uint64_t NewMask = GetNewSigMask(Signal);
++      ThreadObject->SignalInfo.SuspendMaskRestorePending = false;
++      ThreadObject->SignalInfo.CurrentSignalMask.Val = GetNewSigMask(ThreadObject, Signal);
++      uint64_t NewMask = GetHostSigMask(ThreadObject->SignalInfo.CurrentSignalMask.Val);
+ 
+       // Update our host signal mask so we don't hit race conditions with signals
+       // This allows us to maintain the expected signal mask through the guest signal handling and then all the way back again
+@@ -1116,6 +1145,17 @@
+   return 0;
+ }
+ 
++uint64_t SignalDelegator::GetGuestIgnoredSignals() {
++  std::lock_guard lk(GuestDelegatorMutex);
++  uint64_t Mask {};
++  for (size_t Signal = 1; Signal <= MAX_SIGNALS; ++Signal) {
++    if (HostHandlers[Signal].GuestAction.sigaction_handler.handler == SIG_IGN) {
++      Mask |= 1ULL << (Signal - 1);
++    }
++  }
++  return Mask;
++}
++
+ void SignalDelegator::CheckXIDHandler() {
+   std::lock_guard lk(GuestDelegatorMutex);
+   std::lock_guard lk2(HostDelegatorMutex);
+@@ -1231,16 +1271,7 @@
+       return -EINVAL;
+     }
+ 
+-    uint64_t HostMask = Thread->SignalInfo.CurrentSignalMask.Val;
+-    // Now actually set the host mask
+-    // This will hide from the guest that we are not actually setting all of the masks it wants
+-    for (size_t i = 0; i < MAX_SIGNALS; ++i) {
+-      if (HostHandlers[i + 1].Required.load(std::memory_order_relaxed)) {
+-        // If it is a required host signal then we can't mask it
+-        HostMask &= ~(1ULL << i);
+-      }
+-    }
+-
++    const uint64_t HostMask = GetHostSigMask(Thread->SignalInfo.CurrentSignalMask.Val);
+     ::syscall(SYS_rt_sigprocmask, SIG_SETMASK, &HostMask, nullptr, 8);
+   }
+ 
+@@ -1284,32 +1315,24 @@
+ 
+   // Backup the mask
+   Thread->SignalInfo.PreviousSuspendMask = Thread->SignalInfo.CurrentSignalMask;
++  Thread->SignalInfo.SuspendMaskRestorePending = true;
+   // Set the new mask
+   Thread->SignalInfo.CurrentSignalMask.Val = *set & IgnoredSignalsMask;
+   sigset_t HostSet {};
+ 
+-  sigemptyset(&HostSet);
+-
+-  for (int32_t i = 0; i < MAX_SIGNALS; ++i) {
+-    if (*set & (1ULL << i)) {
+-      sigaddset(&HostSet, i + 1);
+-    }
+-  }
+-
+-  // Additionally we must always listen to SIGNAL_FOR_PAUSE
+-  // This technically forces us in to a race but should be fine
+-  // SIGBUS and SIGILL can't happen so we don't need to listen for them
+-  // sigaddset(&HostSet, SIGNAL_FOR_PAUSE);
++  const auto HostMask = GetHostSigMask(Thread->SignalInfo.CurrentSignalMask.Val);
++  memcpy(&HostSet, &HostMask, sizeof(HostMask));
+ 
+   // Spin this in a loop until we aren't sigsuspended
+   // This can happen in the case that the guest has sent signal that we can't block
+   uint64_t Result = sigsuspend(&HostSet);
+ 
+-  // Restore Previous signal mask we are emulating
+-  // XXX: Might be unsafe if the signal handler adjusted the thread's signal mask
+-  // But since we don't support the guest adjusting the mask through the context object
+-  // then this is safe-ish
+-  Thread->SignalInfo.CurrentSignalMask = Thread->SignalInfo.PreviousSuspendMask;
++  // A delivered guest handler restores its (possibly edited) frame mask.
++  // Only restore here if no guest handler consumed the suspended call.
++  if (Thread->SignalInfo.SuspendMaskRestorePending) {
++    Thread->SignalInfo.CurrentSignalMask = Thread->SignalInfo.PreviousSuspendMask;
++    Thread->SignalInfo.SuspendMaskRestorePending = false;
++  }
+ 
+   CheckForPendingSignals(Thread);
+ 
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
+@@ -102,6 +102,7 @@
+    * After the first thread is created check this.
+    */
+   void CheckXIDHandler();
++  uint64_t GetGuestIgnoredSignals();
+ 
+   void UninstallHostHandler(int Signal);
+   void QueueSignal(pid_t tgid, pid_t tid, int Signal, siginfo_t* info, bool IgnoreMask);
+@@ -285,7 +286,10 @@
+   bool HandleSignalPause(FEXCore::Core::InternalThreadState* Thread, int Signal, void* info, void* ucontext);
+   bool HandleSIGILL(FEXCore::Core::InternalThreadState* Thread, int Signal, void* info, void* ucontext);
+ 
+-  uint64_t GetNewSigMask(int Signal) const;
++  uint64_t GetNewSigMask(const ThreadStateObject* Thread, int Signal) const;
++  uint64_t GetHostSigMask(uint64_t GuestMask) const;
++  uint64_t GetGuestSignalMaskForFrame(FEXCore::Core::InternalThreadState* Thread) const;
++  void RestoreGuestSignalMask(FEXCore::Core::InternalThreadState* Thread, void* UContext, uint64_t Mask);
+ 
+   std::mutex HostDelegatorMutex;
+   std::mutex GuestDelegatorMutex;
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
+@@ -128,6 +128,7 @@
+   [[maybe_unused]] auto* guest_siginfo = reinterpret_cast<siginfo_t*>(Context->SigInfoLocation);
+ 
+   Frame->InSyscallInfo = Context->InSyscallInfo;
++  RestoreGuestSignalMask(Thread, ucontext, guest_uctx->uc_sigmask.val[0]);
+ 
+   // If the guest modified the RIP then we need to take special precautions here
+   if (Context->OriginalRIP != guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_RIP] || Context->FaultToTopAndGeneratedException) {
+@@ -208,6 +209,8 @@
+                                         FEXCore::Core::CpuStateFrame* Frame, void* ucontext) {
+   SigFrame_i32* guest_uctx = reinterpret_cast<SigFrame_i32*>(Context->UContextLocation);
+   Frame->InSyscallInfo = Context->InSyscallInfo;
++  RestoreGuestSignalMask(Thread, ucontext, static_cast<uint64_t>(guest_uctx->sc.oldmask) |
++                                          (static_cast<uint64_t>(guest_uctx->extramask[0]) << 32));
+ 
+   // If the guest modified the RIP then we need to take special precautions here
+   if (Context->OriginalRIP != guest_uctx->sc.ip || Context->FaultToTopAndGeneratedException) {
+@@ -285,6 +288,7 @@
+                                           FEXCore::Core::CpuStateFrame* Frame, void* ucontext) {
+   RTSigFrame_i32* guest_uctx = reinterpret_cast<RTSigFrame_i32*>(Context->UContextLocation);
+   Frame->InSyscallInfo = Context->InSyscallInfo;
++  RestoreGuestSignalMask(Thread, ucontext, guest_uctx->uc.uc_sigmask.val[0]);
+ 
+   // If the guest modified the RIP then we need to take special precautions here
+   if (Context->OriginalRIP != guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_EIP] || Context->FaultToTopAndGeneratedException) {
+@@ -404,6 +408,8 @@
+   ContextBackup->SigInfoLocation = SigInfoLocation;
+ 
+   FEXCore::x86_64::ucontext_t* guest_uctx = reinterpret_cast<FEXCore::x86_64::ucontext_t*>(UContextLocation);
++  guest_uctx->uc_sigmask = {};
++  guest_uctx->uc_sigmask.val[0] = GetGuestSignalMaskForFrame(Thread);
+   siginfo_t* guest_siginfo = reinterpret_cast<siginfo_t*>(SigInfoLocation);
+   // Store where the host context lives in the guest stack.
+   *(uint64_t*)HostStackLocation = (uint64_t)ContextBackup;
+@@ -441,7 +447,7 @@
+     guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_TRAPNO] = ConvertSignalToTrapNo(Signal, HostSigInfo);
+     guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_ERR] = ConvertSignalToError(ucontext, Signal, HostSigInfo);
+   }
+-  guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_OLDMASK] = 0;
++  guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_OLDMASK] = guest_uctx->uc_sigmask.val[0];
+   guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_CR2] = 0;
+ 
+ #define COPY_REG(x) guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_##x] = Frame->State.gregs[FEXCore::X86State::REG_##x];
+@@ -547,6 +553,9 @@
+   ContextBackup->SigInfoLocation = 0;
+ 
+   SigFrame_i32* guest_uctx = reinterpret_cast<SigFrame_i32*>(SigFrameLocation);
++  const auto SavedMask = GetGuestSignalMaskForFrame(Thread);
++  guest_uctx->sc.oldmask = static_cast<uint32_t>(SavedMask);
++  guest_uctx->extramask[0] = static_cast<uint32_t>(SavedMask >> 32);
+   // Store where the host context lives in the guest stack.
+   *(uint64_t*)HostStackLocation = (uint64_t)ContextBackup;
+ 
+@@ -674,6 +683,8 @@
+ 
+   uint64_t SigFrameLocation = NewGuestSP;
+   RTSigFrame_i32* guest_uctx = reinterpret_cast<RTSigFrame_i32*>(SigFrameLocation);
++  guest_uctx->uc.uc_sigmask = {};
++  guest_uctx->uc.uc_sigmask.val[0] = GetGuestSignalMaskForFrame(Thread);
+   // Store where the host context lives in the guest stack.
+   *(uint64_t*)HostStackLocation = (uint64_t)ContextBackup;
+ 
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp
+@@ -196,6 +196,17 @@
+   return Interp;
+ }
+ 
++static long HostExecveAt(int directory, const char* path, char* const* arguments, char* const* environment, int flags) {
++#ifdef FEX_HSL_USER_PROCESS
++  // An absolute path ignores dirfd. Keep the GNU runtime's exec transaction,
++  // including image/FD/signal cleanup, instead of bypassing it with a raw call.
++  if (!flags && path && path[0] == '/') {
++    return ::execve(path, arguments, environment);
++  }
++#endif
++  return ::syscall(SYS_execveat, directory, path, arguments, environment, flags);
++}
++
+ uint64_t ExecveHandler(FEXCore::Core::CpuStateFrame* Frame, const char* pathname, char* const* argv, char* const* envp, ExecveAtArgs Args) {
+   auto SyscallHandler = FEX::HLE::_SyscallHandler;
+   Frame->Thread->CTX->FlushAndCloseCodeMap();
+@@ -328,18 +339,30 @@
+   // - seccomp inheritance
+   // - FEXServer FD inheritance (unshare(CLONE_NEWNET))
+   // - FD_CLOEXEC set on FD on anonymous file FD.
+-  const bool NeedsEnvpCopy = (IsFDExec && !(IsBinfmtCompatible || IsOtherELF)) || HasSeccomp || NeedsFDCopy;
+ 
+   // We are trying to execute a shebang handled by a different architecture interpreter (e.g. /usr/bin/python from the host FS).
+   // In this case we just defer to the kernel.
+   const bool IsForeignShebang = (IsShebang && InterpreterType == ELFLoader::ELFContainer::ELFType::TYPE_OTHER_ELF);
++  const bool TransferGuestMask = !IsOtherELF && !IsForeignShebang;
++  fextl::string GuestMaskEnv, GuestIgnoreEnv;
++  const bool NeedsEnvpCopy = (IsFDExec && !(IsBinfmtCompatible || IsOtherELF)) || HasSeccomp || NeedsFDCopy || TransferGuestMask;
++  if (TransferGuestMask) {
++    uint64_t GuestMask {};
++    SyscallHandler->GetSignalDelegator()->GuestSigProcMask(
++      FEX::HLE::ThreadManager::GetStateObjectFromCPUState(Frame), SIG_SETMASK, nullptr, &GuestMask);
++    GuestMaskEnv = fextl::fmt::format("FEX_EXEC_GUEST_MASK={:016x}", GuestMask);
++    GuestIgnoreEnv = fextl::fmt::format("FEX_EXEC_GUEST_IGNORE={:016x}", SyscallHandler->GetSignalDelegator()->GetGuestIgnoredSignals());
++  }
+ 
+   if (NeedsEnvpCopy) {
+     if (envp) {
+       auto OldEnvp = envp;
+       while (*OldEnvp) {
+         ///< Copy the pointers to our own vector of environment variables.
+-        EnvpArgs.emplace_back(*OldEnvp);
++        if (strncmp(*OldEnvp, "FEX_EXEC_GUEST_MASK=", sizeof("FEX_EXEC_GUEST_MASK=") - 1) != 0 &&
++            strncmp(*OldEnvp, "FEX_EXEC_GUEST_IGNORE=", sizeof("FEX_EXEC_GUEST_IGNORE=") - 1) != 0) {
++          EnvpArgs.emplace_back(*OldEnvp);
++        }
+         ++OldEnvp;
+       }
+     }
+@@ -374,6 +397,10 @@
+       EnvpArgs.emplace_back(FDSeccompEnv.data());
+     }
+ 
++    if (TransferGuestMask) {
++      EnvpArgs.emplace_back(GuestMaskEnv.c_str());
++      EnvpArgs.emplace_back(GuestIgnoreEnv.c_str());
++    }
+     // Emplace nullptr at the end to stop
+     EnvpArgs.emplace_back(nullptr);
+ 
+@@ -393,7 +420,7 @@
+   }
+ 
+   if (IsBinfmtCompatible || IsOtherELF || IsForeignShebang) {
+-    Result = ::syscall(SYS_execveat, Args.dirfd, Filename.c_str(), argv, EnvpPtr, Args.flags);
++    Result = HostExecveAt(Args.dirfd, Filename.c_str(), argv, EnvpPtr, Args.flags);
+     CloseSeccompFD();
+     CloseFDExecFD();
+     SYSCALL_ERRNO();
+@@ -440,7 +467,7 @@
+     ExecveArgs.emplace_back(nullptr);
+   }
+ 
+-  Result = ::syscall(SYS_execveat, Args.dirfd, "/proc/self/exe", const_cast<char* const*>(ExecveArgs.data()), EnvpPtr, Args.flags);
++  Result = HostExecveAt(Args.dirfd, "/proc/self/exe", const_cast<char* const*>(ExecveArgs.data()), EnvpPtr, Args.flags);
+   CloseSeccompFD();
+   CloseFDExecFD();
+ 
+@@ -591,6 +618,14 @@
+ uint64_t CloneHandler(FEXCore::Core::CpuStateFrame* Frame, FEX::HLE::clone3_args* args) {
+   uint64_t flags = args->args.flags;
+ 
++  // The emulated fork/thread paths cannot supply an atomic pidfd. In
++  // particular ForkGuest drops this flag, leaving the caller's output
++  // untouched despite a successful child PID. Refuse before any child or
++  // thread is created; pidfd_open/waitid remain real host operations.
++  if (flags & CLONE_PIDFD) {
++    return -EINVAL;
++  }
++
+   if (flags & CLONE_CLEAR_SIGHAND) {
+     // CLONE_CLEAR_SIGHAND was added in kernel 5.5. FEX doesn't properly support this.
+     // glibc started using this flag in 2.38 as an optimization for posix_spawn.
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
+@@ -12,11 +12,42 @@
+ 
+ #include <FEXCore/IR/IR.h>
+ 
++#include "LinuxSyscalls/HostUserCopy.h"
+ #include <stdint.h>
+ #include <sys/epoll.h>
+ 
+ namespace FEX::HLE {
+ #ifdef ARCHITECTURE_arm64
++#ifdef FEX_HSL_USER_PROCESS
++// These ABI-compatible operations require HSL's GNU namespace/FD frontend.
++// The old tracer translated their inline svc; a local session has no tracer.
++// Everything else retains the original direct kernel path (notably futex).
++template<int number>
++constexpr bool HslNamespaceCall = (
++    number == SYSCALL_DEF(chdir) ||
++    number == SYSCALL_DEF(getcwd) ||
++    number == SYSCALL_DEF(mkdirat) ||
++    number == SYSCALL_DEF(mknodat) ||
++    number == SYSCALL_DEF(unlinkat) ||
++    number == SYSCALL_DEF(fchmodat) ||
++    number == SYSCALL_DEF(fchownat) ||
++    number == SYSCALL_DEF(renameat) ||
++    number == SYSCALL_DEF(renameat2) ||
++    number == SYSCALL_DEF(linkat) ||
++    number == SYSCALL_DEF(symlinkat) ||
++    number == SYSCALL_DEF(bind) ||
++    number == SYSCALL_DEF(connect) ||
++    number == SYSCALL_DEF(inotify_add_watch) ||
++    // x86-64 and i386 time64 share this kernel timespec ABI.
++    number == SYSCALL_DEF(utimensat) ||
++    number == SYSCALL_DEF(fstat) ||
++    number == SYSCALL_DEF(getdents64) ||
++    number == SYSCALL_DEF(setuid) ||
++    number == SYSCALL_DEF(setgid) ||
++    number == SYSCALL_DEF(setfsuid) ||
++    number == SYSCALL_DEF(setfsgid));
++#endif
++
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough0(FEXCore::Core::CpuStateFrame* Frame) {
+@@ -34,6 +65,12 @@
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough1(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1) {
++#ifdef FEX_HSL_USER_PROCESS
++  if constexpr (HslNamespaceCall<syscall_num>) {
++    uint64_t Result = ::syscall(syscall_num, arg1, 0, 0, 0, 0, 0);
++    SYSCALL_ERRNO();
++  }
++#endif
+   register uint64_t x0 asm("x0") = arg1;
+   register int x8 asm("x8") = syscall_num;
+   __asm volatile(R"(
+@@ -48,6 +85,12 @@
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough2(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2) {
++#ifdef FEX_HSL_USER_PROCESS
++  if constexpr (HslNamespaceCall<syscall_num>) {
++    uint64_t Result = ::syscall(syscall_num, arg1, arg2, 0, 0, 0, 0);
++    SYSCALL_ERRNO();
++  }
++#endif
+   register uint64_t x0 asm("x0") = arg1;
+   register uint64_t x1 asm("x1") = arg2;
+   register int x8 asm("x8") = syscall_num;
+@@ -63,6 +106,12 @@
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough3(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
++#ifdef FEX_HSL_USER_PROCESS
++  if constexpr (HslNamespaceCall<syscall_num>) {
++    uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, 0, 0, 0);
++    SYSCALL_ERRNO();
++  }
++#endif
+   register uint64_t x0 asm("x0") = arg1;
+   register uint64_t x1 asm("x1") = arg2;
+   register uint64_t x2 asm("x2") = arg3;
+@@ -79,6 +128,12 @@
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough4(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
++#ifdef FEX_HSL_USER_PROCESS
++  if constexpr (HslNamespaceCall<syscall_num>) {
++    uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, arg4, 0, 0);
++    SYSCALL_ERRNO();
++  }
++#endif
+   register uint64_t x0 asm("x0") = arg1;
+   register uint64_t x1 asm("x1") = arg2;
+   register uint64_t x2 asm("x2") = arg3;
+@@ -96,6 +151,12 @@
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough5(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
++#ifdef FEX_HSL_USER_PROCESS
++  if constexpr (HslNamespaceCall<syscall_num>) {
++    uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, arg4, arg5, 0);
++    SYSCALL_ERRNO();
++  }
++#endif
+   register uint64_t x0 asm("x0") = arg1;
+   register uint64_t x1 asm("x1") = arg2;
+   register uint64_t x2 asm("x2") = arg3;
+@@ -176,6 +237,12 @@
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough3(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
++#ifdef FEX_HSL_USER_PROCESS
++  if constexpr (HslNamespaceCall<syscall_num>) {
++    uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, 0, 0, 0);
++    SYSCALL_ERRNO();
++  }
++#endif
+   uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3);
+   SYSCALL_ERRNO();
+ }
+@@ -183,6 +250,12 @@
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPassthrough4(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
++#ifdef FEX_HSL_USER_PROCESS
++  if constexpr (HslNamespaceCall<syscall_num>) {
++    uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, arg4, 0, 0);
++    SYSCALL_ERRNO();
++  }
++#endif
+   uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, arg4);
+   SYSCALL_ERRNO();
+ }
+@@ -213,7 +286,10 @@
+ 
+ void RegisterCommon(FEX::HLE::SyscallHandler* Handler) {
+   using namespace FEXCore::IR;
+-  REGISTER_SYSCALL_IMPL(read, SyscallPassthrough3<SYSCALL_DEF(read)>);
++  REGISTER_SYSCALL_IMPL(read, [](FEXCore::Core::CpuStateFrame*, int fd, void* buffer, size_t bytes) -> uint64_t {
++    uint64_t Result = ::read(fd, buffer, bytes);
++    SYSCALL_ERRNO();
++  });
+   REGISTER_SYSCALL_IMPL(write, SyscallPassthrough3<SYSCALL_DEF(write)>);
+   REGISTER_SYSCALL_IMPL(lseek, SyscallPassthrough3<SYSCALL_DEF(lseek)>);
+   REGISTER_SYSCALL_IMPL(sched_yield, SyscallPassthrough0<SYSCALL_DEF(sched_yield)>);
+@@ -306,9 +382,24 @@
+   REGISTER_SYSCALL_IMPL(timer_getoverrun, SyscallPassthrough1<SYSCALL_DEF(timer_getoverrun)>);
+   REGISTER_SYSCALL_IMPL(timer_delete, SyscallPassthrough1<SYSCALL_DEF(timer_delete)>);
+   REGISTER_SYSCALL_IMPL(tgkill, SyscallPassthrough3<SYSCALL_DEF(tgkill)>);
++#ifdef FEX_HSL_USER_PROCESS
++  // Optional OHOS sandbox capability: fail before inline SVC/guest SIGSYS.
++  REGISTER_SYSCALL_IMPL(mbind, UnimplementedSyscallSafe);
++  #else
+   REGISTER_SYSCALL_IMPL(mbind, SyscallPassthrough6<SYSCALL_DEF(mbind)>);
++  #endif
++#ifdef FEX_HSL_USER_PROCESS
++  // Optional OHOS sandbox capability: fail before inline SVC/guest SIGSYS.
++  REGISTER_SYSCALL_IMPL(set_mempolicy, UnimplementedSyscallSafe);
++  #else
+   REGISTER_SYSCALL_IMPL(set_mempolicy, SyscallPassthrough3<SYSCALL_DEF(set_mempolicy)>);
++  #endif
++#ifdef FEX_HSL_USER_PROCESS
++  // Optional OHOS sandbox capability: fail before inline SVC/guest SIGSYS.
++  REGISTER_SYSCALL_IMPL(get_mempolicy, UnimplementedSyscallSafe);
++  #else
+   REGISTER_SYSCALL_IMPL(get_mempolicy, SyscallPassthrough5<SYSCALL_DEF(get_mempolicy)>);
++  #endif
+   REGISTER_SYSCALL_IMPL(mq_unlink, SyscallPassthrough1<SYSCALL_DEF(mq_unlink)>);
+   REGISTER_SYSCALL_IMPL(add_key, SyscallPassthrough5<SYSCALL_DEF(add_key)>);
+   REGISTER_SYSCALL_IMPL(request_key, SyscallPassthrough4<SYSCALL_DEF(request_key)>);
+@@ -317,7 +408,12 @@
+   REGISTER_SYSCALL_IMPL(ioprio_get, SyscallPassthrough3<SYSCALL_DEF(ioprio_get)>);
+   REGISTER_SYSCALL_IMPL(inotify_add_watch, SyscallPassthrough3<SYSCALL_DEF(inotify_add_watch)>);
+   REGISTER_SYSCALL_IMPL(inotify_rm_watch, SyscallPassthrough2<SYSCALL_DEF(inotify_rm_watch)>);
++#ifdef FEX_HSL_USER_PROCESS
++  // Optional OHOS sandbox capability: fail before inline SVC/guest SIGSYS.
++  REGISTER_SYSCALL_IMPL(migrate_pages, UnimplementedSyscallSafe);
++  #else
+   REGISTER_SYSCALL_IMPL(migrate_pages, SyscallPassthrough4<SYSCALL_DEF(migrate_pages)>);
++  #endif
+   REGISTER_SYSCALL_IMPL(mkdirat, SyscallPassthrough3<SYSCALL_DEF(mkdirat)>);
+   REGISTER_SYSCALL_IMPL(mknodat, SyscallPassthrough4<SYSCALL_DEF(mknodat)>);
+   REGISTER_SYSCALL_IMPL(fchownat, SyscallPassthrough5<SYSCALL_DEF(fchownat)>);
+@@ -329,7 +425,12 @@
+   REGISTER_SYSCALL_IMPL(unshare, SyscallPassthrough1<SYSCALL_DEF(unshare)>);
+   REGISTER_SYSCALL_IMPL(splice, SyscallPassthrough6<SYSCALL_DEF(splice)>);
+   REGISTER_SYSCALL_IMPL(tee, SyscallPassthrough4<SYSCALL_DEF(tee)>);
++#ifdef FEX_HSL_USER_PROCESS
++  // Optional OHOS sandbox capability: fail before inline SVC/guest SIGSYS.
++  REGISTER_SYSCALL_IMPL(move_pages, UnimplementedSyscallSafe);
++  #else
+   REGISTER_SYSCALL_IMPL(move_pages, SyscallPassthrough6<SYSCALL_DEF(move_pages)>);
++  #endif
+   REGISTER_SYSCALL_IMPL(timerfd_create, SyscallPassthrough2<SYSCALL_DEF(timerfd_create)>);
+   REGISTER_SYSCALL_IMPL(accept4, SyscallPassthrough4<SYSCALL_DEF(accept4)>);
+   REGISTER_SYSCALL_IMPL(eventfd2, SyscallPassthrough2<SYSCALL_DEF(eventfd2)>);
+@@ -469,7 +570,12 @@
+     REGISTER_SYSCALL_IMPL_X64(pselect6, SyscallPassthrough6<SYSCALL_DEF(pselect6)>);
+     REGISTER_SYSCALL_IMPL_X64(ppoll, SyscallPassthrough5<SYSCALL_DEF(ppoll)>);
+     REGISTER_SYSCALL_IMPL_X64(set_robust_list, SyscallPassthrough2<SYSCALL_DEF(set_robust_list)>);
++#ifdef FEX_HSL_USER_PROCESS
++    // Optional OHOS sandbox capability: fail before inline SVC/guest SIGSYS.
++    REGISTER_SYSCALL_IMPL_X64(get_robust_list, UnimplementedSyscallSafe);
++    #else
+     REGISTER_SYSCALL_IMPL_X64(get_robust_list, SyscallPassthrough3<SYSCALL_DEF(get_robust_list)>);
++    #endif
+     REGISTER_SYSCALL_IMPL_X64(sync_file_range, SyscallPassthrough4<SYSCALL_DEF(sync_file_range)>);
+     REGISTER_SYSCALL_IMPL_X64(vmsplice, SyscallPassthrough4<SYSCALL_DEF(vmsplice)>);
+     REGISTER_SYSCALL_IMPL_X64(utimensat, SyscallPassthrough4<SYSCALL_DEF(utimensat)>);
+@@ -482,8 +588,34 @@
+     REGISTER_SYSCALL_IMPL_X64(recvmmsg, SyscallPassthrough5<SYSCALL_DEF(recvmmsg)>);
+     REGISTER_SYSCALL_IMPL_X64(clock_adjtime, SyscallPassthrough2<SYSCALL_DEF(clock_adjtime)>);
+     REGISTER_SYSCALL_IMPL_X64(sendmmsg, SyscallPassthrough4<SYSCALL_DEF(sendmmsg)>);
+-    REGISTER_SYSCALL_IMPL_X64(process_vm_readv, SyscallPassthrough6<SYSCALL_DEF(process_vm_readv)>);
+-    REGISTER_SYSCALL_IMPL_X64(process_vm_writev, SyscallPassthrough6<SYSCALL_DEF(process_vm_writev)>);
++    REGISTER_SYSCALL_IMPL_X64(process_vm_readv,
++                              [](FEXCore::Core::CpuStateFrame* Frame, pid_t pid, const struct iovec* local_iov, unsigned long liovcnt,
++                                 const struct iovec* remote_iov, unsigned long riovcnt, unsigned long flags) -> uint64_t {
++                                uint64_t Result = 0;
++                                if (liovcnt > IOV_MAX || riovcnt > IOV_MAX) {
++                                  Result = -EINVAL;
++                                } else {
++                                  FaultSafeUserMemAccess::VerifyIsReadable(local_iov, sizeof(struct iovec) * liovcnt);
++                                  FaultSafeUserMemAccess::VerifyIsReadable(remote_iov, sizeof(struct iovec) * riovcnt);
++                                  Result = FEX::HLE::HslCopyIov(pid, const_cast<struct iovec*>(local_iov), liovcnt,
++                                                                const_cast<struct iovec*>(remote_iov), riovcnt, flags);
++                                }
++                                SYSCALL_ERRNO();
++                              });
++    REGISTER_SYSCALL_IMPL_X64(process_vm_writev,
++                              [](FEXCore::Core::CpuStateFrame* Frame, pid_t pid, const struct iovec* local_iov, unsigned long liovcnt,
++                                 const struct iovec* remote_iov, unsigned long riovcnt, unsigned long flags) -> uint64_t {
++                                uint64_t Result = 0;
++                                if (liovcnt > IOV_MAX || riovcnt > IOV_MAX) {
++                                  Result = -EINVAL;
++                                } else {
++                                  FaultSafeUserMemAccess::VerifyIsReadable(local_iov, sizeof(struct iovec) * liovcnt);
++                                  FaultSafeUserMemAccess::VerifyIsReadable(remote_iov, sizeof(struct iovec) * riovcnt);
++                                  Result = FEX::HLE::HslCopyIov(pid, const_cast<struct iovec*>(remote_iov), riovcnt,
++                                                                const_cast<struct iovec*>(local_iov), liovcnt, flags);
++                                }
++                                SYSCALL_ERRNO();
++                              });
+     REGISTER_SYSCALL_IMPL_X64(preadv2, SyscallPassthrough6<SYSCALL_DEF(preadv2)>);
+     REGISTER_SYSCALL_IMPL_X64(pwritev2, SyscallPassthrough6<SYSCALL_DEF(pwritev2)>);
+     REGISTER_SYSCALL_IMPL_X64(io_pgetevents, SyscallPassthrough6<SYSCALL_DEF(io_pgetevents)>);
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Thread.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Thread.cpp
+@@ -256,6 +256,14 @@
+ }
+ 
+ static int CloneFork(uint32_t flags, uint64_t exit_signal) {
++#ifdef FEX_HSL_USER_PROCESS
++  // The raw clone below intentionally strips guest VM/TLS flags. For the
++  // ordinary private fork case, GNU callbacks must also reset inherited locks
++  // and identify the child before its next userspace exec.
++  if (!(flags & (CLONE_FS | CLONE_FILES)) && exit_signal == SIGCHLD) {
++    return ::fork();
++  }
++#endif
+   return ::syscall(SYSCALL_DEF(clone), (flags & (CLONE_FS | CLONE_FILES)) | exit_signal, nullptr, nullptr, nullptr, nullptr);
+ }
+ 
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.cpp
+@@ -16,6 +16,13 @@
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <git_version.h>
++
++#ifdef FEX_HSL_USER_PROCESS
++// Explicit GNU runtime lifecycle ABI, independent of a guest executable.
++// Only our own runtime workers are retired; application threads and other
++// processes retain their ordinary lifecycle. Older runtimes have no hook.
++extern "C" void HslProcessRuntimeStopV1(void) __attribute__((weak));
++#endif
+ 
+ namespace FEX::HLE {
+ 
+@@ -259,6 +266,9 @@
+     Threads.erase(It);
+     if (Threads.empty()) {
+       Thread->Thread->CTX->FlushAndCloseCodeMap();
++#ifdef FEX_HSL_USER_PROCESS
++      if (HslProcessRuntimeStopV1) HslProcessRuntimeStopV1();
++#endif
+     }
+   }
+ 
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h
+@@ -77,6 +77,8 @@
+     FEX::HLE::GuestSAMask CurrentSignalMask {};
+     // The mask prior to a suspend
+     FEX::HLE::GuestSAMask PreviousSuspendMask {};
++    // Only the first guest handler consuming sigsuspend saves its old mask.
++    bool SuspendMaskRestorePending {};
+ 
+     uint64_t PendingSignals {};
+ 
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/x32/FD.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/x32/FD.cpp
+@@ -12,6 +12,8 @@
+ #include "LinuxSyscalls/x32/Types.h"
+ 
+ #include "LinuxSyscalls/x64/Syscalls.h"
++
++#include "LinuxSyscalls/HostUserCopy.h"
+ 
+ #include <FEXCore/Debug/InternalThreadState.h>
+ #include <FEXCore/Utils/LogManager.h>
+@@ -550,7 +552,7 @@
+                               fextl::vector<iovec> Host_remote_iovec(remote_iov, remote_iov + SanitizeIOCount(riovcnt));
+ 
+                               uint64_t Result =
+-                                ::process_vm_readv(pid, Host_local_iovec.data(), liovcnt, Host_remote_iovec.data(), riovcnt, flags);
++                                FEX::HLE::HslCopyIov(pid, Host_local_iovec.data(), liovcnt, Host_remote_iovec.data(), riovcnt, flags);
+                               SYSCALL_ERRNO();
+                             });
+ 
+@@ -564,7 +566,7 @@
+                               fextl::vector<iovec> Host_remote_iovec(remote_iov, remote_iov + SanitizeIOCount(riovcnt));
+ 
+                               uint64_t Result =
+-                                ::process_vm_writev(pid, Host_local_iovec.data(), liovcnt, Host_remote_iovec.data(), riovcnt, flags);
++                                FEX::HLE::HslCopyIov(pid, Host_remote_iovec.data(), riovcnt, Host_local_iovec.data(), liovcnt, flags);
+                               SYSCALL_ERRNO();
+                             });
+ 
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/x32/Signals.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/x32/Signals.cpp
+@@ -17,6 +17,10 @@
+ #include <signal.h>
+ #include <stdint.h>
+ #include <sys/syscall.h>
++#include <sys/uio.h>
++#ifdef FEX_HSL_USER_PROCESS
++#include "LinuxSyscalls/HostUserCopy.h"
++#endif
+ #include <unistd.h>
+ 
+ #include <time.h>
+@@ -35,7 +39,14 @@
+   Info->si_code = Host.si_code;
+ 
+   // Check si_code to determine how we need to interpret this
+-  if (Info->si_code == SI_TIMER) {
++  if (Info->si_code == SI_USER || Info->si_code == SI_TKILL) {
++    Info->_sifields._kill.pid = Host.si_pid;
++    Info->_sifields._kill.uid = Host.si_uid;
++  } else if (Info->si_code < 0 && Info->si_code != SI_TIMER) {
++    Info->_sifields._rt.pid = Host.si_pid;
++    Info->_sifields._rt.uid = Host.si_uid;
++    Info->_sifields._rt.sigval.sival_int = Host.si_int;
++  } else if (Info->si_code == SI_TIMER) {
+     // SI_TIMER means pid, uid, value
+     Info->_sifields._timer.tid = Host.si_timerid;
+     Info->_sifields._timer.overrun = Host.si_overrun;
+@@ -72,6 +83,21 @@
+   }
+ }
+ 
++// Conversion is staged in host memory. Self process_vm copying goes through
++// the paired GNU user-copy frontend and returns EFAULT without changing
++// signal handlers, asserting, or dereferencing an untrusted guest pointer.
++static bool CopySigInfoToGuest(FEXCore::x86::siginfo_t* Info, const siginfo_t& Host) {
++  const siginfo_t Empty {};
++  FEXCore::x86::siginfo_t Guest {Empty};
++  CopySigInfo(&Guest, Host);
++#ifdef FEX_HSL_USER_PROCESS
++  return FEX::HLE::HslCopyUser(Info, &Guest, sizeof(Guest));
++#else
++  struct iovec Local {&Guest, sizeof(Guest)}, Remote {Info, sizeof(Guest)};
++  return ::process_vm_writev(getpid(), &Local, 1, &Remote, 1, 0) == static_cast<ssize_t>(sizeof(Guest));
++#endif
++}
++
+ void RegisterSignals(FEX::HLE::SyscallHandler* Handler) {
+ 
+   // Only gets the lower 32-bits of the signal mask
+@@ -189,10 +215,11 @@
+                               siginfo_t HostInfo {};
+                               uint64_t Result =
+                                 FEX::HLE::_SyscallHandler->GetSignalDelegator()->GuestSigTimedWait(set, &HostInfo, timeout_ptr, sigsetsize);
+-                              if (Result != -1) {
+-                                FaultSafeUserMemAccess::VerifyIsWritable(info, sizeof(*info));
+-                                // We need to translate the 64-bit siginfo_t to 32-bit siginfo_t
+-                                CopySigInfo(info, HostInfo);
++                              // NULL siginfo is legal; negative errno must not touch it.
++                              if (static_cast<int64_t>(Result) >= 0 && info) {
++                                if (!CopySigInfoToGuest(info, HostInfo)) {
++                                  return -EFAULT;
++                                }
+                               }
+                               return Result;
+                             });
+@@ -204,10 +231,11 @@
+                               siginfo_t HostInfo {};
+                               uint64_t Result =
+                                 FEX::HLE::_SyscallHandler->GetSignalDelegator()->GuestSigTimedWait(set, &HostInfo, timeout, sigsetsize);
+-                              if (Result != -1) {
+-                                FaultSafeUserMemAccess::VerifyIsWritable(info, sizeof(*info));
+-                                // We need to translate the 64-bit siginfo_t to 32-bit siginfo_t
+-                                CopySigInfo(info, HostInfo);
++                              // NULL siginfo is legal; negative errno must not touch it.
++                              if (static_cast<int64_t>(Result) >= 0 && info) {
++                                if (!CopySigInfoToGuest(info, HostInfo)) {
++                                  return -EFAULT;
++                                }
+                               }
+                               return Result;
+                             });
+--- /dev/null
++++ b/ThunkLibs/libGL/GuestOpaqueHandles.h
+@@ -0,0 +1,47 @@
++// SPDX-License-Identifier: MIT
++// GL opaque pointers are tokens in an ILP32 guest, never truncated LP64 pointers.
++#pragma once
++#include <cstdint>
++#include <mutex>
++#include <unordered_map>
++#include <stdexcept>
++
++template<typename Pointer>
++class GuestOpaqueHandles {
++  struct Entry { Pointer pointer; const void* owner; };
++  std::mutex mutex;
++  std::unordered_map<uint32_t, Entry> entries;
++  std::unordered_map<Pointer, uint32_t> reverse;
++  uint32_t next = 1;
++public:
++  uint32_t Encode(Pointer pointer, const void* owner) {
++    if (!pointer) return 0;
++    std::lock_guard lock(mutex);
++    if (auto it=reverse.find(pointer);it!=reverse.end()) return it->second;
++    if (!next) throw std::overflow_error("FEX GL guest handles exhausted");
++    const auto token=next++;
++    entries.emplace(token,Entry{pointer,owner});
++    try { reverse.emplace(pointer,token); }
++    catch (...) { entries.erase(token); throw; }
++    return token;
++  }
++  Pointer Decode(uint32_t token) {
++    if (!token) return nullptr;
++    std::lock_guard lock(mutex);
++    auto it=entries.find(token);
++    if (it==entries.end()) throw std::invalid_argument("FEX GL unknown guest handle");
++    return it->second.pointer;
++  }
++  void Forget(Pointer pointer) {
++    std::lock_guard lock(mutex);
++    auto it=reverse.find(pointer);
++    if (it!=reverse.end()) { entries.erase(it->second); reverse.erase(it); }
++  }
++  void CloseOwner(const void* owner) {
++    std::lock_guard lock(mutex);
++    for (auto it=entries.begin();it!=entries.end();) {
++      if (it->second.owner==owner) { reverse.erase(it->second.pointer); it=entries.erase(it); }
++      else ++it;
++    }
++  }
++};
+--- a/ThunkLibs/libGL/libGL_Guest.cpp
++++ b/ThunkLibs/libGL/libGL_Guest.cpp
+@@ -8,6 +8,11 @@
+ #define GL_GLEXT_PROTOTYPES 1
+ #define GLX_GLXEXT_PROTOTYPES 1
+ 
++#include <X11/Xlibint.h>
++#undef min
++#undef max
++#include <X11/Xproto.h>
++#include <mutex>
+ #include <GL/glx.h>
+ #include <GL/glxext.h>
+ #include <GL/gl.h>
+@@ -40,11 +45,28 @@
+ #undef PAIR
+ });
+ 
++// GLX must translate guest Display*. For ILP32, use typed generated packers
++// for every known GL entrypoint as well: the generic indirect caller bypasses
++// custom string/handle conversion and truncates LP64 pointers. This also keeps
++// queried GLsync lifecycle calls on the same path as linked calls. LP64 GL
++// continues to use its original indirect path.
++static const std::unordered_map<std::string_view, uintptr_t> GuestPackedEntrypoints = std::invoke([]() {
++  std::unordered_map<std::string_view, uintptr_t> Ret;
++#define PAIR(name, unused) if (sizeof(void*) == 4 || std::string_view {#name}.starts_with("glX")) Ret[#name] = reinterpret_cast<uintptr_t>(fexfn_pack_##name);
++  FOREACH_internal_SYMBOL(PAIR);
++#undef PAIR
++  return Ret;
++});
++
+ extern "C" {
+ voidFunc* glXGetProcAddress(const GLubyte* procname) {
+   auto Ret = fexfn_pack_glXGetProcAddress(procname);
+   if (!Ret) {
+     return nullptr;
++  }
++
++  if (auto entry = GuestPackedEntrypoints.find(reinterpret_cast<const char*>(procname)); entry != GuestPackedEntrypoints.end()) {
++    return reinterpret_cast<voidFunc*>(entry->second);
+   }
+ 
+   auto TargetFuncIt = HostPtrInvokers.find(reinterpret_cast<const char*>(procname));
+@@ -79,9 +101,57 @@
+   return malloc(size);
+ }
+ 
++// The host GLX connection has a different request sequence from guest Xlib.
++// Dispatch through Xlib's extension error entrypoint, using the last guest
++// request as the serial. This preserves the application's current handler
++// (including the default fatal handler), without swapping global handlers.
++static int ForwardXError(void* opaque, void* wire) {
++  auto* display = static_cast<Display*>(opaque);
++  xError error;
++  memcpy(&error, wire, sizeof(error));
++  // _XError is an extension entrypoint and expects the internal Xlib
++  // mutex, not XLockDisplay's public recursive/user lock. Its handler
++  // upcall temporarily releases and reacquires this internal mutex.
++  LockDisplay(display);
++  error.sequenceNumber = static_cast<unsigned short>(NextRequest(display) - 1);
++  int result = _XError(display, &error);
++  UnlockDisplay(display);
++  return result;
++}
++
++static std::mutex GuestDisplaysMutex;
++static std::unordered_map<Display*, int> GuestDisplays;
++
++static int CloseGuestDisplay(Display* display, XExtCodes*) {
++  fexfn_pack_GL_ReleaseGuestDisplay(reinterpret_cast<uintptr_t>(display));
++  std::lock_guard lock(GuestDisplaysMutex);
++  GuestDisplays.erase(display);
++  return 0;
++}
++
++static int SyncGuestDisplay(Display* display, Bool discard) {
++  // Match XCloseDisplay's display-lock -> registry-lock order.
++  XLockDisplay(display);
++  {
++    std::lock_guard lock(GuestDisplaysMutex);
++    if (!GuestDisplays.contains(display)) {
++      auto* extension = XAddExtension(display);
++      if (!extension) {
++        fprintf(stderr, "FEX GL: cannot register display lifetime hook\n");
++        std::abort();
++      }
++      XESetCloseDisplay(display, extension->extension, CloseGuestDisplay);
++      GuestDisplays.emplace(display, extension->extension);
++    }
++  }
++  XUnlockDisplay(display);
++  return XSync(display, discard);
++}
++
+ static void OnInit() {
+   fexfn_pack_GL_SetGuestMalloc((uintptr_t)malloc_wrapper, (uintptr_t)CallbackUnpack<decltype(malloc_wrapper)>::Unpack);
+-  fexfn_pack_GL_SetGuestXSync((uintptr_t)XSync, (uintptr_t)CallbackUnpack<decltype(XSync)>::Unpack);
++  fexfn_pack_GL_SetGuestXSync((uintptr_t)SyncGuestDisplay, (uintptr_t)CallbackUnpack<decltype(SyncGuestDisplay)>::Unpack);
++  fexfn_pack_GL_SetGuestXError((uintptr_t)ForwardXError, (uintptr_t)CallbackUnpack<decltype(ForwardXError)>::Unpack);
+   fexfn_pack_GL_SetGuestXGetVisualInfo((uintptr_t)XGetVisualInfo, (uintptr_t)CallbackUnpack<decltype(XGetVisualInfo)>::Unpack);
+   fexfn_pack_GL_SetGuestXDisplayString((uintptr_t)XDisplayString, (uintptr_t)CallbackUnpack<decltype(XDisplayString)>::Unpack);
+ }
+--- a/ThunkLibs/libGL/libGL_Host.cpp
++++ b/ThunkLibs/libGL/libGL_Host.cpp
+@@ -8,12 +8,17 @@
+ #include <cstdio>
+ #include <cstdlib>
+ #include <string_view>
++#include <vector>
++#include <string>
++#include <mutex>
++#include <unordered_map>
+ 
+ #define GL_GLEXT_PROTOTYPES 1
+ #define GLX_GLXEXT_PROTOTYPES 1
+ 
+ #include "glcorearb.h"
+ 
++#include <X11/Xproto.h>
+ #include <GL/glx.h>
+ #include <GL/glxext.h>
+ #include <GL/gl.h>
+@@ -35,11 +40,37 @@
+ 
+ static X11Manager x11_manager;
+ 
++#ifdef IS_32BIT_THUNK
++#include "GuestOpaqueHandles.h"
++static thread_local const void* GuestOpaqueOwner;
++static GuestOpaqueHandles<GLXContext> ContextHandles;
++static GuestOpaqueHandles<GLXFBConfig> ConfigHandles;
++static GuestOpaqueHandles<GLsync> SyncHandles;
++// Keep GLX bookkeeping until Display close: GLX permits destruction while a
++// context is still current on another thread. Native GL retains its own object.
++#define GL_GUEST_OPAQUE(type, registry) \
++  template<> struct host_layout<type> { \
++    type data; \
++    explicit host_layout(const guest_layout<type>& from) : data(registry.Decode(from.data)) {} \
++  }; \
++  static guest_layout<type> to_guest(const host_layout<type>& from) { \
++    return {.data=registry.Encode(from.data,GuestOpaqueOwner)}; \
++  }
++GL_GUEST_OPAQUE(GLXContext, ContextHandles)
++GL_GUEST_OPAQUE(GLXFBConfig, ConfigHandles)
++GL_GUEST_OPAQUE(GLsync, SyncHandles)
++#undef GL_GUEST_OPAQUE
++#endif
++
++
+ static void* (*GuestMalloc)(guest_size_t) = nullptr;
+ 
+ host_layout<_XDisplay*>::host_layout(guest_layout<_XDisplay*>& guest)
+   : guest_display(guest.force_get_host_pointer()) {
+   data = x11_manager.GuestToHostDisplay(guest_display);
++#ifdef IS_32BIT_THUNK
++  GuestOpaqueOwner = data;
++#endif
+ }
+ 
+ host_layout<_XDisplay*>::~host_layout() {
+@@ -64,6 +95,80 @@
+ 
+ static void fexfn_impl_libGL_GL_SetGuestXDisplayString(uintptr_t GuestTarget, uintptr_t GuestUnpacker) {
+   MakeHostTrampolineForGuestFunctionAt(GuestTarget, GuestUnpacker, &x11_manager.GuestXDisplayString);
++}
++
++// GLX runs on an intermediary host Display. Forward only errors belonging
++// to our managed connections; all other X11 clients retain their handler.
++static int (*GuestXError)(void*, void*) = nullptr;
++static XErrorHandler PreviousXErrorHandler = nullptr;
++
++static int ForwardHostXError(Display* display, XErrorEvent* event) {
++  _XDisplay* guest = nullptr;
++  {
++    std::unique_lock lock(x11_manager.mutex);
++    for (const auto& [key, host] : x11_manager.displays) {
++      if (host == display) { guest = key; break; }
++    }
++  }
++  if (!guest || !GuestXError) {
++    return PreviousXErrorHandler ? PreviousXErrorHandler(display, event) : 0;
++  }
++#ifdef IS_32BIT_THUNK
++  GuestStackBumpAllocator stack;
++  auto* error = stack.New<xError>();
++#else
++  xError storage;
++  auto* error = &storage;
++#endif
++  *error = {};
++  error->type = 0;
++  error->errorCode = event->error_code;
++  error->resourceID = event->resourceid;
++  error->minorCode = event->minor_code;
++  error->majorCode = event->request_code;
++  return GuestXError(guest, error);
++}
++
++static void fexfn_impl_libGL_GL_SetGuestXError(uintptr_t target, uintptr_t unpacker) {
++  MakeHostTrampolineForGuestFunctionAt(target, unpacker, &GuestXError);
++  static auto set = reinterpret_cast<decltype(&XSetErrorHandler)>(dlsym(RTLD_DEFAULT, "XSetErrorHandler"));
++  PreviousXErrorHandler = set(ForwardHostXError);
++}
++
++static void fexfn_impl_libGL_GL_ReleaseGuestDisplay(uintptr_t guest) {
++  Display* host = nullptr;
++  {
++    std::unique_lock lock(x11_manager.mutex);
++    auto it = x11_manager.displays.find(reinterpret_cast<_XDisplay*>(guest));
++    if (it != x11_manager.displays.end()) {
++      host = it->second;
++      x11_manager.displays.erase(it);
++    }
++  }
++  if (host) {
++#ifdef IS_32BIT_THUNK
++    ContextHandles.CloseOwner(host);
++    ConfigHandles.CloseOwner(host);
++    SyncHandles.CloseOwner(host);
++    if (GuestOpaqueOwner == host) GuestOpaqueOwner = nullptr;
++#endif
++    // RTLD_DEFAULT preserves an installed public XCloseDisplay interposer,
++    // including the presenter's surface/fence cleanup.
++    static auto close = reinterpret_cast<decltype(&XCloseDisplay)>(dlsym(RTLD_DEFAULT, "XCloseDisplay"));
++    close(host);
++  }
++}
++
++// Preserve public symbol interposition (presenter/overlay) first. Mesa
++// extension aliases such as glXQueryCurrentRendererIntegerMESA are only
++// discoverable via glXGetProcAddress; a non-null guest packer must not call
++// a null dlsym result. Resolve once during thunk initialization, not on
++// every guest query, and never invent a supported implementation.
++static void* ResolveGLProc(void* handle, const char* name) {
++  if (auto* symbol = dlsym_default(handle, name)) {
++    return symbol;
++  }
++  return reinterpret_cast<void*>(glXGetProcAddress(reinterpret_cast<const GLubyte*>(name)));
+ }
+ 
+ #include "thunkgen_host_libGL.inl"
+@@ -108,6 +213,16 @@
+   } else if (name_sv == "glShaderSourceARB") {
+     return (VoidFn)fexfn_impl_libGL_glShaderSourceARB;
+ #ifdef IS_32BIT_THUNK
++  } else if (name_sv == "glMultiDrawElements") {
++    return (VoidFn)fexfn_impl_libGL_glMultiDrawElements;
++  } else if (name_sv == "glMultiDrawElementsEXT") {
++    return (VoidFn)fexfn_impl_libGL_glMultiDrawElementsEXT;
++  } else if (name_sv == "glMultiDrawElementsBaseVertex") {
++    return (VoidFn)fexfn_impl_libGL_glMultiDrawElementsBaseVertex;
++  } else if (name_sv == "glTransformFeedbackVaryings") {
++    return (VoidFn)fexfn_impl_libGL_glTransformFeedbackVaryings;
++  } else if (name_sv == "glTransformFeedbackVaryingsEXT") {
++    return (VoidFn)fexfn_impl_libGL_glTransformFeedbackVaryingsEXT;
+   } else if (name_sv == "glBindBuffersRange") {
+     return (VoidFn)fexfn_impl_libGL_glBindBuffersRange;
+   } else if (name_sv == "glBindVertexBuffers") {
+@@ -360,6 +475,15 @@
+   return RelocateArrayToGuestHeap(ret, *NumItems);
+ }
+ 
++void fexfn_impl_libGL_glXDestroyWindow(Display* display, GLXWindow window) {
++  fexldr_ptr_libGL_glXDestroyWindow(display, window);
++  // The guest owns the original X window on another connection. Complete
++  // GLX destruction before it can destroy that window or close its Display.
++  // XFlush alone does not establish ordering between two connections.
++  static auto sync = reinterpret_cast<decltype(&XSync)>(dlsym(RTLD_DEFAULT, "XSync"));
++  sync(display, False);
++}
++
+ guest_layout<_XDisplay*> fexfn_impl_libGL_glXGetCurrentDisplay() {
+   auto ret = fexldr_ptr_libGL_glXGetCurrentDisplay();
+   return x11_manager.HostToGuestDisplay(ret);
+@@ -471,4 +595,110 @@
+ }
+ #endif
+ 
++#ifdef IS_32BIT_THUNK
++// Multi-draw consumes the outer array during this call. The pointed-to
++// indices remain guest addresses or element-buffer offsets; only pointer
++// width/stride is translated, never the index contents or rendered pixels.
++static std::vector<const void*> RepackIndexPointers(guest_layout<const void* const*> source, GLsizei count) {
++  std::vector<const void*> pointers;
++  if (source.data && count > 0) {
++    pointers.resize(count);
++    for (GLsizei i = 0; i < count; ++i) {
++      pointers[i] = reinterpret_cast<const void*>(static_cast<uintptr_t>(source.get_pointer()[i].data));
++    }
++  }
++  return pointers;
++}
++
++void fexfn_impl_libGL_glMultiDrawElements(GLenum mode, const GLsizei* counts, GLenum type,
++                                         guest_layout<const void* const*> indices, GLsizei count) {
++  const auto pointers = RepackIndexPointers(indices, count);
++  fexldr_ptr_libGL_glMultiDrawElements(mode, counts, type, pointers.data(), count);
++}
++
++void fexfn_impl_libGL_glMultiDrawElementsEXT(GLenum mode, const GLsizei* counts, GLenum type,
++                                            guest_layout<const void* const*> indices, GLsizei count) {
++  const auto pointers = RepackIndexPointers(indices, count);
++  fexldr_ptr_libGL_glMultiDrawElementsEXT(mode, counts, type, pointers.data(), count);
++}
++
++void fexfn_impl_libGL_glMultiDrawElementsBaseVertex(GLenum mode, const GLsizei* counts, GLenum type,
++                                                   guest_layout<const void* const*> indices, GLsizei count,
++                                                   const GLint* bases) {
++  const auto pointers = RepackIndexPointers(indices, count);
++  fexldr_ptr_libGL_glMultiDrawElementsBaseVertex(mode, counts, type, pointers.data(), count, bases);
++}
++
++static std::vector<const char*> RepackVaryingNames(guest_layout<const char* const*> source, GLsizei count) {
++  std::vector<const char*> names;
++  if (source.data && count > 0) {
++    names.resize(count);
++    for (GLsizei i = 0; i < count; ++i) {
++      names[i] = reinterpret_cast<const char*>(static_cast<uintptr_t>(source.get_pointer()[i].data));
++    }
++  }
++  return names;
++}
++
++void fexfn_impl_libGL_glTransformFeedbackVaryings(GLuint program, GLsizei count,
++                                                guest_layout<const char* const*> varyings, GLenum mode) {
++  const auto names = RepackVaryingNames(varyings, count);
++  fexldr_ptr_libGL_glTransformFeedbackVaryings(program, count, names.data(), mode);
++}
++
++void fexfn_impl_libGL_glTransformFeedbackVaryingsEXT(GLuint program, GLsizei count,
++                                                   guest_layout<const char* const*> varyings, GLenum mode) {
++  const auto names = RepackVaryingNames(varyings, count);
++  static auto call = reinterpret_cast<decltype(fexldr_ptr_libGL_glTransformFeedbackVaryingsEXT)>(
++    glXGetProcAddress(reinterpret_cast<const GLubyte*>("glTransformFeedbackVaryingsEXT")));
++  call(program, count, names.data(), mode);
++}
++#endif
++
+ EXPORTS(libGL)
++
++static void fexfn_impl_libGL_glDeleteSync(GLsync sync) {
++  fexldr_ptr_libGL_glDeleteSync(sync);
++#ifdef IS_32BIT_THUNK
++  SyncHandles.Forget(sync);
++#endif
++}
++
++// GL/GLX own the returned strings. A GNU driver may allocate them above 4 GiB;
++// copy immutable query text to guest memory, never reinterpret/truncate it.
++static const char* GuestQueryString(const char* text) {
++#ifdef IS_32BIT_THUNK
++  if (!text) return nullptr;
++  static std::mutex mutex;
++  static std::unordered_map<std::string, const char*> strings;
++  std::lock_guard lock(mutex);
++  auto it = strings.find(text);
++  if (it != strings.end()) return it->second;
++  const size_t size = strlen(text) + 1;
++  auto* copy = static_cast<char*>(GuestMalloc(size));
++  if (!copy || reinterpret_cast<uintptr_t>(copy) > UINT32_MAX) {
++    fprintf(stderr, "FEX GL: guest query string allocation failed\n");
++    std::abort();
++  }
++  memcpy(copy, text, size);
++  strings.emplace(text, copy);
++  return copy;
++#else
++  return text;
++#endif
++}
++static const GLubyte* fexfn_impl_libGL_glGetString(GLenum name) {
++  return reinterpret_cast<const GLubyte*>(GuestQueryString(reinterpret_cast<const char*>(fexldr_ptr_libGL_glGetString(name))));
++}
++static const GLubyte* fexfn_impl_libGL_glGetStringi(GLenum name, GLuint index) {
++  return reinterpret_cast<const GLubyte*>(GuestQueryString(reinterpret_cast<const char*>(fexldr_ptr_libGL_glGetStringi(name,index))));
++}
++static const char* fexfn_impl_libGL_glXQueryExtensionsString(Display* display, int screen) {
++  return GuestQueryString(fexldr_ptr_libGL_glXQueryExtensionsString(display,screen));
++}
++static const char* fexfn_impl_libGL_glXQueryServerString(Display* display, int screen, int name) {
++  return GuestQueryString(fexldr_ptr_libGL_glXQueryServerString(display,screen,name));
++}
++static const char* fexfn_impl_libGL_glXGetClientString(Display* display, int name) {
++  return GuestQueryString(fexldr_ptr_libGL_glXGetClientString(display,name));
++}
+--- a/ThunkLibs/libGL/libGL_interface.cpp
++++ b/ThunkLibs/libGL/libGL_interface.cpp
+@@ -26,6 +26,8 @@
+ void GL_SetGuestXSync(uintptr_t, uintptr_t);
+ void GL_SetGuestXGetVisualInfo(uintptr_t, uintptr_t);
+ void GL_SetGuestXDisplayString(uintptr_t, uintptr_t);
++void GL_SetGuestXError(uintptr_t, uintptr_t);
++void GL_ReleaseGuestDisplay(uintptr_t);
+ template<>
+ struct fex_gen_config<GL_SetGuestMalloc> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
+ template<>
+@@ -34,6 +36,11 @@
+ struct fex_gen_config<GL_SetGuestXGetVisualInfo> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
+ template<>
+ struct fex_gen_config<GL_SetGuestXDisplayString> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<GL_SetGuestXError> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<GL_ReleaseGuestDisplay> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
++
+ 
+ template<typename>
+ struct fex_gen_type {};
+@@ -72,7 +79,11 @@
+ // Symbols queryable through glXGetProcAddr
+ namespace internal {
+ template<auto>
+-struct fex_gen_config : fexgen::generate_guest_symtable, fexgen::indirect_guest_calls {};
++struct fex_gen_config : fexgen::generate_guest_symtable, fexgen::indirect_guest_calls {
++  // Extension endpoints may exist only in GLX's proc table, not the ELF
++  // symbol table. Generated packers still need the real host endpoint.
++  const char* load_host_endpoint_via = "ResolveGLProc";
++};
+ 
+ // Function, parameter index, parameter type [optional]
+ template<auto, int, typename = void>
+@@ -161,11 +172,11 @@
+ template<>
+ struct fex_gen_param<glXGetVisualFromFBConfigSGIX, -1, XVisualInfo*> : fexgen::ptr_passthrough {};
+ template<>
+-struct fex_gen_config<glXGetClientString> {};
+-template<>
+-struct fex_gen_config<glXQueryExtensionsString> {};
+-template<>
+-struct fex_gen_config<glXQueryServerString> {};
++struct fex_gen_config<glXGetClientString> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<glXQueryExtensionsString> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<glXQueryServerString> : fexgen::custom_host_impl {};
+ template<>
+ struct fex_gen_config<glXGetCurrentDisplay> : fexgen::custom_host_impl {};
+ template<>
+@@ -229,7 +240,7 @@
+ template<>
+ struct fex_gen_config<glXDestroyPixmap> {};
+ template<>
+-struct fex_gen_config<glXDestroyWindow> {};
++struct fex_gen_config<glXDestroyWindow> : fexgen::custom_host_impl {};
+ #ifdef GLX_NV_vertex_array_range
+ template<>
+ struct fex_gen_config<glXAllocateMemoryNV> {};
+@@ -455,9 +466,9 @@
+ template<>
+ struct fex_gen_config<glWindowPos3sv> {};
+ template<>
+-struct fex_gen_config<glGetString> {};
+-template<>
+-struct fex_gen_config<glGetStringi> {};
++struct fex_gen_config<glGetString> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<glGetStringi> : fexgen::custom_host_impl {};
+ template<>
+ struct fex_gen_config<glQueryMatrixxOES> {};
+ template<>
+@@ -1576,7 +1587,7 @@
+ template<>
+ struct fex_gen_config<glDeleteStatesNV> {};
+ template<>
+-struct fex_gen_config<glDeleteSync> {};
++struct fex_gen_config<glDeleteSync> : fexgen::custom_host_impl {};
+ template<>
+ struct fex_gen_config<glDeleteTexturesEXT> {};
+ template<>
+@@ -3367,6 +3378,19 @@
+ struct fex_gen_config<glMultiDrawElements> {};
+ template<>
+ struct fex_gen_param<glMultiDrawElements, 3, const void* const*> : fexgen::assume_compatible_data_layout {};
++#else
++template<>
++struct fex_gen_config<glMultiDrawElementsBaseVertex> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_param<glMultiDrawElementsBaseVertex, 3, const void* const*> : fexgen::ptr_passthrough {};
++template<>
++struct fex_gen_config<glMultiDrawElementsEXT> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_param<glMultiDrawElementsEXT, 3, const void* const*> : fexgen::ptr_passthrough {};
++template<>
++struct fex_gen_config<glMultiDrawElements> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_param<glMultiDrawElements, 3, const void* const*> : fexgen::ptr_passthrough {};
+ #endif
+ template<>
+ struct fex_gen_config<glMultiDrawElementsIndirectAMD> {};
+@@ -5216,6 +5240,15 @@
+ struct fex_gen_config<glTransformFeedbackVaryings> {};
+ template<>
+ struct fex_gen_param<glTransformFeedbackVaryings, 2, const char* const*> : fexgen::assume_compatible_data_layout {};
++#else
++template<>
++struct fex_gen_config<glTransformFeedbackVaryingsEXT> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_param<glTransformFeedbackVaryingsEXT, 2, const char* const*> : fexgen::ptr_passthrough {};
++template<>
++struct fex_gen_config<glTransformFeedbackVaryings> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_param<glTransformFeedbackVaryings, 2, const char* const*> : fexgen::ptr_passthrough {};
+ #endif
+ template<>
+ struct fex_gen_config<glTransformFeedbackVaryingsNV> {};
+--- a/Source/Tools/LinuxEmulation/Thunks.cpp
++++ b/Source/Tools/LinuxEmulation/Thunks.cpp
+@@ -215,6 +215,15 @@
+     SOName.pop_back();
+   }
+   SOName = fmt::format("{}{}/{}-host.so", SOName, (Is64BitMode() ? "" : "_32"), Name);
++#ifdef FEX_HSL_USER_PROCESS
++  // VPP validates all four GL binaries as part of the selected core closure.
++  // Other thunk ABIs continue to come from the matching immutable Valve depot.
++  if (Name == "libGL") {
++    if (const char* Paired = getenv("VPP_PAIRED_GL_THUNKS"); Paired && Paired[0] == '/')
++      SOName = fmt::format("{}/libGL-host{}.so", Paired, Is64BitMode() ? "64" : "32");
++  }
++#endif
++
+ 
+   LogMan::Msg::DFmt("LoadLib: {} -> {}", Name, SOName);
+ 

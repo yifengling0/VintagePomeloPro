@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 static inline const char *deck_uri(const char *action,const char *app,char *uri,size_t size) {
-    if(!strcmp(action,"launch")) {
+    if(!strcmp(action,"launch")||!strcmp(action,"properties")) {
         size_t n=strlen(app);char *end=NULL;unsigned long long id=strtoull(app,&end,10);
         if(!n||n>10||app[0]=='0'||strspn(app,"0123456789")!=n||!end||*end||id>4294967295ULL)return NULL;
-        if(snprintf(uri,size,"steam://rungameid/%s",app)>=(int)size)return NULL;
+        if(snprintf(uri,size,!strcmp(action,"properties")?"steam://gameproperties/%s":"steam://rungameid/%s",app)>=(int)size)return NULL;
         return uri;
     }
     if(strcmp(app,"0"))return NULL;

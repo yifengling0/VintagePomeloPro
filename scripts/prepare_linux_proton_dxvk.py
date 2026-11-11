@@ -32,7 +32,7 @@ def sha(path):
 
 def sources(root):
     fixture = root/'entry/src/main/cpp/linux_steam/gnu_fixture'
-    paths = [root/'scripts'/n for n in ('prepare_linux_proton_dxvk.py',
+    paths = [root/'scripts/linux_component_identity.py'] + [root/'scripts'/n for n in ('prepare_linux_proton_dxvk.py',
         'build_linux_proton_probe.py', 'proton_optional_syscalls.py', 'build_linux_proton_venus.py', 'build_linux_proton_vulkan.py')]
     paths += [root/'scripts/build_linux_proton_network.py', root/'scripts/proton_network_contract.py',
         root/'docs/linux-steam/gnu-proton-network.lock.json']
@@ -155,6 +155,27 @@ def prepare(args):
     text=json.dumps(m,indent=2)+'\n';(ROOT/LOCK).write_text(text);(dest/'manifest.json').write_text(text)
     return verify()
 
+def validate_probe_source_receipt(shim, build, root=ROOT):
+    allowed=set()
+    fixture=root/'entry/src/main/cpp/linux_steam/gnu_fixture'
+    shim_sources=[fixture/n for n in ('exec_compat.cpp','filesystem_compat.c','posix_compat.c',
+        'sysvipc_compat.c','popen_compat.c','socket_metadata.c','syscall_compat.S')]
+    shim_sources += list(fixture.glob('*.h')) + list(fixture.parent.glob('*.h'))
+    shim_sources += [fixture.parent/n for n in ('native_loader.cpp','native_loader_entry.S')]
+    for source in shim_sources:
+        # Generated inputs are independently pinned below. Sources transformed
+        # by the builder have their actual compiled generated hash in receipt.
+        if source.name in ('exec_compat.cpp','filesystem_compat.c','posix_compat.c','syscall_compat.S'):
+            if build['buildInputs'].get('originalSources',{}).get(str(source.resolve()))!=sha(source):
+                raise ValueError('Stale rebuilt shim original source: '+source.name)
+        else:
+            if build['buildInputs']['sources'].get(str(source.resolve()))!=sha(source):
+                raise ValueError('Stale rebuilt shim source: '+source.name)
+        allowed.add(str(source.relative_to(root)))
+    for name,digest in build['generatedSources'].items():
+        if sha(shim/name)!=digest:raise ValueError('Generated shim source changed: '+name)
+    return allowed
+
 def refresh_probe(shim, network_build):
     """Refresh only the independently rebuilt probe; keep qualified WSI/DXVK bytes."""
     path=shim/'libproton_probe.so'
@@ -167,10 +188,14 @@ def refresh_probe(shim, network_build):
     m=json.loads((ROOT/LOCK).read_text())
     current=sources(ROOT)
     changed={n for n in set(m['sources'])|set(current) if m['sources'].get(n)!=current.get(n)}
-    allowed={'scripts/prepare_linux_proton_dxvk.py','scripts/build_linux_proton_probe.py','scripts/proton_optional_syscalls.py',
+    allowed={'scripts/linux_component_identity.py','scripts/prepare_linux_proton_dxvk.py','scripts/build_linux_proton_probe.py','scripts/proton_optional_syscalls.py',
         'scripts/build_linux_proton_network.py','scripts/proton_network_contract.py',
         'docs/linux-steam/gnu-proton-network.lock.json'}
     allowed.update(str(p.relative_to(ROOT)) for p in (ROOT/'patches/linux-proton/wine-ge').glob('*.patch'))
+    # Only the shim closure may change during this refresh. Validate every
+    # rebuilt original input against this checkout; WSI/Venus/DXVK inputs still
+    # require their independent full build if they change.
+    allowed.update(validate_probe_source_receipt(shim, build))
     if changed-allowed:raise ValueError('Other native inputs changed; use full support rebuild')
     for row in m['files']:
         source=ROOT/RAW/row['path']

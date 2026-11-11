@@ -25,6 +25,7 @@ write(root+'/home/save','unchanged');write(root+'/prefix/user.reg','unchanged re
 let failTarget = '', failOpen = '', copies = 0, space = 1e12;
 const openFds = new Set();
 const deps = {
+  './LinuxProtonLease': {withLinuxProtonMaintenance: async action => action()},
  '@kit.AbilityKit':{},
  '@kit.CoreFileKit':{fileIo:{
   accessSync:fs.existsSync,lstatSync:p=>{let s;try{s=fs.lstatSync(p);}catch(e){if(e.code==='ENOENT')e.code=13900002;throw e;}return {size:s.size,isFile:()=>s.isFile(),isSymbolicLink:()=>s.isSymbolicLink()};},

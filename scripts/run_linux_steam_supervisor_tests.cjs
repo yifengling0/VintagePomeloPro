@@ -47,7 +47,7 @@ const context={resourceManager:{getRawFileContent:async p=>p==='linux-steam/boot
  await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/位置无效/);fs.writeFileSync(pointer,release);
  const real=JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/manifest.json')));
  manifest={...real,name:'../steam'};await assert.rejects(api.ensureLinuxSteamClientSupervisor(context,root),/清单无效/);manifest=null;
- const support=['desktop-manifest.json','posix-manifest.json','fex-manifest.json','native-graphics-manifest.json']
+ const support=['desktop-manifest.json','posix-manifest.json','fex-manifest.json','native-graphics-manifest.json','lsof-manifest.json']
    .map(n=>JSON.parse(fs.readFileSync(path.join(raw,'linux-steam/bootstrap/'+n))));
  const beforePosix=writes;
  await api.ensureLinuxSteamPosixSupport(context,root);

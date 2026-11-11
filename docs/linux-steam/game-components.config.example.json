@@ -1,0 +1,18 @@
+{
+  "cc": "/usr/bin/aarch64-linux-gnu-gcc",
+  "jobs": 8,
+  "x11Deps": "/opt/vpp-gnu-sdk/usr",
+  "lsofArchive": "build/downloads/lsof_4.95.0.orig.tar.bz2",
+  "networkBuild": "build/gnu-proton-network/build.json",
+  "fex": {
+    "clang": "/opt/ohos-sdk/native/llvm/bin/clang",
+    "gnuToolchain": "/opt/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu",
+    "linuxUapi": "/opt/vpp-linux-uapi/usr/include"
+  },
+  "gl": {
+    "gnuCxx": "/opt/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-g++",
+    "devPrefix": "/opt/vpp-gnu-sdk/usr",
+    "runtime": "/opt/vpp-gnu-runtime",
+    "mesaSource": "thirdparty/mesa"
+  }
+}

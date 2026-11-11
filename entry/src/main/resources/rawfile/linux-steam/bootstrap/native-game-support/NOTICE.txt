@@ -1,5 +1,10 @@
 FEX source: https://github.com/FEX-Emu/FEX/tree/37265b109a4bba9e10241972dfcb3d1fdb8f3f9a
 Patch: https://github.com/FEX-Emu/FEX/issues/5901
+Game process, signal, time64 and GLX repairs adapted from HSL b001b25.
+Source and per-patch provenance: scripts/patches/fex-valve-2607-game-contract.provenance.json.
+FEX core and both widths of GL guest/host thunks share the pinned source (MIT).
+The LGPL build adapters remain in scripts/build_linux_native_*.py; their license
+is separate from the upstream MIT binaries.
 OHOS adaptation: scripts/patches/fex-ohos-guest-protection.patch and .h (MIT).
 Only FEX guest mprotect retries a host noexec denial; guest VMA permissions remain intact.
 

@@ -63,6 +63,43 @@ class SocketMetadata(unittest.TestCase):
         return subprocess.run([str(probe)], env=environment, text=True,
                               capture_output=True, timeout=12)
 
+
+    def test_authenticated_tcp_discovery_with_private_proc(self):
+        source=self.base/'scan.c';source.write_text(r"""
+#define _GNU_SOURCE
+#include "socket_query_protocol.h"
+#include <assert.h>
+#include <arpa/inet.h>
+#include <dlfcn.h>
+#include <errno.h>
+#include <stdio.h>
+#include <sys/prctl.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <unistd.h>
+static int wanted,seen;
+static int visit(const struct SteamOhosSocketRecord *r,int fd,void *opaque){
+ (void)opaque;if(r->pid==getpid()&&r->descriptor==wanted){struct stat s;assert(!fstat(fd,&s)&&r->inode==s.st_ino);seen++;}return 0;
+}
+int main(void){
+ void (*observe)(int)=dlsym(RTLD_DEFAULT,"SteamOhosObserveSocket");
+ int (*next)(pid_t,int,struct SteamOhosSocketRecord*)=dlsym(RTLD_DEFAULT,"SteamOhosNextTcpSocket");
+ int (*walk)(SteamOhosSocketVisitor,void*)=dlsym(RTLD_DEFAULT,"SteamOhosVisitTcpSockets");assert(observe&&next&&walk);
+ int s=socket(AF_INET,SOCK_STREAM|SOCK_CLOEXEC,0);assert(s>=0);struct sockaddr_in a={.sin_family=AF_INET,.sin_addr.s_addr=htonl(INADDR_LOOPBACK)};
+ assert(!bind(s,(void*)&a,sizeof(a))&&!listen(s,1));wanted=s;observe(s);
+ assert(!prctl(PR_SET_DUMPABLE,0));struct SteamOhosSocketRecord record;
+ int copy=next(getpid(),0,&record);assert(copy>=0&&record.pid==getpid()&&record.uid==geteuid()&&record.descriptor==s);close(copy);
+ assert(next(getpid(),s+1,&record)<0&&errno==ENOENT);
+ assert(walk(visit,0)>=1&&seen==1);close(s);
+ assert(next(getpid(),s,&record)<0&&errno==ENOENT);puts("AUTHENTICATED_TCP_DISCOVERY_REAL_FD_PRIVATE_PROC");return 0;
+}
+""")
+        program=self.base/'scan'
+        subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror','-I'+str(FIXTURE),str(source),'-ldl','-o',str(program)],check=True)
+        environment={**os.environ,'STEAMOHOS_SOCKET_METADATA':'1','STEAMOHOS_IPC_ROOT':str(self.base),'LD_PRELOAD':str(self.library)}
+        result=subprocess.run([program],env=environment,text=True,capture_output=True,timeout=12)
+        self.assertEqual(result.returncode,0,result.stderr);self.assertIn('AUTHENTICATED_TCP_DISCOVERY_REAL_FD_PRIVATE_PROC',result.stdout)
+
     @unittest.skipUnless(Path('/bin/lsof').is_file(), 'native host lsof is required')
     def test_live_descriptor_and_stale_inode(self):
         result = self.probe('/bin/lsof')
@@ -104,6 +141,17 @@ class SocketMetadata(unittest.TestCase):
                                 capture_output=True, timeout=12)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('fragmented_response=1 duplicate_fd_rejected=1 incomplete_response_rejected=1', result.stdout)
+
+    def test_cooperative_process_and_terminal_worker_shutdown(self):
+        program = self.base / 'process'
+        subprocess.run(['g++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-Werror',
+                        '-I'+str(ROOT/'entry/src/main/cpp'),
+                        str(ROOT/'host_tests/linux_steam_process_metadata.cpp'), '-ldl', '-pthread', '-o', str(program)], check=True)
+        environment = {**os.environ, 'STEAMOHOS_SOCKET_METADATA': '1', 'STEAMOHOS_IPC_ROOT': str(self.base),
+                       'STEAMOHOS_SOCKET_METADATA_ROOT': str(self.base), 'LD_PRELOAD': str(self.library)}
+        result = subprocess.run([str(program), str(self.base)], env=environment, text=True, capture_output=True, timeout=12)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('terminal owned-worker shutdown', result.stdout)
 
     @unittest.skipUnless(os.environ.get('STEAMOHOS_LSOF_SOURCE_ARCHIVE'), 'pinned lsof source archive is required')
     def test_restricted_proc_requires_real_socket_backend(self):

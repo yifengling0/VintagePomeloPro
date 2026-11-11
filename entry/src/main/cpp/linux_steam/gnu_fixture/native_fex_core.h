@@ -52,8 +52,15 @@ inline bool SelectCore(Plan& plan,unsigned machine,const char** reason=nullptr) 
     if(FileSha256(plan.tool+"/usr/bin/FEX")!=
        "f9cbb7a70e804b9930fed02fd9d1349d49d7808faace703063a9b4944bc3568e")return reject("depot_identity");
     if(ElfMachine(support+"/FEX")!=machine||ElfMachine(support+"/FEXServer")!=machine)return reject("core_elf");
-    if(FileSha256(support+"/FEX")!="1b2a7b7933722cf22b0b92c56fb81aeacdc2391556f7edf4fce6f4a35e0ca16c"||
+    if(FileSha256(support+"/FEX")!="6a0f84cd9dcd6832c8dce592bbe543dfe8867938e7f782ac43c4cd27c96c85a7"||
        FileSha256(support+"/FEXServer")!="059cf9217bc5221b5865242e53647e7b4bb9fe93bb4a0ed9940fe6e72e2a1683")return reject("core_identity");
+    // A core with i386 GLX fixes must never load an older ABI partner.
+    if(ElfMachine(support+"/libGL-host32.so")!=machine||ElfMachine(support+"/libGL-host64.so")!=machine||
+       ElfMachine(support+"/libGL-guest32.so")!=3||ElfMachine(support+"/libGL-guest64.so")!=62)return reject("gl_elf");
+    if(FileSha256(support+"/libGL-host32.so")!="40f3e031ee93e5e351886b2f9d15289603cd6239bf217dd80447ce6b45b2c295"||
+       FileSha256(support+"/libGL-host64.so")!="35e6741544902d2f0d9b1a1cbec529e07c0023d9e5739c200ac95eeb3b3f84fb"||
+       FileSha256(support+"/libGL-guest32.so")!="fc0e9dfd7e366d3382c602a1c1c7f92b26032ff938d3e587b5ad36342d3786e1"||
+       FileSha256(support+"/libGL-guest64.so")!="579289beb67b32c68dd093e3030730e0ddc45361e2a87c833485324bea26875b")return reject("gl_identity");
     plan.argv[0]=support+"/FEX";return true;
 }
 }

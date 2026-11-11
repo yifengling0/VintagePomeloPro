@@ -1,4 +1,7 @@
+#include "runtime_lease.h"
+#include "component_group.h"
 #include "proton_probe.h"
+#include "window_process_message.h"
 #include "proton_game_paths.h"
 #include "proton_setup_cache.h"
 #include "proton_user_paths.h"
@@ -244,10 +247,19 @@ struct ProbeX11 {
 
 std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const std::string& waylandSocket,
     const ProtonProbeCapabilities& capabilities, const LaunchRequest* manual) {
+    RuntimeLease runtimeLease;
+    if (!(capabilities.maintenanceFd>=0 ? runtimeLease.Adopt(capabilities.maintenanceFd,
+            "/data/storage/el2/base/files/steamohos-native") :
+            runtimeLease.Acquire("/data/storage/el2/base/files/steamohos-native")))
+        return "{\"schemaVersion\":1,\"status\":\"proton_runtime_maintenance_busy\"}";
     std::string stage;
     std::ifstream requested(std::string(Root) + "/stage");
     std::getline(requested, stage);
-    if(manual)stage="manual";
+    if(manual) {
+        if(!ComponentGroupReady(Root))
+            return "{\"schemaVersion\":1,\"status\":\"proton_component_group_not_ready\"}";
+        stage="manual";
+    }
     const bool prefixRequested = stage == "prefix";
     const bool controlsRequested = stage == "window-controls";
     const bool windowRequested = stage == "window" || controlsRequested;
@@ -368,7 +380,8 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         "GLIBC_TUNABLES=glibc.pthread.rseq=0", "STEAMOHOS_NATIVE_MEMORY=1",
         "STEAMOHOS_EXTERNAL_RUNTIME=" + root, "STEAMOHOS_CODE_ROOT=" + root,
         "STEAMOHOS_TMP_ROOT=" + root + "/tmp", "XDG_RUNTIME_DIR=" + root + "/tmp",
-        "STEAMOHOS_IPC_ROOT=" + root + "/tmp",
+        "STEAMOHOS_IPC_ROOT=" + root + "/tmp", "STEAMOHOS_SOCKET_METADATA=1", "STEAMOHOS_PROCESS_METADATA=1",
+        "STEAMOHOS_SOCKET_METADATA_ROOT=" + root + "/tmp",
         "LD_PRELOAD=" + root + "/libsteamohos_posix.so", "WINEDEBUG=-all,err+all"};
     // Preserve the bounded runner output even if the display host is lost.
     // The native supervisor rotates this diagnostic file at 8 MiB.
@@ -508,7 +521,9 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
     const bool verified = Succeeded(dependencies) && Succeeded(wineVersion) && Succeeded(serverVersion) &&
         wineVersion.output.find("wine-") != std::string::npos &&
         serverVersion.output.find("Wine") != std::string::npos;
-    trace.Mark("bootstrap");
+    trace.Mark("files");
+    const std::string setupGroup=manual?CurrentComponentGroup(root):"diagnostic-v1";
+    if(manual&&setupGroup.empty())return failure("proton_component_group_changed");
     NativeExecResult prefix, display;
     bool displayReady = false;
     std::string displayXkb;
@@ -677,6 +692,21 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
         // their main operation only edits registry data. Disabling both display
         // drivers here leaves that bootstrap without a usable driver.
         const auto& provisioningEnvironment = prefixEnvironment;
+        if(gameRequested) {
+            NativeExecResult initialized;
+            const auto boot=EnsureProtonSetup(root+"/prefix/hmosdeck-wineboot.state",root+"/prefix/system.reg",
+                "wineboot-v1\n"+setupGroup+"\n",[&]() {
+                    initialized=RunNativeLoader({loader,"--inhibit-cache","--library-path",libraries,wine,
+                        "wineboot.exe","-u"},provisioningEnvironment,120000,options);
+                    return Succeeded(initialized)&&!access((root+"/prefix/system.reg").c_str(),R_OK);
+                });
+            trace.Mark("wineboot",boot==ProtonSetupResult::Reused);
+            if(boot==ProtonSetupResult::Failed||boot==ProtonSetupResult::StateWriteFailed)
+                return "{\"schemaVersion\":1,\"status\":\"proton_wineboot_failed\",\"runtimeBackend\":\"gnu-proton\",\"wineboot\":"+NativeExecJson(initialized)+"}";
+            if(unlink((root+"/desktop-probe.once").c_str())&&errno!=ENOENT)
+                return failure("proton_wineboot_desktop_slot_reset_failed",true);
+        }
+
         if (gameRequested) {
             // Run once per private prefix/configuration, before any game or
             // prerequisite helper. Use Windows registry APIs, never edit live
@@ -685,12 +715,12 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             struct stat helper{};
             if(lstat(localeHelper.c_str(),&helper) || !S_ISREG(helper.st_mode) || helper.st_uid!=getuid())
                 return failure("proton_locale_helper_missing",true);
-            const std::string state="native-cjk-v1\n"+language+"\n"+
+            const std::string state="native-cjk-v2\n"+setupGroup+"\n"+language+"\n"+
                 std::to_string(helper.st_size)+":"+std::to_string(helper.st_mtime)+"\n";
             const std::string statePath=root+"/prefix/hmosdeck-locale.state";
             std::ifstream previous(statePath);
             const std::string existing((std::istreambuf_iterator<char>(previous)),std::istreambuf_iterator<char>());
-            if(existing!=state) {
+            if(existing!=state || access((root+"/prefix/user.reg").c_str(),R_OK)) {
                 const auto configured=RunNativeLoader({loader,"--inhibit-cache","--library-path",libraries,
                     wine,"C:\\proton-x86-locale.exe","--configure",language},provisioningEnvironment,120000,options);
                 if(!Succeeded(configured) || configured.output.find("HMOSDECK_GNU_LOCALE_CONFIGURED")==std::string::npos)
@@ -708,7 +738,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             // A selectively installed WoW64 closure needs its own COM view.
             // Register using the original 32-bit modules, rather than writing
             // guessed CLSID entries or relying on 64-bit-only wineboot state.
-            std::string mediaState="wow64-media-v1\n";
+            std::string mediaState="wow64-media-v2\n"+setupGroup+"\n";
             for(const char* name : {"mmdevapi.dll","dsound.dll","dinput8.dll","msctf.dll"}) {
                 struct stat module{};
                 if(stat((package+"/files/lib/wine/i386-windows/"+name).c_str(),&module))
@@ -718,7 +748,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             const std::string mediaStatePath=root+"/prefix/hmosdeck-media.state";
             std::ifstream previousMedia(mediaStatePath);
             const std::string existingMedia((std::istreambuf_iterator<char>(previousMedia)),std::istreambuf_iterator<char>());
-            if(existingMedia!=mediaState) {
+            if(existingMedia!=mediaState || access((root+"/prefix/system.reg").c_str(),R_OK)) {
                 const auto mediaRegistration = RunNativeLoader({loader, "--inhibit-cache", "--library-path", libraries,
                     wine, "C:\\windows\\syswow64\\regsvr32.exe", "/s", "mmdevapi.dll", "dsound.dll", "dinput8.dll", "msctf.dll"},
                     provisioningEnvironment, 120000, options);
@@ -761,7 +791,7 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
                 "\"SteamClientDll64\"=\"C:\\\\Program Files (x86)\\\\Steam\\\\steamclient64.dll\"\r\n";
             NativeExecResult registration;
             const auto registered = EnsureProtonSetup(root + "/prefix/hmosdeck-steam-registry.state",
-                root + "/prefix/user.reg", "steam-registry-v1\n" + registry, [&]() {
+                root + "/prefix/user.reg", "steam-registry-v2\n" + setupGroup + "\n" + registry, [&]() {
                     if (!WritePrivateFile(root + "/prefix/drive_c/proton-steam.reg", registry)) return false;
                     registration = RunNativeLoader({loader, "--inhibit-cache", "--library-path", libraries,
                         wine, "C:\\windows\\system32\\reg.exe", "import", "C:\\proton-steam.reg"},
@@ -844,6 +874,14 @@ std::string ProbeGnuProton(const std::string& runtime, bool forkBackend, const s
             const uint32_t timeoutMs = d3d64Requested ? 120000 : gameRequested ? 600000 : controlsRequested ? 150000 : initializeRequested ? 120000 : 40000;
             options.persistentSession=manual && manual->role=="game";
             trace.Mark("gameDispatch");
+            if(manual&&manual->role=="game") {
+                options.context=const_cast<ProtonProbeCapabilities*>(&capabilities);
+                options.parentTask=[](void* opaque,int pid) {
+                    const auto* caps=static_cast<const ProtonProbeCapabilities*>(opaque);
+                    const auto message=WindowProcessMessage(pid);
+                    send(caps->cancellationFd,message.data(),message.size(),MSG_NOSIGNAL);
+                };
+            }
             prefix = RunNativeLoader(arguments, prefixEnvironment,options.persistentSession?0:timeoutMs, options);
         }
         // cleanup targets only this diagnostic prefix, including early returns.

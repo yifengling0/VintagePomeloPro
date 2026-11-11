@@ -506,6 +506,41 @@ __attribute__((visibility("hidden"))) long SteamOhosFexFileCall(long number,long
     return SteamOhosNextSyscall(number,a,b,c,d,e,f);
 }
 
+// Shared GNU user-copy contract, adapted from HSL local_path.c (LGPL-2.1-or-later).
+// Kernel validates both addresses; no process_vm privilege, signal takeover,
+// inherited queue or unchecked guest-pointer dereference is required.
+long SteamOhosLocalCopy(void* target,const void* source,unsigned long bytes) {
+    if(!bytes)return 0;
+    if(bytes>LONG_MAX||(uintptr_t)source>UINTPTR_MAX-bytes||(uintptr_t)target>UINTPTR_MAX-bytes){errno=EFAULT;return -1;}
+    if(!SteamOhosNextSyscall){errno=ENOSYS;return -1;}
+    int pair[2];
+    if(SteamOhosNextSyscall(SYS_socketpair,AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0,pair))return -1;
+    unsigned long at=0;int error=0;
+    while(at<bytes) {
+        size_t chunk=bytes-at;
+        const size_t fromPage=4096-(((uintptr_t)source+at)&4095),toPage=4096-(((uintptr_t)target+at)&4095);
+        if(chunk>fromPage)chunk=fromPage;
+        if(chunk>toPage)chunk=toPage;
+        struct iovec input={(void*)((uintptr_t)source+at),chunk};
+        struct msghdr send={.msg_iov=&input,.msg_iovlen=1};long written;
+        do{written=SteamOhosNextSyscall(SYS_sendmsg,pair[1],&send,MSG_NOSIGNAL);}while(written<0&&errno==EINTR);
+        if(written<=0){error=written<0?(errno==EINVAL?EFAULT:errno):EIO;break;}
+        size_t received=0;
+        while(received<(size_t)written) {
+            struct iovec output={(void*)((uintptr_t)target+at+received),(size_t)written-received};
+            struct msghdr receive={.msg_iov=&output,.msg_iovlen=1};long n;
+            do{n=SteamOhosNextSyscall(SYS_recvmsg,pair[0],&receive,0);}while(n<0&&errno==EINTR);
+            if(n<=0){error=n<0?(errno==EINVAL?EFAULT:errno):EIO;break;}
+            received+=(size_t)n;
+        }
+        at+=received;
+        if(error||written!=(long)chunk)break;
+    }
+    SteamOhosNextSyscall(SYS_close,pair[0]);SteamOhosNextSyscall(SYS_close,pair[1]);
+    if(!at&&error){errno=error;return -1;}
+    return (long)at;
+}
+
 extern long SteamOhosNativeFexExecCall(long,long,long,long,long,long,long) __attribute__((weak));
 // FEX's guest exit_group handler calls the host libc syscall entry directly.
 // A guest LD_PRELOAD exit() observer cannot see that path. This opt-in trace

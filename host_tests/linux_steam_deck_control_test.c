@@ -50,5 +50,7 @@ int main(int argc,char **argv){
     put(path,"1 abcd-1234 8 library 0\n");deck_tick(&c,1,1);
     assert(!c.child&&c.last==7&&has(state,"\"closed\":true"));
     setenv("HMOSDECK_SESSION_GENERATION","../../bad",1);assert(!deck_initialize(&c));
+    char properties[128];assert(!strcmp(deck_uri("properties","413150",properties,sizeof(properties)),"steam://gameproperties/413150"));
+    assert(!deck_uri("properties","../bad",properties,sizeof(properties)));
     puts("Deck GNU control: readiness, fixed URI dispatch, ACK, replay, stale generation, invalid AppID, invalid action, presentation and exit PASS");return 0;
 }

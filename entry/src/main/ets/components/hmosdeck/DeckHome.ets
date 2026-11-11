@@ -131,8 +131,7 @@ export struct DeckHome {
     this.games = mergeDeckSteamGames(LinuxSteamLibraryService.getInstance().scan(), this.windowsSteamGames);
     LinuxSteamArtworkService.getInstance().ensure(this.games);
     if (!this.games.some((g: DeckSteamGame): boolean => g.key === this.selected)) this.selected = this.games[0]?.key ?? '';
-    this.tasks = HostWindowTasks.getInstance().snapshot().filter((task: HostWindowTask): boolean =>
-      task.source !== 'steam-linux' && task.title !== '运行窗口');
+    this.tasks = HostWindowTasks.getInstance().runningTasks();
   }
   private async controlGame(key: string, force: boolean): Promise<void> {
     InputDispatcher.getInstance().releaseAll('launcher-game-close');
@@ -279,7 +278,7 @@ export struct DeckHome {
       for (const game of this.filteredLocal()) ids.push('deck-local-' + game.id, 'deck-local-settings-' + game.id);
     } else for (const task of this.tasks) {
       ids.push('deck-task-' + task.key);
-      if (HostWindowTasks.getInstance().controllableGames().some((item: HostWindowTask): boolean => item.key === task.key)) {
+      if (HostWindowTasks.getInstance().canControlGame(task.key)) {
         ids.push('deck-task-close-' + task.key, 'deck-task-kill-' + task.key);
       }
     }
@@ -704,15 +703,15 @@ export struct DeckHome {
               SymbolGlyph($r('sys.symbol.gamecontroller')).fontSize(26).fontColor(['#1A9FFF'])
               Column({ space: 6 }) {
                 Text(task.title).fontSize(16).fontColor('#F2F4F7').maxLines(1)
-                Text(task.source === 'steam-linux' ? 'Linux Steam' : '正在运行').fontSize(12).fontColor('#9AA3AF')
+                Text(task.phase === 'starting' ? '正在启动' : task.phase === 'stopping' ? '正在结束' : '正在运行').fontSize(12).fontColor('#9AA3AF')
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               Text('继续').fontSize(14).fontColor('#1A9FFF')
             }.padding(20)
           }.width('100%').padding(0).borderRadius(12).backgroundColor('#121417').border({ width: 1, color: '#262A31', radius: 12 })
             .onFocus((): void => { this.focus = 'deck-task-' + task.key; }).onClick((): void => { void this.restoreTask(task.key); }).id('deck-task-' + task.key)
-          if (HostWindowTasks.getInstance().controllableGames().some((item: HostWindowTask): boolean => item.key === task.key)) {
+          if (HostWindowTasks.getInstance().canControlGame(task.key)) {
             Row({ space: 12 }) {
-              Button('关闭游戏').fontSize(13).height(40).fontColor('#CBD2DC').backgroundColor('#1A1D22').borderRadius(10)
+              Button(task.phase === 'starting' ? '取消启动' : '关闭游戏').fontSize(13).height(40).fontColor('#CBD2DC').backgroundColor('#1A1D22').borderRadius(10)
                 .onClick((): void => { void this.controlGame(task.key, false); }).id('deck-task-close-' + task.key)
               Button('强制结束').fontSize(13).height(40).fontColor('#FF9292').backgroundColor('#26191C').borderRadius(10)
                 .onClick((): void => { void this.controlGame(task.key, true); }).id('deck-task-kill-' + task.key)

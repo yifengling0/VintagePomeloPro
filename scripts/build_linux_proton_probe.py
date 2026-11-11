@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Build the opt-in GNU Proton probe shim; never modifies the product runtime."""
+"""Build the production GNU Proton adapter as a source-identified HAP companion."""
 from pathlib import Path
 import argparse, hashlib, json, subprocess
+from linux_component_identity import compiler_identity
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--base-build',type=Path,help='Deprecated; shared runtime objects are no longer modified or reused')
@@ -53,7 +54,14 @@ variant = variant.replace(needle, r'''
         if(child<0){int error=errno;close(errors[0]);close(errors[1]);return error;}
         if(!child){
             close(errors[0]);Handoff(path,argv,env);int error=errno;
-            (void)write(errors[1],&error,sizeof(error));_exit(127);
+            size_t sent=0;
+            while(sent<sizeof(error)) {
+                ssize_t count=write(errors[1],reinterpret_cast<const char*>(&error)+sent,sizeof(error)-sent);
+                if(count<0&&errno==EINTR)continue;
+                if(count<=0)break;
+                sent+=static_cast<size_t>(count);
+            }
+            _exit(127);
         }
         close(errors[1]);
         pollfd event{errors[0],POLLIN,0};
@@ -496,6 +504,10 @@ objects=[task/(p.name+'.o') for p in shared]
 binary=task/'libproton_probe.so'
 inputs={'sources':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in
  [task/'exec_probe.cpp',task/'filesystem_probe.c',task/'posix_probe.c',task/'syscall_probe.S',*shared,*fixture.glob('*.h'),*fixture.parent.glob('*.h')]},
+ 'originalSources':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in
+ [fixture/n for n in ('exec_compat.cpp','filesystem_compat.c','posix_compat.c','syscall_compat.S')]},
+ 'toolchain':compiler_identity(cc),
+ 'identityScript':hashlib.sha256((root/'scripts/linux_component_identity.py').read_bytes()).hexdigest(),
  'script':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
  'compilers':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [cc,cxx]}}
 identity = task/'posix-probe-identity.json'
@@ -528,4 +540,4 @@ record = {'buildInputs':inputs,'name':binary.name,'bytes':binary.stat().st_size,
 
     'productRuntimeModified':False}
 (task/'posix-probe-identity.json').write_text(json.dumps(record,indent=2)+'\n')
-print(json.dumps(record),flush=True)
+print(json.dumps({k:record[k] for k in ['name','bytes','sha256']}),flush=True)

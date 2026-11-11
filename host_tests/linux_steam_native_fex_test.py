@@ -4,7 +4,7 @@ The small host FEX stand-in tests launch contracts, NOT x86 execution or GPU.
 It has no execute bit, starts a sibling FEXServer and issues syscall(openat).
 """
 from pathlib import Path
-import gzip, json, os, re, shutil, signal, subprocess, tempfile, time, unittest
+import gzip, json, os, re, shutil, signal, socket, struct, subprocess, tempfile, threading, time, unittest
 ROOT=Path(__file__).resolve().parents[1]
 NATIVE=ROOT/'entry/src/main/cpp/linux_steam'
 def fex_config(text):
@@ -339,8 +339,32 @@ int main(int n,char**v) {
    'STEAM_COMPAT_INSTALL_PATH':str(cls.game),'SteamAppId':'2923300','STEAMOHOS_SOFTWARE_GL':'1','LIBGL_ALWAYS_SOFTWARE':'1',
    'STEAMOHOS_AUDIO_BOOTSTRAP_SOCKET':str(cls.base/'audio'),'GLIBC_TUNABLES':'glibc.pthread.rseq=0'}
   cls.env.pop('STEAMOHOS_NATIVE_FEX',None)
+  cls.control=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+  cls.endpoint=str(cls.base/'observe.sock');cls.control.bind(cls.endpoint);cls.control.listen(8)
+  cls.env.update(STEAMOHOS_LAUNCH_SOCKET=cls.endpoint,STEAMOHOS_LAUNCH_NONCE='a'*64)
+  def read(conn,size):
+   value=b''
+   while len(value)<size:
+    more=conn.recv(size-len(value))
+    if not more: return None
+    value+=more
+   return value
+  def observe(conn):
+   with conn:
+    prefix=read(conn,4)
+    if prefix is None:return
+    frame=read(conn,struct.unpack('!I',prefix)[0])
+    assert frame and b'HMOSDECK-NATIVE/1' in frame
+    conn.sendall(struct.pack('!III',0x484d5231,1,0))
+    while read(conn,16):pass
+  def accept():
+   while True:
+    try:conn,_=cls.control.accept()
+    except OSError:return
+    threading.Thread(target=observe,args=(conn,),daemon=True).start()
+  threading.Thread(target=accept,daemon=True).start()
  @classmethod
- def tearDownClass(cls):cls.tmp.cleanup()
+ def tearDownClass(cls):cls.control.close();cls.tmp.cleanup()
  def command(self,*extra):
   return [str(self.base/'caller'),str(self.tool/'fex-compat-tool'),'waitforexitandrun','--',str(self.runtime/'_v2-entry-point'),'--verb=waitforexitandrun','--',str(self.scout/'scout-on-soldier-entry-point-v2'),str(self.binary),*extra]
  def run_command(self,args=None,env=None):
@@ -352,6 +376,36 @@ int main(int n,char**v) {
   for name in names:(core/name).write_bytes(b'\x7fELF\x02\x01'+bytes(12)+b'\x3e\x00')
   (core/'manifest.json').write_text('{}')
   return core
+
+ def test_kernel_checked_local_copy(self):
+  source=self.base/'user-copy.c';source.write_text(r"""
+#define _GNU_SOURCE
+#include <assert.h>
+#include <dlfcn.h>
+#include <errno.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
+int main(void){
+ long (*copy)(void*,const void*,unsigned long)=dlsym(RTLD_DEFAULT,"SteamOhosLocalCopy");assert(copy);
+ unsigned char *a=mmap(0,12288,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+ unsigned char *b=mmap(0,12288,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);assert(a!=MAP_FAILED&&b!=MAP_FAILED);
+ memset(a,0x5a,12288);assert(copy(b,a,12288)==12288&&!memcmp(a,b,12288));
+ assert(!mprotect(a+4096,4096,PROT_NONE));errno=0;assert(copy(b,a+4096,1)==-1&&errno==EFAULT);
+ errno=0;assert(copy(a+4096,b,1)==-1&&errno==EFAULT);
+ assert(copy(b,a,8192)==4096);assert(!mprotect(a+4096,4096,PROT_READ));
+ assert(copy(b,a,8192)==8192);errno=0;assert(copy((void*)1,a,1)==-1&&errno==EFAULT);
+ errno=0;assert(copy(b,(void*)(UINTPTR_MAX-1),8)==-1&&errno==EFAULT);
+ assert(copy(0,0,0)==0);puts("COPY_BOTH_EFAULT_PARTIAL_READONLY_AND_ZERO");return 0;
+}
+""")
+  binary=self.base/'user-copy';subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror',source,'-ldl','-o',binary],check=True)
+  result=subprocess.run([binary],env={**os.environ,'LD_PRELOAD':str(self.code/'libsteamohos_posix.so')},capture_output=True,text=True,timeout=10)
+  self.assertEqual(result.returncode,0,result.stderr);self.assertIn('COPY_BOTH_EFAULT_PARTIAL_READONLY_AND_ZERO',result.stdout)
+
  def test_runtime_script_preserves_argv_without_host_shell(self):
   directory=self.rootfs/'usr/bin';directory.mkdir(exist_ok=True)
   (directory/'bash').write_bytes(self.binary.read_bytes())
@@ -463,7 +517,7 @@ int main(int n,char**v){
     self.assertIn('GUEST_STANDARD_PATH_EXEC_OK',result.stdout)
  def test_32_bit_thunks_use_fex_base_directory_contract(self):
   guest=self.tool/'usr/share/fex-emu/GuestThunks_32'
-  host=self.tool/'usr/lib/aarch64-linux-gnu/fex-emu/HostThunks'
+  host=self.tool/'usr/lib/aarch64-linux-gnu/fex-emu/HostThunks_32'
   guest.mkdir(parents=True);host.mkdir(parents=True)
   original=self.binary.read_bytes()
   machine=183 if os.uname().machine=='aarch64' else 62

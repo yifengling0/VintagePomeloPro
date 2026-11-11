@@ -39,9 +39,10 @@ const makeManifest = version => {
 const catalog = () => ({schemaVersion:1,revision:catalogRevision,releases:[...runtimeReleases].reverse()});
 const exists = name => fs.existsSync(name);
 const deps = {
-  './LinuxProtonModules': {ensureLinuxProtonModules: async()=>{}},
-  './LinuxProtonDxvk': {ensureLinuxProtonDxvk: async()=>{}},
-  './LinuxProtonMedia': {ensureLinuxProtonMedia: async()=>{}},
+  './LinuxProtonLease': {withLinuxProtonMaintenance: async action => action()},
+  './LinuxProtonModules': {ensureLinuxProtonModules: async()=>write(root+'/modules-installed.json',JSON.stringify({id:hash('modules')}))},
+  './LinuxProtonDxvk': {ensureLinuxProtonDxvk: async()=>write(root+'/dxvk-support/manifest.json',JSON.stringify({id:hash('dxvk')}))},
+  './LinuxProtonMedia': {ensureLinuxProtonMedia: async()=>write(root+'/media-installed.json',JSON.stringify({id:hash('media')}))},
   './LinuxProtonBootstrap': {ensureLinuxProtonBootstrap: async()=>{}},
   '@kit.AbilityKit': {}, '@kit.CoreFileKit': {fileIo: {
     accessSync: exists, mkdirSync: (name, recursive) => fs.mkdirSync(name,{recursive}),

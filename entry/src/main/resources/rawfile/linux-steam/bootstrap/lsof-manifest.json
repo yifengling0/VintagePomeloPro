@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "steamohos_lsof_hap",
+  "architecture": "aarch64-linux-gnu",
+  "bytes": 229104,
+  "sha256": "54dafdfa99e3f34549430776451a0bf08690a71e76e4a0aa321bf6eebd0089b2",
+  "sources": {
+    "scripts/prepare_linux_lsof_support.py": "84f7286c4750970ac2bb57da6424b1a4e372fe50af67861732bb4bacf76d1aac",
+    "scripts/build_linux_steam_lsof.py": "feb01d002c03c54a19d28e74b1faa9df284845774d551be7a6bdb81292bbfbd0",
+    "scripts/linux_component_identity.py": "12536dc1ff34b91e465cefb371b77c0f2f4c7a748dc8dad567f32beb87765f24",
+    "patches/lsof/0001-ohos-live-socket-query-backend.patch": "34b72d29e6216a31d9292b2ef0ee8b239828a6eb025db8d7c681342309eb7d6a",
+    "patches/lsof/0002-cooperative-tcp-registry-scan.patch": "e638bf5ebcddbb64651df5c1ac1105cac9633b4f94e60da2951d4e3d4ccbb737",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/lsof_socket_backend.h": "448f8bb3e5ae1302b595a030ee4a9580271c0e192eeaf19e5e70ab8c2ddc7f00",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/socket_query_protocol.h": "f02c13821d20ee1f82e1acbd7edc6dde9d2d23db02fc1fdc3fc82ec067ae5e94"
+  },
+  "buildInputs": {
+    "source": "e9faa0fbcc48638c1d1f143e93573ac43b65e76646150f83e24bd8c18786303c",
+    "compiler": {
+      "machine": "aarch64-linux-gnu",
+      "closure": "e83adb112caea19b63d6586c4b11d34c74f2feb16251985ac7fc38aae16baa20"
+    },
+    "sources": {
+      "scripts/build_linux_steam_lsof.py": "feb01d002c03c54a19d28e74b1faa9df284845774d551be7a6bdb81292bbfbd0",
+      "patches/lsof/0001-ohos-live-socket-query-backend.patch": "34b72d29e6216a31d9292b2ef0ee8b239828a6eb025db8d7c681342309eb7d6a",
+      "patches/lsof/0002-cooperative-tcp-registry-scan.patch": "e638bf5ebcddbb64651df5c1ac1105cac9633b4f94e60da2951d4e3d4ccbb737",
+      "entry/src/main/cpp/linux_steam/gnu_fixture/lsof_socket_backend.h": "448f8bb3e5ae1302b595a030ee4a9580271c0e192eeaf19e5e70ab8c2ddc7f00",
+      "entry/src/main/cpp/linux_steam/gnu_fixture/socket_query_protocol.h": "f02c13821d20ee1f82e1acbd7edc6dde9d2d23db02fc1fdc3fc82ec067ae5e94",
+      "scripts/linux_component_identity.py": "12536dc1ff34b91e465cefb371b77c0f2f4c7a748dc8dad567f32beb87765f24"
+    }
+  },
+  "sourceUrl": "https://deb.debian.org/debian/pool/main/l/lsof/lsof_4.95.0.orig.tar.bz2"
+}

@@ -868,6 +868,28 @@ static napi_value SendToplevelClose(napi_env env, napi_callback_info info) {
 }
 
 // -- NAPI: createRenderer -- (XComponentController.onSurfaceCreated 调用)
+static napi_value SetToplevelIsolated(napi_env env, napi_callback_info info) {
+    size_t argc = 2; napi_value args[2]{}; uint32_t id = 0; bool isolated = false;
+    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok || argc != 2 ||
+        napi_get_value_uint32(env, args[0], &id) != napi_ok || !id ||
+        napi_get_value_bool(env, args[1], &isolated) != napi_ok) return nullptr;
+    PluginManager::GetInstance()->SetToplevelIsolated(id, isolated);
+    return nullptr;
+}
+
+// Shared presentation infrastructure only; does not install/boot a prefix or
+// start any Wine process. The packaged host helper supplies the receiver.
+static napi_value PrepareLinuxSteamDisplay(napi_env env, napi_callback_info) {
+    auto& broker = winehua::GraphicsBroker::GetInstance();
+    // Do not change a live Wine renderer/backend when Steam is opened later.
+    if (!broker.GetState().runtimeReady) {
+        broker.SetWineRuntimeBinaryDir("/data/storage/el2/base/files/wine/bin");
+        broker.SetRequestedBackend(winehua::GraphicsBackend::Virgl);
+    }
+    bool ok = broker.EnsureStarted("/data/storage/el2/base/files/.wine");
+    napi_value result; napi_get_boolean(env, ok, &result); return result;
+}
+
 static napi_value CreateRenderer(napi_env env, napi_callback_info info) {
     size_t argc = 2;
     napi_value args[2];
@@ -1918,6 +1940,8 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"checkWinePrefix",nullptr, CheckWinePrefix,nullptr, nullptr, nullptr, napi_default, nullptr},
         {"resetWinePrefix",nullptr, ResetWinePrefix,nullptr, nullptr, nullptr, napi_default, nullptr},
         // surfaceId 驱动的渲染器管理 (XComponentController 回调)
+        {"setToplevelIsolated", nullptr, SetToplevelIsolated, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"prepareLinuxSteamDisplay", nullptr, PrepareLinuxSteamDisplay, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"createRenderer",  nullptr, CreateRenderer,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"resizeRenderer",  nullptr, ResizeRenderer,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"destroyRenderer", nullptr, DestroyRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},

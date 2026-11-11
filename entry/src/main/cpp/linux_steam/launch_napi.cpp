@@ -24,6 +24,12 @@ napi_value IsLinuxSteamProcess(napi_env env, napi_callback_info info) {
     return Boolean(env, count == 1 && napi_get_value_int32(env, argv[0], &pid) == napi_ok &&
         GameLaunchBroker().OwnsProcess(pid));
 }
+napi_value IsLinuxSteamGameProcess(napi_env env,napi_callback_info info) {
+    size_t count=2;napi_value argv[2];uint32_t id=0;int32_t pid=-1;
+    napi_get_cb_info(env,info,&count,argv,nullptr,nullptr);
+    return Boolean(env,count==2&&napi_get_value_uint32(env,argv[0],&id)==napi_ok&&
+        napi_get_value_int32(env,argv[1],&pid)==napi_ok&&GameLaunchBroker().OwnsGameProcess(id,pid));
+}
 napi_value StopGameLaunchBroker(napi_env env,napi_callback_info){GameLaunchBroker().Stop();return Boolean(env,true);}
 napi_value DrainGameLaunchBroker(napi_env env,napi_callback_info){
     auto events=GameLaunchBroker().Drain();napi_value result;napi_create_array_with_length(env,events.size(),&result);
@@ -32,6 +38,10 @@ napi_value DrainGameLaunchBroker(napi_env env,napi_callback_info){
         napi_set_named_property(env,object,"id",id);napi_set_named_property(env,object,"cancel",cancel);
         Property(env,object,"appId",event.appId);Property(env,object,"cwd",event.cwd);Property(env,object,"install",event.install);
         Property(env,object,"role",event.role);Property(env,object,"backend",event.backend);
+        Property(env,object,"phase",event.phase);Property(env,object,"processIdentity",event.processIdentity);
+        for(const auto& entry: {std::pair{"processId",event.processId},std::pair{"exitCode",event.exitCode},std::pair{"exitSignal",event.exitSignal}}) {
+            napi_value value;napi_create_int32(env,entry.second,&value);napi_set_named_property(env,object,entry.first,value);
+        }
         Array(env,object,"argv",event.argv);Array(env,object,"environment",event.environment);napi_set_element(env,result,i,object);}
     return result;
 }

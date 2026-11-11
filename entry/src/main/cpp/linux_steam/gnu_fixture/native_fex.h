@@ -73,8 +73,9 @@ inline unsigned ElfMachine(const std::string& path) {
     return (bytes[4]==2&&(machine==62||machine==183))||(bytes[4]==1&&machine==3)?machine:0;
 }
 struct Plan {
-    std::string tool,rootfs,compat,install,runtime,error;
+    std::string tool,rootfs,compat,install,runtime,error,game;
     std::vector<std::string> argv;
+    bool native=false;
 };
 // Steam launch options may name an executable script rather than an ELF.
 // Preserve the script and its arguments; execute its interpreter from the
@@ -149,6 +150,49 @@ inline bool FindRoot(Plan& plan) {
     if(roots.size()!=1)return Reject(plan,roots.empty()?"runtime_rootfs_missing":"runtime_rootfs_ambiguous");
     plan.rootfs=roots.front();return true;
 }
+inline bool ArmGame(const std::string& path) {
+    const auto game=Canonical(path),install=Canonical(Env("STEAM_COMPAT_INSTALL_PATH"));
+    bool scoped=false;
+    for(const auto& lib:Libraries())if(Below(install,lib+"/steamapps/common"))scoped=true;
+    return scoped&&Below(game,install)&&ElfMachine(game)==183;
+}
+// ARM64 games keep Steam's native platform. Runtime wrappers are accepted
+// only at their installed Valve entry and never execute the depot shell.
+inline bool MakeArmPlan(int argc,char* const argv[],Plan& plan) {
+    std::string family;
+    if(argc<1||argc>120)return Reject(plan,"invalid_arguments");
+    const bool wrapped=Runtime(argv[0],plan.runtime,family);
+    if(!wrapped&&!ArmGame(argv[0]))return Reject(plan,"untrusted_native_runtime");
+    for(int i=0;i<argc;++i)if(!argv[i]||strnlen(argv[i],16384)>=16384)return Reject(plan,"argument_limit");
+    if(wrapped&&(argc<4||(strcmp(argv[1],"--verb=run")&&strcmp(argv[1],"--verb=waitforexitandrun"))))return Reject(plan,"runtime_verb_missing");
+    if(wrapped&&strcmp(argv[2],"--"))return Reject(plan,"runtime_separator_missing");
+    plan.install=Canonical(Env("STEAM_COMPAT_INSTALL_PATH"));
+    bool scoped=false;
+    for(const auto& lib:Libraries())if(Below(plan.install,lib+"/steamapps/common"))scoped=true;
+    if(!scoped)return Reject(plan,"install_path_outside_library");
+    int index=wrapped?3:0;
+    // Preserve nested Valve runtime wrappers without running pressure-vessel.
+    for(unsigned depth=0;index<argc&&depth<4;++depth) {
+        std::string package,nestedFamily;
+        if(!Runtime(argv[index],package,nestedFamily))break;
+        const auto entry=fs::path(argv[index]).filename().string();++index;
+        if(entry=="_v2-entry-point") {
+            if(index>=argc||(strcmp(argv[index],"--verb=run")&&strcmp(argv[index],"--verb=waitforexitandrun")))
+                return Reject(plan,"runtime_verb_missing");
+            ++index;
+            if(index>=argc||strcmp(argv[index],"--"))return Reject(plan,"runtime_separator_missing");
+            ++index;
+        } else if(index<argc&&!strcmp(argv[index],"--"))++index;
+    }
+    if(index>=argc)return Reject(plan,"game_command_missing");
+    plan.game=Canonical(argv[index]);
+    if(!Below(plan.game,plan.install))return Reject(plan,"game_command_outside_install");
+    // Do not infer architecture from a filename or redirect a PE into Linux.
+    if(ElfMachine(plan.game)!=183)return Reject(plan,"native_game_not_arm64_elf");
+    plan.argv.push_back(plan.game);
+    for(int i=index+1;i<argc;++i)plan.argv.emplace_back(argv[i]);
+    plan.native=true;return true;
+}
 inline bool MakePlan(int argc,char* const argv[],Plan& plan) {
     if(argc<3||argc>120)return Reject(plan,"invalid_arguments");
     for(int i=0;i<argc;++i)if(!argv[i]||strnlen(argv[i],16384)>=16384)return Reject(plan,"argument_limit");
@@ -204,6 +248,7 @@ inline bool MakePlan(int argc,char* const argv[],Plan& plan) {
     }
     if(index>=argc)return Reject(plan,"game_command_missing");
     auto game=Canonical(argv[index]);
+    plan.game=game;
     if(!Below(game,plan.install))return Reject(plan,"game_command_outside_install");
     const unsigned machine=ElfMachine(game);
     std::string interpreter,interpreterArgument;

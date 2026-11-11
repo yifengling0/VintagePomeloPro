@@ -1,3 +1,4 @@
+import { withLinuxProtonMaintenance } from './LinuxProtonLease';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, statfs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
@@ -192,7 +193,13 @@ export class LinuxProtonRuntimeService {
   private async operation(context: common.Context, action: () => Promise<void>): Promise<void> {
     if (this.sessionActive || this.preparingSession || this.games > 0 || this.adapterActive || this.value.busy) throw new Error('请先退出 Steam 和游戏，并等待组件准备完成');
     this.value.busy = true; this.value.error = ''; this.value.totalBytes = 0; this.value.receivedBytes = 0; this.publish();
-    try { directory(STORE); directory(SCRATCH); directory(ROOT); recoverActivation(); await this.initialize(context); await action(); }
+    try {
+      await withLinuxProtonMaintenance(async (): Promise<void> => {
+        directory(STORE); directory(SCRATCH); directory(ROOT);
+        if (fs.accessSync(`${ROOT}/component-group-ready.json`)) fs.unlinkSync(`${ROOT}/component-group-ready.json`);
+        recoverActivation(); await this.initialize(context); await action();
+      });
+    }
     catch (error) { this.value.error = (error as Error).message; this.publish('Proton 操作未完成'); throw error as Error; }
     finally {
       this.transfer = null;

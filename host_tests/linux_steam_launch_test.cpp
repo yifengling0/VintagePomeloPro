@@ -1,5 +1,6 @@
 #include "linux_steam/launch_broker.h"
 #include "linux_steam/window_process_message.h"
+#include "linux_steam/gnu_fixture/native_game_session.h"
 #include <cassert>
 #include <cerrno>
 #include <chrono>
@@ -104,6 +105,48 @@ int main(int argc,char** argv){
         assert(broker.Reply(events[0].id,1,0));assert(broker.Reply(events[0].id,2,0));int status=0;
         assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);
     }
+    // Native game wrappers report their real child exit; control must leave
+    // Steam, the wrapper's parent and another running session untouched.
+    const auto nativeGame=install+"/native.sh";
+    {std::ofstream file(nativeGame);file<<"#!/bin/sh\nexit 23\n";}
+    auto nativeRequest=valid;nativeRequest.backend="linux-native";nativeRequest.verb="observe";
+    nativeRequest.argv={exe};rejected(nativeRequest); // PE never becomes native.
+    nativeRequest=valid;nativeRequest.argv={nativeGame};rejected(nativeRequest); // Native never becomes Wine.
+    pid_t unrelated=fork();assert(unrelated>=0);if(!unrelated){pause();_exit(0);}
+    for(unsigned control:{0u,5u,6u}) {
+        const pid_t wrapper=fork();assert(wrapper>=0);
+        if(!wrapper) {
+            setenv("STEAMOHOS_LAUNCH_SOCKET",endpoint.c_str(),1);setenv("STEAMOHOS_LAUNCH_NONCE",nonce.c_str(),1);
+            setenv("SteamAppId","3590",1);NativeGameSession session;
+            if(!session.Start(nativeGame,install))_exit(91);
+            const pid_t game=fork();if(game<0)_exit(92);
+            if(!game){setpgid(0,0);if(control)execl("/bin/sleep","sleep","20",nullptr);
+                else execl("/bin/sh","sh",nativeGame.c_str(),nullptr);
+                _exit(93);}
+            setpgid(game,game);if(!session.Started(game))_exit(94);
+            int status=0;if(session.Wait(game,status))_exit(95);
+            const bool correct=control?WIFSIGNALED(status)&&WTERMSIG(status)==(control==5?SIGTERM:SIGKILL):WIFEXITED(status)&&WEXITSTATUS(status)==23;
+            _exit(correct?0:96);
+        }
+        bool started=false,ended=false;uint32_t nativeId=0;
+        for(unsigned attempt=0;attempt<500&&!ended;++attempt) {
+            for(const auto& event:broker.Drain()) {
+                assert(!event.cancel&&event.backend=="linux-native");nativeId=event.id;
+                if(event.phase=="starting")assert(broker.Reply(event.id,1,0));
+                else if(event.phase=="running") {
+                    started=true;if(control)assert(broker.OwnsGameProcess(event.id,event.processId));
+                    assert(!broker.OwnsGameProcess(event.id,wrapper));assert(!broker.OwnsGameProcess(event.id,unrelated));
+                    if(control)assert(broker.Reply(event.id,control,0));
+                } else if(event.phase=="exited") {
+                    ended=true;assert(control?event.exitSignal==(control==5?SIGTERM:SIGKILL):event.exitCode==23);
+                }
+            }
+            Tick();
+        }
+        assert(started&&ended);int status=0;assert(waitpid(wrapper,&status,0)==wrapper&&WIFEXITED(status)&&WEXITSTATUS(status)==0);
+        assert(!broker.OwnsGameProcess(nativeId,wrapper));assert(!kill(unrelated,0));
+    }
+    kill(unrelated,SIGTERM);assert(waitpid(unrelated,nullptr,0)==unrelated);
     // Bad frames never allocate unbounded buffers or produce a launch.
     fd=Connect(endpoint);uint32_t oversized=htonl(LaunchMaxBytes+1);assert(write(fd,&oversized,4)==4);assert(broker.Drain().empty());assert(recv(fd,&byte,1,0)==0);close(fd);
     broker.Stop();assert(!broker.OwnsProcess(getpid()));assert(access(endpoint.c_str(),F_OK)!=0);

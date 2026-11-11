@@ -16,7 +16,10 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/desktop_session.c": "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json",
     "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json",
     "scripts/build_linux_proton_probe.py": "entry/src/main/resources/rawfile/linux-proton/dxvk-support/manifest.json",
-    "scripts/build_linux_proton_venus.py": "entry/src/main/resources/rawfile/linux-proton/dxvk-support/manifest.json"
+    "scripts/build_linux_proton_venus.py": "entry/src/main/resources/rawfile/linux-proton/dxvk-support/manifest.json",
+    "scripts/build_linux_steam_lsof.py": "entry/src/main/resources/rawfile/linux-steam/bootstrap/lsof-manifest.json",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/lsof_socket_backend.h": "entry/src/main/resources/rawfile/linux-steam/bootstrap/lsof-manifest.json",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/deck_action_uri.h": "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json"
   },
   "sourceInputs": {
     "entry/src/main/cpp/linux_steam/gnu_fixture/alsa_hmosdeck.c": "c0102cf479cfecc6c7e53a290be1ab5c33a48d2731ef0c2e26327ef6b66be261",
@@ -138,7 +141,8 @@
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json",
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json",
     "entry/src/main/resources/rawfile/linux-steam/bootstrap/native-graphics-manifest.json",
-    "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json"
+    "entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json",
+    "entry/src/main/resources/rawfile/linux-steam/bootstrap/lsof-manifest.json"
   ],
   "protonMedia": "docs/linux-steam/proton-media.lock.json",
   "nativeRepairs": "linux-steam/bootstrap/native-game-support/manifest.json",

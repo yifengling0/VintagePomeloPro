@@ -8,18 +8,21 @@
 namespace steamohos {
 constexpr uint32_t LaunchReplyMagic = 0x484d5231;
 constexpr size_t LaunchMaxBytes = 65536;
+constexpr uint32_t NativeEventMagic = 0x484d4e31;
 struct LaunchRequest {
     uint32_t id = 0;
     bool cancel = false;
     std::string nonce, appId, verb, cwd, install;
     // Assigned by the host after path validation, never trusted from the wire.
     std::string role = "game", backend = "ohos-wine";
+    std::string phase, processIdentity;
+    int32_t processId = 0, exitCode = -1, exitSignal = 0;
     std::vector<std::string> argv, environment;
 };
 inline void PutNumber(std::string& out, uint32_t n) { n=htonl(n); out.append(reinterpret_cast<char*>(&n),4); }
 inline void PutString(std::string& out, const std::string& s) { PutNumber(out,s.size()); out+=s; }
 inline std::string EncodeLaunch(const LaunchRequest& r) {
-    std::string out; PutString(out,"HMOSDECK-LAUNCH/1");
+    std::string out; PutString(out,r.backend=="linux-native"?"HMOSDECK-NATIVE/1":"HMOSDECK-LAUNCH/1");
     for (const auto* s : {&r.nonce,&r.appId,&r.verb,&r.cwd,&r.install}) PutString(out,*s);
     PutNumber(out,r.argv.size()); for(const auto& s:r.argv) PutString(out,s);
     PutNumber(out,r.environment.size()); for(const auto& s:r.environment) PutString(out,s);
@@ -31,7 +34,8 @@ inline bool DecodeLaunch(const std::string& data, LaunchRequest& r) {
     auto text=[&](std::string& s) { uint32_t n; if(!number(n)||n>16384||n>data.size()-pos)return false;
         s=data.substr(pos,n);pos+=n;return s.find('\0')==std::string::npos; };
     std::string magic;
-    if(data.size()>LaunchMaxBytes || !text(magic)||magic!="HMOSDECK-LAUNCH/1")return false;
+    if(data.size()>LaunchMaxBytes || !text(magic)||(magic!="HMOSDECK-LAUNCH/1"&&magic!="HMOSDECK-NATIVE/1"))return false;
+    r.backend=magic=="HMOSDECK-NATIVE/1"?"linux-native":"ohos-wine";
     for(auto* s:{&r.nonce,&r.appId,&r.verb,&r.cwd,&r.install})if(!text(*s))return false;
     uint32_t count;
     if(!number(count)||!count||count>120)return false;

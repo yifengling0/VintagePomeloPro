@@ -1,6 +1,7 @@
 #include "window_process_message.h"
 #include "host_napi.h"
 #include "launch_broker.h"
+#include "runtime_lease.h"
 #include "audio_bootstrap_relay.h"
 #include "phone_adapter/phone_adapter.h"
 #include "proc/wine_process.h"
@@ -53,6 +54,7 @@ struct GnuWork {
     bool inputActions = false;
     uint32_t launchId=0;
     std::string requestFile;
+    std::shared_ptr<RuntimeLease> runtimeLease;
     ~GnuWork() {
         if (launchId) {
             std::lock_guard<std::mutex> guard(ProtonMutex);
@@ -123,6 +125,10 @@ void ExecuteGnu(napi_env, void* data) {
     if(work.forkBackend)parameters+="\nFORK=1";
     NativeChildProcess_Fd audio{};audio.fdName=const_cast<char*>("hmosdeck_audio");audio.fd=audioFd;
     if(audioFd>=0)fd.next=&audio;
+    NativeChildProcess_Fd maintenance{};maintenance.fdName=const_cast<char*>("proton_lease");
+    maintenance.fd=work.runtimeLease?fcntl(work.runtimeLease->Descriptor(),F_DUPFD_CLOEXEC,3):-1;
+    if(work.runtimeLease&&maintenance.fd<0){close(sockets[0]);close(sockets[1]);if(audioFd>=0)close(audioFd);return;}
+    if(maintenance.fd>=0){if(audioFd>=0)audio.next=&maintenance;else fd.next=&maintenance;}
     NativeChildProcess_Args args{}; args.entryParams = const_cast<char*>(parameters.c_str()); args.fdList.head = &fd;
     NativeChildProcess_Options options{}; options.isolationMode = NCP_ISOLATION_MODE_NORMAL;
     int32_t pid = -1;
@@ -135,6 +141,7 @@ void ExecuteGnu(napi_env, void* data) {
         if (!work.forkBackend || code != NCP_ERR_LIB_LOADING_FAILED) {
             close(sockets[1]);
             if(audioFd>=0)close(audioFd);
+            if(maintenance.fd>=0)close(maintenance.fd);
         }
     }
     if (code != NCP_NO_ERROR || pid <= 0) {
@@ -150,6 +157,7 @@ void ExecuteGnu(napi_env, void* data) {
     if (work.parameters.compare(0, 6, "steam:") == 0) GameLaunchBroker().SetAncestor(pid);
     std::string output;
     bool awaitingWindow = work.parameters.compare(0,6,"steam:")==0;
+    bool awaitingGame = work.launchId!=0;
     bool exited = false, eof = false, overflow = false;
     int exitSignal = -1;
     const auto observeExit = [&] {
@@ -185,6 +193,11 @@ void ExecuteGnu(napi_env, void* data) {
                 const auto parsed=ConsumeWindowProcessMessage(output,window);
                 if(parsed<0||(parsed==1&&!GameLaunchBroker().RegisterWindowProcess(pid,window))) {overflow=true;break;}
                 if(parsed==1||parsed==2)awaitingWindow=false;
+            }
+            if(awaitingGame) {
+                int child=-1;const auto parsed=ConsumeWindowProcessMessage(output,child);
+                if(parsed<0||(parsed==1&&!GameLaunchBroker().RegisterGameProcess(work.launchId,pid,child))) {overflow=true;break;}
+                if(parsed==1||parsed==2)awaitingGame=false;
             }
         } else if (!n) eof = true;
         else if (errno != EAGAIN && errno != EINTR) break;
@@ -235,7 +248,7 @@ void CompleteGnu(napi_env env, napi_status status, void* data) {
     napi_delete_async_work(env, work->work);
 }
 }
-static napi_value StartGnuProbe(napi_env env, int mode, uint32_t launchId=0, const std::string& language="zh_CN") {
+static napi_value StartGnuProbe(napi_env env, int mode, uint32_t launchId=0, const std::string& language="zh_CN", std::shared_ptr<RuntimeLease> runtimeLease={}) {
     LaunchRequest request;
     if(mode==6 && (!GameLaunchBroker().GetRequest(launchId,request) ||
         (request.backend!="gnu-proton"&&request.backend!="gnu-proton-gl"))) {
@@ -245,6 +258,7 @@ static napi_value StartGnuProbe(napi_env env, int mode, uint32_t launchId=0, con
     if (reservation.exchange(true)) { napi_throw_error(env, nullptr, "GNU native diagnostic is busy"); return nullptr; }
     auto work = std::make_unique<GnuWork>();
     work->reservation=&reservation;
+    work->runtimeLease=std::move(runtimeLease);
     work->forkBackend = PhoneAdapter_IsPhoneMode();
     work->productSession = mode == 4 || mode == 6;
     if(mode==6) {
@@ -307,15 +321,45 @@ static napi_value StartGnuProbe(napi_env env, int mode, uint32_t launchId=0, con
     }
     work.release(); return promise;
 }
+namespace {
+std::mutex MaintenanceMutex;
+std::map<uint32_t,std::shared_ptr<RuntimeLease>> MaintenanceLeases;
+uint32_t NextMaintenanceLease=0;
+}
+napi_value BeginProtonMaintenance(napi_env env,napi_callback_info) {
+    std::lock_guard<std::mutex> lock(MaintenanceMutex);
+    auto lease=std::make_shared<RuntimeLease>();
+    if(!lease->Acquire("/data/storage/el2/base/files/steamohos-native")) {
+        napi_throw_error(env,nullptr,"Proton runtime/prefix is in use; retry after the session exits");return nullptr;
+    }
+    if(MaintenanceLeases.size()>=8){napi_throw_error(env,nullptr,"Too many Proton maintenance leases");return nullptr;}
+    uint32_t token=++NextMaintenanceLease;
+    MaintenanceLeases.emplace(token,std::move(lease));
+    napi_value value;napi_create_uint32(env,token,&value);return value;
+}
+napi_value EndProtonMaintenance(napi_env env,napi_callback_info info) {
+    size_t count=1;napi_value argv[1];uint32_t token=0;napi_get_cb_info(env,info,&count,argv,nullptr,nullptr);
+    std::lock_guard<std::mutex> lock(MaintenanceMutex);
+    if(count==1&&napi_get_value_uint32(env,argv[0],&token)==napi_ok)MaintenanceLeases.erase(token);
+    return nullptr;
+}
 napi_value StartProtonGame(napi_env env,napi_callback_info info) {
-    size_t count=2;napi_value argv[2];uint32_t id=0;napi_get_cb_info(env,info,&count,argv,nullptr,nullptr);
+    size_t count=3;napi_value argv[3];uint32_t id=0;napi_get_cb_info(env,info,&count,argv,nullptr,nullptr);
     if(!count||napi_get_value_uint32(env,argv[0],&id)!=napi_ok||!id){napi_throw_error(env,nullptr,"Invalid Steam launch ticket");return nullptr;}
     char language[16]="zh_CN";
-    if(count==2 && (napi_get_value_string_utf8(env,argv[1],language,sizeof(language),nullptr)!=napi_ok ||
+    if(count>=2 && (napi_get_value_string_utf8(env,argv[1],language,sizeof(language),nullptr)!=napi_ok ||
        (strcmp(language,"zh_CN") && strcmp(language,"zh_TW") && strcmp(language,"ja_JP") && strcmp(language,"en_US")))) {
         napi_throw_error(env,nullptr,"Unsupported GNU Wine language");return nullptr;
     }
-    return StartGnuProbe(env,6,id,language);
+    std::shared_ptr<RuntimeLease> lease;
+    if(count==3) {
+        uint32_t token=0;std::lock_guard<std::mutex> lock(MaintenanceMutex);
+        if(napi_get_value_uint32(env,argv[2],&token)!=napi_ok||!MaintenanceLeases.count(token)) {
+            napi_throw_error(env,nullptr,"Proton maintenance lease expired");return nullptr;
+        }
+        lease=MaintenanceLeases.at(token);
+    }
+    return StartGnuProbe(env,6,id,language,std::move(lease));
 }
 napi_value CancelProtonGame(napi_env env,napi_callback_info info) {
     size_t count=1;napi_value argv[1],result;uint32_t id=0;bool accepted=false;napi_get_cb_info(env,info,&count,argv,nullptr,nullptr);

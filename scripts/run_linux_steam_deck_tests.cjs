@@ -190,7 +190,7 @@ pageRecoveryTests();
 async function sessionTests(shutdownMode = 'normal') {
   const shutdownScenario = shutdownMode;
   const singleton=x=>({getInstance:()=>x});
-  let starts=0, launches=0, stopped=0, endNative, foregroundRevision=0, homes=0;
+  let starts=0, launches=0, stopped=0, endNative, foregroundRevision=0, homes=0, winePreparations=0, lazyWine;
   let releaseComponents;
   const componentsGate=new Promise(resolve=>{releaseComponents=resolve;});
   const commands=[]; const presentationEvents=[]; let onDispatch=()=>{};
@@ -212,7 +212,7 @@ async function sessionTests(shutdownMode = 'normal') {
   let foreground=true,recoverPending=false,recoverAttempts=0,restores=0,presentationResets=0,failHost=false;
   class Host {exited=false; hasExited(){return this.exited;} async restore(forLaunch=false){restores++;presentationEvents.push('restore:'+(forLaunch?'launch':'navigation'));return true;} async start() {launches++;if(failHost){failHost=false;throw new Error('create failed');}} stop(){stopped++;} isForeground(){return foreground;}}
   class Recovery {start(){}stop(){}poll(){}beginBigPicture(){presentationResets++;}needed(){return recoverPending;}take(){recoverPending=false;return ++recoverAttempts;}}
-  class Games {start(){}stop(){}}
+  class Games {start(_library,_results,_root,prepare){lazyWine=prepare;}stop(){}}
   const nativeStart=()=>{starts++;const generation=files.get(base+'/session-generation.txt').trim();
     files.set(base+'/client-tmp/deck-session-state.json',JSON.stringify({version:1,generation,ready:true,closed:false,mode:0,updatedAt:now}));
     return nativePromise;
@@ -226,16 +226,17 @@ async function sessionTests(shutdownMode = 'normal') {
     './LogService':{hilog:{info(){},warn(){}}},
     '@ohos.util':{default:{generateRandomUUID:()=> 'abcd-9876'}},
     'libsmoke_napi.so':{default:{startLinuxSteamSession:nativeStart}},
+    'libentry.so':{default:{startServer:()=>true,prepareLinuxSteamDisplay:()=>true}},
     '../model/AppModels':{DisplayMode:{DESKTOP:1},WinePresentationMode:{DESKTOP:1}},
     '../model/LinuxSteamModels':models,
     './ConfigurationFiles':{ConfigurationFiles:config},
     './LinuxSteamInstallService':{LinuxSteamInstallService:singleton({ensureReady:async()=>{await componentsGate;}})},
     './LinuxSteamClientSupervisor':{ensureLinuxSteamClientSupervisor:async()=>{},ensureLinuxSteamPosixSupport:async()=>{}},
     './LinuxSteamLibraryService':{LinuxSteamLibraryService:singleton({externalRoot:()=>root})},
-    './LinuxSteamGameLaunch':{LinuxSteamGameLaunch:Games},'./LinuxSteamWindowHost':{LinuxSteamWindowHost:Host},
+    './LinuxSteamGameLaunch':{LinuxSteamGameLaunch:Games},'./LinuxSteamNativeWindowHost':{LinuxSteamNativeWindowHost:Host},
     './ManagedLinuxSteamBridgeService':{ManagedLinuxSteamBridgeService:{synchronizeCompatibility:async()=>{}}},
     './LinuxSteamPageRecovery':{LinuxSteamPageRecovery:Recovery},
-    './WineEngineService':{WineEngineService:singleton({ensureReady:async()=>true})},
+    './WineEngineService':{WineEngineService:singleton({ensureReady:async()=>{winePreparations++;return true;}})},
     './HostWindowTasks':{HostWindowTasks:singleton({snapshot:()=>[{key:'steam-1',source:'steam-linux'}],activate:async()=>true,foregroundRevision:()=>foregroundRevision,showLauncher:async()=>{homes++;foregroundRevision++;},expectSteamGame:()=>1,cancelExpectedSteamGame:()=>{}})},
     './GamepadManager':{GamepadManager:singleton({releaseAll(){}})},
     './ManagedSmokePayloadService':{ensureSmokeDirectory(){return true;},readSmokeText:file=>files.get(file)||''}
@@ -249,10 +250,13 @@ async function sessionTests(shutdownMode = 'normal') {
   assert.equal(starts,1,'Returning home does not restart or kill the native client');
   assert.ok(files.get(base+'/client-launch.conf').includes(`startupAction=${initialAction} ${initialAction==='launch'?'3590':'0'}\n`),'cold navigation is queued in official Steam argv');
   assert.equal(commands.length,0,'a visible login surface must not trigger a duplicate navigation process');
+  assert.equal(winePreparations,0,'Linux Steam startup never initializes Wine');
+  assert.equal(typeof lazyWine,'function');await lazyWine();
+  assert.equal(winePreparations,1,'Windows requests explicitly prepare Wine on demand');
   commands.length=0;service.requestId=0;files.delete(base+'/client-tmp/deck-command-ack.json');
   await Promise.all([service.open('library'),service.open('downloads'),service.open('launch','3590')]);
   assert.equal(starts,1,'concurrent callers share one product native session');
-  assert.equal(launches,1,'one Wine host for that session');
+  assert.equal(launches,1,'one native carrier for that session');
   assert.deepEqual(commands.map(c=>c.action),['library','downloads','launch'],'commands serialized');
   assert.deepEqual(commands.map(c=>c.id),['1','2','3'],'monotonic requests');
   assert.equal(commands[2].appId,'3590');
@@ -290,15 +294,15 @@ async function sessionTests(shutdownMode = 'normal') {
   const liveGeneration=service.snapshot().generation;
   service.host.exited=true;
   await Promise.all([service.open('library'), service.open('downloads')]);
-  assert.equal(launches,2,'concurrent explicit requests replace one confirmed dead Wine host');
-  assert.equal(starts,1,'Wine host recovery never restarts Linux Steam or login');
+  assert.equal(launches,2,'concurrent explicit requests replace one confirmed dead native carrier');
+  assert.equal(starts,1,'native carrier recovery never restarts Linux Steam or login');
   assert.equal(stopped,1,'old binding is released once before replacement');
-  assert.equal(service.snapshot().generation,liveGeneration,'native generation survives Wine host exit');
+  assert.equal(service.snapshot().generation,liveGeneration,'native generation survives native carrier exit');
   assert.equal(service.host.hasExited(),false);
   service.host.exited=true; failHost=true;
   await assert.rejects(service.open('library'),/Steam 窗口恢复失败/);
   assert.equal(service.host,null,'failed replacement is discarded so retry remains possible');
-  assert.equal(starts,1,'failed Wine replacement preserves the native session');
+  assert.equal(starts,1,'failed native carrier replacement preserves the native session');
   await service.open('library');
   assert.equal(launches,4,'explicit retry creates a new replacement');
   const stopsBeforeShutdown=stopped;

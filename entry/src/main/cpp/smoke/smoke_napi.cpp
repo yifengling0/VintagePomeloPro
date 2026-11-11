@@ -54,6 +54,7 @@ static napi_value SmokeNapiInit(napi_env env, napi_value exports) {
     napi_property_descriptor props[] = {
 #ifdef WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC
         {"isLinuxSteamProcess", nullptr, steamohos::IsLinuxSteamProcess, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"isLinuxSteamGameProcess", nullptr, steamohos::IsLinuxSteamGameProcess, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startLinuxSteamLaunchBroker", nullptr, steamohos::StartGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopLinuxSteamLaunchBroker", nullptr, steamohos::StopGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"drainLinuxSteamLaunchBroker", nullptr, steamohos::DrainGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -64,6 +65,8 @@ static napi_value SmokeNapiInit(napi_env env, napi_value exports) {
         {"probeLinuxSteamGnuXwayland", nullptr, steamohos::ProbeGnuXwayland, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxSteamGnuWayland", nullptr, steamohos::ProbeGnuWayland, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxSteamGnu", nullptr, steamohos::ProbeGnu, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"beginLinuxProtonMaintenance", nullptr, steamohos::BeginProtonMaintenance, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"endLinuxProtonMaintenance", nullptr, steamohos::EndProtonMaintenance, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startLinuxProtonGame", nullptr, steamohos::StartProtonGame, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"cancelLinuxProtonGame", nullptr, steamohos::CancelProtonGame, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeLinuxProton", nullptr, steamohos::ProbeProton, nullptr, nullptr, nullptr, napi_default, nullptr},

@@ -41,6 +41,7 @@ class HostResizeState {
 
 export class WineWindowManager {
   private static instance: WineWindowManager | null = null;
+  private externalToplevels: Map<number, string> = new Map();
   private hostResizes: Map<number, HostResizeState> = new Map();
   private requestedGeometry: Map<number, RequestedHostGeometry> = new Map();
   private applyingGeometry: Set<number> = new Set();
@@ -303,7 +304,7 @@ export class WineWindowManager {
   }
 
   setPresentationMode(mode: WinePresentationMode): void {
-    HostWindowTasks.getInstance().reset();
+    HostWindowTasks.getInstance().reset(true);
     this.fusionSubWindowHost = null;
     this.desktopEmbeddedHost = null;
     AppStorage.setOrCreate('desktopEmbeddedHost', false);
@@ -318,10 +319,10 @@ export class WineWindowManager {
     this.destroyed.clear();
     this.deferredRaiseTimers.forEach((timer: number): void => clearTimeout(timer));
     this.deferredRaiseTimers.clear();
-    this.loadedWindows.clear();
-    this.fullscreenWindows.clear();
-    this.pendingRaises.clear();
-    this.modalToplevelIds.clear();
+    this.loadedWindows.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.loadedWindows.delete(id); });
+    this.fullscreenWindows.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.fullscreenWindows.delete(id); });
+    this.pendingRaises.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.pendingRaises.delete(id); });
+    this.modalToplevelIds.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.modalToplevelIds.delete(id); });
     testNapi.setDesktopMode(this.isDesktopMode);
     hilog.info(DOMAIN, TAG, '[MW] setPresentationMode=%{public}s nativeDesktop=%{public}s',
       mode, this.isDesktopMode ? 'yes' : 'no');
@@ -464,7 +465,7 @@ export class WineWindowManager {
   }
 
   onHostWindowRectChange(id: number, change: window.RectChangeOptions): void {
-    if (this.isDesktopMode || !this.windows.has(id)) return;
+    if (this.desktopOwns(id) || !this.windows.has(id)) return;
     const reason = change.reason;
     const drag = reason === window.RectChangeReason.DRAG_START || reason === window.RectChangeReason.DRAG;
     const end = reason === window.RectChangeReason.DRAG_END;
@@ -608,9 +609,24 @@ export class WineWindowManager {
     PopupWindowManager.getInstance().raisePopups(toplevelId);
   }
 
+  // Caller must first establish ownership through the native Steam broker.
+  // The task key contains the window incarnation; reused numeric IDs cannot
+  // inherit a prior session's carrier or renderer policy.
+  manageExternalToplevel(key: string): boolean {
+    const task = HostWindowTasks.getInstance().snapshot().find((item: HostWindowTask): boolean => item.key === key);
+    if (!task || !['steam-linux', 'steam-game'].includes(task.source) || task.toplevelId <= 0 || this.destroyed.has(task.toplevelId)) return false;
+    const id = task.toplevelId;
+    if (this.externalToplevels.get(id) === key && (this.windows.has(id) || this.pendingStarts.has(id))) return true;
+    this.externalToplevels.set(id, key);
+    testNapi.setToplevelIsolated(id, true);
+    this.startWineWindowAbility(id, JSON.stringify({ title: task.title }));
+    return true;
+  }
+  private desktopOwns(id: number): boolean { return this.isDesktopMode && !this.externalToplevels.has(id); }
+
   private async restoreTask(task: HostWindowTask, current: () => boolean): Promise<boolean> {
     if (!current() || this.destroyed.has(task.toplevelId)) return false;
-    if (this.isDesktopMode) {
+    if (this.desktopOwns(task.toplevelId)) {
       const root = this.desktopRootId || testNapi.getDesktopRootId();
       if (root <= 0 || !this.uiAbilityContext) return false;
       InputDispatcher.getInstance().releaseAll('host-task-switch');
@@ -699,7 +715,7 @@ export class WineWindowManager {
     this.cancelDeferredRaise(id);
     const timer = setTimeout((): void => {
       this.deferredRaiseTimers.delete(id);
-      if (this.isDesktopMode || this.destroyed.has(id) || !this.loadedWindows.has(id) ||
+      if (this.desktopOwns(id) || this.destroyed.has(id) || !this.loadedWindows.has(id) ||
           this.fullscreenWindows.has(id)) {
         hilog.info(DOMAIN, TAG,
           '[MW] deferred raise #%{public}d skipped reason=%{public}s fullscreen=%{public}s loaded=%{public}s',
@@ -733,7 +749,7 @@ export class WineWindowManager {
       hilog.info(DOMAIN, TAG, '[MW] onAfterLoadContent #%{public}d: fullscreen, skip system raise', toplevelId);
     } else if (this.pendingRaises.delete(toplevelId)) {
       this.scheduleManagedRaise(toplevelId, 'pending-wine-raise');
-    } else if (!this.isDesktopMode) {
+    } else if (!this.desktopOwns(toplevelId)) {
       // 第二次打开窗口时 Wine 可能不再发 raise；延迟补一次，并让随后到达的
       // fullscreen 事件有机会取消它。
       this.scheduleManagedRaise(toplevelId, 'new-window-focus');
@@ -825,7 +841,7 @@ export class WineWindowManager {
       id, event, this.windows.has(id) ? 'yes' : 'no');
 
     // PC 融合模式 modal: 不建 Ability。桌面模式由 compositor 组员化+输入拦截处理。
-    if (!this.isDesktopMode && (event === 'modal' || this.modalToplevelIds.has(id))) {
+    if (!this.desktopOwns(id) && (event === 'modal' || this.modalToplevelIds.has(id))) {
       if (event === 'modal') {
         try {
           const obj: Record<string, number> = JSON.parse(data) as Record<string, number>;
@@ -872,7 +888,10 @@ export class WineWindowManager {
           }
         } catch (_) {
         }
-        if (this.isDesktopMode) {
+        if (linuxSteam) {
+          const task = HostWindowTasks.getInstance().snapshot().find((item: HostWindowTask): boolean => item.toplevelId === id);
+          if (task) this.manageExternalToplevel(task.key);
+        } else if (this.desktopOwns(id)) {
           hilog.info(DOMAIN, TAG, '[MW] Desktop mode: toplevel #%{public}d created, skipping Ability', id);
         } else {
           hilog.info(DOMAIN, TAG, '[MW] managed windows -> startWineWindowAbility(#%{public}d)', id);
@@ -911,7 +930,7 @@ export class WineWindowManager {
         this.cancelDeferredRaise(id);
         hilog.info(DOMAIN, TAG, '[MW] fullscreen #%{public}d: cancel managed raise', id);
         // 桌面模式: 全屏由 C++ 合成器直接处理 (缩放绘制 + 输入映射), ArkTS 无需动作
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         // PC 模式: 游戏 xdg fullscreen → OHOS 沉浸式全屏 (盖住 dock/任务栏)。
         // 游戏画面由 popup (全屏拉伸) 承载, 主窗口最大化保证无系统 UI 露出。
         if (this.windows.has(id)) {
@@ -925,7 +944,7 @@ export class WineWindowManager {
       case 'unfullscreen':
         this.fullscreenWindows.delete(id);
         hilog.info(DOMAIN, TAG, '[MW] unfullscreen #%{public}d', id);
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         if (this.windows.has(id)) {
           this.applyEvent(id, event, data);
         } else {
@@ -935,7 +954,7 @@ export class WineWindowManager {
         }
         break;
       case 'raise':
-        if (!this.isDesktopMode && !this.fullscreenWindows.has(id)) {
+        if (!this.desktopOwns(id) && !this.fullscreenWindows.has(id)) {
           if (this.fusionUsesSubWindow()) {
             this.raiseWindowGroup(id);
           } else if (this.loadedWindows.has(id)) {
@@ -948,7 +967,7 @@ export class WineWindowManager {
         break;
       case 'surface':
         // Desktop 模式: 非 root toplevel 事件跳过
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         // C++ 回报 XComponent surface 的物理像素尺寸, 用于动态校准标题栏高度
         try {
           const obj: Record<string, string | number> = JSON.parse(data) as Record<string, string | number>;
@@ -1010,7 +1029,7 @@ export class WineWindowManager {
       case 'title':
       case 'resize':
       case 'geometry':
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         if (this.windows.has(id)) {
           hilog.info(DOMAIN, TAG, '[MW] -> applyEvent directly #%{public}d %{public}s', id, event);
           this.applyEvent(id, event, data);
@@ -1028,7 +1047,7 @@ export class WineWindowManager {
       case 'unmaximized':
       case 'limits':
       case 'argb':
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         if (this.windows.has(id)) {
           this.applyEvent(id, event, data);
         } else {
@@ -1042,7 +1061,7 @@ export class WineWindowManager {
       case 'popup_resize':
       case 'popup_hide':
         // PC 模式 popup 子窗口 (desktop 模式 C++ 不会发这些事件)
-        if (this.isDesktopMode) return;
+        if (this.desktopOwns(id)) return;
         // 父窗口 Wine 尺寸传给 PopupWindowManager: 全屏游戏把渲染 surface 放
         // popup (popup 尺寸==模拟分辨率==父窗口尺寸), 需判定并拉伸到宿主屏幕;
         // 普通菜单 popup 不受影响。
@@ -1338,7 +1357,7 @@ export class WineWindowManager {
       return;
     }
     if (this.fusionSubWindowHost === null) this.fusionSubWindowHost = this.resolveFusionSubWindowHost();
-    if (this.fusionUsesSubWindow()) {
+    if (this.fusionUsesSubWindow() && !this.externalToplevels.has(id)) {
       this.startFusionSubWindow(id, data);
       return;
     }
@@ -1469,6 +1488,7 @@ export class WineWindowManager {
   private onToplevelDestroyed(id: number): void {
     hilog.info(DOMAIN, TAG, '[MW] onToplevelDestroyed #%{public}d', id);
     this.destroyed.add(id);
+    const external = this.externalToplevels.has(id);
     this.clearPointerLockFor(id);
 
     // Desktop 模式: root 销毁 → 关闭 DesktopAbility, 回到主页面。
@@ -1490,7 +1510,7 @@ export class WineWindowManager {
       return;
     }
     // Desktop 模式: 非 root toplevel 销毁, C++ 自动停止合成
-    if (this.isDesktopMode) {
+    if (this.desktopOwns(id)) {
       this.unregisterAbility(id);
       return;
     }
@@ -1505,6 +1525,8 @@ export class WineWindowManager {
       this.unregisterAbility(id);
       return;
     }
+
+    if (external) { this.externalToplevels.delete(id); testNapi.setToplevelIsolated(id, false); }
 
     // Managed-window compatibility path
     if (!this.abilityContexts.has(id) && !this.pendingStarts.has(id)) {
@@ -1750,7 +1772,7 @@ export class WineWindowManager {
   //   完整桌面下 fromToplevel == desktopRootId → 桌面 shell 自身藏
   //   光标 (启动瞬时) → 禁止; 子窗口 (真实游戏/程序) → 允许。
   private canHideCursor(fromToplevel: number): boolean {
-    if (!this.isDesktopMode) return true;
+    if (!this.desktopOwns(fromToplevel)) return this.foregroundAbilities.has(fromToplevel);
     if (this.desktopAbilityRunning || DeviceCapabilityPolicy.usesManagedWineWindows()) {
       if (!this.desktopAbilityForeground) return false;
     } else {

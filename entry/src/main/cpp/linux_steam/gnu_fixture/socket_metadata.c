@@ -19,6 +19,10 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <dirent.h>
+#include <signal.h>
+#include <netinet/tcp.h>
+#include <sys/prctl.h>
+#include "socket_query_protocol.h"
 
 struct Request {uint32_t version;int32_t descriptor;uint64_t inode;};
 struct EndpointPair {struct sockaddr_storage local,peer;};
@@ -76,8 +80,10 @@ static int find_peer(const struct EndpointPair *pair) {
     closedir(directory);if(found<0)errno=ENOENT;return found;
 }
 static pthread_mutex_t guard=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t lifecycle=PTHREAD_MUTEX_INITIALIZER;
 static pthread_t worker;
 static int listener=-1,stopping;
+static int wake[2]={-1,-1};
 static pid_t owner;
 static char endpoint[sizeof(((struct sockaddr_un*)0)->sun_path)];
 
@@ -101,6 +107,60 @@ static int endpoint_path(pid_t pid,char *path,size_t capacity,int create) {
     if(n<0||(size_t)n>=capacity){errno=ENAMETOOLONG;return -1;}
     return 0;
 }
+static int socket_stat(int fd,uint64_t inode,struct stat *status);
+static int tcp_socket(int fd) {
+    int type=0;socklen_t size=sizeof(type);
+    struct tcp_info info;
+    if(getsockopt(fd,SOL_SOCKET,SO_TYPE,&type,&size)||type!=SOCK_STREAM){errno=EAFNOSUPPORT;return -1;}
+    size=sizeof(info);
+    return getsockopt(fd,IPPROTO_TCP,TCP_INFO,&info,&size);
+}
+static int number_order(const void *a,const void *b) {
+    int x=*(const int*)a,y=*(const int*)b;return (x>y)-(x<y);
+}
+static int next_tcp(int minimum,struct SteamOhosSocketRecord *record) {
+    // As in VPP's peer lookup, the target enumerates only its OWN FDs. Pin
+    // each candidate before inspecting it; concurrent close/reuse cannot
+    // change the endpoint sent with SCM_RIGHTS. No foreign proc is needed.
+    DIR *directory=opendir("/proc/self/fd");if(!directory)return -1;
+    int numbers[8192];unsigned count=0;int error=0;struct dirent *entry;
+    errno=0;
+    while((entry=readdir(directory))) {
+        if(!*entry->d_name||strspn(entry->d_name,"0123456789")!=strlen(entry->d_name))continue;
+        char *end;long value=strtol(entry->d_name,&end,10);
+        if(*end||value<minimum||value>=INT_MAX||value==dirfd(directory))continue;
+        if(count==sizeof(numbers)/sizeof(numbers[0])){error=EOVERFLOW;break;}
+        numbers[count++]=(int)value;
+    }
+    if(!error&&errno)error=errno;
+    closedir(directory);
+    if(error){errno=error;return -1;}
+    qsort(numbers,count,sizeof(numbers[0]),number_order);
+    for(unsigned i=0;i<count;++i) {
+        int fd=fcntl(numbers[i],F_DUPFD_CLOEXEC,0);if(fd<0)continue;
+        struct stat status;
+        if(!syscall(SYS_fstat,fd,&status)&&S_ISSOCK(status.st_mode)&&
+           !socket_stat(fd,status.st_ino,&status)&&!tcp_socket(fd)) {
+            record->descriptor=numbers[i];record->inode=status.st_ino;
+            record->pid=getpid();record->ppid=getppid();record->pgid=getpgrp();
+            record->uid=geteuid();
+            // This runs on the broker thread. prctl alone would name that
+            // thread, whereas upstream lsof selects the process leader.
+            int comm=open("/proc/self/comm",O_RDONLY|O_CLOEXEC);
+            ssize_t length=comm>=0?read(comm,record->command,sizeof(record->command)-1):-1;
+            if(comm>=0)close(comm);
+            if(length>0) {
+                if(record->command[length-1]=='\n')--length;
+                record->command[length]=0;
+            } else prctl(PR_GET_NAME,record->command,0,0,0);
+            record->command[sizeof(record->command)-1]=0;
+            return fd;
+        }
+        close(fd);
+    }
+    errno=ENOENT;return -1;
+}
+
 static int peer_is(int fd,pid_t pid) {
     struct ucred credential;socklen_t length=sizeof(credential);
     if(getsockopt(fd,SOL_SOCKET,SO_PEERCRED,&credential,&length))return -1;
@@ -145,11 +205,11 @@ static int transfer(int fd,void *buffer,size_t count,int writing,int64_t deadlin
     }
     return 0;
 }
-static int receive_reply(int channel,int *response,int *descriptor,int64_t deadline) {
+static int receive_record(int channel,void *response,size_t response_size,int *descriptor,int64_t deadline) {
     size_t used=0;unsigned received=0;
-    while(used<sizeof(*response)) {
+    while(used<response_size) {
         if(wait_io(channel,POLLIN,deadline))return -1;
-        struct iovec io={.iov_base=(char*)response+used,.iov_len=sizeof(*response)-used};
+        struct iovec io={.iov_base=(char*)response+used,.iov_len=response_size-used};
         union {struct cmsghdr aligned;char bytes[CMSG_SPACE(4*sizeof(int))];} ancillary={0};
         struct msghdr message={.msg_iov=&io,.msg_iovlen=1,.msg_control=ancillary.bytes,.msg_controllen=sizeof(ancillary.bytes)};
         ssize_t n=recvmsg(channel,&message,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);
@@ -176,12 +236,39 @@ static int receive_reply(int channel,int *response,int *descriptor,int64_t deadl
 #define QUERY_CHANNELS 32
 struct QueryChannel {
     int fd, duplicate, response, replying, rights_sent;
+    uint32_t reserved;
+    uint64_t directory_inode;
     size_t used;
     int64_t deadline;
     struct Request request;
     struct EndpointPair pair;
+    struct SteamOhosSocketRecord record;
 };
 static struct QueryChannel channels[QUERY_CHANNELS];
+static int own_stat_snapshot(uint64_t *inode) {
+    int directory=open("/proc/self",O_RDONLY|O_DIRECTORY|O_CLOEXEC);struct stat status;
+    if(directory<0)return -1;
+    int result=fstat(directory,&status),error=errno;close(directory);
+    if(result){errno=error;return -1;}*inode=status.st_ino;
+    int source=open("/proc/self/stat",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);if(source<0)return -1;
+    char data[4096];ssize_t bytes=pread(source,data,sizeof(data),0);error=errno;close(source);
+    if(bytes<=0||bytes==(ssize_t)sizeof(data)){errno=bytes<0?error:EOVERFLOW;return -1;}
+    char path[sizeof(endpoint)+48];static unsigned serial;
+    int n=snprintf(path,sizeof(path),"%s.stat-%u",endpoint,__atomic_fetch_add(&serial,1,__ATOMIC_RELAXED));
+    if(n<0||n>=(int)sizeof(path)){errno=ENAMETOOLONG;return -1;}
+    int output=open(path,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC|O_NOFOLLOW,0600),input=-1;
+    if(output<0)return -1;
+    if(write(output,data,(size_t)bytes)!=bytes)error=errno?errno:EIO;
+    else if((input=open(path,O_RDONLY|O_CLOEXEC|O_NOFOLLOW))<0)error=errno;
+    else {
+        struct stat before,after;
+        if(fstat(output,&before)||fstat(input,&after))error=errno;
+        else error=before.st_dev!=after.st_dev||before.st_ino!=after.st_ino?ESTALE:0;
+    }
+    if(unlink(path)&&!error)error=errno;
+    close(output);
+    if(error){if(input>=0)close(input);errno=error;return -1;}return input;
+}
 static void close_query(struct QueryChannel *q) {
     if(q->fd>=0)close(q->fd);
     if(q->duplicate>=0)close(q->duplicate);
@@ -196,6 +283,12 @@ static void resolve_query(struct QueryChannel *q) {
         else if(socket_stat(q->duplicate,q->request.inode,&status))q->response=errno;
     } else if(q->request.version==2&&q->request.descriptor==-1&&!q->request.inode) {
         q->duplicate=find_peer(&q->pair);if(q->duplicate<0)q->response=errno;
+    } else if(q->request.version==3&&q->request.descriptor>=0&&!q->request.inode) {
+        q->duplicate=next_tcp(q->request.descriptor,&q->record);
+        if(q->duplicate<0)q->response=errno;
+        q->record.error=q->response;
+    } else if(q->request.version==5&&q->request.descriptor==0&&!q->request.inode) {
+        q->duplicate=own_stat_snapshot(&q->directory_inode);if(q->duplicate<0)q->response=errno;
     } else q->response=EINVAL;
     q->replying=1;q->used=0;
 }
@@ -220,7 +313,10 @@ static void step_query(struct QueryChannel *q,short events,int64_t current) {
         }
     }
     if(!q->replying)return;
-    struct iovec io={.iov_base=(char*)&q->response+q->used,.iov_len=sizeof(q->response)-q->used};
+    struct {int32_t error;uint32_t reserved;uint64_t directory_inode;} response={q->response,0,q->directory_inode};
+    const size_t reply_size=q->request.version==3?sizeof(q->record):q->request.version==5?sizeof(response):sizeof(response.error);
+    void *record=q->request.version==3?(void*)&q->record:(void*)&response;
+    struct iovec io={.iov_base=(char*)record+q->used,.iov_len=reply_size-q->used};
     union {struct cmsghdr aligned;char bytes[CMSG_SPACE(sizeof(int))];} ancillary={0};
     struct msghdr message={.msg_iov=&io,.msg_iovlen=1};
     if(!q->response&&!q->rights_sent) {
@@ -233,19 +329,21 @@ static void step_query(struct QueryChannel *q,short events,int64_t current) {
     if(n<0&&(errno==EINTR||errno==EAGAIN||errno==EWOULDBLOCK))return;
     if(n<=0){close_query(q);return;}
     q->rights_sent=1;q->used+=(size_t)n;
-    if(q->used==sizeof(q->response))close_query(q);
+    if(q->used==reply_size)close_query(q);
 }
 static void *run(void *unused) {
     (void)unused;
     while(!__atomic_load_n(&stopping,__ATOMIC_ACQUIRE)) {
-        struct pollfd ready[QUERY_CHANNELS+1];
+        struct pollfd ready[QUERY_CHANNELS+2];
         int available=0;
         for(unsigned i=0;i<QUERY_CHANNELS;++i) {
             available+=channels[i].fd<0;
             ready[i+1]=(struct pollfd){.fd=channels[i].fd,.events=channels[i].replying?POLLOUT:POLLIN};
         }
         ready[0]=(struct pollfd){.fd=available?listener:-1,.events=POLLIN};
-        if(poll(ready,QUERY_CHANNELS+1,25)<0&&errno!=EINTR)break;
+        ready[QUERY_CHANNELS+1]=(struct pollfd){.fd=wake[0],.events=POLLIN};
+        if(poll(ready,QUERY_CHANNELS+2,1000)<0&&errno!=EINTR)break;
+        if(ready[QUERY_CHANNELS+1].revents||__atomic_load_n(&stopping,__ATOMIC_ACQUIRE))break;
         // Serialize state updates with fork, never while waiting on peer I/O.
         pthread_mutex_lock(&guard);
         int64_t current=milliseconds();
@@ -266,12 +364,15 @@ static void *run(void *unused) {
     pthread_mutex_unlock(&guard);
     return NULL;
 }
-static void before_fork(void){pthread_mutex_lock(&guard);}
-static void after_parent(void){pthread_mutex_unlock(&guard);}
+static void before_fork(void){pthread_mutex_lock(&lifecycle);pthread_mutex_lock(&guard);}
+static void after_parent(void){pthread_mutex_unlock(&guard);pthread_mutex_unlock(&lifecycle);}
 static void after_child(void) {
     if(listener>=0)close(listener);
+    if(wake[0]>=0)close(wake[0]);
+    if(wake[1]>=0)close(wake[1]);
+    wake[0]=wake[1]=-1;
     for(unsigned i=0;i<QUERY_CHANNELS;++i)close_query(&channels[i]);
-    listener=-1;owner=0;endpoint[0]=0;stopping=0;pthread_mutex_unlock(&guard);
+    listener=-1;owner=0;endpoint[0]=0;stopping=0;pthread_mutex_unlock(&guard);pthread_mutex_unlock(&lifecycle);
 }
 __attribute__((constructor)) static void initialize(void) {
     for(unsigned i=0;i<QUERY_CHANNELS;++i)channels[i].fd=channels[i].duplicate=-1;
@@ -281,9 +382,15 @@ void SteamOhosObserveSocket(int fd) {
     int saved=errno;
     if(!enabled()){errno=saved;return;}
     struct sockaddr_storage address;socklen_t size=sizeof(address);
-    if(getsockname(fd,(struct sockaddr*)&address,&size)||
-       (address.ss_family!=AF_INET&&address.ss_family!=AF_INET6)){errno=saved;return;}
+    if(getsockname(fd,(struct sockaddr*)&address,&size)){errno=saved;return;}
+    if(address.ss_family!=AF_INET&&address.ss_family!=AF_INET6) {
+        const char *process=getenv("STEAMOHOS_PROCESS_METADATA");
+        struct sockaddr_un peer={0};size=sizeof(peer);
+        if(address.ss_family!=AF_UNIX||!process||strcmp(process,"1")||
+           getpeername(fd,(struct sockaddr*)&peer,&size)||size<=sizeof(sa_family_t)+1){errno=saved;return;}
+    }
     pthread_mutex_lock(&guard);
+    if(__atomic_load_n(&stopping,__ATOMIC_ACQUIRE))goto done;
     if(owner!=getpid()&&endpoint_path(getpid(),endpoint,sizeof(endpoint),1)==0) {
         struct stat status;
         if(lstat(endpoint,&status)==0) {
@@ -294,13 +401,22 @@ void SteamOhosObserveSocket(int fd) {
         listener=socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK,0);
         struct sockaddr_un path={.sun_family=AF_UNIX};strcpy(path.sun_path,endpoint);
         if(listener<0||bind(listener,(struct sockaddr*)&path,sizeof(path))||listen(listener,QUERY_CHANNELS))goto failed;
+        if(pipe2(wake,O_CLOEXEC|O_NONBLOCK))goto failed;
         owner=getpid();stopping=0;
-        int result=pthread_create(&worker,NULL,run,NULL);
+        pthread_attr_t attributes;int result=pthread_attr_init(&attributes);
+        if(result){owner=0;errno=result;goto failed;}
+        sigset_t blocked;
+        result=sigfillset(&blocked)?errno:pthread_attr_setsigmask_np(&attributes,&blocked);
+        if(!result)result=pthread_create(&worker,&attributes,run,NULL);
+        pthread_attr_destroy(&attributes);
         if(result){owner=0;errno=result;goto failed;}
         goto done;
 failed:
         fprintf(stderr,"STEAMOHOS_SOCKET_QUERY op=start pid=%d errno=%d\n",getpid(),errno);
         if(listener>=0)close(listener);
+        if(wake[0]>=0)close(wake[0]);
+    if(wake[1]>=0)close(wake[1]);
+    wake[0]=wake[1]=-1;
         listener=-1;unlink(endpoint);
     }
 done:
@@ -328,7 +444,7 @@ static int query_socket(pid_t pid,const struct Request *request,const struct End
     if(transfer(channel,(void*)request,sizeof(*request),1,deadline)||
        (pair&&transfer(channel,(void*)pair,sizeof(*pair),1,deadline))){error=errno;goto done;}
     int response=EIO;
-    int received=receive_reply(channel,&response,&fd,deadline);
+    int received=receive_record(channel,&response,sizeof(response),&fd,deadline);
     if(received!=1||response){error=received<0?errno:response?response:EPROTO;goto done;}
     if(request->version==1) {
         struct stat status;if(socket_stat(fd,request->inode,&status)){error=errno;goto done;}
@@ -365,8 +481,62 @@ int SteamOhosFindPeerSocket(pid_t pid,int descriptor) {
     const struct Request request={.version=2,.descriptor=-1,.inode=0};
     return query_socket(pid,&request,&pair);
 }
-__attribute__((destructor)) static void finalize(void) {
-    if(owner!=getpid()||listener<0)return;
-    __atomic_store_n(&stopping,1,__ATOMIC_RELEASE);pthread_join(worker,NULL);
-    close(listener);listener=-1;unlink(endpoint);
+
+// HSL V3 contract adapted to VPP's bounded, one-request nonblocking channels.
+int SteamOhosNextTcpSocket(pid_t pid,int minimum,struct SteamOhosSocketRecord *record) {
+    if(!record||pid<=0||minimum<0){errno=EINVAL;return -1;}
+    memset(record,0,sizeof(*record));
+    struct sockaddr_un address={.sun_family=AF_UNIX};
+    if(endpoint_path(pid,address.sun_path,sizeof(address.sun_path),0))return -1;
+    int channel=socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK,0);if(channel<0)return -1;
+    int fd=-1,error=0;int64_t deadline=milliseconds()+1000;
+    if(connect(channel,(struct sockaddr*)&address,sizeof(address))&&errno!=EINPROGRESS){error=errno;goto done;}
+    if(wait_io(channel,POLLOUT,deadline)||peer_is(channel,pid)){error=errno;goto done;}
+    struct Request request={.version=3,.descriptor=minimum};
+    if(transfer(channel,&request,sizeof(request),1,deadline)){error=errno;goto done;}
+    int received=receive_record(channel,record,sizeof(*record),&fd,deadline);
+    if(received<0){error=errno;goto done;}
+    if(record->error<0||(record->error?received!=0:received!=1)){error=EPROTO;goto done;}
+    if(record->error){error=record->error;goto done;}
+    if(record->pid!=pid||record->uid!=geteuid()||record->descriptor<minimum||record->descriptor>=INT_MAX||
+       record->ppid<0||record->pgid<0||!record->inode||!memchr(record->command,0,sizeof(record->command))) {error=EPROTO;goto done;}
+    struct stat status;
+    if(socket_stat(fd,record->inode,&status)||tcp_socket(fd)){error=errno;goto done;}
+done:
+    close(channel);if(error){if(fd>=0)close(fd);errno=error;return -1;}return fd;
 }
+int SteamOhosVisitTcpSockets(SteamOhosSocketVisitor visitor,void *context) {
+    if(!visitor){errno=EINVAL;return -1;}
+    char path[sizeof(endpoint)];if(endpoint_path(getpid(),path,sizeof(path),0))return -1;
+    char *slash=strrchr(path,'/');if(!slash){errno=EINVAL;return -1;}*slash=0;
+    int fd=open(path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return -1;
+    DIR *directory=fdopendir(fd);if(!directory){int error=errno;close(fd);errno=error;return -1;}
+    struct dirent *entry;unsigned peers=0,records=0;int64_t deadline=milliseconds()+2000;
+    while(peers<128&&milliseconds()<deadline&&(entry=readdir(directory))) {
+        if(!*entry->d_name||strspn(entry->d_name,"0123456789")!=strlen(entry->d_name))continue;
+        char *end;long value=strtol(entry->d_name,&end,10);if(*end||value<=0||value>INT_MAX)continue;
+        ++peers;int minimum=0;
+        for(unsigned i=0;i<2048&&milliseconds()<deadline;++i) {
+            struct SteamOhosSocketRecord record;int copy=SteamOhosNextTcpSocket((pid_t)value,minimum,&record);
+            if(copy<0)break;
+            minimum=record.descriptor+1;++records;int stop=visitor(&record,copy,context);close(copy);
+            if(stop){closedir(directory);return (int)records;}
+        }
+    }
+    closedir(directory);return (int)records;
+}
+__attribute__((visibility("default"))) void HslProcessRuntimeStopV1(void) {
+    int saved=errno;pthread_mutex_lock(&lifecycle);pthread_mutex_lock(&guard);
+    if(owner!=getpid()||listener<0){pthread_mutex_unlock(&guard);pthread_mutex_unlock(&lifecycle);errno=saved;return;}
+    __atomic_store_n(&stopping,1,__ATOMIC_RELEASE);
+    if(wake[1]>=0){const char byte=1;ssize_t n=write(wake[1],&byte,1);(void)n;}
+    pthread_mutex_unlock(&guard);
+    pthread_join(worker,NULL);
+    pthread_mutex_lock(&guard);
+    close(listener);listener=-1;unlink(endpoint);owner=0;
+    if(wake[0]>=0)close(wake[0]);
+    if(wake[1]>=0)close(wake[1]);
+    wake[0]=wake[1]=-1;
+    pthread_mutex_unlock(&guard);pthread_mutex_unlock(&lifecycle);errno=saved;
+}
+__attribute__((destructor)) static void finalize(void) {HslProcessRuntimeStopV1();}

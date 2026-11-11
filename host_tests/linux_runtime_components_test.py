@@ -219,10 +219,22 @@ class RestoreTests(unittest.TestCase):
             manifest = self.root / relative
             manifest.parent.mkdir(parents=True, exist_ok=True)
             binary = manifest.parent / name
-            binary.write_bytes(('compiled ' + name).encode())
+            sources = {'adapter.c': components.sha(self.source)}
+            if name == 'steamohos_lsof_hap':
+                from prepare_linux_lsof_support import SOURCES
+                for source_name in SOURCES:
+                    source = self.root / source_name
+                    source.parent.mkdir(parents=True, exist_ok=True)
+                    source.write_bytes((REPO / source_name).read_bytes())
+                sources = {n: components.sha(self.root / n) for n in SOURCES}
+                data = bytearray(64)
+                data[:6] = b'\x7fELF\x02\x01'
+                data[18:20] = b'\xb7\x00'
+                binary.write_bytes(data)
+            else:
+                binary.write_bytes(('compiled ' + name).encode())
             manifest.write_text(json.dumps(dict(schemaVersion=1, architecture='aarch64-linux-gnu',
-                name=name, bytes=binary.stat().st_size, sha256=components.sha(binary),
-                sources={'adapter.c': components.sha(self.source)})))
+                name=name, bytes=binary.stat().st_size, sha256=components.sha(binary), sources=sources)))
 
     def test_native_companions_checked_even_without_source_overrides(self):
         self.add_native_companions()

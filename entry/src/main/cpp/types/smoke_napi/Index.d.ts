@@ -28,7 +28,7 @@ export interface LinuxSteamHostResult {
 export const probeLinuxSteamHost: (() => Promise<LinuxSteamHostResult>) | undefined;
 export const injectLinuxSteamHostKeys: (() => boolean) | undefined;
 export const probeLinuxSteamGnu: (() => Promise<string>) | undefined;
-export const startLinuxProtonGame: ((ticket: number, wineLanguage?: string) => Promise<string>) | undefined;
+export const startLinuxProtonGame: ((ticket: number, wineLanguage?: string, maintenanceToken?: number) => Promise<string>) | undefined;
 export const cancelLinuxProtonGame: ((ticket: number) => boolean) | undefined;
 export const probeLinuxProton: (() => Promise<string>) | undefined;
 
@@ -46,7 +46,8 @@ export const probeLinuxSteamGnuClient: (() => Promise<string>) | undefined;
 export interface LinuxSteamLaunchRequest {
   id: number; cancel: boolean; appId: string; cwd: string; install: string;
   role: 'game' | 'install_script' | 'driver_query';
-  backend?: 'ohos-wine' | 'gnu-proton' | 'gnu-proton-gl';
+  backend?: 'ohos-wine' | 'gnu-proton' | 'gnu-proton-gl' | 'linux-native';
+  phase?: string; processId?: number; processIdentity?: string; exitCode?: number; exitSignal?: number;
   argv: string[]; environment: string[];
 }
 export const startLinuxSteamLaunchBroker: ((library: string) => boolean) | undefined;
@@ -56,6 +57,10 @@ export const replyLinuxSteamLaunchBroker: ((id: number, kind: number, code: numb
 export const pollLinuxSteamLaunchSession: ((id: number, sessionId: string) => number) | undefined;
 
 export const isLinuxSteamProcess: ((pid: number) => boolean) | undefined;
+export const isLinuxSteamGameProcess: ((id: number, pid: number) => boolean) | undefined;
 
 // Persistent product session, separate from bounded diagnostic probes.
 export const startLinuxSteamSession: (() => Promise<string>) | undefined;
+
+export const beginLinuxProtonMaintenance: () => number;
+export const endLinuxProtonMaintenance: (token: number) => void;

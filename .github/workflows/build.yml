@@ -479,11 +479,7 @@ jobs:
 
       - name: Test Proton runtime lifecycle and Steam downloads
         run: |
-          python3 scripts/build_steam_client_session.py --verify-only
-          python3 scripts/build_linux_steam_desktop.py --verify-only
-          python3 scripts/build_linux_steam_posix.py --verify-only
-          python3 scripts/build_linux_steam_native_graphics.py --verify-only
-          python3 scripts/prepare_linux_native_repairs.py --verify-only
+          python3 scripts/build_linux_game_components.py --verify-only
           python3 host_tests/proton_bootstrap_closure_test.py
           g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined host_tests/proton_setup_cache_test.cpp -o ci-artifacts/proton-setup-cache-test
           ci-artifacts/proton-setup-cache-test
@@ -495,6 +491,10 @@ jobs:
           python3 host_tests/linux_steam_exec_access_test.py
           python3 host_tests/linux_steam_depot_links_test.py
           python3 host_tests/linux_steam_native_fex_test.py
+          python3 host_tests/linux_steam_arm_plan_test.py
+          python3 host_tests/linux_proton_lease_test.py
+          python3 host_tests/linux_proton_group_test.py
+          python3 host_tests/linux_steam_socket_metadata_test.py
           python3 host_tests/linux_steam_native_sdk_test.py
           python3 host_tests/linux_steam_native_repairs_test.py
           python3 host_tests/linux_steam_native_udev_test.py
@@ -523,7 +523,7 @@ jobs:
           python3 host_tests/managed_render_route_test.py
           python3 host_tests/compositor_migration_test.py --asan
           python3 host_tests/steam_client_restart_test.py --output ci-artifacts/steam-client-restart
-          for suite in run_linux_proton_modules_tests run_linux_proton_dxvk_tests run_linux_proton_media_tests run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_edge_window_tests run_wine_ime_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests run_steam_local_unit_tests run_steam_local_service_tests; do
+          for suite in run_linux_proton_modules_tests run_linux_proton_dxvk_tests run_linux_proton_media_tests run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_linux_steam_native_host_tests run_edge_window_tests run_wine_ime_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests run_steam_local_unit_tests run_steam_local_service_tests; do
             /apps/harmony/tool/node/bin/node "scripts/$suite.cjs" \
               /apps/harmony/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript
           done

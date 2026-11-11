@@ -587,7 +587,8 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
         if(session.desktopFullscreen)serverArgs.emplace_back("-fullscreen");
         if(session.socketMetadata) {
             session.environment.emplace_back("STEAMOHOS_SOCKET_METADATA=1");
-            session.environment.emplace_back("STEAMOHOS_SOCKET_METADATA_ROOT="+session.directory);
+            session.environment.emplace_back("STEAMOHOS_SOCKET_METADATA_ROOT="+ipc);
+            session.environment.emplace_back("STEAMOHOS_PROCESS_METADATA=1");
         }
         if(session.traceSignals) session.environment.emplace_back("STEAMOHOS_MODULE_DIAGNOSTICS=1");
         if(session.steamClientSourceProbe)

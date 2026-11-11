@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
+#include "socket_query_protocol.h"
 
 static void steamohos_lsof_trace(const char *stage,pid_t pid,int descriptor,uint64_t inode,int error) {
     static unsigned count;
@@ -32,12 +33,8 @@ static int steamohos_lsof_stat(pid_t pid,int descriptor,const char *path,struct 
     steamohos_lsof_trace("stat",pid,descriptor,inode,result?error:0);
     return result==0;
 }
-static int steamohos_lsof_socket(struct stat *status,int valid) {
-    if(!(valid&SB_INO))return 0;
-    char *end;long descriptor=strtol(Lf->fd,&end,10);
-    if(end==Lf->fd||*end||descriptor<0||descriptor>INT_MAX)return 0;
-    int fd=steamohos_lsof_borrow(Lp->pid,(int)descriptor,(uint64_t)status->st_ino);
-    if(fd<0){steamohos_lsof_trace("endpoint_borrow",Lp->pid,descriptor,status->st_ino,errno);return 0;}
+static int steamohos_lsof_socket_fd(struct stat *status,int fd) {
+    const int descriptor=(int)strtol(Lf->fd,NULL,10);
     struct sockaddr_storage local,peer;socklen_t length=sizeof(local);
     int type;socklen_t type_length=sizeof(type);
     struct tcp_info information;socklen_t info_length=sizeof(information);
@@ -82,4 +79,49 @@ static int steamohos_lsof_socket(struct stat *status,int valid) {
     Lf->lts.type=0;Lf->lts.state.i=state;
     // Queue/timer fields remain undefined when not queried from the kernel.
     return 1;
+}
+
+static int steamohos_lsof_socket(struct stat *status,int valid) {
+    if(!(valid&SB_INO))return 0;
+    char *end;long descriptor=strtol(Lf->fd,&end,10);
+    if(end==Lf->fd||*end||descriptor<0||descriptor>INT_MAX)return 0;
+    int fd=steamohos_lsof_borrow(Lp->pid,(int)descriptor,(uint64_t)status->st_ino);
+    if(fd<0){steamohos_lsof_trace("endpoint_borrow",Lp->pid,descriptor,status->st_ino,errno);return 0;}
+    return steamohos_lsof_socket_fd(status,fd);
+}
+static int steamohos_lsof_registry_file(const struct SteamOhosSocketRecord *record,int fd,void *unused) {
+    (void)unused;short pss=0,sf=0;int index;
+    if(is_proc_excl(record->pid,record->pgid,(UID_ARG)record->uid,&pss,&sf,0)||
+       is_cmd_excl((char*)record->command,&pss,&sf))return 0;
+    for(index=0;index<Nlproc;++index)
+        if(Lproc[index].pid==record->pid&&!Lproc[index].tid)break;
+    if(index==Nlproc)
+        alloc_lproc(record->pid,record->pgid,record->ppid,(UID_ARG)record->uid,(char*)record->command,pss,sf);
+    else Lp=&Lproc[index];
+    Plf=NULL;
+    for(struct lfile *file=Lp->file;file;file=file->next) {
+        char *end;long number=strtol(file->fd,&end,10);
+        if(end!=file->fd&&!*end&&number==record->descriptor&&file->inode==(INODETYPE)record->inode)return 0;
+        Plf=file;
+    }
+    struct stat status;if(fstat(fd,&status)||(uint64_t)status.st_ino!=record->inode)return 0;
+    int copy=fcntl(fd,F_DUPFD_CLOEXEC,0);if(copy<0)return 0;
+    alloc_lfile(NULL,record->descriptor);
+    int flags=fcntl(fd,F_GETFL);
+    if(flags>=0)Lf->access=(flags&O_ACCMODE)==O_RDWR?'u':(flags&O_ACCMODE)==O_WRONLY?'w':'r';
+    if(steamohos_lsof_socket_fd(&status,copy)&&Lf->sf) {
+        link_lfile();
+        steamohos_lsof_trace("registry-file",record->pid,record->descriptor,record->inode,0);
+    }
+    return 0;
+}
+static __attribute__((unused)) void steamohos_lsof_registry_scan(void) {
+    // Only augment network selections. Regular-file and mixed OR selections
+    // keep upstream's proc scan and output; all recovered files still pass
+    // its PID/UID/command/FD/address/port/state selection machinery.
+    const char *enabled=getenv("STEAMOHOS_SOCKET_METADATA");
+    if(!enabled||strcmp(enabled,"1")||Fxopt||!(Selflags&SELNW))return;
+    typedef int (*Visit)(SteamOhosSocketVisitor,void*);
+    Visit visit=(Visit)dlsym(RTLD_DEFAULT,"SteamOhosVisitTcpSockets");
+    if(visit)visit(steamohos_lsof_registry_file,NULL);
 }

@@ -97,6 +97,7 @@ void PluginManager::CreateRenderer(uint32_t toplevelId, int64_t surfaceId) {
         WaylandServer::GetInstance()->GetDesktopCompositor());
     // 初始尺寸 1x1, 真正尺寸由 ResizeRenderer (onSurfaceChanged) 设置
     r->SetToplevelId(toplevelId);
+    r->SetIsolatedToplevel(isolatedToplevels_.count(toplevelId) != 0);
     r->SetSurfaceId(surfaceId);
     const auto visibility = rendererPaused_.find(toplevelId);
     if (visibility != rendererPaused_.end()) r->SetPaused(visibility->second);
@@ -264,4 +265,11 @@ void PluginManager::SetRendererPaused(uint32_t toplevelId, bool paused) {
     if (!paused) RefreshRenderer(toplevelId);
     auto it = toplevelRenderers_.find(toplevelId);
     if (it != toplevelRenderers_.end()) it->second->SetPaused(paused);
+}
+
+void PluginManager::SetToplevelIsolated(uint32_t id, bool isolated) {
+    if (isolated) isolatedToplevels_[id] = true;
+    else isolatedToplevels_.erase(id);
+    auto it = toplevelRenderers_.find(id);
+    if (it != toplevelRenderers_.end()) it->second->SetIsolatedToplevel(isolated);
 }

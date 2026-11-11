@@ -50,12 +50,14 @@ export async function ensureLinuxSteamClientSupervisor(context: common.Context, 
 export async function ensureLinuxSteamPosixSupport(context: common.Context, root: string): Promise<void> {
   await installSupport(context, root, 'steamohos_gnu_desktop_hap', 'desktop-manifest.json', 262144);
   await installSupport(context, root, 'libsteamohos_posix_hap.so', 'posix-manifest.json', 2097152);
+  await installSupport(context, root, 'steamohos_lsof_hap', 'lsof-manifest.json', 2097152);
   await installSupport(context, root, 'steamohos_fex', 'fex-manifest.json', 262144);
   await installSupport(context, root, 'libsteamohos_native_vulkan.so', 'native-graphics-manifest.json', 1048576);
   await installNativeGuestCore(context, root);
   await installNativeVulkanDriver(context, root);
   await installNativeLibraries(context, root, 'native-game-support', 'aarch64-linux-gnu', 183,
-    ['FEX', 'FEXServer', 'libvulkan_virtio.so', 'libsteamohos_software_gl.so']);
+    ['FEX', 'FEXServer', 'libvulkan_virtio.so', 'libsteamohos_software_gl.so',
+      'libGL-host32.so', 'libGL-host64.so', 'libGL-guest32.so', 'libGL-guest64.so']);
 }
 
 // A paired GNU x86 loader/core for FEX guest libraries. Runtime game data and
@@ -112,7 +114,10 @@ async function installNativeLibraries(context: common.Context, root: string, lea
     }
     const data = sourceRoot ? ConfigurationFiles.read(`${sourceRoot}/${name}`, 33554432) :
       await context.resourceManager.getRawFileContent(`${raw}/${name}`);
-    if (data.byteLength !== row.bytes || data[0] !== 127 || data[1] !== 69 || data[2] !== 76 || data[3] !== 70 || data[4] !== 2 || data[5] !== 1 || data[18] !== machine || data[19] !== 0 || await ConfigurationFiles.hash(data) !== row.sha256) throw new Error('Linux 游戏基础库校验失败');
+    const expectedMachine = leaf === 'native-game-support' && name === 'libGL-guest32.so' ? 3 :
+      leaf === 'native-game-support' && name === 'libGL-guest64.so' ? 62 : machine;
+    const expectedClass = expectedMachine === 3 ? 1 : 2;
+    if (data.byteLength !== row.bytes || data[0] !== 127 || data[1] !== 69 || data[2] !== 76 || data[3] !== 70 || data[4] !== expectedClass || data[5] !== 1 || data[18] !== expectedMachine || data[19] !== 0 || await ConfigurationFiles.hash(data) !== row.sha256) throw new Error('Linux 游戏基础库校验失败');
     ConfigurationFiles.write(`${path}.pending`, data);
     fs.renameSync(`${path}.pending`, path);
   }

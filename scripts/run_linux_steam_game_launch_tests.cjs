@@ -3,14 +3,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require(path.resolve(process.argv[2]));
-const files = new Map(), toasts = [], launches = [], stopped = [], replies = [];
+const files = new Map(), toasts = [], launches = [], stopped = [], replies = [], registrations = [];
 let requests = [], state = 1, replyAccepted = true, failAudit = false, failRecord = false, failLaunch = false;
 let processInfo = { found: true, status: 'exited', exitCode: 1, exitCodeSource: 'waitpid' };
 const singleton = value => ({ getInstance: () => value });
 const helperDigests = new Map();
 const completions = [];
 let runtimeLeases=0;
+let maintenanceHeld=false;
 const deps = {
+  './LinuxProtonLease': {withLinuxProtonMaintenance: async action=>{maintenanceHeld=true;try{await action(77);}finally{maintenanceHeld=false;}}},
+  './WineWindowManager': {WineWindowManager:singleton({manageExternalToplevel:()=>true})},
   './LinuxProtonDxvk': {prepareLinuxProtonDxvkPrefix: async()=>{}},
   './LinuxProtonRuntimeService': {LinuxProtonRuntimeService:singleton({holdGame:()=>{runtimeLeases++;return()=>runtimeLeases--;}})},
   'libsmoke_napi.so': { default: {
@@ -25,7 +28,9 @@ const deps = {
   '@kit.CoreFileKit': { fileIo: { listFileSync() { if (failAudit) throw Error('library updating'); return []; }, statSync() { throw Error('file removed'); } } }, '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
   '../model/AppModels': { DisplayMode: { DESKTOP: 1 }, WinePresentationMode: { MANAGED_WINDOWS: 1 } },
   './AppSessionService': { AppSessionService: singleton({ registerExternalLaunch() {} }) },
-  './HostWindowTasks': { HostWindowTasks: singleton({ setSteamGameCloser(closer){this.gameCloser=closer;}, registerSteamGame(id) { launches.push(['registerGame', id]); }, finishSteamGame(id, known) { completions.push([id, known]); } }) },
+  './HostWindowTasks': { HostWindowTasks: singleton({ setSteamGameCloser(closer){this.gameCloser=closer;},
+    registerSteamGame(id) { registrations.push(id); }, bindSteamGame() {}, updateSteamGame() {},
+    finishSteamGame(id, known) { completions.push([id, known]); } }) },
   './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ wineLanguage: 'zh_CN' }) }) },
   './WineEngineService': { WineEngineService: singleton({
     launchExecutable: (...args) => { if (failLaunch) throw Error('launch failed'); launches.push(args); return { pid: 100, sessionId: 'wine-100-1', reused: false }; },
@@ -85,7 +90,7 @@ assert.equal(evidence().exitCode,null,'NCP death is not a fabricated successful 
 assert.deepEqual(completions.at(-1),['wine-100-1',true],'Authoritative NCP death can end focus ownership');
 const previousGame = JSON.stringify(evidence());
 const lock = JSON.parse(fs.readFileSync(path.join(__dirname, '../entry/src/main/cpp/linux_steam/client_helpers.lock.json'), 'utf8'));
-const gameRegistrations = launches.filter(call => call[0] === 'registerGame').length;
+const gameRegistrations = registrations.length;
 for (const [relative, record] of Object.entries(lock.files)) {
   const helper = { ...request(), role: record.role, argv: ['/z/SteamLinuxARM64/client/.steam/steam/' + relative],
     cwd: '/z/SteamLinuxARM64/client/.steam/steam' };
@@ -100,7 +105,7 @@ for (const [relative, record] of Object.entries(lock.files)) {
   assert.equal(files.get('/results/last-client-helper.json'), JSON.stringify(helperEvidence));
   assert.equal(files.get('/results/last-game-launch.json'), previousGame);
   assert.equal(JSON.stringify(evidence()), previousGame, 'Helper completion cannot overwrite game evidence');
-  assert.equal(launches.filter(call => call[0] === 'registerGame').length, gameRegistrations);
+  assert.equal(registrations.length, gameRegistrations);
   const launchesBefore = launches.length;
   helperDigests.set(helper.argv[0], 'modified'); requests = [helper]; await service.tick();
   assert.equal(launches.length, launchesBefore, 'Changed client helper must never reach Wine');
@@ -129,12 +134,12 @@ await service.tick(); assert.equal(service.sessions.length, 1);
 failAudit = false; failRecord = false;
 service.stop(); service.start('/z/SteamLinuxARM64/library', '/results', '/z');
 replyAccepted = false; requests = [request()];
-const registrationsBefore = launches.filter(call => call[0] === 'registerGame').length;
+const registrationsBefore = registrations.length;
 const stopBefore = stopped.length;
 await service.tick();
 assert.equal(service.sessions.length, 0, 'A disconnected Steam controller cannot leave an orphan game');
 assert.equal(stopped.length, stopBefore + 1);
-assert.equal(launches.filter(call => call[0] === 'registerGame').length, registrationsBefore);
+assert.equal(registrations.length, registrationsBefore + 1, 'Queued game is registered before process creation');
 replyAccepted = true; failLaunch = true; requests = [request()];
 await service.tick(); assert.equal(service.sessions.length, 0, 'Per-request launch failure is contained');
 failLaunch = false; requests = [request()]; await service.tick();
@@ -155,7 +160,7 @@ service.stop();
 // A GNU ticket must never enter the OHOS Wine launcher, including failures.
 let resolveGnu;
 const gnuCancelled=[];
-deps['libsmoke_napi.so'].default.startLinuxProtonGame = (id, language) => { assert.equal(language, 'zh_CN'); return new Promise(resolve => { resolveGnu=resolve; }); };
+deps['libsmoke_napi.so'].default.startLinuxProtonGame = (id, language, token) => { assert.equal(language, 'zh_CN'); assert.equal(token,77); assert.ok(maintenanceHeld,'dispatch must retain the preparation lease'); return new Promise(resolve => { resolveGnu=resolve; }); };
 deps['libsmoke_napi.so'].default.cancelLinuxProtonGame = id => { gnuCancelled.push(id); return true; };
 const taskHost=deps['./HostWindowTasks'].HostWindowTasks.getInstance();
 taskHost.snapshot=()=>[]; taskHost.foregroundRevision=()=>0;
@@ -190,6 +195,44 @@ assert.equal(runtimeLeases,1,'Stopping Steam cannot release a still-running game
 resolveGnu(JSON.stringify({status:'proton_game_exited',childExitVerified:true,prefix:{exitCode:0,childReaped:true}}));await new Promise(resolve=>setImmediate(resolve));
 assert.equal(runtimeLeases,0,'Child completion releases runtime even when broker generation changed');
 assert.ok(gnuCancelled.includes(32),'Stopping Steam cancels its GNU session');
+// Native observation never initializes Wine, and real wrapper exit is preserved.
+service.start('/z/SteamLinuxARM64/library','/results','/z',async()=>{throw Error('Wine must stay lazy');});
+requests=[{...request(),id:70,backend:'linux-native',phase:'starting'}];await service.tick();
+assert.equal(service.nativeSessions.length,1);assert.equal(launchCount(),beforeGnu);
+requests=[{...request(),id:70,backend:'linux-native',phase:'running',processId:71,processIdentity:'123'}];await service.tick();
+const nativeSession=service.nativeSessions[0];
+assert.equal(await taskHost.gameCloser({sessionId:nativeSession.sessionId,toplevelId:0},false),true);
+assert.deepEqual(replies.at(-1),[70,5,0]);
+requests=[{...request(),id:70,backend:'linux-native',phase:'exited',exitCode:23,exitSignal:0}];await service.tick();
+assert.equal(service.nativeSessions.length,0);assert.equal(evidence().exitCode,23);
+assert.equal(evidence().exitCodeSource,'native-wrapper-waitpid');service.stop();
+// Cancelling cold Wine preparation must prevent dispatch after its await.
+let releasePrepare;
+service.start('/z/SteamLinuxARM64/library','/results','/z',()=>new Promise(resolve=>{releasePrepare=resolve;}));
+requests=[{...request(),id:80}];const cold=service.tick();
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(service.preparing.id,80);
+assert.equal(await taskHost.gameCloser({sessionId:service.ticketSession(80),toplevelId:0},false),true);
+releasePrepare();await cold;assert.equal(launchCount(),beforeGnu);
+assert.equal(service.preparing,null);assert.equal(service.cancelled.size,0);
+service.stop();
+// A failed preparation can be retried; its old generation cannot reject a new request.
+let preparations=0;
+service.start('/z/SteamLinuxARM64/library','/results','/z',async()=>{if(++preparations===1)throw Error('interrupted preparation');});
+requests=[{...request(),id:81}];await service.tick();assert.equal(service.preparing,null);
+requests=[{...request(),id:82}];state=1;await service.tick();
+assert.equal(launchCount(),beforeGnu+1);service.stop();
+// Manual fallback opens Steam properties only after a confirmed ended session.
+let chooseRetry;const compatibility=[];
+deps['@kit.ArkUI'].promptAction.showDialog=()=>new Promise(resolve=>{chooseRetry=resolve;});
+service.start('/z/SteamLinuxARM64/library','/results','/z',async()=>{},async app=>compatibility.push(app));
+requests=[{...request(),id:90}];state=1;await service.tick();
+state=0;processInfo={found:true,status:'exited',exitCode:23,exitCodeSource:'waitpid'};await service.tick();
+assert.equal(service.sessions.length,0);assert.equal(typeof chooseRetry,'function');
+const beforeFallback=launchCount();chooseRetry({index:1});await new Promise(resolve=>setImmediate(resolve));
+assert.deepEqual(compatibility,['695630']);assert.equal(launchCount(),beforeFallback,'a failed ticket is never reused or auto switched');
+requests=[{...request(),id:91}];state=1;await service.tick();state=-1;processInfo={found:false};chooseRetry=null;await service.tick();
+assert.equal(chooseRetry,null,'unknown process death cannot offer a competing retry');service.stop();
 for (const bad of ['/z-other/SteamLinuxARM64', '/z/../outside/game.exe', '/outside/game.exe']) {
   assert.throws(() => paths.linuxSteamWindowsPath(bad, '/z'));
 }

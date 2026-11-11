@@ -1,4 +1,5 @@
 #include "launch_broker.h"
+#include "cooperative_process.h"
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
@@ -16,13 +17,18 @@ namespace {
 uint64_t Now() { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 bool Identity(pid_t pid, pid_t& parent, uint64_t& start) {
     const std::string path="/proc/"+std::to_string(pid)+"/stat";
-    const int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+    int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+    if(fd<0)for(const char* root:{"/data/storage/el2/base/files/steamohos-native/client-ipc",
+                               "/data/storage/el2/base/files/steamohos-native/proton-probe/tmp"}) {
+        fd=BorrowProcessStat(root,pid);if(fd>=0)break;
+    }
     if(fd<0)return false;
     char bytes[4096];ssize_t count;
     do {count=read(fd,bytes,sizeof(bytes));} while(count<0&&errno==EINTR);
     const int readError=count<0?errno:0;close(fd);
     if(count<=0||count==sizeof(bytes)){errno=readError?readError:EPROTO;return false;}
     const std::string line(bytes,static_cast<size_t>(count));
+    if(line.compare(0,std::to_string(pid).size()+2,std::to_string(pid)+" (")!=0){errno=EPROTO;return false;}
     const auto at=line.rfind(')');if(at==std::string::npos)return false;
     std::istringstream values(line.substr(at+1));std::string value;
     for(unsigned field=3;field<=22;++field){if(!(values>>value))return false;
@@ -52,6 +58,17 @@ bool Pe(const std::string& path) {
         ok=offset>=64&&offset<16777216&&pread(fd,signature,sizeof(signature),offset)==sizeof(signature)&&
             !memcmp(signature,"PE\0\0",4)&&((signature[4]==0x64&&signature[5]==0x86)||(signature[4]==0x4c&&signature[5]==1));}
     close(fd);return ok;
+}
+bool Native(const std::string& path) {
+    int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return false;
+    unsigned char bytes[256]{};struct stat st{};
+    const ssize_t n=read(fd,bytes,sizeof(bytes));const bool regular=!fstat(fd,&st)&&S_ISREG(st.st_mode);close(fd);
+    if(!regular)return false;
+    if(n>=20&&!memcmp(bytes,"\177ELF",4)&&bytes[5]==1) {
+        const unsigned machine=bytes[18]|bytes[19]<<8;
+        return (bytes[4]==2&&(machine==183||machine==62))||(bytes[4]==1&&machine==3);
+    }
+    return n>=4&&bytes[0]=='#'&&bytes[1]=='!'&&memchr(bytes,'\n',n)&&!memchr(bytes,0,n);
 }
 }
 LaunchBroker::LaunchBroker(ProcessIdentityReader reader):identityReader(reader?reader:Identity){}
@@ -98,9 +115,29 @@ bool LaunchBroker::OwnsProcess(pid_t pid) {
     std::lock_guard<std::mutex> guard(mutex);
     return listener>=0&&pid>1&&(pid==windowProcess||Descendant(pid,ancestor,ancestorStart,identityReader));
 }
+bool LaunchBroker::OwnsGameProcess(uint32_t id,pid_t pid) {
+    std::lock_guard<std::mutex> guard(mutex);
+    for(auto& c:clients)if(c.id==id&&c.delivered&&c.request.role=="game") {
+        if(!c.gameStart&&c.gameProcess>1) {
+            pid_t parent=0;uint64_t start=0;
+            if(identityReader(c.gameProcess,parent,start)&&parent==c.gameParent)c.gameStart=start;
+        }
+        return Descendant(pid,c.gameProcess,c.gameStart,identityReader);
+    }
+    return false;
+}
+bool LaunchBroker::RegisterGameProcess(uint32_t id,pid_t supervisor,pid_t child) {
+    std::lock_guard<std::mutex> guard(mutex);
+    for(auto& c:clients)if(c.id==id&&c.delivered&&c.request.role=="game"&&c.request.backend!="linux-native") {
+        if(child<=1||supervisor<=1||child==supervisor||c.gameProcess>0)return false;
+        c.gameProcess=child;c.gameParent=supervisor;return true;
+    }
+    return false;
+}
 std::string LaunchBroker::Parameters(){std::lock_guard<std::mutex> guard(mutex);return listener>=0?socketPath+"\n"+nonce:"";}
 bool LaunchBroker::Validate(LaunchRequest& r){
-    if(r.nonce!=nonce||(r.verb!="run"&&r.verb!="waitforexitandrun"))return false;
+    const bool native=r.backend=="linux-native";
+    if(r.nonce!=nonce||(native?r.verb!="observe":(r.verb!="run"&&r.verb!="waitforexitandrun")))return false;
     std::string executable=r.argv.front();
     if(executable.empty()||executable.front()!='/')return false;
     executable=Real(executable);
@@ -113,20 +150,21 @@ bool LaunchBroker::Validate(LaunchRequest& r){
     if(!client.empty()&&executable==client+"/legacycompat/iscriptevaluator.exe")r.role="install_script";
     else if(!client.empty()&&executable==client+"/bin/d3ddriverquery64.exe")r.role="driver_query";
     const bool helper=r.role!="game",query=r.role=="driver_query";
+    if(native&&helper)return false;
     if(!(query&&r.appId=="0")&&!Id(r.appId))return false;
     if(query){if(r.install!=client)return false;}
     else if(common.empty()||!Under(common,library)||!Under(r.install,common))return false;
     const auto cwdRoot=helper?client:r.install;
     if(r.cwd!=cwdRoot&&!Under(r.cwd,cwdRoot))return false;
-    if((!helper&&!Under(executable,r.install))||!Pe(executable))return false;
+    if((!helper&&!Under(executable,r.install))||(native?!Native(executable):!Pe(executable)))return false;
     r.argv.front()=executable;
     for(const auto& e:r.environment){auto at=e.find('=');if(at==std::string::npos)return false;
         const auto key=e.substr(0,at),value=e.substr(at+1);
         if(key=="HMOSDECK_RUNTIME") {
-            if(r.backend!="ohos-wine" || (value!="gnu-proton" && value!="gnu-proton-gl"))return false;
+            if(native||r.backend!="ohos-wine" || (value!="gnu-proton" && value!="gnu-proton-gl"))return false;
             r.backend=value;
         } else if(key=="HMOSDECK_STEAM_BRIDGE") {
-            if(helper)return false;
+            if(helper||native)return false;
             // Only the authenticated GNU tool can supply this per-game local
             // capability. Do not accept arbitrary Wine environment overrides.
             const auto first=value.find(':'),last=value.rfind(':');
@@ -137,7 +175,7 @@ bool LaunchBroker::Validate(LaunchRequest& r){
             if((key!="SteamAppId"&&key!="SteamGameId"&&key!="SteamOverlayGameId")||(!Id(value)&&!(query&&value=="0")))return false;
             if(key=="SteamAppId"&&value!=r.appId)return false;
         }}
-    r.nonce.clear();return true;
+    r.nonce.clear();r.phase=native?"starting":"";return true;
 }
 std::vector<LaunchRequest> LaunchBroker::Drain(){
     std::lock_guard<std::mutex> guard(mutex);std::vector<LaunchRequest> events;if(listener<0)return events;
@@ -152,9 +190,30 @@ std::vector<LaunchRequest> LaunchBroker::Drain(){
         clients.push_back({fd,peer.pid,++nextId,Now(),false,{},{}});}
     for(auto it=clients.begin();it!=clients.end();){bool closeClient=false;char bytes[65540];
         ssize_t n=recv(it->fd,bytes,sizeof(bytes),0);
-        if(n>0){if(it->delivered)closeClient=true;else it->bytes.append(bytes,static_cast<size_t>(n));}
+        if(n>0){if(it->delivered&&it->request.backend!="linux-native")closeClient=true;else it->bytes.append(bytes,static_cast<size_t>(n));}
         else if(!n||(errno!=EAGAIN&&errno!=EWOULDBLOCK&&errno!=EINTR))closeClient=true;
-        if(!it->delivered){
+        bool nativeExit=false;
+        if(it->delivered&&it->request.backend=="linux-native") {
+            if(it->bytes.size()>32)closeClient=true;
+            while(!closeClient&&it->bytes.size()>=16) {
+                uint32_t event[4];memcpy(event,it->bytes.data(),16);for(auto& value:event)value=ntohl(value);
+                it->bytes.erase(0,16);
+                LaunchRequest r=it->request;
+                if(event[0]!=NativeEventMagic) {closeClient=true;break;}
+                if(event[1]==1&&it->gameProcess<0&&event[2]>1&&event[2]<=INT32_MAX&&!event[3]) {
+                    pid_t parent=0;uint64_t start=0;
+                    // A reported number never establishes ownership. Require
+                    // a real kernel/cooperative identity with this peer as parent.
+                    it->gameProcess=event[2];it->gameParent=it->pid;
+                    if(identityReader(event[2],parent,start)&&parent==it->pid&&start) {
+                        it->gameStart=start;r.processIdentity=std::to_string(start);
+                    }
+                    r.processId=event[2];r.phase="running";events.push_back(r);
+                } else if(event[1]==2&&event[2]<=255&&event[3]<128) {
+                    r.phase="exited";r.exitCode=event[2];r.exitSignal=event[3];events.push_back(r);nativeExit=true;closeClient=true;
+                } else closeClient=true;
+            }
+        } else if(!it->delivered){
             if(it->bytes.size()>LaunchMaxBytes+4||Now()-it->since>5000)closeClient=true;
             if(!closeClient&&it->bytes.size()>=4){uint32_t size;memcpy(&size,it->bytes.data(),4);size=ntohl(size);
                 if(size>LaunchMaxBytes)closeClient=true;
@@ -162,7 +221,7 @@ std::vector<LaunchRequest> LaunchBroker::Drain(){
                     if(it->bytes.size()!=size+4||!DecodeLaunch(it->bytes.substr(4),r)||!Validate(r))closeClient=true;
                     else {r.id=it->id;it->delivered=true;it->bytes.clear();it->request=r;events.push_back(r);}}}
         }
-        if(closeClient){if(it->delivered){LaunchRequest r;r.id=it->id;r.cancel=true;events.push_back(r);}close(it->fd);it=clients.erase(it);}else ++it;
+        if(closeClient){if(it->delivered&&!nativeExit){LaunchRequest r=it->request;r.id=it->id;r.cancel=true;events.push_back(r);}close(it->fd);it=clients.erase(it);}else ++it;
     }
     return events;
 }
@@ -175,10 +234,10 @@ bool LaunchBroker::GetRequest(uint32_t id,LaunchRequest& request){
 bool LaunchBroker::Reply(uint32_t id,uint32_t kind,uint32_t code){
     std::lock_guard<std::mutex> guard(mutex);
     auto it=std::find_if(clients.begin(),clients.end(),[&](const Client& c){return c.id==id&&c.delivered;});
-    if(it==clients.end()||kind<1||kind>4)return false;
+    if(it==clients.end()||kind<1||kind>6||(kind>4&&it->request.backend!="linux-native"))return false;
     uint32_t reply[]={htonl(LaunchReplyMagic),htonl(kind),htonl(code)};
     bool ok=send(it->fd,reply,sizeof(reply),MSG_NOSIGNAL|MSG_DONTWAIT)==sizeof(reply);
-    if(kind!=1||!ok){close(it->fd);clients.erase(it);}return ok;
+    if((kind!=1&&kind!=5&&kind!=6)||!ok){close(it->fd);clients.erase(it);}return ok;
 }
 LaunchBroker& GameLaunchBroker(){static LaunchBroker broker;return broker;}
 }

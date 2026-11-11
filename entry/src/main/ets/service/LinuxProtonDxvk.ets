@@ -1,3 +1,4 @@
+import { withLinuxProtonMaintenance } from './LinuxProtonLease';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, statfs } from '@kit.CoreFileKit';
 import { ConfigurationFiles } from './ConfigurationFiles';
@@ -156,7 +157,11 @@ function wineBuiltin(path: string): boolean {
 // The broker serializes GNU sessions. Prepare both PE widths before the first
 // Wine/helper process; children then share a consistent group. No WINEPATH
 // guessing based on the parent's bitness, and no changes to the upstream GE.
-export async function prepareLinuxProtonDxvkPrefix(): Promise<void> {
+export async function prepareLinuxProtonDxvkPrefix(maintenanceToken: number = 0): Promise<void> {
+  if (maintenanceToken > 0) await preparePrefixUnderLease();
+  else await withLinuxProtonMaintenance(preparePrefixUnderLease);
+}
+async function preparePrefixUnderLease(): Promise<void> {
   // Verify intermediate prefix directories too, before trusting a recovered
   // path. A user link in drive_c must not redirect system DLL installation.
   parents(ROOT, 'prefix/drive_c/windows/placeholder');

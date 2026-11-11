@@ -1,3 +1,4 @@
+import { withLinuxProtonMaintenance } from './LinuxProtonLease';
 import { prepareLinuxProtonDxvkPrefix } from './LinuxProtonDxvk';
 import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
 import { linuxSteamWindowsPath, linuxSteamLaunchArgument } from './LinuxSteamPaths';
@@ -12,10 +13,11 @@ import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
 import { WineEngineService } from './WineEngineService';
 import { AppSettingsStore } from './AppSettingsStore';
 import { writeSmokeText } from './ManagedSmokePayloadService';
+import { WineWindowManager } from './WineWindowManager';
 import { ConfigurationFiles } from './ConfigurationFiles';
 
 interface GameSession { id: number; appId: string; sessionId: string; pid: number; role: string; }
-interface GnuGameSession { id: number; appId: string; sessionId: string; role: string; backend: string; generation: number; knownWindows: Set<number>; focusRevision: number; focused: boolean; }
+interface GnuGameSession { id: number; appId: string; sessionId: string; role: string; backend: string; generation: number; focusRevision: number; focused: boolean; }
 interface GnuNativeExit { exitCode: number; signal: number; cancelled: boolean; childReaped: boolean; }
 interface GnuLaunchResult { status: string; runtimeBackend?: string; graphicsBackend?: string; prefix?: GnuNativeExit; childExitVerified?: boolean; }
 interface LibraryGame { appId: string; name: string; state: string; installedDirectory: string; }
@@ -27,12 +29,18 @@ interface LaunchEvidence {
   exitCode?: number | null; exitCodeSource?: string;
 }
 
-// Research-only adapter; Wine owns graphics, prefix, launch policy and processes.
+// Authenticated Steam requests share one host session lifecycle across backends.
 export class LinuxSteamGameLaunch {
+  private openCompatibility: ((appId: string) => Promise<void>) | null = null;
+  private retryDialog = false;
+  private prepareWine: (() => Promise<void>) | null = null;
   private timer: number = -1;
   private sessions: GameSession[] = [];
   private pending: LinuxSteamLaunchRequest[] = [];
   private gnuSessions: GnuGameSession[] = [];
+  private nativeSessions: GnuGameSession[] = [];
+  private cancelled: Set<number> = new Set<number>();
+  private preparing: LinuxSteamLaunchRequest | null = null;
   private results = '';
   private zRoot = '';
   private library = '';
@@ -42,21 +50,41 @@ export class LinuxSteamGameLaunch {
   private windowsPath(path: string): string {
     return linuxSteamWindowsPath(path, this.zRoot);
   }
-  start(library: string, results: string, zRoot: string): void {
+  start(library: string, results: string, zRoot: string, prepareWine?: () => Promise<void>, openCompatibility?: (appId: string) => Promise<void>): void {
+    this.openCompatibility = openCompatibility ?? null;
+    this.prepareWine = prepareWine ?? null;
     if (!smokeNapi.startLinuxSteamLaunchBroker || !smokeNapi.startLinuxSteamLaunchBroker(library)) {
       throw new Error('Cannot create Linux Steam game launch service');
     }
     HostWindowTasks.getInstance().setSteamGameCloser(async (task: HostWindowTask, force: boolean): Promise<boolean> => {
+      const nativeGame = this.nativeSessions.find((item: GnuGameSession): boolean => item.sessionId === task.sessionId);
+      if (nativeGame) {
+        if (!force && task.toplevelId > 0) { testNapi.sendToplevelClose(task.toplevelId); return true; }
+        const accepted = smokeNapi.replyLinuxSteamLaunchBroker?.(nativeGame.id, force ? 6 : 5, 0) ?? false;
+        if (accepted) HostWindowTasks.getInstance().updateSteamGame(task.sessionId, 'stopping');
+        return accepted;
+      }
       const gnu = this.gnuSessions.find((item: GnuGameSession): boolean =>
         item.role === 'game' && item.sessionId === task.sessionId && item.generation === this.generation);
       if (gnu) {
-        if (force) return smokeNapi.cancelLinuxProtonGame?.(gnu.id) ?? false;
+        if (force || task.toplevelId <= 0) {
+          const accepted = smokeNapi.cancelLinuxProtonGame?.(gnu.id) ?? false;
+          if (accepted) HostWindowTasks.getInstance().updateSteamGame(task.sessionId, 'stopping');
+          return accepted;
+        }
         testNapi.sendToplevelClose(task.toplevelId); return true;
+      }
+      const queued = this.pending.find((item: LinuxSteamLaunchRequest): boolean => this.ticketSession(item.id) === task.sessionId) ||
+        (this.preparing && this.ticketSession(this.preparing.id) === task.sessionId ? this.preparing : null);
+      if (queued) {
+        if (this.preparing?.id === queued.id) this.cancelled.add(queued.id); this.pending = this.pending.filter((item: LinuxSteamLaunchRequest): boolean => item.id !== queued.id);
+        smokeNapi.replyLinuxSteamLaunchBroker?.(queued.id, 3, 130);
+        HostWindowTasks.getInstance().finishSteamGame(task.sessionId, true, 130, 'cancelled-before-dispatch'); return true;
       }
       const wine = this.sessions.find((item: GameSession): boolean => item.role === 'game' && item.sessionId === task.sessionId);
       const native = wine ? testNapi.getWineSession(wine.sessionId) : null;
       if (!wine || !native || native.state === 'stopped') return false;
-      if (force) testNapi.stopWineSession(wine.sessionId);
+      if (force || task.toplevelId <= 0) testNapi.stopWineSession(wine.sessionId);
       else testNapi.sendToplevelClose(task.toplevelId);
       // Completion remains owned by waitpid/session observation, including the
       // launch-broker exit reply and Steam Cloud. Do not report a fake exit here.
@@ -78,7 +106,6 @@ export class LinuxSteamGameLaunch {
   }
   stop(): void {
     HostWindowTasks.getInstance().setSteamGameCloser(null);
-    this.generation++;
     if (this.timer >= 0) clearInterval(this.timer);
     this.timer = -1;
     for (const session of this.sessions) {
@@ -91,6 +118,16 @@ export class LinuxSteamGameLaunch {
       HostWindowTasks.getInstance().finishSteamGame(session.sessionId, false);
     }
     this.gnuSessions = [];
+    for (const session of this.nativeSessions) {
+      smokeNapi.replyLinuxSteamLaunchBroker?.(session.id, 6, 0);
+      HostWindowTasks.getInstance().finishSteamGame(session.sessionId, false);
+    }
+    this.nativeSessions = [];
+    for (const request of [...this.pending, ...(this.preparing ? [this.preparing] : [])]) {
+      HostWindowTasks.getInstance().finishSteamGame(this.ticketSession(request.id), false);
+    }
+    this.preparing = null; this.cancelled.clear();
+    this.generation++;
     this.pending = [];
     if (smokeNapi.stopLinuxSteamLaunchBroker) smokeNapi.stopLinuxSteamLaunchBroker();
   }
@@ -108,29 +145,47 @@ export class LinuxSteamGameLaunch {
     const latest = role === 'game' ? 'last-game-launch' : 'last-client-helper';
     try { writeSmokeText(`${this.results}/${latest}.json`, JSON.stringify(evidence)); } catch (_) {}
   }
+  private offerGnuRetry(appId: string, generation: number): void {
+    if (!this.openCompatibility || this.retryDialog) return;
+    this.retryDialog = true;
+    void promptAction.showDialog({ title: 'OHOS Wine 未能正常运行游戏',
+      message: '可在 Steam 游戏属性的“兼容性”中选择 HmosDeck (GNU Proton)，再点击开始重试。两个运行环境各自保留原有前缀。',
+      buttons: [{ text: '稍后', color: '#888888' }, { text: '选择 GNU Proton 重试', color: '#4E8DFF' }] })
+      .then(async (answer): Promise<void> => {
+        if (answer.index !== 1 || generation !== this.generation || !this.openCompatibility) return;
+        if (this.sessions.some((item: GameSession): boolean => item.appId === appId) ||
+          this.gnuSessions.some((item: GnuGameSession): boolean => item.appId === appId) ||
+          this.nativeSessions.some((item: GnuGameSession): boolean => item.appId === appId) ||
+          this.pending.some((item: LinuxSteamLaunchRequest): boolean => item.appId === appId)) {
+          promptAction.showToast({ message: '请先结束当前游戏会话，再切换兼容工具', duration: 5000 }); return;
+        }
+        await this.openCompatibility(appId);
+      }).catch((): void => {}).finally((): void => { this.retryDialog = false; });
+  }
   private reject(request: LinuxSteamLaunchRequest, reason: string): void {
+    if (request.role === 'game') HostWindowTasks.getInstance().finishSteamGame(this.ticketSession(request.id), true, 1, 'launch-rejected');
     if (smokeNapi.replyLinuxSteamLaunchBroker) smokeNapi.replyLinuxSteamLaunchBroker(request.id, 3, 1);
     this.record(request.appId, reason, undefined, undefined, request.role);
     if (request.role === 'game') {
       promptAction.showToast({ message: `Linux Steam 启动失败：${reason}`, duration: 5000 });
+      if (!request.backend || request.backend === 'ohos-wine') this.offerGnuRetry(request.appId, this.generation);
     }
   }
-  private beginGnu(request: LinuxSteamLaunchRequest): void {
+  private beginGnu(request: LinuxSteamLaunchRequest, maintenanceToken: number): void {
     const launch = smokeNapi.startLinuxProtonGame;
     if (!launch) { this.reject(request, 'GNU Proton 运行组件不可用'); return; }
     const tasks = HostWindowTasks.getInstance();
-    const session: GnuGameSession = { id: request.id, appId: request.appId, sessionId: `gnu-proton-${this.generation}-${request.id}`,
+    const session: GnuGameSession = { id: request.id, appId: request.appId, sessionId: this.ticketSession(request.id),
       role: request.role, backend: request.backend ?? 'gnu-proton', generation: this.generation,
-      knownWindows: new Set<number>(tasks.snapshot().map((task: HostWindowTask): number => task.toplevelId)),
       focusRevision: tasks.foregroundRevision(), focused: false };
     let completion: Promise<string>; let releaseRuntime: (() => void) | null = null;
     try {
       releaseRuntime = LinuxProtonRuntimeService.getInstance().holdGame();
-      completion = launch(request.id, AppSettingsStore.getInstance().getGlobalSettings().wineLanguage);
+      completion = launch(request.id, AppSettingsStore.getInstance().getGlobalSettings().wineLanguage, maintenanceToken);
     }
     catch (error) { releaseRuntime?.(); this.reject(request, 'GNU Proton 创建进程失败：' + (error as Error).message.substring(0, 160)); return; }
     this.gnuSessions.push(session);
-    if (request.role === 'game') tasks.registerSteamGame(session.sessionId, request.appId);
+    if (request.role === 'game') tasks.registerSteamGame(session.sessionId, request.appId, session.backend, request.id, this.generation);
     this.record(request.appId, 'gnu_proton_starting', undefined, undefined, request.role, session.backend);
     if (!smokeNapi.replyLinuxSteamLaunchBroker?.(request.id, 1, 0)) smokeNapi.cancelLinuxProtonGame?.(request.id);
     completion.then((raw: string): void => {
@@ -148,7 +203,7 @@ export class LinuxSteamGameLaunch {
       const resultName = request.role === 'game' ? `gnu-proton-${request.appId}` : `gnu-proton-helper-${request.role}-${request.appId}`;
       try { writeSmokeText(`${this.results}/${resultName}.json`, raw); } catch (_) {}
       this.gnuSessions = this.gnuSessions.filter((item: GnuGameSession): boolean => item !== session);
-      if (request.role === 'game') tasks.finishSteamGame(session.sessionId, ended);
+      if (request.role === 'game') tasks.finishSteamGame(session.sessionId, ended, code, ended ? 'gnu-waitpid' : 'gnu-setup');
       if (code !== 0 && !process?.cancelled && request.role === 'game') {
         promptAction.showToast({ message: `GNU Proton 启动／运行失败：${result.status}（${code}）`, duration: 5000 });
       }
@@ -163,18 +218,43 @@ export class LinuxSteamGameLaunch {
   }
   private observeGnuWindows(): void {
     const tasks = HostWindowTasks.getInstance();
-    for (const session of this.gnuSessions) {
+    for (const session of [...this.gnuSessions, ...this.nativeSessions]) {
       if (session.role !== 'game') continue;
       for (const task of tasks.snapshot()) {
-        if (session.knownWindows.has(task.toplevelId) || task.source === 'steam-linux' || task.sessionId.length > 0) continue;
-        session.knownWindows.add(task.toplevelId);
-        tasks.associateSession(task.toplevelId, session.sessionId);
+        if (task.sessionId === session.sessionId || !smokeNapi.isLinuxSteamGameProcess?.(session.id, task.clientPid)) continue;
+        if (!tasks.associateGameWindow(task.key, session.sessionId)) continue;
+        WineWindowManager.getInstance().manageExternalToplevel(task.key);
         if (!session.focused && tasks.foregroundRevision() === session.focusRevision) {
           session.focused = true;
           void tasks.activate(task.key).catch((): boolean => false);
         }
       }
     }
+  }
+  private ticketSession(id: number): string { return `steam-game-${this.generation}-${id}`; }
+  private nativeEvent(request: LinuxSteamLaunchRequest): void {
+    const tasks = HostWindowTasks.getInstance();
+    const sessionId = this.ticketSession(request.id);
+    if (request.cancel || request.phase === 'exited') {
+      const known = !request.cancel && request.phase === 'exited';
+      const code = known ? (request.exitSignal ? 128 + request.exitSignal : request.exitCode ?? 1) : null;
+      this.nativeSessions = this.nativeSessions.filter((item: GnuGameSession): boolean => item.id !== request.id);
+      tasks.finishSteamGame(sessionId, known, code, known ? 'native-wrapper-waitpid' : 'controller-disconnected');
+      this.record(request.appId, known ? 'native_process_ended' : 'native_exit_unconfirmed', code,
+        known ? 'native-wrapper-waitpid' : 'unknown', 'game', 'linux-native'); return;
+    }
+    if (request.phase === 'running') {
+      tasks.updateSteamGame(sessionId, 'running', request.processId, request.processIdentity); return;
+    }
+    if (this.nativeSessions.some((item: GnuGameSession): boolean => item.id === request.id)) return;
+    this.nativeSessions.push({ id: request.id, appId: request.appId, sessionId, role: 'game', backend: 'linux-native',
+      generation: this.generation, focusRevision: tasks.foregroundRevision(), focused: false });
+    tasks.registerSteamGame(sessionId, request.appId, 'linux-native', request.id, this.generation);
+    if (!smokeNapi.replyLinuxSteamLaunchBroker?.(request.id, 1, 0)) {
+      this.nativeSessions = this.nativeSessions.filter((item: GnuGameSession): boolean => item.id !== request.id);
+      tasks.finishSteamGame(sessionId, false);
+    }
+    this.record(request.appId, 'native_process_starting', undefined, undefined, 'game', 'linux-native');
   }
   private windowsSteamRunning(): boolean {
     const processes = testNapi.getProcessList() as NativeProcessInfo[];
@@ -237,6 +317,7 @@ export class LinuxSteamGameLaunch {
     }
     if (!smokeNapi.drainLinuxSteamLaunchBroker || !smokeNapi.pollLinuxSteamLaunchSession) return;
     for (const request of smokeNapi.drainLinuxSteamLaunchBroker()) {
+      if (request.backend === 'linux-native') { this.nativeEvent(request); continue; }
       if (request.cancel) {
         this.pending = this.pending.filter((r: LinuxSteamLaunchRequest) => r.id !== request.id);
         for (const session of this.gnuSessions) if (session.id === request.id) smokeNapi.cancelLinuxProtonGame?.(request.id);
@@ -247,13 +328,17 @@ export class LinuxSteamGameLaunch {
           }
         }
         this.sessions = this.sessions.filter((s: GameSession) => s.id !== request.id);
+        HostWindowTasks.getInstance().finishSteamGame(this.ticketSession(request.id), false);
         continue;
       }
       // Steam can submit two driver queries together. Serialize real Wine
       // sessions instead of rejecting the second helper as an active game.
       if (this.pending.length >= 16) { this.reject(request, '启动队列已满'); continue; }
       this.pending.push(request);
+      if (request.role === 'game') HostWindowTasks.getInstance().registerSteamGame(this.ticketSession(request.id), request.appId,
+        request.backend ?? 'ohos-wine', request.id, this.generation);
     }
+    const failedWine: string[] = [];
     const remaining: GameSession[] = [];
     for (const session of this.sessions) {
       if (this.windowsSteamRunning()) {
@@ -274,19 +359,25 @@ export class LinuxSteamGameLaunch {
           (process.exitCodeSource === 'waitpid' || process.exitCodeSource === 'signal');
         const ended = state === 0 && process.found && process.status === 'exited' &&
           ['waitpid', 'signal', 'ncp-exit', 'ipc-death', 'proc-zombie'].includes(process.exitCodeSource);
-        if (session.role === 'game') HostWindowTasks.getInstance().finishSteamGame(session.sessionId, ended);
+        if (session.role === 'game') HostWindowTasks.getInstance().finishSteamGame(session.sessionId, ended,
+          known ? process.exitCode : null, known ? process.exitCodeSource : 'unknown');
         this.record(session.appId, known ? 'wine_process_ended' :
           (ended ? 'wine_process_ended_exit_code_unavailable' : 'wine_process_state_unavailable'),
           known ? process.exitCode : null, known ? process.exitCodeSource : 'unknown', session.role);
         if (session.role === 'game' && known && process.exitCode !== null && process.exitCode !== 0) {
           promptAction.showToast({ message: `游戏已退出（退出码 ${process.exitCode}）`, duration: 5000 });
+          failedWine.push(session.appId);
         }
       }
     }
     this.sessions = remaining;
+    for (const appId of failedWine) this.offerGnuRetry(appId, generation);
     while (this.sessions.length === 0 && this.gnuSessions.length === 0 && this.pending.length > 0) {
       const request = this.pending.shift();
       if (!request) break;
+      this.preparing = request;
+      try {
+      if (this.cancelled.delete(request.id)) continue;
       if (this.windowsSteamRunning()) { this.reject(request, '检测到 Windows Steam，请先退出后重试'); continue; }
       if (request.role !== 'game') {
         const verified = await this.verifiedHelper(request);
@@ -295,10 +386,19 @@ export class LinuxSteamGameLaunch {
       }
       if (request.backend === 'gnu-proton' || request.backend === 'gnu-proton-gl') {
         try {
-          if (request.backend === 'gnu-proton') await prepareLinuxProtonDxvkPrefix();
-        } catch (error) { this.reject(request, (error as Error).message); return; }
+          await withLinuxProtonMaintenance(async (token: number): Promise<void> => {
+            if (request.backend === 'gnu-proton') await prepareLinuxProtonDxvkPrefix(token);
+            if (generation !== this.generation || this.cancelled.has(request.id)) return;
+            // NAPI retains this same kernel lease before ArkTS releases its token.
+            this.beginGnu(request, token);
+          });
+        } catch (error) {
+          if (generation === this.generation && !this.cancelled.delete(request.id)) this.reject(request, (error as Error).message);
+          continue;
+        }
         if (generation !== this.generation) return;
-        this.beginGnu(request); continue;
+        if (this.cancelled.delete(request.id)) continue;
+        continue;
       }
       const argv = request.argv.slice(1).map((argument: string): string => linuxSteamLaunchArgument(argument, this.zRoot));
       const environment = request.environment.slice();
@@ -309,8 +409,15 @@ export class LinuxSteamGameLaunch {
       }
       let launch: NativeLaunchResult;
       try {
+        await this.prepareWine?.();
+        if (generation !== this.generation) return;
+        if (this.cancelled.delete(request.id)) continue;
         launch = WineEngineService.getInstance().launchExecutable(this.windowsPath(request.argv[0]), argv, this.windowsPath(request.cwd), environment);
-      } catch (error) { this.reject(request, 'Wine 创建游戏进程失败：' + (error as Error).message.substring(0, 160)); continue; }
+      } catch (error) {
+        if (generation === this.generation && !this.cancelled.delete(request.id))
+          this.reject(request, 'Wine 创建游戏进程失败：' + (error as Error).message.substring(0, 160));
+        continue;
+      }
       if (launch.pid <= 0 || launch.sessionId.length === 0 || launch.reused) {
         this.reject(request, 'Wine 未创建新的游戏会话'); continue;
       }
@@ -318,6 +425,7 @@ export class LinuxSteamGameLaunch {
       // or pipe failure). Do not leave a running game without its owner.
       if (!smokeNapi.replyLinuxSteamLaunchBroker || !smokeNapi.replyLinuxSteamLaunchBroker(request.id, 1, 0)) {
         testNapi.stopWineSession(launch.sessionId);
+        if (request.role === 'game') HostWindowTasks.getInstance().finishSteamGame(this.ticketSession(request.id), false);
         this.record(request.appId, 'steam_launch_controller_disconnected', undefined, undefined, request.role);
         continue;
       }
@@ -325,10 +433,17 @@ export class LinuxSteamGameLaunch {
       AppSessionService.getInstance().registerExternalLaunch(`steam-linux-game-${request.appId}`,
         this.windowsPath(request.argv[0]), launch, engine.getMode() ?? DisplayMode.DESKTOP,
         engine.getPresentationMode() ?? WinePresentationMode.MANAGED_WINDOWS, false);
-      if (request.role === 'game') HostWindowTasks.getInstance().registerSteamGame(launch.sessionId, request.appId);
+      if (request.role === 'game') {
+        HostWindowTasks.getInstance().bindSteamGame(this.ticketSession(request.id), launch.sessionId);
+        HostWindowTasks.getInstance().updateSteamGame(launch.sessionId, 'running', launch.pid);
+      }
       const session: GameSession = { id: request.id, appId: request.appId, sessionId: launch.sessionId, pid: launch.pid, role: request.role };
       this.sessions.push(session);
       this.record(request.appId, 'wine_process_started_authentication_unverified', undefined, undefined, request.role);
+      } finally {
+        if (this.preparing === request) this.preparing = null;
+        this.cancelled.delete(request.id);
+      }
     }
   }
 }

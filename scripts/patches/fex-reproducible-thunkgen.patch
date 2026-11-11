@@ -1,0 +1,57 @@
+--- a/ThunkLibs/Generator/gen.cpp
++++ b/ThunkLibs/Generator/gen.cpp
+@@ -140,6 +140,12 @@
+                                                  std::unordered_map<const clang::Type*, TypeCompatibility>& type_compat) {
+   // Sort struct types by dependency so that repacking code is emitted in an order that compiles fine
+   std::vector<std::pair<const clang::Type*, RepackedType>> types {this->types.begin(), this->types.end()};
++  // AST addresses depend on ASLR. Establish a stable order before dependency
++  // sorting so equivalent inputs produce identical generated wrappers.
++  std::sort(types.begin(), types.end(), [&context](const auto& a, const auto& b) {
++    return get_type_name(context, a.first) < get_type_name(context, b.first);
++  });
++
+   BubbleSort(types.begin(), types.end(), compare_by_struct_dependency {context});
+ 
+   for (const auto& [type, type_repack_info] : types) {
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Info.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Info.cpp
+@@ -59,7 +59,7 @@
+     snprintf(buf->release, sizeof(buf->release), "%d.%d.%d", FEX::HLE::SyscallHandler::KernelMajor(GuestVersion),
+              FEX::HLE::SyscallHandler::KernelMinor(GuestVersion), FEX::HLE::SyscallHandler::KernelPatch(GuestVersion));
+ 
+-    const char version[] = "#" GIT_DESCRIBE_STRING " SMP " __DATE__ " " __TIME__;
++    const char version[] = "#" GIT_DESCRIBE_STRING " SMP " "Jul  9 2026" " " "22:39:36";
+     strcpy(buf->version, version);
+     static_assert(sizeof(version) <= sizeof(buf->version), "uname version define became too large!");
+     if (Thread->persona & PER_LINUX32) {
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/x32/Info.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/x32/Info.cpp
+@@ -64,7 +64,7 @@
+     snprintf(buf->release, __OLD_UTS_LEN, "%d.%d.%d", FEX::HLE::SyscallHandler::KernelMajor(GuestVersion),
+              FEX::HLE::SyscallHandler::KernelMinor(GuestVersion), FEX::HLE::SyscallHandler::KernelPatch(GuestVersion));
+ 
+-    const char version[] = "#" GIT_DESCRIBE_STRING " SMP " __DATE__ " " __TIME__;
++    const char version[] = "#" GIT_DESCRIBE_STRING " SMP " "Jul  9 2026" " " "22:39:36";
+     strncpy(buf->version, version, __OLD_UTS_LEN);
+     // Tell the guest that we are a 64bit kernel
+     strncpy(buf->machine, "x86_64", __OLD_UTS_LEN);
+@@ -88,7 +88,7 @@
+     snprintf(buf->release, __NEW_UTS_LEN, "%d.%d.%d", FEX::HLE::SyscallHandler::KernelMajor(GuestVersion),
+              FEX::HLE::SyscallHandler::KernelMinor(GuestVersion), FEX::HLE::SyscallHandler::KernelPatch(GuestVersion));
+ 
+-    const char version[] = "#" GIT_DESCRIBE_STRING " SMP " __DATE__ " " __TIME__;
++    const char version[] = "#" GIT_DESCRIBE_STRING " SMP " "Jul  9 2026" " " "22:39:36";
+     strncpy(buf->version, version, __NEW_UTS_LEN);
+     // Tell the guest that we are a 64bit kernel
+     strncpy(buf->machine, "x86_64", __NEW_UTS_LEN);
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/EmulatedFiles/EmulatedFiles.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/EmulatedFiles/EmulatedFiles.cpp
+@@ -545,7 +545,7 @@
+     int FD = GenTmpFD(pathname, flags);
+     // UTS version NEEDS to be in a format that can pass to `date -d`
+     // Format of this is Linux version <Release> (<Compile By>@<Compile Host>) (<Linux Compiler>) #<version> {SMP, PREEMPT, PREEMPT_RT} <UTS version>\n"
+-    const char kernel_version[] = "Linux version %d.%d.%d (FEX@FEX) (clang) #" GIT_DESCRIBE_STRING " SMP " __DATE__ " " __TIME__ "\n";
++    const char kernel_version[] = "Linux version %d.%d.%d (FEX@FEX) (clang) #" GIT_DESCRIBE_STRING " SMP " "Jul  9 2026" " " "22:39:36" "\n";
+     uint32_t GuestVersion = FEX::HLE::_SyscallHandler->GetGuestKernelVersion();
+     char Tmp[sizeof(kernel_version) + 64] {};
+     snprintf(Tmp, sizeof(Tmp), kernel_version, FEX::HLE::SyscallHandler::KernelMajor(GuestVersion),

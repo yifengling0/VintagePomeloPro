@@ -378,7 +378,7 @@ std::string Executable(const char* filename, const std::string& code) {
         if (entry) path = entry;
     }
     if(path=="/bin/sh")path=code+"/steamohos_shell";
-    if(path=="/bin/lsof"||path=="/usr/bin/lsof")path=code+"/steamohos_lsof";
+    if(path=="/bin/lsof"||path=="/usr/bin/lsof")path=code+"/steamohos_lsof_hap";
     if(path=="/system/bin/taskset"||path=="/usr/bin/taskset"||path=="/bin/taskset")path=code+"/steamohos_taskset";
     if(path[0]!='/') {
         char cwd[4096];if(!getcwd(cwd,sizeof(cwd)))return {};
@@ -396,6 +396,17 @@ std::string Executable(const char* filename, const std::string& code) {
     // Exact official FEX entry only; never allow arbitrary depot scripts.
     if (!steamohos::fex::Tool(path).empty()) return code+"/steamohos_fex";
     if (steamohos::fex::Helper(path)) return steamohos::fex::Canonical(path);
+    std::string runtime,family;
+    if(steamohos::fex::Runtime(path,runtime,family))return code+"/steamohos_fex";
+    if(steamohos::fex::Env("STEAMOHOS_NATIVE_ARM")=="1") {
+        const auto actual=steamohos::fex::Canonical(path);
+        const auto install=steamohos::fex::Canonical(steamohos::fex::Env("STEAMOHOS_NATIVE_GAME_INSTALL"));
+        bool scoped=false;
+        for(const auto& library:steamohos::fex::Libraries())if(Under(install,library+"/steamapps/common"))scoped=true;
+        if(scoped&&Under(actual,install)&&steamohos::fex::ElfMachine(actual)==183)return actual;
+    }
+
+    if(steamohos::fex::Env("STEAMOHOS_NATIVE_ARM")!="1"&&steamohos::fex::ArmGame(path))return code+"/steamohos_fex";
     if (data && Under(path, data)) path = code + path.substr(strlen(data));
     if (!Under(path, code)) return {};
     return path;
@@ -463,6 +474,10 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
     std::vector<std::string> argv{loader, "--inhibit-cache", "--library-path",
         code + ':' + code + "/steamrtarm64:" + code + "/steamrtarm64/libs:" + code + "/steamrtarm64/video",
         "--argv0", arguments && arguments[0] ? arguments[0] : target, target};
+    if(steamohos::fex::Env("STEAMOHOS_NATIVE_ARM")=="1") {
+        const auto libraries=steamohos::fex::Env("LD_LIBRARY_PATH");
+        if(!libraries.empty())argv[3]+=":"+libraries;
+    }
     if (arguments) for (size_t n=1; arguments[n]; ++n) {
         if (n >= 120 || strnlen(arguments[n], 16384) >= 16384) return Fail(E2BIG);
         argv.emplace_back(arguments[n]);
@@ -497,6 +512,9 @@ int Handoff(const char* filename, char* const arguments[], char* const supplied[
             "STEAMOHOS_IPC_ROOT", "STEAMOHOS_SYSVIPC_ROOT", "STEAMOHOS_SOCKET_METADATA_ROOT", "STEAMOHOS_X11_SOCKET", "STEAMOHOS_NATIVE_X11_DISPLAY", "XLOCALEDIR", "GLIBC_TUNABLES", "SSL_CERT_FILE",
             "STEAMOHOS_NATIVE_MEMORY", "STEAMOHOS_EXTERNAL_RUNTIME", "STEAMOHOS_SOFTWARE_GL", "GALLIUM_DRIVER", "LIBGL_ALWAYS_SOFTWARE", "VTEST_SOCKET_NAME", "XLIB_NO_SHM", "STEAMOHOS_SOCKET_METADATA"}) {
         const char* value = getenv(key); if (value) Set(environment, key, value);
+    }
+    for(const char* key:{"STEAMOHOS_NATIVE_ARM","STEAMOHOS_NATIVE_GAME_INSTALL","STEAMOHOS_PROCESS_METADATA"}) {
+        const char* value=getenv(key);if(value)Set(environment,key,value);
     }
     const char* software=getenv("STEAMOHOS_SOFTWARE_GL");
     const char* gamepad=getenv("STEAMOHOS_GAMEPAD_SOCKET");

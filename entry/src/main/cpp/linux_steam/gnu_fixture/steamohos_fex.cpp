@@ -2,6 +2,7 @@
 #include "native_fex.h"
 #include "native_fex_core.h"
 #include "native_jit_capability.h"
+#include "native_game_session.h"
 #include <csignal>
 #include <cstdio>
 #include <poll.h>
@@ -94,9 +95,70 @@ std::string AppConfig() {
     }
     return result+"}}\n";
 }
+// Same process ownership and waitpid contract for translated and direct ELF.
+int RunChild(steamohos::fex::Plan& plan) {
+    steamohos::NativeGameSession session;
+    if(!session.Start(plan.game,plan.install))return Error("native_session_registration_failed",errno);
+    int errors[2];if(pipe2(errors,O_CLOEXEC))return Error("exec_pipe_failed",errno);
+    sigset_t blocked,previous;sigemptyset(&blocked);
+    for(int signal:{SIGTERM,SIGINT,SIGHUP})sigaddset(&blocked,signal);
+    if(sigprocmask(SIG_BLOCK,&blocked,&previous)){close(errors[0]);close(errors[1]);return Error("signal_block_failed",errno);}
+    const pid_t child=fork();
+    if(child<0){int saved=errno;sigprocmask(SIG_SETMASK,&previous,nullptr);close(errors[0]);close(errors[1]);return Error("fork_failed",saved);}
+    if(!child) {
+        close(errors[0]);setpgid(0,0);
+        for(int signal:{SIGTERM,SIGINT,SIGHUP})::signal(signal,SIG_DFL);
+        sigprocmask(SIG_SETMASK,&previous,nullptr);
+        std::vector<char*> args;for(auto& arg:plan.argv)args.push_back(arg.data());args.push_back(nullptr);
+        execve(args[0],args.data(),environ);
+        const int saved=errno;ssize_t sent;do{sent=write(errors[1],&saved,sizeof(saved));}while(sent<0&&errno==EINTR);_exit(126);
+    }
+    close(errors[1]);setpgid(child,child);childPid=child;
+    struct sigaction action{};action.sa_handler=Forward;sigemptyset(&action.sa_mask);
+    for(int signal:{SIGTERM,SIGINT,SIGHUP})sigaction(signal,&action,nullptr);
+    sigprocmask(SIG_SETMASK,&previous,nullptr);
+    pollfd event{errors[0],POLLIN|POLLHUP,0};int ready;
+    do {ready=poll(&event,1,10000);}while(ready<0&&errno==EINTR&&!cancelled);
+    int execError=0;ssize_t bytes=-1;
+    if(ready>0)do {bytes=read(errors[0],&execError,sizeof(execError));}while(bytes<0&&errno==EINTR);
+    close(errors[0]);
+    const bool launched=ready>0&&bytes==0;
+    if(!launched)kill(-child,SIGKILL);
+    if(launched&&!session.Started(child))kill(-child,SIGTERM);
+    int status=0;const bool waited=session.Wait(child,status)==0;
+    childPid=0;
+    if(!launched)return Error("fex_exec_failed",bytes==sizeof(execError)?execError:ETIMEDOUT);
+    if(!waited)return Error("fex_wait_failed",errno);
+    const int result=WIFEXITED(status)?WEXITSTATUS(status):WIFSIGNALED(status)?128+WTERMSIG(status):125;
+    fprintf(stderr,"STEAMOHOS_NATIVE_FEX status=exited code=%d signal=%d\n",result,WIFSIGNALED(status)?WTERMSIG(status):0);
+    return result;
+}
+int RunArm(steamohos::fex::Plan& plan) {
+    using namespace steamohos::fex;
+    const auto code=Env("STEAMOHOS_CODE_ROOT");
+    if(Env("STEAMOHOS_NATIVE_MEMORY")=="1") {
+        const auto published=Env("STEAMOHOS_EXTERNAL_RUNTIME");
+        bool scoped=false;
+        for(const auto& library:Libraries()) {
+            const auto installation=fs::path(library).parent_path().string();
+            if(published==code&&Below(code,installation+"/releases")&&Below(plan.install,library+"/steamapps/common")) {
+                Set("STEAMOHOS_EXTERNAL_RUNTIME",installation);scoped=true;break;
+            }
+        }
+        if(!scoped)return Error("native_external_runtime_scope");
+    }
+    Set("STEAMOHOS_NATIVE_ARM","1");
+    Set("STEAMOHOS_NATIVE_GAME_INSTALL",plan.install);
+    Set("STEAMOHOS_EXEC_GENERATION","0");
+    unsetenv("STEAMOHOS_SOFTWARE_GL");unsetenv("LIBGL_ALWAYS_SOFTWARE");
+    if(!Env("STEAMOHOS_NATIVE_X11_DISPLAY").empty())Set("DISPLAY",Env("STEAMOHOS_NATIVE_X11_DISPLAY"));
+    fprintf(stderr,"STEAMOHOS_NATIVE_ARM status=prepared machine=183 cpu_translation=none\n");
+    return RunChild(plan);
+}
 int Run(int argc,char** argv) {
     using namespace steamohos::fex;
-    Plan plan;if(!MakePlan(argc,argv,plan)) {
+    std::string package,family;
+    Plan plan;if(!(argc>0&&(Runtime(argv[0],package,family)||ArmGame(argv[0]))?MakeArmPlan(argc,argv,plan):MakePlan(argc,argv,plan))) {
         // Only bounded launch paths: never dump Steam's credentials/environment.
         for(const char* key:{"STEAMOHOS_LIBRARY_ROOT","STEAMOHOS_STEAM_ROOT",
                             "STEAM_COMPAT_DATA_PATH","STEAM_COMPAT_INSTALL_PATH"}) {
@@ -106,6 +168,7 @@ int Run(int argc,char** argv) {
         }
         return Error(plan.error.c_str());
     }
+    if(plan.native)return RunArm(plan);
 #if defined(__aarch64__)
     constexpr unsigned hostMachine=183;
 #elif defined(__x86_64__)
@@ -129,17 +192,22 @@ int Run(int argc,char** argv) {
     // Probe the architecture-specific files but configure the common base.
     const std::string guestBase=plan.tool+"/usr/share/fex-emu/GuestThunks";
     const std::string guest=guestBase+(guest32?"_32":"");
-    const bool gl=ElfMachine(host+"/libGL-host.so")==hostMachine&&ElfMachine(guest+"/libGL-guest.so")== (guest32?3:62);
-    const bool vk=ElfMachine(host+"/libvulkan-host.so")==hostMachine&&ElfMachine(guest+"/libvulkan-guest.so")== (guest32?3:62);
+    const auto paired=Env("STEAMOHOS_CODE_ROOT")+"/native-game-support";
+    const auto glHost=repairedCore?paired+(guest32?"/libGL-host32.so":"/libGL-host64.so"):host+(guest32?"_32":"")+"/libGL-host.so";
+    const auto glGuest=repairedCore?paired+(guest32?"/libGL-guest32.so":"/libGL-guest64.so"):guest+"/libGL-guest.so";
+    const bool gl=ElfMachine(glHost)==hostMachine&&ElfMachine(glGuest)==(guest32?3:62);
+    if(repairedCore)Set("VPP_PAIRED_GL_THUNKS",paired);else unsetenv("VPP_PAIRED_GL_THUNKS");
+    const auto widthHost=host+(guest32?"_32":"");
+    const bool vk=ElfMachine(widthHost+"/libvulkan-host.so")==hostMachine&&ElfMachine(guest+"/libvulkan-guest.so")== (guest32?3:62);
     // ALSA device-name strings transfer malloc ownership to the caller.
     // FEX's generated thunk returns host allocations to guest free(). Keep
     // ALSA and the existing shared-ring PCM plugin together in the guest ABI.
     const auto guestAudio=Env("STEAMOHOS_CODE_ROOT")+"/native-guest-core-x86_64";
     const bool guestAlsa=!guest32&&fs::is_directory(guestAudio);
     if(guestAlsa&&ElfMachine(guestAudio+"/libasound_module_pcm_hmosdeck.so")!=62)return Error("guest_audio_plugin_missing");
-    const bool alsa=!guestAlsa&&ElfMachine(host+"/libasound-host.so")==hostMachine&&ElfMachine(guest+"/libasound-guest.so")== (guest32?3:62);
+    const bool alsa=!guestAlsa&&ElfMachine(widthHost+"/libasound-host.so")==hostMachine&&ElfMachine(guest+"/libasound-guest.so")== (guest32?3:62);
     if(guestAlsa)Set("ALSA_PLUGIN_DIR",guestAudio);
-    const bool wayland=ElfMachine(host+"/libwayland-client-host.so")==hostMachine&&ElfMachine(guest+"/libwayland-client-guest.so")== (guest32?3:62);
+    const bool wayland=ElfMachine(widthHost+"/libwayland-client-host.so")==hostMachine&&ElfMachine(guest+"/libwayland-client-guest.so")== (guest32?3:62);
     std::error_code error;fs::create_directories(plan.compat,error);
     if(error||Canonical(plan.compat)!=plan.compat)return Error("compatdata_create_failed",error.value());
     auto parent=plan.compat+"/fex-emu";fs::create_directory(parent,error);
@@ -341,39 +409,7 @@ int Run(int argc,char** argv) {
     Set("STEAMOHOS_EXEC_GENERATION","0");
     fprintf(stderr,"STEAMOHOS_NATIVE_FEX status=prepared guest_bits=%u runtime=%s gl_thunk=%d vulkan_thunk=%d audio_thunk=%d wayland_thunk=%d guest_alsa=%d container=userspace\n",
         guest32?32:64,fs::path(plan.runtime).filename().c_str(),gl,vk,alsa,wayland,guestAlsa);
-    int errors[2];if(pipe2(errors,O_CLOEXEC))return Error("exec_pipe_failed",errno);
-    sigset_t blocked,previous;sigemptyset(&blocked);
-    for(int signal:{SIGTERM,SIGINT,SIGHUP})sigaddset(&blocked,signal);
-    if(sigprocmask(SIG_BLOCK,&blocked,&previous)){close(errors[0]);close(errors[1]);return Error("signal_block_failed",errno);}
-    const pid_t child=fork();
-    if(child<0){int saved=errno;sigprocmask(SIG_SETMASK,&previous,nullptr);close(errors[0]);close(errors[1]);return Error("fork_failed",saved);}
-    if(!child) {
-        close(errors[0]);setpgid(0,0);
-        for(int signal:{SIGTERM,SIGINT,SIGHUP})::signal(signal,SIG_DFL);
-        sigprocmask(SIG_SETMASK,&previous,nullptr);
-        std::vector<char*> args;for(auto& arg:plan.argv)args.push_back(arg.data());args.push_back(nullptr);
-        execve(args[0],args.data(),environ);
-        const int saved=errno;ssize_t sent;do{sent=write(errors[1],&saved,sizeof(saved));}while(sent<0&&errno==EINTR);_exit(126);
-    }
-    close(errors[1]);setpgid(child,child);childPid=child;
-    struct sigaction action{};action.sa_handler=Forward;sigemptyset(&action.sa_mask);
-    for(int signal:{SIGTERM,SIGINT,SIGHUP})sigaction(signal,&action,nullptr);
-    sigprocmask(SIG_SETMASK,&previous,nullptr);
-    pollfd event{errors[0],POLLIN|POLLHUP,0};int ready;
-    do {ready=poll(&event,1,10000);}while(ready<0&&errno==EINTR&&!cancelled);
-    int execError=0;ssize_t bytes=-1;
-    if(ready>0)do {bytes=read(errors[0],&execError,sizeof(execError));}while(bytes<0&&errno==EINTR);
-    close(errors[0]);
-    const bool launched=ready>0&&bytes==0;
-    if(!launched)kill(-child,SIGKILL);
-    int status=0;pid_t waited;
-    do{waited=waitpid(child,&status,0);}while(waited<0&&errno==EINTR);
-    childPid=0;
-    if(!launched)return Error("fex_exec_failed",bytes==sizeof(execError)?execError:ETIMEDOUT);
-    if(waited!=child)return Error("fex_wait_failed",errno);
-    const int result=WIFEXITED(status)?WEXITSTATUS(status):WIFSIGNALED(status)?128+WTERMSIG(status):125;
-    fprintf(stderr,"STEAMOHOS_NATIVE_FEX status=exited code=%d signal=%d\n",result,WIFSIGNALED(status)?WTERMSIG(status):0);
-    return result;
+    return RunChild(plan);
 }
 }
 int main(int argc,char** argv) {

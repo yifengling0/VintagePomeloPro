@@ -31,6 +31,7 @@ DESTINATIONS = {
     'linux-proton/gnu-proton.zip': 'linux-proton/manifest.json',
 }
 HAP_COMPANIONS = {
+    'entry/src/main/resources/rawfile/linux-steam/bootstrap/lsof-manifest.json': 'steamohos_lsof_hap',
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/desktop-manifest.json': 'steamohos_gnu_desktop_hap',
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/posix-manifest.json': 'libsteamohos_posix_hap.so',
     'entry/src/main/resources/rawfile/linux-steam/bootstrap/fex-manifest.json': 'steamohos_fex',
@@ -84,6 +85,9 @@ def verify_sources(root, lock):
     if lock.get('protonModules'):
         from prepare_linux_proton_module_closure import verify_contract
         verify_contract(root)
+    from prepare_linux_lsof_support import verify as verify_lsof
+    if 'entry/src/main/resources/rawfile/linux-steam/bootstrap/lsof-manifest.json' in lock.get('hapCompanions',[]):
+        verify_lsof(root)
     from build_linux_proton_bootstrap import verify as verify_bootstrap
     verify_bootstrap(root)
     if lock.get("protonMedia"):

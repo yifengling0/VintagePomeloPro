@@ -88,7 +88,7 @@ public:
 
 private:
     bool RootCompositing() const;
-    bool isolatedToplevel_ = false;
+    std::atomic<bool> isolatedToplevel_ = false;
     struct ZeroCopyConsumer;
     void RenderLoop();
     void VulkanRenderLoop();
