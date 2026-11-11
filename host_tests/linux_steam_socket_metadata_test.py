@@ -124,7 +124,7 @@ int main(void){
                                 capture_output=True, timeout=12)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('queries=512 fragmented_query=1 fd_leaks=0', result.stdout)
-        self.assertIn('wrong_peer_rejected=1 exit_cleanup=1', result.stdout)
+        self.assertIn('wrong_peer_rejected=1 exit_cleanup=1 terminal_shutdown=1', result.stdout)
         self.assertFalse((self.base / 'socket-metadata').exists())
         self.assertEqual(list((session / 'socket-metadata').iterdir()), [])
 

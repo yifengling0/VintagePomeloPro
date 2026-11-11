@@ -62,3 +62,21 @@ PID/窗口代次、native carrier、维护锁/FD 交接、组件组/升级、ARM
 真机新包、普通 Steam 库三条路线、退出/重启/后台恢复、HmosDeck 结束、仙剑媒体、
 会员/离线导入/字体、三轮交替性能仍须新包实测；不得将上述主机结果写作真机通过。
 历史星露谷 GNU 仅有菜单短测；退出码 255 保持未解决记录。
+
+## 2026-11-11：启动自检与回归补充
+
+- `0cd72ad5` 补齐当前 session 诊断和 IPC/GL 自检错误提示。Mini 新包在 Steam
+  客户端启动前失败：共享 robust mutex 的持锁子进程被 SIGKILL 并 wait 后，
+  timedlock 返回 ETIMEDOUT，未获得 EOWNERDEAD；不能计为游戏或性能验收。
+- `c45b81e6` 修正 AMS startAbility 返回早于 WindowStage 注册时的重复 carrier
+  创建；pending 保留到窗口注册，拒绝回调不再错误关闭已在创建的真实窗口。
+- `ee08b6c2` 加入仅失败后运行的 OHOS raw robust 对照，区分无 GNU/TLS/ptrace
+  的内核观察；本地打包通过，尚未设备执行，根因仍待对照结果。
+- CI `42998707999` 的 FD 断言存在采样竞态：认证拒绝可早于 worker accept，
+  FD 数量短暂等于基线不能证明 worker 空闲。改为显式唤醒并 join 自有 worker，
+  再严格比较启动前完整 FD 数量，并确认应用 FD 与自有 endpoint 生命周期。
+  本机完整 metadata 套件 5 项通过、1 项缺固定 lsof 输入跳过；生命周期
+  40 轮、20,480 次查询通过。该修复没有降低运行库断言或跳过产品 IPC 自检。
+
+Mini 暂由并行 Windows Steam 性能聊天使用，按用户要求等其完成后交接；
+不并发安装、停止应用或替换设备组件。

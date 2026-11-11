@@ -20,6 +20,7 @@
 #define REQUIRE(test) do { if (!(test)) { fprintf(stderr,"line=%d errno=%d: %s\n",__LINE__,errno,#test); exit(1); } } while(0)
 static void (*observe)(int);
 static int (*borrow)(pid_t,int,uint64_t);
+static void (*stop)(void);
 struct Record { int descriptor; uint64_t inode; };
 static uint64_t inode(int fd) {struct stat s;REQUIRE(!fstat(fd,&s));return s.st_ino;}
 static int bound(void) {
@@ -68,7 +69,9 @@ static void rejected(pid_t pid,int fd,uint64_t expected,int error) {
 int main(void) {
     observe=(void(*)(int))dlsym(RTLD_DEFAULT,"SteamOhosObserveSocket");
     borrow=(int(*)(pid_t,int,uint64_t))dlsym(RTLD_DEFAULT,"SteamOhosBorrowSocket");
-    REQUIRE(observe&&borrow);
+    stop=(void(*)(void))dlsym(RTLD_DEFAULT,"HslProcessRuntimeStopV1");
+    REQUIRE(observe&&borrow&&stop);
+    const int initial_descriptors=descriptors();
     int own=bound(),commands[2],responses[2];REQUIRE(!pipe2(commands,O_CLOEXEC)&&!pipe2(responses,O_CLOEXEC));
     pid_t child=fork();REQUIRE(child>=0);
     if(!child) {
@@ -138,18 +141,18 @@ int main(void) {
     // A same-UID socket with the wrong kernel PID must not impersonate a peer.
     REQUIRE(snprintf(own_path,sizeof(own_path),"%s/%d",directory,getpid())<(int)sizeof(own_path));
     REQUIRE(!symlink(own_path,path));rejected(child,own,inode(own),EACCES);REQUIRE(!unlink(path));
-    // Wrong-peer authentication returns before our own worker necessarily
-    // observes EOF on its accepted channel. Require bounded reclamation rather
-    // than sampling that in-flight server FD as a permanent client leak.
-    struct timespec reclaim_start,reclaim_now;REQUIRE(!clock_gettime(CLOCK_MONOTONIC,&reclaim_start));
-    while(descriptors()!=baseline) {
-        REQUIRE(!clock_gettime(CLOCK_MONOTONIC,&reclaim_now));
-        long waited=(reclaim_now.tv_sec-reclaim_start.tv_sec)*1000+
-            (reclaim_now.tv_nsec-reclaim_start.tv_nsec)/1000000;
-        REQUIRE(waited<1500);poll(NULL,0,1);
-    }
-    REQUIRE(descriptors()==baseline);close(own);close(commands[1]);close(responses[0]);
+    // Authentication can reject before the worker has even accepted the
+    // connection. A transient baseline followed by accept is legitimate, so
+    // polling the count cannot establish that the worker is quiescent.
+    // Join the owned worker, then check every descriptor against the count
+    // before it was created. This also verifies terminal shutdown with the
+    // rejected query still queued or accepted, without weakening leak checks.
+    stop();stop();
+    REQUIRE(fcntl(own,F_GETFD)>=0);
+    REQUIRE(lstat(own_path,&s)==-1&&errno==ENOENT);
+    close(own);close(commands[1]);close(responses[0]);
+    REQUIRE(descriptors()==initial_descriptors);
     printf("SOCKET_METADATA independent_latency_ms=%ld stalled8_latency_ms=%ld\n",independent_elapsed,elapsed);
-    puts("SOCKET_METADATA lifecycle verified=1 queries=512 fragmented_query=1 fd_leaks=0 bounded_abandoned=1 independent_queries=1 closed_rejected=1 reused_rejected=1 wrong_peer_rejected=1 exit_cleanup=1");
+    puts("SOCKET_METADATA lifecycle verified=1 queries=512 fragmented_query=1 fd_leaks=0 bounded_abandoned=1 independent_queries=1 closed_rejected=1 reused_rejected=1 wrong_peer_rejected=1 exit_cleanup=1 terminal_shutdown=1");
     return 0;
 }
