@@ -425,12 +425,15 @@ extern "C" __attribute__((visibility("default"))) void SteamOhosGnuChildMain(Nat
         }
     }
     if (!json.empty() && json.back() == '}') {
-        json.pop_back();
         if (json.find("\"steamProcessAttempted\":false") != std::string::npos &&
             json.find("\"ipcPreflight\":{") != std::string::npos) {
-            json += ",\"hostRobustControl\":{\"execution\":\"OHOS-kernel-control-not-GNU\",\"ptraceUsed\":false,\"cases\":[" +
-                ObserveHostRobust(false) + ',' + ObserveHostRobust(true) + "]}";
+            // Log-tail redaction can remove the rest of a compact JSON line.
+            // Keep these non-sensitive scalar observations before all log text
+            // so failure diagnostics remain available in the exported prefix.
+            json.insert(1, "\"hostRobustControl\":{\"execution\":\"OHOS-kernel-control-not-GNU\",\"ptraceUsed\":false,\"cases\":[" +
+                ObserveHostRobust(false) + ',' + ObserveHostRobust(true) + "]},");
         }
+        json.pop_back();
         json += ",\"executableMemoryPolicy\":" + memoryPolicy + '}';
     }
     size_t sent = 0;
