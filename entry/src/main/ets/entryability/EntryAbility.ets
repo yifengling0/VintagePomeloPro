@@ -1,3 +1,4 @@
+import { preserveReinstallSaves } from '../service/ReinstallSaveSnapshot';
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { ValueAddedService } from '../service/valueadded/ValueAddedService';
@@ -301,7 +302,7 @@ export default class EntryAbility extends UIAbility {
 
   private rememberAutomationWant(want: Want): void {
     const mode = String(want.parameters?.['winehua.mode'] ?? '');
-    if (mode !== 'game' && mode !== 'smoke') return;
+    if (mode !== 'game' && mode !== 'smoke' && mode !== 'preserve-reinstall-saves') return;
     this.pendingAutomationWant = want;
     hilog.info(DOMAIN, 'EntryAbility', 'automation Want accepted mode=%{public}s', mode);
   }
@@ -372,6 +373,10 @@ export default class EntryAbility extends UIAbility {
 
   private async runAutomationLaunch(want: Want): Promise<void> {
     const parameters = want.parameters ?? {};
+    if (String(parameters['winehua.mode'] ?? '') === 'preserve-reinstall-saves') {
+      await preserveReinstallSaves(this.context);
+      return;
+    }
     if (String(parameters['winehua.mode'] ?? '') === 'smoke') {
       await this.runSmokeLaunch(want);
       return;
