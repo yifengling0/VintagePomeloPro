@@ -160,3 +160,12 @@ bash build.sh pad arm64
 - Wine native 构建只编译 host 工具（winegcc 等），不编译 DLL，通过 autoconf cache variables 绕过所有库检测
 - `gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64` 是 OHOS 交叉构建需要的 PE 编译器后端，不是 native 构建用的
 - Ohos SDK 中的 BiSheng 工具链（`ld.lld`）是闭源预编译的，依赖旧版系统库
+
+## Shared local and CI prerequisites
+
+The root Dockerfile, CI image, and HAP workflow all run `scripts/ensure_build_dependencies.sh`.
+For an existing build container, run this script as root before `make test-game-runtime`
+or `make NATIVE_ARCH=arm64-v8a hap-unsigned`. It checks the actual tools and headers,
+installs only missing packages, and prevents a manually repaired container from hiding
+missing prerequisites in a newly created image. Mount the source and Harmony SDK
+at the same paths used by the build commands above.

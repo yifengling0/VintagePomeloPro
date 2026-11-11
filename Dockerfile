@@ -41,6 +41,10 @@ RUN apt-get update && apt-get install -y \
 # (与 ci/Dockerfile.buildenv 保持一致; CI 的 Ensure CI build dependencies
 # step 也有 ltdl.m4 / widl 兜底检查)
 
+# Use the same prerequisite checks as the HAP workflow.
+COPY scripts/ensure_build_dependencies.sh /tmp/vpp-build-dependencies.sh
+RUN bash /tmp/vpp-build-dependencies.sh && rm /tmp/vpp-build-dependencies.sh
+
 # Python 包 (virglrenderer + Mesa guest_gfx 构建)
 RUN pip3 install --break-system-packages pyyaml mako markupsafe \
  && rm -rf /root/.cache/pip
