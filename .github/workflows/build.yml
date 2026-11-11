@@ -150,14 +150,40 @@ jobs:
             url."https://github.com/gnutls/nettle.git".insteadOf \
             "https://git.lysator.liu.se/nettle/nettle.git"
 
-      - name: Checkout with submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           # Dispatch can build an existing immutable tag using the repaired workflow.
           ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
-          submodules: recursive
+          submodules: false
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Keep the pinned objects already fetched when an upstream Git service
+      # briefly returns 502/503/504. Authentication/missing refs still fail fast;
+      # the source gate below verifies every exact recursive gitlink afterwards.
+      - name: Fetch pinned submodules with bounded retries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule sync --recursive
+          fetch_tail="$RUNNER_TEMP/vpp-submodule-fetch-tail.log"
+          trap 'rm -f -- "$fetch_tail"' EXIT
+          for attempt in 1 2 3 4 5; do
+            set +e
+            git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=45 submodule update \
+              --init --recursive --depth=1 --jobs=4 2>&1 | tee /dev/stderr | tail -c 65536 > "$fetch_tail"
+            fetch_status=${PIPESTATUS[0]}
+            set -e
+            if [ "$fetch_status" -eq 0 ]; then exit 0; fi
+            if [ "$attempt" -eq 5 ] ||
+              grep -Eiq 'Authentication failed|returned error: (401|403)|repository.*not found|not our ref' "$fetch_tail" ||
+              ! grep -Eiq 'returned error: 50[234]|HTTP[^0-9]*50[234]|Gitaly.*not available|TLS connection was non-properly terminated|Connection reset by peer|Could not resolve host|Failed to connect|Operation timed out|RPC failed; curl (18|28|35|56|92)' "$fetch_tail"; then
+              exit "$fetch_status"
+            fi
+            echo "Transient submodule fetch failure; retry $((attempt + 1))/5 in 15s"
+            sleep 15
+          done
 
       # Check exact gitlinks, not .gitmodules branch tips. Fail before compilation.
       - name: Verify source and release versions
