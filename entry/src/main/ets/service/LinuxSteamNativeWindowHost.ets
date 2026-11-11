@@ -3,6 +3,7 @@ import { InputProfileService } from './InputProfileService';
 import { GamepadManager } from './GamepadManager';
 import { AppSettingsStore } from './AppSettingsStore';
 import { common } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import testNapi from 'libentry.so';
 import smokeNapi from 'libsmoke_napi.so';
 import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
@@ -14,6 +15,7 @@ export class LinuxSteamNativeWindowHost {
   private navigation: boolean = false;
   private active: boolean = false;
   private timer: number = -1;
+  private lastWindows: string = '';
   async start(_context: common.Context, _driveC: string, _results: string,
     _recovering: boolean = false): Promise<void> {
     this.active = true;
@@ -24,6 +26,12 @@ export class LinuxSteamNativeWindowHost {
     if (!this.active || !smokeNapi.isLinuxSteamProcess) return;
     const tasks = HostWindowTasks.getInstance();
     tasks.refreshLinuxSteamOwnership(smokeNapi.isLinuxSteamProcess);
+    const observed = tasks.snapshot().map((task: HostWindowTask): string =>
+      `${task.key}:${task.source}:${task.clientPid}:${smokeNapi.isLinuxSteamProcess?.(task.clientPid) === true}`).join(',');
+    if (observed !== this.lastWindows) {
+      this.lastWindows = observed;
+      hilog.info(0, 'DeckLaunch', 'native carrier ownership=%{public}s', observed.substring(0, 1000));
+    }
     this.setNavigation(this.isForeground());
     for (const task of tasks.snapshot()) {
       if (task.source === 'steam-linux' && smokeNapi.isLinuxSteamProcess(task.clientPid))

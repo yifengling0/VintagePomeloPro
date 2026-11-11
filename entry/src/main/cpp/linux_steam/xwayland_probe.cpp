@@ -611,6 +611,11 @@ std::string ProbeXwayland(const std::string& directory, const std::string& socke
         if(session.desktopSession) {
             session.argv.insert(session.argv.begin()+4,directory+(productSession ? "/steamohos_gnu_desktop_hap" : "/steamohos_gnu_desktop"));
             if(session.desktopInputProbe)session.environment.emplace_back("STEAMOHOS_DESKTOP_INPUT=1");
+            // The rootful display still needs its X11 state manager when its
+            // Wayland carrier is independent of Wine. Surface readiness and
+            // Deck command dispatch must not depend on creating a Wine HWND.
+            if(productSession&&!session.wineWindowHost)
+                session.environment.emplace_back("STEAMOHOS_NATIVE_WINDOW_BRIDGE=1");
         }
         if(session.wineWindowHost) {
             session.environment.emplace_back("STEAMOHOS_WINE_WINDOW_BRIDGE=1");

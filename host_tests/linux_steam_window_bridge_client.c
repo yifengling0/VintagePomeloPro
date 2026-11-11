@@ -198,6 +198,21 @@ static void caption_pointer_tests(Display *d,Window w,Window popup) {
 int main(void) {
     Display *d=XOpenDisplay(NULL);assert(d);
     Window root=DefaultRootWindow(d);
+    if(getenv("STEAMOHOS_NATIVE_WINDOW_BRIDGE")) {
+        Window window=XCreateSimpleWindow(d,root,20,20,640,400,0,0,0);
+        XStoreName(d,window,"Steam");XMapWindow(d,window);XFlush(d);
+        char path[4096],text[512];int ready=0;
+        snprintf(path,sizeof(path),"%s/deck-session-state.json",getenv("STEAMOHOS_TMP_ROOT"));
+        for(int n=0;n<100&&!ready;++n) {
+            FILE *file=fopen(path,"r");
+            if(file){size_t size=fread(text,1,sizeof(text)-1,file);fclose(file);text[size]=0;
+                ready=strstr(text,"\"ready\":true")&&strstr(text,"\"generation\":\"abcd-1234\"");}
+            if(!ready)usleep(20000);
+        }
+        assert(ready);bounds(d,window,800,600);
+        XDestroyWindow(d,window);XCloseDisplay(d);
+        puts("NATIVE_DECK mapped-window readiness PASS");return 37;
+    }
     Window w=XCreateSimpleWindow(d,root,20,20,640,400,0,0,0x123456);
     XMapWindow(d,w);XFlush(d);state(w,0,0);
     /* A larger transient dialog must not steal primary-window ownership. */

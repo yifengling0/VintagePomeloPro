@@ -7,6 +7,7 @@ const singleton=x=>({getInstance:()=>x});const tasks={
  isLauncherForeground:()=>launcher,isSteamGameForeground:()=>false,
  activate:async key=>{activated.push(key);return true;},activateSteamLaunchPrompt:async key=>{activated.push(key);return true;}};
 const deps={
+ '@kit.PerformanceAnalysisKit':{hilog:{info(){}}},
  '@kit.AbilityKit':{},'libentry.so':{default:{getKeyboardFocusedToplevel:()=>focused}},
  'libsmoke_napi.so':{default:{isLinuxSteamProcess:pid=>pid===11}},
  './HostWindowTasks':{HostWindowTasks:singleton(tasks)},

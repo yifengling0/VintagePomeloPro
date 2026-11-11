@@ -384,6 +384,17 @@ export class LinuxSteamGameLaunch {
         if (generation !== this.generation) return;
         if (!verified) { this.reject(request, '官方 Linux Steam 辅助程序校验失败'); continue; }
       }
+      // Steam probes Windows drivers during Linux-client startup. This probe
+      // is optional; report an actual unavailable result until Wine is ready,
+      // without fabricating GPU information or warming a Windows prefix.
+      // A real Windows game/install script still prepares Wine below.
+      if (request.role === 'driver_query' && (!request.backend || request.backend === 'ohos-wine') &&
+        !WineEngineService.getInstance().isReady()) {
+        smokeNapi.replyLinuxSteamLaunchBroker?.(request.id, 3, 1);
+        this.record(request.appId, 'driver_query_unavailable_wine_not_started', 1,
+          'optional-helper-not-executed', request.role);
+        continue;
+      }
       if (request.backend === 'gnu-proton' || request.backend === 'gnu-proton-gl') {
         try {
           await withLinuxProtonMaintenance(async (token: number): Promise<void> => {

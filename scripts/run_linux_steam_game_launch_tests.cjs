@@ -11,6 +11,7 @@ const helperDigests = new Map();
 const completions = [];
 let runtimeLeases=0;
 let maintenanceHeld=false;
+let engineReady=true;
 const deps = {
   './LinuxProtonLease': {withLinuxProtonMaintenance: async action=>{maintenanceHeld=true;try{await action(77);}finally{maintenanceHeld=false;}}},
   './WineWindowManager': {WineWindowManager:singleton({manageExternalToplevel:()=>true})},
@@ -33,6 +34,7 @@ const deps = {
     finishSteamGame(id, known) { completions.push([id, known]); } }) },
   './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ wineLanguage: 'zh_CN' }) }) },
   './WineEngineService': { WineEngineService: singleton({
+    isReady: () => engineReady,
     launchExecutable: (...args) => { if (failLaunch) throw Error('launch failed'); launches.push(args); return { pid: 100, sessionId: 'wine-100-1', reused: false }; },
     getMode: () => 1, getPresentationMode: () => 1
   }) },
@@ -125,6 +127,20 @@ state = 1; requests = [{ ...query, id: 12 }, { ...query, id: 12, cancel: true }]
 assert.equal(service.pending.length, 0, 'Cancelled queued work cannot start later');
 before = launchCount(); service.stop(); state = 0; await service.tick();
 assert.equal(launchCount(), before, 'Stopped service cannot start queued helpers');
+// The Linux client's optional D3D inventory must not warm a Wine desktop.
+let coldPreparations=0;
+engineReady=false;
+service.start('/z/SteamLinuxARM64/library','/results','/z',async()=>{coldPreparations++;engineReady=true;});
+before=launchCount();
+const coldGameRegistrations=registrations.length;
+requests=[{...query,id:13,appId:'0',backend:'ohos-wine'}];await service.tick();
+assert.equal(coldPreparations,0);assert.equal(launchCount(),before);
+assert.equal(registrations.length,coldGameRegistrations);
+assert.deepEqual(replies.at(-1),[13,3,1],'Unexecuted query reports a real unavailable result');
+assert.equal(JSON.parse(files.get('/results/last-client-helper.json')).status,'driver_query_unavailable_wine_not_started');
+requests=[{...request(),id:14}];state=1;await service.tick();
+assert.equal(coldPreparations,1,'First Windows game prepares Wine');
+assert.equal(launchCount(),before+1);service.stop();
 // Diagnostics cannot become lifecycle control or kill a running game.
 service.start('/z/SteamLinuxARM64/library', '/results', '/z');
 failAudit = true; service.ticks = 24; state = 1; requests = [request()];

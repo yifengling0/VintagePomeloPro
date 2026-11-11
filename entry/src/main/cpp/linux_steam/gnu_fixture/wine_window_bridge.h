@@ -1,5 +1,6 @@
-/* Minimal X11 state manager for the private rootful Steam display. Wine owns
- * the visible HWND; Steam owns its client decorations. No image capture. */
+/* X11 state manager for the private rootful Steam display. Its carrier can
+ * be native Wayland or a legacy Wine HWND. Steam owns its decorations;
+ * neither mode captures images or requires Wine for X11 state management. */
 struct wine_window_bridge {
     Display *display; Window root, primary, support, active_child;
     Atom state, fullscreen, max_h, max_v, change_state, active, wm_state, moveresize;
@@ -297,7 +298,8 @@ static void bridge_choose(struct wine_window_bridge *b) {
 }
 static int bridge_initialize(struct wine_window_bridge *b,Display *d,Window root) {
     const char *enabled=getenv("STEAMOHOS_WINE_WINDOW_BRIDGE"),*directory=getenv("STEAMOHOS_TMP_ROOT");
-    if(!enabled||strcmp(enabled,"1")||!directory||directory[0]!='/')return 0;
+    const char *native=getenv("STEAMOHOS_NATIVE_WINDOW_BRIDGE");
+    if(((!enabled||strcmp(enabled,"1"))&&(!native||strcmp(native,"1")))||!directory||directory[0]!='/')return 0;
     memset(b,0,sizeof(*b));b->display=d;b->root=root;
     b->preferences_enabled=getenv("HMOSDECK_SESSION_GENERATION")!=NULL;
     b->desktop_mode=b->preferences_enabled?1:0;
@@ -328,9 +330,9 @@ static int bridge_initialize(struct wine_window_bridge *b,Display *d,Window root
     unsigned long support=b->support;
     XChangeProperty(d,root,check,XA_WINDOW,32,PropModeReplace,(unsigned char*)&support,1);
     XChangeProperty(d,b->support,check,XA_WINDOW,32,PropModeReplace,(unsigned char*)&support,1);
-    const char name[]="HmosDeck Wine window bridge";
+    const char *name=native&&!strcmp(native,"1")?"HmosDeck native window manager":"HmosDeck Wine window bridge";
     XChangeProperty(d,b->support,XInternAtom(d,"_NET_WM_NAME",False),XInternAtom(d,"UTF8_STRING",False),
-        8,PropModeReplace,(const unsigned char*)name,sizeof(name)-1);
+        8,PropModeReplace,(const unsigned char*)name,strlen(name));
     Atom supported[]={b->state,b->fullscreen,b->max_h,b->max_v,b->active,b->moveresize,
         XInternAtom(d,"_NET_WM_ALLOWED_ACTIONS",False),XInternAtom(d,"_NET_WM_ACTION_MOVE",False),XInternAtom(d,"_NET_WM_ACTION_RESIZE",False)};
     XChangeProperty(d,root,XInternAtom(d,"_NET_SUPPORTED",False),XA_ATOM,32,PropModeReplace,(unsigned char*)supported,9);

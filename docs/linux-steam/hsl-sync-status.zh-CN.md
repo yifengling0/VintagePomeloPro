@@ -78,5 +78,22 @@ PID/窗口代次、native carrier、维护锁/FD 交接、组件组/升级、ARM
   本机完整 metadata 套件 5 项通过、1 项缺固定 lsof 输入跳过；生命周期
   40 轮、20,480 次查询通过。该修复没有降低运行库断言或跳过产品 IPC 自检。
 
-Mini 暂由并行 Windows Steam 性能聊天使用，按用户要求等其完成后交接；
-不并发安装、停止应用或替换设备组件。
+Windows Steam 性能聊天已交还共享构建目录与 USB Mini；后续串行构建和设备验证。
+
+## 2026-11-11：原生 carrier 就绪状态
+
+`8da32e9c` 在 Mini 普通 Linux Steam 入口已进入登录及库页，初始无 Wine
+子进程，但未发布 Deck ready；可选 `d3ddriverquery64.exe` 随后又提前准备了 Wine。
+修正如下，主机回归已过，等待新包真机复测：
+
+- 独立 native carrier 启用既有 X11 状态管理，不依赖旧 Wine HWND 开关；
+  真实已映射窗口驱动 Deck ready 和控制命令，沿用无读回的呈现路径。
+- 仍校验官方 helper 身份；Wine 未就绪时，可选驱动查询返回实际不可用结果，
+  不生成虚假 GPU 信息，也不准备前缀。首个真实 Windows 游戏仍须完整准备 Wine。
+- 原生窗口身份/归属变化写有界日志，继续定位启动 Wine 后“运行中”空列表，
+  不放宽窗口归属或按窗口出现顺序猜测。
+- Xvfb 验证 native 映射窗口、当前 generation、ready、退出 closed 及无 PPM 读回；
+  既有 legacy 桥接和窗口布局回归保留。Node 验证冷查询不会启动 Wine、随后
+  Windows 游戏会准备 Wine，以及 native carrier 的归属和控制行为。
+
+robust owner-death 失败仍为间歇性待查；本轮启动成功不能作为该问题已修复的证据。

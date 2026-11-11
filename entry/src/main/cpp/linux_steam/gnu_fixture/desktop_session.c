@@ -123,8 +123,8 @@ int main(int argc,char **argv) {
     if(argc<2||argv[1][0]!='/'){fputs("GNU_DESKTOP invalid client\n",stderr);return 2;}
     Display *display=XOpenDisplay(NULL);if(!display){fputs("GNU_DESKTOP display unavailable\n",stderr);return 3;}
     XSetErrorHandler(xerror);Window root=DefaultRootWindow(display);
-    struct wine_window_bridge bridge;
-    int wine_window=bridge_initialize(&bridge,display,root);
+    struct wine_window_bridge bridge={0};
+    int window_manager=bridge_initialize(&bridge,display,root);
     struct deck_control deck;int product=deck_initialize(&deck);
     pointer_observer_start(display,root);
     fprintf(stderr,"GNU_DESKTOP root width=%d height=%d\n",DisplayWidth(display,DefaultScreen(display)),DisplayHeight(display,DefaultScreen(display)));
@@ -142,7 +142,7 @@ int main(int argc,char **argv) {
     const char *bounds=getenv("STEAMOHOS_WINDOW_BOUNDS");
     int constrain=bounds&&!strcmp(bounds,"1");
     const char *observe=getenv("STEAMOHOS_DESKTOP_OBSERVE");
-    int diagnostic=!product&&((!constrain&&!wine_window)||(observe&&!strcmp(observe,"1")));
+    int diagnostic=!product&&((!constrain&&!window_manager)||(observe&&!strcmp(observe,"1")));
     if(constrain) {
         unsigned long area[4]={0,0,(unsigned long)DisplayWidth(display,DefaultScreen(display)),(unsigned long)DisplayHeight(display,DefaultScreen(display))};
         XChangeProperty(display,root,XInternAtom(display,"_NET_WORKAREA",False),XA_CARDINAL,32,PropModeReplace,(unsigned char*)area,4);
@@ -153,8 +153,8 @@ int main(int argc,char **argv) {
         pid_t result=waitpid(child,&status,WNOHANG);
         if(result==child)break;
         if(result<0&&errno!=EINTR){XCloseDisplay(display);return 5;}
-        if(wine_window)bridge_tick(&bridge);
-        if(product)deck_tick(&deck,wine_window&&bridge.primary!=None,bridge.mode);
+        if(window_manager)bridge_tick(&bridge);
+        if(product)deck_tick(&deck,window_manager&&bridge.primary!=None,bridge.mode);
         if(constrain&&now()>=next_fit){fit_windows(display,root);next_fit=now()+250;}
         if(diagnostic&&now()>=next) {
             unsigned budget=128;unsigned mapped=windows(display,root,0,&budget);
@@ -166,7 +166,7 @@ int main(int argc,char **argv) {
         poll(NULL,0,50);
     }
     if(product)deck_finish(&deck);
-    if(wine_window) {
+    if(window_manager) {
         if(bridge.preferences_due) {bridge.preferences_due=1;bridge_save_preferences(&bridge);}
         bridge_publish(&bridge,1);
     }

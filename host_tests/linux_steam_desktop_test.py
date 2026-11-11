@@ -298,6 +298,23 @@ class DesktopSession(unittest.TestCase):
                 self.assertNotIn('snapshot', bridge.stderr)
                 self.assertFalse((base / 'desktop-root.ppm').exists())
                 self.assertEqual(json.loads((base / 'wine-window-native.json').read_text())['closed'], 1)
+                # The native carrier also needs X11 state management and Deck
+                # readiness, with no Wine opt-in or image readback.
+                environment.pop('STEAMOHOS_WINE_WINDOW_BRIDGE')
+                native_base = base / 'native'
+                native_base.mkdir()
+                environment.update(STEAMOHOS_NATIVE_WINDOW_BRIDGE='1',
+                                   STEAMOHOS_TMP_ROOT=str(native_base),
+                                   HMOSDECK_SESSION_GENERATION='abcd-1234', STEAMOHOS_CODE_ROOT=str(base))
+                native = subprocess.run([str(observer), str(bridge_client)], env=environment,
+                                        text=True, capture_output=True, timeout=20)
+                self.assertEqual(native.returncode, 37, native.stderr + native.stdout)
+                self.assertIn('NATIVE_DECK mapped-window readiness PASS', native.stdout)
+                self.assertNotIn('snapshot', native.stderr)
+                self.assertFalse((native_base / 'desktop-root.ppm').exists())
+                self.assertTrue(json.loads((native_base / 'deck-session-state.json').read_text())['closed'])
+                environment.pop('STEAMOHOS_NATIVE_WINDOW_BRIDGE')
+                environment.update(STEAMOHOS_WINE_WINDOW_BRIDGE='1', STEAMOHOS_TMP_ROOT=str(base))
                 preferences_client = base / 'preferences-client'
                 subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror',
                                 str(ROOT / 'host_tests/linux_steam_window_preferences_client.c'),
