@@ -366,20 +366,18 @@ export class AppSessionService {
     if (app.steam) {
       if (!SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
       await SteamLocalService.getInstance().ensureGpuDependencies();
+      await SteamLocalService.getInstance().prepareLibraryPerformance();
       const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
         app.steam.appId ? 'play' : 'open';
       launchArguments = steamLaunchArguments(action, app.steam.appId,
         SteamLocalService.getInstance().isCompatibility(), action === 'play' ? launchArguments : [],
         app.steam.clientAction ?? 'library');
       if (action === 'open') {
-        const steam = SteamLocalService.getInstance();
-        // The bundled "2" launcher owns cold-start flags. A running client
-        // must receive the open URI directly instead of rerunning the batch.
-        const client = steam.clientCard();
-        const running = steam.processesFor(client, this.getNativeProcesses()).length > 0;
-        launchExecutable = running || (app.steam.clientAction && app.steam.clientAction !== 'library') ?
-          steam.getClientDirectory() + '/steam.exe' : client.launchTarget.executable;
-        if (launchExecutable.toLowerCase().endsWith('.bat')) launchArguments = [];
+        // Keep cold and warm launches on the same managed argument policy.
+        // Imported batch files can discard the library URI and leave startup
+        // waiting on the remote store instead of opening the local library.
+        // Re-resolve the executable so cached cards cannot restore that path.
+        launchExecutable = SteamLocalService.getInstance().getClientDirectory() + '/steam.exe';
       }
       // Do not let old per-process diagnostics reintroduce conflicting GPU flags.
       envOverrides.push('WINEHUA_CEF_FORCE_GPU=0', 'WINEHUA_CEF_FORCE_SOFTWARE=0', 'WINEHUA_CEF_STEAM_DISABLE_GPU=0');

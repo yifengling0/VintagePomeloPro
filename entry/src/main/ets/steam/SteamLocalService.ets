@@ -8,7 +8,7 @@ import { wineDriveCForContainer } from '../service/GameContainer';
 import { chooseCoverFileName, chooseBackgroundFileName } from '../model/AppCatalogRules';
 import { SteamVdfNode, parseSteamVdf, serializeSteamVdf, safeSteamRelativePath,
   resolveSteamLibraryPath, steamWindowsPath, STEAM_CLIENT_ID, steamGameCardId, isSteamAppId,
-  SteamCatalogScope, steamCatalogPathKind } from './SteamLocalRules';
+  SteamCatalogScope, steamCatalogPathKind, steamLightLibraryConfiguration } from './SteamLocalRules';
 import { SteamMatch } from './SteamMatch';
 import { SteamImportFiles, SteamImportJournal, commitSteamImport, recoverSteamImport } from './SteamImportTransaction';
 
@@ -100,6 +100,29 @@ export class SteamLocalService {
       } finally { fs.closeSync(output); }
       await fs.rename(temporary, target);
     } finally { if (exists(temporary)) await fs.unlink(temporary); }
+  }
+
+  async prepareLibraryPerformance(): Promise<void> {
+    // Steam owns localconfig while running. Never race its config writer,
+    // or reapply the initial default after the user changes it in Steam.
+    if (!this.store || this.hasRunningProcesses() || this.hasForeignClient()) return;
+    const key = 'lightLibraryAccountsV1';
+    const applied = this.store.getSync(key, []) as string[];
+    const userdata = this.getClientDirectory() + '/userdata';
+    for (const account of names(userdata).filter((name: string): boolean => /^[0-9]+$/.test(name))) {
+      const file = userdata + '/' + account + '/config/localconfig.vdf';
+      if (applied.includes(file) || !exists(file)) continue;
+      try {
+        const original = textFile(file);
+        const updated = steamLightLibraryConfiguration(original);
+        if (updated !== original) await atomicText(file, updated);
+        applied.push(file);
+        await this.store.put(key, applied);
+        await this.store.flush();
+      } catch (_) {
+        // A partial/unsupported config must not block startup or lose data.
+      }
+    }
   }
 
   async setCompatibility(value: boolean): Promise<void> {
@@ -337,11 +360,9 @@ export class SteamLocalService {
   getGame(appId: string): AppDescriptor | null { return this.cards.find((card: AppDescriptor) => card.steam?.appId === appId) ?? null; }
   clientCard(): AppDescriptor {
     const executable = this.getClientDirectory() + '/steam.exe';
-    const batch = this.getClientDirectory() + '/2-perf-gpu-auto.bat';
-    const launcher = !this.compatibility && exists(batch) && !directory(batch) ? batch : executable;
     return { id: STEAM_CLIENT_ID, title: 'Steam', source: AppSource.DOWNLOAD,
       directory: this.getClientDirectory(), coverPath: '', available: this.isInstalled(),
-      launchTarget: { kind: LaunchKind.STEAM_CLIENT, executable: launcher, arguments: [], workingDirectory: this.getClientDirectory() },
+      launchTarget: { kind: LaunchKind.STEAM_CLIENT, executable, arguments: [], workingDirectory: this.getClientDirectory() },
       displayModeOverride: null, steam: { clientId: STEAM_CLIENT_ID, appId: '', state: 'client' } };
   }
   installCard(appId: string): AppDescriptor {

@@ -28,13 +28,25 @@ assert.equal(argv.includes('-cef-force-gpu'), false);
 assert.deepEqual(Array.from(argv.slice(argv.indexOf('-applaunch'))), ['-applaunch','123','-force-d3d11','arg with spaces']);
 assert.equal(rules.steamLaunchArguments('install', '123', false).at(-1), 'steam://install/123');
 assert.equal(rules.steamLaunchArguments('open', '', true).includes('-cef-disable-gpu'), true);
-assert.equal(rules.steamLaunchArguments('open', '', false).at(-1), 'steam://open/main');
+assert.deepEqual(Array.from(rules.steamLaunchArguments('open', '', false).slice(-2)), ['-startlibrary', 'steam://open/games']);
 for (const [action, uri] of [['downloads','steam://open/downloads'], ['store','steam://store'],
   ['account','steam://open/settings/account'], ['bigPicture','steam://open/bigpicture'], ['desktop','steam://close/bigpicture']]) {
   assert.equal(rules.steamLaunchArguments('open', '', false, [], action).at(-1), uri);
 }
 assert.throws(() => rules.steamLaunchArguments('open', '', false, [], 'invalid'));
 assert.throws(() => rules.steamLaunchArguments('play', '123;bad', false));
+
+// The migration touches one scalar, preserving credentials/overrides/comments.
+const config = '\uFEFF"UserLocalConfigStore"\r\n{\r\n // keep \\"quoted\\" comment\r\n "Apps" { "42" { "LibraryLowPerfMode" "0" "LaunchOptions" "a\\\\b" } }\r\n "LibraryLowPerfMode" "0" // keep comment\r\n "Unrelated" "中文"\r\n}\r\n';
+const light = rules.steamLightLibraryConfiguration(config);
+assert.equal(light, config.replace('"LibraryLowPerfMode" "0" //', '"LibraryLowPerfMode" "1" //'));
+assert.equal(rules.steamLightLibraryConfiguration(light), light);
+const missing = '"UserLocalConfigStore" { "Apps" { "42" { "LaunchOptions" "-arg" } } }';
+assert.equal(rules.parseSteamVdf(rules.steamLightLibraryConfiguration(missing)).child('userlocalconfigstore').text('librarylowperfmode'), '1');
+for (const broken of ['"Other" {}', '"UserLocalConfigStore" {',
+  '"UserLocalConfigStore" { "LibraryLowPerfMode" "0" "LibraryLowPerfMode" "1" }']) {
+  assert.throws(() => rules.steamLightLibraryConfiguration(broken));
+}
 
 async function interruption(failAt, fresh=false, prepareFailure=false) {
   const files = new Map([['stage','dir'],['stage/steam.exe','new'],['stage/config','dir'],['stage/config/login','package-login']]);

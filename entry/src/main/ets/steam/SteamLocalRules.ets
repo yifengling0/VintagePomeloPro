@@ -83,6 +83,43 @@ export function serializeSteamVdf(node: SteamVdfNode, indent: string = ''): stri
   return result;
 }
 
+/** Change only the library animation preference; preserve all other bytes,
+ * including account settings, game overrides, comments and key casing. */
+export function steamLightLibraryConfiguration(text: string): string {
+  const parsed = parseSteamVdf(text);
+  if (parsed.children.size !== 1 || !parsed.child('userlocalconfigstore')) {
+    throw new Error('Steam 本地配置格式无效');
+  }
+  const pattern = /\/\/[^\r\n]*|"(?:\\.|[^"\\])*"|[{}]|[^\s{}"]+/g;
+  let depth = 0;
+  let pending = '';
+  let valueStart = -1;
+  let valueEnd = -1;
+  let closing = -1;
+  let match: RegExpExecArray | null = null;
+  while ((match = pattern.exec(text)) !== null) {
+    const token = match[0];
+    if (token.startsWith('//')) continue;
+    if (token === '{') { depth++; pending = ''; continue; }
+    if (token === '}') {
+      if (depth === 1) closing = match.index;
+      depth--; pending = ''; continue;
+    }
+    if (depth !== 1) continue;
+    if (!pending) { pending = token.toLowerCase(); continue; }
+    if (pending === '"librarylowperfmode"' || pending === 'librarylowperfmode') {
+      if (valueStart >= 0) throw new Error('Steam 库性能配置重复');
+      valueStart = match.index;
+      valueEnd = match.index + token.length;
+    }
+    pending = '';
+  }
+  if (closing < 0) throw new Error('Steam 本地配置未完成');
+  if (valueStart >= 0) return text.substring(0, valueStart) + '"1"' + text.substring(valueEnd);
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
+  return text.substring(0, closing) + '\t"LibraryLowPerfMode"\t\t"1"' + newline + text.substring(closing);
+}
+
 export function safeSteamRelativePath(path: string): boolean {
   return path.length > 0 && !/[\x00-\x1f:]/.test(path) && !path.startsWith('/') &&
     !path.startsWith('\\') && path.replace(/\\/g, '/').split('/').every((part: string): boolean =>
@@ -155,8 +192,9 @@ export function steamLaunchArguments(action: string, appId: string, compatibilit
     if (action === 'play') return args.concat(['-silent', '-applaunch', appId], gameArguments);
     args.push('steam://install/' + appId);
   } else if (action === 'open') {
-    // An explicit URI restores a client hidden by an earlier -silent launch.
-    if (clientAction === 'library') args.push('steam://open/main');
+    // "open/main" restores the last page, including a stalled remote store.
+    // Select the local library for cold startup and silent-client recovery.
+    if (clientAction === 'library') args.push('-startlibrary', 'steam://open/games');
     else if (clientAction === 'downloads') args.push('steam://open/downloads');
     else if (clientAction === 'store') args.push('steam://store');
     else if (clientAction === 'account') args.push('steam://open/settings/account');

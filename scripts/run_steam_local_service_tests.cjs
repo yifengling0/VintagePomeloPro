@@ -25,6 +25,7 @@ const mocks={
  '../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{isPhoneDevice:()=>true}},
  '@kit.BasicServicesKit':{},
  '@kit.AbilityKit':{},'@kit.CoreFileKit':{fileIo,picker:{}},'@kit.ArkData':{preferences:{}},
+ '@ohos.file.fs':{default:fileIo},
  'libentry.so':{default:native},'./SteamMatch':{SteamMatch:{}},
  '../service/AppSettingsStore':{AppSettingsStore:{getInstance:()=>store}},
  './AppSettingsStore':{AppSettingsStore:{getInstance:()=>store}},
@@ -83,6 +84,25 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  put(client+'/bin/existing.dll');local.context={resourceManager:{getRawFileContent:async()=>new Uint8Array(1024).fill(13)}};
  await local.ensureGpuDependencies();assert.equal(fs.statSync(client+'/bin/SDL2.dll').size,1024);
  put(client+'/bin/SDL2.dll','provided-by-package');await local.ensureGpuDependencies();assert.equal(fs.readFileSync(client+'/bin/SDL2.dll','utf8'),'provided-by-package');
+ // Account-level migration only runs with the client and games stopped.
+ const migrated=new Map();
+ local.store={getSync:(k,d)=>migrated.get(k)||d,put:async(k,v)=>migrated.set(k,v.slice()),flush:async()=>{}};
+ const conf=client+'/userdata/123/config/localconfig.vdf';
+ const original='"UserLocalConfigStore" { "LibraryLowPerfMode" "0" "Apps" { "42" { "LaunchOptions" "keep" } } }';
+ put(conf,original);
+ await local.prepareLibraryPerformance();assert.equal(fs.readFileSync(conf,'utf8'),original,'running client config is untouched');
+ const priorProcesses=processes.splice(0);
+ const partial=client+'/userdata/456/config/localconfig.vdf';put(partial,'"UserLocalConfigStore" {');
+ await local.prepareLibraryPerformance();
+ assert.equal(fs.readFileSync(conf,'utf8'),original.replace('"LibraryLowPerfMode" "0"','"LibraryLowPerfMode" "1"'));
+ assert.equal(fs.readFileSync(partial,'utf8'),'"UserLocalConfigStore" {','partial writes remain intact');
+ assert.equal(fs.existsSync(conf+'.new'),false);
+ put(conf,original); // A later manual choice in Steam must persist.
+ put(partial,'"UserLocalConfigStore" {}');
+ await local.prepareLibraryPerformance();
+ assert.equal(fs.readFileSync(conf,'utf8'),original,'migration does not override a subsequent user choice');
+ assert.ok(fs.readFileSync(partial,'utf8').includes('"LibraryLowPerfMode"'));
+ processes.push(...priorProcesses);local.store=null;
  local.context=null;
  const service=new (load('service/AppSessionService.ets').AppSessionService)();
  service.getRunningSnapshot();assert.ok(service.getRunningAppIds().has(game.id));
@@ -103,11 +123,13 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  assert.equal(launches.length,3,'every open-client action reaches the running silent client');
  put(client+'/2-perf-gpu-auto.bat','@echo off\ncd /d "%~dp0"\nstart steam.exe');
  const batchCard=local.clientCard();
- assert.equal(batchCard.launchTarget.executable,client+'/2-perf-gpu-auto.bat');
+ assert.equal(batchCard.launchTarget.executable,client+'/steam.exe','imported batch cannot replace the managed client entry');
+ // Simulate a card cached before the direct-launch migration.
+ batchCard.launchTarget.executable=client+'/2-perf-gpu-auto.bat';
  assert.equal(local.installCard('555').launchTarget.executable,client+'/steam.exe','install URI must reach Steam directly');
  await service.launch(batchCard,{},tmp);
  assert.equal(launches.at(-1).exe,client+'/steam.exe','warm client bypasses batch');
- assert.equal(launches.at(-1).args.at(-1),'steam://open/main');
+ assert.equal(launches.at(-1).args.at(-1),'steam://open/games');
  for (const [action,uri] of [['bigPicture','steam://open/bigpicture'], ['desktop','steam://close/bigpicture'],
   ['downloads','steam://open/downloads'], ['account','steam://open/settings/account']]) {
    const card=local.clientCard();card.steam.clientAction=action;
@@ -117,8 +139,9 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  }
  processes.length=0;
  await service.launch(batchCard,{},tmp);
- assert.equal(launches.at(-1).exe,client+'/2-perf-gpu-auto.bat','cold card uses the bundled 2 launcher');
- assert.equal(launches.at(-1).args.length,0,'batch owns its flags');
+ assert.equal(launches.at(-1).exe,client+'/steam.exe','cold launch also resolves the managed executable');
+ assert.deepEqual(Array.from(launches.at(-1).args.slice(-2)),['-startlibrary','steam://open/games'],'cold launch selects the library instead of restoring the remote store');
+ assert.ok(launches.at(-1).args.includes('-no-cef-sandbox'),'cold launch keeps the required client policy');
  const coldBigPicture=local.clientCard();coldBigPicture.steam.clientAction='bigPicture';
  await service.launch(coldBigPicture,{},tmp);
  assert.equal(launches.at(-1).exe,client+'/steam.exe','cold navigation also bypasses the library-only batch');
