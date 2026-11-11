@@ -228,6 +228,7 @@ class PackagingTests(unittest.TestCase):
                         LLVM_MINGW=str(llvm),
                         NATIVE_ARCH="arm64-v8a", USER_PROFILE_DIR=str(self.root / "mount"),
                         USER_SIGNATURE_DIR=str(self.root / "signatures"))
+        self.env.pop("SOURCE_BUILD_MANIFEST", None)  # fixture owns its source inputs
 
     def run_package(self, target):
         return subprocess.run(["bash", str(self.root / "scripts/package.sh"), target],
