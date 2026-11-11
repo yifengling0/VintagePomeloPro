@@ -1,4 +1,5 @@
 import { LinuxGnuProtonComponent } from './LinuxGnuProtonComponent';
+import { LinuxProtonRuntimeService } from './LinuxProtonRuntimeService';
 import { LINUX_STEAM_PRIVATE_ROOT, LinuxSteamStorageLocation } from './LinuxSteamPaths';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
@@ -346,48 +347,55 @@ export function isHmosDeckGameManifest(text: string, appId: string): boolean {
   } catch (_) { return false; }
 }
 
-// The global default cannot reliably beat per-app Linux mappings at priority
-// 100/101. Pin installed games at user-selection priority, while preserving
-// explicit native/custom choices. This runs before the GNU client starts.
-export function normalizeHmosDeckToolMappings(text: string, installedApps: string[], defaultTool: string = 'hmosdeck_proton', includeDefault: boolean = true): string {
+// Only the Windows fallback is ours. Steam must select Linux depots/runtimes
+// itself; pinning installed apps here also forces dual-platform games to PE.
+const HMOSDECK_ROUTE_POLICY = 'linux-native-ohos-v2';
+const HMOSDECK_TOOLS = ['hmosdeck', 'hmosdeck_proton', 'hmosdeck_gnu_proton', 'hmosdeck_gnu_proton_gl'];
+
+// Match structural mapping entries only, including account-local mappings.
+// App launch options and third-party compatibility tools are Steam-owned.
+function restoreNativeToolMappings(node: SteamVdfNode): boolean {
+  let changed = false;
+  node.children.forEach((child: SteamVdfNode, key: string): void => {
+    if (key.toLowerCase() === 'compattoolmapping') {
+      child.children.forEach((mapping: SteamVdfNode, appId: string): void => {
+        if (/^[1-9][0-9]{0,9}$/.test(appId) && HMOSDECK_TOOLS.includes(mapping.text('name'))) {
+          child.children.delete(appId); changed = true;
+        }
+      });
+    } else if (restoreNativeToolMappings(child)) changed = true;
+  });
+  return changed;
+}
+
+export function restoreHmosDeckNativeToolMappings(text: string): string {
   const document = parseSteamVdf(text);
+  return restoreNativeToolMappings(document) ? serializeSteamVdf(document) : text;
+}
+
+export function normalizeHmosDeckToolMappings(text: string): string {
+  const document = parseSteamVdf(text);
+  let changed = restoreNativeToolMappings(document);
   let node = document;
   for (const key of ['installconfigstore', 'software', 'valve', 'steam', 'compattoolmapping']) {
     let child = node.child(key);
     if (!child) {
       child = new SteamVdfNode();
       node.children.set(key, child);
+      changed = true;
     } else if (child.value.length > 0 && child.children.size === 0) {
       throw new Error('Linux Steam 兼容工具配置无效');
     }
     node = child;
   }
-  let changed = false;
-  const apps = [...(includeDefault ? ['0'] : []), ...installedApps.filter((id: string): boolean => /^[1-9][0-9]{0,9}$/.test(id))];
-  for (const id of apps) {
-    let mapping = node.child(id);
-    const name = mapping?.text('name') ?? '';
-    const minimumPriority = id === '0' ? 100 : 250;
-    const priority = Number(mapping?.text('priority') ?? '');
-    if (name === 'hmosdeck_proton' || name === 'hmosdeck_gnu_proton' || name === 'hmosdeck_gnu_proton_gl') {
-      if (!Number.isFinite(priority) || priority < minimumPriority) {
-        mapping?.set('priority', minimumPriority.toString());
-        changed = true;
-      }
-      continue;
-    }
-    if (name.length > 0 && priority >= 250) continue;
-    const automaticNative = id !== '0' && priority < 250 &&
-      /^(?:native|SteamLinuxRuntime(?:_.*)?)$/i.test(name);
-    if (name.length > 0 && name !== 'hmosdeck' && !/^proton(?:_|$)/.test(name) && !automaticNative) continue;
-    if (!mapping) {
-      mapping = new SteamVdfNode();
-      node.children.set(id, mapping);
-    }
-    mapping.set('name', defaultTool);
+  let mapping = node.child('0');
+  const name = mapping?.text('name') ?? '';
+  if (!mapping || name.length === 0 || HMOSDECK_TOOLS.includes(name)) {
+    if (!mapping) { mapping = new SteamVdfNode(); node.children.set('0', mapping); }
+    if (mapping.text('name') !== 'hmosdeck_proton' || mapping.text('priority') !== '100' || mapping.text('config') !== '') changed = true;
+    mapping.set('name', 'hmosdeck_proton');
     mapping.set('config', '');
-    mapping.set('priority', minimumPriority.toString());
-    changed = true;
+    mapping.set('priority', '100');
   }
   return changed ? serializeSteamVdf(document) : text;
 }
@@ -396,64 +404,66 @@ interface HmosDeckToolInitialization {
   configuration: string;
   initialized: string;
 }
+interface HmosDeckToolConfiguration { path: string; before: string; after: string; }
 
 // Record only which defaults have been initialized, never the user's choice.
 // A cleared checkbox or changed global default remains Steam-owned on restart.
-export function initializeHmosDeckToolMappings(text: string, apps: string[], defaultTool: string,
-  initialized: string, legacyGnuMigrated: boolean = false): HmosDeckToolInitialization {
+export function initializeHmosDeckToolMappings(text: string, initialized: string): HmosDeckToolInitialization {
   const state = parseSteamVdf(initialized);
-  const fresh = apps.filter((id: string): boolean => /^[1-9][0-9]{0,9}$/.test(id) && state.text(`app_${id}`) !== '1');
-  const globalReady = state.text('global') === '1';
-  let configuration = text;
-  if (defaultTool === 'hmosdeck_gnu_proton' && state.text('gnu_default') !== '1') {
-    if (!legacyGnuMigrated) {
-      const document = parseSteamVdf(configuration);
-      const mapping = document.child('installconfigstore')?.child('software')?.child('valve')?.child('steam')?.child('compattoolmapping')?.child('0');
-      // Only replace an old product default, never an explicit Steam selection.
-      if (mapping && ['hmosdeck', 'hmosdeck_proton'].includes(mapping.text('name')) &&
-        Number(mapping.text('priority')) < 250) {
-        mapping.set('name', defaultTool);
-        configuration = serializeSteamVdf(document);
-      }
-    }
-    state.set('gnu_default', '1');
-  }
-  configuration = normalizeHmosDeckToolMappings(configuration, fresh, defaultTool, !globalReady);
-  state.set('global', '1');
-  for (const id of fresh) state.set(`app_${id}`, '1');
+  if (state.text('route_policy') === HMOSDECK_ROUTE_POLICY) return { configuration: text, initialized };
+  const configuration = normalizeHmosDeckToolMappings(text);
+  state.set('route_policy', HMOSDECK_ROUTE_POLICY);
   return { configuration, initialized: serializeSteamVdf(state) };
 }
 
-function prepareHmosDeckToolDefaults(steam: string, apps: string[], defaultTool: string = 'hmosdeck_proton'): void {
+function prepareHmosDeckToolDefaults(steam: string): void {
   const path = `${steam}/config/config.vdf`;
   if (!ensureSmokeDirectory(`${steam}/config`)) throw new Error('Cannot prepare Linux Steam configuration');
   const before = fs.accessSync(path) ? fs.readTextSync(path, { encoding: 'utf-8' }) : '';
   const statePath = `${steam}/config/hmosdeck-defaults-initialized.vdf`;
   const stateBefore = fs.accessSync(statePath) ? fs.readTextSync(statePath, { encoding: 'utf-8' }) : '';
-  const result = initializeHmosDeckToolMappings(before, apps, defaultTool, stateBefore,
-    readSmokeText(`${BASE}/gnu-proton-default-v1`).trim() === '1');
-  const after = result.configuration;
+  const result = initializeHmosDeckToolMappings(before, stateBefore);
+  if (stateBefore === result.initialized) return;
+  if (LinuxProtonRuntimeService.getInstance().inUse()) throw new Error('请完全退出 Steam 和游戏后更新运行路线');
+  const changes: HmosDeckToolConfiguration[] = [{ path, before, after: result.configuration }];
+  // Read and parse the whole set before changing any configuration. A partial
+  // publication never gets a migration stamp and can be retried before Steam.
+  const userdata = `${steam}/userdata`;
+  if (fs.accessSync(userdata)) {
+    for (const account of fs.listFileSync(userdata)) {
+      if (!/^[0-9]{1,12}$/.test(account)) continue;
+      const accountPath = `${userdata}/${account}/config/localconfig.vdf`;
+      if (!fs.accessSync(accountPath)) continue;
+      const accountBefore = fs.readTextSync(accountPath, { encoding: 'utf-8' });
+      changes.push({ path: accountPath, before: accountBefore, after: restoreHmosDeckNativeToolMappings(accountBefore) });
+    }
+  }
   const saveState = (): void => {
     if (stateBefore === result.initialized) return;
     const temporary = `${statePath}.write`;
-    writeSmokeText(temporary, result.initialized);
+    ConfigurationFiles.json(temporary, result.initialized);
     if (fs.readTextSync(temporary, { encoding: 'utf-8' }) !== result.initialized) throw new Error('Cannot verify Steam default initialization');
     fs.renameSync(temporary, statePath);
   };
-  if (before === after) { saveState(); return; }
-  const backup = `${path}.before-hmosdeck-default-v1`;
-  if (before.length > 0 && !fs.accessSync(backup)) {
-    writeSmokeText(backup, before);
-    if (fs.readTextSync(backup, { encoding: 'utf-8' }) !== before) {
-      throw new Error('Cannot preserve Linux Steam default-tool configuration');
+  for (const change of changes) {
+    if (change.before === change.after) continue;
+    const backup = `${change.path}.before-hmosdeck-route-v2`;
+    if (change.before.length > 0 && !fs.accessSync(backup)) {
+      ConfigurationFiles.json(backup, change.before);
+      if (fs.readTextSync(backup, { encoding: 'utf-8' }) !== change.before) {
+        throw new Error('Cannot preserve Linux Steam default-tool configuration');
+      }
     }
   }
-  const temporary = `${path}.hmosdeck-default-write`;
-  writeSmokeText(temporary, after);
-  if (fs.readTextSync(temporary, { encoding: 'utf-8' }) !== after) {
-    throw new Error('Cannot verify Linux Steam default-tool configuration');
+  for (const change of changes) {
+    if (change.before === change.after) continue;
+    const temporary = `${change.path}.hmosdeck-default-write`;
+    ConfigurationFiles.json(temporary, change.after);
+    if (fs.readTextSync(temporary, { encoding: 'utf-8' }) !== change.after) {
+      throw new Error('Cannot verify Linux Steam default-tool configuration');
+    }
+    fs.renameSync(temporary, change.path);
   }
-  fs.renameSync(temporary, path);
   saveState();
 }
 
@@ -496,20 +506,11 @@ async function prepareHmosDeckLibrary(root: string, runtime: string): Promise<vo
     }
 
   }
-  migrateHmosDeckToolSelections(steam);
   const migration = await prepareSingleLinuxSteamLibrary(root);
-  const games = migration.installedApps.filter((id: string): boolean => {
-    const path = `${library}/steamapps/appmanifest_${id}.acf`;
-    try {
-      const info = fs.lstatSync(path);
-      return info.isFile() && !info.isSymbolicLink() && info.size <= 1048576 &&
-        isHmosDeckGameManifest(fs.readTextSync(path, { encoding: 'utf-8' }), id);
-    } catch (_) { return false; }
-  });
-  prepareHmosDeckToolDefaults(steam, games, gnuReady ? 'hmosdeck_gnu_proton' : 'hmosdeck_proton');
+  prepareHmosDeckToolDefaults(steam);
   writeSmokeText(`${BASE}/single-library-migration.json`, JSON.stringify(migration));
   writeSmokeText(`${BASE}/game-library.json`, JSON.stringify({
     source: 'native_aarch64_linux_steam', library, windowsLibraryImported: false,
-    tool: gnuReady ? 'hmosdeck_gnu_proton' : 'hmosdeck_proton', steamApiAuthenticationVerified: false
+    tool: 'hmosdeck_proton', nativeSelection: 'steam', steamApiAuthenticationVerified: false
   }));
 }
