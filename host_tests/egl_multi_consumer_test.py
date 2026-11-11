@@ -154,7 +154,9 @@ struct GraphicsBroker {
 class EglRenderer {
 public:
 STATE
-    DesktopCompositor compositor_; uint32_t toplevelId_=1;
+    DesktopCompositor compositor_; std::atomic<uint32_t> toplevelId_{1};
+    std::atomic<bool> renderPaused_{false};
+    bool RootCompositing() const { return true; }
     std::atomic<long long> vsyncPeriodNs_{16666667}; bool zeroCopySceneDirty_=false;
     GLuint zeroCopyProgram_=2,program_=1,vbo_=1; GLint zeroCopyTransformLocation_=0;
     uint64_t zeroCopyLastQueryUs_=0,zeroCopyDiagLastUs_=0;
