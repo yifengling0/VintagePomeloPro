@@ -62,3 +62,14 @@ HAP companion source override 引用重编载荷。预检检查新 CMake 输入�
 
 主机测试、HAP 检查、签名检查、真机功能与性能结果分别记录；任何一层的通过不能
 替代其他层。会员、Steam 组件离线导入、字体导入继续保留原 1.5.7 回归入口。
+
+## 提交前运行同一套回归
+
+在构建容器或相同工具链环境执行 `make test-game-runtime`，然后按上述 Make 入口
+打包和检查最终 HAP。GitHub Actions 的运行库/Steam 步骤也调用这个目标，
+完整清单只维护在 `scripts/test_game_runtime.sh`，避免本地与线上漏跑不同项目。
+默认工具目录为 `/apps/harmony`；本地可设 `TOOL_HOME`，或分别设 `NODE_BIN`、
+`ARKTS_TYPESCRIPT`。缺少 ArkTS 编译器直接失败，不静默跳过客户端测试。
+该目标包含组件来源、启动/会话/worker、GNU/FEX/图形、离线包、字体及 ArkTS
+回归；会员后端仍由独立的锁定依赖 job 验证。输出复用 `ci-artifacts` 和已有
+测试目录，不复制大型运行库、游戏或源码。

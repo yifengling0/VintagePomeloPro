@@ -1347,3 +1347,8 @@ test-wine-audio-downmix:
 verify-linux-game-components:
 	python3 $(ROOT)/scripts/build_linux_game_components.py --verify-only
 assemble: verify-linux-game-components
+
+# Keep the complete runtime regression list identical locally and in Actions.
+.PHONY: test-game-runtime
+test-game-runtime:
+	bash $(ROOT)/scripts/test_game_runtime.sh
