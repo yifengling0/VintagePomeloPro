@@ -203,7 +203,8 @@ class PackagingTests(unittest.TestCase):
         # These tests isolate unsigned/signing behavior. Runtime byte validation
         # has dedicated component tests, and the fake hvigor below emits no ELF.
         for name in ('normalize_runtime_identity.py', 'runtime_library_guard.py',
-                     'prepare_steam_gpu_dependency.py', 'prepare_linux_runtime_components.py',
+                     'prepare_steam_gpu_dependency.py', 'prepare_windows_steam_runtime.py',
+                     'prepare_linux_runtime_components.py',
                      'check_runtime_components.py', 'verify_x11_runtime.py',
                      'prepare_release_offline_packages.py'):
             write(self.root / 'scripts' / name, '# packaging test validator stub\n')
