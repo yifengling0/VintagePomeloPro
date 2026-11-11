@@ -61,7 +61,7 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/sdl3_virtual_abi.h": "d49ed146cc43ec255a972203d1c2dc5b72b74bbd6c7565bc2ec58a0aa22dcbd7",
     "entry/src/main/cpp/linux_steam/gnu_fixture/socket_query_protocol.h": "f02c13821d20ee1f82e1acbd7edc6dde9d2d23db02fc1fdc3fc82ec067ae5e94",
     "entry/src/main/cpp/linux_steam/gnu_fixture/steamclient_probe.h": "5b8ee45797420b54ca876a947773bd9d7dc1abe5f052e2ab046966eab19055c3",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "e1e2f7b59a01cbb55ad006d5dd85873a95440714b37b6a4db0524ac79e0c8ec0",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "9d916f6f04a7148df6b39bf8fc19161c55dff92f817db28f266b272cefeb12e6",
     "scripts/build_linux_steam_posix.py": "f549ef688c381199e635ff63b72f605ad9a46b88be8de1b563910fb97dddef89",
     "scripts/linux_component_identity.py": "12536dc1ff34b91e465cefb371b77c0f2f4c7a748dc8dad567f32beb87765f24"
   },

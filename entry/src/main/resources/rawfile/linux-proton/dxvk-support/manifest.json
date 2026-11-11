@@ -69,7 +69,7 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/steamclient_probe.h": "5b8ee45797420b54ca876a947773bd9d7dc1abe5f052e2ab046966eab19055c3",
     "entry/src/main/cpp/linux_steam/gnu_fixture/syscall_compat.S": "05c114b61095cdfce0d1838b51eb3d7f7966ec0ad5b2e904fb5833141940a9ee",
     "entry/src/main/cpp/linux_steam/gnu_fixture/sysvipc_compat.c": "331a9577faa2bd1fcb20c57446cb850cf8130e92e69feee91a99dc06e9e32d84",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "e1e2f7b59a01cbb55ad006d5dd85873a95440714b37b6a4db0524ac79e0c8ec0",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "9d916f6f04a7148df6b39bf8fc19161c55dff92f817db28f266b272cefeb12e6",
     "entry/src/main/cpp/linux_steam/host_napi.h": "896e15da921f939e38941572599fd6b6e532a26226eae15a0bccb005e6d80a5b",
     "entry/src/main/cpp/linux_steam/launch_broker.h": "a224d9f74d763b9027cbbf310c1c119302a0b19647bef5de9091416c3dffedbd",
     "entry/src/main/cpp/linux_steam/launch_wire.h": "81bf852e20b5b3a4629b8a109b58cab3f3c8396fc6f623c23dfc0112bc0ab954",
@@ -203,5 +203,5 @@
       "sha256": "9b1e37c0873fee48c156568f2e02dace57653bb3f2234461852050a84165c184"
     }
   },
-  "id": "f7aaba69320e9768f084fb8752302077a904336d0cbeee252ecbb6ee3e098eee"
+  "id": "9f97db02a39127e935b2969e09ee633c97f43f67465f7bb633acab62aee5fa9b"
 }

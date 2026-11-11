@@ -191,7 +191,10 @@ void ExecuteGnu(napi_env, void* data) {
             if(awaitingWindow) {
                 int window=-1;
                 const auto parsed=ConsumeWindowProcessMessage(output,window);
-                if(parsed<0||(parsed==1&&!GameLaunchBroker().RegisterWindowProcess(pid,window))) {overflow=true;break;}
+                bool registered=parsed==1&&GameLaunchBroker().RegisterWindowProcess(pid,window);
+                if(parsed==1)OH_LOG_Print(LOG_APP,LOG_INFO,0,"HMOSDECK",
+                    "GNU window registration supervisor=%{public}d window=%{public}d accepted=%{public}d",pid,window,registered);
+                if(parsed<0||(parsed==1&&!registered)) {overflow=true;break;}
                 if(parsed==1||parsed==2)awaitingWindow=false;
             }
             if(awaitingGame) {

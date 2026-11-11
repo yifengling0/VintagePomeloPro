@@ -3,10 +3,10 @@
   "architecture": "aarch64-linux-gnu",
   "name": "steamohos_gnu_desktop_hap",
   "bytes": 46200,
-  "sha256": "8e9c2ede88ee433c304dc31fe374971f0bf21ecfea3df471ddac31a7e14b4d80",
+  "sha256": "9cd80c70c8b54ebea83b3ecb40f1355f154d44dd0376257d54f931cc902778b8",
   "sources": {
-    "entry/src/main/cpp/linux_steam/gnu_fixture/desktop_session.c": "ef16615551cfe5046e3484ceec8482b6ffb08fd7cd7f57490c9090ed7619ad93",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "e1e2f7b59a01cbb55ad006d5dd85873a95440714b37b6a4db0524ac79e0c8ec0",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/desktop_session.c": "c535599cbce662af4f68e161ec794c9ab7dc221cdb60cd2827f28ae904ba264d",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "9d916f6f04a7148df6b39bf8fc19161c55dff92f817db28f266b272cefeb12e6",
     "entry/src/main/cpp/linux_steam/gnu_fixture/deck_session_control.h": "ff2f010cc19d176fa4f125746dab988568d2c203efef6f58a5e8da4b855a2319",
     "entry/src/main/cpp/linux_steam/gnu_fixture/deck_action_uri.h": "a4056d6075382f69f4411f7cb83a3c9e7631831a5e9c0e4e52dec213dd0794da",
     "entry/src/main/cpp/linux_steam/gnu_fixture/pointer_observer.h": "edd492b4934e36da6ae54dbfc89b702d4ed835687f41f3742a281bf883cf8f1b",
