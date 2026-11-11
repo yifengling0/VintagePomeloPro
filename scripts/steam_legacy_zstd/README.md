@@ -1,5 +1,8 @@
 # 旧版 Steam Zstd 下载兼容补丁 v2（2026-10-07）
 
+2026-11-11：HAP 内置 runtime32 辅助模块的受控升级与 5 秒目录查询修复见
+[目录查询限时](../../docs/architecture/windows-steam-cm-deadline.md)。旧下载/游戏验证仅适用于对应历史 helper。
+
 ## 2026-10-11 完整分发包
 
 本次分发采用 runtime32 方案，磁盘上的 32/64 位客户端均保持原版。完整包构建入口：

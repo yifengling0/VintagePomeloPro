@@ -31,9 +31,14 @@ RUNTIME32 = {
     'vpsteamtrust32.dll': '3886be8d6ee354b192552e894c4bd3aa9faae6ff9a9754b03af6a2671ea336a1',
     'vpsteamzstd32.dll': V3['vpsteamzstd32.dll'],
 }
+CM_TIMEOUT_MANIFEST = json.loads((Path(__file__).resolve().parents[2] /
+    'entry/src/main/resources/rawfile/windows-steam/manifest.json').read_text())
+RUNTIME32_CM_TIMEOUT = dict(RUNTIME32, **{'vpsteamtrust32.dll': CM_TIMEOUT_MANIFEST['helperSha256']})
 
 
 def classify(hashes):
+    if all(hashes.get(n) == h for n, h in RUNTIME32_CM_TIMEOUT.items()):
+        return 'runtime32-original-clients-cached-cm-timeout'
     if all(hashes.get(n) == h for n, h in RUNTIME32.items()):
         return 'runtime32-original-clients-candidate'
     if all(hashes.get(n) == h for n, h in V3.items()):

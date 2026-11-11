@@ -366,6 +366,7 @@ export class AppSessionService {
     if (app.steam) {
       if (!SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
       await SteamLocalService.getInstance().ensureGpuDependencies();
+      await SteamLocalService.getInstance().prepareRuntimeHelper();
       await SteamLocalService.getInstance().prepareLibraryPerformance();
       const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
         app.steam.appId ? 'play' : 'open';

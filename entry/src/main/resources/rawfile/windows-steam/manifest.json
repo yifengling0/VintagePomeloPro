@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "helper": "vpsteamtrust32.dll",
+  "helperSha256": "6845468e36eb4d9f65349a6d083a634f51677e540ee582daa3e01062c12ef9bb",
+  "size": 235103,
+  "previousHelperSha256": "3886be8d6ee354b192552e894c4bd3aa9faae6ff9a9754b03af6a2671ea336a1",
+  "source": "scripts/steam_legacy_zstd/vpsteam_runtime32.c",
+  "sourceSha256": "f2a7f827b5222ec72d2ca6acd96d198d5e70738fe073b3e12fb8fefffb042c55",
+  "compilerVersion": "13-win32",
+  "build": "python3 scripts/prepare_windows_steam_runtime.py --rebuild",
+  "files": [
+    {
+      "name": "steam.exe",
+      "sha256": "7d265e5e1d5b02c8bffe51db73aaeac9f86abfe505f0dfc86cd87700802732d3"
+    },
+    {
+      "name": "steamclient.dll",
+      "sha256": "95a7e01a64e20f0726b63cfb63b5240e51c7b15940b52d03e8da4c412ca54669"
+    },
+    {
+      "name": "steamclient64.dll",
+      "sha256": "a2ad498763c4822fd4555c2cba4d4475a2ba450e403a774c1366826ad9451dd1"
+    },
+    {
+      "name": "SteamUI.dll",
+      "sha256": "88004c47d74bf6cd25c2abd191db0eff07d7f5a29cab49b937d6581b73a07600"
+    },
+    {
+      "name": "vpsteamzstd32.dll",
+      "sha256": "57c1b0503d131853aa899a896d3a0077b9f62a44ec5545dd6ce58e0b798e0faf"
+    }
+  ]
+}

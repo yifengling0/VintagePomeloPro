@@ -14,6 +14,7 @@ function load(name) {
 }
 const rules = load('SteamLocalRules');
 const transaction = load('SteamImportTransaction');
+const runtimeUpgrade = load('SteamRuntimeUpgrade');
 const tree = rules.parseSteamVdf('"AppState" { "appid" "123" "name" "中文 游戏" "installdir" "有 空格" }');
 assert.equal(tree.child('appstate').text('name'), '中文 游戏');
 assert.equal(rules.parseSteamVdf(rules.serializeSteamVdf(tree)).child('appstate').text('installdir'), '有 空格');
@@ -69,6 +70,25 @@ async function interruption(failAt, fresh=false, prepareFailure=false) {
   return step;
 }
 (async()=>{
+  // A running, custom, corrupt or changed installation must never be replaced.
+  const identity=JSON.parse(fs.readFileSync(path.resolve(root,'../../resources/rawfile/windows-steam/manifest.json'),'utf8'));
+  const expected=new Map(identity.files.map(file=>[file.name,file.sha256]));
+  expected.set(identity.helper,identity.previousHelperSha256);
+  let running=false,corrupt=false,replacements=0,startsDuringHash=false;
+  const adapter={stopped:()=>!running,hash:async name=>{if(startsDuringHash)running=true;return expected.get(name);},
+    resource:async()=>new Uint8Array([1]),hashBytes:async()=>corrupt?'0'.repeat(64):identity.helperSha256,
+    replace:async name=>{assert.equal(name,identity.helper);replacements++;}};
+  assert.equal(await runtimeUpgrade.upgradeSteamRuntime(identity,adapter),true);
+  assert.equal(replacements,1);
+  for (const [name] of expected) {
+    const hash=expected.get(name);expected.set(name,'unknown');
+    assert.equal(await runtimeUpgrade.upgradeSteamRuntime(identity,adapter),false,name);
+    expected.set(name,hash);
+  }
+  running=true;assert.equal(await runtimeUpgrade.upgradeSteamRuntime(identity,adapter),false);
+  running=false;corrupt=true;assert.equal(await runtimeUpgrade.upgradeSteamRuntime(identity,adapter),false);
+  corrupt=false;startsDuringHash=true;assert.equal(await runtimeUpgrade.upgradeSteamRuntime(identity,adapter),false);
+  assert.equal(replacements,1,'no unsafe path replaced the helper');
   await interruption(0,false,true);
   await interruption(0,true,true);
   const count=await interruption(0);

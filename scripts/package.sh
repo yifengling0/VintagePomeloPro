@@ -297,6 +297,7 @@ with open('$module_json', 'w') as f:
         "$WINEHUA/entry/libs" "$WINEHUA/entry/src/main/resources/rawfile"
     cd "$WINEHUA"
     python3 "$SCRIPT_DIR/prepare_steam_gpu_dependency.py"
+    python3 "$SCRIPT_DIR/prepare_windows_steam_runtime.py" --verify-only
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --verify-only
         python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" \
@@ -317,6 +318,7 @@ with open('$module_json', 'w') as f:
     fi
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
+    python3 "$SCRIPT_DIR/prepare_windows_steam_runtime.py" --hap "$unsigned_hap"
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --hap "$unsigned_hap"
         python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" --verify-only \

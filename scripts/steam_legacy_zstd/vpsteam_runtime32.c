@@ -124,6 +124,72 @@ static void rel32(unsigned char *operand, const void *target)
     memcpy(operand, &delta, 4);
 }
 
+/* The frozen client defaults every request's inactivity deadline to 60000ms.
+ * Only the two CM directory call sites below receive a shorter deadline, and
+ * only when the owning CCMInterface already has WebSocket alternatives. No
+ * account, download, content or certificate checks are replaced. The outer
+ * loader has verified the complete steamclient.dll SHA256 before this runs.
+ * Layout evidence: request ctor RVA ab058c sets +ac=60000; connection timeout
+ * RVA b8552f reads pending request +54 -> request +ac in milliseconds. */
+static int directory_timeout_installed;
+static int install_directory_timeout(unsigned char *client)
+{
+    static const uint32_t sites[] = {0x3f21a9, 0x3f2895};
+    static const unsigned char ctor_timeout[] = {0xc7,0x87,0xac,0,0,0,0x60,0xea,0,0};
+    const uint32_t enqueue = 0xab35c0;
+    unsigned char saved[2][5], *code = NULL;
+    DWORD protection, ignored;
+    int writable = 0, ok = 0;
+    char disable[4];
+    if (GetEnvironmentVariableA("VPP_STEAM_CM_TIMEOUT_DISABLE",disable,sizeof(disable))==1 && disable[0]=='1')
+        return 0;
+    if (memcmp(client+0xab058c,ctor_timeout,sizeof(ctor_timeout))) return 0;
+    for (unsigned i=0;i<2;++i) {
+        int32_t displacement=(int32_t)(enqueue-sites[i]-5);
+        if (client[sites[i]]!=0xe8 || memcmp(client+sites[i]+1,&displacement,4)) return 0;
+        memcpy(saved[i],client+sites[i],5);
+    }
+    code=VirtualAlloc(NULL,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
+    if (!code) return 0;
+    /* Preserve EFLAGS and every register. EBX is the caller's CCMInterface,
+     * EDI its newly built HTTP request; ECX/stack still reach the original
+     * thiscall enqueue function unchanged, including its ret 8 cleanup.
+     * A zero/negative WebSocket count keeps the original 60-second deadline. */
+    static const unsigned char thunk[] = {
+        0x9c, 0x83,0xbb,0x08,0x03,0,0,0, 0x7e,0x0a,
+        0xc7,0x87,0xac,0,0,0,0x88,0x13,0,0,
+        0x9d,0xe9,0,0,0,0
+    };
+    memcpy(code,thunk,sizeof(thunk));
+    rel32(code+22,client+enqueue);
+    if (!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&ignored) ||
+        !FlushInstructionCache(GetCurrentProcess(),code,sizeof(thunk))) goto done;
+    /* Both calls occupy the same page. Protect/restore that span once, so
+     * overlapping VirtualProtect calls cannot preserve an intermediate RWX. */
+    const SIZE_T span=sites[1]+5-sites[0];
+    if (!VirtualProtect(client+sites[0],span,PAGE_EXECUTE_READWRITE,&protection)) goto done;
+    writable=1;
+    for (unsigned i=0;i<2;++i) {
+        int32_t displacement=(int32_t)((uintptr_t)code-(uintptr_t)(client+sites[i]+5));
+        memcpy(client+sites[i]+1,&displacement,4);
+    }
+    for (unsigned i=0;i<2;++i)
+        if (!FlushInstructionCache(GetCurrentProcess(),client+sites[i],5)) goto rollback;
+    if (!VirtualProtect(client+sites[0],span,protection,&ignored)) goto rollback;
+    ok=1;
+rollback:
+    if (!ok && writable) {
+        for (unsigned i=0;i<2;++i) {
+            memcpy(client+sites[i],saved[i],5);
+            FlushInstructionCache(GetCurrentProcess(),client+sites[i],5);
+        }
+        VirtualProtect(client+sites[0],span,protection,&ignored);
+    }
+done:
+    if (!ok && code) VirtualFree(code,0,MEM_RELEASE);
+    return ok;
+}
+
 static int install_decoder(const wchar_t *client_path, const wchar_t *decoder_path)
 {
     HMODULE client = LoadLibraryExW(client_path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
@@ -183,6 +249,7 @@ static int install_decoder(const wchar_t *client_path, const wchar_t *decoder_pa
         VirtualProtect(entry, sizeof(stolen), old, &ignored);
         goto done;
     }
+    directory_timeout_installed = install_directory_timeout((unsigned char *)client);
     ok = 1;
 done:
     if (!ok && code) VirtualFree(code, 0, MEM_RELEASE);
@@ -204,9 +271,9 @@ static void status_log(const wchar_t *client, int ok)
     SYSTEMTIME time; GetSystemTime(&time);
     char line[192]; DWORD written;
     int n = snprintf(line, sizeof(line),
-        "%04u-%02u-%02uT%02u:%02u:%02uZ pid=%lu install=%d original-client-on-disk=1\r\n",
+        "%04u-%02u-%02uT%02u:%02u:%02uZ pid=%lu install=%d original-client-on-disk=1 cm-timeout-ms=%u cached-websocket-only=1\r\n",
         time.wYear,time.wMonth,time.wDay,time.wHour,time.wMinute,time.wSecond,
-        GetCurrentProcessId(),ok);
+        GetCurrentProcessId(),ok,directory_timeout_installed ? 5000u : 60000u);
     if (n > 0 && n < (int)sizeof(line)) WriteFile(file,line,(DWORD)n,&written,NULL);
     CloseHandle(file);
 }
@@ -231,6 +298,7 @@ __declspec(dllexport) int __cdecl VPValidateLegacyClient(const char *path, verif
 
 #ifdef VP_RUNTIME_REGRESSION
 /* Only in the test executable, never exported by the candidate DLL. */
+int vp_test_cm_install(unsigned char *client) { return install_directory_timeout(client); }
 int vp_test_install(const wchar_t *client, const wchar_t *decoder)
 {
     return hash_matches(client, client_sha) && hash_matches(decoder, decoder_sha) &&

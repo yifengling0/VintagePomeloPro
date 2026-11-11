@@ -11,6 +11,8 @@ import { SteamVdfNode, parseSteamVdf, serializeSteamVdf, safeSteamRelativePath,
   SteamCatalogScope, steamCatalogPathKind, steamLightLibraryConfiguration } from './SteamLocalRules';
 import { SteamMatch } from './SteamMatch';
 import { SteamImportFiles, SteamImportJournal, commitSteamImport, recoverSteamImport } from './SteamImportTransaction';
+import { ConfigurationFiles } from '../service/ConfigurationFiles';
+import { SteamRuntimeIdentity, SteamRuntimeFiles, upgradeSteamRuntime } from './SteamRuntimeUpgrade';
 
 export interface SteamImportProgress { busy: boolean; message: string; percent: number; }
 export type SteamImportListener = (progress: SteamImportProgress) => void;
@@ -59,6 +61,7 @@ export class SteamLocalService {
   private coverAttempts: Map<string, number> = new Map<string, number>();
   private coverDownloads: number = 0;
   private scanning: Promise<AppDescriptor[]> | null = null;
+  private preparingRuntime: Promise<void> | null = null;
   private progress: SteamImportProgress = { busy: false, message: '', percent: 0 };
 
   async initialize(context: common.UIAbilityContext, root: string): Promise<void> {
@@ -123,6 +126,32 @@ export class SteamLocalService {
         // A partial/unsupported config must not block startup or lose data.
       }
     }
+  }
+
+  async prepareRuntimeHelper(): Promise<void> {
+    if (this.preparingRuntime) return this.preparingRuntime;
+    const pending = this.upgradeRuntimeHelper();
+    this.preparingRuntime = pending;
+    try { await pending; } finally { this.preparingRuntime = null; }
+  }
+  private async upgradeRuntimeHelper(): Promise<void> {
+    const context = this.context;
+    if (!context || !this.isInstalled()) return;
+    try {
+      const raw = await context.resourceManager.getRawFileContent('windows-steam/manifest.json');
+      const identity = JSON.parse(ConfigurationFiles.text(raw)) as SteamRuntimeIdentity;
+      const base = this.getClientDirectory();
+      const adapter: SteamRuntimeFiles = {
+        stopped: (): boolean => !this.importing && !this.hasRunningProcesses() && !this.hasForeignClient(),
+        hash: async (name: string): Promise<string> => ConfigurationFiles.fileHash(base + '/' + name),
+        resource: async (): Promise<Uint8Array> => context.resourceManager.getRawFileContent('windows-steam/vpsteamtrust32.dll'),
+        hashBytes: async (bytes: Uint8Array): Promise<string> => ConfigurationFiles.hash(bytes),
+        replace: async (name: string, bytes: Uint8Array): Promise<void> => {
+          ConfigurationFiles.write(base + '/' + name, bytes);
+        }
+      };
+      await upgradeSteamRuntime(identity, adapter);
+    } catch (_) { /* A custom/partial offline client can still use its original helper. */ }
   }
 
   async setCompatibility(value: boolean): Promise<void> {

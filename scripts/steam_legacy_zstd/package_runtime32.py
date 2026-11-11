@@ -10,7 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
-from audit_install import ORIGINAL, V3, RUNTIME32
+from audit_install import ORIGINAL, V3, RUNTIME32, RUNTIME32_CM_TIMEOUT
 from patch_startup import patch_startup
 
 
@@ -42,27 +42,28 @@ def package(original, helpers, output):
     names = ['steamclient.dll','steamclient64.dll','SteamUI.dll','vpsteamtrust32.dll','vpsteamzstd32.dll']
     manifest = dict(kind='runtime32-original-client-candidate',
                     sha256={name:digest(output/name) for name in names},
-                    fullDownloadVerified=True, longTermStabilityVerified=False,
-                    verifiedDownloads=[dict(appid=1713610, depot=1713611,
+                    fullDownloadVerified=False, longTermStabilityVerified=False,
+                    baselineHelperSha256=RUNTIME32['vpsteamtrust32.dll'],
+                    baselineVerifiedDownloads=[dict(appid=1713610, depot=1713611,
                         build=22144708, bytesDownloaded=126782064,
                         vszaBlocks=56, result='No Error')])
     (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n', encoding='utf-8')
     (output/'README.txt').write_text(
-        '2026-10-11 runtime32 candidate; not a final release.\n'
+        'Runtime32 with a 5-second CM directory deadline only when cached WebSocket CMs exist.\n'
         'Exit ALL Steam/Wine processes. Back up the five same-name DLLs, then copy all five together.\n'
         'Keep the existing 2-perf-gpu-auto.bat, Steam.cfg, config, userdata and games.\n'
         'steamclient.dll and steamclient64.dll must remain byte-identical to the original package.\n'
         'logs/vpsteam-runtime32.log must show install=1 in the new Steam process.\n'
         'Old vpsteamzstd64.dll may remain but is not imported by the original 64-bit client.\n'
         'For rollback, close Wine and restore all backed-up files together.\n'
-        'Real full download: Purrgatory 1713610, 126782064 bytes, 56 VSZa blocks, No Error.\n'
-        'This verifies that sample, not every game; long-session stability remains unverified.\n',
+        'Previous helper full download: Purrgatory 1713610, 126782064 bytes, 56 VSZa blocks, No Error.\n'
+        'That baseline does not qualify the changed helper; full download/long-session validation is pending.\n',
         encoding='utf-8')
     return manifest
 
 
 # Must match the standard build.sh output, not a differently named link target.
-RUNTIME_HELPER_SHA256 = RUNTIME32['vpsteamtrust32.dll']
+RUNTIME_HELPER_SHA256 = RUNTIME32_CM_TIMEOUT['vpsteamtrust32.dll']
 
 if __name__ == '__main__':
     p=argparse.ArgumentParser(description=__doc__)

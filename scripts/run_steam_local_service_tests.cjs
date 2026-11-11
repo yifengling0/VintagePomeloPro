@@ -20,6 +20,7 @@ const engine={getState:()=>models.EngineState.READY,isReady:()=>true,
  selectHostGraphicsBackendForExecutable:()=>'',needsHostGraphicsRestart:()=>false,
  launchExecutable:(exe,args)=>{launches.push({exe,args});return {pid:99,sessionId:'command'};}};
 const mocks={
+ '../service/ConfigurationFiles':{ConfigurationFiles:{}},
  '@ohos.util':{}, '@ohos.bundle.bundleManager':{},
  './DesktopModeService':{DesktopModeService:{getInstance:()=>({getOverrideMode:()=>'',mode:'virtual'})},MODE_VIRTUAL:'virtual'},
  '../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:{isPhoneDevice:()=>true}},
