@@ -117,3 +117,20 @@ Wine 子进程；但可选 driver_query 选择 GNU 后仍准备了 GNU 前缀，
   Windows 游戏首次初始化以及空/不变窗口快照。
 - 较早完整 CI `42996602647`（`21bfda35`）全部构建成功；当前修复的 CI 和
   新包真机结果仍须分别跟进，历史通过不替代当前提交验收。
+
+## 2026-11-11：真实游戏窗口与前台启动上下文
+
+`e4383669` 真机确认冷态 GNU driver_query 返回 unavailable，未启动 Wine。
+普通库启动尖塔 2 实际执行 FEX → sniper runtime → Linux x86-64 游戏，完成
+Steamworks、资源及模型初始化，WSI 窗口正确关联 steam-game PID。但承载窗口从
+后台 EntryAbility context 发起，被 AMS 以 201 拒绝；旧失败回收主动发送 close，
+最终 waitpid 退出 0。因此本次不算显示、游玩或退出验收通过。
+
+- 所有承载创建、任务恢复及返回启动器统一选最近实际 foreground 的窗口 context，
+  再回退 foreground DesktopAbility 和 EntryAbility；不新增后台启动权限。
+- 外部游戏承载失败保留进程和任务，抑制 ownership polling 重试；显式点击任务
+  才重新申请。旧 incarnation 的异步拒绝不能关闭或污染复用 ID 的新游戏。
+- 真实 ETS 主机回归覆盖后台 Entry 拒绝、Steam/游戏/桌面前台、创建/恢复、失败后
+  手动重试及代次隔离，并加入本地/CI 共用运行库门禁。修复后仍须 Mini 新包复测。
+- 首轮 robust 自检仍有 ETIMEDOUT；同次 raw OHOS 对照通过，第二次 GNU 自检通过。
+  保留间歇失败，未绕过门禁；同期 QueuePresentKHR -4 需修复承载后重新判断。

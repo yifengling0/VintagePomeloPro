@@ -19,6 +19,7 @@ for suite in proton_user_paths cloud_tool_selection; do
   g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined "host_tests/${suite}_test.cpp" -o "ci-artifacts/$suite-test"
   "ci-artifacts/$suite-test"
 done
+"$runtime_node" scripts/run_desktop_restore_tests.cjs "$runtime_typescript"
 python3 host_tests/linux_steam_cloud_paths_test.py
 python3 host_tests/linux_steam_exec_access_test.py
 python3 host_tests/linux_steam_depot_links_test.py

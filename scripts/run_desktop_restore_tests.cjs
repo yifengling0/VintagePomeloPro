@@ -45,16 +45,18 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   settings.desktopWindowMode = initialMode;
   const store = {getGlobalSettings:()=>settings,usesManagedWineWindows:()=>policy.usesManagedWineWindows(),
     getAppSettings:()=>models.createDefaultAppSettings('game'),recordRecentLaunch:async()=>{}};
-  const hostTasks = {reset(){},onEvent(){},setWineGameEligibility(){},markDesktopForeground(){},associateSession(){}};
+  const tasks = [];
+  const hostTasks = {reset(){},onEvent(){},setWineGameEligibility(){},markDesktopForeground(){},associateSession(){},snapshot:()=>tasks};
   const processes = [{pid:42,path:'C:/game.exe',state:'running',sessionId:'game'}];
   const native = {setDesktopMode(){},getDesktopRootId:()=>7,getWineSession:()=>null,
     getProcessList:()=>processes,activateWineSession:sid=>nativeCalls.push(['activate',sid]),
-    raiseToplevel:id=>nativeCalls.push(['raise',id])};
+    raiseToplevel:id=>nativeCalls.push(['raise',id]),setToplevelIsolated(){},
+    sendToplevelClose:id=>nativeCalls.push(['close',id])};
   const wm = load('service/WineWindowManager', {
     '@kit.AbilityKit':{},'@kit.ArkUI':{window:{}},'./LogService':{hilog},
     '@kit.BasicServicesKit':{},'@kit.InputKit':{},'libentry.so':{default:native},
     'libsmoke_napi.so':{default:{}},'./HostWindowTasks':{HostWindowTasks:{getInstance:()=>hostTasks}},
-    './InputDispatcher':{},'../model/AppModels':models,'./PopupWindowManager':{},
+    './InputDispatcher':{InputDispatcher:{getInstance:()=>({releaseAll(){},setActiveToplevel(){}})}},'../model/AppModels':models,'./PopupWindowManager':{},
     './ModalWindowManager':{},'./FusionWindowManager':{},
     './AppSettingsStore':{AppSettingsStore:{getInstance:()=>store}},'./DesktopModeService':{},
     '../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:policy}
@@ -122,7 +124,7 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
     executable:'C:/game.exe',arguments:[],workingDirectory:''}},settings,'/games');
   assert.equal(restored,child);checkCarrier();
   assert.ok(nativeCalls.some(([action,id])=>action==='raise'&&id===9),'game still receives focus');
-  return {wm,service,context,starts,desktop,child,values,settings,models};
+  return {wm,service,context,starts,desktop,child,values,settings,models,tasks,nativeCalls};
 }
 
 (async()=>{
@@ -197,4 +199,52 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   f.starts.length=0;await f.wm.resumeDesktopHost();
   assert.equal(f.starts.length,0,'managed mode cannot resurrect a desktop carrier');
   console.log('Desktop restore: foreground/background, request sharing, sync/async retry and stale-root isolation PASS');
+
+  const g=await fixture('tablet','false','floating');
+  const wm=g.wm, accepted=[];
+  g.context.startAbility=async()=>{throw Object.assign(Error('background Entry'),{code:201});};
+  const steam={startAbility:async want=>{accepted.push(['steam',want]);}};
+  const game={startAbility:async want=>{accepted.push(['game',want]);}};
+  wm.registerAbility(21,steam);wm.noteAbilityForeground(21,true);
+  wm.registerAbility(22,game);wm.noteAbilityForeground(22,true);
+  wm.noteAbilityForeground(21,true); // most recent foreground on a multiwindow PC
+  await wm.startHostAbility({abilityName:'EntryAbility'});
+  assert.equal(accepted.at(-1)[0],'steam','launcher uses the actual foreground Steam carrier');
+  wm.noteAbilityForeground(21,false);
+  await wm.startHostAbility({abilityName:'DesktopAbility'});
+  assert.equal(accepted.at(-1)[0],'game','background carrier cannot launch desktop restore');
+  wm.destroyed.add(22);
+  wm.desktopAbilityForeground=true;wm.desktopAbilityCtx=steam;
+  await wm.startHostAbility({abilityName:'DesktopAbility'});
+  assert.equal(accepted.at(-1)[0],'steam','destroyed window is excluded; live desktop is fallback');
+  wm.desktopAbilityForeground=false;wm.noteAbilityForeground(21,true);
+
+  const task={key:'23:1:steam-game',toplevelId:23,source:'steam-game',title:'Linux game'};
+  g.tasks.push(task);
+  assert.equal(wm.manageExternalToplevel(task.key),true);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(accepted.at(-1)[1].parameters.toplevelId,23,'new game starts from foreground Steam');
+  wm.pendingStarts.delete(23);wm.windows.set(23,{});wm.registerAbility(23,game);
+  await wm.foregroundWineWindow(23,wm.windows.get(23));
+  assert.equal(accepted.at(-1)[0],'steam','restore also uses foreground caller');
+  wm.windows.delete(23);wm.abilityContexts.delete(23);wm.noteAbilityForeground(21,false);
+  await wm.startWineWindowAbility(23,'{}');
+  assert.equal(wm.failedExternalStarts.has(23),true);
+  assert.equal(g.nativeCalls.some(([action])=>action==='close'),false,'carrier rejection preserves guest');
+  let backgroundAttempts=0;
+  g.context.startAbility=async()=>{backgroundAttempts++;throw Error('still background');};
+  for(let i=0;i<20;i++) wm.manageExternalToplevel(task.key);
+  assert.equal(backgroundAttempts,0,'ownership polling cannot cause a launch retry storm');
+  wm.noteAbilityForeground(21,true);
+  assert.equal(await wm.restoreTask(task,()=>true),true,'explicit task click retries failed carrier');
+  assert.equal(wm.failedExternalStarts.has(23),false);
+  wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
+  let rejectOld;
+  g.context.startAbility=()=>new Promise((_,reject)=>{rejectOld=reject;});
+  const oldStart=wm.startWineWindowAbility(23,'{}');
+  wm.externalToplevels.set(23,'23:2:steam-game');
+  rejectOld(Error('old incarnation'));await oldStart;
+  assert.equal(wm.failedExternalStarts.has(23),false,'stale request cannot poison a reused ID');
+  assert.equal(g.nativeCalls.some(([action])=>action==='close'),false);
+  console.log('Host launch: foreground Steam/game/desktop, background rejection, explicit retry and incarnation isolation PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -42,6 +42,7 @@ class HostResizeState {
 export class WineWindowManager {
   private static instance: WineWindowManager | null = null;
   private externalToplevels: Map<number, string> = new Map();
+  private failedExternalStarts: Set<number> = new Set();
   private hostResizes: Map<number, HostResizeState> = new Map();
   private requestedGeometry: Map<number, RequestedHostGeometry> = new Map();
   private applyingGeometry: Set<number> = new Set();
@@ -269,8 +270,7 @@ export class WineWindowManager {
       return true;
     });
     HostWindowTasks.getInstance().setLauncher(async (): Promise<void> => {
-      const foreground = this.desktopAbilityForeground ? this.desktopAbilityCtx : this.uiAbilityContext;
-      if (foreground) await foreground.startAbility({
+      await this.startHostAbility({
         bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility'
       });
     });
@@ -455,6 +455,7 @@ export class WineWindowManager {
   // -- WineWindowAbility 调用: 注册 / 注销 --
 
   registerAbility(toplevelId: number, ctx: common.UIAbilityContext): void {
+    this.failedExternalStarts.delete(toplevelId);
     this.abilityContexts.set(toplevelId, ctx);
     hilog.info(DOMAIN, TAG, '[MW]  registerAbility #%{public}d (total=%{public}d)',
       toplevelId, this.abilityContexts.size);
@@ -617,7 +618,9 @@ export class WineWindowManager {
     const task = HostWindowTasks.getInstance().snapshot().find((item: HostWindowTask): boolean => item.key === key);
     if (!task || !['steam-linux', 'steam-game'].includes(task.source) || task.toplevelId <= 0 || this.destroyed.has(task.toplevelId)) return false;
     const id = task.toplevelId;
-    if (this.externalToplevels.get(id) === key && (this.windows.has(id) || this.pendingStarts.has(id))) return true;
+    if (this.externalToplevels.get(id) === key && (this.windows.has(id) || this.pendingStarts.has(id) ||
+      this.failedExternalStarts.has(id))) return true;
+    this.failedExternalStarts.delete(id);
     this.externalToplevels.set(id, key);
     testNapi.setToplevelIsolated(id, true);
     this.startWineWindowAbility(id, JSON.stringify({ title: task.title }));
@@ -629,14 +632,14 @@ export class WineWindowManager {
     if (!current() || this.destroyed.has(task.toplevelId)) return false;
     if (this.desktopOwns(task.toplevelId)) {
       const root = this.desktopRootId || testNapi.getDesktopRootId();
-      if (root <= 0 || !this.uiAbilityContext) return false;
+      if (root <= 0) return false;
       InputDispatcher.getInstance().releaseAll('host-task-switch');
       if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
         AppStorage.setOrCreate('desktopLauncherVisible', false);
-        await this.uiAbilityContext.startAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility' });
+        await this.startHostAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility' });
       } else if (!this.desktopAbilityForeground) {
         // startAbility foregrounds the existing singleton without restarting Wine.
-        await this.uiAbilityContext.startAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'DesktopAbility',
+        await this.startHostAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'DesktopAbility',
           parameters: { toplevelId: root } });
       }
       if (!current()) return false;
@@ -646,6 +649,13 @@ export class WineWindowManager {
       return true;
     }
     const win = this.windows.get(task.toplevelId);
+    if (!win && this.externalToplevels.get(task.toplevelId) === task.key) {
+      // A rejected carrier is recoverable from an explicit task click. Ownership
+      // polling must neither retry continuously nor close the guest process.
+      this.failedExternalStarts.delete(task.toplevelId);
+      await this.startWineWindowAbility(task.toplevelId, JSON.stringify({ title: task.title }));
+      return current() && !this.destroyed.has(task.toplevelId) && !this.failedExternalStarts.has(task.toplevelId);
+    }
     if (!win) return false;
     InputDispatcher.getInstance().releaseAll('host-task-switch');
     try {
@@ -673,17 +683,36 @@ export class WineWindowManager {
   }
 
   noteAbilityForeground(id: number, foreground: boolean): void {
+    // Set insertion order tracks the latest foreground event on multiwindow PCs.
+    this.foregroundAbilities.delete(id);
     if (foreground && !this.destroyed.has(id)) this.foregroundAbilities.add(id);
-    else this.foregroundAbilities.delete(id);
+  }
+
+  private startHostAbility(want: Want): Promise<void> {
+    let context = (this.desktopAbilityForeground && this.desktopAbilityCtx) ? this.desktopAbilityCtx : this.uiAbilityContext;
+    let source = this.desktopAbilityForeground && this.desktopAbilityCtx ? 'desktop' : 'entry';
+    this.foregroundAbilities.forEach((id: number): void => {
+      const candidate = this.abilityContexts.get(id);
+      if (candidate && !this.destroyed.has(id)) {
+        context = candidate;
+        source = `window:${id}`;
+      }
+    });
+    if (!context) return Promise.reject(new Error('Foreground host context unavailable'));
+    hilog.info(DOMAIN, TAG, '[MW] host start ability=%{public}s from=%{public}s', want.abilityName ?? '', source);
+    try {
+      return context.startAbility(want);
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 
   private async foregroundWineWindow(id: number, win: window.Window): Promise<void> {
     if (this.windows.get(id) !== win || this.destroyed.has(id)) return;
     const pending = this.restoringAbilities.get(id);
     if (pending) return pending;
-    const context = this.uiAbilityContext;
-    if (!context || !this.abilityContexts.has(id)) throw new Error('Wine window Ability is unavailable');
-    const request = context.startAbility({
+    if (!this.abilityContexts.has(id)) throw new Error('Wine window Ability is unavailable');
+    const request = this.startHostAbility({
       bundleName: 'com.vintage.pomelopro', moduleName: 'entry', abilityName: 'WineWindowAbility',
       parameters: { toplevelId: id, restoreWineWindow: true }
     });
@@ -1352,19 +1381,19 @@ export class WineWindowManager {
   }
 
   // -- startAbility 启动 specified 实例 (Pad 多窗口模式经 startFusionSubWindow 分叉) --
-  private startWineWindowAbility(id: number, data: string): void {
+  private startWineWindowAbility(id: number, data: string): Promise<void> {
     if (this.modalToplevelIds.has(id)) {
       hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: modal, skip Ability', id);
-      return;
+      return Promise.resolve();
     }
     if (this.fusionSubWindowHost === null) this.fusionSubWindowHost = this.resolveFusionSubWindowHost();
     if (this.fusionUsesSubWindow() && !this.externalToplevels.has(id)) {
       this.startFusionSubWindow(id, data);
-      return;
+      return Promise.resolve();
     }
     if (this.pendingStarts.has(id) || this.windows.has(id) || this.abilityContexts.has(id)) {
       hilog.warn(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: already in flight, skip', id);
-      return;
+      return Promise.resolve();
     }
     this.pendingStarts.add(id);
     hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: pendingStarts now %{public}d',
@@ -1387,12 +1416,6 @@ export class WineWindowManager {
     hilog.info(DOMAIN, TAG, '[MW]  startAbility(WineWindowAbility) #%{public}d title="%{public}s"',
       id, title);
 
-    if (!this.uiAbilityContext) {
-      hilog.error(DOMAIN, TAG, '[MW] FATAL: no uiAbilityContext, cannot start ability');
-      this.pendingStarts.delete(id);
-      return;
-    }
-
     const want: Want = {
       bundleName: 'com.vintage.pomelopro',
       abilityName: 'WineWindowAbility',
@@ -1402,15 +1425,21 @@ export class WineWindowManager {
     hilog.info(DOMAIN, TAG, '[MW] startAbility want: bundle=%{public}s ability=%{public}s params=%{public}s',
       want.bundleName ?? '', want.abilityName ?? '', JSON.stringify(want.parameters));
 
-    this.uiAbilityContext.startAbility(want).then(() => {
+    const externalKey = this.externalToplevels.get(id);
+    return this.startHostAbility(want).then(() => {
       hilog.info(DOMAIN, TAG, '[MW] OK startAbility #%{public}d resolved (AMS accepted)', id);
       // AMS acknowledgement precedes onWindowStageCreate. Keep the reservation
       // until registerWindow/destroy so native ownership polling cannot launch
       // a duplicate Ability and close the live surface on its rejected request.
     }).catch((err: Error) => {
+      if (externalKey && (this.destroyed.has(id) || this.externalToplevels.get(id) !== externalKey)) return;
       hilog.error(DOMAIN, TAG, '[MW] ERR startAbility #%{public}d REJECTED: %{public}s',
         id, JSON.stringify(err));
       this.pendingStarts.delete(id);
+      if (this.externalToplevels.has(id)) {
+        this.failedExternalStarts.add(id);
+        return;
+      }
       // 通知 Wine 窗口创建失败
       hilog.info(DOMAIN, TAG, '[MW] -> sendToplevelClose #%{public}d (fail recovery)', id);
       testNapi.sendToplevelClose(id);
@@ -1529,7 +1558,11 @@ export class WineWindowManager {
       return;
     }
 
-    if (external) { this.externalToplevels.delete(id); testNapi.setToplevelIsolated(id, false); }
+    if (external) {
+      this.externalToplevels.delete(id);
+      this.failedExternalStarts.delete(id);
+      testNapi.setToplevelIsolated(id, false);
+    }
 
     // Managed-window compatibility path
     if (!this.abilityContexts.has(id) && !this.pendingStarts.has(id)) {
@@ -1569,8 +1602,6 @@ export class WineWindowManager {
       if (!restore && this.desktopAbilityRunning) return Promise.resolve();
       if (this.desktopAbilityRequest) return this.desktopAbilityRequest;
     }
-    const context = this.uiAbilityContext;
-    if (!context) return Promise.reject(new Error('Desktop host context unavailable'));
     // A root event creates the carrier once. Explicit restore also raises a
     // covered carrier; concurrent root/game/card requests share one call.
     this.desktopAbilityRunning = true;
@@ -1588,7 +1619,7 @@ export class WineWindowManager {
     };
     let started: Promise<void>;
     try {
-      started = context.startAbility(want);
+      started = this.startHostAbility(want);
     } catch (e) {
       started = Promise.reject(e);
     }
