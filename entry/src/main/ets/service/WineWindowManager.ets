@@ -1530,7 +1530,7 @@ export class WineWindowManager {
       try { await this.startHostAbility(want); }
       catch (error) {
         if ((error as BusinessError).code !== 201 || !current() ||
-          !await this.awaitForegroundHost(current) || !current()) throw (error as BusinessError);
+          !await this.awaitForegroundHost(current) || !current()) throw (error as Error);
         hilog.info(DOMAIN, TAG, '[MW] retry external carrier after foreground handoff #%{public}d', id);
         await this.startHostAbility(want);
       }
