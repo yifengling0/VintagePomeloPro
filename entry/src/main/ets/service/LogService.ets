@@ -78,11 +78,15 @@ export class AppLog {
   private static seq: number = 0;
   private static bytes: number = 0;
   private static inited: boolean = false;
+  private static nextInitRetryAt: number = 0;
   private static exporting: Promise<string> | null = null;
 
-  static init(): void {
+  static init(forceRetry: boolean = false): void {
     if (AppLog.inited) return;
-    AppLog.inited = true;
+    // Download permission can become available after the first Ability callback.
+    // Retry from later log writes, with a bound on filesystem/error-log churn.
+    if (!forceRetry && Date.now() < AppLog.nextInitRetryAt) return;
+    AppLog.nextInitRetryAt = Date.now() + 5000;
     try {
       const bundleInfo = bundleManager.getBundleInfoForSelfSync(
         bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
@@ -96,9 +100,12 @@ export class AppLog {
       if (!AppLog.ensureDir(AppLog.logDir)) {
         throw new Error('cannot create logs dir: ' + AppLog.logDir);
       }
-      testNapi.initAppLog(AppLog.logDir);
       AppLog.cleanupOld();
       AppLog.ensureFd();
+      if (AppLog.fd < 0) throw new Error('cannot open application log');
+      testNapi.initAppLog(AppLog.logDir);
+      AppLog.inited = true;
+      AppLog.nextInitRetryAt = 0;
       if (AppLog.fd >= 0) {
         const marker = localStamp() + ' [I] [LogSvc] === AppLog init OK dir=' +
           AppLog.logDir + ' ===\n';
@@ -113,6 +120,11 @@ export class AppLog {
       hilogReal.info(0x0000, 'LogSvc', 'AppLog ready dir=%{public}s fd=%{public}d',
         AppLog.logDir, AppLog.fd);
     } catch (e) {
+      if (AppLog.fd >= 0) {
+        try { fs.closeSync(AppLog.fd); } catch (_) {}
+        AppLog.fd = -1;
+      }
+      AppLog.inited = false;
       AppLog.logDir = '';
       hilogReal.error(0x0000, 'LogSvc', 'AppLog.init failed: %{public}s', JSON.stringify(e));
     }
@@ -255,6 +267,7 @@ export class AppLog {
   }
 
   static write(level: string, tag: string, format: string, args: (Object | undefined)[]): void {
+    if (!AppLog.inited) AppLog.init();
     if (!AppLog.inited || !AppLog.logDir) return;
     try {
       const msg = AppLog.formatLine(tag, format, args);
@@ -308,7 +321,7 @@ export class AppLog {
   }
 
   private static async createExportZip(): Promise<string> {
-    AppLog.init();
+    AppLog.init(true);
     if (!AppLog.logDir) {
       throw new Error('log directory unavailable');
     }

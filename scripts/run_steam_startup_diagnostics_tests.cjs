@@ -322,6 +322,54 @@ async function exportLifecycleTests() {
   links.clear();
   console.log('Production export lifecycle: sanitized snapshots, global quotas, concurrent requests, source preservation, cleanup on success/failure and private formatter: PASS');
 }
+function initializationRecoveryTests() {
+  const loaded = {}, dirs = new Set(), handles = new Set(), writes = [];
+  let ready = false, clock = 10000, opens = 0, attempts = 0, nativeCalls = 0;
+  const io = {OpenMode: {READ_WRITE: 1, CREATE: 2, APPEND: 4},
+    statSync(p) {
+      if (typeof p === 'number' && handles.has(p)) return {size: 0};
+      if (dirs.has(p)) return {isDirectory: () => true};
+      throw Error('ENOENT');
+    },
+    mkdirSync(p) {++attempts; if (!ready) throw Error('permission pending'); dirs.add(p);},
+    openSync() {const fd = ++opens; handles.add(fd); return {fd};},
+    closeSync(fd) {assert.ok(handles.delete(fd));},
+    writeSync(fd, text) {assert.ok(handles.has(fd)); writes.push(text);},
+    listFileSync() {return [];}
+  };
+  class Clock extends Date {static now() {return clock;}}
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,
+    'entry/src/main/ets/service/LogService.ets'), 'utf8'), {compilerOptions: {
+    target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS
+  }}).outputText, {exports: loaded, Date: Clock, require(id) {
+    if (id === './LogExportTask') return {};
+    if (id === '@kit.CoreFileKit') return {fileIo: io, fileUri: {
+      FileUri: class {constructor(uri) {this.path = uri.replace('file://docs', '');}}
+    }};
+    if (id === '@kit.AbilityKit') return {bundleManager: {BundleFlag: {GET_BUNDLE_INFO_WITH_APPLICATION: 1},
+      getBundleInfoForSelfSync: () => ({name: 'com.vintage.pomelopro'})}};
+    if (id === '@kit.PerformanceAnalysisKit') return {hilog: {info() {}, error() {}}};
+    if (id === 'libentry.so') return {default: {initAppLog() {++nativeCalls;}}};
+    if (id === '@kit.ArkTS') return {};
+    throw Error(id);
+  }});
+  const {AppLog} = loaded;
+  AppLog.init();
+  assert.equal(nativeCalls, 0);
+  for (let i = 0; i < 20; ++i) AppLog.write('I', 'test', 'pending', []);
+  assert.equal(attempts, 1, 'permission failures are throttled during startup');
+  ready = true; clock += 5000;
+  AppLog.write('I', 'test', 'permission ready', []);
+  assert.equal(nativeCalls, 1, 'later writes recover the native sink without restarting the app');
+  assert.ok(writes.some(s => s.includes('permission ready')));
+  AppLog.init();
+  assert.equal(nativeCalls, 1, 'successful initialization remains idempotent');
+  AppLog.inited = false; AppLog.nextInitRetryAt = clock + 5000;
+  AppLog.init(true);
+  assert.equal(nativeCalls, 2, 'explicit export can retry immediately');
+  console.log('First-install logging: delayed permission recovery, bounded retries and immediate export retry PASS');
+}
+initializationRecoveryTests();
 await exportLifecycleTests();
 }
 runTests().catch(error => {console.error(error); process.exitCode = 1;});
