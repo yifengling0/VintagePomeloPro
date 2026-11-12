@@ -1168,6 +1168,10 @@ test-virgl-present-context:
 	python3 $(ROOT)/host_tests/virgl_present_context_test.py --source "$(GFX_EFFECTIVE_VIRGL)"
 graphics-migration-check: test-virgl-present-context
 
+.PHONY: test-renderer-scopes
+test-renderer-scopes:
+	python3 $(ROOT)/host_tests/renderer_scope_test.py
+
 .PHONY: test-renderer-lifecycle
 test-renderer-lifecycle:
 	python3 $(ROOT)/host_tests/renderer_lifecycle_test.py

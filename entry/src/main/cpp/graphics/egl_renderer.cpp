@@ -1036,8 +1036,7 @@ void EglRenderer::RenderLoop() {
                 toplevelId_.load(std::memory_order_relaxed), nativeVsync ? "NativeVSync" : "deadline-60Hz");
 
     std::unique_ptr<winehua::direct::DirectDesktopCompositor> directDesktop;
-    directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(
-        compositor_, display_, RootCompositing() ? 0 : GetToplevelId());
+    uint32_t directScope = 0;
 
     bool wasPaused = false;
     uint32_t lastIdentity = GetToplevelId();
@@ -1045,16 +1044,23 @@ void EglRenderer::RenderLoop() {
         const uint64_t repaintRequest = repaint_.CaptureRequest();
         const uint32_t identity = GetToplevelId();
         if (identity != lastIdentity) {
-            // Retire old imported frames before the new window claims queues.
-            if (!RootCompositing()) {
-                directDesktop.reset();
-                directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(compositor_, display_, identity);
-            }
             rendered = false;
             lastDrawW_ = lastDrawH_ = 0;
             previousZeroCopyScene = {};
             compositor_.RequestFullRedraw(identity);
             lastIdentity = identity;
+        }
+        // External Linux carriers own Wayland buffers, not OHOS Wine Direct
+        // queues. Ownership can arrive after renderer creation: retire its
+        // old imports before the Wine desktop attempts to claim those queues,
+        // including while this carrier is paused in the background.
+        const bool directEnabled = !isolatedToplevel_.load(std::memory_order_acquire);
+        const uint32_t requestedScope = RootCompositing() ? 0 : identity;
+        if (directDesktop && (!directEnabled || directScope != requestedScope)) directDesktop.reset();
+        if (directEnabled && !directDesktop) {
+            directDesktop = std::make_unique<winehua::direct::DirectDesktopCompositor>(
+                compositor_, display_, requestedScope);
+            directScope = requestedScope;
         }
         const bool paused = renderPaused_.load(std::memory_order_acquire);
         if (paused != wasPaused) {
@@ -1504,5 +1510,9 @@ void EglRenderer::Shutdown() {
 }
 
 bool EglRenderer::RootCompositing() const {
-    return !isolatedToplevel_ && compositor_.Policy().RootCompositing();
+    // Desktop policy alone cannot promote an independent Linux carrier to
+    // the Wine root when Wine is prepared later in the same app process.
+    const uint32_t id = GetToplevelId();
+    return id && id == compositor_.DesktopRootToplevelId() &&
+        !isolatedToplevel_ && compositor_.Policy().RootCompositing();
 }
