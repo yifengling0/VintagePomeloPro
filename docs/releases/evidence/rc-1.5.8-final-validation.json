@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-12T06:18:11.017610+00:00",
+  "tag": "rc-1.5.8-final",
+  "codeCommit": "67ea17f72d0b8a4d25eedcd75d3a7b837cd3ffbf",
+  "previousBranch": "main_proton_steamarm64",
+  "nextBranch": "feature/v2-ohos-wine-winsteam",
+  "app": {
+    "bundleName": "com.vintage.pomelopro",
+    "versionName": "1.5.8",
+    "versionCode": 1005080,
+    "abi": "arm64-v8a"
+  },
+  "sourceManifest": {
+    "file": "rc-1.5.8-final-source.json",
+    "submodules": 73,
+    "patches": 168,
+    "patchHashesRechecked": true,
+    "recordedBeforeTag": true
+  },
+  "retainedWindowsCommits": [
+    "425a4088",
+    "6b967cee",
+    "8da32e9c"
+  ],
+  "retainedHistoryTag": "rc-1.5.7",
+  "localBuild": {
+    "commit": "67ea17f72d0b8a4d25eedcd75d3a7b837cd3ffbf",
+    "unsignedHapBytes": 878792571,
+    "unsignedHapSha256": "bfdfe83f2bab21de16bb07a2d55be402ea1901445756569ba709f884572a88af",
+    "signedHapBytes": 881774486,
+    "signedHapSha256": "c7b4ad276ce5c2c66ff45ef41572846ab45c5489b4e346e9a3dfa2c0c142ce39",
+    "profile": "release/internaltesting",
+    "signatureAndPayload": "PASS",
+    "fullRuntimeRegression": "PASS",
+    "testLogBytes": 20446,
+    "testLogSha256": "6e3a40e9fe1c8db3db5db7243e61fc6b3aa78e9a0dda7614469c18306bcc6313",
+    "appGalleryPackageUpdated": false
+  },
+  "device": {
+    "model": "USB MatePad Mini MLR-AL10",
+    "installedCommit": "67ea17f72d0b8a4d25eedcd75d3a7b837cd3ffbf",
+    "linuxSteamImmersive": "PASS short verification",
+    "pal4": "PASS short menu/video/new-story/input/background-return/HmosDeck-close; real exit code unknown",
+    "pal1": "latest67 blocked by Cloud Out of Date; cancelled without conflict override",
+    "bananaLinux": "launch PASS; normal in-game Quit hangs; force end works; root cause unknown",
+    "slayTheSpire2": "deferred by user",
+    "temporaryDiagnosticsRestored": {
+      "bananaLaunchOptions": "",
+      "gdbSocketAbsent": true,
+      "steamExit": "normal UI exit observed; HmosDeck list empty",
+      "idleWineChildrenRemain": true
+    },
+    "windowsSteam67": "not freshly retested; prior optimizations retained by ancestry"
+  },
+  "ci": {
+    "branchRunId": 43158316892,
+    "branchStatus": "in_progress",
+    "branchPassed": [
+      "membership",
+      "GNU clean dependency checks"
+    ],
+    "tagRunId": 43165968197,
+    "tagConclusion": "failure",
+    "tagFailureStep": "Verify source and release versions",
+    "tagFailureReason": "Exact rc-<versionName> equality rejects -final suffix before compile",
+    "githubReleasePublished": false
+  },
+  "developmentOverlay": {
+    "dirtySubmodules": [
+      "box64",
+      "dxvk",
+      "glib",
+      "gstreamer",
+      "pcre2",
+      "virglrenderer",
+      "wine-valve",
+      "wlroots",
+      "xserver"
+    ],
+    "trackedDirtyFiles": 160,
+    "matchesIsolatedProductCheckout": 152,
+    "differentFiles": 8,
+    "differenceMeaning": "preserved local VirGL flight recorder/GPU checkpoint/phone shader replay diagnostics, not included in production snapshot",
+    "isolatedVirglManagedEffectiveHashes": "PASS",
+    "existingSourcesOrUntrackedFilesDeleted": false
+  },
+  "scope": "freeze and planning only; no production source, build script, app version or runtime changes"
+}

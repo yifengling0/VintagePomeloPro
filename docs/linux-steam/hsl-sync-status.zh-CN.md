@@ -1,5 +1,7 @@
 # HSL 同步与运行路线实施记录
 
+> 2026-11-12 路线冻结：Linux Steam 支持最后保留于 `rc-1.5.8-final@67ea17f7`。以下为历史实施记录；后续 VPP 收敛到 OHOS Wine/Windows Steam，见 [2.0 计划](../plans/v2-ohos-wine-winsteam.zh-CN.md) 与 [冻结记录](../releases/rc-1.5.8-final.zh-CN.md)。本次未实施功能删除。
+
 基线：VPP `03bbf50f`，继续在 `main_proton_steamarm64` 推进；参考 HSL 本地
 `feature/mini-dpi-native-stardew@b001b25`。保留既有修复与 `rc-1.5.7` 历史标签。
 
