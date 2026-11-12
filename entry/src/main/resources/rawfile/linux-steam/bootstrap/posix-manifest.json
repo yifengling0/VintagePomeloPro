@@ -56,7 +56,7 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_audio_clock.h": "a63d4978ff2237e456eaa8a9fb5496ca8ab61922e2a38d002de664f2a4e37e72",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_dsound_observer.h": "d7647f5fdb2b7212c83ef167e1be7b91aa9a58d24ae28b309af85880c07834ab",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_exec_policy.h": "336a32ea3895b095f9b6ac400818f0af2aec9ccd45d8dbc23f1ae9b5efc90473",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_file_mapping.h": "3adfce223fc742aa48c39680d0ff3881b9ef9343720d9d87209857f55f976d6a",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_file_mapping.h": "0930759d5c0a853e2e318c8e24cc8d4b02203fe3e92769ec99729c17ba2e9b5f",
     "entry/src/main/cpp/linux_steam/gnu_fixture/runtime_mtree.h": "3fadc927aa904b41d331ecc25803ee5d02cead5e48450714179673d30e09cf45",
     "entry/src/main/cpp/linux_steam/gnu_fixture/sdl3_virtual_abi.h": "d49ed146cc43ec255a972203d1c2dc5b72b74bbd6c7565bc2ec58a0aa22dcbd7",
     "entry/src/main/cpp/linux_steam/gnu_fixture/socket_query_protocol.h": "f02c13821d20ee1f82e1acbd7edc6dde9d2d23db02fc1fdc3fc82ec067ae5e94",

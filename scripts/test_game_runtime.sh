@@ -15,6 +15,8 @@ python3 scripts/build_linux_game_components.py --verify-only
 "$runtime_node" scripts/run_input_surface_bounds_tests.cjs "$runtime_typescript"
 "$runtime_node" scripts/run_mouse_input_unit_tests.cjs "$runtime_typescript"
 python3 host_tests/proton_bootstrap_closure_test.py
+cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined host_tests/proton_file_mapping_test.c -o ci-artifacts/proton-file-mapping-test
+ci-artifacts/proton-file-mapping-test
 g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined host_tests/proton_setup_cache_test.cpp -o ci-artifacts/proton-setup-cache-test
 ci-artifacts/proton-setup-cache-test
 for suite in proton_user_paths cloud_tool_selection; do

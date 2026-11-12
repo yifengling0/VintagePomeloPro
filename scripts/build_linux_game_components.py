@@ -40,6 +40,10 @@ def main():
   run('build_linux_steam_posix.py',['--cc',cc])
   run('build_linux_proton_probe.py',['--cc',cc,'--output',task/'proton-shim'])
   run('prepare_linux_proton_dxvk.py',['--refresh-probe','--shim',task/'proton-shim','--network-build',c['networkBuild']])
+ # Verify the immutable dependency lock and its exact companion overrides too;
+ # otherwise this group can pass while the normal HAP preflight still fails.
+ from prepare_linux_runtime_components import verify_sources
+ verify_sources(ROOT,json.loads((ROOT/'docs/linux-steam/build-components.lock.json').read_text()))
  for script in STEPS:run(script,['--verify-only'])
  print('Verified complete production GNU game component group')
 if __name__=='__main__':main()

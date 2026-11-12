@@ -60,7 +60,7 @@
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_audio_clock.h": "a63d4978ff2237e456eaa8a9fb5496ca8ab61922e2a38d002de664f2a4e37e72",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_dsound_observer.h": "d7647f5fdb2b7212c83ef167e1be7b91aa9a58d24ae28b309af85880c07834ab",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_exec_policy.h": "336a32ea3895b095f9b6ac400818f0af2aec9ccd45d8dbc23f1ae9b5efc90473",
-    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_file_mapping.h": "3adfce223fc742aa48c39680d0ff3881b9ef9343720d9d87209857f55f976d6a",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_file_mapping.h": "0930759d5c0a853e2e318c8e24cc8d4b02203fe3e92769ec99729c17ba2e9b5f",
     "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp": "0b78e5874fb402064cc054966350f0a7213a8af8aa32212c8319ebce4bbd7501",
     "entry/src/main/cpp/linux_steam/gnu_fixture/runtime_mtree.h": "3fadc927aa904b41d331ecc25803ee5d02cead5e48450714179673d30e09cf45",
     "entry/src/main/cpp/linux_steam/gnu_fixture/sdl3_virtual_abi.h": "d49ed146cc43ec255a972203d1c2dc5b72b74bbd6c7565bc2ec58a0aa22dcbd7",
@@ -132,8 +132,8 @@
     },
     {
       "path": "libproton_probe.so",
-      "bytes": 302208,
-      "sha256": "ed661a6adf93564760dccca90dc0406decafd3b51a1504641270332dd3fa2087"
+      "bytes": 298192,
+      "sha256": "f196d5d186dfca5a05d8d37694c2004e605abc4abf70a5b79a5fb7b8752160bc"
     },
     {
       "path": "libproton_vulkan.so",
@@ -169,14 +169,14 @@
       "source": "files/lib/wine/aarch64-windows/winevulkan.dll"
     }
   ],
-  "installedBytes": 26994356,
+  "installedBytes": 26990340,
   "deviceValidation": "pending VPP device validation; HSL evidence does not qualify VPP",
   "probeBuild": {
     "script": "7eeed4345f93de979e6da3602f05c87baa8b0bbbfdf50eea3cd3cf8d47a54202",
     "generatedSources": {
       "exec_probe.cpp": "8de0f0c2255f754791f6da6c9413c5fc1e695054e87825dec0b1c4692ef3c80a",
       "filesystem_probe.c": "f1c642d28dd27929971a9654e125978df8c7e90047be5a827dc925d8f91c6eef",
-      "posix_probe.c": "4b86cc6dd75a18454744ac6b16cb4415e62d61bd6ee219c9d47a2096eccaa05e",
+      "posix_probe.c": "0b7040d073ae17f67759112787f19eefbdad46a560b4c390c65ce3ddca589643",
       "syscall_probe.S": "df00b0018a6718f9ad8bfe52c901a66cc7106b1255b659308a2d12ed4b315324"
     },
     "compilers": {
@@ -203,5 +203,5 @@
       "sha256": "9b1e37c0873fee48c156568f2e02dace57653bb3f2234461852050a84165c184"
     }
   },
-  "id": "9f97db02a39127e935b2969e09ee633c97f43f67465f7bb633acab62aee5fa9b"
+  "id": "ff394fa4d2487256cef501a28e0142ea2c88beda702c98add500bf363c88c0f9"
 }

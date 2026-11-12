@@ -134,3 +134,23 @@ Steamworks、资源及模型初始化，WSI 窗口正确关联 steam-game PID。
   手动重试及代次隔离，并加入本地/CI 共用运行库门禁。修复后仍须 Mini 新包复测。
 - 首轮 robust 自检仍有 ETIMEDOUT；同次 raw OHOS 对照通过，第二次 GNU 自检通过。
   保留间歇失败，未绕过门禁；同期 QueuePresentKHR -4 需修复承载后重新判断。
+
+
+## 2026-11-12：手机与私有库路径
+
+GNU Proton 的私有文件映射不再按 Download 固定库和物理用户 100 推断范围。
+改为使用 broker 已验证的当前游戏安装目录，支持默认私有 C 盘库、公共库、
+中文空格及不同系统用户；沙箱与文件选择器别名通过 realpath 解析实际根目录。
+不将另一游戏或另一库的同名目录视作别名。拒绝 dot/dotdot 路径、逃出游戏目录
+的文件 symlink、共享/匿名映射；运行库仍仅为真实 PE/NLS 使用 Wine 已有回退。
+
+已重编 GNU Proton shim，并通过既有受限 refresh 更新其生产载荷及来源清单；
+同一 header 被 GNU POSIX/FEX 入口的来源合同纳入，已按正式构建入口重编核对，
+二者二进制未变化。整组 production GNU verify-only 和带 ASan/UBSan 的实际 FD
+别名回归通过。文件映射回归接入 make test-game-runtime，供本地与 CI 同时执行。
+此处是主机结果；手机真机、Mini 冷启动与 Banana 正常退出仍需另行验收。
+不可变 Steam/GE 基础离线包不变，修复随 HAP companion 更新。
+
+基础 ZIP 的历史 sourceInputs 保持原样；通过已有 hapSourceOverrides 指向已校验的
+新 shim 清单。整组构建入口增加同一依赖锁检查，使本地 runtime 回归在进入 HAP
+打包前也能发现遗漏的来源覆盖声明，不再仅靠 CI/preflight 才发现。
