@@ -11,7 +11,7 @@ RETIRED = ('linux-steam/', 'linux-proton/', 'linux-steam-native/')
 REQUIRED_GUEST = (
     'bin/aarch64-windows/ntdll.dll', 'bin/i386-windows/ntdll.dll',
     'bin/aarch64-windows/kernelbase.dll', 'bin/aarch64-windows/libarm64ecfex.dll',
-    'bin/aarch64-windows/wineboot.exe', 'bin/aarch64-windows/wined3d.dll',
+    'bin/wineboot.exe', 'bin/aarch64-windows/wined3d.dll',
 )
 REQUIRED_HOST = ('libentry.so', 'libwine_child.so', 'wineohos.so', 'libwineserver.so',
                  'libsteamdecompress.so', 'libgstreamer-1.0.so.0')

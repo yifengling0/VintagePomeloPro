@@ -46,3 +46,10 @@
 - 覆盖升级仅定点清除 files/wine 内的两份旧 lsteamclient.dll 与 linux-steam-bridge.json。遇到符号链接不遍历，不清理旧 Linux 游戏库、前缀、账号配置和存档；新安装、重复调用、失败重试、符号链接和用户数据保留回归通过。
 - 启动超时/取消、受管 CPU、会员结算 UI/活动及旧运行时清理测试纳入同一 make test-game-runtime 入口。最新 ArkTS 编译、完整重跑、最终 HAP 及真机结果以实际后续记录为准，不把主机 fixture 当游戏或支付实测。
 - 全程本地提交与构建，不 push、不发起线上 CI。复用 source-integrity 独立检出及依赖缓存；受影响 Wine 编译固定在 build/wine-v2，不伪造旧缓存身份。
+
+### 最新本地主机回归（325887c8）
+
+- 完整 make test-game-runtime 返回 0：Windows helper/导入事务/中文多库/冷热客户端/Deck，输入表面与鼠标，字体/图形/窗口生命周期，19 项生产 Wine 启动案例，CPU/ICU 升级、退役文件清理、会员、IME 和有界诊断导出全部通过。
+- 2.0.0 / 2000000 release ArkTS 与 HAP 组装成功（app.debug=false）。新产品边界检查首次误写了 wineboot 路径，现按既有 assemble 和启动器使用的 bin/wineboot.exe 修正；没有删除该必需检查，其他架构/依赖校验继续保留。
+- 已对真实 HAP 运行新边界检查通过，包含嵌套 Wine runtime 和实际 native 模块。最终来源/ABI/配对收据在本地构建任务目录生成，不以本条记录替代完整 gate。
+- Mini 当前由 HSL 聊天进行真机测试；本聊天仅做了只读目标/状态确认，没有安装、停止会话或输入。2.0 的安装、WinSteam 普通入口、游戏及性能真机验收仍待设备交接。
