@@ -69,7 +69,7 @@ def runtime_inputs(root, tracked):
     required = (
         'entry/src/main/ets/model/LinuxProtonRuntimeModels.ets',
         'entry/src/main/ets/service/LinuxProtonRuntimeService.ets',
-        'entry/src/main/ets/components/hmosdeck/ProtonRuntimePanel.ets',
+        'entry/src/main/ets/components/SteamComponentsPanel.ets',
         'entry/src/main/resources/rawfile/linux-proton/runtime-catalog.json',
         'docs/linux-steam/proton-runtimes/catalog.json', 'scripts/build_proton_runtime_catalog.py',
         'host_tests/proton_runtime_catalog_test.py', 'scripts/run_linux_proton_component_tests.cjs',

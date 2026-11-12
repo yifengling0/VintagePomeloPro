@@ -1,8 +1,7 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { LauncherSupportActions } from '../components/LauncherSupportActions';
 import { DeckHome } from '../components/hmosdeck/DeckHome';
-import { LinuxSteamSessionService } from '../service/LinuxSteamSessionService';
-import { SteamClientService, SteamClientBackend } from '../service/SteamClientService';
+import { SteamClientService } from '../service/SteamClientService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { InputSettingsService } from '../service/InputSettingsService';
@@ -700,7 +699,7 @@ struct Index {
     };
     WineEngineService.getInstance().subscribe(this.engineCallback);
     this.refreshTimer = setInterval(() => this.refreshRunningState(), 1500);
-    // Linux Steam is the sole account/library owner on this branch. No legacy CM polling.
+    // The official Windows client owns account and library operations. No legacy CM polling.
     this.artworkListener = (_appId: string, _path: string): void => {
       this.consoleBackgroundCache.delete(_appId);
       this.artworkRevision++;
@@ -906,7 +905,6 @@ struct Index {
     });
     await UserConfigurationRepository.getInstance().start();
     void AccountAutomaticSyncService.getInstance().initialize(this.context);
-    LinuxSteamSessionService.getInstance().initialize(this.context);
   }
 
   private async rescan(): Promise<void> {
@@ -1237,7 +1235,7 @@ struct Index {
   private launch(app: AppDescriptor): Promise<void> {
     if (app.id === STEAM_CLIENT_ID) return this.openSteamClient();
     if (app.steam) {
-      try { SteamClientService.getInstance().assertCanOpen('windows'); }
+      try { SteamClientService.getInstance().assertCanOpen(); }
       catch (error) { promptAction.showToast({ message: (error as Error).message }); return Promise.resolve(); }
     }
     if (!app.available && !app.steam) {
@@ -1261,12 +1259,11 @@ struct Index {
     return this.enqueueLaunch(app, false);
   }
 
-  private async openSteamClient(backend: SteamClientBackend | '' = ''): Promise<void> {
+  private async openSteamClient(): Promise<void> {
     try {
       const service = SteamClientService.getInstance();
-      if (!service.installed().length) { this.openSidebarPage('pages/LinuxSteam'); return; }
-      const selected = backend || await service.choose(this.getUIContext());
-      if (selected) await service.open(this.context, selected);
+      if (!service.installed()) { this.openSidebarPage('pages/SteamComponents'); return; }
+      await service.open();
     } catch (error) { promptAction.showToast({ message: (error as Error).message, duration: 5000 }); }
   }
 
@@ -1316,7 +1313,7 @@ struct Index {
           if (!this.consolePageVisible || AppSessionService.getInstance().getRunningAppIds().has(app.id)) return;
           promptAction.showDialog({ title: app.title, message: '游戏尚未进入运行状态，可打开 Steam 查看登录、更新或许可提示。',
             buttons: [{ text: '稍后', color: '#777777' }, { text: '打开 Steam', color: '#5569D8' }] })
-            .then((answer): void => { if (answer.index === 1) void this.openSteamClient('windows'); });
+            .then((answer): void => { if (answer.index === 1) void this.openSteamClient(); });
         }, 45000);
       }
       if (!session && (app.launchTarget.kind === LaunchKind.WINE_EXE ||
@@ -3242,7 +3239,7 @@ struct Index {
         onRefresh: (): Promise<void> => this.rescan(),
         onClassic: (): void => { void this.setLauncherSkin(UiSkin.CLASSIC); },
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
-        onResources: (): void => this.openSidebarPage('pages/LinuxSteam'),
+        onResources: (): void => this.openSidebarPage('pages/SteamComponents'),
         onBackHandler: (handler: (() => boolean) | null): void => { this.deckBackHandler = handler; },
         onMembership: (): void => this.openMembership(),
         onSupport: (): void => this.openSponsorship(),

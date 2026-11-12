@@ -1,13 +1,9 @@
 import { AppDescriptor, AppSource } from '../../model/AppModels';
 import { builtinCoverResource } from '../../model/BuiltinArtwork';
-import { LinuxSteamAction, LinuxSteamSnapshot } from '../../model/LinuxSteamModels';
-import { DeckSteamGame, mergeDeckSteamGames } from '../../model/DeckSteamLibrary';
-import { LinuxSteamLibraryService } from '../../service/LinuxSteamLibraryService';
-import { LinuxSteamInstallService } from '../../service/LinuxSteamInstallService';
+import { SteamClientAction } from '../../model/SteamClientModels';
+import { DeckSteamGame, windowsDeckSteamGames } from '../../model/DeckSteamLibrary';
 import { SteamClientService } from '../../service/SteamClientService';
-import { common } from '@kit.AbilityKit';
-import { LinuxSteamArtworkListener, LinuxSteamArtworkService } from '../../service/LinuxSteamArtworkService';
-import { LinuxSteamSessionListener, LinuxSteamSessionService } from '../../service/LinuxSteamSessionService';
+import { SteamArtworkListener, SteamArtworkService } from '../../service/SteamArtworkService';
 import { InputDispatcher } from '../../service/InputDispatcher';
 import { DeckLaunchFeedbackService } from '../../service/DeckLaunchFeedbackService';
 import { GamepadManager, GamepadNavigationListener } from '../../service/GamepadManager';
@@ -43,11 +39,10 @@ export struct DeckHome {
   @State private widthVp: number = 1000;
   @State private heightVp: number = 650;
   @State private busy: boolean = false;
-  @State private steamReady: boolean = SteamClientService.getInstance().installed().length > 0;
+  @State private steamReady: boolean = SteamClientService.getInstance().installed();
   private launchTicket: number = 0;
-  private launchUsesLinux: boolean = false;
   @State private error: string = '';
-  @State private session: LinuxSteamSnapshot = LinuxSteamSessionService.getInstance().snapshot();
+  @State private steamRunning: boolean = false;
   @State private tasks: HostWindowTask[] = [];
   @State private artRevision: number = 0;
   @State private sheet: boolean = false;
@@ -66,8 +61,7 @@ export struct DeckHome {
   private sheetTimers: number[] = [];
   private sheetGeneration: number = 0;
   private entryTimer: number = -1;
-  private listener: LinuxSteamSessionListener | null = null;
-  private artworkListener: LinuxSteamArtworkListener | null = null;
+  private artworkListener: SteamArtworkListener | null = null;
   private navigation: GamepadNavigationListener | null = null;
   private navigationActive: boolean = false;
   private lastNavigation: number = 0;
@@ -75,15 +69,8 @@ export struct DeckHome {
 
   aboutToAppear(): void {
     this.onBackHandler((): boolean => this.handleBack());
-    this.listener = (value: LinuxSteamSnapshot): void => {
-      this.session = value;
-      if (this.launchUsesLinux && this.launchTicket && ['preparing', 'starting'].includes(value.state)) {
-        DeckLaunchFeedbackService.getInstance().update(this.launchTicket, value.message);
-      }
-    };
-    LinuxSteamSessionService.getInstance().subscribe(this.listener);
     this.artworkListener = (): void => { this.artRevision++; };
-    LinuxSteamArtworkService.getInstance().subscribe(this.artworkListener);
+    SteamArtworkService.getInstance().subscribe(this.artworkListener);
     this.navigation = (code: number): boolean => this.navigate(code);
     this.visibilityChanged();
     this.timer = setInterval((): void => { if (this.active && !this.busy) this.refresh(); }, 5000);
@@ -93,8 +80,7 @@ export struct DeckHome {
     this.onBackHandler(null);
     if (this.timer >= 0) clearInterval(this.timer);
     this.cancelMotion();
-    if (this.listener) LinuxSteamSessionService.getInstance().unsubscribe(this.listener);
-    if (this.artworkListener) LinuxSteamArtworkService.getInstance().unsubscribe(this.artworkListener);
+    if (this.artworkListener) SteamArtworkService.getInstance().unsubscribe(this.artworkListener);
     this.detachNavigation();
   }
   private visibilityChanged(): void {
@@ -127,9 +113,10 @@ export struct DeckHome {
     this.navigationActive = false;
   }
   private refresh(): void {
-    this.steamReady = SteamClientService.getInstance().installed().length > 0;
-    this.games = mergeDeckSteamGames(LinuxSteamLibraryService.getInstance().scan(), this.windowsSteamGames);
-    LinuxSteamArtworkService.getInstance().ensure(this.games);
+    this.steamReady = SteamClientService.getInstance().installed();
+    this.steamRunning = SteamClientService.getInstance().isRunning();
+    this.games = windowsDeckSteamGames(this.windowsSteamGames);
+    SteamArtworkService.getInstance().ensure(this.games);
     if (!this.games.some((g: DeckSteamGame): boolean => g.key === this.selected)) this.selected = this.games[0]?.key ?? '';
     this.tasks = HostWindowTasks.getInstance().runningTasks();
   }
@@ -146,14 +133,13 @@ export struct DeckHome {
   private async refreshLibrary(): Promise<void> {
     try {
       await this.onRefresh();
-      LinuxSteamLibraryService.getInstance().scan(true);
       this.refresh();
     } catch (_) {
       promptAction.showToast({ message: '游戏库刷新失败，请稍后重试' });
     }
   }
   private cover(game: DeckSteamGame): string {
-    return this.artRevision >= 0 ? LinuxSteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
+    return this.artRevision >= 0 ? SteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
   }
   private filtered(): DeckSteamGame[] {
     if (this.libraryTab !== 'steam') return [];
@@ -354,9 +340,9 @@ export struct DeckHome {
     if (!await HostWindowTasks.getInstance().activate(key)) promptAction.showToast({ message: '窗口已关闭，请刷新后重试' });
   }
   private async beginLaunch(title: string, cover: string, message: string,
-    builtin: Resource | undefined, action: () => Promise<void>, linux: boolean = false): Promise<void> {
+    builtin: Resource | undefined, action: () => Promise<void>): Promise<void> {
     if (this.busy) return;
-    this.busy = true; this.error = ''; this.launchUsesLinux = linux;
+    this.busy = true; this.error = '';
     const feedback = DeckLaunchFeedbackService.getInstance();
     const ticket = feedback.begin({ title, cover, message, builtin }); this.launchTicket = ticket;
     this.closeSheet();
@@ -371,7 +357,7 @@ export struct DeckHome {
     } finally {
       feedback.finish(ticket);
       if (this.launchTicket === ticket) this.launchTicket = 0;
-      this.launchUsesLinux = false; this.busy = false;
+      this.busy = false; this.refresh();
     }
   }
   private async openLocal(game: AppDescriptor): Promise<void> {
@@ -381,29 +367,14 @@ export struct DeckHome {
       this.localBuiltin(game), async (): Promise<void> => { await this.onLocalLaunch(game); });
   }
   private async openGame(game: DeckSteamGame): Promise<void> {
-    if (game.backend === 'windows') {
-      if (game.windowsCard) await this.openLocal(game.windowsCard);
-    } else await this.open('launch', game.appId);
+    await this.openLocal(game.windowsCard);
   }
-  private async open(action: LinuxSteamAction, id: string = '0'): Promise<void> {
+  private async open(action: SteamClientAction): Promise<void> {
     if (this.busy) return;
     const service = SteamClientService.getInstance();
-    if (action === 'launch' ? !LinuxSteamInstallService.getInstance().installed() : service.installed().length === 0) {
-      this.manageComponents(); return;
-    }
-    let backend: 'windows' | 'linux' | '' = 'linux';
-    try { if (action !== 'launch') backend = await service.choose(this.getUIContext()); }
-    catch (error) { promptAction.showToast({ message: (error as Error).message }); return; }
-    if (!backend) return;
-    const selected = backend;
-    const game = action === 'launch' ? this.games.find((g: DeckSteamGame): boolean => g.backend === 'linux' && g.appId === id) : undefined;
-    await this.beginLaunch(game?.name ?? 'Steam', game ? this.cover(game) : '',
-      game ? '正在交给 Steam 启动，请稍候…' : '正在打开 Steam…', undefined, async (): Promise<void> => {
-        if (action === 'launch') {
-          service.assertCanOpen('linux');
-          await LinuxSteamSessionService.getInstance().open(action, id);
-        } else await service.open(getContext(this) as common.UIAbilityContext, selected, action);
-      }, selected === 'linux');
+    if (!service.installed()) { this.manageComponents(); return; }
+    await this.beginLaunch('Steam', '', '正在打开 Windows Steam…', undefined,
+      async (): Promise<void> => { await service.open(action); });
   }
   @Builder
   private RailItem(label: string, icon: Resource, id: string, selected: boolean, callback: () => void) {
@@ -484,7 +455,7 @@ export struct DeckHome {
       DeckBackdrop({ games: this.games, widthVp: this.layout().contentWidth, heightVp: this.contentHeight(), portrait: this.tall(),
         artRevision: this.artRevision, moving: this.active && this.page === 'steam' && this.motion })
         .scale({ x: 1 - 0.05 * this.sheetSink, y: 1 - 0.05 * this.sheetSink })
-      Text((this.session.state === 'running' ? 'Steam 已打开' : '准备好，开始游玩') + ' · ' + this.games.length + ' 款已安装')
+      Text((this.steamRunning ? 'Steam 已打开' : '准备好，开始游玩') + ' · ' + this.games.length + ' 款已安装')
         .fontSize(12).fontColor('#9AA3AF').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         .width(Math.max(100, this.layout().contentWidth - 2 * this.inset()))
         .position({ x: this.inset(), y: this.inset() })
@@ -503,7 +474,7 @@ export struct DeckHome {
         }.padding(0).borderRadius({ bottomLeft: 12, bottomRight: 12 }).backgroundColor('#121417')
           .border({ width: 1, color: this.hot('deck-open-sheet') ? '#1A9FFF' : '#262A31', radius: { bottomLeft: 12, bottomRight: 12 } })
           .onFocus((): void => { this.focus = 'deck-open-sheet'; }).onClick((): void => this.openSheet()).id('deck-open-sheet')
-        if (this.busy) Text(this.session.message).fontSize(12).fontColor('#9AA3AF').maxLines(2).width('100%').margin({ top: 14 }).id('deck-busy')
+        if (this.busy) Text('正在准备 Windows 运行环境…').fontSize(12).fontColor('#9AA3AF').maxLines(2).width('100%').margin({ top: 14 }).id('deck-busy')
         if (this.error) Text(this.error).fontSize(12).fontColor('#FF8A80').maxLines(3).width('100%').margin({ top: 14 }).id('deck-error')
       }.width(Math.min(380, this.layout().contentWidth - this.inset() * 2)).alignItems(HorizontalAlign.Start)
         .margin({ left: this.inset(), top: this.tall() ? this.inset() + 52 : 0, bottom: this.tall() ? 0 : this.heightVp < 460 ? 24 : 52 })
@@ -621,7 +592,7 @@ export struct DeckHome {
                 Column({ space: 10 }) {
                   Button({ type: ButtonType.Normal }) {
                     DeckArtwork({ name: game.name, source: this.cover(game), appId: game.key,
-                      badge: game.backend === 'linux' ? 'Steam · Linux' : 'Steam · Windows' })
+                      badge: 'Steam · Windows' })
                   }.width('100%').height(this.coverHeight()).padding(0).borderRadius(14).backgroundColor('#1A1D22')
                     .border({ width: this.hot('deck-game-' + game.key) ? 2 : 0, color: '#1A9FFF', radius: 14 })
                     .focusBox({ strokeWidth: LengthMetrics.vp(0) })
@@ -636,7 +607,7 @@ export struct DeckHome {
                     .onFocus((): void => { this.selected = game.key; this.focus = 'deck-game-' + game.key; })
                     .onClick((): void => { void this.openGame(game); }).id('deck-game-' + game.key)
                   Text(game.name).fontSize(13).fontColor('#F2F4F7').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
-                  Text(game.updating ? '更新中 · 在 Steam 查看' : '已安装').fontSize(11).fontColor(game.updating ? '#1A9FFF' : '#69727F').width('100%')
+                  Text('已安装').fontSize(11).fontColor('#69727F').width('100%')
                 }.width('100%').height('100%')
               }.height(this.coverHeight() + 54)
             }, (game: DeckSteamGame): string => game.key)
@@ -719,7 +690,7 @@ export struct DeckHome {
             Text('强制结束不会保存进度。').fontSize(11).fontColor('#69727F').width('100%')
           }
         }, (task: HostWindowTask): string => task.key)
-        if (this.session.state === 'running') Button('显示 Steam').height(46).fontColor('#03111F').backgroundColor('#1A9FFF')
+        if (this.steamRunning) Button('显示 Steam').height(46).fontColor('#03111F').backgroundColor('#1A9FFF')
           .onClick((): void => { void this.open('library'); }).id('deck-running-steam')
       }.padding(this.inset()).width('100%').alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).id('deck-running-page')

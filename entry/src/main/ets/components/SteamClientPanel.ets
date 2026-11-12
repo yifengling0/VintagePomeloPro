@@ -1,10 +1,7 @@
 import { promptAction } from '@kit.ArkUI';
 import { SteamLocalService, SteamImportProgress, SteamImportListener } from '../steam/SteamLocalService';
 import { AppCatalogService } from '../service/AppCatalogService';
-import { LinuxSteamInstallService, LinuxSteamInstallListener } from '../service/LinuxSteamInstallService';
-import { LinuxSteamSessionService } from '../service/LinuxSteamSessionService';
 import { SteamClientService } from '../service/SteamClientService';
-import { LinuxSteamInstallSnapshot, linuxSteamInstallBusy } from '../model/LinuxSteamDownloadModels';
 import { common } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import { skinColor } from '../service/SkinColors';
@@ -16,16 +13,16 @@ export struct SteamClientPanel {
   onChanged: () => void = (): void => {};
   onOpen: () => void = (): void => {};
   managementOnly: boolean = false;
+  showManagement: boolean = true;
   dark: boolean = false;
   @State private installed: boolean = false;
-  @State private linuxInstalled: boolean = false;
   @State private busy: boolean = false;
   @State private launching: boolean = false;
+  @State private scanning: boolean = false;
   @State private compatibility: boolean = false;
   @State private message: string = '';
   @State private percent: number = 0;
   private listener: SteamImportListener | null = null;
-  private installListener: LinuxSteamInstallListener | null = null;
 
   aboutToAppear(): void {
     const service = SteamLocalService.getInstance();
@@ -38,23 +35,17 @@ export struct SteamClientPanel {
       this.installed = service.isInstalled();
     };
     service.subscribe(this.listener);
-    const installer = LinuxSteamInstallService.getInstance();
-    this.installListener = (_value: LinuxSteamInstallSnapshot): void => { this.linuxInstalled = installer.installed(); };
-    installer.subscribe(this.installListener);
   }
   aboutToDisappear(): void {
     if (this.listener) SteamLocalService.getInstance().unsubscribe(this.listener);
-    if (this.installListener) LinuxSteamInstallService.getInstance().unsubscribe(this.installListener);
   }
   private foreground(): ResourceColor { return this.dark ? '#F2F4F7' : skinColor('text_primary'); }
   private secondary(): ResourceColor { return this.dark ? '#929DAB' : skinColor('text_secondary'); }
   private buttonBackground(): ResourceColor { return this.dark ? '#263343' : skinColor('search_background'); }
   private accent(): ResourceColor { return this.dark ? '#1A9FFF' : skinColor('accent'); }
   private async importClient(): Promise<void> {
-    if (this.busy || this.launching) return;
+    if (this.busy || this.launching || this.scanning) return;
     try {
-      if (linuxSteamInstallBusy(LinuxSteamInstallService.getInstance().snapshot().phase)) throw new Error('Linux Steam 组件正在安装或更新，请完成后再导入');
-      if (LinuxSteamSessionService.getInstance().isActive()) throw new Error('请先正常退出 Linux Steam 及其游戏，再导入 Windows Steam');
       if (await SteamLocalService.getInstance().importZip()) {
         this.installed = true;
         await AppCatalogService.getInstance().scan();
@@ -63,20 +54,28 @@ export struct SteamClientPanel {
     } catch (error) { this.message = (error as Error).message; }
   }
   private async openClient(): Promise<void> {
-    if (this.busy || this.launching) return;
+    if (this.busy || this.launching || this.scanning) return;
     this.launching = true;
     try {
       const service = SteamClientService.getInstance();
-      const backend = await service.choose(this.getUIContext());
-      if (!backend) return;
       this.onOpen();
-      await service.open(this.context, backend);
+      await service.open();
     } catch (error) { promptAction.showToast({ message: (error as Error).message }); }
     finally { this.launching = false; }
   }
+  private async scanGames(): Promise<void> {
+    if (this.busy || this.launching || this.scanning) return;
+    this.scanning = true;
+    try {
+      await AppCatalogService.getInstance().scan();
+      this.message = '已刷新 Windows Steam 游戏库';
+      this.onChanged();
+    } catch (error) { this.message = (error as Error).message; }
+    finally { this.scanning = false; }
+  }
   private openComponents(): void {
     this.onOpen();
-    void router.pushUrl({ url: 'pages/LinuxSteam' }).catch((error: Error): void => {
+    void router.pushUrl({ url: 'pages/SteamComponents' }).catch((error: Error): void => {
       promptAction.showToast({ message: error.message });
     });
   }
@@ -84,25 +83,25 @@ export struct SteamClientPanel {
     Column({ space: 8 }) {
       Text(this.managementOnly ? 'Windows Steam' : 'Steam 客户端').fontSize(15).fontWeight(FontWeight.Medium)
         .fontColor(this.foreground()).width('100%')
-      if (!this.managementOnly && (this.installed || this.linuxInstalled)) {
+      if (!this.managementOnly && this.installed) {
         Button(this.launching ? '正在打开…' : '启动 Steam').width('100%').height(40).borderRadius(10)
-          .backgroundColor(this.accent()).fontColor('#FFFFFFFF').enabled(!this.busy && !this.launching)
+          .backgroundColor(this.accent()).fontColor('#FFFFFFFF').enabled(!this.busy && !this.launching && !this.scanning)
           .onClick((): void => { void this.openClient(); }).id('steam-client-open')
       }
-      Text(this.installed ? 'Windows 版已导入 · Z:\\Steam' : '导入原来的 Windows Steam ZIP，通过 Wine 运行。')
+      Text(this.installed ? 'Windows 版已导入' : '导入原来的 Windows Steam ZIP，通过 Wine 运行。')
         .fontSize(12).fontColor(this.secondary()).width('100%')
       Button(this.installed ? '更新 Windows Steam ZIP' : '导入 Windows Steam ZIP')
         .width('100%').height(40).borderRadius(10)
-        .backgroundColor(this.buttonBackground()).fontColor(this.foreground()).enabled(!this.busy && !this.launching)
+        .backgroundColor(this.buttonBackground()).fontColor(this.foreground()).enabled(!this.busy && !this.launching && !this.scanning)
         .onClick((): void => { void this.importClient(); })
         .id('steam-client-primary')
-      if (!this.managementOnly) Button('Steam 组件管理').width('100%').height(38).borderRadius(10)
-        .fontColor(this.foreground()).backgroundColor(this.buttonBackground()).enabled(!this.busy && !this.launching)
+      if (!this.managementOnly && this.showManagement) Button('Steam 组件管理').width('100%').height(38).borderRadius(10)
+        .fontColor(this.foreground()).backgroundColor(this.buttonBackground()).enabled(!this.busy && !this.launching && !this.scanning)
         .onClick((): void => this.openComponents()).id('steam-client-components')
       if (this.installed) {
           Button('扫描 Windows Steam 游戏').width('100%').height(38).borderRadius(10)
             .fontColor(this.foreground()).backgroundColor(this.buttonBackground())
-            .enabled(!this.busy).onClick((): void => { this.onChanged(); }).id('steam-client-scan')
+            .enabled(!this.busy && !this.launching && !this.scanning).onClick((): void => { void this.scanGames(); }).id('steam-client-scan')
         Row({ space: 6 }) {
           Text('Windows 版兼容模式（关闭 GPU）').fontSize(12).fontColor(this.secondary()).layoutWeight(1)
           Toggle({ type: ToggleType.Switch, isOn: this.compatibility })

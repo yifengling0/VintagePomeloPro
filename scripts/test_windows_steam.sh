@@ -12,6 +12,6 @@ if [[ ! -x "$steam_node" || ! -f "$steam_typescript/lib/typescript.js" ]]; then
 fi
 python3 host_tests/windows_steam_runtime_test.py
 make test-steam-client-args
-for suite in run_steam_local_unit_tests run_steam_local_service_tests; do
+for suite in run_steam_local_unit_tests run_steam_local_service_tests run_steam_client_selection_tests run_windows_steam_deck_tests; do
   "$steam_node" "scripts/$suite.cjs" "$steam_typescript"
 done

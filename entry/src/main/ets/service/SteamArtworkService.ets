@@ -1,36 +1,38 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { image } from '@kit.ImageKit';
-import { LinuxSteamGame, validLinuxSteamAppId } from '../model/LinuxSteamModels';
+import { DeckSteamGame } from '../model/DeckSteamLibrary';
+import { isSteamAppId } from '../steam/SteamLocalRules';
 
+// Reuse the historical public-art cache; this path contains no client or game data.
 const ROOT = '/data/storage/el2/base/files/linux-steam-artwork';
 const LIMIT = 4 * 1024 * 1024;
-export type LinuxSteamArtworkListener = () => void;
+export type SteamArtworkListener = () => void;
 
 // Public capsule art only. No Steam login data or Windows Steam files are read.
-export class LinuxSteamArtworkService {
-  private static instance: LinuxSteamArtworkService | null = null;
+export class SteamArtworkService {
+  private static instance: SteamArtworkService | null = null;
   private queue: string[] = [];
   private pending: Set<string> = new Set<string>();
   private retryAt: Map<string, number> = new Map<string, number>();
-  private listeners: Set<LinuxSteamArtworkListener> = new Set<LinuxSteamArtworkListener>();
+  private listeners: Set<SteamArtworkListener> = new Set<SteamArtworkListener>();
   private active: number = 0;
-  static getInstance(): LinuxSteamArtworkService {
-    if (!LinuxSteamArtworkService.instance) LinuxSteamArtworkService.instance = new LinuxSteamArtworkService();
-    return LinuxSteamArtworkService.instance;
+  static getInstance(): SteamArtworkService {
+    if (!SteamArtworkService.instance) SteamArtworkService.instance = new SteamArtworkService();
+    return SteamArtworkService.instance;
   }
-  subscribe(listener: LinuxSteamArtworkListener): void { this.listeners.add(listener); }
-  unsubscribe(listener: LinuxSteamArtworkListener): void { this.listeners.delete(listener); }
+  subscribe(listener: SteamArtworkListener): void { this.listeners.add(listener); }
+  unsubscribe(listener: SteamArtworkListener): void { this.listeners.delete(listener); }
   resolve(id: string, original: string): string {
-    if (!validLinuxSteamAppId(id)) return '';
+    if (!isSteamAppId(id)) return '';
     if (original.startsWith('/')) return 'file://' + original;
     const path = `${ROOT}/${id}.jpg`;
     try { if (fs.statSync(path).size > 16) return 'file://' + path; } catch (_) {}
     return '';
   }
-  ensure(games: LinuxSteamGame[]): void {
+  ensure(games: DeckSteamGame[]): void {
     for (const game of games) {
-      if (!validLinuxSteamAppId(game.appId) || this.resolve(game.appId, game.cover) || this.pending.has(game.appId) ||
+      if (!isSteamAppId(game.appId) || this.resolve(game.appId, game.cover) || this.pending.has(game.appId) ||
         (this.retryAt.get(game.appId) ?? 0) > Date.now()) continue;
       this.pending.add(game.appId); this.queue.push(game.appId);
     }
@@ -72,7 +74,7 @@ export class LinuxSteamArtworkService {
         try { written = fs.writeSync(file.fd, buffer); } finally { fs.closeSync(file); }
         if (written !== buffer.byteLength) continue;
         fs.renameSync(temp, `${ROOT}/${id}.jpg`);
-        this.listeners.forEach((listener: LinuxSteamArtworkListener): void => listener());
+        this.listeners.forEach((listener: SteamArtworkListener): void => listener());
         return;
       } catch (_) { /* Try the second official CDN; keep the painted fallback visible. */ }
       finally {

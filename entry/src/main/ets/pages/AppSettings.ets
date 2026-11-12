@@ -868,7 +868,7 @@ struct AppSettingsPage {
                   .onClick((): void => this.setTranslationEngine(engine))
               }, (engine: string): string => engine)
             }.width('100%')
-            Text('仅用于原 Wine 的 32 位 Windows 程序，可按游戏保存。选择 Box64 后可设置兼容性预设；完全退出游戏后，从首页重新启动生效。Wine 桌面内直接启动使用全局设置，Linux Steam 的兼容工具由 Steam 管理。')
+            Text('仅用于原 Wine 的 32 位 Windows 程序，可按游戏保存。选择 Box64 后可设置兼容性预设；完全退出游戏后，从首页重新启动生效。Wine 桌面内直接启动使用全局设置。Windows Steam 游戏也可按游戏保存兼容设置。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Row({ space: 12 }) {
               Column({ space: 4 }) {

@@ -15,3 +15,13 @@
 存储：核对任务现存两份较新 HAP、读取 module 身份并验证 SHA 后，清理12份旧 `app.hackeris.winehua / 1.0.13 / debug=true` 安装候选，回收4164315504 bytes。保留 VPP 当前67/c09测试包、旧任务较新两包、所有用户数据/备份、正式发布包、源码和共享缓存。构建复用 E 盘既有 WSL增量目录，未新建完整源码或运行库副本。
 
 恢复执行核对：67ea17f7 的分支 CI 43158316892 已成功；final 标签 CI 43165968197 仅在源版本验证阶段失败。当前 Wayland close 生命周期回归通过，focus fixture ABI 已包含在历史提交 efb8ae2c。开发树的 Docker 子模块绝对 Git 路径和 VirGL 实验 overlay 影响全量主机回归，因此后续使用既有 source-integrity 独立检出及增量缓存验收；保留开发子模块，不重置实验文件。P0 定向回归与完整产品验收分开记录。
+
+## P1：Windows Steam UI 与服务解耦
+
+- HmosDeck 不再订阅或初始化 Linux session/library/installer。游戏列表从现有 Windows Steam 目录生成，保留原始 AppDescriptor（用户兼容设置、中文/私有库路径和启动参数）。
+- SteamClientService 只负责 Windows 客户端导航，导入期间阻止启动、重复启动互斥、失败释放锁；游戏和退出仍交给既有 AppSession/HostWindowTasks，保留开始前反馈、正常关闭与强退。
+- 组件页改为 Windows ZIP 导入/更新、实际目录扫描、CEF 偏好和启动入口；经典界面、HmosDeck 和未安装空态都指向同一管理页。删除 LinuxSteamPanel/ProtonRuntimePanel，旧 pages/LinuxSteam 路由只显示退役说明与 Windows 管理，绝不初始化旧运行库。
+- 公共封面服务脱离 Linux 模型；复用历史公开封面缓存，避免重复下载。AppID 验证统一为 uint32 边界；手机/平板布局逻辑保留。
+- Windows 回归新增实际客户端服务与 Deck 路由/列表/手动扫描测试，并纳入 make test-windows-steam 和 CI 共用入口。原 Linux 专用后端测试仍保留到 P2/P3，已退役双客户端 UI 用新产品行为测试替换。
+- 验证：P0 在既有独立检出运行完整 make test-game-runtime 通过；本批 Windows helper、C++参数、事务导入、中文多库、服务、Deck 路由和布局回归通过。剩余 Linux 后端专用 Deck 测试与 preflight 单测通过。P1 完整 HAP、远端 CI 和 Mini 验收待后续记录。
+- 此提交只完成 UI/服务拆分；GNU native、旧诊断入口和载荷尚在，不能作为最终 2.0 发布包。用户 Linux 库/前缀/存档没有清理或迁移。

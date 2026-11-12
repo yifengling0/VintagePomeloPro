@@ -177,7 +177,7 @@ export function steamCatalogPathKind(path: string, scope: SteamCatalogScope): st
 
 export const STEAM_CLIENT_ID = 'steam-client-default';
 export function steamGameCardId(appId: string): string { return 'steam-default-' + appId; }
-export function isSteamAppId(value: string): boolean { return /^[1-9][0-9]{0,9}$/.test(value); }
+export function isSteamAppId(value: string): boolean { return /^[1-9][0-9]{0,9}$/.test(value) && Number(value) <= 4294967295; }
 
 export const STEAM_GPU_ARGUMENTS: string[] = ['-nocrashmonitor', '-noshaders', '-no-shared-textures',
   '-cef-single-process', '-cef-in-process-gpu', '-cef-disable-sandbox', '-disable-winh264',

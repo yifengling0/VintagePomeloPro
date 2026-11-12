@@ -14,6 +14,7 @@
     "pages/SteamGameDetail",
     "pages/AccountCloud",
     "pages/MembershipLegal",
+    "pages/SteamComponents",
     "pages/LinuxSteam"
   ]
 }

@@ -2366,7 +2366,7 @@ struct SystemSettingsPage {
               .backgroundColor(this.settings.wineDisplayRoute === 'x11' ? skinColor('accent') : skinColor('search_background'))
               .onClick((): void => { this.settings.wineDisplayRoute = 'x11'; void ThemeSettingsService.getInstance().update(this.settings); })
           }.width('100%')
-          Text('完整退出 Wine 后下次启动生效。Linux Steam 与 GNU Proton 保持原来的运行机制。')
+          Text('完整退出 Wine 后下次启动生效。Windows Steam 和本地 Windows 程序使用此设置。')
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
 
           Text('转译引擎').fontSize(12).fontWeight(FontWeight.Medium)

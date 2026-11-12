@@ -1,5 +1,5 @@
 import { DeckSteamGame } from '../../model/DeckSteamLibrary';
-import { LinuxSteamArtworkService } from '../../service/LinuxSteamArtworkService';
+import { SteamArtworkService } from '../../service/SteamArtworkService';
 import { DeckArtwork } from './DeckArtwork';
 import { DeckMotion } from './DeckMotion';
 
@@ -55,7 +55,7 @@ export struct DeckBackdrop {
   }
   private cover(game: DeckSteamGame): string {
     // Reading the revision makes an asynchronously committed cache entry reactive.
-    return this.artRevision >= 0 ? LinuxSteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
+    return this.artRevision >= 0 ? SteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
   }
   private wallWidth(): number { return (this.widthVp * 0.97437 + this.heightVp * 0.22495) * 1.1; }
   private wallHeight(): number { return Math.max(this.heightVp * 2.4, (this.widthVp * 0.22495 + this.heightVp * 0.97437) * 1.1); }

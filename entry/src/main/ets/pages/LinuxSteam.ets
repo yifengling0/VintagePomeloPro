@@ -1,12 +1,8 @@
-// Legacy Steam links share the official Linux client entry on this branch.
-import { LinuxSteamPanel } from '../components/hmosdeck/LinuxSteamPanel';
+// Compatibility notice for saved 1.x routes. Never initialize the retired runtime.
+import { SteamComponentsPanel } from '../components/SteamComponentsPanel';
 
 @Entry
 @Component
 struct LinuxSteam {
-  build() {
-    Column() {
-      LinuxSteamPanel()
-    }.width('100%').height('100%')
-  }
+  build() { SteamComponentsPanel({ legacyLinux: true }) }
 }
