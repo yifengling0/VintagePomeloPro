@@ -150,8 +150,8 @@ class WineRpgxpDiagnosticsPolicyTest(unittest.TestCase):
             before = (root / "source.txt").read_bytes()
             result = subprocess.run(
                 ["bash", "-c", "set -euo pipefail\nlog() { :; }\n" + ENSURE_HELPER +
-                 '\nWINE_SRC="$1"\nensure_wine_patch "$1/broken.patch" test\n',
-                 "malformed-patch-test", str(root)],
+                 '\nWINE_SRC="$1"\nSCRIPT_DIR="$2"\nensure_wine_patch "$1/broken.patch" test\n',
+                 "malformed-patch-test", str(root), str(ROOT / "scripts")],
                 capture_output=True, text=True,
             )
             self.assertNotEqual(result.returncode, 0)

@@ -24,8 +24,8 @@ class WinePatchDetectionTest(unittest.TestCase):
 
     def apply(self):
         return subprocess.run(["bash", "-c", "set -euo pipefail\nlog() { :; }\n" + HELPER +
-            '\nWINE_SRC="$1"\nensure_wine_patch "$1/change.patch" test\n',
-            "patch-test", str(self.root)], capture_output=True, text=True)
+            '\nWINE_SRC="$1"\nSCRIPT_DIR="$2"\nensure_wine_patch "$1/change.patch" test\n',
+            "patch-test", str(self.root), str(ROOT / "scripts")], capture_output=True, text=True)
 
     def test_clean_source_is_patched(self):
         (self.root / "source.txt").write_text("before\n")

@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix='wine-make-identity-') as directory:
         path=mingw/'bin'/name;path.write_text('#!/bin/sh\n'+text+'\n');path.chmod(0o755)
     def snapshot():return {str(p.relative_to(temp)):p.read_bytes() for p in temp.rglob('*') if p.is_file()}
     command=['make','-f',str(ROOT/'Makefile'),'-o',str(deps),'wine',f'BUILD_DIR={build}',
-             f'STAMPS={stamps}',f'WINE_SRC={source}',f'WINE_SENTINEL={sentinel}',
+             f'STAMPS={stamps}',f'WINE_BUILD_ROOT={build}',f'WINE_SRC={source}',f'WINE_SENTINEL={sentinel}',
              'NATIVE_ARCH=x86_64','WINE_ARCH=x86_64','GUEST_ARCH=x86_64']
     environment={**os.environ,'OHOS_SDK':str(sdk),'LLVM_MINGW':str(mingw),'HOST_OS':'Linux'}
     for expected in ('cached srcdir mismatch','no provenance manifest'):

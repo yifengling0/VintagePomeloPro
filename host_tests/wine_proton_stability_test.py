@@ -379,12 +379,19 @@ class ProtonStabilityTest(unittest.TestCase):
             path = candidate / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(contents)
+        # Full-stack overlap proof requires an immutable pristine baseline.
+        subprocess.run(['git', 'init', '-q', str(candidate)], check=True)
+        subprocess.run(['git', '-C', str(candidate), 'add', '--all'], check=True)
+        subprocess.run(['git', '-C', str(candidate), '-c', 'user.name=Runtime Test',
+                        '-c', 'user.email=runtime-test@example.invalid', 'commit', '-qm', 'fixture'], check=True)
         command = ('set -euo pipefail\nlog() { :; }\n' + helper +
-                   '\nWINE_SRC="$1"\nshift\nfor patch_file in "$@"; do ensure_wine_patch "$patch_file" test; done\n')
-        replay = ['bash', '-c', command, 'patch-replay', str(candidate), *map(str, cls.patches)]
-        subprocess.run(replay, check=True, capture_output=True, text=True)
+                   '\nWINE_SRC="$1"\nSCRIPT_DIR="$2"\nshift 2\nfor patch_file in "$@"; do ensure_wine_patch "$patch_file" test; done\n')
+        replay = ['bash', '-c', command, 'patch-replay', str(candidate), str(ROOT / "scripts"), *map(str, cls.patches)]
+        result = subprocess.run(replay, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-4000:]
         cls.replayed = {relative: (candidate / relative).read_bytes() for relative in relatives}
-        subprocess.run(replay, check=True, capture_output=True, text=True)
+        result = subprocess.run(replay, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-4000:]
         cls.replayed_again = {relative: (candidate / relative).read_bytes() for relative in relatives}
         cls.binaries = {}
         for label in ('baseline', 'candidate'):

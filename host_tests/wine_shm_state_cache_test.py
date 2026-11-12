@@ -348,12 +348,19 @@ class WineShmStateCacheTest(unittest.TestCase):
             path = tree / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + relative], cwd=options.wine_src))
+        # Full-stack overlap proof requires an immutable pristine baseline.
+        subprocess.run(['git', 'init', '-q', str(tree)], check=True)
+        subprocess.run(['git', '-C', str(tree), 'add', '--all'], check=True)
+        subprocess.run(['git', '-C', str(tree), '-c', 'user.name=Runtime Test',
+                        '-c', 'user.email=runtime-test@example.invalid', 'commit', '-qm', 'fixture'], check=True)
         command = ('set -euo pipefail\nlog() { :; }\n' + helper +
-                   '\nWINE_SRC="$1"\nshift\nfor patch_file in "$@"; do ensure_wine_patch "$patch_file" test; done\n')
-        replay = ['bash', '-c', command, 'patch-replay', str(tree), *map(str, patches)]
-        subprocess.run(replay, check=True, capture_output=True, text=True)
+                   '\nWINE_SRC="$1"\nSCRIPT_DIR="$2"\nshift 2\nfor patch_file in "$@"; do ensure_wine_patch "$patch_file" test; done\n')
+        replay = ['bash', '-c', command, 'patch-replay', str(tree), str(ROOT / "scripts"), *map(str, patches)]
+        result = subprocess.run(replay, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-4000:]
         cls.first_replay = {r: (tree / r).read_bytes() for r in relatives}
-        subprocess.run(replay, check=True, capture_output=True, text=True)
+        result = subprocess.run(replay, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-4000:]
         cls.second_replay = {r: (tree / r).read_bytes() for r in relatives}
         header = (tree / 'dlls/winewayland.drv/waylanddrv.h').read_text()
         source = (tree / 'dlls/winewayland.drv/wayland_surface.c').read_text()

@@ -65,7 +65,9 @@ static Request delivered;
 static int OpenAudio() { ++audioOpened; return open("/dev/null", O_RDONLY | O_CLOEXEC); }
 bool PhoneAdapter_IsPhoneMode() { return phoneMode; }
 enum class ProcessRegistration { Relabel, NativeChild, ForkChild };
-void AddProcess(int32_t, const std::string&, int, ProcessRegistration) {}
+uint64_t BeginNativeProcessSpawn() { return 1; }
+struct WineProcessEntry;
+WineProcessEntry* AddProcess(int32_t, const std::string&, int, ProcessRegistration, uint64_t = 0) { return nullptr; }
 void Phone_MarkDirectForkChildRegistered(int32_t) {}
 void MarkWineIpcChildRegistered(int32_t) {}
 void WineHuaCefUtilityProbeNoteSpawn(int32_t, int32_t, const char*) {}
