@@ -1,4 +1,4 @@
-#include "linux_steam/native_buffer_probe.h"
+#include "direct/native_buffer_probe.h"
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
 
@@ -653,7 +653,7 @@ int OnDiagnosticRequest(uint32_t code, const OHIPCParcel* data, OHIPCParcel* rep
             g_nativeMemoryRequested = true;
         }
         g_createCondition.notify_all();
-        const auto json = steamohos::NativeBufferMemoryProbeJson();
+        const auto json = winehua::NativeBufferMemoryProbeJson();
         return OH_IPCParcel_WriteString(reply, json.c_str());
     }
     if (code == winehua::direct::kVulkanProbeFinishRequest) {

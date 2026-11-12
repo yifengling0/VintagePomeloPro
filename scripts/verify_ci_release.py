@@ -93,6 +93,8 @@ def record_runtime(root, manifest_path, wine_source, native_arch, wine_arch):
 
 
 def verify_artifact(hap, manifest):
+    from v2_product_contract import verify_hap
+    verify_hap(hap)
     with zipfile.ZipFile(hap) as archive:
         app = json.loads(archive.read("module.json"))["app"]
         for key in APP_FIELDS:
@@ -108,7 +110,7 @@ def verify_artifact(hap, manifest):
         if abis != {"arm64-v8a"}:
             raise ValueError(f"unexpected native ABIs: {sorted(abis)}")
         for library in ("libentry.so", "libwine_child.so", "libsmoke_napi.so",
-                        "libsteamohos_gnu_child.so", "libwinehua_vtest_server.so",
+                        "libwinehua_native_memory_probe.so", "libwinehua_vtest_server.so",
                         "libvirglrenderer.so.1", "libvirgl_child.so"):
             with archive.open("libs/arm64-v8a/" + library) as stream:
                 header = stream.read(20)

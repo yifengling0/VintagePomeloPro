@@ -14,9 +14,6 @@
  *     注入点会系统性偏移一个装饰量 (2026-09-26 实测 Y+22)。
  */
 #include <napi/native_api.h>
-#if defined(WINEHUA_ENABLE_STEAMOHOS_HOST) || defined(WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC)
-#include "linux_steam/host_napi.h"
-#endif
 #include "compositor/input/input_space_mapper.h"
 #include "compositor/frame/geometry.h"
 #include "compositor/wayland_server.h"
@@ -52,29 +49,6 @@ static napi_value SmokeMapPoint(napi_env env, napi_callback_info info) {
 EXTERN_C_START
 static napi_value SmokeNapiInit(napi_env env, napi_value exports) {
     napi_property_descriptor props[] = {
-#ifdef WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC
-        {"isLinuxSteamProcess", nullptr, steamohos::IsLinuxSteamProcess, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"isLinuxSteamGameProcess", nullptr, steamohos::IsLinuxSteamGameProcess, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"startLinuxSteamLaunchBroker", nullptr, steamohos::StartGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"stopLinuxSteamLaunchBroker", nullptr, steamohos::StopGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"drainLinuxSteamLaunchBroker", nullptr, steamohos::DrainGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"replyLinuxSteamLaunchBroker", nullptr, steamohos::ReplyGameLaunchBroker, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"pollLinuxSteamLaunchSession", nullptr, steamohos::PollGameLaunchSession, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"startLinuxSteamSession", nullptr, steamohos::StartSteamSession, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"probeLinuxSteamGnuClient", nullptr, steamohos::ProbeGnuSteam, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"probeLinuxSteamGnuXwayland", nullptr, steamohos::ProbeGnuXwayland, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"probeLinuxSteamGnuWayland", nullptr, steamohos::ProbeGnuWayland, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"probeLinuxSteamGnu", nullptr, steamohos::ProbeGnu, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"beginLinuxProtonMaintenance", nullptr, steamohos::BeginProtonMaintenance, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"endLinuxProtonMaintenance", nullptr, steamohos::EndProtonMaintenance, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"startLinuxProtonGame", nullptr, steamohos::StartProtonGame, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"cancelLinuxProtonGame", nullptr, steamohos::CancelProtonGame, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"probeLinuxProton", nullptr, steamohos::ProbeProton, nullptr, nullptr, nullptr, napi_default, nullptr},
-#endif
-#ifdef WINEHUA_ENABLE_STEAMOHOS_HOST
-        {"probeLinuxSteamHost", nullptr, steamohos::ProbeHost, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"injectLinuxSteamHostKeys", nullptr, steamohos::InjectProbeKeys, nullptr, nullptr, nullptr, napi_default, nullptr},
-#endif
         {"smokeMapPoint", nullptr, SmokeMapPoint, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(props) / sizeof(props[0]), props);

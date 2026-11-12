@@ -1,4 +1,3 @@
-import { ManagedLinuxSteamBridgeService } from './ManagedLinuxSteamBridgeService';
 import { common } from '@kit.AbilityKit';
 import { promptAction, router } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
@@ -1012,7 +1011,7 @@ export class WineEngineService {
       hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', detail);
       // Component verification has actionable product messages. Preserve them
       // instead of serializing Error to {} and hiding the cause from the user.
-      this.failStartup(generation, (detail.startsWith('Linux Steam 接口桥') || detail.startsWith('Box64 转译组件')) ? detail :
+      this.failStartup(generation, detail.startsWith('Box64 转译组件') ? detail :
         'Wine 引擎准备失败，请重试');
     }
   }
@@ -1899,7 +1898,6 @@ export class WineEngineService {
       this.requireSelectedCpuModule(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine);
       this.syncManagedFexModules();
       this.syncManagedIcuModules();
-      await ManagedLinuxSteamBridgeService.synchronize(WINE_ROOT, PREFIX_DIR);
       if (prefixMatches && fontSubstitutesCurrent) return false;
       // Upgrade path for versions released before the prefix marker existed:
       // when the extracted runtime itself did not change and the prefix is
@@ -1964,7 +1962,6 @@ export class WineEngineService {
       this.requireSelectedCpuModule(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine);
       this.syncManagedFexModules();
       this.syncManagedIcuModules();
-      await ManagedLinuxSteamBridgeService.synchronize(WINE_ROOT, PREFIX_DIR);
       if (!this.writeVersionMarker(RUNTIME_VERSION_MARKER, bundledVersion)) {
         throw new Error('Unable to persist Wine runtime version marker');
       }

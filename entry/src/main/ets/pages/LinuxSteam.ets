@@ -1,8 +1,12 @@
-// Compatibility notice for saved 1.x routes. Never initialize the retired runtime.
+// Saved 1.x routes use the same Windows manager; no retired runtime is initialized.
 import { SteamComponentsPanel } from '../components/SteamComponentsPanel';
 
 @Entry
 @Component
 struct LinuxSteam {
-  build() { SteamComponentsPanel({ legacyLinux: true }) }
+  build() {
+    Column() {
+      SteamComponentsPanel({ legacyLinux: true })
+    }.width('100%').height('100%')
+  }
 }

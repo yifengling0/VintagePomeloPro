@@ -41,14 +41,10 @@ class HostResizeState {
 
 export class WineWindowManager {
   private static instance: WineWindowManager | null = null;
-  private externalToplevels: Map<number, string> = new Map();
-  private nativeSteamFullscreenRequests: Map<number, window.Window> = new Map();
-  private failedExternalStarts: Set<number> = new Set();
   private hostResizes: Map<number, HostResizeState> = new Map();
   private requestedGeometry: Map<number, RequestedHostGeometry> = new Map();
   private applyingGeometry: Set<number> = new Set();
   private foregroundAbilities: Set<number> = new Set();
-  private foregroundHostWaiters: Set<() => void> = new Set();
   private restoringAbilities: Map<number, Promise<void>> = new Map();
   private windowStage: window.WindowStage | null = null;
   private mainWindow: window.Window | null = null;
@@ -306,7 +302,7 @@ export class WineWindowManager {
   }
 
   setPresentationMode(mode: WinePresentationMode): void {
-    HostWindowTasks.getInstance().reset(true);
+    HostWindowTasks.getInstance().reset();
     this.fusionSubWindowHost = null;
     this.desktopEmbeddedHost = null;
     AppStorage.setOrCreate('desktopEmbeddedHost', false);
@@ -321,10 +317,10 @@ export class WineWindowManager {
     this.destroyed.clear();
     this.deferredRaiseTimers.forEach((timer: number): void => clearTimeout(timer));
     this.deferredRaiseTimers.clear();
-    this.loadedWindows.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.loadedWindows.delete(id); });
-    this.fullscreenWindows.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.fullscreenWindows.delete(id); });
-    this.pendingRaises.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.pendingRaises.delete(id); });
-    this.modalToplevelIds.forEach((id: number): void => { if (!this.externalToplevels.has(id)) this.modalToplevelIds.delete(id); });
+    this.loadedWindows.clear();
+    this.fullscreenWindows.clear();
+    this.pendingRaises.clear();
+    this.modalToplevelIds.clear();
     testNapi.setDesktopMode(this.isDesktopMode);
     hilog.info(DOMAIN, TAG, '[MW] setPresentationMode=%{public}s nativeDesktop=%{public}s',
       mode, this.isDesktopMode ? 'yes' : 'no');
@@ -457,7 +453,6 @@ export class WineWindowManager {
   // -- WineWindowAbility 调用: 注册 / 注销 --
 
   registerAbility(toplevelId: number, ctx: common.UIAbilityContext): void {
-    this.failedExternalStarts.delete(toplevelId);
     this.abilityContexts.set(toplevelId, ctx);
     hilog.info(DOMAIN, TAG, '[MW]  registerAbility #%{public}d (total=%{public}d)',
       toplevelId, this.abilityContexts.size);
@@ -613,78 +608,7 @@ export class WineWindowManager {
     PopupWindowManager.getInstance().raisePopups(toplevelId);
   }
 
-  // Caller must first establish ownership through the native Steam broker.
-  // The task key contains the window incarnation; reused numeric IDs cannot
-  // inherit a prior session's carrier or renderer policy.
-  manageExternalToplevel(key: string): boolean {
-    const task = HostWindowTasks.getInstance().snapshot().find((item: HostWindowTask): boolean => item.key === key);
-    if (!task || !['steam-linux', 'steam-game'].includes(task.source) || task.toplevelId <= 0 || this.destroyed.has(task.toplevelId)) return false;
-    const id = task.toplevelId;
-    if (this.externalToplevels.get(id) === key && (this.windows.has(id) || this.pendingStarts.has(id) ||
-      this.failedExternalStarts.has(id))) return true;
-    this.failedExternalStarts.delete(id);
-    this.externalToplevels.set(id, key);
-    testNapi.setToplevelIsolated(id, true);
-    this.startWineWindowAbility(id, JSON.stringify({ title: task.title }));
-    return true;
-  }
-  // A Steam desktop layout is still a fullscreen tablet carrier. The native
-  // client need not send xdg fullscreen, and its buffer size is not host geometry.
-  private isNativeSteamFullscreenToplevel(id: number): boolean {
-    const key = this.externalToplevels.get(id);
-    return key !== undefined && !this.destroyed.has(id) && !this.modalToplevelIds.has(id) &&
-      HostWindowTasks.getInstance().snapshot().some((task: HostWindowTask): boolean =>
-        task.key === key && task.toplevelId === id && task.owner === 0 &&
-        (task.source === 'steam-linux' || (task.source === 'steam-game' && this.fullscreenWindows.has(id))));
-  }
-
-  async applyNativeSteamFullscreen(id: number): Promise<void> {
-    const win = this.windows.get(id);
-    if (!win || !this.loadedWindows.has(id) || !this.isNativeSteamFullscreenToplevel(id) ||
-      this.nativeSteamFullscreenRequests.get(id) === win) return;
-    const key = this.externalToplevels.get(id);
-    const current = (): boolean => this.windows.get(id) === win &&
-      this.externalToplevels.get(id) === key && this.isNativeSteamFullscreenToplevel(id);
-    this.nativeSteamFullscreenRequests.set(id, win);
-    this.pendingRaises.delete(id);
-    this.cancelDeferredRaise(id);
-    try {
-      await win.setWindowLayoutFullScreen(true);
-      if (!current()) return;
-      await win.setSpecificSystemBarEnabled('status', false);
-      if (!current()) return;
-      await win.setSpecificSystemBarEnabled('navigationIndicator', false);
-      if (!current()) return;
-      // PC/desktop mode also needs the WMS immersive presentation; merely
-      // hiding decor or resizing to the display leaves the shell title visible.
-      if (DeviceCapabilityPolicy.usesManagedWineWindows()) await this.enterImmersiveFullscreen(win, id);
-      if (current()) hilog.info(DOMAIN, TAG, '[MW] native Steam fullscreen layout applied #%{public}d', id);
-    } catch (error) {
-      hilog.warn(DOMAIN, TAG, '[MW] native Steam fullscreen #%{public}d failed: %{public}s', id, JSON.stringify(error));
-    } finally {
-      if (this.nativeSteamFullscreenRequests.get(id) === win) this.nativeSteamFullscreenRequests.delete(id);
-    }
-  }
-
-  private async restoreNativeGameSystemBars(id: number, win: window.Window): Promise<void> {
-    const key = this.externalToplevels.get(id);
-    const current = (): boolean => this.windows.get(id) === win && !this.destroyed.has(id) &&
-      key !== undefined && this.externalToplevels.get(id) === key && !this.fullscreenWindows.has(id) &&
-      HostWindowTasks.getInstance().snapshot().some((task: HostWindowTask): boolean =>
-        task.key === key && task.source === 'steam-game');
-    try {
-      if (!current()) return;
-      await win.setWindowLayoutFullScreen(false);
-      if (!current()) return;
-      await win.setSpecificSystemBarEnabled('status', true);
-      if (!current()) return;
-      await win.setSpecificSystemBarEnabled('navigationIndicator', true);
-    } catch (error) {
-      hilog.warn(DOMAIN, TAG, '[MW] native game windowed bars #%{public}d failed: %{public}s', id, JSON.stringify(error));
-    }
-  }
-
-  private desktopOwns(id: number): boolean { return this.isDesktopMode && !this.externalToplevels.has(id); }
+  private desktopOwns(_id: number): boolean { return this.isDesktopMode; }
 
   private async restoreTask(task: HostWindowTask, current: () => boolean): Promise<boolean> {
     if (!current() || this.destroyed.has(task.toplevelId)) return false;
@@ -707,13 +631,6 @@ export class WineWindowManager {
       return true;
     }
     const win = this.windows.get(task.toplevelId);
-    if (!win && this.externalToplevels.get(task.toplevelId) === task.key) {
-      // A rejected carrier is recoverable from an explicit task click. Ownership
-      // polling must neither retry continuously nor close the guest process.
-      this.failedExternalStarts.delete(task.toplevelId);
-      await this.startWineWindowAbility(task.toplevelId, JSON.stringify({ title: task.title }));
-      return current() && !this.destroyed.has(task.toplevelId) && !this.failedExternalStarts.has(task.toplevelId);
-    }
     if (!win) return false;
     InputDispatcher.getInstance().releaseAll('host-task-switch');
     try {
@@ -744,32 +661,6 @@ export class WineWindowManager {
     // Set insertion order tracks the latest foreground event on multiwindow PCs.
     this.foregroundAbilities.delete(id);
     if (foreground && !this.destroyed.has(id)) this.foregroundAbilities.add(id);
-    this.foregroundHostWaiters.forEach((wake: () => void): void => wake());
-  }
-
-  // A splash can disappear before AMS foregrounds the Steam carrier again.
-  // Wait for that lifecycle handoff, with one bounded retry and no background
-  // launch polling. Explicit navigation and window reincarnation cancel it.
-  private awaitForegroundHost(current: () => boolean): Promise<boolean> {
-    return new Promise<boolean>((resolve): void => {
-      let timer: number = -1;
-      const wake = (): void => {
-        let available = this.desktopAbilityForeground && this.desktopAbilityCtx !== null;
-        this.foregroundAbilities.forEach((id: number): void => {
-          if (!this.destroyed.has(id) && this.abilityContexts.has(id)) available = true;
-        });
-        if (current() && !available) return;
-        if (timer >= 0) clearTimeout(timer);
-        this.foregroundHostWaiters.delete(wake);
-        resolve(current() && available);
-      };
-      this.foregroundHostWaiters.add(wake);
-      timer = setTimeout((): void => {
-        this.foregroundHostWaiters.delete(wake);
-        resolve(false);
-      }, 600);
-      wake();
-    });
   }
 
   private startHostAbility(want: Want): Promise<void> {
@@ -844,7 +735,7 @@ export class WineWindowManager {
   }
 
   private raiseManagedWindow(id: number): void {
-    if (this.fullscreenWindows.has(id) || this.isNativeSteamFullscreenToplevel(id)) return;
+    if (this.fullscreenWindows.has(id)) return;
     const win = this.getWindow(id);
     if (!win) return;
     win.raiseToAppTop().catch((err: Error) => {
@@ -857,10 +748,6 @@ export class WineWindowManager {
     const win = this.windows.get(toplevelId);
     if (!win) return;
     this.loadedWindows.add(toplevelId);
-    if (this.isNativeSteamFullscreenToplevel(toplevelId)) {
-      void this.applyNativeSteamFullscreen(toplevelId);
-      return;
-    }
 
     if (this.fullscreenWindows.has(toplevelId)) {
       this.pendingRaises.delete(toplevelId);
@@ -946,14 +833,7 @@ export class WineWindowManager {
 
   // -- toplevel 事件分发 --
   private onToplevelEvent(id: number, event: string, data: string): void {
-    let linuxSteam = false;
-    if (event === 'created') {
-      try {
-        const initial = JSON.parse(data) as Record<string, string | number>;
-        linuxSteam = !!smokeNapi.isLinuxSteamProcess?.(Number(initial.clientPid ?? 0));
-      } catch (_) {}
-    }
-    HostWindowTasks.getInstance().onEvent(id, event, data, linuxSteam);
+    HostWindowTasks.getInstance().onEvent(id, event, data);
     if (event === 'minimized') InputDispatcher.getInstance().releaseAll('window-minimized');
     hilog.info(DOMAIN, TAG, '[MW] onToplevelEvent #%{public}d event=%{public}s hasWindow=%{public}s',
       id, event, this.windows.has(id) ? 'yes' : 'no');
@@ -1006,10 +886,7 @@ export class WineWindowManager {
           }
         } catch (_) {
         }
-        if (linuxSteam) {
-          const task = HostWindowTasks.getInstance().snapshot().find((item: HostWindowTask): boolean => item.toplevelId === id);
-          if (task) this.manageExternalToplevel(task.key);
-        } else if (this.desktopOwns(id)) {
+        if (this.desktopOwns(id)) {
           hilog.info(DOMAIN, TAG, '[MW] Desktop mode: toplevel #%{public}d created, skipping Ability', id);
         } else {
           hilog.info(DOMAIN, TAG, '[MW] managed windows -> startWineWindowAbility(#%{public}d)', id);
@@ -1281,8 +1158,6 @@ export class WineWindowManager {
       return;
     }
 
-    if (this.isNativeSteamFullscreenToplevel(toplevelId) &&
-      ['geometry', 'resize', 'limits', 'maximized', 'unmaximized', 'unfullscreen'].includes(event)) return;
 
     // Pad 多窗口 (subWindow 承载): 系统接口差异适配 —
     //   title     → subWindow decorEnabled:false 时 setWindowTitle 报 1300002,
@@ -1435,10 +1310,6 @@ export class WineWindowManager {
         });
         break;
       case 'fullscreen':
-        if (this.isNativeSteamFullscreenToplevel(toplevelId)) {
-          void this.applyNativeSteamFullscreen(toplevelId);
-          break;
-        }
         // PC 模式游戏 xdg fullscreen: OHOS 沉浸式全屏 (铺满屏幕、盖住 dock)。
         // ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER (API 14+): 进入沉浸
         // 全屏且鼠标悬停屏幕边缘热区时不唤出标题栏/关闭条/Dock — 默认
@@ -1446,7 +1317,6 @@ export class WineWindowManager {
         this.enterImmersiveFullscreen(win, toplevelId);
         break;
       case 'unfullscreen':
-        if (this.externalToplevels.has(toplevelId)) void this.restoreNativeGameSystemBars(toplevelId, win);
         // 退出沉浸式全屏, 恢复普通窗口; 尺寸由 C++ 侧 configure(preFs)
         // → resize 事件恢复 (tl_unset_fullscreen 用 preFs 尺寸)
         this.exitImmersiveFullscreen(win, false, toplevelId).catch((err: Error) => {
@@ -1483,7 +1353,7 @@ export class WineWindowManager {
       return Promise.resolve();
     }
     if (this.fusionSubWindowHost === null) this.fusionSubWindowHost = this.resolveFusionSubWindowHost();
-    if (this.fusionUsesSubWindow() && !this.externalToplevels.has(id)) {
+    if (this.fusionUsesSubWindow()) {
       this.startFusionSubWindow(id, data);
       return Promise.resolve();
     }
@@ -1521,34 +1391,16 @@ export class WineWindowManager {
     hilog.info(DOMAIN, TAG, '[MW] startAbility want: bundle=%{public}s ability=%{public}s params=%{public}s',
       want.bundleName ?? '', want.abilityName ?? '', JSON.stringify(want.parameters));
 
-    const externalKey = this.externalToplevels.get(id);
-    const foregroundRevision = externalKey ? HostWindowTasks.getInstance().foregroundRevision() : -1;
-    const current = (): boolean => externalKey !== undefined && !this.destroyed.has(id) &&
-      this.externalToplevels.get(id) === externalKey &&
-      HostWindowTasks.getInstance().isForegroundSelectionCurrent(foregroundRevision, externalKey);
-    const start = async (): Promise<void> => {
-      try { await this.startHostAbility(want); }
-      catch (error) {
-        if ((error as BusinessError).code !== 201 || !current() ||
-          !await this.awaitForegroundHost(current) || !current()) throw (error as Error);
-        hilog.info(DOMAIN, TAG, '[MW] retry external carrier after foreground handoff #%{public}d', id);
-        await this.startHostAbility(want);
-      }
-    };
-    return start().then(() => {
+    return this.startHostAbility(want).then(() => {
       hilog.info(DOMAIN, TAG, '[MW] OK startAbility #%{public}d resolved (AMS accepted)', id);
       // AMS acknowledgement precedes onWindowStageCreate. Keep the reservation
       // until registerWindow/destroy so native ownership polling cannot launch
       // a duplicate Ability and close the live surface on its rejected request.
     }).catch((err: Error) => {
-      if (externalKey && (this.destroyed.has(id) || this.externalToplevels.get(id) !== externalKey)) return;
+      if (this.destroyed.has(id)) return;
       hilog.error(DOMAIN, TAG, '[MW] ERR startAbility #%{public}d REJECTED: %{public}s',
         id, JSON.stringify(err));
       this.pendingStarts.delete(id);
-      if (this.externalToplevels.has(id)) {
-        this.failedExternalStarts.add(id);
-        return;
-      }
       // 通知 Wine 窗口创建失败
       hilog.info(DOMAIN, TAG, '[MW] -> sendToplevelClose #%{public}d (fail recovery)', id);
       testNapi.sendToplevelClose(id);
@@ -1629,7 +1481,6 @@ export class WineWindowManager {
   private onToplevelDestroyed(id: number): void {
     hilog.info(DOMAIN, TAG, '[MW] onToplevelDestroyed #%{public}d', id);
     this.destroyed.add(id);
-    const external = this.externalToplevels.has(id);
     this.clearPointerLockFor(id);
 
     // Desktop 模式: root 销毁 → 关闭 DesktopAbility, 回到主页面。
@@ -1667,11 +1518,6 @@ export class WineWindowManager {
       return;
     }
 
-    if (external) {
-      this.externalToplevels.delete(id);
-      this.failedExternalStarts.delete(id);
-      testNapi.setToplevelIsolated(id, false);
-    }
 
     // Managed-window compatibility path
     if (!this.abilityContexts.has(id) && !this.pendingStarts.has(id)) {
@@ -1850,7 +1696,6 @@ export class WineWindowManager {
     this.desktopAbilityRootId = rootId;
     this.desktopAbilityRunning = true;
     this.desktopAbilityForeground = true;
-    this.foregroundHostWaiters.forEach((wake: () => void): void => wake());
     // Lifecycle confirmation supersedes an OS request still awaiting completion.
     this.desktopAbilityRequest = null;
     HostWindowTasks.getInstance().markDesktopForeground();

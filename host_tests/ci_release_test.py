@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Offline source provenance and unsigned/signed packaging regression tests."""
+import io
+import sys
 import importlib.util
 import hashlib
 import json
@@ -11,6 +13,8 @@ import unittest
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from v2_product_contract import REQUIRED_GUEST, REQUIRED_HOST
 spec = importlib.util.spec_from_file_location("ci_release", ROOT / "scripts/verify_ci_release.py")
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
@@ -167,17 +171,20 @@ class SourceTests(unittest.TestCase):
                     "submodules": submodules}
         hap = self.root / "test.hap"
         def create(app, machine=183, stale_wine=False, corrupt_runtime=False,
-                   include_version=True, stale_mesa=False, missing_gnu_host=False):
+                   include_version=True, stale_mesa=False, missing_memory_probe=False):
+            guest = io.BytesIO()
+            with zipfile.ZipFile(guest, 'w') as wine:
+                for name in REQUIRED_GUEST: wine.writestr(name, b'guest')
             with zipfile.ZipFile(hap, "w") as archive:
                 archive.writestr("module.json", json.dumps({"app": dict(app, minAPIVersion=60100023, targetAPIVersion=60100023)}))
                 header = b"\x7fELF\x02\x01" + bytes(12) + machine.to_bytes(2, "little")
                 libraries = ["libentry.so", "libwine_child.so", "libwinehua_vtest_server.so",
                              "libvirglrenderer.so.1", "libvirgl_child.so", "libsmoke_napi.so"]
-                if not missing_gnu_host:
-                    libraries.append('libsteamohos_gnu_child.so')
-                for name in libraries:
+                if not missing_memory_probe:
+                    libraries.append('libwinehua_native_memory_probe.so')
+                for name in set(libraries) | set(REQUIRED_HOST):
                     archive.writestr("libs/arm64-v8a/" + name, header)
-                archive.writestr("resources/rawfile/wine-data.zip", b"fixture")
+                archive.writestr("resources/rawfile/wine-data.zip", guest.getvalue())
                 version = {module: submodules["thirdparty/" + module][:10] for module in ('wine-valve', 'fex')}
                 version['arch'] = 'arm64-v8a:aarch64'
                 if stale_wine:
@@ -192,7 +199,7 @@ class SourceTests(unittest.TestCase):
                 archive.writestr("resources/rawfile/wine-runtime-manifest.json", json.dumps({
                     "schemaVersion": 1, "payload": "wine-data.zip",
                     "sourceBuild": provenance,
-                    "payloadSha256": hashlib.sha256(b"stale" if corrupt_runtime else b"fixture").hexdigest()
+                    "payloadSha256": hashlib.sha256(b"stale" if corrupt_runtime else guest.getvalue()).hexdigest()
                 }))
         create(APP)
         self.assertEqual(release.verify_artifact(hap, manifest)["app"], APP)
@@ -208,7 +215,7 @@ class SourceTests(unittest.TestCase):
         create(APP, stale_mesa=True)
         with self.assertRaisesRegex(ValueError, 'runtime submodule.*mesa'):
             release.verify_artifact(hap, manifest)
-        create(APP, missing_gnu_host=True)
+        create(APP, missing_memory_probe=True)
         with self.assertRaises(KeyError):
             release.verify_artifact(hap, manifest)
         create(APP, corrupt_runtime=True)
@@ -230,9 +237,9 @@ class PackagingTests(unittest.TestCase):
         # has dedicated component tests, and the fake hvigor below emits no ELF.
         for name in ('normalize_runtime_identity.py', 'runtime_library_guard.py',
                      'prepare_steam_gpu_dependency.py', 'prepare_windows_steam_runtime.py',
-                     'prepare_linux_runtime_components.py',
+                     'v2_product_contract.py',
                      'check_runtime_components.py', 'verify_x11_runtime.py',
-                     'prepare_release_offline_packages.py'):
+                     'retire_linux_build_outputs.py'):
             write(self.root / 'scripts' / name, '# packaging test validator stub\n')
         write(self.root / "AppScope/app.json5", json.dumps({"app": APP}))
         write(self.root / "entry/build-profile.json5", '{"abiFilters": ["arm64-v8a"]}')

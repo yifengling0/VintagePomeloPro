@@ -21,7 +21,7 @@ class BuiltinIdentity(unittest.TestCase):
         stamp = 'python3 "$SCRIPT_DIR/stamp_wine_builtin_identity.py" "$wine_data"'
         self.assertEqual(script.count(stamp), 1)
         self.assertGreater(script.index(stamp), script.index('python3 "$SCRIPT_DIR/icu_compat_runtime.py" stage'))
-        self.assertGreater(script.index(stamp), script.index('python3 "$SCRIPT_DIR/build_linux_steam_pe_components.py"'))
+        self.assertNotIn('build_linux_steam_pe_components.py', script)
         self.assertLess(script.index(stamp), script.index('python3 "$SCRIPT_DIR/source_build_contract.py"'))
         self.assertIn('$(SCRIPTS)/stamp_wine_builtin_identity.py', (ROOT / 'Makefile').read_text())
 

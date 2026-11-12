@@ -316,8 +316,8 @@ static void inspect_driver_directory(const char *path)
     }
     closedir(dir);
 }
-#ifdef STEAMOHOS_PROBE_EMBEDDED
-int SteamOhosNativeBufferMemoryMain(void)
+#ifdef WINEHUA_PROBE_EMBEDDED
+int WinehuaNativeBufferMemoryMain(void)
 #else
 int main(void)
 #endif

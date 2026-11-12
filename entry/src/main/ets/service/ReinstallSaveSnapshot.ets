@@ -1,7 +1,7 @@
 // Explicit local maintenance operation only; never restored by startup.
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { linuxSteamDownloadHome } from './LinuxSteamDiagnosticData';
+import { publicDownloadDirectory } from './PublicDownloadDirectory';
 import { ensureSmokeDirectory, writeSmokeText } from './ManagedSmokePayloadService';
 import { hilog } from './LogService';
 
@@ -49,7 +49,7 @@ async function copyTree(source: string, target: string, totals: SnapshotTotals, 
 }
 
 export async function preserveReinstallSaves(context: common.Context): Promise<void> {
-  const destination = (await linuxSteamDownloadHome(context)) + '/ReinstallPreserved';
+  const destination = (await publicDownloadDirectory(context)) + '/ReinstallPreserved';
   if (!ensureSmokeDirectory(destination)) throw new Error('Cannot create save snapshot');
   const marker = destination + '/native-verified.json';
   try { fs.unlinkSync(marker); } catch (_) {}

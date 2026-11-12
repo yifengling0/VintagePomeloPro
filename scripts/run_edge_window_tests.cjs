@@ -172,44 +172,6 @@ async function carrierTests(){
   assert.equal(wm.isHostWindowResizing(77),false,'unresponsive client cannot retain resize state forever');
   console.log('Managed border resize state, Wine acknowledgment, feedback isolation and bounded teardown PASS');
 
-  const calls=[];let resumeLayout;
-  const nativeWin={setWindowLayoutFullScreen:enabled=>new Promise(resolve=>{calls.push(enabled ? 'layout' : 'windowed');resumeLayout=resolve;}),
-    setSpecificSystemBarEnabled:async(name,enabled)=>calls.push([name,enabled]),
-    maximize:async mode=>calls.push(['maximize',mode]),resize:()=>calls.push('resize')};
-  nativeTasks=[{key:'88:1',toplevelId:88,source:'steam-linux',owner:0}];
-  wm.externalToplevels.set(88,'88:1');wm.registerWindow(88,nativeWin);
-  await wm.applyNativeSteamFullscreen(88);assert.equal(calls.length,0,'wait until content/decor is loaded');
-  wm.loadedWindows.add(88);setting='false';policy.refreshPcMode(ctx);
-  const first=wm.applyNativeSteamFullscreen(88);await wm.applyNativeSteamFullscreen(88);
-  assert.deepEqual(calls,['layout'],'foreground/load race shares one request');
-  resumeLayout();await first;
-  assert.deepEqual(calls,['layout',['status',false],['navigationIndicator',false]],'tablet uses fullscreen layout and hides both system bars');
-  wm.applyEvent(88,'resize',JSON.stringify({w:640,h:480}));
-  assert.equal(calls.includes('resize'),false,'client buffer cannot shrink the immersive carrier');
-  calls.length=0;setting='true';policy.refreshPcMode(ctx);
-  const pc=wm.applyNativeSteamFullscreen(88);resumeLayout();await pc;
-  assert.equal(calls.at(-1)[0],'maximize','desktop mode requests actual WMS immersive presentation');
-  calls.length=0;const stale=wm.applyNativeSteamFullscreen(88);
-  nativeTasks=[{key:'88:2',toplevelId:88,source:'steam-linux',owner:0}];resumeLayout();await stale;
-  assert.deepEqual(calls,['layout'],'reused ID cannot receive a stale fullscreen request');
-  calls.length=0;
-  for(const task of [{key:'88:1',toplevelId:88,source:'steam-game',owner:0},
-    {key:'88:1',toplevelId:88,source:'steam-linux',owner:9}]) {
-    nativeTasks=[task];await wm.applyNativeSteamFullscreen(88);
-  }
-  assert.equal(calls.length,0,'game windows and owned dialogs keep their own presentation');
-  nativeTasks=[{key:'88:1',toplevelId:88,source:'steam-game',owner:0}];
-  wm.fullscreenWindows.add(88);setting='false';policy.refreshPcMode(ctx);
-  const gameFullscreen=wm.applyNativeSteamFullscreen(88);resumeLayout();await gameFullscreen;
-  assert.deepEqual(calls,['layout',['status',false],['navigationIndicator',false]],'a fullscreen native game hides tablet system bars');
-  calls.length=0;wm.fullscreenWindows.delete(88);
-  const gameWindowed=wm.restoreNativeGameSystemBars(88,nativeWin);resumeLayout();await gameWindowed;
-  assert.deepEqual(calls,['windowed',['status',true],['navigationIndicator',true]],'returning to windowed restores system bars');
-  calls.length=0;wm.fullscreenWindows.add(88);
-  const replacedGame=wm.applyNativeSteamFullscreen(88);
-  nativeTasks=[{key:'88:3',toplevelId:88,source:'steam-game',owner:0}];resumeLayout();await replacedGame;
-  assert.deepEqual(calls,['layout'],'a replaced game cannot inherit stale bar changes');
-  console.log('Native Steam and fullscreen game carriers, windowed restoration, ownership and stale requests PASS');
 
 
 }

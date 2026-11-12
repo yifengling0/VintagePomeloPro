@@ -1,8 +1,6 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
 import util from '@ohos.util';
-import { SteamVdfNode, parseSteamVdf } from '../steam/SteamLocalRules';
 
-const BASE = '/data/storage/el2/base/files/steamohos-native';
 const FILES = '/data/storage/el2/base/files';
 const TAIL_BYTES = 65536;
 const LOG_TAIL_BYTES = 262144;
@@ -51,25 +49,6 @@ export function readDiagnosticTail(path: string, limit: number, whole: boolean =
   } finally { fs.closeSync(file); }
 }
 
-// Read configuration for routing evidence, but export only numeric AppIDs and
-// tool names/priorities. The complete config can contain account credentials.
-export function summarizeSteamToolSelection(text: string): string {
-  let node: SteamVdfNode | undefined = parseSteamVdf(text);
-  for (const key of ['installconfigstore', 'software', 'valve', 'steam', 'compattoolmapping']) {
-    node = node?.child(key);
-  }
-  const lines: string[] = [];
-  let count = 0;
-  node?.children.forEach((mapping: SteamVdfNode, id: string): void => {
-    if (!/^(?:0|[1-9][0-9]{0,9})$/.test(id) || count++ >= 128) return;
-    const name = mapping.text('name');
-    const priority = mapping.text('priority');
-    if (name.length > 128 || /[\x00-\x1f]/.test(name) || !/^[0-9]{0,10}$/.test(priority)) return;
-    lines.push(JSON.stringify({ appId: id, tool: name, priority }));
-  });
-  return lines.length > 0 ? lines.join('\n') : 'No explicit compatibility-tool mappings';
-}
-
 // Shallow, allowlisted discovery only: never recurse into games, userdata,
 // browser profiles, crash dumps, registry files or Steam account databases.
 export function diagnosticDirectory(path: string): boolean {
@@ -111,39 +90,6 @@ export async function collectSteamStartupDiagnostics(downloadRoot: string = ''):
     }
     catch (_) { text += `\n=== ${label}: unavailable ===\n`; }
   };
-  await append('session', `${BASE}/session/state.json`, 4096);
-  await append('native startup', `${BASE}/session/native-startup.json`, 4096);
-  await append('native session result', `${BASE}/session/native-result.private.json`, 1048576, true);
-  await append('window binding', '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session/binding.json', 4096);
-  await append('Wine window', '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session/wine-window-state.json', 4096);
-  const legacyLaunch = '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session';
-  const currentLaunch = `${BASE}/session`;
-  const wineTemp = '/data/storage/el2/base/files/.wine/drive_c/windows/temp';
-  await append('Steam API bridge client', `${wineTemp}/hmosdeck-steam-api-state.json`, 4096);
-  await append('Steam API bridge server', `${wineTemp}/hmosdeck-steam-bridge-state.json`, 4096);
-  for (const launch of [legacyLaunch, currentLaunch]) {
-    const label = launch === legacyLaunch ? 'legacy ' : '';
-    await append(label + 'last game launch', `${launch}/last-game-launch.json`, 4096);
-    await append(label + 'last client helper', `${launch}/last-client-helper.json`, 4096);
-    // The last game can be a successful launch after an earlier failure. Keep
-    // recent per-game results, including the readiness probe's own output, and
-    // keep helpers separate so install scripts cannot displace game evidence.
-    // These compact JSON files must be read whole: a tail starting inside their
-    // single line would otherwise silently discard every diagnostic field.
-    if (diagnosticDirectory(launch)) {
-      for (const name of diagnosticNames(launch, /^game-launch-[1-9][0-9]{0,9}\.json$/, 8))
-        await append(`${label}game launch ${name}`, `${launch}/${name}`, 4096, true);
-      for (const name of diagnosticNames(launch, /^gnu-proton-[1-9][0-9]{0,9}\.json$/, 8))
-        await append(`${label}GNU Proton game result ${name}`, `${launch}/${name}`, 1048576, true);
-      for (const name of diagnosticNames(launch, /^gnu-proton-helper-(?:install_script|driver_query)-(?:0|[1-9][0-9]{0,9})\.json$/, 4))
-        await append(`${label}GNU Proton helper result ${name}`, `${launch}/${name}`, 262144, true);
-    }
-  }
-  await append('GNU Proton runtime', `${BASE}/proton-probe/probe-runtime.log`, LOG_TAIL_BYTES);
-
-  await append('library state', `${currentLaunch}/library-state.private.json`, 32768);
-  await append('Steam supervisor', `${BASE}/client-tmp/deck-session-state.json`, 4096);
-  await append('native output', `${BASE}/client-native.private.log`);
   // Persisted capture survives app restarts. Also include older releases'
   // temporary capture, including yesterday's crash, rather than just today.
   for (const directory of [`${FILES}/wine-logs`, '/data/storage/el2/base/temp']) {
@@ -164,10 +110,6 @@ export async function collectSteamStartupDiagnostics(downloadRoot: string = ''):
     for (const name of diagnosticNames(temp, /^[^\/\\\x00-\x1f]{1,180}_(?:d3d9|d3d11|dxgi)\.log$/i, 8)) {
       if (dxvkFiles++ >= 16) { text += '\nOlder DXVK logs omitted (maximum 16).\n'; break; }
       await append(`DXVK ${prefix}/${name}`, `${temp}/${name}`);
-    }
-    if (prefix !== prefixes[0]) {
-      await append(`Steam API client ${prefix}`, `${temp}/hmosdeck-steam-api-state.json`, 4096);
-      await append(`Steam API server ${prefix}`, `${temp}/hmosdeck-steam-bridge-state.json`, 4096);
     }
   }
   const steamLogs = ['console_log.txt', 'gameprocess_log.txt', 'content_log.txt', 'connection_log.txt',
@@ -210,19 +152,6 @@ export async function collectSteamStartupDiagnostics(downloadRoot: string = ''):
   });
   for (const root of windowsRoots.slice(0, 4)) await appendSteam(`Windows Steam ${root}`, root);
   if (windowsRoots.length > 4) text += '\nOlder Windows Steam clients omitted (maximum 4).\n';
-  try {
-    // Read the complete, short root marker; never interpret a truncated path.
-    const root = readDiagnosticTail(`${BASE}/external-root.path`, 4096, true).trim();
-    if (!root.startsWith('/') || !root.endsWith('/SteamLinuxARM64') || root.split('/').includes('..') ||
-      /[\r\n\u0000]/.test(root)) throw new Error('invalid root');
-    await appendSteam('Linux ARM64 Steam', `${root}/client/.steam/steam`, 131072);
-    try {
-      const config = readDiagnosticTail(`${root}/client/.steam/steam/config/config.vdf`, 1048576, true);
-      text += '\n=== compatibility tool selection ===\n' +
-        redactSteamDiagnostic(summarizeSteamToolSelection(config)) + '\n';
-      found = true;
-    } catch (_) { text += '\n=== compatibility tool selection: unavailable ===\n'; }
-  } catch (_) { text += '\nSteam log root unavailable\n'; }
   text += `\nDiagnostic budget: ${REPORT_BYTES - remaining}/${REPORT_BYTES} bytes; max 4 Wine files per location, 8 DXVK files per prefix, 4 Windows clients.\n`;
   return found ? text : '';
 }

@@ -25,3 +25,15 @@
 - Windows 回归新增实际客户端服务与 Deck 路由/列表/手动扫描测试，并纳入 make test-windows-steam 和 CI 共用入口。原 Linux 专用后端测试仍保留到 P2/P3，已退役双客户端 UI 用新产品行为测试替换。
 - 验证：P0 在既有独立检出运行完整 make test-game-runtime 通过；本批 Windows helper、C++参数、事务导入、中文多库、服务、Deck 路由和布局回归通过。剩余 Linux 后端专用 Deck 测试与 preflight 单测通过。P1 完整 HAP、远端 CI 和 Mini 验收待后续记录。
 - 此提交只完成 UI/服务拆分；GNU native、旧诊断入口和载荷尚在，不能作为最终 2.0 发布包。用户 Linux 库/前缀/存档没有清理或迁移。
+
+
+## P2/P3：本地退役 Linux 运行线
+
+- 遵照用户新要求：停止线上 CI，本批仅本地提交、调试与构建，暂不推远端。
+- 删除 Linux Steam/GNU Proton ArkTS 服务、模型、原生 loader/broker/NAPI 与 CMake targets；旧路由保留说明，不读取或删除旧用户库、前缀、配置或存档。
+- WineEngine 不再准备 Linux Steam bridge；删去 0065/0069 Linux 注册表桥补丁及组装注入。0069-wow64-current-thread-context 等公共修复保留，不能按数字前缀批量删补丁。只在隔离产品树精确逆转这两份桥补丁，未改开发树 vendor 修改。
+- Windows Steam 和 OHOS Wine 使用既有 AppSession 输入/会话管理；删除仅供 Linux broker 的外部窗口与虚拟输入所有者，保留鼠标表面边界、逐窗口输入空间和手机/平板布局修复。
+- 通用 NativeBuffer 探针移入 direct/，不再依赖 Linux 原生客户端目录。保留 ARM64EC FEX、DXVK/WineD3D/VKD3D、图形/媒体/字体闭包、会员功能和 Windows ZIP 导入。
+- Make/assemble/package/preflight 解除 Linux 下载和离线包依赖。构建前只清理本检出的已退役生成资源和旧 CMake 模块，不清理共享编译缓存或设备用户数据；最终 HAP 检查拒绝 Linux rawfile、GNU helper、lsteamclient 和桥接目录，并确认核心 Wine/FEX/Windows 模块。
+- 为本地增量树建立 local-effective-source 来源记录，包含所有 vendor 有效差异与新增源码字节，并在构建期间重验。它不冒充干净检出；默认 CI 干净源码门禁保持严格。Wine 受影响构建使用固定 build/wine-v2 独立身份，复用其他依赖缓存。
+- 已验证：ArkTS 编译通过；make test-game-runtime 完整通过（Windows 导入/多库/冷热服务/Deck、鼠标漂移回归、字体、窗口/图形生命周期、IME、诊断导出）。本批最终 HAP、源码来源闭包与 Mini 实测仍待下列后续记录。

@@ -234,6 +234,7 @@ PY
     fi
     set_sdk_versions
     set_abi_filters
+    python3 "$SCRIPT_DIR/v2_product_contract.py" --build-profile "$WINEHUA/entry/build-profile.json5"
 
     # 移除 hnpPackages (所有平台统一用 rawfile zip)
     local module_json="$WINEHUA/entry/src/main/module.json5"
@@ -296,14 +297,9 @@ with open('$module_json', 'w') as f:
     python3 "$SCRIPT_DIR/runtime_library_guard.py" \
         "$WINEHUA/entry/libs" "$WINEHUA/entry/src/main/resources/rawfile"
     cd "$WINEHUA"
+    python3 "$SCRIPT_DIR/v2_product_contract.py" --source-layout
     python3 "$SCRIPT_DIR/prepare_steam_gpu_dependency.py"
     python3 "$SCRIPT_DIR/prepare_windows_steam_runtime.py" --verify-only
-    if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
-        python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --verify-only
-        python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" \
-            --output-dir "${RELEASE_OFFLINE_DIR:-$BUILD_DIR/release-offline}" \
-            --downloads "${STEAM_ARCHIVE_CACHE:-$BUILD_DIR/cache/steam-official}"
-    fi
     # Match the validated distribution build; Hvigor otherwise defaults to Debug.
     hvigorw --mode module -p product=default -p buildMode=release assembleHap || { err "hvigorw assembleHap 失败"; return 1; }
 
@@ -319,11 +315,7 @@ with open('$module_json', 'w') as f:
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
     python3 "$SCRIPT_DIR/prepare_windows_steam_runtime.py" --hap "$unsigned_hap"
-    if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
-        python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py" --hap "$unsigned_hap"
-        python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" --verify-only \
-            --output-dir "${RELEASE_OFFLINE_DIR:-$BUILD_DIR/release-offline}" --hap "$unsigned_hap"
-    fi
+    python3 "$SCRIPT_DIR/v2_product_contract.py" --hap "$unsigned_hap"
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
     if [ "$WINE_ARCH" = aarch64 ] || [ "$NATIVE_ARCH" = x86_64 ]; then
         python3 "$SCRIPT_DIR/verify_x11_runtime.py" --hap "$unsigned_hap" --native-arch "$NATIVE_ARCH"

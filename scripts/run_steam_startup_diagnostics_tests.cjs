@@ -41,109 +41,15 @@ vm.runInNewContext(ts.transpileModule(source, {compilerOptions: {
   throw Error(id);
 }});
 async function runTests() {
-const {collectSteamStartupDiagnostics: collect, redactSteamDiagnostic: redact, summarizeSteamToolSelection: summarize} = exportsObject;
+const {collectSteamStartupDiagnostics: collect, redactSteamDiagnostic: redact} = exportsObject;
 const base = '/data/storage/el2/base/files/steamohos-native';
-const steam = '/storage/test/SteamLinuxARM64';
 const set = (name, value) => files.set(name, Buffer.from(value));
-assert.equal(await collect(), '', 'no Steam files cannot add a misleading historic report');
-set(base + '/session/state.json', '{"state":"starting"}');
-set(base + '/session/native-startup.json', '{"stage":"steam_client_starting"}');
-set(base + '/session/native-result.private.json', JSON.stringify({ipcPreflight:{stage:'signal',signal:11,output:'preflight failure'}}));
-set(base + '/session/game-launch-413150.json', '{"appId":"413150","status":"canonical-session-result"}');
-set(base + '/external-root.path', steam);
-set(steam + '/client/.steam/steam/logs/cef_log.txt', 'GL init failed\nAuthorization: Bearer secret123\naccess_token="secret456"\naccountname=testuser\n76561198012345678 user@example.test\nRenderer terminated\n');
-set(base + '/client-native.private.log', 'password=' + 's'.repeat(70000) + '\nNative loader failure errno=13\n');
-let result = await collect();
-assert.match(result, /steam_client_starting/);
-assert.match(result, /preflight failure/);
-assert.match(result, /canonical-session-result/);
-assert.match(result, /Native loader failure errno=13/);
-assert.match(result, /GL init failed/);
-for (const secret of ['secret123','secret456','testuser','76561198012345678','user@example.test','s'.repeat(80)]) assert.ok(!result.includes(secret), secret);
-assert.ok(reads.every(r => r.length <= 65536), 'per-file reads are bounded');
-assert.ok(result.length < 600000);
-assert.equal(descriptors.size, 0, 'all open handles are closed');
-assert.ok(!opened.some(p => /loginusers|Cookies|steamapps|userdata/.test(p)), 'fixed log allowlist cannot read credentials or games');
-shortReads = true;
-assert.equal((await collect()).replace(/Collected=.*\n/, ''), result.replace(/Collected=.*\n/, ''), 'short successful reads must not truncate the tail');
-shortReads = false;
-links.add(base + '/client-native.private.log');
-result = await collect();
-assert.ok(!result.includes('Native loader failure'));
-links.clear();
-set(base + '/external-root.path', '/storage/test/../other/SteamLinuxARM64');
-reads.length = 0; await collect();
-assert.ok(!reads.some(r => r.name.includes('cef_log.txt')), 'invalid root is never followed');
-set(base + '/external-root.path', 'x'.repeat(5000));
-assert.match(await collect(), /Steam log root unavailable/);
-assert.equal(redact('password: "x"\nrefresh-token=abc\nOK\n'), 'password: <redacted>\nrefresh-token=<redacted>\nOK\n');
-assert.equal(redact('-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----'), '<private key>');
-console.log('Steam diagnostic export: bounded and partial reads, tail boundary, credential redaction, missing files, fixed allowlist, path validation and closed handles PASS');
-
-const date = new Date();
-const day = date.getFullYear().toString() + (date.getMonth() + 1).toString().padStart(2, '0') +
-  date.getDate().toString().padStart(2, '0');
-const stderr = '/data/storage/el2/base/temp/wine_stderr_' + day + '.log';
-set(stderr, 'older lines\n'.repeat(7000) + '=== PID=340 ===\nUnhandled exception c0000005\npassword=never-export\n');
-result = await collect();
-assert.match(result, /=== Wine stderr .*wine_stderr_/);
-assert.match(result, /=== PID=340 ===/);
-assert.match(result, /Unhandled exception c0000005/);
-assert.ok(!result.includes('never-export'));
-assert.ok(reads.every(r => r.length <= 65536));
-links.add(stderr);
-assert.ok(!(await collect()).includes('Unhandled exception c0000005'), 'Reject a replaced stderr symlink');
-links.delete(stderr); files.delete(stderr);
-assert.equal(descriptors.size, 0);
-console.log('Fixed daily Wine stderr tail, exception preservation, bounded reads, redaction and link rejection: PASS');
-
-// A content/compatibility error before the broker sees a game must survive
-// export even when console_log is overwhelmed by hardware-probe messages.
-set(base + '/external-root.path', steam);
-set(steam + '/client/.steam/steam/logs/console_log.txt', 'udev: probe\n'.repeat(12000));
-set(steam + '/client/.steam/steam/logs/content_log.txt',
-  'Failed updating app 227300: Missing file privileges runtime/amd64/etc\n');
-set(steam + '/client/.steam/steam/logs/gameprocess_log.txt',
-  'AppID 227300 starting\nHMOSDECK_STEAM_BRIDGE=1234:bridge-secret:227300\n--password \"game-secret\" --normal\n');
-const launch = '/data/storage/el2/base/files/.wine/drive_c/hmosdeck/session';
-set(launch + '/last-game-launch.json', '{"appId":"227300","status":"rejected","updatedAt":12345}');
-set(launch + '/last-client-helper.json', '{"appId":"0","role":"driver_query"}');
-const configPath = steam + '/client/.steam/steam/config/config.vdf';
-set(configPath, '"InstallConfigStore" { "Software" { "Valve" { "Steam" { ' +
-  '"Accounts" { "user" { "LoginKey" "never-export-this-key" } } ' +
-  '"CompatToolMapping" { "0" { "name" "hmosdeck_proton" "priority" "75" } ' +
-  '"227300" { "name" "proton_9" "priority" "250" } } } } } }');
-result = await collect();
-assert.match(result, /Missing file privileges runtime\/amd64\/etc/);
-assert.match(result, /"appId":"227300","tool":"proton_9","priority":"250"/);
-assert.match(result, /last game launch/);
-assert.match(result, /"updatedAt":12345/);
-for (const secret of ['never-export-this-key', 'bridge-secret', 'game-secret']) assert.ok(!result.includes(secret), secret);
-assert.ok(result.length < 1048576, 'total diagnostic text remains bounded');
-assert.ok(reads.every(r => r.length <= 65536), 'config reads are also chunked');
-links.add(configPath); result = await collect();
-assert.match(result, /compatibility tool selection: unavailable/);
-assert.ok(!result.includes('"tool":"proton_9"'));
-links.clear();
-set(configPath, 'x'.repeat(1048577));
-assert.match(await collect(), /compatibility tool selection: unavailable/);
-assert.equal(summarize('"Unrelated" "no-account-data"'), 'No explicit compatibility-tool mappings');
-assert.throws(() => summarize('"InstallConfigStore" {'));
-const mappings = Array.from({length: 160}, (_, i) => '"' + (i+1) + '" { "name" "hmosdeck_proton" }').join(' ');
-assert.equal(summarize('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" {' + mappings + '} } } } }').split('\n').length, 128);
-assert.equal(descriptors.size, 0);
-console.log('Pre-launch file privileges, gameprocess/content logs, bounded tool selection, raw config exclusion, bridge/password redaction and link rejection: PASS');
-
+assert.equal(await collect(), '', 'no diagnostics should produce no report');
+set(base + '/client-native.private.log', 'retired-linux-private-log');
+assert.equal(await collect(), '', 'retired Linux locations are not read');
+assert.equal(redact('password: secret\nrefresh-token=abc\nOK\n'), 'password: <redacted>\nrefresh-token=<redacted>\nOK\n');
+let result;
 const wineTemp = '/data/storage/el2/base/files/.wine/drive_c/windows/temp';
-set(wineTemp + '/hmosdeck-steam-api-state.json', '{"stage":"interface_unavailable","interface":"SteamClient021","interfaceStatus":1}');
-set(wineTemp + '/hmosdeck-steam-bridge-state.json', '{"stage":"request_completed","method":501,"status":4,"clientSourceVerified":false}');
-result = await collect();
-assert.match(result, /Steam API bridge client/);
-assert.match(result, /"interface":"SteamClient021"/);
-assert.match(result, /"clientSourceVerified":false/);
-assert.equal(descriptors.size, 0);
-console.log('Steam API initialization evidence exports exact interface/status independently from game and download logs: PASS');
-
 const downloads = '/storage/test';
 const win = downloads + '/Steam';
 const legacy = downloads + '/games/Steam-old/Steam';
@@ -162,7 +68,7 @@ set(wineTemp + '/unrelated.log', 'not-a-diagnostic');
 set('/data/storage/el2/base/files/containers/game1/prefix/drive_c/windows/temp/Test_dxgi.log', 'Container DXGI failure\n');
 result = await collect(downloads);
 for (const needle of ['Windows Steam ' + win, 'Windows Steam ' + legacy, 'Windows Steam ' + cSteam,
-  'Cloud upload failed', 'Linux ARM64 Steam', 'err:d3d failed texture format', 'DXVK adapter', 'Container DXGI failure']) assert.ok(result.includes(needle), needle);
+  'Cloud upload failed', 'err:d3d failed texture format', 'DXVK adapter', 'Container DXGI failure']) assert.ok(result.includes(needle), needle);
 for (const secret of ['secret-cdn', 'secret-key', 'save-secret', 'account-secret', 'not-a-diagnostic']) assert.ok(!result.includes(secret), secret);
 links.add(legacy); links.add(persistent); links.add(wineTemp + '/GuJian_d3d9.log');
 result = await collect(downloads);
@@ -175,43 +81,13 @@ assert.ok(!(await collect(downloads)).includes('not-a-client'));
 assert.ok(!opened.some(p => /loginusers|Cookies|steamapps|userdata/.test(p)));
 assert.equal(descriptors.size, 0);
 assert.ok(!redact('"password" "vdf-secret"\nhttps://cdn.test/file?token-secret&k=another-secret').includes('secret'));
-console.log('Both Steam clients, legacy Windows installs, previous-day persistent Wine stderr, container DXVK, CDN credentials and unsafe/missing roots: PASS');
+console.log('Windows Steam, legacy Windows installs, previous-day persistent Wine stderr, container DXVK, CDN credentials and unsafe/missing roots: PASS');
 
-// A later successful game/helper must not hide the GNU failure being reported.
-const gameResult = launch + '/gnu-proton-2490930.json';
-const helperResult = launch + '/gnu-proton-helper-install_script-1918680.json';
-set(gameResult, JSON.stringify({status: 'proton_steam_account_not_ready',
-  steamReadiness: {exitCode: 5, output: 'GNU_STEAM_READY session_ready=0 local_user=0\n'},
-  prefix: {output: 'x'.repeat(270000) + '\nerr:module could not load test.dll\n'}}));
-set(helperResult, '{"status":"proton_game_failed","prefix":{"exitCode":53}}');
-set(launch + '/game-launch-2490930.json', '{"appId":"2490930","status":"proton_steam_account_not_ready"}');
-set(launch + '/last-game-launch.json', '{"appId":"1437830","status":"gnu_proton_starting"}');
-set(launch + '/gnu-proton-2490930.json.secret', 'not-a-result');
-set(launch + '/gnu-proton-helper-unknown-2490930.json', 'not-a-helper');
-set(base + '/proton-probe/probe-runtime.log', 'GNU_STEAM_READY stage=sdk_load error=missing module\n');
-set(steam + '/client/.steam/steam/logs/content_log.txt',
-  'CDN: cdn.test/depot/123/manifest/456?t=bare-url-secret&k=opaque-secret\n' +
-  'cdn.test:80/depot/123?auth_key=other-secret\n');
-result = await collect();
-for (const text of ['GNU Proton game result gnu-proton-2490930.json', 'err:module could not load test.dll',
-  'GNU Proton helper result gnu-proton-helper-install_script-1918680.json', 'session_ready=0',
-  'GNU_STEAM_READY stage=sdk_load', '"appId":"1437830"']) assert.ok(result.includes(text), text);
-for (const secret of ['bare-url-secret', 'opaque-secret', 'other-secret', 'not-a-result', 'not-a-helper'])
-  assert.ok(!result.includes(secret), secret);
-links.add(gameResult);
-assert.ok(!(await collect()).includes('err:module could not load test.dll'), 'reject linked GNU result');
-links.clear();
-links.add(launch);
-assert.ok(!(await collect()).includes('err:module could not load test.dll'), 'reject linked result directory');
-links.clear();
-set(gameResult, 'x'.repeat(1048577));
-result = await collect();
-assert.match(result, /GNU Proton game result gnu-proton-2490930.json: unavailable/,
-  'oversized single-line JSON is explicitly unavailable, never a misleading empty tail');
-files.delete(gameResult); files.delete(helperResult);
-assert.equal(descriptors.size, 0);
-console.log('GNU game/helper/readiness output, large compact JSON, later launches, bare CDN queries and unsafe/oversized results: PASS');
-
+shortReads = true;
+const fullResult = await collect(downloads);
+shortReads = false;
+assert.equal((await collect(downloads)).replace(/Collected=.*\n/, ''), fullResult.replace(/Collected=.*\n/, ''), 'partial reads preserve the full tail');
+assert.ok(!opened.some(p => p.includes('steamohos-native')), 'no retired Linux diagnostics I/O');
 // Flood all eligible logs: output and individual reads remain bounded, while
 // each source explicitly records tail offsets/omitted files.
 for (const [name] of files) {

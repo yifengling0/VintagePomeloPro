@@ -186,7 +186,7 @@ export function appWineTranslationEngineLabel(value: string): string {
     value === WineTranslationEngine.BOX64 ? 'Box64' : '跟随全局';
 }
 
-/** OHOS Wine WoW64 only. GNU/Linux Steam keeps its own Proton/FEX policy. */
+/** OHOS Wine WoW64 CPU translation policy. */
 export function resolveWineCpuEnvironment(engine: string, preset: string): string[] {
   if (normalizeWineTranslationEngine(engine) === WineTranslationEngine.BOX64) {
     return ['WINEHUA_WOW64_ENGINE=box'].concat(resolveBox64PresetEnv(preset));
@@ -638,7 +638,7 @@ export interface RuntimeSession {
   state: SessionState;
   toplevelId: number;
   startedAt: number;
-  // External task owners (Linux Steam) decide when to reveal their window.
+  // Session owners decide when to reveal their window.
   automaticForeground?: boolean;
 }
 
@@ -1310,7 +1310,7 @@ export function createDefaultAppSettings(appId: string): AppSettings {
 
 export const MF_DXGI_DEVICE_MANAGER_DISABLE_ENV = 'WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER=1';
 
-/** Original OHOS Wine only. Do not change Box64 or GNU Proton CPU policy. */
+/** OHOS Wine only. Keep the alternative Box64 CPU policy independent. */
 export function resolveFexCompatEnv(engine: string, settings: AppSettings): string[] {
   return normalizeWineTranslationEngine(engine) === WineTranslationEngine.FEX &&
     settings.fexStrictPrecision === true ? ['FEX_X87REDUCEDPRECISION=0'] : [];

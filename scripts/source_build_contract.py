@@ -28,8 +28,8 @@ POLICY = 'source-build-candidate'
 CMAKE_MODULES = {'libs/arm64-v8a/' + name + '.so' for name in (
     'libvirgl_child', 'libdirect_surface_probe', 'libdirect_gpu_surface_probe',
     'libdirect_vulkan_probe', 'libdirect_shared_buffer_probe',
-    'libentry', 'libwine_child', 'libsmoke_napi', 'libsteamohos_gnu_child',
-    'libsteamdecompress', 'libsteamohos_native_memory_probe',
+    'libentry', 'libwine_child', 'libsmoke_napi',
+    'libsteamdecompress', 'libwinehua_native_memory_probe',
     'libxwayland_child', 'libxclient_child', 'libxim_server_child', 'libdisplay_route_napi')}
 
 
@@ -55,8 +55,6 @@ def validate_binary(name, data):
         # Do not broaden this to DXVK's x64 aliases: those must remain ARM64X.
         if name == 'vkd3d/limited-500k/x64/d3d12.dll':
             allowed = ('x64',)
-        elif name == 'bin/aarch64-windows/lsteamclient.dll':
-            allowed = ('x64',)
         elif name == 'bin/aarch64-windows/xtajit64.dll':
             allowed += ('x64',)
         if kind not in allowed:
@@ -77,8 +75,7 @@ def required_members():
     core = json.loads((ROOT / 'docs/graphics/runtime-core.lock.json').read_text())
     texture = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())
     payload = set(core['payload'])
-    from build_linux_steam_pe_components import MODULES as steam_modules
-    payload.update(steam_modules)
+    payload.update('bin/' + arch + '/kernelbase.dll' for arch in ('i386-windows', 'aarch64-windows'))
     for profile, pin in texture['runtimes'].items():
         payload.update('dxvk/' + profile + '/' + name for name in pin['files'])
     # Venus is checked as ELF separately, with exact nested/top-level pairing.
@@ -109,6 +106,9 @@ def source_identity(manifest):
         actual = subprocess.check_output(['git', '-C', str(ROOT / name), 'rev-parse', 'HEAD'], text=True).strip()
         if actual != pin:
             raise ValueError('candidate gitlink changed: ' + name)
+    if manifest.get('sourceMode') == 'local-effective-source':
+        from local_source_receipt import verify_effective
+        verify_effective(ROOT, manifest)
     texture = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())
     dxvk = {}
     for profile, pin in texture['runtimes'].items():

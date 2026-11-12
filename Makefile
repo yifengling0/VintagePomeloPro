@@ -559,18 +559,7 @@ $(foreach a,arm64-v8a x86_64,$(eval $(call native_rule,$(a))))
 .PHONY: assemble
 assemble: $(foreach a,$(ARCHES),$(STAMPS)/$(a)/assemble)
 
-# Native GNU dependencies are generated binary inputs, not Git-tracked HAP
-# resources. Restore their pinned distribution on a clean arm64 checkout.
-.PHONY: linux-runtime-components test-linux-runtime-components test-ci-release
-linux-runtime-components:
-	python3 $(SCRIPTS)/prepare_linux_runtime_components.py
-	python3 $(SCRIPTS)/build_steam_client_session.py
-	python3 $(SCRIPTS)/build_linux_steam_posix.py
-
-test-linux-runtime-components:
-	python3 $(ROOT)/host_tests/linux_runtime_components_test.py
-	python3 $(ROOT)/host_tests/linux_steam_native_sdk_test.py
-
+.PHONY: test-ci-release
 test-ci-release:
 	python3 $(ROOT)/host_tests/ci_release_test.py
 
@@ -581,13 +570,9 @@ assemble-$(1): $$(STAMPS)/$(1)/assemble
 
 $$(STAMPS)/$(1)/assemble: $(SCRIPTS)/assemble.sh $(SCRIPTS)/env.sh \
 	$(SCRIPTS)/stamp_wine_builtin_identity.py \
-	$(SCRIPTS)/build_linux_steam_pe_components.py $(SCRIPTS)/generate_linux_steam_bridge.py \
-	$(SCRIPTS)/steam_bridge_codecs.py $(SCRIPTS)/steam_bridge_contracts.py \
 	$(SCRIPTS)/source_build_contract.py $(SCRIPTS)/normalize_runtime_identity.py \
 	$(ROOT)/docs/graphics/runtime-core.lock.json $(ROOT)/docs/graphics/texture-compat-runtime.lock.json \
 	$(SOURCE_BUILD_MANIFEST) \
-	$(ROOT)/docs/linux-steam/steam_bridge_sdk.lock.json \
-	$(wildcard $(ROOT)/entry/src/main/cpp/linux_steam/steam_bridge/*) \
 	$(DXVK_ARTIFACTS) $(DXVK_MODERN_ARTIFACTS) \
 	$(VKD3D_PROTON_ARTIFACTS) $(SMOKE_PAYLOAD_MANIFEST) \
 	$$(STAMPS)/deps $$(STAMPS)/wine-$(1)-$(WINE_ARCH) $$(STAMPS)/$(1)/native \
@@ -1345,12 +1330,6 @@ test-x11-integration:
 test: test-wine-audio-downmix
 test-wine-audio-downmix:
 	python3 $(ROOT)/host_tests/wine_audio_downmix_test.py
-
-# Local and CI packaging share the same GNU payload/source gate.
-.PHONY: verify-linux-game-components
-verify-linux-game-components:
-	python3 $(ROOT)/scripts/build_linux_game_components.py --verify-only
-assemble: verify-linux-game-components
 
 # Keep the complete runtime regression list identical locally and in Actions.
 .PHONY: test-windows-steam test-game-runtime

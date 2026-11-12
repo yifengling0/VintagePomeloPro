@@ -4,15 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 python3 "$SCRIPT_DIR/detach_build_hardlinks.py" "$NATIVE_LIBS"
+python3 "$SCRIPT_DIR/retire_linux_build_outputs.py" --report "$BUILD_DIR/retired-linux-outputs.json"
 
 # ============================================================
 # 文件分流到 libs/ + rawfile/
 # ============================================================
 assemble_pad() {
     log "=== 组装布局 ($NATIVE_ARCH) ==="
-    if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
-        python3 "$SCRIPT_DIR/prepare_linux_runtime_components.py"
-    fi
 
     local wine_data="$STAGING_DIR/wine-data"
     local guest_arch="${GUEST_ARCH:-$WINE_ARCH}"
@@ -1010,17 +1008,6 @@ HKLM,%FontSubStr%,"Courier",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Courier New",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Fixedsys",,"Noto Sans Mono"\
 HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/wine.inf"
-    if [ "$WINE_ARCH" = aarch64 ]; then
-        # Ordinary clean builds must include the OHOS Wine bridge too, not only
-        # GNU Proton's separate bridge. No manual post-build ZIP injection.
-        local steam_reference=()
-        if [ -n "${LINUX_STEAM_SDK_REFERENCE:-}" ]; then
-            steam_reference=(--reference "$LINUX_STEAM_SDK_REFERENCE")
-        fi
-        python3 "$SCRIPT_DIR/build_linux_steam_pe_components.py" --mingw "$LLVM_MINGW/bin" \
-            --output "$BUILD_DIR/linux-steam-pe" --directory "$wine_data" \
-            --rawfile "$WINEHUA/entry/src/main/resources/rawfile" "${steam_reference[@]}"
-    fi
     # XKB
     if [ -d "$SYSROOT_EXT_SHARE/X11/xkb" ]; then
         cp -r "$SYSROOT_EXT_SHARE/X11/xkb" "$wine_data/share/X11/"

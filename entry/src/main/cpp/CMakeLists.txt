@@ -249,7 +249,7 @@ target_link_libraries(wine_child PUBLIC libhilog_ndk.z.so libchild_process.so li
 # D0 is an independent native NCP. It resolves the system Vulkan loader with
 # dlopen at runtime and deliberately does not link Wine, Mesa or libvulkan.
 add_library(direct_vulkan_probe SHARED
-    linux_steam/native_buffer_probe.cpp
+    direct/native_buffer_probe.cpp
     direct/ncp_vulkan_probe.cpp
 )
 target_link_libraries(direct_vulkan_probe PUBLIC
@@ -302,43 +302,16 @@ target_link_libraries(smoke_napi PRIVATE
     libhilog_ndk.z.so
 )
 
-# Linux Steam host research is isolated from the normal Wine launch path.
-# The source snapshot is local to this repository; no external lab checkout
-# is needed to build an enabled candidate.
-option(WINEHUA_ENABLE_STEAMOHOS_HOST "Build Linux Steam Wayland host diagnostics" OFF)
-option(WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC "Build isolated native GNU exec diagnostics" OFF)
-if(WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC)
-    enable_language(ASM)
-    add_library(steamohos_gnu_child SHARED linux_steam/native_exec.cpp linux_steam/gnu_child.cpp
-        linux_steam/native_loader.cpp linux_steam/native_loader_entry.S linux_steam/xwayland_probe.cpp
-        linux_steam/proton_probe.cpp)
-    # Load the direct-driver diagnostic only on an explicit probe request. Normal
-    # GNU/FEX sessions must not gain a system Vulkan dependency from diagnostics.
-    add_library(steamohos_native_memory_probe SHARED
-        ${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/diagnostics/native_buffer_memory_probe.c)
-    target_compile_options(steamohos_native_memory_probe PRIVATE -Wall -Wextra -Werror)
-    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-        target_compile_options(steamohos_native_memory_probe PRIVATE -Wno-unused-command-line-argument)
-    endif()
-    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/diagnostics/native_buffer_memory_probe.c
-        PROPERTIES COMPILE_DEFINITIONS STEAMOHOS_PROBE_EMBEDDED=1)
-    target_link_libraries(steamohos_native_memory_probe PRIVATE libdl.so libnative_buffer.so libnative_window.so)
-    target_compile_features(steamohos_gnu_child PRIVATE cxx_std_17)
-    target_compile_options(steamohos_gnu_child PRIVATE -Wall -Wextra -Werror)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_compile_options(steamohos_gnu_child PRIVATE -Wno-unused-command-line-argument)
-    endif()
-    target_sources(smoke_napi PRIVATE linux_steam/gnu_napi.cpp linux_steam/audio_bootstrap_relay.cpp linux_steam/launch_broker.cpp linux_steam/launch_napi.cpp)
-    target_compile_definitions(smoke_napi PRIVATE WINEHUA_ENABLE_STEAMOHOS_GNU_EXEC=1)
-    target_link_libraries(smoke_napi PRIVATE libchild_process.so)
+# Shared OHOS NativeBuffer diagnostic, independent of Steam or GNU userspace.
+add_library(winehua_native_memory_probe SHARED
+    ${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/diagnostics/native_buffer_memory_probe.c)
+target_compile_options(winehua_native_memory_probe PRIVATE -Wall -Wextra -Werror)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    target_compile_options(winehua_native_memory_probe PRIVATE -Wno-unused-command-line-argument)
 endif()
-if(WINEHUA_ENABLE_STEAMOHOS_HOST)
-    set(STEAMOHOS_WAYLAND_CLIENT_LIBRARY "${WAYLAND_LIBS_DIR}/libwayland-client.so.0")
-    add_subdirectory(linux_steam)
-    target_sources(smoke_napi PRIVATE linux_steam/host_napi.cpp)
-    target_compile_definitions(smoke_napi PRIVATE WINEHUA_ENABLE_STEAMOHOS_HOST=1)
-    target_link_libraries(smoke_napi PRIVATE steamohos_host)
-endif()
+set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/diagnostics/native_buffer_memory_probe.c
+    PROPERTIES COMPILE_DEFINITIONS WINEHUA_PROBE_EMBEDDED=1)
+target_link_libraries(winehua_native_memory_probe PRIVATE libdl.so libnative_buffer.so libnative_window.so)
 
 add_library(virgl_child SHARED
     graphics/virgl_child.cpp

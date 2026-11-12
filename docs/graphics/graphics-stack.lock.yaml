@@ -296,14 +296,6 @@
         "sha256": "3077d1a1a2a796a1cfb2e708bd24af9e2e815cc4621dd7092ae108db91c2bf0e"
       },
       {
-        "path": "patches/wine/0065-kernelbase-linux-steam-session-registry.patch",
-        "sha256": "b6cde089a13a760c59667a4636bb5c0b860e71a2a6105e86b02e2c29117e31e1"
-      },
-      {
-        "path": "patches/wine/0069-linux-steam-native-module-bootstrap.patch",
-        "sha256": "2b4a8097da7c73b247e6e62154eb36a900cf97efd69024d610cede75d113bb15"
-      },
-      {
         "path": "patches/wine/0070-ddraw-clip-surface-bounds.patch",
         "sha256": "14632b06cee1944db1b7ea9134e43a6469a8c161c828d0c660ab48e94d1367c3"
       },

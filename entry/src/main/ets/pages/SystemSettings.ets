@@ -2551,7 +2551,7 @@ struct SystemSettingsPage {
               .fontColor(skinColor('text_secondary')).width('100%')
             Text('Download/com.vintage.pomelopro/logs').fontSize(12)
               .fontColor(skinColor('text_primary')).width('100%')
-            Text('记录应用日志，自动保留 7 天。导出时一并收集 Wine、图形运行库和 Windows／Linux Steam 的近期诊断日志；自动过滤登录凭据，超出大小限制时保留末尾并标注。请在问题发生后及时导出。')
+            Text('记录应用日志，自动保留 7 天。导出时一并收集 Wine、图形运行库和 Windows Steam 的近期诊断日志；自动过滤登录凭据，超出大小限制时保留末尾并标注。请在问题发生后及时导出。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           }
           .width('100%').padding(14).borderRadius(16)

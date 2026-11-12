@@ -22,7 +22,7 @@ export async function createLogExportSnapshots(logDir: string, directory: string
   const files: string[] = [];
   let manifest = redactSteamDiagnostic(identity) + '\nCollected=' + new Date().toISOString() +
     '\nExport v3: app/native newest first, max 16 files / 2 MiB per file / 16 MiB total;\n' +
-    'Wine, DXVK, Windows/Linux Steam and bridge diagnostics: bounded tails, max 8 MiB.\n' +
+    'Wine, DXVK, Windows Steam diagnostics: bounded tails, max 8 MiB.\n' +
     'offset/truncated in each source records omitted older bytes. Source logs are unchanged.\n' +
     'Account credentials and URL queries are redacted. Game data, saves, raw configs and browser profiles are excluded.\n';
   let remaining = APP_BUDGET;

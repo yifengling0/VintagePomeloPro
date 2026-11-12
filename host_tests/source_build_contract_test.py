@@ -203,19 +203,17 @@ class CandidateTests(unittest.TestCase):
         real_libraries, _ = candidate.required_members()
         self.assertTrue(candidate.CMAKE_MODULES <= real_libraries)
 
-    def test_receipt_covers_both_bridge_dlls_and_both_session_kernelbases(self):
-        from build_linux_steam_pe_components import MODULES
+    def test_receipt_covers_wine_without_retired_bridge(self):
         _, payload = candidate.required_members()
-        self.assertTrue(set(MODULES) <= payload)
         for architecture in ('i386-windows', 'aarch64-windows'):
             self.assertIn('bin/' + architecture + '/kernelbase.dll', payload)
-            self.assertIn('bin/' + architecture + '/lsteamclient.dll', payload)
+        self.assertFalse(any('lsteamclient' in name for name in payload))
 
     def test_new_or_omitted_hvigor_targets_fail_before_compilation(self):
         candidate.verify_native_targets(candidate.CMAKE_MODULES)
-        probe = 'libs/arm64-v8a/libsteamohos_native_memory_probe.so'
+        probe = 'libs/arm64-v8a/libwinehua_native_memory_probe.so'
         self.assertIn(probe, candidate.CMAKE_MODULES)
-        with self.assertRaisesRegex(ValueError, 'missing:.*libsteamohos_native_memory_probe'):
+        with self.assertRaisesRegex(ValueError, 'missing:.*libwinehua_native_memory_probe'):
             candidate.verify_native_targets(candidate.CMAKE_MODULES - {probe})
         with self.assertRaisesRegex(ValueError, 'missing:.*libsteamdecompress'):
             candidate.verify_native_targets(candidate.CMAKE_MODULES - {'libs/arm64-v8a/libsteamdecompress.so'})

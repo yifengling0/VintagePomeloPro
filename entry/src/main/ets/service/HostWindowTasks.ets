@@ -1,5 +1,5 @@
-// Runtime window identities, independent of the game catalogue and either libc.
-// Titles are presentation only; Linux Steam provenance comes from the native broker.
+// OHOS Wine window identities, independent of the game catalogue.
+// Titles are presentation only; session and process identities establish ownership.
 export interface HostWindowTask {
   key: string;
   toplevelId: number;
@@ -14,25 +14,9 @@ export interface HostWindowTask {
   backend?: string;
 }
 
-export interface HostGameSession {
-  key: string;
-  sessionId: string;
-  appId: string;
-  backend: string;
-  requestId: number;
-  generation: number;
-  processId: number;
-  processIdentity: string;
-  phase: string;
-  exitCode: number | null;
-  exitSource: string;
-}
-
 export type HostTaskCloser = (task: HostWindowTask, force: boolean) => Promise<boolean>;
 export type HostTaskListener = (tasks: HostWindowTask[]) => void;
 export type HostTaskActivator = (task: HostWindowTask, current: () => boolean) => Promise<boolean>;
-
-interface PendingSteamGameLaunch { appId: string; intent: number; ticket: number; expiresAt: number; sessionId: string; promptKey: string; }
 
 interface WindowEventData {
   clientPid?: number;
@@ -47,16 +31,7 @@ export class HostWindowTasks {
   private windows: Map<number, HostWindowTask> = new Map<number, HostWindowTask>();
   private listeners: Set<HostTaskListener> = new Set<HostTaskListener>();
   private generation: number = 0;
-  private steamSessions: Set<string> = new Set<string>();
-  private games: Map<string, HostGameSession> = new Map<string, HostGameSession>();
-  private gameHistory: HostGameSession[] = [];
-  private endedSteamSessions: Set<string> = new Set<string>();
-  private pendingSteamReturn: string = '';
-  private pendingSteamLaunch: PendingSteamGameLaunch | null = null;
   private request: number = 0;
-  private foregroundChoice: number = 0;
-  private foregroundTargetKey: string = '';
-  private foregroundTargetSince: number = 0;
   private active: string = '';
   private launcherForeground: boolean = false;
   private requestedKey: string = '';
@@ -64,8 +39,6 @@ export class HostWindowTasks {
   private activator: HostTaskActivator | null = null;
   private wineCloser: HostTaskCloser | null = null;
   private wineGameEligible: ((sessionId: string) => boolean) | null = null;
-  private steamGameCloser: HostTaskCloser | null = null;
-  private steamClientHosts: Set<string> = new Set<string>();
   private launcher: (() => Promise<void>) | null = null;
 
   static getInstance(): HostWindowTasks {
@@ -76,71 +49,26 @@ export class HostWindowTasks {
   setActivator(activator: HostTaskActivator): void { this.activator = activator; }
   setWineCloser(closer: HostTaskCloser): void { this.wineCloser = closer; }
   setWineGameEligibility(eligible: (sessionId: string) => boolean): void { this.wineGameEligible = eligible; this.publish(); }
-  setSteamGameCloser(closer: HostTaskCloser | null): void { this.steamGameCloser = closer; this.publish(); }
-  registerSteamClientHost(sessionId: string): void { this.steamClientHosts.add(sessionId); this.publish(); }
-  unregisterSteamClientHost(sessionId: string): void { this.steamClientHosts.delete(sessionId); this.publish(); }
   controllableGames(): HostWindowTask[] {
-    const windows = this.snapshot().filter((task: HostWindowTask): boolean =>
-      task.sessionId.length > 0 && task.sessionId !== 'desktop' && !this.steamClientHosts.has(task.sessionId) &&
-      (task.source === 'steam-game' ? this.steamGameCloser !== null : task.source === 'wine' &&
-        this.wineCloser !== null && this.wineGameEligible?.(task.sessionId) === true));
-    if (this.steamGameCloser) for (const game of this.games.values()) {
-      if (!windows.some((task: HostWindowTask): boolean => task.sessionId === game.sessionId)) windows.push(this.gameTask(game));
-    }
-    return windows;
-  }
-  gameSessions(): HostGameSession[] { return Array.from(this.games.values()).map((game: HostGameSession): HostGameSession => this.copyGame(game)); }
-  completedGames(): HostGameSession[] { return this.gameHistory.map((game: HostGameSession): HostGameSession => this.copyGame(game)); }
-  private copyGame(game: HostGameSession): HostGameSession {
-    return { key: game.key, sessionId: game.sessionId, appId: game.appId, backend: game.backend,
-      requestId: game.requestId, generation: game.generation, processId: game.processId,
-      processIdentity: game.processIdentity, phase: game.phase, exitCode: game.exitCode, exitSource: game.exitSource };
-  }
-  private gameTask(game: HostGameSession): HostWindowTask {
-    const window = this.snapshot().find((task: HostWindowTask): boolean => task.sessionId === game.sessionId);
-    return { key: game.key, toplevelId: window?.toplevelId ?? 0, clientPid: window?.clientPid ?? game.processId,
-      sessionId: game.sessionId, title: window?.title && window.title !== '运行窗口' ? window.title : `Steam ${game.appId}`,
-      source: 'steam-game', minimized: window?.minimized ?? false, owner: 0, desktop: false, phase: game.phase, backend: game.backend };
+    return this.snapshot().filter((task: HostWindowTask): boolean => task.sessionId.length > 0 &&
+      task.sessionId !== 'desktop' && this.wineCloser !== null && this.wineGameEligible?.(task.sessionId) === true);
   }
   runningTasks(): HostWindowTask[] {
-    return [...Array.from(this.games.values()).map((game: HostGameSession): HostWindowTask => this.gameTask(game)),
-      ...this.snapshot().filter((task: HostWindowTask): boolean => !this.games.has(task.sessionId) &&
-        !this.steamClientHosts.has(task.sessionId) && task.source !== 'steam-linux' && task.title !== '运行窗口')];
+    return this.snapshot().filter((task: HostWindowTask): boolean => task.title !== '运行窗口');
   }
   canControlGame(key: string): boolean {
-    return (this.steamGameCloser !== null && Array.from(this.games.values()).some((game: HostGameSession): boolean => game.key === key)) ||
-      this.controllableGames().some((task: HostWindowTask): boolean => task.key === key);
+    return this.controllableGames().some((task: HostWindowTask): boolean => task.key === key);
   }
   async controlGame(key: string, force: boolean): Promise<boolean> {
-    // Resolve the live window generation after any confirmation dialog. Never
-    // send a close/kill to an ID or PID recycled while the dialog was open.
-    const game = Array.from(this.games.values()).find((item: HostGameSession): boolean => item.key === key);
-    const task = game && this.steamGameCloser ? this.gameTask(game) : this.controllableGames().find((item: HostWindowTask): boolean => item.key === key);
-    if (!task) return false;
-    const closer = task.source === 'steam-game' ? this.steamGameCloser : this.wineCloser;
-    return closer ? closer(task, force) : false;
+    const task = this.controllableGames().find((item: HostWindowTask): boolean => item.key === key);
+    return task && this.wineCloser ? this.wineCloser(task, force) : false;
   }
   setLauncher(launcher: () => Promise<void>): void { this.launcher = launcher; }
   markLauncherForeground(): void {
-    ++this.request; this.chooseForeground(''); this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
-    this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
+    ++this.request; this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
   }
   markDesktopForeground(): void { this.launcherForeground = false; }
   isLauncherForeground(): boolean { return this.launcherForeground; }
-  // Capture before asynchronous startup/dispatch, not after it completes.
-  foregroundRevision(): number { return this.foregroundChoice; }
-  private chooseForeground(key: string): void {
-    ++this.foregroundChoice;
-    if (!key || key !== this.foregroundTargetKey) this.foregroundTargetSince = this.foregroundChoice;
-    this.foregroundTargetKey = key;
-  }
-  // A late ownership association may select the very window whose carrier is
-  // already starting. Keep that continuous selection, but reject Home, another
-  // window, or a departure followed by a return to this same window.
-  isForegroundSelectionCurrent(revision: number, key: string): boolean {
-    return this.foregroundChoice === revision || (key.length > 0 && this.foregroundTargetKey === key &&
-      this.foregroundTargetSince <= revision + 1);
-  }
   async showLauncher(): Promise<void> {
     this.markLauncherForeground();
     if (this.launcher) await this.launcher();
@@ -165,31 +93,16 @@ export class HostWindowTasks {
     this.listeners.forEach((listener: HostTaskListener): void => listener(this.snapshot()));
   }
 
-  reset(preserveSteam: boolean = false): void {
-    if (preserveSteam) {
-      // Wine mode changes must not discard a live native client/game or its
-      // controller while the first Windows game prepares its prefix.
-      this.windows.forEach((task: HostWindowTask, id: number): void => {
-        if (task.source !== 'steam-linux' && task.source !== 'steam-game') this.windows.delete(id);
-      });
-      if (!this.snapshot().some((task: HostWindowTask): boolean => task.key === this.active)) this.active = '';
-      this.publish(); return;
-    }
+  reset(): void {
     ++this.request;
-    this.chooseForeground('');
     this.requestedKey = '';
     this.windows.clear();
-    this.steamSessions.clear();
-    this.games.clear(); this.gameHistory = [];
-    this.steamClientHosts.clear();
-    this.endedSteamSessions.clear();
-    this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
     this.active = '';
     this.publish();
   }
 
   // created is authoritative; modal/desktop metadata can precede it.
-  onEvent(id: number, event: string, text: string, linuxSteam: boolean = false): void {
+  onEvent(id: number, event: string, text: string): void {
     if (id <= 0) return;
     let data: WindowEventData = {};
     try { data = (JSON.parse(text) as WindowEventData) || {}; } catch (_) {}
@@ -199,18 +112,7 @@ export class HostWindowTasks {
       const wasActive = this.active === task.key;
       this.windows.delete(id);
       if (wasActive) this.active = '';
-      // A splash/menu can disappear while the game is still running. Wait
-      // for confirmed process completion and all its windows to disappear.
-      if (wasActive && !this.launcherForeground && task.source === 'steam-game' &&
-        (this.steamSessions.has(task.sessionId) || this.endedSteamSessions.has(task.sessionId))) {
-        const sessionId = task.sessionId;
-        this.pendingSteamReturn = sessionId;
-        const peer = this.snapshot().find((item: HostWindowTask): boolean =>
-          item.sessionId === sessionId && !item.minimized);
-        if (peer) this.active = peer.key;
-      }
       this.publish();
-      this.returnAfterSteamGame(task.sessionId);
       return;
     }
     if (!task && (event === 'created' || event === 'modal' || event === 'desktop_root')) {
@@ -222,10 +124,8 @@ export class HostWindowTasks {
     if (event === 'created') {
       task.clientPid = data.clientPid ?? 0;
       task.sessionId = data.sessionId ?? '';
-      if (linuxSteam) task.source = 'steam-linux';
-      else if (this.steamSessions.has(task.sessionId)) task.source = 'steam-game';
       if (!task.desktop && task.owner === 0) {
-        this.pendingSteamReturn = ''; this.active = task.key;
+        this.active = task.key;
       }
     } else if (event === 'title') {
       task.title = data.title || '运行窗口';
@@ -240,147 +140,22 @@ export class HostWindowTasks {
       task.owner = data.modal === 1 ? (data.owner ?? 0) : 0;
     } else return;
     this.publish();
-    if (event === 'created') this.activateExpectedSteamGame(task.sessionId);
-  }
-
-  // Native-child startup can publish a Wayland window before the broker's
-  // ancestry record becomes visible. Retry provenance without replaying a
-  // created event (which would also reset window focus/session metadata).
-  refreshLinuxSteamOwnership(ownsProcess: (pid: number) => boolean): void {
-    let changed = false;
-    this.windows.forEach((task: HostWindowTask): void => {
-      if (task.source !== 'steam-linux' && task.source !== 'steam-game' && !this.games.has(task.sessionId) && task.clientPid > 0 && ownsProcess(task.clientPid)) {
-        task.source = 'steam-linux'; changed = true;
-      }
-    });
-    if (changed) this.publish();
-  }
-
-  // An explicit Deck Play request may wait for a real game window without
-  // raising Steam. The next user foreground choice cancels this intent.
-  expectSteamGame(appId: string): number {
-    const ticket = ++this.request;
-    this.requestedKey = ''; this.pendingSteamReturn = '';
-    this.pendingSteamLaunch = { appId, intent: ticket, ticket, expiresAt: Date.now() + 120000, sessionId: '', promptKey: '' };
-    return ticket;
-  }
-
-  cancelExpectedSteamGame(ticket: number): void {
-    if (this.pendingSteamLaunch?.intent === ticket) this.pendingSteamLaunch = null;
-  }
-
-  private activateExpectedSteamGame(sessionId: string): void {
-    const pending = this.pendingSteamLaunch;
-    if (!pending) return;
-    if (pending.expiresAt < Date.now() || pending.ticket !== this.request) {
-      this.pendingSteamLaunch = null; return;
-    }
-    if (!sessionId || pending.sessionId !== sessionId) return;
-    const game = this.snapshot().find((task: HostWindowTask): boolean =>
-      task.sessionId === sessionId && task.source === 'steam-game' && !task.minimized);
-    if (!game) return;
-    this.pendingSteamLaunch = null; // Exactly one restore, including splash replacement.
-    void this.activate(game.key).catch((): boolean => false);
-  }
-
-  registerSteamGame(sessionId: string, appId: string = '', backend: string = 'ohos-wine', requestId: number = 0,
-    requestGeneration: number = 0, processId: number = 0, processIdentity: string = ''): void {
-    if (sessionId.length === 0) return;
-    if (!this.games.has(sessionId)) this.games.set(sessionId, { key: `game:${++this.generation}:${sessionId}`, sessionId,
-      appId, backend, requestId, generation: requestGeneration, processId, processIdentity, phase: 'starting', exitCode: null, exitSource: '' });
-    this.steamSessions.add(sessionId);
-    if (appId && this.pendingSteamLaunch?.appId === appId) this.pendingSteamLaunch.sessionId = sessionId;
-    this.windows.forEach((task: HostWindowTask): void => {
-      if (task.sessionId === sessionId && task.source !== 'steam-linux') task.source = 'steam-game';
-    });
-    this.publish();
-    this.activateExpectedSteamGame(sessionId);
-  }
-
-  updateSteamGame(sessionId: string, phase: string, processId: number = 0, processIdentity: string = ''): void {
-    const game = this.games.get(sessionId); if (!game) return;
-    game.phase = phase;
-    if (processId > 0) game.processId = processId;
-    if (processIdentity) game.processIdentity = processIdentity;
-    this.publish();
-  }
-  bindSteamGame(pendingId: string, sessionId: string): void {
-    const game = this.games.get(pendingId); if (!game || this.games.has(sessionId)) return;
-    this.games.delete(pendingId); this.steamSessions.delete(pendingId);
-    game.sessionId = sessionId; this.games.set(sessionId, game); this.steamSessions.add(sessionId);
-    if (this.pendingSteamLaunch?.sessionId === pendingId) this.pendingSteamLaunch.sessionId = sessionId;
-    this.windows.forEach((task: HostWindowTask): void => {
-      if (task.sessionId === sessionId) task.source = 'steam-game';
-    });
-    this.publish(); this.activateExpectedSteamGame(sessionId);
-  }
-
-  finishSteamGame(sessionId: string, confirmedExit: boolean = true, exitCode: number | null = null, exitSource: string = ''): void {
-    const game = this.games.get(sessionId);
-    if (game) {
-      game.phase = confirmedExit ? 'exited' : 'unconfirmed'; game.exitCode = exitCode; game.exitSource = exitSource;
-      this.games.delete(sessionId); this.gameHistory.push(game);
-      if (this.gameHistory.length > 32) this.gameHistory.shift();
-    }
-    this.steamSessions.delete(sessionId);
-    if (this.pendingSteamLaunch?.sessionId === sessionId) this.pendingSteamLaunch = null;
-    if (confirmedExit) this.endedSteamSessions.add(sessionId);
-    else {
-      this.endedSteamSessions.delete(sessionId);
-      if (this.pendingSteamReturn === sessionId) this.pendingSteamReturn = '';
-    }
-    this.returnAfterSteamGame(sessionId);
-    this.publish();
-  }
-
-  private returnAfterSteamGame(sessionId: string): void {
-    if (!this.endedSteamSessions.has(sessionId) || Array.from(this.windows.values()).some(
-      (task: HostWindowTask): boolean => task.sessionId === sessionId && !task.desktop)) return;
-    this.endedSteamSessions.delete(sessionId);
-    const shouldReturn = this.pendingSteamReturn === sessionId && !this.launcherForeground && this.active.length === 0;
-    if (this.pendingSteamReturn === sessionId) this.pendingSteamReturn = '';
-    if (shouldReturn) {
-      const steam = this.snapshot().find((item: HostWindowTask): boolean => item.source === 'steam-linux');
-      if (steam) void this.activate(steam.key);
-    }
   }
 
   associateSession(id: number, sessionId: string): void {
     const task = this.windows.get(id);
-    if (!task || task.source === 'steam-linux') return;
+    if (!task) return;
     task.sessionId = sessionId;
-    if (this.steamSessions.has(sessionId)) task.source = 'steam-game';
     this.publish();
-    this.activateExpectedSteamGame(sessionId);
-  }
-
-  // Called only after the native broker has verified process ownership. A
-  // Steam-descendant window may be a game; arrival order/title never prove it.
-  associateGameWindow(key: string, sessionId: string): boolean {
-    const task = Array.from(this.windows.values()).find((item: HostWindowTask): boolean => item.key === key);
-    const game = this.games.get(sessionId);
-    if (!task || !game || task.desktop || (task.sessionId && task.sessionId !== sessionId && task.source !== 'steam-linux')) return false;
-    task.sessionId = sessionId; task.source = 'steam-game'; game.phase = 'running';
-    this.publish(); this.activateExpectedSteamGame(sessionId); return true;
   }
 
   noteInteraction(id: number): void {
     // An interaction invalidates an in-flight automatic/user switch.
     const task = this.windows.get(id);
     if (task) {
-      this.pendingSteamReturn = '';
-      const pending = this.pendingSteamLaunch;
-      // Confirming the surfaced launch dialog is part of the same Play action.
-      // Any other task interaction still cancels its one-shot game handoff.
-      if (!pending || pending.promptKey !== task.key || pending.ticket !== this.request ||
-        pending.expiresAt < Date.now() || pending.sessionId) this.pendingSteamLaunch = null;
-    }
-    if (task) {
-      this.chooseForeground(task.key);
       // Clicking the currently active task also cancels an in-flight raise of
       // a different task. Active identity alone cannot detect that choice.
       if (this.requestedKey !== task.key) ++this.request;
-      if (this.pendingSteamLaunch) this.pendingSteamLaunch.ticket = this.request;
       this.active = task.key;
     }
   }
@@ -403,42 +178,11 @@ export class HostWindowTasks {
   }
 
   activate(key: string): Promise<boolean> {
-    const game = Array.from(this.games.values()).find((item: HostGameSession): boolean => item.key === key);
-    const window = game ? this.snapshot().find((task: HostWindowTask): boolean => task.sessionId === game.sessionId) : null;
-    return this.activateTask(window?.key ?? key, false);
-  }
-
-  // A newly activated native Steam dialog can require input before a game
-  // exists. Honor only the still-current Play request, retaining its one-shot
-  // game activation. Explicit navigation or a started game cancels this path.
-  activateSteamLaunchPrompt(key: string, sessionId: string): Promise<boolean> {
-    const task = this.snapshot().find((item: HostWindowTask): boolean => item.key === key);
-    const pending = this.pendingSteamLaunch;
-    if (!task || (task.source !== 'steam-linux' && (!sessionId || task.sessionId !== sessionId)) ||
-      !pending || pending.ticket !== this.request || pending.expiresAt < Date.now() || pending.sessionId) return Promise.resolve(false);
-    pending.promptKey = key;
-    return this.activateTask(key, true);
-  }
-
-  private activateTask(key: string, preserveLaunch: boolean): Promise<boolean> {
-    const game = Array.from(this.games.values()).find((item: HostGameSession): boolean => item.key === key);
-    if (game) {
-      const owned = this.snapshot().find((item: HostWindowTask): boolean => item.sessionId === game.sessionId);
-      if (!owned) return Promise.resolve(false);
-      key = owned.key;
-    }
-    const pending = preserveLaunch ? this.pendingSteamLaunch : null;
-    if (!preserveLaunch) this.chooseForeground(key);
-    this.pendingSteamReturn = '';
-    if (!preserveLaunch) this.pendingSteamLaunch = null;
     const serial = ++this.request;
-    if (pending) pending.ticket = serial;
     this.requestedKey = key;
     const task = this.snapshot().find((item: HostWindowTask): boolean => item.key === key);
     if (!task || !this.activator) return Promise.resolve(false);
-    const current = (): boolean => serial === this.request && this.windows.get(task.toplevelId)?.key === key &&
-      (!preserveLaunch || (pending !== null && this.pendingSteamLaunch === pending && pending.ticket === serial &&
-        pending.expiresAt >= Date.now() && !pending.sessionId));
+    const current = (): boolean => serial === this.request && this.windows.get(task.toplevelId)?.key === key;
     const run = this.tail.then(async (): Promise<boolean> => {
       if (!current() || !this.activator) return false;
       const success = await this.activator(task, current);
@@ -455,11 +199,6 @@ export class HostWindowTasks {
     });
     this.tail = settled.then((): void => {}, (): void => {});
     return settled;
-  }
-
-  isSteamGameForeground(): boolean {
-    return !this.launcherForeground && Array.from(this.windows.values()).some(
-      (task: HostWindowTask): boolean => task.key === this.active && task.source === 'steam-game');
   }
 
   hasForegroundTask(): boolean { return !this.launcherForeground && this.active.length > 0; }

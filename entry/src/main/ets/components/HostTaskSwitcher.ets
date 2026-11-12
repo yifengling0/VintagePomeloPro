@@ -14,7 +14,7 @@ export struct HostTaskSwitcher {
   aboutToDisappear(): void { HostWindowTasks.getInstance().unsubscribe(this.listener); }
 
   private label(task: HostWindowTask): string {
-    return task.source === 'steam-linux' ? 'Steam（Linux ARM64）' : task.title;
+    return task.title;
   }
 
   private async switchTo(task: HostWindowTask): Promise<void> {

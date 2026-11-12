@@ -10,16 +10,24 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = (
-    'host_tests/windows_steam_runtime_test.py', 'host_tests/ci_submodule_checkout_test.py',
-    'host_tests/proton_probe_source_receipt_test.py',
-    'host_tests/linux_proton_lease_test.py', 'host_tests/linux_proton_group_test.py', 'host_tests/linux_steam_arm_plan_test.py',
-    'host_tests/proton_optional_syscalls_test.py', 'host_tests/proton_module_contract_test.py', 'host_tests/linux_proton_modules_test.py',
-    'host_tests/linux_proton_dxvk_test.py', 'host_tests/proton_network_contract_test.py',
-    'host_tests/linux_proton_media_test.py', 'host_tests/ci_preflight_test.py', 'host_tests/ci_release_test.py', 'host_tests/linux_runtime_components_test.py',
-    'host_tests/wine_audio_downmix_test.py', 'host_tests/dxvk_compat_patches_test.py', 'host_tests/source_build_contract_test.py', 'host_tests/linux_steam_pe_components_test.py',
-    'host_tests/smoke_build_arch_test.py', 'host_tests/wine_build_identity_test.py', 'host_tests/wine_builtin_identity_test.py',
-    'host_tests/gstreamer_native_plugins_test.py', 'host_tests/runtime_library_guard_test.py',
-    'host_tests/proton_runtime_catalog_test.py', 'scripts/test_check_runtime_components.py', 'host_tests/graphics_assembly_manifest_test.py', 'host_tests/virgl_patch_overlap_test.py', 'host_tests/fex_simd_runtime_test.py',
+    'host_tests/windows_steam_runtime_test.py',
+    'host_tests/ci_submodule_checkout_test.py',
+    'host_tests/ci_preflight_test.py',
+    'host_tests/ci_release_test.py',
+    'host_tests/v2_product_contract_test.py',
+    'host_tests/local_source_receipt_test.py',
+    'host_tests/wine_audio_downmix_test.py',
+    'host_tests/dxvk_compat_patches_test.py',
+    'host_tests/source_build_contract_test.py',
+    'host_tests/smoke_build_arch_test.py',
+    'host_tests/wine_build_identity_test.py',
+    'host_tests/wine_builtin_identity_test.py',
+    'host_tests/gstreamer_native_plugins_test.py',
+    'host_tests/runtime_library_guard_test.py',
+    'host_tests/graphics_assembly_manifest_test.py',
+    'host_tests/virgl_patch_overlap_test.py',
+    'host_tests/fex_simd_runtime_test.py',
+    'scripts/test_check_runtime_components.py',
 )
 
 
@@ -45,46 +53,24 @@ def package_inputs(root, tracked):
                 for path in directory.rglob('*'):
                     if path.is_file() and path.relative_to(root).as_posix() not in tracked:
                         errors.append('Uncommitted native type input: ' + str(path.relative_to(root)))
-    lock = json.loads((root / 'docs/linux-steam/build-components.lock.json').read_text())
-    for relative in lock['sourceInputs']:
-        path = root / relative
-        if relative not in tracked or not path.is_file():
-            errors.append('Uncommitted GNU dependency input: ' + relative)
-    # The release ZIP is immutable; verify_sources validates approved companion
-    # binaries and their actual sources before accepting any source override.
-    if lock.get('components'):
-        from prepare_linux_runtime_components import verify_sources
-        try: verify_sources(root, lock)
-        except (OSError, ValueError, KeyError) as error: errors.append(str(error))
-    else:
-        for relative, expected in lock['sourceInputs'].items():
-            path = root / relative
-            if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-                errors.append('GNU dependency input changed without a new dependency lock: ' + relative)
     if errors:
         raise ValueError('\n'.join(errors))
 
 
 def runtime_inputs(root, tracked):
     required = (
-        'entry/src/main/ets/model/LinuxProtonRuntimeModels.ets',
-        'entry/src/main/ets/service/LinuxProtonRuntimeService.ets',
         'entry/src/main/ets/components/SteamComponentsPanel.ets',
-        'entry/src/main/resources/rawfile/linux-proton/runtime-catalog.json',
-        'docs/linux-steam/proton-runtimes/catalog.json', 'scripts/build_proton_runtime_catalog.py',
-        'host_tests/proton_runtime_catalog_test.py', 'scripts/run_linux_proton_component_tests.cjs',
-        'scripts/proton_module_contract.py', 'scripts/prepare_linux_proton_module_closure.py',
-        'scripts/proton_optional_syscalls.py', 'scripts/run_linux_proton_modules_tests.cjs',
-        'scripts/build_linux_proton_network.py', 'scripts/proton_network_contract.py',
-        'docs/linux-steam/gnu-proton-network.lock.json',
-        'patches/linux-proton/wine-ge/0001-nsiproxy-propagate-interface-enumeration-failures.patch',
-        'entry/src/main/resources/rawfile/linux-proton/dxvk-support/nsiproxy.so',
-        'host_tests/proton_network_contract_test.py',
-        'scripts/build_gnu_proton_d3d11_probe.py', 'smoke/gnu_proton_d3d11_probe.c',
-        'entry/src/main/ets/service/LinuxProtonModules.ets', 'docs/linux-steam/gnu-proton-modules.lock.json',
+        'entry/src/main/ets/service/SteamClientService.ets',
+        'entry/src/main/ets/steam/SteamLocalService.ets',
+        'entry/src/main/ets/service/WineEngineService.ets',
+        'scripts/prepare_windows_steam_runtime.py', 'scripts/v2_product_contract.py',
+        'scripts/test_windows_steam.sh', 'scripts/test_game_runtime.sh',
     )
     missing = [name for name in required if name not in tracked or not (root / name).is_file()]
-    if missing: raise ValueError('Uncommitted Proton manager input: ' + ', '.join(missing))
+    if missing: raise ValueError('Uncommitted OHOS Wine / Windows Steam input: ' + ', '.join(missing))
+    from v2_product_contract import verify_source_layout
+    verify_source_layout(root)
+
 
 
 def main():
@@ -111,9 +97,8 @@ def main():
         if result.returncode:
             raise ValueError(' '.join(map(str, argv)) + '\n' + result.stdout[-5000:])
     tracked = set(subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0'))
-    check('committed Proton manager inputs', lambda: runtime_inputs(ROOT, tracked))
-    check('independent Proton runtime catalog', lambda: command([sys.executable, '-B', 'scripts/build_proton_runtime_catalog.py']))
-    check('declared dependency locks and committed GNU inputs', lambda: package_inputs(ROOT, tracked))
+    check('committed OHOS Wine / Windows Steam inputs', lambda: runtime_inputs(ROOT, tracked))
+    check('declared dependency locks and native types', lambda: package_inputs(ROOT, tracked))
     for path in sorted((ROOT / 'scripts').glob('*.sh')):
         check(str(path.relative_to(ROOT)), lambda p=path: command(['bash', '-n', str(p)]))
     for path in sorted((ROOT / 'scripts').glob('*.py')):
@@ -121,13 +106,6 @@ def main():
     if not args.skip_tests:
         for suite in SUITES:
             check(suite, lambda p=suite: command([sys.executable, '-B', p]))
-        def steam_readiness():
-            binary = args.build_dir / 'proton-steam-ready-host-test'
-            binary.parent.mkdir(parents=True, exist_ok=True)
-            command(['c++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-Werror',
-                     'host_tests/proton_steam_ready_test.cpp', '-ldl', '-pthread', '-o', str(binary)])
-            command([str(binary.resolve())])
-        check('Steam local account readiness (online/offline/IPC)', steam_readiness)
     if args.sdk:
         def configure():
             query = args.build_dir / '.cmake/api/v1/query'
@@ -135,8 +113,7 @@ def main():
             (query / 'codemodel-v2').touch()
             command(['cmake', '-S', str(ROOT / 'entry/src/main/cpp'), '-B', str(args.build_dir),
                 '-DCMAKE_TOOLCHAIN_FILE=' + str(args.sdk / 'native/build/cmake/ohos.toolchain.cmake'),
-                '-DOHOS_ARCH=arm64-v8a', '-DOHOS_PLATFORM=OHOS', '-DCMAKE_BUILD_TYPE=Release',
-                '-DWINEHUA_ENABLE_STEAMOHOS_HOST=ON', '-DWINEHUA_ENABLE_STEAMOHOS_GNU_EXEC=ON'])
+                '-DOHOS_ARCH=arm64-v8a', '-DOHOS_PLATFORM=OHOS', '-DCMAKE_BUILD_TYPE=Release'])
             from source_build_contract import verify_native_targets
             reply = args.build_dir / '.cmake/api/v1/reply'
             index = json.loads(max(reply.glob('index-*.json'), key=lambda p: p.stat().st_mtime_ns).read_text())
