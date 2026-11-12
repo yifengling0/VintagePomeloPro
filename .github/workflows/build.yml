@@ -3,7 +3,7 @@ name: Build VintagePomeloPro HAP (arm64-v8a, unsigned)
 
 on:
   push:
-    branches: [master, main, main_proton_steamarm64]
+    branches: [master, main, main_proton_steamarm64, feature/v2-ohos-wine-winsteam]
     tags:
       - 'dev-*'                 # 开发版 (直接发布, 不占 Latest 徽章)
       - 'rc-*'                  # RC 版 (占 Latest 徽章)
@@ -12,7 +12,7 @@ on:
       - '.gitignore'
       - 'LICENSE*'
   pull_request:
-    branches: [master, main, main_proton_steamarm64]
+    branches: [master, main, main_proton_steamarm64, feature/v2-ohos-wine-winsteam]
   workflow_dispatch:
     inputs:
       release_tag:

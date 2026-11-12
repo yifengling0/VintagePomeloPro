@@ -11,6 +11,7 @@ if [[ ! -x "$runtime_node" || ! -f "$runtime_typescript/lib/typescript.js" ]]; t
   exit 2
 fi
 mkdir -p ci-artifacts
+make test-windows-steam
 python3 scripts/build_linux_game_components.py --verify-only
 "$runtime_node" scripts/run_input_surface_bounds_tests.cjs "$runtime_typescript"
 "$runtime_node" scripts/run_mouse_input_unit_tests.cjs "$runtime_typescript"
@@ -68,7 +69,7 @@ python3 host_tests/gpu_scene_input_test.py
 python3 host_tests/egl_multi_consumer_test.py
 python3 host_tests/compositor_migration_test.py --asan
 python3 host_tests/steam_client_restart_test.py --output ci-artifacts/steam-client-restart
-for suite in run_linux_proton_modules_tests run_linux_proton_dxvk_tests run_linux_proton_media_tests run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_linux_steam_native_host_tests run_edge_window_tests run_wine_ime_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests run_steam_local_unit_tests run_steam_local_service_tests; do
+for suite in run_linux_proton_modules_tests run_linux_proton_dxvk_tests run_linux_proton_media_tests run_linux_proton_bootstrap_tests run_linux_proton_component_tests run_linux_steam_supervisor_tests run_linux_steam_window_host_tests run_linux_steam_native_host_tests run_edge_window_tests run_wine_ime_tests run_linux_steam_game_launch_tests run_linux_steam_download_tests run_linux_steam_deck_tests run_steam_startup_diagnostics_tests; do
   "$runtime_node" "scripts/$suite.cjs" \
     "$runtime_typescript"
 done

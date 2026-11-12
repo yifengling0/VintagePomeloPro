@@ -1353,6 +1353,9 @@ verify-linux-game-components:
 assemble: verify-linux-game-components
 
 # Keep the complete runtime regression list identical locally and in Actions.
-.PHONY: test-game-runtime
+.PHONY: test-windows-steam test-game-runtime
+test-windows-steam:
+	bash $(ROOT)/scripts/test_windows_steam.sh
+
 test-game-runtime:
 	bash $(ROOT)/scripts/test_game_runtime.sh

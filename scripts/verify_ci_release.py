@@ -36,8 +36,12 @@ def verify_source(root, expected_sha, release_tag):
             raise ValueError(f"release tag not in checkout: {release_tag}") from error
         if tag_sha != sha:
             raise ValueError("release tag points to a different commit")
-        if release_tag.startswith("rc-") and release_tag != "rc-" + app["versionName"]:
-            raise ValueError("RC tag does not match AppScope versionName")
+        if release_tag.startswith("rc-"):
+            # A final snapshot keeps the numeric app version. Accept only this
+            # explicit qualifier; a wrong version or arbitrary suffix fails.
+            expected_tag = "rc-" + app["versionName"]
+            if release_tag not in (expected_tag, expected_tag + "-final"):
+                raise ValueError("RC tag does not match AppScope versionName")
 
     submodules = {}
 

@@ -55,6 +55,32 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(result["app"], APP)
         self.assertEqual(result["commit"], self.sha)
 
+    def test_final_snapshot_preserves_numeric_app_version(self):
+        git(self.root, "tag", "-am", "Final snapshot", "rc-1.3.3-final")
+        result = release.verify_source(self.root, self.sha, "rc-1.3.3-final")
+        self.assertEqual(result["app"], APP)
+        self.assertEqual(result["releaseTag"], "rc-1.3.3-final")
+
+    def test_final_qualifier_does_not_relax_version_or_suffix_checks(self):
+        for tag in ("rc-1.3.2-final", "rc-1.3.30-final", "rc-1.3.3-final-extra",
+                    "rc-1.3.3-FINAL", "rc-1.3.3-rc1", "rc-1.3.3-final-final"):
+            with self.subTest(tag=tag):
+                git(self.root, "tag", tag)
+                with self.assertRaisesRegex(ValueError, "versionName"):
+                    release.verify_source(self.root, self.sha, tag)
+
+    def test_final_tag_cannot_point_to_another_commit(self):
+        git(self.root, "tag", "-am", "Final snapshot", "rc-1.3.3-final")
+        write(self.root / "another.txt", "new source")
+        commit(self.root)
+        with self.assertRaisesRegex(ValueError, "different commit"):
+            release.verify_source(self.root, git(self.root, "rev-parse", "HEAD"), "rc-1.3.3-final")
+
+    def test_dev_labels_keep_their_existing_contract(self):
+        git(self.root, "tag", "dev-winsteam-2.0-p0")
+        result = release.verify_source(self.root, self.sha, "dev-winsteam-2.0-p0")
+        self.assertEqual(result["app"], APP)
+
     def test_fetch_annotated_tag_preserves_checkout_lightweight_ref(self):
         git(self.root, "tag", "-am", "RC", "rc-1.3.3")
         checkout = Path(self.temp.name) / "checkout"
