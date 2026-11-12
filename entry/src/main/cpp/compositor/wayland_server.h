@@ -103,6 +103,8 @@ public:
     // 清理 toplevel 像素数据 + 标记 root dirty (desktop mode)
     void OnToplevelDestroyed(uint32_t toplevelId);
     void SendToplevelClose(uint32_t toplevelId);
+    // Wayland event thread only; a close request does not destroy its resource.
+    void DispatchToplevelClose(uint32_t toplevelId, wl_resource* expected);
     // 统一状态转换 (确保 minimize/maximize/restore 涉及的 map 操作原子化)
     void SetToplevelMinimized(uint32_t id);
     void SetToplevelRestored(uint32_t id);

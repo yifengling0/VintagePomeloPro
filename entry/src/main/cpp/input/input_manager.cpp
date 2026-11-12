@@ -777,6 +777,11 @@ void InputManager::RequestHostResize(uint32_t id, int32_t width, int32_t height,
         queue_.Enqueue(InputQueue::Event::HOST_RESIZE, id, nullptr, width, height, 0, resizing ? 1U : 0U);
 }
 
+void InputManager::RequestToplevelClose(uint32_t id, wl_resource* expected) {
+    // expected is an identity snapshot only; never dereference it on this thread.
+    if (id && expected) queue_.Enqueue(InputQueue::Event::CLOSE_TOPLEVEL, id, expected, 0, 0, 0, 0);
+}
+
 void InputManager::RequestToplevelActivation(uint32_t id) {
     if (id) queue_.Enqueue(InputQueue::Event::ACTIVATE_TOPLEVEL, id, nullptr, 0, 0, 0, 0);
 }
@@ -804,6 +809,9 @@ void InputManager::FlushQueue() {
 
     for (auto& ev : batch) {
         switch (ev.type) {
+            case InputQueue::Event::CLOSE_TOPLEVEL:
+                WaylandServer::GetInstance()->DispatchToplevelClose(ev.tl, ev.surface);
+                break;
             case InputQueue::Event::HOST_RESIZE:
                 WaylandServer::GetInstance()->NotifyToplevelResize(ev.tl, ev.x, ev.y, ev.state != 0);
                 break;

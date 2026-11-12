@@ -58,6 +58,7 @@ python3 host_tests/linux_steam_offline_package_test.py
 python3 host_tests/release_offline_packages_test.py
 python3 host_tests/managed_render_route_test.py
 # Exercise production GPU ownership and independent window consumers locally and in CI.
+python3 host_tests/wayland_close_lifecycle_test.py
 python3 host_tests/gpu_owner_contract_test.py
 python3 host_tests/steam_gpu_contract_test.py
 python3 host_tests/gpu_scene_input_test.py

@@ -75,6 +75,7 @@ public:
 
     // JS thread enqueues only an identity; resolve resources on the Wayland thread.
     void RequestToplevelActivation(uint32_t toplevelId);
+    void RequestToplevelClose(uint32_t toplevelId, wl_resource* expected);
     void RequestHostResize(uint32_t toplevelId, int32_t width, int32_t height, bool resizing);
     bool RequestExternalHostMove(uint32_t source, uint32_t host, uint32_t resizeEdges = 0);
     bool IsExternalHostResizing(uint32_t host) const;

@@ -480,14 +480,18 @@ void WaylandServer::ResetSessionState() {
 
 void WaylandServer::SendToplevelClose(uint32_t toplevelId) {
     if (x11_toplevel_owns(toplevelId)) { x11_toplevel_close(toplevelId); return; }
+    InputManager::GetInstance()->RequestToplevelClose(toplevelId, toplevelMgr_.FindToplevelResource(toplevelId));
+}
+
+void WaylandServer::DispatchToplevelClose(uint32_t toplevelId, wl_resource* expected) {
+    // Runs with protocol destruction/configure on the event thread. Closing is
+    // advisory: keep the mapping while a client saves, shows a dialog or ignores
+    // it. tl_resource_destroy alone unregisters the resource. The queue flushes
+    // clients even when a background game produces no further input/frames.
     wl_resource* tl = toplevelMgr_.FindToplevelResource(toplevelId);
-    if (tl) {
-        toplevelMgr_.UnregisterToplevelResource(toplevelId);
-        OH_LOG_INFO(LOG_APP, "[MW] SendToplevelClose id=%{public}u -> xdg_toplevel_send_close", toplevelId);
-        xdg_toplevel_send_close(tl);
-    } else {
-        OH_LOG_WARN(LOG_APP, "[MW] SendToplevelClose id=%{public}u NOT found", toplevelId);
-    }
+    if (!tl || tl != expected) return;
+    OH_LOG_INFO(LOG_APP, "[MW] SendToplevelClose id=%{public}u -> xdg_toplevel_send_close", toplevelId);
+    xdg_toplevel_send_close(tl);
 }
 
 // IsToplevelVisibleLocked 已移至 ToplevelManager (compositor/toplevel_manager.cpp)
