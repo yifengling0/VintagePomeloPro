@@ -1525,7 +1525,7 @@ export class WineWindowManager {
     const foregroundRevision = externalKey ? HostWindowTasks.getInstance().foregroundRevision() : -1;
     const current = (): boolean => externalKey !== undefined && !this.destroyed.has(id) &&
       this.externalToplevels.get(id) === externalKey &&
-      HostWindowTasks.getInstance().foregroundRevision() === foregroundRevision;
+      HostWindowTasks.getInstance().isForegroundSelectionCurrent(foregroundRevision, externalKey);
     const start = async (): Promise<void> => {
       try { await this.startHostAbility(want); }
       catch (error) {

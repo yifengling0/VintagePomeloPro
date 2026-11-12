@@ -55,6 +55,8 @@ export class HostWindowTasks {
   private pendingSteamLaunch: PendingSteamGameLaunch | null = null;
   private request: number = 0;
   private foregroundChoice: number = 0;
+  private foregroundTargetKey: string = '';
+  private foregroundTargetSince: number = 0;
   private active: string = '';
   private launcherForeground: boolean = false;
   private requestedKey: string = '';
@@ -120,13 +122,25 @@ export class HostWindowTasks {
   }
   setLauncher(launcher: () => Promise<void>): void { this.launcher = launcher; }
   markLauncherForeground(): void {
-    ++this.request; ++this.foregroundChoice; this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
+    ++this.request; this.chooseForeground(''); this.requestedKey = ''; this.active = ''; this.launcherForeground = true;
     this.pendingSteamReturn = ''; this.pendingSteamLaunch = null;
   }
   markDesktopForeground(): void { this.launcherForeground = false; }
   isLauncherForeground(): boolean { return this.launcherForeground; }
   // Capture before asynchronous startup/dispatch, not after it completes.
   foregroundRevision(): number { return this.foregroundChoice; }
+  private chooseForeground(key: string): void {
+    ++this.foregroundChoice;
+    if (!key || key !== this.foregroundTargetKey) this.foregroundTargetSince = this.foregroundChoice;
+    this.foregroundTargetKey = key;
+  }
+  // A late ownership association may select the very window whose carrier is
+  // already starting. Keep that continuous selection, but reject Home, another
+  // window, or a departure followed by a return to this same window.
+  isForegroundSelectionCurrent(revision: number, key: string): boolean {
+    return this.foregroundChoice === revision || (key.length > 0 && this.foregroundTargetKey === key &&
+      this.foregroundTargetSince <= revision + 1);
+  }
   async showLauncher(): Promise<void> {
     this.markLauncherForeground();
     if (this.launcher) await this.launcher();
@@ -162,6 +176,7 @@ export class HostWindowTasks {
       this.publish(); return;
     }
     ++this.request;
+    this.chooseForeground('');
     this.requestedKey = '';
     this.windows.clear();
     this.steamSessions.clear();
@@ -361,7 +376,7 @@ export class HostWindowTasks {
         pending.expiresAt < Date.now() || pending.sessionId) this.pendingSteamLaunch = null;
     }
     if (task) {
-      ++this.foregroundChoice;
+      this.chooseForeground(task.key);
       // Clicking the currently active task also cancels an in-flight raise of
       // a different task. Active identity alone cannot detect that choice.
       if (this.requestedKey !== task.key) ++this.request;
@@ -413,7 +428,7 @@ export class HostWindowTasks {
       key = owned.key;
     }
     const pending = preserveLaunch ? this.pendingSteamLaunch : null;
-    if (!preserveLaunch) ++this.foregroundChoice;
+    if (!preserveLaunch) this.chooseForeground(key);
     this.pendingSteamReturn = '';
     if (!preserveLaunch) this.pendingSteamLaunch = null;
     const serial = ++this.request;

@@ -46,7 +46,8 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   const store = {getGlobalSettings:()=>settings,usesManagedWineWindows:()=>policy.usesManagedWineWindows(),
     getAppSettings:()=>models.createDefaultAppSettings('game'),recordRecentLaunch:async()=>{}};
   const tasks = [];
-  const hostTasks = {foregroundChoice:0,foregroundRevision(){return this.foregroundChoice;},reset(){},onEvent(){},setWineGameEligibility(){},markDesktopForeground(){},associateSession(){},snapshot:()=>tasks};
+  const hostTasks = new (load('service/HostWindowTasks').HostWindowTasks)();
+  Object.assign(hostTasks, {reset(){},onEvent(){},setWineGameEligibility(){},markDesktopForeground(){},associateSession(){},snapshot:()=>tasks});
   const processes = [{pid:42,path:'C:/game.exe',state:'running',sessionId:'game'}];
   const native = {setDesktopMode(){},getDesktopRootId:()=>7,getWineSession:()=>null,
     getProcessList:()=>processes,activateWineSession:sid=>nativeCalls.push(['activate',sid]),
@@ -260,6 +261,27 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   assert.equal(accepted.at(-1)[0],'steam');
   assert.equal(wm.foregroundHostWaiters.size,0);
   assert.equal(wm.failedExternalStarts.has(23),false);
+  // Native created starts a carrier before broker ownership polling
+  // associates/activates the SAME window. AMS may foreground Steam before
+  // rejecting Entry's original start; this must still get its one retry.
+  wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
+  g.hostTasks.windows.set(23,task);g.hostTasks.setActivator(async()=>true);
+  let rejectEarly;
+  g.context.startAbility=()=>new Promise((_,reject)=>{rejectEarly=reject;});
+  const early=wm.startWineWindowAbility(23,'{}');
+  assert.equal(await g.hostTasks.activate(task.key),true);
+  wm.noteAbilityForeground(21,true);const beforeEarly=accepted.length;
+  rejectEarly(Object.assign(Error('late AMS rejection'),{code:201}));await early;
+  assert.equal(accepted.length,beforeEarly+1,'same-window ownership activation preserves handoff');
+  // Leaving for Home then reselecting this window is a NEW request. The old
+  // automatic handoff must not revive even though the target key matches.
+  wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
+  const departed=wm.startWineWindowAbility(23,'{}');
+  g.hostTasks.markLauncherForeground();await g.hostTasks.activate(task.key);
+  wm.noteAbilityForeground(21,true);const beforeDeparted=accepted.length;
+  rejectEarly(Object.assign(Error('stale after Home'),{code:201}));await departed;
+  assert.equal(accepted.length,beforeDeparted);
+  g.context.startAbility=async()=>{throw Object.assign(Error('handoff'),{code:201});};
   // A window that disappears during the wait must never resurrect.
   wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
   const staleHandoff=wm.startWineWindowAbility(23,'{}');await new Promise(setImmediate);
@@ -271,7 +293,7 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
   wm.externalToplevels.set(23,task.key);
   const navigated=wm.startWineWindowAbility(23,'{}');await new Promise(setImmediate);
-  g.hostTasks.foregroundChoice++;const beforeNavigation=accepted.length;
+  g.hostTasks.markLauncherForeground();const beforeNavigation=accepted.length;
   wm.noteAbilityForeground(21,true);await navigated;
   assert.equal(accepted.length,beforeNavigation);
   assert.equal(wm.foregroundHostWaiters.size,0);
