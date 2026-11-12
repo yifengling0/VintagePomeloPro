@@ -358,6 +358,13 @@ export class LinuxSteamGameLaunch {
       // Steam can submit two driver queries together. Serialize real Wine
       // sessions instead of rejecting the second helper as an active game.
       if (this.pending.length >= 16) { this.reject(request, '启动队列已满'); continue; }
+      // Accept ownership before cold runtime/prefix preparation exceeds the
+      // existing GNU tool's 15s handshake limit. The host task stays preparing;
+      // engine startup deadlines and rejection/cancellation still apply.
+      if (!smokeNapi.replyLinuxSteamLaunchBroker?.(request.id, 1, 0)) {
+        this.record(request.appId, 'steam_launch_controller_disconnected', undefined, undefined, request.role, request.backend);
+        continue;
+      }
       this.pending.push(request);
       if (request.role === 'game') HostWindowTasks.getInstance().registerSteamGame(this.ticketSession(request.id), request.appId,
         request.backend ?? 'ohos-wine', request.id, this.generation);

@@ -160,6 +160,22 @@ for(const backend of [undefined,'ohos-wine','gnu-proton','gnu-proton-gl']) {
 requests=[{...request(),id:14}];state=1;await service.tick();
 assert.equal(coldPreparations,1,'First Windows game prepares Wine');
 assert.equal(launchCount(),before+1);service.stop();
+// Cold Wine owns the request before awaiting preparation; cancel still wins.
+let finishPreparation;
+service.start('/z/SteamLinuxARM64/library','/results','/z',()=>new Promise(resolve=>{finishPreparation=resolve;}));
+const beforeCold=launchCount();requests=[{...request(),id:15}];
+const coldTick=service.tick();await new Promise(resolve=>setImmediate(resolve));
+assert.deepEqual(replies.at(-1),[15,1,0],'Receipt precedes asynchronous preparation');
+assert.equal(launchCount(),beforeCold,'Receipt cannot fabricate a running game');
+assert.equal(await deps['./HostWindowTasks'].HostWindowTasks.getInstance().gameCloser(
+ {sessionId:service.ticketSession(15),toplevelId:0},false),true);
+finishPreparation();await coldTick;
+assert.equal(launchCount(),beforeCold,'Cancelled cold startup cannot dispatch later');service.stop();
+// Disconnecting during preparation still tears down a subsequently created process.
+service.start('/z/SteamLinuxARM64/library','/results','/z',async()=>{replyAccepted=false;});
+const stoppedDuringCold=stopped.length;requests=[{...request(),id:16}];await service.tick();
+assert.equal(service.sessions.length,0);assert.equal(stopped.length,stoppedDuringCold+1);
+replyAccepted=true;service.stop();
 // Diagnostics cannot become lifecycle control or kill a running game.
 service.start('/z/SteamLinuxARM64/library', '/results', '/z');
 failAudit = true; service.ticks = 24; state = 1; requests = [request()];
@@ -173,8 +189,8 @@ const registrationsBefore = registrations.length;
 const stopBefore = stopped.length;
 await service.tick();
 assert.equal(service.sessions.length, 0, 'A disconnected Steam controller cannot leave an orphan game');
-assert.equal(stopped.length, stopBefore + 1);
-assert.equal(registrations.length, registrationsBefore + 1, 'Queued game is registered before process creation');
+assert.equal(stopped.length, stopBefore, 'Disconnected receipt never creates a process');
+assert.equal(registrations.length, registrationsBefore, 'Disconnected receipt never registers queued work');
 replyAccepted = true; failLaunch = true; requests = [request()];
 await service.tick(); assert.equal(service.sessions.length, 0, 'Per-request launch failure is contained');
 failLaunch = false; requests = [request()]; await service.tick();

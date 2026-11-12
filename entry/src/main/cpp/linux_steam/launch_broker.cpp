@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
+#include <poll.h>
 #include <sstream>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -236,7 +237,16 @@ bool LaunchBroker::Reply(uint32_t id,uint32_t kind,uint32_t code){
     auto it=std::find_if(clients.begin(),clients.end(),[&](const Client& c){return c.id==id&&c.delivered;});
     if(it==clients.end()||kind<1||kind>6||(kind>4&&it->request.backend!="linux-native"))return false;
     uint32_t reply[]={htonl(LaunchReplyMagic),htonl(kind),htonl(code)};
-    bool ok=send(it->fd,reply,sizeof(reply),MSG_NOSIGNAL|MSG_DONTWAIT)==sizeof(reply);
+    bool ok=false;
+    if(kind==1&&it->request.phase=="accepted") {
+        // Receipt was sent before runtime preparation. The post-spawn check
+        // must still reject a disconnected/cancelling controller, without
+        // sending a duplicate acceptance to the existing GNU tool.
+        pollfd peer{it->fd,POLLIN|POLLRDHUP,0};int ready;
+        do {ready=poll(&peer,1,0);} while(ready<0&&errno==EINTR);
+        ok=ready==0;
+    } else ok=send(it->fd,reply,sizeof(reply),MSG_NOSIGNAL|MSG_DONTWAIT)==sizeof(reply);
+    if(kind==1&&ok)it->request.phase="accepted";
     if((kind!=1&&kind!=5&&kind!=6)||!ok){close(it->fd);clients.erase(it);}return ok;
 }
 LaunchBroker& GameLaunchBroker(){static LaunchBroker broker;return broker;}

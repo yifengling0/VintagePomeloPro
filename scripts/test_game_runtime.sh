@@ -23,6 +23,7 @@ for suite in proton_user_paths cloud_tool_selection; do
 done
 "$runtime_node" scripts/run_desktop_restore_tests.cjs "$runtime_typescript"
 python3 host_tests/linux_steam_cloud_paths_test.py
+python3 host_tests/linux_steam_launch_test.py
 python3 host_tests/linux_steam_exec_access_test.py
 python3 host_tests/linux_steam_depot_links_test.py
 python3 host_tests/linux_steam_native_fex_test.py

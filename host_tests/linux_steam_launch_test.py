@@ -43,5 +43,5 @@ class LaunchTest(unittest.TestCase):
             subprocess.run([*common,str(ROOT/'host_tests/linux_steam_launch_test.cpp'),str(build/'broker.o'),'-pthread','-o',str(build/'test')],check=True)
             compat=build/'compat.so'
             subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',str(source/'linux_steam/gnu_fixture/filesystem_compat.c'),'-ldl','-o',str(compat)],check=True)
-            subprocess.run([str(build/'test'),str(build/'tool'),str(compat)],check=True,timeout=20)
+            subprocess.run([str(build/'test'),str(build/'tool'),str(compat)],check=True,timeout=45)
 if __name__ == '__main__': unittest.main()

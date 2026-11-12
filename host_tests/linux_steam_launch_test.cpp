@@ -32,6 +32,15 @@ int main(int argc,char** argv){
     int fd=send(valid);auto events=broker.Drain();assert(events.size()==1&&events[0].argv==valid.argv&&events[0].nonce.empty());
     auto id=events[0].id;assert(broker.Reply(id,1,0));uint32_t reply[3];assert(recv(fd,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply));assert(ntohl(reply[1])==1);
     assert(broker.Reply(id,2,23));assert(recv(fd,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply)&&ntohl(reply[2])==23);close(fd);
+    // A late post-preparation check cannot revive a disconnected controller.
+    for(bool cancel:{false,true}) {
+        int peer=send(valid);auto pending=broker.Drain();assert(pending.size()==1);
+        auto ticket=pending[0].id;assert(broker.Reply(ticket,1,0));
+        assert(recv(peer,reply,sizeof(reply),MSG_WAITALL)==sizeof(reply));
+        if(cancel)assert(write(peer,"C",1)==1);else {close(peer);peer=-1;}
+        assert(!broker.Reply(ticket,1,0));LaunchRequest gone;assert(!broker.GetRequest(ticket,gone));
+        if(peer>=0)close(peer);
+    }
     auto rejected=[&](LaunchRequest request){int client=send(request);assert(broker.Drain().empty());char byte;assert(recv(client,&byte,1,0)==0);close(client);};
     for(const std::string backend:{"gnu-proton","gnu-proton-gl"}) {
         auto gnu=valid;gnu.environment.push_back("HMOSDECK_RUNTIME="+backend);
@@ -73,7 +82,14 @@ int main(int argc,char** argv){
         execl(argv[1],argv[1],"waitforexitandrun",target.c_str(),"中文 空格",nullptr);_exit(127);}
     events.clear();for(unsigned i=0;i<200&&events.empty();++i){events=broker.Drain();Tick();}
     assert(broker.OwnsProcess(child));
-    assert(events.size()==1&&events[0].argv[1]=="中文 空格");id=events[0].id;assert(broker.Reply(id,1,0));Tick();int status=0;assert(waitpid(child,&status,WNOHANG)==0);
+    assert(events.size()==1&&events[0].argv[1]=="中文 空格");id=events[0].id;assert(broker.Reply(id,1,0));
+    if(!aliases){
+        // Use the unchanged shipped GNU tool: cold preparation exceeds its
+        // original 15s handshake deadline, before actual process dispatch.
+        std::this_thread::sleep_for(std::chrono::seconds(16));
+        int pendingStatus=0;assert(waitpid(child,&pendingStatus,WNOHANG)==0);
+    }
+    assert(broker.Reply(id,1,0));Tick();int status=0;assert(waitpid(child,&status,WNOHANG)==0);
     assert(broker.Reply(id,2,23));assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==23);
     assert(!broker.OwnsProcess(child));
     }
