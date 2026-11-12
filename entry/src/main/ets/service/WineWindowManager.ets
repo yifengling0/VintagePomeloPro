@@ -48,6 +48,7 @@ export class WineWindowManager {
   private requestedGeometry: Map<number, RequestedHostGeometry> = new Map();
   private applyingGeometry: Set<number> = new Set();
   private foregroundAbilities: Set<number> = new Set();
+  private foregroundHostWaiters: Set<() => void> = new Set();
   private restoringAbilities: Map<number, Promise<void>> = new Map();
   private windowStage: window.WindowStage | null = null;
   private mainWindow: window.Window | null = null;
@@ -743,6 +744,32 @@ export class WineWindowManager {
     // Set insertion order tracks the latest foreground event on multiwindow PCs.
     this.foregroundAbilities.delete(id);
     if (foreground && !this.destroyed.has(id)) this.foregroundAbilities.add(id);
+    this.foregroundHostWaiters.forEach((wake: () => void): void => wake());
+  }
+
+  // A splash can disappear before AMS foregrounds the Steam carrier again.
+  // Wait for that lifecycle handoff, with one bounded retry and no background
+  // launch polling. Explicit navigation and window reincarnation cancel it.
+  private awaitForegroundHost(current: () => boolean): Promise<boolean> {
+    return new Promise<boolean>((resolve): void => {
+      let timer: number = -1;
+      const wake = (): void => {
+        let available = this.desktopAbilityForeground && this.desktopAbilityCtx !== null;
+        this.foregroundAbilities.forEach((id: number): void => {
+          if (!this.destroyed.has(id) && this.abilityContexts.has(id)) available = true;
+        });
+        if (current() && !available) return;
+        if (timer >= 0) clearTimeout(timer);
+        this.foregroundHostWaiters.delete(wake);
+        resolve(current() && available);
+      };
+      this.foregroundHostWaiters.add(wake);
+      timer = setTimeout((): void => {
+        this.foregroundHostWaiters.delete(wake);
+        resolve(false);
+      }, 600);
+      wake();
+    });
   }
 
   private startHostAbility(want: Want): Promise<void> {
@@ -1495,7 +1522,20 @@ export class WineWindowManager {
       want.bundleName ?? '', want.abilityName ?? '', JSON.stringify(want.parameters));
 
     const externalKey = this.externalToplevels.get(id);
-    return this.startHostAbility(want).then(() => {
+    const foregroundRevision = externalKey ? HostWindowTasks.getInstance().foregroundRevision() : -1;
+    const current = (): boolean => externalKey !== undefined && !this.destroyed.has(id) &&
+      this.externalToplevels.get(id) === externalKey &&
+      HostWindowTasks.getInstance().foregroundRevision() === foregroundRevision;
+    const start = async (): Promise<void> => {
+      try { await this.startHostAbility(want); }
+      catch (error) {
+        if ((error as BusinessError).code !== 201 || !current() ||
+          !await this.awaitForegroundHost(current) || !current()) throw error;
+        hilog.info(DOMAIN, TAG, '[MW] retry external carrier after foreground handoff #%{public}d', id);
+        await this.startHostAbility(want);
+      }
+    };
+    return start().then(() => {
       hilog.info(DOMAIN, TAG, '[MW] OK startAbility #%{public}d resolved (AMS accepted)', id);
       // AMS acknowledgement precedes onWindowStageCreate. Keep the reservation
       // until registerWindow/destroy so native ownership polling cannot launch
@@ -1810,6 +1850,7 @@ export class WineWindowManager {
     this.desktopAbilityRootId = rootId;
     this.desktopAbilityRunning = true;
     this.desktopAbilityForeground = true;
+    this.foregroundHostWaiters.forEach((wake: () => void): void => wake());
     // Lifecycle confirmation supersedes an OS request still awaiting completion.
     this.desktopAbilityRequest = null;
     HostWindowTasks.getInstance().markDesktopForeground();

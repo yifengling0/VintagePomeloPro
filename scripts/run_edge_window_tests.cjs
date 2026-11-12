@@ -118,7 +118,7 @@ async function carrierTests(){
   const wm=load('service/WineWindowManager.ets',{
     '@kit.AbilityKit':{},'@kit.ArkUI':{window:windowApi},'./LogService':{hilog},
     '@kit.BasicServicesKit':{},'@kit.InputKit':{},'libentry.so':{default:{setDesktopMode(){},notifyToplevelResize:(...x)=>resizes.push(x),notifyToplevelResizeEnd:id=>resizes.push([id,'end'])}},'libsmoke_napi.so':{default:{}},
-    './HostWindowTasks':{HostWindowTasks:{getInstance:()=>({reset(){},onEvent(){},snapshot:()=>nativeTasks})}},
+    './HostWindowTasks':{HostWindowTasks:{getInstance:()=>({foregroundRevision:()=>0,reset(){},onEvent(){},snapshot:()=>nativeTasks})}},
     './InputDispatcher':{},'../model/AppModels':models,'./PopupWindowManager':{},'./ModalWindowManager':{},'./FusionWindowManager':{},
     './AppSettingsStore':{AppSettingsStore:{getInstance:()=>({usesManagedWineWindows:()=>policy.usesManagedWineWindows(),getGlobalSettings:()=>({desktopWindowMode:settingMode})})}},
     './DesktopModeService':{},'../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:policy}

@@ -46,7 +46,7 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   const store = {getGlobalSettings:()=>settings,usesManagedWineWindows:()=>policy.usesManagedWineWindows(),
     getAppSettings:()=>models.createDefaultAppSettings('game'),recordRecentLaunch:async()=>{}};
   const tasks = [];
-  const hostTasks = {reset(){},onEvent(){},setWineGameEligibility(){},markDesktopForeground(){},associateSession(){},snapshot:()=>tasks};
+  const hostTasks = {foregroundChoice:0,foregroundRevision(){return this.foregroundChoice;},reset(){},onEvent(){},setWineGameEligibility(){},markDesktopForeground(){},associateSession(){},snapshot:()=>tasks};
   const processes = [{pid:42,path:'C:/game.exe',state:'running',sessionId:'game'}];
   const native = {setDesktopMode(){},getDesktopRootId:()=>7,getWineSession:()=>null,
     getProcessList:()=>processes,activateWineSession:sid=>nativeCalls.push(['activate',sid]),
@@ -124,7 +124,7 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
     executable:'C:/game.exe',arguments:[],workingDirectory:''}},settings,'/games');
   assert.equal(restored,child);checkCarrier();
   assert.ok(nativeCalls.some(([action,id])=>action==='raise'&&id===9),'game still receives focus');
-  return {wm,service,context,starts,desktop,child,values,settings,models,tasks,nativeCalls};
+  return {wm,service,context,starts,desktop,child,values,settings,models,tasks,nativeCalls,hostTasks};
 }
 
 (async()=>{
@@ -246,5 +246,45 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   rejectOld(Error('old incarnation'));await oldStart;
   assert.equal(wm.failedExternalStarts.has(23),false,'stale request cannot poison a reused ID');
   assert.equal(g.nativeCalls.some(([action])=>action==='close'),false);
+  // Reproduce splash teardown before AMS foregrounds Steam: Entry is in
+  // background, so the new game carrier must wait for a real lifecycle event.
+  wm.externalToplevels.set(23,task.key);wm.failedExternalStarts.delete(23);wm.pendingStarts.delete(23);
+  g.context.startAbility=async()=>{backgroundAttempts++;throw Object.assign(Error('handoff'),{code:201});};
+  const handoff=wm.startWineWindowAbility(23,'{}');
+  await new Promise(setImmediate);
+  assert.equal(wm.pendingStarts.has(23),true);
+  assert.equal(wm.foregroundHostWaiters.size,1);
+  const beforeHandoff=accepted.length;
+  wm.noteAbilityForeground(21,true);await handoff;
+  assert.equal(accepted.length,beforeHandoff+1);
+  assert.equal(accepted.at(-1)[0],'steam');
+  assert.equal(wm.foregroundHostWaiters.size,0);
+  assert.equal(wm.failedExternalStarts.has(23),false);
+  // A window that disappears during the wait must never resurrect.
+  wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
+  const staleHandoff=wm.startWineWindowAbility(23,'{}');await new Promise(setImmediate);
+  wm.externalToplevels.set(23,'23:new');const beforeStale=accepted.length;
+  wm.noteAbilityForeground(21,true);await staleHandoff;
+  assert.equal(accepted.length,beforeStale);
+  assert.equal(wm.foregroundHostWaiters.size,0);
+  // User navigation while AMS restores Steam cancels the automatic retry.
+  wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
+  wm.externalToplevels.set(23,task.key);
+  const navigated=wm.startWineWindowAbility(23,'{}');await new Promise(setImmediate);
+  g.hostTasks.foregroundChoice++;const beforeNavigation=accepted.length;
+  wm.noteAbilityForeground(21,true);await navigated;
+  assert.equal(accepted.length,beforeNavigation);
+  assert.equal(wm.foregroundHostWaiters.size,0);
+  // One retry only: a real permission failure must settle without a storm.
+  wm.pendingStarts.delete(23);wm.noteAbilityForeground(21,false);
+  wm.externalToplevels.set(23,task.key);
+  let denied=0;
+  const denying={startAbility:async()=>{denied++;throw Object.assign(Error('denied'),{code:201});}};
+  wm.registerAbility(24,denying);
+  const rejected=wm.startWineWindowAbility(23,'{}');await new Promise(setImmediate);
+  wm.noteAbilityForeground(24,true);await rejected;
+  assert.equal(denied,1);assert.equal(wm.failedExternalStarts.has(23),true);
+  wm.noteAbilityForeground(24,false);
+  console.log('Native carrier handoff: delayed foreground, bounded rejection, no retry storm and stale window cancellation PASS');
   console.log('Host launch: foreground Steam/game/desktop, background rejection, explicit retry and incarnation isolation PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

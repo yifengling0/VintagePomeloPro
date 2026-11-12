@@ -233,11 +233,13 @@ export class LinuxSteamGameLaunch {
       for (const task of tasks.snapshot()) {
         if (task.sessionId === session.sessionId || !smokeNapi.isLinuxSteamGameProcess?.(session.id, task.clientPid)) continue;
         if (!tasks.associateGameWindow(task.key, session.sessionId)) continue;
-        WineWindowManager.getInstance().manageExternalToplevel(task.key);
         if (!session.focused && tasks.foregroundRevision() === session.focusRevision) {
           session.focused = true;
           void tasks.activate(task.key).catch((): boolean => false);
         }
+        // Record the selected game before its asynchronous carrier request;
+        // the launch's own focus choice must not cancel a splash handoff.
+        WineWindowManager.getInstance().manageExternalToplevel(task.key);
       }
     }
   }
