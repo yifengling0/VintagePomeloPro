@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <vector>
 
@@ -30,18 +31,30 @@ int main() {
     // the complete current image without stale rows or missing alpha edits.
     std::array<std::vector<uint8_t>, 2> slots{staging, staging};
     std::array<bool, 2> initialized{};
+    std::array<std::shared_ptr<const std::vector<uint8_t>>, 2> uploaded;
     std::mt19937 random(21987);
     for (unsigned step = 0; step < 1000; ++step) {
         for (unsigned edit = 0, n = random() % 7; edit < n; ++edit)
             frame[random() % frame.size()] = static_cast<uint8_t>(random());
         const auto slot = random() % slots.size();
-        plan = winehua::PlanShmUploadRows(slots[slot].data(), frame.data(), w, h, initialized[slot]);
+        const auto current = std::make_shared<const std::vector<uint8_t>>(frame);
+        plan = winehua::PlanShmUploadRows(uploaded[slot] ? uploaded[slot]->data() : nullptr,
+            current->data(), w, h, initialized[slot] && uploaded[slot] != nullptr);
         assert(plan.first + plan.count <= h && plan.offset + plan.bytes <= frame.size());
         std::copy(frame.begin() + plan.offset, frame.begin() + plan.offset + plan.bytes,
                   slots[slot].begin() + plan.offset);
+        uploaded[slot] = current;
         initialized[slot] = true;
         assert(slots[slot] == frame);
-        if (step % 53 == 0) initialized[slot] = false; // texture rebuild: force full upload
+        assert(*uploaded[slot] == slots[slot]);
+        // Producer reuse cannot mutate the immutable snapshot retained by a slot.
+        const auto retained = *uploaded[slot];
+        frame[0] ^= 1;
+        assert(*uploaded[slot] == retained);
+        if (step % 53 == 0) {
+            initialized[slot] = false; // texture rebuild: force full upload
+            uploaded[slot].reset();
+        }
     }
     std::cout << "shm_upload_rows_test PASS (1000 skipped/alternating-slot frames)\n";
 }

@@ -11,7 +11,8 @@ struct ShmUploadRows {
     size_t offset = 0, bytes = 0;
 };
 
-// Compare with this image's own staging bytes, after its submission fence.
+// Compare with this image's own ordinary CPU snapshot, after its submission fence.
+// Never compare by reading a mapped GPU allocation: it may be uncached.
 // A frame slot may miss any number of commits; protocol damage from only the
 // newest commit cannot safely describe the difference to its older texture.
 // Preserve every BGRA byte (including alpha) and upload a contiguous row span.

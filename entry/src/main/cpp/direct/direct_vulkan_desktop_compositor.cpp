@@ -86,6 +86,9 @@ class VulkanDesktopRenderer {
         VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
         uint64_t serial = UINT64_MAX;
         bool initialized = false;
+        // Immutable CPU snapshot matching this slot's texture. Reading mapped
+        // coherent GPU staging memory can be uncached on mobile devices.
+        std::shared_ptr<const std::vector<uint8_t>> uploadedPixels;
         ~Image() {
             if (descriptor) vkFreeDescriptorSets(device, pool, 1, &descriptor);
             if (staging) vkDestroyBuffer(device, staging, nullptr);
@@ -802,14 +805,22 @@ private:
         if (image.initialized && image.serial == layer.serial) return true;
         auto& g = *core_;
         const size_t bytes = static_cast<size_t>(image.width) * image.height * 4;
-        void* mapped = nullptr;
-        // Only Wayland SHM UI is uploaded; NativeBuffer game images never map.
-        if (!Check(vkMapMemory(g.Device(), image.stagingMemory, 0, bytes, 0, &mapped), "scene_ui_map")) return false;
-        const auto rows = winehua::PlanShmUploadRows(static_cast<const uint8_t*>(mapped),
-            layer.pixels->data(), image.width, image.height, image.initialized);
-        if (rows.bytes) std::memcpy(static_cast<uint8_t*>(mapped) + rows.offset,
-            layer.pixels->data() + rows.offset, rows.bytes);
-        vkUnmapMemory(g.Device(), image.stagingMemory);
+        // Compare ordinary CPU snapshots, never read the GPU staging allocation.
+        // Each fenced frame slot retains exactly the pixels last uploaded to its
+        // own texture, even when it misses commits or alternates with another slot.
+        const auto rows = winehua::PlanShmUploadRows(
+            image.uploadedPixels ? image.uploadedPixels->data() : nullptr,
+            layer.pixels->data(), image.width, image.height,
+            image.initialized && image.uploadedPixels && image.uploadedPixels->size() == bytes);
+        if (rows.bytes) {
+            void* mapped = nullptr;
+            // Only Wayland SHM UI is uploaded; NativeBuffer game images never map.
+            if (!Check(vkMapMemory(g.Device(), image.stagingMemory, 0, bytes, 0, &mapped), "scene_ui_map")) return false;
+            std::memcpy(static_cast<uint8_t*>(mapped) + rows.offset,
+                layer.pixels->data() + rows.offset, rows.bytes);
+            vkUnmapMemory(g.Device(), image.stagingMemory);
+        }
+        image.uploadedPixels = layer.pixels;
         image.serial = layer.serial;
         if (!rows.count) return true;
         uiUploadBytes_ += rows.bytes;
