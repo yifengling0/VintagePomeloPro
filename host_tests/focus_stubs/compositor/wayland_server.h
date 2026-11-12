@@ -8,6 +8,8 @@ public:
     static WaylandServer* GetInstance() { static WaylandServer server; return &server; }
     void RaiseToplevel(uint32_t, bool) {}
     void SetToplevelRestored(uint32_t) {}
+    // Protocol close delivery is covered by wayland_close_lifecycle_test.py.
+    void DispatchToplevelClose(uint32_t, wl_resource*) {}
     uint32_t resizedHost=0;
     int32_t resizeW=0,resizeH=0; bool resizing=false;
     void NotifyToplevelResize(uint32_t id,int32_t w,int32_t h,bool active) {
