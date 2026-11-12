@@ -8,6 +8,8 @@
 #include "xdg_shell.h"
 #include "xdg_configure.h"
 #include "common/fps_counter.h"
+#include "common/perf_utils.h"
+#include "common/frame_loop_diagnostics.h"
 #include "proc/wine_process.h"
 #include "compositor/frame/debug_assert.h"
 #include "direct/direct_wine_surface_controller.h"
@@ -149,7 +151,9 @@ void WaylandServer::Stop() {
 }
 
 void WaylandServer::EventLoop() {
-    int tick = 0;
+    using Clock = std::chrono::steady_clock;
+    auto nextStats = Clock::now() + std::chrono::seconds(30);
+    auto nextRegistry = Clock::now();
     while (running_) {
         wl_event_loop* loop = wl_display_get_event_loop(display_);
         int ret = wl_event_loop_dispatch(loop, 50); // 50ms timeout
@@ -159,16 +163,20 @@ void WaylandServer::EventLoop() {
         }
         wl_display_flush_clients(display_);  // dispatch 可能写数据, 之后 flush
 
-        // 每 30 秒输出一次资源快照 (50ms * 600 = 30s)
-        if (++tick % 600 == 0) {
+        // Dispatch's timeout is an upper bound: busy clients can wake it
+        // thousands of times per second. Diagnostics follow elapsed time.
+        const auto now = Clock::now();
+        if (now >= nextStats) {
+            nextStats = now + std::chrono::seconds(30);
             size_t renderers = PluginManager::GetInstance()->GetRendererCount();
             OH_LOG_INFO(LOG_APP, "[WL-STAT] toplevels=%{public}zu surfaces=%{public}zu renderers=%{public}zu",
                         toplevelMgr_.ToplevelResourceCount(), toplevelMgr_.ToplevelSurfaceCount(), renderers);
         }
-        // P0-1 WindowRegistry probe (2026-09-17, diagnostics only):
-        // dump the Wayland-side window authority every 7.5s so it can be compared
-        // with producer reports and with the Wine-side identity probe.
-        if (tick % 150 == 0) {
+        // The detailed registry walk and logging hold the compositor lock.
+        // Keep them opt-in, using the existing host diagnostics control.
+        if ((winehua::FrameTraceEnabled() || (winehua::FrameLoopDiagnosticState() & 1)) &&
+            now >= nextRegistry) {
+            nextRegistry = now + std::chrono::milliseconds(7500);
             auto lk = toplevelMgr_.Lock();
             const uint32_t rootId = desktopCompositor_.DesktopRootToplevelId();
             for (const auto& [key, res] : toplevelMgr_.SurfaceResources())

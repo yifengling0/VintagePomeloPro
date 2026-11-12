@@ -6,6 +6,7 @@
 #include "direct_frame_stats.h"
 #include "common/displayed_fps.h"
 #include "common/perf_utils.h"
+#include "compositor/frame/shm_upload_rows.h"
 #include "common/frame_loop_diagnostics.h"
 #include "compositor/wayland_server.h"
 #include "compositor/toplevel/desktop_compositor.h"
@@ -705,7 +706,8 @@ private:
         if (rootRate_.Sample(now, fps) && root) {
             winehua::PublishDisplayedFpsSample(winehua::kDisplayedFpsBasePath, root,
                 ++fpsSequence_, fps, now, true);
-            OH_LOG_INFO(LOG_APP, "[DIRECT-FPS] root=%{public}u fps=%{public}.2f directGameCpuReadBytes=0 directGameCpuUploadBytes=0", root, fps);
+            if (winehua::FrameTraceEnabled() || (winehua::FrameLoopDiagnosticState() & 1))
+                OH_LOG_INFO(LOG_APP, "[DIRECT-FPS] root=%{public}u fps=%{public}.2f directGameCpuReadBytes=0 directGameCpuUploadBytes=0", root, fps);
         }
         std::unordered_set<uint32_t> liveWindows;
         for (const auto& [key, layer] : layers_) liveWindows.insert(layer.source.token.toplevelId);
@@ -803,8 +805,14 @@ private:
         void* mapped = nullptr;
         // Only Wayland SHM UI is uploaded; NativeBuffer game images never map.
         if (!Check(vkMapMemory(g.Device(), image.stagingMemory, 0, bytes, 0, &mapped), "scene_ui_map")) return false;
-        std::memcpy(mapped, layer.pixels->data(), bytes); vkUnmapMemory(g.Device(), image.stagingMemory);
-        uiUploadBytes_ += bytes;
+        const auto rows = winehua::PlanShmUploadRows(static_cast<const uint8_t*>(mapped),
+            layer.pixels->data(), image.width, image.height, image.initialized);
+        if (rows.bytes) std::memcpy(static_cast<uint8_t*>(mapped) + rows.offset,
+            layer.pixels->data() + rows.offset, rows.bytes);
+        vkUnmapMemory(g.Device(), image.stagingMemory);
+        image.serial = layer.serial;
+        if (!rows.count) return true;
+        uiUploadBytes_ += rows.bytes;
         VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         barrier.image = image.image;
         barrier.oldLayout = image.initialized ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
@@ -815,8 +823,11 @@ private:
         vkCmdPipelineBarrier(command, image.initialized ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
         VkBufferImageCopy copy{};
+        copy.bufferOffset = rows.offset;
+        copy.bufferRowLength = static_cast<uint32_t>(image.width);
+        copy.imageOffset.y = static_cast<int32_t>(rows.first);
         copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        copy.imageExtent = {static_cast<uint32_t>(image.width), static_cast<uint32_t>(image.height), 1};
+        copy.imageExtent = {static_cast<uint32_t>(image.width), rows.count, 1};
         vkCmdCopyBufferToImage(command, image.staging, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;

@@ -1401,7 +1401,8 @@ static napi_value GetProcessList(napi_env env, napi_callback_info info) {
         napi_set_element(env, arr, i, obj);
     }
 
-    OH_LOG_INFO(LOG_APP, "[NAPI] getProcessList returned %{public}zu processes", snapshot.size());
+    if (winehua::FrameLoopDiagnosticState() & 1)
+        OH_LOG_INFO(LOG_APP, "[NAPI] getProcessList returned %{public}zu processes", snapshot.size());
     return arr;
 }
 
