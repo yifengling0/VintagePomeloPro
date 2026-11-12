@@ -629,20 +629,21 @@ export class WineWindowManager {
   }
   // A Steam desktop layout is still a fullscreen tablet carrier. The native
   // client need not send xdg fullscreen, and its buffer size is not host geometry.
-  private isNativeSteamClientToplevel(id: number): boolean {
+  private isNativeSteamFullscreenToplevel(id: number): boolean {
     const key = this.externalToplevels.get(id);
     return key !== undefined && !this.destroyed.has(id) && !this.modalToplevelIds.has(id) &&
       HostWindowTasks.getInstance().snapshot().some((task: HostWindowTask): boolean =>
-        task.key === key && task.toplevelId === id && task.source === 'steam-linux' && task.owner === 0);
+        task.key === key && task.toplevelId === id && task.owner === 0 &&
+        (task.source === 'steam-linux' || (task.source === 'steam-game' && this.fullscreenWindows.has(id))));
   }
 
   async applyNativeSteamFullscreen(id: number): Promise<void> {
     const win = this.windows.get(id);
-    if (!win || !this.loadedWindows.has(id) || !this.isNativeSteamClientToplevel(id) ||
+    if (!win || !this.loadedWindows.has(id) || !this.isNativeSteamFullscreenToplevel(id) ||
       this.nativeSteamFullscreenRequests.get(id) === win) return;
     const key = this.externalToplevels.get(id);
     const current = (): boolean => this.windows.get(id) === win &&
-      this.externalToplevels.get(id) === key && this.isNativeSteamClientToplevel(id);
+      this.externalToplevels.get(id) === key && this.isNativeSteamFullscreenToplevel(id);
     this.nativeSteamFullscreenRequests.set(id, win);
     this.pendingRaises.delete(id);
     this.cancelDeferredRaise(id);
@@ -661,6 +662,24 @@ export class WineWindowManager {
       hilog.warn(DOMAIN, TAG, '[MW] native Steam fullscreen #%{public}d failed: %{public}s', id, JSON.stringify(error));
     } finally {
       if (this.nativeSteamFullscreenRequests.get(id) === win) this.nativeSteamFullscreenRequests.delete(id);
+    }
+  }
+
+  private async restoreNativeGameSystemBars(id: number, win: window.Window): Promise<void> {
+    const key = this.externalToplevels.get(id);
+    const current = (): boolean => this.windows.get(id) === win && !this.destroyed.has(id) &&
+      key !== undefined && this.externalToplevels.get(id) === key && !this.fullscreenWindows.has(id) &&
+      HostWindowTasks.getInstance().snapshot().some((task: HostWindowTask): boolean =>
+        task.key === key && task.source === 'steam-game');
+    try {
+      if (!current()) return;
+      await win.setWindowLayoutFullScreen(false);
+      if (!current()) return;
+      await win.setSpecificSystemBarEnabled('status', true);
+      if (!current()) return;
+      await win.setSpecificSystemBarEnabled('navigationIndicator', true);
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, '[MW] native game windowed bars #%{public}d failed: %{public}s', id, JSON.stringify(error));
     }
   }
 
@@ -798,7 +817,7 @@ export class WineWindowManager {
   }
 
   private raiseManagedWindow(id: number): void {
-    if (this.fullscreenWindows.has(id) || this.isNativeSteamClientToplevel(id)) return;
+    if (this.fullscreenWindows.has(id) || this.isNativeSteamFullscreenToplevel(id)) return;
     const win = this.getWindow(id);
     if (!win) return;
     win.raiseToAppTop().catch((err: Error) => {
@@ -811,7 +830,7 @@ export class WineWindowManager {
     const win = this.windows.get(toplevelId);
     if (!win) return;
     this.loadedWindows.add(toplevelId);
-    if (this.isNativeSteamClientToplevel(toplevelId)) {
+    if (this.isNativeSteamFullscreenToplevel(toplevelId)) {
       void this.applyNativeSteamFullscreen(toplevelId);
       return;
     }
@@ -1235,7 +1254,7 @@ export class WineWindowManager {
       return;
     }
 
-    if (this.isNativeSteamClientToplevel(toplevelId) &&
+    if (this.isNativeSteamFullscreenToplevel(toplevelId) &&
       ['geometry', 'resize', 'limits', 'maximized', 'unmaximized', 'unfullscreen'].includes(event)) return;
 
     // Pad 多窗口 (subWindow 承载): 系统接口差异适配 —
@@ -1389,6 +1408,10 @@ export class WineWindowManager {
         });
         break;
       case 'fullscreen':
+        if (this.isNativeSteamFullscreenToplevel(toplevelId)) {
+          void this.applyNativeSteamFullscreen(toplevelId);
+          break;
+        }
         // PC 模式游戏 xdg fullscreen: OHOS 沉浸式全屏 (铺满屏幕、盖住 dock)。
         // ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER (API 14+): 进入沉浸
         // 全屏且鼠标悬停屏幕边缘热区时不唤出标题栏/关闭条/Dock — 默认
@@ -1396,6 +1419,7 @@ export class WineWindowManager {
         this.enterImmersiveFullscreen(win, toplevelId);
         break;
       case 'unfullscreen':
+        if (this.externalToplevels.has(toplevelId)) void this.restoreNativeGameSystemBars(toplevelId, win);
         // 退出沉浸式全屏, 恢复普通窗口; 尺寸由 C++ 侧 configure(preFs)
         // → resize 事件恢复 (tl_unset_fullscreen 用 preFs 尺寸)
         this.exitImmersiveFullscreen(win, false, toplevelId).catch((err: Error) => {

@@ -10,6 +10,8 @@ const singleton = value => ({ getInstance: () => value });
 const helperDigests = new Map();
 const completions = [];
 let runtimeLeases=0;
+let foregroundChoice=0, gameWindows=[];
+const gameActivations=[];
 let maintenanceHeld=false;
 let maintenanceCalls=0;
 let engineReady=true;
@@ -32,6 +34,8 @@ const deps = {
   './AppSessionService': { AppSessionService: singleton({ registerExternalLaunch() {} }) },
   './HostWindowTasks': { HostWindowTasks: singleton({ setSteamGameCloser(closer){this.gameCloser=closer;},
     registerSteamGame(id) { registrations.push(id); }, bindSteamGame() {}, updateSteamGame() {},
+    snapshot:()=>gameWindows, foregroundRevision:()=>foregroundChoice,
+    activate:async key=>{gameActivations.push(key);return true;},
     finishSteamGame(id, known) { completions.push([id, known]); } }) },
   './AppSettingsStore': { AppSettingsStore: singleton({ getGlobalSettings: () => ({ wineLanguage: 'zh_CN' }) }) },
   './WineEngineService': { WineEngineService: singleton({
@@ -66,6 +70,12 @@ service.start('/z/SteamLinuxARM64/library', '/results', '/z');
 requests = [request()]; await service.tick();
 assert.equal(launches[0][0], 'Z:\\SteamLinuxARM64\\library\\steamapps\\common\\NewPAL\\NewPAL_Release.exe');
 assert.deepEqual(Array.from(launches[0][3]), ['SteamAppId=695630']);
+gameWindows=[{key:'unrelated',sessionId:'other',source:'steam-game',owner:0},
+ {key:'owned-dialog',sessionId:'wine-100-1',source:'steam-game',owner:7},
+ {key:'wine-game',sessionId:'wine-100-1',source:'steam-game',owner:0}];
+await service.tick();await service.tick();
+assert.deepEqual(gameActivations,['wine-game'],'only the matching main game window receives one automatic activation');
+gameWindows=[];
 state = 0; await service.tick();
 const evidence = () => JSON.parse(files.get('/results/game-launch-695630.json'));
 assert.equal(files.get('/results/last-game-launch.json'), files.get('/results/game-launch-695630.json'));
@@ -81,6 +91,8 @@ assert.ok(launches.filter(call => call[0] !== 'registerGame')[1][3].some(line =>
 state = 0; processInfo = { found: true, status: 'exited', exitCode: 0, exitCodeSource: 'waitpid' }; await service.tick();
 assert.equal(evidence().exitCode, 0); assert.equal(toasts.length, toastCount);
 state = 1; requests = [request()]; await service.tick();
+foregroundChoice++;gameWindows=[{key:'late-game',sessionId:'wine-100-1',source:'steam-game',owner:0}];
+await service.tick();assert.deepEqual(gameActivations,['wine-game'],'navigation before the window appears prevents focus theft');gameWindows=[];
 state = -1; processInfo = { found: false }; await service.tick();
 assert.deepEqual(completions.at(-1), ['wine-100-1', false], 'Unknown process state cannot return focus to Steam');
 assert.equal(evidence().status, 'wine_process_state_unavailable');
@@ -186,7 +198,7 @@ const gnuCancelled=[];
 deps['libsmoke_napi.so'].default.startLinuxProtonGame = (id, language, token) => { assert.equal(language, 'zh_CN'); assert.equal(token,77); assert.ok(maintenanceHeld,'dispatch must retain the preparation lease'); return new Promise(resolve => { resolveGnu=resolve; }); };
 deps['libsmoke_napi.so'].default.cancelLinuxProtonGame = id => { gnuCancelled.push(id); return true; };
 const taskHost=deps['./HostWindowTasks'].HostWindowTasks.getInstance();
-taskHost.snapshot=()=>[]; taskHost.foregroundRevision=()=>0;
+taskHost.snapshot=()=>gameWindows; taskHost.foregroundRevision=()=>foregroundChoice;
 service.start('/z/SteamLinuxARM64/library','/results','/z');
 const beforeGnu=launchCount();requests=[{...request(),id:30,backend:'gnu-proton'}];await service.tick();
 assert.equal(runtimeLeases,1);assert.equal(launchCount(),beforeGnu);assert.equal(service.gnuSessions.length,1);
@@ -247,6 +259,7 @@ service.start('/z/SteamLinuxARM64/library','/results','/z',()=>new Promise(resol
 requests=[{...request(),id:80}];const cold=service.tick();
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(service.preparing.id,80);
+assert.equal(gameActivations.length,1,'cold preparation cannot focus a nonexistent window');
 assert.equal(await taskHost.gameCloser({sessionId:service.ticketSession(80),toplevelId:0},false),true);
 releasePrepare();await cold;assert.equal(launchCount(),beforeGnu);
 assert.equal(service.preparing,null);assert.equal(service.cancelled.size,0);

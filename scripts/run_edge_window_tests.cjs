@@ -173,7 +173,7 @@ async function carrierTests(){
   console.log('Managed border resize state, Wine acknowledgment, feedback isolation and bounded teardown PASS');
 
   const calls=[];let resumeLayout;
-  const nativeWin={setWindowLayoutFullScreen:()=>new Promise(resolve=>{calls.push('layout');resumeLayout=resolve;}),
+  const nativeWin={setWindowLayoutFullScreen:enabled=>new Promise(resolve=>{calls.push(enabled ? 'layout' : 'windowed');resumeLayout=resolve;}),
     setSpecificSystemBarEnabled:async(name,enabled)=>calls.push([name,enabled]),
     maximize:async mode=>calls.push(['maximize',mode]),resize:()=>calls.push('resize')};
   nativeTasks=[{key:'88:1',toplevelId:88,source:'steam-linux',owner:0}];
@@ -198,7 +198,18 @@ async function carrierTests(){
     nativeTasks=[task];await wm.applyNativeSteamFullscreen(88);
   }
   assert.equal(calls.length,0,'game windows and owned dialogs keep their own presentation');
-  console.log('Native Steam fullscreen: tablet/PC, content ordering, request deduplication, geometry isolation and stale ownership PASS');
+  nativeTasks=[{key:'88:1',toplevelId:88,source:'steam-game',owner:0}];
+  wm.fullscreenWindows.add(88);setting='false';policy.refreshPcMode(ctx);
+  const gameFullscreen=wm.applyNativeSteamFullscreen(88);resumeLayout();await gameFullscreen;
+  assert.deepEqual(calls,['layout',['status',false],['navigationIndicator',false]],'a fullscreen native game hides tablet system bars');
+  calls.length=0;wm.fullscreenWindows.delete(88);
+  const gameWindowed=wm.restoreNativeGameSystemBars(88,nativeWin);resumeLayout();await gameWindowed;
+  assert.deepEqual(calls,['windowed',['status',true],['navigationIndicator',true]],'returning to windowed restores system bars');
+  calls.length=0;wm.fullscreenWindows.add(88);
+  const replacedGame=wm.applyNativeSteamFullscreen(88);
+  nativeTasks=[{key:'88:3',toplevelId:88,source:'steam-game',owner:0}];resumeLayout();await replacedGame;
+  assert.deepEqual(calls,['layout'],'a replaced game cannot inherit stale bar changes');
+  console.log('Native Steam and fullscreen game carriers, windowed restoration, ownership and stale requests PASS');
 
 
 }

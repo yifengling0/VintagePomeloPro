@@ -16,7 +16,7 @@ import { writeSmokeText } from './ManagedSmokePayloadService';
 import { WineWindowManager } from './WineWindowManager';
 import { ConfigurationFiles } from './ConfigurationFiles';
 
-interface GameSession { id: number; appId: string; sessionId: string; pid: number; role: string; }
+interface GameSession { id: number; appId: string; sessionId: string; pid: number; role: string; focusRevision: number; focused: boolean; }
 interface GnuGameSession { id: number; appId: string; sessionId: string; role: string; backend: string; generation: number; focusRevision: number; focused: boolean; }
 interface GnuNativeExit { exitCode: number; signal: number; cancelled: boolean; childReaped: boolean; }
 interface GnuLaunchResult { status: string; runtimeBackend?: string; graphicsBackend?: string; prefix?: GnuNativeExit; childExitVerified?: boolean; }
@@ -241,6 +241,18 @@ export class LinuxSteamGameLaunch {
       }
     }
   }
+  private focusWineGame(session: GameSession): void {
+    if (session.role !== 'game' || session.focused) return;
+    const tasks = HostWindowTasks.getInstance();
+    // Capture before cold preparation: navigation during wineboot must win.
+    if (tasks.foregroundRevision() !== session.focusRevision) { session.focused = true; return; }
+    const task = tasks.snapshot().find((item: HostWindowTask): boolean =>
+      item.sessionId === session.sessionId && item.source === 'steam-game' &&
+      item.owner === 0 && !item.desktop && !item.minimized);
+    if (!task) return;
+    session.focused = true;
+    void tasks.activate(task.key).catch((): boolean => false);
+  }
   private ticketSession(id: number): string { return `steam-game-${this.generation}-${id}`; }
   private nativeEvent(request: LinuxSteamLaunchRequest): void {
     const tasks = HostWindowTasks.getInstance();
@@ -362,7 +374,7 @@ export class LinuxSteamGameLaunch {
         continue;
       }
       const state = smokeNapi.pollLinuxSteamLaunchSession(session.id, session.sessionId);
-      if (state === 1) remaining.push(session);
+      if (state === 1) { this.focusWineGame(session); remaining.push(session); }
       else {
         const process = testNapi.queryWineProcess(session.pid);
         const known = state === 0 && process.found && process.status === 'exited' &&
@@ -386,6 +398,7 @@ export class LinuxSteamGameLaunch {
       const request = this.pending.shift();
       if (!request) break;
       this.preparing = request;
+      const focusRevision = HostWindowTasks.getInstance().foregroundRevision();
       try {
       if (this.cancelled.delete(request.id)) continue;
       if (this.windowsSteamRunning()) { this.reject(request, '检测到 Windows Steam，请先退出后重试'); continue; }
@@ -460,7 +473,7 @@ export class LinuxSteamGameLaunch {
         HostWindowTasks.getInstance().bindSteamGame(this.ticketSession(request.id), launch.sessionId);
         HostWindowTasks.getInstance().updateSteamGame(launch.sessionId, 'running', launch.pid);
       }
-      const session: GameSession = { id: request.id, appId: request.appId, sessionId: launch.sessionId, pid: launch.pid, role: request.role };
+      const session: GameSession = { id: request.id, appId: request.appId, sessionId: launch.sessionId, pid: launch.pid, role: request.role, focusRevision, focused: false };
       this.sessions.push(session);
       this.record(request.appId, 'wine_process_started_authentication_unverified', undefined, undefined, request.role);
       } finally {
