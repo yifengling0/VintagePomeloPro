@@ -48,6 +48,12 @@ def verify_hap(path):
         for name in REQUIRED_HOST:
             if 'libs/arm64-v8a/' + name not in names:
                 raise ValueError('Missing OHOS Wine / Windows Steam module: ' + name)
+        for name in ('libentry.so', 'libsmoke_napi.so'):
+            member = 'libs/arm64-v8a/' + name
+            if member in names:
+                data = archive.read(member)
+                for symbol in (b'probeLinuxSteam', b'startLinuxProtonGame', b'prepareLinuxSteamDisplay', b'isLinuxSteamProcess'):
+                    if symbol in data: raise ValueError('Retired Linux NAPI in ' + member)
         # Keep memory bounded; do not expand an entire runtime tree for auditing.
         with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as payload:
             with archive.open('resources/rawfile/wine-data.zip') as source:
@@ -59,6 +65,10 @@ def verify_hap(path):
                 for name in REQUIRED_GUEST:
                     if name not in guest or wine.getinfo(name).file_size == 0:
                         raise ValueError('Missing OHOS Wine guest component: ' + name)
+                for arch in ('aarch64-windows', 'i386-windows'):
+                    name = 'bin/' + arch + '/kernelbase.dll'
+                    if name in guest and 'HMOSDECK_STEAM_BRIDGE'.encode('utf-16le') in wine.read(name):
+                        raise ValueError('Retired Linux registry bridge in ' + name)
     return True
 
 def main():

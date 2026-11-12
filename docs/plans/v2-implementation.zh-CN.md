@@ -37,3 +37,12 @@
 - Make/assemble/package/preflight 解除 Linux 下载和离线包依赖。构建前只清理本检出的已退役生成资源和旧 CMake 模块，不清理共享编译缓存或设备用户数据；最终 HAP 检查拒绝 Linux rawfile、GNU helper、lsteamclient 和桥接目录，并确认核心 Wine/FEX/Windows 模块。
 - 为本地增量树建立 local-effective-source 来源记录，包含所有 vendor 有效差异与新增源码字节，并在构建期间重验。它不冒充干净检出；默认 CI 干净源码门禁保持严格。Wine 受影响构建使用固定 build/wine-v2 独立身份，复用其他依赖缓存。
 - 已验证：ArkTS 编译通过；make test-game-runtime 完整通过（Windows 导入/多库/冷热服务/Deck、鼠标漂移回归、字体、窗口/图形生命周期、IME、诊断导出）。本批最终 HAP、源码来源闭包与 Mini 实测仍待下列后续记录。
+
+## 本地升级与最终载荷检查补齐
+
+- 第一次完整本地构建完成 Wine 重编译和 252 项预检，组装在旧检查器仍要求 linux-steam-bridge.json 时停止；修复检查器，改为拒绝已退役内容，同时保留 Wine/FEX/图形/媒体闭包检查。
+- 最终 HAP 检查新增 libentry/libsmoke_napi 的 Linux NAPI 残留与 kernelbase 注册表桥代码检查；负向 fixture 通过。
+- 修复受管 FEX/ICU 同尺寸升级被跳过的问题：按 64 KiB 分块比较内容，短读明确失败，临时复制校验成功后再原子替换。升级配对、同尺寸变化、用户 native ICU 保留及复制/rename 失败重试回归通过。
+- 覆盖升级仅定点清除 files/wine 内的两份旧 lsteamclient.dll 与 linux-steam-bridge.json。遇到符号链接不遍历，不清理旧 Linux 游戏库、前缀、账号配置和存档；新安装、重复调用、失败重试、符号链接和用户数据保留回归通过。
+- 启动超时/取消、受管 CPU、会员结算 UI/活动及旧运行时清理测试纳入同一 make test-game-runtime 入口。最新 ArkTS 编译、完整重跑、最终 HAP 及真机结果以实际后续记录为准，不把主机 fixture 当游戏或支付实测。
+- 全程本地提交与构建，不 push、不发起线上 CI。复用 source-integrity 独立检出及依赖缓存；受影响 Wine 编译固定在 build/wine-v2，不伪造旧缓存身份。

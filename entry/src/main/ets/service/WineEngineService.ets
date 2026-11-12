@@ -1759,13 +1759,35 @@ export class WineEngineService {
     }
   }
 
-  /** These modules are written only by us; an existing same-size file is current. */
-  private managedModuleUpToDate(source: string, target: string): boolean {
+  // Equal file sizes cannot identify an upgraded FEX/ICU binary. Compare in
+  // bounded chunks, preserving the previous module if either read is incomplete.
+  private binaryFilesMatch(source: string, target: string): boolean {
+    let size = 0;
     try {
-      return fs.statSync(source).size === fs.statSync(target).size;
-    } catch (_) {
-      return false;
-    }
+      const left = fs.statSync(source);
+      const right = fs.statSync(target);
+      if (!left.isFile() || !right.isFile() || left.size !== right.size) return false;
+      size = left.size;
+    } catch (_) { return false; }
+    const leftFile = fs.openSync(source, fs.OpenMode.READ_ONLY);
+    try {
+      const rightFile = fs.openSync(target, fs.OpenMode.READ_ONLY);
+      try {
+        const left = new ArrayBuffer(65536);
+        const right = new ArrayBuffer(65536);
+        const leftBytes = new Uint8Array(left);
+        const rightBytes = new Uint8Array(right);
+        for (let offset = 0; offset < size; offset += left.byteLength) {
+          const length = Math.min(left.byteLength, size - offset);
+          if (fs.readSync(leftFile.fd, left, { offset, length }) !== length ||
+            fs.readSync(rightFile.fd, right, { offset, length }) !== length) {
+            throw new Error('Incomplete managed module read');
+          }
+          for (let i = 0; i < length; ++i) if (leftBytes[i] !== rightBytes[i]) return false;
+        }
+        return true;
+      } finally { fs.closeSync(rightFile); }
+    } finally { fs.closeSync(leftFile); }
   }
 
   private requireSelectedCpuModule(engine: string): void {
@@ -1800,11 +1822,11 @@ export class WineEngineService {
     for (const name of names) {
       const source = WINE_BIN + '/aarch64-windows/' + name;
       const target = system32 + '/' + name;
-      if (this.managedModuleUpToDate(source, target)) continue;
+      if (this.binaryFilesMatch(source, target)) continue;
       const temporary = target + '.winehua-update';
       try {
         fs.copyFileSync(source, temporary);
-        if (!this.managedModuleUpToDate(source, temporary)) {
+        if (!this.binaryFilesMatch(source, temporary)) {
           throw new Error('Incomplete managed CPU module copy: ' + name);
         }
         fs.renameSync(temporary, target);
@@ -1857,15 +1879,47 @@ export class WineEngineService {
         const target = directory + '/' + name;
         // Respect user-installed native Windows ICU overrides.
         if (pathExists(target) && !this.isWineBuiltinModule(target)) continue;
-        if (this.managedModuleUpToDate(source, target)) continue;
+        if (this.binaryFilesMatch(source, target)) continue;
         const temporary = target + '.winehua-update';
         try {
           fs.copyFileSync(source, temporary);
-          if (!this.managedModuleUpToDate(source, temporary)) throw new Error('Incomplete managed ICU copy');
+          if (!this.binaryFilesMatch(source, temporary)) throw new Error('Incomplete managed ICU copy');
           fs.renameSync(temporary, target);
         } finally {
           if (pathExists(temporary)) fs.unlinkSync(temporary);
         }
+      }
+    }
+  }
+
+  // Only retired files shipped inside our managed runtime. Never traverse a
+  // link or touch a prefix, Steam library, account configuration or save.
+  private retireLinuxRuntimeBridge(): void {
+    if (!pathExists(WINE_ROOT)) return;
+    const root = fs.lstatSync(WINE_ROOT);
+    if (root.isSymbolicLink() || !root.isDirectory()) return;
+    const retired = [
+      'bin/i386-windows/lsteamclient.dll',
+      'bin/aarch64-windows/lsteamclient.dll',
+      'linux-steam-bridge.json'
+    ];
+    for (const relative of retired) {
+      const parts = relative.split('/');
+      let current = WINE_ROOT;
+      let safe = true;
+      for (let index = 0; index < parts.length; ++index) {
+        current += '/' + parts[index];
+        if (!pathExists(current)) { safe = false; break; }
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink() ||
+          (index < parts.length - 1 ? !stat.isDirectory() : !stat.isFile())) {
+          safe = false;
+          break;
+        }
+      }
+      if (safe) {
+        fs.unlinkSync(current);
+        hilog.info(DOMAIN, TAG, 'removed retired managed bridge: %{public}s', relative);
       }
     }
   }
@@ -1883,6 +1937,7 @@ export class WineEngineService {
     // Recover or reconcile a marker stashed by a previous interrupted extract
     // before deciding whether this runtime is complete.
     this.reconcilePreservedWineInf();
+    this.retireLinuxRuntimeBridge();
     try {
       ensureWineFontsDirectory();
       copyImportedFontsIntoWineShare();

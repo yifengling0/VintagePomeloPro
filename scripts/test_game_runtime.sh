@@ -29,6 +29,6 @@ python3 host_tests/steam_gpu_contract_test.py
 python3 host_tests/gpu_scene_input_test.py
 python3 host_tests/egl_multi_consumer_test.py
 python3 host_tests/compositor_migration_test.py --asan
-for suite in run_host_window_tasks_tests run_edge_window_tests run_wine_ime_tests run_steam_startup_diagnostics_tests; do
+for suite in run_wine_startup_tests run_retired_runtime_cleanup_tests run_wine_managed_cpu_tests run_membership_checkout_ui_tests run_membership_campaign_tests run_host_window_tasks_tests run_edge_window_tests run_wine_ime_tests run_steam_startup_diagnostics_tests; do
   "$runtime_node" "scripts/$suite.cjs" "$runtime_typescript"
 done
