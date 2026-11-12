@@ -430,6 +430,12 @@ jobs:
           python3 host_tests/x11_external_host_test.py
           python3 host_tests/wine_overlay_proof_test.py
 
+      - name: Test X11 input and Ability restore before the long source build
+        run: |
+          python3 host_tests/x11_desktop_input_test.py
+          python3 host_tests/wine_ability_restore_test.py
+          make test-renderer-scopes
+
       - name: Test Proton runtime lifecycle and Steam downloads
         run: make test-game-runtime
 

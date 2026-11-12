@@ -13,7 +13,7 @@ manager = method('entry/src/main/ets/service/WineWindowManager.ets', '  private 
 code = """
 const assert = require('assert/strict');
 class Stage { STAGE }
-class Manager { MANAGER }
+class Manager { startHostAbility(want) { return this.uiAbilityContext.startAbility(want); } MANAGER }
 
 const hilog={info(){},warn(){}}; const DOMAIN=0, TAG='test';
 let visible=0,activated=0;

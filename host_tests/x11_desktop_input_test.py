@@ -24,8 +24,13 @@ using wl_fixed_t=int;
 static uint32_t desktop=0, focused=0,raised=0,controlled=0;
 static bool focusX11=false;
 static int transforms=0;
+static size_t inputCount=2;
+static uint32_t presentation=0;
+static bool isolated=false, surface=true;
 void napi_get_cb_info(int,int,size_t* count,napi_value* args,void*,void*) {
+ *count=*count<inputCount?*count:inputCount;
  args[0]=reinterpret_cast<void*>(40);if(*count>1)args[1]=reinterpret_cast<void*>(60);
+ if(*count>2)args[2]=reinterpret_cast<void*>(uintptr_t(presentation));
 }
 void napi_get_value_int32(int,void* v,int32_t* out){*out=int32_t(uintptr_t(v));}
 void napi_get_value_uint32(int,void* v,uint32_t* out){*out=uint32_t(uintptr_t(v));}
@@ -42,7 +47,15 @@ class InputManager {public:
  }
 };
 int wl_fixed_to_int(int v){return v;}
+class DesktopCompositor {public:
+ bool IsToplevelIsolated(uint32_t id){assert(id==presentation);return isolated;}
+};
+class ToplevelManager {public:
+ void* GetSurfaceForToplevel(uint32_t id){assert(id==presentation);return surface?this:nullptr;}
+};
 class WaylandServer {public:
+ DesktopCompositor& GetDesktopCompositor(){static DesktopCompositor c;return c;}
+ ToplevelManager& GetToplevelManager(){static ToplevelManager t;return t;}
  static WaylandServer* GetInstance(){static WaylandServer s;return &s;}
  uint32_t GetDesktopRootToplevelId(){assert(!desktop);return 91;}
  uint32_t FindToplevelAt(int x,int y){assert(x==80&&y==120&&!desktop);return 92;}
@@ -58,6 +71,14 @@ int main(){
  for(auto id:{40u,111u,900u}){
   desktop=id;assert(uintptr_t(FindToplevelAt(0,0))==id&&transforms==1);
  }
+ // Isolated game input must retain its presentation owner even while a
+ // separate X11 desktop exists. A removed surface must not receive input.
+ inputCount=3;presentation=73;isolated=true;
+ assert(uintptr_t(FindToplevelAt(0,0))==73&&transforms==1);
+ surface=false;assert(uintptr_t(FindToplevelAt(0,0))==0&&transforms==1);
+ isolated=false;surface=true;
+ assert(uintptr_t(FindToplevelAt(0,0))==desktop&&transforms==1);
+ inputCount=2;presentation=0;
  desktop=40;RaiseToplevel(0,0);assert(focused==40&&focusX11&&raised==0&&controlled==0);
  desktop=0;RaiseToplevel(0,0);assert(controlled==40&&raised==0);
  desktop=91;RaiseToplevel(0,0);assert(raised==40);
