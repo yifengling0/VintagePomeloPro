@@ -1,0 +1,1885 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-13T19:29:45.772002+08:00",
+  "sourceCommit": "5c6fe778f68577969c7a2fd236ab4f3b372a8131",
+  "package": {
+    "file": "VintagePomeloPro-2.0.0-wine-098ece0e-mini-internaltesting.hap",
+    "signedBytes": 629394268,
+    "signedSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
+    "profile": "release/internaltesting",
+    "profileAndCertificateMatch": true,
+    "signatureVerified": true,
+    "payloadInventoryMatches": true
+  },
+  "wineSource": {
+    "upstream": {
+      "repository": "ValveSoftware/wine",
+      "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
+      "tree": "8ef394afdf44f3d55c8ed79ecfc26dbf32a454df",
+      "protonCommit": "0764d2920a128cee74555afcab0819919ddf416d"
+    },
+    "adaptedCommit": "098ece0eedff40bea426d2d57b215bb81411e239",
+    "adaptedTree": "4775755262105ab9381128cadd142ad3c92f1b6b",
+    "patches": 81,
+    "originalAdaptations": 79,
+    "exactHistoryReplayed": true
+  },
+  "fexAdaptedCommit": "c3b2b2306347e16da04e512a52432cb9c921d221",
+  "device": {
+    "model": "MLR-AL10",
+    "connection": "USB",
+    "versionName": "2.0.0",
+    "versionCode": 2000000,
+    "debug": false,
+    "distribution": "internaltesting"
+  },
+  "productionPromoted": false,
+  "productionPinsChanged": false,
+  "scope": "Existing installed candidate and existing device resources; no reinstall, no CI, no saved-game writes, no Steam Play/Stream clicks. User stopped further game testing and requested Steam speed checks.",
+  "games": [
+    {
+      "case": "pal1",
+      "backend": "dxvk_legacy",
+      "status": "partial",
+      "verified": [
+        "launcher and Chinese text",
+        "intro playback and cliff dialogue",
+        "keyboard title-menu navigation",
+        "relaunch"
+      ],
+      "exits": [
+        {
+          "pid": 56367,
+          "result": 0
+        },
+        {
+          "pid": 9557,
+          "result": 5,
+          "kind": "SIGTRAP",
+          "at": "2026-11-13T19:11:13.896+08:00"
+        },
+        {
+          "pid": 13507,
+          "result": 0
+        }
+      ],
+      "limits": [
+        "Movement and in-game menu not accepted",
+        "One second-run SIGTRAP after virtual Esc; CPU-Z was also active. No old-Wine A/B or exception stack; cause undetermined. Third run was ended when user switched to Steam testing."
+      ]
+    },
+    {
+      "case": "pal2",
+      "backend": "dxvk_legacy",
+      "status": "basic-pass",
+      "exit": 0,
+      "verified": [
+        "title and menu",
+        "existing save No.12 loaded",
+        "battle commands and animation progressed",
+        "HmosDeck close"
+      ],
+      "limits": [
+        "No complete battle, save write, or long play session"
+      ]
+    },
+    {
+      "case": "pal4",
+      "backend": "dxvk_legacy",
+      "status": "basic-pass",
+      "exit": 0,
+      "verified": [
+        "existing save loaded into Qingluan Peak",
+        "3D scene, Chinese text and HUD",
+        "short keyboard/camera input",
+        "Esc menu open/close",
+        "window close"
+      ],
+      "fpsObservation": [
+        44,
+        47
+      ],
+      "limits": [
+        "Display readings only, not benchmark statistics",
+        "Touch walking not fully accepted"
+      ]
+    },
+    {
+      "case": "furmark",
+      "backend": "wined3d",
+      "status": "basic-render-and-exit-pass",
+      "exit": 0,
+      "settings": {
+        "width": 640,
+        "height": 480,
+        "msaa": 0,
+        "fullscreen": false
+      },
+      "renderer": "virgl (Maleoon 910)",
+      "applicationReportedFps": {
+        "min": 11,
+        "max": 19,
+        "avg": 17
+      },
+      "vppDisplayedFpsRange": [
+        10,
+        14
+      ],
+      "limits": [
+        "At least 72 seconds visible in captured run; no thermal or sustained-stress acceptance"
+      ]
+    },
+    {
+      "case": "heaven",
+      "backend": "dxvk_legacy",
+      "graphics": "D3D11",
+      "status": "rendered-performance-and-normal-exit-failed",
+      "settings": {
+        "width": 1280,
+        "height": 720,
+        "msaa": 0,
+        "fullscreen": false
+      },
+      "approximateDisplayedFps": 4,
+      "verified": [
+        "actual airship scene and subsequent scene"
+      ],
+      "exit": 9,
+      "forced": true,
+      "limits": [
+        "Quit/confirmation reached credits but process remained for minutes; HmosDeck force stop required",
+        "Not established as an upstream regression"
+      ]
+    },
+    {
+      "case": "cpuz32",
+      "status": "partial",
+      "exit": 2,
+      "verified": [
+        "Eventually reached CPU-Z 2.03.0 x32 main UI",
+        "Update prompt dismissed without update",
+        "HmosDeck close removed process"
+      ],
+      "limits": [
+        "Initialization error 0x41D / 1053 and long memory stage",
+        "Hardware/kernel-driver queries not accepted",
+        "x64 was not tested"
+      ]
+    }
+  ],
+  "steam": {
+    "startup": {
+      "first": {
+        "processCold": true,
+        "wineServicesWarm": true,
+        "noSteamWindowAtSeconds": 35.625,
+        "spinnerAtSeconds": 50.438,
+        "libraryVisibleBySeconds": 77.247
+      },
+      "second": {
+        "processCold": true,
+        "wineServicesWarm": true,
+        "blackFrameAtSeconds": 50.515,
+        "storeShellVisibleBySeconds": 60.453,
+        "subsequentFirstLibraryContentVisibleBySeconds": 10.515
+      }
+    },
+    "libraryHomeVisibleBySeconds": [
+      5.64,
+      5.578,
+      3.469
+    ],
+    "bananaButtonVisibleBySeconds": [
+      3.562,
+      1.531,
+      1.563
+    ],
+    "otherDetails": {
+      "pal4": {
+        "selectedBySeconds": 3.531,
+        "contentAndActionBySeconds": 5.5
+      },
+      "pal1": {
+        "contentAndActionBySeconds": 1.578
+      },
+      "bananaReturn": {
+        "contentAndActionBySeconds": 5.5
+      }
+    },
+    "menuVisibleBySeconds": 1.562,
+    "firstExit": {
+      "steamExit": 0,
+      "cefExitUnknown": true,
+      "cefCompletionSource": "ipc-death",
+      "steamAndCefAbsent": true,
+      "debuggerAbsent": true,
+      "sharedServicesRetained": true
+    },
+    "cpuSampleAssumptions": {
+      "clockTickHz": 100,
+      "pageBytes": 4096,
+      "note": "Assumed Linux user-HZ/page size; getconf unavailable. Approximate only. Shared RSS not summed."
+    },
+    "activeCefSwitches": [
+      "--disable-gpu",
+      "--disable-gpu-compositing",
+      "--in-process-gpu",
+      "--single-process"
+    ],
+    "limits": [
+      "Screenshot observation bounds include HDC/capture overhead, not exact input-to-photon latency",
+      "Three sequential library transitions; not alternating old/new runtime A/B",
+      "No speedup percentage or attribution to FEX/CEF/network established",
+      "First entry to a library after restart is slower than subsequent cached detail switches",
+      "No Steam game launch acceptance in this speed pass"
+    ],
+    "observations": {
+      "banana-1": {
+        "label": "banana-1",
+        "at": "2026-11-13T19:19:39.347774+08:00",
+        "click": [
+          260,
+          958
+        ],
+        "captures": [
+          {
+            "file": "banana-1-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.765,
+            "bytes": 312359,
+            "sha256": "5d393735597b2252e834d478637676cc3c79b633ffe0be8a9e9e117f70c44b04"
+          },
+          {
+            "file": "banana-1-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.562,
+            "bytes": 167500,
+            "sha256": "4412cfa5ed0a9c0d766e11fab754cb378e66ca2d4a7276c801daa1c315a0f55b"
+          },
+          {
+            "file": "banana-1-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.531,
+            "bytes": 209902,
+            "sha256": "9472916fa40f00765c34e06320e88a5a42f890d1021af35ccf786b0b78cbe371"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.578
+      },
+      "banana-2": {
+        "label": "banana-2",
+        "at": "2026-11-13T19:19:50.851056+08:00",
+        "click": [
+          260,
+          958
+        ],
+        "captures": [
+          {
+            "file": "banana-2-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.531,
+            "bytes": 169163,
+            "sha256": "f078998631ffcb4af760589a041a065f0254f61ccc6e159e9a8a5a074b63e3d2"
+          },
+          {
+            "file": "banana-2-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.547,
+            "bytes": 217559,
+            "sha256": "6e2cdb00d391306bf200f14bdcc517d9f8c9f508b586b7126cb43a852ab0aba3"
+          },
+          {
+            "file": "banana-2-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.75,
+            "bytes": 226005,
+            "sha256": "bb8b5e24246631253285a88a3f77fa713c6b5c29bd134cc7803b0a0f89bf0ef9"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.468
+      },
+      "banana-3": {
+        "label": "banana-3",
+        "at": "2026-11-13T19:20:40.312916+08:00",
+        "click": [
+          260,
+          958
+        ],
+        "captures": [
+          {
+            "file": "banana-3-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.563,
+            "bytes": 169067,
+            "sha256": "ee63a75db5f0a0cbb5a97c23c4e7f5c909efaf71794b2330fcc5db4a8e4db7ac"
+          },
+          {
+            "file": "banana-3-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.594,
+            "bytes": 216998,
+            "sha256": "39a2c2b656caf3f433d2fdf7a9021902d7d848008582e573188cd732a33f171a"
+          },
+          {
+            "file": "banana-3-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.75,
+            "bytes": 209852,
+            "sha256": "22a132b523e3c9283505e7a20d7ca096443e1f4f542ad1d9e5f78da89ed79374"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.547
+      },
+      "banana-return": {
+        "label": "banana-return",
+        "at": "2026-11-13T19:22:20.994422+08:00",
+        "click": [
+          260,
+          958
+        ],
+        "captures": [
+          {
+            "file": "banana-return-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.547,
+            "bytes": 255542,
+            "sha256": "b33206b2ad6099b0b8edaa6d00ac1dbb279cb148ecb6d165850d60511c8ca8e8"
+          },
+          {
+            "file": "banana-return-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.594,
+            "bytes": 255497,
+            "sha256": "9d6de818e6b7bff34ea936fa49bc443d491db9c81dc809d30629ee4da1c93190"
+          },
+          {
+            "file": "banana-return-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.5,
+            "bytes": 209904,
+            "sha256": "ebf0afab52edc08f3929e265885a12e3e0a2f5fd91de7f9912ebf0a333b2bc6d"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.563
+      },
+      "exit-first": {
+        "label": "exit-first",
+        "at": "2026-11-13T19:23:08.327309+08:00",
+        "click": [
+          162,
+          503
+        ],
+        "captures": [
+          {
+            "file": "exit-first-2_0.jpeg",
+            "captureBeginSeconds": 2.0,
+            "captureEndSeconds": 2.578,
+            "bytes": 210341,
+            "sha256": "11af8dc94771fd22656c6187b92d6e361004ff5315a9a8c2fa8920e8558e0c3b"
+          },
+          {
+            "file": "exit-first-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.609,
+            "bytes": 73421,
+            "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+          },
+          {
+            "file": "exit-first-10_0.jpeg",
+            "captureBeginSeconds": 10.0,
+            "captureEndSeconds": 10.672,
+            "bytes": 73421,
+            "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.5
+      },
+      "home-1": {
+        "label": "home-1",
+        "at": "2026-11-13T19:18:49.103348+08:00",
+        "click": [
+          220,
+          195
+        ],
+        "captures": [
+          {
+            "file": "home-1-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.703,
+            "bytes": 217600,
+            "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd"
+          },
+          {
+            "file": "home-1-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.484,
+            "bytes": 217600,
+            "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd"
+          },
+          {
+            "file": "home-1-5_0.jpeg",
+            "captureBeginSeconds": 5.015,
+            "captureEndSeconds": 5.64,
+            "bytes": 312283,
+            "sha256": "00c5ecf800d4f8bf0bf2ae47ab8305955fffdabbc4732385119ce48ac30f2266"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.547
+      },
+      "home-2": {
+        "label": "home-2",
+        "at": "2026-11-13T19:19:45.082749+08:00",
+        "click": [
+          220,
+          195
+        ],
+        "captures": [
+          {
+            "file": "home-2-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.578,
+            "bytes": 218269,
+            "sha256": "020f055360d89938900a6ffef39a46b7ad3a03345ba96ffc55d01d0320d2b6e5"
+          },
+          {
+            "file": "home-2-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.438,
+            "bytes": 218364,
+            "sha256": "e5a4a47e864499367b3525cd4b65e184130af7350cf74096b2cd7d202aa03618"
+          },
+          {
+            "file": "home-2-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.578,
+            "bytes": 312328,
+            "sha256": "544baf93a21e7860707d4d6633dbdb4fbdba7c179c41eb12ded9609eb41350fd"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.453
+      },
+      "home-3": {
+        "label": "home-3",
+        "at": "2026-11-13T19:20:34.558829+08:00",
+        "click": [
+          220,
+          195
+        ],
+        "captures": [
+          {
+            "file": "home-3-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.765,
+            "bytes": 217600,
+            "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd"
+          },
+          {
+            "file": "home-3-3_0.jpeg",
+            "captureBeginSeconds": 3.015,
+            "captureEndSeconds": 3.469,
+            "bytes": 318603,
+            "sha256": "ddc55e3191ee02924b7b82325539ab4154844e7f39b8f4a79f48e57c53884044"
+          },
+          {
+            "file": "home-3-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.578,
+            "bytes": 312176,
+            "sha256": "637906498834ff1d6ec10531c1d484d967d5edf6bd808c176702129e30e33d63"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.515
+      },
+      "menu": {
+        "label": "menu",
+        "at": "2026-11-13T19:20:46.246709+08:00",
+        "click": [
+          164,
+          38
+        ],
+        "captures": [
+          {
+            "file": "menu-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.562,
+            "bytes": 209381,
+            "sha256": "a3cc603efae49aca0a9f1570479bd0c5f30748b13b77133ebbb28c6d7be45630"
+          },
+          {
+            "file": "menu-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.641,
+            "bytes": 209443,
+            "sha256": "efe408f9503498dd6ad41b247558600079fdcb7877894676fd6759b1e31eed37"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.547
+      },
+      "pal1-details": {
+        "label": "pal1-details",
+        "at": "2026-11-13T19:22:15.20583+08:00",
+        "click": [
+          260,
+          574
+        ],
+        "captures": [
+          {
+            "file": "pal1-details-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.578,
+            "bytes": 247706,
+            "sha256": "865a585d3c70f89bf9fe54659e30fa8f12a52926b94b9f30540b9134c22b109a"
+          },
+          {
+            "file": "pal1-details-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.75,
+            "bytes": 255112,
+            "sha256": "8e0688e036f9bb5e6d0a4dd5e1bc766e4e209d958efa478f2781b89d67024562"
+          },
+          {
+            "file": "pal1-details-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.609,
+            "bytes": 255075,
+            "sha256": "65bd7b60c99c5ee2c8bb7cf2537af10c6550421d050c65d4895d001b7c9af879"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.469
+      },
+      "pal4-details": {
+        "label": "pal4-details",
+        "at": "2026-11-13T19:22:09.537074+08:00",
+        "click": [
+          260,
+          478
+        ],
+        "captures": [
+          {
+            "file": "pal4-details-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.719,
+            "bytes": 216752,
+            "sha256": "e1cb966ac5e18e2cf74d7f7dd96c6b549142107dd7227d04e3dd7a0f8b57b91b"
+          },
+          {
+            "file": "pal4-details-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.531,
+            "bytes": 144122,
+            "sha256": "acfccf843fd37d18286334a89fe3ed260130fc93bfe9f54f8976682d3f3b1951"
+          },
+          {
+            "file": "pal4-details-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.5,
+            "bytes": 273267,
+            "sha256": "e45ec26ed3ad1b753f8a33d719b75b1ea85c0b970a67c94a155757c1a5fb97d4"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.563
+      },
+      "restart-banana": {
+        "label": "restart-banana",
+        "at": "2026-11-13T19:27:41.68793+08:00",
+        "click": [
+          260,
+          958
+        ],
+        "captures": [
+          {
+            "file": "restart-banana-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.547,
+            "bytes": 145884,
+            "sha256": "d9a5913f7f743bbe01f375de63b30f6a698390bc7487037417786b6c878f9a62"
+          },
+          {
+            "file": "restart-banana-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.5,
+            "bytes": 204158,
+            "sha256": "d7f38c547e56edd1c002cea3b75e4ec7f1ef6ed60d52bdcd9ed2196d9c8332ab"
+          },
+          {
+            "file": "restart-banana-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.625,
+            "bytes": 208071,
+            "sha256": "a3cfe0820d51b776fb0a399454ec0b49fad58a5c0ce95b1b6300e8e01a0533bb"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.454
+      },
+      "restart-library": {
+        "label": "restart-library",
+        "at": "2026-11-13T19:26:09.143142+08:00",
+        "click": [
+          365,
+          95
+        ],
+        "captures": [
+          {
+            "file": "restart-library-1_0.jpeg",
+            "captureBeginSeconds": 1.0,
+            "captureEndSeconds": 1.703,
+            "bytes": 98139,
+            "sha256": "588a713718377eaa88ae9be125af0fddd785bd5f0ba6f7658e0ec6b39b1c9a2b"
+          },
+          {
+            "file": "restart-library-3_0.jpeg",
+            "captureBeginSeconds": 3.0,
+            "captureEndSeconds": 3.578,
+            "bytes": 98116,
+            "sha256": "671f9d2d233958394c1e3f31fdfbfbd6ecaf956edc55135eb8fd97dcd46799c3"
+          },
+          {
+            "file": "restart-library-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.562,
+            "bytes": 129577,
+            "sha256": "147138a9fa1bf10f364228e94b061178351754fcf0f8dec6cc9b201dede0d8b4"
+          },
+          {
+            "file": "restart-library-10_0.jpeg",
+            "captureBeginSeconds": 10.015,
+            "captureEndSeconds": 10.515,
+            "bytes": 322641,
+            "sha256": "ca715079c8209e7fb20508e2a40f040c0071025eef95d07349c1200a6783a42b"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.375
+      },
+      "restart": {
+        "label": "restart",
+        "at": "2026-11-13T19:24:12.767806+08:00",
+        "click": [
+          590,
+          1330
+        ],
+        "captures": [
+          {
+            "file": "restart-10_0.jpeg",
+            "captureBeginSeconds": 10.0,
+            "captureEndSeconds": 10.546,
+            "bytes": 73421,
+            "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+          },
+          {
+            "file": "restart-20_0.jpeg",
+            "captureBeginSeconds": 20.0,
+            "captureEndSeconds": 20.375,
+            "bytes": 73421,
+            "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+          },
+          {
+            "file": "restart-30_0.jpeg",
+            "captureBeginSeconds": 30.0,
+            "captureEndSeconds": 30.687,
+            "bytes": 73421,
+            "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+          },
+          {
+            "file": "restart-40_0.jpeg",
+            "captureBeginSeconds": 40.0,
+            "captureEndSeconds": 40.656,
+            "bytes": 73421,
+            "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+          },
+          {
+            "file": "restart-50_0.jpeg",
+            "captureBeginSeconds": 50.0,
+            "captureEndSeconds": 50.515,
+            "bytes": 71204,
+            "sha256": "f740c841c101eb9edf7918702a31a1de1db72dbeb5011998d6b911d40e4b0e6a"
+          },
+          {
+            "file": "restart-60_0.jpeg",
+            "captureBeginSeconds": 60.0,
+            "captureEndSeconds": 60.453,
+            "bytes": 99279,
+            "sha256": "e02aee9aeebffbf7543fb4719aa0877dd106919652d0111bf5fd8b76f43eee2c"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.468
+      },
+      "startup": {
+        "label": "startup",
+        "at": "2026-11-13T19:16:42.610041+08:00",
+        "click": [
+          590,
+          1330
+        ],
+        "captures": [
+          {
+            "file": "startup-2_0.jpeg",
+            "captureBeginSeconds": 2.0,
+            "captureEndSeconds": 2.36,
+            "bytes": 101282,
+            "sha256": "08011c3bed09e17c9c964fdf32a7d90842f906632997ba33c10b48a58f0b4308"
+          },
+          {
+            "file": "startup-5_0.jpeg",
+            "captureBeginSeconds": 5.0,
+            "captureEndSeconds": 5.438,
+            "bytes": 101384,
+            "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c"
+          },
+          {
+            "file": "startup-10_0.jpeg",
+            "captureBeginSeconds": 10.0,
+            "captureEndSeconds": 10.5,
+            "bytes": 101384,
+            "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c"
+          },
+          {
+            "file": "startup-20_0.jpeg",
+            "captureBeginSeconds": 20.0,
+            "captureEndSeconds": 20.516,
+            "bytes": 101384,
+            "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c"
+          },
+          {
+            "file": "startup-35_0.jpeg",
+            "captureBeginSeconds": 35.0,
+            "captureEndSeconds": 35.625,
+            "bytes": 101384,
+            "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c"
+          },
+          {
+            "file": "startup-50_0.jpeg",
+            "captureBeginSeconds": 50.0,
+            "captureEndSeconds": 50.438,
+            "bytes": 113157,
+            "sha256": "11d362c587aba5bbebbfef77abd202f1217c77f3fb94b2e4a7d2c82a3c47d2ce"
+          }
+        ],
+        "scope": "Screenshot observation bounds from host click-command start; includes HDC and snapshot overhead, not exact input-to-photon latency.",
+        "clickCommandSeconds": 0.469
+      }
+    },
+    "cpuSamples": {
+      "wine-speed-loading": {
+        "started": "2026-11-13T19:17:13.496622+08:00",
+        "finished": "2026-11-13T19:17:32.949062+08:00",
+        "processes": [
+          {
+            "seconds": 6.140500000001339,
+            "processes": [
+              {
+                "pid": 1475,
+                "name": "render_service",
+                "cpuPercent": 14.33,
+                "rssMiB": 155.83
+              },
+              {
+                "pid": 3909,
+                "name": "wineserver",
+                "cpuPercent": 23.13,
+                "rssMiB": 36.19
+              },
+              {
+                "pid": 15301,
+                "name": "steam.exe",
+                "cpuPercent": 48.2,
+                "rssMiB": 367.3
+              },
+              {
+                "pid": 15419,
+                "name": "CrBrowserMain",
+                "cpuPercent": 48.04,
+                "rssMiB": 685.93
+              },
+              {
+                "pid": 29463,
+                "name": "ntage.pomelopro",
+                "cpuPercent": 14.98,
+                "rssMiB": 225.04
+              }
+            ]
+          },
+          {
+            "seconds": 6.148499999995693,
+            "processes": [
+              {
+                "pid": 1475,
+                "name": "render_service",
+                "cpuPercent": 13.5,
+                "rssMiB": 155.83
+              },
+              {
+                "pid": 3909,
+                "name": "wineserver",
+                "cpuPercent": 18.54,
+                "rssMiB": 39.7
+              },
+              {
+                "pid": 15301,
+                "name": "steam.exe",
+                "cpuPercent": 52.53,
+                "rssMiB": 363.38
+              },
+              {
+                "pid": 15419,
+                "name": "CrBrowserMain",
+                "cpuPercent": 0.0,
+                "rssMiB": 685.93
+              },
+              {
+                "pid": 29463,
+                "name": "ntage.pomelopro",
+                "cpuPercent": 16.91,
+                "rssMiB": 225.09
+              }
+            ]
+          },
+          {
+            "seconds": 6.125,
+            "processes": [
+              {
+                "pid": 1475,
+                "name": "render_service",
+                "cpuPercent": 15.51,
+                "rssMiB": 156.35
+              },
+              {
+                "pid": 3909,
+                "name": "wineserver",
+                "cpuPercent": 29.88,
+                "rssMiB": 39.8
+              },
+              {
+                "pid": 15301,
+                "name": "steam.exe",
+                "cpuPercent": 53.55,
+                "rssMiB": 363.49
+              },
+              {
+                "pid": 15419,
+                "name": "CrBrowserMain",
+                "cpuPercent": 99.59,
+                "rssMiB": 824.48
+              },
+              {
+                "pid": 29463,
+                "name": "ntage.pomelopro",
+                "cpuPercent": 16.33,
+                "rssMiB": 244.03
+              }
+            ]
+          }
+        ]
+      },
+      "wine-speed-transitions": {
+        "started": "2026-11-13T19:20:05.805636+08:00",
+        "finished": "2026-11-13T19:20:25.654069+08:00",
+        "processes": [
+          {
+            "seconds": 6.132499999999709,
+            "processes": [
+              {
+                "pid": 1475,
+                "name": "render_service",
+                "cpuPercent": 13.37,
+                "rssMiB": 152.65
+              },
+              {
+                "pid": 3909,
+                "name": "wineserver",
+                "cpuPercent": 20.55,
+                "rssMiB": 33.49
+              },
+              {
+                "pid": 15301,
+                "name": "steam.exe",
+                "cpuPercent": 52.18,
+                "rssMiB": 359.46
+              },
+              {
+                "pid": 15419,
+                "name": "CrBrowserMain",
+                "cpuPercent": 12.07,
+                "rssMiB": 2155.13
+              },
+              {
+                "pid": 29463,
+                "name": "ntage.pomelopro",
+                "cpuPercent": 17.28,
+                "rssMiB": 244.03
+              }
+            ]
+          },
+          {
+            "seconds": 6.13300000000163,
+            "processes": [
+              {
+                "pid": 1475,
+                "name": "render_service",
+                "cpuPercent": 34.57,
+                "rssMiB": 153.79
+              },
+              {
+                "pid": 3909,
+                "name": "wineserver",
+                "cpuPercent": 18.26,
+                "rssMiB": 33.49
+              },
+              {
+                "pid": 15301,
+                "name": "steam.exe",
+                "cpuPercent": 46.96,
+                "rssMiB": 359.43
+              },
+              {
+                "pid": 15419,
+                "name": "CrBrowserMain",
+                "cpuPercent": 6.69,
+                "rssMiB": 2152.02
+              },
+              {
+                "pid": 29463,
+                "name": "ntage.pomelopro",
+                "cpuPercent": 16.14,
+                "rssMiB": 244.28
+              }
+            ]
+          },
+          {
+            "seconds": 6.140500000001339,
+            "processes": [
+              {
+                "pid": 1475,
+                "name": "render_service",
+                "cpuPercent": 22.47,
+                "rssMiB": 152.81
+              },
+              {
+                "pid": 3909,
+                "name": "wineserver",
+                "cpuPercent": 19.22,
+                "rssMiB": 33.49
+              },
+              {
+                "pid": 15301,
+                "name": "steam.exe",
+                "cpuPercent": 50.16,
+                "rssMiB": 359.45
+              },
+              {
+                "pid": 15419,
+                "name": "CrBrowserMain",
+                "cpuPercent": 6.84,
+                "rssMiB": 2151.23
+              },
+              {
+                "pid": 29463,
+                "name": "ntage.pomelopro",
+                "cpuPercent": 16.61,
+                "rssMiB": 244.4
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "finalDeviceState": {
+    "foreground": "Steam Banana library details",
+    "steamRunning": true,
+    "gamesRunning": false,
+    "steamTouchpadModeRestored": true,
+    "gameVirtualControlsRestored": true,
+    "renderer": "dxvk_legacy",
+    "userDataPreserved": true
+  },
+  "evidence": [
+    {
+      "file": "steam-speed/banana-1-1_0.jpeg",
+      "bytes": 312359,
+      "sha256": "5d393735597b2252e834d478637676cc3c79b633ffe0be8a9e9e117f70c44b04"
+    },
+    {
+      "file": "steam-speed/banana-1-3_0.jpeg",
+      "bytes": 167500,
+      "sha256": "4412cfa5ed0a9c0d766e11fab754cb378e66ca2d4a7276c801daa1c315a0f55b"
+    },
+    {
+      "file": "steam-speed/banana-1-5_0.jpeg",
+      "bytes": 209902,
+      "sha256": "9472916fa40f00765c34e06320e88a5a42f890d1021af35ccf786b0b78cbe371"
+    },
+    {
+      "file": "steam-speed/banana-1.json",
+      "bytes": 1002,
+      "sha256": "bbe502dda7d928dfbf6a0c39e577ef01fc611fc5ecf15a270ffe2c41da7b4be4"
+    },
+    {
+      "file": "steam-speed/banana-2-1_0.jpeg",
+      "bytes": 169163,
+      "sha256": "f078998631ffcb4af760589a041a065f0254f61ccc6e159e9a8a5a074b63e3d2"
+    },
+    {
+      "file": "steam-speed/banana-2-3_0.jpeg",
+      "bytes": 217559,
+      "sha256": "6e2cdb00d391306bf200f14bdcc517d9f8c9f508b586b7126cb43a852ab0aba3"
+    },
+    {
+      "file": "steam-speed/banana-2-5_0.jpeg",
+      "bytes": 226005,
+      "sha256": "bb8b5e24246631253285a88a3f77fa713c6b5c29bd134cc7803b0a0f89bf0ef9"
+    },
+    {
+      "file": "steam-speed/banana-2.json",
+      "bytes": 1001,
+      "sha256": "213a5227dd1e038b101030e8ce4b00f7e1bf04e5ce6e66a94ac14308ed1d07e5"
+    },
+    {
+      "file": "steam-speed/banana-3-1_0.jpeg",
+      "bytes": 169067,
+      "sha256": "ee63a75db5f0a0cbb5a97c23c4e7f5c909efaf71794b2330fcc5db4a8e4db7ac"
+    },
+    {
+      "file": "steam-speed/banana-3-3_0.jpeg",
+      "bytes": 216998,
+      "sha256": "39a2c2b656caf3f433d2fdf7a9021902d7d848008582e573188cd732a33f171a"
+    },
+    {
+      "file": "steam-speed/banana-3-5_0.jpeg",
+      "bytes": 209852,
+      "sha256": "22a132b523e3c9283505e7a20d7ca096443e1f4f542ad1d9e5f78da89ed79374"
+    },
+    {
+      "file": "steam-speed/banana-3.json",
+      "bytes": 1001,
+      "sha256": "1d753aeadc8f9feabf75d16ae6316957ab75a30ea96a28670b339ed4473db8f8"
+    },
+    {
+      "file": "steam-speed/banana-return-1_0.jpeg",
+      "bytes": 255542,
+      "sha256": "b33206b2ad6099b0b8edaa6d00ac1dbb279cb148ecb6d165850d60511c8ca8e8"
+    },
+    {
+      "file": "steam-speed/banana-return-3_0.jpeg",
+      "bytes": 255497,
+      "sha256": "9d6de818e6b7bff34ea936fa49bc443d491db9c81dc809d30629ee4da1c93190"
+    },
+    {
+      "file": "steam-speed/banana-return-5_0.jpeg",
+      "bytes": 209904,
+      "sha256": "ebf0afab52edc08f3929e265885a12e3e0a2f5fd91de7f9912ebf0a333b2bc6d"
+    },
+    {
+      "file": "steam-speed/banana-return.json",
+      "bytes": 1020,
+      "sha256": "488b6b07e6c07873371c447f4f07eeea4ac45cbf8aad9d8d3d33af8b913abdf1"
+    },
+    {
+      "file": "steam-speed/exit-first-10_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+    },
+    {
+      "file": "steam-speed/exit-first-2_0.jpeg",
+      "bytes": 210341,
+      "sha256": "11af8dc94771fd22656c6187b92d6e361004ff5315a9a8c2fa8920e8558e0c3b"
+    },
+    {
+      "file": "steam-speed/exit-first-5_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "retained": false,
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/exit-first.json",
+      "bytes": 1009,
+      "sha256": "0bb24a3918e4a252de7676c9a3b350d9d06a446bc403040536269584fb82e168"
+    },
+    {
+      "file": "steam-speed/home-1-1_0.jpeg",
+      "bytes": 217600,
+      "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd"
+    },
+    {
+      "file": "steam-speed/home-1-3_0.jpeg",
+      "bytes": 217600,
+      "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd",
+      "retained": false,
+      "storedAs": "steam-speed/home-1-1_0.jpeg"
+    },
+    {
+      "file": "steam-speed/home-1-5_0.jpeg",
+      "bytes": 312283,
+      "sha256": "00c5ecf800d4f8bf0bf2ae47ab8305955fffdabbc4732385119ce48ac30f2266"
+    },
+    {
+      "file": "steam-speed/home-1.json",
+      "bytes": 995,
+      "sha256": "ee13eba870f789b672f175581787dd052242a5e4e6df5e88d93bcbc7d19c9a95"
+    },
+    {
+      "file": "steam-speed/home-2-1_0.jpeg",
+      "bytes": 218269,
+      "sha256": "020f055360d89938900a6ffef39a46b7ad3a03345ba96ffc55d01d0320d2b6e5"
+    },
+    {
+      "file": "steam-speed/home-2-3_0.jpeg",
+      "bytes": 218364,
+      "sha256": "e5a4a47e864499367b3525cd4b65e184130af7350cf74096b2cd7d202aa03618"
+    },
+    {
+      "file": "steam-speed/home-2-5_0.jpeg",
+      "bytes": 312328,
+      "sha256": "544baf93a21e7860707d4d6633dbdb4fbdba7c179c41eb12ded9609eb41350fd"
+    },
+    {
+      "file": "steam-speed/home-2.json",
+      "bytes": 994,
+      "sha256": "3050d26d44babe65e9a52468e565ca68c619c2753f8797fec32333c91d750a5e"
+    },
+    {
+      "file": "steam-speed/home-3-1_0.jpeg",
+      "bytes": 217600,
+      "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd",
+      "retained": false,
+      "storedAs": "steam-speed/home-1-1_0.jpeg"
+    },
+    {
+      "file": "steam-speed/home-3-3_0.jpeg",
+      "bytes": 318603,
+      "sha256": "ddc55e3191ee02924b7b82325539ab4154844e7f39b8f4a79f48e57c53884044"
+    },
+    {
+      "file": "steam-speed/home-3-5_0.jpeg",
+      "bytes": 312176,
+      "sha256": "637906498834ff1d6ec10531c1d484d967d5edf6bd808c176702129e30e33d63"
+    },
+    {
+      "file": "steam-speed/home-3.json",
+      "bytes": 996,
+      "sha256": "b8b4caa775b3a674399956661defd441f4439bfec28c90949675614a9a635057"
+    },
+    {
+      "file": "steam-speed/lifecycle-events.log",
+      "bytes": 13516,
+      "sha256": "e59c3ed962081115773f48cfd824659d6dfffc6bf02e38922f586d3fe8267a06"
+    },
+    {
+      "file": "steam-speed/menu-1_0.jpeg",
+      "bytes": 209381,
+      "sha256": "a3cc603efae49aca0a9f1570479bd0c5f30748b13b77133ebbb28c6d7be45630"
+    },
+    {
+      "file": "steam-speed/menu-3_0.jpeg",
+      "bytes": 209443,
+      "sha256": "efe408f9503498dd6ad41b247558600079fdcb7877894676fd6759b1e31eed37"
+    },
+    {
+      "file": "steam-speed/menu.json",
+      "bytes": 760,
+      "sha256": "742d02ed2f529c9869b2e9f5267242a84fd3443cfb5c519cbc727f606c7097a8"
+    },
+    {
+      "file": "steam-speed/observations.jpeg",
+      "bytes": 365123,
+      "sha256": "02c9da0c5d931e68b416920d44a78d4aee8b68559bd2e636600a02784090ef22",
+      "retained": false,
+      "storedAs": null
+    },
+    {
+      "file": "steam-speed/pal1-details-1_0.jpeg",
+      "bytes": 247706,
+      "sha256": "865a585d3c70f89bf9fe54659e30fa8f12a52926b94b9f30540b9134c22b109a"
+    },
+    {
+      "file": "steam-speed/pal1-details-3_0.jpeg",
+      "bytes": 255112,
+      "sha256": "8e0688e036f9bb5e6d0a4dd5e1bc766e4e209d958efa478f2781b89d67024562"
+    },
+    {
+      "file": "steam-speed/pal1-details-5_0.jpeg",
+      "bytes": 255075,
+      "sha256": "65bd7b60c99c5ee2c8bb7cf2537af10c6550421d050c65d4895d001b7c9af879"
+    },
+    {
+      "file": "steam-speed/pal1-details.json",
+      "bytes": 1017,
+      "sha256": "59d30f75413bafdfa7c171424d6d269ab666d67eef6f6eaed78ae39e666294dd"
+    },
+    {
+      "file": "steam-speed/pal4-details-1_0.jpeg",
+      "bytes": 216752,
+      "sha256": "e1cb966ac5e18e2cf74d7f7dd96c6b549142107dd7227d04e3dd7a0f8b57b91b"
+    },
+    {
+      "file": "steam-speed/pal4-details-3_0.jpeg",
+      "bytes": 144122,
+      "sha256": "acfccf843fd37d18286334a89fe3ed260130fc93bfe9f54f8976682d3f3b1951"
+    },
+    {
+      "file": "steam-speed/pal4-details-5_0.jpeg",
+      "bytes": 273267,
+      "sha256": "e45ec26ed3ad1b753f8a33d719b75b1ea85c0b970a67c94a155757c1a5fb97d4"
+    },
+    {
+      "file": "steam-speed/pal4-details.json",
+      "bytes": 1016,
+      "sha256": "082fa062b9092c6d42ff6c0908840705d1d874b5128fd8466dab5df05703cecb"
+    },
+    {
+      "file": "steam-speed/restart-10_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "retained": false,
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/restart-20_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "retained": false,
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/restart-30_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "retained": false,
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/restart-40_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "retained": false,
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/restart-50_0.jpeg",
+      "bytes": 71204,
+      "sha256": "f740c841c101eb9edf7918702a31a1de1db72dbeb5011998d6b911d40e4b0e6a"
+    },
+    {
+      "file": "steam-speed/restart-60_0.jpeg",
+      "bytes": 99279,
+      "sha256": "e02aee9aeebffbf7543fb4719aa0877dd106919652d0111bf5fd8b76f43eee2c"
+    },
+    {
+      "file": "steam-speed/restart-banana-1_0.jpeg",
+      "bytes": 145884,
+      "sha256": "d9a5913f7f743bbe01f375de63b30f6a698390bc7487037417786b6c878f9a62"
+    },
+    {
+      "file": "steam-speed/restart-banana-3_0.jpeg",
+      "bytes": 204158,
+      "sha256": "d7f38c547e56edd1c002cea3b75e4ec7f1ef6ed60d52bdcd9ed2196d9c8332ab"
+    },
+    {
+      "file": "steam-speed/restart-banana-5_0.jpeg",
+      "bytes": 208071,
+      "sha256": "a3cfe0820d51b776fb0a399454ec0b49fad58a5c0ce95b1b6300e8e01a0533bb"
+    },
+    {
+      "file": "steam-speed/restart-banana.json",
+      "bytes": 1024,
+      "sha256": "1cf0ed2b047cb73cbb34901f462b41f4897bea341d3523822cbbb049480fb514"
+    },
+    {
+      "file": "steam-speed/restart-library-10_0.jpeg",
+      "bytes": 322641,
+      "sha256": "ca715079c8209e7fb20508e2a40f040c0071025eef95d07349c1200a6783a42b"
+    },
+    {
+      "file": "steam-speed/restart-library-1_0.jpeg",
+      "bytes": 98139,
+      "sha256": "588a713718377eaa88ae9be125af0fddd785bd5f0ba6f7658e0ec6b39b1c9a2b"
+    },
+    {
+      "file": "steam-speed/restart-library-3_0.jpeg",
+      "bytes": 98116,
+      "sha256": "671f9d2d233958394c1e3f31fdfbfbd6ecaf956edc55135eb8fd97dcd46799c3"
+    },
+    {
+      "file": "steam-speed/restart-library-5_0.jpeg",
+      "bytes": 129577,
+      "sha256": "147138a9fa1bf10f364228e94b061178351754fcf0f8dec6cc9b201dede0d8b4"
+    },
+    {
+      "file": "steam-speed/restart-library.json",
+      "bytes": 1268,
+      "sha256": "d5a0ee50f97063873cb3a33663acb9d415a1ed090f078e56e749f40f8af8a45a"
+    },
+    {
+      "file": "steam-speed/restart.json",
+      "bytes": 1695,
+      "sha256": "d1ee0a385e77f979de5de8238a5d2eed8998696e05244f4438a28910b44e7614"
+    },
+    {
+      "file": "steam-speed/startup-10_0.jpeg",
+      "bytes": 101384,
+      "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c"
+    },
+    {
+      "file": "steam-speed/startup-20_0.jpeg",
+      "bytes": 101384,
+      "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c",
+      "retained": false,
+      "storedAs": "steam-speed/startup-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/startup-2_0.jpeg",
+      "bytes": 101282,
+      "sha256": "08011c3bed09e17c9c964fdf32a7d90842f906632997ba33c10b48a58f0b4308"
+    },
+    {
+      "file": "steam-speed/startup-35_0.jpeg",
+      "bytes": 101384,
+      "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c",
+      "retained": false,
+      "storedAs": "steam-speed/startup-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/startup-50_0.jpeg",
+      "bytes": 113157,
+      "sha256": "11d362c587aba5bbebbfef77abd202f1217c77f3fb94b2e4a7d2c82a3c47d2ce"
+    },
+    {
+      "file": "steam-speed/startup-5_0.jpeg",
+      "bytes": 101384,
+      "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c",
+      "retained": false,
+      "storedAs": "steam-speed/startup-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/startup-ready.jpeg",
+      "bytes": 259543,
+      "sha256": "1269dd3551be526ddabfd96651eea49fd7aea84c0a84b68a1382625bd3d41a14"
+    },
+    {
+      "file": "steam-speed/startup.json",
+      "bytes": 1692,
+      "sha256": "700ec66ff2ef07e3747c0badae5d92a85580a979cc3b2fac7950409f02a34bf8"
+    },
+    {
+      "file": "compatibility/cpuz32-after-update.jpeg",
+      "bytes": 193961,
+      "sha256": "e4ac1a88b0baae543d8120ec77297ed919af39301edf8a378d2a2c3874bafb17"
+    },
+    {
+      "file": "compatibility/cpuz32-final.jpeg",
+      "bytes": 92604,
+      "sha256": "23afd7f398b6403da397a792f18b1c8332c32651221615600a9b5f16aae5a81b"
+    },
+    {
+      "file": "compatibility/cpuz32-launch.json",
+      "bytes": 256,
+      "sha256": "dab8c6e80bbfa774771f9d1d712ca51d9c813dbbebc38b8e9b96dbe6426ee061"
+    },
+    {
+      "file": "compatibility/cpuz32-ready.jpeg",
+      "bytes": 373598,
+      "sha256": "f147ef3b95eac281848c6d746365977338c60a0cafeeaee46c5c0690ff9f04ff"
+    },
+    {
+      "file": "compatibility/cpuz32-start-native.log",
+      "bytes": 263067,
+      "sha256": "1bc0dd6aa3c0032e56e8a23783b3844ed7e8e9bcfd6e81a6f1049627f3447f26"
+    },
+    {
+      "file": "compatibility/furmark-confirm.jpeg",
+      "bytes": 164242,
+      "sha256": "e2f9a743ce961a5c749654e9a374c0a94c2ae41c299d3eb8fc6a7ef569cfa44f"
+    },
+    {
+      "file": "compatibility/furmark-end.jpeg",
+      "bytes": 209320,
+      "sha256": "2014e8521489f8896d56b60a6c08a5e703558e27d7e4107c2c22c7021cafd204"
+    },
+    {
+      "file": "compatibility/furmark-exit-native.log",
+      "bytes": 263976,
+      "sha256": "55747532c9327b0ed5bbf74056c9ea55e2b90970984218ada70780c39599bbb4"
+    },
+    {
+      "file": "compatibility/furmark-launch.json",
+      "bytes": 260,
+      "sha256": "68477aed7063ec33a5a09f52a3ef76b426799b2597aea8a8590118d26926c1c1"
+    },
+    {
+      "file": "compatibility/furmark-menu.jpeg",
+      "bytes": 165196,
+      "sha256": "274892c508cdbf80532149dcae84f56fca2642cb9cb1cc60370bb71b52b467c7"
+    },
+    {
+      "file": "compatibility/furmark-ready.jpeg",
+      "bytes": 166718,
+      "sha256": "255ca86a6047448bed0d1165d8fdcecc07638bffbcea1a496132b80e9df29576"
+    },
+    {
+      "file": "compatibility/furmark-render.jpeg",
+      "bytes": 211438,
+      "sha256": "d32eb8eb91c1e0d9999f5b113948614c8f4db8922b21c17a0ddfe0f518a2d545"
+    },
+    {
+      "file": "compatibility/furmark-start.jpeg",
+      "bytes": 90712,
+      "sha256": "41a764b3d4b55a497e8222a84cd2daace9777de4e5c4193d0aa4462f66db2065"
+    },
+    {
+      "file": "compatibility/furmark-stopped.jpeg",
+      "bytes": 165235,
+      "sha256": "6cc5db0b1bee38124d0e16ddbef60ccba1b281cf09c03fc99ae9431e63d7df8f"
+    },
+    {
+      "file": "compatibility/heaven-close-dialog.jpeg",
+      "bytes": 372691,
+      "sha256": "67391dc798493dcdc183ad6e4befe555df704a5f66c05f97c050595e4be18281"
+    },
+    {
+      "file": "compatibility/heaven-close.jpeg",
+      "bytes": 109963,
+      "sha256": "d18b9711cf0269278ff12f3274b6e0614b47e5b2edbc94901477c1b8428da5ac"
+    },
+    {
+      "file": "compatibility/heaven-exit-native.log",
+      "bytes": 263007,
+      "sha256": "4470b2a5b64337bdac046625f3cb4e47b6db330553987c5ce28bc3d563348176"
+    },
+    {
+      "file": "compatibility/heaven-final-dialog.jpeg",
+      "bytes": 372188,
+      "sha256": "afaa6b858f424f8711aed3f42eaa0f6dec318e52eaa3f3b6f5306ab9243ec08a"
+    },
+    {
+      "file": "compatibility/heaven-launch.json",
+      "bytes": 721,
+      "sha256": "f9ac7a25af0ed1a8a61ed565ec391b22927a2e2ec5a2ed9b6bd7a1678ce1d603"
+    },
+    {
+      "file": "compatibility/heaven-loading.jpeg",
+      "bytes": 395210,
+      "sha256": "19947d565213acc8892f3a932404951c091aca2c8d8b82cd56b8c77afa63b1ad"
+    },
+    {
+      "file": "compatibility/heaven-next-scene.jpeg",
+      "bytes": 110854,
+      "sha256": "e8aa5713711b89b8f2c7ae24bf1b0bbb58f2056394bb225d6b513ecb0ff9f56d"
+    },
+    {
+      "file": "compatibility/heaven-quit.jpeg",
+      "bytes": 294424,
+      "sha256": "059cb820b56c3a54f8d4577742e90e9ac26b893a0b029b32f49013fb8081179f"
+    },
+    {
+      "file": "compatibility/heaven-scene-native.log",
+      "bytes": 263404,
+      "sha256": "b081bc80ac7edeb534e4209894f88c050ef158c3a52c03b9433707073aa22e39"
+    },
+    {
+      "file": "compatibility/heaven-scene.jpeg",
+      "bytes": 592915,
+      "sha256": "b5dc959d856a01feb8d8d7e601b9b5c882d88e4cb3d804654f4447e8486771e7"
+    },
+    {
+      "file": "compatibility/heaven-start.jpeg",
+      "bytes": 74918,
+      "sha256": "7a08e961ee3408a22bd1344d99ab6209ede11d61d48e7c57eb1dbba952df2e70"
+    },
+    {
+      "file": "compatibility/pal1-back.jpeg",
+      "bytes": 322424,
+      "sha256": "d248be480a26e2a0f4f4977e86aeb5507ef1f05d9ce997457deee840100466fb"
+    },
+    {
+      "file": "compatibility/pal1-close.jpeg",
+      "bytes": 107154,
+      "sha256": "34e0fc0159a55631ac587bed5d616bba848579cd970e7f317a312e951bca9526"
+    },
+    {
+      "file": "compatibility/pal1-confirm-dialogue.jpeg",
+      "bytes": 308728,
+      "sha256": "bd94175856bbce8b8db8e72e8c496279b9e4874fc65c586d915805c7c53f376a"
+    },
+    {
+      "file": "compatibility/pal1-controls.jpeg",
+      "bytes": 324266,
+      "sha256": "b9e882a545a90e8e477c5559754cb181deb9cee9cdacda3d3681c5ea000d30cf"
+    },
+    {
+      "file": "compatibility/pal1-current.jpeg",
+      "bytes": 367486,
+      "sha256": "c0447bf0db9ddd4cb30c6bcefa946f5205814c9d42d62addcbea04a336537a6f"
+    },
+    {
+      "file": "compatibility/pal1-dialogue.jpeg",
+      "bytes": 324266,
+      "sha256": "b9e882a545a90e8e477c5559754cb181deb9cee9cdacda3d3681c5ea000d30cf",
+      "retained": false,
+      "storedAs": "compatibility/pal1-controls.jpeg"
+    },
+    {
+      "file": "compatibility/pal1-escape.jpeg",
+      "bytes": 324244,
+      "sha256": "36266552fe5c1a4ac3d9fa4afe119e3373bdabb99117b23b10f641a926f8664e"
+    },
+    {
+      "file": "compatibility/pal1-game.jpeg",
+      "bytes": 123219,
+      "sha256": "26bb742a72bffa2dc2e58524c768f0e5aa344552c82a7353c7d3cb92f16ec084"
+    },
+    {
+      "file": "compatibility/pal1-isolated-before.jpeg",
+      "bytes": 163857,
+      "sha256": "23e31e7b208f1db5abae3ca61988083af519d6f2137b4a63735f9d5f0bf7b0cb"
+    },
+    {
+      "file": "compatibility/pal1-isolated-scene.jpeg",
+      "bytes": 145292,
+      "sha256": "7d26c64ad89c3f8323ab2d04421e690bf863c4e29f569df591f50d4d8ec60ac3"
+    },
+    {
+      "file": "compatibility/pal1-isolated-start.jpeg",
+      "bytes": 167462,
+      "sha256": "7fe17def85be6461e81ad99b05f214ad5cccb61f760c4ef4c0a0625971c34f05"
+    },
+    {
+      "file": "compatibility/pal1-launch-native.log",
+      "bytes": 264449,
+      "sha256": "06ff684fe41fae4d92a9d64093b45ff50c6cfb4bc7b2b4b7732a155d41070bf8"
+    },
+    {
+      "file": "compatibility/pal1-launch.json",
+      "bytes": 275,
+      "sha256": "e00d07be53b03247b0dc4604c984f955d787c0d74514d04ddc44c7a4089a5610"
+    },
+    {
+      "file": "compatibility/pal1-load.jpeg",
+      "bytes": 349341,
+      "sha256": "14e703664fd74904db4dc4bbad1346d790d135c959720cbe51f74feb2fdd2d27"
+    },
+    {
+      "file": "compatibility/pal1-menu.jpeg",
+      "bytes": 260466,
+      "sha256": "392b61b17cd566845601e3243a9a2afc81a9ca0ca2daba73ac71f1d56d1c09d7"
+    },
+    {
+      "file": "compatibility/pal1-new-current.jpeg",
+      "bytes": 322574,
+      "sha256": "94ea26de7461a471349d0e7a7d15c414ab5de90efd7c610dd9cfc208cbdd815f"
+    },
+    {
+      "file": "compatibility/pal1-new-dialogue.jpeg",
+      "bytes": 353079,
+      "sha256": "79d69473f42677c191fd10c7f3bb18ccb66f77f23dcc21852d43cb672258045e"
+    },
+    {
+      "file": "compatibility/pal1-new-keyboard.jpeg",
+      "bytes": 123130,
+      "sha256": "4824ccb88cc6d7c165cd414f2069d04c40a5d9fd4b3ff180817f48b7de89b195"
+    },
+    {
+      "file": "compatibility/pal1-new-scene.jpeg",
+      "bytes": 424251,
+      "sha256": "22cfa9e9b02bc13d6a2741c5d57808044a7f0a6bf11f661960eccd6acb16dee5"
+    },
+    {
+      "file": "compatibility/pal1-reopen.jpeg",
+      "bytes": 144902,
+      "sha256": "dcc898101dbff3c25573baec6730bcc8db9a9a56817ca93fe2bffde8434df39f"
+    },
+    {
+      "file": "compatibility/pal1-retest-native.log",
+      "bytes": 263010,
+      "sha256": "d2522acb843d022193ff1e0231bcad39035f814c6223442ba7a95c00a183522c"
+    },
+    {
+      "file": "compatibility/pal1-right.jpeg",
+      "bytes": 308944,
+      "sha256": "b138594dea2fdb6a0837d1aa9fda76f0ddb2a6e73ba2a32e80fb9521d970fbf0"
+    },
+    {
+      "file": "compatibility/pal1-scene-native.log",
+      "bytes": 263186,
+      "sha256": "6733f43c6551d46492aa242c8372632ca0506522682b095a6c005a23d6bd1c92"
+    },
+    {
+      "file": "compatibility/pal1-slot.jpeg",
+      "bytes": 349492,
+      "sha256": "5ee426d39b445ca156fab5b7b0027486caf0943d51f8246a2b78ef92d2ea8981"
+    },
+    {
+      "file": "compatibility/pal1-start.jpeg",
+      "bytes": 143637,
+      "sha256": "03835e7138bd06ff45ead5248d3068462cf15dc3f2787a26807ed6d1abe8a20d"
+    },
+    {
+      "file": "compatibility/pal1-trap-events.log",
+      "bytes": 1811,
+      "sha256": "ab7fc25cd83ed2f79b654bd750ac0301e969dc97139a6472251986c89516680b"
+    },
+    {
+      "file": "compatibility/pal1-unresponsive-native.log",
+      "bytes": 263195,
+      "sha256": "44f505ac8e02e2a9fb218e82fb06fb5b888ec286b9ae2f8930a1c2352a04c432"
+    },
+    {
+      "file": "compatibility/pal1-virtual-escape.jpeg",
+      "bytes": 122472,
+      "sha256": "e9cf7963ac1a56fc7da908fcee61238004a97f18b924d7ddc936877a3b16a5a3"
+    },
+    {
+      "file": "compatibility/pal1-virtual.jpeg",
+      "bytes": 324023,
+      "sha256": "8e7ccc5b511305b0b5ae33bce64e0f2e9f8f6c640b98fb6a3b5cd30a12655092"
+    },
+    {
+      "file": "compatibility/pal2-battle-native.log",
+      "bytes": 263126,
+      "sha256": "6f39ffb5eabb77b5cf725d976704737ac79d03c347ee4c4f9f9091bea5e583e5"
+    },
+    {
+      "file": "compatibility/pal2-battle.jpeg",
+      "bytes": 442581,
+      "sha256": "7d3502f2ce7880bca76549308a047df59a433bb87bd8cda0d9a738b65227a3d1"
+    },
+    {
+      "file": "compatibility/pal2-launch.json",
+      "bytes": 260,
+      "sha256": "0b07a1d5ec93051321ed68bc154bc2d3f6a04fdb8e0e632d937a828213bfb694"
+    },
+    {
+      "file": "compatibility/pal2-load.jpeg",
+      "bytes": 99131,
+      "sha256": "5757569e86c1aa6a9a681e9b9f59459fccaf2b25ca6be5308fdf3a83c0dffcbd"
+    },
+    {
+      "file": "compatibility/pal2-menu.jpeg",
+      "bytes": 281610,
+      "sha256": "1fd7d2453bc59f020ad77ddd29485ac1ff32e87f26f048337b523643cabe7a14"
+    },
+    {
+      "file": "compatibility/pal2-new.jpeg",
+      "bytes": 492059,
+      "sha256": "6aa45790eb38040870b3d013bf1ad04813011475629ba81fc44161b8aa4ffc7e"
+    },
+    {
+      "file": "compatibility/pal2-ready.jpeg",
+      "bytes": 237177,
+      "sha256": "fd8f55f24a1897d58bd6e276feb27471d5e8eb31d37c519c9b6b89f3a86eda35"
+    },
+    {
+      "file": "compatibility/pal2-scene.jpeg",
+      "bytes": 523538,
+      "sha256": "b46037ffbecf8f09434153c4da51c08e691f093c48bb42c09cd404d63b1e92a0"
+    },
+    {
+      "file": "compatibility/pal2-start.jpeg",
+      "bytes": 92604,
+      "sha256": "23afd7f398b6403da397a792f18b1c8332c32651221615600a9b5f16aae5a81b",
+      "retained": false,
+      "storedAs": "compatibility/cpuz32-final.jpeg"
+    },
+    {
+      "file": "compatibility/pal2-target.jpeg",
+      "bytes": 526067,
+      "sha256": "99d9754f1d8e92f7e7b19037d8279160ad9a684c57e7cc49cbaafda243a84c6a"
+    },
+    {
+      "file": "compatibility/pal4-click-move.jpeg",
+      "bytes": 376697,
+      "sha256": "26e2a2b5920a2152c642baf594bfb744e1b3c37c8fa82d95977d7d83c0434d06"
+    },
+    {
+      "file": "compatibility/pal4-exit.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc"
+    },
+    {
+      "file": "compatibility/pal4-launch.json",
+      "bytes": 260,
+      "sha256": "0ada433c8a2647bd3f6cc9c1c1919c4192739a5be50035e3af360fdd231e7326"
+    },
+    {
+      "file": "compatibility/pal4-load.jpeg",
+      "bytes": 299907,
+      "sha256": "3d6425cc3c8f7f518dbba51a3167a783a33718e0901de14217acf4f13dbb79b1"
+    },
+    {
+      "file": "compatibility/pal4-menu.jpeg",
+      "bytes": 260982,
+      "sha256": "84ca79250327caec85f4b7d1ca9cb3f04a7f33efdfb340f47f87cde2a3abfd7a"
+    },
+    {
+      "file": "compatibility/pal4-moved.jpeg",
+      "bytes": 375510,
+      "sha256": "fea17ce8ab7b8615cc0c7bd7c0743b0ebca02820873a958eb0deae18a089d365"
+    },
+    {
+      "file": "compatibility/pal4-pause.jpeg",
+      "bytes": 261850,
+      "sha256": "f8f37f33a61166fdf6202b28867441f992d085ab29cd7f981c0ba33b574b2f8e"
+    },
+    {
+      "file": "compatibility/pal4-scene-native.log",
+      "bytes": 263016,
+      "sha256": "2bc310273ad743e4fc01ca4bdbb7e5f7a82c3bdf55d21a509b911b83ef310695"
+    },
+    {
+      "file": "compatibility/pal4-scene.jpeg",
+      "bytes": 370990,
+      "sha256": "b4ade830a61d8a40628347a43c26d0824d89c147d9c21d5c836832c330426865"
+    },
+    {
+      "file": "compatibility/pal4-start-native.log",
+      "bytes": 263160,
+      "sha256": "7a964eb46e8d57f99fd452de6e4862ff874f036c56ca4c02ca9d4ed6d64e070b"
+    },
+    {
+      "file": "compatibility/pal4-start.jpeg",
+      "bytes": 98544,
+      "sha256": "dba4a1c132bf7d6a9aab9ae4e9f1872c77b81bc83109389a021adb03d9043e40"
+    },
+    {
+      "file": "compatibility/pal4-walk.jpeg",
+      "bytes": 377634,
+      "sha256": "5c5483986a5d8bd0f1f66c89260c01c0e4bcd96339b348a556c98de95bb84d79"
+    },
+    {
+      "file": "compatibility/steam-restart-current.jpeg",
+      "bytes": 313675,
+      "sha256": "9f38d01ce6728c7e1fd8e24f45e9a4b65dfd992740055c26060d89d9dfe3e20e"
+    },
+    {
+      "file": "compatibility/steam-speed-final-native.log",
+      "bytes": 263727,
+      "sha256": "67ad73581e05fcc41adfc4f7fb133e9b139c936aca7cca6c77fd2bc8a7524b04"
+    },
+    {
+      "file": "compatibility/steam-speed-final.jpeg",
+      "bytes": 217644,
+      "sha256": "b9e158dd99318a692cfa799f9b8dc7032a971e35142f0d8b29835d57ce15ac26"
+    },
+    {
+      "file": "compat-final-closed.json",
+      "bytes": 2582,
+      "sha256": "77670236ffc9058cd8046e7224f807009c40eb4d4405bb30b3bb50a68e019348"
+    },
+    {
+      "file": "steam-speed-final.json",
+      "bytes": 2862,
+      "sha256": "b4afb05fd880e401a0151fb3778060d229967869b9746d6817f37ebb446afd5f"
+    },
+    {
+      "file": "steam-speed-exit-first.json",
+      "bytes": 2582,
+      "sha256": "5b481252a994d8422aefd1d8ec60a3b5ad1718533db771269abdb68ea8fbaf41"
+    }
+  ],
+  "evidenceCleanup": [
+    {
+      "file": "compatibility/pal1-dialogue.jpeg",
+      "bytes": 324266,
+      "sha256": "b9e882a545a90e8e477c5559754cb181deb9cee9cdacda3d3681c5ea000d30cf",
+      "reason": "byte-identical observation",
+      "storedAs": "compatibility/pal1-controls.jpeg"
+    },
+    {
+      "file": "compatibility/pal2-start.jpeg",
+      "bytes": 92604,
+      "sha256": "23afd7f398b6403da397a792f18b1c8332c32651221615600a9b5f16aae5a81b",
+      "reason": "byte-identical observation",
+      "storedAs": "compatibility/cpuz32-final.jpeg"
+    },
+    {
+      "file": "steam-speed/exit-first-5_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/home-1-3_0.jpeg",
+      "bytes": 217600,
+      "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/home-1-1_0.jpeg"
+    },
+    {
+      "file": "steam-speed/home-3-1_0.jpeg",
+      "bytes": 217600,
+      "sha256": "7961c5198357daa054a60254dcb9fb7d40e0276911929f742ad7022051917ffd",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/home-1-1_0.jpeg"
+    },
+    {
+      "file": "steam-speed/observations.jpeg",
+      "bytes": 365123,
+      "sha256": "02c9da0c5d931e68b416920d44a78d4aee8b68559bd2e636600a02784090ef22",
+      "reason": "temporary visual comparison sheet",
+      "storedAs": null
+    },
+    {
+      "file": "steam-speed/restart-10_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/restart-20_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/restart-30_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/restart-40_0.jpeg",
+      "bytes": 73421,
+      "sha256": "0efd21dd48d7d70b9d57952d7717bafa1ce9466f694e4deef007d82b7e046dbc",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/exit-first-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/startup-20_0.jpeg",
+      "bytes": 101384,
+      "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/startup-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/startup-35_0.jpeg",
+      "bytes": 101384,
+      "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/startup-10_0.jpeg"
+    },
+    {
+      "file": "steam-speed/startup-5_0.jpeg",
+      "bytes": 101384,
+      "sha256": "1cf4896514826014f0b077a203f3cc4831f63e9d4b25f50798b0cbe74071679c",
+      "reason": "byte-identical observation",
+      "storedAs": "steam-speed/startup-10_0.jpeg"
+    }
+  ]
+}
