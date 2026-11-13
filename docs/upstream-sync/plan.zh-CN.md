@@ -3,8 +3,8 @@
 核验日期：2026-11-13。产品基线已汇合到 `main@c5fc06ed`，对应不可移动标签 `rc-2.0.0`。
 后续工作分支为 `feature/fex-proton-upstream-sync`；发布 CI 使用冻结标签，升级评估在本分支独立推进。
 本分支已登记生产补丁、完成当前有效 Wine 在真实 Valve 父系上的等价重建，并默认随包提供 x86/x64 Gecko。
-FEX 完整候选已迁移、成组构建并在 Mini 完成局部界面和双架构探针验证；生产 pin 保持不变。
-Steam 详情和重启延迟仍未验收。Gecko 双架构已包含在本次候选底包。
+FEX 与 Proton Wine 完整候选均已迁移、成组构建并在 Mini 完成局部界面和双架构探针验证；生产 pin 保持不变。
+Steam 详情、重启延迟和偶发退出异常仍未验收。Gecko 双架构已包含在本次候选包。
 产品路线继续为 Windows Steam、OHOS Wine、HmosDeck，默认 FEX，Box64 保留为兼容选项。
 
 ## 上游基线
@@ -84,6 +84,12 @@ Steam 详情和重启延迟仍未验收。Gecko 双架构已包含在本次候�
 - 原上游 Linux 启动器、rootfs 与 Linux Steam 产品界面不属于 VPP 2.0.0 的交付路线；
   同步目标是 OHOS 平台使用的完整上游核心及组件实现，不能称为未修改的整个 Linux Proton 环境。
 
+当前进度：完整 Wine `e8ca5806eec4` 已迁移 79 项原适配并补齐生成/独立构建两项修复，
+形成 `098ece0eedff` 的 81 项有序补丁；精确重放 tree、父系及 commit 通过。
+完整构建登记 1,596 个输出，成套打包登记 1,659 个输出；Mini 普通 Steam 入口和 x86/x64 探针通过局部验证。
+退出时曾出现执行访问异常，旧 Wine 两轮及新版重装后两轮暂未复现；原因未定，不能提升生产 pin。
+详见 [Wine 迁移与 Mini 对照](wine-migration.zh-CN.md) 及 [机器记录](validation/wine-mini.json)。
+
 ### 4. 固化防丢与构建入口
 
 - 维护锁文件：上游 commit、OHOS 分支 commit、有序补丁 SHA-256、工具链、ABI、配置、组件产物哈希。
@@ -105,9 +111,10 @@ Steam 详情和重启延迟仍未验收。Gecko 双架构已包含在本次候�
 ## 本次交付边界
 
 本分支已完成当前 Wine 的等价重建，以及 FEX 完整上游候选的 21 项适配、成组构建、31 项主机定向回归。
-Mini 已验证候选安装、登录保留、Steam 游戏库、退出/重启和 x86/x64 探针；四个 FEX DLL/桥接文件哈希一致。
-Steam 页面响应仍有延迟，一次重启出现商店 -118；性能未达标且尚未归因，游戏未测试。
-**生产 FEX/Wine 尚未提升，Proton Wine 完整升级与最终验收仍待完成**。
+完整 Proton Wine 候选的 81 项适配、4 项主机回归、全量构建与成品审计也已完成。
+Mini 已验证候选安装、登录保留、Steam 游戏库和 x86/x64 探针；FEX 与 Wine 组件、前缀哈希匹配各自包。
+Steam 页面响应仍有延迟，重启出现过商店 -118，新 Wine 一次退出启动调试器；复测未复现，原因仍未确定。
+**生产 FEX/Wine 尚未提升；性能、偶发退出及完整功能最终验收仍待完成，游戏未测试**。
 详细结果见 [首轮评估](initial-assessment.zh-CN.md)、[逐文件证据](initial-assessment.json) 和
 [适配台账](adaptation-ledger.json)。`rc-2.0.0` 仅发布冻结的现有运行时，升级候选不混入该版本。
 发布构建结果另由 GitHub Actions 和 Release 的来源记录确认，不能将本评估视为发布通过证据。

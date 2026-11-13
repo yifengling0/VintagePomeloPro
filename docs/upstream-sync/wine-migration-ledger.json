@@ -1,0 +1,583 @@
+{
+  "upstream": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
+  "baseline": "a02acbd358e3f2d82eb4d6e0375dfbff0e5e0131",
+  "commits": [
+    "151231e6a31b7690003c5f781f8bab34778e7040",
+    "f6c4d5641cf6d40e6e5b92cdfc711e1a4c7004bf",
+    "ef084db156d092c4504df65eb442391bfa1800b2",
+    "55bba8b009d0cf274f89efebcd1d444e8511c842",
+    "6f8b2488a35266c49f8e903d2c8eaa028056546a",
+    "c66dd98943cfff11ce8a420451716ea7b85e50ab",
+    "a336b0681b40f9ef596ac5ccf432ebbf0ce7450c",
+    "59befb32442f040597c5e8058b20dfef2f65fe36",
+    "843a267224f65b941cc541ef6ee9f34409d18be3",
+    "a0ff3829d7bb08e602db5d66a96e4db2328b26e3",
+    "6bb0e464e3e4e6ee2219a0470d459ed2eb9daf6d",
+    "5002272f4ccb21131ac8ea0467475749e5afb9bf",
+    "56e198f86693a7c7652dfe120156ff1679368cfb",
+    "4cb395590fa86ee3f4abec0d9ca32a53ae72616b",
+    "29895ea0c67ace2bce5e017e089004576362da0c",
+    "e02fe013537eac3cd14b68595b4c476b0b4f836f",
+    "09472e578a0444b5edbaaf75fb99e61efebb87e0",
+    "ef44640e8a29c6f8ecb2209dcd8c85ef554a4ba9",
+    "d85b0fc1185c6acb0ac315ae6d3b35aebb2b7ee9",
+    "83584889c589617b8f8c27388d7e602705f2a412",
+    "9258036f86eb4394320d62e372e736edce591071",
+    "24d254bc0f735ba626beaff80f471338b24424c1",
+    "c13c97b1e44faeb17bfaca0035e1ebd0dab78e35",
+    "8ed40249b096b8bb178e97a7d475a7bed3e585c7",
+    "9044da413515c4b35779e69ef6d197d84a59368a",
+    "3afc8af08c28d0d7c4b0c6da4bb3d678c7400269",
+    "8586d2587781ed9efee4cbaeab039947bb359ab8",
+    "06f655c4acc65f00cefd84e5f707282f2e8c4d7b",
+    "a478d717313a5fa8acb2493f84672707f2f14dfc",
+    "aa20451f04b08689f1d37b8548a3678a05264d7e",
+    "f10662897d669af2b01ba87a0c1e76c732413926",
+    "03495c6f5ba69dc372c8555ee3f877fc10774520",
+    "f9db8ea0dc6aeda897269042067a4f9ac1670370",
+    "0e4059baa967410697a8e3f3315c00827642d0b6",
+    "79e383bbe6a94b4411719544e1214e4b8001f3bb",
+    "22aa2bda4703ba8ceb28c1ecc6df267570cd7990",
+    "4fd1cd3779bb5daedb295fcc41d907b84a6b4732",
+    "38c68a58cb07ea8febb3f568a8b8b6e165cc2c96",
+    "1a055dad33fba3018fc3be1254f270320c78d80c",
+    "e4cad0c9b7d37a5c9e8bb5824dd18407067c91c5",
+    "c7d4324050ca8fdde5a436e8632cb28bfc844ec7",
+    "7b6a1cfa2919b4c8c9e6d52315a693e8be2189b6",
+    "3aa4e06deaaec8621124b00ae7421c47171c1541",
+    "d5d16865a260fa9d25ee45ca97fa7731eed3ef6c",
+    "05799774fc76b4f858777263d022f22252a5fa3f",
+    "c62ef2bff42c099c6727aeee504f342e09eb5d99",
+    "3d52d678364fb7ee125d0bd757e0a2e4ed5aa12b",
+    "9aa7938faa357e894f92bf32214c54eb10c7acaa",
+    "69043337ef65f8c14c623bed4d78c202a641d97c",
+    "26c02e0c6267a395d7bf3d9a35db3164d5a9c98c",
+    "0aa835288340088e4c72f1d0bcf38cc15999d265",
+    "79d4449006c012306b7d40dd411f87079525d6bd",
+    "a50a557a2e74c2144e0d1b6e64db7856970b5b83",
+    "7169b65d1bf6803e1337c32433318798b0c91317",
+    "6d3b05eac11c7706588bb317daba602a54faacde",
+    "6355c76f36607474e76ec0b09bd61d9d9b256440",
+    "8fb4e82d8892fb7ba99d530f554cd3eede447ccd",
+    "5036fbe96f2de25da214b77a32657be5676bc203",
+    "9cea9b5a77499825e65f3d43e4e4872a1e26ac4e",
+    "528b1bf9d27c2387c7901ebf39b1658f587553f9",
+    "808e9e43f0e4ded0ba13733c8c8d86910518ff66",
+    "1fce8162f1b6c01a6893dd7f14d0123d6fe32fa1",
+    "778577c871eea1e12b6b2d6f2f399bd6c2265a2e",
+    "46ed94130b63984b7cc27aeb67b69ce094371dc0",
+    "841e3f34235d4cb1892b125f050bec580934598d",
+    "88e9c537ac984686d96d4ebb45c6ca2e60e69ade",
+    "0b79929828b72b61d6699806339d0be94a61a252",
+    "4031e59013451aee59234371f249bd314514c716",
+    "64dca278c59c75001e9865aca673dd366b06bf1d",
+    "828f62510c4738449620f6ab3fbe0dc16cbf4ff7",
+    "6140e79be644ed516d9940b0014d509892eb050f",
+    "28295efef74758db2321fe7cd1f2158e62fc8c49",
+    "cd34307f2911c45786a1b719ac285aa5bb8c0006",
+    "50067a497da07f0cf71a44ab8dda938c11610060",
+    "61d0a721666db7ab5faf056540ce8f17293fe85a",
+    "4f46f61052a56deeb09babe225ce4c51d9711ae1",
+    "86d48e6e26b2897f002f007c843e7993b9d708a5",
+    "e2edb34993fdfeac11990db4a62bd2c26c8189e6",
+    "a02acbd358e3f2d82eb4d6e0375dfbff0e5e0131"
+  ],
+  "applied": [
+    {
+      "originalCommit": "151231e6a31b7690003c5f781f8bab34778e7040",
+      "adaptedCommit": "c32ceb59d4a2a8c17ba9b9a6c3bd527f1fecf31d",
+      "subject": "OHOS adaptation: audio-and-media",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "f6c4d5641cf6d40e6e5b92cdfc711e1a4c7004bf",
+      "adaptedCommit": "4b0b5aa0369dfd77648e506c41e4f8c069f5a3b8",
+      "subject": "OHOS adaptation: build-abi-and-platform-integration",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "ef084db156d092c4504df65eb442391bfa1800b2",
+      "adaptedCommit": "5d5d380f227bcd26906784790bd648abf981203d",
+      "subject": "OHOS adaptation: graphics-input-and-presentation",
+      "status": "reviewed-conflict-resolution",
+      "conflicts": [
+        "dlls/win32u/vulkan.c"
+      ],
+      "resolution": "Retain both upstream D3D12 fence timeline types and OHOS presenter helpers at their common insertion point; no implementation removed."
+    },
+    {
+      "originalCommit": "55bba8b009d0cf274f89efebcd1d444e8511c842",
+      "adaptedCommit": "575d6f5ef6908cf0fca0075110613f46bf3163da",
+      "subject": "OHOS adaptation: launcher-and-prefix",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "6f8b2488a35266c49f8e903d2c8eaa028056546a",
+      "adaptedCommit": "b61016ffb6db40625971ca87887ff660218b0a69",
+      "subject": "OHOS adaptation: network-and-platform-services",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "c66dd98943cfff11ce8a420451716ea7b85e50ab",
+      "adaptedCommit": "851d58d010415b48ad3cff270640d745656d0a3c",
+      "subject": "OHOS adaptation: process-memory-and-broker",
+      "status": "reviewed-conflict-resolution",
+      "conflicts": [
+        "dlls/ntdll/signal_arm64.c",
+        "dlls/ntdll/unix/virtual.c"
+      ],
+      "resolution": "Adopt upstream suspension reverts c97ffea7/cc17cbcb/8cd623d8: generic RtlWow64SuspendThread lives in process.c; do not resurrect deleted APC worker or duplicate symbol. Preserve entry diagnostic. Keep new get_unixlib_funcs/load_builtin_unixlib/set_builtin_unixlib_name contracts, optimized module lookup, OHOS namespace basename loading and opt-in sampler."
+    },
+    {
+      "originalCommit": "a336b0681b40f9ef596ac5ccf432ebbf0ce7450c",
+      "adaptedCommit": "f6fb689cacd1288e5c149c57796581d602ded50c",
+      "subject": "OHOS adaptation: 0011-wineboot-durable-prefix-completion",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "59befb32442f040597c5e8058b20dfef2f65fe36",
+      "adaptedCommit": "5b44db5d3db3a66e2f2c9b9a9661ff18a2bf8efe",
+      "subject": "OHOS adaptation: 0067-wineboot-single-managed-initialization",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "843a267224f65b941cc541ef6ee9f34409d18be3",
+      "adaptedCommit": "12fe843ec3dc7dfe89c97eabf68aa61d01883c77",
+      "subject": "OHOS adaptation: 0012-wineserver-locked-registry-migration",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "a0ff3829d7bb08e602db5d66a96e4db2328b26e3",
+      "adaptedCommit": "34c7780eb869f62f12c543042dc49a7f807a1096",
+      "subject": "OHOS adaptation: 0013a-ntdll-ohos-rpgxp-diagnostics",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "6bb0e464e3e4e6ee2219a0470d459ed2eb9daf6d",
+      "adaptedCommit": "f0a6a1097f7323e61c85c9e0c05ed5d10c2c7c1d",
+      "subject": "OHOS adaptation: 0014-win32u-font-aa-override",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "5002272f4ccb21131ac8ea0467475749e5afb9bf",
+      "adaptedCommit": "8c77eab4b7dca7afc0a73081d2ae5677e9583870",
+      "subject": "OHOS adaptation: 0015-ohos-exec-section-eof-pread",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "56e198f86693a7c7652dfe120156ff1679368cfb",
+      "adaptedCommit": "9508075a720198993a674363f5bc77a4539bca0d",
+      "subject": "OHOS adaptation: 0016-ntdll-honor-pe-large-address-aware-default",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "4cb395590fa86ee3f4abec0d9ca32a53ae72616b",
+      "adaptedCommit": "badd1a593cb06f5aab96c4bb92c9cb63ac1d1f36",
+      "subject": "OHOS adaptation: 0017-wayland-configure-window-lifetime",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "29895ea0c67ace2bce5e017e089004576362da0c",
+      "adaptedCommit": "d6aa91c5225bb5a3d45eda6e12c88f31b384073f",
+      "subject": "OHOS adaptation: 0018-private-vulkan-present-validation",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "e02fe013537eac3cd14b68595b4c476b0b4f836f",
+      "adaptedCommit": "5ac1ef23c5ad7788da3158fa618e2881b6e26579",
+      "subject": "OHOS adaptation: 0019-ntdll-broker-log-metadata",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "09472e578a0444b5edbaaf75fb99e61efebb87e0",
+      "adaptedCommit": "ee2b4804fc97d2a4d8a53325f0a2ca51cda369b9",
+      "subject": "OHOS adaptation: 0020-broker-v2-startup-contract",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "ef44640e8a29c6f8ecb2209dcd8c85ef554a4ba9",
+      "adaptedCommit": "b20e8b82bd28f5db2dfb347e556016b0f3aa9f21",
+      "subject": "OHOS adaptation: 0021-wayland-shm-state-cache",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "d85b0fc1185c6acb0ac315ae6d3b35aebb2b7ee9",
+      "adaptedCommit": "e769f995b317c812576121748256e4a0f2475f70",
+      "subject": "OHOS adaptation: 0022-private-vulkan-signal-only-acquire",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "83584889c589617b8f8c27388d7e602705f2a412",
+      "adaptedCommit": "3a903514c9b1c85c9eb2406e93b399eec21e91b0",
+      "subject": "OHOS adaptation: 0023-ohos-default-grayscale-font-aa",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "9258036f86eb4394320d62e372e736edce591071",
+      "adaptedCommit": "e2c782a8251e32dd71fa2bc996256e0f0fda960c",
+      "subject": "OHOS adaptation: 0024-ohos-scan-prefix-fonts",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "24d254bc0f735ba626beaff80f471338b24424c1",
+      "adaptedCommit": "5909acce873c00ab0556e71ab4f6f112ea039149",
+      "subject": "OHOS adaptation: 0025-ohos-locale-font-fallback",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "c13c97b1e44faeb17bfaca0035e1ebd0dab78e35",
+      "adaptedCommit": "b6872839d44e047298f1ceb688629aa3e7a003c6",
+      "subject": "OHOS adaptation: 0026-ohos-musl-selected-locale",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "8ed40249b096b8bb178e97a7d475a7bed3e585c7",
+      "adaptedCommit": "04318503acbec7de6c8082a44cba8ca1f074b45b",
+      "subject": "OHOS adaptation: 0027-arm64ec-seh-exit-thunk",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "9044da413515c4b35779e69ef6d197d84a59368a",
+      "adaptedCommit": "e7fc9eee546627d236a89d60c3698bc5e8a83cbc",
+      "subject": "OHOS adaptation: 0028-ohos-child-winedebug-environment",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "3afc8af08c28d0d7c4b0c6da4bb3d678c7400269",
+      "adaptedCommit": "f41a5c8cad81fbf5d047f9657ddd957818986995",
+      "subject": "OHOS adaptation: 0029-wayland-minimize-restore-handshake",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "8586d2587781ed9efee4cbaeab039947bb359ab8",
+      "adaptedCommit": "33df1134bc4f8c5e6842044dc060cfef468df2f8",
+      "subject": "OHOS adaptation: 0030-ohos-transient-activation-return",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "06f655c4acc65f00cefd84e5f707282f2e8c4d7b",
+      "adaptedCommit": "d69932787ac5db8fe9760901a577126243af1bdf",
+      "subject": "OHOS adaptation: 0031-wayland-client-only-remap",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "a478d717313a5fa8acb2493f84672707f2f14dfc",
+      "adaptedCommit": "3ffebdcd369fedc87643b00a7616799f36db63c3",
+      "subject": "OHOS adaptation: 0032-wayland-readback-content-diagnostics",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "aa20451f04b08689f1d37b8548a3678a05264d7e",
+      "adaptedCommit": "76b945351f574d47589c2abe648aaea5e850e403",
+      "subject": "OHOS adaptation: 0033-ohos-fshack-context-capability",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "f10662897d669af2b01ba87a0c1e76c732413926",
+      "adaptedCommit": "5fbf3c04d5d62f95640c7ad7e9f2a8c2c12efaff",
+      "subject": "OHOS adaptation: 0034-opengl-zero-texture-not-reserved",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "03495c6f5ba69dc372c8555ee3f877fc10774520",
+      "adaptedCommit": "87cc7f9ca3ad5cf5679d88576bac3f25fb2e731e",
+      "subject": "OHOS adaptation: 0035-opengl-wow64-explicit-buffer-flush",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "f9db8ea0dc6aeda897269042067a4f9ac1670370",
+      "adaptedCommit": "7a30e3aa8b16ac3fb75353c49e88d6b80be6a265",
+      "subject": "OHOS adaptation: 0036-wined3d-pixel-format-id-lookup",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "0e4059baa967410697a8e3f3315c00827642d0b6",
+      "adaptedCommit": "8b9345e09990619bfd28842e5ca7bff79cdf822d",
+      "subject": "OHOS adaptation: 0037-wine-opengl-performance-summary",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "79e383bbe6a94b4411719544e1214e4b8001f3bb",
+      "adaptedCommit": "3207db21c46c4c11df0708b5b1fcd75575c8b790",
+      "subject": "OHOS adaptation: 0038-wined3d-discard-map-invalidation",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "22aa2bda4703ba8ceb28c1ecc6df267570cd7990",
+      "adaptedCommit": "234e5bf1ec2188060726b1cb0e4182a1dcf1a0e9",
+      "subject": "OHOS adaptation: 0039-wined3d-opt-in-dynamic-buffer-sysmem",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "4fd1cd3779bb5daedb295fcc41d907b84a6b4732",
+      "adaptedCommit": "b417fb253bc1947a0c96cbb6b1fae9e8c35b26b4",
+      "subject": "OHOS adaptation: 0068-wined3d-ohos-command-event-wake",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "38c68a58cb07ea8febb3f568a8b8b6e165cc2c96",
+      "adaptedCommit": "4cc1a85b22adec92693c92026033291b655a8b26",
+      "subject": "OHOS adaptation: 0040-ntdll-owned-virgl-shared-low-map",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "1a055dad33fba3018fc3be1254f270320c78d80c",
+      "adaptedCommit": "49a4ea2dc1fc39214110730cad2260df53d78505",
+      "subject": "OHOS adaptation: 0041-winebus-ohos-poll-progress",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "e4cad0c9b7d37a5c9e8bb5824dd18407067c91c5",
+      "adaptedCommit": "67e922fc97c4ffa980f286b24a53353289bb18d5",
+      "subject": "OHOS adaptation: 0042-opengl-opt-in-wgl-lock-wait",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "c7d4324050ca8fdde5a436e8632cb28bfc844ec7",
+      "adaptedCommit": "615bed77f7828daa032b165e32edcbc6a208fb53",
+      "subject": "OHOS adaptation: 0043-winebus-canonical-whgp-v2",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "7b6a1cfa2919b4c8c9e6d52315a693e8be2189b6",
+      "adaptedCommit": "04e45a8ca091aa3209a36517ea5bd7d6d876adf9",
+      "subject": "OHOS adaptation: 0044-wayland-input-thread-desktop",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "3aa4e06deaaec8621124b00ae7421c47171c1541",
+      "adaptedCommit": "c0218b2dcc5f9adc825ae15a9fc0859059a9f8be",
+      "subject": "OHOS adaptation: 0045-ntdll-arm64-invalid-leaf-unwind",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "d5d16865a260fa9d25ee45ca97fa7731eed3ef6c",
+      "adaptedCommit": "0e2fc1b3710314d03a1e4213c94bb57106e56027",
+      "subject": "OHOS adaptation: 0046-ntdll-ohos-process-exit",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "05799774fc76b4f858777263d022f22252a5fa3f",
+      "adaptedCommit": "02968b1fa898c61975bec817338501fd22f20e2c",
+      "subject": "OHOS adaptation: 0047-win32u-wow64-vulkan-map-safety",
+      "status": "reviewed-conflict-resolution",
+      "conflicts": [
+        "include/wine/vulkan_driver.h"
+      ],
+      "resolution": "Keep upstream timeline semaphore functions in their new ABI order, then append OHOS mapped-memory flush/invalidate entries. All consumers must build as one Wine group; never reuse an old winevulkan/win32u pair."
+    },
+    {
+      "originalCommit": "c62ef2bff42c099c6727aeee504f342e09eb5d99",
+      "adaptedCommit": "ff5b24dc4ac8e1f6c620dca76e297567cefbb716",
+      "subject": "OHOS adaptation: 0048-ntdll-opt-in-server-request-timing",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "3d52d678364fb7ee125d0bd757e0a2e4ed5aa12b",
+      "adaptedCommit": "44d2488f067ef31fee62a9eac5cd11db53219996",
+      "subject": "OHOS adaptation: 0049-wined3d-require-srgb-write-control-for-shared-storage",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "9aa7938faa357e894f92bf32214c54eb10c7acaa",
+      "adaptedCommit": "7c3dbdcb1a2c51e4ac8eb6589409853f503512f2",
+      "subject": "OHOS adaptation: 0050-wayland-explicit-gpu-front-present",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "69043337ef65f8c14c623bed4d78c202a641d97c",
+      "adaptedCommit": "03a87758a70db0fef1225f48eabda0935d92f92c",
+      "subject": "OHOS adaptation: 0051-opengl-preserve-pbuffer-front-storage",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "26c02e0c6267a395d7bf3d9a35db3164d5a9c98c",
+      "adaptedCommit": "a910e2f364536dec16fa87af54c96459234f6a82",
+      "subject": "OHOS adaptation: 0052-ntdll-default-virgl-shared-low-map",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "0aa835288340088e4c72f1d0bcf38cc15999d265",
+      "adaptedCommit": "2f0c1a841a37d4a4b1be6904dcaaf4e7c0156698",
+      "subject": "OHOS adaptation: 0053-wined3d-restore-legacy-alpha-test-state",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "79d4449006c012306b7d40dd411f87079525d6bd",
+      "adaptedCommit": "0bef4e2244ea0f6249ca256cac6e4e1cbb47328c",
+      "subject": "OHOS adaptation: 0054-ntdll-broker-preserve-resolved-image-path",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "a50a557a2e74c2144e0d1b6e64db7856970b5b83",
+      "adaptedCommit": "2e7516daac19df68862684182b206d63aeb65c09",
+      "subject": "OHOS adaptation: 0055-layered-child-screen-coordinates-and-root",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "7169b65d1bf6803e1337c32433318798b0c91317",
+      "adaptedCommit": "be3c45a9a75fcca51551ce8138f7ecc923c9fc5a",
+      "subject": "OHOS adaptation: 0056-wayland-direct-wsi-before-show",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "6d3b05eac11c7706588bb317daba602a54faacde",
+      "adaptedCommit": "e4444593499c2c7097217652e4b467e00b2294bb",
+      "subject": "OHOS adaptation: 0057-wayland-direct-drawable-identity",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "6355c76f36607474e76ec0b09bd61d9d9b256440",
+      "adaptedCommit": "c5fc8b0f48a9a9ea01f38ab0af3cc6c577d709cb",
+      "subject": "OHOS adaptation: 0058-ohos-shared-wasapi-float32",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "8fb4e82d8892fb7ba99d530f554cd3eede447ccd",
+      "adaptedCommit": "c91846fc897eab310532e6624e4c65193df2daf6",
+      "subject": "OHOS adaptation: 0062-wineohos-shared-audio-format-contract",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "5036fbe96f2de25da214b77a32657be5676bc203",
+      "adaptedCommit": "589dabca642e7daa094136cca5811b218eec70e7",
+      "subject": "OHOS adaptation: 0064-mfplat-opt-in-nonshared-texture-retry",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "9cea9b5a77499825e65f3d43e4e4872a1e26ac4e",
+      "adaptedCommit": "5d21b28f5e1dfc76127775a7a1302a1cdecf547c",
+      "subject": "OHOS adaptation: 0063-ntdll-ohos-thread-exit-signal-stack",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "528b1bf9d27c2387c7901ebf39b1658f587553f9",
+      "adaptedCommit": "04b9e34585124bc9fd3b9d2327c160bf6438687d",
+      "subject": "OHOS adaptation: 0065-wow64-self-context-no-suspend",
+      "status": "reviewed-conflict-resolution",
+      "conflicts": [
+        "dlls/wow64/syscall.c"
+      ],
+      "resolution": "Retain software-backend self-context flush and NtCompareObjects identity for pseudo/duplicated self handles. For other handles adopt upstream direct RtlWow64GetThreadContext; do not restore removed suspension/resume, unchecked errors or deleted locals."
+    },
+    {
+      "originalCommit": "808e9e43f0e4ded0ba13733c8c8d86910518ff66",
+      "adaptedCommit": "2abfd08fd365deac5ddeb2d6fa24cb36fc3ccad8",
+      "subject": "OHOS adaptation: 0060-ntdll-vm-protect-diagnostics",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "1fce8162f1b6c01a6893dd7f14d0123d6fe32fa1",
+      "adaptedCommit": "eaa5be566d7726648bf638a0335dce4040903a2a",
+      "subject": "OHOS adaptation: 0061-iphlpapi-native-network-contract",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "778577c871eea1e12b6b2d6f2f399bd6c2265a2e",
+      "adaptedCommit": "92903aab752714d2784ad28793ed55160fc71de2",
+      "subject": "OHOS adaptation: 0066-winhttp-wininet-bounded-connect",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "46ed94130b63984b7cc27aeb67b69ce094371dc0",
+      "adaptedCommit": "99c05ca5b0ceb5780fc0d07742b3b2efe3f8e2b2",
+      "subject": "OHOS adaptation: 0067-dnsapi-musl-transport-safety",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "841e3f34235d4cb1892b125f050bec580934598d",
+      "adaptedCommit": "f4b28cf9055743cfaeca7eccce4bbbd87eebe815",
+      "subject": "OHOS adaptation: 0066-ohos-native-gstreamer-plugins",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "88e9c537ac984686d96d4ebb45c6ca2e60e69ade",
+      "adaptedCommit": "9956c8fea361e0a19c195791d7850b1a2dc51499",
+      "subject": "OHOS adaptation: 0070-ddraw-clip-surface-bounds",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "0b79929828b72b61d6699806339d0be94a61a252",
+      "adaptedCommit": "1d9695e3d738b4e87711e8e9aecb5a6893d87fdf",
+      "subject": "OHOS adaptation: 0071-ime-key-scancode",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "4031e59013451aee59234371f249bd314514c716",
+      "adaptedCommit": "912cee0d6a5a7dc3a23c90819f0b065e8e6e956d",
+      "subject": "OHOS adaptation: 0072-ohos-x11-nativebuffer-display",
+      "status": "reviewed-conflict-resolution",
+      "conflicts": [
+        "dlls/winex11.drv/x11drv.h"
+      ],
+      "resolution": "Retain upstream X11 state_locks and append the OHOS frame-extents synchronization cache; both fields remain per-window."
+    },
+    {
+      "originalCommit": "64dca278c59c75001e9865aca673dd366b06bf1d",
+      "adaptedCommit": "a6209572a35c38ecdd383ce81cada89906d57256",
+      "subject": "OHOS adaptation: 0073-x11-desktop-role",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "828f62510c4738449620f6ab3fbe0dc16cbf4ff7",
+      "adaptedCommit": "b3af43ea660fba3d21b0a162c3f6de4a41df9844",
+      "subject": "OHOS adaptation: 0074-x11-child-window-identity",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "6140e79be644ed516d9940b0014d509892eb050f",
+      "adaptedCommit": "80386c465b8d4be683ada2d56277cfe91ef50def",
+      "subject": "OHOS adaptation: 0075-x11-thread-cleanup-diagnostics",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "28295efef74758db2321fe7cd1f2158e62fc8c49",
+      "adaptedCommit": "714dc51eaf4679cba1cdd2e6b34bc5b4053ef0e6",
+      "subject": "OHOS adaptation: 0076-x11-egl-default-visual",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "cd34307f2911c45786a1b719ac285aa5bb8c0006",
+      "adaptedCommit": "6377a3b82cfa33105d91c47d29f08d5f602c37b5",
+      "subject": "OHOS adaptation: 0077-x11-ohos-client-decorations",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "50067a497da07f0cf71a44ab8dda938c11610060",
+      "adaptedCommit": "1988f76024f02b1d08a82790c007d603c1e10f71",
+      "subject": "OHOS adaptation: 0078-ohos-single-blit-caption",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "61d0a721666db7ab5faf056540ce8f17293fe85a",
+      "adaptedCommit": "923648ea775989ecd664c965afda475c6bf26420",
+      "subject": "OHOS adaptation: 0079-x11-ohos-text-only-caption-refresh",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "4f46f61052a56deeb09babe225ce4c51d9711ae1",
+      "adaptedCommit": "8c0895a0c031bf5c6a73363943b2e2a9d3af9f08",
+      "subject": "OHOS adaptation: 0080-wineohos-shared-multichannel-downmix",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "86d48e6e26b2897f002f007c843e7993b9d708a5",
+      "adaptedCommit": "d3f2100f5e8d56853f51b2e9616b2c9deb4c7dd5",
+      "subject": "OHOS adaptation: 0081-wineohos-render-event-pacing",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "e2edb34993fdfeac11990db4a62bd2c26c8189e6",
+      "adaptedCommit": "23b675654fba18c855938be700ff79e3b9c13fad",
+      "subject": "OHOS adaptation: production-diagnostics-policy",
+      "status": "three-way-replay"
+    },
+    {
+      "originalCommit": "a02acbd358e3f2d82eb4d6e0375dfbff0e5e0131",
+      "adaptedCommit": "422966fd2f821221b31d706467445bd435b58da6",
+      "subject": "OHOS adaptation: build-generated-and-shared-platform-inputs",
+      "status": "three-way-replay"
+    }
+  ],
+  "pending": null
+}

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "checkedAt": "2026-11-13",
-  "status": "fex-candidate-migrated-built-mini-partial-wine-pending",
+  "status": "fex-wine-candidates-built-mini-partial-intermittent-exit-fault",
   "product": {
     "branch": "feature/fex-proton-upstream-sync",
     "baseBranch": "main",
@@ -258,7 +258,20 @@
         "location": "both source trees",
         "classification": "generated Vulkan thunks; verify regeneration from adapted generator"
       }
-    ]
+    ],
+    "candidate": {
+      "lock": "docs/upstream-sync/wine-candidate.lock.json",
+      "adaptedCommit": "098ece0eedff40bea426d2d57b215bb81411e239",
+      "adaptedTree": "4775755262105ab9381128cadd142ad3c92f1b6b",
+      "patches": 81,
+      "originalAdaptations": 79,
+      "exactHistoryVerified": true,
+      "built": true,
+      "miniValidation": "docs/upstream-sync/validation/wine-mini.json",
+      "deviceAcceptanceComplete": false,
+      "performanceAccepted": false,
+      "productionPromoted": false
+    }
   },
   "proposal": {
     "candidateFex": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",

@@ -1,0 +1,417 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-13",
+  "status": "partial-ui-probes-passed-intermittent-shutdown-fault-open",
+  "productionPromoted": false,
+  "productionPinsChanged": false,
+  "source": {
+    "upstream": {
+      "repository": "ValveSoftware/wine",
+      "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
+      "tree": "8ef394afdf44f3d55c8ed79ecfc26dbf32a454df",
+      "protonCommit": "0764d2920a128cee74555afcab0819919ddf416d"
+    },
+    "adaptedCommit": "098ece0eedff40bea426d2d57b215bb81411e239",
+    "adaptedTree": "4775755262105ab9381128cadd142ad3c92f1b6b",
+    "patches": 81,
+    "originalAdaptations": 79,
+    "exactHistoryReplayed": true
+  },
+  "host": {
+    "boundaryTests": 4,
+    "failures": 0,
+    "vulkanGeneratedOutputsEqual": 8,
+    "wow64VulkanMappingPassed": true,
+    "fullBuildOutputs": 1596,
+    "packagedOutputs": 1659,
+    "changedRuntimeMembers": 1502
+  },
+  "device": {
+    "model": "MLR-AL10",
+    "connection": "USB",
+    "versionName": "2.0.0",
+    "versionCode": 2000000,
+    "debug": false,
+    "distribution": "internaltesting"
+  },
+  "package": {
+    "file": "VintagePomeloPro-2.0.0-wine-098ece0e-mini-internaltesting.hap",
+    "signedBytes": 629394268,
+    "signedSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
+    "profile": "release/internaltesting",
+    "profileAndCertificateMatch": true,
+    "signatureVerified": true,
+    "payloadInventoryMatches": true
+  },
+  "inputs": {
+    "lockSha256": "43adfdd8108186b4e17739953a3c3ab29d3dbfd91d628b2adc447f076cb077ea",
+    "buildReceiptSha256": "760da4ba9e1dda0a39927c80347d41f7cbf53fe9cc1bbdfcd0bb44add1125ced",
+    "buildInputsSha256": "c375a6bbbb88db3653ba989f9684e27f146626b05bded62503069c97665d900e",
+    "packageReceiptSha256": "37880f542769f22ddec55079cb8fb6f74759fbe5d449eecb3f9232ffa9634387"
+  },
+  "probes": {
+    "x64": {
+      "completed": true,
+      "evidenceSha256": "8c561dd814886745334ced2f56d91af89808e5e7d417c134a2cf2673ba5d3319",
+      "files": {
+        "runtime-ec": {
+          "bytes": 4206592,
+          "status": "0",
+          "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+        },
+        "runtime-wow": {
+          "bytes": 3911680,
+          "status": "0",
+          "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+        },
+        "prefix-ec": {
+          "bytes": 4206592,
+          "status": "0",
+          "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+        },
+        "prefix-wow": {
+          "bytes": 3911680,
+          "status": "0",
+          "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+        },
+        "bridge-ec": {
+          "bytes": 17448,
+          "status": "0",
+          "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+        },
+        "bridge-wow": {
+          "bytes": 17448,
+          "status": "0",
+          "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+        },
+        "unix-ntdll": {
+          "bytes": 723920,
+          "status": "0",
+          "sha256": "0cb486f74ca513c7a9d607068f4c0fd38add4777c491c02453cbe45680bb930b"
+        },
+        "unix-win32u": {
+          "bytes": 2252824,
+          "status": "0",
+          "sha256": "c7a184079e82385e704f9099e0e5d6ebacb08388228330acf5f170da2370c454"
+        },
+        "unix-vulkan": {
+          "bytes": 791896,
+          "status": "0",
+          "sha256": "4e6fc7b63d48c7818de84e53de44935ae55295f4a63aea0d131beb3778abeebc"
+        },
+        "unix-server": {
+          "bytes": 907872,
+          "status": "0",
+          "sha256": "3678b0f2e639793c314ca7276b059928c61333ed8054cdc7f305c9f1ca036e88"
+        },
+        "runtime-ntdll": {
+          "bytes": 2228224,
+          "status": "0",
+          "sha256": "1b7c9597e5a6501198af7fa86ae0dc264dc163b28a82bae6009f450f0061ce4a"
+        },
+        "prefix-ntdll": {
+          "bytes": 2228224,
+          "status": "0",
+          "sha256": "1b7c9597e5a6501198af7fa86ae0dc264dc163b28a82bae6009f450f0061ce4a"
+        }
+      },
+      "unixQuery": [
+        "unix-query module=0 present=1 status=0 funcsPresent=1 dispatcherPresent=1",
+        "unix-query module=1 present=0 status=ffffffff funcsPresent=0 dispatcherPresent=1"
+      ]
+    },
+    "x86": {
+      "completed": true,
+      "evidenceSha256": "7b8585891bc092a3c7df6b351c35d12350f7ae89e16c3cb7dc7a28a6fe48f1b4",
+      "files": {
+        "runtime-ec": {
+          "bytes": 4206592,
+          "status": "0",
+          "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+        },
+        "runtime-wow": {
+          "bytes": 3911680,
+          "status": "0",
+          "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+        },
+        "prefix-ec": {
+          "bytes": 4206592,
+          "status": "0",
+          "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+        },
+        "prefix-wow": {
+          "bytes": 3911680,
+          "status": "0",
+          "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+        },
+        "bridge-ec": {
+          "bytes": 17448,
+          "status": "0",
+          "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+        },
+        "bridge-wow": {
+          "bytes": 17448,
+          "status": "0",
+          "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+        },
+        "unix-ntdll": {
+          "bytes": 723920,
+          "status": "0",
+          "sha256": "0cb486f74ca513c7a9d607068f4c0fd38add4777c491c02453cbe45680bb930b"
+        },
+        "unix-win32u": {
+          "bytes": 2252824,
+          "status": "0",
+          "sha256": "c7a184079e82385e704f9099e0e5d6ebacb08388228330acf5f170da2370c454"
+        },
+        "unix-vulkan": {
+          "bytes": 791896,
+          "status": "0",
+          "sha256": "4e6fc7b63d48c7818de84e53de44935ae55295f4a63aea0d131beb3778abeebc"
+        },
+        "unix-server": {
+          "bytes": 907872,
+          "status": "0",
+          "sha256": "3678b0f2e639793c314ca7276b059928c61333ed8054cdc7f305c9f1ca036e88"
+        },
+        "runtime-ntdll": {
+          "bytes": 897024,
+          "status": "0",
+          "sha256": "90dddcf8b4f04a83a4c8ee56c3c9b96b6b2d62afeb8d014258258744cb92430c"
+        },
+        "prefix-ntdll": {
+          "bytes": 897024,
+          "status": "0",
+          "sha256": "90dddcf8b4f04a83a4c8ee56c3c9b96b6b2d62afeb8d014258258744cb92430c"
+        }
+      },
+      "unixQuery": []
+    }
+  },
+  "steam": {
+    "startTime": 1794558964.3129942,
+    "scenario": "normal HmosDeck Steam button; no games",
+    "package": "wine-098ece0e",
+    "stage": "launch-requested",
+    "libraryObservedAt": 1794559104.4945152,
+    "startupUpperBoundSeconds": 140.18,
+    "loginPreserved": true,
+    "selectionCaptureSeconds": 4.02,
+    "relaunchRequestedAt": 1794559275.4578304,
+    "relaunchShellObservedAt": 1794559407.6011388,
+    "relaunchShellUpperBoundSeconds": 132.14,
+    "relaunchStoreError": -118,
+    "libraryTabCaptureSeconds": 4.22,
+    "steamAndCefAbsent": true,
+    "sharedWineServicesRetained": true,
+    "relaunchLibraryRecovered": true,
+    "cleanExitAccepted": false,
+    "shutdownAnomaly": "One unhandled execute access at 0x53704740 (thread 0x0658) followed by winedbg.exe. CEF suspected from debugger parent, no exception stack. Not reproduced in two old-Wine and two candidate repeat cycles; root cause unresolved.",
+    "shutdownRequested": true
+  },
+  "performance": {
+    "clockTickHz": 100,
+    "percentBasis": "100 percent = one CPU core",
+    "scenes": {
+      "wine-relaunch": {
+        "evidenceSha256": "94658d6212722aad337988f1cb1d4a1c22bf0ba9d319c1a1c7aa7fb1c14b399a",
+        "samples": [
+          {
+            "seconds": 6.109500000005937,
+            "cef": [
+              {
+                "name": "CrBrowserMain",
+                "cpuPercent": 45.34,
+                "rssMiB": 1232.07
+              }
+            ]
+          },
+          {
+            "seconds": 6.101500000004307,
+            "cef": [
+              {
+                "name": "CrBrowserMain",
+                "cpuPercent": 46.05,
+                "rssMiB": 1231.26
+              }
+            ]
+          },
+          {
+            "seconds": 6.101499999997031,
+            "cef": [
+              {
+                "name": "CrBrowserMain",
+                "cpuPercent": 46.71,
+                "rssMiB": 1225.33
+              }
+            ]
+          }
+        ]
+      },
+      "wine-library": {
+        "evidenceSha256": "334a84a76e436efaf84b48a7aacb9dc261d1935f45927c1fdbc0234b70e7443f",
+        "samples": [
+          {
+            "seconds": 6.13300000000163,
+            "cef": [
+              {
+                "name": "CrBrowserMain",
+                "cpuPercent": 10.11,
+                "rssMiB": 1438.04
+              }
+            ]
+          },
+          {
+            "seconds": 6.132499999999709,
+            "cef": [
+              {
+                "name": "CrBrowserMain",
+                "cpuPercent": 7.01,
+                "rssMiB": 1437.75
+              }
+            ]
+          },
+          {
+            "seconds": 6.140499999994063,
+            "cef": [
+              {
+                "name": "CrBrowserMain",
+                "cpuPercent": 12.38,
+                "rssMiB": 1440.29
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "controlledAB": false,
+    "performanceAccepted": false
+  },
+  "limitations": [
+    "No games, streaming or saves were opened",
+    "No complete media, graphics, membership or long-duration acceptance",
+    "Store -118 and relaunch delay remain unresolved; previously observed with the FEX-only candidate",
+    "Historical log/missing self-maps are not current mapping proof",
+    "Intermittent shutdown fault remains open after baseline/repeat controls; no exception context acquired"
+  ],
+  "shutdownComparison": {
+    "scenario": "Normal HmosDeck Steam launch; Resident Evil 2 selected only; steam.exe -shutdown; no games/streaming",
+    "controlledPerformanceAB": false,
+    "baseline": {
+      "package": "VintagePomeloPro-2.0.0-fex-c3b2b230-mini-internaltesting.hap",
+      "signedSha256": "f4cfe6a7e975bf87748c9f77274160de153ec7a00793a316a6862d234197e6fa",
+      "componentIdentitySha256": "eb50066e8feff1a0ade6584938ba23067ceb9e37502be2f5b6e5a03d9a29e7c7",
+      "wineUnixNtdllSha256": "ee4eea533bb167cf62bc0ed71e169b796224b0ddbe5c34578be52c89a68765e3",
+      "cycles": [
+        {
+          "observedAt": "2026-11-13T08:59:23.385140+00:00",
+          "steamAndCefAbsent": true,
+          "debuggerAbsent": true,
+          "sharedWineServicesRetained": true,
+          "snapshotSha256": "8e359cc783d8ac15d5c7e0d189ad52490999d931f9881d34a95a783c0abdcd30",
+          "stderrTailSha256": "f2ea603c2fd1fe8dd4ea745c19d100d8e231b1bf313d65d0bb7c652e9360f52b",
+          "stderrTailBytes": 262144
+        },
+        {
+          "observedAt": "2026-11-13T09:02:27.826391+00:00",
+          "steamAndCefAbsent": true,
+          "debuggerAbsent": true,
+          "sharedWineServicesRetained": true,
+          "snapshotSha256": "c2be055f87c8e4d4444f4de7a9a0c335d2db19c74e72f130697d33b761a216b4",
+          "stderrTailSha256": "1f21e9e3d8cf8159264a1153e6eaeda235c253fb3ef1706bbc0c3a6317bfa0dc",
+          "stderrTailBytes": 262144
+        }
+      ],
+      "scope": "Same shutdown fault was not seen; unrelated startup reporter faults were not accepted or resolved"
+    },
+    "candidateRepeats": {
+      "package": "VintagePomeloPro-2.0.0-wine-098ece0e-mini-internaltesting.hap",
+      "cycles": [
+        {
+          "observedAt": "2026-11-13T09:09:34.620914+00:00",
+          "steamAndCefAbsent": true,
+          "debuggerAbsent": true,
+          "sharedWineServicesRetained": true,
+          "snapshotSha256": "b3e526577a8aae6cd78b4a64a6cdb07f02393dc52500cb70c8487c861161db2c",
+          "stderrTailSha256": "faa3a247d362a6434d8148b5764109ceb58e55e7d8b7fc201f88d5cd8e4e7ddb",
+          "stderrTailBytes": 262144
+        },
+        {
+          "observedAt": "2026-11-13T09:12:54.548248+00:00",
+          "steamAndCefAbsent": true,
+          "debuggerAbsent": true,
+          "sharedWineServicesRetained": true,
+          "snapshotSha256": "3ad07ece8fdc72ad204e706a656d0baecb71c7b7406f8933c949d34629454268",
+          "stderrTailSha256": "4f61149b58dc2df23a2f475b4894d60e274319d50df084b0ba48c1ba01213e22",
+          "stderrTailBytes": 262144
+        }
+      ],
+      "diagnosticAttach": {
+        "cycle": 1,
+        "result": "ERROR_ACCESS_DENIED",
+        "win32Error": 5,
+        "evidenceSha256": "3665aa83616ad552d872bca3f6679bcd252af53dc84f65ea8a29497563051057",
+        "state": "No debug event/exception context acquired; shutdown used existing helper"
+      },
+      "cycle2Uninstrumented": true
+    },
+    "conclusion": "Intermittent fault remains open; limited controls do not establish a Wine regression or prove a fix",
+    "cleanExitAccepted": false
+  },
+  "finalComponentProbe": {
+    "source": "host_tests/probes/fex_component_probe.c",
+    "sourceSha256": "315067babea330d27204acd50a2d9be3e0500db52bcf65c330b81b92d3876ed5",
+    "defines": [
+      "WINE_COMPONENT_PROBE",
+      "WINE_EXIT_PROBE"
+    ],
+    "architectures": {
+      "x64": {
+        "completed": true,
+        "evidenceSha256": "50517691a83037e6740216513bdce7519c84f0ce98dba6ba98bb744e9c2a971f",
+        "files": {
+          "runtime-ec": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32",
+          "runtime-wow": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2",
+          "prefix-ec": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32",
+          "prefix-wow": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2",
+          "bridge-ec": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4",
+          "bridge-wow": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4",
+          "unix-ntdll": "0cb486f74ca513c7a9d607068f4c0fd38add4777c491c02453cbe45680bb930b",
+          "unix-win32u": "c7a184079e82385e704f9099e0e5d6ebacb08388228330acf5f170da2370c454",
+          "unix-vulkan": "4e6fc7b63d48c7818de84e53de44935ae55295f4a63aea0d131beb3778abeebc",
+          "unix-server": "3678b0f2e639793c314ca7276b059928c61333ed8054cdc7f305c9f1ca036e88",
+          "runtime-ntdll": "1b7c9597e5a6501198af7fa86ae0dc264dc163b28a82bae6009f450f0061ce4a",
+          "prefix-ntdll": "1b7c9597e5a6501198af7fa86ae0dc264dc163b28a82bae6009f450f0061ce4a"
+        },
+        "steamCefAndDebuggerAbsent": true
+      },
+      "x86": {
+        "completed": true,
+        "evidenceSha256": "773c08e57a5ed61b45248c793f17be5166146cfdaec013ae612b9cce1cdac41d",
+        "files": {
+          "runtime-ec": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32",
+          "runtime-wow": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2",
+          "prefix-ec": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32",
+          "prefix-wow": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2",
+          "bridge-ec": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4",
+          "bridge-wow": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4",
+          "unix-ntdll": "0cb486f74ca513c7a9d607068f4c0fd38add4777c491c02453cbe45680bb930b",
+          "unix-win32u": "c7a184079e82385e704f9099e0e5d6ebacb08388228330acf5f170da2370c454",
+          "unix-vulkan": "4e6fc7b63d48c7818de84e53de44935ae55295f4a63aea0d131beb3778abeebc",
+          "unix-server": "3678b0f2e639793c314ca7276b059928c61333ed8054cdc7f305c9f1ca036e88",
+          "runtime-ntdll": "90dddcf8b4f04a83a4c8ee56c3c9b96b6b2d62afeb8d014258258744cb92430c",
+          "prefix-ntdll": "90dddcf8b4f04a83a4c8ee56c3c9b96b6b2d62afeb8d014258258744cb92430c"
+        },
+        "steamCefAndDebuggerAbsent": true
+      }
+    }
+  },
+  "finalDeviceState": {
+    "installedPackage": "VintagePomeloPro-2.0.0-wine-098ece0e-mini-internaltesting.hap",
+    "signedSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
+    "componentIdentityRechecked": true,
+    "steamStopped": true,
+    "foreground": "HmosDeck",
+    "dataPreserved": true
+  }
+}

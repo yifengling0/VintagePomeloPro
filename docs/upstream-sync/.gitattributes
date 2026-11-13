@@ -1,5 +1,10 @@
 # Immutable source objects and signed-input records are byte-exact.
 fex-upstream.commit -text -whitespace
+wine-upstream.commit -text -whitespace
+wine-candidate.lock.json -text
+wine-adapted-history.json -text
+wine-base-output-inventory.json -text
+validation/wine-*.json -text whitespace=cr-at-eol
 fex-candidate.lock.json -text whitespace=cr-at-eol
 validation/fex-mini-input.lock.json -text
 validation/fex-mini-build.json -text
