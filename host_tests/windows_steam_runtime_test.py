@@ -36,12 +36,12 @@ class RuntimeIdentityTests(unittest.TestCase):
     def test_hap_must_ship_exact_resources(self):
         with tempfile.TemporaryDirectory() as tmp:
             hap = Path(tmp) / 'candidate.hap'
-            for stale in (False, True):
+            for stale in (None, 'vpsteamtrust32.dll', 'library-network.js'):
                 with zipfile.ZipFile(hap, 'w') as archive:
-                    for name in ('manifest.json', 'vpsteamtrust32.dll'):
+                    for name in runtime.RESOURCES:
                         data = (ROOT / runtime.ASSET / name).read_bytes()
                         archive.writestr('resources/rawfile/windows-steam/' + name,
-                                         b'stale' if stale and name.endswith('.dll') else data)
+                                         b'stale' if stale == name else data)
                 if stale:
                     with self.assertRaisesRegex(ValueError, 'stale Windows Steam resource'):
                         runtime.verify(hap=hap)

@@ -14,6 +14,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 ASSET = 'entry/src/main/resources/rawfile/windows-steam'
 SOURCE = 'scripts/steam_legacy_zstd/vpsteam_runtime32.c'
+RESOURCES = ('manifest.json', 'vpsteamtrust32.dll', 'library-network.json', 'library-network.js')
 
 
 def digest(data):
@@ -33,9 +34,12 @@ def verify(root=ROOT, hap=None):
         raise ValueError('Windows Steam helper must be i386 PE')
     if struct.unpack_from('<I', data, pe+8)[0] != 0:
         raise ValueError('Windows Steam helper timestamp must be deterministic')
+    policy = json.loads((directory / 'library-network.json').read_text())
+    if digest((directory / 'library-network.js').read_bytes()) != policy['scriptSha256']:
+        raise ValueError('Windows Steam library policy identity mismatch')
     if hap:
         with zipfile.ZipFile(hap) as archive:
-            for name in ('manifest.json', 'vpsteamtrust32.dll'):
+            for name in RESOURCES:
                 if archive.read('resources/rawfile/windows-steam/' + name) != (directory / name).read_bytes():
                     raise ValueError('HAP has a stale Windows Steam resource: ' + name)
     return manifest

@@ -13,6 +13,7 @@ import { SteamMatch } from './SteamMatch';
 import { SteamImportFiles, SteamImportJournal, commitSteamImport, recoverSteamImport } from './SteamImportTransaction';
 import { ConfigurationFiles } from '../service/ConfigurationFiles';
 import { SteamRuntimeIdentity, SteamRuntimeFiles, upgradeSteamRuntime } from './SteamRuntimeUpgrade';
+import { SteamLibraryNetworkIdentity, SteamLibraryNetworkFiles, prepareSteamLibraryNetwork } from './SteamLibraryNetwork';
 
 export interface SteamImportProgress { busy: boolean; message: string; percent: number; }
 export type SteamImportListener = (progress: SteamImportProgress) => void;
@@ -132,9 +133,28 @@ export class SteamLocalService {
 
   async prepareRuntimeHelper(): Promise<void> {
     if (this.preparingRuntime) return this.preparingRuntime;
-    const pending = this.upgradeRuntimeHelper();
+    const pending = this.prepareClientFiles();
     this.preparingRuntime = pending;
     try { await pending; } finally { this.preparingRuntime = null; }
+  }
+  private async prepareClientFiles(): Promise<void> {
+    await this.upgradeRuntimeHelper();
+    const context = this.context;
+    if (!context || !this.isInstalled()) return;
+    try {
+      const raw = await context.resourceManager.getRawFileContent('windows-steam/library-network.json');
+      const identity = JSON.parse(ConfigurationFiles.text(raw)) as SteamLibraryNetworkIdentity;
+      const file = this.getClientDirectory() + '/steamui/index.html';
+      const adapter: SteamLibraryNetworkFiles = {
+        stopped: (): boolean => !this.importing && !this.hasRunningProcesses() && !this.hasForeignClient(),
+        read: async (): Promise<string> => ConfigurationFiles.text(ConfigurationFiles.read(file, 65536)),
+        resource: async (): Promise<string> => ConfigurationFiles.text(
+          await context.resourceManager.getRawFileContent('windows-steam/library-network.js')),
+        hash: async (text: string): Promise<string> => ConfigurationFiles.hash(ConfigurationFiles.bytes(text)),
+        replace: async (text: string): Promise<void> => { ConfigurationFiles.json(file, text); }
+      };
+      await prepareSteamLibraryNetwork(identity, adapter);
+    } catch (_) { /* Missing/updated bootstrap keeps the client's own network policy. */ }
   }
   private async upgradeRuntimeHelper(): Promise<void> {
     const context = this.context;
