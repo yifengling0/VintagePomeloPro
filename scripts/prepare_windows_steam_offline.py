@@ -147,7 +147,7 @@ def write_report(output, result):
         'Windows Steam 离线导入\n\nSteam 组件管理 → 导入 Windows Steam ZIP，选择：\n' +
         result['packages'][0]['fileName'] + '\n\n无需解压。包不含账号、游戏、缓存和存档。\n'
         '应用在启动前更新配套辅助模块。首次登录和下载游戏仍需联网。\n'
-        'VPP 2.0.0 使用 OHOS Wine / FEX；本发布不提供 Linux Steam / GNU Proton 包。\n', encoding='utf-8')
+        'VPP 使用 OHOS Wine / FEX；本发布不提供 Linux Steam / GNU Proton 包。\n', encoding='utf-8')
 
 
 def main():

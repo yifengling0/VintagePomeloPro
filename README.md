@@ -1,6 +1,6 @@
 # VintagePomeloPro — Windows games on HarmonyOS
 
-2.0.0 主线在 HarmonyOS (OpenHarmony) ARM64 设备上使用原生 ARM64 OHOS Wine、FEX 和 HmosDeck，运行 Windows Steam 与 Windows x86/x86_64 程序。
+当前开发版本为 2.0.1，在 HarmonyOS (OpenHarmony) ARM64 设备上使用原生 ARM64 OHOS Wine、FEX 和 HmosDeck，运行 Windows Steam 与 Windows x86/x86_64 程序。
 FEX 为默认转译器，Box64 保留为 WOW64 兼容选项。Linux Steam、GNU Proton 运行载荷和相关产品界面已退出本产品路线。
 
 GitHub 默认分支为 `main`。2.0.0 冻结标签为 `rc-2.0.0`；后续完整上游同步在 `feature/fex-proton-upstream-sync` 推进，
