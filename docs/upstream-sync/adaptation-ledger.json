@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "releaseBaseline": "c5fc06edf915f01ff12b102f0bf0087d488c8c4f",
-  "state": "inventory; per-item migration dispositions pending",
+  "state": "current Wine baseline reconstructed and verified; candidate migration dispositions pending",
   "orderedProductionOverlays": {
     "fex": [
       {
@@ -918,8 +918,9 @@
     },
     {
       "path": "dlls/winevulkan/vulkan_thunks.c",
-      "disposition": "verify-adapted-generator-reproduction",
-      "scope": "generated output; do not silently drop"
+      "disposition": "adapted-generator-reproduction-verified",
+      "scope": "generated output; do not silently drop",
+      "evidence": "docs/upstream-sync/wine-baseline-reconstruction.json#vulkanGeneration"
     }
   ],
   "rules": [
@@ -927,5 +928,14 @@
     "text reverse-match is not proof of upstream semantic equivalence",
     "first rebuild current effective Wine from true Valve parent and compare before upgrading",
     "keep optional diagnostics and experiments separate from enabled production behavior"
-  ]
+  ],
+  "wineBaselineReconstruction": {
+    "report": "docs/upstream-sync/wine-baseline-reconstruction.json",
+    "maintenanceCommit": "a02acbd358e3f2d82eb4d6e0375dfbff0e5e0131",
+    "effectiveTree": "19a4f09e7eee85b4ab2c144270250ea6bd346603",
+    "effectiveFiles": 11227,
+    "forkAndEffectiveTreesEqual": true,
+    "actualValveParentVerified": true,
+    "vulkanGenerationEqual": true
+  }
 }

@@ -2,7 +2,8 @@
 
 核验日期：2026-11-13。产品基线已汇合到 `main@c5fc06ed`，对应不可移动标签 `rc-2.0.0`。
 后续工作分支为 `feature/fex-proton-upstream-sync`；发布 CI 使用冻结标签，升级评估在本分支独立推进。
-本分支已登记生产补丁、核对完整 Wine fork 差异并评估 FEX 文本重放；尚未更换生产 pin、构建升级候选或安装设备。
+本分支已登记生产补丁、完成当前有效 Wine 在真实 Valve 父系上的等价重建，并默认随包提供 x86/x64 Gecko。
+尚未更换 FEX/Wine 生产 pin、构建升级候选或安装设备；Gecko 已完成本地 HAP 成品校验。
 产品路线继续为 Windows Steam、OHOS Wine、HmosDeck，默认 FEX，Box64 保留为兼容选项。
 
 ## 上游基线
@@ -39,7 +40,7 @@
 - 两棵 Wine 源码仍有登记补丁路径以外的差异：
   - 开发树独有的 kernelbase/registry.c 是旧 Linux Steam 桥接；有效构建已无此变更。保留原始差异记录，
     迁移时沿用 2.0.0 的移除决策，避免重新带入产品。
-  - 两边的 winevulkan/vulkan_thunks.c 属生成输出；须核对其与已适配生成器的重生成一致性，不能简单删除。
+  - 两边的 winevulkan/vulkan_thunks.c 属生成输出；当前已用适配生成器重生成，8 项 Vulkan 输出均逐字节一致。
 - 已保存两棵源码的二进制 Git 差异、未跟踪源文件及 SHA-256，按内容去重；辅助 .orig/.rej 只登记并保留原文件。
   全部保全内容约 0.8 MiB，不复制完整源码或运行时。
 - 固定清单：`workspace_temp/v2-development/upstream-transition/local-adaptation-inventory.json`。
@@ -57,6 +58,10 @@
   上游替代须给出提交及回归证据；冲突或不明来源项阻止交付。
 - 新版本维护以整套上游版本合入为主；定向回移仅保留为紧急修复。
   不再制造无法追溯上游父系的整树替换提交。
+
+当前进度：已重建 `ohos/current-baseline@a02acbd358e3`，79 个主题/补丁提交具有真实 Valve 父系；
+209 项 fork 差异、78 项登记补丁及 11,227 个有效文件的完整 tree 均已核验。
+详见 [等价重建](wine-baseline-reconstruction.zh-CN.md) 及对应 JSON。下一阶段开始 FEX 候选迁移。
 
 ### 2. FEX 完整升级
 
@@ -98,7 +103,9 @@
 
 ## 本次交付边界
 
-本分支完成初步迁移评估，**没有完成上游升级，也没有新的性能实测结论**。
+本分支完成初步迁移评估及当前 Wine 适配层的等价重建。Gecko 双架构默认打包已完成，
+本地未签名 HAP 的运行时、Steam、产品边界及源码来源检查通过。
+**没有完成上游升级，也没有新的性能或真机实测结论**。
 详细结果见 [首轮评估](initial-assessment.zh-CN.md)、[逐文件证据](initial-assessment.json) 和
 [适配台账](adaptation-ledger.json)。`rc-2.0.0` 仅发布冻结的现有运行时，升级候选不混入该版本。
 发布构建结果另由 GitHub Actions 和 Release 的来源记录确认，不能将本评估视为发布通过证据。
