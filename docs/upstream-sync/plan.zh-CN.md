@@ -3,7 +3,8 @@
 核验日期：2026-11-13。产品基线已汇合到 `main@c5fc06ed`，对应不可移动标签 `rc-2.0.0`。
 后续工作分支为 `feature/fex-proton-upstream-sync`；发布 CI 使用冻结标签，升级评估在本分支独立推进。
 本分支已登记生产补丁、完成当前有效 Wine 在真实 Valve 父系上的等价重建，并默认随包提供 x86/x64 Gecko。
-尚未更换 FEX/Wine 生产 pin、构建升级候选或安装设备；Gecko 已完成本地 HAP 成品校验。
+FEX 完整候选已迁移、成组构建并在 Mini 完成局部界面和双架构探针验证；生产 pin 保持不变。
+Steam 详情和重启延迟仍未验收。Gecko 双架构已包含在本次候选底包。
 产品路线继续为 Windows Steam、OHOS Wine、HmosDeck，默认 FEX，Box64 保留为兼容选项。
 
 ## 上游基线
@@ -61,7 +62,7 @@
 
 当前进度：已重建 `ohos/current-baseline@a02acbd358e3`，79 个主题/补丁提交具有真实 Valve 父系；
 209 项 fork 差异、78 项登记补丁及 11,227 个有效文件的完整 tree 均已核验。
-详见 [等价重建](wine-baseline-reconstruction.zh-CN.md) 及对应 JSON。下一阶段开始 FEX 候选迁移。
+详见 [等价重建](wine-baseline-reconstruction.zh-CN.md) 及对应 JSON。FEX 候选进度见 [FEX 迁移与 Mini 记录](fex-migration.zh-CN.md)。
 
 ### 2. FEX 完整升级
 
@@ -103,9 +104,10 @@
 
 ## 本次交付边界
 
-本分支完成初步迁移评估及当前 Wine 适配层的等价重建。Gecko 双架构默认打包已完成，
-本地未签名 HAP 的运行时、Steam、产品边界及源码来源检查通过。
-**没有完成上游升级，也没有新的性能或真机实测结论**。
+本分支已完成当前 Wine 的等价重建，以及 FEX 完整上游候选的 21 项适配、成组构建、31 项主机定向回归。
+Mini 已验证候选安装、登录保留、Steam 游戏库、退出/重启和 x86/x64 探针；四个 FEX DLL/桥接文件哈希一致。
+Steam 页面响应仍有延迟，一次重启出现商店 -118；性能未达标且尚未归因，游戏未测试。
+**生产 FEX/Wine 尚未提升，Proton Wine 完整升级与最终验收仍待完成**。
 详细结果见 [首轮评估](initial-assessment.zh-CN.md)、[逐文件证据](initial-assessment.json) 和
 [适配台账](adaptation-ledger.json)。`rc-2.0.0` 仅发布冻结的现有运行时，升级候选不混入该版本。
 发布构建结果另由 GitHub Actions 和 Release 的来源记录确认，不能将本评估视为发布通过证据。

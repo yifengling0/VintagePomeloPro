@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-13",
+  "status": "partial-ui-component-validation-not-promoted",
+  "device": {
+    "model": "MLR-AL10",
+    "connection": "USB",
+    "product": "MatePad Mini",
+    "versionName": "2.0.0",
+    "versionCode": 2000000,
+    "debug": false,
+    "distribution": "internaltesting"
+  },
+  "source": {
+    "baseCommit": "519bd0035f8ca519db4acc09a6729ee48fcf8f8d",
+    "fexUpstreamCommit": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
+    "fexAdaptedCommit": "c3b2b2306347e16da04e512a52432cb9c921d221",
+    "fexAdaptedTree": "fe8e476f8828d261dfa7f4f338a85144177b8058",
+    "productionPinsChanged": false
+  },
+  "package": {
+    "file": "VintagePomeloPro-2.0.0-fex-c3b2b230-mini-internaltesting.hap",
+    "bytes": 595557556,
+    "sha256": "f4cfe6a7e975bf87748c9f77274160de153ec7a00793a316a6862d234197e6fa",
+    "signatureVerified": true,
+    "payloadInventoryMatches": true,
+    "deviceInstalled": true,
+    "inputLock": "docs/upstream-sync/validation/fex-mini-input.lock.json",
+    "inputLockSha256": "ce29ad31e899d03dfd504bc19ef1f2a9baddbf1537ae0a331983da13381d0877",
+    "inputBuildReceipt": "docs/upstream-sync/validation/fex-mini-build.json",
+    "inputBuildReceiptSha256": "7c06d42e0d5a3d5998501a8ef2f15df897b5a97717cf3ad1a0699e9d866c4a8f"
+  },
+  "sourceReverification": {
+    "lockSha256": "ecd1abd5f147096ca103bdcc21298ce37db9ef9832cb17a8fa04155d0d886d62",
+    "buildReceipt": "docs/upstream-sync/validation/fex-reverified-build.json",
+    "buildReceiptSha256": "f7148d210edd57abc507082008d18a29b4f640efe9ffa26d51c1012363827f71",
+    "originalIssue": "Git trees endpoint may echo commit query ID; dependency root trees subsequently reconstructed from every leaf and matched against commit API",
+    "sameUpstreamAndAdaptedTrees": true,
+    "allModuleBytesUnchanged": true
+  },
+  "hostRegression": {
+    "candidateTests": 8,
+    "vmContractCases": 23,
+    "failures": 0,
+    "syntheticReturns": 200000,
+    "scope": "host function/VM contracts; not ARM JIT or game acceptance"
+  },
+  "probe": {
+    "source": "host_tests/probes/fex_component_probe.c",
+    "sourceSha256": "1ba43ee8aef68957ca8373d6c532795aee814c2c49a1b37085756efa6b55c0fb",
+    "results": {
+      "x64": {
+        "evidenceSha256": "5fe1a841f1784ab75d441ae2af9407527d85d1d417e5eeee6bc88c92fa5c2c88",
+        "completed": true,
+        "files": {
+          "runtime-ec": {
+            "bytes": 4206592,
+            "status": "0",
+            "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+          },
+          "runtime-wow": {
+            "bytes": 3911680,
+            "status": "0",
+            "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+          },
+          "prefix-ec": {
+            "bytes": 4206592,
+            "status": "0",
+            "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+          },
+          "prefix-wow": {
+            "bytes": 3911680,
+            "status": "0",
+            "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+          },
+          "bridge-ec": {
+            "bytes": 17448,
+            "status": "0",
+            "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+          },
+          "bridge-wow": {
+            "bytes": 17448,
+            "status": "0",
+            "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+          }
+        },
+        "unixQuery": [
+          "unix-query module=0 present=1 status=0 funcsPresent=1 dispatcherPresent=1",
+          "unix-query module=1 present=0 status=ffffffff funcsPresent=0 dispatcherPresent=1"
+        ],
+        "runtimeLoaderTrace": true
+      },
+      "x86": {
+        "evidenceSha256": "a7882c4143825c4e7b1605d42c64ef58fd3cf88ae4015a6ccebf7e42f43d69b6",
+        "completed": true,
+        "files": {
+          "runtime-ec": {
+            "bytes": 4206592,
+            "status": "0",
+            "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+          },
+          "runtime-wow": {
+            "bytes": 3911680,
+            "status": "0",
+            "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+          },
+          "prefix-ec": {
+            "bytes": 4206592,
+            "status": "0",
+            "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32"
+          },
+          "prefix-wow": {
+            "bytes": 3911680,
+            "status": "0",
+            "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2"
+          },
+          "bridge-ec": {
+            "bytes": 17448,
+            "status": "0",
+            "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+          },
+          "bridge-wow": {
+            "bytes": 17448,
+            "status": "0",
+            "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+          }
+        },
+        "unixQuery": [],
+        "runtimeLoaderTrace": true
+      }
+    },
+    "limitation": "self-maps was empty; historical loader traces are supplementary. x64 missing WOW64 module is expected; x86 executed independently."
+  },
+  "steam": {
+    "loginPreserved": true,
+    "libraryOpened": true,
+    "selection": "Resident Evil 2; selected only, never launched or streamed",
+    "firstSelection": "selection and action buttons visible in about 3 seconds; artwork/activity still incomplete at 6 seconds",
+    "lifecycle": [
+      "normal exit observed steam.exe and CEF disappear",
+      "reopen reached library; subsequent reopen had extended blue Wine desktop and store error -118; library tab remained usable",
+      "final diagnostic steam.exe -shutdown completed; ps showed no Steam or CEF process; shared Wine desktop retained"
+    ],
+    "performancePassed": false,
+    "causalAttribution": "unresolved; no same-base controlled A/B",
+    "cpu": {
+      "stage": "relaunch/loading; not idle",
+      "percentBasis": "100 percent = one core",
+      "rssLimitation": "shared RSS must not be summed as physical memory",
+      "samples": [
+        {
+          "seconds": 6.093,
+          "cefCpuPercent": 197.92,
+          "cefRssMiB": 1126.44
+        },
+        {
+          "seconds": 6.094,
+          "cefCpuPercent": 145.24,
+          "cefRssMiB": 1255.59
+        },
+        {
+          "seconds": 6.094,
+          "cefCpuPercent": 101.41,
+          "cefRssMiB": 1249.73
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Games and streaming intentionally not tested because another device may be using the same Steam account",
+    "No complete graphics, media, input or membership regression in this component-test pass",
+    "No claim of Steam responsiveness improvement; UI and network delays remain open",
+    "Production component pin and historical release tags unchanged"
+  ],
+  "next": [
+    "same-base FEX A/B for restart latency and UI response",
+    "full Proton Experimental Wine adaptation migration",
+    "game regression after user permits game launches"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "lockSha256": "ecd1abd5f147096ca103bdcc21298ce37db9ef9832cb17a8fa04155d0d886d62",
+  "upstreamCommit": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
+  "adaptedTree": "fe8e476f8828d261dfa7f4f338a85144177b8058",
+  "adaptedCommit": "c3b2b2306347e16da04e512a52432cb9c921d221",
+  "modules": {
+    "libarm64ecfex.dll": {
+      "sha256": "d953a8318fd749960c18184f7bde5de500847e4afe438ea2510604f2260fce32",
+      "bytes": 4206592,
+      "architecture": "arm64ec",
+      "buildSha256": "71d6fd87e23a07c898628348e521a1eca195c6ef1bec6aefe19f52730a3e2e73"
+    },
+    "libwow64fex.dll": {
+      "sha256": "b42a79acdbeaaafb22bf1a439390d0b94a1a1b3f8f83aded25860521dc47aee2",
+      "bytes": 3911680,
+      "architecture": "arm64",
+      "buildSha256": "ad630055cb184266f6144036486f267e8e57725375d781308192df1cee0e1936"
+    },
+    "libarm64ecfex.so": {
+      "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4",
+      "bytes": 17448,
+      "architecture": "aarch64-ohos",
+      "aliases": [
+        "libwow64fex.so"
+      ]
+    }
+  },
+  "source": "/home/liufeng/src/vpp-account-cloud/workspace_temp/v2-development/upstream-transition/fex-candidate",
+  "seconds": 2.09,
+  "deviceValidated": false,
+  "productionPinChanged": false
+}

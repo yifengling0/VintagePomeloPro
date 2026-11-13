@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "checkedAt": "2026-11-13",
-  "status": "initial-assessment-complete-not-migrated",
+  "status": "fex-candidate-migrated-built-mini-partial-wine-pending",
   "product": {
     "branch": "feature/fex-proton-upstream-sync",
     "baseBranch": "main",
@@ -32,7 +32,18 @@
       "86ff33bbe299cd8959a6610198c169b67ec419db"
     ],
     "productionOverlayCount": 20,
-    "productionReplayMatchesEffectiveSource": true
+    "productionReplayMatchesEffectiveSource": true,
+    "candidate": {
+      "lock": "docs/upstream-sync/fex-candidate.lock.json",
+      "adaptedCommit": "c3b2b2306347e16da04e512a52432cb9c921d221",
+      "adaptedTree": "fe8e476f8828d261dfa7f4f338a85144177b8058",
+      "patches": 21,
+      "actualDependenciesVerified": 13,
+      "built": true,
+      "miniValidation": "docs/upstream-sync/validation/fex-mini.json",
+      "performanceAccepted": false,
+      "productionPromoted": false
+    }
   },
   "proton": {
     "currentWineFork": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
@@ -253,8 +264,8 @@
     "candidateFex": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
     "candidateProton": "0764d2920a128cee74555afcab0819919ddf416d",
     "policy": "full fixed upstream snapshots with separately ordered OHOS adaptations; stage FEX and Wine changes separately; release qualification required",
-    "migrationNotStarted": true,
-    "buildOrDeviceVerification": false
+    "migrationNotStarted": false,
+    "buildOrDeviceVerification": true
   },
   "assessment": {
     "report": "docs/upstream-sync/initial-assessment.json",
@@ -265,7 +276,8 @@
     "fexReverseTextMatches": 2,
     "fexReviewOrRewrite": 14,
     "productionPinsChanged": false,
-    "candidateBuilt": false,
-    "deviceTested": false
+    "candidateBuilt": true,
+    "deviceTested": true,
+    "deviceAcceptanceComplete": false
   }
 }
